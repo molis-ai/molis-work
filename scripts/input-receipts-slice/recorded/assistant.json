@@ -1,0 +1,3725 @@
+{
+ "source": {
+  "prologue": "37427d0997151322e05e260cdceb9a77b24260e1",
+  "dirty": false,
+  "recordedAt": "2026-10-12T12:03:44.683Z",
+  "script": "scripts/input-receipts-slice/record.mts"
+ },
+ "flavor": "assistant",
+ "scenes": [
+  {
+   "id": "main",
+   "label": "运行中补充、说明与第一轮的结论",
+   "runs": [
+    {
+     "label": "第一轮",
+     "events": [
+      {
+       "type": "prompt",
+       "role": "system",
+       "text": "Today's date on this machine is 2026-10-12.",
+       "atMs": 1791813660000
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "帮我准备周四和 A 客户的季度回顾会",
+       "atMs": 1791813660000
+      },
+      {
+       "type": "text-delta",
+       "text": "我先收集上季度的数据，再起草议程。"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "先把议程放一放",
+       "atMs": 1791813730000,
+       "steerId": "steer-3-42pj0",
+       "key": "in-0"
+      },
+      {
+       "type": "steer-withdrawn",
+       "steerId": "steer-3-42pj0"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "别直接发邮件给客户，我自己发",
+       "atMs": 1791813750000,
+       "steerId": "steer-4-4o92c",
+       "key": "in-1"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "会后发一份纪要",
+       "atMs": 1791813765000,
+       "steerId": "steer-5-5ywtc",
+       "key": "in-2"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "不用准备上季度的数据了",
+       "atMs": 1791813780000,
+       "steerId": "steer-6-8ar9t",
+       "key": "in-3"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+       "atMs": 1791813795000,
+       "steerId": "steer-7-9igp6",
+       "source": "app",
+       "key": "host-1"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-1",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 770
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 29
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-4-4o92c"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-5-5ywtc"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-6-8ar9t"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-7-9igp6"
+      },
+      {
+       "type": "tool-call",
+       "call": {
+        "id": "ack-1",
+        "name": "acknowledge-inputs",
+        "input": {
+         "items": [
+          {
+           "input": "steer-4-4o92c",
+           "treatment": "apply-now",
+           "kind": "constraint",
+           "impacts": [
+            "constraint",
+            "scope"
+           ],
+           "note": "步骤 4 不再发邮件，由你自己发"
+          },
+          {
+           "input": "steer-5-5ywtc",
+           "treatment": "new-task",
+           "kind": "request",
+           "impacts": [
+            "scope"
+           ],
+           "note": "提议新增待办：会后发纪要，待你确认"
+          },
+          {
+           "input": "steer-6-8ar9t",
+           "treatment": "not-adopted",
+           "kind": "request",
+           "impacts": [
+            "scope"
+           ],
+           "note": "议程第二项要引用上季度数据，暂不采纳，请你确认"
+          }
+         ]
+        }
+       }
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-2",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1091
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 197
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-read",
+       "steerIds": [
+        "steer-4-4o92c",
+        "steer-5-5ywtc",
+        "steer-6-8ar9t",
+        "steer-7-9igp6"
+       ],
+       "callId": "lab-2"
+      },
+      {
+       "type": "inputs-acknowledged",
+       "callId": "lab-2",
+       "toolCallId": "ack-1",
+       "items": [
+        {
+         "steerId": "steer-4-4o92c",
+         "treatment": "apply-now",
+         "kind": "constraint",
+         "targets": [],
+         "impacts": [
+          "constraint",
+          "scope"
+         ],
+         "note": "步骤 4 不再发邮件，由你自己发"
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "treatment": "new-task",
+         "kind": "request",
+         "targets": [],
+         "impacts": [
+          "scope"
+         ],
+         "note": "提议新增待办：会后发纪要，待你确认"
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "treatment": "not-adopted",
+         "kind": "request",
+         "targets": [],
+         "impacts": [
+          "scope"
+         ],
+         "note": "议程第二项要引用上季度数据，暂不采纳，请你确认"
+        }
+       ]
+      },
+      {
+       "type": "tool-result",
+       "callId": "ack-1",
+       "name": "acknowledge-inputs",
+       "text": "Recorded your statement for steer-4-4o92c (apply-now), steer-5-5ywtc (new-task), steer-6-8ar9t (not-adopted). This is your declaration, not a record that anything happened.",
+       "outcome": "returned"
+      },
+      {
+       "type": "text-delta",
+       "text": "步骤 2 在起草议程，下面是本轮的进展。"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "议程里加一项续约报价",
+       "atMs": 1791813860000,
+       "steerId": "steer-8-xsyv",
+       "key": "in-4"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "会前一小时提醒我一下",
+       "atMs": 1791813872000,
+       "steerId": "steer-9-19hym",
+       "key": "in-5"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "上次他们提到的预算问题也要准备",
+       "atMs": 1791813885000,
+       "steerId": "steer-a-9a4oo",
+       "key": "in-6"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-3",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1509
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 30
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-8-xsyv"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-9-19hym"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-a-9a4oo"
+      },
+      {
+       "type": "tool-call",
+       "call": {
+        "id": "ack-2",
+        "name": "acknowledge-inputs",
+        "input": {
+         "items": [
+          {
+           "input": "steer-8-xsyv",
+           "treatment": "later-step",
+           "kind": "supplement",
+           "impacts": [
+            "scope",
+            "acceptance"
+           ],
+           "note": "加到步骤 2 的议程里"
+          },
+          {
+           "input": "steer-a-9a4oo",
+           "treatment": "needs-clarification",
+           "kind": "request",
+           "impacts": [
+            "scope"
+           ],
+           "note": "你指 8 月邮件里的预算削减，还是 9 月会上的？"
+          }
+         ]
+        }
+       }
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-4",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1741
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 154
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-read",
+       "steerIds": [
+        "steer-8-xsyv",
+        "steer-9-19hym",
+        "steer-a-9a4oo"
+       ],
+       "callId": "lab-4"
+      },
+      {
+       "type": "inputs-acknowledged",
+       "callId": "lab-4",
+       "toolCallId": "ack-2",
+       "items": [
+        {
+         "steerId": "steer-8-xsyv",
+         "treatment": "later-step",
+         "kind": "supplement",
+         "targets": [],
+         "impacts": [
+          "scope",
+          "acceptance"
+         ],
+         "note": "加到步骤 2 的议程里"
+        },
+        {
+         "steerId": "steer-a-9a4oo",
+         "treatment": "needs-clarification",
+         "kind": "request",
+         "targets": [],
+         "impacts": [
+          "scope"
+         ],
+         "note": "你指 8 月邮件里的预算削减，还是 9 月会上的？"
+        }
+       ]
+      },
+      {
+       "type": "tool-result",
+       "callId": "ack-2",
+       "name": "acknowledge-inputs",
+       "text": "Recorded your statement for steer-8-xsyv (later-step), steer-a-9a4oo (needs-clarification). This is your declaration, not a record that anything happened.",
+       "outcome": "returned"
+      },
+      {
+       "type": "text-delta",
+       "text": "议程已起草，上季度数据摘要和会前提醒也备好了。"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-5",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 2098
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 31
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "completed"
+      }
+     ],
+     "projections": [
+      {
+       "at": 1,
+       "receipts": []
+      },
+      {
+       "at": 4,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 5,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 6,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 7,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 8,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 9,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 11,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 12,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 13,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 14,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "applied",
+         "applied": true
+        }
+       ]
+      },
+      {
+       "at": 17,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        }
+       ]
+      },
+      {
+       "at": 18,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "constraint",
+           "scope"
+          ],
+          "note": "步骤 4 不再发邮件，由你自己发",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增待办：会后发纪要，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "议程第二项要引用上季度数据，暂不采纳，请你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        }
+       ]
+      },
+      {
+       "at": 21,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "constraint",
+           "scope"
+          ],
+          "note": "步骤 4 不再发邮件，由你自己发",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增待办：会后发纪要，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "议程第二项要引用上季度数据，暂不采纳，请你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-xsyv",
+         "text": "议程里加一项续约报价",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 22,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "constraint",
+           "scope"
+          ],
+          "note": "步骤 4 不再发邮件，由你自己发",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增待办：会后发纪要，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "议程第二项要引用上季度数据，暂不采纳，请你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-xsyv",
+         "text": "议程里加一项续约报价",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-9-19hym",
+         "text": "会前一小时提醒我一下",
+         "source": "person",
+         "atMs": 1791813872000,
+         "key": "in-5",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 23,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "constraint",
+           "scope"
+          ],
+          "note": "步骤 4 不再发邮件，由你自己发",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增待办：会后发纪要，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "议程第二项要引用上季度数据，暂不采纳，请你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-xsyv",
+         "text": "议程里加一项续约报价",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-9-19hym",
+         "text": "会前一小时提醒我一下",
+         "source": "person",
+         "atMs": 1791813872000,
+         "key": "in-5",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-a-9a4oo",
+         "text": "上次他们提到的预算问题也要准备",
+         "source": "person",
+         "atMs": 1791813885000,
+         "key": "in-6",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 25,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "constraint",
+           "scope"
+          ],
+          "note": "步骤 4 不再发邮件，由你自己发",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增待办：会后发纪要，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "议程第二项要引用上季度数据，暂不采纳，请你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-xsyv",
+         "text": "议程里加一项续约报价",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-9-19hym",
+         "text": "会前一小时提醒我一下",
+         "source": "person",
+         "atMs": 1791813872000,
+         "key": "in-5",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-a-9a4oo",
+         "text": "上次他们提到的预算问题也要准备",
+         "source": "person",
+         "atMs": 1791813885000,
+         "key": "in-6",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 26,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "constraint",
+           "scope"
+          ],
+          "note": "步骤 4 不再发邮件，由你自己发",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增待办：会后发纪要，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "议程第二项要引用上季度数据，暂不采纳，请你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-xsyv",
+         "text": "议程里加一项续约报价",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-9-19hym",
+         "text": "会前一小时提醒我一下",
+         "source": "person",
+         "atMs": 1791813872000,
+         "key": "in-5",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-a-9a4oo",
+         "text": "上次他们提到的预算问题也要准备",
+         "source": "person",
+         "atMs": 1791813885000,
+         "key": "in-6",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 27,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "constraint",
+           "scope"
+          ],
+          "note": "步骤 4 不再发邮件，由你自己发",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增待办：会后发纪要，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "议程第二项要引用上季度数据，暂不采纳，请你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-xsyv",
+         "text": "议程里加一项续约报价",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-9-19hym",
+         "text": "会前一小时提醒我一下",
+         "source": "person",
+         "atMs": 1791813872000,
+         "key": "in-5",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-a-9a4oo",
+         "text": "上次他们提到的预算问题也要准备",
+         "source": "person",
+         "atMs": 1791813885000,
+         "key": "in-6",
+         "state": "applied",
+         "applied": true
+        }
+       ]
+      },
+      {
+       "at": 30,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "constraint",
+           "scope"
+          ],
+          "note": "步骤 4 不再发邮件，由你自己发",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增待办：会后发纪要，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "议程第二项要引用上季度数据，暂不采纳，请你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-xsyv",
+         "text": "议程里加一项续约报价",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-4"
+        },
+        {
+         "steerId": "steer-9-19hym",
+         "text": "会前一小时提醒我一下",
+         "source": "person",
+         "atMs": 1791813872000,
+         "key": "in-5",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-4"
+        },
+        {
+         "steerId": "steer-a-9a4oo",
+         "text": "上次他们提到的预算问题也要准备",
+         "source": "person",
+         "atMs": 1791813885000,
+         "key": "in-6",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-4"
+        }
+       ]
+      },
+      {
+       "at": 31,
+       "receipts": [
+        {
+         "steerId": "steer-3-42pj0",
+         "text": "先把议程放一放",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4o92c",
+         "text": "别直接发邮件给客户，我自己发",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "constraint",
+           "scope"
+          ],
+          "note": "步骤 4 不再发邮件，由你自己发",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-5ywtc",
+         "text": "会后发一份纪要",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增待办：会后发纪要，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-8ar9t",
+         "text": "不用准备上季度的数据了",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "议程第二项要引用上季度数据，暂不采纳，请你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-9igp6",
+         "text": "任务图有更新：步骤 4「发邀请邮件」已取消",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-xsyv",
+         "text": "议程里加一项续约报价",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-4",
+         "handling": {
+          "treatment": "later-step",
+          "kind": "supplement",
+          "targets": [],
+          "impacts": [
+           "scope",
+           "acceptance"
+          ],
+          "note": "加到步骤 2 的议程里",
+          "callId": "lab-4",
+          "toolCallId": "ack-2"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-9-19hym",
+         "text": "会前一小时提醒我一下",
+         "source": "person",
+         "atMs": 1791813872000,
+         "key": "in-5",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-4"
+        },
+        {
+         "steerId": "steer-a-9a4oo",
+         "text": "上次他们提到的预算问题也要准备",
+         "source": "person",
+         "atMs": 1791813885000,
+         "key": "in-6",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-4",
+         "handling": {
+          "treatment": "needs-clarification",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "你指 8 月邮件里的预算削减，还是 9 月会上的？",
+          "callId": "lab-4",
+          "toolCallId": "ack-2"
+         },
+         "handlingRevisions": 1
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "第二轮",
+     "events": [
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "接着把议程定稿",
+       "atMs": 1791814020000
+      },
+      {
+       "type": "text-delta",
+       "text": "好的，继续写。"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "上季度的数据还是要准备，议程第二项要用",
+       "atMs": 1791814032000,
+       "steerId": "steer-c-2grk9",
+       "about": "steer-6-8ar9t",
+       "key": "fix-1"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-6",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 2971
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 25
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-c-2grk9"
+      },
+      {
+       "type": "tool-call",
+       "call": {
+        "id": "ack-3",
+        "name": "acknowledge-inputs",
+        "input": {
+         "items": [
+          {
+           "input": "steer-c-2grk9",
+           "treatment": "apply-now",
+           "kind": "correction",
+           "impacts": [
+            "scope",
+            "priority"
+           ],
+           "note": "按你的纠正处理：恢复准备上季度数据"
+          }
+         ]
+        }
+       }
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-7",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 3064
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 105
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-read",
+       "steerIds": [
+        "steer-c-2grk9"
+       ],
+       "callId": "lab-7"
+      },
+      {
+       "type": "inputs-acknowledged",
+       "callId": "lab-7",
+       "toolCallId": "ack-3",
+       "items": [
+        {
+         "steerId": "steer-c-2grk9",
+         "treatment": "apply-now",
+         "kind": "correction",
+         "targets": [],
+         "impacts": [
+          "scope",
+          "priority"
+         ],
+         "note": "按你的纠正处理：恢复准备上季度数据"
+        }
+       ]
+      },
+      {
+       "type": "tool-result",
+       "callId": "ack-3",
+       "name": "acknowledge-inputs",
+       "text": "Recorded your statement for steer-c-2grk9 (apply-now). This is your declaration, not a record that anything happened.",
+       "outcome": "returned"
+      },
+      {
+       "type": "text-delta",
+       "text": "议程已起草，上季度数据摘要和会前提醒也备好了。"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-8",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 3233
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 31
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "completed"
+      }
+     ],
+     "projections": [
+      {
+       "at": 1,
+       "receipts": []
+      },
+      {
+       "at": 3,
+       "receipts": [
+        {
+         "steerId": "steer-c-2grk9",
+         "text": "上季度的数据还是要准备，议程第二项要用",
+         "source": "person",
+         "atMs": 1791814032000,
+         "key": "fix-1",
+         "about": "steer-6-8ar9t",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 5,
+       "receipts": [
+        {
+         "steerId": "steer-c-2grk9",
+         "text": "上季度的数据还是要准备，议程第二项要用",
+         "source": "person",
+         "atMs": 1791814032000,
+         "key": "fix-1",
+         "about": "steer-6-8ar9t",
+         "state": "applied",
+         "applied": true
+        }
+       ]
+      },
+      {
+       "at": 8,
+       "receipts": [
+        {
+         "steerId": "steer-c-2grk9",
+         "text": "上季度的数据还是要准备，议程第二项要用",
+         "source": "person",
+         "atMs": 1791814032000,
+         "key": "fix-1",
+         "about": "steer-6-8ar9t",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-7"
+        }
+       ]
+      },
+      {
+       "at": 9,
+       "receipts": [
+        {
+         "steerId": "steer-c-2grk9",
+         "text": "上季度的数据还是要准备，议程第二项要用",
+         "source": "person",
+         "atMs": 1791814032000,
+         "key": "fix-1",
+         "about": "steer-6-8ar9t",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-7",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "correction",
+          "targets": [],
+          "impacts": [
+           "scope",
+           "priority"
+          ],
+          "note": "按你的纠正处理：恢复准备上季度数据",
+          "callId": "lab-7",
+          "toolCallId": "ack-3"
+         },
+         "handlingRevisions": 1
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "checkpoints": [
+    {
+     "id": "settled",
+     "label": "第一轮结束",
+     "run": 0,
+     "at": 35
+    },
+    {
+     "id": "corrected",
+     "label": "你坚持采纳之后",
+     "run": 1,
+     "at": 13
+    }
+   ]
+  },
+  {
+   "id": "stopped-carry",
+   "label": "一轮被停下，留下没读到的输入",
+   "runs": [
+    {
+     "label": "被停下的一轮",
+     "events": [
+      {
+       "type": "prompt",
+       "role": "system",
+       "text": "Today's date on this machine is 2026-10-12.",
+       "atMs": 1791814200000
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "整理客户 A 的往来邮件",
+       "atMs": 1791814200000
+      },
+      {
+       "type": "text-delta",
+       "text": "我先看一下。"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "只看今年的邮件",
+       "atMs": 1791814240000,
+       "steerId": "steer-3-75z6s",
+       "key": "q-1"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-1",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 764
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 25
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-3-75z6s"
+      },
+      {
+       "type": "text-delta",
+       "text": "正在处理第一条……"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "把预算相关的单独列出来",
+       "atMs": 1791814255000,
+       "steerId": "steer-4-6cc6s",
+       "key": "q-2"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-2",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 844
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 22
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "cancelled"
+      }
+     ],
+     "projections": [
+      {
+       "at": 1,
+       "receipts": []
+      },
+      {
+       "at": 4,
+       "receipts": [
+        {
+         "steerId": "steer-3-75z6s",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 6,
+       "receipts": [
+        {
+         "steerId": "steer-3-75z6s",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "applied",
+         "applied": true
+        }
+       ]
+      },
+      {
+       "at": 8,
+       "receipts": [
+        {
+         "steerId": "steer-3-75z6s",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-4-6cc6s",
+         "text": "把预算相关的单独列出来",
+         "source": "person",
+         "atMs": 1791814255000,
+         "key": "q-2",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 10,
+       "receipts": [
+        {
+         "steerId": "steer-3-75z6s",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "unread",
+         "applied": true,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        },
+        {
+         "steerId": "steer-4-6cc6s",
+         "text": "把预算相关的单独列出来",
+         "source": "person",
+         "atMs": 1791814255000,
+         "key": "q-2",
+         "state": "unread",
+         "applied": false,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "带上排着的输入",
+     "events": [
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "继续整理客户 A 的邮件",
+       "atMs": 1791814360000
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "只看今年的邮件",
+       "atMs": 1791814360000,
+       "steerId": "steer-3-75z6s",
+       "key": "q-1",
+       "carried": {
+        "from": "2-4e3ck"
+       }
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "把预算相关的单独列出来",
+       "atMs": 1791814360000,
+       "steerId": "steer-4-6cc6s",
+       "key": "q-2",
+       "carried": {
+        "from": "2-4e3ck"
+       }
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "整理完把清单发我",
+       "atMs": 1791814360000,
+       "steerId": "input-5-48fd6",
+       "key": "q-3",
+       "carried": {}
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-3-75z6s"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-4-6cc6s"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "input-5-48fd6"
+      },
+      {
+       "type": "tool-call",
+       "call": {
+        "id": "ack-q",
+        "name": "acknowledge-inputs",
+        "input": {
+         "items": [
+          {
+           "input": "steer-3-75z6s",
+           "treatment": "apply-now",
+           "kind": "supplement",
+           "impacts": [
+            "scope"
+           ],
+           "note": "按你补充的先检查邮箱格式"
+          },
+          {
+           "input": "steer-4-6cc6s",
+           "treatment": "later-step",
+           "kind": "request",
+           "impacts": [
+            "acceptance"
+           ],
+           "note": "排在当前这一步之后"
+          },
+          {
+           "input": "input-5-48fd6",
+           "treatment": "noted",
+           "kind": "request",
+           "impacts": [],
+           "note": "收尾时列出来"
+          }
+         ]
+        }
+       }
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-3",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1291
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 180
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-read",
+       "steerIds": [
+        "steer-3-75z6s",
+        "steer-4-6cc6s",
+        "input-5-48fd6"
+       ],
+       "callId": "lab-3"
+      },
+      {
+       "type": "inputs-acknowledged",
+       "callId": "lab-3",
+       "toolCallId": "ack-q",
+       "items": [
+        {
+         "steerId": "steer-3-75z6s",
+         "treatment": "apply-now",
+         "kind": "supplement",
+         "targets": [],
+         "impacts": [
+          "scope"
+         ],
+         "note": "按你补充的先检查邮箱格式"
+        },
+        {
+         "steerId": "steer-4-6cc6s",
+         "treatment": "later-step",
+         "kind": "request",
+         "targets": [],
+         "impacts": [
+          "acceptance"
+         ],
+         "note": "排在当前这一步之后"
+        },
+        {
+         "steerId": "input-5-48fd6",
+         "treatment": "noted",
+         "kind": "request",
+         "targets": [],
+         "impacts": [],
+         "note": "收尾时列出来"
+        }
+       ]
+      },
+      {
+       "type": "tool-result",
+       "callId": "ack-q",
+       "name": "acknowledge-inputs",
+       "text": "Recorded your statement for steer-3-75z6s (apply-now), steer-4-6cc6s (later-step), input-5-48fd6 (noted). This is your declaration, not a record that anything happened.",
+       "outcome": "returned"
+      },
+      {
+       "type": "text-delta",
+       "text": "议程已起草，上季度数据摘要和会前提醒也备好了。"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-4",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1558
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 31
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "completed"
+      }
+     ],
+     "projections": [
+      {
+       "at": 1,
+       "receipts": []
+      },
+      {
+       "at": 2,
+       "receipts": [
+        {
+         "steerId": "steer-3-75z6s",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "accepted",
+         "applied": false,
+         "carried": {
+          "from": "2-4e3ck"
+         }
+        }
+       ]
+      },
+      {
+       "at": 3,
+       "receipts": [
+        {
+         "steerId": "steer-3-75z6s",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "accepted",
+         "applied": false,
+         "carried": {
+          "from": "2-4e3ck"
+         }
+        },
+        {
+         "steerId": "steer-4-6cc6s",
+         "text": "把预算相关的单独列出来",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-2",
+         "state": "accepted",
+         "applied": false,
+         "carried": {
+          "from": "2-4e3ck"
+         }
+        }
+       ]
+      },
+      {
+       "at": 4,
+       "receipts": [
+        {
+         "steerId": "steer-3-75z6s",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "accepted",
+         "applied": false,
+         "carried": {
+          "from": "2-4e3ck"
+         }
+        },
+        {
+         "steerId": "steer-4-6cc6s",
+         "text": "把预算相关的单独列出来",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-2",
+         "state": "accepted",
+         "applied": false,
+         "carried": {
+          "from": "2-4e3ck"
+         }
+        },
+        {
+         "steerId": "input-5-48fd6",
+         "text": "整理完把清单发我",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-3",
+         "state": "accepted",
+         "applied": false,
+         "carried": {}
+        }
+       ]
+      },
+      {
+       "at": 5,
+       "receipts": [
+        {
+         "steerId": "steer-3-75z6s",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "applied",
+         "applied": true,
+         "carried": {
+          "from": "2-4e3ck"
+         }
+        },
+        {
+         "steerId": "steer-4-6cc6s",
+         "text": "把预算相关的单独列出来",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-2",
+         "state": "accepted",
+         "applied": false,
+         "carried": {
+          "from": "2-4e3ck"
+         }
+        },
+        {
+         "steerId": "input-5-48fd6",
+         "text": "整理完把清单发我",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-3",
+         "state": "accepted",
+         "applied": false,
+         "carried": {}
+        }
+       ]
+      },
+      {
+       "at": 6,
+       "receipts": [
+        {
+         "steerId": "steer-3-75z6s",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "applied",
+         "applied": true,
+         "carried": {
+          "from": "2-4e3ck"
+         }
+        },
+        {
+         "steerId": "steer-4-6cc6s",
+         "text": "把预算相关的单独列出来",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-2",
+         "state": "applied",
+         "applied": true,
+         "carried": {
+          "from": "2-4e3ck"
+         }
+        },
+        {
+         "steerId": "input-5-48fd6",
+         "text": "整理完把清单发我",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-3",
+         "state": "accepted",
+         "applied": false,
+         "carried": {}
+        }
+       ]
+      },
+      {
+       "at": 7,
+       "receipts": [
+        {
+         "steerId": "steer-3-75z6s",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "applied",
+         "applied": true,
+         "carried": {
+          "from": "2-4e3ck"
+         }
+        },
+        {
+         "steerId": "steer-4-6cc6s",
+         "text": "把预算相关的单独列出来",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-2",
+         "state": "applied",
+         "applied": true,
+         "carried": {
+          "from": "2-4e3ck"
+         }
+        },
+        {
+         "steerId": "input-5-48fd6",
+         "text": "整理完把清单发我",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-3",
+         "state": "applied",
+         "applied": true,
+         "carried": {}
+        }
+       ]
+      },
+      {
+       "at": 10,
+       "receipts": [
+        {
+         "steerId": "steer-3-75z6s",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "read",
+         "applied": true,
+         "carried": {
+          "from": "2-4e3ck"
+         },
+         "readBy": "lab-3"
+        },
+        {
+         "steerId": "steer-4-6cc6s",
+         "text": "把预算相关的单独列出来",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-2",
+         "state": "read",
+         "applied": true,
+         "carried": {
+          "from": "2-4e3ck"
+         },
+         "readBy": "lab-3"
+        },
+        {
+         "steerId": "input-5-48fd6",
+         "text": "整理完把清单发我",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-3",
+         "state": "read",
+         "applied": true,
+         "carried": {},
+         "readBy": "lab-3"
+        }
+       ]
+      },
+      {
+       "at": 11,
+       "receipts": [
+        {
+         "steerId": "steer-3-75z6s",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "read",
+         "applied": true,
+         "carried": {
+          "from": "2-4e3ck"
+         },
+         "readBy": "lab-3",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "supplement",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "按你补充的先检查邮箱格式",
+          "callId": "lab-3",
+          "toolCallId": "ack-q"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-4-6cc6s",
+         "text": "把预算相关的单独列出来",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-2",
+         "state": "read",
+         "applied": true,
+         "carried": {
+          "from": "2-4e3ck"
+         },
+         "readBy": "lab-3",
+         "handling": {
+          "treatment": "later-step",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "acceptance"
+          ],
+          "note": "排在当前这一步之后",
+          "callId": "lab-3",
+          "toolCallId": "ack-q"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "input-5-48fd6",
+         "text": "整理完把清单发我",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-3",
+         "state": "read",
+         "applied": true,
+         "carried": {},
+         "readBy": "lab-3",
+         "handling": {
+          "treatment": "noted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [],
+          "note": "收尾时列出来",
+          "callId": "lab-3",
+          "toolCallId": "ack-q"
+         },
+         "handlingRevisions": 1
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "checkpoints": [
+    {
+     "id": "stopped",
+     "label": "停下之后",
+     "run": 0,
+     "at": 10,
+     "queue": {
+      "carry": "ask",
+      "queued": [
+       {
+        "inputId": "steer-3-75z6s",
+        "text": "只看今年的邮件",
+        "source": "person",
+        "key": "q-1",
+        "atMs": 1791814240000,
+        "from": {
+         "run": "2-4e3ck",
+         "applied": true,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        }
+       },
+       {
+        "inputId": "steer-4-6cc6s",
+        "text": "把预算相关的单独列出来",
+        "source": "person",
+        "key": "q-2",
+        "atMs": 1791814255000,
+        "from": {
+         "run": "2-4e3ck",
+         "applied": false,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        }
+       },
+       {
+        "inputId": "input-5-48fd6",
+        "text": "整理完把清单发我",
+        "source": "person",
+        "key": "q-3",
+        "atMs": 1791814300000
+       }
+      ],
+      "settled": []
+     }
+    },
+    {
+     "id": "carried",
+     "label": "带到下一轮之后",
+     "run": 1,
+     "at": 15,
+     "queue": {
+      "carry": "ask",
+      "queued": [],
+      "settled": [
+       {
+        "inputId": "steer-3-75z6s",
+        "outcome": "carried",
+        "run": "6-19g6n",
+        "atMs": 1791814360000
+       },
+       {
+        "inputId": "steer-4-6cc6s",
+        "outcome": "carried",
+        "run": "6-19g6n",
+        "atMs": 1791814360000
+       },
+       {
+        "inputId": "input-5-48fd6",
+        "outcome": "carried",
+        "run": "6-19g6n",
+        "atMs": 1791814360000
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "stopped-withdraw",
+   "label": "一轮被停下，留下没读到的输入",
+   "runs": [
+    {
+     "label": "被停下的一轮",
+     "events": [
+      {
+       "type": "prompt",
+       "role": "system",
+       "text": "Today's date on this machine is 2026-10-12.",
+       "atMs": 1791814200000
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "整理客户 A 的往来邮件",
+       "atMs": 1791814200000
+      },
+      {
+       "type": "text-delta",
+       "text": "我先看一下。"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "只看今年的邮件",
+       "atMs": 1791814240000,
+       "steerId": "steer-3-jl7j",
+       "key": "q-1"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-1",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 764
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 25
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-3-jl7j"
+      },
+      {
+       "type": "text-delta",
+       "text": "正在处理第一条……"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "把预算相关的单独列出来",
+       "atMs": 1791814255000,
+       "steerId": "steer-4-3phlw",
+       "key": "q-2"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-2",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 844
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 22
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "cancelled"
+      }
+     ],
+     "projections": [
+      {
+       "at": 1,
+       "receipts": []
+      },
+      {
+       "at": 4,
+       "receipts": [
+        {
+         "steerId": "steer-3-jl7j",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 6,
+       "receipts": [
+        {
+         "steerId": "steer-3-jl7j",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "applied",
+         "applied": true
+        }
+       ]
+      },
+      {
+       "at": 8,
+       "receipts": [
+        {
+         "steerId": "steer-3-jl7j",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-4-3phlw",
+         "text": "把预算相关的单独列出来",
+         "source": "person",
+         "atMs": 1791814255000,
+         "key": "q-2",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 10,
+       "receipts": [
+        {
+         "steerId": "steer-3-jl7j",
+         "text": "只看今年的邮件",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "unread",
+         "applied": true,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        },
+        {
+         "steerId": "steer-4-3phlw",
+         "text": "把预算相关的单独列出来",
+         "source": "person",
+         "atMs": 1791814255000,
+         "key": "q-2",
+         "state": "unread",
+         "applied": false,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "checkpoints": [
+    {
+     "id": "stopped",
+     "label": "停下之后",
+     "run": 0,
+     "at": 10,
+     "queue": {
+      "carry": "ask",
+      "queued": [
+       {
+        "inputId": "steer-3-jl7j",
+        "text": "只看今年的邮件",
+        "source": "person",
+        "key": "q-1",
+        "atMs": 1791814240000,
+        "from": {
+         "run": "2-4r8k7",
+         "applied": true,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        }
+       },
+       {
+        "inputId": "steer-4-3phlw",
+        "text": "把预算相关的单独列出来",
+        "source": "person",
+        "key": "q-2",
+        "atMs": 1791814255000,
+        "from": {
+         "run": "2-4r8k7",
+         "applied": false,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        }
+       },
+       {
+        "inputId": "input-5-1difr",
+        "text": "整理完把清单发我",
+        "source": "person",
+        "key": "q-3",
+        "atMs": 1791814300000
+       }
+      ],
+      "settled": []
+     }
+    },
+    {
+     "id": "withdrawn",
+     "label": "全部撤回之后",
+     "run": 0,
+     "at": 10,
+     "queue": {
+      "carry": "ask",
+      "queued": [],
+      "settled": [
+       {
+        "inputId": "steer-3-jl7j",
+        "outcome": "withdrawn",
+        "atMs": 1791814360000
+       },
+       {
+        "inputId": "steer-4-3phlw",
+        "outcome": "withdrawn",
+        "atMs": 1791814360000
+       },
+       {
+        "inputId": "input-5-1difr",
+        "outcome": "withdrawn",
+        "atMs": 1791814360000
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "question",
+   "label": "有问题等回答时的补充",
+   "runs": [
+    {
+     "label": "等回答的一轮",
+     "events": [
+      {
+       "type": "prompt",
+       "role": "system",
+       "text": "Today's date on this machine is 2026-10-12.",
+       "atMs": 1791814500000
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "安排会前提醒",
+       "atMs": 1791814500000
+      },
+      {
+       "type": "tool-call",
+       "call": {
+        "id": "ask-1",
+        "name": "ask-user",
+        "input": {
+         "why": "提醒设在会前一小时还是前一天？",
+         "questions": [
+          {
+           "prompt": "会前提醒",
+           "options": [
+            {
+             "label": "会前一小时"
+            },
+            {
+             "label": "前一天"
+            }
+           ]
+          }
+         ]
+        }
+       }
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-1",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1056
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 88
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "awaiting-input",
+       "pendingRef": {
+        "kind": "pending",
+        "id": "4-8iy6v",
+        "revision": 1
+       },
+       "kind": "questionnaire",
+       "why": "提醒设在会前一小时还是前一天？",
+       "origin": {
+        "session": "1-3ycgb",
+        "run": "2-6ops1"
+       }
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "顺便把议程也带上",
+       "atMs": 1791814530000,
+       "steerId": "steer-5-52tbv",
+       "key": "side-1"
+      },
+      {
+       "type": "tool-result",
+       "callId": "ask-1",
+       "name": "ask-user",
+       "text": "{\"kind\":\"questionnaire\",\"picked\":[{\"question\":0,\"labels\":[\"会前一小时\"]}]}",
+       "outcome": "returned"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-5-52tbv"
+      },
+      {
+       "type": "tool-call",
+       "call": {
+        "id": "ack-s",
+        "name": "acknowledge-inputs",
+        "input": {
+         "items": [
+          {
+           "input": "steer-5-52tbv",
+           "treatment": "apply-now",
+           "kind": "supplement",
+           "impacts": [
+            "outputs"
+           ],
+           "note": "提醒里附上议程"
+          }
+         ]
+        }
+       }
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-2",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1270
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 98
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-read",
+       "steerIds": [
+        "steer-5-52tbv"
+       ],
+       "callId": "lab-2"
+      },
+      {
+       "type": "inputs-acknowledged",
+       "callId": "lab-2",
+       "toolCallId": "ack-s",
+       "items": [
+        {
+         "steerId": "steer-5-52tbv",
+         "treatment": "apply-now",
+         "kind": "supplement",
+         "targets": [],
+         "impacts": [
+          "outputs"
+         ],
+         "note": "提醒里附上议程"
+        }
+       ]
+      },
+      {
+       "type": "tool-result",
+       "callId": "ack-s",
+       "name": "acknowledge-inputs",
+       "text": "Recorded your statement for steer-5-52tbv (apply-now). This is your declaration, not a record that anything happened.",
+       "outcome": "returned"
+      },
+      {
+       "type": "text-delta",
+       "text": "会前提醒已安排。"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-3",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1425
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 26
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "completed"
+      }
+     ],
+     "projections": [
+      {
+       "at": 1,
+       "receipts": []
+      },
+      {
+       "at": 6,
+       "receipts": [
+        {
+         "steerId": "steer-5-52tbv",
+         "text": "顺便把议程也带上",
+         "source": "person",
+         "atMs": 1791814530000,
+         "key": "side-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 8,
+       "receipts": [
+        {
+         "steerId": "steer-5-52tbv",
+         "text": "顺便把议程也带上",
+         "source": "person",
+         "atMs": 1791814530000,
+         "key": "side-1",
+         "state": "applied",
+         "applied": true
+        }
+       ]
+      },
+      {
+       "at": 11,
+       "receipts": [
+        {
+         "steerId": "steer-5-52tbv",
+         "text": "顺便把议程也带上",
+         "source": "person",
+         "atMs": 1791814530000,
+         "key": "side-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        }
+       ]
+      },
+      {
+       "at": 12,
+       "receipts": [
+        {
+         "steerId": "steer-5-52tbv",
+         "text": "顺便把议程也带上",
+         "source": "person",
+         "atMs": 1791814530000,
+         "key": "side-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "supplement",
+          "targets": [],
+          "impacts": [
+           "outputs"
+          ],
+          "note": "提醒里附上议程",
+          "callId": "lab-2",
+          "toolCallId": "ack-s"
+         },
+         "handlingRevisions": 1
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "checkpoints": [
+    {
+     "id": "waiting",
+     "label": "问题在等你回答",
+     "run": 0,
+     "at": 6,
+     "awaiting": true
+    },
+    {
+     "id": "answered",
+     "label": "回答之后",
+     "run": 0,
+     "at": 16
+    }
+   ]
+  },
+  {
+   "id": "restart",
+   "label": "宿主被强杀后重启",
+   "runs": [
+    {
+     "label": "被强杀的一轮",
+     "events": [
+      {
+       "type": "prompt",
+       "role": "system",
+       "text": "Today's date on this machine is 2026-10-12.",
+       "atMs": 1791814279948
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "整理本周要跟进的客户",
+       "atMs": 1791814279948
+      },
+      {
+       "type": "text-delta",
+       "text": "我先看一下。"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "先只整理 A 客户",
+       "atMs": 1791814280000,
+       "steerId": "steer-3-7wskc",
+       "key": "r-1"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "child-1",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 764
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 25
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-3-7wskc"
+      },
+      {
+       "type": "text-delta",
+       "text": "正在处理第一条……"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "别发任何消息",
+       "atMs": 1791814280085,
+       "steerId": "steer-4-1hgur",
+       "key": "r-2"
+      },
+      {
+       "type": "run-recovered",
+       "atMs": 1791814280116,
+       "transcript": "durable-prefix",
+       "operations": [],
+       "questions": []
+      },
+      {
+       "type": "failed",
+       "error": {
+        "name": "PrologueError",
+        "code": "RUN_INTERRUPTED",
+        "safeMessage": "This run was interrupted. Its persisted event prefix and verified operation outcomes were preserved; an unreported tail or usage may still be missing. No operation was replayed."
+       }
+      }
+     ],
+     "projections": [
+      {
+       "at": 1,
+       "receipts": []
+      },
+      {
+       "at": 4,
+       "receipts": [
+        {
+         "steerId": "steer-3-7wskc",
+         "text": "先只整理 A 客户",
+         "source": "person",
+         "atMs": 1791814280000,
+         "key": "r-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 6,
+       "receipts": [
+        {
+         "steerId": "steer-3-7wskc",
+         "text": "先只整理 A 客户",
+         "source": "person",
+         "atMs": 1791814280000,
+         "key": "r-1",
+         "state": "applied",
+         "applied": true
+        }
+       ]
+      },
+      {
+       "at": 8,
+       "receipts": [
+        {
+         "steerId": "steer-3-7wskc",
+         "text": "先只整理 A 客户",
+         "source": "person",
+         "atMs": 1791814280000,
+         "key": "r-1",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-4-1hgur",
+         "text": "别发任何消息",
+         "source": "person",
+         "atMs": 1791814280085,
+         "key": "r-2",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 10,
+       "receipts": [
+        {
+         "steerId": "steer-3-7wskc",
+         "text": "先只整理 A 客户",
+         "source": "person",
+         "atMs": 1791814280000,
+         "key": "r-1",
+         "state": "unread",
+         "applied": true,
+         "endedBy": {
+          "state": "failed",
+          "code": "RUN_INTERRUPTED"
+         }
+        },
+        {
+         "steerId": "steer-4-1hgur",
+         "text": "别发任何消息",
+         "source": "person",
+         "atMs": 1791814280085,
+         "key": "r-2",
+         "state": "unread",
+         "applied": false,
+         "endedBy": {
+          "state": "failed",
+          "code": "RUN_INTERRUPTED"
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "checkpoints": [
+    {
+     "id": "killed",
+     "label": "宿主被强杀，重启前",
+     "run": 0,
+     "at": 8
+    },
+    {
+     "id": "recovered",
+     "label": "核对并收口之后",
+     "run": 0,
+     "at": 10,
+     "queue": {
+      "carry": "ask",
+      "queued": [
+       {
+        "inputId": "steer-3-7wskc",
+        "text": "先只整理 A 客户",
+        "source": "person",
+        "key": "r-1",
+        "atMs": 1791814280000,
+        "from": {
+         "run": "2-894e7",
+         "applied": true,
+         "endedBy": {
+          "state": "failed",
+          "code": "RUN_INTERRUPTED"
+         }
+        }
+       },
+       {
+        "inputId": "steer-4-1hgur",
+        "text": "别发任何消息",
+        "source": "person",
+        "key": "r-2",
+        "atMs": 1791814280085,
+        "from": {
+         "run": "2-894e7",
+         "applied": false,
+         "endedBy": {
+          "state": "failed",
+          "code": "RUN_INTERRUPTED"
+         }
+        }
+       }
+      ],
+      "settled": []
+     }
+    }
+   ]
+  }
+ ]
+}

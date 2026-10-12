@@ -259,7 +259,7 @@ const BROWSER_SCRIPT = /[\\/]client\.ts$/u;
 const STAYS_BARE: readonly RegExp[] = [
   /^`(?:Feed|Inbox|Schedule) route \$\{[^`]*没有 Host binding`/u, /^`(?:Feed|Inbox|Schedule) UI surface /u, /^"feed_contract_source_history_decision_required"\)/u,
   /^"定时执行尚未登记本次持久记录"/u, /^"本次执行结果未知，不能自动重跑"/u, /^"定时操作已暂停、取消或改变"/u, /^"定时操作的安装身份已改变"/u, /^"本次定时执行已被处理"/u,
-  /^"提醒的原安装身份已不可用，记录已保留/u, /^"定时任务已暂停或改变，本轮结果未保存"/u, /^"定时操作的安装执行入口已改变"/u, /^"提醒的插件安装当前没有运行"/u,
+  /^"提醒的原安装身份已不可用，记录已保留/u, /^"定时任务已暂停或改变，本轮结果未保存"/u, /^"定时操作的安装执行入口已改变"/u,
   /^"(?:还没有配置到点执行的 Agent|闹钟叫醒没有项目现场|提醒没有项目现场|定时操作没有项目现场)"/u,
   /^"(?:还没有可用的 Agent Runtime：|这个项目还没有绑定工作区，|Schedule 没有声明可运行的 Agent|到点执行不能停下来等人确认|Agent 没有写出正文|到点执行超时)/u, /^(?:view\.stop_reason|`这一轮以 )/u,
   /^"Installed caller (?:replaced|stopped)"/u, /^"仓库配置无效"/u, /^`发布包缺少 /u, /^"来源已暂停"\)/u, /^"feed response exceeds local ingest limit"/u,

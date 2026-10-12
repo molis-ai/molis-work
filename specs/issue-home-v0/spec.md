@@ -113,6 +113,7 @@ v8 第一轮有三处不对：「111」先试着保存（标题传成数字 111�
 - 全量回归（`node scripts/run-tests.mjs`，提交 `8c86bc32`，本机 3 小时 35 分）：5,547 项中 **5,513 通过、16 失败、1 取消、17 跳过**，没有一项 Issue 用例失败。16 项逐个核对：6 项是本机编不了 Swift 原生小工具（`jelly-native-material` 3 项、`material-extraction`、`shelf-material-extraction`、`shelf-recipes` 各 1 项）；其余 10 项（`agent-action-selection`、`assistant-dock-ime`、`feed-capture`、`goals-document`、`goals-narrow-navigation`、`immersive-directory`、`inbox-current`、`pages-mcp`、`project-settings-standalone`、`workbench-tab-workspace`、`workbench-pane-feed` 中的失败项）在合并基点 `3fc8beb0` 的干净工作树上以同样的信息失败，不是本轮引入；取消的 1 项随 `pages-mcp` 的超时一起。17 项跳过是需要外网、真实账号或本机未装命令的既有条件跳过。
 - 全量之后的补充提交（没完成的录入跨页面保留文字、正文字号回到 15px、一段多处问题仍记一条）只动 Issue 客户端、方法和词典：重新整体构建后，门禁通过，Issue 客户端 23,578 bytes（仍低于 main 的 23,992），并重跑全部 Issue 用例与翻译、资源、动作快照、touch-targets 共 15 个文件：**164 项通过、0 失败、0 跳过**。
 - 合入最新 main（`4fb2db83`）并补完列表地点、讨论里的组合键、收起时释放键盘与底栏输入法用例后，在末端 `67a3e38a` 重跑全部 Issue 用例与 touch-targets、底栏输入法、侧栏平台与助理面、动作快照、翻译、资源、外壳页面和内置插件装配门禁共 18 个文件：**180 项通过、0 失败、0 跳过**；资源门禁对照 merge-base 通过。
+- 方法 v9 与两处修复（`f5742628` 及其测试修正）：整体构建、健康门禁、包边界、资源门禁、密钥扫描通过，动作快照无变化。Issue 的服务端用例、翻译、资源与动作快照全部通过；Issue 的 5 个浏览器用例文件分三次在本机跑（其他会话同时在做整体构建，负载 14 到 64）：每一项都至少完整通过一次，未通过的都是 `CDP timeout`（按键、截图、页面求值），只有一项不是——离开页面再回来的用例在行刚画出时就读按钮上的点，而点由视图发给外壳的消息设置、稍晚一拍，负载高时读早了；改为等到点出现（同文件里追问用例的同类读取一并改），断言不变。
 
 ### 主线集成与合入授权（2026-10-12）
 

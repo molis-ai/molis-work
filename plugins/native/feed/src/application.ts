@@ -6,7 +6,8 @@ import { SourcesError } from "@molis-ai/molis-work-contracts/modules/sources";
 import {
   type JudgmentRecord,
 } from "@molis-ai/molis-work-contracts/modules/functions";
-import { FeedStoreError, assertSourceHistoryDecision, callAttention, callFeed } from "./application-errors.js";
+import { assertSourceHistoryDecision, callAttention, callFeed } from "./application-errors.js";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { feedItemRecord, sourceRunRecord } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import { retireFeedSource } from "./source-history.js";
@@ -72,7 +73,7 @@ export class FeedApplication {
       return this.sourceRecord(this.ports.sources.query.get(projectId, sourceId));
     } catch (error) {
       if (error instanceof SourcesError && error.code === "source_not_found") {
-        throw new FeedStoreError("feed_source_not_found", "找不到这个来源");
+        throw feedErrors.source_not_found("找不到这个来源");
       }
       throw error;
     }
@@ -119,7 +120,7 @@ export class FeedApplication {
       return this.sourceRecord(this.ports.sources.commands.setEnabled(projectId, sourceId, enabled));
     } catch (error) {
       if (error instanceof SourcesError && error.code === "source_not_found") {
-        throw new FeedStoreError("feed_source_not_found", "找不到这个来源");
+        throw feedErrors.source_not_found("找不到这个来源");
       }
       throw error;
     }
@@ -174,7 +175,7 @@ export class FeedApplication {
   addToInbox(projectId: string, itemId: string, expectedRevision?: number): FeedItemRecord {
     const item = this.getFeedItem(projectId, itemId);
     if (expectedRevision != null && expectedRevision !== item.revision) {
-      throw new FeedStoreError("feed_revision_conflict", "这条 Item 已经变化，请刷新后重试");
+      throw feedErrors.revision_conflict("这条 Item 已经变化，请刷新后重试");
     }
     const stored = this.ensureInboxEntryForFeedItem(projectId, itemId, "manual", { added_by: "web_user" });
     if (stored.entry.status === "done" || stored.entry.status === "dismissed") {
@@ -298,7 +299,7 @@ export class FeedApplication {
   }
 
   async evaluateItems(projectId: string, itemIds: readonly string[], caller?: ActionCallContext): Promise<{ evaluated: number }> {
-    if (!itemIds.length || itemIds.length > 20) throw new FeedStoreError("feed_invalid_transition", "请选择 1–20 条消息试跑规则");
+    if (!itemIds.length || itemIds.length > 20) throw feedErrors.invalid_transition("请选择 1–20 条消息试跑规则");
     const items = [...new Set(itemIds)].map((id) => this.getFeedItem(projectId, id));
     // Concurrent evaluations own their input batch; they must not drain another call's queue.
     await this.judgments.judgeOwn(() => { for (const item of items) this.captureAfterIngest(item); }, caller, items);
@@ -307,7 +308,7 @@ export class FeedApplication {
 
   recordInboxJudgmentEvent(projectId: string, judgment: JudgmentRecord): void {
     if (judgment.subject.kind !== "inbox_entry" || judgment.subject.project_id !== projectId) {
-      throw new FeedStoreError("feed_invalid_transition", "判断结果与当前 Inbox 项目不符");
+      throw feedErrors.invalid_transition("判断结果与当前 Inbox 项目不符");
     }
     this.getInboxEntry(projectId, judgment.subject.id);
     this.ports.appendEvent(projectId, "judgment", judgment.judgment_id, "judgment_completed", judgment.outcome,
@@ -358,7 +359,7 @@ export class FeedApplication {
   recordCaptureJudgment(item: FeedItemRecord, rule: FeedOutRuleRecord, judgment: JudgmentRecord): string | undefined {
     let createdEntry: string | undefined;
     if (judgment.subject.kind !== "feed_item" || judgment.subject.id !== item.item_id || judgment.subject.project_id !== item.project_id) {
-      throw new FeedStoreError("feed_invalid_transition", "判断结果与当前 Feed 消息不符");
+      throw feedErrors.invalid_transition("判断结果与当前 Feed 消息不符");
     }
     // The judgment arrives after a model wait; the person may have ignored the item meanwhile, and a rule does not overrule that.
     if (rule.admission === "inbox" && (judgment.outcome === "needs_review" || judgment.suggested_behavior_ids.includes("inbox.admit"))
@@ -417,13 +418,13 @@ export class FeedApplication {
   /** An ignored item comes back through restore, never by being admitted, reopened or reported on in the Inbox. */
   private assertNotIgnored(projectId: string, itemId: string): void {
     if (this.isArchived(projectId, itemId)) {
-      throw new FeedStoreError("feed_invalid_transition", "请先恢复这条已忽略的 Feed Item");
+      throw feedErrors.invalid_transition("请先恢复这条已忽略的 Feed Item");
     }
   }
 
   private requireOutRules() {
     if (!this.ports.outRules) {
-      throw new FeedStoreError("feed_out_rule_not_found", "捕捉规则尚未初始化");
+      throw feedErrors.out_rule_not_found("捕捉规则尚未初始化");
     }
     return this.ports.outRules;
   }

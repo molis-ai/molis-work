@@ -22,8 +22,8 @@ import {
   pauseOrResumeConversationTask,
   registerConversationJob,
   rescheduleEnabledConversationTasks,
-  scheduleRouteErrorResponse,
 } from "@molis-ai/molis-work-plugin-schedule";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { directScheduleActions } from "./schedule-direct-actions.js";
 
 for (const failure of [false, true]) test(`paused conversation ignores the late runner ${failure ? "error" : "result"} without writing failure`, async () => {
@@ -250,8 +250,8 @@ test("HTTP 能创建对话任务并返回 tasks", async () => {
     });
     assert.fail("对话任务不应走闹钟开关");
   } catch (error) {
-    const response = scheduleRouteErrorResponse(error);
-    assert.equal(response.status, 400);
+    const response = actionErrorResponse(error);
+    assert.deepEqual([response.status, response.body.code], [400, "schedule.task_invalid"]);
     assert.match(String((response.body as { error: string }).error), /任务自己的开关/);
   }
 });

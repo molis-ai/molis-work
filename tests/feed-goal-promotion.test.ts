@@ -3,11 +3,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   LocalProjectDatabase, MolisWorkLocalHost, createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference, seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
-import { FEED_PLUGIN_ID, FeedPluginRouteTable, FeedStoreError, createFeedRouteHandlers, feedItemActions, feedManifest, feedQueryActions, promoteFeedItemToGoal, promoteOffered, type FeedGoalPromotionGoals } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_PLUGIN_ID, FeedPluginRouteTable, createFeedRouteHandlers, feedItemActions, feedManifest, feedQueryActions, promoteFeedItemToGoal, promoteOffered, type FeedGoalPromotionGoals } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 
 const PROJECT = "project-feed-promotion";
@@ -66,7 +66,7 @@ test("Feed promotion makes the Goal and binds the item through Goals' actions, l
     assert.equal((await f.person.invoke(goalsActions.state, { goal_id: first.goal_id })).intent.source_kind, "feed");
     assert.equal((await goals()).length, before + 1);
 
-    await assert.rejects(f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision }), { code: "feed_revision_conflict" });
+    await assert.rejects(f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision }), { code: "feed.revision_conflict" });
     const second = await f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: linked.revision, start_processing: true });
     assert.equal(second.created, false);
     assert.equal(second.goal_id, first.goal_id);
@@ -85,7 +85,7 @@ test("Feed promotion makes the Goal and binds the item through Goals' actions, l
 
     const archived = (await f.person.invoke(feedItemActions.disposition, { item_id: item!.item_id, disposition: "archived", expected_revision: replacement.item.revision })).item;
     const beforeArchivedAttempt = await goals();
-    await assert.rejects(f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: archived.revision }), { code: "feed_invalid_transition" });
+    await assert.rejects(f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: archived.revision }), { code: "feed.invalid_transition" });
     assert.deepEqual(await goals(), beforeArchivedAttempt);
     assert.deepEqual((await f.person.invoke(feedQueryActions.item, { item_id: item!.item_id })).item, archived);
   } finally { await f.done(); }
@@ -441,7 +441,7 @@ test("an item that changed while Goals worked is refused and Feed writes nothing
     };
     const ports = { feed, goals, hydrateItem: (row: typeof item) => row, transaction: <T>(operation: () => T) => store.db.transaction(operation).immediate(), beforeEffect: async () => {}, by_person: true };
     await assert.rejects(promoteFeedItemToGoal(ports, { projectId: PROJECT, routePrefix: "", itemId: item.item_id, startProcessing: false, expectedRevision: item.revision }),
-      (error: unknown) => error instanceof FeedStoreError && error.code === "feed_revision_conflict");
+      (error: unknown) => error instanceof ActionError && error.code === "feed.revision_conflict");
     assert.deepEqual(calls, ["create", "confirm"]);
     const after = feed.getItem(PROJECT, item.item_id);
     assert.equal(after.linked_goal_id, null);

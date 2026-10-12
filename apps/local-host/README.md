@@ -39,6 +39,7 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 | [src/project-deletion-service.ts](src/project-deletion-service.ts)、[src/project-deletion-gateway.ts](src/project-deletion-gateway.ts) | 删除项目的一份 Host 服务（网页设置页与 MCP 共用）和 stdio MCP 转给常驻 Host 的内部通道；[src/resident-host-request.ts](src/resident-host-request.ts) 是转给常驻 Host 的那一份传输（地址检查 `residentHostOrigin` 与那一次 POST `postToResidentHost`；动作网关的客户端 `LocalActionGatewayClient`、MCP 的删除通道与命令行的 `demo remove` 都经它）|
 | [src/goal-project-application.ts](src/goal-project-application.ts) | 跨 Module 应用组合 |
 | [src/plugin-host-services.ts](src/plugin-host-services.ts) | 一个插件启动时宿主交给它的身份和服务（动作、私人存储、成果、事件、输入输出）；`PluginHostExecutor` 只管启停 |
+| [src/plugin-route-operations.ts](src/plugin-route-operations.ts) | Runtime 插件 HTTP 共用的那一段：重启、解除隔离、升级、未运行的 503、视图版本号、已声明路由的分发；不认识任何插件，属于某个插件或项目输入图的部分由调用方经钩子给（`coding-surface.ts` 的 `handleCodingPluginHttp` 是现在的调用方） |
 | [src/project-plugin-ports.ts](src/project-plugin-ports.ts) | 项目里内置插件和已安装插件用到的端口（`MolisWorkLocalHost` 的两个入口转到这里） |
 | [src/home-side.ts](src/home-side.ts) | 宿主与它的 Home 的登记：宿主构造时绑定（`bindHomeSide`，Agent 服务照旧在这里装配）、关闭时撤下；项目的插件平台经它拿到本宿主的 Home（模型注入在调用时读，不在启动时拷）和测试夹具，`PluginPlatformOptions.home` 的值（`pluginHomeFor`）也由它给 |
 

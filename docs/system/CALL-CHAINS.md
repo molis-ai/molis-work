@@ -55,7 +55,7 @@
 
 **现状与缺口**
 
-- 调用编号在内核、宿主 typed 口和调用记录的行里有；页面请求与后台定时器按操作给号，答复在留了行时带号（W3-01 C）；MCP 按消息给号（W3-01 D），助理、Agent 和命令行也按操作给号（W3-01 E）；界面显示：调用记录里的编号和诊断页按编号查找已有（W3-01 F），装了共用请求助手的页面的错误详情里也有（W3-10-1a），其余页面还没做（W3-10）；错误只有一个模型：码是 `<主人>.<原因>`，状态由错误的 kind 推出，平台自己的码在 `packages/contracts/src/platform/action-errors.ts` 的 `ACTION_ERROR_KINDS` 里（W3-02）。Todo、文档类插件（Pages、PPT、Dataset、Form、Lingguang、Workflows）以及 Feed、Inbox、Schedule 已经走这个模型，不带映射函数；其余插件（Cognia、Functions、Jelly、Shelf）还各带一份映射函数，对同一个错误码仍给出不同状态，例如 `actions.plugin_disabled` 在 Shelf 里是 400，而在已经走这个模型的插件里都是 403，它们按 W3-02 的后续片逐个换掉；浏览器端的共用请求助手已经在 ui-host（W3-10-1a），目前只装在不进 `/assets/` 的内联页面上，工作台主程序和插件客户端的请求还没迁到它（W3-10-1b 起、W5-04）。
+- 调用编号在内核、宿主 typed 口和调用记录的行里有；页面请求与后台定时器按操作给号，答复在留了行时带号（W3-01 C）；助理和 Agent 的每一轮、命令行的每条命令、创作台生成的插件的每次调用也按操作给号（W3-01 E）；MCP 按消息给号（W3-01 D）；界面显示：调用记录里的编号和诊断页按编号查找已有（W3-01 F），装了共用请求助手的页面的错误详情里也有（W3-10-1a），其余页面还没做（W3-10）；错误只有一个模型：码是 `<主人>.<原因>`，状态由错误的 kind 推出，平台自己的码在 `packages/contracts/src/platform/action-errors.ts` 的 `ACTION_ERROR_KINDS` 里（W3-02）。Todo、文档类插件（Pages、PPT、Dataset、Form、Lingguang、Workflows）以及 Feed、Inbox、Schedule 已经走这个模型，不带映射函数；其余插件（Cognia、Functions、Jelly、Shelf）还各带一份映射函数，对同一个错误码仍给出不同状态，例如 `actions.plugin_disabled` 在 Shelf 里是 400，而在已经走这个模型的插件里都是 403，它们按 W3-02 的后续片逐个换掉；浏览器端的共用请求助手已经在 ui-host（W3-10-1a），目前只装在不进 `/assets/` 的内联页面上，工作台主程序和插件客户端的请求还没迁到它（W3-10-1b 起、W5-04）。
 - 步骤 4 是手写的前缀链；改成注册表是 W5-07。新的内置插件只走 Plugin Runtime，不再新增这类文件。
 - 不经 `ActionService` 的 typed 能力（`LocalHost.register` 的非动作分支）不校验 schema；它们的调用由宿主结算一次（带 `path: "typed"`），其中的命令进调用记录（读取只在失败时）；边界见 §10。
 - [系统架构 §4](ARCHITECTURE.md) 写的「owner 提交后经 Durable Outbox 发布事件」是目标，不是现状（[BL-070](../../specs/BACKLOG.md)）：现在各 owner 在自己的事务里写自己的事件日志，没有统一的发布通道，消费方靠读 owner 的动作或轮询。

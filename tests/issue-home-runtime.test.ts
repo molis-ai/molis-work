@@ -60,7 +60,7 @@ test("ISSUE-01 failed Home initialization preserves its database and only explic
     for (const response of retries) { assert.equal(response.status, 200, await response.clone().text()); await response.text(); }
     assert.equal(host.homePlugins!.installations().length, 1);
     const capabilities = await host.homeActionClient().discover(user);
-    assert.equal(capabilities.filter(action => action.capability_id.startsWith("issues.")).length, 8);
+    assert.equal(capabilities.filter(action => action.capability_id.startsWith("issues.")).length, 9);
     const saved = await host.homeActionClient().invoke(user, issuesActions.create, input) as Issue;
     assert.deepEqual(await host.homeActionClient().invoke(user, issuesActions.read, { id: saved.id }), saved);
     assert.deepEqual(await readFile(join(directory, "rejected.db")), original);
@@ -100,7 +100,7 @@ test("ISSUE-01 ISSUE-02 Home discovery starts once, crosses projects, persists, 
     const catalogs = await Promise.all(Array.from({ length: 4 }, () => host.homeActionClient().discover(user)));
     for (const catalog of catalogs) {
       const own = catalog.filter(view => view.capability_id.startsWith("issues."));
-      assert.equal(own.length, 8); assert.ok(own.every(view => view.availability.available && view.provider.provider_id === ISSUES_PLUGIN_ID && !view.provider.project_id));
+      assert.equal(own.length, 9); assert.ok(own.every(view => view.availability.available && view.provider.provider_id === ISSUES_PLUGIN_ID && !view.provider.project_id));
     }
     assert.equal(host.homePlugins!.installations().filter(row => row.plugin_id === ISSUES_PLUGIN_ID).length, 1);
     const installation = host.homePlugins!.installation(ISSUES_PLUGIN_ID)!;

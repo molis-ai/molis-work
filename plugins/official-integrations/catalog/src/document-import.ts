@@ -1,5 +1,5 @@
 /** One-time document reads. Credentials never leave the selected provider's API origin. */
-import { createExecutionLifetime, type ExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionError, createExecutionLifetime, defineErrorCodes, type ExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 
 export type ExternalDocumentSource = "notion" | "feishu" | "lark" | "google-docs";
 
@@ -13,23 +13,27 @@ export interface ExternalDocument {
   warnings: string[];
 }
 
-export type ExternalDocumentImportErrorCode =
-  | "invalid_url" | "needs_auth" | "permission_denied" | "not_found"
-  | "rate_limited" | "network" | "timeout" | "provider" | "too_large"
-  | "incomplete_content" | "empty_content" | "unsupported_document";
-
-export class ExternalDocumentImportError extends Error {
-  readonly status: number;
-  constructor(readonly code: ExternalDocumentImportErrorCode, message: string) {
-    super(message);
-    this.name = "ExternalDocumentImportError";
-    this.status = ({
-      invalid_url: 400, needs_auth: 401, permission_denied: 403, not_found: 404,
-      rate_limited: 429, network: 502, timeout: 504, provider: 502, too_large: 413,
-      incomplete_content: 422, empty_content: 422, unsupported_document: 422,
-    } satisfies Record<ExternalDocumentImportErrorCode, number>)[code];
-  }
-}
+/**
+ * What reading a document from a connected service refuses, every code `catalog_integration.<reason>` (this package's owner name).
+ * The kind is the sort of failure, and the Host's edge turns it into the status (SDK `actionHttpStatus`): a connection that needs
+ * authorizing again is `unavailable` (as `actions.reauthorize` is) and not a 401, which would say the caller is not signed in;
+ * a document that arrived empty, unsupported or incomplete is `invalid` (it was a 422).
+ */
+export const externalDocumentErrors = defineErrorCodes("catalog_integration", {
+  invalid_url: "invalid",
+  needs_auth: "unavailable",
+  permission_denied: "forbidden",
+  not_found: "not_found",
+  rate_limited: "rate_limited",
+  network: "upstream",
+  timeout: "timeout",
+  provider: "upstream",
+  too_large: "too_large",
+  incomplete_content: "invalid",
+  empty_content: "invalid",
+  unsupported_document: "invalid",
+});
+export type ExternalDocumentImportErrorCode = keyof typeof externalDocumentErrors;
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const DEADLINE_MS = 30_000;
@@ -38,7 +42,7 @@ const RESOURCE_ID = /^[A-Za-z0-9_-]{10,128}$/u;
 const NOTION_ID = /(?:^|-)([a-f\d]{32}|[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12})$/iu;
 
 function fail(code: ExternalDocumentImportErrorCode, message: string): never {
-  throw new ExternalDocumentImportError(code, message);
+  throw externalDocumentErrors[code](message);
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -146,7 +150,7 @@ function createReader(fetchImpl: typeof fetch, lifetime: ExecutionLifetime, befo
       }
     } catch (error) {
       signal.throwIfAborted();
-      if (error instanceof ExternalDocumentImportError) throw error;
+      if (error instanceof ActionError && error.code.startsWith("catalog_integration.")) throw error;
       return fail("network", "读取文档失败，请检查网络后重试。");
     } finally { await response?.body?.cancel().catch(() => {}); }
   }
@@ -255,7 +259,7 @@ export async function readExternalDocument(
   const fetchImpl = ports.fetch ?? globalThis.fetch?.bind(globalThis);
   if (!fetchImpl) fail("network", "当前环境无法读取在线文档。");
   const lifetime = createExecutionLifetime({ signal: ports.signal,
-    timeout: { milliseconds: DEADLINE_MS, reason: new ExternalDocumentImportError("timeout", "读取文档超时，请稍后重试。") } });
+    timeout: { milliseconds: DEADLINE_MS, reason: externalDocumentErrors.timeout("读取文档超时，请稍后重试。") } });
   try {
     const reader = createReader(fetchImpl, lifetime, ports.beforeDispatch);
     const content = input.source === "notion" ? await notionDocument(reference.id, token, reader)

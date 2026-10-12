@@ -17,7 +17,7 @@ import {
   type TypeSafeEvaluateResult,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-contracts/modules/functions";
-import { FunctionsError } from "./keys.js";
+import { functionsErrors } from "./errors.js";
 import { FunctionsStore, assertReadyToEvaluate, assertReadyToPublish } from "./store.js";
 
 export type { TypeSafeProvider, TypeSafeEvaluateResult };
@@ -32,7 +32,7 @@ export interface FunctionsServiceOptions {
 
 const missingProvider: TypeSafeProvider = {
   async evaluate() {
-    throw new FunctionsError("functions.provider_not_configured", "还没有配置 TypeSafe API Key");
+    throw functionsErrors.provider_not_configured("还没有配置 TypeSafe API Key");
   },
 };
 
@@ -140,7 +140,7 @@ export class FunctionsService {
     const current = this.store.requirePublishedByKey(functionKey);
     if ((context.version !== undefined && context.version !== current.version)
       || (context.config_hash !== undefined && context.config_hash !== current.config_hash)) {
-      throw new FunctionsError("functions.version_conflict", "判断规则版本已变化，请重新确认绑定");
+      throw functionsErrors.version_conflict("判断规则版本已变化，请重新确认绑定");
     }
     await context.before_evaluate?.(current);
     const result = await this.evaluate(current, input, context.signal);
@@ -211,7 +211,7 @@ export class FunctionsService {
     signal?.throwIfAborted();
     const state = input.trim();
     if (!state || state.length > 8000) {
-      throw new FunctionsError("functions.invalid", "试跑输入须为 1 到 8000 个字");
+      throw functionsErrors.invalid("试跑输入须为 1 到 8000 个字");
     }
     assertReadyToEvaluate(record);
     const result = await this.provider.evaluate(this.resolveApiKey(), record, state, signal);
@@ -224,7 +224,7 @@ export class FunctionsService {
     if (fromEnv) return fromEnv;
     const stored = this.credential()?.trim() ?? "";
     if (stored) return stored;
-    throw new FunctionsError("functions.provider_not_configured", "还没有配置 TypeSafe API Key");
+    throw functionsErrors.provider_not_configured("还没有配置 TypeSafe API Key");
   }
 }
 

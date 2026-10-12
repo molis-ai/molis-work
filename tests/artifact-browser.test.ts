@@ -230,7 +230,7 @@ test("Artifact navigation and export retain the selected catalog Project", async
   const exported = await fetch(origin + prefix + `/api${exactPath(1)}/export`);
   assert.deepEqual(await exported.json(), original);
   const other = await fetch(origin + `/projects/${beta.project_id}` + exactPath(1));
-  assert.equal(other.status, 404);
+  assert.equal(other.status, 403, "a project without the 成果 plugin is refused with the status of a plugin that is off (it was 404, before the edge read the failure's kind)");
   assert.doesNotMatch(await other.text(), /Original report|Alpha results/);
 });
 

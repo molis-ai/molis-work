@@ -43,6 +43,14 @@ async function startHost(t: TestContext, options: Parameters<typeof createMolisW
 }
 
 interface Answer { status: number; body: string; headers: http.IncomingHttpHeaders }
+
+/** Every refusal of the Host, Origin and control-token checks is this one body (host.request_refused, W3-02 G2): the answer never says which check failed. */
+const REFUSED = { error: "本地控制请求校验失败", code: "host.request_refused" };
+function assertRefusedBody(answer: Answer, what: string): void {
+  // An empty body fails as well: the refusal of an HTTP route is this body, not a bare status.
+  assert.notEqual(answer.body, "", `${what}: the refusal carries the one opaque body, not an empty answer`);
+  assert.deepEqual(JSON.parse(answer.body), REFUSED, `${what}: the one opaque body, whichever check failed`);
+}
 /** One request with every header chosen by the caller, the Host header included (fetch() would not let a test lie about it). */
 function send(host: Host, method: string, path: string, headers: Record<string, string | undefined> = {}, body?: string): Promise<Answer> {
   return new Promise((resolve, reject) => {
@@ -129,6 +137,7 @@ test("S-02 a Host header that is not a loopback name is refused for every method
       for (const name of foreign) {
         const answer = await send(host, method, path, { host: name, ...(method === "GET" || method === "HEAD" ? {} : good(host, { host: name })) });
         assert.equal(answer.status, 403, `${method} ${path} with Host: ${name} answered ${answer.status}`);
+        if (method !== "HEAD") assertRefusedBody(answer, `${method} ${path} with Host: ${name}`);
       }
     }
   }
@@ -159,12 +168,14 @@ test("S-03 a mutation without the Origin, the token or the one-time key is refus
   for (const [what, origin] of origins) {
     const answer = await post(good(host, { origin }));
     assert.equal(answer.status, 403, `${what}: ${answer.body}`);
+    assertRefusedBody(answer, what);
   }
   const tokens: Array<[string, string | undefined]> = [["no token", undefined], ["a wrong token of the same length", "x".repeat(TOKEN.length)], ["a wrong token of another length", "short"],
     ["the right token with a suffix", `${TOKEN}x`], ["the right token with a prefix", `x${TOKEN}`], ["an empty token", ""]];
   for (const [what, token] of tokens) {
     const answer = await post(good(host, { "x-molis-work-control-token": token }));
     assert.equal(answer.status, 403, `${what}: ${answer.body}`);
+    assertRefusedBody(answer, what);
   }
   // The token is read from its header only: not from the address, a cookie or a form field.
   assert.equal((await post(good(host, { "x-molis-work-control-token": undefined }), `${GATEWAY}?x-molis-work-control-token=${TOKEN}`)).status, 403);
@@ -220,6 +231,7 @@ test("S-03 a mutation outside /api/ and /projects/<id>/api/ is refused even with
       "/projects/p1/apix", "/health", "/assets/workbench.js", "/desktop/capsule", "/capabilities/rules"]) {
       const answer = await send(host, method, path, good(host), "{}");
       assert.equal(answer.status, 403, `${method} ${path} answered ${answer.status}: ${answer.body}`);
+      assertRefusedBody(answer, `${method} ${path}`);
     }
   }
   // The same refusal for the API prefixes is the one the tests above exercise; a project-scoped API path is guarded too.
@@ -256,12 +268,19 @@ test("S-03 no answer of the host opens it to another origin: no Access-Control-A
 // ---- S-04 ------------------------------------------------------------------------------------------------------
 
 /** Opens a socket and resolves with how the upgrade went and what the host said first. */
-function open(host: Host, path: string, options: { origin?: string; host?: string } = {}): Promise<{ opened: boolean; refusal?: string; socket: WebSocket }> {
+function open(host: Host, path: string, options: { origin?: string; host?: string } = {}): Promise<{ opened: boolean; refusal?: string; refusalBody?: string; socket: WebSocket }> {
   return new Promise(resolve => {
     const socket = new WebSocket(`ws://127.0.0.1:${host.port}${path}`, { ...(options.origin ? { origin: options.origin } : {}), ...(options.host ? { headers: { host: options.host } } : {}) });
     host.sockets.push(socket);
     socket.once("open", () => resolve({ opened: true, socket }));
-    socket.once("unexpected-response", (_request, response) => { resolve({ opened: false, refusal: String(response.statusCode), socket }); response.destroy(); });
+    socket.once("unexpected-response", (_request, response) => {
+      // The socket's own refusal is written below the HTTP request entry: read what it says to the end, which is where the connection closes.
+      const chunks: Buffer[] = [];
+      response.on("data", chunk => chunks.push(chunk));
+      const finish = () => resolve({ opened: false, refusal: String(response.statusCode), refusalBody: Buffer.concat(chunks).toString("utf8"), socket });
+      response.once("end", finish);
+      response.once("close", finish);
+    });
     socket.once("error", error => resolve({ opened: false, refusal: error.message, socket }));
   });
 }
@@ -280,6 +299,9 @@ async function refusesUntilAuthenticated(t: TestContext, path: string, spawnMess
     ["another loopback port", { origin: "http://127.0.0.1:1" }], ["a foreign Host", { host: "evil.example" }], ["a foreign Host with a loopback-looking prefix", { host: "127.0.0.1.evil.example" }]] as const) {
     const attempt = await open(host, path, options);
     assert.equal(attempt.opened, false, `${what} must not upgrade`);
+    // S-02: the socket's refusal is a bare 403 with no body and no code; only the HTTP routes answer host.request_refused.
+    assert.equal(attempt.refusal, "403", `${what}: the upgrade is refused with 403`);
+    assert.equal(attempt.refusalBody, "", `${what}: the upgrade refusal carries no body`);
   }
   // A non-browser client without an Origin may connect but has no standing until it presents the token.
   for (const [what, first] of [["a command before authenticating", spawnMessage], ["the wrong token", { type: "auth", token: "x".repeat(TOKEN.length) }],
@@ -356,6 +378,7 @@ test("S-05 no channel answers before the control token (the self-guarded /im mou
   // The one mount outside /api/ that is let through to check for itself is /im (its own Host, Origin, Fetch Metadata and session checks; S-03 tests it).
   const unknown = await send(plain, "POST", "/no-such-channel/v1/projects", bearer, "{}");
   assert.equal(unknown.status, 403, unknown.body);
+  assertRefusedBody(unknown, "a path that never existed");
   for (const path of ["/casebook/v1/projects", "/casebook/v1/project-one/facts"]) {
     const answer = await send(plain, "POST", path, bearer, "{}");
     assert.equal(answer.status, 403, `${path}: ${answer.body}`);

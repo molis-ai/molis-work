@@ -154,6 +154,7 @@ export async function questionScene(lab: Lab, f: Flavor): Promise<Scene> {
   lab.at(900);
   const one = await startRun(lab, session, `rec-${f.id}-question-1`, f.question.task, {}, ["ask-user", "acknowledge-inputs"]);
   await one.waitFor("question", all => all.some(event => event.type === "awaiting-input"));
+  const asked = one.events.length;
   lab.at(930);
   await one.control.steer({ text: f.question.supplement.text, key: "side-1" });
   const waiting = one.events.length;
@@ -164,7 +165,8 @@ export async function questionScene(lab: Lab, f: Flavor): Promise<Scene> {
   const run = record(lab, "等回答的一轮", one);
   // The recording kept the ledger up to `waiting` events as the waiting point; the projections are looked up by prefix.
   return { id: "question", label: "有问题等回答时的补充", runs: [run], checkpoints: [
-    { id: "waiting", label: "问题在等你回答", run: 0, at: waiting, awaiting: true },
+    { id: "asked", label: "问题在等你回答", run: 0, at: asked, awaiting: true },
+    { id: "waiting", label: "你补充了一句，问题还在等", run: 0, at: waiting, awaiting: true },
     { id: "answered", label: "回答之后", run: 0, at: run.events.length },
   ] };
 }

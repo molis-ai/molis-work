@@ -257,11 +257,10 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   // Several documents picked in the list (⌘ or Ctrl + click): they are in hand together, to compare or combine.
   // Nothing is written in place for them, so the bar hands their actions to the Assistant as cards.
   const picked = new Set();
-  // Where the picked rows are on screen, for the toolbar to sit under them.
   const pickedRect = () => {
     const boxes = [...rowsEl.querySelectorAll(".pages-doc-row[data-page-id]")].filter((row) => picked.has(row.dataset.pageId)).map((row) => row.getBoundingClientRect());
-    return boxes.length ? { left: Math.min(...boxes.map((box) => box.left)), right: Math.max(...boxes.map((box) => box.right)),
-      top: Math.min(...boxes.map((box) => box.top)), bottom: Math.max(...boxes.map((box) => box.bottom)) } : null;
+    const edge = (side, pick) => pick(...boxes.map((box) => box[side]));
+    return boxes.length ? { left: edge("left", Math.min), right: edge("right", Math.max), top: edge("top", Math.min), bottom: edge("bottom", Math.max) } : null;
   };
   const objectsFocus = () => {
     const chosen = records.filter((record) => picked.has(record.id));
@@ -320,22 +319,15 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         return { command: input.command, style: typeof input.style === "string" ? input.style : undefined, text: typeof input.text === "string" ? input.text : undefined };
       } });
   });
-  // The editor's tools for what is in hand, as data for the context toolbar; again whenever one switches on or off.
-  let toolsKey = "";
-  let toolsQueued = false;
+  let toolsKey = "", toolsQueued = false;
   const publishTools = () => {
     if (!editor || !editor.tools || !focusShown || focusShown.granularity === "objects") return;
-    const groups = editor.tools();
-    const key = focusShown.context_id + JSON.stringify(groups);
+    const groups = editor.tools(), key = focusShown.context_id + JSON.stringify(groups);
     if (key === toolsKey) return;
     toolsKey = key;
     workbench.dispatchEvent(new CustomEvent("molis:context-tools", { bubbles: true, detail: { context_id: focusShown.context_id, groups } }));
   };
-  const queueTools = () => {
-    if (toolsQueued) return;
-    toolsQueued = true;
-    window.setTimeout(() => { toolsQueued = false; publishTools(); }, 0);
-  };
+  const queueTools = () => { if (!toolsQueued) { toolsQueued = true; window.setTimeout(() => { toolsQueued = false; publishTools(); }, 0); } };
   workbench.addEventListener("molis:context-tool-invoke", (event) => {
     const chosen = event.detail;
     if (editor && chosen && focusShown && chosen.context_id === focusShown.context_id) editor.runTool(chosen.id);

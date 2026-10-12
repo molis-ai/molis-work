@@ -16,6 +16,8 @@ import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.j
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 test("Goals MCP action tools use client grants and the shared Host, and record the Session as author with replayable receipts", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-mcp-aliases-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Legacy Goals", actor_id: "user" }));
@@ -85,6 +87,27 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     const note = await call<typeof noteBefore>(aliases.note, newInput);
     assert.equal(note.replayed, false);
     assert.deepEqual(await call(aliases.note, newInput), { ...note, replayed: true });
+    // W3-01 D: a tool call is one operation. A command that left a row in the resident Host's log hands its number back in the result's `_meta`
+    // (the process the Runtime talks to learns it from the Host's reply); a read that worked leaves no row and hands back none; a refused
+    // write names its number in the error text; and the Runtime cannot choose the number: what it puts in `_meta` is not taken.
+    const callIdOf = (result: { _meta?: Record<string, unknown> }) => result._meta?.["molis-work/callId"];
+    const forgedNumber = "11111111-2222-4333-8444-555555555555";
+    const replayedNote = await sdk.callTool({ name: aliases.note, arguments: noteInput, _meta: { "molis-work/callId": forgedNumber, call_id: forgedNumber } });
+    const noteCallId = String(callIdOf(replayedNote));
+    assert.match(noteCallId, UUID);
+    assert.notEqual(noteCallId, forgedNumber);
+    const noteRow = host.callLog!.find(noteCallId)[0];
+    assert.deepEqual([noteRow?.capability_id, noteRow?.ok, noteRow?.actor_id, noteRow?.audience], [goalsActions.note.capability_id, true, clientId, "mcp"]);
+    assert.deepEqual(host.callLog!.find(forgedNumber), [], "the number the Runtime sent was not used");
+    assert.equal(callIdOf(await sdk.callTool({ name: aliases.list, arguments: {} })), undefined, "a read that worked leaves no row and shows no number");
+    const forgedCall = await sdk.callTool({ name: aliases.note, arguments: { ...newInput, actor_id: "forged" } });
+    assert.equal(forgedCall.isError, true);
+    const refusedText = (forgedCall.content as Array<{ text: string }>)[0]!.text;
+    const refusedCallId = /"call_id":"([0-9a-f-]{36})"/.exec(refusedText)?.[1];
+    assert.match(String(refusedCallId), UUID, refusedText);
+    assert.notEqual(refusedCallId, noteCallId, "every tool call is an operation of its own");
+    const refusedRow = host.callLog!.find(refusedCallId!)[0];
+    assert.deepEqual([refusedRow?.refused, refusedRow?.ok, refusedRow?.actor_id, refusedRow?.code], [true, false, clientId, "actions.input_invalid"]);
     const stored = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, note.event_id));
     assert.equal(stored.actor_id, auditActor); assert.equal(stored.actor_kind, "runtime");
     assert.equal((stored.payload as { body: string }).body, newInput.body);

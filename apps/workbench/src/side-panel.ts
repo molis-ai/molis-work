@@ -143,7 +143,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     }else if(was){
       document.body.dataset.sideOpen='false';panel.inert=true;
       closing=setTimeout(()=>{if(!open)panel.hidden=true;},matchMedia('(prefers-reduced-motion:reduce)').matches?0:420);
-      if(panel.contains(document.activeElement)){const focusTarget=trigger?.isConnected&&trigger.getClientRects().length?trigger:document.querySelector('[data-dock-toggle="im"]');focusTarget?.focus({preventScroll:true});}
+      if(panel.contains(document.activeElement)){const focusTarget=trigger?.isConnected&&trigger.getClientRects().length?trigger:document.querySelector('[data-dock-toggle="im"]');focusTarget?.focus({preventScroll:true});if(panel.contains(document.activeElement))document.activeElement.blur();}
       imVisible();document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current,target:null,open:false}}));
     }
     document.querySelectorAll('[data-dock-toggle="im"],[data-side-toggle],[data-side-plugin-open]').forEach(button=>button.setAttribute('aria-expanded',String(open&&(!button.dataset.sidePluginOpen||current==='plugin:'+button.dataset.sidePluginOpen))));

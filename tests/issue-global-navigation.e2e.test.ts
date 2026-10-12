@@ -53,6 +53,13 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
     await v.composerFocused();
   }
   assert.equal(await v.ask("$('[data-issue-composer] [name=description]').value"), "项目页里写了一半", "the draft was kept while closed");
+  // The discussion is its own app in a frame; typing there, the chord still reaches the shell.
+  await b.evaluate("document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'discussion' }, cancelable: true }))");
+  await b.waitFor("document.querySelector('[data-dock-frame=\"im\"]')?.contentDocument?.readyState === 'complete' && !!document.querySelector('[data-dock-frame=\"im\"]').contentDocument.querySelector('[data-im-app]')", 15_000);
+  await b.evaluate("document.querySelector('[data-dock-frame=\"im\"]').focus()");
+  await v.chord();
+  await b.waitFor("document.querySelector('[data-side-tab=\"plugin:issues/capture\"]').getAttribute('aria-selected') === 'true'");
+  await v.composerFocused();
   for (const width of [1024, 390, 320]) await beside(b, width, "project");
 });
 

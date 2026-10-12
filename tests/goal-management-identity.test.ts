@@ -8,8 +8,7 @@ import ts from "typescript";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import * as goalsPlugin from "@molis-ai/molis-work-plugin-goals";
-import { createGoalIntentCapability, setActiveGoalCapability, recordGoalUserDecisionCapability, goalTreeCapabilities, goalsActions,
-  hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { createGoalIntentCapability, setActiveGoalCapability, recordGoalUserDecisionCapability, goalTreeCapabilities, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionMetadata, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostCapabilityDefinition, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -20,9 +19,10 @@ import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 const door = (name: string, capability: unknown, business: Record<string, unknown>) =>
   ({ name, capability: capability as HostCapabilityDefinition<unknown, unknown>, business });
 
-/** The typed management writes that still have a caller in the product (the first-run setup creates the first Goal). */
+/** The typed management writes that still have a caller in the product (the first-run setup creates the first Goal; the management MCP records the person's decision). */
 const managementDoors = () => [
   door("create intent", createGoalIntentCapability, { title: "目标" }),
+  door("record decision", recordGoalUserDecisionCapability, { goal_id: "IDENTITY-GOAL", conclusion: "可以" }),
 ];
 
 /**
@@ -158,12 +158,11 @@ test("a plugin that lists a management entry under consumes is refused and is ne
       { name: "check structure proposal", capability: goalTreeCapabilities.checkGoalTreeProposal as HostCapabilityDefinition<unknown, unknown>,
         input: [{ project_id, proposal_id: "p", idempotency_key: "plugin-check" }] as unknown },
     ];
-    // The table is every typed event write the Goals plugin exports (the event decision aside: it takes the protected authority and
-    // was already host_only), and each of them carries the flag. A write added later without the flag fails here, and so does a
-    // typed event write that comes back after its action took its place.
+    // The table is every typed event write the Goals plugin exports, and each of them carries the flag. A write added later without
+    // the flag fails here, and so does a typed event write that comes back after its action took its place.
     const exported = typedEventWrites().map(([, capability]) => capability);
     assert.deepEqual(exported.map(capability => capability.capability_id).sort(),
-      [...managementDoors().map(({ capability }) => capability.capability_id), recordGoalUserDecisionCapability.capability_id].sort(),
+      managementDoors().map(({ capability }) => capability.capability_id).sort(),
       "add the new typed event write to managementDoors, and mark it host_only");
     assert.deepEqual(exported.filter(capability => capability.host_only !== true).map(capability => capability.capability_id), [],
       "a typed event write that a plugin can reach is recorded as the person on this machine");
@@ -271,9 +270,9 @@ test("under the project approval rule a close from the management door, the Web 
         assert.deepEqual([recorded.actor_id, recorded.actor_kind], [LOCAL_PERSON_ACTOR_ID, "user"]);
       }
     }
-    // A decision from the person that authorizes complete releases it, for the same door that was held back before.
-    await typed.invoke(recordGoalUserDecisionCapability, { project_id, goal_id: "DECIDED", idempotency_key: "allow",
-      authority: hostEventDecisionAuthority("management", project_id, LOCAL_PERSON_ACTOR_ID, "allow"), conclusion: "可以完成",
+    // A decision from the person that authorizes complete releases it, for the same door that was held back before. The door sends no
+    // authority: the Host decides as the person on this machine.
+    await typed.invoke(recordGoalUserDecisionCapability, { project_id, goal_id: "DECIDED", idempotency_key: "allow", conclusion: "可以完成",
       effects: [{ kind: "authorize_action", action: "complete" }], scope: { action: "complete" } });
     assert.equal((await closers.management("DECIDED", "close-management-after")).completion_applied, true);
 
@@ -421,9 +420,9 @@ type Free<Input> = [Extract<KeysOf<Input>, Identity>] extends [never] ? true : f
  * one. `GoalTreeProposalCheckInput` is the domain input and still names the actor, so the typed check has an input type of its own.
  */
 test("the typed management entries are typed without an identity, so a caller that follows the types is not refused", { timeout: 180_000 }, () => {
-  // Every typed event write by export name. The event decision names its person inside the protected authority on purpose.
-  const writes = typedEventWrites().map(([name]) => name).filter(name => name !== "recordGoalUserDecisionCapability");
-  assert.deepEqual(writes, ["createGoalIntentCapability"], "the typed event writes that are left; every other write is an action");
+  // Every typed event write by export name. The event decision is one of them: its authority only points at the conversation.
+  const writes = typedEventWrites().map(([name]) => name);
+  assert.deepEqual(writes, ["createGoalIntentCapability", "recordGoalUserDecisionCapability"], "the typed event writes that are left; every other write is an action");
   const source = `
 import type { HostCapabilityInput, LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ${writes.join(", ")}, setActiveGoalCapability, goalTreeCapabilities, createGoalProposalClients } from "@molis-ai/molis-work-plugin-goals";

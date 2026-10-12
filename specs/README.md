@@ -4,7 +4,7 @@
 
 ## 在做的
 
-- [context-program](context-program/spec.md)：情境动作完整总纲与分期；W0 原型代码已落地，实操未验。
+- [context-program](context-program/spec.md)：情境动作完整总纲与分期；W0 原型已在新 main 上实操并按实物打磨，产品接入未开始。
 - [context-toolbar](context-toolbar/spec.md)：选区/对象浮条、面板槽、能力家族及存量接入；完整需求保留。
 - [quick-create](quick-create/spec.md)：推荐创建、一句话新建、追加/批量与工作流；完整需求保留。
 - [side-shelf](side-shelf/spec.md)：右栏、Shelf、落点、拖放与助理接入；完整需求保留。

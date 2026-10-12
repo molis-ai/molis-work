@@ -1,9 +1,10 @@
 /** Labels prepared for later Jev evaluation. No evaluator, credentials or model calls in W0. */
 export const LEFT_RIGHT_CASES = [
-  { id: "quote-to-cursor", hand: "访谈原话", place: "side", landing: "Pages 光标", acceptableFirst: ["插入到光标处"], acceptableTopThree: ["插入到光标处", "新建文稿"], private: true },
-  { id: "quote-to-selection", hand: "更准确的研究结论", place: "side", landing: "Pages 选区", acceptableFirst: ["替换左侧选区"], acceptableTopThree: ["替换左侧选区", "新建文稿"], private: true },
+  { id: "quote-to-cursor", hand: "访谈原话", place: "side", landing: "Pages 光标", acceptableFirst: ["作为引用插入", "插入到光标处"], acceptableTopThree: ["作为引用插入", "插入到光标处", "新建文稿"], private: true },
+  { id: "quote-to-selection", hand: "更准确的研究结论", place: "side", landing: "Pages 选区", acceptableFirst: ["替换选中的文字"], acceptableTopThree: ["替换选中的文字", "作为引用插入", "新建文稿"], private: true },
   { id: "no-target", hand: "下周要验证的事", place: "side", landing: null, acceptableFirst: ["记成待办"], acceptableTopThree: ["记成待办", "新建文稿"], private: true },
-  { id: "assistant-material", hand: "一轮调研的结果", place: "assistant", landing: "Pages 光标", acceptableFirst: ["插入到光标处"], acceptableTopThree: ["插入到光标处", "新建文稿"], private: false },
+  { id: "assistant-material", hand: "一轮调研的结果", place: "assistant", landing: "Pages 光标", acceptableFirst: ["插入到光标处", "作为引用插入"], acceptableTopThree: ["插入到光标处", "作为引用插入", "新建文稿"], private: false },
+  { id: "web-excerpt", hand: "网页里的一段数据", place: "side", landing: "Pages 光标", acceptableFirst: ["作为引用插入"], acceptableTopThree: ["作为引用插入", "插入到光标处", "收进 Shelf"], private: false },
 ] as const;
 
 export const DESTINATION_CASES = [

@@ -1,7 +1,7 @@
-import { MATERIALS, type CreatedItem, type CreateTarget, type Draft, type Material, type Placement } from "./w0-model.js";
+import { MATERIALS, type CreatedItem, type CreateTarget, type Draft, type Material, type Placement, type PlaceFormat } from "./w0-model.js";
 
 export interface PreviewDocument { id: string; title: string; version: number; body: Record<string, unknown> }
-export type EditBody = (body: Record<string, unknown>, from: number, to: number, text: string) => Record<string, unknown>;
+export type EditBody = (body: Record<string, unknown>, from: number, to: number, text: string, format: PlaceFormat) => Record<string, unknown>;
 const problem = (message: string, status = 409) => Object.assign(new Error(message), { status });
 
 /** Isolated preview data only. No Home, database, model or plugin writes. */
@@ -10,7 +10,7 @@ export class PreviewStore {
   readonly materials = new Map<string, Material>(MATERIALS.map(item => [item.id, { ...item }]));
   readonly created = new Map<string, CreatedItem>();
   private readonly requests = new Map<string, { input: string; result: CreatedItem }>();
-  private readonly placements = new Map<string, { input: string; document: PreviewDocument }>();
+  private readonly placements = new Map<string, { input: string; before: PreviewDocument; document: PreviewDocument; undone?: PreviewDocument }>();
 
   constructor(documents: readonly PreviewDocument[], private readonly edit: EditBody) {
     this.documents = new Map(documents.map(doc => [doc.id, structuredClone(doc)]));
@@ -24,7 +24,7 @@ export class PreviewStore {
 
   save(id: string, expected: number, body: Record<string, unknown>): PreviewDocument {
     const doc = this.document(id);
-    if (doc.version !== expected) throw problem("文档已被其他页面修改。请重新打开文档。 ");
+    if (doc.version !== expected) throw problem("文档已被其他页面修改。请重新打开文档。");
     const next = { ...doc, body: structuredClone(body), version: doc.version + 1 };
     this.documents.set(id, next);
     return structuredClone(next);
@@ -40,9 +40,20 @@ export class PreviewStore {
     const at = placement.landing, doc = this.document(at.documentId);
     if (at.version !== doc.version) throw problem("文档已经改变，这份预览不会写入。请重新选择落点。");
     if (!Number.isSafeInteger(at.from) || !Number.isSafeInteger(at.to) || at.from < 0 || at.to < at.from) throw problem("落点已失效");
-    const next = this.save(doc.id, doc.version, this.edit(doc.body, at.from, at.to, placement.text));
-    this.placements.set(requestId, { input, document: next });
+    const next = this.save(doc.id, doc.version, this.edit(doc.body, at.from, at.to, placement.text, placement.format));
+    this.placements.set(requestId, { input, before: doc, document: next });
     return next;
+  }
+
+  /** Taking a placement back restores the body it replaced, as a new version, only while nothing else changed the document. */
+  unplace(requestId: string): PreviewDocument {
+    const record = this.placements.get(requestId);
+    if (!record) throw problem("没有这次放入的记录", 404);
+    if (record.undone) return structuredClone(record.undone);
+    const current = this.document(record.document.id);
+    if (current.version !== record.document.version) throw problem("文稿之后又改过，这次放入不能直接撤销。请在文稿里用 ⌘Z 或手动修改。");
+    record.undone = this.save(current.id, current.version, record.before.body);
+    return structuredClone(record.undone);
   }
 
   /** Q04: retries with identical input reuse the result; an edited draft gets a new request id. */

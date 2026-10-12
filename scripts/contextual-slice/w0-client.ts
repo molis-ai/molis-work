@@ -1,36 +1,53 @@
 import type { ContextualJudgeResponse, ContextualLayoutPlan } from "@molis-ai/molis-work-contracts/services/contextual";
-import { $, api, el, button, run, showError, type Anchor } from "./w0-dom.js";
-import { choicesFor, sampleDraft, type Choice, type CreatedItem, type Hand, type Landing, type Material } from "./w0-model.js";
+import { $, api, announce, button, run, showError, type Anchor, type Rect } from "./w0-dom.js";
+import { choicesFor, destinationsFor, DIRECT, sampleDraft, type Choice, type CreatedItem, type Hand, type Landing, type Material } from "./w0-model.js";
 import { PreviewEditor } from "./w0-editor.js";
 import { FloatingToolbar } from "./w0-toolbar.js";
 import { Slots } from "./w0-slot.js";
 import { Creation } from "./w0-create.js";
 import { Placements } from "./w0-placement.js";
-import { Shelf, DRAG_TYPE } from "./w0-shelf.js";
+import { SidePanel, DRAG_TYPE } from "./w0-side.js";
 import { ContextStrip } from "./w0-context.js";
+import { AssistantHandoff } from "./w0-assistant.js";
+import { Records } from "./w0-records.js";
 
 interface State { documents: { id: string; title: string; version: number }[]; materials: Material[]; created: CreatedItem[] }
 const editor = new PreviewEditor(), slots = new Slots(), strip = new ContextStrip();
-let hand: Hand | null = null, landing: Landing | null = null, anchor: Anchor = () => null;
-let plan: ContextualLayoutPlan | undefined, sequence = 0, composing = false, selecting = false, touch = false;
+/** One hub, as in context-program §5: what is in hand, where it would land, and the plan for it. */
+let hand: Hand | null = null, landing: Landing | null = null, anchor: Anchor = () => null, dropped = false;
+let plan: ContextualLayoutPlan | undefined, sequence = 0, composing = false, selecting = false, touch = false, noLanding = false;
 let selectionTimer: ReturnType<typeof setTimeout> | undefined;
-const toolbar = new FloatingToolbar({ choose: choice => run(choose(choice)), assistant: () => assistant(), tool: name => editor.tool(name), hoverLanding: at => editor.highlight(at) });
-const creation = new Creation(slots, { refresh, openDocument, hideToolbar: () => toolbar.hide() });
-const placement = new Placements(editor, slots, { showDocument, hideToolbar: () => toolbar.hide(), refresh: async () => { clear(); await refresh(); } });
-const shelf = new Shelf({ select: selectMaterial, clear: () => { if (hand?.place === "side") clearHand(); },
-  undo: item => { void creation.undo(item); }, openDocument: doc => run(openDocument(doc)) });
+const sideBounds = (): Pick<Rect, "left" | "right"> => { const rect = $("[data-w0-shelf-pane]").getBoundingClientRect(); return { left: rect.left, right: rect.right }; };
+const hideToolbar = () => toolbar.hide();
+let toolEdit = false;
+const toolbar = new FloatingToolbar({ choose: choice => run(choose(choice)), ask: () => ask(), bring: () => bring(), tool: name => editor.tool(name),
+  applyTool: name => { toolEdit = true; try { editor.tool(name)?.click(); } finally { toolEdit = false; } },
+  hoverLanding: at => editor.highlight(at ?? (hand && hand.place !== "main" ? landing : null), !!at) });
+const creation = new Creation(slots, { refresh, openDocument, hideToolbar, destinations: destinationsFor,
+  reveal: item => { if (item.materialId) side.reveal(item.materialId); else if (item.target === "spark") side.revealSpark(item.id); } });
+const placement = new Placements(editor, slots, { showDocument, hideToolbar, refresh, landed: next => { clearHand(); side.clearSelection(); setLanding(next); } });
+const side = new SidePanel({ select: selectSide, clear: () => { if (hand && hand.place !== "main") clearHand(); },
+  newIn: (tab, entry) => creation.start(tab === "shelf" ? "shelf" : "spark", () => entry.getBoundingClientRect(), () => entry.focus()) });
+const assistant = new AssistantHandoff(slots, strip, { hideToolbar, plan: value => value.id === hand?.id ? plan : undefined,
+  choose: (choice, chosen, at) => run(choose(choice, chosen, at)) });
+const records = new Records({ undo: item => { void creation.undo(item); }, openDocument: id => run(openDocument(id)) });
 
 function showDocument() { document.body.dataset.mobileView = "document"; }
-function updateStrip() { strip.set(hand, landing); $("[data-w0-clear-landing]").hidden = !landing; }
-function clearHand() { hand = null; plan = undefined; sequence += 1; toolbar.hide(); updateStrip(); }
-function clear() { landing = null; clearHand(); shelf.clearSelection(); }
+function updateStrip() { strip.set(hand, landing); }
+function setLanding(next: Landing | null) {
+  landing = noLanding ? null : next; updateStrip();
+  document.body.dataset.w0Landing = landing?.label ?? "";
+  // While something from the right is in hand, its landing stays visible on the left as a quiet caret.
+  editor.highlight(hand && hand.place !== "main" ? landing : null);
+}
+function clearHand() { hand = null; plan = undefined; dropped = false; sequence += 1; toolbar.hide(); updateStrip(); editor.highlight(null); }
 async function openDocument(doc: string) {
-  slots.close(); clear(); showDocument();
+  slots.close(); clearHand(); side.clearSelection(); showDocument();
   await editor.load(doc); await refresh();
 }
 async function refresh() {
   const state = await api<State>("/api/w0/state");
-  shelf.render(state.materials, state.created);
+  side.setMaterials(state.materials); side.setCreated(state.created); records.set(state.created);
   $("[data-w0-documents]").replaceChildren(...state.documents.map(doc => {
     const node = button(doc.title, () => { document.querySelector<HTMLDetailsElement>(".w0-document-menu")!.open = false; run(openDocument(doc.id)); });
     node.setAttribute("aria-current", doc.id === editor.current().documentId ? "page" : "false"); return node;
@@ -38,9 +55,11 @@ async function refresh() {
 }
 function draw() {
   if (!hand || slots.open || composing || selecting) return;
-  const source = hand;
-  toolbar.show({ hand, landing, choices: choicesFor(hand, landing, plan), anchor, touch,
-    returnFocus: () => source.place === "main" ? editor.focus() : shelf.element(source.id)?.focus() });
+  const source = hand, inSide = hand.place !== "main" && !dropped;
+  toolbar.show({ hand, landing, choices: choicesFor(hand, landing, plan), anchor, touch, narrow: dropped ? innerWidth <= 700 : undefined,
+    bounds: inSide ? sideBounds : undefined,
+    returnFocus: () => source.place === "main" || dropped ? editor.focus() : document.querySelector<HTMLElement>(`[data-w0-hand="${CSS.escape(source.id)}"]`)?.focus() });
+  if (inSide || dropped) editor.highlight(landing);
 }
 async function setHand(value: Hand, location: Anchor) {
   hand = value; anchor = location; plan = undefined;
@@ -54,53 +73,65 @@ async function setHand(value: Hand, location: Anchor) {
   }
   if (serial === sequence) draw();
 }
-function selectMaterial(item: Material, _element: HTMLElement) {
-  clearTimeout(selectionTimer); slots.close(); touch = false;
-  run(setHand({ id: item.id, place: "side", title: item.title, text: item.text }, () => shelf.element(item.id)?.getBoundingClientRect() ?? null));
+function selectSide(item: Hand, row: () => DOMRect | null) {
+  clearTimeout(selectionTimer); slots.close(); touch = false; dropped = false;
+  run(setHand(item, row));
 }
+/** Read after the editor has taken the DOM selection (on selectionchange), never on pointerup before it has. */
 function selected() {
   clearTimeout(selectionTimer);
-  if (composing || selecting || slots.open || !editor.root()?.contains(document.activeElement)) return;
-  landing = editor.landing(); updateStrip();
-  const selectedHand = editor.hand(), at = landing;
-  if (!selectedHand || !at) { clearHand(); return; }
+  if (composing || slots.open) return;
+  const next = editor.landing();
+  if (next) { noLanding = false; setLanding(next); }
+  const selectedHand = editor.hand();
+  if (!selectedHand) {
+    if (hand?.place === "main") clearHand();
+    else if (hand) draw();
+    return;
+  }
+  if (selecting) return;
   selectionTimer = setTimeout(() => {
-    if (composing || selecting || slots.open) return;
-    shelf.clearSelection(); run(setHand(selectedHand, editor.anchor(at)));
+    if (composing || selecting || slots.open || !landing || !editor.root()?.contains(document.activeElement)) return;
+    side.clearSelection(); dropped = false; run(setHand(selectedHand, editor.anchor(landing)));
   }, 350);
 }
-editor.onSelection = selected;
+/** ProseMirror reads the DOM selection in its own listeners; reading ours a moment later sees its state, not the previous one. */
+let readTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleSelected() { clearTimeout(readTimer); readTimer = setTimeout(selected, 30); }
+editor.onSelection = scheduleSelected;
+// Typing ends what was in hand; a format tool on the bar edits the same selection, so the bar stays and re-reads it.
 editor.onChange = () => {
-  placement.changed(); landing = null; updateStrip();
-  if (!slots.open) { clearHand(); clearTimeout(selectionTimer); }
+  placement.changed();
+  if (toolEdit) { scheduleSelected(); return; }
+  if (!slots.open) { clearHand(); side.clearSelection(); clearTimeout(selectionTimer); }
 };
-editor.onLoaded = () => { clear(); attachDrop(); };
+editor.onLoaded = () => { noLanding = false; setLanding(editor.endLanding()); attachDrop(); };
+document.addEventListener("selectionchange", () => {
+  const root = editor.root(), selection = getSelection();
+  // Decided when the change happens: a quick click elsewhere right after must not discard the caret the person just set.
+  if (root && selection?.anchorNode && root.contains(selection.anchorNode) && root.contains(document.activeElement)) scheduleSelected();
+});
 
 async function choose(choice: Choice, chosenHand = hand, chosenLanding = landing, location = anchor) {
   if (!chosenHand) return;
+  const back = () => chosenHand.place === "main" ? editor.focus() : undefined;
   if (choice.kind === "place") {
     if (!chosenLanding) throw new Error("先在文稿里选择落点。");
-    await placement.prepare(chosenHand, chosenLanding);
+    await placement.prepare(choice, chosenHand, chosenLanding);
   } else if (choice.kind === "create" && choice.target) {
-    if (choice.target === "todo") await creation.direct(chosenHand, choice.target);
-    else creation.draft(choice.target, sampleDraft(choice.target, "", chosenHand.text), location, () => editor.focus());
+    if (DIRECT[choice.target]) await creation.direct(chosenHand, choice.target);
+    else creation.draft(choice.target, sampleDraft(choice.target, "", chosenHand.text), location, back);
   } else if (choice.kind === "fragment" && chosenLanding) await placement.fragment(choice, chosenHand, chosenLanding, location);
 }
-function assistant() {
-  const input = $<HTMLInputElement>("[data-w0-assistant-input]"), context = strip.get();
-  const selectedPlan = context.hand?.id === hand?.id ? plan : undefined;
-  toolbar.hide();
-  const panel = slots.show("交给助理 · 交接预览", () => $(".w0-composer").getBoundingClientRect(), () => input.focus());
-  panel.body.append(el("p", { class: "w0-simulated", text: "模拟交接，尚未发送给助理，也没有输入回执。" }),
-    el("p", { text: input.value || "带着这些内容继续处理。" }));
-  if (context.hand) panel.body.append(el("p", { class: "w0-preview-text", text: `${context.hand.title}\n${context.hand.text}` }));
-  if (context.landing) panel.body.append(el("p", { text: `落点：${context.landing.label}` }));
-  if (context.hand) for (const choice of choicesFor(context.hand, context.landing, selectedPlan).primary) {
-    const node = button(choice.title, () => { slots.close(); run(choose(choice, context.hand, context.landing)); });
-    node.dataset.w0AssistantChoice = choice.key; panel.actions.append(node);
-  }
-  if (!context.hand && !context.landing) panel.body.append(el("p", { text: "未附带材料或落点。" }));
-  slots.position(); panel.root.querySelector<HTMLButtonElement>("button")?.focus();
+function ask() {
+  if (!hand) return;
+  const source = hand;
+  assistant.ask(source, landing, anchor, () => source.place === "main" ? editor.focus() : undefined);
+}
+function bring() {
+  strip.include(); toolbar.hide();
+  $<HTMLInputElement>("[data-w0-assistant-input]").focus();
+  announce("已带到助理：输入框上方是手上的内容和落点，可删。");
 }
 
 const hooked = new WeakSet<HTMLElement>();
@@ -109,7 +140,7 @@ function attachDrop() {
   hooked.add(root);
   root.addEventListener("pointerdown", event => { selecting = true; touch = event.pointerType === "touch"; toolbar.hide(); });
   root.addEventListener("compositionstart", () => { composing = true; toolbar.hide(); clearTimeout(selectionTimer); });
-  root.addEventListener("compositionend", () => { composing = false; selected(); });
+  root.addEventListener("compositionend", () => { composing = false; scheduleSelected(); });
   root.addEventListener("dragover", event => {
     if (!event.dataTransfer?.types.includes(DRAG_TYPE)) return;
     event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = "copy";
@@ -120,43 +151,52 @@ function attachDrop() {
     event.preventDefault(); event.stopPropagation();
     try {
       const value: unknown = JSON.parse(event.dataTransfer.getData(DRAG_TYPE));
-      const item = value && typeof value === "object" && "materialId" in value && typeof value.materialId === "string" ? shelf.material(value.materialId) : null;
+      const item = value && typeof value === "object" && "hand" in value && typeof value.hand === "string" ? side.hand(value.hand) : undefined;
       if (!item) throw new Error("这不是本次预览中的材料。");
       const at = editor.landing({ x: event.clientX, y: event.clientY });
       if (!at) throw new Error("请放到文稿的一段文字中。");
-      slots.close(); toolbar.hide(); landing = at; selecting = false;
-      run(setHand({ id: item.id, place: "side", title: item.title, text: item.text }, editor.anchor(at)));
-    } catch (error) { showError(error); }
-    editor.highlight(null);
+      slots.close(); toolbar.hide(); selecting = false; noLanding = false; setLanding(at);
+      hand = null; dropped = true; touch = false;
+      run(setHand(item, editor.anchor(at)));
+    } catch (error) { showError(error); editor.highlight(null); }
   }, true);
 }
 
-document.addEventListener("pointerup", () => { if (selecting) { selecting = false; selected(); } });
-document.addEventListener("dragend", () => editor.highlight(null));
+document.addEventListener("pointerup", () => { if (selecting) { selecting = false; scheduleSelected(); } });
+document.addEventListener("dragend", () => { if (!dropped) editor.highlight(hand && hand.place !== "main" ? landing : null); });
 document.addEventListener("pointerdown", event => {
   const target = event.target as HTMLElement;
-  if (!toolbar.contains(target) && !slots.contains(target) && !target.closest("[data-w0-material]")) { sequence += 1; toolbar.hide(); }
+  if (!toolbar.contains(target) && !slots.contains(target) && !target.closest("[data-w0-hand], [data-w0-web], .w0-float-menu, [data-w0-toast]")) {
+    sequence += 1; toolbar.hide();
+  }
 });
 document.addEventListener("keydown", event => {
   if (event.key === "Escape" && !event.defaultPrevented) { if (slots.open) slots.close(); else toolbar.hide(); }
 });
-$("[data-w0-clear-landing]").addEventListener("click", () => { landing = null; updateStrip(); draw(); });
-$("[data-w0-assistant-form]").addEventListener("submit", event => { event.preventDefault(); assistant(); });
-for (const entry of document.querySelectorAll<HTMLButtonElement>("[data-w0-new]")) entry.addEventListener("click", () => {
-  creation.start(entry.dataset.w0New === "pages" ? "pages" : "shelf", () => entry.getBoundingClientRect(), () => entry.focus());
+$("[data-w0-assistant-form]").addEventListener("submit", event => { event.preventDefault(); assistant.submit(); });
+for (const entry of document.querySelectorAll<HTMLButtonElement>("[data-w0-new=pages]")) entry.addEventListener("click", () => {
+  creation.start("pages", () => entry.getBoundingClientRect(), () => entry.focus());
 });
 for (const entry of document.querySelectorAll<HTMLButtonElement>("[data-w0-show]")) entry.addEventListener("click", () => {
   document.body.dataset.mobileView = entry.dataset.w0Show; toolbar.hide();
 });
 $("[data-w0-side-toggle]").addEventListener("click", event => {
   const hidden = document.body.dataset.sideHidden !== "true"; document.body.dataset.sideHidden = String(hidden);
-  (event.currentTarget as HTMLElement).setAttribute("aria-expanded", String(!hidden)); if (hand?.place === "side") toolbar.hide();
+  (event.currentTarget as HTMLElement).setAttribute("aria-expanded", String(!hidden));
+  if (hidden && hand && hand.place !== "main") { clearHand(); side.clearSelection(); }
 });
+// The tokens follow the resolved theme (THEME_BOOTSTRAP_SCRIPT); the preview flips it for this page only and stores nothing.
 $("[data-w0-theme]").addEventListener("click", () => {
-  document.documentElement.dataset.theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  const next = document.documentElement.dataset.resolvedTheme === "dark" ? "light" : "dark";
+  Object.assign(document.documentElement.dataset, { theme: next, resolvedTheme: next });
+});
+$("[data-w0-no-landing]").addEventListener("click", () => {
+  noLanding = true; setLanding(null); draw();
+  announce("演示：左边没有落点。在文稿里点一下即可恢复。");
 });
 const about = $("[data-w0-about-panel]"), aboutButton = $("[data-w0-about]");
 aboutButton.addEventListener("click", () => { about.hidden = !about.hidden; aboutButton.setAttribute("aria-expanded", String(!about.hidden)); });
 $("[data-w0-about-close]").addEventListener("click", () => { about.hidden = true; aboutButton.setAttribute("aria-expanded", "false"); aboutButton.focus(); });
 
+side.show("shelf");
 run(openDocument("doc-q4-plan"));

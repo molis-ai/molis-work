@@ -11,8 +11,21 @@ export function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<
   for (const child of children) if (child !== null) node.append(child);
   return node;
 }
-export function button(label: string, action: () => void, primary = false): HTMLButtonElement {
-  const node = el("button", { type: "button", class: `mw-btn ${primary ? "mw-btn--primary" : "mw-btn--ghost"}`, text: label });
+/** The design system's sprite (`renderIconSprite`) is on the page; this is the client twin of `icon(name)`. */
+export function glyph(name: string): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"), use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  svg.setAttribute("aria-hidden", "true"); use.setAttribute("href", `#icon-${name}`); svg.append(use);
+  return svg;
+}
+export type ButtonStyle = "primary" | "secondary" | "ghost";
+export function button(label: string, action: () => void, style: ButtonStyle | boolean = "ghost", icon?: string): HTMLButtonElement {
+  const kind = style === true ? "primary" : style === false ? "ghost" : style;
+  const node = el("button", { type: "button", class: `mw-btn mw-btn--${kind}` }, ...(icon ? [glyph(icon)] : []), el("span", { text: label }));
+  node.addEventListener("click", action);
+  return node;
+}
+export function iconButton(label: string, icon: string, action: () => void): HTMLButtonElement {
+  const node = el("button", { type: "button", class: "mw-btn mw-btn--ghost mw-btn--icon-only", "aria-label": label, title: label }, glyph(icon));
   node.addEventListener("click", action);
   return node;
 }
@@ -24,23 +37,48 @@ export async function api<T>(path: string, body?: unknown, method = "POST", sign
   return value as T;
 }
 export function announce(message: string) { $("[data-w0-live]").textContent = message; }
-export function showError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
+
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+/** DESIGN.md: a toast is a graphite capsule above the bar with a success or failure mark; failure nudges once.
+ * One with actions stays while the pointer or focus is on it, and leaves on its own after a while otherwise. */
+export function toast(message: string, actions: HTMLButtonElement[] = [], failure = false) {
+  const root = $("[data-w0-toast]"); clearTimeout(toastTimer);
+  root.hidden = false; root.dataset.tone = failure ? "failure" : "success";
+  root.replaceChildren(glyph(failure ? "circle-alert" : "check"), el("span", { class: "w0-toast-text", text: message }), ...actions,
+    iconButton("关闭提示", "x", () => { root.hidden = true; }));
+  root.classList.remove("is-nudging"); if (failure) { void root.offsetWidth; root.classList.add("is-nudging"); }
   announce(message);
-  const toast = $("[data-w0-toast]"); toast.hidden = false;
-  toast.replaceChildren(el("span", { text: message }), button("关闭", () => { toast.hidden = true; }));
+  const leave = () => { toastTimer = setTimeout(() => { if (!root.matches(":hover") && !root.contains(document.activeElement) && !document.querySelector("[data-w0-keep-toast]")) root.hidden = true; else leave(); }, failure ? 9000 : 7000); };
+  leave();
 }
+export function showError(error: unknown) { toast(error instanceof Error ? error.message : String(error), [], true); }
 export function run(task: Promise<unknown>) { void task.catch(showError); }
 export const id = () => crypto.randomUUID();
-export type Anchor = () => { left: number; right: number; top: number; bottom: number } | null;
+export type Rect = { left: number; right: number; top: number; bottom: number };
+export type Anchor = () => Rect | null;
 
-export function placeLayer(node: HTMLElement, anchor: Anchor, below = false, fixedLeft?: number): boolean {
+const TOP = 54, BOTTOM = 100, GAP = 8;
+/** Places a floating layer by its anchor: above by default, below when asked or when above has no room.
+ * `bounds` keeps a layer that belongs to the right panel inside it; `fixedLeft` keeps a bar's left edge still. */
+export function placeLayer(node: HTMLElement, anchor: Anchor, below = false, fixedLeft?: number, bounds?: Pick<Rect, "left" | "right">): boolean {
   const rect = anchor();
-  if (!rect || rect.bottom < 54 || rect.top > innerHeight - 100) return false;
-  const gap = 8, width = node.offsetWidth, height = node.offsetHeight;
-  const left = Math.max(gap, Math.min(fixedLeft ?? rect.left, innerWidth - width - gap));
-  const top = below || rect.top - height - gap < 54 ? rect.bottom + gap : rect.top - height - gap;
-  node.style.left = `${left}px`;
-  node.style.top = `${Math.max(54, Math.min(top, innerHeight - height - 100))}px`;
+  if (!rect || rect.bottom < TOP || rect.top > innerHeight - BOTTOM) return false;
+  const width = node.offsetWidth, height = node.offsetHeight;
+  let min = GAP, max = innerWidth - width - GAP;
+  if (bounds) {
+    // Inside the owner's region when it fits; a layer wider than the region keeps its right edge there and grows left.
+    if (bounds.right - bounds.left - 2 * GAP >= width) { min = bounds.left + GAP; max = bounds.right - width - GAP; }
+    else max = Math.min(max, bounds.right - width - GAP);
+  }
+  const left = Math.max(min, Math.min(fixedLeft ?? rect.left, max));
+  const top = below || rect.top - height - GAP < TOP ? rect.bottom + GAP : rect.top - height - GAP;
+  node.style.left = `${Math.max(GAP, left)}px`;
+  node.style.top = `${Math.max(TOP, Math.min(top, innerHeight - height - BOTTOM))}px`;
   return true;
+}
+/** For layers that rise from the bottom bar (the Assistant's answer): bottom edge just above the anchor. */
+export function riseFrom(node: HTMLElement, anchor: Rect) {
+  const width = node.offsetWidth;
+  node.style.left = `${Math.max(GAP, Math.min(anchor.left, innerWidth - width - GAP))}px`;
+  node.style.top = `${Math.max(TOP, anchor.top - node.offsetHeight - GAP)}px`;
 }

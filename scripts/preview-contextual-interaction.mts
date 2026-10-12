@@ -8,17 +8,18 @@ import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { Fragment, Slice, type Node as ProseNode } from "prosemirror-model";
 import { EditorState } from "prosemirror-state";
 import type { ContextualJudgeRequest, FrozenFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { renderMolisWorkWorkbenchStylesheet } from "../apps/workbench/src/page-assets.js";
 import { createContextualJudgmentService } from "../apps/local-host/src/contextual/judgment-service.js";
 import { preparePagesFragmentOffers } from "../plugins/native/pages/src/fragment-offers.js";
-import { nodeFromUnknown } from "../plugins/native/pages/src/schema.js";
+import { nodeFromUnknown, pagesSchema } from "../plugins/native/pages/src/schema.js";
 import { DOCUMENTS, PROVIDERS, sliceDirectory } from "./contextual-slice/fixture.mjs";
 import { standinPagesAi } from "./contextual-slice/standins.mjs";
 import { PreviewStore } from "./contextual-slice/w0-store.js";
-import { readCreate, readPlacement } from "./contextual-slice/w0-request.js";
+import { readCreate, readPlacement, requestId } from "./contextual-slice/w0-request.js";
 import { renderW0Page } from "./contextual-slice/w0-page.mjs";
 
 const arg = (name: string) => { const index = process.argv.indexOf(name); return index < 0 ? undefined : process.argv[index + 1]; };
@@ -29,10 +30,22 @@ if (!Number.isSafeInteger(port) || port < 0 || port > 65535) throw new Error("�
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pagesEditorPath = join(root, "plugins/native/pages/dist/pages-editor.js");
 if (!existsSync(pagesEditorPath)) throw new Error("缺少 Pages 编辑器构建产物。请先取得构建时段，再运行 pnpm build。");
-const store = new PreviewStore(DOCUMENTS, (body, from, to, text) => {
-  const state = EditorState.create({ doc: nodeFromUnknown(body) });
-  if (to > state.doc.content.size) throw Object.assign(new Error("落点超出文档范围"), { status: 409 });
-  return state.tr.insertText(text, from, to).doc.toJSON();
+/** The preview's ItemAttach stand-in: plain text at the cursor or over the selection, paragraphs at the end, or a quote block
+ * after the landing's top-level block. The real Pages command will own this; here it only edits the in-memory copy. */
+const store = new PreviewStore(DOCUMENTS, (body, from, to, text, format) => {
+  const state = EditorState.create({ doc: nodeFromUnknown(body) }), size = state.doc.content.size;
+  if (to > size) throw Object.assign(new Error("落点超出文档范围"), { status: 409 });
+  const lines = text.split(/\n+/u).map(line => line.trim()).filter(Boolean);
+  const paragraphs: ProseNode[] = lines.map(line => pagesSchema.nodes.paragraph.create(null, pagesSchema.text(line)));
+  if (!paragraphs.length) throw Object.assign(new Error("内容为空"), { status: 400 });
+  const $from = state.doc.resolve(from), between = from >= size || !$from.parent.isTextblock;
+  if (format === "quote") {
+    const at = between ? from : $from.after(1);
+    return state.tr.insert(at, pagesSchema.nodes.blockquote.create(null, paragraphs)).doc.toJSON();
+  }
+  if (between) return state.tr.insert(from, paragraphs).doc.toJSON();
+  if (paragraphs.length === 1) return state.tr.insertText(lines[0]!, from, to).doc.toJSON();
+  return state.tr.replace(from, to, new Slice(Fragment.from(paragraphs), 1, 1)).doc.toJSON();
 });
 const directory = () => sliceDirectory(new Set(Object.values(PROVIDERS).filter(provider => provider !== PROVIDERS.pages).map(provider => provider.provider_id)));
 const rules = createContextualJudgmentService<string>({ directory: async () => directory(), configured: () => false });
@@ -100,6 +113,7 @@ async function route(request: IncomingMessage, response: ServerResponse) {
     }
     if (path === "/api/contextual/prepare") return send(response, 200, prepare(input));
     if (path === "/api/w0/place") { const value = readPlacement(input); return send(response, 200, store.place(value.requestId, value.placement)); }
+    if (path === "/api/w0/unplace") return send(response, 200, store.unplace(requestId(input.requestId)));
     if (path === "/api/w0/create") { const value = readCreate(input); return send(response, 200, store.create(value.requestId, value.target, value.draft, value.replaceId)); }
     if (path === "/api/w0/undo") { store.undo(String(input.id)); return send(response, 200, state()); }
   }

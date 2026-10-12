@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
@@ -52,4 +53,47 @@ test("「加输入…」 on a Goal takes a document either following the origina
   await waitFor("!document.querySelector('[data-goal-inputs] [data-goal-input-fixed]')", 10_000);
   const left = await evaluate<{ inputs: unknown[] }>(`fetch('/projects/${projectId}/api/goals/V1/artifact-inputs').then(r => r.json())`);
   assert.deepEqual(left.inputs, []);
+});
+
+// An input an Agent only proposed reads 「待确认」 on the Goal, and the person decides it right there (specs/repository-anti-corruption §1, 2026-10-10).
+test("a proposed input on a Goal reads 待确认 and is accepted or removed from the same list", { timeout: 120_000 }, async t => {
+  const seed = (databasePath: string, projectId?: string) => {
+    seedDemoBoard(databasePath, projectId);
+    const store = new LocalProjectDatabase(databasePath);
+    try {
+      for (const item of ["item-accept", "item-remove"]) new GoalProjectApplication(store).goalInputs.register({ binding_id: `binding-${item}`, project_id: projectId ?? DEMO_PROJECT_ID,
+        goal_id: "V1", input_name: `来源 ${item}`, source_type: "feed_item", source_ref: `feed-item:${item}`, snapshot_digest: `sha256:${"d".repeat(64)}`, state: "proposed",
+        reason: "从 Feed Item 创建 Goal 时提议该输入", created_by: "runtime:promoter:session", created_at: "2026-10-10T00:00:00.000Z" });
+    } finally { store.close(); }
+  };
+  const b = await openGoalBrowser(t, "seeded", seed, null); if (!b) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=goals&openItem=V1&openGoalView=work` }, sessionId));
+  await waitFor("Boolean(document.querySelector('[data-goal-view=\"V1\"] [data-goal-materials-entry]'))", 15_000);
+  await click('[data-goal-view="V1"] [data-goal-materials-entry]');
+  const row = (item: string) => `[data-goal-inputs] [data-goal-input-binding="binding-${item}"]`;
+  await waitFor(`Boolean(document.querySelector('${row("item-accept")} [data-goal-input-accept]')?.getClientRects().length)`, 10_000);
+
+  // Pending, in words, with the two controls; never the raw state.
+  assert.equal(await evaluate(`document.querySelector('${row("item-accept")} [data-goal-input-state]').textContent`), "待确认");
+  assert.equal(await evaluate(`document.querySelector('${row("item-accept")} [data-goal-input-accept]').textContent`), "认可这条输入");
+  assert.equal(await evaluate(`document.querySelector('${row("item-accept")} [data-goal-input-release]').textContent`), "移除");
+  assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-goal-inputs]').innerText"), /proposed|confirmed/);
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+
+  // Accepting reads 已确认 in place and takes the controls away.
+  await click(`${row("item-accept")} [data-goal-input-accept]`);
+  await waitFor(`document.querySelector('${row("item-accept")} [data-goal-input-state]')?.textContent === '已确认'`, 10_000);
+  assert.equal(await evaluate(`Boolean(document.querySelector('${row("item-accept")} [data-goal-input-accept], ${row("item-accept")} [data-goal-input-release]'))`), false);
+  assert.equal(await evaluate(`document.querySelector('${row("item-remove")} [data-goal-input-state]').textContent`), "待确认", "the other proposal is untouched");
+
+  // Removing takes the proposal off the Goal.
+  await click(`${row("item-remove")} [data-goal-input-release]`);
+  await waitFor(`!document.querySelector('${row("item-remove")}')`, 10_000);
+
+  // The Goal's own record agrees after it is read again.
+  const html = await evaluate<string>(`fetch('/projects/${projectId}/api/goals/V1/document').then(r => r.text())`);
+  assert.match(html, /binding-item-accept"[\s\S]*?data-goal-input-state="confirmed">已确认</);
+  assert.doesNotMatch(html, /binding-item-remove/);
 });

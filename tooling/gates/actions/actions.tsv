@@ -42,8 +42,8 @@ alchemist.opportunities.save	1	io.molis.work.alchemist	io.molis.work.alchemist	c
 alchemist.playbook.context	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	alchemist:read	alchemist-playbook	molis.subject-reference.v1	molis.subject-context.v1	56056e2eba4c	db343dd77f37	-
 alchemist.proposals.pending	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	f973399805c1	af857f89bac2	-
 alchemist.proposals.reject	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	8081d3eb3674	aeab45e1d609	-
-alchemist.pulse.github	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	user	alchemist:read	alchemist	-	-	f973399805c1	7e24d8c17838	-
-alchemist.pulse.github.configure	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	user	alchemist:read,alchemist:write	alchemist	-	-	49b69bb4d285	e40f92449db2	-
+alchemist.pulse.github	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	home	read	-	user	alchemist:connections:read	alchemist	-	-	f973399805c1	7e24d8c17838	-
+alchemist.pulse.github.configure	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	home	write	-	user	alchemist:connections:write	alchemist	-	-	49b69bb4d285	e40f92449db2	-
 alchemist.pulse.reports	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	f973399805c1	d8edecbada2c	-
 alchemist.pulse.sources	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	f973399805c1	45a4564ec976	-
 alchemist.pulse.sources.configure	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	7d8608445ba6	0f4522ac01b1	-
@@ -286,6 +286,7 @@ goals.guidance.read	1	io.molis.work.goals	io.molis.work.goals	query	query	projec
 goals.guidance.update	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	dafc23902cbf	976a9a5636ac	9a20bdba744a
 goals.history.list	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	5e52a869a1ba	69f6c270bd9c	-
 goals.history.read	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	3bdf6a878036	d3aef3945f9a	-
+goals.inputs.accept	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	user	goals:write	goal	-	-	13352bb01dc1	a50779e05950	9a20bdba744a
 goals.inputs.bind	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	734cf0dc4644	4f1eadda3e64	9a20bdba744a
 goals.inputs.confirm	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	3f9dc5d3fbad	a50779e05950	9a20bdba744a
 goals.inputs.list	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	1b72d3bb5995	331050afaef9	-
@@ -348,6 +349,14 @@ inbox.pages.generate	1	io.molis.work.inbox	io.molis.work.inbox	command	operation
 inbox.pages.results	1	io.molis.work.inbox	io.molis.work.inbox	query	query	project	read	-	agent,mcp,user,workflow	inbox:read,pages:read	inbox_entry	-	-	99334726611c	7372f0635008	1f00eb723ad7
 inbox.search.entries	1	io.molis.work.inbox	io.molis.work.inbox	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	inbox:read	inbox_entry	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	eb24cea3731b
 inbox.subject.read	1	io.molis.work.inbox	io.molis.work.inbox	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	inbox:read	inbox_entry	molis.subject-reference.v1	molis.subject-context.v1	56056e2eba4c	db343dd77f37	-
+issues.cancel_capture	1	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	-	user	issues:write	issue	-	-	7b7bf2a96001	98b02298419d	-
+issues.capture	1	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	-	agent,mcp,user	issues:write	issue	-	-	57d130a9b71c	3efd82b4a94d	-
+issues.create	2	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	-	agent,mcp,user	issues:write	issue	-	-	202c33ef4769	3efd82b4a94d	-
+issues.delete	1	io.molis.work.issues	io.molis.work.issues	command	operation	home	irreversible	-	agent,mcp,user	issues:write	issue	-	-	ca2d54172d1d	1580894171b8	-
+issues.list	2	io.molis.work.issues	io.molis.work.issues	query	query	home	read	-	agent,mcp,user	issues:read	issue	-	-	3473b05aac08	52277529e05a	-
+issues.prepare	2	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	-	user	issues:write	issue	-	-	b610bbb04d09	7b7bf2a96001	-
+issues.read	2	io.molis.work.issues	io.molis.work.issues	query	query	home	read	-	agent,mcp,user	issues:read	issue	-	-	9f23bf271216	3efd82b4a94d	-
+issues.update	2	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	-	agent,mcp,user	issues:write	issue	-	-	8b3cda5211a5	3efd82b4a94d	-
 jelly.calendar.list	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,mcp,user,workflow	jelly:read	jelly_workspace	-	-	f46e1e6ef6be	87511b1e26fc	-
 jelly.calendar.progress	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,mcp,user,workflow	jelly:read	jelly_workspace	-	-	bb854a0acb45	7fcdf44fcce1	-
 jelly.category.create	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	d920d4689196	19c72840481e	-
@@ -409,7 +418,7 @@ lingguang.conversation.get	1	io.molis.work.lingguang	io.molis.work.lingguang	que
 lingguang.conversation.message	1	io.molis.work.lingguang	io.molis.work.lingguang	command	operation	project	write	concurrent	agent,mcp,user,workflow	lingguang:read,lingguang:write,model:invoke	lingguang_spark	-	-	1144007b8c95	ec03007ce56f	613063238287
 lingguang.conversation.open	1	io.molis.work.lingguang	io.molis.work.lingguang	command	operation	project	write	-	agent,mcp,user,workflow	lingguang:read,lingguang:write	lingguang_spark	-	-	9ed2037c1b64	ec03007ce56f	-
 lingguang.create	1	io.molis.work.lingguang	io.molis.work.lingguang	command	operation	project	write	-	agent,mcp,user,workflow	lingguang:write	lingguang_spark	-	-	f8f599890bd6	f34da2f39d89	61ff63e15a49
-lingguang.discard	1	io.molis.work.lingguang	io.molis.work.lingguang	command	operation	project	write	-	agent,mcp,user,workflow	lingguang:write	lingguang_spark	-	-	6dd454466a12	7606656fb550	-
+lingguang.discard	1	io.molis.work.lingguang	io.molis.work.lingguang	command	operation	project	write	-	agent,mcp,user,workflow	lingguang:write	lingguang_spark	-	-	49000febec44	7606656fb550	-
 lingguang.fragment.offers	1	io.molis.work.lingguang	io.molis.work.lingguang	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	lingguang:read	molis.any-object	molis.fragment-offers.input.v1	molis.fragment-offers.output.v1	0dbe645dfc7a	1e3af5170ce2	04347e3e8c86
 lingguang.get	1	io.molis.work.lingguang	io.molis.work.lingguang	query	query	project	read	-	agent,mcp,user,workflow	lingguang:read	lingguang_spark	-	-	edf9aab1fda6	f34da2f39d89	-
 lingguang.list	1	io.molis.work.lingguang	io.molis.work.lingguang	query	query	project	read	-	agent,mcp,user,workflow	lingguang:read	lingguang_spark	-	-	d746974fa9af	7784f0bee209	-

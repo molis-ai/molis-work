@@ -18,6 +18,7 @@ import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
 import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { IMAGES_STORE_BASELINE } from "@molis-ai/molis-work-plugin-images";
 import { FUNCTIONS_STORE_BASELINE, openFunctionsStore } from "@molis-ai/molis-work-module-functions";
+import { createSessionContentStore } from "@molis-ai/molis-work-module-private-work-context";
 
 /** A Home with a catalog and two projects: `gone` is deleted by the tests, `kept` must come through untouched. */
 async function withHome<T>(run: (env: { home: string; catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>; gone: string; kept: string }) => Promise<T>): Promise<T> {
@@ -332,5 +333,120 @@ test("a Sessions purge cannot take a content block out from under an event that 
       await projectDeletedHooksFor(home).clear("sessions", gone);
       assert.equal(registry.events(session.session_id)[0]?.content, shared, "a purge that runs after the event keeps the block the event names");
     } finally { mock.restoreAll(); registry.close(); }
+  });
+});
+
+test("a Sessions purge commits the deleted rows before it removes any content block, and removes each block holding the write lock", async () => {
+  await withHome(async ({ home, gone, kept }) => {
+    const written = await seedSessions(home, gone);
+    await seedSessions(home, kept);
+    const removals: Array<{ rowsLeft: number; lockHeld: boolean }> = [];
+    const real = fs.rmSync;
+    mock.method(fs, "rmSync", ((target: fs.PathLike, options?: fs.RmOptions) => {
+      if (String(target).endsWith(".blob")) {
+        // A second connection of the registry's own SQLite library: it sees only what has been committed, and cannot take the write lock while another holds it.
+        const probe = new Database(join(home, "sessions", "sessions.db"), { timeout: 0 });
+        try {
+          const rowsLeft = Number((probe.prepare(`SELECT (SELECT COUNT(*) FROM sessions WHERE session_id = :id) + (SELECT COUNT(*) FROM session_events WHERE session_id = :id)
+            + (SELECT COUNT(*) FROM session_handoffs WHERE package_id = :handoff) + (SELECT COUNT(*) FROM session_messages WHERE request_id = :message) AS n`)
+            .get({ id: written.sessionId, handoff: written.handoffId, message: written.messageId }) as { n: number }).n);
+          let lockHeld = false;
+          try { probe.exec("BEGIN IMMEDIATE"); probe.exec("ROLLBACK"); } catch { lockHeld = true; }
+          removals.push({ rowsLeft, lockHeld });
+        } finally { probe.close(); }
+      }
+      return real(target, options);
+    }) as typeof fs.rmSync);
+    try { assert.equal(await projectDeletedHooksFor(home).clear("sessions", gone), true); } finally { mock.restoreAll(); }
+
+    assert.equal(removals.length, 3, "the project's own event, handoff and message contents are removed; the sentence both projects said stays");
+    for (const removal of removals) {
+      assert.equal(removal.rowsLeft, 0, "the rows are committed before the first block goes, so a commit that fails cannot leave rows whose content is gone");
+      assert.equal(removal.lockHeld, true, "a block is removed while the write lock is held, so no writer can name it between the check and the removal");
+    }
+  });
+});
+
+test("a content block that cannot be removed does not bring the deleted Sessions back, the purge still removes the other blocks and says what failed, and running it again removes the block left", async () => {
+  await withHome(async ({ home, gone, kept }) => {
+    const goneWritten = await seedSessions(home, gone), keptWritten = await seedSessions(home, kept);
+    const before = sessionRows(home, gone, goneWritten);
+    const blobsBefore = blobs(home).length;
+    const real = fs.rmSync;
+    let attempts = 0;
+    mock.method(fs, "rmSync", ((target: fs.PathLike, options?: fs.RmOptions) => {
+      if (String(target).endsWith(".blob") && (attempts += 1) === 1) throw Object.assign(new Error("EACCES: permission denied, unlink"), { code: "EACCES" });
+      return real(target, options);
+    }) as typeof fs.rmSync);
+    try { await assert.rejects(projectDeletedHooksFor(home).clear("sessions", gone), /EACCES/, "the failure is reported, so the receipt keeps the step pending"); } finally { mock.restoreAll(); }
+
+    assert.deepEqual(sessionRows(home, gone, goneWritten), nothing(before), "the rows stay deleted: only a block no row names is left behind");
+    assert.equal(attempts, 3, "one block that will not go does not stop the others from being tried");
+    assert.equal(blobs(home).length, blobsBefore - 2, "the two blocks that could be removed are gone");
+    assert.deepEqual(sessionRows(home, kept, keptWritten), before, "another project's rows are untouched");
+    const registry = await openWorkSessionRegistry({ homeDirectory: home });
+    try { assert.match(registry.messages.get(keptWritten.messageId).text ?? "", /私密消息/, "and its content is still readable"); } finally { registry.close(); }
+    assert.equal(await projectDeletedHooksFor(home).clear("sessions", gone), true, "running the owner again succeeds");
+    assert.equal(blobs(home).length, blobsBefore - 3, "and it removes the block the first run left, which no row names any more, so the project's content is not left on disk behind a completed receipt");
+    assert.deepEqual(sessionRows(home, gone, goneWritten), nothing(before));
+    const reopened = await openWorkSessionRegistry({ homeDirectory: home });
+    try { assert.match(reopened.messages.get(keptWritten.messageId).text ?? "", /私密消息/); assert.equal(reopened.events(keptWritten.sessionId).length, 2); } finally { reopened.close(); }
+  });
+});
+
+test("a purge that stops after the rows are committed and before any block is removed leaves every block for the retry, which removes them", async () => {
+  await withHome(async ({ home, gone, kept }) => {
+    const goneWritten = await seedSessions(home, gone), keptWritten = await seedSessions(home, kept);
+    const before = sessionRows(home, gone, goneWritten);
+    const blobsBefore = blobs(home).length;
+    const real = fs.readdirSync;
+    mock.method(fs, "readdirSync", ((target: fs.PathLike, options?: unknown) => {
+      if (String(target).endsWith(join("content", "blobs"))) throw Object.assign(new Error("EIO: i/o error, scandir"), { code: "EIO" });
+      return (real as (target: fs.PathLike, options?: unknown) => unknown)(target, options);
+    }) as typeof fs.readdirSync);
+    try { await assert.rejects(projectDeletedHooksFor(home).clear("sessions", gone), /EIO/); } finally { mock.restoreAll(); }
+    assert.deepEqual(sessionRows(home, gone, goneWritten), nothing(before), "the rows were committed before the blocks were looked at");
+    assert.equal(blobs(home).length, blobsBefore, "no block was removed");
+
+    assert.equal(await projectDeletedHooksFor(home).clear("sessions", gone), true, "the retry finds no rows of the project, and still succeeds");
+    assert.equal(blobs(home).length, blobsBefore - 3, "because it removes every block no row names, which is how it finds the ones the first run did not reach");
+    assert.deepEqual(sessionRows(home, kept, keptWritten), before, "another project's rows are untouched");
+  });
+});
+
+test("a Sessions purge removes a block no row names, whichever project's it was, and keeps every block a row names", async () => {
+  await withHome(async ({ home, gone, kept }) => {
+    const keptWritten = await seedSessions(home, kept);
+    const before = sessionRows(home, kept, keptWritten);
+    const store = createSessionContentStore(join(home, "sessions", "content"));
+    // What a writer whose transaction rolled back, or a purge that died before removing it, leaves on disk.
+    const stray = store.write("没有任何一行引用的内容").content_ref;
+    const blobsBefore = blobs(home).length;
+    assert.equal(store.has(stray), true);
+
+    assert.equal(await projectDeletedHooksFor(home).clear("sessions", gone), true, "the project has no Sessions at all, and the run still collects what no row names");
+    assert.equal(store.has(stray), false, "the unreferenced block is gone");
+    assert.equal(blobs(home).length, blobsBefore - 1, "and only that block");
+    assert.deepEqual(sessionRows(home, kept, keptWritten), before);
+    const registry = await openWorkSessionRegistry({ homeDirectory: home });
+    try {
+      assert.match(registry.messages.get(keptWritten.messageId).text ?? "", /私密消息/);
+      assert.deepEqual(registry.events(keptWritten.sessionId).map(event => event.content).sort(), ["两个项目说了同一句话", `私密对话 ${kept}`].sort(), "every block a row names is still readable");
+      assert.match(registry.getHandoff(keptWritten.handoffId).content ?? "", /交接内容/);
+    } finally { registry.close(); }
+  });
+});
+
+test("a block named only by a table the purge does not know stays: any table with a content_ref column counts as naming its block", async () => {
+  await withHome(async ({ home, gone, kept }) => {
+    await seedSessions(home, gone);
+    await seedSessions(home, kept);
+    const store = createSessionContentStore(join(home, "sessions", "content"));
+    const named = store.write("只有一张别的表引用的内容").content_ref;
+    const probe = new Database(join(home, "sessions", "sessions.db"));
+    try { probe.exec("CREATE TABLE session_future_notes (note_id TEXT PRIMARY KEY, content_ref TEXT NOT NULL)"); probe.prepare("INSERT INTO session_future_notes VALUES (?, ?)").run("note-1", named); } finally { probe.close(); }
+
+    assert.equal(await projectDeletedHooksFor(home).clear("sessions", gone), true);
+    assert.equal(store.has(named), true, "a purge never removes a block some row names, in whichever table the row is");
   });
 });

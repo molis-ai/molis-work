@@ -523,7 +523,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if (textMaterials.length > 30 || new Set(textMaterials.map(item => item.material_id)).size !== textMaterials.length) throw new Error("材料过多或选择重复");
     textMaterials.forEach(agentTextMaterialContent);
     const imageMaterials = request.image_materials ?? [];
-    if (imageMaterials.length > 4 || new Set(imageMaterials.map(item => item.material_id)).size !== imageMaterials.length
+    if (imageMaterials.length > 6 || new Set(imageMaterials.map(item => item.material_id)).size !== imageMaterials.length
       || imageMaterials.some(item => !item || typeof item.resource?.id !== "string" || !Number.isSafeInteger(item.resource.revision) || !/^image\//.test(String(item.media_type)))) throw new Error("图片过多、重复或格式无效");
     if (imageMaterials.length && (!this.#runtime.imageAttachments || request.workspace !== "business")) throw new PrologueAdapterError("agent.capability_unavailable", "这个运行方式还不能把图片交给模型");
     if (request.budget?.max_turns !== undefined && (!Number.isSafeInteger(request.budget.max_turns) || request.budget.max_turns < 1 || request.budget.max_turns > 100)) throw new Error("执行轮次预算必须为 1–100 的整数");

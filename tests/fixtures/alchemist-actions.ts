@@ -33,6 +33,6 @@ export function alchemistFixture(home: string, projectId = "a", permissions: rea
   const runtime = createAlchemistStudioRuntime({ databasePath: join(home, `${projectId}.sqlite`), ai, pulseSourceMode: "fixture",
     actions: { async invoke<I, O>(definition: ActionDefinition<I, O>, input: I, signal?: AbortSignal): Promise<O> { return await service.invoke({ ...caller, signal }, definition, input) as O; } } });
   const dispose = service.registerProvider({ provider: { provider_id: alchemistManifest.plugin_id, title: alchemistManifest.name, kind: "plugin", plugin_id: alchemistManifest.plugin_id, project_id: projectId },
-    definitions: Object.values(alchemistActions), handlers: createAlchemistActionHandlers(caller => runtime.actionsFor(caller.actor_id)) });
+    definitions: Object.values(alchemistActions), handlers: createAlchemistActionHandlers({ resolve: caller => runtime.actionsFor(caller.actor_id) }) });
   return { service, caller, bound, runtime, ai, requests, model, actions: alchemistActions, async close() { dispose(); await runtime.close(); } };
 }

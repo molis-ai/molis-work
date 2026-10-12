@@ -1,4 +1,4 @@
-import { ActionError, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef, parseGoalPluginObjectRef, type GoalInputBindingRecord, type GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction, goalActor } from "./action-contract.js";
 import { text, identifier, boolean, array, object, nullable, enumeration } from "./event-action-schemas.js";
@@ -16,7 +16,8 @@ const subject = object({ kind: identifier, id: identifier });
 const bound = object({ binding_id: text, goal_id: text, subject, title: text, state: enumeration(["proposed", "confirmed", "inactive"]), created_at: text });
 
 /** A source taken as an input of a Goal as it was then: the receipt holds the digest of what was confirmed, not a live link. Only the person's
- * call records it `confirmed`; every other caller (assistant, agent, workflow, MCP client) records it `proposed`, for the person to accept. */
+ * call records it `confirmed`; every other caller (assistant, agent, workflow, MCP client) records it `proposed`, and it stays so until the person
+ * accepts it (`goals.inputs.accept`) or removes it (`goals.inputs.release`). */
 export interface GoalConfirmedInput {
   binding_id: string;
   goal_id: string;
@@ -35,6 +36,20 @@ const confirmed = object({ binding_id: text, goal_id: text, source: confirmedSou
 /** How a confirmed source is kept in the Goal's input receipts: the receipt type, the prefix of the locator, the prefix of the receipt id. */
 const CONFIRMED_SOURCES = { feed_item: { source_type: "feed_item", locator: "feed-item:", receipt: "binding-feed-" } } as const;
 
+/** An action only the person can call: the other audiences never see it. */
+function userOnly<Input, Output>(definition: ActionDefinition<Input, Output>): ActionDefinition<Input, Output> {
+  return { ...definition, action: { ...definition.action, audiences: ["user"] } };
+}
+
+/** The kept source a receipt records, read back from its locator; null for a receipt of any other kind of source. */
+function keptSource(record: GoalInputBindingRecord): GoalConfirmedInput["source"] | null {
+  const kind = (Object.keys(CONFIRMED_SOURCES) as Array<keyof typeof CONFIRMED_SOURCES>)
+    .find(key => record.source_type === CONFIRMED_SOURCES[key].source_type && record.source_ref.startsWith(CONFIRMED_SOURCES[key].locator));
+  return kind ? { kind, id: record.source_ref.slice(CONFIRMED_SOURCES[kind].locator.length) } : null;
+}
+const confirmedView = (record: GoalInputBindingRecord, source: GoalConfirmedInput["source"]): GoalConfirmedInput => ({ binding_id: record.binding_id, goal_id: record.goal_id,
+  source, name: record.input_name, snapshot_digest: record.snapshot_digest, state: record.state, created_at: record.created_at });
+
 /**
  * Goals owns which materials a Goal is bound to (its input receipts). Binding a Plugin object records the owner's
  * subject; it neither copies nor moves the object, and releasing keeps the receipt as history (specs/archive/work-placement §3.2).
@@ -44,11 +59,14 @@ export const goalsInputActions = {
     "把资料关联到目标", "把一份资料（文档、演示稿、问卷、数据表、Shelf 材料等）记为目标的绑定资料；不复制、不移动原对象，重复关联返回原记录", "command",
     object({ goal_id: identifier, subject, title: { ...identifier, maxLength: 200 } }), object({ binding: bound, replayed: boolean })),
   confirm: goalAction<{ goal_id: string; source: { kind: "feed_item"; id: string }; name: string; snapshot_digest: string; reason: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.confirm",
-    "确认来源材料为目标的输入", "把一条来源材料（目前是 Feed 消息）按确认时内容的摘要记为目标的输入；用户调用记为已确认，助理、Agent、工作流和外部工具调用只记为待确认，等用户认可；不复制、不移动原材料，重复确认返回原记录", "command",
+    "确认来源材料为目标的输入", "把一条来源材料（目前是 Feed 消息）按确认时内容的摘要记为目标的输入；用户调用记为已确认，助理、Agent、工作流和外部工具调用只记为待确认，等用户在目标的输入里认可或移除；不复制、不移动原材料，重复确认返回原记录，来源已被提议、还在等用户认可时用户的确认被拒绝（先认可）", "command",
     object({ goal_id: identifier, source: confirmedSource, name: { ...identifier, maxLength: 200 }, snapshot_digest: snapshotDigest, reason: confirmReason }),
     object({ binding: confirmed, replayed: boolean })),
+  accept: userOnly(goalAction<{ goal_id: string; binding_id: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.accept",
+    "认可待确认的输入", "用户本人认可一条由助理、Agent、工作流或外部工具提议的输入，把「待确认」记为「已确认」，摘要和理由不变；只有用户本人能调用；已确认的返回原记录，已移除的不能再认可", "command",
+    object({ goal_id: identifier, binding_id: identifier }), object({ binding: confirmed, replayed: boolean }))),
   release: goalAction<{ goal_id: string; binding_id: string }, { released: boolean }>("goals.inputs.release",
-    "移除目标的资料关联", "结束一条资料绑定；原对象不受影响，绑定记录保留为历史", "command",
+    "移除目标的输入", "结束一条输入（绑定的资料，或来源材料的输入）；原对象和原材料不受影响，记录保留为历史；已确认的来源输入只能由用户移除，其他调用者只能撤回待确认的提议", "command",
     object({ goal_id: identifier, binding_id: identifier }), object({ released: boolean })),
   list: goalAction<{ goal_id?: string | null; subject?: { kind: string; id: string } | null }, { bindings: GoalBoundObject[] }>("goals.inputs.list",
     "目标的绑定资料", "列出目标绑定的插件资料，或某份资料绑定到了哪些目标；只含仍然有效的绑定", "query",
@@ -63,7 +81,7 @@ export function boundGoalObjects(records: readonly GoalInputBindingRecord[], goa
   });
 }
 
-export function createGoalsInputActionHandlers(projectId: string, inputs: Pick<GoalInputBindingsApi, "list" | "register" | "deactivate">, goalExists: (goalId: string) => boolean): ActionHandlerBinding[] {
+export function createGoalsInputActionHandlers(projectId: string, inputs: Pick<GoalInputBindingsApi, "list" | "register" | "deactivate" | "accept">, goalExists: (goalId: string) => boolean): ActionHandlerBinding[] {
   const view = (record: GoalInputBindingRecord): GoalBoundObject | null => {
     const subjectRef = parseGoalPluginObjectRef(record.source_ref);
     return record.source_type === GOAL_PLUGIN_OBJECT_SOURCE && subjectRef ? { binding_id: record.binding_id, goal_id: record.goal_id, subject: subjectRef,
@@ -87,10 +105,11 @@ export function createGoalsInputActionHandlers(projectId: string, inputs: Pick<G
       if (!goalExists(value.goal_id)) throw new ActionError("goals.not_found", "找不到这个目标");
       const kept = CONFIRMED_SOURCES[value.source.kind];
       const locator = `${kept.locator}${value.source.id}`;
-      const view = (record: GoalInputBindingRecord): GoalConfirmedInput => ({ binding_id: record.binding_id, goal_id: record.goal_id,
-        source: { kind: value.source.kind, id: value.source.id }, name: record.input_name, snapshot_digest: record.snapshot_digest, state: record.state, created_at: record.created_at });
+      const view = (record: GoalInputBindingRecord) => confirmedView(record, { kind: value.source.kind, id: value.source.id });
       const existing = inputs.list(projectId).find(record => record.goal_id === value.goal_id && record.source_type === kept.source_type
         && record.source_ref === locator && record.state !== "inactive");
+      // The person's confirmation is not answered with someone else's proposal as if it were settled: accepting it is its own step.
+      if (existing?.state === "proposed" && caller.audience === "user") throw new ActionError("goals.input_proposed", "这条来源已被提议为输入，等你认可；请在目标的输入里认可或移除它");
       if (existing) return { binding: view(existing), replayed: true };
       // The person decides what a Goal took as input; everyone else proposes (the same line the Goal's deliverables and artifact inputs draw).
       const record: GoalInputBindingRecord = { binding_id: `${kept.receipt}${crypto.randomUUID()}`, project_id: projectId, goal_id: value.goal_id,
@@ -100,11 +119,29 @@ export function createGoalsInputActionHandlers(projectId: string, inputs: Pick<G
       inputs.register(record);
       return { binding: view(record), replayed: false };
     } },
-    { ...goalsInputActions.release, handle: (_caller, input) => {
+    { ...goalsInputActions.accept, handle: (_caller, input) => {
+      const value = input as { goal_id: string; binding_id: string };
+      if (!goalExists(value.goal_id)) throw new ActionError("goals.not_found", "找不到这个目标");
+      const find = () => inputs.list(projectId).find(item => item.binding_id === value.binding_id && item.goal_id === value.goal_id);
+      const found = find(), source = found && keptSource(found);
+      if (!found || !source) throw new ActionError("goals.not_found", "找不到这条输入");
+      if (found.state === "inactive") throw new ActionError("goals.input_released", "这条输入已经移除，不能再认可");
+      if (found.state === "proposed") {
+        if (!inputs.accept) throw new ActionError("actions.unavailable", "当前环境不能认可输入");
+        inputs.accept(projectId, found.binding_id);
+      }
+      // Read again: a call that came in between may have settled it the other way.
+      const settled = find();
+      if (!settled || settled.state === "inactive") throw new ActionError("goals.input_released", "这条输入已经移除，不能再认可");
+      return { binding: confirmedView(settled, source), replayed: found.state !== "proposed" };
+    } },
+    { ...goalsInputActions.release, handle: (caller, input) => {
       const value = input as { goal_id: string; binding_id: string };
       const found = inputs.list(projectId).find(item => item.binding_id === value.binding_id && item.goal_id === value.goal_id);
-      if (!found || found.source_type !== GOAL_PLUGIN_OBJECT_SOURCE) throw new ActionError("goals.not_found", "找不到这条资料关联");
-      if (!inputs.deactivate) throw new ActionError("actions.unavailable", "当前环境不能移除资料关联");
+      if (!found || (found.source_type !== GOAL_PLUGIN_OBJECT_SOURCE && !keptSource(found))) throw new ActionError("goals.not_found", "找不到这条输入");
+      // The person decides what a Goal took as input: others withdraw what they proposed, and only the person takes off a confirmed one.
+      if (found.source_type !== GOAL_PLUGIN_OBJECT_SOURCE && found.state === "confirmed" && caller.audience !== "user") throw new ActionError("goals.input_confirmed", "已确认的输入只能由用户移除");
+      if (!inputs.deactivate) throw new ActionError("actions.unavailable", "当前环境不能移除输入");
       return { released: inputs.deactivate(projectId, value.binding_id) };
     } },
     { ...goalsInputActions.list, handle: (_caller, input) => {

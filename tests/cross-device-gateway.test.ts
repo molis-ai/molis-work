@@ -4,13 +4,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { withMolisWorkProjectCatalog as withCatalog } from "../apps/desktop/src/project-catalog.js";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { createDesktopWebHost } from "../apps/desktop/src/web-host.js";
+import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
 const createMolisWorkWebServer=createDesktopWebHost({ptyClientFilePath:()=>""});
 import { configureMemberActions } from "../apps/server/src/admin-grants.js";
 import { gatewayFactory } from "../apps/server/src/gateway.js";
-import { CONTINUITY_ACTIONS } from "../server/src/continuity/actions.js";
+import { CONTINUITY_ACTIONS } from "@molis-ai/molis-work-server";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 
 test("local administrator grants through the protected owner API and gateway keeps member actors separate",{timeout:120000},async()=>{

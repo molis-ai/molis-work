@@ -16,6 +16,7 @@
 
 | 日期 | 事项 | 选项 | 结论 | 说明 |
 | --- | --- | --- | --- | --- |
+| 2026-10-12 | G3 记忆错误的 kind（日常取舍，沿用统一错误模型） | 保留 Host 重写和默认400；由 owner 分类并贯通共同出口 | 由 owner 分类 | 实际源码中两个 HTTP 入口的 limit/conflict 都是400，Assistant 重写后的 forbidden 也是400。按现有拒绝条件，待本人处理的建议达到上限、预览后事实改变均用 conflict→409；forbidden/scope→forbidden、not_found→not_found，invalid/off维持invalid。Assistant 的权限拒绝400→403、两个入口的状态冲突400→409明确记为分类修正；原码、文案、拒绝与无写入语义保留，不把它们说成旧状态未变。图片 expired 的410→404已由原方案接受。 |
 | 2026-10-12 | BL-133 的五条 Issue 导航旧测试（弹窗，现场已测量） | 防腐线修正；交给 Issue 原会话；保留基线失败 | 防腐线修正旧测试 | 用户批准保留 ISSUE-30 的右上角常显入口，修正控件登记与标题栏几何预期。实测 Home 按钮桌面 32px、手机 44px；测试继续检查所有触控 44px、桌面 Home 32px（含短窗口）、视窗边界与实际命中，以及 Add/分屏对齐、标签距离与 Home 相邻且不遮挡，不改产品布局。 |
 | 2026-10-12 | Codex 接手防腐线（本轮用户指令） | 沿用 Claude 后台结果，接续到完成 | 已授权 | 先确认后台、补齐同一份 spec，再从 I4 回归与第五批剩余修复接续；按交接逐片推送、开 PR，全部必需 CI 检查通过并对齐 main 后串行合并。不重启已有驱动或回归；真实 Home 写入、他人成果清理仍按交接的独立授权边界处理。 |
 | 2026-10-12 | Claude 周额度耗尽后，批后合规复查的模型（弹窗） | 改由 Codex 完成；保留 Sonnet 等额度恢复 | 改由 Codex 完成 | 用户选择「改用 Codex 完成复查」。本轮实现、合规复查及修复评审由 Codex 承接；保留独立只读评审、单一 writer、隔离 Home、构建与浏览器排时段、先整合再分片合入的验证要求。 |
@@ -1335,6 +1336,21 @@ I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消
 | W3-10-4-01 | 两处助理、Placement、Context 与搜索经助手；按 G3 现行详情恢复 work/action，同 request_id 恢复断线发送，原文与草稿不丢、JSON 不双重编码、迟到读取不改 DOM。 |
 | W3-10-UI-01 | 上述 Host 请求失败保留实际 code/status/callId/body；服务端可查编号可以复制并查到记录，未留行不造编号，AbortError 不显示；390px 浅深色、桌面按钮及 #420 快捷键/忙态/焦点行为保留。 |
 | W3-10-5-01 | 实际执行的浏览器程序 AST 拦裸/成员/计算属性/别名 fetch 增长，新文件从零；评论、普通字符串与 HTML 文本不误计。Workbench 剩余 raw fetch 归零，插件存量冻结，只有精确底层实现例外；修改 baseline 不能放大 merge-base 数字。 |
+
+### 10.4 共同错误出口的接续验收（W3-02-G1/G3）
+
+固定 I5 8bac4a4ea 的只读核对已确认实际调用链；按 G1 → G3 → W3-10-4 推进。G1 范围为既定平台 HTTP/网关、客户端、availability 与同义码；G3 包括 Assistant service/store/http 与 memory tools、Memory owner/Host、AgentDefinitions、dispatcher、island 和对应测试，不能只删 Service 的三段转换。此处不提前改写存量错误码或运行时读取历史形状。
+
+| 编号 | 可观察结果与证明路径 |
+| --- | --- |
+| W3-02-G1-01 | 真实网关与删除调用按 kind 返回状态，客户端经 actionErrorFromResponse 保留 code/message/kind/details。匹配调用编号后标记真实记录的顺序不变；未留行不造编号，传输结果未知不自动重发。授权、取消与专用读体限额保留，拒绝无业务写入。 |
+| W3-02-G1-02 | ActionAvailability 的可选 kind 在 Kernel 两处与 SDK 路由两处抛错贯通；Pages/PPT/Dataset/Form 的现有 owner unavailable 带 conflict，恢复409。无 kind 的其余项仍按现行共同规则处理，API快照与真实动作/HTTP证明同片更新。 |
+| W3-02-G3-01 | 主人声明 kind，删除最后三处 HTTP mapper 及选项、全部 Memory→Assistant 码重写（含 memory tools 回调）；未知内部异常经共同出口回答500，保留 owner拒绝的消息/详情。Host不另起一套码或同义状态表。 |
+| W3-02-G3-02 | Memory的权限、对象不存在、待处理建议上限与预览后变动分别按 forbidden/not_found/conflict 分类；invalid/off保持invalid。真实两入口验证精确状态、code和事实未写，保留候选的拒绝/去重、本人接受及可撤销停用行为；400→403/409是明确记录的分类修正。 |
+| W3-02-G3-03 | 真实助理失败仍持久化原文草稿并返回同一 publicWork，work/action放在details，island同片读failure.code与failure.data=details；保留修复按钮、原request_id与恢复流程，不读取旧顶层work/action。浏览器证明失败后草稿、同一work及修复按钮实际可用。 |
+| W3-02-G3-04 | 应用重启后失效的图片句柄经真实读取入口回答404 / assistant.expired（原410），kind=not_found；保留重新添加文案及业务资料记录，不伪造调用编号。 |
+
+API与相关契约快照同步，整体构建、定向真实入口及浏览器回归完成后进入下一次协调整合全量；巨大单元和页面资源只降。当前只有源代码核对与方案，尚无本片运行通过或已实现的结论。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 

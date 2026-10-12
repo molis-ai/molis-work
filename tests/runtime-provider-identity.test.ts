@@ -78,7 +78,7 @@ function hostProcess(directory: string) {
     actions: { registry, client: actions.client, project_id: DEMO_PROJECT_ID }, project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
-    ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
+    ui: new UiHost(), home: null, privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
   const caller = (validate?: (reference: ActionReference) => void): ActionCallContext => ({
     actor_id: "tester", project_id: DEMO_PROJECT_ID, audience: "user", permissions: [WRITE], ...(validate ? { validate_authority: validate } : {}) });

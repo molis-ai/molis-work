@@ -18,10 +18,10 @@ import {
   createTodoRouteHandlers,
   todoManifest,
 } from "@molis-ai/molis-work-plugin-todo";
-import { inspectMethodDeclarations } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { rewriteNativePluginApiPath } from "../apps/local-host/src/native-plugin-api.js";
 import { renderMolisWorkWeb, renderMolisWorkWorkbenchClientScript, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
+import { manifestProblems } from "./fixtures/declaration-manifest.js";
 
 const PROJECT = "project-todo";
 
@@ -139,5 +139,5 @@ test("待办整理师 and both organizing methods are registered with the Host, 
   ]);
   assert.match(todo[0]!.methods![1]!.body, /状态不擅改/u);
   assert.match(todo[0]!.methods![0]!.body, /todo\.organize\.extract/u);
-  assert.deepEqual(inspectMethodDeclarations(todoManifest.methods), []);
+  assert.equal(manifestProblems(todoManifest), "");
 });

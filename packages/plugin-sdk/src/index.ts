@@ -3,6 +3,8 @@ export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetime
 import { parsePluginManifest, PluginManifestError } from "./manifest.js";
 
 export { parsePluginManifest, PluginManifestError, comparePluginVersions } from "./manifest.js";
+export { inspectActionDeclarations } from "./action-declarations.js";
+export { inspectActionCrossReferences } from "./action-cross-references.js";
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineAction } from "./actions.js";
 export { bindPluginActionRoute, bindOwnerPluginAction } from "@molis-ai/molis-work-contracts/platform/actions";

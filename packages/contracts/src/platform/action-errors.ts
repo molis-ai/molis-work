@@ -42,7 +42,7 @@ export const ACTION_ERROR_KINDS = {
   "actions.recommendation_missing": "not_found", "actions.subject_unavailable": "not_found",
   // It changed under the caller, or two things claim the same place: read again and decide again. The whole `actions.event_*` and
   // `actions.offer_*` families are here because the Home dock has always answered 409 for them.
-  "actions.subject_changed": "conflict", "actions.binding_changed": "conflict", "actions.provider_changed": "conflict", "actions.host_replaced": "conflict",
+  "actions.conflict": "conflict", "actions.subject_changed": "conflict", "actions.binding_changed": "conflict", "actions.provider_changed": "conflict", "actions.host_replaced": "conflict",
   "actions.provider_replaced": "conflict", "actions.definition_changed": "conflict", "actions.configuration_changed": "conflict", "actions.expired": "conflict",
   "actions.offer_changed": "conflict", "actions.offer_invalid": "conflict", "actions.offer_source_changed": "conflict",
   "actions.event_changed": "conflict", "actions.event_invalid": "conflict", "actions.event_source_changed": "conflict",
@@ -105,7 +105,7 @@ function declaredCode(prefix: string, reason: string, kind: unknown): string {
 /**
  * An owner declares its codes once, `defineErrorCodes("todo", { not_found: "not_found" })`; each entry raises an `ActionError` with the code
  * `<prefix>.<reason>` and that kind. The prefix is the owner's name (a second word after it groups a family: `goals.event`); `actions`
- * is the platform's, and a platform code cannot be declared again. Which package may use which owner name is for the error gate's owner table (W3-02-B) to say.
+ * is the platform's, and a platform code cannot be declared again. Which package may use which owner name is for tooling/gates/error-owners.json to say (scripts/gates/error-owners.mjs).
  */
 export function defineErrorCodes<const Reasons extends Readonly<Record<string, ActionErrorKind>>>(prefix: string, reasons: Reasons): ErrorCodeRaisers<Reasons> {
   if (!OWNER_PREFIX.test(prefix)) throw new TypeError(`错误码前缀 ${JSON.stringify(prefix)} 不合规：写主人的名字，小写字母开头，可含数字和下划线，用点接子段（prefix）`);

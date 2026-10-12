@@ -20,6 +20,7 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.scene_missing": "not_found";
     readonly "actions.recommendation_missing": "not_found";
     readonly "actions.subject_unavailable": "not_found";
+    readonly "actions.conflict": "conflict";
     readonly "actions.subject_changed": "conflict";
     readonly "actions.binding_changed": "conflict";
     readonly "actions.provider_changed": "conflict";
@@ -3891,16 +3892,6 @@ export declare function fileContentOf(input: {
 
 export declare function fileEntriesPage(entries: readonly FileEntry[], input: FileEntriesInput): FileEntriesPage;
 
-export declare function fileSourceDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[];
-
-export declare function fragmentOfferDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (schema: unknown) => string): string[];
-
-export declare function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[];
-
-export declare function inspectAgentDeclaration(agent: AgentManifest | undefined, declaredInputPorts: readonly string[]): string[];
-
-export declare function inspectMethodDeclarations(methods: unknown): string[];
-
 export declare function isActionErrorKind(value: unknown): value is ActionErrorKind;
 
 export declare function isArtifactCompareAction(action: {
@@ -3987,8 +3978,6 @@ export declare function pinActionSubject(client: ActionClient, caller: ActionCal
 
 export declare function pinnableSubjectKinds(client: ActionClient, caller: ActionCallContext): Promise<string[]>;
 
-export declare function placementDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[];
-
 export declare function placementSourceProject(caller: ActionCallContext, to: string): string;
 
 export declare function platformErrorKind(code: string): ActionErrorKind | undefined;
@@ -4069,8 +4058,6 @@ export declare function sceneConfigurationActions(scene: ActionSceneDefinition):
 export declare function searchEntriesPage(entries: readonly SearchEntry[], input: SearchEntriesInput): SearchEntriesPage;
 
 export declare function searchRevisionOf(parts: readonly string[]): string;
-
-export declare function searchSourceDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[];
 
 export declare function searchText(value: unknown, max?: number): string;
 

@@ -206,6 +206,11 @@ export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platfo
 export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { fileContentOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { fileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function inspectActionCrossReferences(definitions: unknown): string[];
+
+export declare function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[];
+
 export { linkedArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 export { linksToArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 export { nextPinnedVersion } from "@molis-ai/molis-work-contracts/platform/actions";

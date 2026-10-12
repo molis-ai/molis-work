@@ -261,7 +261,8 @@ test("an object the person moved to another project is named where it went, not 
 });
 
 test("a subject reader may live in the Home, and one declared with the schema before `open` is still accepted", async () => {
-  const { inspectActionDeclarations, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN } = await import("@molis-ai/molis-work-contracts/platform/actions");
+  const { SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN } = await import("@molis-ai/molis-work-contracts/platform/actions");
+  const { inspectActionDeclarations } = await import("@molis-ai/molis-work-plugin-sdk");
   const home = defineSubjectContextAction("fixture.calendar.subject.read", "calendar_item", "日历事项", ["calendar:read"], "home");
   assert.equal(home.action.scope, "home");
   assert.deepEqual(inspectActionDeclarations([home], undefined), []);

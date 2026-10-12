@@ -88,23 +88,3 @@ export function bindObjectCopyHandler(definition: ActionDefinition<PlacementCopy
       return copy({ ...value, from_project_id: caller.project_id }, caller);
     } };
 }
-
-/** Manifest-level check shared by inspectActionDeclarations. Returns problems, never throws. */
-export function placementDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[] {
-  const mover = isObjectMover(action as { input_type?: string; output_type?: string });
-  const copier = isObjectCopier(action as { input_type?: string; output_type?: string });
-  const mentions = [PLACEMENT_MOVE_INPUT_TYPE, PLACEMENT_MOVE_OUTPUT_TYPE, PLACEMENT_COPY_INPUT_TYPE, PLACEMENT_COPY_OUTPUT_TYPE]
-    .some(type => action.input_type === type || action.output_type === type);
-  if (!mentions) return [];
-  const schema = mover ? PLACEMENT_MOVE_INPUT_SCHEMA : copier ? PLACEMENT_COPY_INPUT_SCHEMA : null;
-  const audiences = Array.isArray(action.audiences) ? action.audiences as unknown[] : [];
-  const kinds = Array.isArray(action.subject_kinds) ? action.subject_kinds as unknown[] : [];
-  // Only a mover may be Home-scoped (a plugin that keeps its objects at Home and their belonging itself); copies stay in partitions.
-  const scoped = action.scope === "project" || mover && action.scope === "home";
-  if (!schema || operation !== "command" || action.kind !== "operation" || !scoped || kinds.length === 0
-    || audiences.length !== 1 || audiences[0] !== "user"
-    || canonical(action.input_schema) !== canonical(schema) || canonical(action.output_schema) !== canonical(PLACEMENT_RESULT_SCHEMA)) {
-    return [`能力 ${key} 没有兑现放置协议 v1：需要规范输入输出、项目作用域（移动也可以是 Home 作用域）、只对本机用户开放的操作，以及对象种类`];
-  }
-  return [];
-}

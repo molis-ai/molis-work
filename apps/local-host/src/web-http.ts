@@ -157,15 +157,18 @@ export function authorizeLocalWebRequest(
   return true;
 }
 
-export function readLocalWebBody(request: IncomingMessage): Promise<Record<string, unknown>> {
+export function readLocalWebBody(request: IncomingMessage, maximumBytes = 256_000): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
-    let body = "";
+    let body = "", bytes = 0, rejected = false;
     request.setEncoding("utf8");
     request.on("data", (chunk) => {
+      if (rejected) return;
+      bytes += Buffer.byteLength(chunk, "utf8");
+      if (bytes > maximumBytes) { rejected = true; body = ""; reject(new RangeError("请求内容过大")); return; }
       body += chunk;
-      if (body.length > 256_000) reject(new Error("请求内容过大"));
     });
     request.on("end", () => {
+      if (rejected) return;
       try {
         resolve(body ? (JSON.parse(body) as Record<string, unknown>) : {});
       } catch {

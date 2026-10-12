@@ -135,31 +135,6 @@ export function fileContentOf(input: { subject: ActionSubject; revision: string;
   return { subject: input.subject, revision: input.revision, title: input.title, media_type: input.media_type, encoding: "base64", data: btoa(binary), truncated: false };
 }
 
-/** Manifest-level check shared by inspectActionDeclarations. Returns problems, never throws. */
-export function fileSourceDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[] {
-  const entries = isFileEntriesSource(action as { input_type?: string; output_type?: string });
-  const content = isFileContentSource(action as { input_type?: string; output_type?: string });
-  const mentions = [FILE_ENTRIES_INPUT_TYPE, FILE_ENTRIES_OUTPUT_TYPE, FILE_CONTENT_INPUT_TYPE, FILE_CONTENT_OUTPUT_TYPE]
-    .some(type => action.input_type === type || action.output_type === type);
-  if (!mentions && action.file_source === undefined) return [];
-  const declared = action.file_source as { kinds?: unknown; role?: unknown } | undefined;
-  const kinds = declared?.kinds;
-  const subjectKinds = Array.isArray(action.subject_kinds) ? action.subject_kinds as unknown[] : [];
-  const kindsValid = Array.isArray(kinds) && kinds.length > 0 && kinds.every(entry => !!entry && typeof entry === "object"
-    && typeof (entry as FileSourceKind).kind === "string" && subjectKinds.includes((entry as FileSourceKind).kind)
-    && typeof (entry as FileSourceKind).title === "string" && (entry as FileSourceKind).title.trim().length > 0
-    && typeof (entry as FileSourceKind).surface === "string" && /^[a-zA-Z0-9_-]{1,64}$/u.test((entry as FileSourceKind).surface))
-    && new Set(kinds.map(entry => (entry as FileSourceKind).kind)).size === kinds.length && kinds.length === subjectKinds.length;
-  const schemas = entries ? [FILE_ENTRIES_INPUT_SCHEMA, FILE_ENTRIES_OUTPUT_SCHEMA] : content ? [FILE_CONTENT_INPUT_SCHEMA, FILE_CONTENT_OUTPUT_SCHEMA] : null;
-  const role = entries ? "entries" : content ? "content" : null;
-  const openToUser = Array.isArray(action.audiences) && (action.audiences as unknown[]).includes("user");
-  if (!schemas || declared?.role !== role || operation !== "query" || action.kind !== "query" || !["home", "project"].includes(String(action.scope))
-    || !kindsValid || !openToUser || canonical(action.input_schema) !== canonical(schemas[0]) || canonical(action.output_schema) !== canonical(schemas[1])) {
-    return [`能力 ${key} 没有兑现文件来源协议 v1：需要规范输入输出、查询类型、对本机用户开放、与角色一致的声明和对应文件种类的打开位置`];
-  }
-  return [];
-}
-
 /**
  * A 成果 type's preview (specs/artifact-positioning A4): its owner turns one version into the file the 成果库 and the
  * side panel show. The Host passes the version it read; the owner only converts its own payload and reads no store.

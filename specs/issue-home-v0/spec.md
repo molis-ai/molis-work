@@ -75,7 +75,7 @@
 | --- | --- |
 | 实际操作 | 隔离 Home 的预览里，用无头 Chrome 的真实键盘与鼠标逐条走过：首页与项目里 ⌘⇧I 唤起并直接打字、⌘↵ 发出后输入框立即清空、整理中关掉侧栏按钮带点、保存后列表与撤销提示、撤销放回原文、补充提问 → 补充 → 重新整理、模型不可用 → 手动保存、详情与编辑、截图粘贴与预览，1440 / 1024 / 390 / 320 宽度和深色。截图在已忽略的 `.impeccable/qa/issue-preview/shots/`。 |
 | 自动化 | 见下方「回归结果」。 |
-| 门禁 | `node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check`、`node scripts/gates/page-assets.mjs --base origin/main` 通过；Issue 客户端从 23,992 降到 22,952 bytes，工作台脚本与样式表也略降，预算随之下调。 |
+| 门禁 | `node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check`、`node scripts/gates/page-assets.mjs --base origin/main` 通过；Issue 客户端从 23,992 降到 23,619 bytes（本节各轮最终值），工作台脚本与样式表也略降，预算随之下调。 |
 
 回归结果（整体 `pnpm build` 之后，`node scripts/affected-tests.mjs` 选出的相关用例）：
 
@@ -84,6 +84,7 @@
 - Issue 的 7 个用例文件（`issue-capture-page`、`issue-page`、`issue-global-navigation`、`issue-clarification-page`、`issue-assistant-repair-page` 和两个服务端文件）全部通过。
 - 全量回归（`node scripts/run-tests.mjs`，提交 `8c86bc32`，本机 3 小时 35 分）：5,547 项中 **5,513 通过、16 失败、1 取消、17 跳过**，没有一项 Issue 用例失败。16 项逐个核对：6 项是本机编不了 Swift 原生小工具（`jelly-native-material` 3 项、`material-extraction`、`shelf-material-extraction`、`shelf-recipes` 各 1 项）；其余 10 项（`agent-action-selection`、`assistant-dock-ime`、`feed-capture`、`goals-document`、`goals-narrow-navigation`、`immersive-directory`、`inbox-current`、`pages-mcp`、`project-settings-standalone`、`workbench-tab-workspace`、`workbench-pane-feed` 中的失败项）在合并基点 `3fc8beb0` 的干净工作树上以同样的信息失败，不是本轮引入；取消的 1 项随 `pages-mcp` 的超时一起。17 项跳过是需要外网、真实账号或本机未装命令的既有条件跳过。
 - 全量之后的补充提交（没完成的录入跨页面保留文字、正文字号回到 15px、一段多处问题仍记一条）只动 Issue 客户端、方法和词典：重新整体构建后，门禁通过，Issue 客户端 23,578 bytes（仍低于 main 的 23,992），并重跑全部 Issue 用例与翻译、资源、动作快照、touch-targets 共 15 个文件：**164 项通过、0 失败、0 跳过**。
+- 合入最新 main（`4fb2db83`）并补完列表地点、讨论里的组合键、收起时释放键盘与底栏输入法用例后，在末端 `67a3e38a` 重跑全部 Issue 用例与 touch-targets、底栏输入法、侧栏平台与助理面、动作快照、翻译、资源、外壳页面和内置插件装配门禁共 18 个文件：**180 项通过、0 失败、0 跳过**；资源门禁对照 merge-base 通过。
 
 ### 主线集成与合入授权（2026-10-12）
 

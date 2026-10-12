@@ -161,6 +161,12 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     const reference = { artifact_id: installId + ":sample-result", version: 1 };
     assert.deepEqual(artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, reference)!.payload,
       { title: "Local sample result", sequence: 1 });
+    // The type the sample pins declares a preview of its own (artifact-positioning A1/A7): the version just published reads as text.
+    const previewResult = action("results.preview");
+    assert.ok((await actions.client.discover(caller)).some(row => row.capability_id === previewResult.capability_id && row.provider.provider_id === installId && row.availability.available));
+    const previewed = await actions.client.invoke(caller, previewResult, { artifact: artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, reference) }) as { media_type: string; data: string };
+    assert.equal(previewed.media_type, "text/markdown");
+    assert.equal(previewed.data, "# Local sample result\n\nResult 1\n");
     const render = () => ui.mount({ slot: { slot_id: "plugin.main", version: 1, accepts: ["html"] },
       contribution: { contribution_id: definition.manifest.ui.contributions[0]!, surface: "main", model: null } }).html;
     assert.match(render(), /Saved results: 1/);

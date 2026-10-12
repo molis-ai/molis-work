@@ -7,6 +7,11 @@ import type { BoundedInferenceReceipt } from "@molis-ai/molis-work-contracts/ser
  * `actionHttpStatus`), so Shelf keeps no status table of its own. Every status is the one the Shelf route answered for the code before: a
  * material that is not on the shelf 404, a shortcut or a model that is not there 409, a refusal to write over what changed 409, and every
  * other refusal of a request 400.
+ *
+ * Two codes say "not there". `item_not_found` is what the store and its routes raise for a material, a task or a clipboard entry that is not on the
+ * shelf. `not_found` is the answer of the subject and file readers (`shelf.subject.read`, `shelf.files.content`) for a copy that was deleted:
+ * the placement service reads a reader code that ends in `.not_found` as "the object was deleted" and lets the person clean the row up, so the
+ * readers keep that ending.
  */
 export const shelfErrors = defineErrorCodes("shelf", {
   busy: "invalid",
@@ -28,6 +33,7 @@ export const shelfErrors = defineErrorCodes("shelf", {
   no_model: "conflict",
   no_ocr: "invalid",
   no_text: "invalid",
+  not_found: "not_found",
   not_result: "invalid",
   not_text: "invalid",
   origin_changed: "invalid",

@@ -21,7 +21,7 @@ export const shelfSubjectAction: ActionDefinition<{ subject_id: string }, Action
 
 export function shelfSubjectContext(snapshot: ShelfSnapshot, id: string): ActionSubjectContext {
   const item = [...snapshot.materials, ...snapshot.results].find(entry => entry.item_id === id);
-  if (!item) throw shelfErrors.item_not_found("这份材料已不在 Shelf 中");
+  if (!item) throw shelfErrors.not_found("这份材料已不在 Shelf 中");
   const content = [item.preview_text, item.failure_reason].filter(Boolean).join("\n");
   return subjectContext({ subject: { kind: "shelf_item", id }, revision: searchRevisionOf([item.status, item.name, content]), title: item.name, content,
     goal_ids: [], session_id: null, open: { surface: "shelf", id } });
@@ -63,7 +63,7 @@ export function createShelfSearchHandlers(snapshot: () => ShelfSnapshot, readFil
     { capability_id: shelfFileContentAction.capability_id, version: shelfFileContentAction.version, handle: (_caller, input) => {
       const subject = (input as { subject: { kind: string; id: string } }).subject;
       const item = [...snapshot().materials, ...snapshot().results].find(entry => entry.item_id === subject.id);
-      if (!item) throw shelfErrors.item_not_found("这份材料已不在 Shelf 中");
+      if (!item) throw shelfErrors.not_found("这份材料已不在 Shelf 中");
       const media = shelfMedia(item), revision = searchRevisionOf([item.status, item.name, item.origin_hash]);
       // Links and captured text show as text (a link in it opens in the side panel's browser); files as their bytes.
       if (item.kind === "url" || item.kind === "website" || !readFile || item.size_bytes > FILE_CONTENT_MAX_BYTES && !media.startsWith("text/"))

@@ -1354,6 +1354,19 @@ I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消
 
 API与相关契约快照同步，整体构建、定向真实入口及浏览器回归完成后进入下一次协调整合全量；巨大单元和页面资源只降。当前只有源代码核对与方案，尚无本片运行通过或已实现的结论。
 
+### 10.5 Goals 管理入口的接续验收（W3-07-PR-4/5）
+
+固定 I5 8bac4a4ea 已核：P-MCP的解析在mcp-v1-tool，CLI已删自己的树命令桥并使用管理工厂；剩管理MCP仍消费 initialize/event-decide/tree-decide 三个 typed入口。按PR-4 → PR-5 → 后续PR-6/8推进，PR-4先于错误码R3，不夹带常驻转发（PR-7）或owner改名。保留生产管理工厂使用的tree/event authority与management-evidence；managementIdentity仍供进展记录使用、requireRuntimeProject仍供插件开发使用，Coding四个合同入口留到PR-8。
+
+| 编号 | 可观察结果与证明路径 |
+| --- | --- |
+| W3-07-4-01 | 三个管理MCP工具经现有bindGoalsManagementActions和同一ActionClient执行；每次恰有一条Goals动作记录、没有typed行，保留伪造_meta编号拒绝与Host可信编号。不扩大LocalMcpServer。 |
+| W3-07-4-02 | 工具名/schema/字段挑选与JSON输出保持；database参数优先于环境、无默认路径。initialize忽略额外身份；event-decide拒未知字段/authority；tree-decide保留顶层及authority身份拒绝、prompted_proposal_id与出处默认。拒绝不写业务事实；CLI提交→Host重启→MCP决定/幂等回放保持。 |
+| W3-07-5-01 | 在删前固定当前十个Goals自有typed协议ID与版本，删后三个capability文件、两份合同中的对应类型/描述符、两处出口及十个注册；公开Host/SDK availability和invoke逐项答actions.dependency_missing，伪造描述符不能恢复入口。权限/提供方的有效用例改走真实动作，不靠删断言过关。 |
+| W3-07-5-02 | InitializeBoardOutput回到board-actions；两个management authority移到小的Goals owner文件，现有evidence保留且真实管理调用通过。checkNoGoalTypedAdapters做带mutation的绝对拒绝；相关API快照更新，巨大单元、typed计数与基线只降，动作schema和资源无意图变化。 |
+
+允许修改实际tool-dispatch、goal-event-commands、mcp-v1-tool与MCP类型出口，PR-5对应桥/合同/注册与owner小文件、门禁、测试及必要文档。旧“迁Casebook observer”不再适用；每片依现有management-door-identity、mcp-goal-events-state、proposal-entry-chain的真实入口验证，整合全量由协调运行。当前为已核对的执行边界，尚未实现或验证。
+
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 
 用户更正：上一轮逻辑复查只查了 Goal 的完成规则与写进 Goal 的管理门。本轮按事实主人分 8 个区（插件基座、动作服务与授权、成果库/放置/上下文账本、搜索/记忆/助理、个人插件、文稿与数据插件、工作流插件、Coding/创作台/炼金术士），只读查逻辑缺陷，每区一个对抗核验者逐条复现或驳回（复现脚本在会话临时目录 `logic-review/`）。

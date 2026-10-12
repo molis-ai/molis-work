@@ -824,6 +824,14 @@ interface AgentInputView {
 | D8 | AI 是否必须说明每条读到的输入 | 必须，提醒有界、不阻塞收工；可选 | 必须，提醒有界 |
 | D9 | 助理每项工作是否引入常驻 TaskBoard | 引入（阶段 5）；只用 `update-todo` | 引入；先在 Coding 验证关联，再上助理 |
 
+**2026-10-12 统筹按用户的拍板规则（技术决策按防腐线、功能决策选界面与日常体验最好的）补记：**
+
+| # | 事项 | 结论 | 理由 |
+| --- | --- | --- | --- |
+| D10 | 输入回执与「情境条」（情境线助理输入框上方的「手上的东西 + 落点」）的边界 | `AgentInputView` 只记用户的话、来源（`source`）和发送方式（`mode`），**不带附带的情境和材料**。情境条走现有的 `AssistantSendInput.context` 和 `materials` 字段，仍归各自的主人 | 单一事实主人：回执回答「这句话被怎么处理」，情境和材料不是这句话的一部分；塞进回执就有两份真相。与 §6.2 草案一致（`AgentInputView` 本来没有这两项），无冲突 |
+| D11 | S2 排队的 D4 开关放哪 | 放 SDK 会话（`session.setQueuedInputCarry`），Molis 不另存一份；缺省 `ask`，设成 `auto` 后只作用于 App 开的 Agent 跑，子任务唤醒的续跑一律不带 | 单一事实主人；防止子任务完成偷渡未读用户输入的消费权限（需求书 §17 的约束） |
+| D12 | S3 说明工具的可见性 | 常驻（不按有没有输入切换），plan / ask / App-tools 模式可用；Character 或开跑名单没列它就不提醒不挡。Molis 若显式列工具，要把 `acknowledge-inputs` 加进去，并在 `createRuntime` 注入 `app-ref` 解析器（对接 Context Ledger 的对象引用） | 跑中增删工具会让提示缓存整段失效；不绕过 App 的名单 |
+
 仍需用户另行授权的：两仓的提交（Prologue `AGENTS.md` §8 要求明确授权）、推送 Prologue 分支并合入它的 main、开 PR、替换正式安装版。
 
 ## 15. 附：调研中发现的文档与代码不符
@@ -842,6 +850,8 @@ interface AgentInputView {
 - 2026-10-09：方案写定（§0–§15），用户按推荐定下 §14 九项。阶段 0：本文改为执行中；Prologue 侧开工作树 `~/code/prologue-input-receipts`（分支 `feat/input-receipts`，基于主线 `4f7110fe`，未推送、未提交），基线核对：`tsc` 通过；14 个相关用例文件（控制、待办、任务板、提醒、会话续接、Run 恢复）在构建后全部通过。按 Prologue `AGENTS.md` §4 先写切片合同再实现：S1 输入身份与读到回执、S2 会话级持久排队、S3 处理说明与提醒、S4 任务板与待办引用输入；pending 的 about 与已回答事件推后（另一分支正在改 effect-policy）。阶段 1 的 Molis 代码等 `feat/prologue-adoption` 合入（它已把 Coding 的运行控制解析抽到 `plugins/native/coding/src/run-inputs.ts`，阶段 1 的 Coding 改动落在那里）。
 
 - 2026-10-12：接续开工（receipts 会话）。Prologue：S2 分支 `feature/input-receipts-s2` 先合 main `69ccfa94`、跑 S1 回归，按统筹要求换基点到采用线的干净 S1（`edb8ec86` = `c4b9fde3` + S1 `4acfb445` + main `69ccfa94`），之后整合是快进。S2 切片合同 `docs/slices/input-queue.md` 先写后做：会话级持久排队、获准才带（默认 `ask`，`auto` 只作用于 App 开的跑）、历史可见不等于获准消费（没读到的原话不进后续入模历史）、子任务唤醒续跑不带、键整条会话去重、重启收口时入队。工程证据（三级分开）见 SDK 合同的验收记录；真实 Provider、Molis 生产入口、用户实操都未跑。Molis 分支合入 main `02ceba8c`；§6.1 第 4 项按 S2 实际入口改写，§6.2a 记下按现行 contracts 核对的落点。
+
+- 2026-10-12（续）：S3（处理说明与有界提醒）在 Prologue `feature/input-receipts-s3` 上实现并工程通过（基点：采用线整合末端 `a13bf067` 合入 S2 得 `c0194228`）。切片合同 `docs/slices/input-handling.md`，决策记录 H1–H15。要点：模型只能说明这一跑里已读到的输入；说明没有权威、不改 `state`；提醒有界、只写编号、不挡死收工；`later-step / new-task / needs-clarification` 暂用 `note` 补足，S4 有了步骤与问题目标再收紧。Molis 侧准备：D10–D12 写入 §14；§6.2 `AgentInputView.handling` 的字段取自投影的 `handling` / `handlingRevisions`（`impacts` 为模型自称，观察到的影响仍由 S4 / Molis 投影）。
 
 ## 17. 远端交接（2026-10-11，当前接续入口）
 

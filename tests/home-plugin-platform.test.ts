@@ -186,8 +186,8 @@ test("W3-06-F-02 a fixture cannot take the Host's Issue library or declare an in
 });
 
 test("W3-06-F-07 shared Home operations preserve POST protection, revision and the original upload limit", { timeout: 60_000 }, async t => {
-  const probe = homeProbe(), { host, request } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
-  const { install } = await grantHomeProbe(host, probe);
+  const probe = homeProbe(), { host, request, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  const { platform, install } = await grantHomeProbe(host, probe);
   const route = (operation: string) => `/api/plugins/${probe.id}/${operation}`;
   for (const operation of ["restart", "release-quarantine", "upgrade", "disable", "enable", "retry"]) {
     assert.equal((await request(route(operation))).status, 405, operation);
@@ -195,8 +195,11 @@ test("W3-06-F-07 shared Home operations preserve POST protection, revision and t
   }
   assert.equal(host.homePlugins!.installation(probe.id)!.installation_generation, install.installation_generation);
   assert.equal((await request(route("not-declared"))).status, 404);
+  // An unregistered global URL retains the catalog's project-required response; a real project's unknown route is 404.
   const notInstalled = await request("/api/plugins/io.molis.work.not-installed/restart", { method: "POST", body: {} });
-  assert.equal(notInstalled.status, 404, await notInstalled.clone().text());
+  assert.deepEqual([notInstalled.status, await notInstalled.json()], [400, { error: "请先选择一个 Molis Work 项目" }]);
+  const one = await project("Home operations coexist with project routes");
+  assert.equal((await request(`/projects/${one.project_id}/api/plugins/io.molis.work.not-installed/restart`, { method: "POST", body: {} })).status, 404);
   const first = await request(route("view-revision")); assert.equal(first.headers.get("cache-control"), "no-store");
   const revision = (await first.json()).revision;
   assert.equal((await (await request(route("view-revision"))).json()).revision, revision);
@@ -210,4 +213,17 @@ test("W3-06-F-07 shared Home operations preserve POST protection, revision and t
   assert.equal((await request(route("state"))).status, 503);
   const restarted = await request(route("enable"), { method: "POST", body: {} });
   assert.equal(restarted.status, 200, await restarted.clone().text());
+  // W3-06-F-06/W3-06-F-07: a known Home entry cannot fall through to a project instance or reinstall itself after uninstall.
+  const old = probe.contexts.at(-1)!;
+  await platform.runtime.stop(install.install_id);
+  await platform.runtime.uninstall(install.install_id, { retain_private_data: true });
+  const facts = platform.runtime.list();
+  assert.equal(platform.runtime.get(install.install_id).state, "uninstalled");
+  for (const prefix of ["", `/projects/${one.project_id}`]) for (const operation of ["state", "restart", "retry", "enable"]) {
+    const refused = await request(`${prefix}${route(operation)}`, operation === "state" ? {} : { method: "POST", body: {} });
+    assert.deepEqual([refused.status, (await refused.json()).code], [404, "actions.missing"]);
+  }
+  assert.throws(() => old.services!.storage!.set("note", "after uninstall"), { code: "actions.forbidden" });
+  await assert.rejects(old.services!.actions!.invoke(probe.save, { text: "after uninstall" }), { code: "actions.forbidden" });
+  assert.deepEqual(platform.runtime.list(), facts, "lookup and rejected control requests preserve grants, generation, state and install facts");
 });

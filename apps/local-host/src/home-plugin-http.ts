@@ -3,6 +3,7 @@ import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage } from "@molis-ai/molis-work-app-workbench";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
@@ -34,8 +35,12 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     } else sendLocalWebJson(response, 503, { error: message });
     return true;
   }
-  if (operation === "retry") { sendLocalWebJson(response, 200, { ready: true }); return true; }
   const install = host.homePlugins.installation(pluginId);
+  if (route && !install) {
+    const missing = actionErrorResponse(new ActionError("actions.missing", "这个 Home 插件未安装"));
+    sendLocalWebJson(response, missing.status, missing.body); return true;
+  }
+  if (operation === "retry") { sendLocalWebJson(response, 200, { ready: true }); return true; }
   if (page && entry) {
     if (request.method !== "GET") { sendLocalWebJson(response, 405, { error: "请通过 GET 打开页面" }); return true; }
     const contribution = install?.state === "running" ? platform.runtime.contribution(install.install_id) : null;

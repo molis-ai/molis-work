@@ -27,7 +27,7 @@
       "methods": 15
     },
     "class apps/local-host/src/local-host.ts#LocalHost": {
-      "lines": 560,
+      "lines": 559,
       "methods": 23
     },
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
@@ -180,7 +180,7 @@
     "function packages/im-ui/src/browser/controller.ts#startIm": 957,
     "function packages/im-ui/src/views.ts#createViews": 164,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 413,
+      "lines": 412,
       "methods": 15
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {

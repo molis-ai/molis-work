@@ -221,7 +221,7 @@ Agent 运行
 | 供应商直连 | 没有（§1 第 1 项）；模型之外的出站网络 13 类，逐类见 §3.10 | 全仓源码搜索与子进程扫描，命令见 §8 |
 | 旧执行器 | 无。`CliAgentAdapter` 是清点时唯一的一个（默认注册、没有内置调用方），已于 2026-10-10 删除（#364）；Agent Host 只注册 Prologue 适配器 | §3.8 EX-6、§7 第 1 项 |
 | 带绕过的 fallback | 没有「模型失败就换别家」；固定模型不可用时明确拒绝、不切供应商（Alchemist、Cognia、Shelf、生成插件都一样）；`actions.configuration_changed` 把「生成期间模型或连接变了」当失败，结果不提交 | `host-complete-text.ts`、`alchemist-prologue.ts`、`shelf-ai.ts` |
-| 撤权、取消、配置变化后的副作用 | 有界调用：派出前后各复查，返回后再核一次快照，被取消、撤权、停用的不再写任何记录；宿主作业（HJ-1 至 HJ-3）没有按次授权，靠「项目还在」和写入门 | `tests/action-before-effect.test.ts`、`tests/action-model-scheduling.test.ts`、`memory-learning.ts` 的 `stillWanted` |
+| 撤权、取消、配置变化后的副作用 | 有界调用：派出前后各复查，返回后再核一次快照，被取消、撤权、停用的不再写任何记录（W3-01 B 后只管业务记录，见 AGENTS.md）；宿主作业（HJ-1 至 HJ-3）没有按次授权，靠「项目还在」和写入门 | `tests/action-before-effect.test.ts`、`tests/action-model-scheduling.test.ts`、`memory-learning.ts` 的 `stillWanted` |
 | 旧的假数据路径 | 无。清点时 Pages 的 `stub` 是死字段：处理器只返回 `stub: false`，目录输出合同写死 `{ const: false }`（`plugins/native/pages/src/actions.ts:107`），编辑器里还有「未接模型」标签分支（`editor-browser.ts:3333`）和 `actionItemsFromText` 里剥除 `【未接模型…】` 行的正则（`ai.ts:85-86`）；这些已在 #368 删除（§7 第 3 项），`plugins/native/pages/src` 里不再有 `stub` 与「未接模型」 | 读码（清点时）；`git grep -n "stub" -- plugins/native/pages/src` 没有命中（2026-10-10） |
 | 自动触发 | 只有用户启用的场景（Feed 捕捉、Inbox 下一步、首页下一步）会在事件到达时调判断；没启用就不调；定时的 Agent 任务只在用户创建后按钟点跑 | `scenes.enable:*`，`schedule-task-runner.ts` |
 

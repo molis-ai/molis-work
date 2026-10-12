@@ -34,5 +34,5 @@ feedback action authorizes or applies an edit.
 - 不变量：
   - 三类输入按 `input_groups` 互换，只有选中的一组生效。
   - 比较的是固定版本（带执行回执），不是对当前工作树的断言；反馈锚点只在保存固定版本后添加。
-- 改动后必跑：`node scripts/run-tests.mjs tests/diff-plugin.test.ts tests/workspace-plugin-graph.test.ts tests/companion-actions.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/diff-plugin.test.ts tests/workspace-plugin-graph.test.ts tests/companion-actions.test.ts tests/git-product-http.test.ts`
 - 相关手册：[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

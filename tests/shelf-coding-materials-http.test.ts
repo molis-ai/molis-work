@@ -65,6 +65,8 @@ test("Shelf project material confirms current full bytes, preserves original ver
       ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }) });
     return { status: response.status, body: await response.json() };
   };
+  // A request the output service refuses is the caller's mistake: 400, and the body names the owner's code (the route answers by kind, not by message).
+  const refused = (response: { status: number; body: { code?: string } }, code: string, message?: string) => assert.deepEqual([response.status, response.body.code], [400, code], message ?? JSON.stringify(response.body));
   const coding = "/api/plugins/io.molis.work.coding/sessions/app";
   const output = "/api/plugins/io.molis.work.shelf/material-output";
   const start = (materials: unknown) => request(coding + "/runs", { task: "只读材料", intent: "discuss", workspace_id: "work", provider_id: "p", model_id: "m", materials });
@@ -84,7 +86,7 @@ test("Shelf project material confirms current full bytes, preserves original ver
     const emptyOutput = await request(output);
     assert.equal(emptyOutput.status, 200, JSON.stringify(emptyOutput.body));
     assert.equal(emptyOutput.body.reference, null, "saving does not implicitly switch output");
-    assert.equal((await request(output, { reference: save.body.reference })).status, 400, "confirmation requires the observed output");
+    refused(await request(output, { reference: save.body.reference }), "actions.input_invalid", "confirmation requires the observed output");
     assert.equal((await request(output, { reference: save.body.reference, expected_reference: null })).status, 200);
     assert.deepEqual((await request(output)).body.reference, save.body.reference);
     assert.equal((await request(coding + "/materials")).body.materials[0].source, "Shelf 材料输入");
@@ -94,7 +96,7 @@ test("Shelf project material confirms current full bytes, preserves original ver
     const other = await request(path + "?project=other", { expected_fingerprint: preview.body.fingerprint });
     assert.equal(other.status, 200); assert.notEqual(other.body.reference.artifact_id, save.body.reference.artifact_id);
     assert.equal((await start([other.body.reference])).status, 400);
-    assert.equal((await request(output, { reference: other.body.reference, expected_reference: save.body.reference })).status, 400);
+    refused(await request(output, { reference: other.body.reference, expected_reference: save.body.reference }), "shelf.invalid");
     const changed = "新版🙂\n现在只允许核对文档，不做修改。";
     assert.equal((await request(`/api/shelf/items/${id}/edit`, { text: changed })).status, 200);
     assert.equal((await request(path, { expected_fingerprint: preview.body.fingerprint })).status, 409);
@@ -103,10 +105,10 @@ test("Shelf project material confirms current full bytes, preserves original ver
     const saved2 = await request(path, { expected_fingerprint: second.body.fingerprint });
     assert.equal(saved2.status, 200); assert.equal(saved2.body.reference.version, 2);
     assert.deepEqual((await request(output)).body.reference, save.body.reference);
-    assert.equal((await request(output, { reference: saved2.body.reference, expected_reference: null })).status, 400, "stale confirmation cannot overwrite output");
+    refused(await request(output, { reference: saved2.body.reference, expected_reference: null }), "shelf.invalid", "stale confirmation cannot overwrite output");
     assert.equal((await request(output, { reference: saved2.body.reference, expected_reference: save.body.reference })).status, 200);
     assert.equal((await request(output, { reference: saved2.body.reference, expected_reference: save.body.reference })).status, 200, "retry reuses selected version");
-    assert.equal((await request(output, { reference: save.body.reference, expected_reference: save.body.reference })).status, 400);
+    refused(await request(output, { reference: save.body.reference, expected_reference: save.body.reference }), "shelf.invalid");
     const choices = (await request(coding + "/materials")).body.materials;
     assert.equal(choices.length, 2); assert.deepEqual(new Set(choices.map((item: any) => item.text)), new Set([original, changed]));
     assert.equal((await start([{ ...save.body.reference, text: "伪造" }])).status, 200);
@@ -122,7 +124,7 @@ test("Shelf project material confirms current full bytes, preserves original ver
     assert.equal((await start([save.body.reference])).status, 200); assert.equal(starts[2].text_materials?.[0]?.text, original);
     artifacts().commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", ...save.body.reference });
     assert.equal((await start([save.body.reference])).status, 400); assert.equal(starts.length, 3);
-    assert.equal((await request(output, { reference: save.body.reference, expected_reference: saved2.body.reference })).status, 400);
+    refused(await request(output, { reference: save.body.reference, expected_reference: saved2.body.reference }), "shelf.invalid");
     assert.deepEqual((await request(output)).body.reference, saved2.body.reference);
     assert.equal((await request(coding + "/materials")).body.materials.filter((item: any) => !item.error).length, 1);
     for (const [filename, bytes] of [["binary.txt", Buffer.from([0xff, 0xfe, 1])], ["null.txt", Buffer.from("a\0b")], ["large.txt", Buffer.from("长".repeat(20_001))]] as const) {

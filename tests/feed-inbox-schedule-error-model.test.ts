@@ -6,6 +6,8 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+import Database from "better-sqlite3";
+
 import {
   handleFeedNativePluginHttp,
   handleInboxNativePluginHttp,
@@ -16,8 +18,10 @@ import {
 import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import * as attentionContracts from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import * as feedContracts from "@molis-ai/molis-work-contracts/modules/feed";
-import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionError, type ActionExecutionContext, type ActionHandlerBinding, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ScheduleError } from "@molis-ai/molis-work-contracts/services/scheduler";
+import { PluginWakeupIndex, createScheduleService } from "@molis-ai/molis-work-service-scheduler";
+import { actionErrorResponse, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import * as feedPlugin from "@molis-ai/molis-work-plugin-feed";
 import * as inboxPlugin from "@molis-ai/molis-work-plugin-inbox";
 import * as schedulePlugin from "@molis-ai/molis-work-plugin-schedule";
@@ -35,6 +39,9 @@ import * as schedulePlugin from "@molis-ai/molis-work-plugin-schedule";
 //   4. the Feed connector failure keeps the provider's own code in details, and the codes the Feed classifies a failure by are the new ones;
 //   5. nothing of the old shape is left: no error class, no mapper, no bare `new Error(` for a caller's mistake, no owner code raised without its declaration,
 //      no old code name in the sources.
+//   6. the scheduler's own refusals (its `ScheduleError`) leave every Schedule action as Schedule's declared failures: the five wrappers of the three action files
+//      (actions.ts `bind`, reminder-actions.ts, operation-actions.ts) are driven with the scheduler's real class and with the real scheduler, so deleting one of them,
+//      which no static scan can see, turns a stale-job toggle into a 500 here.
 
 const REPOSITORY = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -288,4 +295,163 @@ test("a declared code is used: every reason in a declaration has a raise site", 
       assert.ok(new RegExp(String.raw`\b${owner}Errors\.${reason}\(`, "u").test(sources), `${owner}Errors.${reason} is raised somewhere; a code nobody raises is not declared`);
     }
   }
+});
+
+// ---- 6. the scheduler's refusals leave Schedule's actions as Schedule's declared failures ---------------------------------------------------------------------
+const SCHEDULE_PROJECT = "schedule-error-project";
+const SCHEDULE_PLUGIN = "io.molis.work.generated.a";
+const CLOCK = Date.parse("2026-10-12T00:00:00Z");
+const userContext = (overrides: Partial<ActionExecutionContext> = {}): ActionExecutionContext =>
+  ({ actor_id: "owner", project_id: SCHEDULE_PROJECT, audience: "user", permissions: [], beforeEffect: async () => {}, ...overrides });
+const pluginContext = (overrides: Partial<ActionExecutionContext> = {}): ActionExecutionContext =>
+  userContext({ actor_id: `plugin:${SCHEDULE_PLUGIN}`, audience: "plugin", plugin_install_id: "install-1", ...overrides });
+const notUsed = (): never => { throw new Error("this port is not used by the test"); };
+const schedulePorts = (overrides: Partial<schedulePlugin.ScheduleActionPorts>): schedulePlugin.ScheduleActionPorts => ({
+  listJobs: notUsed, setEnabled: notUsed, recoverReminder: notUsed, listTasks: notUsed, createTask: notUsed, updateTask: notUsed, archiveTask: notUsed, setTaskEnabled: notUsed, openTask: notUsed,
+  ...overrides,
+});
+const bindingOf = (handlers: readonly ActionHandlerBinding[], definition: { capability_id: string; version: number }): ActionHandlerBinding => {
+  const found = handlers.find(row => row.capability_id === definition.capability_id && row.version === definition.version);
+  assert.ok(found, `${definition.capability_id} is bound`);
+  return found;
+};
+/** What a caller of the action sees: the status the Host's edge answers and the code and message in the body. */
+async function refusalOf(run: () => unknown): Promise<{ status: number; code: string | undefined; message: string }> {
+  try { await run(); } catch (error) {
+    const { status, body } = actionErrorResponse(error);
+    return { status, code: body.code, message: body.error };
+  }
+  return assert.fail("the action was expected to refuse");
+}
+
+const SCHEDULER_REFUSALS: ReadonlyArray<readonly [ScheduleError["code"], string, string, number]> = [
+  ["schedule_job_not_found", "定时任务不存在", "schedule.job_not_found", 404],
+  ["schedule_job_invalid", "时间无效", "schedule.job_invalid", 400],
+  ["schedule_interval_too_short", "间隔不能短于 5 秒", "schedule.job_invalid", 400],
+  ["schedule_path_refused", "对象钥匙不能是文件路径", "schedule.job_invalid", 400],
+  ["schedule_handler_missing", "叫醒对象还没有提供执行接口", "schedule.job_invalid", 400],
+];
+
+test("the scheduler's refusals leave the Schedule, reminder and timed-operation actions as Schedule's own codes with the scheduler's message, at every wrapper", async () => {
+  for (const [schedulerCode, message, code, status] of SCHEDULER_REFUSALS) {
+    const refuse = (): never => { throw new ScheduleError(schedulerCode, message); };
+    const jobs = schedulePlugin.createScheduleActionHandlers(SCHEDULE_PROJECT, schedulePorts({ setEnabled: refuse }));
+    const reminders = schedulePlugin.createReminderActionHandlers(SCHEDULE_PROJECT, { add: refuse, cancel: refuse });
+    const operations = schedulePlugin.createScheduledOperationActionHandlers(SCHEDULE_PROJECT, { add: refuse, cancel: refuse });
+    const sites: ReadonlyArray<readonly [string, ActionHandlerBinding, ActionExecutionContext, unknown]> = [
+      ["bind (the Schedule actions)", bindingOf(jobs, schedulePlugin.scheduleActions.setJobEnabled), userContext(), { job_id: "job-1", enabled: false }],
+      ["reminders.add", bindingOf(reminders, schedulePlugin.reminderActions.add), pluginContext(), { at: "2026-10-12T08:00:00+08:00", text: "复习" }],
+      ["reminders.cancel", bindingOf(reminders, schedulePlugin.reminderActions.cancel), pluginContext(), { reminderId: "reminder-1" }],
+      ["schedules.add", bindingOf(operations, schedulePlugin.scheduledOperationActions.add), pluginContext(), { operation: "daily", at: "2026-10-12T08:00:00+08:00" }],
+      ["schedules.cancel", bindingOf(operations, schedulePlugin.scheduledOperationActions.cancel), pluginContext(), { scheduleId: "schedule-1" }],
+    ];
+    for (const [site, binding, context, input] of sites) {
+      assert.deepEqual(await refusalOf(() => binding.handle(context, input)), { status, code, message }, `${site}: the scheduler's ${schedulerCode} answers ${code} (${status})`);
+    }
+  }
+});
+
+test("what is not the scheduler's refusal passes the wrapper untouched: another declared failure keeps its code and a bare Error stays an uncoded 500", async () => {
+  const jobs = schedulePlugin.createScheduleActionHandlers(SCHEDULE_PROJECT, schedulePorts({ setEnabled: () => { throw new Error("disk exploded"); } }));
+  const toggle = bindingOf(jobs, schedulePlugin.scheduleActions.setJobEnabled);
+  const failure = await refusalOf(() => toggle.handle(userContext(), { job_id: "job-1", enabled: true }));
+  assert.equal(failure.status, 500);
+  assert.equal(failure.code, "actions.execution_failed");
+  // A failure that is already an ActionError (a platform or an owner code) is not relabelled.
+  const owned = schedulePlugin.createScheduleActionHandlers(SCHEDULE_PROJECT, schedulePorts({ setEnabled: () => { throw schedulePlugin.scheduleErrors.task_invalid("不是调度器的拒绝"); } }));
+  assert.deepEqual(await refusalOf(() => bindingOf(owned, schedulePlugin.scheduleActions.setJobEnabled).handle(userContext(), { job_id: "job-1", enabled: true })),
+    { status: 400, code: "schedule.task_invalid", message: "不是调度器的拒绝" });
+  assert.deepEqual(await refusalOf(() => toggle.handle(userContext({ project_id: "another-project" }), { job_id: "job-1", enabled: true })),
+    { status: 403, code: "actions.scope_mismatch", message: "请求项目与定时任务所在项目不一致" });
+  // Without the Host's readiness check the action says so as the platform's own code.
+  const readiness = bindingOf(jobs, schedulePlugin.scheduleActions.readiness);
+  assert.equal((await refusalOf(() => readiness.handle(userContext(), {}))).code, "actions.unredeemed");
+});
+
+test("with the real scheduler: a toggle of a job that is gone is schedule.job_not_found, a refusal of the scheduler's own registration is schedule.job_invalid, a live job still toggles", async () => {
+  const db = new Database(":memory:");
+  const wakeups = new PluginWakeupIndex();
+  wakeups.register(SCHEDULE_PLUGIN, "test.wakeup", async () => {});
+  const schedule = createScheduleService(db, { wakeupIndex: wakeups, now: () => new Date(CLOCK) });
+  const registration = { plugin_id: SCHEDULE_PLUGIN, capability_id: "test.wakeup", object_ref: "source:alpha", title: "拉一次", due_at: "2026-10-12T03:00:00.000Z" };
+  try {
+    // The ports stand in for the Host's, which call the scheduler the same way.
+    let register = registration as Parameters<typeof schedule.register>[0];
+    const handlers = schedulePlugin.createScheduleActionHandlers(SCHEDULE_PROJECT, schedulePorts({
+      setEnabled: (jobId, enabled) => schedule.setEnabled(jobId, enabled),
+      listJobs: () => { schedule.register(register); return []; },
+    }));
+    const toggle = bindingOf(handlers, schedulePlugin.scheduleActions.setJobEnabled), list = bindingOf(handlers, schedulePlugin.scheduleActions.list);
+
+    const live = schedule.register(registration);
+    const toggled = await toggle.handle(userContext(), { job_id: live.job_id, enabled: false }) as { job: { job_id: string; enabled: boolean } };
+    assert.deepEqual([toggled.job.job_id, toggled.job.enabled], [live.job_id, false]);
+
+    schedule.cancel(live.job_id, SCHEDULE_PLUGIN);
+    assert.deepEqual(await refusalOf(() => toggle.handle(userContext(), { job_id: live.job_id, enabled: true })), { status: 404, code: "schedule.job_not_found", message: "定时任务不存在" });
+    assert.equal((await refusalOf(() => toggle.handle(userContext(), { job_id: "never-existed", enabled: true }))).code, "schedule.job_not_found");
+
+    const refused: ReadonlyArray<readonly [string, Parameters<typeof schedule.register>[0], RegExp]> = [
+      ["an interval below the minimum", { ...registration, recurrence: { kind: "interval", interval_ms: 1 } }, /5 秒/u],
+      ["an object key that is a path", { ...registration, object_ref: "/etc/passwd" }, /文件路径/u],
+      ["a capability nobody serves", { ...registration, capability_id: "absent.wakeup" }, /执行接口/u],
+      ["a time that is not one", { ...registration, due_at: "someday" }, /时间无效/u],
+    ];
+    for (const [what, wrong, message] of refused) {
+      register = wrong;
+      const failure = await refusalOf(() => list.handle(userContext(), {}));
+      assert.deepEqual([failure.status, failure.code], [400, "schedule.job_invalid"], what);
+      assert.match(failure.message, message, what);
+    }
+  } finally { db.close(); }
+});
+
+test("with the real reminder and timed-operation services: the caller's mistakes are schedule.job_invalid, an identity they cannot take is actions.forbidden, a good call still works", async () => {
+  const db = new Database(":memory:");
+  const wakeups = new PluginWakeupIndex();
+  wakeups.register(schedulePlugin.SCHEDULE_PLUGIN_ID, schedulePlugin.SCHEDULE_REMINDER_WAKEUP, async () => {});
+  wakeups.register(schedulePlugin.SCHEDULE_PLUGIN_ID, schedulePlugin.SCHEDULE_OPERATION_WAKEUP, async () => {});
+  const schedule = createScheduleService(db, { wakeupIndex: wakeups, now: () => new Date(CLOCK) });
+  const reminders = schedulePlugin.createScheduleReminders({ db, projectId: SCHEDULE_PROJECT, schedule, now: () => CLOCK,
+    describe: identity => ({ title: "论语日课", link: `/plugins/${identity.pluginId}`, generation: "install-1@2026" }) });
+  const operations = schedulePlugin.createScheduledOperations({ db, projectId: SCHEDULE_PROJECT, schedule, now: () => CLOCK, link: pluginId => `/plugins/${pluginId}`,
+    describe: identity => identity.installationId !== "install-1" ? null
+      : { installationId: "install-1", generation: "install-1@2026", title: "论语日课", version: "1.0.0", operations: [{ id: "daily", description: "每日一章" }] } });
+  try {
+    const reminderHandlers = schedulePlugin.createReminderActionHandlers(SCHEDULE_PROJECT, {
+      add: (identity, input) => reminders.add(identity, input), cancel: (identity, input) => reminders.cancel(identity, input) });
+    const operationHandlers = schedulePlugin.createScheduledOperationActionHandlers(SCHEDULE_PROJECT, {
+      add: (identity, input) => operations.add(identity, input), cancel: (identity, input) => operations.cancel(identity, input) });
+    const addReminder = bindingOf(reminderHandlers, schedulePlugin.reminderActions.add), cancelReminder = bindingOf(reminderHandlers, schedulePlugin.reminderActions.cancel);
+    const addOperation = bindingOf(operationHandlers, schedulePlugin.scheduledOperationActions.add), cancelOperation = bindingOf(operationHandlers, schedulePlugin.scheduledOperationActions.cancel);
+    const invalid = (failure: { status: number; code: string | undefined }) => [failure.status, failure.code];
+    const future = "2026-10-12T08:00:00+08:00";
+
+    // Reminders: a time without a zone, a time that has passed, and a repeat nobody knows are the caller's mistakes.
+    assert.deepEqual(invalid(await refusalOf(() => addReminder.handle(pluginContext(), { at: "2026-10-12 08:00", text: "复习" }))), [400, "schedule.job_invalid"]);
+    assert.deepEqual(invalid(await refusalOf(() => addReminder.handle(pluginContext(), { at: "2026-10-10T00:00:00Z", text: "复习" }))), [400, "schedule.job_invalid"]);
+    assert.deepEqual(invalid(await refusalOf(() => addReminder.handle(pluginContext(), { at: future, text: "复习", repeat: "hourly" }))), [400, "schedule.job_invalid"]);
+    const reminder = await addReminder.handle(pluginContext(), { at: future, text: "复习《学而》第一章" }) as { reminderId: string };
+    assert.equal(typeof reminder.reminderId, "string");
+    assert.deepEqual(await cancelReminder.handle(pluginContext(), { reminderId: reminder.reminderId }), { cancelled: true });
+
+    // Timed operations: the same, plus an operation the plugin does not have and a plugin that is not installed.
+    assert.deepEqual(invalid(await refusalOf(() => addOperation.handle(pluginContext(), { operation: "daily", at: "2026-10-10T00:00:00Z" }))), [400, "schedule.job_invalid"]);
+    assert.deepEqual(invalid(await refusalOf(() => addOperation.handle(pluginContext(), { operation: "nope", at: future }))), [400, "schedule.job_invalid"]);
+    assert.deepEqual(invalid(await refusalOf(() => addOperation.handle(pluginContext({ plugin_install_id: "install-gone" }), { operation: "daily", at: future }))), [400, "schedule.job_invalid"]);
+    const operation = await addOperation.handle(pluginContext(), { operation: "daily", at: future }) as { scheduleId: string };
+    assert.deepEqual(await cancelOperation.handle(pluginContext(), { scheduleId: operation.scheduleId }), { cancelled: true });
+
+    // Identity is not a mistake in the request: a user, a plugin without an installation, or an empty plugin id is refused as the platform's own code, and another project is a scope mismatch.
+    for (const [site, binding, input] of [["reminders.add", addReminder, { at: future, text: "复习" }], ["reminders.cancel", cancelReminder, { reminderId: "x" }],
+      ["schedules.add", addOperation, { operation: "daily", at: future }], ["schedules.cancel", cancelOperation, { scheduleId: "x" }]] as const) {
+      for (const [who, context] of [["a user", userContext()], ["a plugin without an installation", pluginContext({ plugin_install_id: undefined })]] as const) {
+        assert.deepEqual(invalid(await refusalOf(() => binding.handle(context, input))), [403, "actions.forbidden"], `${site} as ${who}`);
+      }
+      assert.deepEqual(invalid(await refusalOf(() => binding.handle(pluginContext({ project_id: "another-project" }), input))), [403, "actions.scope_mismatch"], `${site} in another project`);
+    }
+    assert.deepEqual(invalid(await refusalOf(() => addReminder.handle(pluginContext({ actor_id: "plugin:" }), { at: future, text: "复习" }))), [403, "actions.forbidden"],
+      "a plugin id the service cannot take is refused by the service itself, and the wrapper leaves it a platform code");
+    assert.deepEqual(invalid(await refusalOf(() => addOperation.handle(pluginContext({ actor_id: "plugin:" }), { operation: "daily", at: future }))), [403, "actions.forbidden"]);
+  } finally { db.close(); }
 });

@@ -198,7 +198,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `scripts/client/events-primary.ts` | 文件 810 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（808/810 行）。 | 7 |
 | `scripts/client/navigation-feed.ts` | 文件 1,025 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（1,020/1,025 行），里面写死了 Feed 的客户端。 | 5 |
 | `scripts/client/tab-workspace.ts` | 文件 2,049 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（2,014/2,049 行）。 | 11 |
-| `settings-renderer.ts` | `createWorkbenchSettingsRenderer` 函数（W3-01 F 搬出诊断页和 `settingRow` 后的行数见 `node scripts/check-health-gates.mjs --report`） | 拆 · W5-10 | 其中 `renderMolisWorkSettings`（65）、`renderProjectSettings`（47）、`renderRuntimeSettings`（16）各是一个设置页；每个页面一个文件，主函数只做组合（诊断页已经在 `settings-call-diagnostics.ts`）。 | 5 |
+| `settings-renderer.ts` | `createWorkbenchSettingsRenderer` 函数 181 行（W3-01 F 搬出诊断页和 `settingRow`，原 235 行） | 拆 · W5-10 | 其中 `renderMolisWorkSettings`（65）、`renderProjectSettings`（47）、`renderRuntimeSettings`（16）各是一个设置页；每个页面一个文件，主函数只做组合（诊断页已经在 `settings-call-diagnostics.ts`）。 | 5 |
 | `tab-workspace-ops.ts` | `createTabWorkspaceOps` 函数 461 行 | 拆 · W5-04 | 标签工作区的纯规则，文件头 `// @ts-nocheck`，用 `toString` 序列化后注入浏览器。50 条语句里 `splitPane`（33）、`moveTab`（30）、`normalizeLayout`（22）、`ensureHome`（21）、`openBeside`（21）等本来就各自独立。W5-04 把交付形式改成打包的类型检查模块时，这些变成各自的模块导出，同一个 PR 拆到阈值以下。（本清单对 W5-04 的范围解释：凡在浏览器里跑的代码，不论模板字符串还是 `toString` 注入的函数。） | 2 |
 
 ### Agent Host `horizontal/agent-host`（唯一直接依赖 `@prologue/sdk` 的包）

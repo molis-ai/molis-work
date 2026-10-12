@@ -20,6 +20,7 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.scene_missing": "not_found";
     readonly "actions.recommendation_missing": "not_found";
     readonly "actions.subject_unavailable": "not_found";
+    readonly "actions.conflict": "conflict";
     readonly "actions.subject_changed": "conflict";
     readonly "actions.binding_changed": "conflict";
     readonly "actions.provider_changed": "conflict";

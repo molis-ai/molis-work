@@ -114,3 +114,70 @@ test("inputs from anyone but the person are proposals, kept apart from deliverab
   assert.deepEqual((await actions.invoke(caller("user"), goalsDeliverableActions.list, { goal_id: "G1" }) as { deliverables: unknown[] }).deliverables, []);
   db.close();
 });
+
+// An input an Agent or an MCP client only proposed (specs/repository-anti-corruption §1, 2026-10-10) is shown for what it is, and the
+// person decides it from the Goal's own input list.
+test("a proposed Feed input shows on the Goal as pending with 认可 and 移除; the person's accept makes it confirmed, and removing takes it off", async t => {
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-goal-inputs-accept-"));
+  const databasePath = join(directory, "fixture.db");
+  seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath);
+  const coordinator = new GoalProjectApplication(store);
+  const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const origin = `http://127.0.0.1:${address.port}`;
+  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); store.close(); await rm(directory, { recursive: true, force: true }); });
+  const receipt = (id: string, source: string, state: "proposed" | "confirmed") => ({ binding_id: id, project_id: DEMO_PROJECT_ID, goal_id: "V1", input_name: `来源 ${source}`,
+    source_type: "feed_item", source_ref: `feed-item:${source}`, snapshot_digest: `sha256:${"c".repeat(64)}`, state, reason: "从 Feed Item 创建 Goal 时提议该输入",
+    created_by: "runtime:promoter:session", created_at: "2026-10-10T00:00:00.000Z" });
+  coordinator.goalInputs.register(receipt("binding-feed-a", "item-a", "proposed"));
+  coordinator.goalInputs.register(receipt("binding-feed-b", "item-b", "proposed"));
+  coordinator.goalInputs.register(receipt("binding-feed-c", "item-c", "confirmed"));
+  const headers = () => ({ "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
+  const post = (body: unknown) => fetch(`${origin}/api/goals/V1/inputs`, { method: "POST", headers: headers(), body: JSON.stringify(body) });
+  const page = async (locale?: "en") => (await fetch(`${origin}/api/goals/V1/document`, locale ? { headers: { cookie: `molis_work_locale=${locale}` } } : undefined)).text();
+  const rowOf = (html: string, binding: string) => html.match(new RegExp(`<article[^>]*data-goal-input-binding="${binding}"[\\s\\S]*?</article>`))?.[0] ?? "";
+
+  // Pending ones say so, in words, and carry the two controls; a confirmed one says so and carries none. The raw state is never printed.
+  const before = await page();
+  assert.match(rowOf(before, "binding-feed-a"), /data-goal-input-state[^>]*>待确认</);
+  for (const control of ["data-goal-input-accept", "data-goal-input-release"]) assert.match(rowOf(before, "binding-feed-a"), new RegExp(control), control);
+  assert.match(rowOf(before, "binding-feed-a"), />认可这条输入<\/button>/);
+  assert.match(rowOf(before, "binding-feed-a"), />移除<\/button>/);
+  assert.match(rowOf(before, "binding-feed-c"), /data-goal-input-state[^>]*>已确认</);
+  assert.doesNotMatch(rowOf(before, "binding-feed-c"), /data-goal-input-accept|data-goal-input-release/);
+  assert.doesNotMatch(before, /(?:proposed|confirmed) · /);
+  const english = await page("en");
+  assert.match(rowOf(english, "binding-feed-a"), /data-goal-input-state[^>]*>Pending confirmation</);
+  assert.match(rowOf(english, "binding-feed-a"), />Accept this input<\/button>/);
+  assert.match(rowOf(english, "binding-feed-a"), />Remove<\/button>/);
+  assert.match(rowOf(english, "binding-feed-c"), /data-goal-input-state[^>]*>Confirmed</);
+
+  // Accept: the same receipt becomes confirmed, and the list shows it so.
+  const accepted = await post({ binding_id: "binding-feed-a", action: "accept" });
+  assert.equal(accepted.status, 200, await accepted.clone().text());
+  const result = await accepted.json() as { binding: { binding_id: string; state: string }; replayed: boolean };
+  assert.deepEqual([result.binding.binding_id, result.binding.state, result.replayed], ["binding-feed-a", "confirmed", false]);
+  assert.deepEqual(coordinator.goalInputs.list(DEMO_PROJECT_ID).filter(item => item.source_type === "feed_item").map(item => [item.binding_id, item.state]),
+    [["binding-feed-a", "confirmed"], ["binding-feed-b", "proposed"], ["binding-feed-c", "confirmed"]]);
+  const after = await page();
+  assert.match(rowOf(after, "binding-feed-a"), /data-goal-input-state[^>]*>已确认</);
+  assert.doesNotMatch(rowOf(after, "binding-feed-a"), /data-goal-input-accept|data-goal-input-release/);
+
+  // Remove: the proposal is off the Goal, kept only as history.
+  const removed = await post({ binding_id: "binding-feed-b", action: "remove" });
+  assert.equal(removed.status, 200, await removed.clone().text());
+  assert.deepEqual(await removed.json(), { released: true });
+  assert.equal(rowOf(await page(), "binding-feed-b"), "");
+  assert.equal(coordinator.goalInputs.list(DEMO_PROJECT_ID).find(item => item.binding_id === "binding-feed-b")?.state, "inactive");
+
+  // What cannot be done says why and changes nothing.
+  for (const [body, code] of [[{ binding_id: "binding-feed-b", action: "accept" }, "goals.input_released"], [{ binding_id: "missing", action: "accept" }, "goals.not_found"],
+    [{ binding_id: "binding-feed-a", action: "other" }, undefined], [{ action: "accept" }, undefined]] as const) {
+    const refused = await post(body);
+    assert.equal(refused.status, 400, JSON.stringify(body));
+    if (code) assert.equal((await refused.json() as { code: string }).code, code);
+  }
+});

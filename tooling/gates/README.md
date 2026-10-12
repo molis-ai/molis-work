@@ -27,10 +27,26 @@
 | `floatingPromises`、`explicitAny`、`consoleCalls`、`debuggerStatements`、`lintParseErrors`、`lintSuppressions`、`lintPolicy` | 静态检查新增的几项，见下面「静态检查」 |
 | `errorSubclasses`、`errorCodeShape`、`errorStatusDecisions`、`errorCodeOwner` | 错误模型的四项，见下面「错误模型」；`errorOwnerTable` 是错误码主人表本身（不进 `baseline.json`） |
 | `compatMarkers`、`testImports`、`giant` | 见 `AGENTS.md` 与 `scripts/check-health-gates.mjs` |
+| `testImportSplits` | 每个测试文件（一个测试进程），以及每个没有测试读它、由测试起成子进程的 `tests/` 文件（夹具）里，既从源码（`../P/src/…`，tsx 直接跑）又从构建（包名、`../P/dist/…`）加载的包的个数。过渡规则（W2-10），口径与办法见下面「测试进程里的两份包」 |
 
 扫描范围：`apps`、`horizontal`、`modules`、`packages`、`plugins`、`server`、`tooling` 下的 TypeScript 源码（不含测试、夹具、`dist`、`.d.ts`）；`emptyCatchesInScripts` 与 `oldNames` 只数源码。静态检查那几项的扫描范围更宽，见下面。定义的原文在 `scripts/gates/source-counts.mjs`（`emptyCatchesInScripts`、`oldNames`）和 `scripts/gates/lint.mjs`（其余）开头，那里是唯一的出处。
 
 加一项新的按文件计数：在 `scripts/gates/source-counts.mjs` 的 `SOURCE_COUNT_RULES` 里加一条（口径写在文件开头），在 `tests/health-gates-source-counts.test.ts` 里加定义用例和突变用例，然后 `node scripts/check-health-gates.mjs --update --base origin/main`。能用静态检查规则表达的（TypeScript 语法层面的东西）走下面的「静态检查」，不要再加正则；`emptyCatchesInScripts` 留到浏览器脚本都打成包为止。
+
+## 测试进程里的两份包（`scripts/gates/test-import-splits.mjs`，W2-10 过渡规则）
+
+一个测试进程里同一个包被加载两次——一次从源码（`../P/src/…`，tsx 直接跑），一次从构建（包名、`../P/dist/…`，或别的包的构建里的包名）——就有两份模块实例：`instanceof` 跨两份失败，模块级缓存各一份，`AsyncLocalStorage` 的状态对不上。测试既可能改的是源码那份、被测代码用的是构建那份，也可能反过来。
+
+| 项 | 说明 |
+| --- | --- |
+| 数什么 | 每个 `tests/*.test.{ts,mts,mjs}` 文件是一个进程（`scripts/run-tests.mjs` 一个文件跑一次）。它读的 `tests/` 帮手算进同一个进程；子进程（`fork`、`spawn`）是另一个进程，不连在一起。键是测试文件，值是它既从源码又从构建加载的包数；没有记录的文件从 0 开始，所以新测试不许一开始就拆成两份，旧测试也不许再多拆一个包。没有任何测试读到的 `tests/*.{ts,mts,mjs}` 文件（如 `tests/fixtures/*-mcp-server.ts`，测试用 `fork`、`spawn` 把它起成子进程）自己是一个进程，同样计数，键是它自己的路径：新夹具不许一开始就拆成两份，旧夹具也不许再多拆一个包 |
+| 怎么走图 | 从测试文件出发，跟它的静态 `import`、`export … from`、`import()`、`require()`（`import type`、`export type`、每个具名元素都带 `type` 的声明不加载任何东西，跳过）。进到某个包的 `src/` 就是「源码」，并跟这个源码自己的静态 import（相对的留在源码，包名的进到那个包的构建）；包名或 `dist/` 路径就是「构建」，按每个包的统一布局（`tsc` 把 `src/x.ts` 写成 `dist/x.js`）把 `dist/x.js` 读成 `src/x.ts` 来跟它的静态 import。`apps/desktop/launchers` 这类包外、tsx 直接跑的代码当源码跟，不属于哪个包。图的写法在 `scripts/test-imports/graph.mjs` 开头，门禁和 `scripts/test-imports.mjs` 共用它 |
+| 失败时说什么 | `packages one test process loads from both source (../P/src) and build (package name, ../P/dist) in <测试文件> 0 → 1; read each package from one place …. Now split: <包>: source via <文件:行 说明符>; build via <路径>`，路径写出每一步的文件、行和说明符 |
+| 怎么办 | `node scripts/test-imports.mjs --check --chains` 列出每个拆成两份的进程和两条路径；`node scripts/test-imports.mjs --report [<文件>…]` 按规则出重写计划：包的公开名字改走包入口（`@molis-ai/…`），其余的相对路径从 `src/x.ts` 改到 `dist/x.js`（同一个模块，同一份实例）；`--write` 落地，并把必须一起改的文件带上，不让任何进程在改的过程中变成两份。只改说明符与 `type` 关键字，一行进一行出，文档里引用的测试行号不动 |
+| 看不到的 | 包代码里的 `import()`（懒加载，不跟）；拼出来的说明符、`createRequire`；`run-tests.mjs` 不跑的包内测试；哪个文件被测试起成了子进程（图不认 `fork`、`spawn` 的参数）：一个夹具如果同时被某个测试 `import`，它按那个测试的进程算，作为子进程的那一份没有单独量到；一个夹具在最后一个读它的测试不再读它之后成为独立进程，若它是拆开的，就按新增失败（先重写或删掉它）；一个只靠 `import` 引用、运行时被擦掉的类型导入（没写 `type` 时门禁按语法算它是加载，`scripts/test-imports.mjs` 在计划里给它补上 `type`，R5） |
+| 为什么是过渡 | W2-10 的 PR-E 把它换成绝对规则（没有任何进程加载两份，没有基线）；到那时这一项和 `testImportSplits` 的基线键一起删。在此之前它挡住新增，旧的由 W2-10 的重写 PR 逐批清掉 |
+
+验证：`node scripts/run-tests.mjs tests/health-gates-test-imports-tool.test.ts`——在临时仓库里：每种拆成两份的写法（源码加包名、帮手、别的包的构建、动态 import、`dist` 换成 `src`、新测试、没人导入的夹具一开始就拆开或多拆一个包）在 `--base main` 下必须失败，`--update` 藏不住；类型导入、`dist` 孪生、只用源码、没人导入而只有一份的夹具必须不变红；删掉拆分（含夹具里的）会降低、改名保留记录。同一个文件也验证重写工具（公开名字走入口、别名、非公开走 `dist`、动态导入的解构、`apps/*` 的名字规则、没有构建孪生时不动、自检失败时不写）。
 
 ## 错误模型（`scripts/gates/error-scan.mjs`、`error-owners.mjs`、`error-metrics.mjs`，W3-02-B）
 
@@ -83,7 +99,7 @@
 | --- | --- | --- |
 | 同一版本下形状变了 | `capability_id@version` 不变，而 `input`、`output`、`traits`、`subjects`、`input_type`、`output_type` 里有一格变了 | 升版本，或在 PR 里写明为什么没有固定它的引用会坏（合同变更流程第 3 节第 3 条）。评审拦这一类 |
 | 谁能调、怎么调变了 | 权限、受众、`kind`、`scope`、`effect`、`scheduling`、`operation`、`provider`（Manifest 的 `plugin_id`）变了，形状没变 | 写进 PR 的合同影响 |
-| 登记用的提供方变了 | `registered_provider` 变了，无论别的列变没变：改名、从原生装配迁到 Runtime 装配（或反过来）、换了发布签名，都会让这个插件每个动作的这一格变，逐个列出 | 已固定的引用（工作流程步骤存的 `provider_id`、`allowed_actions`、Feed 与 Inbox 场景的引用）带着旧 id，内核比对不上就抛 `actions.provider_changed`，旧引用不会自动换成新提供方。同一个 PR 里列出这些引用并迁完，或写明为什么没有 |
+| 登记用的提供方变了 | `registered_provider` 变了，无论别的列变没变：改名（`plugin_id` 变）、内置插件不再被宿主名单标 `bundled`（或反过来），都会让这个插件每个动作的这一格变，逐个列出；从原生装配迁到 Runtime 装配（或反过来）、换发布签名不会，因为内置插件不论哪种装配都登记在 `plugin_id` 之下（用户 2026-10-10 的决定，W3-06 C；下面「两层要一致」） | 已固定的引用（工作流程步骤存的 `provider_id`、`allowed_actions`、Feed 与 Inbox 场景的引用）带着旧 id，内核比对不上就抛 `actions.provider_changed`，旧引用不会自动换成新提供方。同一个 PR 里列出这些引用并迁完，或写明为什么没有 |
 | 换了新版本 | 同一提供方的 id 少了 `@旧` 多了 `@新` | 旧版本的固定引用不再能解析：列出消费者 |
 | 新增、删除 | 一个动作多了或少了 | 删除同样会让固定它的引用失效 |
 

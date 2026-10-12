@@ -101,6 +101,10 @@ export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platfo
 export type { PlacementResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginArtifactPublishInput } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginDatabaseReader } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export declare class PluginDefinitionError extends Error {
@@ -117,6 +121,8 @@ export declare class PluginManifestError extends Error {
 }
 
 export type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginUiClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -200,6 +206,11 @@ export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platfo
 export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { fileContentOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { fileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function inspectActionCrossReferences(definitions: unknown): string[];
+
+export declare function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[];
+
 export { linkedArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 export { linksToArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 export { nextPinnedVersion } from "@molis-ai/molis-work-contracts/platform/actions";

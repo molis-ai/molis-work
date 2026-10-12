@@ -89,6 +89,28 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 嵌入式测试使用 `@molis-ai/molis-work-app-local-host` 的公共 `runPluginDevelopment(input, options)`：输入是已授权的源码目录、项目、grants（`PluginDevelopmentInput` 没有操作者字段）；options 注入操作者 `actor_id`（嵌入的调用方自己传：这个函数既不固定它，也不读 `input` 里的身份）、真实 Artifact owner、UiHost、Plugin Runtime repository、私有存储工厂，以及 `actions: { registry, client, project_id }`。registry/client 必须来自同一 Host：分别使用 `host.actionRegistry(reference)` 和 `host.syncActionClient(reference)`；项目已打开后才可同步调用。独立测试可显式共享一个 ActionService，不在生产创建临时注册表兜底。它与应用命令使用同一安装/运行/卸载实现，返回 `PluginDevelopmentResult`，不要求导入仓库测试文件。数据库装配属于应用 Host，不属于 SDK 或 CLI。CLI 的 `PluginCliHost.runDevelopment` 是具名的注入接口，不是任意方法总线。命令行的开发入口（`runLocalPluginDevelopment`）走的是另一扇门，Host 能力 `pluginDevelopmentCapability`：它声明 `host_only`（插件在 consumes 里列出也会被拒绝），操作者由 Host 固定为 `local-plugin-developer`，参数里带 `actor_id`、`actor_kind` 或 `audit_actor_id` 被拒绝（`actions.input_invalid`），项目必须是客户端打开的那个。
 
+## 个人 Home Runtime 与插件 SQLite
+
+数据属于个人 Home、切换项目不分开的新内置插件，在 `BUILTIN_PLUGIN_CATALOG` 的同一条目声明 `runtime: { scope: "home", create, package_name, factory_export, database? }`。`personal: true` 只是可见性，不会把现存 Form、Todo 等迁到 Runtime。本轮只由 Issue 消费 Home Runtime，现有迁移顺序不变。
+
+一个本机 Local Host 持有一个 `HomePluginHost`，并发发现共用启动 Promise。安装、授予和发行物在 `{home}/plugin-runtime/plugin-runtime.db`，复用 PluginRuntime、Supervisor 和 Action Registry；MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home provider 使用插件 ID，项目 Runtime 继续使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权是不同层次，不能相互替代。
+
+Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留页面、助理、MCP 的入口和身份。业务输入不得接收 owner、actor、install、provider 或数据库路径。Home 实例不提供项目 `artifacts`、端口、事件或假项目：`services.artifacts` 现在可缺省，项目消费者须明确要求该服务。
+
+可信目录的 `database` 声明由 `PluginDatabaseDeclaration` 描述库名、当前基线和读写权限，插件拥有 schema 与 SQL；Host 选择路径、打开连接并提供 `context.services.database`。当前只用于可信 Native 插件；它是安装生命周期服务，不是 JavaScript 沙箱，也不向外部动作暴露 SQL。每个库独占 `{home}/<store_name>/<store_name>.db`，schema 基线不符时拒绝并保留原库，不自动迁移。
+
+- `database.get/all` 用 SQLite 只读连接，接受参数化查询；没有跨库、路径和连接管理入口。
+- `database.transaction(caller.beforeEffect, tx => …)` 先等待当前动作授权，再复查安装和 grant，随后执行短同步事务；异步回调拒绝并回滚。事务对象离开回调后失效。
+- 更新和删除由业务 SQL 带版本条件；取消、撤权、停用或旧实例不可提交；出错不自动重试。
+- `BoundActionClient.invoke` 的第三个控制参数仅限 Host 内部传递取消、`beforeEffect` 和带来源的 `page_context`；不会进入业务 JSON。父调用和子调用的取消信号都保留。
+- 浏览器同源 Referrer 与助理页面快照当前标为 `client_reported`，不代表屏幕内容已经核实；缺页面时为空，不从用户正文推断。
+
+公共页面 `/plugins/<短名>` 在没有项目时也能打开；项目工作台挂同一运行实例的 contribution。Manifest 路由在 `/api/plugins/<plugin_id>/` 转调公共动作，经过统一 Host / Origin / token 检查。插件页面的启用与停用是显式操作；停用跨重启保留，正常 Host 退出只释放运行实例并保留启用意图。外部 MCP 仍须逐客户端逐动作授权，安装插件不等于授权外部客户端。
+
+Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbench.side` surface。Host 用 `/plugins/<短名>?side=<view_id>` 渲染正在运行的 contribution，拒绝未声明的视图；客户端收到 `side: true`。首页及项目右上角的 Home 工具由目录声明派生，在既有侧栏打开该文档，保留主页面。侧栏按需加载，收起及切换标签不销毁文档；插件自行决定初次展示什么内容，位置和宽度仍归 Host。Home 侧栏不要求创建或授权一个假项目。
+
+新增包、SDK 类型、公开 API 与动作快照、Home 库归属及 purge 清单须同步维护。资源按插件自己的客户端包加载；新增资源需要独立预算审阅，不能抬高既有资源上限。实现与验收见 [Issue V0](../../specs/issue-home-v0/spec.md)。
+
 ## 当前项目设置
 
 跨模块读取当前项目目标目录、创建意图或补充便笺可引用 Goals 的 `goalsActions.list/create/note`。公共动作输入只有业务字段，项目与 actor 由可信调用上下文绑定；不要把内部 typed Capability 的 actor 字段复制进动作 JSON。权限分别为 `goals:read` / `goals:write`，写入重试保留原 idempotency key。Goals 的写入声明 `authorship: "session"`，审计作者由宿主写进 `caller.audit_actor_id`，它属于可信上下文，不是业务参数，不改变客户端授权，也不授予决策权限；外部客户端只看到被授予的动作工具。其他 Goals 事件能力仍按其现有接口和审批合同使用，见 Goals 包 README。
@@ -160,14 +182,16 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 同一件工作会在底栏助理、插件页面和用户手动操作之间交替进行。插件的对象、版本和删除状态由插件自己拥有；工作与对象的关系由助理写进 Context Ledger；运行与确认归 Agent Host。插件不另存“助理做过什么”，也不复制正文。完整约定、样例与验证见 [molis-plugin-dev · continuity.md](../../skills/molis-plugin-dev/continuity.md)，要点：
 
 - 每种展示的对象提供 `defineSubjectContextAction("<plugin>.subject.read", "<kind>", …)`，返回当前正文、所有者版本 `revision`、关联 Goal、会话与 `open: { surface, id }`；不存在时抛 `<plugin>.not_found`。个人范围的对象传第五个参数 `"home"`。
-- 修改类动作只声明一种 `subject_kinds`，用 `result_subject` 指出输出里的对象标识与新版本；修改已有对象接受 `expected_version`（或 `expected_revision`）。助理修改已有对象必须带读取时的版本，否则在确认前被拒。
+- 修改类动作只声明一种 `subject_kinds`，用 `result_subject` 指出输出里的对象标识与新版本，例如 `{ id: "document.id", revision: "document.version" }`；必须写成对象，两个位置都要在本动作的 `output_schema` 里写出来，写成字符串等别的形状、写错位置、或没有输出合同，注册时就被拒绝（规则见后面“指向别的动作”一条）。修改已有对象接受 `expected_version`（或 `expected_revision`）。助理修改已有对象必须带读取时的版本，否则在确认前被拒。
+- 没写 `result_subject` 时，助理按下面的明文规则认结果对象，只对“恰好涉及一种对象”的修改动作生效（涉及多种对象或不涉及对象的动作，以及查询和导航，不记结果对象）：输出本身是带字符串 `id` 的对象，就用它；否则输出的顶层字段里恰好有一个带字符串 `id` 的对象，就用那一个（有两个或没有，则这一步没有结果对象）；版本取该对象的 `version`，没有就取 `revision`（数字或非空字符串）；输出里认不出，就看输入：输入本身带字符串 `id`，就用它，没有版本。这是兜底，平台不检查它猜得对不对；会写东西的动作最好显式写 `result_subject`。
 - 插件根元素维护 `data-assistant-context`（当前对象、版本、未保存状态与草稿、起步建议）；这只是屏幕说明，发送时才成为材料，不写记录、不授权。
 - 监听 `molis:assistant-effect` 并在没有未保存修改时重读；用户在页面上改变了助理可能展示的对象时发 `molis:assistant-surface-changed`。
 - 页面缓存的设置在本页没有未保存改动时采用已保存值，避免把别处的修改写回。
 - 要给助理发信息，发 `molis:assistant-message` 并写明用途：`background`（只作上下文）、`change`（对象变了）、`suggest`（由用户决定是否发送）、`delegate`（用户刚在页面上要求交给助理，只有真实用户操作才立即开始）、`reply`（把结果交回某项工作）。不要自称“用户已同意”。
-- 可以撤回的修改声明 `undo`：`{ capability_id, version, input: { 字段: "输出路径" } }`，指向同一提供方的撤销命令，以及它的输入在本次输出里的位置；需要数组时写 `["路径"]`。这样的修改在用户明确要求时由助理直接执行、事后可撤销，用户也可以把它设成每次确认。删除、对外发送这类撤不回的修改不要声明。样例：灵光“记下灵光”用“丢弃灵光” `{ ids: ["spark.id"] }` 撤回。
+- 动作声明里指向别的动作的地方（`undo`、`background_job.status`、片段与事项推荐的选项目标），目标必须在**同一次注册**里：同一份 Manifest 的 `actions`，或同一次 `registerProvider` 的 `definitions`；文档里说“同一提供方”，指的就是这个。注册先后不定，所以不按提供方编号跨注册去找：一个提供方拆成几次注册、又互相引用，会被拒绝，报“不在同一提供方的声明里”（Goals 按范围分两次注册，引用也都在各自的范围里，所以没有这个问题）。要用别的提供方的动作，写 `required_actions`，使用时按调用者核对。`definePlugin`、命令行 `validate`、Runtime 安装与升级、宿主注册动作时都检查（SDK 的 `inspectActionCrossReferences`）；声明本身不完整的由形状检查另外报告，不重复报。谁能用目标（受众、权限、效果）不在注册时查，使用时按调用者核对。
+- 可以撤回的修改声明 `undo`：`{ capability_id, version, input: { 字段: "输出路径" } }`，指向同一次注册里的撤销命令，以及它的输入在本次输出里的位置；需要数组时写 `["路径"]`。注册时检查：撤销命令存在、是命令、与本动作同一范围；`input` 里的每个字段都是撤销命令输入 schema 的属性，它必填的输入都要填上；每个输出路径都在本动作的 `output_schema` 里写出来了（沿属性、`anyOf`/`oneOf`/`allOf` 分支和本 schema 内的 `$ref` 找；只写 `type: "object"` 的开放对象找不到，要先把字段写出来；没有 `output_schema` 就没有位置可指）。这样的修改在用户明确要求时由助理直接执行、事后可撤销，用户也可以把它设成每次确认。删除、对外发送这类撤不回的修改不要声明。样例：灵光“记下灵光”用“丢弃灵光” `{ ids: ["spark.id"] }` 撤回。
 - 用户可以在插件里设提醒（今天只有 Todo 的提醒时间在用）时，提供到期提醒查询：`defineDueRemindersAction("<插件>.reminders.window", [对象种类], "到期提醒", [读取权限])`（Home 范围、只读）。输入 `{ from, to }`，只返回 `from ≤ 到期时间 < to` 的提醒，每条带稳定的 `reminder_id`（改了时间就换新的）、`due_at`、`title`、`subject`、`project_id`（个人为 null）、`open`。插件不需要计时器：Host 每分钟来问一次，每条只提醒用户一次，并按用户的提醒规则处理。只返回用户自己要求的提醒，新条目、未读数、逾期清单都不算；用户已在插件里处理过的提醒不要返回。辅助函数 `assertDueReminderWindow`、`withinDueReminderWindow` 和类型随 `defineDueRemindersAction` 一起从插件 SDK 导出。
-- 会启动后台任务的命令（研究、生成等）声明 `background_job`：`{ status: { capability_id, version }, id: "run.jobId", input: "id", state: "status", done: [...], failed: [...] }`——输出里任务标识的位置、同一提供方的状态查询、它接收标识的字段、状态的位置和结束状态。助理（或用户点的建议按钮）启动后，Host 经 Prologue 队列按状态查询跟进到结束，结束时提醒用户、按钮显示结果，并在下一轮告诉助理；不必自己推送。样例：炼金术士的“启动炼化”“启动研究”。
+- 会启动后台任务的命令（研究、生成等）声明 `background_job`：`{ status: { capability_id, version }, id: "run.jobId", input: "id", state: "status", done: [...], failed: [...] }`——输出里任务标识的位置、同一次注册里的状态查询、它接收标识的字段、状态的位置和结束状态。注册时检查：状态查询存在、是查询、与本动作同一范围；`id` 在本动作的 `output_schema` 里，`input` 在状态查询的输入 schema 里，`state` 在状态查询的输出 schema 里。片段与事项推荐的选项同样要指向同一次注册里、同一范围的动作，事项推荐的目标还要支持选项对应的事项种类（目标没写事项种类则不限）。助理（或用户点的建议按钮）启动后，Host 经 Prologue 队列按状态查询跟进到结束，结束时提醒用户、按钮显示结果，并在下一轮告诉助理；不必自己推送。样例：炼金术士的“启动炼化”“启动研究”。
 - 修改已有对象的动作，输入里用 `<种类>_id`（或 `subject_id`、`id`）写对象标识：助理的建议按钮据此在用户手动改过该对象后自动失效。
 - 设置“助理”里的“插件接入诊断”会列出你的插件为助理提供了什么、缺什么（对象读取、结果关联、能力说明），按那里的提示补齐即可。
 - Native 插件新增路由或动作要递增 Manifest `version`，否则已安装项目仍按旧清单运行。
@@ -194,7 +218,7 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 
 - 在插件的 `src/prompts.ts` 用 `defineInstructionPrompt`（`@molis-ai/molis-work-contracts/platform/model-prompts`）声明，写明 `title`、`purpose`、`used_by`，从包入口导出 `<插件>_INSTRUCTIONS`。
 - 调用时传 `instructed(指令, 数据)`：指令只写要求，用户材料、本次参数放在数据里（数据不会被当成指令）。模型端口类型写 `InstructedPrompt` 或 `ModelPromptInput`，不收裸字符串。
-- Host 适配器经 `resolveModelPrompt` 取有效正文；内置插件在 `builtin-instructions.ts` 登记。改指令正文要升 `version`，用户已改过的会显示“默认已更新”，不会被静默覆盖。
+- Host 适配器经 `resolveModelPrompt` 取有效正文；内置插件在 `apps/workbench/src/builtin-plugins.ts` 自己的目录条目上声明 `instructions`，Host 从共同目录派生登记，`builtin-instructions.ts` 的 `BUILTIN_INSTRUCTIONS` 除目录派生的之外只列 Host 自己的 `system:*` 题面，不点名插件的指令。改指令正文要升 `version`，用户已改过的会显示“默认已更新”，不会被静默覆盖。
 - 门禁 `tests/prompt-registration.test.ts`：没登记的指令、收裸字符串的端口、绕开登记直接调模型的 Host 模块都会失败；确需过渡的写进清单并写明原因。
 - 插件创作台生成的插件同样如此：要求在操作代码里 `export const prompts = [{ id, title, purpose, body }]` 声明，`model.generate` 传 `{ prompt: id, input }`；安装时登记、卸载时撤下（用户的修改保留）。检查 G4 会拒绝未声明的 id 和仍传 `instructions` 的调用。
 - 设置“Prompt 与 Character”底部的“开发者诊断”列出每个来源登记了什么、哪些没有生效及原因，以及仍未登记的模型调用。

@@ -15,6 +15,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
+import { homeRuntimePackages } from "./home-runtime-entries.mjs";
 
 /** Where the table lives. When the spec is archived, move the table (and this constant) to docs/system. */
 export const INVENTORY_DOC = "specs/repository-anti-corruption/spec.md";
@@ -79,7 +80,8 @@ export function measurePackages(snapshot, registry) {
   const queue = [PRODUCT_ENTRY];
   while (queue.length) for (const next of facts.get(queue.shift())?.imports ?? []) if (!reachable.has(next)) { reachable.add(next); queue.push(next); }
   const supervisor = snapshot.read(PLUGIN_SUPERVISOR) ?? "";
-  for (const fact of facts.values()) fact.status = statusOf(fact, reachable.has(fact.path), supervisor);
+  const home = homeRuntimePackages(snapshot);
+  for (const fact of facts.values()) fact.status = statusOf(fact, reachable.has(fact.path), supervisor, home.has(fact.name));
   return [...facts.values()].sort((a, b) => (a.path < b.path ? -1 : 1));
 }
 
@@ -90,10 +92,10 @@ export function measurePackages(snapshot, registry) {
  *          tests/builtin-plugin-assembly-gate.test.ts, which may only shrink.
  * 非产品   not reached from the product entry: a launcher of its own, test support, or code nothing imports.
  */
-export function statusOf(fact, reached, supervisor) {
+export function statusOf(fact, reached, supervisor, home = false) {
   if (!reached) return "非产品";
   if (fact.kind !== "native-plugin") return "在用";
-  return supervisor.includes(`"${fact.name}"`) ? "Runtime" : "构建期";
+  return home || supervisor.includes(`"${fact.name}"`) ? "Runtime" : "构建期";
 }
 
 // ---- how deep the §4.4 review goes (planned, from risk) ------------------------------------------------------------------
@@ -174,7 +176,7 @@ export function inventoryProblems(snapshot, registry) {
 const statusEvidence = (fact) => (fact.status === "非产品"
   ? `nothing reachable from ${PRODUCT_ENTRY} imports it`
   : fact.status === "构建期" ? `${PLUGIN_SUPERVISOR} does not start ${fact.name}`
-    : fact.status === "Runtime" ? `${PLUGIN_SUPERVISOR} starts ${fact.name}` : `reached from ${PRODUCT_ENTRY}`);
+    : fact.status === "Runtime" ? `a project or Home supervisor starts ${fact.name}` : `reached from ${PRODUCT_ENTRY}`);
 
 export async function loadRegistry(root) {
   const file = path.join(root, "scripts/workspace-packages.mjs");

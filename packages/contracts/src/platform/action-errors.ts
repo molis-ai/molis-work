@@ -42,7 +42,7 @@ export const ACTION_ERROR_KINDS = {
   "actions.recommendation_missing": "not_found", "actions.subject_unavailable": "not_found",
   // It changed under the caller, or two things claim the same place: read again and decide again. The whole `actions.event_*` and
   // `actions.offer_*` families are here because the Home dock has always answered 409 for them.
-  "actions.subject_changed": "conflict", "actions.binding_changed": "conflict", "actions.provider_changed": "conflict", "actions.host_replaced": "conflict",
+  "actions.conflict": "conflict", "actions.subject_changed": "conflict", "actions.binding_changed": "conflict", "actions.provider_changed": "conflict", "actions.host_replaced": "conflict",
   "actions.provider_replaced": "conflict", "actions.definition_changed": "conflict", "actions.configuration_changed": "conflict", "actions.expired": "conflict",
   "actions.offer_changed": "conflict", "actions.offer_invalid": "conflict", "actions.offer_source_changed": "conflict",
   "actions.event_changed": "conflict", "actions.event_invalid": "conflict", "actions.event_source_changed": "conflict",

@@ -20,6 +20,7 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.scene_missing": "not_found";
     readonly "actions.recommendation_missing": "not_found";
     readonly "actions.subject_unavailable": "not_found";
+    readonly "actions.conflict": "conflict";
     readonly "actions.subject_changed": "conflict";
     readonly "actions.binding_changed": "conflict";
     readonly "actions.provider_changed": "conflict";
@@ -387,6 +388,11 @@ export type ActionAvailability = {
 
 export interface ActionCallContext extends ActionCallOrigin {
     readonly actor_id: string;
+    readonly page_context?: {
+        readonly url: string | null;
+        readonly title: string | null;
+        readonly provenance: "host_snapshot" | "client_reported";
+    };
     readonly audit_actor_id?: string;
     readonly runtime_session_id?: string;
     readonly runtime_session_missing?: true;
@@ -782,7 +788,7 @@ export interface ArtifactReferrersResult {
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">): Promise<Output>;
 }
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
@@ -2943,12 +2949,6 @@ export declare function fileContentOf(input: {
 
 export declare function fileEntriesPage(entries: readonly FileEntry[], input: FileEntriesInput): FileEntriesPage;
 
-export declare function fileSourceDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[];
-
-export declare function fragmentOfferDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (schema: unknown) => string): string[];
-
-export declare function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[];
-
 export declare function isActionErrorKind(value: unknown): value is ActionErrorKind;
 
 export declare function isArtifactCompareAction(action: {
@@ -3021,8 +3021,6 @@ export declare function pinActionSubject(client: ActionClient, caller: ActionCal
 
 export declare function pinnableSubjectKinds(client: ActionClient, caller: ActionCallContext): Promise<string[]>;
 
-export declare function placementDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[];
-
 export declare function placementSourceProject(caller: ActionCallContext, to: string): string;
 
 export declare function platformErrorKind(code: string): ActionErrorKind | undefined;
@@ -3063,8 +3061,6 @@ export declare function sceneConfigurationActions(scene: ActionSceneDefinition):
 export declare function searchEntriesPage(entries: readonly SearchEntry[], input: SearchEntriesInput): SearchEntriesPage;
 
 export declare function searchRevisionOf(parts: readonly string[]): string;
-
-export declare function searchSourceDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[];
 
 export declare function searchText(value: unknown, max?: number): string;
 

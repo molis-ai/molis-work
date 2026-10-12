@@ -143,9 +143,9 @@ export interface ActionMetadata {
   readonly search_source?: SearchSourceDeclaration;
   /** A side panel file source: the file kinds it lists (or previews) and where each opens (specs/archive/side-panel §3.3). */
   readonly file_source?: FileSourceDeclaration;
-  /** Optional rule choices owned by this subject-offer query; targets belong to the same provider. */
+  /** Optional rule choices owned by this subject-offer query; each target is declared in the same registration, in the same scope, and handles the option's subject kinds. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
-  /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); targets belong to the same provider. */
+  /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); each target is declared in the same registration and scope. */
   readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
   /** A trigger action needs an enabled compatible binding in this consumer scene. */
   readonly required_scene?: { readonly scene_id: string; readonly version: number };
@@ -154,14 +154,15 @@ export interface ActionMetadata {
   readonly required_actions?: readonly ActionReference[];
   /**
    * Where a command's output names the object it created or changed: dot paths to its id and new revision, e.g.
-   * `{ id: "document.id", revision: "document.version" }`. The object's kind is the action's single subject kind.
-   * Callers that keep relations to results (the Assistant's work) use it; undeclared, see `actionResultSubject`.
+   * `{ id: "document.id", revision: "document.version" }`. The object's kind is the action's single subject kind. Written, it is an object, and both paths must be
+   * in this action's `output_schema` (checked at registration). Callers that keep relations to results (the Assistant's work) use it;
+   * undeclared, `actionResultSubject` reads the result by the rule written in its comment.
    */
   readonly result_subject?: { readonly id: string; readonly revision?: string };
   /**
    * A command that starts background work (a research run, a generation job): how a caller follows it to its end.
-   * `id` is the dot path to the job id in this command's output; the `status` query of the same provider takes it in
-   * its `input` field and reports the state at the dot path `state`; `done` and `failed` list the final states.
+   * `id` is the dot path to the job id in this command's output; the `status` query, declared in the same registration and scope,
+   * takes it in its `input` field and reports the state at the dot path `state` (all three paths are checked against the schemas); `done` and `failed` list the final states.
    * The Assistant uses it to watch a job it started and tell the person when it ends (the convention for long work).
    */
   readonly background_job?: {
@@ -173,7 +174,7 @@ export interface ActionMetadata {
     readonly failed: readonly string[];
   };
   /**
-   * How this change is taken back: another command of the same provider, with its input read from this command's
+   * How this change is taken back: another command declared in the same registration and scope, with its input read from this command's
    * output (a path such as "spark.id"; a one-item array wraps the value in an array, e.g. ["spark.id"]). A change that
    * declares it may run without a confirmation when the person asked for exactly this effect (they can set it back to
    * confirm each time), and the work then offers “撤销”. Never on an irreversible change.

@@ -36,7 +36,7 @@ import type {
   ShelfAiPorts,
   ShelfAiStatus,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { ShelfError } from "./errors.js";
+import { isShelfFailure, shelfErrors } from "./errors.js";
 import { markdownFromExtract } from "./extract.js";
 import { OCR_MISSING, ocrLanguages, ocrMarkdown } from "./ocr.js";
 import { SAMPLE_PDF_TEXT, createExtractablePdf } from "./pdf.js";
@@ -107,7 +107,7 @@ function assertNotBusy(catalog: CatalogFile, itemId: string, root: string): void
     && !isStaleJob(job, root)
     && (job.item_ids.includes(itemId) || job.item_id === itemId || job.result_item_id === itemId)
   ));
-  if (busy) throw new ShelfError("shelf.busy", "运行中不能隐藏或删除");
+  if (busy) throw shelfErrors.busy("运行中不能隐藏或删除");
 }
 
 /** A job the process never finished stops blocking once it cannot still be alive. */
@@ -119,7 +119,7 @@ function safeInside(root: string, target: string): string {
   const base = path.resolve(root);
   const resolved = path.resolve(target);
   if (resolved !== base && !resolved.startsWith(`${base}${path.sep}`)) {
-    throw new ShelfError("shelf.path_invalid", "删除路径不在架子内");
+    throw shelfErrors.path_invalid("删除路径不在架子内");
   }
   return resolved;
 }
@@ -185,8 +185,8 @@ export class ShelfStore {
 
   /** Parses only through the Host, then admits the authorized copy without an asynchronous commit gap. */
   async admitFile(input: ShelfAdmitInput, control?: ShelfExecutionControl): Promise<ShelfItemRecord> {
-    if (!input.bytes.byteLength) throw new ShelfError("shelf.empty_file", "没有可加入的文件内容");
-    if (input.bytes.byteLength > 32 * 1024 * 1024) throw new ShelfError("shelf.too_large", "文件超过 32 MB");
+    if (!input.bytes.byteLength) throw shelfErrors.empty_file("没有可加入的文件内容");
+    if (input.bytes.byteLength > 32 * 1024 * 1024) throw shelfErrors.too_large("文件超过 32 MB");
     await beforeShelfEffect(control);
     let preview: string | undefined;
     if (classify(input.filename, input.mime ?? "") === "pdf" && this.materials.extract) {
@@ -211,16 +211,16 @@ export class ShelfStore {
         && item.artifact_source.reference.artifact_id === source.reference.artifact_id
         && item.artifact_source.reference.version === source.reference.version);
       if (original) {
-        if (original.artifact_source!.content_hash !== source.content_hash) throw new ShelfError("shelf.source_conflict", "同一成果版本的内容不一致，未覆盖已有副本");
-        if (!existsSync(this.absolute(original))) throw new ShelfError("shelf.missing_output", "原接收副本已不可读，请先在 Shelf 核对处理");
+        if (original.artifact_source!.content_hash !== source.content_hash) throw shelfErrors.source_conflict("同一成果版本的内容不一致，未覆盖已有副本");
+        if (!existsSync(this.absolute(original))) throw shelfErrors.missing_output("原接收副本已不可读，请先在 Shelf 核对处理");
         if (original.hidden) this.update(catalog => { this.requireItem(catalog, original.item_id).hidden = false; });
         return publicItem({ ...original, hidden: false });
       }
     }
     const filename = safeFilename(input.filename);
     const bytes = Buffer.from(input.bytes);
-    if (!bytes.byteLength) throw new ShelfError("shelf.empty_file", "没有可加入的文件内容");
-    if (bytes.byteLength > 32 * 1024 * 1024) throw new ShelfError("shelf.too_large", "文件超过 32 MB");
+    if (!bytes.byteLength) throw shelfErrors.empty_file("没有可加入的文件内容");
+    if (bytes.byteLength > 32 * 1024 * 1024) throw shelfErrors.too_large("文件超过 32 MB");
     const kind = classify(filename, input.mime ?? "");
     const itemId = this.id("item");
     const relative = path.join("files", itemId, filename);
@@ -267,9 +267,9 @@ export class ShelfStore {
     const entries = input.entries
       .map((entry) => ({ ...entry, relative: safeRelative(entry.relative) }))
       .filter((entry) => entry.relative && entry.bytes.byteLength > 0);
-    if (!entries.length) throw new ShelfError("shelf.empty_file", "这个文件夹里没有可以加入的文件");
+    if (!entries.length) throw shelfErrors.empty_file("这个文件夹里没有可以加入的文件");
     const total = entries.reduce((sum, entry) => sum + entry.bytes.byteLength, 0);
-    if (total > 64 * 1024 * 1024) throw new ShelfError("shelf.too_large", "这个文件夹超过 64 MB");
+    if (total > 64 * 1024 * 1024) throw shelfErrors.too_large("这个文件夹超过 64 MB");
     const itemId = this.id("item");
     const relative = path.join("files", itemId, folderName);
     const root = path.join(this.root, relative);
@@ -277,7 +277,7 @@ export class ShelfStore {
     const digest = createHash("sha256");
     for (const entry of entries) {
       const target = path.join(root, entry.relative);
-      if (!target.startsWith(`${root}${path.sep}`)) throw new ShelfError("shelf.path_invalid", "文件夹里有越界的路径");
+      if (!target.startsWith(`${root}${path.sep}`)) throw shelfErrors.path_invalid("文件夹里有越界的路径");
       mkdirSync(path.dirname(target), { recursive: true });
       const bytes = Buffer.from(entry.bytes);
       writeFileSync(target, bytes);
@@ -319,9 +319,9 @@ export class ShelfStore {
   /** Read one file inside a staged folder. */
   readChild(itemId: string, relative: string): { name: string; mime: string; bytes: Buffer } {
     const item = this.requireItem(this.readCatalog(), itemId);
-    if (item.kind !== "folder") throw new ShelfError("shelf.item_not_found", "这不是一个文件夹");
+    if (item.kind !== "folder") throw shelfErrors.item_not_found("这不是一个文件夹");
     const child = item.children.find((entry) => entry.relative === relative);
-    if (!child) throw new ShelfError("shelf.item_not_found", "这个文件不在这个文件夹里");
+    if (!child) throw shelfErrors.item_not_found("这个文件不在这个文件夹里");
     const root = path.join(this.root, item.relative_path);
     const file = safeInside(root, path.join(root, child.relative));
     return { name: child.name, mime: mimeFor(child.kind, child.name), bytes: readFileSync(file) };
@@ -337,7 +337,7 @@ export class ShelfStore {
 
   private async admitCapturedText(body: string, title: string, capture: boolean, control?: ShelfExecutionControl, assertCurrent?: () => void): Promise<ShelfItemRecord> {
     const text = body.trim();
-    if (!text) throw new ShelfError("shelf.empty_file", "剪贴板是空的");
+    if (!text) throw shelfErrors.empty_file("剪贴板是空的");
     if (isHttpUrl(text) && capture) return this.captureUrl(text, control, assertCurrent);
     await beforeShelfEffect(control);
     assertCurrent?.();
@@ -426,28 +426,28 @@ export class ShelfStore {
       ? settings.shortcuts.find((action) => action.id === (input.shortcut_id ?? ""))
       : undefined;
     if (input.recipe === "shortcut" && !shortcut) {
-      throw new ShelfError("shelf.recipe_unavailable", "这个快捷动作已经不在了");
+      throw shelfErrors.recipe_unavailable("这个快捷动作已经不在了");
     }
     const accepts = shortcut ? shortcut.kinds : spec.accepts;
     const actionName = shortcut ? shortcut.name : spec.label;
     const itemIds = input.item_ids?.length ? [...input.item_ids] : input.item_id ? [input.item_id] : [];
-    if (!itemIds.length) throw new ShelfError("shelf.empty_selection", "请先选择一份材料");
+    if (!itemIds.length) throw shelfErrors.empty_selection("请先选择一份材料");
     const catalog = this.readCatalog();
     const items = itemIds.map((id) => this.requireItem(catalog, id));
     for (const item of items) {
-      if (item.group !== "material" || item.hidden) throw new ShelfError("shelf.item_not_found", "请先选择一份材料");
+      if (item.group !== "material" || item.hidden) throw shelfErrors.item_not_found("请先选择一份材料");
       if (!accepts.includes(item.kind)) {
-        throw new ShelfError("shelf.recipe_unavailable", `选中的材料不能用「${shortcut ? shortcut.name : spec.short_title}」`);
+        throw shelfErrors.recipe_unavailable(`选中的材料不能用「${shortcut ? shortcut.name : spec.short_title}」`);
       }
     }
     if (items.length < spec.minimum_count) {
-      throw new ShelfError("shelf.recipe_unavailable", `「${spec.short_title}」至少要两份材料`);
+      throw shelfErrors.recipe_unavailable(`「${spec.short_title}」至少要两份材料`);
     }
     const runtime = this.runtime(settings);
     const ai = spec.requires_agent ? this.ai?.status(settings.model_selection) ?? noAi : noAi;
-    if (spec.requires_agent && (!ai.available || !ai.selected)) throw new ShelfError("shelf.no_model", ai.reason ?? noAi.reason!);
-    if (!spec.requires_agent && !this.materials.extract) throw new ShelfError("shelf.extraction_unavailable", "材料提取服务不可用，请从 Molis Work 打开置物架后重试");
-    if (!spec.requires_agent && items.some(item => item.kind === "image") && !runtime.image_text) throw new ShelfError("shelf.no_ocr", OCR_MISSING);
+    if (spec.requires_agent && (!ai.available || !ai.selected)) throw shelfErrors.no_model(ai.reason ?? noAi.reason!);
+    if (!spec.requires_agent && !this.materials.extract) throw shelfErrors.extraction_unavailable("材料提取服务不可用，请从 Molis Work 打开置物架后重试");
+    if (!spec.requires_agent && items.some(item => item.kind === "image") && !runtime.image_text) throw shelfErrors.no_ocr(OCR_MISSING);
     const optionId = spec.choices.length ? resolvedChoiceId(spec.recipe, input.option_id) : null;
     const copyHashes = new Map<string, string>();
     for (const item of items) {
@@ -508,21 +508,21 @@ export class ShelfStore {
 
     const controller = new AbortController(), key = jobKey(this.root, jobId);
     const lifetime = createExecutionLifetime({ signal: control?.signal ? AbortSignal.any([control.signal, controller.signal]) : controller.signal,
-      timeout: { milliseconds: SHELF_JOB_TIMEOUT_MS, reason: new ShelfError("shelf.job_timeout", "任务超时，未继续保存结果") } });
+      timeout: { milliseconds: SHELF_JOB_TIMEOUT_MS, reason: shelfErrors.job_timeout("任务超时，未继续保存结果") } });
     activeJobs.set(key, controller);
     const assertCurrent = () => {
       const current = this.readCatalog();
       if (spec.requires_agent && (JSON.stringify(normalizeSettings(current.settings).model_selection) !== JSON.stringify(settings.model_selection)
         || (shortcut && JSON.stringify(normalizeSettings(current.settings).shortcuts.find(row => row.id === shortcut.id)) !== JSON.stringify(shortcut)))) {
-        throw new ShelfError("shelf.configuration_changed", "生成期间模型选择或快捷动作已变化，结果未保存");
+        throw shelfErrors.configuration_changed("生成期间模型选择或快捷动作已变化，结果未保存");
       }
-      if (current.jobs.find(job => job.job_id === jobId)?.status !== "running") throw new ShelfError("shelf.cancelled", "任务已取消");
+      if (current.jobs.find(job => job.job_id === jobId)?.status !== "running") throw shelfErrors.cancelled("任务已取消");
       for (const [index, item] of items.entries()) {
         const latest = this.requireItem(current, item.item_id);
-        if (latest.hidden || latest.relative_path !== item.relative_path) throw new ShelfError("shelf.item_not_found", "材料已收起或改变，未保存结果");
+        if (latest.hidden || latest.relative_path !== item.relative_path) throw shelfErrors.item_not_found("材料已收起或改变，未保存结果");
         this.assertOriginUntouched(latest);
         if (this.contentHash(latest) !== copyHashes.get(item.item_id)
-          || this.contentHash(item, path.join(inputDir, workNames[index])) !== copyHashes.get(item.item_id)) throw new ShelfError("shelf.hash_changed", "架子上的副本 Hash 已变化，已停止写入");
+          || this.contentHash(item, path.join(inputDir, workNames[index])) !== copyHashes.get(item.item_id)) throw shelfErrors.hash_changed("架子上的副本 Hash 已变化，已停止写入");
       }
     };
     let validateResult: (() => void) | undefined;
@@ -553,7 +553,7 @@ export class ShelfStore {
             { signal: lifetime.signal, pdfMode: "text", ...(item.kind === "image" ? { ocrLanguages: ocrLanguages(optionId) } : {}),
               timeoutMs: 60_000, limits: { maxBytes: 32 * 1024 * 1024 } });
           await beforeCommit();
-          if (item.kind !== "image" && !extracted.text.trim()) throw new ShelfError("shelf.no_text", "这份 PDF 没有可抽取的文字");
+          if (item.kind !== "image" && !extracted.text.trim()) throw shelfErrors.no_text("这份 PDF 没有可抽取的文字");
           const body = item.kind === "image" ? ocrMarkdown([{ name: item.name,
             lines: extracted.pages.flatMap(page => page.lines ?? (page.text ? [{ text: page.text, confidence: null }] : [])) }]) + extractionNote(extracted) : extractionText(extracted);
           parts.push(items.length > 1 ? `## ${item.name}\n\n${body}` : item.kind === "image" ? body : markdownFromExtract(item.name, body));
@@ -586,12 +586,12 @@ export class ShelfStore {
     } catch (error) {
       unlockDirectories(inputDir);
       await beforeCommit();
-      if (error instanceof ShelfError && error.code === "shelf.configuration_changed") throw error;
-      const cancelled = error instanceof ShelfError && error.code === "shelf.cancelled";
+      if (isShelfFailure(error) && error.code === "shelf.configuration_changed") throw error;
+      const cancelled = isShelfFailure(error) && error.code === "shelf.cancelled";
       const reason = failureCopy(error);
       const closed: ShelfJobRecord = {
         ...running,
-        ...((error instanceof ShelfError ? error.execution : execution) ? { execution: error instanceof ShelfError ? error.execution : execution } : {}),
+        ...((isShelfFailure(error) ? error.execution : execution) ? { execution: isShelfFailure(error) ? error.execution : execution } : {}),
         status: cancelled ? "cancelled" : "failed",
         error: cancelled ? null : reason,
         finished_at: now(),
@@ -610,7 +610,7 @@ export class ShelfStore {
           failureReason: reason,
         });
       }
-      throw error instanceof ShelfError ? error : new ShelfError("shelf.job_failed", reason);
+      throw isShelfFailure(error) ? error : shelfErrors.job_failed(reason);
     } finally {
       activeJobs.delete(key);
       lifetime.dispose();
@@ -622,7 +622,7 @@ export class ShelfStore {
     try {
       return shelfRecipeSpec(recipe);
     } catch {
-      throw new ShelfError("shelf.recipe_unavailable", "这个动作不存在");
+      throw shelfErrors.recipe_unavailable("这个动作不存在");
     }
   }
 
@@ -683,9 +683,9 @@ export class ShelfStore {
   cancelJob(jobId: string): ShelfJobRecord {
     const catalog = this.readCatalog();
     const job = catalog.jobs.find((entry) => entry.job_id === jobId);
-    if (!job) throw new ShelfError("shelf.item_not_found", "这个任务不存在");
+    if (!job) throw shelfErrors.item_not_found("这个任务不存在");
     if (job.status !== "running") return job;
-    activeJobs.get(jobKey(this.root, jobId))?.abort(new ShelfError("shelf.cancelled", "任务已取消"));
+    activeJobs.get(jobKey(this.root, jobId))?.abort(shelfErrors.cancelled("任务已取消"));
     const cancelled: ShelfJobRecord = { ...job, status: "cancelled", finished_at: now() };
     this.update((next) => {
       next.jobs = next.jobs.map((entry) => entry.job_id === jobId ? cancelled : entry);
@@ -696,11 +696,11 @@ export class ShelfStore {
   writeCopy(itemId: string, text: string): ShelfItemRecord {
     const catalog = this.readCatalog();
     const item = this.requireItem(catalog, itemId);
-    if (item.hidden) throw new ShelfError("shelf.item_not_found", "这份材料不在架子上");
-    if (!isEditableShelfItem(item)) throw new ShelfError("shelf.not_text", "这份材料不能编辑");
-    if (text.includes("\0")) throw new ShelfError("shelf.not_text", "这份材料不能编辑");
+    if (item.hidden) throw shelfErrors.item_not_found("这份材料不在架子上");
+    if (!isEditableShelfItem(item)) throw shelfErrors.not_text("这份材料不能编辑");
+    if (text.includes("\0")) throw shelfErrors.not_text("这份材料不能编辑");
     const bytes = Buffer.from(text, "utf8");
-    if (bytes.byteLength > MAX_EDIT_BYTES) throw new ShelfError("shelf.too_large", "文件超过 512 KB");
+    if (bytes.byteLength > MAX_EDIT_BYTES) throw shelfErrors.too_large("文件超过 512 KB");
     const abs = this.absolute(item);
     writeFileSync(abs, bytes);
     if (item.job_id) {
@@ -718,8 +718,8 @@ export class ShelfStore {
   useAsMaterial(itemId: string): ShelfItemRecord {
     const catalog = this.readCatalog();
     const item = this.requireItem(catalog, itemId);
-    if (item.group !== "result") throw new ShelfError("shelf.not_result", "只有生成结果可以再用作材料");
-    if (!item.relative_path) throw new ShelfError("shelf.missing_output", "这次没有生成文件");
+    if (item.group !== "result") throw shelfErrors.not_result("只有生成结果可以再用作材料");
+    if (!item.relative_path) throw shelfErrors.missing_output("这次没有生成文件");
     const bytes = readFileSync(this.absolute(item));
     return this.admit({ filename: item.name, bytes, mime: item.mime }, item.preview_text);
   }
@@ -773,14 +773,14 @@ export class ShelfStore {
       catalog.current_clip_id = clip.clip_id;
       recorded = clip;
     });
-    if (!recorded) throw new ShelfError("shelf.empty_file", "剪贴板是空的");
+    if (!recorded) throw shelfErrors.empty_file("剪贴板是空的");
     return recorded;
   }
 
   deleteClipboard(clipId: string): void {
     this.update((catalog) => {
       const exists = catalog.clipboard.some((entry) => entry.clip_id === clipId);
-      if (!exists) throw new ShelfError("shelf.item_not_found", "这条剪贴板不存在");
+      if (!exists) throw shelfErrors.item_not_found("这条剪贴板不存在");
       catalog.clipboard = catalog.clipboard.filter((entry) => entry.clip_id !== clipId);
       if (catalog.current_clip_id === clipId) catalog.current_clip_id = null;
     });
@@ -788,17 +788,17 @@ export class ShelfStore {
 
   async clipboardToMaterial(clipId: string, control?: ShelfExecutionControl): Promise<ShelfItemRecord> {
     const clip = this.readCatalog().clipboard.find((entry) => entry.clip_id === clipId);
-    if (!clip) throw new ShelfError("shelf.item_not_found", "这条剪贴板不存在");
+    if (!clip) throw shelfErrors.item_not_found("这条剪贴板不存在");
     const assertCurrent = () => {
       const latest = this.readCatalog().clipboard.find(entry => entry.clip_id === clipId);
-      if (!latest || latest.fingerprint !== clip.fingerprint) throw new ShelfError("shelf.item_not_found", "这条剪贴板已删除或改变，未保存材料");
+      if (!latest || latest.fingerprint !== clip.fingerprint) throw shelfErrors.item_not_found("这条剪贴板已删除或改变，未保存材料");
     };
     return this.admitCapturedText(clip.body, clip.title, true, control, assertCurrent);
   }
 
   readFile(itemId: string): { item: ShelfItemRecord; bytes: Buffer } {
     const item = this.requireItem(this.readCatalog(), itemId);
-    if (!item.relative_path) throw new ShelfError("shelf.missing_output", "这次没有生成文件");
+    if (!item.relative_path) throw shelfErrors.missing_output("这次没有生成文件");
     return { item: publicItem(item), bytes: readFileSync(this.absolute(item)) };
   }
 
@@ -830,13 +830,13 @@ export class ShelfStore {
     if (item.kind === "folder") return;
     if (!item.origin_realpath || !existsSync(item.origin_realpath)) return;
     if (sha256(readFileSync(item.origin_realpath)) !== item.origin_hash) {
-      throw new ShelfError("shelf.origin_changed", "原件 Hash 已变化，已停止这次任务");
+      throw shelfErrors.origin_changed("原件 Hash 已变化，已停止这次任务");
     }
   }
 
   private requireItem(catalog: CatalogFile, itemId: string): StoredItem {
     const item = catalog.items.find((entry) => entry.item_id === itemId);
-    if (!item) throw new ShelfError("shelf.item_not_found", "这份材料不在架子上");
+    if (!item) throw shelfErrors.item_not_found("这份材料不在架子上");
     return item;
   }
 
@@ -1169,7 +1169,7 @@ function resultMime(name: string): string {
 
 /** DropAgent `JobService.failureCopy`: one plain reason, never a stack. */
 function failureCopy(error: unknown): string {
-  if (error instanceof ShelfError) return error.message;
+  if (isShelfFailure(error)) return error.message;
   if (error instanceof Error && error.message) return error.message;
   return "任务失败";
 }

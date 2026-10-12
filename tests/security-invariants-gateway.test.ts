@@ -6,7 +6,7 @@
 // The tests import public entries only (tests/*.test.ts may not reach into package sources: pnpm health:check).
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import { tmpdir } from "node:os";
@@ -180,4 +180,39 @@ test("S-07 a process that forwards to the resident Host asks a numeric loopback 
   assert.deepEqual(requests, [], "no request reached any address, the numeric loopback one included");
   assert.equal(existsSync(demo.database_path), true, "the demo is still there");
   assert.equal(catalog.listProjectDeletions().length, 0);
+});
+
+test("S-07 the action gateway takes the number of an operation only on an invocation and only as the UUID the forwarding process made, and does nothing otherwise", { timeout: 60_000 }, async t => {
+  const { home, origin } = await startResidentHost(t);
+  const post = (body: unknown) => fetch(`${origin}/api/internal/action-service`, { method: "POST", body: JSON.stringify(body), headers: {
+    origin, "content-type": "application/json", "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": randomUUID() } });
+  const log = () => { try { return readFileSync(join(home, "logs", "action-calls.jsonl"), "utf8"); } catch { return ""; } };
+  const envelope = { home_id: homeId(home), client_id: "runtime:codex", project_id: null };
+  const instance = (await (await post({ ...envelope, operation: "discover" })).json() as { instance_id: string }).instance_id;
+  const invoke = { ...envelope, operation: "invoke", instance_id: instance, capability: { capability_id: "nobody.provides.this", version: 1 }, input: {} };
+  assert.equal(log(), "", "nothing was recorded so far");
+
+  // Every other spelling of a number, and a number on a discovery, is refused with the same input error, and the request does nothing.
+  const refusals: unknown[] = [undefined, "", "not-a-uuid", "ABCDEF12-0000-4000-8000-000000000000", `${randomUUID()}x`, `${randomUUID()}\n`, 7, null, [randomUUID()], { id: randomUUID() }];
+  for (const call_id of refusals) {
+    const answer = await post({ ...invoke, ...(call_id === undefined ? {} : { call_id }) });
+    assert.equal(answer.status, 400, JSON.stringify(call_id));
+    assert.equal((await answer.json() as { code: string }).code, "actions.input_invalid", JSON.stringify(call_id));
+  }
+  const discovery = await post({ ...envelope, operation: "discover", call_id: randomUUID() });
+  assert.equal(discovery.status, 400);
+  assert.equal((await discovery.json() as { code: string }).code, "actions.input_invalid");
+  assert.equal(log(), "", "no call was made, so no row was written");
+
+  // A number the forwarding process made is accepted, and is the one the Host's row and its answer carry: nothing else gives a number.
+  const id = randomUUID();
+  const refusedCall = await post({ ...invoke, call_id: id });
+  assert.equal(refusedCall.status, 403);
+  assert.equal(refusedCall.headers.get("x-molis-work-call-id"), id);
+  assert.equal((await refusedCall.json() as { code: string; call_id: string }).call_id, id);
+  const rows = log().trim().split("\n").map(line => JSON.parse(line) as { call_id: string; code?: string; refused?: boolean });
+  assert.deepEqual(rows.map(row => [row.call_id, row.code, row.refused]), [[id, "actions.missing", true]]);
+  const stranger = await fetch(`${origin}/api/internal/action-service`, { method: "POST", body: JSON.stringify({ ...invoke, call_id: randomUUID() }), headers: {
+    origin, "content-type": "application/json", "x-molis-work-call-id": id, "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": randomUUID() } });
+  assert.notEqual(stranger.headers.get("x-molis-work-call-id"), id, "a number in a request header is not read");
 });

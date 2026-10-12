@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   PluginManifest,
   PluginRouteMethod,
@@ -5,6 +6,7 @@ import type {
   PluginRouteResponse,
   PluginExecutionControl,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 
 import type { PluginHostLifecycle } from "./lifecycle.js";
 
@@ -110,23 +112,24 @@ export class PluginRouteRouter {
   async dispatch(input: PluginRouteDispatchInput): Promise<PluginRouteResponse | null> {
     const match = this.match(input.method, input.pathname);
     if (!match) return null;
+    // The router's own refusals are the platform's: the same facts the action layer already names, with the same sentences.
     if (match.permission !== null && !(input.granted ?? []).includes(match.permission)) {
-      return { status: 403, body: { error: "plugin_route_permission_denied" } };
+      return actionErrorResponse(new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态"));
     }
     if (this.#lifecycle.generation(match.plugin_id) === undefined) {
-      return { status: 404, body: { error: "plugin_not_enabled" } };
+      return actionErrorResponse(new ActionError("actions.plugin_disabled", "此项目未启用该插件"));
     }
 
     const instance = await this.#lifecycle.ensureStarted(match.plugin_id);
     if (!instance || !instance.active()) {
-      return { status: 503, body: { error: "plugin_unavailable" } };
+      return actionErrorResponse(new ActionError("actions.plugin_unavailable", "插件未运行或已停用"));
     }
     const binding = (instance.contribution.routes ?? [])
       .find((candidate) => candidate.route_id === match.route_id);
     if (!binding) {
       // The redemption check refuses this shape at start; reaching here means the
       // Plugin is running in a state it should not be, which is not the caller's fault.
-      return { status: 500, body: { error: "plugin_route_unbound" } };
+      return actionErrorResponse(new ActionError("actions.execution_failed", "能力执行失败"));
     }
 
     const request: PluginRouteRequest = {

@@ -3,7 +3,8 @@ import test from "node:test";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
-import { bindActionClient, bindOwnerPluginAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 const definition = { capability_id: "unfamiliar.backend", version: 1, operation: "query" as const };

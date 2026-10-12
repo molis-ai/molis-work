@@ -1,0 +1,280 @@
+import assert from "node:assert/strict";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+import test from "node:test";
+
+import {
+  handleFeedNativePluginHttp,
+  handleInboxNativePluginHttp,
+  handleScheduleNativePluginHttp,
+  type FeedNativePluginHttpOptions,
+} from "@molis-ai/molis-work-app-local-host";
+import * as attentionContracts from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import * as feedContracts from "@molis-ai/molis-work-contracts/modules/feed";
+import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import * as feedPlugin from "@molis-ai/molis-work-plugin-feed";
+import * as inboxPlugin from "@molis-ai/molis-work-plugin-inbox";
+import * as schedulePlugin from "@molis-ai/molis-work-plugin-schedule";
+
+// specs/repository-anti-corruption W3-02-E: Feed, Inbox and Schedule lose their route-error mappers and their error classes. Their failures are
+// ActionErrors whose codes the owners declare (`defineErrorCodes`); the Host's edge answers every one through the SDK, so the status comes from the
+// failure's kind and the same platform code gets the same status at all three plugins.
+//
+// What each part proves, and what it did on the merge-base (origin/main with W3-02-A):
+//   1. the declarations exist and every owner code answers the status the deleted mapper gave its old name (PARITY: the tables below were made by running the
+//      three mappers over every owner code on the merge-base; this fails there only because the declarations do not exist yet);
+//   2. a platform code answers the same status at all three edges (FAILS on the merge-base: Feed and Schedule gave most of them 400, Inbox gave `missing` 400);
+//   3. a request body that is too large answers 413, one that is not JSON 400, a failure with no code of ours 500 (FAILS there: the body escaped the edge, and
+//      an uncoded failure answered 400);
+//   4. the Feed connector failure keeps the provider's own code in details, and the codes the Feed classifies a failure by are the new ones;
+//   5. nothing of the old shape is left: no error class, no mapper, no bare `new Error(` for a caller's mistake, no owner code raised without its declaration,
+//      no old code name in the sources.
+
+const REPOSITORY = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+interface OwnerCodes {
+  readonly prefix: string;
+  /** The status each owner code answered through its own mapper on the merge-base, by reason. */
+  readonly status: Readonly<Record<string, number>>;
+}
+type Raiser = (message: string, details?: Record<string, unknown>) => ActionError;
+type Declarations = Readonly<Record<string, Raiser>>;
+
+const FEED: OwnerCodes = { prefix: "feed", status: {
+  item_not_found: 404, source_not_found: 404, out_rule_not_found: 404,
+  revision_conflict: 409, source_paused: 409, source_use_catalog: 409,
+  invalid_transition: 400, read_not_supported: 400, request_invalid: 400, out_rule_invalid: 400,
+  source_connection_changed: 400, source_sync_interrupted: 400, source_idempotency_required: 400, source_idempotency_conflict: 400,
+  source_not_syncable: 400, source_invalid_state: 400, source_query_invalid: 400, source_invalid_configuration: 400, source_definition_unavailable: 400,
+  source_invalid_schedule: 400, source_configuration_changed: 400, source_changed: 400, source_wrong_sync_kind: 400,
+  connector_wrong_sync_kind: 400, connector_needs_auth: 400, connector_failed: 400,
+  custom_rss_url_invalid: 400, youtube_channel_invalid: 400, source_use_youtube_channel: 400, source_use_official_reddit: 400,
+} };
+const INBOX: OwnerCodes = { prefix: "inbox", status: { entry_not_found: 404, invalid: 400 } };
+const SCHEDULE: OwnerCodes = { prefix: "schedule", status: { task_not_found: 404, task_invalid: 400, job_not_found: 404, job_invalid: 400 } };
+
+/** Where each owner's declaration lives: Feed's and Inbox's in the contracts the two plugins, the Host and the RSS and YouTube integrations share, Schedule's in the plugin. */
+function declarationsOf(owner: "feed" | "inbox" | "schedule"): Declarations | undefined {
+  const holder = owner === "feed" ? feedContracts : owner === "inbox" ? attentionContracts : schedulePlugin;
+  return (holder as Record<string, unknown>)[`${owner}Errors`] as Declarations | undefined;
+}
+
+const platformErrors = (): Array<[string, number]> => [
+  ["actions.input_invalid", 400], ["actions.forbidden", 403], ["actions.scope_mismatch", 403], ["actions.owner_mismatch", 403], ["actions.plugin_disabled", 403],
+  ["actions.missing", 404], ["actions.subject_changed", 409], ["actions.binding_changed", 409], ["actions.provider_changed", 409], ["actions.input_too_large", 413],
+  ["actions.cancelled", 499], ["actions.execution_failed", 500], ["actions.connection_required", 503], ["actions.unredeemed", 503],
+];
+
+// ---- a loopback server around one Host edge, failing with whatever the test sets ---------------------------------------------------------------------------
+interface Answer { readonly status: number; readonly body: Record<string, unknown> }
+
+async function failingEdge(owner: "feed" | "inbox" | "schedule") {
+  const failure: { current: unknown } = { current: undefined };
+  const actions: BoundActionClient = { discover: async () => [], invoke: async () => { throw failure.current; } };
+  const feedOptions = { actions, renderer: {}, projectId: "p", routePrefix: "/projects/p", store: {}, readWebView: async () => ({}), invalidateWebView: () => undefined } as unknown as FeedNativePluginHttpOptions;
+  const handle = (request: IncomingMessage, response: ServerResponse, url: URL): Promise<boolean> => owner === "feed" ? handleFeedNativePluginHttp(request, response, url, feedOptions)
+    : owner === "inbox" ? handleInboxNativePluginHttp(request, response, url, { actions, invalidateWebView: () => undefined })
+      : handleScheduleNativePluginHttp(request, response, url, { actions, invalidateWebView: () => undefined });
+  // A route of the plugin whose handler calls one action, so the failure comes out of the action and goes through the edge.
+  const route = { feed: ["POST", "/api/feed/items/item-1/read"], inbox: ["POST", "/api/inbox/entries/entry-1/status"], schedule: ["POST", "/api/schedule/tasks"] }[owner] as [string, string];
+  const server = createServer((request, response) => {
+    handle(request, response, new URL(request.url ?? "/", "http://127.0.0.1")).then(handled => {
+      if (!handled) { response.statusCode = 404; response.end("{}"); }
+    }, (error: unknown) => {
+      // A handler that rejects instead of answering is reported as 599, so "the error escaped the edge" is a wrong status and not a hung request.
+      response.statusCode = 599;
+      response.end(JSON.stringify({ escaped: error instanceof Error ? error.message : String(error) }));
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const send = async (method: string, path: string, body?: string): Promise<Answer> => {
+    const response = await fetch(base + path, { method, headers: { "content-type": "application/json" }, ...(body === undefined ? {} : { body }) });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  };
+  const requestBody = owner === "inbox" ? { status: "done", expected_revision: 1 } : owner === "schedule" ? { title: "晨报", instructions: "读未读", time: "08:30" } : {};
+  return {
+    /** The route runs and its action fails with `error`. */
+    async fail(error: unknown): Promise<Answer> { failure.current = error; return await send(route[0], route[1], JSON.stringify(requestBody)); },
+    /** The body itself cannot be read. */
+    body: (text: string) => send(route[0], route[1], text),
+    close: () => new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); }),
+  };
+}
+
+// ---- 1. declarations and parity -----------------------------------------------------------------------------------------------------------------------------
+test("each owner declares its codes, every one <owner>.<reason> with the kind its old status stood for", () => {
+  const cases: Array<["feed" | "inbox" | "schedule", OwnerCodes]> = [["feed", FEED], ["inbox", INBOX], ["schedule", SCHEDULE]];
+  for (const [owner, spec] of cases) {
+    const declared = declarationsOf(owner);
+    assert.ok(declared, `${owner}Errors is exported (Feed's from contracts modules/feed, Inbox's from contracts modules/attention-resumption, Schedule's from the plugin)`);
+    assert.deepEqual(Object.keys(declared).sort(), Object.keys(spec.status).sort(), `${owner}Errors declares exactly the codes ${owner} raises`);
+    for (const [reason, status] of Object.entries(spec.status)) {
+      const error = declared[reason]!(`${owner} ${reason}`, { n: 1 });
+      assert.ok(error instanceof ActionError, `${owner}Errors.${reason} raises an ActionError`);
+      assert.deepEqual([error.code, error.message, error.details, actionHttpStatus(error)], [`${spec.prefix}.${reason}`, `${owner} ${reason}`, { n: 1 }, status], `${owner}.${reason}`);
+    }
+  }
+});
+
+test("every owner code answers, through the Host's real edge, the status its deleted mapper gave it, with the one body { error, code }", async () => {
+  const cases: Array<["feed" | "inbox" | "schedule", OwnerCodes]> = [["feed", FEED], ["inbox", INBOX], ["schedule", SCHEDULE]];
+  for (const [owner, spec] of cases) {
+    const declared = declarationsOf(owner);
+    assert.ok(declared, `${owner}Errors is exported`);
+    const edge = await failingEdge(owner);
+    try {
+      for (const [reason, status] of Object.entries(spec.status)) {
+        const answer = await edge.fail(declared[reason]!(`${owner} ${reason}`));
+        assert.deepEqual([answer.status, answer.body], [status, { error: `${owner} ${reason}`, code: `${spec.prefix}.${reason}` }], `${owner}.${reason}`);
+      }
+    } finally { await edge.close(); }
+  }
+});
+
+// ---- 2. one status for one platform code, whichever plugin the person was in ----------------------------------------------------------------------
+test("a platform code answers one status at Feed, Inbox and Schedule, with the one body { error, code }", async () => {
+  for (const owner of ["feed", "inbox", "schedule"] as const) {
+    const edge = await failingEdge(owner);
+    try {
+      for (const [code, status] of platformErrors()) {
+        const answer = await edge.fail(new ActionError(code, "测试消息"));
+        assert.deepEqual([owner, code, answer.status, answer.body], [owner, code, status, { error: "测试消息", code }]);
+      }
+    } finally { await edge.close(); }
+  }
+});
+
+// ---- 3. what is not a failure of ours --------------------------------------------------------------------------------------------------------------------------
+test("a failure with no code of ours is a bug or an outage: 500 actions.execution_failed, with its message and nothing of its own code", async () => {
+  for (const owner of ["feed", "inbox", "schedule"] as const) {
+    const edge = await failingEdge(owner);
+    try {
+      assert.deepEqual(await edge.fail(new Error("boom")), { status: 500, body: { error: "boom", code: "actions.execution_failed" } }, `${owner}: a plain Error`);
+      assert.deepEqual(await edge.fail(Object.assign(new Error("没有这个文件"), { code: "ENOENT" })), { status: 500, body: { error: "没有这个文件", code: "actions.execution_failed" } }, `${owner}: a system error code`);
+      // The names the three owners used before are not codes of ours any more: a stray one is a bug, not a caller's mistake.
+      assert.deepEqual(await edge.fail(Object.assign(new Error("找不到"), { code: "feed_item_not_found" })), { status: 500, body: { error: "找不到", code: "actions.execution_failed" } }, `${owner}: an old snake code`);
+      assert.deepEqual(await edge.fail("a thrown string"), { status: 500, body: { error: "能力执行失败", code: "actions.execution_failed" } }, `${owner}: not an Error`);
+    } finally { await edge.close(); }
+  }
+});
+
+// The body limit of each edge: Feed, Inbox and Schedule read 256,000 characters.
+test("a request body that is too large answers 413 and one that is not JSON answers 400, each with its platform code", async () => {
+  for (const owner of ["feed", "inbox", "schedule"] as const) {
+    const edge = await failingEdge(owner);
+    try {
+      const large = await edge.body(JSON.stringify({ padding: " ".repeat(356_000) }));
+      assert.deepEqual([owner, large.status, large.body], [owner, 413, { error: "请求内容过大", code: "actions.input_too_large" }]);
+      const broken = await edge.body("{not json");
+      assert.deepEqual([owner, broken.status, broken.body], [owner, 400, { error: "请求不是有效 JSON", code: "actions.input_invalid" }]);
+    } finally { await edge.close(); }
+  }
+});
+
+test("owner details travel in details and nowhere else", async () => {
+  const edge = await failingEdge("feed");
+  try {
+    const declared = declarationsOf("feed");
+    assert.ok(declared, "feedErrors is exported");
+    const answer = await edge.fail(declared.connector_failed!("授权已失效", { error_code: "connector_needs_auth" }));
+    assert.deepEqual(answer, { status: 400, body: { error: "授权已失效", code: "feed.connector_failed", details: { error_code: "connector_needs_auth" } } });
+  } finally { await edge.close(); }
+});
+
+// ---- 4. what the Feed classifies a failure by -----------------------------------------------------------------------------------------------------------------
+test("the Feed classifies a thrown failure by its new code, and a connector failure by the provider's own code it carries in details", () => {
+  const feed = declarationsOf("feed");
+  assert.ok(feed, "feedErrors is exported");
+  const publicError = (error: unknown) => { const { code, category, retryable, user_action } = feedPlugin.toFeedPublicError(error); return { code, category, retryable, user_action }; };
+  assert.deepEqual(publicError(feed.source_connection_changed!("账号连接已断开或改变")), { code: "feed.source_connection_changed", category: "auth", retryable: false, user_action: "reconnect" });
+  assert.deepEqual(publicError(feed.connector_needs_auth!("连接已断开")), { code: "feed.connector_needs_auth", category: "auth", retryable: false, user_action: "reconnect" });
+  assert.deepEqual(publicError(feed.source_changed!("拉取期间来源已变化")), { code: "feed.source_changed", category: "conflict", retryable: false, user_action: "refresh" });
+  assert.deepEqual(publicError(feed.source_configuration_changed!("来源配置已变化")), { code: "feed.source_configuration_changed", category: "configuration", retryable: false, user_action: "fix_configuration" });
+  assert.deepEqual(publicError(feed.source_sync_interrupted!("同步没有终态")), { code: "feed.source_sync_interrupted", category: "interrupted", retryable: true, user_action: "retry" });
+  // The failure a provider reported keeps the provider's own code: that code is what a run and a source fault have always stored.
+  assert.deepEqual(publicError(feed.connector_failed!("授权失效", { error_code: "connector_needs_auth" })), { code: "connector_needs_auth", category: "auth", retryable: false, user_action: "reconnect" });
+  assert.deepEqual(publicError(feed.connector_failed!("稍后再试", { error_code: "connector_rate_limited" })), { code: "connector_rate_limited", category: "rate_limit", retryable: true, user_action: "retry" });
+  // Stored codes are still read as they were written.
+  assert.equal(feedPlugin.toFeedPublicError({ code: "connector_rate_limited", message: "Retry later" }).category, "rate_limit");
+});
+
+test("the old error classes, the mappers and the old exports are gone", () => {
+  const gone: Array<[string, Record<string, unknown>, string[]]> = [
+    ["@molis-ai/molis-work-plugin-feed", feedPlugin as Record<string, unknown>, ["FeedStoreError", "feedRouteErrorResponse"]],
+    ["@molis-ai/molis-work-plugin-inbox", inboxPlugin as Record<string, unknown>, ["inboxRouteErrorResponse"]],
+    ["@molis-ai/molis-work-plugin-schedule", schedulePlugin as Record<string, unknown>, ["ScheduleTaskError", "scheduleRouteErrorResponse"]],
+    ["@molis-ai/molis-work-contracts/modules/feed", feedContracts as Record<string, unknown>, ["FeedDomainError"]],
+  ];
+  for (const [name, module, removed] of gone) for (const exported of removed) assert.equal(exported in module, false, `${name} no longer exports ${exported}`);
+  // The module errors stay what they were (their owners' slices rename them); the plugin turns them into its own declared codes where it calls the module.
+  assert.equal(typeof feedContracts.FeedError, "function");
+  assert.equal(typeof attentionContracts.AttentionError, "function");
+});
+
+// ---- 5. nothing of the old shape is left --------------------------------------------------------------------------------------------------------------------
+function sourceFiles(directory: string): string[] {
+  return readdirSync(directory).flatMap(name => {
+    const path = join(directory, name);
+    return statSync(path).isDirectory() ? sourceFiles(path) : /\.(ts|mts)$/u.test(name) ? [path] : [];
+  });
+}
+const HOST = join(REPOSITORY, "apps", "local-host", "src");
+const hostFiles = (...patterns: RegExp[]) => readdirSync(HOST).filter(name => patterns.some(pattern => pattern.test(name))).map(name => join(HOST, name));
+const FILES = {
+  feed: () => [...sourceFiles(join(REPOSITORY, "plugins", "native", "feed", "src")), ...hostFiles(/^feed-.*\.ts$/u, /^research-library-source\.ts$/u, /^content-action-providers\.ts$/u),
+    ...sourceFiles(join(REPOSITORY, "plugins", "official-integrations", "rss", "src")), ...sourceFiles(join(REPOSITORY, "plugins", "official-integrations", "youtube", "src"))],
+  inbox: () => [...sourceFiles(join(REPOSITORY, "plugins", "native", "inbox", "src")), ...hostFiles(/^inbox-.*\.ts$/u)],
+  schedule: () => [...sourceFiles(join(REPOSITORY, "plugins", "native", "schedule", "src")), ...hostFiles(/^schedule-.*\.ts$/u)],
+};
+/** The names the three owners used before, as quoted strings. Reading one of them back would find nothing any more. */
+const OLD_CODES = ["feed_item_not_found", "inbox_entry_not_found", "feed_source_not_found", "feed_out_rule_not_found", "feed_revision_conflict", "feed_invalid_transition", "feed_read_not_supported",
+  "feed_source_connection_changed", "feed_source_sync_interrupted", "feed_source_idempotency_required", "feed_source_idempotency_conflict", "feed_source_paused", "feed_out_rule_invalid",
+  "feed_source_not_syncable", "feed_source_invalid_state", "feed_source_query_invalid", "feed_source_invalid_configuration", "feed_source_definition_unavailable", "feed_source_use_catalog",
+  "feed_source_invalid_schedule", "feed_source_configuration_changed", "feed_source_changed", "feed_source_wrong_sync_kind", "connector_wrong_sync_kind", "connector_needs_auth",
+  "invalid_custom_rss_url", "invalid_youtube_channel", "inbox_source_use_youtube_channel", "inbox_source_use_official_reddit",
+  "schedule_task_invalid", "schedule_task_not_found"];
+// A plugin client file is the page's own script, a template string that runs in the browser; it never raises an action's failure.
+const BROWSER_SCRIPT = /[\\/]client\.ts$/u;
+// What may stay a bare Error: a wiring mistake in the code (nobody can cause it by a request), and the failures of a run that already started (a due task or
+// reminder that cannot be delivered; they are recorded on the task or the job, never answered to a caller).
+const STAYS_BARE: readonly RegExp[] = [/没有 Host binding/u, /UI surface .* 不存在/u, /feed_contract_source_history_decision_required/u,
+  /定时执行尚未登记本次持久记录|本次执行结果未知，不能自动重跑|定时操作已暂停、取消或改变|定时操作的安装身份已改变|本次定时执行已被处理/u, /提醒的原安装身份已不可用/u, /定时任务已暂停或改变，本轮结果未保存/u,
+  /还没有配置到点执行的 Agent|闹钟叫醒没有项目现场|提醒没有项目现场|定时操作没有项目现场|提醒的插件安装当前没有运行|定时操作的安装执行入口已改变|发布包缺少/u,
+  /还没有可用的 Agent Runtime|这个项目还没有绑定工作区|Schedule 没有声明可运行的 Agent|到点执行不能停下来等人确认|这一轮以|Agent 没有写出正文|到点执行超时/u];
+
+test("no owner keeps an error class, a route-error mapper, a body reader of its own, an old code name, or a raise of its own code outside its declarations", () => {
+  for (const owner of ["feed", "inbox", "schedule"] as const) {
+    for (const file of FILES[owner]()) {
+      const source = readFileSync(file, "utf8");
+      const where = relative(REPOSITORY, file);
+      assert.doesNotMatch(source, /\bclass\s+\w+\s+extends\s+Error\b/u, `${where}: an error class`);
+      assert.doesNotMatch(source, /\bmapError\b|RouteErrorResponse|\bFeedStoreError\b|\bFeedDomainError\b|\bScheduleTaskError\b/u, `${where}: an old error class or mapper`);
+      assert.doesNotMatch(source, /function readBody\(|function readOptionalBody\(/u, `${where}: its own body reader (the shared readNativePluginJsonBody reads it, inside the try)`);
+      assert.doesNotMatch(source, new RegExp(String.raw`new\s+\w*Error\(\s*"(?:feed|inbox|schedule)\.[a-z_]+"`, "u"), `${where}: an owner code raised without its declaration (it would answer 400 whatever its kind)`);
+      assert.doesNotMatch(source, /new ScheduleError\(/u, `${where}: the scheduler's class raised for a Schedule failure; raise scheduleErrors.<reason>(...)`);
+      assert.doesNotMatch(source, /Object\.assign\(new Error\(/u, `${where}: an Error given a code afterwards`);
+      if (BROWSER_SCRIPT.test(file)) {
+        assert.match(source, /^export const \w+_CLIENT(?:_FACTORY)?_SCRIPT = (?:String\.raw)?`/mu, `${where}: exempt from the bare-Error rule only as a browser script`);
+        continue;
+      }
+      for (const code of OLD_CODES) assert.ok(!source.includes(`"${code}"`) && !source.includes(`'${code}'`), `${where}: the old name ${code} is read or raised`);
+      // A caller's mistake is an owner code; a bare Error would answer 500 `actions.execution_failed` for it.
+      const bare = [...source.matchAll(/\bnew\s+Error\(([^\n]*)/gu)].map(match => match[1]!).filter(rest => !STAYS_BARE.some(sentence => sentence.test(rest)));
+      assert.deepEqual(bare, [], `${where}: a bare new Error( is a caller-visible 500; raise <owner>Errors.<reason>(...) (or a platform code) instead`);
+    }
+  }
+});
+
+test("a declared code is used: every reason in a declaration has a raise site", () => {
+  for (const [owner, spec] of [["feed", FEED], ["inbox", INBOX], ["schedule", SCHEDULE]] as const) {
+    const sources = [...FILES[owner](), ...(owner === "inbox" ? FILES.feed() : [])].map(file => readFileSync(file, "utf8")).join("\n");
+    for (const reason of Object.keys(spec.status)) {
+      assert.ok(new RegExp(String.raw`\b${owner}Errors\.${reason}\(`, "u").test(sources), `${owner}Errors.${reason} is raised somewhere; a code nobody raises is not declared`);
+    }
+  }
+});

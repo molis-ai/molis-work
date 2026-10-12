@@ -12,10 +12,9 @@ import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSo
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 const caller: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: ["feed:read", "feed:write"] };
 const code = (expected: string) => (error: unknown) => !!error && typeof error === "object" && "code" in error && error.code === expected;
@@ -66,25 +65,27 @@ test("the real Web scheduler uses the registered Feed action, records refusal, a
 
 for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "deleted", "cancelled", "revoked-provider-failure"] as const) {
   test(`public RSS ${mode}: real Host dispatch cannot commit stale data or failure bookkeeping; a new authorized invocation recovers`, { timeout: 20_000 }, async t => {
-    const home = await mkdtemp(join(tmpdir(), "feed-public-authority-")), database = join(home, "project.sqlite");
-    seedDemoBoard(database);
-    const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID);
+    const home = await mkdtemp(join(tmpdir(), "feed-public-authority-"));
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
     let enabled = true, upstreamFails = mode === "revoked-provider-failure", requests = 0;
     const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: () => enabled ? { available: true }
       : { available: false, code: "actions.plugin_disabled", reason: "Disabled" } });
-    const reference = molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID });
+    // Grants are made through the access settings of the served Home, before the test replaces global fetch for the upstream feed (the web client keeps its own).
+    // The pull itself stays in process: it passes its own signal, and this test asserts what the server does when it fires.
+    const served = await serveTestHost(t, { home, host });
+    const project = await served.createProject("公开 RSS 授权", ["feed"]);
+    const PROJECT = project.project_id, reference = project.reference, owner: ActionCallContext = { ...caller, project_id: PROJECT };
+    const store = new LocalProjectDatabase(project.database_path), sources = createLocalFeedSourceService(store.db, PROJECT);
     t.mock.method(globalThis, "fetch", async () => {
       requests++; entered.resolve(); await release.promise;
       return upstreamFails ? new Response("Unavailable", { status: 503 }) : new Response(rss, { headers: { "content-type": "application/rss+xml" } });
     });
     t.signal.addEventListener("abort", () => { controller.abort(); release.resolve(); }, { once: true });
     try {
-      const { source } = await host.actionClient(reference).invoke(caller, feedSourceActions.register, { kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id });
-      const mcpCaller: ActionCallContext = { ...caller, actor_id: "rss-client", audience: "mcp", permissions: [] };
+      const { source } = await host.actionClient(reference).invoke(owner, feedSourceActions.register, { kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id });
+      const mcpCaller: ActionCallContext = { ...owner, actor_id: "rss-client", audience: "mcp", permissions: [] };
       const view = (await host.inspectActions(mcpCaller, reference)).find(row => row.capability_id === feedSourceActions.sync.capability_id)!;
-      const grant = createMcpActionGrant(mcpCaller.actor_id, DEMO_PROJECT_ID, view, true);
-      await writeMcpActionGrant(home, grant);
+      await served.grant(mcpCaller.actor_id, PROJECT, [view]);
       const authorized = await authorizeMcpActions(host, mcpCaller, home, reference);
       const input = { source_id: source.source_id, idempotency_key: "public-authority-1" };
       const pending = authorized.service.invoke({ ...authorized.context, signal: controller.signal }, feedSourceActions.sync, input);
@@ -93,30 +94,30 @@ for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "dele
           : mode === "deleted" ? "feed_source_not_found" : "mcp.action_revoked");
       const rejected = assert.rejects(pending, error);
       await enteredOrFailure(entered.promise, pending);
-      if (mode === "grant-revoked" || mode === "revoked-provider-failure") await writeMcpActionGrant(home, { ...grant, enabled: false });
+      if (mode === "grant-revoked" || mode === "revoked-provider-failure") await served.revoke(mcpCaller.actor_id, PROJECT, [view]);
       if (mode === "disabled") enabled = false;
       if (mode === "paused") sources.setEnabled(source.source_id, false);
       if (mode === "reconfigured") sources.update(source.source_id, { scope: "Changed while fetching" });
       if (mode === "deleted") sources.delete(source.source_id, "retain_history");
       if (mode === "cancelled") controller.abort();
-      const before = sources.feed.snapshot(DEMO_PROJECT_ID);
+      const before = sources.feed.snapshot(PROJECT);
       release.resolve(); await rejected;
-      assert.deepEqual(sources.feed.snapshot(DEMO_PROJECT_ID), before, "original Feed content, cursor, source status, runs and Inbox stay exactly as they were at refusal");
+      assert.deepEqual(sources.feed.snapshot(PROJECT), before, "original Feed content, cursor, source status, runs and Inbox stay exactly as they were at refusal");
       assert.ok(requests > 0, "the real RSS transport must have been reached");
       if (mode === "deleted") return;
       enabled = true; upstreamFails = false;
       if (mode === "paused") sources.setEnabled(source.source_id, true);
-      await writeMcpActionGrant(home, grant);
+      await served.grant(mcpCaller.actor_id, PROJECT, [view]);
       const restored = await authorizeMcpActions(host, mcpCaller, home, reference);
       // Intelligence retains cancellation/failure receipts. An explicit new pull uses a new key.
       const retryInput = mode === "cancelled" || mode === "revoked-provider-failure" ? { ...input, idempotency_key: "public-authority-recovered" } : input;
       const recovered = await restored.service.invoke(restored.context, feedSourceActions.sync, retryInput);
       assert.equal(recovered.run.outcome, "completed");
-      assert.equal(sources.feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === source.source_id).length, 1);
+      assert.equal(sources.feed.snapshot(PROJECT).feed_items.filter(item => item.source_id === source.source_id).length, 1);
       const replay = await restored.service.invoke(restored.context, feedSourceActions.sync, retryInput);
       assert.equal(replay.replayed, true);
-      assert.equal(sources.feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === source.source_id).length, 1);
-    } finally { release.resolve(); await host.close(); store.close(); await rm(home, { recursive: true, force: true }); }
+      assert.equal(sources.feed.snapshot(PROJECT).feed_items.filter(item => item.source_id === source.source_id).length, 1);
+    } finally { release.resolve(); await served.close(); await host.close(); store.close(); await rm(home, { recursive: true, force: true }); }
   });
 }
 

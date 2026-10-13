@@ -25,6 +25,20 @@
 - 单开过、后来按用户决定并回交接 PR 并关闭的 Molis PR：#429–#434、#438、#439、#445、#446、#447（作废）；#442 的提交进了 #408 的分支，被 GitHub 标成 merged。
 - 没有任何后台测试、构建在跑；锁全部空闲。
 
+## 2a. 暂停期间 main 上的两次大合并（各线交接写于知道它们之前，已在每份交接开头补了「统筹补充」）
+
+- **#471**（yijunw0212，10-13 08:24 UTC，78 个文件）：桌面 Computer Use 进 main；main 的 vendored SDK 换成 `prologue-sdk-0.0.0-rc.1-computer-use.tgz`，来源 Prologue `d4908c11`（`feat/desktop-computer-use`，基于 `c4b9fde3`），provenance `pushed: false`——**不在 Prologue main，也不在 GitHub 远端**；这份包**不含** S1–S3、带类型问卷 `a06ae62e`、P1 合同、P2a–P2f。main 上还留着旧 side-panel-memory 包与补丁。另新增右栏电脑格 `side-panel-computer.ts`、`contracts/services/computer.ts`、`services/ui-surfaces.ts`，改了助理服务、`assistant-island.ts`、`prologue-node.ts`、`prologue-stream.ts`、`contracts/services/agent-host.ts`，并把 10-09 版交互线需求书与参考图带进 main。
+- **#472**（yijunw0212，10-13 10:54 UTC，93 个文件 +3399/−953）：旧采用树 `feat/prologue-adoption` 的 10 个提交（10-09）进 main——推理力度、运行中换模型、逐轮写入记录（≈A1）、灵光流式（≈A3 一部分）、助理收回交出去的工作后接着做（`8b1a0522`「第 14 项」，A0 当时明确不纳入）、变化等待（≈A4）；沿用 computer-use 包；main 上的采用线需求书是 10-09 旧版。
+
+**影响与后续顺序（统筹定，恢复后执行）：**
+
+1. **统一 SDK 包重做（采用线，合成包负责人）**：请 Computer Use 原负责人或 yijunw0212 把 `feat/desktop-computer-use`（`d4908c11`）推到 Prologue 远端；与 Prologue main（#4–#14）合流进 main（一个 PR，按 Prologue 合并条件：先 build dist、SDK 全量、消费者检查）；从 Prologue main 重打包，替换 Molis main 上的两份 tgz。这是回执线生产接入、交互线 C1+H1 真接入的共同前置。**需要用户或 yijunw0212 配合推送那个分支。**
+2. **#408 对账（采用线）**：#408 与 #472 重叠 37 个文件，不整体合。以 main 为准合并解冲突，只保留 main 没有的部分（A0 修正与证据、P1 合同、决策记录、统一换包）；规格以 #408 新版为准、并入 #472 带来的事实；「第 14 项交回与续做」在 P3/P4 改到统一合同上（不留兼容）；A1 改为核对 #472 的实现是否满足 PA-12/PA-24。
+3. **D7 重新判定**：「正式 SDK 来源」在 main 上已不成立；等统一包进 main、#408 剩余部分进 main 后由统筹重判并通知回执线。
+4. **合并顺序**：#411（情境线）不依赖 SDK，修好 W1-4 回归、合 main 后防腐复查过、定向用例与基线比对过，就可以先于 #408 合；#408 在统一包与对账完成后合；#410 与 #409 的 SDK 相关部分在统一包之后。
+5. **情境线**：右栏电脑格改接 #471 的实现，不再只是占位。
+6. **交互线**：main 上的 10-09 版需求书与 #410 冲突，以 #410 为准。
+
 ## 3. 用户定的规则（原话照录）
 
 1. **拍板**：「所有需要去拍板的决策：1. 技术决策：尽量按照那个防腐线来看判断后果 2. 功能线：按照用户的UI交互体验和使用体验来按推荐走」。做法：本线内的决定各线自己定，写进需求书决策记录并在汇报里列出；跨线或改目标/范围的由统筹按同样两条定。仍先问用户：发布与改版本号、动真实 Home 或安装版、放宽门禁/limits/CI、读真实凭据（含真实 Jev 评估）、计划外的 PR。替用户拍板不等于用户验收，验收另记。
@@ -40,7 +54,7 @@
 
 ## 4. 合并顺序与条件
 
-**Molis 合进 main 的顺序**（统筹定）：① #408 采用线（D7 第三项、交互线 C1+H1 的前置）→ ② #411 情境线 → ③ #410 交互线（C1+H1 等 #408 进 main 后再并入）→ ④ #409 回执线（生产接入等 D7）。
+**Molis 合进 main 的顺序**（统筹定；#471/#472 之后按 §2a 调整）：原定 ① #408 → ② #411 → ③ #410 → ④ #409。现在 #408 要先与 #472 对账、并等统一 SDK 包，所以 #411 具备条件（W1-4 回归已修、合 main 后防腐复查过、定向用例与基线比对过）即可先合；#408 在统一包与对账完成后合；#410 的 C1+H1 与 #409 的生产接入都在统一包进 main 之后。
 
 **Molis 合并条件**：`Verify` 绿；与 main 同步；`pnpm secrets:check` 与 `node scripts/check-health-gates.mjs --base origin/main` 过；本线定向回归（动共享核心的还要批量全量）证据写进需求书；按防腐清单复查过并记录；统筹读过 diff（一个主题、没碰别的线、没放宽门禁或断言）；PR 描述按 `.github/pull_request_template.md`。Product subset 现在不挡合并，但红了要看原因。
 

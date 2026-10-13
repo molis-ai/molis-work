@@ -20,7 +20,7 @@ import { contextSources, readContextSource, readOnboardingGmail } from "../apps/
 import { createContextOnboardingHttp } from "../apps/local-host/dist/web-context-onboarding.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { handleLocalConnectorsSettingsHttp } from "../apps/local-host/dist/web-connectors-settings.js";
-import { startApiOAuth, completeApiOAuth } from "../apps/local-host/dist/connector-api-oauth.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 import { storeGmailOAuthClient } from "../apps/local-host/dist/gmail-oauth.js";
 import { authorizeLocalWebRequest, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
 
@@ -187,7 +187,8 @@ test('Gmail reads only chosen account/time with real MIME body parsing; network 
 
 for (const mode of ["expired", "401", "401-repeated", "disconnect"] as const) {
   test(`W2-18-ONBOARDING-GMAIL-01 generic OAuth ${mode} stays on the selected account and stops on disconnect`, async t => {
-    const dir = await home(t), origin = "http://127.0.0.1:19358";
+    const dir = await home(t), served = await serveTestHost(t, { home: dir }), origin = served.origin;
+    const localFetch = globalThis.fetch.bind(globalThis);
     const gmail: Array<{ url: string; authorization: string }> = [];
     const refreshes: string[] = [];
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
@@ -195,6 +196,7 @@ for (const mode of ["expired", "401", "401-repeated", "disconnect"] as const) {
     let rejected = false;
     const transport: typeof fetch = async (input, init) => {
       const url = new URL(String(input)), authorization = new Headers(init?.headers).get("authorization") ?? "";
+      if (url.origin === origin) return localFetch(input, init);
       if (url.origin === "https://oauth2.googleapis.com") {
         const form = new URLSearchParams(String(init?.body));
         const account = (form.get("refresh_token") ?? form.get("code") ?? "").slice(-1);
@@ -220,8 +222,11 @@ for (const mode of ["expired", "401", "401-repeated", "disconnect"] as const) {
     };
     t.mock.method(globalThis, "fetch", transport);
     const authorize = async (account: string) => {
-      const begun = await startApiOAuth(dir, { serviceId: "gmail", displayName: account, clientId: `fixture-app-${account}`, clientSecret: "fixture-only", origin }, transport);
-      await completeApiOAuth(dir, { origin, state: new URL(begun.authorization_url).searchParams.get("state")!, code: `code-${account}` }, transport);
+      const begun = await served.web.post<{ authorization_url: string; connection_id: string }>("/api/settings/connectors/methods/oauth/start",
+        { service_id: "gmail", display_name: account, client_id: `fixture-app-${account}`, client_secret: "fixture-only" });
+      const returned = new URL("/api/settings/connectors/methods/oauth/callback", origin);
+      returned.searchParams.set("state", new URL(begun.authorization_url).searchParams.get("state")!); returned.searchParams.set("code", `code-${account}`);
+      await served.web.post("/api/settings/connectors/methods/oauth/complete", { returned_url: returned.href });
       return withConnectorConnections(dir, store => store.require(begun.connection_id, "gmail"));
     };
     const a = await authorize("a"), b = await authorize("b");

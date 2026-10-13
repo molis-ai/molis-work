@@ -105,10 +105,8 @@ function inputSchemaError(error: unknown, schema: ActionView["action"]["input_sc
  * uninstalled or changed since the round began is refused, and one installed since is found. Reads run at once;
  * a change is a separate tool whose every call is held for the person's review of its exact arguments.
  */
-export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal) {
-  // Capabilities this round has seen offered (found or used): one missing later was taken away, not guessed.
-  const known = new Set<string>();
-  const guarded = (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>): ToolRunner => async call => {
+function guardGatewayTool(run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>, runSignal?: AbortSignal): ToolRunner {
+  return async call => {
     const abort = new AbortController();
     const stop = () => abort.abort(new ActionError("actions.cancelled", "Agent action cancelled"));
     const unsubscribe = call.abort?.subscribe(stop);
@@ -124,6 +122,12 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     }
     finally { unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
   };
+}
+
+export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal) {
+  // Capabilities this round has seen offered (found or used): one missing later was taken away, not guessed.
+  const known = new Set<string>();
+  const guarded = (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>) => guardGatewayTool(run, runSignal);
   const current = async (args: CapabilityArgs, write: boolean): Promise<ActionView> => {
     const views = await gateway.client.discover();
     const view = views.find(row => row.capability_id === args.capability_id && row.version === args.version && row.provider.provider_id === args.provider_id);

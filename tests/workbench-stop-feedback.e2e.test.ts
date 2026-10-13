@@ -48,6 +48,7 @@ async function backgroundCommand(browser: AuditBrowser, t: import("node:test").T
   };
   host.ensureAgentService(browser.homeDirectory, () => { throw new Error("The web Host must own its Agent service"); }).agentHost.register(adapter);
   return { sessionId, start, ended, allow: () => { denied = false; }, attempts: () => attempts,
+    pause: () => store.setState(projectId, sessionId, "paused", new Date().toISOString()),
     sync: async () => { const response = await fetch(browser.origin + "/projects/" + projectId + "/api/plugins/io.molis.work.coding/state"); assert.equal(response.status, 200); await response.text(); } };
 }
 
@@ -58,7 +59,11 @@ test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its di
   await browser.waitFor("!document.querySelector('[data-background-tasks]').hidden", 15_000);
   await browser.click("[data-background-tasks]");
   const stop = ".background-task-command button", alert = ".background-tasks-menu [role=alert]";
-  await browser.click(stop);
+  await armResponse(browser, "stop-refused", "/stop", "POST");
+  await browser.click(stop); await waitHeld(browser, "stop-refused");
+  command.pause(); await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+  await browser.waitFor("!!document.querySelector('.background-task[data-state=paused]')");
+  await releaseResponse(browser, "stop-refused");
   await browser.waitFor(`document.querySelector('${alert}')?.textContent.includes('The fixture Runtime refused this stop') && !document.querySelector('${stop}').disabled`);
   assert.equal(command.ended(), false); assert.equal(command.attempts(), 1);
   assert.match(await browser.evaluate<string>(`document.querySelector('${alert} [data-molis-call-id]')?.dataset.molisCallId || ''`), /^[a-f0-9-]{36}$/);

@@ -44,11 +44,12 @@ for (const first of ["success", "error"] as const) {
     await writeFile(join(root, "B.txt"), "B file content");
     const links = reference("project://A.txt", "File A") + reference("project://B.txt", "File B");
     await browser.evaluate(`(() => { const nav=document.createElement('nav'); nav.id='audit-references'; nav.innerHTML=${JSON.stringify(links)};
+      [...nav.querySelectorAll('a[data-project-reference]')].forEach((link,index)=>{link.id='audit-reference-'+index;});
       nav.style.cssText='position:fixed;top:100px;left:600px;z-index:1000'; document.body.append(nav); })()`);
     await armResponse(browser, "reference-A", encodeURIComponent("project://A.txt"), "GET", "text");
-    await browser.click("#audit-references a:first-child"); await waitHeld(browser, "reference-A");
+    await browser.click("#audit-reference-0"); await waitHeld(browser, "reference-A");
     await browser.click("[data-project-reference-dialog] [data-dialog-close]");
-    await browser.click("#audit-references a:last-child");
+    await browser.click("#audit-reference-1");
     await browser.waitFor("document.querySelector('[data-project-reference-body]').textContent === 'B file content'");
     const before = await browser.evaluate(`({ title:document.querySelector('#project-reference-title').textContent, body:document.querySelector('[data-project-reference-body]').textContent,
       download:document.querySelector('[data-project-reference-download]').getAttribute('href'), open:document.querySelector('[data-project-reference-dialog]').open })`);
@@ -59,7 +60,7 @@ for (const first of ["success", "error"] as const) {
     assert.equal((before as { body: string }).body, "B file content");
     await browser.click("[data-project-reference-dialog] [data-dialog-close]");
     await armResponse(browser, "closed-A", encodeURIComponent("project://A.txt"), "GET", "text");
-    await browser.click("#audit-references a:first-child"); await waitHeld(browser, "closed-A");
+    await browser.click("#audit-reference-0"); await waitHeld(browser, "closed-A");
     await browser.click("[data-project-reference-dialog] [data-dialog-close]");
     const closedBody = await browser.evaluate("document.querySelector('[data-project-reference-body]').textContent");
     await releaseResponse(browser, "closed-A");

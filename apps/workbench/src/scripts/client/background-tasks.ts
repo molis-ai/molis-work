@@ -59,7 +59,7 @@ export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
             const url = "/projects/" + encodeURIComponent(task.project_id) + "/api/plugins/io.molis.work.coding/sessions/" + encodeURIComponent(task.session_id) + "/background/" + encodeURIComponent(command.task_id) + "/stop";
             await molisWorkRequest(url, { body: {} });
             line.remove(); key = ""; void refresh();
-          } catch (error) { molisWorkRequest.show(feedback, error); stop.disabled = false; }
+          } catch (error) { if (!menu.contains(feedback)) menu.append(feedback); molisWorkRequest.show(feedback, error); stop.disabled = false; }
         });
         line.append(node("span", L("后台命令"), "background-task-command-label"), node("code", command.summary), stop);
         menu.append(line, feedback);

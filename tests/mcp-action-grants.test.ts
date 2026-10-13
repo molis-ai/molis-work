@@ -51,6 +51,15 @@ test("MCP grants are exact for client, project, Home, provider, version and acce
   assert.deepEqual(resolve(caller, [{ ...project, action: { ...project.action, permissions: [] } }]).allowed_actions, []);
   assert.throws(() => createMcpActionGrant(caller.actor_id, "a", home, true), { code: "mcp.grant_scope" });
   assert.throws(() => createMcpActionGrant(caller.actor_id, null, project, true), { code: "actions.project_required" });
+  // The owner's audience rule. Through the access settings a view of another audience never gets here (the directory the route reads
+  // does not list it, so the request is refused as unknown: goals-decision-actions, goals-tree-actions, goals-configuration-actions,
+  // personal-planning-actions), so it is pinned at its owner: a client holds a grant only for an action that reaches its own audience.
+  const mine = (audiences: ActionView["action"]["audiences"]): ActionView => ({ ...project, action: { ...project.action, audiences } });
+  assert.throws(() => createMcpActionGrant(caller.actor_id, "a", mine(["user"]), true), { code: "mcp.grant_invalid" }, "an action for the person alone is not grantable to an MCP client");
+  assert.throws(() => createMcpActionGrant("agent:prologue", "a", mine(["mcp"]), true), { code: "mcp.grant_invalid" }, "an internal Agent's identity needs an action that reaches Agents");
+  assert.throws(() => createMcpActionGrant("runtime:client-a", "a", mine(["agent"]), true), { code: "mcp.grant_invalid" }, "a runtime: identity cannot take an Agent's action");
+  assert.throws(() => createMcpActionGrant("  ", "a", project, true), { code: "mcp.grant_invalid" }, "a grant names its client");
+  assert.equal(createMcpActionGrant("agent:prologue", "a", mine(["agent"]), true).client_id, "agent:prologue");
   const globalPreference = { ...preference, action_grants: [createMcpActionGrant(caller.actor_id, null, home, true)] };
   assert.equal(resolveMcpActionContext({ ...caller, project_id: null }, [home], globalPreference).allowed_actions?.length, 1);
   assert.equal(preference.action_grants[0], grant, "resolving unavailable/changed definitions must retain original records");

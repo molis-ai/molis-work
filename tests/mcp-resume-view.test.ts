@@ -14,8 +14,7 @@ import {
 import { buildMcpResumeView, type McpResumeFacts } from "@molis-ai/molis-work-app-mcp";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 
 function factsFor(entries: Array<[string, McpResumeFacts["goals"][number]["work_status"], boolean]>): McpResumeFacts {
   return {
@@ -70,6 +69,7 @@ test("context_resolve restores Host and Session focus outside the discovery wind
   let store: LocalProjectDatabase | undefined;
   let registry: Awaited<ReturnType<typeof openWorkSessionRegistry>> | undefined;
   let runtime: MolisWorkServer | undefined;
+  let served: TestHostServer | undefined;
   let host = createMolisWorkLocalHost();
   try {
     const project = await catalog.createProject({ display_name: "真实 Session 恢复", actor_id: "focus-user" });
@@ -113,17 +113,16 @@ test("context_resolve restores Host and Session focus outside the discovery wind
       webBaseUrl: "http://127.0.0.1:4173",
     };
     runtime = new MolisWorkServer("runtime", connection, runtimeHost, host);
+    // The MCP server binds this Host to the Home, so this Host serves the access settings the grants go through.
+    served = await serveTestHost(null, { home: directory, host });
     const views = await host.inspectActions({ actor_id: "runtime:codex", audience: "mcp", project_id: project.project_id, permissions: [] }, molisWorkHostProjectReference(connection));
-    for (const definition of [goalsActions.guidanceRead, goalsActions.list]) {
-      await writeMcpActionGrant(directory, createMcpActionGrant("runtime:codex", project.project_id,
-        views.find(view => view.capability_id === definition.capability_id)!, true));
-    }
+    const viewOf = (definition: { capability_id: string }) => views.find(view => view.capability_id === definition.capability_id)!;
+    await served.grant("runtime:codex", project.project_id, [goalsActions.guidanceRead, goalsActions.list].map(viewOf));
     const resolve = async () => JSON.parse(await runtime!.callTool("molis_work_v1_context_resolve", {}));
     let result = await resolve();
     assert.equal(result.resume, null, "focus outside the directory window requires its own exact query grant");
     assert.ok(result.resume_error);
-    await writeMcpActionGrant(directory, createMcpActionGrant("runtime:codex", project.project_id,
-      views.find(view => view.capability_id === goalsActions.directoryItem.capability_id)!, true));
+    await served.grant("runtime:codex", project.project_id, [viewOf(goalsActions.directoryItem)]);
     result = await resolve();
     assert.equal(result.resume.focus.goal_id, "FOCUS-HOST");
     assert.equal(result.resume.focus.source, "host_focus");
@@ -139,6 +138,7 @@ test("context_resolve restores Host and Session focus outside the discovery wind
     assert.deepEqual(registry.get(session.session_id), originalSession);
     assert.deepEqual(registry.events(session.session_id), originalEvents);
     await runtime.close();
+    await served.close();
     await host.close();
     host = createMolisWorkLocalHost();
     runtime = new MolisWorkServer("runtime", connection, runtimeHost, host);
@@ -149,6 +149,7 @@ test("context_resolve restores Host and Session focus outside the discovery wind
     assert.deepEqual(registry.events(session.session_id), originalEvents);
   } finally {
     await runtime?.close();
+    await served?.close();
     await host.close();
     registry?.close();
     store?.close();

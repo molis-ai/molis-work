@@ -2,6 +2,8 @@
 
 > 远端接续请先读文末 **§7「远端交接（2026-10-13，当前接续入口）」**——分支和 PR、已完成与没完成、下一步、跨线依赖、决策、工作规则、已知问题和复现命令都在那里；正文里的旧绝对路径、旧工作树、旧授权语句都是历史记录，以 §7 为准。
 
+> 统筹更正（2026-10-13 晚）：本行之后的状态句写于知道 #471/#472 之前。A1 与 A4 的大部分已随 #472（旧采用树）进 main；main 的 SDK 是来自未进上游分支的 computer-use 包；#408 不能整体合、也不再排第一。先读 §7 开头的「统筹补充」。
+
 状态：执行中（2026-10-13：A0 工程通过，SDK 两个合成包已并入 Prologue main（PR #4、#5）；P1 统一协作合同已冻结（§4.6.9，跨线 X1–X6 已确认）；**P2a–P2f 已合进 Prologue main**（PR #7 #8 #9 #11 #12 #13 #14），P2g 在分支 `feature/p2g-scope`（已推送，全量未跑完、未开 PR），P2h–P2i、P3–P6、A1–A5 尚未开始；Molis #408 尚未合进 Molis main，且与 main 有未解冲突；用户已下暂停指令，见 §7）。本文是采用线唯一需求书与进度记录；原接入评估与对话建议仅作线索（历史资料留在旧采用树），按当前实现核对。用户已否决「简单协作可以绕过 TaskBoard」。
 
 目标完成等级：Prologue **完整采用范围内部完整**——§2 原 1–23 项与存储/预算等既有决定逐项完成采用、验证或按已定边界不做；新增 24/25 项使 Coding 与个人助理共用协作事实及外部条件等待。需要接入的路径在真实执行、界面、权限及异常恢复中可顺畅试用。A0 只是当前基础切片，不是整线完成定义。工程通过、真实产品实操、用户本人验收分别记录。A0 基础采用已完成（工程通过），当前在做 P2 SDK 机制（见 §7.1、§7.5）。授权和工作规则以 §7.8 为准：可推送自己的分支（先跑 secrets 检查、用 SSH 地址）；Molis 侧只往交接 PR #408 提交，Prologue 侧每刀单独 PR；不自己合并、不改真实 Home 或安装版。
@@ -828,6 +830,14 @@ A0 执行记录（下列历史方案记录之后继续）：
 > - **#471**（yijunw0212，10-13 08:24 UTC，78 个文件）把桌面 Computer Use 合进 main，并把 main 的 vendored SDK 换成 `prologue-sdk-0.0.0-rc.1-computer-use.tgz`。它的来源是 Prologue `d4908c11`（分支 `feat/desktop-computer-use`，基于 `c4b9fde3` = `4f7110fe` + 采用修正 + 5 个 Computer Use 提交）；provenance 写着 `pushed: false`，这个提交**不在 Prologue main，也不在 GitHub 远端**。这份包**不含**已进 Prologue main 的 S1–S3、带类型问卷（`a06ae62e`）、P1 合同、P2a–P2f。main 上同时还留着旧的 side-panel-memory 包与补丁（两份 tgz）。#471 还新增了右栏的电脑格（`apps/workbench/src/side-panel-computer.ts`）、`contracts/services/computer.ts`、`services/ui-surfaces.ts`，改了助理服务、`assistant-island.ts`、`prologue-node.ts`、`prologue-stream.ts`、`contracts/services/agent-host.ts`，并把 10-09 版的 `specs/ai-interaction-experience/spec.md` 与参考图带进了 main。
 > - **#472**（yijunw0212，10-13 10:54 UTC，93 个文件 +3399/−953）把旧采用树 `feat/prologue-adoption` 的 10 个提交（10-09 的 `77fde104`…`8b1a0522`）合进 main：一轮的推理力度、运行中换模型、逐轮写入记录（约等于 A1）、灵光流式（A3 的一部分）、助理把交出去的工作收回来后接着做（`8b1a0522`「第 14 项」，A0 当时明确不纳入的私有接续）、变化等待（`b3235bb1`/`8c0b60fb`，约等于 A4）。它沿用 #471 的 computer-use 包，没有换包。main 上的 `specs/prologue-adoption/spec.md` 是 10-09 的旧版（标题「Prologue 新能力接入：修复、适配与功能优化」）。
 > - 统筹层的说明与后续顺序见远端分支 `coordination/handoff-2026-10-13` 的 `coordination/2026-10-13/README.md` §2a。
+> - **以下更正优先于本节下文（统筹审查，2026-10-13）：**
+>   1. 状态句与 §7.1「A1–A5 尚未开始」：A1（推理力度、换模型、逐轮写入）与 A4 的大部分已随 #472 进 main；A1 改成核对 #472 是否满足 PA-12/PA-24，缺的补齐。
+>   2. §7.1 把 `adoption-receipts-handling.tgz` 叫「现行包」：它只是 #408 分支上的包（来源 Prologue `f5ef12e6`）；main 上是 `computer-use.tgz`（`d4908c11`，不含 S1–S3/问卷/P2）和旧的 `side-panel-memory.tgz`。
+>   3. §7.4-4「上次冲突只有 package.json 一行」：现在把 main 合进 #408 会有 **26 个文件冲突**——`assistant-service.ts`、`agent-review-surface.ts`、`horizontal/agent-host/package.json`、`prologue-credentials.ts`、`prologue-node.ts`、`prologue-run-params.ts`、`prologue-stream.ts`、`capability-registration.ts`、`contracts/services/agent-host.ts` 与其 API 快照、Coding 的 `client.ts`/`composer-model-client.ts`/`timeline-words.ts`/`timeline.ts`/`turn-changes-client.ts`、`pnpm-lock.yaml`、`scripts/workspace-packages.mjs`、`specs/prologue-adoption/spec.md`（两边都新增）、5 个测试、`baseline.json`、`page-assets.json`、`vendor/prologue-sdk/README.md`。按上面「对本线的影响」第 1 条对账，实现以 main 为准。
+>   4. §7.5「先做…统筹按条件合 #408（让 D7 第三项满足）」与 §7.6「#408 是第一个要合进 main 的」：已过时。#408 先对账、等统一 SDK 包；#411 具备条件可以先合（README §2a-4）。
+>   5. §7.4-6 说 #408 能否合要看批量全量归因：已确认的唯一回归属于情境线 W1-4（`packages/plugin-sdk/src/context-declarations.ts:93`），与 #408/#442 无关；其余非浏览器失败是环境或负载，浏览器失败归因未完成。
+>   6. Prologue `feature/p2g-scope` 的 head 现在是 `f2c861ec`（P2g 的消费者检查脚本，尚未运行），父提交 `6b629bb9`；两个都在远端，未开 PR。
+> - 文中 `coordination/2026-10-13/…` 都是远端分支 `coordination/handoff-2026-10-13` 上的文件（原来写的本机路径 `.claude/locks/…` 已统一改成这里）。
 >
 > **对本线的影响（接手先做）：**
 > 1. **#408 不能整体合进 main。** 它和 #472 重叠 37 个文件（agent-host 各适配器、`contracts/services/agent-host.ts` 与快照、Coding 时间线与模型控件、助理服务、`specs/prologue-adoption/spec.md`、`baseline.json`、`page-assets.json` 等）。先做对账：以 main（#471 + #472）为基准，逐项列出 #408 里 main 还没有的东西（A0 的修正与证据、P1 合同 §4.6.9、决策记录、换包），把 main 合进 #408 解冲突时**实现以 main 为准**，只留 main 没有的部分；规格以 #408 新版为准，把 main 旧版里 #472 带来的事实并进来。
@@ -966,7 +976,7 @@ P2 各刀共用的消费者检查脚本在 `packages/sdk/test/fixtures/taskboard
 - **推送**：只推自己的分支；推前 `pnpm secrets:check`（先 fetch main）；Molis 用 SSH 地址；不 rebase 已推送的分支、不强推（作者改写只在用户授权的那一次做过）。
 - **不碰真实 Home**（端口 4207 / 4173）和安装版；一律临时 / 隔离 Home；本线隔离端口 4291。
 - **不为变绿而放宽**：不跳过、不放宽、不删断言；不改 `limits.json`、`biome.jsonc`、门禁脚本、例外文件；数字只许降。
-- **一台机器同一时间最多一个构建、一个浏览器用例批次**（`.claude/locks/slot.sh`，统筹分支里有）。
+- **一台机器同一时间最多一个构建、一个浏览器用例批次**（`coordination/2026-10-13/tools/slot.sh`，统筹分支里有）。
 - **模型**：规划阶段用 Opus 5.5（high / xhigh），执行阶段用 Sonnet 5.5（xhigh / high）；切换阶段找统筹。提交署名 `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`，PR 描述末尾 `🤖 Generated with [Claude Code](https://claude.com/claude-code)`。
 - **证据三级分开写**：工程通过 / 真实产品实操 / 用户验收；没做的写「未做」，不用前一级代替后一级。
 - **暂停**：用户说暂停，就走到安全点停（不留半合并、半推送，未提交的做本地 WIP 提交，只杀自己启动的进程，释放锁），等统筹恢复通知。

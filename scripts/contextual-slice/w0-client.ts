@@ -20,8 +20,8 @@ let selectionTimer: ReturnType<typeof setTimeout> | undefined;
 const sideBounds = (): Pick<Rect, "left" | "right"> => { const rect = $("[data-w0-shelf-pane]").getBoundingClientRect(); return { left: rect.left, right: rect.right }; };
 const hideToolbar = () => toolbar.hide();
 let toolEdit = false;
-const toolbar = new FloatingToolbar({ choose: choice => run(choose(choice)), ask: () => ask(), bring: () => bring(), tool: name => editor.tool(name),
-  applyTool: name => { toolEdit = true; try { editor.tool(name)?.click(); } finally { toolEdit = false; } },
+const toolbar = new FloatingToolbar({ choose: choice => run(choose(choice)), ask: () => ask(), bring: () => bring(), pressed: name => editor.pressed(name),
+  applyTool: name => { toolEdit = true; try { editor.runTool(name); } finally { toolEdit = false; } },
   hoverLanding: at => editor.highlight(at ?? (hand && hand.place !== "main" ? landing : null), !!at) });
 const creation = new Creation(slots, { refresh, openDocument, hideToolbar, destinations: destinationsFor,
   reveal: item => { if (item.materialId) side.reveal(item.materialId); else if (item.target === "spark") side.revealSpark(item.id); } });

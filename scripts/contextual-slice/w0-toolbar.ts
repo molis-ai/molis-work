@@ -7,8 +7,6 @@ const TOOLS: readonly Tool[] = [
   { name: "strong", label: "加粗", glyph: "B", inline: true }, { name: "em", label: "斜体", glyph: "I", inline: true },
   { name: "underline", label: "下划线", glyph: "U" }, { name: "h2", label: "标题 2", glyph: "H2" }, { name: "ul", label: "无序列表", icon: "list" },
 ];
-/** Pages marks an active format with `is-on` (and `aria-pressed` only on command buttons). */
-const pressed = (native: HTMLButtonElement | null) => !!native && (native.classList.contains("is-on") || native.getAttribute("aria-pressed") === "true");
 export interface ToolbarContext {
   hand: Hand; landing: Landing | null; choices: Choices; anchor: Anchor; touch?: boolean;
   /** Where the bar is drawn decides its width: the right panel is narrow (2 actions); a drop on the left is not. */
@@ -18,8 +16,8 @@ export interface ToolbarContext {
 }
 export interface ToolbarPorts {
   choose(choice: Choice): void; ask(): void; bring(): void;
-  /** The editor's own command button (its pressed state); `applyTool` runs it. A tool edits in place and keeps the bar. */
-  tool(name: string): HTMLButtonElement | null; applyTool(name: string): void;
+  /** Whether the editor's own tool is on; `applyTool` runs it. A tool edits in place and keeps the bar. */
+  pressed(name: string): boolean; applyTool(name: string): void;
   hoverLanding(landing: Landing | null): void;
 }
 
@@ -109,11 +107,10 @@ export class FloatingToolbar {
   private tools(narrow: boolean) {
     const group = el("div", { class: "w0-tools", role: "group", "aria-label": "Pages 格式" });
     const toolButton = (tool: Tool, labelled: boolean) => {
-      const native = this.ports.tool(tool.name);
       const node = el("button", { type: "button", class: "mw-btn mw-btn--ghost", "aria-label": tool.label, title: tool.label, "data-w0-tool": tool.name });
       if (tool.icon) node.append(glyph(tool.icon)); else node.append(el("span", { class: "w0-glyph", "data-glyph": tool.glyph ?? "", text: tool.glyph ?? "" }));
       if (labelled) node.append(el("span", { text: tool.label }));
-      node.setAttribute("aria-pressed", String(pressed(native)));
+      node.setAttribute("aria-pressed", String(this.ports.pressed(tool.name)));
       node.addEventListener("click", () => { this.ports.applyTool(tool.name); this.refreshTools(); });
       return node;
     };
@@ -124,7 +121,7 @@ export class FloatingToolbar {
     return group;
   }
   private refreshTools() {
-    for (const node of document.querySelectorAll<HTMLButtonElement>("[data-w0-tool]")) node.setAttribute("aria-pressed", String(pressed(this.ports.tool(node.dataset.w0Tool!))));
+    for (const node of document.querySelectorAll<HTMLButtonElement>("[data-w0-tool]")) node.setAttribute("aria-pressed", String(this.ports.pressed(node.dataset.w0Tool!)));
   }
   private openMenu(anchor: HTMLElement, items: HTMLElement[]) {
     if (this.menuAnchor === anchor) { this.closeMenu(); return; }

@@ -52,8 +52,6 @@ export class PreviewEditor {
           onChange: () => this.changed(),
         };
         this.handle = E.mount($("[data-w0-editor]"), options);
-        // Reuse the real command handlers through the new toolbar. The old layer is not on screen.
-        this.handle.toolbar.remove();
         this.handle.view.dom.addEventListener("keyup", () => this.onSelection());
       }
     } finally { this.syncing = false; }
@@ -242,5 +240,7 @@ export class PreviewEditor {
     return at.position === "end" ? this.endLanding() : this.landingAt(at.from, at.to) ?? this.endLanding();
   }
 
-  tool(name: string) { return this.handle?.toolbar.querySelector<HTMLButtonElement>(`[data-mark="${name}"]`) ?? null; }
+  /** The editor's own tools (Pages publishes them for the context toolbar): whether one is on, and running it. */
+  pressed(name: string) { return this.handle?.tools().some(group => group.items.some(item => item.id === name && item.pressed === true)) ?? false; }
+  runTool(name: string) { this.handle?.runTool(name); }
 }

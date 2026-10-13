@@ -465,7 +465,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
           return true;
         } catch (error) {
           setFeedDetailPlaceholder(molisWorkRequest.text(error,L("无法打开 Item 工作区")),L("目录仍然可用，点击重试即可。"),true);
-          if(feedDetailEmpty)molisWorkRequest.show(feedDetailEmpty.querySelector("strong"),error);
+          const title=feedDetailEmpty?.querySelector("[data-feed-detail-empty-title]");if(title)molisWorkRequest.show(title,error);
           return false;
         } finally {
           feedWorkbench.removeAttribute("aria-busy");

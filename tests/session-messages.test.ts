@@ -11,7 +11,7 @@ import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/ser
 
 const deferred = <T>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; };
 
-test("Session message actions deduplicate concurrent callers, keep private scope, and persist the actual receipt before revocation", { timeout: 45_000 }, async () => {
+test("W2-18-WORK-RECEIPT-01: Session message actions persist actual acceptance after revocation without returning or resending", { timeout: 45_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "session-message-actions-"));
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
@@ -51,6 +51,34 @@ test("Session message actions deduplicate concurrent callers, keep private scope
     assert.equal(calls.length, 1);
     const persisted = await readFile(owner.registry.databasePath); assert.ok(!persisted.includes(Buffer.from(input.text)));
   } finally { response.resolve({ turn: { id: "cleanup" } }); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("W2-18-WORK-RECEIPT-02: refusal before dispatch calls nothing and a late rejection cannot replace an uncertain claim", async () => {
+  const home = await mkdtemp(join(tmpdir(), "session-message-refusal-"));
+  const caller = { actor_id: "owner", project_id: "project" };
+  const entered = deferred<void>(), response = deferred<void>();
+  let calls = 0, revoked = true;
+  const host = new MolisWorkLocalHost({ homeDirectory: home, runtimeSessionTransport: {
+    async request() { calls++; entered.resolve(); await response.promise; throw Object.assign(new Error("definite rejection"), { deliveryAccepted: false, retryable: true }); },
+    subscribe() { return () => undefined; },
+  } });
+  const authorize = async () => { if (revoked) throw new ActionError("actions.forbidden", "revoked"); };
+  let pending: Promise<unknown> | undefined;
+  try {
+    const owner = await host.sessionResources();
+    const session = owner.registry.explicitlyLinkSession({ ...caller, runtime_id: "codex", native_runtime_session_id: "thread", user_confirmed: true });
+    const input = { ...caller, session_id: session.session_id, expected_goal_id: null, idempotency_key: "stable-request", text: "Original message" };
+    await assert.rejects(owner.messages.send(input, authorize), { code: "actions.forbidden" }); assert.equal(calls, 0);
+    revoked = false; pending = owner.messages.send(input, authorize);
+    const rejected = assert.rejects(pending, { code: "actions.forbidden" });
+    await entered.promise; revoked = true; response.resolve(); await rejected;
+    const retained = owner.registry.messages.prepare(input);
+    assert.equal(retained.state, "uncertain"); assert.equal(retained.attempt_count, 1);
+    assert.equal(owner.registry.eventCount(session.session_id), 0);
+    revoked = false;
+    assert.equal((await owner.messages.retry(retained.request_id, caller, authorize)).state, "uncertain");
+    assert.equal((await owner.messages.send(input, authorize)).state, "uncertain"); assert.equal(calls, 1);
+  } finally { response.resolve(); await pending?.catch(() => undefined); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("only definite rejections are retried; unknown delivery survives restart and reopening cannot reset an in-flight request", async () => {

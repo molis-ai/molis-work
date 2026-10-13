@@ -188,8 +188,8 @@ export function createWorkActionHandlers(projectId: string, resources: () => Pro
       if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "Session 调用不属于当前项目");
       const owner = await resources(); await assertAuthority(caller, workActions.discover);
       if (!owner.directory) throw new ActionError("actions.unredeemed", "Session 目录服务尚未接通");
-      await caller.beforeEffect();
-      const result = await owner.directory.discover(input.runtime_id);
+      await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
+      const result = await owner.directory.discover(input.runtime_id, caller);
       return { ...result, records: result.records.map(publicSessionRecord) };
     }),
     bind(workActions.create, async (input, caller) => {
@@ -202,10 +202,10 @@ export function createWorkActionHandlers(projectId: string, resources: () => Pro
         try { goal = readSubject ? await readSubject({ kind: "goal", id: goalId }, caller) : null; } catch { goal = null; }
         if (!goal) throw new ActionError("actions.input_invalid", "当前 Goal 不属于这个 Project，或已经不在当前 Goal Tree");
       }
-      await caller.beforeEffect();
+      await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
       const common = { runtime_id: input.runtime_id, actor_id: caller.actor_id, user_confirmed: caller.audience === "user", project_id: projectId, current_goal_id: goalId,
         workspace_id: input.workspace_id, workspace_path: input.workspace_path, title: input.title?.trim() || null };
-      const session = input.action === "create" ? await owner.directory.create(common)
+      const session = input.action === "create" ? await owner.directory.create(common, caller)
         : owner.registry.explicitlyLinkSession({ ...common, native_runtime_session_id: input.native_runtime_session_id ?? "" });
       return { session: publicSessionRecord(session) };
     }),
@@ -215,10 +215,10 @@ export function createWorkActionHandlers(projectId: string, resources: () => Pro
       const source = check(owner.registry, input.session_id, caller);
       if (!source.current_goal_id) throw new ActionError("sessions.goal_required", "请先为来源 Session 选择当前 Goal，再创建 Handoff");
       const contract = await readGoalContract(source.current_goal_id, caller);
-      await caller.beforeEffect();
+      await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
       const result = await owner.handoff.prepare({ source_session_id: source.session_id, project_id: projectId, project_name: input.project_name?.trim() || projectId,
         target_runtime_id: input.target_runtime_id, target_workspace_id: input.target_workspace_id ?? null,
-        target_workspace_path: input.target_workspace_path === undefined ? source.workspace_path : input.target_workspace_path?.trim() || null, actor_id: caller.actor_id, goal_contract: contract });
+        target_workspace_path: input.target_workspace_path === undefined ? source.workspace_path : input.target_workspace_path?.trim() || null, actor_id: caller.actor_id, goal_contract: contract }, caller);
       return { handoff: publicSessionHandoff(result.handoff, true), reused: result.reused, source: publicSessionRecord(source),
         goal: { goal_id: contract.goal.goal_id, title: contract.goal.title, outcome: contract.goal.outcome,
           work_state: contract.event_facts?.work_status ?? (contract.goal.trashed_at ? "trashed" : contract.goal.archived_at ? "archived" : "open") } };
@@ -228,24 +228,24 @@ export function createWorkActionHandlers(projectId: string, resources: () => Pro
       if (!owner.handoff) throw new ActionError("actions.unredeemed", "Session 交接服务尚未接通");
       const current = owner.registry.getHandoff(input.package_id);
       if (current.source_project_id !== projectId) throw new ActionError("sessions.not_found", "找不到这条 Handoff package");
-      await caller.beforeEffect();
+      await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
       const target = { package_id: current.package_id, target_runtime_id: input.target_runtime_id, ...(input.target_workspace_id !== undefined && input.target_workspace_id !== null ? { target_workspace_id: input.target_workspace_id } : {}),
         target_workspace_path: input.target_workspace_path?.trim() || null, content: input.content, actor_id: caller.actor_id };
       if (mode === "update") return { handoff: publicSessionHandoff(owner.handoff.update({ ...target, user_confirmed: false }), true) };
-      const result = await owner.handoff.send({ ...target, user_confirmed: caller.audience === "user" });
+      const result = await owner.handoff.send({ ...target, user_confirmed: caller.audience === "user" }, caller);
       return { handoff: publicSessionHandoff(result.handoff, true), destination_session: result.destination_session ? publicSessionRecord(result.destination_session) : null };
     })),
     bind(workActions.handoffCancel, async (input, caller) => {
       const owner = await resources(); await assertAuthority(caller, workActions.handoffCancel);
       if (!owner.handoff) throw new ActionError("actions.unredeemed", "Session 交接服务尚未接通");
       if (owner.registry.getHandoff(input.package_id).source_project_id !== projectId) throw new ActionError("sessions.not_found", "找不到这条 Handoff package");
-      await caller.beforeEffect();
+      await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
       return { handoff: publicSessionHandoff(owner.handoff.cancel(input.package_id), false) };
     }),
     bind(workActions.archive, async (input, caller) => {
       const owner = await resources(); await assertAuthority(caller, workActions.archive);
       check(owner.registry, input.session_id, caller);
-      await caller.beforeEffect();
+      await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
       // The action is offered to the local user only; that audience is what stands for the person's confirmation.
       return { session: publicSessionRecord(owner.registry.setStatus({ session_id: input.session_id, actor_id: caller.actor_id, user_confirmed: caller.audience === "user",
         status: input.archived ? "closed" : "active" })) };
@@ -260,7 +260,7 @@ export function createWorkActionHandlers(projectId: string, resources: () => Pro
         if (!goal) throw new ActionError("actions.input_invalid", "当前 Goal 不属于这个 Project，或已经不在当前 Goal Tree");
       }
       const workspacePath = input.workspace_path?.trim() || null;
-      await caller.beforeEffect();
+      await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
       return { session: publicSessionRecord(owner.registry.updateAssociations({ session_id: input.session_id, actor_id: caller.actor_id, user_confirmed: caller.audience === "user",
         project_id: input.project_id?.trim() || null, current_goal_id: goalId,
         workspace_id: workspacePath === current.workspace_path ? current.workspace_id : null, workspace_path: workspacePath })) };

@@ -1,5 +1,6 @@
 import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { RuntimeHostApi } from "@molis-ai/molis-work-contracts/services/runtime-host";
+import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   MolisWorkSessionError,
   type MolisWorkSessionRecord,
@@ -37,13 +38,15 @@ export class SessionDirectoryService {
     private readonly router: RuntimeHostApi,
   ) {}
 
-  async discover(runtimeId: string): Promise<SessionDirectoryDiscoveryResult> {
+  async discover(runtimeId: string, control?: Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">): Promise<SessionDirectoryDiscoveryResult> {
     const normalizedRuntimeId = requiredText(runtimeId, "Runtime 标识不能为空");
+    await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     const result = await this.router.invoke(normalizedRuntimeId, "discover", {
       limit: 100,
       includeTurns: false,
       sortKey: "updated_at",
     });
+    await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     if (result.status !== "ok") {
       return {
         runtime_id: normalizedRuntimeId,
@@ -78,7 +81,7 @@ export class SessionDirectoryService {
     };
   }
 
-  async create(input: SessionDirectoryCreateInput): Promise<MolisWorkSessionRecord> {
+  async create(input: SessionDirectoryCreateInput, control?: Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">): Promise<MolisWorkSessionRecord> {
     if (!input.user_confirmed) {
       throw new MolisWorkSessionError("session.confirmation_required", "Session 写入必须由用户明确确认");
     }
@@ -86,6 +89,7 @@ export class SessionDirectoryService {
     const projectId = requiredText(input.project_id, "新 Session 必须关联 Project");
     const actorId = requiredText(input.actor_id, "Session 写入必须记录执行者");
     const capability = this.router.capabilities(runtimeId).create;
+    await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     if (capability === "registry") {
       const result = await this.router.invoke(runtimeId, "create", {
         actor_id: actorId,
@@ -96,6 +100,7 @@ export class SessionDirectoryService {
         workspace_path: optionalText(input.workspace_path),
         title: optionalText(input.title),
       });
+      await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
       return resultRecord(result, "Runtime fallback 无法创建 Session 记录");
     }
     if (capability !== "native") {
@@ -104,6 +109,7 @@ export class SessionDirectoryService {
     const result = await this.router.invoke(runtimeId, "create", {
       ...(optionalText(input.workspace_path) ? { cwd: optionalText(input.workspace_path) } : {}),
     });
+    await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     if (result.status !== "ok") {
       throw new MolisWorkSessionError("session.invalid_input", result.message);
     }

@@ -641,7 +641,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     const current = outputs.reference("report");
     return { reference: saved.reference, current, selected: current?.artifact_id === saved.reference.artifact_id && current?.version === saved.reference.version };
   });
-  const reportProgress = (write: boolean) => route(write ? "coding.record-report-progress" : "coding.report-progress", async (request, api, execution, beforeWrite) => {
+  const reportProgress = (write: boolean) => route(write ? "coding.record-report-progress" : "coding.report-progress", async (request, _api, execution, beforeWrite) => {
     const session = selected(request, execution);
     const runId = text(request.params.runId, "执行引用");
     const saved = readCodingExecutionReport(codingArtifacts(context), session.session_id, runId);

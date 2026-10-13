@@ -401,7 +401,7 @@ describe("mcp server", () => {
     }
   });
 
-  it("auto-connects one exact workspace project and keeps ambiguous Session overrides local", async () => {
+  it("W1-18-SESSION-CONFIRM-01 suggests one exact workspace project and keeps confirmed Session bindings local", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-workspace-routing-"));
     const home = path.join(directory, "home", ".molis-work");
     const workspace = path.join(directory, "ordinary-workspace");
@@ -445,9 +445,9 @@ describe("mcp server", () => {
         connection: { project_id: string } | null;
         suggested_projects: Array<{ project_id: string }>;
       };
-      assert.equal(candidatePayload.status, "bound");
-      assert.equal(candidatePayload.connection?.project_id, first.project_id);
-      assert.deepEqual(candidatePayload.suggested_projects, []);
+      assert.equal(candidatePayload.status, "suggested");
+      assert.equal(candidatePayload.connection, null);
+      assert.deepEqual(candidatePayload.suggested_projects.map(project => project.project_id), [first.project_id]);
 
       const explicitDefault = await call(restarted, "molis_work_v1_context_bind", {
         project_id: first.project_id,
@@ -464,9 +464,9 @@ describe("mcp server", () => {
         connection: { project_id: string } | null;
         suggested_projects: Array<{ project_id: string }>;
       };
-      assert.equal(restoredPayload.status, "bound");
-      assert.equal(restoredPayload.connection?.project_id, first.project_id);
-      assert.deepEqual(restoredPayload.suggested_projects, []);
+      assert.equal(restoredPayload.status, "suggested");
+      assert.equal(restoredPayload.connection, null);
+      assert.deepEqual(restoredPayload.suggested_projects.map(project => project.project_id), [first.project_id]);
 
       const sessionA = { threadId: "codex-thread-a" };
       const sessionB = { threadId: "codex-thread-b" };

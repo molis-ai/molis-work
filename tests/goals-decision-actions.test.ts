@@ -7,11 +7,12 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, recordGoalUserDecisionCapability, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { serveTestHost } from "./fixtures/test-home.js";
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 
-test("user decisions share the action path without granting user authority to models or business input", async () => {
+test("user decisions share the action path without granting user authority to models or business input", async t => {
   const home = await mkdtemp(join(tmpdir(), "goals-decisions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Decisions", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
@@ -38,7 +39,12 @@ test("user decisions share the action path without granting user authority to mo
     await client.invoke(caller, goalsActions.create, { title: "用户决定", goal_id, idempotency_key: "create" });
     const decisionView = (await host.inspectActions(caller, ref)).find(v => v.capability_id === goalsActions.decide.capability_id)!;
     assert.equal(decisionView.availability.available, false, "being a user does not supply an operation's provenance");
-    assert.throws(() => createMcpActionGrant("runtime:model", project.project_id, decisionView, true), { code: "mcp.grant_invalid" });
+    // A model's client cannot hold a grant for the person's decision: the access settings never offer the action to the client, so the
+    // request is refused as unknown and nothing is saved (`createMcpActionGrant`'s own audience rule is pinned in mcp-action-grants.test.ts).
+    const served = await serveTestHost(t, { home, host });
+    await assert.rejects(served.grant("runtime:model", project.project_id, [decisionView]), { status: 404, code: "actions.missing" });
+    assert.deepEqual((await readMcpActionAccess(served.web, { clientId: "runtime:model", projectId: project.project_id })).grants, [], "a refused grant leaves no record");
+    await served.close();
     const before = await cursor();
     for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
       const model = { ...trusted, audience };

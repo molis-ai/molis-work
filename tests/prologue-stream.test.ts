@@ -231,8 +231,37 @@ test("terminal events close the streamed text and set an honest phase", () => {
   assert.equal(cancelled.phase, "cancelled");
 });
 
+test("the runtime's newer frames are read, not counted as unknown: sleeping, per-turn changes, a model switch", () => {
+  const state = emptyPrologueStreamState();
+  const until = Date.parse("2026-10-09T10:00:00Z");
+  apply(state, { type: "text-delta", text: "等构建跑完再看。" }, { type: "agent-control", state: "sleeping", untilMs: until });
+  assert.equal(state.sleeping_until, "2026-10-09T10:00:00.000Z");
+  assert.equal(state.activity.at(-1)?.name, "sleep-wait");
+  assert.equal(state.activity.at(-1)?.state, "started");
+  assert.equal(state.turns.at(-1)?.text, "等构建跑完再看。", "the text said before sleeping is closed as its own turn");
+  apply(state, { type: "agent-control", state: "running" });
+  assert.equal(state.sleeping_until, undefined);
+  assert.equal(state.activity.at(-1)?.state, "completed");
+  apply(state, { type: "turn-changes", turn: 2, changes: [{ path: "src/a.ts", byteLength: 120, digest: "d1", checkpointId: "cp-1" },
+    { path: "src/b.ts", byteLength: 40, digest: "d2", checkpointId: "cp-1" }] });
+  assert.equal(state.turn_changes.length, 1);
+  assert.deepEqual(state.turn_changes[0]!.files.map(file => [file.path, file.byte_length, file.checkpoint_id]), [["src/a.ts", 120, "cp-1"], ["src/b.ts", 40, "cp-1"]]);
+  assert.equal(applyPrologueEvent(state, { type: "turn-changes", turn: 2, changes: [{ path: "src/a.ts", byteLength: 1, digest: "x", checkpointId: "cp-9" }] }, AT), false,
+    "a turn is reported once; a replayed copy does not add a second entry");
+  apply(state, { type: "model-switched", from: { protocol: "anthropic-compatible", model: "small" }, to: { protocol: "anthropic-compatible", model: "large" } });
+  assert.equal(state.activity.at(-1)?.name, "model-switch");
+  assert.equal(state.activity.at(-1)?.target, "small → large");
+  assert.equal(state.unknown_frames, 0);
+  // A Run that ends while asleep is not left asleep.
+  const ended = emptyPrologueStreamState();
+  apply(ended, { type: "agent-control", state: "sleeping", untilMs: until }, { type: "cancelled" });
+  assert.equal(ended.sleeping_until, undefined);
+  assert.equal(ended.activity.at(-1)?.state, "completed");
+});
+
 test("pausing is reported as still running until the runtime really pauses", () => {
   assert.equal(prologuePhaseOf("pausing"), "running");
+  assert.equal(prologuePhaseOf("sleeping"), "running", "a Run asleep goes on by itself; it waits for nobody");
   assert.equal(prologuePhaseOf("paused"), "paused");
   assert.equal(prologuePhaseOf("reconcile-required"), "reconcile-required");
   assert.equal(prologuePhaseOf("completed"), "completed");

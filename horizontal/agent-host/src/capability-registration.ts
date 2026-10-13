@@ -41,12 +41,16 @@ export interface AgentCapabilityPorts<Context> {
   mcpChanged?(context: Context, runtimeId: string, pluginId: string, library: AgentMcpLibrary, owner: AgentSkillOwner): void | Promise<void>;
 }
 
-/** A cheap, stable mark of what a surface would draw differently: phase, text growth, tool progress, questions, usage. */
+/**
+ * A cheap, stable mark of what a surface would draw differently: phase, text growth, tool progress, questions, usage,
+ * the files each turn wrote, a wait the Run sleeps in, a model switch asked for or taken.
+ */
 export function runViewVersion(view: AgentRunView): string {
   const last = view.turns[view.turns.length - 1];
   return [view.phase, view.turns.length, last?.text.length ?? 0, view.activity.length,
     view.activity.map(item => item.state[0] + (item.output?.length ?? 0)).join(""), view.awaiting_input.length,
-    view.usage.tokens.input + view.usage.tokens.output, view.step_board?.version ?? 0].join(":");
+    view.usage.tokens.input + view.usage.tokens.output, view.step_board?.version ?? 0,
+    view.turn_changes?.length ?? 0, view.sleeping_until ?? "", view.model_switch?.now ?? "", view.model_switch?.requested ?? ""].join(":");
 }
 
 export function registerAgentHostCapabilities<Context>(

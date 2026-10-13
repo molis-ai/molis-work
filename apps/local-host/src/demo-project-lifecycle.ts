@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
-import { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
+import { catalogErrors } from "./project-catalog-contract.js";
 import { randomUUID } from "node:crypto";
 import type { DeleteProjectInput as DeleteMolisWorkProjectInput, ProjectDeletionResult as MolisWorkProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
@@ -78,7 +78,7 @@ export class DemoProjectLifecycle {
     this.requireDemoConfirmation(input.user_confirmed);
     const actorId = this.validation.requiredActorId(input.actor_id);
     const project = this.projects.query.listProjects().find((candidate) => candidate.data_class === "regenerable_demo");
-    if (!project) throw new MolisWorkProjectCatalogError("catalog.demo_not_found", "没有可重建的 Molis Work 示例项目");
+    if (!project) throw catalogErrors.demo_not_found("没有可重建的 Molis Work 示例项目");
     // Refuse before anything is changed when an owner only has to wait (another process is using the Agent runtime right now:
     // a retry can clear it). An owner whose service is another process's for good (the CLI has no Agent runtime or search
     // index of its own) is left to the running Molis Work, and reported: a rebuild never waits for it.
@@ -126,16 +126,14 @@ export class DemoProjectLifecycle {
   async removeDemoProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
     const project = this.projects.query.getProject(this.validation.requiredProjectId(input.project_id));
     if (project.data_class !== "regenerable_demo") {
-      throw new MolisWorkProjectCatalogError("catalog.not_demo", "只有明确标记为可重建演示数据的项目能走 demo 删除流程");
+      throw catalogErrors.not_demo("只有明确标记为可重建演示数据的项目能走 demo 删除流程");
     }
     return this.deletion.deleteProject(input);
   }
 
   requireDemoConfirmation(userConfirmed: boolean): void {
     if (userConfirmed === true) return;
-    throw new MolisWorkProjectCatalogError(
-      "catalog.demo_confirmation_required",
-      "创建、重置或删除演示数据前需要用户明确确认",
+    throw catalogErrors.demo_confirmation_required("创建、重置或删除演示数据前需要用户明确确认",
     );
   }
 

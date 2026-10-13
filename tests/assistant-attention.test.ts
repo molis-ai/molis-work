@@ -107,15 +107,18 @@ test("a new work whose round fails at once, before anything looked, still raises
 });
 
 test("the person's rules are the Assistant's own actions: found by agents, adding one is a change, the Host keeps it as written", async () => {
-  const actions = new ActionService();
-  const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); } }, "web-user");
-  registerAssistantRuleActions(actions, () => service);
-  const caller = { actor_id: "web-user", actor_kind: "runtime" as const, project_id: null, audience: "agent" as const, permissions: [] };
-  const found = actions.discover(caller).filter(view => view.provider.provider_id === "io.molis.work.assistant.rules" && view.capability_id.startsWith("assistant.rules."));
-  assert.deepEqual(found.map(view => [view.capability_id, view.operation]).sort(), [["assistant.rules.add", "command"], ["assistant.rules.list", "query"], ["assistant.rules.remove", "command"]]);
-  const added = await actions.invoke(caller, ASSISTANT_RULE_ACTIONS.add, { kind: "quiet", surfaces: ["pages"], except: ["failed"], label: "写文档时不要提醒，失败除外" }) as { rules: AssistantRule[] };
-  assert.deepEqual(added.rules.map(item => [item.kind, item.surfaces, item.except, item.label]), [["quiet", ["pages"], ["failed"], "写文档时不要提醒，失败除外"]]);
-  await assert.rejects(actions.invoke(caller, ASSISTANT_RULE_ACTIONS.add, { kind: "sometimes", label: "x" }), /kind|规则/);
-  const removed = await actions.invoke(caller, ASSISTANT_RULE_ACTIONS.remove, { rule_id: added.rules[0]!.rule_id }) as { rules: AssistantRule[] };
-  assert.deepEqual(removed.rules, []);
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-rules-"));
+  try {
+    const actions = new ActionService();
+    const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); } }, "web-user");
+    registerAssistantRuleActions(actions, () => service, home);
+    const caller = { actor_id: "web-user", actor_kind: "runtime" as const, project_id: null, audience: "agent" as const, permissions: [] };
+    const found = actions.discover(caller).filter(view => view.provider.provider_id === "io.molis.work.assistant.rules" && view.capability_id.startsWith("assistant.rules."));
+    assert.deepEqual(found.map(view => [view.capability_id, view.operation]).sort(), [["assistant.rules.add", "command"], ["assistant.rules.list", "query"], ["assistant.rules.remove", "command"]]);
+    const added = await actions.invoke(caller, ASSISTANT_RULE_ACTIONS.add, { kind: "quiet", surfaces: ["pages"], except: ["failed"], label: "写文档时不要提醒，失败除外" }) as { rules: AssistantRule[] };
+    assert.deepEqual(added.rules.map(item => [item.kind, item.surfaces, item.except, item.label]), [["quiet", ["pages"], ["failed"], "写文档时不要提醒，失败除外"]]);
+    await assert.rejects(actions.invoke(caller, ASSISTANT_RULE_ACTIONS.add, { kind: "sometimes", label: "x" }), /kind|规则/);
+    const removed = await actions.invoke(caller, ASSISTANT_RULE_ACTIONS.remove, { rule_id: added.rules[0]!.rule_id }) as { rules: AssistantRule[] };
+    assert.deepEqual(removed.rules, []);
+  } finally { await rm(home, { recursive: true, force: true }); }
 });

@@ -4,7 +4,9 @@ import { Readable } from "node:stream";
 import { gzipSync, brotliCompressSync, deflateSync } from "node:zlib";
 import { classifyJellySource, jellySourceEmbeddedJSON, jellyXiaohongshuNoteID, parseJellyXiaohongshu, parseJellyXiaoyuzhouAudio, readJellyMaterialSource, type JellySourceOptions } from "../apps/local-host/src/jelly-source-providers.js";
 import { fetchJellyPublicBytes, isJellyPublicAddress, readJellyPublicBody, resolveJellyPublicAddresses, validateJellyPublicURL, type JellyPublicResponse } from "../apps/local-host/src/jelly-source-reader.js";
-import { JellyMaterialError, type JellyMaterialExtraction } from "../apps/local-host/src/jelly-native-material.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { type JellyMaterialExtraction } from "../apps/local-host/src/jelly-native-material.js";
 import { ADDRESSES_NEVER_PUBLIC, ADDRESSES_PUBLIC } from "./fixtures/public-address-policy.js";
 const page = (url: string, body: string, type = "text/html"): JellyPublicResponse => ({ data: Buffer.from(body), type, final_url: url, status: 200 });
 const material = (text: string): JellyMaterialExtraction => ({ text, file_name: "source.mp4", extractor: "test-extractor", pages: [{ number: 1, text, method: "test", confidence: null }], coverage: { status: "sufficient", processed_pages: 1, total_pages: 1, issues: [] } });
@@ -21,6 +23,10 @@ test("safe reader rejects credentialed, private, mapped IPv6 and reserved destin
   for (const ip of ["127.0.0.1", "10.0.0.1", "169.254.169.254", "172.16.0.1", "192.168.1.1", "100.64.0.1", "198.18.0.1", "192.0.2.1", "203.0.113.1", "::1", "::ffff:127.0.0.1", "2001:db8::1", "2002:7f00:1::"]) assert.equal(isJellyPublicAddress(ip), false, ip);
   assert.equal(isJellyPublicAddress("8.8.8.8"), true); assert.equal(isJellyPublicAddress("2606:4700:4700::1111"), true);
   for (const url of ["file:///tmp/a", "https://user:secret@example.com", "http://127.0.0.1", "http://localhost", "http://host.local", "https://[::1]"]) assert.throws(() => validateJellyPublicURL(url));
+  // A refusal of the source reader is an ActionError under Jelly's name; the kind gives its status (a bad address is the caller's mistake, 400).
+  for (const [url, code] of [["file:///tmp/a", "jelly.source.invalid_url"], ["http://localhost", "jelly.source.private_address"]] as const) {
+    assert.throws(() => validateJellyPublicURL(url), (error: unknown) => error instanceof ActionError && error.code === code && actionHttpStatus(error) === 400, url);
+  }
   await assert.rejects(fetchJellyPublicBytes("http://169.254.169.254/latest/meta-data"));
 });
 test("known proxy synthetic answers resolve through trusted DNS while private and mixed answers stay blocked", async () => {
@@ -65,8 +71,8 @@ test("Bilibili insufficient subtitles fall back to public DASH audio with explic
       if (target.includes("/x/player/playurl?")) return page(target, JSON.stringify({ code: 0, data: { dash: { audio: [{ baseUrl: "https://cdn.example/audio" }] } } }), "application/json");
       return page(target, "binary-audio", "audio/mp4");
     },
-    async extractMaterial(_home, upload) { assert.equal(upload.allow_model_download, false); assert.equal(upload.file_name, "来源素材.m4a"); throw new JellyMaterialError("jelly.material.model_required", "explicit choice required", 409, { approximate_bytes: 626000000 }); }
-  }), (error: unknown) => error instanceof JellyMaterialError && error.code === "jelly.material.model_required");
+    async extractMaterial(_home, upload) { assert.equal(upload.allow_model_download, false); assert.equal(upload.file_name, "来源素材.m4a"); throw new ActionError("jelly.material.model_required", "explicit choice required", { kind: "conflict", details: { approximate_bytes: 626000000 } }); }
+  }), (error: unknown) => error instanceof ActionError && error.code === "jelly.material.model_required" && actionHttpStatus(error) === 409 && error.details?.approximate_bytes === 626000000);
 });
 test("Xiaoyuzhou resolves public OG, JSON-LD and Next enclosure audio", async () => {
   assert.equal(parseJellyXiaoyuzhouAudio('<meta content="https://cdn.example/a.mp3?x=1&amp;y=2" property="og:audio">'), "https://cdn.example/a.mp3?x=1&y=2");
@@ -92,7 +98,7 @@ test("restricted and redirected-to-other-note XHS pages stay explicit failures",
 });
 test("XHS video without an enabled speech model returns original body and an explicit model requirement", async () => {
   const url = "https://www.xiaohongshu.com/explore/abc";
-  const result = await readJellyMaterialSource("/unused", url, { async fetch(target) { return target === url ? page(url, noteHTML("abc", { noteId: "abc", title: "视频", desc: "视频原作者的正文", type: "video", video: { masterUrl: "https://cdn.example/video.mp4" } })) : page(target, "video", "video/mp4"); }, async extractMaterial(_home, upload) { assert.equal(upload.allow_model_download, false); throw new JellyMaterialError("jelly.material.model_required", "download choice", 409, { approximate_bytes: 626000000, variant: "large-v3" }); } });
+  const result = await readJellyMaterialSource("/unused", url, { async fetch(target) { return target === url ? page(url, noteHTML("abc", { noteId: "abc", title: "视频", desc: "视频原作者的正文", type: "video", video: { masterUrl: "https://cdn.example/video.mp4" } })) : page(target, "video", "video/mp4"); }, async extractMaterial(_home, upload) { assert.equal(upload.allow_model_download, false); throw new ActionError("jelly.material.model_required", "download choice", { kind: "conflict", details: { approximate_bytes: 626000000, variant: "large-v3" } }); } });
   assert.match(result.text, /原作者的正文/); assert.equal(result.model_required?.approximate_bytes, 626000000); assert.equal(result.coverage.status, "partial"); assert.match(result.coverage.issues.join(" "), /等待明确下载/);
 });
 test("generic public articles retain readable body while omitting executable/page-navigation content", async () => {

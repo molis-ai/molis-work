@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { homeSqlitePath, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
-import { ImagesService, ImagesError, imagesProjectData, type ImageConnectionInput } from "@molis-ai/molis-work-plugin-images";
+import { ImagesService, imagesErrors, imagesProjectData, type ImageConnectionInput } from "@molis-ai/molis-work-plugin-images";
 import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { ConnectorConnectionError, withConnectorConnections } from "./connector-connection-store.js";
@@ -25,10 +25,10 @@ export class ImagesHostService {
       clear: projectId => { if (existsSync(homeSqlitePath(this.home, "images"))) this.get().deleteProject(projectId); } });
   }
   get(): ImagesService {
-    if (this.closed) throw new ImagesError("images.closed", "图片服务已停止", 503);
+    if (this.closed) throw imagesErrors.closed("图片服务已停止");
     if (this.entry) return this.entry.service;
     let shared = services.get(this.home);
-    if (shared?.closing) throw new ImagesError("images.closed", "图片服务正在关闭，请稍后重试", 503);
+    if (shared?.closing) throw imagesErrors.closed("图片服务正在关闭，请稍后重试");
     if (!shared) {
       const home = this.home;
       const sealed = (ref: string | null) => ref ? runWithMolisWorkHome(home, () => peekSealedEntry(ref)) : null;
@@ -51,12 +51,12 @@ export class ImagesHostService {
               413: "厂商拒绝了过大的请求，请缩短提示词。", 429: "厂商限流或额度不足，请检查用量与余额，稍后再手动重试。",
             };
             if (typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599) {
-              throw new ImagesError("images.provider_http", `HTTP ${status}：${guidance[status] ?? "厂商服务暂时不可用，请稍后再手动重试。"}`, 502);
+              throw imagesErrors.provider_http(`HTTP ${status}：${guidance[status] ?? "厂商服务暂时不可用，请稍后再手动重试。"}`);
             }
             const unavailable = inferenceServiceUnavailableReason(error);
-            if (unavailable) throw new ImagesError("images.runtime_unavailable", `${unavailable}。`, 503);
+            if (unavailable) throw imagesErrors.runtime_unavailable(`${unavailable}。`);
             // A key or service changed while waiting: nothing reached the provider, so no network or billing hint.
-            if (isDispatchRefusal(error)) throw new ImagesError("images.not_sent", `${error.message}，请求没有发给厂商。请重新生成。`, 409);
+            if (isDispatchRefusal(error)) throw imagesErrors.not_sent(`${error.message}，请求没有发给厂商。请重新生成。`);
             throw error; // ImagesService publishes only its own typed errors; unknown SDK details stay private.
           }
         },
@@ -114,10 +114,10 @@ export class ImagesHostService {
     if (!input.auth_connection_id) return;
     try { withConnectorConnections(this.home, store => {
       const selected = store.require(input.auth_connection_id!, "image-api");
-      if (store.state(selected) !== "connected") throw new ImagesError("images.key_required", "所选图像连接不可用", 409);
+      if (store.state(selected) !== "connected") throw imagesErrors.key_required("所选图像连接不可用");
       store.assertTarget(selected.connection_id, "image-api", input.base_url);
     }); } catch (error) {
-      if (error instanceof ConnectorConnectionError) throw new ImagesError("images.connection_invalid", error.message, 409);
+      if (error instanceof ConnectorConnectionError) throw imagesErrors.connection_invalid(error.message);
       throw error;
     }
   }

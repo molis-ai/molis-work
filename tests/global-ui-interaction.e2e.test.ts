@@ -97,7 +97,8 @@ test("narrow settings reveal the chosen page and ignore a slower obsolete sectio
   assert.equal(await evaluate("document.querySelector('[data-work-surface=settings]').closest('[inert]') === null"), true);
   await evaluate(`{ const original = window.fetch; window.fetch = async (url, options) => {
     const response = await original(url, options);
-    if (String(url).startsWith('/settings/runtimes')) {
+    // W3-10-1B-INTERLEAVE-01: UiRequest resolves the target to an absolute URL; hold the real response by its pathname.
+    if (new URL(String(url), location.origin).pathname === '/settings/runtimes') {
       window.settingsResponseReady = true;
       await new Promise(resolve => { window.releaseSettingsResponse = resolve; });
     }

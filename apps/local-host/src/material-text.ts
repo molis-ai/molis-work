@@ -1,8 +1,56 @@
+import { defineErrorCodes, type ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MaterialExtraction, MaterialLimits } from "@molis-ai/molis-work-contracts/services/materials";
 
-export class MaterialExtractionError extends Error {
-  constructor(public readonly code: string, message: string, public readonly status = 400,
-    public readonly details?: { approximate_bytes?: number; variant?: string }) { super(message); this.name = "MaterialExtractionError"; }
+/**
+ * The text extractor's error codes, every one `material.<reason>`. The kind is the sort of failure; the Host's edges turn it into the status
+ * (plugin SDK `actionHttpStatus`), so the extractor keeps no status of its own. A refusal of the person's file or link is `invalid`
+ * (before: 400, or 415 and 422, which have no kind), what the file or page holds too much of is `too_large`, a helper that failed or timed
+ * out is `upstream`, the speech model that has to be downloaded first is `conflict`, and a native helper that is not built is `unavailable`.
+ * The native helpers (Swift) name their refusals in the same words, so what they report is looked up here by reason (`materialFailure`).
+ */
+export const materialErrors = defineErrorCodes("material", {
+  audio_extraction_failed: "invalid",
+  empty: "invalid",
+  empty_pdf: "invalid",
+  encoding: "invalid",
+  extraction_failed: "upstream",
+  file_too_large: "too_large",
+  http: "invalid",
+  image_too_large: "too_large",
+  insufficient_content: "invalid",
+  invalid_arguments: "invalid",
+  invalid_data: "invalid",
+  invalid_document: "invalid",
+  invalid_file: "invalid",
+  invalid_image: "invalid",
+  invalid_limits: "invalid",
+  invalid_media: "invalid",
+  invalid_pdf: "invalid",
+  invalid_result: "upstream",
+  locked_pdf: "invalid",
+  model_download_failed: "invalid",
+  model_required: "conflict",
+  native_unavailable: "unavailable",
+  output_too_large: "too_large",
+  redirect: "invalid",
+  timeout: "upstream",
+  too_large: "too_large",
+  transcription_failed: "invalid",
+  unsupported: "invalid",
+  unsupported_language: "invalid",
+  url: "invalid",
+});
+
+/** Whether a failure is the extractor's own (read by its code, not its class: another copy of the contracts makes another class). */
+export function isMaterialFailure(error: unknown): error is ActionError {
+  const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
+  return typeof code === "string" && code.startsWith("material.");
+}
+
+/** The refusal a native helper reported under its own word; a word the extractor does not know is a failed extraction. */
+export function materialFailure(reason: string, message: string, details?: Readonly<Record<string, unknown>>): ActionError {
+  const raise = Object.hasOwn(materialErrors, reason) ? materialErrors[reason as keyof typeof materialErrors] : materialErrors.extraction_failed;
+  return raise(message, details);
 }
 
 /** Truncate on a code point boundary under both independent output budgets. */
@@ -53,8 +101,8 @@ export function decodeMaterialText(bytes: Uint8Array, options: { allowUtf16Bom?:
   const encoding = options.allowUtf16Bom && bytes[0] === 0xff && bytes[1] === 0xfe ? "utf-16le"
     : options.allowUtf16Bom && bytes[0] === 0xfe && bytes[1] === 0xff ? "utf-16be" : "utf-8";
   try { source = new TextDecoder(encoding, { fatal: true }).decode(bytes); }
-  catch { throw new MaterialExtractionError("encoding", "文本编码无效，请另存为 UTF-8 后导入"); }
-  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(source)) throw new MaterialExtractionError("encoding", "文件包含二进制内容，不能按文字提取");
+  catch { throw materialErrors.encoding("文本编码无效，请另存为 UTF-8 后导入"); }
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(source)) throw materialErrors.encoding("文件包含二进制内容，不能按文字提取");
   return source;
 }
 

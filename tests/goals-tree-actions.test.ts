@@ -11,7 +11,8 @@ import type { GoalTreeProposalItemInput } from "@molis-ai/molis-work-contracts/m
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { serveTestHost } from "./fixtures/test-home.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const proposalInput = (prefix: string) => ({ summary: "Create a parent and child only after approval", idempotency_key: prefix,
@@ -22,7 +23,7 @@ const proposalInput = (prefix: string) => ({ summary: "Create a parent and child
       type: "part_of", reason: "Part of the same result" }, source_refs: ["conversation://tree"], reason: "Define ownership", confidence: 1 },
   ] as GoalTreeProposalItemInput[] });
 
-test("tree actions preserve proposals, protected authority, atomic materialization, old receipts and restart", async () => {
+test("tree actions preserve proposals, protected authority, atomic materialization, old receipts and restart", async t => {
   const home = await mkdtemp(join(tmpdir(), "goals-tree-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Tree", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
@@ -77,7 +78,12 @@ test("tree actions preserve proposals, protected authority, atomic materializati
       await assert.rejects(client.invoke({ ...trusted, audience }, goalsActions.treeDecide, decision), { code: "actions.forbidden" });
     }
     const view = (await host.inspectActions(trusted, ref)).find(v => v.capability_id === goalsActions.treeDecide.capability_id)!;
-    assert.throws(() => createMcpActionGrant("runtime:tree", project.project_id, view, true), { code: "mcp.grant_invalid" });
+    // A model's client cannot hold a grant for the person's decision: the access settings never offer the action to the client, so the
+    // request is refused as unknown and nothing is saved (`createMcpActionGrant`'s own audience rule is pinned in mcp-action-grants.test.ts).
+    const served = await serveTestHost(t, { home, host });
+    await assert.rejects(served.grant("runtime:tree", project.project_id, [view]), { status: 404, code: "actions.missing" });
+    assert.deepEqual((await readMcpActionAccess(served.web, { clientId: "runtime:tree", projectId: project.project_id })).grants, [], "a refused grant leaves no record");
+    await served.close();
     await assert.rejects(client.invoke({ ...trusted, user_action: undefined }, goalsActions.treeDecide, decision), { code: "goal_tree_proposal.untrusted_actor" });
     await assert.rejects(client.invoke({ ...trusted, user_action: { ...trusted.user_action!, source: "runtime_dialogue" } }, goalsActions.treeDecide, decision), { code: "goal_tree_proposal.untrusted_actor" });
     await assert.rejects(client.invoke(trusted, goalsActions.treeDecide, { ...decision, authority }), { code: "actions.input_invalid" });

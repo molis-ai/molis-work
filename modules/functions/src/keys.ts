@@ -1,6 +1,6 @@
-import { FunctionsError } from "@molis-ai/molis-work-contracts/modules/functions";
+import { functionsErrors } from "./errors.js";
 
-export { FunctionsError };
+export { functionsErrors };
 
 export const FUNCTION_KEY_PATTERN = /^[a-z][a-z0-9_]{1,63}$/;
 export const OPTION_KEY_PATTERN = /^[a-z][a-z0-9_.]{0,63}$/;
@@ -21,14 +21,14 @@ export function suggestFunctionKey(name: string, primitive: string = "choice"): 
 
 export function assertFunctionKey(value: string): string {
   if (!FUNCTION_KEY_PATTERN.test(value)) {
-    throw new FunctionsError("functions.invalid", "函数 key 须为小写字母开头、最长 64 位的字母数字下划线");
+    throw functionsErrors.invalid("函数 key 须为小写字母开头、最长 64 位的字母数字下划线");
   }
   return value;
 }
 
 export function assertOptionKey(value: string): string {
   if (!OPTION_KEY_PATTERN.test(value)) {
-    throw new FunctionsError("functions.invalid", "选项 key 须为小写字母开头、最长 64 位的字母数字下划线或点号");
+    throw functionsErrors.invalid("选项 key 须为小写字母开头、最长 64 位的字母数字下划线或点号");
   }
   return value;
 }

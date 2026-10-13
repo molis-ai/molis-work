@@ -1,6 +1,7 @@
-import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionHandlerBinding, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionHandlerBinding, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import { JELLY_PROJECT_PLUGIN_ID, type JellyItem, type JellyNote, type JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import type { JellyStore } from "./store.js";
+import { jellyErrors } from "./error.js";
 
 /** A calendar entry: a one-off item or a repeating series as a whole (its occurrences are read through the series). */
 export const JELLY_ITEM_SUBJECT_KIND = "jelly_item";
@@ -30,7 +31,7 @@ export function jellySearchEntries(state: JellyWorkspace): SearchEntry[] {
 
 export function createJellySearchHandlers(withStore: <T>(run: (store: JellyStore) => T) => T): ActionHandlerBinding[] {
   const read = () => withStore(store => store.read());
-  const missing = (label: string) => new ActionError("jelly.not_found", `${label}已删除或已归档`);
+  const missing = (label: string) => jellyErrors.not_found(`${label}已删除或已归档`);
   const id = (input: unknown) => (input as { subject_id: string }).subject_id;
   return [
     bindSearchEntriesHandler(jellySearchActions.entries, () => jellySearchEntries(read())),

@@ -1,15 +1,3 @@
-export const CONTROL_CLIENT_SCRIPT = `
-  globalThis.molisWorkControlHeaders = () => {
-    const token = document.querySelector('meta[name="molis-work-control-token"]')?.content || "";
-    const requestKey = globalThis.crypto?.randomUUID?.() || (Date.now().toString(36) + "-" + Math.random().toString(36).slice(2));
-    return {
-      "content-type": "application/json",
-      "x-molis-work-control-token": token,
-      "x-molis-work-idempotency-key": requestKey,
-    };
-  };
-`;
-
 /**
  * The update page's only program: the button that records the update notice as seen. The first-run and new-project
  * journey is `context-onboarding.ts`.

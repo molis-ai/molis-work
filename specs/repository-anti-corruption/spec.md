@@ -2082,6 +2082,8 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 
 后续`2edbc178c`的Images打开刷新、README及Diff/Form/PPT/Functions/STOP夹具修正已核实际差异；业务断言保留，复跑仍待。主线#471 Computer Use已合入I7（`8943a38c5`），agent-host实际依赖切至主线computer-use SDK；第17轮install/build/API/actions通过，资源门禁仍因Workbench增加2364字节、Images增加161字节拒绝更新，其余预检尚未执行。协调方已读实际脚本、results及原日志，不将这轮记全过。最终G5与typed桥必须在该现行SDK上验证。G5最新交接的两个实证缺口继续纳入最终组合：BUILDER-LATE的新增reset屏障尚在port fixture，未证明真实Host stopRunner后不删除新预览；S6尚未把Coding实际SDK文件修改、正式Git批准与Diff读取接成同链。既有分层用例和源码准备均不能代替这两项，待整合后补验。
 
+**浏览器复跑前的工程检查补记。** `5ae3cf5ee`及`f10ee6fc9`的最终差异已核：Goal当前入口与recordNote、Planning关闭/返回路径、Market个人插件hidden状态、Browser首帧尺寸与首轮审批刷新均修正夹具，保留原业务断言；Functions与Side Browser的无效二次改名已撤回，Images刷新失败只回写原请求仍有效的对话框。第19轮build/API/actions通过，资源仍多2101字节，原日志保留。原因是Host已统一去注释，局部重复去注释无效。`e08ae7be6`撤回重复处理，在既有JS解析路径压缩语法节点前的空白并保留换行，新增真实HTTP资源用例断字符串、模板、正则和自动分号语义；协调方已核生产与测试源码，该用例尚待执行。该提交的第20轮整体build、API、actions、资源更新/复核、actual-base health更新/复核、boundary及根类型检查11步均退出0；资源29项10,835,522字节，比较主线merge-base `2cb35d4e`，71包/1,898源码文件。已读执行脚本、results与各原日志；这些工程结果不代替待跑的资源语义用例、浏览器复跑或G5整合后的最终组合。
+
 共享spec、路线图、安全不变量、门禁/API/动作/资源快照由协调方按实际整合结果串行同步；writer不得放宽阈值或为绿删断言。当前均只获本地独立实现/提交，不自行推送、开PR、安装、发布或操作真实Home/凭据。§12.8中需同步安全表的具体拒绝必须有生产边界断言；受控第三方响应不等于真实外部账号验收。
 
 2026-10-12 用户要求完成的会话从Codex列表清理。协调方已归档Dataset、Issue、G4核心、Workflows保存与助理发送五个独立会话，工具均确认成功：各片局部验收与交接已完成，候选提交已由原防腐会话纳入I7，最终资源快照及整合验证继续由该会话承接。仅归档聊天，工作树、提交和原始日志保留；其余仍有实现或验证工作，不将idle当作完成。

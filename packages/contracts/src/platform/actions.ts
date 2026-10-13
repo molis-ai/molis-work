@@ -18,6 +18,8 @@ import type { SearchSourceDeclaration } from "./search-sources.js";
 export * from "./search-sources.js";
 import type { FragmentOfferChoice } from "./action-fragments.js";
 export * from "./action-fragments.js";
+import type { ActionAttach, ActionIntake } from "./item-intake.js";
+export * from "./item-intake.js";
 import type { FileSourceDeclaration } from "./file-sources.js";
 export * from "./file-sources.js";
 export * from "./artifact-pins.js";
@@ -150,6 +152,10 @@ export interface ActionMetadata {
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
   /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); each target is declared in the same registration and scope. */
   readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
+  /** This command creates an Item: the workbench derives a destination for what is in hand and a “✦ 一句话新建” from it (context-program §3.3). */
+  readonly intake?: ActionIntake;
+  /** This command puts material into an existing Item of the provider's own kind, at a position in it (context-program §3.4). */
+  readonly attach?: ActionAttach;
   /** A trigger action needs an enabled compatible binding in this consumer scene. */
   readonly required_scene?: { readonly scene_id: string; readonly version: number };
   readonly result_scene?: ActionSceneReference;

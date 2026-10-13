@@ -4,6 +4,10 @@
 
 ## 在做的
 
+- [context-program](context-program/spec.md)：情境动作完整总纲与分期；W0 原型已实操；W1、W2（浮条取代底栏、Pages 迁移）已在交接分支 #411 里通过工程用例，未验收。接续入口见第 20 节「远端交接」。
+- [context-toolbar](context-toolbar/spec.md)：选区/对象浮条、面板槽、能力家族及存量接入；完整需求保留。
+- [quick-create](quick-create/spec.md)：推荐创建、一句话新建、追加/批量与工作流；完整需求保留。
+- [side-shelf](side-shelf/spec.md)：右栏、Shelf、落点、拖放与助理接入；完整需求保留。
 - [issue-home-v0](issue-home-v0/spec.md)：个人 Home 的 Issue 插件；补齐 Home Runtime 与插件 SQLite 服务，接通页面、助理和 MCP。
 - [goal-closure-identity](goal-closure-identity/spec.md)：完成前的「必须你点头」接到真实检查（授权和接受要求都只对当时的约定和那一轮工作有效）；管理入口固定记本机这个人；决策工具 schema 不再要求 `actor_id`；这些 typed 入口插件够不到（`host_only`）。
 - [prologue-adoption](prologue-adoption/spec.md)：Prologue 新能力接入——预算、派出前授权、状态事件、工具副作用与回执保护，推理力度与换模型，逐轮变更与诊断，流式预览与等待，子任务与委托的交回续做。

@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
+import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 
 test('Coding child controls bind original run, keep acceptance separate, reject stale and foreign requests',async()=>{
   const home=mkdtempSync(join(tmpdir(),'coding-child-http-')),dbPath=join(home,'board.db');seedDemoBoard(dbPath);let store=new LocalProjectDatabase(dbPath);

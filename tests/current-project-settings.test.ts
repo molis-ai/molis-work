@@ -9,7 +9,7 @@ import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtim
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { projectSettingsCapabilities as settings, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ProjectBrowsingSettings } from "../apps/local-host/src/project-browsing-settings.js";
+import { ProjectBrowsingSettings } from "../apps/local-host/dist/project-browsing-settings.js";
 
 const workspace = (id: string) => ({ workspace_id: id, canonical_path: "/test/" + id, realpath_verified: true, display_name: id });
 

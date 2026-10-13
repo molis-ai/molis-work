@@ -12,10 +12,10 @@ import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_
 import { createFeedContentHandlers, feedContentActions } from "@molis-ai/molis-work-plugin-feed";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
-import { hostCompleteText } from "../apps/local-host/src/host-complete-text.js";
-import { planInformationWork } from "../apps/local-host/src/information-planner.js";
-import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/assistant-island.js";
-import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/src/scripts/client/navigation-inbox.js";
+import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { planInformationWork } from "../apps/local-host/dist/information-planner.js";
+import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
+import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/dist/scripts/client/navigation-inbox.js";
 
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 function publishedPackage() {

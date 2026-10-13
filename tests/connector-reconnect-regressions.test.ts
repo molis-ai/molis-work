@@ -5,9 +5,9 @@ import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { startApiOAuth, completeApiOAuth } from "../apps/local-host/src/connector-api-oauth.ts";
-import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.ts";
-import { refreshFeedConnectionState } from "../apps/local-host/src/web-connector-connections.ts";
+import { startApiOAuth, completeApiOAuth } from "../apps/local-host/dist/connector-api-oauth.js";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { refreshFeedConnectionState } from "../apps/local-host/dist/web-connector-connections.js";
 import { createLocalFeedApplication, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 
 const origin = "http://localhost:19358";

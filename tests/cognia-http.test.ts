@@ -1,21 +1,21 @@
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { assembleMcpCatalog } from "../apps/local-host/src/mcp-catalog.js";
+import { assembleMcpCatalog } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COGNIA_ACTION_PERMISSIONS, cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { randomUUID } from "node:crypto";
-import { authorizeLocalWebRequest, type LocalMutationState } from "../apps/local-host/src/web-http.js";
+import { authorizeLocalWebRequest, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleCogniaNativePluginHttp } from "../apps/local-host/src/cognia-native-plugin-http.js";
-import { BUILTIN_PLUGIN_CATALOG } from "../apps/workbench/src/plugin-catalog.js";
-import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/src/plugin-workbench.js";
-import { COGNIA_PLUGIN_ID } from "../plugins/native/cognia/src/index.js";
-import { PERSONAL_HOME_SQLITE_STORES } from "../packages/storage/src/home-sqlite.js";
+import { handleCogniaNativePluginHttp } from "../apps/local-host/dist/cognia-native-plugin-http.js";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/dist/plugin-workbench.js";
+import { COGNIA_PLUGIN_ID } from "@molis-ai/molis-work-plugin-cognia";
+import { PERSONAL_HOME_SQLITE_STORES } from "@molis-ai/molis-work-storage";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 test("HTTP preview/commit roundtrip, concurrent retry, malformed JSON, downloads and missing model", async t => {

@@ -210,6 +210,18 @@ test("W2-18-GIT-TARGET-03 a resolved URL is not accidentally expanded a second t
   assert.equal((await f.bare(f.b, "count-objects", "-v")).stdout.split("\n")[0], "count: 0");
 });
 
+test("W2-18-GIT-TARGET-04 a partial multi-target push retains the delivered commit and reports required reconciliation", async t => {
+  const f = await isolatedRepository(t);
+  await writeFile(path.join(f.b, "hooks", "pre-receive"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+  await f.git("config", "--add", "remote.origin.pushurl", f.a); await f.git("config", "--add", "remote.origin.pushurl", f.b);
+  const summary = await readGitSummary(f.workspace);
+  const push = await prepareGitOperation(f.workspace, summary.revision, { action: "push", remote: "origin", set_upstream: true });
+  await assert.rejects(push.execute(), (error: unknown) => error instanceof Error && "code" in error
+    && error.code === "EFFECT_RECONCILE_REQUIRED" && /结果未确认/.test(error.message));
+  assert.equal((await f.bare(f.a, "rev-parse", "refs/heads/main")).stdout.trim(), summary.head_commit);
+  await assert.rejects(f.bare(f.b, "show-ref"));
+});
+
 async function conflictedRepository(t: import("node:test").TestContext) {
   const f = await isolatedRepository(t), file = path.join(f.root, "nested", "a.txt");
   await f.git("switch", "-q", "-c", "topic"); await writeFile(file, "topic\n"); await f.git("commit", "-qam", "topic");

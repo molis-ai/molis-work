@@ -34,7 +34,9 @@ async function readHeld(root: string, name: string, file: FileHandle): Promise<C
   if (!same(before, after) || !same(after, named) || used !== before.size) throw new Error("冲突文件在读取时变化了，请刷新");
   const body = bytes.subarray(0, used);
   if (body.includes(0)) throw new Error("二进制冲突请在编辑器里处理");
-  const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(body);
+  let text: string;
+  try { text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(body); }
+  catch { throw new Error("文件不是完整 UTF-8 文本，请在编辑器里解决冲突"); }
   const fingerprint = createHash("sha256").update(JSON.stringify([name, identity(after)])).update(body).digest("hex");
   return { name, absolute, text, bytes: body, identity: after, fingerprint };
 }
@@ -68,6 +70,12 @@ async function writeHeld(file: FileHandle, contents: Buffer): Promise<void> {
   await file.truncate(contents.length); await file.sync();
 }
 
+async function lineage(root: string): Promise<string> {
+  const commit = (await runWorkspaceGit(root, ["rev-parse", "--verify", "HEAD"])).toString();
+  const branch = (await runWorkspaceGit(root, ["rev-parse", "--abbrev-ref", "HEAD"])).toString();
+  return commit + branch;
+}
+
 /** Freeze the resolved bytes in a temporary index and publish under Git's own lock, never `git add` a later path. */
 export async function resolveConflict(root: string, reviewed: ConflictSnapshot, content: string, check: () => Promise<void>): Promise<void> {
   await check();
@@ -76,7 +84,7 @@ export async function resolveConflict(root: string, reviewed: ConflictSnapshot, 
   try {
     if ((await readHeld(root, reviewed.name, file)).fingerprint !== reviewed.fingerprint) throw new Error("冲突正文或文件身份在审查期间变化了，原操作未执行");
     const indexPath = path.resolve(root, (await runWorkspaceGit(root, ["rev-parse", "--git-path", "index"])).toString().trimEnd());
-    const original = await indexBytes(indexPath), lockPath = indexPath + ".lock";
+    const original = await indexBytes(indexPath), originalLineage = await lineage(root), lockPath = indexPath + ".lock";
     let lock: FileHandle;
     try { lock = await fs.open(lockPath, "wx", 0o600); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error("Git 暂存区正被其他操作使用，原操作未执行"); throw error; }
@@ -101,6 +109,7 @@ export async function resolveConflict(root: string, reviewed: ConflictSnapshot, 
       const after = await readHeld(root, reviewed.name, file);
       if (after.text !== content) throw new Error("写入后的冲突正文已变化，请核对");
       await lock.writeFile(await fs.readFile(temporaryIndex)); await lock.sync();
+      if (await lineage(root) !== originalLineage) throw new Error("分支或提交在写入期间变化了，请核对");
       if (!(await indexBytes(indexPath)).equals(original)) throw new Error("暂存区在写入期间变化了，请核对");
       if ((await readHeld(root, reviewed.name, file)).fingerprint !== after.fingerprint) throw new Error("冲突正文在写入期间又被修改，请核对");
       await lock.close(); await fs.rename(lockPath, indexPath); published = true;
@@ -113,7 +122,7 @@ export async function resolveConflict(root: string, reviewed: ConflictSnapshot, 
       if (temp) await fs.rm(temp, { recursive: true, force: true });
     }
   } catch (error) {
-    if (written) throw Object.assign(new Error(`冲突正文已开始写入，但完成结果未确认；请核对文件与暂存区：${error instanceof Error ? error.message : String(error)}`), { code: "actions.outcome_unknown" });
+    if (written) throw Object.assign(new Error(`冲突正文已开始写入，但完成结果未确认；请核对文件与暂存区：${error instanceof Error ? error.message : String(error)}`), { code: "EFFECT_RECONCILE_REQUIRED" });
     throw error;
   } finally { await file.close(); }
 }

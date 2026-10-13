@@ -58,14 +58,14 @@ export async function preparePush(root: string, summary: WorkspaceGitSummary, op
       await checkPush();
       let out;
       try { out = await run(["push", "--no-force", "--no-follow-tags", "--recurse-submodules=no", alias, `${commit}:refs/heads/${branch}`], config); }
-      catch (error) { throw Object.assign(new Error(`推送结果未确认；请核对以上远端，不要直接重试：${error instanceof Error ? error.message : String(error)}`), { code: "actions.outcome_unknown" }); }
+      catch (error) { throw Object.assign(new Error(`推送结果未确认；请核对以上远端，不要直接重试：${error instanceof Error ? error.message : String(error)}`), { code: "EFFECT_RECONCILE_REQUIRED" }); }
       if (setUpstream) {
         if (await configured(root, `branch.${branch}.remote`) !== branchRemote || await configured(root, `branch.${branch}.merge`) !== branchMerge
           || await configured(root, `remote.${name}.fetch`) !== fetch) return `已推送到 ${name}；后来改过的本地跟踪设置已保留，请核对。`;
         try {
           await run(["config", "--local", `branch.${branch}.remote`, name]);
           await run(["config", "--local", `branch.${branch}.merge`, `refs/heads/${branch}`]);
-        } catch (error) { throw Object.assign(new Error(`已推送到 ${name}，本地跟踪设置未完成：${error instanceof Error ? error.message : String(error)}`), { code: "actions.outcome_unknown" }); }
+        } catch (error) { throw Object.assign(new Error(`已推送到 ${name}，本地跟踪设置未完成：${error instanceof Error ? error.message : String(error)}`), { code: "EFFECT_RECONCILE_REQUIRED" }); }
       }
       return `已推送到 ${name}：${(out.stderr.split("\n").find(line => /->/.test(line)) ?? branch).trim()}`;
     } };

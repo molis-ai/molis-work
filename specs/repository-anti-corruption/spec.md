@@ -720,33 +720,33 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 
 | 包 | 层 | 源文件 | 行数 | 最大文件 | 公开入口 | 依赖内部包 | 被依赖 | 状态 | 计划深度 | 审查 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `apps/cli` | 应用 | 5 | 177 | `command-dispatch.ts` 54 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
+| `apps/cli` | 应用 | 5 | 177 | `command-dispatch.ts` 54 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `apps/desktop` | 应用 | 11 | 1,203 | `capsule-shell.ts` 555 | 1 | 6 | 1 | 在用 | 中 | 已审 |
-| `apps/local-host` | 应用 | 369 | 41,807 | `assistant/assistant-service.ts` 2,656 | 1 | 64 | 2 | 在用 | 深 | 待审 |
-| `apps/mcp` | 应用 | 17 | 1,062 | `runtime-context-tools.ts` 161 | 1 | 2 | 1 | 在用 | 中 | 待审 |
+| `apps/local-host` | 应用 | 369 | 41,807 | `assistant/assistant-service.ts` 2,656 | 1 | 64 | 2 | 在用 | 深 | 已审 |
+| `apps/mcp` | 应用 | 17 | 1,062 | `runtime-context-tools.ts` 161 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `apps/server` | 应用 | 5 | 186 | `assets.ts` 76 | 1 | 7 | 0 | 非产品 | 浅 | 已审 |
-| `apps/workbench` | 应用 | 171 | 40,687 | `i18n/en.ts` 3,380 | 1 | 32 | 1 | 在用 | 深 | 待审 |
-| `horizontal/agent-host` | 横向 | 35 | 9,410 | `adapters/prologue-node.ts` 1,764 | 1 | 1 | 1 | 在用 | 深 | 待审 |
-| `horizontal/connector-host` | 横向 | 3 | 567 | `connection-store.ts` 317 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
-| `horizontal/listener-host` | 横向 | 1 | 739 | `index.ts` 739 | 1 | 1 | 1 | 在用 | 中 | 待审 |
-| `horizontal/memory` | 横向 | 5 | 1,560 | `service.ts` 1,338 | 1 | 1 | 1 | 在用 | 中 | 待审 |
-| `horizontal/placement` | 横向 | 1 | 480 | `index.ts` 480 | 1 | 1 | 1 | 在用 | 中 | 待审 |
-| `horizontal/runtime-host` | 横向 | 5 | 980 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 | 在用 | 浅 | 待审 |
-| `horizontal/scheduler` | 横向 | 1 | 567 | `index.ts` 567 | 1 | 2 | 1 | 在用 | 中 | 待审 |
-| `horizontal/search` | 横向 | 1 | 575 | `index.ts` 575 | 1 | 1 | 1 | 在用 | 中 | 待审 |
-| `modules/artifacts` | 模块 | 7 | 1,080 | `service.ts` 344 | 1 | 1 | 1 | 在用 | 中 | 待审 |
-| `modules/attention-resumption` | 模块 | 1 | 429 | `index.ts` 429 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
-| `modules/characters` | 模块 | 4 | 203 | `service.ts` 128 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
-| `modules/context-ledger` | 模块 | 4 | 292 | `service.ts` 102 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
-| `modules/feed` | 模块 | 2 | 776 | `index.ts` 733 | 1 | 2 | 1 | 在用 | 中 | 待审 |
-| `modules/functions` | 模块 | 9 | 1,777 | `store.ts` 939 | 1 | 2 | 1 | 在用 | 中 | 待审 |
-| `modules/goals` | 模块 | 42 | 9,440 | `event-facts.ts` 631 | 1 | 1 | 2 | 在用 | 深 | 待审 |
-| `modules/governance-collaboration` | 模块 | 12 | 1,116 | `goal-tree-records.ts` 220 | 1 | 1 | 1 | 在用 | 中 | 待审 |
-| `modules/private-work-context` | 模块 | 21 | 3,054 | `session-records.ts` 367 | 1 | 1 | 1 | 在用 | 中 | 待审 |
-| `modules/projects` | 模块 | 6 | 1,123 | `repository.ts` 467 | 1 | 1 | 1 | 在用 | 中 | 待审 |
-| `modules/shelf` | 模块 | 11 | 2,652 | `store.ts` 1,176 | 1 | 2 | 2 | 在用 | 中 | 待审 |
-| `modules/signals` | 模块 | 1 | 379 | `index.ts` 379 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
-| `modules/sources` | 模块 | 1 | 395 | `index.ts` 395 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
+| `apps/workbench` | 应用 | 171 | 40,687 | `i18n/en.ts` 3,380 | 1 | 32 | 1 | 在用 | 深 | 已审 |
+| `horizontal/agent-host` | 横向 | 35 | 9,410 | `adapters/prologue-node.ts` 1,764 | 1 | 1 | 1 | 在用 | 深 | 已审 |
+| `horizontal/connector-host` | 横向 | 3 | 567 | `connection-store.ts` 317 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `horizontal/listener-host` | 横向 | 1 | 739 | `index.ts` 739 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `horizontal/memory` | 横向 | 5 | 1,560 | `service.ts` 1,338 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `horizontal/placement` | 横向 | 1 | 480 | `index.ts` 480 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `horizontal/runtime-host` | 横向 | 5 | 980 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
+| `horizontal/scheduler` | 横向 | 1 | 567 | `index.ts` 567 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `horizontal/search` | 横向 | 1 | 575 | `index.ts` 575 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/artifacts` | 模块 | 7 | 1,080 | `service.ts` 344 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/attention-resumption` | 模块 | 1 | 429 | `index.ts` 429 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `modules/characters` | 模块 | 4 | 203 | `service.ts` 128 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `modules/context-ledger` | 模块 | 4 | 292 | `service.ts` 102 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `modules/feed` | 模块 | 2 | 776 | `index.ts` 733 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `modules/functions` | 模块 | 9 | 1,777 | `store.ts` 939 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `modules/goals` | 模块 | 42 | 9,440 | `event-facts.ts` 631 | 1 | 1 | 2 | 在用 | 深 | 已审 |
+| `modules/governance-collaboration` | 模块 | 12 | 1,116 | `goal-tree-records.ts` 220 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/private-work-context` | 模块 | 21 | 3,054 | `session-records.ts` 367 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/projects` | 模块 | 6 | 1,123 | `repository.ts` 467 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/shelf` | 模块 | 11 | 2,652 | `store.ts` 1,176 | 1 | 2 | 2 | 在用 | 中 | 已审 |
+| `modules/signals` | 模块 | 1 | 379 | `index.ts` 379 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `modules/sources` | 模块 | 1 | 395 | `index.ts` 395 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `packages/contracts` | 基础 | 91 | 16,544 | `services/agent-host.ts` 1,734 | 64 | 0 | 70 | 在用 | 深 | 已审 |
 | `packages/design-system` | 基础 | 45 | 17,218 | `styles/craft-finish.ts` 2,313 | 1 | 1 | 22 | 在用 | 深 | 已审 |
 | `packages/im-ui` | 基础 | 11 | 1,401 | `browser/controller.ts` 966 | 1 | 2 | 3 | 在用 | 中 | 已审 |
@@ -756,39 +756,39 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `packages/plugin-sdk` | 基础 | 2 | 199 | `index.ts` 182 | 1 | 1 | 8 | 在用 | 中 | 已审 |
 | `packages/storage` | 基础 | 13 | 2,120 | `adapters/file-secret-store.ts` 588 | 1 | 1 | 17 | 在用 | 中 | 已审 |
 | `packages/test-kit` | 基础 | 11 | 1,165 | `boundaries.ts` 554 | 3 | 1 | 0 | 非产品 | 中 | 已审 |
-| `packages/ui-host` | 基础 | 4 | 441 | `client-lifecycle.ts` 152 | 1 | 1 | 2 | 在用 | 浅 | 待审 |
+| `packages/ui-host` | 基础 | 4 | 441 | `client-lifecycle.ts` 152 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
 | `plugins/native/alchemist` | 内置插件 | 97 | 10,327 | `studio/server/db/pulse-repository.ts` 567 | 1 | 4 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/artifacts` | 内置插件 | 19 | 1,628 | `browser-ui.ts` 242 | 1 | 2 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/characters` | 内置插件 | 13 | 978 | `client.ts` 217 | 1 | 2 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/coding` | 内置插件 | 58 | 10,718 | `client.ts` 1,656 | 1 | 2 | 2 | Runtime | 深 | 待审 |
-| `plugins/native/cognia` | 内置插件 | 16 | 723 | `store.ts` 151 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
-| `plugins/native/dataset` | 内置插件 | 16 | 2,042 | `client.ts` 694 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
-| `plugins/native/diff` | 内置插件 | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 | Runtime | 浅 | 待审 |
-| `plugins/native/feed` | 内置插件 | 46 | 5,644 | `ui.ts` 698 | 1 | 2 | 3 | 构建期 | 中 | 待审 |
-| `plugins/native/files` | 内置插件 | 16 | 1,177 | `manifest.ts` 150 | 1 | 1 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/form` | 内置插件 | 17 | 2,545 | `client.ts` 930 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
-| `plugins/native/git` | 内置插件 | 15 | 1,708 | `client.ts` 255 | 1 | 1 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/goals` | 内置插件 | 151 | 14,215 | `event-document-client.ts` 782 | 1 | 2 | 4 | 构建期 | 深 | 待审 |
-| `plugins/native/images` | 内置插件 | 13 | 1,443 | `client.ts` 456 | 1 | 4 | 2 | 构建期 | 中 | 待审 |
-| `plugins/native/inbox` | 内置插件 | 13 | 1,016 | `ui.ts` 189 | 1 | 1 | 2 | 构建期 | 中 | 待审 |
-| `plugins/native/jelly` | 内置插件 | 27 | 2,355 | `content.ts` 202 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
-| `plugins/native/lingguang` | 内置插件 | 14 | 1,819 | `client.ts` 645 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
-| `plugins/native/pages` | 内置插件 | 44 | 14,848 | `editor-browser.ts` 4,043 | 3 | 3 | 2 | 构建期 | 深 | 待审 |
-| `plugins/native/plugin-builder` | 内置插件 | 17 | 2,855 | `agent-authoring.ts` 800 | 1 | 2 | 2 | 构建期 | 中 | 待审 |
-| `plugins/native/ppt` | 内置插件 | 18 | 2,276 | `client.ts` 806 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
-| `plugins/native/schedule` | 内置插件 | 24 | 2,484 | `client.ts` 379 | 1 | 1 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/characters` | 内置插件 | 13 | 978 | `client.ts` 217 | 1 | 2 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/coding` | 内置插件 | 58 | 10,718 | `client.ts` 1,656 | 1 | 2 | 2 | Runtime | 深 | 已审 |
+| `plugins/native/cognia` | 内置插件 | 16 | 723 | `store.ts` 151 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/dataset` | 内置插件 | 16 | 2,042 | `client.ts` 694 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/diff` | 内置插件 | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
+| `plugins/native/feed` | 内置插件 | 46 | 5,644 | `ui.ts` 698 | 1 | 2 | 3 | 构建期 | 中 | 已审 |
+| `plugins/native/files` | 内置插件 | 16 | 1,177 | `manifest.ts` 150 | 1 | 1 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/form` | 内置插件 | 17 | 2,545 | `client.ts` 930 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/git` | 内置插件 | 15 | 1,708 | `client.ts` 255 | 1 | 1 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/goals` | 内置插件 | 151 | 14,215 | `event-document-client.ts` 782 | 1 | 2 | 4 | 构建期 | 深 | 已审 |
+| `plugins/native/images` | 内置插件 | 13 | 1,443 | `client.ts` 456 | 1 | 4 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/inbox` | 内置插件 | 13 | 1,016 | `ui.ts` 189 | 1 | 1 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/jelly` | 内置插件 | 27 | 2,355 | `content.ts` 202 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/lingguang` | 内置插件 | 14 | 1,819 | `client.ts` 645 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/pages` | 内置插件 | 44 | 14,848 | `editor-browser.ts` 4,043 | 3 | 3 | 2 | 构建期 | 深 | 已审 |
+| `plugins/native/plugin-builder` | 内置插件 | 17 | 2,855 | `agent-authoring.ts` 800 | 1 | 2 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/ppt` | 内置插件 | 18 | 2,276 | `client.ts` 806 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/schedule` | 内置插件 | 24 | 2,484 | `client.ts` 379 | 1 | 1 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/shelf` | 内置插件 | 21 | 5,037 | `client.ts` 1,708 | 2 | 3 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/text-stats` | 内置插件 | 6 | 372 | `core.ts` 105 | 1 | 1 | 2 | Runtime | 浅 | 待审 |
+| `plugins/native/text-stats` | 内置插件 | 6 | 372 | `core.ts` 105 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/issues` | 内置插件 | 8 | 392 | `store.ts` 116 | 1 | 2 | 1 | Runtime | 浅 | 已审 |
-| `plugins/native/todo` | 内置插件 | 22 | 4,271 | `client.ts` 1,245 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/todo` | 内置插件 | 22 | 4,271 | `client.ts` 1,245 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/work` | 内置插件 | 44 | 6,650 | `terminal/client.ts` 478 | 3 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/workflows` | 内置插件 | 15 | 3,708 | `client.ts` 1,387 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
-| `plugins/official-integrations/catalog` | 官方接入 | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 | 在用 | 中 | 待审 |
-| `plugins/official-integrations/github` | 官方接入 | 5 | 934 | `provider.ts` 586 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
-| `plugins/official-integrations/gmail` | 官方接入 | 12 | 2,673 | `provider.ts` 957 | 3 | 2 | 2 | 在用 | 中 | 待审 |
-| `plugins/official-integrations/rss` | 官方接入 | 6 | 1,246 | `catalog.ts` 540 | 2 | 2 | 2 | 在用 | 中 | 待审 |
-| `plugins/official-integrations/web-query` | 官方接入 | 1 | 55 | `index.ts` 55 | 1 | 2 | 0 | 非产品 | 浅 | 待审 |
-| `plugins/official-integrations/youtube` | 官方接入 | 2 | 138 | `channel.ts` 82 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
+| `plugins/official-integrations/catalog` | 官方接入 | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `plugins/official-integrations/github` | 官方接入 | 5 | 934 | `provider.ts` 586 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
+| `plugins/official-integrations/gmail` | 官方接入 | 12 | 2,673 | `provider.ts` 957 | 3 | 2 | 2 | 在用 | 中 | 已审 |
+| `plugins/official-integrations/rss` | 官方接入 | 6 | 1,246 | `catalog.ts` 540 | 2 | 2 | 2 | 在用 | 中 | 已审 |
+| `plugins/official-integrations/web-query` | 官方接入 | 1 | 55 | `index.ts` 55 | 1 | 2 | 0 | 非产品 | 浅 | 已审 |
+| `plugins/official-integrations/youtube` | 官方接入 | 2 | 138 | `channel.ts` 82 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `server` | 模块 | 18 | 1,062 | `continuity/service.ts` 161 | 1 | 2 | 2 | 在用 | 中 | 已审 |
 | `tooling/plugin-cli` | 工具 | 8 | 332 | `sample-source.ts` 93 | 1 | 2 | 0 | 在用 | 浅 | 已审 |
 
@@ -1705,7 +1705,7 @@ Images 后台 job 未携带原 MCP 调用的持续授权，但 Prologue 手册�
 | G3 普通/相关/浏览器组 | 5/5、198/198、6/6，均无跳过/取消 | 共 209 个不同用例，含真实 scope/preview 拒绝、坏 SQLite 不变、Host 重开、Chrome 修复后继续同 work；仅覆盖该片 |
 | Home candidate security | 192 总数：191 通过、1 外网可选项跳过 | 安全相关本地路径已验；跳过网络项未验，不能写 192/192 |
 | I6 整树预检 | 整体 build、boundary、类型、actual-base health、API/actions 与资源已通过；API 0 变，29 资源 11,366,475 字节 | 支持冻结候选的工程预检；不是全部测试通过或 main 已合入 |
-| I6 全量 i6-full-01.log | 19:19:36 启动，冻结 af0fe957，当前仍运行；日志 331 行的 `Character and Coding discover authorized unknown actions, preserve exact selections and explain withdrawn providers` 、6903 行的 `already split panes keep later drags and previews on the hovered pane` 与 7375 行的 `placement survives a restart: relations, a removed relation, a copy, a move, a failed move and collected answers` 已失败，尚无最终 footer | 不报最终通过数、不记全绿；接续线程在退出后原位补完整结果与异常详情，失败先分类/基线对照，不能并行改受测树 |
+| I6 全量 i6-full-01.log | 冻结 af0fe957 的本轮已结束：6,088 tests，6,075 pass、4 fail、9 skipped、0 cancelled；失败为 agent-action-selection、tab-split-drop-preview、work-placement-restart、workbench-pane-feed。Placement 断言失败后其 HTTP 未关闭，子进程挂住，由原执行者单独终止后主回归继续 | 不能记全量通过；四文件由原负责人重跑并做干净基线对照。单独终止事实保留，后续修复/定向通过不改写本轮失败；各修复树不能把通过数相加当整合通过 |
 
 I5 的九个跳过包含 live 账号/真实网络、MiniMax 凭据与本机缺 shellcheck 的两条；CI 的 Shell/Python 检查有独立证据，不能因此说本地那两条已运行。真实产品证据目前是各片实际 HTTP/SQLite/Chrome 覆盖的路径与历史维护窗口；外部模型/账户、完整辅助技术和最终用户验收没有全量结论。
 
@@ -1783,17 +1783,17 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 
 | 组与重点 | 包数 | 完整包边界 | Codex 会话 | 状态 |
 | --- | ---: | --- | --- | --- |
-| G1 宿主与 CLI/MCP | 3 | `apps/local-host`、`apps/cli`、`apps/mcp` | `01a1335c-bdeb-7473-b444-25370fc0e242` | 审查中，未计完成 |
-| G2 工作台与 UI 宿主 | 2 | `apps/workbench`、`packages/ui-host` | `01a1335c-c133-7891-9b62-a36a02e10c5a` | 审查中，未计完成 |
+| G1 宿主与 CLI/MCP | 3 | `apps/local-host`、`apps/cli`、`apps/mcp` | `01a1335c-bdeb-7473-b444-25370fc0e242` | 源码审查完成；修复/最终实操未完成，见 §12.9 |
+| G2 工作台与 UI 宿主 | 2 | `apps/workbench`、`packages/ui-host` | `01a1335c-c133-7891-9b62-a36a02e10c5a` | 源码审查完成；修复/最终实操未完成，见 §12.9 |
 | G3 桌面、设计系统与 IM | 6 | `apps/desktop`、`packages/design-system`、`apps/server`、`server`、`packages/im-ui`、`packages/test-kit` | `01a1335c-c77b-75c2-9ad0-6ea2e5458ba5` | 源码审查完成；修复/最终实操未完成，见 §12.9 |
 | G4 公共合同与插件运行时 | 7 | `packages/contracts`、`packages/kernel`、`packages/plugin-runtime`、`packages/plugin-sdk`、`packages/storage`、`packages/plugin-sandbox`、`tooling/plugin-cli` | `01a1335c-d9c5-7990-978a-cf976825eb9d` | 源码审查完成；修复/最终实操未完成，见 §12.9 |
-| G5 AI 横向服务与开发插件 | 11 | `horizontal/agent-host`、`horizontal/connector-host`、`horizontal/listener-host`、`horizontal/runtime-host`、`horizontal/scheduler`、`horizontal/memory`、`horizontal/search`、`horizontal/placement`、`plugins/native/coding`、`plugins/native/plugin-builder`、`plugins/native/characters` | `01a1335c-f6be-7560-896b-e9153331eea5` | 审查中，未计完成 |
-| G6 业务模块与 Goals | 14 | `modules/projects`、`modules/context-ledger`、`modules/sources`、`modules/signals`、`modules/feed`、`modules/attention-resumption`、`modules/goals`、`modules/private-work-context`、`modules/artifacts`、`modules/shelf`、`modules/characters`、`modules/functions`、`modules/governance-collaboration`、`plugins/native/goals` | `01a1335d-0db9-7a61-90af-d93fb33b11e7` | 审查中，未计完成 |
-| G7 内容创作插件 | 7 | `plugins/native/pages`、`plugins/native/form`、`plugins/native/dataset`、`plugins/native/ppt`、`plugins/native/images`、`plugins/native/cognia`、`plugins/native/lingguang` | `01a1335d-1541-75e2-9c2a-3930e8fb3b2f` | 审查中，未计完成 |
+| G5 AI 横向服务与开发插件 | 11 | `horizontal/agent-host`、`horizontal/connector-host`、`horizontal/listener-host`、`horizontal/runtime-host`、`horizontal/scheduler`、`horizontal/memory`、`horizontal/search`、`horizontal/placement`、`plugins/native/coding`、`plugins/native/plugin-builder`、`plugins/native/characters` | `01a1335c-f6be-7560-896b-e9153331eea5` | 源码审查完成；修复/最终实操未完成，见 §12.9 |
+| G6 业务模块与 Goals | 14 | `modules/projects`、`modules/context-ledger`、`modules/sources`、`modules/signals`、`modules/feed`、`modules/attention-resumption`、`modules/goals`、`modules/private-work-context`、`modules/artifacts`、`modules/shelf`、`modules/characters`、`modules/functions`、`modules/governance-collaboration`、`plugins/native/goals` | `01a1335d-0db9-7a61-90af-d93fb33b11e7` | 源码审查完成；修复/最终实操未完成，见 §12.9 |
+| G7 内容创作插件 | 7 | `plugins/native/pages`、`plugins/native/form`、`plugins/native/dataset`、`plugins/native/ppt`、`plugins/native/images`、`plugins/native/cognia`、`plugins/native/lingguang` | `01a1335d-1541-75e2-9c2a-3930e8fb3b2f` | 源码审查完成；修复/最终实操未完成，见 §12.9 |
 | G8 工作流与执行插件 | 6 | `plugins/native/workflows`、`plugins/native/alchemist`、`plugins/native/work`、`plugins/native/issues`、`plugins/native/shelf`、`plugins/native/artifacts` | `01a1335d-246b-71f3-ba85-34421a4d71c4` | 源码审查完成；修复/最终实操未完成，见 §12.9 |
-| G9 信息接入与日常工具 | 15 | `plugins/native/feed`、`plugins/native/inbox`、`plugins/native/todo`、`plugins/native/schedule`、`plugins/native/files`、`plugins/native/diff`、`plugins/native/git`、`plugins/native/text-stats`、`plugins/native/jelly`、`plugins/official-integrations/catalog`、`plugins/official-integrations/github`、`plugins/official-integrations/gmail`、`plugins/official-integrations/rss`、`plugins/official-integrations/web-query`、`plugins/official-integrations/youtube` | `01a1335d-44e2-7a23-aff4-14c68ce9ed5b` | 审查中，未计完成 |
+| G9 信息接入与日常工具 | 15 | `plugins/native/feed`、`plugins/native/inbox`、`plugins/native/todo`、`plugins/native/schedule`、`plugins/native/files`、`plugins/native/diff`、`plugins/native/git`、`plugins/native/text-stats`、`plugins/native/jelly`、`plugins/official-integrations/catalog`、`plugins/official-integrations/github`、`plugins/official-integrations/gmail`、`plugins/official-integrations/rss`、`plugins/official-integrations/web-query`、`plugins/official-integrations/youtube` | `01a1335d-44e2-7a23-aff4-14c68ce9ed5b` | 源码审查完成；修复/最终实操未完成，见 §12.9 |
 
-以上集合由协调方与仓库登记的 71 包核对：不遗漏、不重复。九个会话均为 `gpt-6.1-sol / max`，当前仅有只读审查权，不自动成为实现 writer，也不占构建/浏览器时段。Dataset/Issue 的两个既有修复会话继续其已授权边界；共同授权与既有防腐实现仍由原线负责。新问题先核实并登记根因、影响、最小修复和验收，再按不冲突边界接续，不能将交接记为已修复。
+以上集合由协调方与仓库登记的 71 包核对：不遗漏、不重复。九个会话均为 `gpt-6.1-sol / max`，初始只读；只有经协调方核事实、归入本 spec 并明确分配后才接续隔离实现，不自动成为 writer，也不占构建/浏览器时段。Dataset/Issue 的两个既有修复会话继续其已授权边界；共同授权与既有防腐实现仍由原线负责。新问题先核实并登记根因、影响、最小修复和验收，再按不冲突边界接续，不能将交接记为已修复。
 
 **完成与证据口径。** W1-18-ALL-01 [人工]：71 个包各有完整当前代码审查结论，受跟踪生产文件不存在未披露的未审项，重要实际入口/消费者与 owner 判断有源码依据；§5.1 逐行据此更新，未审完仍“待审”。W1-18-ALL-02 [人工]：发现的必要问题按原 owner 修复并核实际 diff，状态/权限/并发缺陷有能发现原错误的生产路径回归；代码审完但整改未完的包须明确标出。W2-18-ALL-03 [人工]：下列现行组合路径逐项核当前实现、完整传递与运行证据，缺口按真实权限/环境说明，不能把 Mock 模型输出当真实模型质量验证。W2-18-ALL-04 [人工]：最后在整合后的实际代码头核受影响差异与必要工程/产品实操，复用有效证据，不相加不同树的通过数冒充最终验证。
 
@@ -1814,7 +1814,7 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | S11 | 删除项目→所有实际 owner 清理→进程/任务/文件/引用与失败重试；共享个人内容按既有合同保留 | G1/G3/G4/G6/相关插件组，待核当前实际回归 |
 | 补充接点 | Images→Pages、Cognia 固定证据→文稿/PPT、Characters→Artifacts→Coding、创作台→安装→实际调用、Jelly 音频/网页→内容 | 各负责组报告现行真实支持与边界，不能凭同类功能存在就推断可组合 |
 
-真实页面仍按 W2-18-FR 补键盘/辅助技术、暗色/英文、三宽度、离线/失败/无权限/部分成功、多窗口、配置返回与核心模型路径。只读会话先把具体缺证据动线和可复用用例列清；协调方在 I6 及已排修复验证释放机器后安排实操。没有必要账号、权限或产品未支持的路径写明，实质产品语义待决定时只暂停依赖部分，其余继续。当前 19/71 包源码审查完成，其余包及组合核查仍在进行；整条防腐线不标完成。
+真实页面仍按 W2-18-FR 补键盘/辅助技术、暗色/英文、三宽度、离线/失败/无权限/部分成功、多窗口、配置返回与核心模型路径。只读会话先把具体缺证据动线和可复用用例列清；协调方在 I6 及已排修复验证释放机器后安排实操。没有必要账号、权限或产品未支持的路径写明，实质产品语义待决定时只暂停依赖部分，其余继续。当前 71/71 包源码审查完成，必要修复与组合核查仍在进行；整条防腐线不标完成。
 
 ### 12.8 全包深审发现的必要修复（增量，未验收）
 
@@ -1857,15 +1857,73 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | W2-18-GIT-TARGET / P1 | readGitSummary 读取 remotes，但审查 revision 不含 URL；批准期间 origin 改到 B 后执行 git push remote.name，仍通过旧 A 审查 | 固定该操作实际远端目标并在执行前复核，保留用户正常改 remote 能力；核 pushurl/有效目标，不只显示旧 URL。W2-18-GIT-TARGET-01：临时 bare A/B、prepare A→改 origin B→批准拒绝，B refs/objects 不变；正常 A 推送通过，无真实远端写入。 |
 | W2-18-GIT-CONFLICT / P1 | resolve 的 revision 仅含 HEAD/index 等，不含冲突文件正文/身份；等待期间新编辑未 stage 仍被 writeFile 覆盖，替换 symlink 也未在写前拒绝 | 唯一 Git owner 固定并核正文/文件身份与实际授权路径，写入不跟随后到链接。W2-18-GIT-CONFLICT-01：真实临时冲突，prepare 后改正文再批，拒绝且新正文/index保持；W2-18-GIT-CONFLICT-02：换 symlink 到隔离外部哨兵明确拒绝、哨兵字节不变，正常解决/暂存成功，安全表同步。 |
 
+| W1-18-MCP-CONFIG / P2 必修 | 损坏/冲突的 MCP grant 被读成空配置，permission-free system 默认放行会重新开放已明确撤下的动作；缺配置与坏配置被混为一谈 | 唯一 parser/resolver 保留拒绝状态，冲突精确 key 拒绝，其他合法 grant 保留；不增授权事实库。W1-18-MCP-CONFIG-01：真实临时配置的重复/错版/读错沿 Host 发现与调用不可恢复已撤动作，明确管理修正后正常；首次无配置仍按现行默认。归原 AUTH writer，同文件不另派人。 |
+| W2-18-RUNTIME-ROLLBACK / P1 | 接入写 config/Skill 后 await 验证；失败盲恢复旧整份文件并删当前任意 symlink，覆盖验证期间后来编辑/另一接入 | 唯一 confirm 按实际 Runtime 目标协调；回滚仅收回仍属于本次的内容，变化保留并明确冲突/备份，不谎称全部恢复。W2-18-RUNTIME-ROLLBACK-01：真实临时配置/Skill，验证 barrier 内改 key/链接后失败，后来内容保留；并发同目标确认不撤掉后来成功，备份可核。 |
+| W2-18-RUNTIME-TOML / P2 必修 | 文本 regex 不识别合法引号 key 的 TOML 表，同一 family 又追加裸表，最终实际配置不可解析 | 按当前 TOML key 语义识别/验证既有 owner，保留无关字节，不新增历史兼容。W2-18-RUNTIME-TOML-01：quoted owner prepare/confirm 只一份可解析 family；未知 owner 明确冲突、零写；现行裸表正常。 |
+| W2-18-CARD-UNKNOWN / P1 | 助理卡把 output_invalid_after_effect/outcome_unknown 记 failed，而 failed 可重试，已发生业务可能重复 | 按共同错误身份归 unknown 并禁止重派，供原 owner 核对。W2-18-CARD-UNKNOWN-01：真实 ActionService 先写库再返回坏 schema，卡 unknown，第二次/重启不再执行；生成插件 outcome_unknown 同样拒重派，正常未生效失败仍可恢复。 |
+| W2-18-FOLLOWUP-DELETE / P2 必修 | 定时回调持旧 followup 等待，删除只删队列和行，尾部 UPSERT 重建定时并再派下一次 | 等待后核现行同一记录，尾部仅 CAS 更新仍存在版本，再排下一次。W2-18-FOLLOWUP-DELETE-01：真实 Store/Adapter 状态读取 barrier 中删除，放行后不开始尚未派出的轮次、不复活记录、不排下一次；已开始轮次不自行扩大停止语义。 |
+| W1-18-MODEL-SCHEMA / P2 必修 | openConfiguredModels 只检查宽版范围，与正式 Catalog 严格现行 schema 不一致，旧 21 库仍可读取模型 | 复用唯一 assertCurrentCatalog，旧/新/坏版拒绝且不改库、不解密、不调模型。W1-18-MODEL-SCHEMA-01：真实临时 21/22 Catalog 经独立模型入口分别拒绝/成功，版本和原库不变。 |
+| W2-18-DIRECTORY-PICKER / P2 必修 | 默认 runner await 原始 execFile 返回 ChildProcess，立即把 stdout 流当空文本，提前 cancelled/释放 busy | 唯一 runner 真正等待进程结束并收字符串。W2-18-DIRECTORY-PICKER-01：默认实际子进程的成功/取消/错误/超时可核，未结束前第二选择仍 busy；真实系统窗口单列实操。 |
+| W2-18-ONBOARDING-GMAIL / P2 必修 | 首次使用来源读绕过共同 resolver，以旧专用 expiry/client 规则读当前 API OAuth，过期后直接401而不刷新 | 复用被选账号的共同 resolver/lifecycle，不跨账号回退。W2-18-ONBOARDING-GMAIL-01：隔离现行 API OAuth 数字过期连接，经实际首次使用读取只刷新一次并固定材料；专用 Gmail 正常，断开不开始新请求。远端用测试替身，不读真实账户。 |
+| W2-18-NATIVE-BODY / P2 必修 | 原生 HTTP JSON 按字符而非 UTF-8 字节限流，超限 reject 后仍积累/解析 | 同一 reader 按 wire 字节拒绝，settled 后不留正文/解析，保留413回应。W2-18-NATIVE-BODY-01：真实 HTTP 限内中文成功、字节超限413且 handle/DB/模型零效果；分块超限后停止累积，畸形JSON仍400。 |
+| W1-18-SHELF-FORMAT / P2 必修 | Shelf 存储读取忽略 version，补旧单项 job/result 字段和 done 状态后可覆盖为现行格式 | 仅接受现行版本/形状，删除历史补齐，不增加迁移；保留现行单项 API 输入。W1-18-SHELF-FORMAT-01：真实 ShelfStore 读当前/错版/旧形状，前者可用、后两者拒绝且文件字节不变。 |
+| W1-18-CHARACTER-SCHEMA / P2 必修 | openCharacters 对已有 v0 库 CREATE IF NOT EXISTS 并盖 v1，违反现行库拒绝规则 | 区分首次空库与已有表无版本库，仅前者创建。W1-18-CHARACTER-SCHEMA-01：公开入口新建/重开成功；已有表/数据 v0、未来版明确拒绝，结构/数据/user_version不变。 |
+| W2-18-CONCERN-EVIDENCE / P2 必修 | Goal 解决/推翻 Concern 表单只给 event_ids，客户端仅 open 使用，未提交后端要求的 supporting_event_ids | UI 显示真实处理证据并沿现有 HTTP 传入，不放宽后端拒绝。W2-18-CONCERN-EVIDENCE-01：真实页面开问题→后续事件→解决/推翻，读回历史和完成阻塞正确；前序/外 Goal 证据拒绝且保留输入。 |
+| W2-18-ATTENTION-TX / P2 必修 | Attention 独立 create/deleteSubject 没有事务，journal 失败后留下事项/部分事件；Feed 手动加入和 Goals reconcile 是实际独立消费者 | Owner 同库事务覆盖事项、事件和同步 journal，复用既有嵌套事务。W2-18-ATTENTION-TX-01：真实独立消费者注入 journal 拒绝，三类事实全不变；恢复重试恰好一次，原 Feed 外层事务继续成立。 |
+| W2-18-GOAL-PIN-RETRY / P2 必修 | Goal 固定成果提交成功但回执丢失后，页面重试新随机键再次委托 owner，Pages 生成 v2；普通 reference 幂等无效 | 沿现有 owner/Goals 机制恢复同一次意图，或未知先核对再继续；一次性控制键不当业务回执。W2-18-GOAL-PIN-RETRY-01：真实 HTTP+Pages/Artifacts/Ledger 提交后丢回包，同意图重试只一固定版/一关联；新的明确固定意图可增版。动作 shape 若变化按现行版本规则处理。 |
+| W2-18-PLANNING-LATE / P2 必修 | 规划详情 A 的迟到成功/失败无条件覆盖已打开 B 的编辑器，关闭也不失效 | 固定请求/选择身份，关闭/teardown 失效，仅当前详情可回写。W2-18-PLANNING-LATE-01：真实 A慢/B快并写B草稿，放A成功/失败不改B；关页后不重开。 |
+| W1-18-GOAL-POLICY / P2 必修 | Goal 页面仍给 scope=goal override 表单，而当前 HTTP 一律只收 project_default，操作必失败 | 删除旧单 Goal policy 写入口，展示现行项目默认与 Goal 要求，修改沿已有事件合同。W1-18-GOAL-POLICY-01：真实 Goal 不再给必失败表单，现行要求修改/项目默认保存/继承和收尾检查正常。 |
+| W2-18-FUNCTION-CHOICE / P2 必修 | Functions provider 接受 Choice 任意字符串并先存 ok 判断；精确 published action 的 enum 在副作用后才拒绝 | 在生产 provider 转换边界核已声明 criteria，非法答案按真实失败处理，不保存错误成功；不推断未查证的其他原语语义。W2-18-FUNCTION-CHOICE-01：原生协议返回 enum 外 choice，preview/通用/精确动作均不产 ok 历史或取得发布资格；合法选项结果正常。 |
+| W2-18-PAGE-CARDS / P2 必修 | 助理逐张绘制 page card，却每次删除不在单张数组的其他卡，多个待确认卡只留最后一张 | 列表清理按完整集合，单张绘制不删除兄弟卡。W2-18-PAGE-CARDS-01：同真实 work 两张页面卡均可见，执行/忽略/重读各自状态与 Host 一致。仅原 SEND writer 连续修改该文件。 |
+| W2-18-ASSISTANT-404 / P2 必修 | A 刷新晚到 not_found 未核 currentId，会清掉后来打开的有效 B | 成功与失败 UI 效果都固定原读取身份。W2-18-ASSISTANT-404-01：A慢404/B先成功后B选择/草稿保持，A原地删除仍退出。仅原 SEND writer。 |
+| W2-18-HOME-LOCALE / P2 必修 | Home plugin 页面硬写 zh-CN 和 identity translate，英文工作台的 Issue 侧栏仍中文 | 注入现有 locale/L/clientI18n，无第二词典。W2-18-HOME-LOCALE-01：英文选择页/项目中的 Issue 侧栏、无模型设置往返与错误随语言，中文正常。 |
+| W1-18-TAB-FORMAT / P2 必修 | 当前读取仍把 task/goalId/mother/preview/collapsed 旧状态转成现行对象，无当前 writer | 恢复只收现行形状，删历史转换，保留当前 settings撤下与合法标签/组/分屏规范化；其他旧键先核writer再删。W1-18-TAB-FORMAT-01：当前真实标签/多层分屏重载正确，旧状态不转换；保留现行 UI 无母页/preview 的负向断言。 |
+| W2-18-SETTINGS-LATE / P2 必修 | 设置 A 迟到失败无 request 检查，会替换已打开 B 为 A 错误页 | 失败/重试与成功同样绑定请求。W2-18-SETTINGS-LATE-01：A慢失败/B成功并编辑后B字段/目录保持，A原地失败仍能重试且有诊断编号。 |
+| W2-18-REFERENCE-LATE / P2 必修 | 项目引用预览共用 dialog，A关闭后打开B，A迟到正文可覆盖B标题/下载对应内容 | 只读请求绑定当前预览，关闭/重开失效。W2-18-REFERENCE-LATE-01：真实两文件B先/A后，正文/标题/下载一致，旧失败不改下一预览。 |
+| W2-18-MARKET-REFRESH / P2 必修 | 市场 projects 首次读后永久缓存，不消费现行插件成员变更，重新打开仍显示反向添加/移除 | 用既有 changed 事件使投影失效并重开读现行事实，不增事实库。W2-18-MARKET-REFRESH-01：市场→switcher改成员→市场，按钮/Dock/Host一致；失败保持正确最后状态。 |
+| W2-18-STOP-FEEDBACK / P2 必修 | 后台命令停止的 catch 只开按钮，丢失拒绝/未知结果与诊断 | 沿现行 UiRequest 显示错误，不自动重试。W2-18-STOP-FEEDBACK-01：真实停止拒绝、断线未知、成功的反馈与任务后续状态一致。 |
+| W2-18-FUNCTION-LATE / P2 必修 | 判断规则样例保存/删除和草稿删除迟到回执无条件 remember/closeEditor，切B后清B草稿；保存前 await还可换目标 | 点击固定规则/版本/正文，结果更新原记录，仅同对象可更新编辑器。W2-18-FUNCTION-LATE-01：真实A/B延迟样例保存/删除/草稿删除，B输入/选择/URL保持，A持久结果正确。 |
+| W2-18-FILE-PREVIEW / P2 必修 | 侧栏文件预览只比较裸 id，协议身份实际是source/kind/id，A迟到可覆盖同id的B | 用完整身份及本次请求保护成功/失败，外部给定预览/返回/重开使旧请求失效。W2-18-FILE-PREVIEW-01：真实两来源同id不同内容A慢/B快，最终正文/标题/打开目标一致。 |
+
+| W1-18-MEMORY-CANDIDATE / P2 必修 | candidateRecords 列表读取为缺少 Prologue 候选的旧 ledger 行 propose/discard/expire 并改 id，属于未获保留的读取迁移 | 删除旧迁入与旧 accepted 缺失分支，现行缺失给明确状态，不用读取悄悄补事实；正常版本/来源/撤销保留。W1-18-MEMORY-CANDIDATE-01：现行及缺失/损坏候选列表均无业务写入，正常采纳/丢弃可用；真实Home存量维护单列，不擅自改真实库。 |
+| W2-18-THINKING-BUDGET / P2 必修 | Node先写显式输出budget，再被thinking整份params的32768覆盖，冻结预算与实际请求不符 | 同一params按显式上限和既有默认合成，不能静默提高。W2-18-THINKING-BUDGET-01：真实SDK请求显式7+thinking仍符合7上限，frozen/request/usage一致；不支持组合须派出前明确拒绝，默认正常。 |
+| W2-18-CHARACTER-LAUNCH / P1 | launch不消费beforeWrite；Host等workspaces/registry后写bundle/Session/event并spawn，HTTP又漏request.execution | 启动端口按invocation传检查，首次效果前核原授权/角色active；统一HTTP控制，已接受进程沿自身生命周期。W2-18-CHARACTER-LAUNCH-01：真实动作/HTTP加启动barrier，取消/停角色/撤提供方后零新文件/Session/event/进程；正常恢复及重复请求仅重接。 |
+| W2-18-PARSE-RESOURCES / P2 必修 | documents.parse发布输入binary与SDK派生文本，返回值只有正文，未释放任何ref；Home资源容量可持续耗尽 | 文本适配器finally经资源owner释放自己临时输入/派生件，失败同样回收，不删历史附件。W2-18-PARSE-RESOURCES-01：同runtime累计超容量的多次成功/失败解析后容量回收，后续图片仍可发布，使用中的其他资源保留。 |
+| W2-18-BUILDER-LATE / P1 | Builder查token后await resetPreview，再用最新revision改design/connected/phase；暂停或新job期间旧结果能写新构建 | reset等待后再次核原token/取消，预览与业务提交仅处理所属版本。W2-18-BUILDER-LATE-01：真实reset stopRunner barrier→暂停/修订/续跑→旧回包，design/history/connected/phase与新预览不被旧job改，合法恢复可完成。 |
+| W2-18-UPGRADE-SECRETS / P2 必修 | upgrade UI丢consent.secrets，Host切版本也不保存，新版声明密钥用户填完仍不可用 | UI传批准值，Host按release验名并在升级结果中保存/回收本次变化，不损原版密钥或串安装。W2-18-UPGRADE-SECRETS-01：隔离真实consent→Host升级→受控HTTPS使用新fixture密钥，公开清单无正文；失败原版/密钥仍可用。不操作真实凭据。 |
+| W2-18-CODING-BACKGROUND / P2 必修 | readBackground失败时running Map为空，仍持久setBackground(null)，瞬态失败抹掉最后已知运行命令 | 区分成功空与读取失败，只改成功runtime投影，失败保最后事实并明确未知。W2-18-CODING-BACKGROUND-01：真实SDK命令仍运行时查询拒绝→恢复，Store/HTTP/跨项目列表不假装结束；多runtime部分成功独立更新。 |
+| W2-18-CODING-EFFECT / P1 | Coding HTTP丢execution，handler未用beforeWrite；ready/SDK多次等待后仍保存报告/变更/计划或启动Run | 共用adapter与per-invocation控制贯通所有前台最终写/接受启动点，后台已接受run/wake沿activation生命周期。W2-18-CODING-EFFECT-01：真实action/HTTP+SDK ready/read barrier，取消/撤权/撤提供方后零新报告/过程项/计划/Run，原快照与版本检查保留；正常恢复可用。 |
+| W2-18-CODING-WAKE / P2 必修 | plugin start只建surface，已有runtime wakeLoop仅readState重启，持久fired等待重启后不自动继续 | activation ready后由现有服务恢复本owner的等待消费者，stop释放，不造新等待事实。W2-18-CODING-WAKE-01：隔离真实waits重启且不打开页/读state，满足后只续一次；撤回/held/关闭正确，连续服务失败不靠页面恢复。 |
+| W2-18-CODING-DELIVERY / P2 必修 | 收交付先complete信，再在材料满30时跳过附上，却总返回attached:true | 在了结前落实既有容量，明确拒绝并保留可决定交付或回真实未附上，不silent skip。W2-18-CODING-DELIVERY-01：真实delivery/HTTP/store的30项+新项与已有同引用场景，返回/信/材料/下轮frozen refs一致。 |
+| W2-18-CODING-DELEGATE / P2 必修 | sendPeopleMessage已flush后deliver失败，catch仍以“没发送”归档target；重试新建身份可重复委派 | 保留实际target/message引用，区分派前失败与已存/未知，恢复先核对不换身份重派。W2-18-CODING-DELEGATE-01：真实SDK send flush后deliver拒绝/丢回包，重开仍同原信/目标可见，恢复无新target/重复信；派前失败仍正确回收。 |
+| W2-18-CODING-LIFETIME / P2 必修 | Coding全局assistant-effect监听未归lifetime，卸载/重挂保留旧闭包响应 | 使用现有lifetime.listen。W2-18-CODING-LIFETIME-01：真实挂载→卸载→重挂→effect，仅活实例刷新，旧DOM/请求/监听不残留。 |
+| W2-18-CODING-REPORT / P2 必修 | 合法TaskBoard insert后节点数不同原plan，report拒绝整个board/verdict且Markdown只遍历原steps | 保留固定plan来源核对，接受owner合法修订的当前图并固定新增节点/用户记录/评价/version。W2-18-CODING-REPORT-01：真实SDK插步并记录/评价→保存重开报告，原/新增均留，后续变化不改固定报告；来源不可核仍拒推断。 |
+| W2-18-FORM-ANSWER / P2 必修 | 离线填写页无4000字检查，生成“成功”答卷后owner无法导入，组合路径自相矛盾 | 导出输入与提交执行现行答案上限，含多选合成值，超限留输入/无成功文件。W2-18-FORM-ANSWER-01：真实导出HTML4000字可导入一次，4001不假成功，required/choice/date正常。 |
+| W2-18-FORM-LABEL / P2 必修 | 原生/导出Form题目仅视觉span，input/select无可访问名称，选项缺题目分组名 | 复用原生label/fieldset/legend或aria关联，不改变题意。W2-18-FORM-LABEL-01：两种真实页的浏览器可访问树/键盘填写暴露题名和必填状态；真实读屏本人体验仍单列。 |
+| W2-18-CONTENT-CONTEXT / P2 必修 | Cognia返回/删除与Images返回历史只关工作区，留下插件声明的旧对象，助理/Placement继续消费A | 各owner统一关闭路径清当前可见对象，不因Images导航取消已接受job。W2-18-CONTENT-CONTEXT-01：真实A→目录/删除→B，助理对象与实际可见对象一致，删除后无旧id，重开正常。 |
+| W2-18-IMAGES-SETUP / P2 必修 | Images服务modal内连接设置链接打开设置cover但不关原生modal，top-layer/inert挡住设置 | 跟随既有设置链接前关modal，保留服务草稿，返回按现有事件/生命周期刷新账号。W2-18-IMAGES-SETUP-01：真实首次无账号→设置可点/键盘可达→建受控账号→返回可继续生成，原输入在；不使用真实厂商。 |
+| W2-18-LINGGUANG-REVISION / P1 | list刷新把selected换新updated_at但保留旧编辑正文，后续用新版本提交旧输入，绕过正确CAS覆盖远端编辑 | 编辑器ack版本独立于目录元数据，只有真正打开/成功保存才能推进。W2-18-LINGGUANG-REVISION-01：实际A编辑器、外部动作改A、B placement触发列表刷新后本地改A必须冲突并保留两边；显式重开及同草稿队列正常。 |
+| W2-18-PAGES-CREATE / P1 | create/extract等待时旧A仍可编辑，迟到remember/fillEditor清dirty/计时器并换对象，A新稿丢失 | 沿草稿版本/选择/保存队列在采用新结果前保存离开稿或留在冲突，不重置新输入。W2-18-PAGES-CREATE-01：真实create/extract HTTP barrier中编辑A，放行后原字句与最终SQL保留，外部写冲突保两边，新记录可找且不重复。 |
+| W2-18-PAGES-EXPORT / P2 必修 | Markdown只取表格cell.firstChild且漏attrs卡片/mention；HTML/print的DOMSerializer输出空card，丢可见事实 | 序列化所有文本段落和支持卡片/引用为可读正文/链接，导出静态DOM可读；数据图像省略沿已披露边界。W2-18-PAGES-EXPORT-01：独立期望fixture的双段cell/任务/事件/引用，经content.read/files/artifact及真实Markdown/HTML/print均保留事实。 |
+| W2-18-PAGES-TRANSIENT / P1 | 同EditorView换Doc未使FileReader/普通popover失效，A读图迟到或A弹层保存会写B并自动保存 | 文档切换结束其瞬态读取/弹层，回调核alive/doc身份；同文档读取保留映射锚点，不拿后来caret替代。W2-18-PAGES-TRANSIENT-01：真实上传/粘贴/拖图barrier A→B后B库/正文不变，同Doc插原锚点；A任务/评论/链接弹层换B不能写B，正常编辑仍保存。 |
+| W2-18-PAGES-ACTIONS / P2 必修 | AI actions候选走slash专用replace，无slashSession便无事务，关闭候选却未插task_list，也没执行insert_after | 使用已验证frozen范围按声明mode插任务列表。W2-18-PAGES-ACTIONS-01：真实普通选区候选插后保留原文、精确unchecked任务进SQL；范围变化拒绝、同次提交不重复。 |
+| W2-18-PAGES-READONLY / P1 | 不支持正文显示emptyDoc只禁输入，Back/import/publish/extract仍无条件save占位稿，CAS合法覆盖原JSON | unshowable占位永远不是可保存草稿，离开保留原record，操作按真实支持明确拒绝/使用原文。W2-18-PAGES-READONLY-01：真实未知正文进入后Back/import/发布/抽取均不覆盖原body/version；合法外部替换/undo可重开编辑。不可把未知schema当支持。 |
+| W2-18-PAGES-SOURCES / P2 必修 | 多Pages合成既有1500字符的节选被丢truncated标记，成果称完整材料且把pages:id写成无效Inbox返回 | 现有provenance保留节选/对象/版本，输出真实来源返回链接或省无效Inbox链接，不扩采集量。W2-18-PAGES-SOURCES-01：两页1500字后有独特内容，经真实prepare/generate固定采用前缀、明确节选、可回原Page；原SQL不变，同请求只创建一次。 |
+| W2-18-GITHUB-PAGES / P2 必修 | GitHub通知固定第一页50，未读占前页后尾页永不进入Feed，却提交首响应Last-Modified | 固定API origin的有界分页与完整cursor，不携凭据跟任意Link。W2-18-GITHUB-PAGES-01：51+ literal通知经真实Connector/Listener/Signals/Feed全入一次；重复/304/次页失败/限流不越过未完成页，GET-only及凭据边界保留。 |
+| W2-18-TODO-DATE / P2 必修 | 候选日期按原文换算，existing.changes/protected却采信模型日期；只有日期时还保留模型时间 | 同一确定reading决定新旧项日期/时间，歧义只建议，手改字段仍需显式采纳。W2-18-TODO-DATE-01：真实extract→看提案→apply的冲突字面量，候选/原项/history一致，无时间不补时刻，模糊日期不确定写入。 |
+| W2-18-TODO-DRAFT / P1 | flush吞POST失败或空标题，导航/后续动作当成功继续，fillEditor覆盖尚未保存输入 | 保存失败/无效传给离开与后续动作，保留稿，明确丢弃才清。W2-18-TODO-DRAFT-01：真实409/500/断网/空标题后返回/换项/关联/搜索/换归属均不丢稿、不派后续写；恢复保存与明确丢弃可行。 |
+| W2-18-CATALOG-ERROR / P1 | Catalog把200业务错误原话当action/message，经Connector/Listener持久回执与Feed公开日志传播，可能含上游回显凭据 | Provider边界封闭原因/恢复动作，不持久服务原话，不依赖宽松secret正则。W2-18-CATALOG-ERROR-01：每类literal业务错带非真实fixture token，经正式失败链响应/回执/DB/日志/Inbox均无该值及派出编码；限流/重新授权原因仍准确，S-12同步。 |
+| W2-18-DIFF-FILE / P2 必修 | Diff渲染show-file按钮但无生产点击消费者，正式state有change_index仍只能看0；同path也不唯一 | 现行surface绑定原始索引，沿固定input/请求lifetime，不能改成果或工作树。W2-18-DIFF-FILE-01：真实Coding固定多文件含同路径两写，逐个点击/刷新/隐藏重开呈现对应literal前后文，旧响应不覆盖新选择。 |
+
 Gmail 增量判断也与 [Gmail 官方 history.list 合同](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.history/list) 对照：历史按 ID 递增，startHistoryId 排除以前的记录，单条历史可包含多封邮件。因此“最后一页已读”不能替代“候选已消费”。本轮不实际读取外部账户。
 
 以上验收尚未运行。新客户端修复先准备可复现用例与最小改动，机器时段由原防腐会话统筹，在 I6 及已排 Dataset/Issue 验证后执行；每包 README 必跑项、整体构建和最终整合检查仍保留。助理客户端与在途 #471 都触及 `assistant-island.ts`，需按枢纽规则只改本问题范围，在最终组合头检查两边改动，不能覆盖 Computer Use 的工作。
 
-已派两个独立 `gpt-6.1-sol / max` 修复会话：助理发送 `01a13369-d79c-70f1-9798-7b84181fa7d0`、Workflows 保存 `01a13369-e221-7433-a2eb-24bcdcee1039`。仅本地隔离实现与回归准备，尚未运行、提交或验收；两个会话不改本 spec、不自行推送或开 PR。Gmail 与 Placement 尚未派 writer，不能记已修。G4 原审查会话已接续四项核心修复（固定输入、缺 key、Memory 事务、SemVer），在隔离树准备/实现，仍不占验证队列，不碰 AUTH 共用控制。
+§12.8 的修复现按九组原审查会话接续，外加既有 Dataset、Issue、助理发送和 Workflows 保存四个独立 writer；文件重叠已逐项分开。共同 AUTH/MCP 配置仍由原防腐会话负责，所有机器验证时段仍由其统筹。具体责任、已交本地候选提交与验证状态见 §12.11，不把代码准备等同验收。
 
 ### 12.9 已完成源码审查的逐包结论（持续归回，整改另计）
 
-截至本节更新，G3/G4 合计 13 个包的跟踪清单经协调方与冻结切点 `git ls-files` 对照，无漏项、重复或未披露可执行文件。G4 全部 191 文件（生产 170 文件/27,820 行）已逐段读；G3 180 文件含 26 个静态资源：CSS 全文件结构、装配/插值、公共令牌、focus/hidden/主题/响应式/减少动态与消费者已审，未逐行评价每个历史选择器；图片/字体核格式、引用及许可，不声称视觉/字形全验。此口径用于代码审查，视觉、原生与用户体验仍需实际证据。生产入口、失败/恢复与测试断言已随各包核对；未出现新问题的包也不是“所有场景已通过”。
+本节按实际审查批次保留证据；最新累计为71包源码已审，整改及实操另计。首批 G3/G4 合计 13 个包的跟踪清单经协调方与冻结切点 `git ls-files` 对照，无漏项、重复或未披露可执行文件。G4 全部 191 文件（生产 170 文件/27,820 行）已逐段读；G3 180 文件含 26 个静态资源：CSS 全文件结构、装配/插值、公共令牌、focus/hidden/主题/响应式/减少动态与消费者已审，未逐行评价每个历史选择器；图片/字体核格式、引用及许可，不声称视觉/字形全验。此口径用于代码审查，视觉、原生与用户体验仍需实际证据。生产入口、失败/恢复与测试断言已随各包核对；未出现新问题的包也不是“所有场景已通过”。
 
 | 已审包 / 覆盖 | 职责、依赖与实际消费者判断 | 变化原因、放置与冗余裁决 | 验证及整改边界 |
 | --- | --- | --- | --- |
@@ -1886,7 +1944,7 @@ Gmail 增量判断也与 [Gmail 官方 history.list 合同](https://developers.g
 G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险核 domain/HTTP/launcher/IPC/bootstrap/renderer/select/driver，范围外长测试只计实际片段。协调方核实新增缺陷的实际生产位置并复核覆盖清单。既有 I6 原日志仅按已出逐案结果复用；本节未新启动任何测试，不能把表内审读写成运行通过。13 包“已审”不关闭 §12.8、W1/W2/W3/W5 或整条防腐线。
 
 
-**G8 六包补齐。** 266 跟踪文件经协调方再次与 Git 对照（258 完整读取、8 样式/词典按静态资源口径审查），无漏项/重复；共 32,308 行，不将静态口径写成完整视觉/逐译文验收。相应根测试核了实际断言，包内测试/fixture 全读；新故障没有运行。合计当前 19/71 包源码审查完成，52 包仍待审；修复与最终组合证据未关闭。
+**G8 六包补齐。** 266 跟踪文件经协调方再次与 Git 对照（258 完整读取、8 样式/词典按静态资源口径审查），无漏项/重复；共 32,308 行，不将静态口径写成完整视觉/逐译文验收。相应根测试核了实际断言，包内测试/fixture 全读；新故障没有运行。该批累计 19/71 包源码审查完成，当时52包仍待审；修复与最终组合证据未关闭。
 
 | 已审包 / 覆盖 | 职责、实际消费者、变化与放置裁决 | 验证及整改边界 |
 | --- | --- | --- |
@@ -1897,8 +1955,97 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 | `plugins/native/shelf` / 24 文件 | 插件管呈现/入库/recipe映射；Home 字节/clipboard/jobs/settings 归 Module；项目材料是固定 process item，经 SDK 和 KV CAS | 真实完整字节/固定版本/权限有证据；clipboard搜索、缓存、listener 生命周期必修。Agent start 参数只证明材料传入，不代表模型实际消费 |
 | `plugins/native/artifacts` / 23 文件 | 浏览/导入导出/SDK适配；固定版本/过程事实归 Module，owner/project/install来自上下文 | post-wait import、固定读、grant/type/producer与旧SDK拒绝有效；本包无新增独立缺陷；Goal input/Diff 组合仍须修核心固定读并实操 |
 
+**G1/G2/G6 补齐。** 协调方与冻结 Git 清单逐项核对：G1 为 439 文件（431 代码/配置/脚本等完整读取，8 文档/许可证按适用范围核）；G2 为 231 文件（149 完整读取，82 静态样式/词典/SVG按已披露规则审查，不算像素或逐译文验收）；G6 为 355 文件，含 276 src / 36,939 行与 37 份规划方法。三组无漏项或重复。G6 曾报 455 是清点笔误，已核实际清单纠正，不沿用错误数字。以下加 19 包，该批源码审查累计 38/71；当时剩余33包结论仍在核实，所有整改/组合实操独立计。
+
+| 已审包 / 跟踪文件 | 职责、实际消费者、变化与放置裁决 | 验证及整改边界 |
+| --- | --- | --- |
+| `apps/local-host` / 412 | 常驻Host、可信安装/动作装配、HTTP/文件/模型/连接适配；Desktop/CLI/MCP/工作台消费。IO适配成立，插件与业务事实留owner；旧native桥/typed/长类沿原路线 | 新增接入回滚、卡unknown、Git目标/正文等§12.8必修；共同AUTH仍原writer。无真实安装/模型/账号验收 |
+| `apps/cli` / 7 | 薄命令协议、参数/退出码/JSON，组合根注入Host业务，不持项目库或模型 | 无独立新增缺陷；Host接入问题影响CLI，当前未新跑真实安装 |
+| `apps/mcp` / 20 | JSON-RPC/stdio/工具schema与受众适配，动作来自共同目录；身份/权限/事实由Host | MCP配置fail-closed必修在Host；EOF取消/早拒日志仅候选，不能称全部进程路径通过 |
+| `apps/workbench` / 222 | Shell/项目到达/导航/标签分屏/设置/助理与内容挂载；原生插件仍沿冻结装配，业务事实不在Shell另存 | 三P1与十P2见§12.8；历史CSS/集中词典/字符串程序债仍按W5，不因静态审查宣称视觉/读屏/键盘通过 |
+| `packages/ui-host` / 9 | slot/format/contribution、共享请求与mount生命周期，真实插件与Workbench消费；不解释业务 | 无独立新增必修核心缺陷；README协议相对同源措辞待对齐。正确核心不证明消费者使用正确 |
+| `modules/projects` / 10 | Catalog项目身份/workspace关系/生命周期及删除步骤；Host经公开函数消费，不接管Session事实 | 保留，唯一目录不应自动绑定问题归Private Work Context；删除重试与真实Home实操另计 |
+| `modules/context-ledger` / 7 | 跨owner精确引用、边与历史，正文临时由owner materialize；Feed为当前消费者 | 保留；opaque revision去重候选当前数字版本不触发，仅后续，不增机制 |
+| `modules/sources` / 4 | 来源身份/开关/范围/schedule intent/connection_ref；游标由Listener，凭据由Connector | 保留，来源隔离和接入现有断言有效；外部账号本轮未验 |
+| `modules/signals` / 4 | 接受规范事件/去重/内容修订和来源；Signal及事件同事务，Feed另管消费 | 保留；实际接入重放/失败恢复/部分成功有断言，不替新Gmail遗漏回归 |
+| `modules/feed` / 5 | Feed Item保存/已读/处置/材料事实，Attention与Ledger经合同、事务消费 | 保留；独立Attention事务缺口由其owner修，不能把Feed外层事务通过扩到所有入口 |
+| `modules/attention-resumption` / 4 | Inbox引用/原因/状态唯一owner，经注入读存在性，不跨读Feed/Goal实现 | 独立create/delete事务必修；正式Feed手动加入/Goals reconcile为实际触发 |
+| `modules/goals` / 82 | Goal约定/要求/事件/Concern/完成/关系/Guidance与规划目录，Governance给可信决定；无第二执行协议 | 保留后端证据拒绝，UI补消费；回收站关系还原沿原writer。旧Catalog空读分支核后删除，规划内容非自动门禁 |
+| `modules/private-work-context` / 25 | 私人Session/加密正文引用、项目/Goal/workspace关系和Handoff，原生handle归Runtime | 新Session必须确认，目录只建议；已确认恢复保留。租约恢复边界不得冒称新增事故 |
+| `modules/artifacts` / 10 | 固定成果/过程项身份版本、来源/引用与状态，正文owner在插件，Host核声明/可信身份 | 保留不可变版本；Goal委托/丢回执重试修调用链，不改成可覆盖旧版本 |
+| `modules/shelf` / 14 | 个人材料副本/clipboard/提取作业与结果；AI端口由Host，原文件只读 | 删除旧目录补齐必修；现行API单项输入保留，完整文件提取/原生与模型证据另计 |
+| `modules/characters` / 7 | 个人角色草稿/CAS/发布引用，固定正文归Artifacts，Host通过公开open入口 | 已有v0库拒绝必修；正常首次空库创建保留，不操作真实角色库 |
+| `modules/functions` / 14 | 判断规则/已发布配置/样本/判断历史及动作；原生TypeSafe由Host注入，规则不直接执行业务 | Choice边界必修；已发布配置不可变与可试跑/管理样本不混淆，不凭未知原语语义扩验证 |
+| `modules/governance-collaboration` / 15 | 提案/决定/事件出处与幂等，Goal通过同库事务回调物化自己的事实 | 保留；真实拒绝/整组回滚断言有效，共用journal/idempotency既有债不重复报 |
+| `plugins/native/goals` / 154 | Goals动作/HTTP/界面及结构提案编排；事实由Module，界面挂现有工作台位置 | 证据表单、pin授权/重试、规划迟到、旧policy入口必修；浏览器正常串行/字符串断言不能证明新交错 |
+
+三组审查均读取必要测试与实际消费者，未新增运行。仅报告过的候选保持候选：Workbench跨窗格停用、范围切换、ResizeObserver；Host stdio EOF/早拒日志；Context Ledger非数字revision。源码已审不能关闭这些验证缺口，也不把已声明partial的外部接入/设备能力记完整。
+
+**G5/G7/G9 补齐，71 包源码审查完成。** 三组覆盖分别为 179 跟踪文件（144 src / 28,948 行）、169 包内文件 / 26,782 行、267 文件 / 28,971 行；协调方逐项与冻结 Git 清单对照，无遗漏/重复。G7 另读的包外消费者/测试仅计实际片段，不混入169分母。各报告的主要根因已按实际生产实现复核，相关断言能力和未验证项仍分开。至此 §5.1 的71行均可记源码“已审”；§12.8 的修复、组合路径和最终实操仍未完成，不能标整条防腐线完成。
+
+| 已审包 / 跟踪文件 | 职责、实际消费者、变化与放置裁决 | 验证及整改边界 |
+| --- | --- | --- |
+| `horizontal/agent-host` / 36 | 唯一SDK依赖，装配同Home Prologue执行/工具/审批/恢复/用量/步骤图与等待；Coding/助理/Builder消费，领域意图留调用者 | 显式budget与临时parse资源必修；适配位置合理，无新第二模型引擎。真实SDK协议证据不替模型质量 |
+| `horizontal/connector-host` / 6 | driver/connection/health/技术回执与凭据引用owner，服务协议由Integration，来源与Signal由各Module | 无新增确定阻塞；目的origin/超时/断连隔离有有效断言，外部商业账号未验 |
+| `horizontal/listener-host` / 4 | lease/cursor/delivery/feed_source_runs，Signal接受后才推游标；Host管timer，Source管意图 | 单进程生产source排他排除原lease疑点；公共API异lease同operation重入仍缺证据，Catalog原话泄漏在provider边界修 |
+| `horizontal/runtime-host` / 8 | Runtime技术能力/PTY/Codex回执；Session关系/消息意图归Work/Private Work Context | PTY与受控协议有有效证据；stdin异步EPIPE仅候选。无existingThreadId的分支无现行Handoff消费者，不报生产重复创建 |
+| `horizontal/scheduler` / 4 | durable job/lease/token/一次唤醒与回执，可信owner来自调用；产品任务与timer由Schedule/Host | 实际SQL租约/竞争/旧完成拒绝有证据；不替无页面启动，沿原Schedule缺陷 |
+| `horizontal/memory` / 13 | 平台写门/使用范围/召回/候选/信号/撤销，正文版本归Prologue，Host注backend/ledger | 按用户决定保留平台产品服务；晚写和旧候选迁入必修，原话门/正常历史保留 |
+| `horizontal/search` / 4 | 目录entries/reader与可重建索引，按caller筛选，内容归owner | 平台产品服务位置成立；stale/partial/撤权/删除裁决有证据，无新增确定阻塞；规模和实际响应体验未测 |
+| `horizontal/placement` / 4 | 跨插件位置/来源关系归Ledger，移动/复制走owner，Goal绑定归Goals | 跨本人个人/项目为获批行为，原调用生命线必修；重启失败仍按I6归因，不能报通过 |
+| `plugins/native/coding` / 61 | Session意图/配置/计划/报告/变更/委派/评价；Agent Host/SDK拥有执行/步骤图/信/等待；跨插件走合同 | 七项本组必要整改及effect/wake见§12.8；不存在新执行引擎，真实模型/全部交互未验，README按实现与实测分开纠正 |
+| `plugins/native/plugin-builder` / 23 | brief/设计/parts/connected/checks/release意图；Agent Host运行模型，Host检查隔离，Runtime安装 | 旧job晚写/升级密钥必修；ready不能代替外部服务实用，获批kept-data/升级机制保留 |
+| `plugins/native/characters` / 16 | 角色管理与发布操作，私人草稿归Module、固定正文归Artifacts；原生CLI由Host | 启动等待与HTTP控制必修，角色不可扩权；当前浏览器动作选择用例失败，原生加载/实际执行另证 |
+| `plugins/native/pages` / 52 | 项目文档/目录/材料生成租约/导入回执/抽取撤销/固定发布意图；编辑器、导出、模型候选各有真实变化原因 | 只读占位、旧create/extract、瞬态编辑、导出、候选插入与节选来源必修；不机械重写长编辑器或扩采集量 |
+| `plugins/native/form` / 21 | 问卷/答卷及题目快照/导入回执/固定发布；导出HTML是离线收集，不是公网匿名平台 | 答案容量/label及转Dataset拒绝收口；完整导出填写→导入需实操，不能以结构串验收 |
+| `plugins/native/dataset` / 20 | 列/行/快照/CSV接收及发布意图；40列/2000行/80字列名现行合同 | Store CSV越输出schema必修，客户端错表由独立writer，双方边界分开；不扩合同或裁原数据 |
+| `plugins/native/ppt` / 22 | 文本/要点/备注/主题/版本与发布，Pages材料走公开动作 | 源读取后effect、生成迟到、title-only必修；既有演示/打印/OOXML不代表完整图表编辑，Office实开未验 |
+| `plugins/native/images` / 17 | job/asset字节与元数据/runner及重启清理，凭据/连接归Host | 接受job独立生命周期正确；历史对象与账号设置modal必修，导航不取消job；真实厂商/费用/成图质量未验 |
+| `plugins/native/cognia` / 19 | Home材料/来源/修订/导入预览/知识草稿及固定引用，Host受限目录IO | V1链存在，V2仍另案；目录嵌套授权和关闭后旧情境必修，不能据V2期待删除现行V1 |
+| `plugins/native/lingguang` / 18 | 项目灵光/对话/消息/软丢弃与幂等回执，模型前后复查和整轮事务 | Owner CAS成立，客户端错误推进ack版本必修；嵌套内容动作原控制同组一起核，不新造授权表 |
+| `plugins/native/feed` / 49 | 应用编排/UI，Source/Listener/Signal/Attention各持自己的事实；共同接入与判断链 | Gmail/GitHub/Catalog及原后台调度影响真实路径；坏规则读取仅后续，未发现新事实owner错放 |
+| `plugins/native/inbox` / 15 | Attention引用/判断场景/Pages收集的消费面，建议与实际执行分开 | 无独立新增P1；中断自动判断重放仍声明partial，真实模型未验 |
+| `plugins/native/todo` / 26 | Home事实、正式动作、来源和本人采用提案/历史 | 保存失败丢稿与原文日期不一致必修；提案显示/采用/历史必须同一事实，不改用户手改保护 |
+| `plugins/native/schedule` / 27 | 任务/提醒/操作意图，经Scheduler接受与恢复，unknown不自动派 | 真实租约/重开/失败原子性有证据；无页面自动调度沿原writer，模型/外部动作另验 |
+| `plugins/native/files` / 20 | Workspace读取、固定快照/位置；Runtime提供正式动作，不持第二文件事实 | 保留正式读取；纯preview helper无生产消费者只作后续，不能算实际路径 |
+| `plugins/native/diff` / 13 | 只比较固定版本的多文件/文本，不读实时工作树、不执行改动 | 固定input核心与索引点击两个断点分别修；原始索引不能用路径去重替代 |
+| `plugins/native/git` / 19 | 状态投影与正式Host进程/审批/固定过程结果 | Host目标/正文审批两P1由G1修；公开draft/acceptance helper无生产消费者列后续，不把原型测试报成上线 |
+| `plugins/native/text-stats` / 9 | 有界纯计数/固定输入，无新增IO或事实副本 | 无新增必要缺陷；空文本合法，未读与不可用区别保留；实际全站体验未验 |
+| `plugins/native/jelly` / 30 | Home单份工作区、命令/undo/redo、任务关系/重复实例/计划采用；材料读取已归灵光 | 无新独立必修P1；显式旧Swift导入保原文是获批导入，不是正常读兼容；真实转写/模型另验 |
+| `plugins/official-integrations/catalog` / 13 | 39类协议适配/文档读取，被Host真实使用；连接事实在Connector | 目标HTTPS官方域与封闭业务错误P1必修；不操作真实凭据/外部写 |
+| `plugins/official-integrations/github` / 9 | DeviceFlow/GET provider/研究库与Integration driver的正式消费者 | 分页必修，完整游标与固定origin一起验证；不把两条fixture当分页证据 |
+| `plugins/official-integrations/gmail` / 16 | PKCE/每账号app/ref/刷新/只读provider，增量与初始快照区分 | 增量尾部遗漏必修，初始25快照保留；新API OAuth首次使用接线由G1修，真实邮箱未读 |
+| `plugins/official-integrations/rss` / 10 | Source/helpers/SEL生产transport，Integration工厂未接是明示partial | 公网DNS预检未固定实际socket是静态裂缝，需受控传输证明；不以lookup替身说拒绝了真实连接，代理既有例外不扩大 |
+| `plugins/official-integrations/web-query` / 5 | 注入式Integration工厂未有生产调用，实际搜索为Host SEL/AnySearch | README边界准确，不假称Runtime迁移完成或删除实际网页搜索 |
+| `plugins/official-integrations/youtube` / 6 | UC/channel URL/RSS helpers被Source使用，Integration工厂无生产调用 | 保留真实helper用途，未验真实频道端到端，不把工厂存在记安装/运行成熟 |
+
+剩余需裁决/验证而不冒充确证修复的接缝：RSS须用生产传输控制DNS/socket后再核是否与现行网络边界共用最小修复；Runtime stdin异步EPIPE须真实子进程故障；固定pin无现行writer的null旧分支和Characters/Builder旧markup仍按current-only原清理范围串行归owner，不用正常中断恢复作删据；既有pure helper无消费者按原冗余路线处理，不在本轮假造新产品需求。§12.8全部新运行验收仍待队列，源审完成不能降低这些标准。
+
 ### 12.10 用户明确的停止与回执合同（2026-10-12 本轮答复）
 
 用户选择：**工作流取消当前尚未提交的本地步骤；已经发生的外部结果保留并显示状态。** stop 必须使当前实例的在途派发控制失效，传至下游最终 beforeEffect，不能仅改外层状态再让本地插件写入；已经真实发生的外部结果不回滚、不自动重派，按原请求可追踪并明确成功/结果未知。W2-18-WF-STOP-01：正式流程 action-step 调 Form/Pages 等本地动作，模型 barrier 中 stop，放行后目标无迟到正文/题目、无后续站点，实例保持停止。W2-18-WF-STOP-02：外部已接受后才 stop，保留真实结果或未知状态，重开/重试不重复派出，也不把“未收到回包”说成“没有发生”。WFSAVE 与本合同为两个独立根因，不互相代替验收。
 
 用户同时选择：**Work 保存真实送达回执，避免恢复后重复发送；不向无权调用者返回内容。** 这是对通用撤权后禁写的明确、窄例外：仅收敛已经派出且已占用原幂等请求的实际外部事实/原会话对应回执，不允许新业务请求、伪造失败回复、继续交接或返回受保护正文。W2-18-WORK-RECEIPT-01：Runtime 已接受消息后撤权、返回真实 turn id，原请求/对应回执持久一次，调用者被拒，恢复不重发；W2-18-WORK-RECEIPT-02：派出前撤权零调用，未知结果保持未知，撤权后不能以记回执为名派发下一步。Server transport command 的错误回执不能自动套用此例外，须另按实际事实/回执合同核查。
+
+### 12.11 修复归属与整合队列（71 包源审后的接续）
+
+以下是同一任务的文件责任与当前可证明状态，不是另一套完成清单。各组沿§12.8/§12.10验收；协调方核实际diff与原始运行结果后才逐项关闭。原线程管理整机一个构建/一个浏览器批次，独立树不得抢跑或改冻结I6。新的共享核心先整合再统一全量，不把不同树用例数相加。
+
+| 负责人 | 独占范围与依赖 | 当前证据 |
+| --- | --- | --- |
+| 原防腐会话 `01a130de-5470-7223-827e-b28663ee7e06` | 共同AUTH/同步最终检查、MCP坏配置、既有Schedule/Goals恢复片、I6失败归因与验证队列；提供可复用本地AUTH提交 | I6失败四文件在归因；Placement 400/409依现行G1-03合同核测试预期，浏览器超时仍待基线/环境证据 |
+| G1 宿主 | Runtime接入/TOML、卡unknown/followup、model schema、系统目录、Gmail首次使用、native JSON、Host Git；不碰原AUTH文件 | 独立树实现准备；未验收 |
+| G2 工作台 | 浏览器upload/grant与工作台八项；不碰assistant-island，也不碰G9的coding-companions | 独立树实现准备；未验收 |
+| G3 桌面/公共呈现 | 原生胶囊/剪贴板/worker IO、接续QA、component草稿 | 代码与回归准备中；原生及浏览器尚待时段 |
+| G4 核心 | SemVer、缺key、Memory事务、固定输入/SDK/Diff Manifest；不改AUTH/helpers或历史pin | 本地四提交 `48c04310e`、`c64bbfd82`、`c93d01249`、`a538a9165`，协调方已核实际生产diff及新回归断言；仅diff格式通过，build/test尚未运行，不判验收 |
+| G5 AI/开发插件 | Placement/Memory调用控制、Agent预算/解析资源、Characters启动、Builder预览/升级密钥、Coding前台/后台/委派/报告；必要Host对应port | 独立实现准备，需复用原AUTH合同；不碰G1 AssistantService/Store或Runtime接入文件 |
+| G6 Module/Goals | Session确认、Shelf/Character当前库、Attention原子性、Functions Choice、Goals证据/固定/规划/policy | 独立实现准备；不碰原Goals恢复环，artifact-pins共同helper改动先串行归属 |
+| G7 内容 | 七插件必要整改；Dataset仅store/动作，client/import与README导入片留既有writer | 独立实现准备；内容嵌套调用复用AUTH，旧pin helper清理尚未派实现 |
+| G8 流程/执行 | Work/Alchemist effects与客户端、Shelf客户端、Workflows backend stop | 代码/正式Host回归准备中；不碰WFSAVE客户端，遵守§12.10窄回执例外 |
+| G9 接入/日常 | Gmail/GitHub/Catalog、Todo与Diff点击；唯一workbench例外为coding-companions，G2不改该文件 | 独立实现准备；Git Host归G1；RSS传输验证仍候选待实际证明 |
+| Dataset既有writer `01a13341-d712-73f2-99f4-992f8645847c` | 文件导入目标/草稿与对应浏览器，独占client/import | writer报告浏览器批次已通过并释放时段，boundary/actual-base health通过；协调方仍待原日志与最终diff核实。资源变小的共享快照留整合更新 |
+| Issue既有writer `01a13342-5853-75e1-a3ce-929ee5ec4e75` | 手工页/capture保存与丢回执恢复 | Dataset之后进入整体构建及旧实现四项复现，未验收 |
+| 助理发送writer `01a13369-d79c-70f1-9798-7b84181fa7d0` | SEND/PAGE-CARDS/ASSISTANT-404同文件连续处理，保护在途#471 | 源码/真实HTTP barrier回归准备；未验收 |
+| Workflows保存writer `01a13369-e221-7433-a2eb-24bcdcee1039` | WFSAVE/WF-OPEN客户端与README，backend留G8 | 源码/回归准备；未验收 |
+
+共享spec、路线图、安全不变量、门禁/API/动作/资源快照由协调方按实际整合结果串行同步；writer不得放宽阈值或为绿删断言。当前均只获本地独立实现/提交，不自行推送、开PR、安装、发布或操作真实Home/凭据。§12.8中需同步安全表的具体拒绝必须有生产边界断言；受控第三方响应不等于真实外部账号验收。

@@ -124,7 +124,7 @@ export interface HostPluginCaller {
     readonly plugin_id: string;
     readonly install_id: string;
     readonly actor_id: string;
-    readonly project_id: string;
+    readonly project_id: string | null;
     readonly declaration: Pick<import("@molis-ai/molis-work-contracts/platform/plugin").PluginDefinition, "manifest" | "agent_prompts" | "agent_skills">;
     readonly assertActive: () => void;
 }

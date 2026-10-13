@@ -151,7 +151,7 @@ test("W3-07-4-01 / W3-07-4-02: pre-action refusals have no number or row; each a
     assert.deepEqual(body.details?.fields, Object.keys(extra), "the original unexpected-field detail is retained");
   }
   await refusal(management, "molis_work_v1_goal_tree_decide", { proposal_id: "absent", idempotency_key: "tree", runtime_actor_id: "forged" }, "actions.input_invalid");
-  await refusal(management, "molis_work_v1_goal_tree_decide", { proposal_id: "absent", idempotency_key: "tree", authority: { actor_id: "forged" } }, "goal_tree_proposal.authority_source_invalid");
+  await refusal(management, "molis_work_v1_goal_tree_decide", { proposal_id: "absent", idempotency_key: "tree", authority: { actor_id: "forged" } }, "goals.goal_tree_proposal.authority_source_invalid");
   await refusal(management, "molis_work_v1_initialize", { title: "", idempotency_key: "invalid-init" }, "actions.input_invalid", "goals.board.initialize");
   await refusal(management, "molis_work_v1_event_decide", { ...event, conclusion: "" }, "actions.input_invalid", "goals.decisions.record");
   await refusal(management, "molis_work_v1_goal_tree_decide", { proposal_id: "absent", idempotency_key: "tree", confirm_all_pending: "yes" }, "actions.input_invalid", "goals.tree.decide");

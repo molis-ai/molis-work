@@ -709,7 +709,7 @@ test("Goal Tree create payload rejects retired acceptance_criteria fields before
       })],
       idempotency_key: "criterion-conflict-proposal",
     }),
-    (error: unknown) => error instanceof ActionError && error.code === "goal_tree_proposal.payload_unknown",
+    (error: unknown) => error instanceof ActionError && error.code === "goals.goal_tree_proposal.payload_unknown",
   );
   assert.equal(store.goalsQuery.getGoal("board-1", "criterion-conflicting-goal"), null);
   store.close();

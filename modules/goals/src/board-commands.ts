@@ -11,7 +11,7 @@ export class MolisWorkCommands {
     idempotency_key: string;
   }): { project_id: string; replayed: boolean; observed_event_cursor: number } {
     if (!input.project_id.trim() || !input.title.trim()) {
-      throw this.context.error("request.invalid", "Board ID 和名称不能为空");
+      throw this.context.error("goals.request.invalid", "Board ID 和名称不能为空");
     }
     const hash = requestHash({ project_id: input.project_id, title: input.title });
     return this.context.repository.immediate(() => {

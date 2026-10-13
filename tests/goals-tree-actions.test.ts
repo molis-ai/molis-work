@@ -21,6 +21,7 @@ const proposalInput = (prefix: string) => ({ summary: "Create a parent and child
       type: "part_of", reason: "Part of the same result" }, source_refs: ["conversation://tree"], reason: "Define ownership", confidence: 1 },
   ] as GoalTreeProposalItemInput[] });
 
+// R3-03: owner codes preserve atomic writes, authority refusals, replay and restart.
 test("tree actions preserve proposals, protected authority, atomic materialization, old receipts and restart", async t => {
   const home = await mkdtemp(join(tmpdir(), "goals-tree-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Tree", actor_id: "user" }));
@@ -82,14 +83,14 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     await assert.rejects(served.grant("runtime:tree", project.project_id, [view]), { status: 404, code: "actions.missing" });
     assert.deepEqual((await readMcpActionAccess(served.web, { clientId: "runtime:tree", projectId: project.project_id })).grants, [], "a refused grant leaves no record");
     await served.close();
-    await assert.rejects(client.invoke({ ...trusted, user_action: undefined }, goalsActions.treeDecide, decision), { code: "goal_tree_proposal.untrusted_actor" });
-    await assert.rejects(client.invoke({ ...trusted, user_action: { ...trusted.user_action!, source: "runtime_dialogue" } }, goalsActions.treeDecide, decision), { code: "goal_tree_proposal.untrusted_actor" });
+    await assert.rejects(client.invoke({ ...trusted, user_action: undefined }, goalsActions.treeDecide, decision), { code: "goals.goal_tree_proposal.untrusted_actor" });
+    await assert.rejects(client.invoke({ ...trusted, user_action: { ...trusted.user_action!, source: "runtime_dialogue" } }, goalsActions.treeDecide, decision), { code: "goals.goal_tree_proposal.untrusted_actor" });
     await assert.rejects(client.invoke(trusted, goalsActions.treeDecide, { ...decision, authority }), { code: "actions.input_invalid" });
     // W3-07-5-01: the management evidence owner still refuses identity and source claims;
     // the actual action input cannot carry an authority at all.
     const evidence = { conversation_ref: authority.conversation_ref, message_ref: authority.message_ref, whole_confirmation_prompted: true };
     for (const forged of [{ ...authority, actor_id: "another-person" }, { ...authority, authority_source: "web" as const }, { ...evidence, actor_kind: "runtime" }, authority]) {
-      assert.throws(() => managementTreeAuthority(project.project_id, decision.idempotency_key, forged), { code: "goal_tree_proposal.authority_source_invalid" });
+      assert.throws(() => managementTreeAuthority(project.project_id, decision.idempotency_key, forged), { code: "goals.goal_tree_proposal.authority_source_invalid" });
       await assert.rejects(client.invoke(trusted, goalsActions.treeDecide, { ...decision, authority: forged } as never), { code: "actions.input_invalid" });
     }
     const before = await snapshot();

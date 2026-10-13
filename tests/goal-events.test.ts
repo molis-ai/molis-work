@@ -467,7 +467,7 @@ test("retries replay without duplicates; reused keys conflict; stale config vers
         project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-v1",
         types: [{ ...storyDelivery(1), purpose: "不同请求" }],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "request.idempotency_key_reused",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.request.idempotency_key_reused",
     );
 
     const reported = data.module.events.report({
@@ -486,7 +486,7 @@ test("retries replay without duplicates; reused keys conflict; stale config vers
         project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "report-1",
         events: [reportDelivery({ fields: { piece: "另一份内容" } })],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "request.idempotency_key_reused",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.request.idempotency_key_reused",
     );
 
     data.store.close();

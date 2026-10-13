@@ -20,12 +20,12 @@ export class GoalTreeCheckApplication implements Pick<GoalTreeApplicationApi, "c
   checkGoalTreeProposal(input: GoalTreeProposalCheckInput): GoalTreeProposalCheckResult {
     const actorId = this.requiredText(
       input.actor_id,
-      "goal_tree_proposal.actor_required",
+      "goals.goal_tree_proposal.actor_required",
       "检查 Goal Tree 提案需要当前 Runtime 的 actor_id",
     );
     const proposalId = this.requiredText(
       input.proposal_id,
-      "goal_tree_proposal.id_required",
+      "goals.goal_tree_proposal.id_required",
       "需要指定要检查的 Goal Tree proposal_id",
     );
     const proposalView = this.ports.query.listGoalTreeProposals({
@@ -33,7 +33,7 @@ export class GoalTreeCheckApplication implements Pick<GoalTreeApplicationApi, "c
       proposal_id: proposalId,
     }).proposals[0];
     if (!proposalView) {
-      throw this.ports.errorFactory("goal_tree_proposal.not_found", `找不到 Goal Tree 提案: ${proposalId}`);
+      throw this.ports.errorFactory("goals.goal_tree_proposal.not_found", `找不到 Goal Tree 提案: ${proposalId}`);
     }
     const canonicalProposalId = proposalView.proposal_id;
     const hash = requestHash({ project_id: input.project_id, proposal_id: canonicalProposalId, actor_id: actorId });

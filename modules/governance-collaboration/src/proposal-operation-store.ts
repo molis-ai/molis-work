@@ -59,7 +59,7 @@ export class GovernanceProposalOperationStore {
         .get(input.project_id, input.actor_id, operationName, input.idempotency_key) as GovernanceRow | undefined;
       if (saved) {
         if (text(saved.request_hash) !== input.request_hash) {
-          throw this.error("request.idempotency_key_reused", `幂等键 ${input.idempotency_key} 已被不同请求使用`);
+          throw this.error("goals.request.idempotency_key_reused", `幂等键 ${input.idempotency_key} 已被不同请求使用`);
         }
         const value = parseJson<T | null>(saved.outcome_json, null);
         if (value) return { value, replayed: true };

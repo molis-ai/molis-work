@@ -18,15 +18,15 @@ export class GovernanceProvenance implements GovernanceProvenanceApi {
     const references = input.source_refs;
     const validReferences = Array.isArray(references) && references.every(ref => typeof ref === "string");
     const sourceRefs = validReferences ? [...new Set(references.map(ref => ref.trim()).filter(Boolean))].sort() : [];
-    if (!sourceRefs.length || !validReferences) add("source_refs", "goal_tree_proposal.source_required",
+    if (!sourceRefs.length || !validReferences) add("source_refs", "goals.goal_tree_proposal.source_required",
       `第 ${index + 1} 个条目至少需要一个来源引用`, "包含真实来源的字符串数组，例如已保存的 Goal 事件 event_id");
     const reason = typeof input.reason === "string" ? input.reason.trim() : "";
-    if (!reason) add("reason", "goal_tree_proposal.reason_required", `第 ${index + 1} 个条目必须说明业务理由`, "非空字符串");
+    if (!reason) add("reason", "goals.goal_tree_proposal.reason_required", `第 ${index + 1} 个条目必须说明业务理由`, "非空字符串");
     if (!Number.isFinite(input.confidence) || input.confidence < 0 || input.confidence > 1) {
-      add("confidence", "goal_tree_proposal.confidence_invalid", `第 ${index + 1} 个条目的置信度必须在 0 到 1 之间`, "0 到 1 的数字");
+      add("confidence", "goals.goal_tree_proposal.confidence_invalid", `第 ${index + 1} 个条目的置信度必须在 0 到 1 之间`, "0 到 1 的数字");
     }
     if (input.requires_user_confirmation !== undefined && input.requires_user_confirmation !== true) {
-      add("requires_user_confirmation", "goal_tree_proposal.user_confirmation_required",
+      add("requires_user_confirmation", "goals.goal_tree_proposal.user_confirmation_required",
         "Goal Tree 提案的每个条目都必须等待用户确认，不能提前物化为正式事实", "省略或 true");
     }
     if (issues.length) {

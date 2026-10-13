@@ -59,7 +59,7 @@ export class GoalsCommandContext {
     if (!existing) return null;
     if (existing.request_hash !== hash) {
       throw this.error(
-        "request.idempotency_key_reused",
+        "goals.request.idempotency_key_reused",
         `幂等键 ${key} 已被不同请求使用`,
       );
     }

@@ -76,7 +76,7 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 
 目标树的动作、CLI、Web 审批与管理 `goal_tree_decide` 共用四个动作，原 Submission/Query/Check/Decision owner 保留幂等、事务、基线冲突及修订语义。新输入只允许 goal/create、relation/create|deactivate；part_of 为子目标到父目标，depends_on 为消费目标到前置目标。修订条目须使用新的稳定 item_id，修订后的提案仍需审批。schema 位于插件，不另维护 MCP 业务 schema。
 
-`goals.tree.decide` 只接受 user audience、goals:decide 及受保护 Host 注入的用户和操作出处；普通 MCP、模型、工作流和插件不能通过自填 authority 获得审批权。管理 `goal_tree_decide` 与 CLI `goal-tree-decide` 经同一私有工厂调该动作：Host 用 `managementTreeAuthority` 固定本人和 management 来源，输入的证据只能指向对话及整组确认（`conversation_ref`、`message_ref`、`whole_confirmation_prompted`、`prompted_proposal_id`），身份或来源声明返回 `goal_tree_proposal.authority_source_invalid`。管理 `event_decide` 的出处由 `managementEventDecisionAuthority` 给出，默认为 `management:<项目>` 与 `management-event-decision:<键>`；共用 owner 仍以 `goals.event_decision_authority_invalid` 拒证据身份。旧 Runtime 对话自报确认帮助器已删除，历史记录中的 runtime_dialogue 来源仍保留可读。
+`goals.tree.decide` 只接受 user audience、goals:decide 及受保护 Host 注入的用户和操作出处；普通 MCP、模型、工作流和插件不能通过自填 authority 获得审批权。管理 `goal_tree_decide` 与 CLI `goal-tree-decide` 经同一私有工厂调该动作：Host 用 `managementTreeAuthority` 固定本人和 management 来源，输入的证据只能指向对话及整组确认（`conversation_ref`、`message_ref`、`whole_confirmation_prompted`、`prompted_proposal_id`），身份或来源声明返回 `goals.goal_tree_proposal.authority_source_invalid`。管理 `event_decide` 的出处由 `managementEventDecisionAuthority` 给出，默认为 `management:<项目>` 与 `management-event-decision:<键>`；共用 owner 仍以 `goals.event_decision_authority_invalid` 拒证据身份。旧 Runtime 对话自报确认帮助器已删除，历史记录中的 runtime_dialogue 来源仍保留可读。
 
 动作提交的 submitted_session_id 从可信 ActionCallContext.runtime_session_id 注入，经常驻网关保持；管理入口背后没有 Runtime 会话，提案记 `submitted_session_id: null`。业务输入不能覆盖它。原始用户身份和整组提示由 user_action 提供，审计 Runtime 身份不能替代用户。
 

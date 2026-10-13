@@ -50,7 +50,7 @@ export async function dispatchMcpProjectTool(
     break;
   }
   case "molis_work_v1_goal_tree_decide": {
-    if (ports.audience === "runtime") throw ports.createError("goal_tree_proposal.runtime_decide_unsupported",
+    if (ports.audience === "runtime") throw ports.createError("goals.goal_tree_proposal.runtime_decide_unsupported",
       "Runtime 不能写入 Goal Tree 决定。请让用户在 Web 或管理入口批准已保存的提案。");
     const actions = management();
     const { database_path: _database, web_base_url: _url, project_id, authority, ...decision } = arguments_;

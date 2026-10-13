@@ -22,7 +22,7 @@ function authority(caller: ActionCallContext) {
   const p = caller.user_action;
   if (caller.audience !== "user" || caller.actor_kind !== "user" || !caller.actor_id.trim()
     || !p?.conversation_ref.trim() || !p.message_ref.trim() || !["web", "management"].includes(p.source)) {
-    throw new ActionError("goal_tree_proposal.untrusted_actor", "结构审批需要受保护入口提供真实用户及操作出处；模型自报确认无效");
+    throw new ActionError("goals.goal_tree_proposal.untrusted_actor", "结构审批需要受保护入口提供真实用户及操作出处；模型自报确认无效");
   }
   return { actor_id: caller.actor_id, actor_kind: "user" as const, authority_source: p.source as "web" | "management",
     conversation_ref: p.conversation_ref, message_ref: p.message_ref,

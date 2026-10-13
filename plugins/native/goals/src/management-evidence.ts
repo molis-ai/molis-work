@@ -35,7 +35,7 @@ export function managementEventDecisionAuthority(projectId: string, idempotencyK
 
 /** The same evidence boundary for a management structure decision. */
 export function managementTreeAuthority(projectId: string, idempotencyKey: string, evidence?: unknown): GoalTreeProposalDecisionAuthority {
-  const given = managementEvidence(evidence, "goal_tree_proposal.authority_source_invalid");
+  const given = managementEvidence(evidence, "goals.goal_tree_proposal.authority_source_invalid");
   return { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", authority_source: "management",
     conversation_ref: evidenceText(given.conversation_ref) ?? `management:${projectId}`,
     message_ref: evidenceText(given.message_ref) ?? `management-tree-decision:${idempotencyKey}`,

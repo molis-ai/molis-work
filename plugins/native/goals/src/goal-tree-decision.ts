@@ -33,7 +33,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
     const wholeConfirmation = input.confirm_all_pending === true;
     const proposalId = this.requiredText(
       input.proposal_id,
-      "goal_tree_proposal.id_required",
+      "goals.goal_tree_proposal.id_required",
       "需要指定要决定的 Goal Tree proposal_id",
     );
     const runtimeActorId = nullableDialogueText(input.runtime_actor_id);
@@ -53,7 +53,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
       const proposal = this.ports.query.readNative(input.project_id, proposalId);
       if (proposal.state !== "pending" && proposal.state !== "partially_applied") {
         throw this.ports.errorFactory(
-          "goal_tree_proposal.decision_not_pending",
+          "goals.goal_tree_proposal.decision_not_pending",
           "只有仍有待处理条目的 Goal Tree 提案可以继续决定",
         );
       }
@@ -125,7 +125,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
         if (conflicts.length > 0) {
           if (wholeConfirmation) {
             this.plan.abortWholeConfirmation(item, {
-              code: "goal_tree_proposal.baseline_changed",
+              code: "goals.goal_tree_proposal.baseline_changed",
               message: "条目依赖的 Molis Work 事实已经变化",
               objects: conflicts,
             });

@@ -27,12 +27,12 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
   ): { proposal: GoalTreeProposalRecord; replayed: boolean; observed_event_cursor: number } {
     const actorId = this.requiredText(
       input.actor_id,
-      "goal_tree_proposal.actor_required",
+      "goals.goal_tree_proposal.actor_required",
       "提交 Goal Tree 提案需要当前 Runtime 的 actor_id",
     );
     const summary = this.requiredText(
       input.summary,
-      "goal_tree_proposal.summary_required",
+      "goals.goal_tree_proposal.summary_required",
       "Goal Tree 提案需要面向用户的自然语言摘要",
     );
     const items = this.normalizer.normalizeGoalTreeProposalItems(input.items);
@@ -58,7 +58,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
       const baseEventCursor = input.base_event_cursor ?? currentCursor;
       if (!Number.isInteger(baseEventCursor) || baseEventCursor < 0 || baseEventCursor > currentCursor) {
         throw this.ports.errorFactory(
-          "goal_tree_proposal.base_cursor_invalid",
+          "goals.goal_tree_proposal.base_cursor_invalid",
           "Goal Tree 提案的 base_event_cursor 必须是当前 Board 已观察到的事件游标",
         );
       }
@@ -71,19 +71,19 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
         }).proposals[0] ?? null;
         if (!previous) {
           throw this.ports.errorFactory(
-            "goal_tree_proposal.not_found",
+            "goals.goal_tree_proposal.not_found",
             `找不到 Goal Tree 提案: ${supersedesProposalId}`,
           );
         }
         if (previous.state !== "pending") {
           throw this.ports.errorFactory(
-            "goal_tree_proposal.revision_not_pending",
+            "goals.goal_tree_proposal.revision_not_pending",
             "只能修订仍待用户决定的 Goal Tree 提案",
           );
         }
         if (previous.submitted_by !== actorId) {
           throw this.ports.errorFactory(
-            "goal_tree_proposal.revision_not_owner",
+            "goals.goal_tree_proposal.revision_not_owner",
             "只有原提案的当前 Runtime 可以创建它的修订版本",
           );
         }
@@ -93,7 +93,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
       if (effectiveRootGoalId) this.requireGoalOnBoard(input.project_id, effectiveRootGoalId);
       if (!previous && items.some((item) => item.supersedes_item_id)) {
         throw this.ports.errorFactory(
-          "goal_tree_proposal.item_revision_without_proposal",
+          "goals.goal_tree_proposal.item_revision_without_proposal",
           "条目要引用 supersedes_item_id 时，必须同时指定 supersedes_proposal_id",
         );
       }
@@ -102,7 +102,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
         for (const item of items) {
           if (item.supersedes_item_id && !priorItemIds.has(item.supersedes_item_id)) {
             throw this.ports.errorFactory(
-              "goal_tree_proposal.item_revision_unknown",
+              "goals.goal_tree_proposal.item_revision_unknown",
               "修订条目只能引用被修订提案中的已有 item_id",
             );
           }
@@ -114,7 +114,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
         if (!existingItem) continue;
         const conflictingProposalId = existingItem.proposal_id;
         throw this.ports.errorFactory(
-          "goal_tree_proposal.item_id_conflict",
+          "goals.goal_tree_proposal.item_id_conflict",
           `items[${index}].item_id=${item.item_id} 已被提案 ${conflictingProposalId} 使用；请为修订条目提供新的全局唯一 item_id，并用 supersedes_item_id 保留来源关联。`,
           {
             path: `items[${index}].item_id`,

@@ -53,6 +53,7 @@ async function structureProject(name: string) {
   }
 }
 
+// R3-01/R3-02: current owner refusal and protected identity flow through the real MCP door.
 test("a structure decision through the management MCP is recorded as the person on this machine, and refuses an identity in its arguments", async () => {
   const { decideEntry, decision, decisions, done } = await structureProject("mcp-identity");
   try {
@@ -62,7 +63,7 @@ test("a structure decision through the management MCP is recorded as the person 
     // An identity named inside the authority is not accepted either: the Host fixes who decides.
     for (const authority of [{ actor_id: "someone-else" }, { authority_source: "web" }, { actor_kind: "runtime" }]) {
       await assert.rejects(decideEntry({ ...decision("forged-authority"), authority: { ...decision("forged-authority").authority, ...authority } }),
-        { code: "goal_tree_proposal.authority_source_invalid" }, `refuses ${Object.keys(authority).join(" and ")} in the authority`);
+        { code: "goals.goal_tree_proposal.authority_source_invalid" }, `refuses ${Object.keys(authority).join(" and ")} in the authority`);
     }
     assert.deepEqual(await decisions(), [], "a refused call decides nothing");
 

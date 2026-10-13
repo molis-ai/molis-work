@@ -344,7 +344,7 @@ test("configure idempotency uses the original request before resolving upgraded 
           fields: [{ field_id: "note", name: "内容", purpose: "x", format: "text", required: true }],
         }],
       }),
-      (error: unknown) => error instanceof ActionError && error.code === "request.idempotency_key_reused",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.request.idempotency_key_reused",
     );
     await mcp.close();
     mcp = new MolisWorkServer("runtime", {

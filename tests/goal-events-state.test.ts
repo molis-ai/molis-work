@@ -298,7 +298,7 @@ test("progress summary uses this Goal cursor, goes stale on new facts, and ignor
         }],
         progress: { summary: "不同进展" },
       }),
-      (error: unknown) => error instanceof ActionError && error.code === "request.idempotency_key_reused",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.request.idempotency_key_reused",
     );
     const beforeBad = data.app.goalEvents.listEvents(BOARD, combinedGoal, { limit: 100 }).events.length;
     assert.throws(
@@ -3071,7 +3071,7 @@ test("the management caller factory acts as the person on this machine, builds t
   seen.length = 0;
   for (const named of [{ actor_id: "someone-else" }, { actor_kind: "runtime" }, { authority_source: "web" }]) {
     await assert.rejects(management.invoke(goalsActions.decide, decision, { conversation_ref: "conversation://x", ...named }), { code: "goals.event_decision_authority_invalid" }, Object.keys(named).join());
-    await assert.rejects(management.invoke(goalsActions.treeDecide, { proposal_id: "p", idempotency_key: "k" }, { conversation_ref: "conversation://x", ...named }), { code: "goal_tree_proposal.authority_source_invalid" }, Object.keys(named).join());
+    await assert.rejects(management.invoke(goalsActions.treeDecide, { proposal_id: "p", idempotency_key: "k" }, { conversation_ref: "conversation://x", ...named }), { code: "goals.goal_tree_proposal.authority_source_invalid" }, Object.keys(named).join());
   }
   await assert.rejects(management.invoke(goalsActions.initialize, { title: "资料库", idempotency_key: "init" }, { conversation_ref: "conversation://x" }), { code: "actions.input_invalid" });
 

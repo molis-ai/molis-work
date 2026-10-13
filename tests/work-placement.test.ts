@@ -19,7 +19,7 @@ import { pptManifest, openPptStore, buildPptx, slidesFromMarkdown } from "@molis
 import { formManifest, openFormStore, formFillPageHtml, formResultsCsv, FORM_ANSWER_FORMAT, questionsFromText } from "@molis-ai/molis-work-plugin-form";
 import { datasetManifest, openDatasetStore, parseCsv } from "@molis-ai/molis-work-plugin-dataset";
 import { lingguangManifest, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
-import { createGoalsInputActionHandlers, goalsInputActions } from "../plugins/native/goals/src/input-actions.js";
+import { createGoalsInputActionHandlers, goalsInputActions } from "../plugins/native/goals/dist/input-actions.js";
 import { SearchService } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { bindSearchEntriesHandler, defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -265,7 +265,7 @@ test("an object keeps showing the Goals it serves after it moves out of their pr
 });
 
 test("the Goals page shows a newly bound material without waiting for the next journal event", async () => {
-  const { cachedMolisWorkWebView } = await import("../apps/local-host/src/web-view.js");
+  const { cachedMolisWorkWebView } = await import("@molis-ai/molis-work-app-local-host");
   const binding = { binding_id: "b1", goal_id: "g1", input_name: "发布说明", source_type: "plugin_object", source_ref: '["pages_document","d1"]',
     snapshot_digest: null, state: "confirmed", reason: "", created_by: "web-user", created_at: "2026-09-28T00:00:00.000Z" };
   let bindings: typeof binding[] = [];

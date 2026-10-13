@@ -3,7 +3,7 @@ import test from 'node:test';
 import { capabilityLimits, type CapabilityImplementations, slowOperations } from '../apps/local-host/src/plugin-builder/capabilities.js';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities } from '../apps/local-host/src/plugin-builder/catalog.js';
-import { STUDIO_CAPABILITIES, expandDesign } from '../plugins/native/plugin-builder/src/index.js';
+import { STUDIO_CAPABILITIES, expandDesign } from '@molis-ai/molis-work-plugin-builder';
 
 const identity = (namespace: 'preview' | 'installed', installationId = 'install-1') => ({ projectId: 'p', installationId, pluginId: 'io.molis.work.generated.x', namespace });
 const context = (namespace: 'preview' | 'installed', installationId?: string) => ({ identity: identity(namespace, installationId), signal: new AbortController().signal, operationId: 'notes.expand' });
@@ -52,7 +52,7 @@ test('operations that wait on the model get their own lane; everything else stay
 });
 
 test('query authoring uses provider cost declarations regardless of capability name', async () => {
-  const { normalizeEffects } = await import('../plugins/native/plugin-builder/src/agent-authoring.js');
+  const { normalizeEffects } = await import('@molis-ai/molis-work-plugin-builder');
   const catalog = [{ id: 'research.summarize', description: '', execution: { cost: 'metered' as const } }];
   assert.throws(() => normalizeEffects({ capabilities: ['research.summarize'] }, 'query', 'auto read', catalog), /不能调用收费能力/);
   assert.deepEqual(normalizeEffects({ capabilities: ['research.summarize'] }, 'command', 'button', catalog), { capabilities: ['research.summarize'] });

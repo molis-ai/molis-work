@@ -18,7 +18,7 @@ import { INTERACTION_TEXTURE_STYLES } from "@molis-ai/molis-work-design-system";
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { renderMolisWorkSettings, renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
-import { renderSettingsDirectorySection } from "../apps/workbench/src/settings-directory.ts";
+import { renderSettingsDirectorySection } from "../apps/workbench/dist/settings-directory.js";
 import {
   INBOX_DISMISS_BEHAVIOR_ID,
   INBOX_DONE_BEHAVIOR_ID,
@@ -40,11 +40,11 @@ import {
   readChoiceAnswer,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
-import { FunctionsHttpRouteTable } from "../apps/local-host/src/functions-http/routes.ts";
-import { createFunctionsRouteHandlers } from "../apps/local-host/src/functions-http/route-handlers.ts";
-import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/functions/client.ts";
-import { renderFunctionsWorkbench } from "../apps/workbench/src/functions/ui.ts";
-import { renderFunctionsSettings } from "../apps/workbench/src/functions/settings-ui.ts";
+import { FunctionsHttpRouteTable } from "../apps/local-host/dist/functions-http/routes.js";
+import { createFunctionsRouteHandlers } from "../apps/local-host/dist/functions-http/route-handlers.js";
+import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/functions/client.js";
+import { renderFunctionsWorkbench } from "../apps/workbench/dist/functions/ui.js";
+import { renderFunctionsSettings } from "../apps/workbench/dist/functions/settings-ui.js";
 
 const primitives = {
   escape: (value: unknown) => String(value ?? "")

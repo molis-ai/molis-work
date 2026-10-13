@@ -7,8 +7,8 @@ import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-c
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { pagesActions as actions, pagesContentActions as content, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 
 const body = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 async function fixture(run: (f: { home: string; host: MolisWorkLocalHost; caller: ActionCallContext;

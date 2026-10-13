@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { ImMessage } from '../packages/contracts/src/services/im.js';
+import type { ImMessage } from '@molis-ai/molis-work-contracts/services/im';
 import { createHistory } from '../packages/im-ui/src/browser/history.js';
 import { createDrafts } from '../packages/im-ui/src/browser/drafts.js';
 import type { Api, BrowserStorage, TopicDraft } from '../packages/im-ui/src/browser/types.js';

@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 
 /**
  * Serial project or Home operations wait for each other. An action that waits on a model inside its handler must run
@@ -43,8 +43,8 @@ test("every action that waits on a model runs beside the serial queue unless it 
 });
 
 test("real Native AI declarations reach the Builder catalog and stop metered automatic queries", async () => {
-  const { capabilityCatalog } = await import('../apps/local-host/src/plugin-builder/catalog.js');
-  const { normalizeEffects } = await import('../plugins/native/plugin-builder/src/agent-authoring.js');
+  const { capabilityCatalog } = await import('../apps/local-host/dist/plugin-builder/catalog.js');
+  const { normalizeEffects } = await import('@molis-ai/molis-work-plugin-builder');
   const home = await mkdtemp(join(tmpdir(), 'native-execution-policy-'));
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, 'a.sqlite'), projectId: 'a' });

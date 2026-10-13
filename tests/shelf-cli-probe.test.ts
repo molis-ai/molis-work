@@ -3,7 +3,7 @@ import test from "node:test";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readCliHelp } from "../modules/shelf/src/runtimes.js";
+import { readCliHelp } from "@molis-ai/molis-work-module-shelf";
 
 test("a CLI help probe that times out is asked again instead of being remembered as having no headless entry", t => {
   const bin = mkdtempSync(join(tmpdir(), "shelf-cli-probe-"));

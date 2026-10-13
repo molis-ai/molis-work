@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { createWebCatalogAccess } from "../apps/local-host/src/web-catalog-access.js";
+import { createWebCatalogAccess } from "../apps/local-host/dist/web-catalog-access.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 

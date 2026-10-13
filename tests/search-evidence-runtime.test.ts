@@ -7,8 +7,8 @@ import type { SearchHostTransportPort } from "@adeptify/search-evidence-layer/ho
 import {
   createEvidenceContentStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SecretStore,
 } from "@molis-ai/molis-work-storage";
-import { createSearchEvidenceRuntime } from "../apps/local-host/src/search-evidence-runtime.js";
-import type { IntelligenceCollectRequest } from "../apps/local-host/src/search-intelligence-client.js";
+import { createSearchEvidenceRuntime } from "../apps/local-host/dist/search-evidence-runtime.js";
+import type { IntelligenceCollectRequest } from "@molis-ai/molis-work-app-local-host";
 
 function fixture(t: test.TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "shared-search-"));

@@ -6,8 +6,8 @@ import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
 import { ArtifactsModule, createArtifactsSchema, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.ts";
-import { importLocalArtifactDocument } from "../apps/local-host/src/artifact-document-import.ts";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
 
 test("document import reads only the selected account, preserves provenance and blocks revoked reads", async t => {
   const home = mkdtempSync(join(tmpdir(), "molis-document-account-"));

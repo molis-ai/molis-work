@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { compactionSelection, createPrologueCompactor } from "../horizontal/agent-host/src/adapters/prologue-compaction.js";
+import { compactionSelection, createPrologueCompactor } from "../horizontal/agent-host/dist/adapters/prologue-compaction.js";
 
 const older = [{ role: "tool", source: "tool-result" as const, origin: "read-file", text: "未执行\r\n已批准 ≠ 已发生\n尾部青杉渡" }];
 const connection = { protocol: "anthropic-compatible", endpoint: "https://model.invalid", model: "frozen-model", credentialRef: { kind: "credential", id: "ref-only", revision: 1 } } as const;

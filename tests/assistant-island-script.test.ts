@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/assistant-island.js";
+import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
 
 // The bottom bar's client script is one template string: a single slip (a name declared twice, an unescaped newline)
 // stops the whole Assistant, search and plugin switching with it, and only a browser run would show it otherwise.

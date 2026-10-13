@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { imagesActions as actions, IMAGES_ACTION_PERMISSIONS, type ImageJob } from "@molis-ai/molis-work-plugin-images";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, peekSealedEntry, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 const PNG="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 async function fixture(t:test.TestContext) {

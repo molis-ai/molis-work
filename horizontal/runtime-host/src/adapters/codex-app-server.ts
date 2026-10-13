@@ -84,6 +84,7 @@ export class CodexAppServerTransport implements RuntimeSessionTransport {
     this.child = child;
     this.resetResponseBuffer();
     child.stdout.on("data", (chunk: Buffer | string) => this.handleChunk(child, chunk));
+    child.stdin.on("error", () => this.failProtocolLine(child, new Error("Codex app-server 请求发送失败")));
     child.once("error", () => this.handleExit(child, "Codex app-server 无法启动"));
     child.once("exit", () => this.handleExit(child, "Codex app-server 已退出"));
     child.stderr.on("data", () => undefined);

@@ -2146,3 +2146,12 @@ W3-09-3源候选`59d825ec5`已保存（十四文件，不含快照更新）：Ke
 W3-09-3批次源审补两项，均已源修但待运行：`ed8247d97`将实际Todo batch载荷改为当前`change:{status:"doing"}`（不含不存在的kind字段），否则schema先拒、版本路径未被验证；后续进程内ActionClient的own property为undefined也必须算缺前提，Ajv会略过可选undefined，故共同检查显式拒绝并补原真实ActionService入口断言，合法expected_revision:null保留。`5b7e3b0be`进一步钉原actor_kind/runtime_session_id/plugin_install_id/host_plugin，另一会话即使持有原beforeEffect函数也不能借嵌套豁免；这些仍只有源码/Biome/diff证据。
 
 W3-10-2源候选`fc8887783`已保存：九处Workbench源码的引导/选择、Functions三个脚本、MCP授权、连接与Home模型读取统一经UiRequest；保留空项目的原feedApi分支、输入/选择序号、Controller取消、原已授权后刷新失败恢复，并在失败位置用同一failure view显示可查号。Home插件页原本已使用助手，未重复迁。Functions纯页面夹具挂现行公开UI_REQUEST_CLIENT_SCRIPT，业务保稿/冲突断言不改；新增真实Host/浏览器保稿、owner事实不变、真实诊断页及明确修正后保存用例。九处本范围raw fetch已归零，静态翻译缺失/未装词典/稳定键错误均为零、完整包边界errors为空。新增源与新用例Biome无诊断；原functions-draft-retention四处显式any仍是原基线，未新增，不能称该文件整份lint通过。当前仍待whole build、资产/actual-base健康门禁、浏览器运行和最后整合全量。
+
+
+2026-10-13 10:56，进度PR #473已按确切head`ef8fb699e`与当时main`0d5169efa`、五项必需检查/Verify及Product subset成功、再次密钥扫描零命中后合并（`ee84a8379`）。该PR只记录实际失败、已确认静态证据及仍待运行源码，未发布实现。剩余远端draft及冲突#180继续未作为可合候选。
+
+W3-10-2批次源修`74d554195`保留context rangePick与native+save共用捕获里的Host错误对象及实际编号，native其他错误保留原说明；连接refreshFailed/只读重试透传错误，仍显示已授权、不重新授权的提醒。W3-10-3a候选`b0d790ae9`、`f93be38e1`、`ffa56932d`、`ef73dbf9e`按同片迁api工厂和全部feedApi读者，保留Functions可空项目语义、既有409且state=failed收据、HTML/取消/选择序号与来源已创建只补计划；Feed/规则/Home显示链保留真实Error，Home草稿/原请求持久化不变。复制编号按钮加入后会改变宽泛button查询，现settingsLoadFailed只取原直接子级重试按钮，复制与只读重试各自生效。原builtin composition VM夹具同步api变量，挂载断言不改。静态翻译缺失零、完整包边界errors为空、源码/所改新用例Biome无诊断；整棵构建、资产/健康与真实浏览器仍待。
+
+W3-10-3b候选`376d2da54`及`2c92d01e1`、`f69fd2aa0`把Workbench自有插件/Review/companion请求统一到UiRequest。真实原requestLifetime、审批写入activation signal/读取view signal、五参数Files/Git adapter与返回后的assertCurrent、成果HTML404/fragmentheader、member串行修改及原错误对象透传均源核保留。审查刷新与固定成果读取也用共同failure view，原可见性/序号及只读刷新提示保留。未扩到Files/Git插件内部显示，其迁移仍在W5；回归尚未运行。
+
+尝试两条既有脚本验证的原始`w3-request-static-scripts01.log`为2文件、0通过/2启动失败：构建产物缺失导致进入断言前ERR_MODULE_NOT_FOUND，不能算静态/产品通过，也未通过改导入路径绕过。目前唯一I7构建26仍排在Grok全量之后；I7冻结`62a58259d`加临时SDK依赖、没有重复启动或停止他人任务。后续须实际整体构建，再在同一冻结树完成SDK消费者/变异和各批运行验收。

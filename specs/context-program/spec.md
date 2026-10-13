@@ -931,6 +931,18 @@ W2 自己的验收（在 T01–T09 之外）：
 
 ## 20. 远端交接（2026-10-13，当前接续入口）
 
+> **统筹补充（2026-10-13 晚，先读）：暂停期间 main 上有两次大合并，本节下文写于知道它们之前。**
+>
+> - **#471**（yijunw0212，10-13 08:24 UTC，78 个文件）把桌面 Computer Use 合进 main，并把 main 的 vendored SDK 换成 `prologue-sdk-0.0.0-rc.1-computer-use.tgz`。它的来源是 Prologue `d4908c11`（分支 `feat/desktop-computer-use`，基于 `c4b9fde3` = `4f7110fe` + 采用修正 + 5 个 Computer Use 提交）；provenance 写着 `pushed: false`，这个提交**不在 Prologue main，也不在 GitHub 远端**。这份包**不含**已进 Prologue main 的 S1–S3、带类型问卷（`a06ae62e`）、P1 合同、P2a–P2f。main 上同时还留着旧的 side-panel-memory 包与补丁（两份 tgz）。#471 还新增了右栏的电脑格（`apps/workbench/src/side-panel-computer.ts`）、`contracts/services/computer.ts`、`services/ui-surfaces.ts`，改了助理服务、`assistant-island.ts`、`prologue-node.ts`、`prologue-stream.ts`、`contracts/services/agent-host.ts`，并把 10-09 版的 `specs/ai-interaction-experience/spec.md` 与参考图带进了 main。
+> - **#472**（yijunw0212，10-13 10:54 UTC，93 个文件 +3399/−953）把旧采用树 `feat/prologue-adoption` 的 10 个提交（10-09 的 `77fde104`…`8b1a0522`）合进 main：一轮的推理力度、运行中换模型、逐轮写入记录（约等于 A1）、灵光流式（A3 的一部分）、助理把交出去的工作收回来后接着做（`8b1a0522`「第 14 项」，A0 当时明确不纳入的私有接续）、变化等待（`b3235bb1`/`8c0b60fb`，约等于 A4）。它沿用 #471 的 computer-use 包，没有换包。main 上的 `specs/prologue-adoption/spec.md` 是 10-09 的旧版（标题「Prologue 新能力接入：修复、适配与功能优化」）。
+> - 统筹层的说明与后续顺序见远端分支 `coordination/handoff-2026-10-13` 的 `coordination/2026-10-13/README.md` §2a。
+>
+> **对本线的影响：**
+> 1. #471 在 main 上实现了右栏的电脑格（`apps/workbench/src/side-panel-computer.ts`、`contracts/services/computer.ts`、`services/ui-surfaces.ts`）。W0/W1 里「电脑」格原来只是占位、归 Computer Use 原负责人；合 main 后改成接 #471 的实现（只留位置的说明删掉），右栏六格的落点、拖放与浮条在电脑格上的行为按 #471 的表面核对。
+> 2. #471 还改了 `side-panel.ts`、`side-panel-browser.ts`、`page-assets.ts`、`assistant-island.ts` 和页面资源预算；与 #411 的直接文件冲突在 `apps/local-host/src/index.ts`、`apps/workbench/src/page-assets.ts`、`specs/README.md`、`tooling/gates/baseline.json`、`tooling/gates/page-assets.json`。页面资源字节两个方向都要精确：合 main 后重新 `pnpm workspace:build` 再 `node scripts/gates/page-assets.mjs --update --base origin/main`，不手工合并数字。
+> 3. #411 合进 main 的顺序不变（排在采用线之后），但采用线的 #408 现在要先和 #472 对账，可能晚到；如果 #411 先具备条件（W1-4 回归已修、合 main 后防腐复查过、定向用例与基线比对过），由统筹决定是否先合。
+
+
 本节取代第 17 节。读它的人可能在另一台机器上，看不到本机的工作树、锁目录和别的会话：下面凡是本线要用的事实都写在这里，链接只是出处。本节写于用户 2026-10-13 的「先暂停一下」之后，所以「没做」里的事都等恢复通知再动。
 
 ### 20.1 一句话现状

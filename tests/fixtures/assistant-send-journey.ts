@@ -16,9 +16,11 @@ export async function sendBrowser(t: TestContext, modelAvailable = true) {
   return { ...browser, model };
 }
 
-export async function seedWork(browser: SendBrowser, text: string) {
-  const result = await browser.evaluate<AssistantSendResult & { error?: string }>(`fetch('/projects/${browser.projectId}/api/assistant/send', {
-    method: 'POST', headers: molisWorkControlHeaders(), body: JSON.stringify({ text: ${JSON.stringify(text)}, request_id: crypto.randomUUID(), scope: { kind: 'project', project_id: '${browser.projectId}' } })
+export async function seedWork(browser: SendBrowser, text: string, kind: "project" | "personal" = "project") {
+  const route = kind === "project" ? `/projects/${browser.projectId}/api/assistant/send` : "/api/assistant/send";
+  const scope = kind === "project" ? { kind, project_id: browser.projectId } : { kind };
+  const result = await browser.evaluate<AssistantSendResult & { error?: string }>(`fetch(${JSON.stringify(route)}, {
+    method: 'POST', headers: molisWorkControlHeaders(), body: JSON.stringify({ text: ${JSON.stringify(text)}, request_id: crypto.randomUUID(), scope: ${JSON.stringify(scope)} })
   }).then(r => r.json())`);
   assert.ok(result.work, JSON.stringify(result));
   if (!result.error) await waitWork(browser, result.work.work_id, view => view.work.state === "completed");
@@ -44,7 +46,7 @@ export async function putInput(browser: SendBrowser, text: string, material?: st
   })()`);
 }
 
-export interface PausedSend { requestId: string; request: { url: string; postData?: string }; responseStatusCode?: number }
+export interface PausedSend { requestId: string; networkId?: string; request: { url: string; postData?: string }; responseStatusCode?: number }
 /** Chrome holds the actual HTTP request/response; no fetch or Host result is mocked. */
 export async function sendBarrier(browser: SendBrowser, patterns: Array<{ urlPattern: string; requestStage: string }>) {
   const queue: PausedSend[] = [];
@@ -52,6 +54,7 @@ export async function sendBarrier(browser: SendBrowser, patterns: Array<{ urlPat
   const off = browser.on("Fetch.requestPaused", (event, session) => {
     if (session !== browser.sessionId) return;
     const paused: PausedSend = { requestId: String(event.requestId), request: event.request as PausedSend["request"],
+      ...(typeof event.networkId === "string" ? { networkId: event.networkId } : {}),
       ...(typeof event.responseStatusCode === "number" ? { responseStatusCode: event.responseStatusCode } : {}) };
     if (take) { const resolve = take; take = undefined; resolve(paused); } else queue.push(paused);
   });

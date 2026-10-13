@@ -28,7 +28,7 @@ export const CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(!lifetime.visible)return;const signal=view,id=++read;busy(true);note.textContent='正在读取固定内容…';
         try{const state=await host.request(plugin,'/state'+(plugin==='diff'?'?change_index='+index:''),'GET',undefined,signal);lifetime.assertCurrent(signal);if(id!==read)return;body.innerHTML=state.html||'';note.textContent='';
           body.querySelectorAll('[data-change-index]').forEach(button=>button.setAttribute('aria-pressed',String(Number(button.dataset.changeIndex)===index)));}
-        catch(error){if(!signal.aborted&&lifetime.visible&&id===read){body.replaceChildren();note.textContent=error.message+'。请点击刷新重试。';}}
+        catch(error){if(!signal.aborted&&lifetime.visible&&id===read){body.replaceChildren();molisWorkRequest.show(note,error);note.append(document.createTextNode('。请点击刷新重试。'));}}
         finally{if(lifetime.alive&&id===read)busy(false);}
       };
       lifetime.listen(root,'click',event=>{const file=event.target.closest('[data-action="diff.show-file"]');if(file){index=Number(file.dataset.changeIndex);void load();}else if(event.target.closest('[data-companion-refresh]'))void load();});

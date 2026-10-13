@@ -11,11 +11,9 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference, RuntimeProjectConnec
 import { createMcpContextPresenter } from "@molis-ai/molis-work-app-mcp";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
-test("official MCP connection summaries obey live action grants, preserve binding and never read offline local content", { timeout: 60_000 }, async () => {
+test("official MCP connection summaries obey live action grants, preserve binding and never read offline local content", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "mcp-context-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Connection A", actor_id: "user" }));
   const second = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Connection B", actor_id: "user" }));
@@ -31,7 +29,9 @@ test("official MCP connection summaries obey live action grants, preserve bindin
   } });
   const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "user", actor_kind: "user", project_id: project.project_id,
     audience: "user", permissions: ["goals:read", "goals:write"] }));
-  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host });
+  // The Host's own web server: the access settings the grants go through, and the action service the MCP launcher reaches.
+  const served = await serveTestHost(t, { home, host });
+  const origin = served.origin;
   const sdk = new Client({ name: "untrusted-client-label", version: "1" });
   const runtimeContext = { runtime_id: "context-actions", stable_work_context_id: "context-actions-session", host_declares_stable: true };
   try {
@@ -41,9 +41,6 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     await withCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({ context: runtimeContext, project_id: project.project_id, actor_id: "user", user_confirmed: true }));
     const bindingsBefore = await withCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings());
     const cursorBefore = await host.withProject(ref, r => r.store.eventCursor(project.project_id));
-    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-    const address = server.address(); assert.ok(address && typeof address === "object");
-    const origin = `http://127.0.0.1:${address.port}`;
     await sdk.connect(new StdioClientTransport({ command: process.execPath,
       args: ["--import", "tsx", fileURLToPath(new URL("../apps/desktop/launchers/mcp/server.ts", import.meta.url))],
       env: { ...Object.fromEntries(Object.entries(process.env).filter((x): x is [string, string] => x[1] !== undefined)),
@@ -63,8 +60,12 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     assert.doesNotMatch(JSON.stringify(result), /Authorized goal content|Authorized project instruction/);
     const caller = { actor_id: "runtime:context-actions", audience: "mcp" as const, project_id: project.project_id, permissions: [] };
     const views = await host.inspectActions(caller, ref);
-    const grant = async (capabilityId: string, enabled: boolean) => writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id,
-      views.find(view => view.capability_id === capabilityId)!, enabled));
+    const grant = async (capabilityId: string, enabled: boolean) => {
+      const view = views.find(row => row.capability_id === capabilityId)!;
+      if (enabled) await served.grant(caller.actor_id, project.project_id, [view]); else await served.revoke(caller.actor_id, project.project_id, [view]);
+      // Saving a grant asks the policy about the client too; what the later assertions read is what the connection summary asked.
+      seen.clear();
+    };
     await grant(goalsActions.guidanceRead.capability_id, true);
     result = await resolve();
     assert.match(result.runtime_prompt_prefix, /Authorized project instruction/); assert.equal(result.project_guidance_error, undefined);
@@ -94,14 +95,14 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     await contextCall("molis_work_v1_context_bind", { project_id: project.project_id,
       user_confirmed: true, rebind_confirmed: true });
     await grant(goalsActions.guidanceRead.capability_id, true);
-    await new Promise<void>(resolve => server.close(() => resolve()));
+    await served.close();
     result = await resolve();
     assert.equal(result.status, "bound"); assert.equal(result.connection.project_id, project.project_id);
     assert.equal(result.resume, null); assert.equal(result.project_guidance, null);
     assert.equal(result.resume_error.code, "actions.service_unavailable"); assert.equal(result.project_guidance_error.code, "actions.service_unavailable");
     assert.doesNotMatch(JSON.stringify(result), /Authorized goal content|Authorized project instruction/);
   } finally {
-    await sdk.close(); if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
+    await sdk.close(); await served.close();
     await host.close(); await rm(home, { recursive: true, force: true });
   }
 });

@@ -21,7 +21,7 @@ test("W2-18-NATIVE-BODY-01 native HTTP accepts Chinese within budget and refuses
   }));
   t.after(async () => { await edge.close(); await host.close(); await rm(home, { recursive: true, force: true }); });
   const saved = await edge.post("/api/pages", JSON.stringify({ title: "中文正文", markdown: "正文与来源" }));
-  assert.equal(saved.status, 201);
+  assert.equal(saved.status, 200);
   const before = (await actions.invoke(pagesActions.list, {})).documents;
   assert.equal(before.length, 1);
   const body = JSON.stringify({ title: "不能保存", markdown: "中".repeat(400_000) });

@@ -27,6 +27,7 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 - 公开入口：`@molis-ai/molis-work-plugin-images`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 服务框内的 Connectors 链接先关闭原生模态框，让设置接收点击与键盘；返回时保留服务字段并按既有可见生命周期刷新账号。返回生成历史清空本页声明的当前任务，不取消已接受的服务端任务。
   - API Key 由宿主 SecretStore 加密保存；列表、任务与下载不返回 Key。
   - 失败、超时或重启不自动再次调用；「停止等待」只停本机请求，不保证厂商停止计费。
   - 所选账号失效时保留选择并显示原因，不自动换账号；生成期间授权改变不保存过期结果。
@@ -36,6 +37,7 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
   - 项目被删除时清掉这个项目的任务记录和 `images/assets` 里的图片文件：无运行中的服务时按目录条目上的 `project_data`（`imagesProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeImagesProject`），运行中的服务则用它的 `deleteProject`（先中止还在生成的任务，标签同一份）。
   - 失败都是 `ActionError`：码是 `images.<原因>`（`imagesErrors`）；状态只由 kind 推出，没有错误类和状态表。入口（`apps/local-host/src/images-native-plugin-http.ts`）自己写图片字节，不走分发器，请求体用共用的 `readNativePluginJsonBody` 读，出错写 SDK 的 `actionErrorResponse`；没有我们格式的码的失败只回一句通用话（`images.internal`，500），不带它自己的文字。
 - 改动后必跑：`node scripts/run-tests.mjs tests/images-actions.test.ts tests/images-service.test.ts tests/images-providers.test.ts tests/images-concurrency.test.ts tests/images-mcp.test.ts tests/project-deletion-owners.test.ts tests/model-unavailable-declarations.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts`
+- 首次连接与可见对象定向回归（需要本机 Chrome）：`node scripts/run-tests.mjs tests/content-context-regressions.e2e.test.ts tests/images-actions.e2e.test.ts`（使用受控本机 provider，不调用真实厂商）。
 - 相关手册：[docs/platform/PROLOGUE-AI.md](../../../docs/platform/PROLOGUE-AI.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 客户端资源由 Host 注入的 UI 生命周期管理：隐藏停止进度轮询，再次显示刷新；卸载取消本机请求并释放监听、定时器和观察器。服务端任务保持原有取消与恢复语义。

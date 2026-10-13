@@ -37,6 +37,9 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 - 公开入口：`@molis-ai/molis-work-plugin-pages`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `pages.<原因>`，状态由错误种类决定，Pages 不自带状态表）、`@molis-ai/molis-work-storage`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 新建、导入打开和提取返回时，先核对正在编辑的文档与本次编辑状态；新输入通过原版本保存，提取与输入冲突时保留草稿并明确报错，不用返回值确认未显示过的编辑。
+  - 不支持的正文结构只读保留；返回、导入打开、发布、提取、导出和打印不把编辑器占位正文写回或当成原文。图片读取、写作候选及卡片浮层属于打开它们的文档；切文档结束这些资源，同文档的延迟图片沿原插入位置映射。
+  - Markdown 与静态 HTML 保留表格单元格的所有段落和任务、日程、引用的可见文字；多篇合成沿现有 1500 个字符的节选范围，材料保留对象、版本与截断标记，成稿说明节选并链接原 Pages。
   - HTTP 的项目由 Host 绑定，query 或 body 声明不同项目会拒绝；`pages.update` 带 `expected_version`，冲突保留草稿。
   - 生成按请求保存材料快照；缺模型明确拒绝，不生成占位文稿。
   - 被取消或撤权的生成不写任何业务记录（调用记录里的“未执行”诊断行除外），本进程可以立即接手重试；其他进程的尝试仍守租约。
@@ -48,4 +51,5 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
   - 项目被删除时宿主按目录条目上的 `project_data`（`pagesProjectData`，`src/project-data.ts`：确认框里的标签与 `purgePagesProject`）调用清掉文稿与文件夹，连同生成与导入回执和还能撤回的修改；只读库文件，库不存在时不创建，重复运行没有副作用。
 - 改动后必跑：`node scripts/run-tests.mjs tests/pages-actions.test.ts tests/pages-cross-module.test.ts tests/pages-generation-lease.test.ts tests/pages-conversion.test.ts tests/action-before-effect.test.ts tests/pages-publication.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/pages-blank-discard.test.ts tests/pages-draft-race.test.ts tests/plugin-client-served.test.ts tests/document-plugins-error-model.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/plugin-small-ux.e2e.test.ts`
+- 上述内容与编辑状态的定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-editing-regressions.e2e.test.ts tests/content-portable-regressions.e2e.test.ts`（浏览器文件需要本机 Chrome；受控模型与下载/打印拦截不代替真实模型、文件应用或读屏体验验收）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

@@ -12,7 +12,7 @@ import type { HostCapabilityDefinition } from "../platform/app-host.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
 import type { CharacterContent } from "../modules/characters.js";
-import type { AgentDocumentCapability, AgentMemoryCapability, AgentMemoryRecallFact, AgentRecalledMemory } from "./agent-host-memory.js";
+import type { AgentDocumentCapability, AgentMemoryExecutionControl, AgentMemoryCapability, AgentMemoryRecallFact, AgentRecalledMemory } from "./agent-host-memory.js";
 // Memory and documents through the runtime: declared beside this file, part of the same contract.
 export type { AgentMemoryExecutionControl, AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability } from "./agent-host-memory.js";
 

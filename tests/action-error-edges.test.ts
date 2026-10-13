@@ -110,30 +110,26 @@ test("the Host's own MCP server: a Todo failure carries its code line", async t 
   assert.equal(host.callLog!.find(line.call_id!)[0]?.code, "todo.not_found", "the number finds the row of the failed read");
 });
 
-test("Home dock: a failed Todo action on execute answers with the Todo's own code and a 400, not as an unknown 500", async t => {
-  // CHANGED. origin/main: a TodoError was not an ActionError, and home.actions.execute lets the offered action's own error through, so
-  // /api/home/actions/execute answered 500 { code: "actions.failed" } with a generic sentence. The dock still maps by code, not by kind, until its own
-  // slice (W3-02-C onward). The stand-in client fails every call the way todo.get does for a todo that is gone.
+test("W3-02-G1-03 Home dock execute preserves the Todo owner's not_found kind and answers 404", async t => {
+  // The actual Todo reader refuses a deleted object; the common HTTP exit preserves its code and message.
   const { person } = todoHost(t);
   const failing: BoundActionClient = { discover: async () => [], invoke: async () => await person.invoke(todoActions.get, { id: "no-such-todo" }) as never };
   const server = await serveNativeHttp((request, response, url) => handleHomeDockJudgmentHttp(request, response, url, { actions: failing, invalidateWebView: () => undefined }));
   try {
     const execute = await server.post("/api/home/actions/execute", "{}");
-    assert.deepEqual([execute.status, execute.body.code, execute.body.error], [400, "todo.not_found", "找不到这件待办，可能已被删除"]);
+    assert.deepEqual([execute.status, execute.body.code, execute.body.error], [404, "todo.not_found", "找不到这件待办，可能已被删除"]);
   } finally { await server.close(); }
 });
 
-test("Home dock: talk/prepare answers a Todo that is not there with the reader's code and a 400 (unchanged by W3-02-A)", async t => {
-  // UNCHANGED. home.talk.prepare starts by reading the subject through its owner's reader (resolveActionSubject, in home-talk-actions.ts), and Todo's
-  // reader already raised ActionError("todo.not_found") on origin/main, so this route answered 400 with that code before the slice as well. It is pinned
-  // because the slice rewrote that reader's error (`todoErrors.not_found`). The stand-in client does only that first step.
+test("W3-02-G1-03 Home dock talk/prepare preserves a missing Todo's code and answers 404", async t => {
+  // Preparation begins with the real subject reader, whose refusal reaches the same common HTTP exit.
   const { service, caller } = todoHost(t);
   const reading: BoundActionClient = { discover: async () => [], invoke: async (_definition, input) =>
     await resolveActionSubject(service, caller("user"), (input as { subject: ActionSubject }).subject) as never };
   const server = await serveNativeHttp((request, response, url) => handleHomeDockJudgmentHttp(request, response, url, { actions: reading, invalidateWebView: () => undefined }));
   try {
     const prepare = await server.post("/api/home/talk/prepare", JSON.stringify({ subject: { kind: "todo_item", id: "no-such-todo" } }));
-    assert.deepEqual([prepare.status, prepare.body.code, prepare.body.error], [400, "todo.not_found", "这件待办已删除，或不在当前范围内"]);
+    assert.deepEqual([prepare.status, prepare.body.code, prepare.body.error], [404, "todo.not_found", "这件待办已删除，或不在当前范围内"]);
   } finally { await server.close(); }
 });
 

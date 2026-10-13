@@ -6,14 +6,14 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
-import type { ActionView, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { managementGoals } from "./goal-management-caller.js";
 import { watchSettlements } from "./fixtures/settlements.js";
 import { AssistantStore, type StoredWork } from "../apps/local-host/dist/assistant/assistant-store.js";
-import { AssistantError, AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import { gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/dist/adapters/prologue-action-gateway.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -187,15 +187,21 @@ test("a repeated Send starts nothing twice; a new Send while running reaches the
 test("without a model the work and its text are kept, with a next step", { timeout: 30_000 }, async t => {
   const f = await fixture(t, [], { model: false });
   try {
+    let retainedId: unknown; // W3-02-G3-03: the same work and original draft travel in owner details.
     await assert.rejects(f.service.send({ text: "Plan my week", request_id: "req-00000005" }, {}), (error: unknown) => {
-      assert.ok(error instanceof AssistantError);
+      assert.ok(error instanceof ActionError);
       assert.equal(error.code, "assistant.model_missing");
-      assert.equal(error.action, "打开模型设置");
-      assert.equal(error.work?.draft, "Plan my week");
+      assert.equal(error.kind, "invalid");
+      assert.equal(error.details?.action, "打开模型设置");
+      const kept = error.details?.work;
+      assert.ok(kept && typeof kept === "object" && "draft" in kept && "work_id" in kept);
+      assert.equal(kept.draft, "Plan my week");
+      retainedId = kept.work_id;
       return true;
     });
     const [work] = await f.service.list();
     assert.equal(work!.draft, "Plan my week");
+    assert.equal(work!.work_id, retainedId);
     // The failed Send released its id: trying again is a new attempt, not a replay of the failure.
     await assert.rejects(f.service.send({ work_id: work!.work_id, text: "Plan my week", request_id: "req-00000005" }, {}), /模型/);
   } finally { await f.close(); }
@@ -449,7 +455,7 @@ test("today's usage comes from the runtime's own receipts; once the person's dai
     // A cap below what was already used today (set directly, as if the rounds had been long ones).
     f.store.setSetting("web-user", "daily_tokens", String(usage.today.input + usage.today.output));
     await assert.rejects(f.service.send({ work_id: sent.work.work_id, text: "再说一句", request_id: "req-00000032" }, {}),
-      (error: unknown) => error instanceof AssistantError && error.code === "assistant.budget" && /达到你设的每日上限/.test(error.message));
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.budget" && error.kind === "invalid" && /达到你设的每日上限/.test(error.message));
     assert.equal((await f.service.read(sent.work.work_id)).rounds.length, 1, "nothing started; what ran stays");
     assert.equal(f.service.saveBudget(null), null);
     const again = await f.service.send({ work_id: sent.work.work_id, text: "再说一句", request_id: "req-00000033" }, {});
@@ -824,7 +830,7 @@ test("a card a page prepared from the person's selection is checked like the Ass
     // A page cannot place what the Assistant may not do, nor an input the capability would refuse.
     await assert.rejects(f.service.offerFromPage({ message_id: "page-message-0002", source, card: { ...card, input: { text: 42 } } }, { project_ref: f.project }));
     f.store.setActionEnabled("web-user", actionKey(card.reference), false);
-    await assert.rejects(f.service.offerFromPage({ message_id: "page-message-0003", source, card }, { project_ref: f.project }), (error: unknown) => error instanceof AssistantError && error.code === "assistant.action_revoked");
+    await assert.rejects(f.service.offerFromPage({ message_id: "page-message-0003", source, card }, { project_ref: f.project }), (error: unknown) => error instanceof ActionError && error.code === "assistant.action_revoked" && error.kind === "invalid");
     f.store.setActionEnabled("web-user", actionKey(card.reference), true);
     await assert.rejects(f.service.offerFromPage({ message_id: "x", source, card }, { project_ref: f.project }), /页面消息标识无效/);
     // The click runs exactly what the card shows, once.

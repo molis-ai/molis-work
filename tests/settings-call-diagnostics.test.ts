@@ -64,7 +64,7 @@ test("the diagnostics page lists the rows of the operation whose 诊断编号 is
     assert.match(row!, /诊断编号 a1b2c3d4/, "the short form a person sees");
     assert.match(row!, /aria-label="复制诊断编号 a1b2c3d4"/);
     assert.match(row!, new RegExp(`data-molis-call-id="${A}"`), "the whole id is what the button copies");
-    assert.match(row!, new RegExp(`data-copy-value="${A}"`), "and the workbench's own copy handler also works when this page is mounted in its settings");
+    assert.doesNotMatch(row!, /data-copy-value/, "one hook for the copy: the request helper's handler is in the Workbench's program too, so a mounted page needs no second one");
     assert.match(row!, /测试服务/);
     assert.match(row!, /test\.disconnected/, "the error code is kept");
     assert.doesNotMatch(page, /此原因不会被记录/, "the reason a refusal gave is not kept, so it is not shown");

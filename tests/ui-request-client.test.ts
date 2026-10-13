@@ -524,3 +524,16 @@ test("the page program speaks the page's language when there is one, and plain C
   run(plain, UI_REQUEST_CLIENT_SCRIPT);
   assert.equal(await run(plain, `molisWorkRequest("/api/things").catch(error => error.message)`), "连不上 Molis Work 服务，请稍后重试");
 });
+
+// The page budget counts the Workbench program byte for byte (W1-07), and the helper goes into it (W3-10-1b): the page program
+// takes the factories without the compiler's indentation. That is only a safe thing to do to a function with no string that spans lines.
+test("the page program carries each factory as it is less its indentation, and the factories hold no string that spans lines", () => {
+  for (const factory of [createUiRequest, createUiFailureView]) {
+    const source = factory.toString();
+    assert.doesNotMatch(source, /`/, "a template literal could span lines, and its leading blanks would be part of its text");
+    const compact = source.replace(/\n[ \t]+/g, "\n");
+    assert.ok(compact.length < source.length, "there is indentation to take out");
+    assert.ok(UI_REQUEST_CLIENT_SCRIPT.includes(compact), `${factory.name} is in the program, compacted`);
+    assert.ok(!UI_REQUEST_CLIENT_SCRIPT.includes(source), `${factory.name} is not in the program with its indentation`);
+  }
+});

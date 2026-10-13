@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantError, AssistantService, presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
+import { AssistantService, presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -67,14 +67,14 @@ test("an answer continues its own question; a rejection stays a rejection; a lat
 
     const before = requests.length;
     await assert.rejects(service.answer(sent.work.work_id, { run_id: round.run_id, pending_id: question.pending_id, text: "三段" }),
-      (error: unknown) => error instanceof AssistantError && error.code === "assistant.stale");
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.stale" && error.kind === "conflict");
     await assert.rejects(service.decide(sent.work.work_id, { review_id: review.review_id, decision: "approve" }));
     assert.equal(requests.length, before, "a late answer or approval starts no model call");
     assert.deepEqual(written, [], "and revives no old action");
 
     const other = await service.send({ text: "另一件事", request_id: "req-answers-2" }, { project_ref: project });
     await assert.rejects(service.answer(other.work.work_id, { run_id: round.run_id, pending_id: question.pending_id, text: "两段" }),
-      (error: unknown) => error instanceof AssistantError && error.code === "assistant.scope", "an answer from another work is refused");
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.scope" && error.kind === "forbidden", "an answer from another work is refused");
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 

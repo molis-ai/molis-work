@@ -13,9 +13,7 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.plugin_disabled": "forbidden";
     readonly "actions.unauthenticated": "forbidden";
     readonly "actions.host_only": "forbidden";
-    readonly "actions.transport_denied": "forbidden";
     readonly "actions.missing": "not_found";
-    readonly "actions.not_found": "not_found";
     readonly "actions.binding_missing": "not_found";
     readonly "actions.scene_missing": "not_found";
     readonly "actions.recommendation_missing": "not_found";
@@ -39,7 +37,6 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.mcp_name_conflict": "conflict";
     readonly "actions.scene_duplicate": "conflict";
     readonly "actions.input_invalid": "invalid";
-    readonly "actions.invalid_input": "invalid";
     readonly "actions.project_required": "invalid";
     readonly "actions.reference_invalid": "invalid";
     readonly "actions.binding_invalid": "invalid";
@@ -86,8 +83,6 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.host_context_missing": "unavailable";
     readonly "actions.delivery_unknown": "upstream";
     readonly "actions.execution_failed": "internal";
-    readonly "actions.failed": "internal";
-    readonly "actions.transport_failed": "internal";
     readonly "actions.judgment_failed": "internal";
     readonly "actions.async_required": "internal";
     readonly "actions.output_invalid": "internal";
@@ -384,6 +379,7 @@ export type ActionAvailability = {
     readonly available: false;
     readonly code: string;
     readonly reason: string;
+    readonly kind?: ActionErrorKind;
 };
 
 export interface ActionCallContext extends ActionCallOrigin {

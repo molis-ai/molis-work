@@ -13,7 +13,8 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 // failed move are all still true after the Host stops and starts again on the same Home; nothing depends on the page.
 test("placement survives a restart: relations, a removed relation, a copy, a move, a failed move and collected answers", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-placement-restart-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  const stops = new Set<() => Promise<void>>();
+  t.after(async () => { try { for (const stop of stops) await stop(); } finally { await rm(home, { recursive: true, force: true }); } });
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const q4 = await catalog.createProject({ display_name: "Q4 新版发布", actor_id: "placement-test" });
   const interviews = await catalog.createProject({ display_name: "客户访谈计划", actor_id: "placement-test" });
@@ -34,9 +35,11 @@ test("placement survives a restart: relations, a removed relation, a copy, a mov
       return value;
     };
     const stop = async () => {
-      await new Promise<void>((resolve, reject) => { server.close(error => error ? reject(error) : resolve()); server.closeAllConnections(); });
-      await host.close();
+      if (!stops.delete(stop)) return;
+      try { await new Promise<void>((resolve, reject) => { server.close(error => error ? reject(error) : resolve()); server.closeAllConnections(); }); }
+      finally { await host.close(); }
     };
+    stops.add(stop);
     return { call, stop };
   };
   type Placed = { kind: string; id: string; project_id: string | null };
@@ -57,8 +60,12 @@ test("placement survives a restart: relations, a removed relation, a copy, a mov
   const copy = await before.call<{ object: Placed }>("/api/placement/copy", { object: checklist.object, to_project_id: interviews.project_id, request_id: "copy-once" });
   const brief = await created("发布简报");
   await before.call("/api/placement/move", { object: brief.object, to_project_id: q4.project_id });
-  const refused = await before.call<{ error: string }>("/api/placement/move", { object: { ...brief.object, project_id: q4.project_id }, to_project_id: "project-that-does-not-exist" }, 409);
-  assert.ok(refused.error, "a failed move says why");
+  // W3-02-G1-03: the shared error exit preserves the current default for a code without a declared kind.
+  const refused = await before.call<{ error: string; code: string }>("/api/placement/move", { object: { ...brief.object, project_id: q4.project_id }, to_project_id: "project-that-does-not-exist" }, 400);
+  assert.equal(refused.code, "placement.project_missing");
+  assert.equal(refused.error, "找不到要移到的位置");
+  const unchanged = await before.call<Description>("/api/placement/describe", { object: brief.object });
+  assert.deepEqual([unchanged.state, unchanged.location?.title, unchanged.moved_from?.title], ["ok", q4Title, "个人空间"], "the rejected move leaves the persisted placement unchanged before restart");
   const forms = openFormStore(home);
   let formId: string;
   try {

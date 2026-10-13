@@ -1,11 +1,13 @@
 import { escapeHtml, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
-import type { HomePluginHost } from "./home-plugins.js";
+import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage } from "@molis-ai/molis-work-app-workbench";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
+import { dispatchRuntimePluginRoute } from "./plugin-route-operations.js";
 
 /** Called only after the common local transport Host/Origin/token checks. No business dispatch list lives here. */
 export async function handleHomePluginHttp(request: IncomingMessage, response: ServerResponse, url: URL,
@@ -13,27 +15,33 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const page = /^\/plugins\/([a-z0-9-]+)$/u.exec(url.pathname);
   const route = /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
   if (!page && !route || !host.homePlugins) return false;
-  const entry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.runtime?.scope === "home"
-    && (page ? entry.project_plugin_id === page[1] : entry.manifest.plugin_id === route?.[1]));
-  if (!entry) return false;
+  const entry = page ? BUILTIN_PLUGIN_CATALOG.find(entry => entry.runtime?.scope === "home" && entry.project_plugin_id === page[1]) : undefined;
+  if (page && !entry) return false;
+  const pluginId = entry?.manifest.plugin_id ?? route![1]!;
+  // The catalog names existing pages; the actual Home registration owns API routing, including non-bundled entries.
+  if (!host.homePlugins.manifest(pluginId)) return false;
   const side = page ? url.searchParams.get("side") : null;
-  const sideView = side ? entry.manifest.ui?.views?.find(view => view.slot === "side" && view.view_id === side) : undefined;
+  const sideView = side ? entry?.manifest.ui?.views?.find(view => view.slot === "side" && view.view_id === side) : undefined;
   if (side !== null && !sideView) { sendLocalWebJson(response, 404, { error: "插件没有这个侧栏入口" }); return true; }
-  const pluginId = entry.manifest.plugin_id, operation = route ? url.pathname.slice(`/api/plugins/${pluginId}/`.length) : "";
+  const operation = route ? url.pathname.slice(`/api/plugins/${pluginId}/`.length) : "";
   if (operation === "retry" && request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 重试启动" }); return true; }
   let platform;
   try { platform = await (operation === "retry" ? host.homePlugins.retry() : host.homePlugins.ready()); }
   catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (page) {
+    if (page && entry) {
       response.writeHead(503, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
       response.end(renderHomePluginPage(entry, null, message, controlToken, true, Boolean(sideView)));
     } else sendLocalWebJson(response, 503, { error: message });
     return true;
   }
-  if (operation === "retry") { sendLocalWebJson(response, 200, { ready: true }); return true; }
   const install = host.homePlugins.installation(pluginId);
-  if (page) {
+  if (route && !install) {
+    const missing = actionErrorResponse(new ActionError("actions.missing", "这个 Home 插件未安装"));
+    sendLocalWebJson(response, missing.status, missing.body); return true;
+  }
+  if (operation === "retry") { sendLocalWebJson(response, 200, { ready: true }); return true; }
+  if (page && entry) {
     if (request.method !== "GET") { sendLocalWebJson(response, 405, { error: "请通过 GET 打开页面" }); return true; }
     const contribution = install?.state === "running" ? platform.runtime.contribution(install.install_id) : null;
     const slot = sideView ? "workbench.side" : "workbench.main";
@@ -57,22 +65,23 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     }
     return true;
   }
-  const router = platform.router();
-  if (!router.match(request.method ?? "GET", url.pathname)) { sendLocalWebJson(response, 404, { error: "插件没有这个入口" }); return true; }
   const abort = new AbortController();
   const disconnected = () => { if (!response.writableEnded) abort.abort(); };
   request.once("aborted", disconnected); response.once("close", disconnected);
   try {
-    // Bounded image-bearing Home actions; each plugin additionally validates its own input.
-    let body;
-    try { body = ["GET", "HEAD"].includes(request.method ?? "GET") ? undefined : await readLocalWebBody(request, 12 * 1024 * 1024); }
-    catch (error) { sendLocalWebJson(response, error instanceof RangeError ? 413 : 400, { error: error instanceof Error ? error.message : "请求读取失败" }); return true; }
     const caller = await localWebActionContext(host, undefined, []);
-    const result = await router.dispatch({ method: request.method ?? "GET", pathname: url.pathname, query: Object.fromEntries(url.searchParams), body,
-      actor_id: LOCAL_PERSON_ACTOR_ID, granted: caller.permissions,
+    const handled = await dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
+      granted: caller.permissions,
       execution: { signal: abort.signal, page_context: homePageContext(request, url),
-        beforeEffect: async () => { if (abort.signal.aborted) throw new ActionError("actions.cancelled", "调用已取消"); } } });
-    sendLocalWebJson(response, result?.status ?? 404, result?.body ?? { error: "插件入口不可用" });
+        beforeEffect: async () => { if (abort.signal.aborted) throw new ActionError("actions.cancelled", "调用已取消"); } },
+      readBody: async request => {
+        // Bounded image-bearing Home actions; each plugin additionally validates its own input.
+        try { return await readLocalWebBody(request, 12 * 1024 * 1024); }
+        catch (error) { if (error instanceof ActionError) throw error; throw new ActionError(error instanceof RangeError ? "actions.input_too_large" : "actions.input_invalid",
+          error instanceof Error ? error.message : "请求读取失败"); }
+      },
+    });
+    if (!handled) sendLocalWebJson(response, 404, { error: "插件没有这个入口" });
   } finally { request.off("aborted", disconnected); response.off("close", disconnected); }
   return true;
 }
@@ -91,13 +100,15 @@ function homePageContext(request: IncomingMessage, url: URL) {
 /** A fresh Runtime view for every page render; the catalog does not grant activation or render a stopped instance. */
 export async function renderHomePluginStages(host?: HomePluginHost): Promise<string[]> {
   if (!host) return [];
-  const platform = await host.ready();
+  let platform: HomePluginPlatform | undefined, failure: string | undefined;
+  try { platform = await host.ready(); }
+  catch (error) { failure = error instanceof Error ? error.message : String(error); }
   return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home").map(entry => {
     const install = host.installation(entry.manifest.plugin_id);
-    const contribution = install?.state === "running" ? platform.runtime.contribution(install.install_id) : null;
+    const contribution = install?.state === "running" ? platform?.runtime.contribution(install.install_id) : null;
     const view = contribution?.kind === "app" ? contribution.views?.find(view => view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;
     if (view) return view.render({ contribution_id: view.descriptor.contribution_id, surface: "workbench", model: null });
     return renderPluginStageShell({ surface: entry.project_plugin_id, label: entry.manifest.name, dataset: "home-plugin-unavailable",
-      body: `<div class="mw-empty" role="alert"><h2>${escapeHtml(entry.manifest.name)} 暂不可用</h2><p>${escapeHtml(platform.supervisor.state(entry.manifest.plugin_id)?.message ?? "插件已停用")}</p><a class="mw-btn mw-btn--secondary" href="/plugins/${encodeURIComponent(entry.project_plugin_id)}">查看插件状态</a></div>` });
+      body: `<div class="mw-empty" role="alert"><h2>${escapeHtml(entry.manifest.name)} 暂不可用</h2><p>${escapeHtml(failure ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message ?? "插件已停用")}</p><a class="mw-btn mw-btn--secondary" href="/plugins/${encodeURIComponent(entry.project_plugin_id)}">查看插件状态</a></div>` });
   });
 }

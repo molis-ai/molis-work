@@ -250,12 +250,8 @@ test("real routes: a change made on a stale version is 409 <owner>.conflict at P
   assert.deepEqual([answer.status, answer.body.code], [409, "workflows.conflict"], JSON.stringify(answer.body));
 });
 
-test("real routes: a publish in an environment with no publisher is refused by the plugin's availability object: 400 <owner>.unavailable at Pages, PPT, Dataset and Form", async t => {
-  // The publishable plugins say "no publisher here" with an availability object (`{ available: false, code: "<owner>.unavailable" }`), which the kernel raises as an
-  // ActionError with that code and no kind. A code of the owner's with no kind is a caller mistake, so it answers 400; the deleted mappers gave 409. This is the one
-  // status change of the slice that the design did not list. The code is the same and nothing is written. Pinned here for all four so a change of it is a decision:
-  // the owner's availability carrying its kind (ActionAvailability `kind`, passed on by the kernel's `assertAvailable`) is the shared core's (W3-02-G1, plan
-  // wave3-batchB-plan.md), and when it lands these four answers become 409 in the same change.
+test("real routes: a publish in an environment with no publisher is refused by the plugin's availability object: 409 <owner>.unavailable at Pages, PPT, Dataset and Form", async t => {
+  // W3-02-G1-02: the owner classifies its availability refusal as conflict; Kernel and HTTP preserve it without publishing or changing the draft.
   const home = await mkdtemp(join(tmpdir(), "document-error-model-publish-"));
   const pages = openPagesStore(home), ppt = openPptStore(home), dataset = openDatasetStore(home), form = openFormStore(home);
   t.after(async () => { pages.close(); ppt.close(); dataset.close(); form.close(); await rm(home, { recursive: true, force: true }); });
@@ -270,8 +266,10 @@ test("real routes: a publish in an environment with no publisher is refused by t
     assert.equal(created.status, 200, JSON.stringify(created.body));
     const record = Object.values(created.body).find((value): value is { id: string } => typeof value === "object" && value !== null && "id" in value);
     assert.ok(record, `${owner} answers the record it created`);
+    const store = { pages, ppt, dataset, form }[owner], before = store.get(record.id);
     const answer = await server.post(`/api/${owner}/${record.id}/promote`, JSON.stringify({ goal_id: "CORE" }));
-    assert.deepEqual([owner, answer.status, answer.body.code], [owner, 400, `${owner}.unavailable`], JSON.stringify(answer.body));
+    assert.deepEqual([owner, answer.status, answer.body.code], [owner, 409, `${owner}.unavailable`], JSON.stringify(answer.body));
+    assert.deepEqual(store.get(record.id), before, `${owner}: the refusal keeps the persisted draft unchanged`);
   }
 });
 

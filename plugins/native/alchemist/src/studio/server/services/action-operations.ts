@@ -151,7 +151,7 @@ export function createAlchemistOperationExecutor(dependencies: ApiDependencies):
     async invoke<I, O>(definition: ActionDefinition<I, O>, input: I, signal?: AbortSignal): Promise<O> {
       signal?.throwIfAborted();
       const operation = byId.get(definition.capability_id);
-      if (!operation || definition.version !== operation.definition.version) throw new ActionError("actions.not_found", "没有这个炼金术士能力版本。");
+      if (!operation || definition.version !== operation.definition.version) throw new ActionError("actions.missing", "没有这个炼金术士能力版本。");
       const parsed = operation.input.safeParse(input);
       if (!parsed.success) {
         const [code, message] = inputProblems[operation.name] ?? ["ALCHEMIST_INPUT_INVALID", "操作参数不完整或格式无效。"];

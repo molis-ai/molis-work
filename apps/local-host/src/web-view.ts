@@ -46,7 +46,7 @@ export const feedPull = <T>(run: () => Promise<T>): Promise<T> => withCallId(new
 export async function optionalPluginQuery<I, O>(actions: BoundActionClient, definition: ActionDefinition<I, O>, input: I): Promise<O | undefined> {
   try { return await lookingForArea(() => actions.invoke(definition, input)); }
   catch (error) {
-    if (error instanceof ActionError && ["actions.forbidden", "actions.plugin_disabled", "actions.not_found", "actions.missing"].includes(error.code)) return undefined;
+    if (error instanceof ActionError && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(error.code)) return undefined;
     throw error;
   }
 }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantError, AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
+import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -74,9 +75,9 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     const delegation = service.delegation(store.get("web-user", sent.work.work_id))!;
     await delegation.follow_up(child.work.work_id, "每条再短一点");
     await delegation.follow_up(child.work.work_id, "去掉编号");
-    await assert.rejects(delegation.follow_up(child.work.work_id, "再改一次"), (error: unknown) => error instanceof AssistantError && error.code === "assistant.limit", "follow-ups are bounded");
+    await assert.rejects(delegation.follow_up(child.work.work_id, "再改一次"), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid", "follow-ups are bounded");
     const other = await service.send({ text: "别的事", request_id: "req-delegation-2" }, { project_ref: project });
-    await assert.rejects(service.delegation(store.get("web-user", other.work.work_id))!.stop(child.work.work_id), (error: unknown) => error instanceof AssistantError && error.code === "assistant.scope");
+    await assert.rejects(service.delegation(store.get("web-user", other.work.work_id))!.stop(child.work.work_id), (error: unknown) => error instanceof ActionError && error.code === "assistant.scope" && error.kind === "forbidden");
     assert.equal(service.delegation(store.get("web-user", child.work.work_id)), undefined);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -226,7 +227,7 @@ test("a sub-task the person put away still counts for the work that handed it ou
     }
     for (const id of made.slice(1, 3)) await f.service.archive(id, true);
     const delegation = f.service.delegation(f.store.get("web-user", sent.work.work_id))!;
-    await assert.rejects(delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }), (error: unknown) => error instanceof AssistantError && error.code === "assistant.limit");
+    await assert.rejects(delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid");
 
     // The parent's stop reaches a put-away sub-task that a follow-up has set going again.
     await delegation.follow_up(childId, "再改改");
@@ -246,7 +247,7 @@ test("a sub-task whose first round cannot start is not left behind: no idle orph
     f.flags.model = false;
     // Seven failed starts: each says why, none is told the six are used up.
     for (let attempt = 0; attempt < 7; attempt++) {
-      await assert.rejects(delegation.start({ title: `子任务 ${attempt}`, brief: "做一点。", acceptance: "完成" }), (error: unknown) => !(error instanceof AssistantError && error.code === "assistant.limit") && /模型/.test(String((error as Error).message)));
+      await assert.rejects(delegation.start({ title: `子任务 ${attempt}`, brief: "做一点。", acceptance: "完成" }), (error: unknown) => !(error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid") && /模型/.test(String((error as Error).message)));
     }
     assert.deepEqual(f.store.delegatedBy("web-user", parent.work_id), [], "no orphan is left on the board");
     assert.deepEqual(f.store.list("web-user", { archived: true }).concat(f.store.list("web-user")).map(work => work.work_id), [parent.work_id], "nor anywhere else");

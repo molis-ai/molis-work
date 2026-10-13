@@ -41,6 +41,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 - 负责：开关与使用方权限、写入门（开关、秘密、像指令的文字、范围、重复与冲突、记作“亲口说的”的核对、自动写入的决定表）、召回的过滤与排序与预算、使用回执、候选的规则（同文只提一次、每项工作最多 3 条、14 天过期）、最近变动与撤销、版本历史、界面信号计数与门槛、第一版数据迁移。
 - 不负责：记忆正文的存储、版本号、墓碑与作用域隔离（Prologue Memory）；模型调用与提炼（Agent Host）；交互规则（助理规则引擎）；项目说明（Goals）；设置页面（Workbench）。
 - 公开入口：`@molis-ai/molis-work-service-memory`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/memory`。
+- 拒绝由公开 `memoryErrors` 声明并返回共同 `ActionError`：权限与范围是 `forbidden`，不存在是 `not_found`，待处理建议上限与预览后变动是 `conflict`，输入与开关是 `invalid`。Host 和助理保留 `memory.*` 码、消息、kind 与 details；HTTP 经 SDK 分别回答 403、404、409、400，不另把它改成助理码。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 模型只提议不批准：自动写入由确定性的写入门决定，规则版本写进来源与最近变动。
@@ -60,7 +61,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 召回的使用回执（最近用于）是这次调用的副作用：调用被取消或撤权后不写（`recall` 在写回执前走调用自己的 `beforeEffect`）。
   - 项目被删除时 `purgeProjectMemories` 清掉该项目及其角色的记忆（存储里的条目与候选）和账本里与之相关的一切（修订、使用、变动、候选记录、成对提示、开关、界面计数）；角色的范围从账本记下的所有者（写入记忆时才记下）和候选记录上的项目找到，所以只有建议、没有写过记忆的角色也清得掉；Home 里没有 Agent 运行环境时 `backend` 为 null，只清账本；不需要预览指纹确认，删除项目就是本人的确认。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
-- 改动后必跑：`node scripts/run-tests.mjs tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
 - 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

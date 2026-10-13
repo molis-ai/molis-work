@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { ActionError, type ActionClient, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentCallId, markCallRecorded, newCallId } from "@molis-ai/molis-work-kernel";
+import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { postToResidentHost, residentHostOrigin, type ResidentHostAnswer } from "./resident-host-request.js";
 
 export const ACTION_GATEWAY_PATH = "/api/internal/action-service";
@@ -71,7 +72,7 @@ export class LocalActionGatewayClient implements ActionClient {
     // The Host names the number of an invocation when it wrote a row for it, in a failure's body as in a success's; only then may this
     // process show that number to a person. A number it did not send is not taken.
     if (callId && reply.call_id === callId && currentCallId() === callId) markCallRecorded();
-    if (!answer.ok) throw new ActionError(typeof reply.code === "string" ? reply.code : "actions.transport_denied", typeof reply.error === "string" ? reply.error : "系统服务拒绝调用");
+    if (!answer.ok) throw actionErrorFromResponse(answer.status, reply);
     return reply;
   }
 }

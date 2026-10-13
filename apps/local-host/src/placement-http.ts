@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { placementActions, placementGoalActions, type PlacedObject, type PlacementConvertRequest, type PlacementCreateRequest } from "@molis-ai/molis-work-contracts/services/placement";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "./web-http.js";
 
@@ -28,9 +29,8 @@ export async function handlePlacementHttp(request: IncomingMessage, response: Se
       sendJson(response, 200, result);
     }
   } catch (error) {
-    const code = error instanceof ActionError ? error.code : "placement.failed";
-    sendJson(response, code === "actions.forbidden" ? 403 : code === "actions.input_invalid" ? 400 : error instanceof ActionError ? 409 : 500,
-      { code, error: error instanceof ActionError ? error.message : error instanceof Error ? error.message : "暂时处理不了，请稍后重试" });
+    const failure = actionErrorResponse(error);
+    sendJson(response, failure.status, failure.body);
   }
   return true;
 }

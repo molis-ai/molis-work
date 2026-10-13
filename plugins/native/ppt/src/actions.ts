@@ -113,7 +113,7 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const promote = (id: string, caller: ActionCallContext, expectedVersion?: number) => ports.withStore(store => promotePpt(store, id, project(caller), value => ports.publishArtifact!(value, caller),
     { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead }));
-  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "ppt.unavailable", reason: "当前环境不能发出成果" };
+  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "ppt.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
   return [
     pptArtifactPreviewHandler,
     bind(pptActions.list, (_, caller) => {

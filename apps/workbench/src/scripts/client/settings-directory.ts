@@ -48,7 +48,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       const script = document.createElement("script");
       script.src = "/assets/molis-work-capabilities.js";
       script.onload = () => resolve();
-      script.onerror = () => { capabilityScripts = null; script.remove(); reject(new Error(L("无法加载设置"))); };
+      script.onerror = () => { capabilityScripts = null; script.remove(); reject(new Error(L("请稍后重试"))); };
       document.head.append(script);
     });
   let sentFromPage = false;
@@ -180,9 +180,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       showNode(status);
       try {
         const path = fetchPath || options.sectionPath(section);
-        const response = await fetch(path, { headers: { Accept: "text/html" } });
-        if (!response.ok) throw new Error(L("无法加载设置"));
-        const html = await response.text();
+        const html = await molisWorkRequest(path, { as: "text", headers: { Accept: "text/html" }, fallback: L("请稍后重试") });
         await ensureCapabilityScripts(html);
         if (loading !== request) return;
         loadFromHtml(section, html, fetchPath);
@@ -193,7 +191,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         failed.setAttribute("role", "alert");
         failed.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
         failed.querySelector("strong").textContent = L("无法加载设置");
-        failed.querySelector("p").textContent = error.message && error.message !== L("无法加载设置") ? error.message : L("请稍后重试");
+        molisWorkRequest.show(failed.querySelector("p"), error);
         const retry = failed.querySelector("button");
         retry.textContent = L("重试");
         retry.addEventListener("click", () => { retry.disabled = true; if (loading === request) loading = null; void loadSection(section, fetchPath); });

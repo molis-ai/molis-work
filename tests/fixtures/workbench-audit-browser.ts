@@ -25,8 +25,10 @@ const RESPONSE_BARRIERS = `(() => {
     if (!gate) return response;
     if (gate.mode === 'fetch') await hold(gate);
     else {
-      const read = response[gate.mode].bind(response);
-      response[gate.mode] = async () => { const value = await read(); await hold(gate); return value; };
+      for (const mode of gate.mode === 'body' ? ['json','text'] : [gate.mode]) {
+        const read = response[mode].bind(response);
+        response[mode] = async () => { const value = await read(); await hold(gate); return value; };
+      }
     }
     return response;
   };
@@ -46,7 +48,7 @@ export async function openAuditBrowser(t: TestContext): Promise<AuditBrowser | n
   return browser;
 }
 
-export async function armResponse(browser: AuditBrowser, id: string, needle: string, method = "GET", mode = "json"): Promise<void> {
+export async function armResponse(browser: AuditBrowser, id: string, needle: string, method = "GET", mode = "body"): Promise<void> {
   await browser.evaluate(`window.__auditGates.push(${JSON.stringify({ id, needle, method, mode, armed: true })})`);
 }
 

@@ -112,6 +112,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,selection='',announced='',queuedAddress='',attached=false,lastMode='person',lastWork=null,reviewTimer=null,reviewing=null,reviewMode=null,reviewRow=null,polled=false;
   const routePrefix=document.body.dataset.routePrefix||('/projects/'+encodeURIComponent(projectId));
   const approval=$('[data-browser-approval]'),sitesBox=$('[data-browser-sites]');
+  let fileChoice=null,sitesRender=0;
   const sendRaw=(message)=>{if(socket&&socket.readyState===1&&ready)socket.send(JSON.stringify(message));};
   const viewport=()=>{const rect=view.getBoundingClientRect();return {width:Math.max(240,Math.floor(rect.width)),height:Math.max(200,Math.floor(rect.height)),dpr:Math.min(2,Math.max(1,devicePixelRatio||1))};};
   const visible=()=>shown&&panelOpen&&document.visibilityState==='visible';
@@ -147,7 +148,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   };
   const say=(text,urgent)=>{if(!text||text===announced)return;announced=text;live.setAttribute('role',urgent?'alert':'status');live.textContent=text;};
   const tool=(name)=>$('[data-browser-action="'+name+'"]');
-  const button=(action,label,kind='secondary')=>'<button class="mw-btn mw-btn--'+kind+' mw-btn--sm" type="button" data-browser-action="'+action+'">'+esc(label)+'</button>';
+  const button=(action,label,kind='secondary',scope)=>'<button class="mw-btn mw-btn--'+kind+' mw-btn--sm" type="button" data-browser-action="'+action+'"'+(scope===undefined?'':' data-scope="'+esc(scope)+'"')+'>'+esc(label)+'</button>';
   const render=()=>{
     if(!state)return;
     tool('back').disabled=!state.can_go_back;tool('forward').disabled=!state.can_go_forward;
@@ -244,17 +245,20 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser'}}));
     say(L('助理请你确认：{what}',{what:doc.summary||''}),true);
   };
-  const decide=async(decision)=>{
-    const id=reviewing;if(!id)return;
-    try{await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body:{review_id:id,decision},fallback:L('确认没有提交')});}catch(error){say(molisWorkRequest.text(error),true);}
-    approval.hidden=true;reviewing=null;void pollReviews();
+  const decide=async(decision,id)=>{
+    if(!id)return;
+    try{await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body:{review_id:id,decision},fallback:L('确认没有提交')});}catch(error){say(molisWorkRequest.text(error),true);return;}
+    if(reviewing===id){approval.hidden=true;reviewing=null;}
+    void pollReviews();
   };
   const sitesUrl='/api/browser/sites';
   const renderSites=async()=>{
+    const here=state?.origin||'',request=++sitesRender;
     let rows=[],enabled=true;try{rows=(await molisWorkRequest(sitesUrl)).sites||[];enabled=(await molisWorkRequest('/api/browser/assistant')).enabled!==false;}catch{}
-    const here=state?.origin||'',mine=rows.find(row=>row.scope===here);
+    if(request!==sitesRender||sitesBox.hidden)return;
+    const mine=rows.find(row=>row.scope===here);
     const label=(row)=>row.decision==='allow'?L('不用问就可以操作'):L('禁止查看和操作');
-    sitesBox.innerHTML='<h2>'+esc(L('助理在网站上的权限'))+'</h2>'+(here?'<p>'+esc(here)+' · '+esc(mine?label(mine):L('每次操作前都会问你'))+'</p><div class="side-browser-actions-row">'+(mine?.decision!=='allow'?button('site-allow',L('不用问就可以操作')):'')+(mine?.decision!=='block'?button('site-block',L('禁止助理使用这个网站')):'')+(mine?button('site-forget',L('恢复为每次都问'),'ghost'):'')+'</div>':'<p>'+esc(L('打开一个网站后可以在这里设置。'))+'</p>')
+    sitesBox.innerHTML='<h2>'+esc(L('助理在网站上的权限'))+'</h2>'+(here?'<p>'+esc(here)+' · '+esc(mine?label(mine):L('每次操作前都会问你'))+'</p><div class="side-browser-actions-row">'+(mine?.decision!=='allow'?button('site-allow',L('不用问就可以操作'),'secondary',here):'')+(mine?.decision!=='block'?button('site-block',L('禁止助理使用这个网站'),'secondary',here):'')+(mine?button('site-forget',L('恢复为每次都问'),'ghost',here):'')+'</div>':'<p>'+esc(L('打开一个网站后可以在这里设置。'))+'</p>')
       +(rows.filter(row=>row.scope!==here).length?'<ul>'+rows.filter(row=>row.scope!==here).map(row=>'<li><span>'+esc(row.scope)+' · '+esc(label(row))+'</span><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-browser-action="site-forget" data-scope="'+esc(row.scope)+'">'+esc(L('撤销'))+'</button></li>').join('')+'</ul>':'')
       +'<p class="side-browser-cover-copy">'+esc(L('上传文件永远要先问你。'))+'</p>'
       +'<label class="side-browser-toggle"><input type="checkbox" data-browser-assistant'+(enabled?' checked':'')+'> '+esc(L('允许助理使用侧栏浏览器'))+'</label>';
@@ -277,7 +281,10 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(action==='popup-close'){sendRaw({type:'popup-close'});return;}
     if(action==='dialog-accept'||action==='dialog-cancel'){sendRaw({type:'dialog',id:sheet.dataset.id,accept:action==='dialog-accept',prompt_text:sheet.querySelector('[data-browser-prompt]')?.value});focusPage();return;}
     if(action==='file-cancel'){sendRaw({type:'file-chooser-cancel',id:sheet.dataset.id});focusPage();return;}
-    if(action==='file-pick'){fileInput.dataset.chooser=sheet.dataset.id;fileInput.value='';fileInput.click();return;}
+    if(action==='file-pick'){
+      if(!state?.file_chooser||state.file_chooser.id!==sheet.dataset.id)return;
+      fileChoice={id:state.file_chooser.id,origin:state.origin,url:state.url};fileInput.value='';fileInput.click();return;
+    }
     if(action==='download-dismiss'){seenDownloads.add(sheet.dataset.id);renderSheet();return;}
     if(action==='give'){
       // What the person sees (their selection, or the page's readable text), with where and when it came from; the
@@ -294,11 +301,15 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
       return;
     }
     if(action==='takeover'||action==='handback'){sendRaw({type:action});document.dispatchEvent(new CustomEvent('molis:side-browser-control',{detail:{action,project_id:projectId,session_id:state?.control?.work_id||null}}));if(action==='handback')say(L('已交还给助理。助理会先重新查看页面再继续。'));return;}
-    if(action==='approve-once'){await decide('approve');return;}
-    if(action==='reject'){await decide('reject');return;}
-    if(action==='approve-site'){try{await setSite(approval.dataset.site,'allow');}catch(error){fail(error);}await decide('approve');return;}
-    if(action==='sites'){const open=sitesBox.hidden;sitesBox.hidden=!open;target.setAttribute('aria-expanded',String(open));if(open)await renderSites();return;}
-    if(action==='site-allow'||action==='site-block'||action==='site-forget'){try{await setSite(target.dataset.scope||state?.origin||'',action.slice(5));await renderSites();}catch(error){fail(error);}return;}
+    if(action==='approve-once'){await decide('approve',reviewing);return;}
+    if(action==='reject'){await decide('reject',reviewing);return;}
+    if(action==='approve-site'){
+      const id=reviewing,site=approval.dataset.site;if(!id)return;
+      try{await setSite(site,'allow');}catch(error){fail(error);return;}
+      await decide('approve',id);return;
+    }
+    if(action==='sites'){const open=sitesBox.hidden;sitesBox.hidden=!open;target.setAttribute('aria-expanded',String(open));if(open)await renderSites();else sitesRender++;return;}
+    if(action==='site-allow'||action==='site-block'||action==='site-forget'){try{await setSite(target.dataset.scope,action.slice(5));await renderSites();}catch(error){fail(error);}return;}
   });
   sitesBox.addEventListener('change',async event=>{
     if(event.target?.nodeType!==1||!event.target.matches('input[data-browser-assistant]'))return;
@@ -307,10 +318,11 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     say(enabled?L('助理可以使用侧栏浏览器了（每次操作前仍会问你）。'):L('助理不再使用侧栏浏览器。'));
   });
   fileInput.addEventListener('change',async()=>{
-    const files=[...fileInput.files||[]];if(!files.length)return;
+    const files=[...fileInput.files||[]],choice=fileChoice;fileChoice=null;if(!files.length||!choice)return;
     try{
       const encoded=await Promise.all(files.map(file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve({name:file.name,data:String(reader.result).split(',')[1]||''});reader.onerror=()=>reject(reader.error);reader.readAsDataURL(file);})));
-      await post('upload',{chooser_id:fileInput.dataset.chooser,files:encoded});
+      if(choice.id!==state?.file_chooser?.id||choice.origin!==state.origin||choice.url!==state.url)throw new Error(L('文件没有交给网页'));
+      await post('upload',{chooser_id:choice.id,files:encoded});
       say(L('已把 {count} 个文件交给网页',{count:files.length}));
     }catch(error){fail(error);}
     focusPage();

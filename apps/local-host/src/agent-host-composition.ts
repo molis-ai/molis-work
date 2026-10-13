@@ -19,6 +19,7 @@ import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules
 import { readProjectGuidance } from "./goals-actions.js";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";

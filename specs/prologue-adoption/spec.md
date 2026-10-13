@@ -2,9 +2,9 @@
 
 > 远端接续请先读文末 **§7「远端交接（2026-10-13，当前接续入口）」**——分支和 PR、已完成与没完成、下一步、跨线依赖、决策、工作规则、已知问题和复现命令都在那里；正文里的旧绝对路径、旧工作树、旧授权语句都是历史记录，以 §7 为准。
 
-> 统筹更正（2026-10-13 晚）：本行之后的状态句写于知道 #471/#472 之前。A1 与 A4 的大部分已随 #472（旧采用树）进 main；main 的 SDK 是来自未进上游分支的 computer-use 包；#408 不能整体合、也不再排第一。先读 §7 开头的「统筹补充」。
+> 2026-10-13 晚已与 main（#471 Computer Use、#472 旧采用树）对账：实现以 main 为准，#408 只留 main 没有的部分；Molis 依赖换成过渡包。对账记录见 §6.0a，接续入口见 §7。
 
-状态：执行中（2026-10-13：A0 工程通过，SDK 两个合成包已并入 Prologue main（PR #4、#5）；P1 统一协作合同已冻结（§4.6.9，跨线 X1–X6 已确认）；**P2a–P2f 已合进 Prologue main**（PR #7 #8 #9 #11 #12 #13 #14），P2g 在分支 `feature/p2g-scope`（已推送，全量未跑完、未开 PR），P2h–P2i、P3–P6、A1–A5 尚未开始；Molis #408 尚未合进 Molis main，且与 main 有未解冲突；用户已下暂停指令，见 §7）。本文是采用线唯一需求书与进度记录；原接入评估与对话建议仅作线索（历史资料留在旧采用树），按当前实现核对。用户已否决「简单协作可以绕过 TaskBoard」。
+状态：执行中（2026-10-13 晚：#408 已与 main 对账，实现以 main 为准，只留 S1–S3 适配、PA-22/PA-23 证据、安全登记与本文；Molis 依赖换成过渡包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu.tgz`（Prologue `release/molis-interim-p1-cu-2` `08b84296`，两个父提交 `95cd901d`、`d4908c11` 在 Prologue main，用户 2026-10-13 决定）；A0 工程通过；A1 改为核对 #472（缺口见 §5.6a）；P1 冻结；P2a–P2g、S4 已在 Prologue main（#7–#16），不在本包，随 P3 第二次换包；P2h 在做（未提交），P2i、P3–P6、A2–A5 未开始；W4-06 仍是 P3 硬前置）
 
 目标完成等级：Prologue **完整采用范围内部完整**——§2 原 1–23 项与存储/预算等既有决定逐项完成采用、验证或按已定边界不做；新增 24/25 项使 Coding 与个人助理共用协作事实及外部条件等待。需要接入的路径在真实执行、界面、权限及异常恢复中可顺畅试用。A0 只是当前基础切片，不是整线完成定义。工程通过、真实产品实操、用户本人验收分别记录。A0 基础采用已完成（工程通过），当前在做 P2 SDK 机制（见 §7.1、§7.5）。授权和工作规则以 §7.8 为准：可推送自己的分支（先跑 secrets 检查、用 SSH 地址）；Molis 侧只往交接 PR #408 提交，Prologue 侧每刀单独 PR；不自己合并、不改真实 Home 或安装版。
 
@@ -23,6 +23,8 @@
 ### 0.2 采用项状态表
 
 「已提交」只证明代码和用例入了采用分支；本轮做源码/提交核查，未重新运行构建、测试或真实模型。提交说明中的历史通过记录不能代替新合同验收。
+
+> 2026-10-13 对账后：表里第 1、3、4、6、7、8、10、12、14、23 项引用的提交（`77fde104`、`da9ddd99`、`804384d8`、`5a4d6feb`、`ceac00a2`、`4d90a1b4`、`65d6c3e1`、`b3235bb1`、`8c0b60fb`、`8b1a0522`）都已随 #472 进 main，以 main 的实现为准；第 6、7 项的核对见 §5.6a，第 14 项的改造清单见 §7.5。第 13 项的未提交 yield 改动不在任何分支上，作废。
 
 | 项 | 当前证据与状态 | 新方向下去向 / 还缺什么 |
 | --- | --- | --- |
@@ -126,6 +128,8 @@ SDK 修改落在现有 `orchestration`、`delivery`、`session`、`agent`、`com
 SDK 按四层装配：**不可关闭的边界**是身份、权限只收窄、协作节点绑定、单一事实主人、未知不重派；**可替换执行逻辑**沿现有 `collaboration` 槽和 Host 窄口，不因换实现绕过上述边界；**App 配置**包括并发/深度、消息与报告上界、等待期限、允许的协作角色和自动接续政策；**用户干预**是产品里的计划修订、取消、提前继续与授权选择。未装配协作时明确不可用、零派出，不能降级为插件自建协作。配置只进所属模块，不向 Runtime 顶层散放新阈值。
 
 ### 3.2 包与集成顺序
+
+**现行（2026-10-13 晚）**：Molis 依赖过渡包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu.tgz`，来源 Prologue `release/molis-interim-p1-cu-2` 的合并提交 `08b84296` = merge(`95cd901d`, `d4908c11`)。`95cd901d` 是 `82488fa0`（PR #6，P1 文档）加输入回执第三刀的修正 H16（名单里没有 `acknowledge-inputs` 就不写编号说明，PR #17）；`d4908c11` 是桌面 Computer Use（PR #15）。两个父提交都在 Prologue main 上，合并提交本身不在。为什么不用 main 末端：P2d 让没绑节点的跑看不到 `dispatch-subagent` 与 `board-*`，并删了 `claims`；Molis 在 P3 之前还在用它们，X6 又不许留兼容路径（用户 2026-10-13 决定用过渡包）。第二次换包放在 P3 的同一个改动里，从 Prologue main 的具名提交打，带 P2a–P2g、S4 及之后的 P2h、P2i，并在那次改动里做 Molis 默认路径验证。来源与重建见 [vendor README](../../vendor/prologue-sdk/README.md)。下面两段是 10-11、10-12 的记录。
 
 旧采用树的在途包来自 `c4b9fde3`，含微压缩、独占写声明、App 接手 yield 三项增强。当前 A0 新实现树仍保留主线 `side-panel-memory` 包及依赖，实际来源见 [vendor README](../../vendor/prologue-sdk/README.md)；组合源码不等于已换包。`c4b9fde3 + S1` 的组合包尚未构建，包、锁文件、来源记录与默认消费路径均待构建时段完成。
 
@@ -555,6 +559,29 @@ A0 明确不改助理协调器/存储/客户端、Schedule runner、模型设置
 
 验证顺序：整体 `pnpm build` 后，上述五个非浏览器定向文件；`pnpm test:contracts` 与边界/健康/API/资产门禁；唯一浏览器时段跑两份 e2e，实操模型/力度选择、运行中切换与时间线。模型请求使用可计数回环服务，真实外部模型与用户体验另记。共享 Host 的集成全量由统筹安排，来源提交的历史通过不能当 A1 新基准通过。
 
+### 5.6a A1 改为核对 #472（2026-10-13）
+
+推理力度、运行中换模型、逐轮变更已随 #472（`ceac00a2`、`4d90a1b4`）进 main。A1 不重做，只核对 main 的实现是否满足 PA-24 与 PA-12，缺的补齐。
+
+main 已满足（证据是 main 的用例，在对账后的树上重跑，结果见 §6.0a）：
+
+- 力度只给设置里标了支持的模型（`model-providers.ts` 的 `reasoning_effort`，设置页勾选），逐轮冻结、每次调用都带，不支持就在发出前拒绝：`prologue-frozen.ts`；`tests/prologue-model-controls.test.ts`、`tests/coding-model-controls.e2e.test.ts`。PA-24 写的「按模型能力」实现为「人在设置里标记」，符合 §4.3 的「目录声明」。
+- 显式预算优先不变：`prologue-run-params.ts`；`tests/model-thinking.test.ts`。
+- 运行中换模型在下一模型边界生效，区分请求与生效，用新模型的凭据，历史不动，记下开跑模型：`prologue-model-switch.ts`；`prologue-model-controls.test.ts`；浏览器用例。
+- 已测的拒绝：已结束的一轮、上下文窗口变小、带思考切到不支持思考的协议。
+- 逐轮变更重放不重复：`tests/prologue-stream.test.ts`；浏览器里的行与回退、写前密钥拒绝、点名扩权文案：`tests/coding-timeline.e2e.test.ts`、`tests/agent-review-surface.test.ts`、`tests/agent-review-standing.test.ts`。
+
+缺口（main 上的位置；按 PA-24 编号补，下一组 A1 提交在 #408 上做）：
+
+1. 没有用例在名字或注释里写 PA-24 / PA-12。
+2. `horizontal/agent-host/src/adapters/prologue-model-switch.ts` 的五个拒绝分支没有用例：提示缓存协议不符（PA-24 点名）、目标模型没标力度、视觉、模型不可用、Runtime 不支持切换。
+3. 申请换模型后撤权（授权撤回、Character 停用）：下一次模型调用要在发出前拒绝，新端点零请求，没有用例。
+4. 带着未生效的切换停止一轮：不向新模型发任何请求、结束的视图去掉 `requested`，没有断言。
+5. 冷读：关掉再打开适配器后，运行视图仍显示 `model_switch.now` 与开跑模型，没有断言。
+6. §4.3「从断点继续」后重新解析模型与凭据、不悄悄换模型：没有覆盖换过模型之后的情形。
+
+PA-12 仍未完成：写后诊断（第 9 项，A2）与 Alchemist 的结构化生成（第 11 项，A3）都还没有实现。另记：`prologue-frozen.ts` 的 `throw new Error("思考力度只能是快速、平衡或深入")` 是普通 Error，归错误模型 W3-02-G。
+
 ## 6. 进度、证据等级与待定项
 
 当前 A0 已转入执行：SDK `c4b9fde3` 与完整 S1 已在独立树组合，保留工具回执微压缩保护和补充读到回执；不带问询字段。Molis 只提取 A0 源码/测试，保持主线 Chrome testkit。新的明确实现边界：S1 steer 返回值在 Host 适配器内等待后丢弃，现行 Molis void 接口不变；typed 输入接入仍归后续线。新增 PA-23 生产入口拒绝/重开用例；对应测试路径纳入 §5.5 范围。
@@ -668,6 +695,51 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 - D7 还差一项：采用线合入 Molis main（Molis 默认路径验证的工程部分和受影响的浏览器用例已过，部分全量里的失败已和干净基线比对为预先存在；批量全量尚未跑）（PR #408 由统筹按条件合并）。
 - 全量回归：`affected-tests` 命中共享核心 + 4 个包。用户决定改成批量全量（统筹把 #408 和情境线 W1 的合同片合到一条集成分支跑一次），所以 #408 要等那一次全量通过才合；上面的部分全量只证明跑到的那一半没有 A0 引起的失败（浏览器部分待定性），不代替它。
 - `c4b9fde3` 目前只在 Prologue 的特性分支上；`patch-history.json` 的上游说明已如实写明，并入后复核。
+
+### 6.0a 对账与过渡包（2026-10-13 晚）
+
+**做了什么**（提交在 #408 上，按时间）：
+
+1. `f9769ce5` 先在 #408 自己的树上换包：`adoption-receipts-handling.tgz`（`f5ef12e6`）换成过渡包 `interim-p1-cu.tgz`（`08b84296`），来源与理由见 §3.2 与 vendor README。锁文件只手改 `@prologue/sdk` 的五行（`pnpm install` 不带 frozen 会删掉别的平台的可选包，约 900 行）。`vendor-provenance` 用例改成钉住过渡包的规则：推送的具名分支，两个父提交逐一点名。这是新规则的准确断言，不是放宽。
+2. `7d49a99c` 合 main（`f2024d6b`，含 #471、#472、#474），26 个冲突，按「实现以 main 为准」解：
+   - #472 带进 main 的 A0 代码与 #408 同源（`77fde104`、`da9ddd99`、`804384d8`、`5a4d6feb`），#408 只留 main 没有的三处：S1 补充回执在 `prologue-node.ts` 三处 await 后丢弃；S3 的 `acknowledge-inputs` 在助理面板 `presentActivity` 里隐藏；`prologue-stream.ts` 用三个联合成员代替三处 `as unknown as`。
+   - 用例用 main 的正文加 #408 的 PA-22 编号；网关那条只留一份，git 的自动合并会留成两份。
+   - main 的 `computer-use.tgz` 删除（过渡包以 `d4908c11` 为父）；`side-panel-memory` 包与补丁随合并删除；连同 `molis-adoption.tgz` 都记进 `patch-history.json`。`specs/README.md` 只留一行本线索引。
+3. `9cabd35e` 修 main 上的一处红：#472 在 `schedule-task-runner.ts` 写了 `reject(signal.reason ?? new Error("到点执行已取消"))`。中止的信号一定带原因，这个兜底是死代码，却让 `feed-inbox-schedule-error-model` 在 main 上失败；去掉兜底。
+4. `b4711259` 再合 main（`c33448f2`，#475、#482、#483 测试迁移），无冲突；`baseline.json` 按 `--update --base origin/main` 降（vendored SDK 2 → 1，`prologue-stream.ts` 的 `as unknown as` 3 → 0）。
+
+**证据**（对账后的树，过渡包；工程级）：
+
+- 整体 `pnpm build` 与 `pnpm workspace:build` 通过：过渡包与 main 的代码之间没有类型断裂。
+- 门禁：`boundary:check` 无错；健康门禁对照 merge-base `c33448f2` 通过；`pnpm api:update`、`pnpm actions:update` 后快照没有任何变化；页面资源对照 merge-base 通过，不用改预算（页面代码全是 main 的）。
+- 定向 45 个文件 441/441：
+  - 默认路径 §7.10 的 19 个；
+  - agent-host 必跑 6 个；
+  - #472 带进 main 的 8 个（模型控制、助理交回与续做、变化等待、灵光、到点执行、资源缓存、跟进）；
+  - #471 的 3 个（`computer-use-gaps`、`assistant-tool-words`、`assistant-attention`）；
+  - 打包与安装 8 个（`vendor-provenance`、`ci-product-subset*`、`release-assets`、`npm-package`、`install`、`runtime-payload`、`uninstall`）；
+  - `feed-inbox-schedule-error-model`。
+- `pnpm test:security` 182 条 181 通过、0 失败（1 条跳过）；`pnpm test:contracts` 541/541。
+- `affected-tests` 选出的其余 104 个单元文件：1443 条，1442 通过、0 失败、1 跳过。
+- 浏览器一批 10/10：`coding-timeline`、`coding-model-controls`、`issue-assistant-repair-page`、`assistant-handback`、`assistant-follow-live`、`lingguang-plugin`。
+- 全量：换包改了每条 Agent 路径下的运行时，属于 §5.4 的共享核心阶段。`affected-tests` 没有建议全量（它看不到 vendored 包），统筹定在 #411 合入后、对 #408 的末端跑一次。
+- 真实产品实操：未做（没有人在隔离 Home 里走过对账后的树）。真实模型：未跑（本机无 Key）。用户验收：未做。
+
+**D7 重新判定**（统筹，回执线生产接入的前置）：① 正式 SDK 来源，按用户 2026-10-13 的决定改为「推送的具名分支，父提交都在 Prologue main 上」，过渡包满足；② Molis 默认包路径验证在本次换包里做了（上面的证据）；③ #408 进 main：待合。三项都满足后由统筹通知回执线。
+
+**PA-22** 在对账后的树上重判：通过（上面的默认路径用例）。**PA-23** 改述：SDK 的 `yield` 仍被拒（`subagentYieldGuard`，S-23，`prologue-adoption-guard` 用例通过）；main 上第 14 项的私有接续是已知的 X6 欠账，由 P4 的助理那一半还（§7.5）。
+
+**防腐复查**：对本线 diff（merge-base `c33448f2`），机器项 M1、M2、M4、M5、M6、M14、M15 通过。人工项逐条看过：
+- 不留兼容：vendored 只剩一份；没有读取兜底。
+- 不新增 typed 能力。
+- 巨大单元：`prologue-node.ts` 仍是 1551 行；`prologue-stream.ts` 747 行，其中 `applyPrologueEvent` 没动。
+- 错误模型：去掉了一处裸 Error。
+- 枢纽文件两边都留。
+- 没有改门禁。
+
+两处不归本线、已报统筹：
+- `docs/system/SECURITY-INVARIANTS.md` 里「Computer Use 不在 main」一条已过时（Computer Use 线）；
+- `specs/repository-anti-corruption/dependencies-and-sdk-plan.md` §4.3 需要记过渡包这个例外（防腐线）。
 
 ### 6.1 当前记录
 
@@ -823,123 +895,89 @@ A0 执行记录（下列历史方案记录之后继续）：
 
 跨工作/项目自动通信、自动扩大预算、扩大工作目标都不在本方案授权范围；需要这些新产品能力时另作明确决定，不阻塞范围内统一协作。
 
-## 7. 远端交接（2026-10-13，当前接续入口）
+## 7. 远端交接（2026-10-13 晚，当前接续入口）
 
-> **统筹补充（2026-10-13 晚，先读）：暂停期间 main 上有两次大合并，本节下文写于知道它们之前。**
->
-> - **#471**（yijunw0212，10-13 08:24 UTC，78 个文件）把桌面 Computer Use 合进 main，并把 main 的 vendored SDK 换成 `prologue-sdk-0.0.0-rc.1-computer-use.tgz`。它的来源是 Prologue `d4908c11`（分支 `feat/desktop-computer-use`，基于 `c4b9fde3` = `4f7110fe` + 采用修正 + 5 个 Computer Use 提交）；provenance 写着 `pushed: false`，这个提交**不在 Prologue main，也不在 GitHub 远端**。这份包**不含**已进 Prologue main 的 S1–S3、带类型问卷（`a06ae62e`）、P1 合同、P2a–P2f。main 上同时还留着旧的 side-panel-memory 包与补丁（两份 tgz）。#471 还新增了右栏的电脑格（`apps/workbench/src/side-panel-computer.ts`）、`contracts/services/computer.ts`、`services/ui-surfaces.ts`，改了助理服务、`assistant-island.ts`、`prologue-node.ts`、`prologue-stream.ts`、`contracts/services/agent-host.ts`，并把 10-09 版的 `specs/ai-interaction-experience/spec.md` 与参考图带进了 main。
-> - **#472**（yijunw0212，10-13 10:54 UTC，93 个文件 +3399/−953）把旧采用树 `feat/prologue-adoption` 的 10 个提交（10-09 的 `77fde104`…`8b1a0522`）合进 main：一轮的推理力度、运行中换模型、逐轮写入记录（约等于 A1）、灵光流式（A3 的一部分）、助理把交出去的工作收回来后接着做（`8b1a0522`「第 14 项」，A0 当时明确不纳入的私有接续）、变化等待（`b3235bb1`/`8c0b60fb`，约等于 A4）。它沿用 #471 的 computer-use 包，没有换包。main 上的 `specs/prologue-adoption/spec.md` 是 10-09 的旧版（标题「Prologue 新能力接入：修复、适配与功能优化」）。
-> - 统筹层的说明与后续顺序见远端分支 `coordination/handoff-2026-10-13` 的 `coordination/2026-10-13/README.md` §2a。
-> - **以下更正优先于本节下文（统筹审查，2026-10-13）：**
->   1. 状态句与 §7.1「A1–A5 尚未开始」：A1（推理力度、换模型、逐轮写入）与 A4 的大部分已随 #472 进 main；A1 改成核对 #472 是否满足 PA-12/PA-24，缺的补齐。
->   2. §7.1 把 `adoption-receipts-handling.tgz` 叫「现行包」：它只是 #408 分支上的包（来源 Prologue `f5ef12e6`）；main 上是 `computer-use.tgz`（`d4908c11`，不含 S1–S3/问卷/P2）和旧的 `side-panel-memory.tgz`。
->   3. §7.4-4「上次冲突只有 package.json 一行」：现在把 main 合进 #408 会有 **26 个文件冲突**——`assistant-service.ts`、`agent-review-surface.ts`、`horizontal/agent-host/package.json`、`prologue-credentials.ts`、`prologue-node.ts`、`prologue-run-params.ts`、`prologue-stream.ts`、`capability-registration.ts`、`contracts/services/agent-host.ts` 与其 API 快照、Coding 的 `client.ts`/`composer-model-client.ts`/`timeline-words.ts`/`timeline.ts`/`turn-changes-client.ts`、`pnpm-lock.yaml`、`scripts/workspace-packages.mjs`、`specs/prologue-adoption/spec.md`（两边都新增）、5 个测试、`baseline.json`、`page-assets.json`、`vendor/prologue-sdk/README.md`。按上面「对本线的影响」第 1 条对账，实现以 main 为准。
->   4. §7.5「先做…统筹按条件合 #408（让 D7 第三项满足）」与 §7.6「#408 是第一个要合进 main 的」：已过时。#408 先对账、等统一 SDK 包；#411 具备条件可以先合（README §2a-4）。
->   5. §7.4-6 说 #408 能否合要看批量全量归因：已确认的唯一回归属于情境线 W1-4（`packages/plugin-sdk/src/context-declarations.ts:93`），与 #408/#442 无关；其余非浏览器失败是环境或负载，浏览器失败归因未完成。
->   6. Prologue `feature/p2g-scope` 的 head 现在是 `f2c861ec`（P2g 的消费者检查脚本，尚未运行），父提交 `6b629bb9`；两个都在远端，未开 PR。
-> - 文中 `coordination/2026-10-13/…` 都是远端分支 `coordination/handoff-2026-10-13` 上的文件（原来写的本机路径 `.claude/locks/…` 已统一改成这里）。
->
-> **对本线的影响（接手先做）：**
-> 1. **#408 不能整体合进 main。** 它和 #472 重叠 37 个文件（agent-host 各适配器、`contracts/services/agent-host.ts` 与快照、Coding 时间线与模型控件、助理服务、`specs/prologue-adoption/spec.md`、`baseline.json`、`page-assets.json` 等）。先做对账：以 main（#471 + #472）为基准，逐项列出 #408 里 main 还没有的东西（A0 的修正与证据、P1 合同 §4.6.9、决策记录、换包），把 main 合进 #408 解冲突时**实现以 main 为准**，只留 main 没有的部分；规格以 #408 新版为准，把 main 旧版里 #472 带来的事实并进来。
-> 2. **统一 SDK 包要重做。** 先请 Computer Use 原负责人（或 yijunw0212）把 `feat/desktop-computer-use`（`d4908c11`）推到 Prologue 远端，并与 Prologue main（#4–#14：A0、S1–S3、问卷、P1、P2a–P2f）合流进 main，再从 Prologue main 重打一个包，替换 Molis main 上的两份 tgz（vendored 至多两份）。合流冲突面预计在 agent / effect-policy / composition（审批、表面、派出）。在这之前 Molis main 的 SDK 缺 S1–S3、问卷与 P2。
-> 3. **D7 要重新判定。** 第一项「正式 SDK 来源」在 main 上已不成立（main 的包来自没进上游的分支）；第三项「采用线进 main」只是旧提交进了，#408 没进。统一包换进 main、#408 的剩余部分合进 main 之后再判定，并告诉回执线。
-> 4. **「第 14 项交回与续做」已在 main**，和 P1/P2 的统一协作冲突（X6 删除无板协作，接续只走节点）。P3/P4 要把它改到统一合同上，不留兼容；P3 的硬前置 W4-06 照旧。
-> 5. A1（推理力度、换模型、逐轮展示）基本已随 #472 进 main：A1 改成核对 #472 的实现是否满足 PA-12/PA-24，缺的补齐，不重做。
-
-
-> 本节**取代** 2026-10-11 的旧交接（那一节讲的是 A0 的 WIP 候选包，已过时）。接手的人可能在另一台机器、另一个 AI 上，看不到原机器的工作树、临时目录、日志和锁，所以本节自成一体：路径都是仓库内路径或远端分支，命令都能在新克隆上直接跑。统筹层的事实（用户规则、跨线约定、合并顺序、批量全量结果、防腐清单、进展盘点）在 Molis 远端分支 `coordination/handoff-2026-10-13` 的目录 `coordination/2026-10-13/`，下面把和本线直接相关的部分复述在 §7.6–§7.8，不要求先去读那里。**当前处于用户的暂停指令之下**（2026-10-13 03:55 北京时间「先暂停一下」），只做了写交接和推送本地遗留；恢复由统筹通知。
+本节取代 2026-10-13 早上的版本（那一版写于知道 #471/#472 之前）。它自成一体：路径都是仓库内路径或远端分支，命令在新克隆上能直接跑。统筹层材料在 Molis 远端分支 `coordination/handoff-2026-10-13` 的 `coordination/2026-10-13/`（只作补充）。
 
 ### 7.1 一句话现状
 
-- **整条线**：A0 基础采用已工程通过；两次换包已完成（现行包 `prologue-sdk-0.0.0-rc.1-adoption-receipts-handling.tgz`，来源 Prologue main 的合并提交 `f5ef12e6`，`dirty:false`）；P1 统一协作合同已冻结；**Prologue 侧 P2a–P2f 已合进 Prologue main**；P2g 已写完并推送（分支 `feature/p2g-scope`），**全量没跑完、没开 PR**；P2h（等待）、P2i（外部检查器与接续）、P3–P6、A1–A5 **都没开始**。Molis 侧 #408 **还没合进 Molis main**，且与 main 有未解的冲突。
-- **工程通过**：A0（Molis 定向 218/218、安全 / 合同 / 健康 / 页面资源 / 边界 / vendor 门禁过）；P2a–P2f（SDK 全量、变异检查、干净包消费者检查，见 §7.3）；#408 自己的 diff 的防腐复查里不需要构建的那部分（§6.0「防腐复查记录」）。
-- **真实产品实操**：A0 只有部分——受影响的浏览器用例逐个和干净基线比对为预先存在的失败，Coding 时间线与扩权审查卡的人工实操没做；P2 各刀 Molis 还没在用（Molis 的包只在 P2 全部合入后换一次），所以 P2 **没有**产品实操。真实模型从未跑过（本机没有 Key，全部用回环 / 脚本服务）。
+- **整条线**：#408 已与 main 对账（实现以 main 为准，§6.0a），并把 Molis 依赖换成过渡包 `interim-p1-cu`（§3.2）。A0 工程通过。A1 改为核对 #472，缺口 6 项（§5.6a）。P1 合同冻结。P2a–P2g、输入回执 S4、H16 已合进 Prologue main（#7–#17）。P2h 只写了接口（Prologue 本机工作树 `~/code/prologue-p2h`，未提交），P2i、P3–P6、A2–A5 未开始。
+- **工程通过**：A0；对账后的树（证据见 §6.0a）；Prologue 各刀的 SDK 全量与干净包消费者检查（§7.3）。
+- **真实产品实操**：未做（对账后的树没有人在隔离 Home 里走过；真实模型从未跑过，本机无 Key）。
 - **用户验收**：一项都没做。
 
 ### 7.2 分支和 PR（只列远端）
 
-**Molis**（`molis-ai/molis-work`，推送一律用 SSH 地址 `git@github.com:molis-ai/molis-work.git`，推前跑 `pnpm secrets:check`）
+**Molis**（`molis-ai/molis-work`）
 
 | 分支 / PR | 状态 |
 | --- | --- |
-| #408 = `feature/handoff-prologue-adoption` | head 是写本节的提交（它的前一个提交 `9a7c9505` 是合 main `e7a51ff0` 的那次合并），**与 main 又有冲突，未解**。本线唯一的 Molis 提交处（用户决定，见 §7.8）。#442（`feature/prologue-adoption-s3-package`，第二个包）的提交已并入此分支，GitHub 上显示 merged，已留评论 |
-| `coordination/handoff-2026-10-13` | 统筹层材料，不是本线的开发分支 |
+| #408 = `feature/handoff-prologue-adoption` | 本线唯一的 Molis 提交处。已合 main 到 `f2024d6b`（#474），换了过渡包，待统筹按条件合 |
+| `coordination/handoff-2026-10-13` | 统筹层材料，不合 |
 
-**Prologue**（`molis-ai/prologue`；推送用 `origin`，每刀单独一个 PR，由统筹读过后合）
+**Prologue**（`molis-ai/prologue`，每刀一个 PR）
 
-| PR | 分支 | Prologue main 上的合并提交 | 内容 |
-| --- | --- | --- | --- |
-| #4 | `feature/molis-adoption-receipts-fields` | `55b0c85a` | A0 采用修正 + 输入回执第一刀（S1）+ 问卷字段（`ask-user` 带类型的题），第一个合成包的来源 |
-| #5 | `feature/molis-adoption-s2-s3` | `f5ef12e6` | 输入回执第二刀（会话级持久排队）与第三刀（`acknowledge-inputs` 与有界提醒），第二个合成包的来源（现行包） |
-| #6 | `feature/taskboard-collaboration-contract` | `82488fa0` | P1：任务图统一协作合同冻结（`docs/slices/taskboard-collaboration.md`） |
-| #7 | `feature/p2a-input-refs` | `2621ae91` | P2a：`InputRef`、节点 `origins`、`report.inputs` |
-| #8 | `feature/p2b-generation` | `7f318494` | P2b：执行代次、有界尝试、`waiting` / `needs-reconciliation`、重试、`attemptOf`、`scope` 代次检查 |
-| #9 | `feature/p2c-binding` | `c0121069` | P2c：`startAgentRun({ collaboration })` 运行绑定、尝试开收、改图带代次 |
-| #11 | `feature/p2d-gating` | `2f78d877` | P2d：没绑节点的跑里协作工具不进名单（`TASKBOARD_NOT_BOUND`）、`dispatch-subagent` 的 `claims` 换成 `node`、孩子绑自己的步骤 |
-| #12 | `feature/p2e-dispatch-steps` | `3953315a` | P2e：派出的四步与 `createRuntime({ collaborationHost })` 的 `admitDispatch` |
-| #13 | `feature/p2e-dispatch-steps` | `80d8d8d3` | 修 P2d 漏绑的两个子进程夹具（`subagent-recovery-child.mjs`、`subagent-workspace-child.mjs`） |
-| #14 | `feature/p2f-recovery` | `7229b11b` | P2f：重启恢复，板上没收场的尝试关账 |
-| （无） | `feature/p2g-scope` | **未合、未开 PR**，head `f2c861ec`（代码在 `6b629bb9`，其后是还没运行过的消费者脚本） | P2g：受限通信 |
-| #10 | `feature/input-receipts-s4` | 未合（回执线的 PR，head `a0ff62e1`） | 输入回执第四刀；与本线的接口见 §7.6 |
+| PR / 分支 | main 上的合并提交 | 内容 |
+| --- | --- | --- |
+| #4 | `55b0c85a` | A0 采用修正、输入回执 S1、带类型的问卷 |
+| #5 | `f5ef12e6` | 输入回执 S2、S3 |
+| #6 | `82488fa0` | P1 统一协作合同（文档） |
+| #7 #8 #9 #11 #12 #13 #14 | `2621ae91` … `7229b11b` | P2a–P2f（#13 修 P2d 漏绑的夹具） |
+| #10 | `c9a6e774` | 输入回执 S4（2026-10-13 合） |
+| #15 | `a47eb26d` | 桌面 Computer Use 进 main（`d4908c11`，2026-10-13 先推到远端） |
+| #16 | `056f7194` | P2g 受限通信 |
+| #17 | `b219d859` | S3 修正 H16：名单里没有 `acknowledge-inputs` 的一轮不写编号说明 |
+| `release/molis-interim-p1-cu-2` | 不在 main（`08b84296`，两个父提交在） | 过渡包来源；取代没有 H16 的 `release/molis-interim-p1-cu`（`208dd381`，没有用过） |
 
-其余 Prologue 分支：`feature/handoff-molis-a0-s1` 是旧的 A0 + S1 整合分支（历史）；`feature/handoff-ask-user-fields` 只读来源；本机的 `feature/adoption-s2-integration` **已作废**（S2 改由回执线合进整合末端，再由 #5 进 main），不用找它。
+### 7.3 已完成（证据等级写在每项里）
 
-### 7.3 已完成（按切片，证据等级写在每项里）
+「工程」= 自动化测试、门禁、变异、干净包消费者检查；「产品实操」= 真实产品里的人工或浏览器实操；「验收」= 用户本人。下表所有项的产品实操与验收都是**无**。
 
-下面「工程」= 自动化测试 / 门禁 / 变异 / 干净包消费者检查；「产品实操」= 真实产品里的人工或浏览器实操；「验收」= 用户本人。所有 P2 项的产品实操与验收都是**无**。
+| 切片 | 证据（工程） | 在哪 |
+| --- | --- | --- |
+| A0 | 见 §6.0；对账后在新树上重跑，见 §6.0a | #408、main（#472 同源） |
+| P1 合同 | 冻结、独立审查 | Prologue #6、§4.6.9 |
+| P2a–P2f | 各刀 SDK 全量、变异、消费者检查（见各 PR 描述） | Prologue #7–#14 |
+| S4 | 合并前在 `a0ff62e1` 上先 build dist：全量 344 文件 3775 通过 / 4 失败（`workspace-watch.live`，main 上同样失败，环境）；消费者 8/8 | Prologue #10 |
+| Computer Use 进 main | `8cd5101d`：全量 3847 通过 / 4 失败（同上）；消费者 8/8；未跑 `desktop-computer-use.live`（会操作真实桌面） | Prologue #15 |
+| P2g | `b30feaeb`：全量 3854 通过 / 4 失败（同上）；在合并后的代码上重做两个变异各让用例变红；消费者 9/9，新脚本对上一份包失败 | Prologue #16 |
+| H16 | `b219d859` 前的 `b7e736a4`：全量 3859 通过 / 0 失败；消费者 9/9；两个变异各让用例变红 | Prologue #17 |
+| 过渡包 | `08b84296`：全量 335 文件 3782 通过 / 0 失败；消费者 S1–S3 通过；两次干净打包逐字节相同 | #408 `f9769ce5` |
+| 对账 | §6.0a | #408 |
 
-| 切片 | 内容 | 证据（工程） | 在哪 |
-| --- | --- | --- | --- |
-| A0 | SDK 三项增强（预算优先、修改回执不被压成可重做观察、独占重开）与 Molis 预算 / 副作用 / 授权适配、状态事件、`acknowledge-inputs` 在助理面板隐藏等；第一个合成包 | 构建、24 文件定向 218/218、`test:security`、`test:contracts`、health、page-assets、boundary、vendor 全过；部分全量里的失败逐个和干净基线比对为预先存在 | Molis #408（`664d3cd3` 起的收口记录在 §6.0）；Prologue #4 |
-| 第二个包 | 输入回执 S2、S3 | 打包消费者检查、Molis 默认路径定向用例 | Prologue #5；Molis #408 内（`87712ba9`、`7c97a03c`） |
-| P1 合同 | 统一协作合同（node 绑定、代次、四步派出、受限通信、等待条件组与四态观察、外部检查器口、唯一接续记录）+ 7 条审查意见（R1–R7）并入 + 跨线 X1–X6 | 合同冻结；独立审查 | Prologue #6；Molis spec §4.6.9 |
-| P2a | 输入引用字段 | SDK 全量 336 文件 328 通过 / 6 跳过 / 2 失败（时序，单独连跑 3 次通过），3717 条通过；5 个变异；消费者检查（1,104,586 B） | #7 |
-| P2b | 代次 / 尝试 / 新状态 / 重试 / `attemptOf` | 338 文件 331 / 6 / 1（`app-mode-surfaces.live` 时序，单独 3 次通过）；8 个变异；消费者检查 | #8 |
-| P2c | 运行绑定 | 340 文件 334 / 6 / 0；3768 条 3747 / 21 / 0；9 个变异；消费者检查 | #9 |
-| P2d | 翻开门禁、重做派出 | 340 文件 334 / 6 / 0；约 68 处旧路径用例改成带绑定（`packages/sdk/test/support/bound.ts`）；9 个变异；消费者检查。**注意**：这次全量用的是旧 dist，夹具用例漏了 5 条红，由 #13 修好 | #11、#13 |
-| P2e | 派出四步与 App 协作口 | 340 文件 334 / 6 / 0；3775 条 3754 / 21 / 0；7 个变异；消费者检查（1,121,223 B） | #12 |
-| P2f | 重启恢复 | 342 文件 334 / 6 / 2（`agent-budget.live`、`workspace-find-search.live` 时序，单独连跑 3 次 24/24 通过）；7 个变异；含真的 `SIGKILL` 后重开的用例；消费者检查（1,124,030 B） | #14 |
+### 7.4 没完成的
 
-P2 各刀共用的消费者检查脚本在 `packages/sdk/test/fixtures/taskboard-*-consumer.mjs`（`taskboard-consumer`、`-binding-`、`-dispatch-`、`-recovery-`，P2g 的 `-letters-` 在 `feature/p2g-scope`）。做法见 §7.9。
-
-### 7.4 进行中和没完成的（具体到命令和卡点）
-
-1. **P2g 的 SDK 全量没有结果**（被暂停打断；之前只跑了涉及信封和会话工具的 11 个文件，全过）。重跑：克隆 `molis-ai/prologue`，切到 `feature/p2g-scope`，
-   ```sh
-   pnpm install --frozen-lockfile
-   pnpm --filter @prologue/sdk run build        # 必须先 build：9 个子进程夹具加载 packages/sdk/dist，vitest 不会重建它
-   pnpm exec vitest run --maxWorkers=2            # 在仓库根目录跑，不是 packages/sdk 下
-   ```
-   期望 342 个文件（约 3,780 条）0 失败；`agent-budget.live`、`workspace-find-search.live`、`app-mode-surfaces.live`、`host-storage-full.live`、`checkpoint-review.live` 偶发时序失败，单独连跑 3 次通过就记为时序。
-2. **P2g 的消费者检查脚本写好、提交了（`f2c861ec`），但从没运行过**。验证：`git archive` 当前提交到空目录 → `pnpm install --frozen-lockfile` → `pnpm --filter @prologue/sdk run build` → `pnpm pack` → 在只有 `package.json`（依赖 `file:` 指向 tgz）的空目录里 `pnpm install`，依次 `node check-*.mjs` 跑五个脚本（`taskboard-consumer`、`-binding-`、`-dispatch-`、`-recovery-`、`-letters-`），都要打印「passed」；再把 `-letters-` 对 P2f 的包（`7229b11b` 构建）跑一遍，**必须失败**，证明它测到了新增的面。脚本里若有写错，先修脚本再下结论。
-3. **P2g 开 PR**：以 Prologue main 为 base；描述照 #12 / #14 的写法（内容、不含、对消费方的影响、验证——**写明「全量前已重新 build dist」**、变异检查、消费者检查、未跑真实 Provider）。合同文档里 P2g 条和决策 T15 已经写好。
-4. **#408 要合最新 main 并解冲突**：
-   ```sh
-   git fetch git@github.com:molis-ai/molis-work.git main
-   git merge --no-edit FETCH_HEAD            # 不 rebase、不强推
-   ```
-   上次（合 `e7a51ff0`）冲突只有 `package.json` 的 `test:security` 一行，**两边都留**（main 的 `plugin-model-service.test.ts` + 本线的 `prologue-memory-boundary`、`agent-review-standing`、`prologue-adoption-guard` 三个）。合完先跑 `node scripts/run-tests.mjs tests/ci-product-subset-plan.test.ts tests/ci-product-subset.test.ts tests/vendor-provenance.test.ts`（产品子集不许和 `test:security` 重复），再 `pnpm secrets:check`，SSH 地址推送。
-5. **构建类防腐复查没做**（不需要构建的那部分已做完，结论在 §6.0「防腐复查记录」）。在 #408 合了最新 main 之后的 head 上跑：`pnpm boundary:check`（M1）；`pnpm build` 后 `pnpm actions:update` 并看 `git diff tooling/gates/actions/`（M5）；`pnpm workspace:build` 后 `node scripts/gates/page-assets.mjs --base origin/main`（M6）；`node scripts/affected-tests.mjs`（命中共享核心时由统筹决定要不要全量）；`pnpm test:security`（M14）。清单全文在统筹分支的 `ANTI-CORRUPTION-REVIEW.md`。整台机器同一时间最多一个构建、一个浏览器用例批次。结果写进本节上面的「防腐复查记录」，一次一行。
-6. **第一批集成全量的归因没做完**：2026-10-12 14:46Z 起在集成分支 `integration/batch1`（main `894b917a` + #442（含 #408）+ 情境线 #430→#434）上跑了一次全量，19:39Z 结束：5957 条里 5893 通过、38 失败、9 取消，失败分布在 35 个文件，大多是浏览器用例。统筹用干净基线（`894b917a`）逐个比对、归因，被暂停打断；#408 能不能合 main 取决于其中有没有本线引入的失败。**失败文件清单和已有的比对结果在 `coordination/2026-10-13/`**；没有的就按 §6.0 的做法：对每个失败文件在干净基线工作树（`git worktree add --detach <路径> 894b917a`）和 #408 上各跑一次，只在 #408 上红的才是本线的。
-7. 回执线的 Prologue #10（S4）还没合；它的合并条件和本线的接口见 §7.6。
+1. **#408 合进 main**：等统筹按条件合（`Verify` 绿、与 main 同步、secrets 与 health `--base` 过、证据入本文、统筹读过 diff）。批量全量：本次换包改了每条 Agent 路径下的 SDK 运行时，属于 §5.4 的共享核心阶段，统筹在集成分支上跑一次。
+2. **A1 缺口**（§5.6a 的 6 项）：先补 PA-24 编号，再补行为用例。
+3. **P2h**：只有 `orchestration/core/taskboard.ts` 的接口草稿与两个错误码（`WAIT_ALREADY_ARMED`、`WAIT_CONDITION_INVALID`），在本机 Prologue 工作树 `~/code/prologue-p2h`（分支 `feature/p2h-waits`，未提交、未推送）。换机器接手就按合同「等待：条件组与四态观察」重新开始。
+4. P2i、P3（W4-06 硬前置；第二次换包；`services/agent-collaboration`）、P4（Coding 先，助理那一半按 W5-10 形状）、P5、P6、A2–A5。
+5. 防腐方案 `specs/repository-anti-corruption/dependencies-and-sdk-plan.md` §4.3 写的是「Molis 只依赖 main 上的一个具名提交，不依赖分支」。过渡包按用户 2026-10-13 的决定是例外。那份文件归防腐线，本线不改，已告诉统筹。
 
 ### 7.5 下一步（按顺序）
 
-**先做**（让 D7 第三项满足）：解 #408 冲突（§7.4-4）→ 构建类防腐复查（§7.4-5）→ 统筹按条件合 #408（`Verify` 绿、与 main 同步、secrets 与 health `--base` 过、证据入 spec、统筹读过 diff）。并行：补 P2g 的验证并开 PR（§7.4-1…3）。
-
-**再做**：
-- **P2h 等待**（Prologue）：合同「等待：条件组与四态观察」整节。要点：等待改成「一个节点一个条件组」（旧的是一个会话一个、合并条件）；条件种类 `node`（原 `board-node`）、`envelope`、`command`、`pending`（只接待答问题，不接审批，决策 T7）、`external`（P2i）；观察四态 satisfied / failed / pending / unknown，`unknown` 永远不算 satisfied 也不算 failed；检查异常一律 unknown，去掉吞异常；去掉 `resumed` 状态；登记与板写入都等落盘，顺序固定（板上写节点的 wait 引用 + 接续 armed → 写等待 → 按每个条件复查，已满足就把结果直接交回）；重开对账两类不一致；新增模型工具 `board-wait` 及三个简写（`dispatch-subagent` 的 `yield`、`await-commands` 的 park、`session-send` 的 `wait`）；节点 `running → waiting`；`waiting` 节点的重启对账（P2f 不含）。现有等待在 `packages/sdk/src/orchestration/core/waits.ts`（408 行），要重做而不是加字段。
-- **P2i 外部检查器与接续**：`external` 条件与 Host 检查器口（每次复核授权、有界、只读、重启只补一次）；接续记录（节点上唯一，修订号 CAS、`deliver` / `start` 两种占用）；`collaborationHost.startContinuation`；删掉 `onYieldSettled` 与写回里的 `wakeRun` 判定；**子任务身份按节点算**（P2d 刻意没做：同一个子键换一个父 Run 再派，仍会撞上已有的步骤）；App-tools 模式里的协作（去掉 `agent-run-admission.ts` 对 `subagentOptions` 的一刀切拒绝）。
-- **P3 Molis 公共合同与共享 Host**：**W4-06（拆 Prologue 节点适配器 `prologue-node.ts`，防腐线的片）是硬前置**；P2 全部合入后换一次包（那个 PR 要在 Molis 默认路径上验证，没验证不合）；新建 `services/agent-collaboration` 合同，`AgentCollaborationNode` 不存自己的 run→node 索引，一律走 `boards.attemptOf`（统筹已记）；实现 `collaborationHost`。
-- **P4 Coding / 助理产品闭环**：Coding 先；助理那一半按 W5-10 的协作者形状，要等防腐线负责人确认先后。
-- **A1–A5**：A1 模型 / 力度与逐轮展示（§5.6；规划阶段用 Opus 5.5，找统筹切模型）；A2 写后诊断；A3 单次生成；A4 变化观察（协作状态部分依赖 P3）；A5 其余采用核验。P5、P6 在 P3、P4 之后。
+1. 统筹合 #408 → 重新判定回执线的 D7（① 推送的具名分支，父提交都在 Prologue main；② 默认路径验证在本次换包里做了；③ #408 进 main）→ 回执线开阶段 1，交互线在 main 上重做 C1+H1（带类型的问卷 `a06ae62e` 在过渡包里）。
+2. A1 缺口补齐（#408 上的下一组提交）。
+3. P2h、P2i（Prologue，每刀一个 PR）。
+4. P3：先等防腐线的 W4-06（拆 `prologue-node.ts`），没合就由 P3 自己按 W4-06 的切法拆。第二次换包（Prologue main 的具名提交，带 P2a–P2i、S4），同一个改动里做 Molis 默认路径验证。新建合同子路径 `services/agent-collaboration`，与第一个使用方同批建；`AgentCollaborationNode` 不存自己的 run→node 索引，一律走 `boards.attemptOf`。
+5. P4：Coding 先；助理那一半按 W5-10 的协作者形状（用户 2026-10-13 定：功能线做，算 W5-10 的一部分，防腐 spec 的 W5-10 行写「由本线 P4 实现」）。第 14 项（main 上的助理交回与续做）在 P4 改到统一合同上，不留兼容：
+   1. 每个助理 Work 在第一跑之前有一块常驻板，委派的子 Work 是子节点（子 Work 只留节点引用，`delegated_by` 换成节点引用）；
+   2. 删 `handed_back_run`、`hand_back_held`、`watch`、`settle`、`resume`、`markHandedBack`，改成父节点上的等待组加节点的接续记录，经 `collaborationHost.startContinuation` 起跑，请求键取代 `hand-back-<sha>`；
+   3. `hold`（人停下）→ 取消等待 / 接续 `blocked`；
+   4. `takeBack` → 改图交回父节点（代次 +1）；
+   5. `status`（`waitForWorkChange`/`watchWorks`）→ 读协作等待视图；
+   6. 交回材料与通知的文字保留为内容；
+   7. 上限 6/3/2 改成协作配置，数值不变；
+   8. 存量数据由维护改成现行形状，不加读取兜底；
+   9. `AssistantDelegations` 已是按端口依赖宿主的协作者，就地改，`assistant-service.ts` 不许变长；
+   10. 五个用例（`assistant-delegation-handback`、`assistant-delegation`、`assistant-work-wait`、`assistant-handback.e2e`、`assistant-follow-live.e2e`）换成协作合同的用例。
 
 ### 7.6 跨线依赖
 
-- **谁在等本线**：回执线的 D7（生产接入输入回执第二、三刀）等 #408 进 Molis main；交互线的 C1 + H1（`feature/agent-typed-questions`，类型化的题进 Host）等 #408 进 main 后并入它的交接分支。所以 #408 是四条线里**第一个**要合进 main 的。
-- **本线在等谁**：统筹（合 #408、批量归因、构建 / 浏览器时段）；防腐线的 W4-06（P3 前置）、W5-10 与助理那一半的先后（P4）；回执线的 S4（Prologue #10）。
-- **与回执线 S4 的接口**：P2c 已把绑定交给 `acknowledge-inputs` 的执行体——`SystemToolInput.collaboration(): RunBinding | undefined`（`RunBinding = { board, node, generation }`），钩子签名 `acknowledgeInputs(items, at: { toolCallId?, binding? })`；S4 的 `board-node` 目标「必须是绑定的那块板」就比 `binding.board`，代次已由板写入处核过。S4 可以直接用，`agent/core/input-handling.ts` 归回执线，本线不碰。
-- 回执线关于「稍后重开」的疑问（S4 的 I15）已答：只有副作用审批有 `later`，且没有指向新问题的链接；合同改成 `pending` 条件只接待答问题（决策 T7），S4 不受影响。
+- **谁在等本线**：回执线的 D7、交互线的 C1+H1 都等 #408 进 main。情境线 #411 不依赖 SDK，可以先于 #408 合。
+- **本线在等谁**：统筹（合 #408、批量全量）；防腐线的 W4-06（P3 前置）。
+- **与回执线**：S4 已在 Prologue main，等 P3 的第二次换包才进 Molis。过渡包里的 S1–S3 已在 Molis 默认路径上：补充有回执、没读到的补充进会话队列（默认 `ask`，什么都不带走）；名单里没有 `acknowledge-inputs` 时不写编号说明（H16），所以回执线接 S3 之前模型不会被指向那个工具。`acknowledge-inputs` 在助理面板隐藏（`presentActivity`），显示与措辞归回执线（D16）。
+- **与交互线**：H2 与本线 P4 的助理那一半都按 W5-10 形状做（用户 2026-10-13 确认）。
+- **与 Computer Use**：过渡包里的 Computer Use 源码与 `d4908c11` 相同；main 上的电脑格、桌面审批与 `prologue-surfaces.ts` 不受换包影响（对账后的用例见 §6.0a）。
 
 ### 7.7 决策记录
 
@@ -965,30 +1003,31 @@ P2 各刀共用的消费者检查脚本在 `packages/sdk/test/fixtures/taskboard
 | R1–R7 | 代次只在权威换手时加；占用用接续自己的修订号 CAS；派出是有序四步；协作口同时管派出复核与接续起跑；新增 `board-wait`；写入顺序固定都等落盘；期限按原事实时刻判 | 独立审查发现的七个阻断问题 |
 | X1–X6 | 输入引用归 Session 且各最多 8 条；操作卡不进图；待答问题只由 Effect-policy 结算；消费 App 的公共合同另开子路径只用动作；常驻板一个编码会话一块、助理先接编码后接助理；无板协作直接删除 | 统筹按用户规则（技术决策按防腐后果、功能决策按体验）代定，2026-10-12 |
 | Molis 侧 | 问卷字段与 A0 合进同一个包；`acknowledge-inputs` 不在助理面板显示；产品子集去掉 `test:security` 已覆盖的文件；页面资源超预算靠减少注入函数里的注释和重复、不放宽预算；全量回归改成批量；Prologue 的 `dist` 要先 build | 见 §6.0 的决策表和 §7.9 |
+| 对账（2026-10-13） | 实现以 main 为准：#472 带进 main 的 A0 代码与 #408 同源，#408 只留 main 没有的三处（S1 补充回执的适配、S3 在助理面板隐藏、`prologue-stream.ts` 的三处类型化），加 PA-22/PA-23 证据、安全登记与本文 | 两份实现同源时只留一份；main 已有的不重做 |
+| 过渡包（用户 2026-10-13） | Molis 依赖 merge(`95cd901d`, `d4908c11`) 打的包，不用 Prologue main 末端；第二次换包随 P3 | main 末端带 P2d，Molis 在 P3 之前还在用无板协作，X6 不许兼容路径 |
+| 先换包再合 main | 在 #408 自己的树上先换成过渡包，再合 main，SDK 相关冲突一律取本线 | 每个提交都自洽，不需要手造一个两份包都在的中间状态 |
+| H16（统筹，2026-10-13） | 换包前在 Prologue 修：名单里没有 `acknowledge-inputs` 的一轮不写编号说明（#17） | 提醒早已按名单关掉，编号说明没有；Molis 的角色还没列这个工具，每条补充都会带一句指向不存在工具的话 |
+| PA-23 改述 | SDK 的 `yield` 仍被拒（`subagentYieldGuard`，S-23，`prologue-adoption-guard` 用例）；main 上的第 14 项是已知的私有接续，属 X6 欠账，由 P4 助理那一半还 | #472 已把第 14 项带进 main，P4 之前不回退已上线的行为 |
+| 第 14 项留到 P4 | 对账时不动 main 上的助理交回与续做，改造清单在 §7.5 | 改它要有统一协作合同（P3），现在动只能写兼容 |
 
-### 7.8 工作规则（用户原话为准）
+### 7.8 工作规则
 
-- **拍板**：「技术决策按防腐线的后果判断；功能线按对用户 UI 交互与使用体验最好的推荐走」。本线内的决定自己定，写进 spec 决策记录并在汇报里列出；跨线或改目标 / 范围的找统筹。仍先问用户：合并 Molis / Prologue main、发布、真实 Home / 安装版、放宽门禁、读真实凭据。拍板不等于用户验收。
-- **PR**（2026-10-13 起）：「不用单开PR，每个线都只在之前的交接PR里commit，因为有另外的防腐线在做代码质量和架构升级，所以单开PR的话，如果防腐有改动，容易导致架构问题」——Molis 侧本线只往 #408 提交；**Prologue 侧照旧每刀单独开 PR**（用户选的「Prologue 照旧逐刀开 PR」）。
-- **跨线依赖经 main**：「先推进按照当前main的代码开发功能，如果几条线之前有依赖关系，从main拉取最新代码合并入各自分支之后按照防腐线防腐要求进行复查，确保需求迭代的同时不与防腐要求冲突，几条线的开发顺序由你统筹」。每次把 main 合进交接分支后复查本线自己的 diff，结果写进 §6.0。
-- **全量回归**：「优先开发，全量回归测试不用每次都触发，攒一波一起弄，除非必须」——平时只跑 `node scripts/affected-tests.mjs` 选出的定向用例，不自己跑 Molis 全量；全量由统筹攒一批在集成分支上跑（这台 Intel Mac 约 4 小时）。Prologue 的 SDK 全量照常跑，但统筹的批量在跑时用 `--maxWorkers=2`。
-- **合并**：各会话不自己合并，统筹按条件合。Molis：`Verify` 绿、与 main 同步、secrets 与 health `--base` 过、证据入 spec、统筹读过 diff。Prologue：**先重新 build dist**，再跑 SDK 全量 + 打包消费者检查，都过；Molis 还没在用的 SDK 切片凭这两项即可合，Molis 默认路径验证放在「换包进 Molis」的那个 PR 里。
-- **推送**：只推自己的分支；推前 `pnpm secrets:check`（先 fetch main）；Molis 用 SSH 地址；不 rebase 已推送的分支、不强推（作者改写只在用户授权的那一次做过）。
-- **不碰真实 Home**（端口 4207 / 4173）和安装版；一律临时 / 隔离 Home；本线隔离端口 4291。
-- **不为变绿而放宽**：不跳过、不放宽、不删断言；不改 `limits.json`、`biome.jsonc`、门禁脚本、例外文件；数字只许降。
-- **一台机器同一时间最多一个构建、一个浏览器用例批次**（`coordination/2026-10-13/tools/slot.sh`，统筹分支里有）。
-- **模型**：规划阶段用 Opus 5.5（high / xhigh），执行阶段用 Sonnet 5.5（xhigh / high）；切换阶段找统筹。提交署名 `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`，PR 描述末尾 `🤖 Generated with [Claude Code](https://claude.com/claude-code)`。
-- **证据三级分开写**：工程通过 / 真实产品实操 / 用户验收；没做的写「未做」，不用前一级代替后一级。
-- **暂停**：用户说暂停，就走到安全点停（不留半合并、半推送，未提交的做本地 WIP 提交，只杀自己启动的进程，释放锁），等统筹恢复通知。
+- **拍板**：技术决策按防腐线的后果判断；功能决策按对用户 UI 交互与使用体验最好的推荐走。本线内的决定写进决策记录并在汇报里列出；跨线或改范围的找统筹。替用户拍板不等于用户验收。
+- **Molis 只往 #408 提交**，不另开 Molis PR（防腐线同时在改架构，单开 PR 容易冲突）。**Prologue 每刀一个 PR**。
+- **合并由统筹按条件做**（用户 2026-10-13 授权统筹验证过就合 Prologue PR）。Prologue：先重新 build dist，再跑 SDK 全量与干净包消费者检查。Molis：`Verify` 绿、与 main 同步、secrets 与 health `--base` 过、证据入本文、读过 diff。
+- **全量回归攒批**：平时只跑 `node scripts/affected-tests.mjs` 选出的定向用例；共享核心的改动由统筹在集成分支上跑一次全量。整台机器同一时间最多一个构建、一个浏览器批次。
+- **不碰真实 Home**（4207 / 4173）和安装版；不放宽门禁与断言；数字只许降。
+- **证据三级分开写**：工程通过 / 真实产品实操 / 用户验收；没做的写「未做」。
 
 ### 7.9 已知问题
 
 - **Prologue 的 9 个子进程测试夹具和 `packaged-consumer.test.ts` 加载 `packages/sdk/dist`**（git 忽略，vitest 不会重建）。全量前必须先 `pnpm --filter @prologue/sdk run build`；改了运行时行为（工具门禁、启动校验）时还要 grep 一遍 `packages/sdk/test/fixtures`。P2d 就是因此漏过 5 条红（#13 修好）。
 - 计时类 live 用例偶发（负载高时）：`agent-budget.live`、`workspace-find-search.live`、`app-mode-surfaces.live`、`host-storage-full.live`、`checkpoint-review.live`；单独连跑 3 次通过就记为时序，PR 里写明。
-- 这台机器（Intel Mac）上 stdio-MCP 用例会超时、缺 Swift helper；Molis 的 `runtime-integration` 在 Linux CI 上偶发失败。负载 50 以上时浏览器用例会出现 `CDP timeout`，先单独重跑再定性。
+- 原来的开发机（Intel Mac）上 stdio-MCP 用例会超时、缺 Swift helper；2026-10-13 起接手的机器是 Apple M5（arm64），Prologue 全量约 3 分钟，`workspace-watch.live` 有时收不到文件事件（Prologue main 上同样失败，环境），`desktop-computer-use.live` 会真的操作这台机器的桌面，不在别人用机器时跑。Molis 的 `runtime-integration` 在 Linux CI 上偶发失败。负载高时浏览器用例会出现 `CDP timeout`，先单独重跑再定性。
 - zsh 里变量不会按空格拆分：给 `vitest` / `grep` 传一串文件时用显式列表或循环。
 - `pnpm` 不在默认 PATH 里时在 `~/.local/share/molis-tools/bin`；Prologue 的 vitest 配置在仓库根，要在根目录跑，不是 `packages/sdk`。
 - 同一个应用身份（`appId`）才读得到自己落盘的东西：用子进程夹具造崩溃现场后，重开 Runtime 要用夹具的 `appId`。
+- 换包时 `pnpm install`（不带 `--frozen-lockfile`）会顺手删掉锁文件里别的平台的可选包（约 900 行）：换包只手改锁文件里 `@prologue/sdk` 的五行（路径与 integrity），再 `pnpm install --frozen-lockfile --offline` 核对。
 
 ### 7.10 怎么复现和验证
 
@@ -1001,13 +1040,16 @@ pnpm install --frozen-lockfile --offline
 pnpm build
 node scripts/run-tests.mjs tests/model-thinking.test.ts tests/agent-budget-prologue.test.ts tests/prologue-stream.test.ts tests/prologue-status-projection.test.ts tests/prologue-storage-claims.test.ts tests/prologue-memory-boundary.test.ts tests/prologue-start-refusal.test.ts tests/prologue-subagents.test.ts tests/prologue-recovery.test.ts tests/action-before-effect.test.ts tests/assistant-business-gateway.test.ts tests/agent-review-standing.test.ts tests/agent-review-surface.test.ts tests/prologue-adoption-guard.test.ts tests/prologue-credential-bridge.test.ts tests/agent-action-tools-prologue.test.ts
 node scripts/run-tests.mjs tests/issue-home.test.ts tests/issue-home-runtime.test.ts tests/issue-assistant.test.ts
+node scripts/run-tests.mjs tests/agent-host.test.ts tests/agent-host-composition.test.ts tests/agent-host-wiring.test.ts tests/agent-start-authority.test.ts tests/host-inference-completion.test.ts tests/prologue-inference-native.test.ts
+node scripts/run-tests.mjs tests/prologue-model-controls.test.ts tests/assistant-delegation-handback.test.ts tests/assistant-delegation.test.ts tests/assistant-work-wait.test.ts tests/lingguang-actions.test.ts tests/schedule-task-runner.test.ts tests/workbench-asset-cache.test.ts tests/assistant-followups.test.ts   # #472 带进 main 的
+node scripts/run-tests.mjs tests/computer-use-gaps.test.ts tests/assistant-tool-words.test.ts tests/assistant-attention.test.ts   # #471 带进 main 的
 pnpm test:security
 pnpm test:contracts
-node scripts/run-tests.mjs tests/vendor-provenance.test.ts tests/ci-product-subset-plan.test.ts tests/ci-product-subset.test.ts
+node scripts/run-tests.mjs tests/vendor-provenance.test.ts tests/ci-product-subset-plan.test.ts tests/ci-product-subset.test.ts tests/release-assets.test.ts tests/npm-package.test.ts tests/install.test.ts tests/runtime-payload.test.ts tests/uninstall.test.ts
 pnpm boundary:check
 node scripts/check-health-gates.mjs --base origin/main
 node scripts/gates/page-assets.mjs --base origin/main
-node scripts/run-tests.mjs tests/coding-timeline.e2e.test.ts tests/issue-assistant-repair-page.e2e.test.ts   # 浏览器，需要本机 Chrome，单独排时段
+node scripts/run-tests.mjs tests/coding-timeline.e2e.test.ts tests/coding-model-controls.e2e.test.ts tests/issue-assistant-repair-page.e2e.test.ts tests/assistant-handback.e2e.test.ts tests/assistant-follow-live.e2e.test.ts   # 浏览器，需要本机 Chrome，单独排时段
 ```
 
 换进 Molis 的新 SDK 包要从 Prologue main 上具名的合并提交打出，`vendor/prologue-sdk/` 只放一份（再加一份在途的），`.sha256`、`.provenance.json`、`patch-history.json`、README 重建步骤都要和包相符（`pnpm health:check` 会拦）；不要把 `dirty` 门禁改成通过。

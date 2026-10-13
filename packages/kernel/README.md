@@ -99,3 +99,6 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
 `createExecutionLifetime` 统一进程内取消、时限和同步周期监测。实现在 `@molis-ai/molis-work-plugin-sdk`（`src/execution-lifetime.ts`）：外部作者装的只有 contracts 与 SDK，工具放在这里，SDK 不必依赖私有的 Kernel；内核、宿主、调度服务、Shelf 模块和沙箱都直接从 SDK 取同一份，内核自己不再转出。取消后停止监测，异步等待后调用 `assertActive()` 再进入原事务/版本校验；`dispose()` 在 finally 中释放资源并拒绝迟到回调。它不登记任务、不保存状态、不恢复或重试。Alchemist 用于租约续期，Images 用于持久取消检查及 180 秒时限。
+
+
+AI来源（Agent、内置助理与外部MCP）的顶层command若声明版本字段，必须提交读到的前提：`expected_version`、`expected_revision`、`expected_revisions`、`expected_updated_at`，以及Functions authoring的`updated_at`。版本表覆盖全部`ids`；缺字段、空表、部分表及Functions的null前提由共同输入校验报`actions.version_required`，其他schema错误仍为`actions.input_invalid`。同一输入只经一次schema校验；助理preflight复用`assertActionCommandInput`。本人页面、非AI工作流、可信插件自调与无版本字段的独立创建沿用合同。嵌套豁免只认dispatcher实际发出的活跃execution上下文，不认ALS继承或JSON标志；原权限、signal、provider和beforeEffect继续检查，handler返回/超时/取消后豁免结束。回归：`tests/action-version-precondition.test.ts`。

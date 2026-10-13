@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { requireSynchronous, type ActionCallContext, type ActionExecutionContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { currentCallId, insideHandler, newCallId, withCallId, withCallIdSync } from "./call-scope.js";
@@ -47,6 +48,25 @@ const started = new WeakSet<object>();
  * calls is its own, not covered by a refusal the caller was looking for (`expectingRefusal`).
  */
 export function startHandler<R>(call: object, enter: () => R): R { started.add(call); return insideHandler(enter); }
+
+interface HandlerOrigin {
+  readonly execution: ActionExecutionContext;
+  readonly active: () => boolean;
+}
+const handlers = new AsyncLocalStorage<HandlerOrigin>();
+
+/** Only an actual dispatcher-issued execution context identifies a nested call; inherited ALS alone grants nothing. */
+export function isActiveNestedAction(context: ActionCallContext): boolean {
+  const origin = handlers.getStore();
+  return !!origin && origin.active() && !origin.execution.signal?.aborted
+    && context.actor_id === origin.execution.actor_id && context.audience === origin.execution.audience
+    && context.project_id === origin.execution.project_id && "beforeEffect" in context
+    && context.beforeEffect === origin.execution.beforeEffect;
+}
+
+export function runActionHandler<R>(call: object, execution: ActionExecutionContext, active: () => boolean, enter: () => R): R {
+  return startHandler(call, () => handlers.run({ execution, active }, enter));
+}
 
 /** The caller's context as one call: a copy, so the caller's own object is untouched, carrying the number of its operation. */
 export function bindCall(context: ActionCallContext): CallContext {

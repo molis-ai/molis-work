@@ -264,3 +264,6 @@ Builder `images` 是宿主持有的 PNG 字节（最多 9 张、总共 12 MiB）
 UI 复查只使用隔离验收数据，不截整个工作台；只使用当前选定且声明 `vision: true` 的模型，缺失或失败时不宣称视觉通过。
 
 Work 助理的 Agent 图文材料路径当前最多 6 张图，与 Issue 图文草稿上限一致，入口和适配器均独立检查；直接 inference 的原图上限仍是 30 张。图片不静默截断，不支持视觉的模型拒绝这轮请求。
+
+
+AI通过共同动作服务修改已有对象时，必须带schema声明的读取版本；版本表需覆盖全部ids。Kernel与助理preflight共用检查，缺前提为`actions.version_required`，错类型等schema错误仍为`actions.input_invalid`。本人页面、非AI工作流与可信插件自调保留现行合同，活跃handler的真实嵌套调用只豁免额外版本规则，仍受原权限、安装、signal与beforeEffect约束；取消或超时后旧promise不能延长豁免。独立创建无版本字段时不新增前提。

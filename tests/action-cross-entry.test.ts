@@ -223,3 +223,34 @@ test("W3-09-2-01: a real MCP tool hidden after plugin disable still reaches the 
   assert.match(JSON.stringify(denied), /mcp\.tool_disabled/u);
   assert.equal(home.host.callLog!.recent(100).filter(row => row.capability_id === subject.create.capability_id).length, 1, "revoked authority does not enter the Host a second time");
 });
+
+test("W3-09-3-01/02: actual Home Todo MCP writes require complete read revisions while the person's page keeps its contract", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), project = await home.createProject("Versioned external caller");
+  await home.grant(clientId, null, [todo.create, todo.get, todo.status, todo.batch]);
+  const mcp = mcpFor(home, project); t.after(() => mcp.close());
+  const first = await page(home, "/api/todo", { title: "第一个真实待办" }), second = await page(home, "/api/todo", { title: "第二个真实待办" });
+  assert.equal(first.status, 200); assert.equal(second.status, 200);
+  const a = object(first.body.item), b = object(second.body.item);
+  assert.ok(typeof a.id === "string" && typeof b.id === "string" && typeof a.revision === "number" && typeof b.revision === "number");
+  const ids = [a.id, b.id], paths = ids.map(id => `/api/todo/${encodeURIComponent(id)}`), before = await Promise.all(paths.map(path => home.web.get(path)));
+  for (const expected of [undefined, {}, { [a.id]: a.revision }]) {
+    const input = { ids, change: { kind: "status", status: "doing" }, ...(expected === undefined ? {} : { expected_revisions: expected }) };
+    const refused = await mcpCall(mcp, todo.batch.capability_id, input);
+    assert.equal(refused.result.isError, true); assert.equal(refused.body.code, "actions.version_required");
+    const record = row(home, refused.body.call_id, todo.batch.capability_id);
+    assert.deepEqual([record.code, record.refused, record.ok], ["actions.version_required", true, false]);
+    assert.deepEqual(await Promise.all(paths.map(path => home.web.get(path))), before, "missing or incomplete prerequisites change neither item nor history");
+  }
+  const invalid = await mcpCall(mcp, todo.batch.capability_id, { ids, change: { kind: "status", status: "doing" }, expected_revisions: null });
+  assert.equal(invalid.body.code, "actions.input_invalid");
+  assert.deepEqual(await Promise.all(paths.map(path => home.web.get(path))), before);
+  const changed = await mcpCall(mcp, todo.batch.capability_id, { ids, change: { kind: "status", status: "doing" }, expected_revisions: { [a.id]: a.revision, [b.id]: b.revision } });
+  assert.notEqual(changed.result.isError, true, JSON.stringify(changed.result));
+  for (const [index, path] of paths.entries()) {
+    const state = await home.web.get<{ item: { status: string; revision: number } }>(path);
+    assert.equal(state.item.status, "doing"); assert.equal(state.item.revision, Number([a.revision, b.revision][index]) + 1);
+  }
+  const fromPerson = await page(home, paths[0]! + "/status", { status: "done" });
+  assert.equal(fromPerson.status, 200, "the person's existing optional-version HTTP contract is preserved");
+  assert.equal((await home.web.get<{ item: { status: string } }>(paths[0]!)).item.status, "done");
+});

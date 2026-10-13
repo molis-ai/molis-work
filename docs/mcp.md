@@ -57,6 +57,8 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 
 已精确授权的动作暂不可用时，`tools/list` 隐藏它；调用原工具名仍交给 Host 判断，返回同一原因和稳定错误码（例如 `actions.plugin_disabled`），并在这次操作留行时附可查询的诊断编号。未知、未授权、撤权或 provider/version 不匹配的名字仍在 MCP 入口拒绝，不恢复管理工具权限。
 
+AI来源修改已有对象时，提交动作schema声明的读取版本（`expected_version`、`expected_revision`、`expected_revisions`、`expected_updated_at`，Functions authoring用`updated_at`）。缺版本或版本表未覆盖全部`ids`时返回`actions.version_required`，原事实不变；先重新读取再由当前意图决定提交。实际schema允许的`expected_revision: null`仍表示create-if-absent，陈旧版本由owner拒绝。
+
 动作的输入只含业务字段：项目、操作者和创建渠道由宿主从连接与会话注入，不接受 `project_id`、数据库路径、Web URL、`actor_id` / `actor_kind` / `runtime_actor_id`、`source_kind`。Runtime 写入时，宿主用会话身份生成审计作者（`runtime:<runtime_id>:<会话>`），没有稳定会话身份时写入被拒绝。
 
 最短工作路径是 `goals.create` → `goals.note`，无需类型或规划。需要结构化结果时用 `goals.events.configure` / `goals.events.report`。报告可以含多个事实和进展，整批有效才保存，回执给出当前状态、差距和游标。

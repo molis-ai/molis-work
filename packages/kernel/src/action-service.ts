@@ -7,8 +7,9 @@ import {
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CapabilityRegistry } from "./index.js";
 import { assertSessionAuthorship } from "./action-authorship.js";
-import { assertCurrentAuthority, effectGuard, bindCall, describeCall, settleCall, settleCallSync, startHandler, type CallContext, type CallSettled } from "./action-settlement.js";
+import { assertCurrentAuthority, effectGuard, bindCall, describeCall, settleCall, settleCallSync, runActionHandler, type CallContext, type CallSettled } from "./action-settlement.js";
 import { actionSchemaAccepts, compileActionSchema, createActionSchemaCompiler, validateActionValue } from "./action-schema.js";
+import { validateActionInput } from "./version-precondition.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
 import { createExecutionLifetime, inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 
@@ -92,7 +93,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         const callWindows = new Map<string, number[]>();
         const execute = (context: ActionCallContext, input: unknown) => {
           context.signal?.throwIfAborted(); assertSessionAuthorship(definition.action, context);
-          validateActionValue(validateInput, input, "input");
+          validateActionInput(validateInput, definition, context, input);
           const policy = definition.action.execution;
           if (policy?.max_calls_per_minute) {
             const now = Date.now();
@@ -124,7 +125,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           const checked = (value: unknown) => checkedActionResult(definition, validateOutput, value);
           // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
           try {
-            const result = startHandler(context, () => handler.handle(execution, input));
+            const result = runActionHandler(context, execution, () => executing, () => handler.handle(execution, input));
             if (handler.execution === "sync") {
               try { return checked(requireSynchronous(result)); }
               finally { executing = false; lifetime?.dispose(); }

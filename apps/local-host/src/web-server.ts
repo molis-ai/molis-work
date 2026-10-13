@@ -197,10 +197,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             composition,
             agents.agentHost,
             () => agents.ready,
-            (projectId) => withCatalog(
-              { homeDirectory: serverOptions.homeDirectory },
-              (catalog) => workspaceRefFor(catalog, projectId),
-            ),
           );
         });
       } catch (error) {

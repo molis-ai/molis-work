@@ -1,9 +1,9 @@
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor, HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { CapabilityRegistry, CallContext } from "@molis-ai/molis-work-kernel";
+import type { CapabilityRegistry } from "@molis-ai/molis-work-kernel";
 
 /** The original typed invocation's own fences; no new dispatcher or authority source. */
-export function typedCapabilityInvocation(caller: CallContext, definition: HostCapabilityDescriptor, host: {
+export function typedCapabilityInvocation(caller: ActionCallContext, definition: HostCapabilityDescriptor, host: {
   registry: CapabilityRegistry<ActionCallContext>;
   active(): boolean;
   running(): boolean;

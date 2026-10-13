@@ -57,7 +57,6 @@ import { handleSideFilesHttp } from "./side-files-http.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
 import { projectFeedOptions } from "./project-schedulers.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
@@ -130,7 +129,6 @@ export async function handleMolisWorkWebRequest(
   composition: LocalWebComposition,
   agentHost: AgentHost,
   agentReady: () => Promise<void>,
-  workspaceFor: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>,
 ): Promise<void> {
   const { PAGE_CSP, handleSessions, handleDesktopPanelApi, goalsReadHttp, planningHttp, desktopRuntimeAvailability, servePtyClient, workbenchRenderer, buildCapsuleSnapshot, handleArtifactNativePluginHttp, isDesktopShellRequest } = composition;
   if (await handleHomePluginHttp(request, response, url, localHost, controlToken, PAGE_CSP)) return;

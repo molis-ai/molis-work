@@ -124,7 +124,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     }
     if (!record) throw new Error('这个插件还没有安装');
     if (action === 'upgrade' || action === 'rollback') {
-      const verb = action === 'upgrade' ? '升级' : '回滚', off = record.state === 'disabled';
+      const verb = action === 'upgrade' ? '升级' : '回滚';
       if (record.state === 'quarantined') throw new Error('插件多次启动失败，已被隔离，不能' + verb + '：请先卸载并保留数据，再重新安装');
       const approved = c.approvedFor(pluginId) ?? {};
       if (!covered(release.permissions, approved) && !consent) throw new Error('这个版本需要新的权限，请确认后再切换');

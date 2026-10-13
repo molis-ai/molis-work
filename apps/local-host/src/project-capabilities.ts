@@ -60,9 +60,6 @@ export function registerProjectCapabilities(
       assert_authority_current: () => invocation.assertAuthorityCurrent(),
     })).invoke({ ...definition, provider_id: GOALS_PLUGIN_ID }, Object.fromEntries(Object.entries(input as object).filter(([, value]) => value !== undefined)) as Input);
   };
-  const requireRuntimeProject = (runtime: MolisWorkProjectRuntime, projectId: string) => {
-    if (projectId !== runtime.project_id) throw new ActionError("actions.scope_mismatch", "目标请求不属于当前项目");
-  };
   host.register(goalProgressCapabilities.record, (runtime, input, invocation) => {
     // A plugin acts as the actor its own call context carries; every other caller is the management door and acts as the person
     // on this machine. Neither names an actor in the arguments.

@@ -241,7 +241,7 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
   const store = async () => {
     const memory = await source();
     if (!control) return memory;
-    if (!memory.withExecution) throw new MemoryError("memory.off", "当前运行时不能保留记忆调用的执行控制");
+    if (!memory.withExecution) throw memoryErrors.off("当前运行时不能保留记忆调用的执行控制");
     return memory.withExecution(control);
   };
   const prologueScope = (scope: MemoryScope) => scope === "personal" ? "user" as const : scope === "character" ? "character" as const : "project" as const;

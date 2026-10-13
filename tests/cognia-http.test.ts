@@ -64,10 +64,10 @@ test("Cognia action tools run as Home actions without project binding and disapp
   const { MolisWorkServer } = await import("../apps/desktop/launchers/mcp/server.js");
   const home = await mkdtemp(join(tmpdir(), "cognia-mcp-actions-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  // The Home is served so that the client's grants are saved the way a person saves them; this file keeps its own host (it needs `src` imports of the Cognia handlers).
+  // W2-10: one served Host owns this Home; MCP uses that Host's production action gateway and persisted grants.
   const served = await serveTestHost(t, { home, host });
   const owner = bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS }));
-  const server = new MolisWorkServer("runtime", null, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: "cognia-mcp-test", host_declares_stable: true }, webBaseUrl: "http://127.0.0.1:4173" });
+  const server = new MolisWorkServer("runtime", null, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: "cognia-mcp-test", host_declares_stable: true }, webBaseUrl: served.origin }, host, served.origin);
   const name = molisWorkActionToolName(cogniaActions.search), readName = molisWorkActionToolName(cogniaActions.read);
   const list = async () => (await server.handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }) as any).result.tools.map((tool: { name: string }) => tool.name);
   const call = async (tool: string, args: object) => (await server.handleMessage({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: tool, arguments: args } }) as any).result;

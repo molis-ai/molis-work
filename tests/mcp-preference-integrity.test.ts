@@ -54,7 +54,6 @@ test("W1-18-MCP-CONFIG-01 real duplicate records never reopen a withdrawn system
   for (const records of [[denied, denied], [{ ...denied, enabled: true }, { ...denied, enabled: true }], [denied, { ...denied, enabled: true }]]) {
     const grants = [...other, ...records], text = JSON.stringify({ version: 2, action_grants: grants });
     await writeFile(f.file, text);
-    assert.deepEqual((await readMcpToolPreference(f.home.home)).action_grants, grants, "the file's valid duplicate facts are not discarded or rewritten");
     const directory = await f.mcp.client.discover(f.mcp.caller);
     assert.equal(directory.some(view => view.capability_id === publicAction.capability_id), false);
     assert.ok(directory.some(view => view.capability_id === peer.capability_id));
@@ -63,6 +62,7 @@ test("W1-18-MCP-CONFIG-01 real duplicate records never reopen a withdrawn system
     await assert.rejects(f.home.grant(f.clientId, null, [publicAction]), { code: "actions.configuration_unavailable" });
     assert.equal(await readFile(f.file, "utf8"), text, "management refuses the conflict and retains every original byte");
     assert.equal(f.state.publicWrites, 1);
+    assert.deepEqual((await readMcpToolPreference(f.home.home)).action_grants, grants, "the file's valid duplicate facts are not discarded or rewritten");
   }
   assert.equal(f.state.peerWrites, 4);
   // Explicit maintenance corrects only this temporary file; normal protected management may then restore its exact grant.

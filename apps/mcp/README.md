@@ -59,6 +59,8 @@ node --import tsx --test --test-concurrency=1 tests/host-entry-consistency.test.
   - 生产启动器走常驻服务通道，不回退到本地 typed Host。
   - Host 的 Runtime 安装验证只运行自己的 launcher 子进程；stdin 管道失败或退出经现有失败收口，收口后的 stdout（含同一 chunk 的后续消息）不再发送请求。管道监听保留到该子进程关闭，10 秒验证限额不变；失败由现有安装服务恢复配置、Skill 和既存 receipt，再次正常 launcher 可重新接入。
   - 说明或恢复目录不可读时返回真实连接并把对应内容置 null、附错误字段；不伪报空项目、不自动重新绑定。
+management audience 的三个 Goals 管理工具对当前 Home 目录登记的数据库借常驻 Host 执行，实际动作沿用本次工具操作号。目录只读、同库别名使用目录路径；未连接或独立数据库走原进程内路径，明确拒绝、取消、送出后结果未知不回退。Runtime audience 继续原动作网关。
+
 - 改动后必跑：`node scripts/run-tests.mjs tests/mcp-protocol.test.ts tests/mcp-action-grants.test.ts tests/mcp-action-settings.test.ts tests/action-mcp.test.ts tests/mcp-goal-events.test.ts tests/mcp-connection-identity.test.ts tests/runtime-skill-flow.test.ts tests/management-door-identity.test.ts`；安装验证改动另跑：`node scripts/run-tests.mjs tests/runtime-integration.test.ts`。
 - 管理动作端口或 wire 适配改动另跑：`node scripts/run-tests.mjs tests/mcp-management-actions.test.ts tests/mcp.test.ts tests/mcp-goal-events-state.test.ts tests/proposal-entry-chain.test.ts tests/goals-query-boundaries.test.mjs tests/cli-goals-actions.test.ts`；同片同步 S-17 与 `pnpm test:security` 的公开管理拒绝用例。
 - 相关手册：[docs/mcp.md](../../docs/mcp.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

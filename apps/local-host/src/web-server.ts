@@ -1,5 +1,6 @@
 import { createLocalImServer } from "./im-server.js";
 import { projectActionAvailability } from "./project-action-availability.js";
+import { handleManagementActionHttp } from "./management-action-gateway.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
 import { handleProjectDeletionGatewayHttp } from "./project-deletion-gateway.js";
 import { webProjectDeletion } from "./project-deletion-service.js";
@@ -176,7 +177,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
           if (await computer.handleHttp(request, response, url)) return;
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
-          if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog) || await handleProjectDeletionGatewayHttp(request, response, url, storageHome, webProjectDeletion(withCatalog, { isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }))) return;
+          if (await handleManagementActionHttp(request, response, url, storageHome, localHost) || await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog) || await handleProjectDeletionGatewayHttp(request, response, url, storageHome, webProjectDeletion(withCatalog, { isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }))) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
           await handleMolisWorkWebRequest(

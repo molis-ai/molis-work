@@ -127,7 +127,7 @@ function managementUserAction(projectId: string, capabilityId: string, input: un
  * call number belongs to the operation the entry opened, which the kernel reads; it is not made here. Give it the client that does
  * not prepare the project's plugins (`actionClient(reference, false)`): Goals is registered when the project opens.
  */
-export function bindGoalsManagementActions(client: ActionClient, reference: LocalHostProjectReference): GoalsManagementActions {
+export function bindGoalsManagementActions(client: ActionClient, reference: LocalHostProjectReference, transport: { signal?: AbortSignal } = {}): GoalsManagementActions {
   const projectId = reference.project_id;
   return {
     project_id: projectId,
@@ -135,8 +135,15 @@ export function bindGoalsManagementActions(client: ActionClient, reference: Loca
       const refused = MANAGEMENT_REFUSED_IDENTITY[definition.capability_id];
       if (refused && typeof input === "object" && input !== null) refusePayloadIdentity(input, refused);
       return await client.invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
-        permissions: definition.action.permissions, allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id: GOALS_PLUGIN_ID }],
+        permissions: definition.action.permissions, ...(transport.signal ? { signal: transport.signal } : {}), allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id: GOALS_PLUGIN_ID }],
         user_action: managementUserAction(projectId, definition.capability_id, input, evidence) }, { ...definition, provider_id: GOALS_PLUGIN_ID }, input) as Output;
     },
   };
+}
+
+/** The existing CLI/MCP management action subset, resolved against the owner's definitions and exact version. */
+export function managementActionDefinition(reference: { capability_id: string; version: number }): ActionDefinition | undefined {
+  return [goalsActions.initialize, goalsActions.active, goalsActions.snapshot, goalsActions.treeSubmit,
+    goalsActions.treeRead, goalsActions.treeCheck, goalsActions.treeDecide, goalsActions.decide]
+    .find(entry => entry.capability_id === reference.capability_id && entry.version === reference.version);
 }

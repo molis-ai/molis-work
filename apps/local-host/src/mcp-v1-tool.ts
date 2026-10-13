@@ -4,6 +4,8 @@ import { dispatchMcpProjectTool, type McpPresentationErrorFactory } from "@molis
 import { readProductEnv } from "@molis-ai/molis-work-storage";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { catalogManagementProject, residentManagementActions } from "./management-action-client.js";
 import { bindGoalsManagementActions } from "./goals-actions.js";
 
 export const createPresentationError: McpPresentationErrorFactory = (code, message, details) => new MolisWorkV1Error(code, message, details);
@@ -14,6 +16,7 @@ export interface McpV1ToolCaller {
   audience: "runtime" | "management";
   /** The Runtime's bound project; null for the management audience. */
   runtimeConnection: MolisWorkRuntimeConnection | null;
+  resident?: { home: string; origin: string; signal?: AbortSignal };
 }
 
 /**
@@ -40,13 +43,19 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
       ? runtimeConnection!.projectId
       : arguments_.project_id ?? `database:${databasePath}`,
   );
-  const reference = molisWorkHostProjectReference({
+  let reference = molisWorkHostProjectReference({
     databasePath,
     projectId,
   });
-  // Preserve the original project binding IO before payload validation; an empty scope runs no typed business capability.
-  await caller.localHost.client(reference).withScope(() => undefined);
-  const actions = audience === "management" ? bindGoalsManagementActions(caller.localHost.actionClient(reference, false), reference) : null;
+  const fallback = () => bindGoalsManagementActions(caller.localHost.actionClient(reference, false), reference, { signal: caller.resident?.signal });
+  const owned = audience === "management" && caller.resident ? catalogManagementProject(caller.resident.home, databasePath) : undefined;
+  if (owned && owned.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "管理请求与 Home 登记的项目不匹配");
+  if (owned) reference = molisWorkHostProjectReference({ databasePath: owned.database_path, projectId: owned.project_id });
+  if (!owned) await caller.localHost.client(reference).withScope(() => undefined);
+  const actions = audience !== "management" ? null : owned && caller.resident ? residentManagementActions({
+    home: caller.resident.home, origin: caller.resident.origin, signal: caller.resident.signal,
+    databasePath: owned.database_path, projectId: owned.project_id, fallback }) : fallback();
+
   return dispatchMcpProjectTool(actions, name, arguments_, {
     audience,
     createError: createPresentationError,

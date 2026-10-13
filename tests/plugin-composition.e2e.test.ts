@@ -161,7 +161,7 @@ test('W2-18-COMPONENT-DRAFT-01, W2-18-COMPONENT-DRAFT-02: delayed receipts prese
     const view = { contract: readingContract, nodes: [readingNodes.find(node => node.id === 'editor')!], connected: ['notes.add'] };
     const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES
       + 'body{margin:0;padding:20px}</style><main id="root"></main><script>globalThis.view=' + JSON.stringify(view)
-      + ';globalThis.requests=[];globalThis.app=(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')({root:document.querySelector("#root"),call:(id,binding,payload)=>{requests.push(structuredClone(payload));return new Promise((resolve,reject)=>{globalThis.deliver=error=>error?reject(Error(error)):resolve({saved:true})})});app.update(view);</script>';
+      + ';globalThis.requests=[];globalThis.app=(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')({root:document.querySelector("#root"),call:(id,binding,payload)=>{requests.push(structuredClone(payload));return new Promise((resolve,reject)=>{globalThis.deliver=error=>error?reject(Error(error)):resolve({saved:true})})}});app.update(view);</script>';
     await writeFile(join(directory, 'index.html'), html);
     const page = await browser.page(); await page.viewport(1024, 800);
     for (const kind of ['form', 'sheet', 'dialog']) {

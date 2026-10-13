@@ -19,12 +19,13 @@ export async function sendBrowser(t: TestContext, modelAvailable = true) {
 export async function seedWork(browser: SendBrowser, text: string, kind: "project" | "personal" = "project") {
   const route = kind === "project" ? `/projects/${browser.projectId}/api/assistant/send` : "/api/assistant/send";
   const scope = kind === "project" ? { kind, project_id: browser.projectId } : { kind };
-  const result = await browser.evaluate<AssistantSendResult & { error?: string }>(`fetch(${JSON.stringify(route)}, {
+  const result = await browser.evaluate<AssistantSendResult | { error: string; code: string; details?: { work?: AssistantWorkView["work"] } }>(`fetch(${JSON.stringify(route)}, {
     method: 'POST', headers: molisWorkControlHeaders(), body: JSON.stringify({ text: ${JSON.stringify(text)}, request_id: crypto.randomUUID(), scope: ${JSON.stringify(scope)} })
   }).then(r => r.json())`);
-  assert.ok(result.work, JSON.stringify(result));
-  if (!result.error) await waitWork(browser, result.work.work_id, view => view.work.state === "completed");
-  return result.work.work_id;
+  const failed = "error" in result, work = failed ? result.details?.work : result.work;
+  assert.ok(work, JSON.stringify(result));
+  if (!failed) await waitWork(browser, work.work_id, view => view.work.state === "completed");
+  return work.work_id;
 }
 
 export const readWork = (browser: SendBrowser, id: string) => browser.evaluate<AssistantWorkView>(`fetch('/api/assistant/works/${id}').then(r => r.json())`);

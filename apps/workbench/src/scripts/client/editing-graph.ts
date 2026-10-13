@@ -226,7 +226,6 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         const pane = current?.panes?.find((item) => item.id === current.focusedPaneId);
         const tab = pane?.tabs?.find((item) => item.id === pane.activeTabId);
         if (!tab && pane?.viewPlugin === "goals") return;
-        if (tab?.plugin === "goals" && tab.kind === "mother") return;
         tabWorkspace?.openPlugin("goals");
       },
     });

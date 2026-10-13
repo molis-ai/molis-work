@@ -718,27 +718,13 @@ export class MemoryService {
     return { candidate: candidateView(await this.settleCandidate(record, "discarded")) };
   }
 
-  /** The Host's notes joined with Prologue's candidates of one scope; notes of earlier versions are moved into the box once. */
+  /** Join the ledger's notes with the current candidate owner; reading never repairs missing facts. */
   private async candidateRecords(actorId: string, scope: MemoryScope, owner: string): Promise<MemoryCandidateRecord[]> {
     const held = new Map((await this.ports.backend.candidates.list(scope, owner)).map(item => [item.candidate_id, item]));
     const out: MemoryCandidateRecord[] = [];
     for (const note of this.ports.ledger.candidates(actorId).filter(item => item.scope === scope && item.owner === owner)) {
       const found = held.get(note.candidate_id);
-      // Accepted before candidates lived in Prologue: kept only as the record that it was suggested and kept.
-      if (!found && note.state === "accepted") { out.push(note); continue; }
-      if (!found) {
-        // A note from before candidates lived in Prologue: moved in once (with its state), then keyed by the box's id.
-        const moved = await this.ports.backend.candidates.propose({ scope, owner, text: note.text, origin: `建议 · ${note.from}`, tags: [note.from, note.kind],
-          meta: toEntryMeta({ kind: note.kind, source: "accepted", basis: note.basis, evidence: [], applies: note.applies, expires_at: null, approved_by: { by: "person" }, plugin_id: null }) });
-        if (note.state === "discarded") await this.ports.backend.candidates.discard({ scope, owner, candidate_id: moved.candidate_id });
-        if (note.state === "expired") await this.ports.backend.candidates.expire({ scope, owner, candidate_id: moved.candidate_id });
-        this.ports.ledger.transaction(() => {
-          this.ports.ledger.dropCandidate(note.candidate_id);
-          this.ports.ledger.saveCandidate({ ...note, candidate_id: moved.candidate_id });
-        });
-        out.push({ ...note, candidate_id: moved.candidate_id });
-        continue;
-      }
+      if (!found) throw new MemoryError("memory.not_found", "记忆建议的原记录不可读；请核对存储后继续");
       const state: MemoryCandidateRecord["state"] = found.state === "promoted" ? "accepted" : found.state;
       out.push({ ...note, state, memory_id: found.memory_id ?? note.memory_id });
     }

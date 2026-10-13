@@ -1,3 +1,7 @@
+import { DatabaseSync } from "node:sqlite";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { ActionError, defineSubjectContextAction, subjectContext, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PLACEMENT_PROVIDER_ID, placementActions } from "@molis-ai/molis-work-contracts/services/placement";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -5,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -99,3 +103,44 @@ test("placement survives a restart: relations, a removed relation, a copy, a mov
   assert.deepEqual([form.state, form.location?.title], ["ok", q4Title]);
   await after.stop();
 });
+
+// W2-18-PLACEMENT-01 / -02: actual Host registration and SQLite, including an invocation in another owner partition.
+for (const operation of ["link", "convert"] as const) for (const stop of ["cancel", "revoke", "replace"] as const)
+  test(`placement ${operation} retains its original ${stop} control while the owner reader waits`, { timeout: 30_000 }, async t => {
+    const home = await mkdtemp(join(tmpdir(), "placement-effects-"));
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    const project = await catalog.createProject({ display_name: "Target", actor_id: "web-user" });
+    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "web-user" }); catalog.close();
+    const finished = Promise.withResolvers<void>(), originalRegistry = LocalHost.prototype.actionRegistry;
+    t.mock.method(LocalHost.prototype, "actionRegistry", function (this: LocalHost<unknown>, ...args) {
+      const registry = originalRegistry.apply(this, args);
+      return { ...registry, registerProvider: registration => registry.registerProvider({ ...registration, handlers: registration.handlers?.map(binding =>
+        binding.capability_id !== placementActions[operation].capability_id ? binding : { ...binding, handle: async (caller, input) => {
+          try { return await binding.handle(caller, input); } finally { finished.resolve(); }
+        } }) }) };
+    });
+    const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+    t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let valid = true, holding = true;
+    const reader = defineSubjectContextAction("fixture.clip.read", "fixture-clip", "Fixture", [], "home");
+    host.actionRegistry().registerProvider({ provider: { provider_id: "fixture-clip", title: "Fixture", kind: "system" }, definitions: [reader],
+      handlers: [{ ...reader, handle: async () => { if (holding) { entered.resolve(); await release.promise; }
+        return subjectContext({ subject: { kind: "fixture-clip", id: "original" }, revision: "1", title: "Fixed source", content: "original body", goal_ids: [], session_id: null }); } }] });
+    const controller = new AbortController(), definition = placementActions[operation];
+    const caller: ActionCallContext = { actor_id: "web-user", audience: "user", project_id: null, permissions: [...definition.action.permissions], signal: controller.signal,
+      validate_authority: reference => { if (!valid && reference.capability_id === definition.capability_id) throw new ActionError("actions.forbidden", "fixture grant revoked"); } };
+    const object = { kind: "fixture-clip", id: "original", project_id: null };
+    const input = operation === "link" ? { object, project_id: project.project_id } : { source: object, to: { station: "pages" }, to_project_id: project.project_id, request_id: randomUUID() };
+    const pending = host.homeActionClient().invoke(caller, definition, input), rejected = assert.rejects(pending);
+    await entered.promise;
+    if (stop === "cancel") controller.abort(); else if (stop === "revoke") valid = false;
+    else host.actionRegistry().registerProvider({ provider: { provider_id: PLACEMENT_PROVIDER_ID, title: "Replacement", kind: "system" }, definitions: [definition], handlers: [{ ...definition, handle: () => ({ key: "replacement" }) }] });
+    holding = false; release.resolve(); await Promise.all([rejected, finished.promise]);
+    const database = new DatabaseSync(homeSqlitePath(home, "placement"));
+    try {
+      assert.equal((database.prepare("SELECT count(*) AS count FROM context_edges").get() as { count: number }).count, 0);
+      assert.equal((database.prepare("SELECT count(*) AS count FROM placement_titles").get() as { count: number }).count, 0);
+    } finally { database.close(); }
+    const ref = { project_id: project.project_id, storage_key: project.database_path };
+    await host.withProject(ref, runtime => { assert.equal(runtime.store.db.prepare("SELECT count(*) AS count FROM pages_documents").get()!.count, 0); });
+  });

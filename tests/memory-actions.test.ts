@@ -1,13 +1,14 @@
+import { AgentHost, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryBackendPort } from "@molis-ai/molis-work-service-memory";
 import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
-import { memoryHostFor } from "../apps/local-host/src/memory/memory-host.js";
+import { memoryHostFor, registerMemoryHost } from "../apps/local-host/src/memory/memory-host.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/src/local-owner-permissions.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
 
@@ -89,3 +90,47 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
   const recalled = await asAgent.invoke(memoryActions.recall, { query: "总结一下" });
   assert.deepEqual(service.uses({ receipt_id: recalled.receipt_id }).map(use => use.state), ["used"]);
 });
+
+// W2-18-MEMORY-EFFECT-01 / -02: the production registration, SDK memory and ledger commit under the original call.
+for (const phase of ["startup", "screen", "list", "sdk-commit"] as const) for (const stop of ["cancel", "revoke"] as const)
+  test(`memory ${stop} during ${phase} leaves no SDK entry or ledger change, and a new call recovers`, { timeout: 30_000 }, async t => {
+    const root = await mkdtemp(join(tmpdir(), "memory-effects-")), home = join(root, "controlled");
+    const localHost = new MolisWorkLocalHost({ homeDirectory: join(root, "host"), completeText: null });
+    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.memory-effects-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+      modelConfiguration: async () => { throw new Error("no model in memory regression"); }, resolveCredential: () => { throw new Error("no credentials in memory regression"); } });
+    const agentHost = new AgentHost(); agentHost.register(adapter);
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    let holding = true, revoked = false;
+    const barrier = async () => { if (holding) { entered.resolve(); await release.promise; } };
+    const sdk = adapter.memory!;
+    if (phase === "screen") { const original = sdk.screen!.bind(sdk); t.mock.method(sdk, "screen", async text => { await barrier(); return original(text); }); }
+    if (phase === "list") { const original = sdk.list.bind(sdk); t.mock.method(sdk, "list", async (scope, owner) => { const rows = await original(scope, owner); await barrier(); return rows; }); }
+    if (phase === "sdk-commit") {
+      const original = sdk.withExecution!.bind(sdk);
+      t.mock.method(sdk, "withExecution", control => original({ ...control, beforeEffect: async () => { await barrier(); await control.beforeEffect(); } }));
+    }
+    const finished = Promise.withResolvers<void>(), originalRegistry = localHost.actionRegistry.bind(localHost);
+    t.mock.method(localHost, "actionRegistry", (...args) => {
+      const registry = originalRegistry(...args);
+      return { ...registry, registerProvider: registration => registry.registerProvider({ ...registration, handlers: registration.handlers?.map(binding =>
+        binding.capability_id !== memoryActions.write.capability_id ? binding : { ...binding, handle: async (caller, input) => {
+          try { return await binding.handle(caller, input); } finally { finished.resolve(); }
+        } }) }) };
+    });
+    const memory = registerMemoryHost({ localHost, homeDirectory: home, agentHost, executes: () => true,
+      ready: async () => { if (phase === "startup") await barrier(); } });
+    t.after(async () => { release.resolve(); memory.close(); await adapter.close(); await localHost.close(); await rm(root, { recursive: true, force: true }); });
+    const controller = new AbortController(), caller: ActionCallContext = { ...person, signal: controller.signal,
+      validate_authority: reference => { if (revoked && reference.capability_id === memoryActions.write.capability_id) throw new ActionError("actions.permission_revoked", "fixture authority revoked"); } };
+    const pending = localHost.homeActionClient().invoke(caller, memoryActions.write, { scope: "personal", text: "记住：回答先列结论" });
+    const rejection = assert.rejects(pending);
+    await entered.promise;
+    if (stop === "cancel") controller.abort(); else revoked = true;
+    holding = false; release.resolve(); await Promise.all([rejection, finished.promise]);
+    assert.deepEqual((await memory.service.list(memory.caller(person))).items, []);
+    assert.deepEqual(memory.service.changes(memory.caller(person)), []);
+    const result = await localHost.homeActionClient().invoke(person, memoryActions.write, { scope: "personal", text: "记住：恢复后回答先列结论" });
+    assert.equal((result as { outcome: string }).outcome, "written");
+    assert.equal((await memory.service.list(memory.caller(person))).items.length, 1);
+    assert.equal(memory.service.changes(memory.caller(person)).length, 1);
+  });

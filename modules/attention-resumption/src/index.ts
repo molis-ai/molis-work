@@ -192,51 +192,53 @@ export class AttentionModule implements AttentionApi {
   }
 
   private create(input: CreateAttentionEntryInput): { entry: AttentionEntryRecord; created: boolean } {
-    assertReference(input.subject_type, input.subject_id);
-    assertReason(input.subject_type, input.reason);
-    if (!this.subjects.exists(input.project_id, input.subject_type, input.subject_id)) {
-      throw new AttentionError("attention_invalid_reference", referenceMessage(input.subject_type));
-    }
-    const existing = this.db.prepare(`
-      SELECT * FROM inbox_entries
-      WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND reason = ?
-    `).get(input.project_id, input.subject_type, input.subject_id, input.reason) as Row | undefined;
-    if (existing) return { entry: mapAttentionEntry(existing), created: false };
-    const at = input.at ?? this.now().toISOString();
-    const entry: AttentionEntryRecord = {
-      project_id: input.project_id,
-      entry_id: input.entry_id ?? `inboxentry-${randomUUID()}`,
-      subject_type: input.subject_type,
-      subject_id: input.subject_id,
-      reason: input.reason,
-      status: "open",
-      detail: input.detail ?? {},
-      revision: 1,
-      created_at: at,
-      updated_at: at,
-      completed_at: null,
-    };
-    assertShape(entry);
-    this.db.prepare(`
-      INSERT INTO inbox_entries (
-        project_id, entry_id, subject_type, subject_id, reason, status,
-        detail_json, revision, created_at, updated_at, completed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      entry.project_id,
-      entry.entry_id,
-      entry.subject_type,
-      entry.subject_id,
-      entry.reason,
-      entry.status,
-      JSON.stringify(entry.detail),
-      entry.revision,
-      entry.created_at,
-      entry.updated_at,
-      entry.completed_at,
-    );
-    this.appendEvent(entry, "inbox_entry.created", at, "对象已加入 Inbox");
-    return { entry, created: true };
+    return this.db.transaction(() => {
+      assertReference(input.subject_type, input.subject_id);
+      assertReason(input.subject_type, input.reason);
+      if (!this.subjects.exists(input.project_id, input.subject_type, input.subject_id)) {
+        throw new AttentionError("attention_invalid_reference", referenceMessage(input.subject_type));
+      }
+      const existing = this.db.prepare(`
+        SELECT * FROM inbox_entries
+        WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND reason = ?
+      `).get(input.project_id, input.subject_type, input.subject_id, input.reason) as Row | undefined;
+      if (existing) return { entry: mapAttentionEntry(existing), created: false };
+      const at = input.at ?? this.now().toISOString();
+      const entry: AttentionEntryRecord = {
+        project_id: input.project_id,
+        entry_id: input.entry_id ?? `inboxentry-${randomUUID()}`,
+        subject_type: input.subject_type,
+        subject_id: input.subject_id,
+        reason: input.reason,
+        status: "open",
+        detail: input.detail ?? {},
+        revision: 1,
+        created_at: at,
+        updated_at: at,
+        completed_at: null,
+      };
+      assertShape(entry);
+      this.db.prepare(`
+        INSERT INTO inbox_entries (
+          project_id, entry_id, subject_type, subject_id, reason, status,
+          detail_json, revision, created_at, updated_at, completed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        entry.project_id,
+        entry.entry_id,
+        entry.subject_type,
+        entry.subject_id,
+        entry.reason,
+        entry.status,
+        JSON.stringify(entry.detail),
+        entry.revision,
+        entry.created_at,
+        entry.updated_at,
+        entry.completed_at,
+      );
+      this.appendEvent(entry, "inbox_entry.created", at, "对象已加入 Inbox");
+      return { entry, created: true };
+    }).immediate();
   }
 
   private setStatus(
@@ -266,14 +268,16 @@ export class AttentionModule implements AttentionApi {
   }
 
   private deleteSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string): number {
-    const entries = this.findForSubject(projectId, subjectType, subjectId);
-    if (entries.length === 0) return 0;
-    const at = this.now().toISOString();
-    this.db.prepare(
-      "DELETE FROM inbox_entries WHERE project_id = ? AND subject_type = ? AND subject_id = ?",
-    ).run(projectId, subjectType, subjectId);
-    for (const entry of entries) this.appendEvent(entry, "inbox_entry.deleted", at, "Inbox 引用已删除");
-    return entries.length;
+    return this.db.transaction(() => {
+      const entries = this.findForSubject(projectId, subjectType, subjectId);
+      if (entries.length === 0) return 0;
+      const at = this.now().toISOString();
+      this.db.prepare(
+        "DELETE FROM inbox_entries WHERE project_id = ? AND subject_type = ? AND subject_id = ?",
+      ).run(projectId, subjectType, subjectId);
+      for (const entry of entries) this.appendEvent(entry, "inbox_entry.deleted", at, "Inbox 引用已删除");
+      return entries.length;
+    }).immediate();
   }
 
   private listEvents(projectId: string, entryId?: string): AttentionEvent[] {

@@ -20,7 +20,7 @@ type WorkspaceActionRegistry = Pick<WorkSessionCommandApi, "reassignWorkspaceSes
 
 export class MolisWorkWorkspaceActionError extends Error {
   constructor(
-    readonly code: "workspace.change_rolled_back" | "workspace.recovery_required",
+    readonly code: "work.workspace.change_rolled_back" | "work.workspace.recovery_required",
     message: string,
     options?: { cause?: unknown },
   ) {
@@ -85,13 +85,13 @@ export function repairProjectWorkspace(input: {
       }
     } catch (recoveryCause) {
       throw new MolisWorkWorkspaceActionError(
-        "workspace.recovery_required",
+        "work.workspace.recovery_required",
         `Session 关系更新失败，且目录关系自动恢复失败：${errorMessage(recoveryCause)}`,
         { cause },
       );
     }
     throw new MolisWorkWorkspaceActionError(
-      "workspace.change_rolled_back",
+      "work.workspace.change_rolled_back",
       `Session 关系更新失败；目录关系已自动恢复：${errorMessage(cause)}`,
       { cause },
     );
@@ -135,14 +135,14 @@ export function unlinkProjectWorkspace(input: {
         });
       } catch (recoveryCause) {
         throw new MolisWorkWorkspaceActionError(
-          "workspace.recovery_required",
+          "work.workspace.recovery_required",
           `Session 关系更新失败，且目录关系自动恢复失败：${errorMessage(recoveryCause)}`,
           { cause },
         );
       }
     }
     throw new MolisWorkWorkspaceActionError(
-      "workspace.change_rolled_back",
+      "work.workspace.change_rolled_back",
       `Session 关系更新失败；目录关系已自动恢复：${errorMessage(cause)}`,
       { cause },
     );

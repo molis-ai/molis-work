@@ -269,8 +269,8 @@ export declare const WORKSPACE_REF_TYPE = "workspace.ref.v1";
 export declare const WORKSPACE_SELECTED_EVENT = "io.molis.work.workspace.selected";
 
 export declare class WorkspaceArtifactError extends Error {
-    readonly code: "workspace.invalid_ref" | "workspace.handle_not_opaque" | "workspace.invalid_path" | "workspace.invalid_payload";
-    constructor(code: "workspace.invalid_ref" | "workspace.handle_not_opaque" | "workspace.invalid_path" | "workspace.invalid_payload", message: string);
+    readonly code: "work.workspace.invalid_ref" | "work.workspace.handle_not_opaque" | "work.workspace.invalid_path" | "work.workspace.invalid_payload";
+    constructor(code: "work.workspace.invalid_ref" | "work.workspace.handle_not_opaque" | "work.workspace.invalid_path" | "work.workspace.invalid_payload", message: string);
 }
 
 export interface WorkspaceFileQuery {

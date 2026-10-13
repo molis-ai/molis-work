@@ -43,6 +43,7 @@ test("workspace repair and unlink restore Catalog membership when Session Regist
     };
     const current = { id: workspace.workspace_id, path: workspace.canonical_path, projectLinked: true };
 
+    // R4A3-01: a failed Session update preserves the original directory through real rollback.
     assert.throws(() => repairProjectWorkspace({
       catalog,
       registry: failingRegistry,
@@ -51,7 +52,7 @@ test("workspace repair and unlink restore Catalog membership when Session Regist
       projectId: project.project_id,
       actorId: "user",
     }), (error) => error instanceof MolisWorkWorkspaceActionError
-      && error.code === "workspace.change_rolled_back"
+      && error.code === "work.workspace.change_rolled_back"
       && /已自动恢复/.test(error.message));
     assert.deepEqual(
       catalog.listWorkspaceDirectory(project.project_id).map((record) => record.canonical_path),
@@ -65,7 +66,7 @@ test("workspace repair and unlink restore Catalog membership when Session Regist
       projectId: project.project_id,
       actorId: "user",
     }), (error) => error instanceof MolisWorkWorkspaceActionError
-      && error.code === "workspace.change_rolled_back"
+      && error.code === "work.workspace.change_rolled_back"
       && /已自动恢复/.test(error.message));
     assert.deepEqual(
       catalog.listWorkspaceDirectory(project.project_id).map((record) => record.canonical_path),

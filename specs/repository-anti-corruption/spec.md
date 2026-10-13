@@ -2212,3 +2212,5 @@ E真实CLI第二轮32/32通过，零skip/cancel；首轮实际抓到无--base的
 公网探针根因已更新：基线同败不能证明环境故障。两份DoH运行均得到93.184.216.34，实际是前一DNS单元测试桩值；全新进程实际解析到VPN假IP，再经已存在的明确DoH端口得到104.16.*及对应公网IPv6，resolver正常。Node测试同一属性两次mock的自动恢复在finally之后又把第一个桩装回默认dns.lookup，污染后续live的默认对象端口。最小test-only修复为先t.mock.reset清空恢复跟踪，再按现有方法还原并syncBuiltinESMExports；所有DNS/SSRF/pin/TLS/secret/cancel拒绝断言保留，不改生产与VPN设置。真实公网固定04正在重跑，未运行完不得记通过。
 
 D公网回归已真实通过：a2525e9c2只增加测试清理t.mock.reset并保留原同步，固定04实际7/7、零skip/cancel/fail，核定公网DNS地址及registry.npmjs.org固定HTTPS返回200。生产网络策略无变。D非浏览器42文件共108条独立用例已有通过证据（100首批及末8的唯一网络重跑），不把历史失败/重跑叠成更多用例。C/D仍缺浏览器组合；源码零混用、健康门禁与公网通过不替代该项或I7最终全量。A4本地2a78同步726后首推SSL失败，已按原密钥/最新main规则重试，成功须读实际工具返回。
+
+W3-02-R1沿§1已接受错误码规则和batchB-plan串在H之后准备：仅Goals事件类当前错误码，按AST把旧前缀保留为第二段 goals.<原前缀>.<原因>，生产方和MCP/HTTP/测试/文档同片更新。不碰持久化业务事件type、历史SQL夹具，不新增旧码读取或alias。R1-01：生产与真实入口拒绝给新owner码，消息/kind/details/编号及事实不变；R1-02：旧码生产消费者归零，原历史event/SQL内容不变；R1-03：真实事件/管理MCP定向回归及H/R整合全量通过后才开验收，机械语法替换或静态计数不足。Root先核每个literal语境再改，当前只读inventory，没有运行或完成声明。H/I7/C-D冻结等待任务不改源码。

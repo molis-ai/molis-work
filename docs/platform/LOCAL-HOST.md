@@ -27,6 +27,18 @@ Local Host 是本地产品的“总装配间”。以前 Web、CLI、MCP 各自�
 
 完整 Goal Contract、项目说明和 active-goal 使用 Goals 的动作，由 Host 注册其提供方并调用原 owner。树决定只在受保护的入口执行：Workbench 的审批表单（`POST /api/goal-tree-proposals/:id/decision`，Web 请求通过来源与控制令牌检查后，由 Host 注入 web 出处，`bindGoalsWebActions`），以及管理入口（CLI `goal-tree-decide`，经管理调用者调 `goals.tree.decide` 动作；与 MCP `molis_work_v1_goal_tree_decide`，来源为 management，`managementTreeAuthority`）。两条路径的决定者都固定为本机用户，请求参数里不能带身份或出处，模型 args 不会变成 Session 身份；Runtime 工具不能写入树决定。事件决定（`goals.decisions.record`，管理 MCP `event_decide` 的出口）是同一扇管理入口的另一道决定门，做法一样：`authority` 只收对话出处，决定者由宿主造出（`managementEventDecisionAuthority`），带身份被拒绝（`goals.event_decision_authority_invalid`）。CLI/MCP 已无 `withProject` caller；Workbench 等剩余消费者另由各自迁移任务负责。
 
+### 现存宿主内服务与生产消费者
+
+| 家族 | 现行生产调用或声明 | 边界 |
+| --- | --- | --- |
+| Agent `agent.*` | Coding 的 `routes.ts`、`delegation-dispatch.ts`、`background-state.ts`；Coding、创作台、Characters、Schedule 的 Manifest 声明；Characters `plugin.ts` | 注册集中在 `horizontal/agent-host/src/capability-registration.ts` 与 Host 的 `agent-host-composition.ts`。助理直接消费其 Agent 服务端口，不因此算 typed 客户端。 |
+| `schedule.register/cancel/setEnabled/list` | 当前无生产消费者；Host 登记服务端口，Schedule 业务直接调自己的 service | 为插件提供的现存服务要求原调用实例身份；跨入口 T4 通过真实 executor 的服务夹具核拒绝与读取，不能称已有业务链。 |
+| 项目工作区与设置读取 | Coding、Files、Git 的 Manifest 与路由/动作；创作台 Manifest；`web-request.ts` 的设置消费 | 只有配置工作区端口才登记。带动作元数据的设置写入属于动作，不计入 typed 清单。 |
+| Git 审阅准备与结果 | Git Manifest 与 `actions.ts` | 四项现存读/准备服务由 Host 装配，实际 Git 写入仍经审阅。 |
+| Writer 目录与集成 | Coding Manifest 与 `routes.ts` | 目录、准备与集成由 Host 给当前项目的原工作区，不接受另选项目的身份。 |
+
+这张表来自当前生产引用与调用点核查；`tests/typed-registry-inventory.test.ts` 再以完整 Host 和无工作区 Host 对照实际登记结果。表中的 Manifest 声明不单独证明运行成功。
+
 ## Single writer 的范围
 
 DV1 的 Runtime 项目入口额外通过 `RuntimeProjectCatalogProvider.withCatalog` 消费有界公开 catalog application。该 scope 覆盖异步结果组合，成功和失败都关闭原 catalog；它不是任意名称的执行总线，也没有创建第二个 Project Store。`RuntimeProjectConnection` 只维护当前进程的连接缓存，Session 身份变化后旧连接失效，继续采用只读 resolve、同幂等 key 重试的恢复规则，不自行写绑定。Panel alias 与原生 Session 关联由 Local Host 单独组合原 Desktop/Registry API，缺 Panel 的原错误由宿主识别，其他错误不隐藏。

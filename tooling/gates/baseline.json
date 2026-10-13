@@ -2,9 +2,9 @@
   "giantUnits": 157,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2628,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2611,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 2069,
+      "lines": 2065,
       "methods": 119
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
@@ -57,7 +57,7 @@
     "file apps/workbench/src/i18n/en.ts": 3324,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 355,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2804,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2802,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 1020,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 2049,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
@@ -1627,12 +1627,9 @@
     "tests/workspace-plugin-graph.test.ts": 1,
     "tests/workspace-production-events.test.ts": 1
   },
-  "errorSubclassTotal": 84,
+  "errorSubclassTotal": 80,
   "errorSubclasses": {
-    "apps/local-host/src/agent-definitions/agent-definitions.ts": 1,
     "apps/local-host/src/assistant/assistant-coding.ts": 1,
-    "apps/local-host/src/assistant/assistant-service.ts": 1,
-    "apps/local-host/src/assistant/assistant-store.ts": 1,
     "apps/local-host/src/browser/browser-host.ts": 1,
     "apps/local-host/src/browser/cdp.ts": 1,
     "apps/local-host/src/connector-api-oauth.ts": 1,
@@ -1655,7 +1652,6 @@
     "horizontal/agent-host/src/reviews.ts": 1,
     "horizontal/connector-host/src/connection-store.ts": 1,
     "horizontal/connector-host/src/index.ts": 1,
-    "horizontal/memory/src/errors.ts": 1,
     "horizontal/runtime-host/src/adapters/codex-app-server.ts": 1,
     "modules/artifacts/src/errors.ts": 1,
     "modules/characters/src/service.ts": 1,
@@ -1770,14 +1766,11 @@
     "plugins/native/artifacts/src/plugin-client.ts": 7,
     "tooling/plugin-cli/src/package-files.ts": 5
   },
-  "errorStatusDecisionTotal": 107,
+  "errorStatusDecisionTotal": 93,
   "errorStatusDecisions": {
     "apps/local-host/cloudflare/worker.ts": 1,
-    "apps/local-host/src/agent-definitions/agent-definitions-http.ts": 3,
     "apps/local-host/src/alchemist-native-plugin-http.ts": 3,
-    "apps/local-host/src/assistant/assistant-http.ts": 7,
     "apps/local-host/src/browser/browser-http.ts": 2,
-    "apps/local-host/src/memory/memory-host.ts": 4,
     "apps/local-host/src/plugin-builder/agent-surface.ts": 2,
     "apps/local-host/src/plugin-event-http.ts": 2,
     "apps/local-host/src/side-files-http.ts": 2,

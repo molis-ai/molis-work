@@ -1397,7 +1397,7 @@ Home最后补证：be531e00f在真实installation查询后、retry/control成功
 
 W3-10-5 复用现有 SOURCE_COUNT_RULES 与逐文件 merge-base 比较，不另建计数系统。程序按实际装配顺序展开字符串、拼接与静态 join，再解析 AST；HTML 只取执行脚本，function.toString 按函数 AST 取体，不执行仓库源码。被浏览器入口引用的 TypeScript（包括 Work 插件 terminal-client）也计入，服务器 fetch 不计；插件现存请求仍按 W5-04 的范围冻结。计数归属原文件，同一片段被多次装配不重复计；UiRequest 底层传输及 lifecycle.fetch 的例外精确到函数或分支，邻接的新 fetch 仍被拦。不能静态展开或解析的已识别程序报位置，不能当零；动态属性构造、反射和任意运行期程序生成不是此静态规则的已验证能力。
 
-门禁回归以真实 Git 临时树和 CLI 制造旧文件增长、新文件 fetch、计算属性与局部别名、跨片段程序、相邻例外和 typed 浏览器入口；普通字符串/注释/HTML 文本应通过。Workbench 非零即拒绝（包括与 base 相等及 --update），插件按文件只降；修改已提交 baseline 不能放大 --base 比较，拒绝增长时 --update 不写入。当前仅为核对后的实现与证明边界，门禁尚未实现。
+门禁回归以真实 Git 临时树和 CLI 制造旧文件增长、新文件 fetch、计算属性与局部别名、跨片段程序、相邻例外和 typed 浏览器入口；普通字符串/注释/HTML 文本应通过。Workbench 非零即拒绝（包括与 base 相等及 --update），插件按文件只降；修改已提交 baseline 不能放大 --base 比较，拒绝增长时 --update 不写入。源码已实现于`5577c3c65`及复核补修`e9bcecea7`，实际小仓CLI与源码扫描证据见本节末的接续记录；整合后的完整门禁、构建、产品回归与合入仍待，不关闭验收。
 
 ### 10.4 共同错误出口的接续验收（W3-02-G1/G3）
 
@@ -2157,3 +2157,9 @@ W3-10-3b候选`376d2da54`及`2c92d01e1`、`f69fd2aa0`把Workbench自有插件/Re
 尝试两条既有脚本验证的原始`w3-request-static-scripts01.log`为2文件、0通过/2启动失败：构建产物缺失导致进入断言前ERR_MODULE_NOT_FOUND，不能算静态/产品通过，也未通过改导入路径绕过。目前唯一I7构建26仍排在Grok全量之后；I7冻结`62a58259d`加临时SDK依赖、没有重复启动或停止他人任务。后续须实际整体构建，再在同一冻结树完成SDK消费者/变异和各批运行验收。
 
 W3-10-4源候选`4a822c9f1`已固定十三文件：两处助理、Placement、Context、搜索、Frame/Board与当前电脑面板经同一UiRequest。按G3仅从`body.details`恢复work/action，断线仍用原request_id；原文、材料、草稿与切换后的状态保护保持。Placement数据属性JSON解析一次交助手编码；Frame成果404与fragment header、Board三段读取回退、Computer二进制Response、原幂等键/失败撤回及409收据处理保留。错误展示保留code/status/callId/body，不再只取message。原电脑Shelf用例改接公开助手和真实Response，失败撤回/二进制/幂等断言保留；原断线发送浏览器用例补验收编号，不修改断言。相关十三TS与六个完整序列化程序语法零错误、十三文件分组Biome零诊断、静态包边界errors为空、缺英文/未挂词典零；grep定位Workbench直接fetch为零不等于AST门禁通过。当前仅源码候选，已发既有统筹只读复核；实际整体构建、脚本/浏览器运行、资源与健康门禁均待。唯一构建26仍等adoption全量释放，未重复启动或中断他人。
+
+W3-10-4只读复核发现主要写对话与几处最终显示仍压成message，补修`9907297e2`已源核：共用dialog保留失败输入及确认恢复；Placement位置失败的共同view放在bar按钮外、检查原slot/签名；Characters、handback、材料/图片、sideAction/budget与permissions透传Error，图片/PDF保留文件名和native错误文字。没有放宽测试断言；真实UI仍待构建后验证。
+
+W3-10-5独立源码候选`5577c3c65`及`e9bcecea7`保存七文件。模块/绑定图、程序展开与fetch AST扫描分开，沿用SOURCE_COUNT_RULES及现有逐文件merge-base比较，不另建基线体系。WorkBench绝对归零（含相等base、--update）；其他程序按文件只降。候选源码按已声明SCRIPT/CLIENT、HTML执行script及现行terminal/browser-client typed入口识别，相对/workspace出口、副作用import及运行性export-from跟到实际源文件；纯类型边排除。仅现行ui-host精确运输站点例外，邻接/复制的新调用仍拒绝。当前范围、字段候选保守展开及动态/反射/新构建入口的未证明边界已同步gate README；静态候选上限256，超限报错。
+
+复核实际补出的逃逸为：String/replace不能默认为占位或不变、条件返回不能丢分支、typed闭包不能漏副作用import与export-from、共享formatter不能覆盖输入owner后去重掉新片段、inline type-only import不能算运行边。现已用正式Git反例覆盖，未知程序变换明确拒绝；精确缩进/整行注释正则实际删除且保留未改字符来源。原始首轮15/15、第二轮39/39、第三轮47/47、第四轮48/48各留原日志；最终`raw-fetch-cli-tests05.log`新门禁与既有source-counts两文件50/50、0失败/跳过/取消。当前树`raw-fetch-scan10.log`358个静态程序变体、9个typed文件、展开/解析错误0、Workbench0；其余46文件90站点是当前测量，不固定数量。六源码/测试Biome无诊断。较早的实际health `--report --json --base origin/main`量到merge-base fc18、head90/base154，只是报告退出0，不是完整health通过。当前候选未推送/合入，整合预算、API/健康、产品/浏览器/全量仍待；SDK消费者构建26保持唯一排队，原冻结I7与临时包依赖未改。

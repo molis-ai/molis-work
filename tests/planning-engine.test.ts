@@ -1,7 +1,7 @@
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { GovernanceRecordStore } from "@molis-ai/molis-work-module-governance-collaboration";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import Database from "better-sqlite3";
 import os from "node:os";
 import path from "node:path";
@@ -390,7 +390,7 @@ test("personal method owner preserves versions and timestamps across reopen and 
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("personal method reads do not create a Home or touch an older catalog, and opening refuses it unchanged", async () => {
+test("personal method reads keep a new Home absent and refuse a stored Catalog with no current library unchanged", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "molis-work-personal-upgrade-"));
   try {
     const missingHome = path.join(root, "missing");
@@ -399,10 +399,12 @@ test("personal method reads do not create a Home or touch an older catalog, and 
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: root });
     const databasePath = catalog.databasePath;
     catalog.close();
-    const legacy = new Database(databasePath);
-    legacy.exec("DROP TABLE personal_planning_method_packs; UPDATE catalog_meta SET value = '8' WHERE key = 'schema_version'");
-    legacy.close();
-    assert.deepEqual(readPersonalPlanningMethodPacks(root), []);
+    const retained = new Database(databasePath);
+    retained.exec("DROP TABLE personal_planning_method_packs; UPDATE catalog_meta SET value = '8' WHERE key = 'schema_version'");
+    retained.close();
+    const bytes = readFileSync(databasePath);
+    assert.throws(() => readPersonalPlanningMethodPacks(root), /no such table.*personal_planning_method_packs/);
+    assert.deepEqual(readFileSync(databasePath), bytes);
     const unchanged = new Database(databasePath, { readonly: true });
     try {
       assert.deepEqual(unchanged.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get(), { value: "8" });

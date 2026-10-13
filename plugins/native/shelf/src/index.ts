@@ -28,7 +28,6 @@ export { SHELF_NATIVE_PLUGIN_ROUTES, ShelfPluginRouteTable } from "./routes.js";
 export type { ShelfPluginRouteHandler, ShelfPluginRouteRequest, ShelfPluginRouteResponse } from "./routes.js";
 export { createShelfRouteHandlers } from "./route-handlers.js";
 export type { ShelfRouteHandlerPorts } from "./route-handlers.js";
-export { shelfRouteErrorResponse } from "./route-error.js";
 export {
   SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTIONS, SHELF_PROJECT_ACTION_PERMISSIONS,
   createShelfActionHandlers, createShelfProjectActionHandlers, shelfActions, shelfProjectActions,

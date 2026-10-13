@@ -1,7 +1,8 @@
 import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ShelfRecipeId } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { shelfActions, shelfProjectActions, type ShelfAdmitActionInput } from "./actions.js";
-import { shelfRouteErrorResponse } from "./route-error.js";
 import type { ShelfPluginRouteHandler, ShelfPluginRouteResponse } from "./routes.js";
 
 export interface ShelfRouteHandlerPorts {
@@ -18,7 +19,7 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
   // The panel repaints from the shelf it gets back, so every write answers with it.
   const withShelf = async (body: object): Promise<ShelfPluginRouteResponse> => ({ status: 200, body: { ...body, snapshot: await snapshot() } });
   const project = () => {
-    if (!options.project) throw new Error("请在项目中打开 Shelf，再保存项目材料");
+    if (!options.project) throw shelfErrors.invalid("请在项目中打开 Shelf，再保存项目材料");
     return options.project;
   };
   return {
@@ -95,9 +96,9 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
           shortcut_id: stringValue(request.body.shortcut_id) || null,
         }));
       } catch (error) {
-        // A failed run leaves a row saying why, so the caller gets the shelf back too.
-        const failure = shelfRouteErrorResponse(error);
-        return { ...failure, body: { ...(failure.body as object), snapshot: await snapshot() } };
+        // A failed run leaves a row saying why, so the caller gets the shelf back too, beside the error the SDK answers with.
+        const failure = actionErrorResponse(error);
+        return { ...failure, body: { ...failure.body, snapshot: await snapshot() } };
       }
     },
     "shelf.job.cancel": async ({ params }) => {

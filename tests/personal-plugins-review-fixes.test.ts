@@ -1,12 +1,8 @@
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { handlePagesNativePluginHttp } from "../apps/local-host/src/pages-native-plugin-http.js";
 import type { PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";
 import { pagesTestPorts } from "./fixtures/pages-actions.js";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { handleFunctionsHttp } from "../apps/local-host/src/functions-http.ts";
 import assert from "node:assert/strict";
@@ -33,7 +29,7 @@ import { MolisWorkV1Error as ContractsError } from "@molis-ai/molis-work-contrac
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
-import { FunctionsError, openFunctionsStore } from "@molis-ai/molis-work-module-functions";
+import { openFunctionsStore } from "@molis-ai/molis-work-module-functions";
 import { MolisWorkV1Error as GoalsError } from "@molis-ai/molis-work-plugin-goals";
 import {
   DATASET_CLIENT_FACTORY_SCRIPT,
@@ -61,6 +57,7 @@ import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/src/plugin-workbench.ts";
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/src/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -317,7 +314,7 @@ test("草稿 CAS：过期 updated_at 不能覆盖已写入的草稿、预览和�
       const stale = "2000-01-01T00:00:00.000Z";
       assert.throws(
         () => store.updateDraft(created.id, { name: "mine" }, stale),
-        (error: unknown) => error instanceof FunctionsError && error.code === "functions.conflict",
+        (error: unknown) => error instanceof ActionError && error.code === "functions.conflict",
       );
       assert.equal(store.get(created.id)?.name, "first");
 
@@ -325,7 +322,7 @@ test("草稿 CAS：过期 updated_at 不能覆盖已写入的草稿、预览和�
       store.addSample(live.id, { input: "样例一" });
       assert.throws(
         () => store.addSample(live.id, { input: "样例二" }, stale),
-        (error: unknown) => error instanceof FunctionsError && error.code === "functions.conflict",
+        (error: unknown) => error instanceof ActionError && error.code === "functions.conflict",
       );
       assert.equal(store.get(created.id)?.samples.length, 1);
 
@@ -347,7 +344,7 @@ test("草稿 CAS：过期 updated_at 不能覆盖已写入的草稿、预览和�
       store.savePreview(ready.id, preview);
       assert.throws(
         () => store.savePreview(ready.id, preview, stale),
-        (error: unknown) => error instanceof FunctionsError && error.code === "functions.conflict",
+        (error: unknown) => error instanceof ActionError && error.code === "functions.conflict",
       );
     } finally {
       store.close();
@@ -502,18 +499,16 @@ test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", a
   });
 });
 
-test("绑定项目的 MCP promote 走 Host Artifact 口", async () => {
+test("绑定项目的 MCP promote 走 Host Artifact 口", async t => {
   await withHome(async (home) => {
-    const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "MCP Promote", actor_id: "user" }));
-    const databasePath = project.database_path;
     const host = new MolisWorkLocalHost({ homeDirectory: home });
+    // The Home is served so that the project and the client's grants are made the way a person makes them, through the settings routes.
+    const served = await serveTestHost(t, { home, host });
+    const project = await served.createProject("MCP Promote");
+    const databasePath = project.database_path;
     const caller = { actor_id: "runtime:codex", project_id: project.project_id, audience: "mcp" as const, permissions: [] };
-    const views = await host.inspectActions(caller, molisWorkHostProjectReference({ projectId: project.project_id, databasePath }));
     const createName = molisWorkActionToolName(pagesActions.create), promoteName = molisWorkActionToolName(pagesActions.promote);
-    for (const action of [pagesActions.create, pagesActions.promote]) {
-      const view = views.find(view => view.capability_id === action.capability_id)!;
-      await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, caller.project_id, view, true));
-    }
+    await served.grant(caller.actor_id, project.project_id, [pagesActions.create, pagesActions.promote]);
     const server = new MolisWorkServer("runtime", {
       databasePath,
       projectId: project.project_id,
@@ -559,6 +554,7 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async () => {
       }
     } finally {
       await server.close();
+      await served.close();
       await host.close();
     }
   });

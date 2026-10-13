@@ -113,10 +113,6 @@ export const COSS_CONTROL_STYLES = `
     border-radius: var(--radius-surface);
     box-shadow: var(--control-shadow);
   }
-  .toast {
-    border-radius: var(--radius-control);
-    box-shadow: var(--control-shadow);
-  }
   kbd {
     display: inline-flex;
     align-items: center;

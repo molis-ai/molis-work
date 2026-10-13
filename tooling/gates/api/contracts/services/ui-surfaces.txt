@@ -26,6 +26,28 @@ export type HostSurfaceAction = {
 } | {
     readonly what: "download";
     readonly to: readonly string[];
+} | {
+    readonly what: "scroll";
+    readonly x: number;
+    readonly y: number;
+    readonly dx: number;
+    readonly dy: number;
+} | {
+    readonly what: "drag";
+    readonly x: number;
+    readonly y: number;
+    readonly to_x: number;
+    readonly to_y: number;
+} | {
+    readonly what: "hover";
+    readonly x: number;
+    readonly y: number;
+} | {
+    readonly what: "app";
+    readonly app: string;
+} | {
+    readonly what: "menu";
+    readonly path: readonly string[];
 };
 
 export interface HostSurfaceActivity {
@@ -38,8 +60,8 @@ export interface HostSurfaceActivity {
 }
 
 export interface HostSurfaceDriver {
-    readonly kind: "browser";
-    readonly project_id: string;
+    readonly kind: HostSurfaceKind;
+    readonly project_id: string | null;
     identity(): Promise<string>;
     scope(): Promise<string>;
     observe(kind: HostSurfaceObservationKind, context?: {
@@ -56,6 +78,37 @@ export interface HostSurfaceDriver {
         readonly sensitive: boolean;
     }>;
     masked(bytes: Uint8Array): boolean;
+    readiness?(context: {
+        readonly session_id: string | null;
+    }): Promise<{
+        readonly refusal: HostSurfaceRefusal;
+        readonly detail: string;
+    } | null>;
+    assess?(action: HostSurfaceAction): Promise<{
+        readonly irreversible: boolean;
+        readonly why: string;
+    }>;
+    currentApp?(): Promise<{
+        readonly bundle_id: string;
+        readonly name: string;
+    } | null>;
+    describeRound?(sessionId: string, context: {
+        readonly run_id: string | null;
+        readonly project_id: string | null;
+        readonly goal: string;
+    }): void;
+    noteRun?(sessionId: string, runId: string): void;
 }
 
+export type HostSurfaceKind = "browser" | "desktop";
+
 export type HostSurfaceObservationKind = "dom" | "accessibility-tree" | "screenshot" | "window-metadata";
+
+export type HostSurfaceRefusal = "driver-unavailable" | "person-present" | "screen-locked" | "outside-target";
+
+export interface HostSurfaceRefusalError extends Error {
+    readonly refusal: HostSurfaceRefusal;
+    readonly partial?: boolean;
+}
+
+export declare function isHostSurfaceRefusal(error: unknown): error is HostSurfaceRefusalError;

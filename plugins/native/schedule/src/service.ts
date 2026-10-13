@@ -1,4 +1,4 @@
-import { ScheduleTaskError } from "./task-error.js";
+import { scheduleErrors } from "./error.js";
 import type { ScheduleActionPorts } from "./actions.js";
 import type { ScheduleReminderManagement } from "./reminder-management.js";
 import type { ScheduledOperationManagement } from "./operation-management.js";
@@ -41,7 +41,7 @@ export function createScheduleActionPorts(options: {
   };
   const asView = (taskId: string): ScheduleConversationTaskView => {
     const task = getScheduleConversationTask(options.db, taskId);
-    if (!task) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
+    if (!task) throw scheduleErrors.task_not_found("定时任务不存在");
     return viewOf(task);
   };
   return {
@@ -49,7 +49,7 @@ export function createScheduleActionPorts(options: {
     setEnabled: (jobId, enabled) => {
       const job = options.schedule.get(jobId);
       if (job && isScheduleConversationJob(job)) {
-        throw new ScheduleTaskError("schedule_task_invalid", "对话任务请用任务自己的开关");
+        throw scheduleErrors.task_invalid("对话任务请用任务自己的开关");
       }
       if (job && enabled) options.reminders?.assertCanEnable(job);
       const operation = setScheduledOperationEnabled(options.db, options.schedule, jobId, enabled);
@@ -57,12 +57,12 @@ export function createScheduleActionPorts(options: {
       return options.schedule.setEnabled(jobId, enabled);
     },
     recoverReminder: input => {
-      if (!options.reminders) throw new ScheduleTaskError("schedule_task_invalid", "当前宿主未提供提醒恢复入口");
+      if (!options.reminders) throw scheduleErrors.task_invalid("当前宿主未提供提醒恢复入口");
       return options.reminders.recover(input);
     },
     listOperations: () => options.operations?.list() ?? [],
     recoverOperation: input => {
-      if (!options.operations) throw new ScheduleTaskError("schedule_task_invalid", "当前宿主未提供定时操作恢复入口");
+      if (!options.operations) throw scheduleErrors.task_invalid("当前宿主未提供定时操作恢复入口");
       return options.operations.recover(input);
     },
     listTasks: () => listScheduleConversationTasks(options.db).map(viewOf),
@@ -86,7 +86,7 @@ export function createScheduleActionPorts(options: {
     archiveTask(taskId) {
       options.db.transaction(() => {
         const task = getScheduleConversationTask(options.db, taskId);
-        if (!task || task.archived) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
+        if (!task || task.archived) throw scheduleErrors.task_not_found("定时任务不存在");
         archiveScheduleConversationTask(options.db, taskId, now);
         if (task.job_id && options.schedule.get(task.job_id)) options.schedule.cancel(task.job_id);
       }).immediate();

@@ -8,10 +8,10 @@ import { RuntimeProjectConnection } from "@molis-ai/molis-work-app-local-host";
 import { createMcpContextPresenter, createMcpRuntimeContextHandlers } from "@molis-ai/molis-work-app-mcp";
 import { readGoalResumeFacts, readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { type MolisWorkProjectCatalog, MolisWorkProjectCatalogError } from "@molis-ai/molis-work-app-local-host";
+import { type MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 
 test("context handlers preserve a denied binding and hold the catalog open through async response failure", async () => {
@@ -55,7 +55,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     });
     const context = { runtimeSessionId: null, runtimeSessionIdSource: null };
     await assert.rejects(handlers.molis_work_v1_context_bind({ project_id: project.project_id, user_confirmed: "true" }, context),
-      (error: unknown) => error instanceof MolisWorkProjectCatalogError && error.code === "context.user_confirmation_required");
+      (error: unknown) => error instanceof ActionError && error.code === "context.user_confirmation_required");
     assert.equal(connection.connection, originalConnection);
     assert.deepEqual(fixture.listRuntimeContextBindings(), before);
     assert.throws(() => scoped!.listProjects(), /closed|not open/);

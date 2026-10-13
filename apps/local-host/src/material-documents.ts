@@ -1,9 +1,9 @@
 import type { MaterialDocumentBatch, MaterialDocumentOptions, MaterialDocumentReader, MaterialSource, MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
-import { MaterialExtractionError } from "./material-text.js";
+import { materialErrors } from "./material-text.js";
 import { runMaterialWorker } from "./material-worker.js";
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024, MAX_DOCUMENTS = 100;
-function invalid(message: string): never { throw new MaterialExtractionError("invalid_document", message, 422); }
+function invalid(message: string): never { throw materialErrors.invalid_document(message); }
 function checkCount(sources: readonly unknown[]): void {
   if (!Array.isArray(sources) || !sources.length) invalid("请选择需要导入的文件");
   if (sources.length > MAX_DOCUMENTS) invalid(`一次最多选择 ${MAX_DOCUMENTS} 个文件`);

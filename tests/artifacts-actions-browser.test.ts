@@ -59,7 +59,7 @@ test("actual Artifact import, fixed version, Goal embed and disabled reader surv
     await visit("/goals/V1");
     assert.match(await evaluate<string>("document.querySelector('[data-artifact-unavailable]').textContent"), /未启用/);
     const denied = await fetch(b.origin + prefix + "/artifacts");
-    assert.equal(denied.status, 404); await denied.text();
+    assert.equal(denied.status, 403); await denied.text();
     catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "artifacts", actor_id: "browser-owner" });
     await visit("/goals/V1");
     assert.equal(await evaluate(fixedInput), true);

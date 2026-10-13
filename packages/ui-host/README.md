@@ -17,6 +17,7 @@ UiHost.register 保存 contribution，render 调用对应渲染器；mount 检�
 | [src/index.ts](src/index.ts) | UiHost 注册、渲染与挂载 |
 | [src/plugin-client.ts](src/plugin-client.ts) | Plugin UI 访问边界 |
 | [src/client-lifecycle.ts](src/client-lifecycle.ts) | 浏览器挂载、取消及资源释放，由 Host 注入 |
+| [src/call-id.ts](src/call-id.ts) | 诊断编号（调用编号）给人看的短形式 `shortCallId`：前 8 位，设置页服务端渲染用；怎样显示一个编号归界面，所以不在内核 |
 | [src/request-client.ts](src/request-client.ts) | 浏览器共用请求助手：控制头、一次性键、同源检查、错误形状与诊断编号按钮，由 Host 注入 |
 
 可对照现有调用方 [apps/local-host/src/plugin-executor.ts](../../apps/local-host/src/plugin-executor.ts) 阅读装配方式。
@@ -39,7 +40,7 @@ UI Host 不解释 Goal、Feed 或 Artifact 状态。Plugin 客户端的注册释
 
 ## 浏览器请求
 
-`createUiRequest`、`createUiFailureView` 和把它们装到页面的 `UI_REQUEST_CLIENT_SCRIPT` 是浏览器向宿主发请求的唯一助手（W3-10）；类型在合同 `@molis-ai/molis-work-contracts/platform/ui`（`UiRequest`）。两个工厂各自独立，用 `toString()` 嵌进页面，所以不引用模块里的任何名字，页面的 `fetch`、origin、令牌、翻译、剪贴板和时钟都从端口传入（`UiRequestPorts`、`UiFailureViewPorts`）。页面程序每页只装一次，挂出 `molisWorkRequest`；插件客户端从 W5-04 起经宿主给的 `host.request` 拿到同一个。
+`createUiRequest`、`createUiFailureView` 和把它们装到页面的 `UI_REQUEST_CLIENT_SCRIPT` 是浏览器向宿主发请求的唯一助手（W3-10）；类型在合同 `@molis-ai/molis-work-contracts/platform/ui`（`UiRequest`）。两个工厂各自独立，用 `toString()` 嵌进页面，所以不引用模块里的任何名字，页面的 `fetch`、origin、令牌、翻译、剪贴板和时钟都从端口传入（`UiRequestPorts`、`UiFailureViewPorts`）。页面预算按字节算（工作台主程序里就有这段），所以页面程序嵌的是去掉编译缩进的工厂源码，工厂里因此不能有跨行的字符串（不写模板字符串），`tests/ui-request-client.test.ts` 守着。页面程序每页只装一次，挂出 `molisWorkRequest`；插件客户端从 W5-04 起经宿主给的 `host.request` 拿到同一个。
 
 - 只发本页同源：别的源、别的端口、协议相对地址一律 `ui_host.cross_origin`，不发请求（安全不变量 S-03 的浏览器一侧，`tests/security-invariants-browser-request.test.ts`）。
 - 变更带控制令牌、一次性键和 JSON 类型，读取不带；调用方的 `headers` 盖不掉这三个。每个请求 `cache: "no-store"`，只发一次，不自动重试。
@@ -48,7 +49,7 @@ UI Host 不解释 Goal、Feed 或 Artifact 状态。Plugin 客户端的注册释
 - 码前缀 `ui_host.*` 归本包：`cross_origin`、`unreachable`、`outcome_unknown`、`invalid_response`、`uncoded`。
 
 **保留到 W5-04 的两处**（不是兼容层，各有删除条件）：
-- `molisWorkControlHeaders()` 是同一助手只给头的入口，供还没迁的调用方使用（工作台主程序里的旧头函数、编进主程序的 Goals 工厂、插件客户端和约 25 个浏览器用例）。它会把令牌加到调用方给的任何地址上，所以「令牌只发同源」只对经助手本身发出的请求成立。删除条件：W5-04 迁完最后一个插件客户端、用例改用 `molisWorkRequest` 之后，若再无调用方就删（W5-04 收尾 PR 决定）。
+- `molisWorkControlHeaders()` 是同一助手只给头的入口，供还没迁的调用方使用（工作台主程序里还没迁的脚本、编进主程序的 Goals 工厂、插件客户端和约 25 个浏览器用例）。它会把令牌加到调用方给的任何地址上，所以「令牌只发同源」只对经助手本身发出的请求成立。删除条件：W5-04 迁完最后一个插件客户端、用例改用 `molisWorkRequest` 之后，若再无调用方就删（W5-04 收尾 PR 决定）。
 - PTY 客户端包（`apps/workbench/src/character-terminal-client.ts`，与 Shelf、Work 的终端客户端一起打成 `dist/web/pty-client.js`）认证 PTY socket 时自己读页面 meta：它是打包的 TypeScript，不发 HTTP 请求，读不到模板脚本里的全局。删除条件：W5-04 把工作台客户端段落改成打包代码时，从宿主注入的 `request.token()` 取。
 
 ## 本地开发
@@ -79,7 +80,7 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
   - 注册与渲染协议不等于任意 HTML 或脚本获得隔离执行。
   - 插件客户端的注册释放由 Host 生命周期负责；不解释 Goal、Feed、Artifact 状态。
   - 请求助手只发本页同源，令牌不随它发到别的源；不自动重试；诊断编号只取错误体的 `call_id`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host-executor.test.ts tests/plugin-declarative-mounting.test.ts tests/ui-client-lifecycle.e2e.test.ts tests/ui-request-client.test.ts tests/security-invariants-browser-request.test.ts tests/client-script-undeclared.test.ts tests/ui-request-client-pages.test.ts tests/ui-request-client.e2e.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host-executor.test.ts tests/plugin-declarative-mounting.test.ts tests/ui-client-lifecycle.e2e.test.ts tests/ui-request-client.test.ts tests/security-invariants-browser-request.test.ts tests/client-script-undeclared.test.ts tests/ui-request-client-pages.test.ts tests/ui-request-client.e2e.test.ts tests/request-failure-call-id.e2e.test.ts tests/ui-call-id.test.ts`
 - 相关手册：[docs/platform/UI-PLATFORM.md](../../docs/platform/UI-PLATFORM.md)、[skills/molis-plugin-dev/ui.md](../../skills/molis-plugin-dev/ui.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

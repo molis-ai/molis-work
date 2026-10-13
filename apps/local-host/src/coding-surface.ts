@@ -51,7 +51,10 @@ import { TEXT_STATS_PLUGIN_ID, renderTextStats, type TextStatsView } from "@moli
 
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
+import { sendLocalWebJson } from "./web-http.js";
+import { dispatchRuntimePluginRoute, type RuntimePluginRouteHooks } from "./plugin-route-operations.js";
+import type { PluginPlatform } from "./plugin-platform.js";
+import type { PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
@@ -172,57 +175,40 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
     sendLocalWebJson(response, 200, { updates });
     return true;
   }
-  const pluginId = pluginRoute![1]!;
-  const active = record.platform.supervisor.state(pluginId);
-  // Native adapters and unrelated routes retain their own ownership. Runtime
-  // registration, rather than a second list of built-in IDs, decides this boundary.
-  if (!active) return false;
-  const operation = pluginRoute![2]!;
-  if (operation === "restart" || operation === "release-quarantine") {
-    if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "重试必须通过 POST 确认" }); return true; }
-    const state = await record.platform.supervisor.restart(pluginId, { release_quarantine: operation === "release-quarantine" });
-    if (pluginId === CODING_PLUGIN_ID) {
-      const active = record.platform.supervisor.state(pluginId);
+  const pluginId = pluginRoute![1]!, platform = record.platform;
+  return dispatchRuntimePluginRoute(platform, pluginId, pluginRoute![2]!, request, response, url, ports.actorId,
+    projectRouteHooks(record, platform, pluginId, request, url, ports));
+}
+
+/**
+ * What stays this project's and Coding's around the shared route operations (plugin-route-operations.ts): the Coding surface mirrors
+ * a restart, the input graph settles around a dispatch, and a few plugins' answers carry markup the Host renders for them.
+ */
+function projectRouteHooks(
+  record: Started, platform: PluginPlatform, pluginId: string, request: IncomingMessage, url: URL, ports: CodingSurfacePorts,
+): RuntimePluginRouteHooks {
+  return {
+    restarted() {
+      if (pluginId !== CODING_PLUGIN_ID) return;
+      const active = platform.supervisor.state(pluginId);
       record.running = active?.status === "running";
       record.error = active?.message ?? undefined;
-    }
-    sendLocalWebJson(response, state.status === "running" ? 200 : 409, { state });
-    return true;
-  }
-  if (operation === "upgrade") {
-    if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "升级必须通过 POST 确认" }); return true; }
-    const state = await record.platform.upgrade(pluginId);
-    if (!state || state.status !== "running") {
-      sendLocalWebJson(response, 409, { error: state?.message ?? "插件升级失败", code: state?.code ?? "plugin_upgrade_failed" });
-      return true;
-    }
-    sendLocalWebJson(response, 200, {
-      state,
-      version: state.install_id ? record.platform.runtime.get(state.install_id).version : null,
-    });
-    return true;
-  }
-  const router = record.platform.router();
-  if (active.status !== "running") { sendLocalWebJson(response, 503, { error: active.message ?? "插件未能启动" }); return true; }
-  if (operation === "view-revision" && request.method === "GET") {
-    response.setHeader("cache-control", "no-store");
-    sendLocalWebJson(response, 200, { revision: record.platform.viewRevision(pluginId) });
-    return true;
-  }
-  if (!router.match(request.method ?? "GET", url.pathname)) return false;
-  // Existing workspace outputs need a settings refresh before their consumers
-  // read them. Unrelated plugins must not cause Files reads or publications.
-  if (readsFilesOutputs(record.platform, pluginId)) {
-    await router.dispatch({ method: "GET", pathname: `/api/plugins/${FILES_PLUGIN_ID}/state`, actor_id: ports.actorId, query: {} });
-    await record.platform.wiring.drain();
-  }
-  const result = await router.dispatch({
-    method: request.method ?? "GET", pathname: url.pathname, actor_id: ports.actorId,
-    query: Object.fromEntries(url.searchParams),
-    ...(["GET", "HEAD"].includes(request.method ?? "GET") ? {} : { body: await readLocalWebBody(request) }),
-  });
-  if (!result) return false;
-  await record.platform.wiring.drain();
+    },
+    async beforeDispatch(router) {
+      // Existing workspace outputs need a settings refresh before their consumers
+      // read them. Unrelated plugins must not cause Files reads or publications.
+      if (!readsFilesOutputs(platform, pluginId)) return;
+      await router.dispatch({ method: "GET", pathname: `/api/plugins/${FILES_PLUGIN_ID}/state`, actor_id: ports.actorId, query: {} });
+      await platform.wiring.drain();
+    },
+    async afterDispatch(result) {
+      await platform.wiring.drain();
+      decorateRuntimeResult(result, pluginId, request, url, ports);
+    },
+  };
+}
+
+function decorateRuntimeResult(result: PluginRouteResponse, pluginId: string, request: IncomingMessage, url: URL, ports: CodingSurfacePorts): void {
   if (result.status === 200 && url.pathname.endsWith("/state")) {
     const content = result.body as { view?: unknown; html?: string };
     if (content?.view && pluginId === DIFF_PLUGIN_ID) content.html = renderDiff({
@@ -234,10 +220,10 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
       primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) },
     });
   }
-  if (pluginId !== CODING_PLUGIN_ID) {
-    sendLocalWebJson(response, result.status, result.body);
-    return true;
-  }
+  if (pluginId === CODING_PLUGIN_ID) decorateCodingResult(result, request, url, ports);
+}
+
+function decorateCodingResult(result: PluginRouteResponse, request: IncomingMessage, url: URL, ports: CodingSurfacePorts): void {
   // The existing sanitized rich-text renderer is supplied by the composition;
   // Coding neither imports another plugin nor trusts model-produced HTML.
   const body = result.body as { runs?: Array<{ turns: Array<{ text: string; kind: string }>; awaiting_input: AgentPendingQuestion[] }> } | undefined;
@@ -298,8 +284,6 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
         icon: name => icon(name as Parameters<typeof icon>[0]), text: value => value, formatDate: value => value },
     }) });
   }
-  sendLocalWebJson(response, result.status, result.body);
-  return true;
 }
 
 /**

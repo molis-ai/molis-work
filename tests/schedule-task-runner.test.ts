@@ -104,3 +104,36 @@ test("a scheduled round is started with the number of the tick that runs it, or 
   assert.match(agentHost.starts[1]?.call_id ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-/, "a round run outside any tick still has a number the Host gave");
   assert.notEqual(agentHost.starts[1]?.call_id, tick);
 });
+
+// specs/prologue-adoption §4.5 (item 12): the run's own view changes wake the runner; nothing reads the run on a timer.
+test("a scheduled run is followed through its own view changes, never polled; a run that stops for a person fails it", async () => {
+  const views: Array<(view: never) => void> = [], reads: string[] = [], controls: string[] = [];
+  const view = (phase: string, text?: string) => ({ ref: { session_id: "s", run_id: "r" }, phase, turns: text ? [{ turn_id: "a", kind: "assistant", text, at: null }] : [],
+    activity: [], awaiting_input: [], usage: { tokens: { input: 0, output: 0 } }, frozen: {}, started_at: "", ended_at: null }) as never;
+  const adapter: AgentRuntimeAdapter = {
+    descriptor: { runtime_id: "prologue", display_name: "prologue", provider_version: "1", capabilities: { ...emptyCapabilityMatrix(), "session.create": "supported", "run.start": "supported", "run.observe": "supported", "run.control": "supported" } },
+    async health() { return { ok: true, status: "ready", message: "就绪" }; },
+    async createSession() { return { session_id: "s", runtime_id: "prologue" }; },
+    async readSession() { return { session: { session_id: "s", runtime_id: "prologue" }, owner: { project_id: "b", plugin_id: "io.molis.work.schedule", install_id: "io.molis.work.schedule", actor_id: "schedule" }, title: "t", runs: [], latest_run: null } as never; },
+    async start() { return { ref: { session_id: "s", run_id: "r" }, frozen: { role_id: "reader", role_version: 1, execution: "read-only", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: "/tmp/schedule-project", realpath_verified: true } } } as never; },
+    async read() { reads.push("read"); return view("running"); },
+    async control(_run, control) { controls.push(control.kind); },
+    async readCommandOutput() { throw new Error("unused"); },
+    observe(_run, listener) { views.push(listener); listener(view("running")); return () => { views.splice(views.indexOf(listener), 1); }; },
+  };
+  const agentHost = new AgentHost(); agentHost.register(adapter);
+  const runner = createHostScheduledTaskRunner({ agentHost, projectId: "b", workspaceFor: workspace });
+  const done = runner.run({ title: "汇总", instructions: "看一眼", history: [] });
+  for (let i = 0; i < 100 && !views.length; i++) await new Promise(resolve => setTimeout(resolve, 5));
+  views.at(-1)!(view("completed", JSON.stringify({ title: "本周", body: "都按计划进行。" })));
+  const reply = await done;
+  assert.ok(reply);
+  assert.deepEqual(reads, [], "the runner never polls the run");
+  assert.equal(views.length, 0, "it stops listening once the run ends");
+  // A run that stops to wait for a person cannot finish on its own: the runner fails it and stops the run.
+  const held = runner.run({ title: "汇总", instructions: "看一眼", history: [] });
+  for (let i = 0; i < 100 && !views.length; i++) await new Promise(resolve => setTimeout(resolve, 5));
+  views.at(-1)!(view("awaiting-review"));
+  await assert.rejects(held, /不能停下来等人确认/);
+  assert.deepEqual(controls, ["cancel"]);
+});

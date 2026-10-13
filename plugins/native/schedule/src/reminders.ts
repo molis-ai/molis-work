@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { ScheduleError, type ScheduleJobRecord, type ScheduleRegisterInput, type ScheduleWakeupControl, type ScheduleWakeupInput } from "@molis-ai/molis-work-contracts/services/scheduler";
 import type { ScheduleTaskDatabase } from "./tasks.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { scheduleErrors } from "./error.js";
 import { SCHEDULE_PLUGIN_ID } from "./manifest.js";
 
 export const SCHEDULE_REMINDER_WAKEUP = "schedule.reminder.wakeup";
@@ -44,9 +46,9 @@ export function createScheduleReminders(options: {
   const { db, schedule } = options;
   db.exec(SCHEDULE_REMINDERS_SCHEMA_SQL);
   const authorize = (identity: ReminderIdentity) => {
-    if (identity.projectId !== options.projectId || !identity.pluginId || !identity.installationId) throw new Error("提醒缺少当前项目的插件安装身份");
+    if (identity.projectId !== options.projectId || !identity.pluginId || !identity.installationId) throw new ActionError("actions.forbidden", "提醒缺少当前项目的插件安装身份");
     const descriptor = options.describe(identity);
-    if (!descriptor.generation) throw new Error("提醒缺少当前安装世代");
+    if (!descriptor.generation) throw scheduleErrors.job_invalid("提醒缺少当前安装世代");
     return descriptor;
   };
   const cancelRecord = (record: ScheduleReminder) => {
@@ -57,16 +59,16 @@ export function createScheduleReminders(options: {
   return {
     add(identity: ReminderIdentity, input: ReminderInput): { reminderId: string } {
       const at = Date.parse(input.at), now = options.now?.() ?? Date.now(), repeat = input.repeat ?? "none";
-      if (!Number.isFinite(at) || !/(?:Z|[+-]\d{2}:?\d{2})$/.test(input.at.trim())) throw new Error("提醒时间要写成带时区的时间，例如 2026-09-27T08:00:00+08:00");
-      if (at < now - 60_000) throw new Error("提醒时间已经过去了");
-      if (at > now + 366 * DAY) throw new Error("提醒时间最多设在一年以内");
-      if (!["none", "daily", "weekly"].includes(repeat)) throw new Error("未知的提醒重复方式");
-      if (typeof input.text !== "string" || !input.text.trim() || input.text.length > 200) throw new Error("提醒文字需要 1 到 200 字");
+      if (!Number.isFinite(at) || !/(?:Z|[+-]\d{2}:?\d{2})$/.test(input.at.trim())) throw scheduleErrors.job_invalid("提醒时间要写成带时区的时间，例如 2026-09-27T08:00:00+08:00");
+      if (at < now - 60_000) throw scheduleErrors.job_invalid("提醒时间已经过去了");
+      if (at > now + 366 * DAY) throw scheduleErrors.job_invalid("提醒时间最多设在一年以内");
+      if (!["none", "daily", "weekly"].includes(repeat)) throw scheduleErrors.job_invalid("未知的提醒重复方式");
+      if (typeof input.text !== "string" || !input.text.trim() || input.text.length > 200) throw scheduleErrors.job_invalid("提醒文字需要 1 到 200 字");
       return db.transaction(() => {
         const descriptor = authorize(identity);
         const count = db.prepare("SELECT COUNT(*) AS n FROM schedule_plugin_reminders WHERE project_id = ? AND plugin_id = ? AND installation_id = ? AND json_extract(record_json, '$.installationGeneration') = ?")
           .get(options.projectId, identity.pluginId, identity.installationId, descriptor.generation) as { n: number };
-        if (count.n >= REMINDERS_PER_INSTALLATION) throw new Error("这个插件的提醒已经太多了，先取消一些");
+        if (count.n >= REMINDERS_PER_INSTALLATION) throw scheduleErrors.job_invalid("这个插件的提醒已经太多了，先取消一些");
         const id = randomUUID(), due = new Date(at).toISOString();
         const job = schedule.register({ plugin_id: SCHEDULE_PLUGIN_ID, capability_id: SCHEDULE_REMINDER_WAKEUP, object_ref: id,
           title: input.text.slice(0, 120), due_at: due, recurrence: repeat === "none" ? { kind: "once" } : { kind: "interval", interval_ms: repeat === "daily" ? DAY : 7 * DAY } });

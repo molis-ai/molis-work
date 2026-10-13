@@ -1,5 +1,5 @@
-import { decodeJellyHTMLEntities, fetchJellyPublicBytes, jellyHTMLArticle, JellySourceError, validateJellyPublicURL, type JellyPublicFetchOptions, type JellyPublicResponse } from "./jelly-source-reader.js";
-import { extractJellyMaterial, JellyMaterialError, type JellyMaterialExtraction, type JellyMaterialOptions, type JellyMaterialUpload } from "./jelly-native-material.js";
+import { decodeJellyHTMLEntities, fetchJellyPublicBytes, isJellySourceFailure, jellyHTMLArticle, jellySourceErrors, validateJellyPublicURL, type JellyPublicFetchOptions, type JellyPublicResponse } from "./jelly-source-reader.js";
+import { extractJellyMaterial, isJellyMaterialFailure, type JellyMaterialExtraction, type JellyMaterialOptions, type JellyMaterialUpload } from "./jelly-native-material.js";
 
 export interface JellySourceMaterial {
   text: string; title?: string; source_url: string; provider: string; extractor: string;
@@ -25,8 +25,8 @@ function https(value: unknown): string | null {
   try { const url = validateJellyPublicURL(value.startsWith("//") ? `https:${value}` : value); return url.protocol === "https:" ? url.href : null; } catch { return null; }
 }
 function safeReferer(value: string): string { const url = new URL(value); url.search = ""; url.hash = ""; return url.href; }
-function responseJSON(response: JellyPublicResponse): unknown { try { return JSON.parse(response.data.toString("utf8")); } catch { throw new JellySourceError("jelly.source.invalid_json", "来源返回的数据无法解析；原链接保留"); } }
-function checkAborted(options: JellySourceOptions): void { if (options.signal?.aborted) throw new JellySourceError("jelly.source.cancelled", "来源提取已取消", 499); }
+function responseJSON(response: JellyPublicResponse): unknown { try { return JSON.parse(response.data.toString("utf8")); } catch { throw jellySourceErrors.invalid_json("来源返回的数据无法解析；原链接保留"); } }
+function checkAborted(options: JellySourceOptions): void { if (options.signal?.aborted) throw jellySourceErrors.cancelled("来源提取已取消"); }
 export function jellyXiaohongshuNoteID(value: string): string | null {
   let url: URL; try { url = new URL(value); } catch { return null; }
   if (url.protocol !== "https:" || !domain(url.hostname, "xiaohongshu.com")) return null;
@@ -72,7 +72,7 @@ function walk(root: unknown, accept: (value: Record<string, unknown>) => unknown
 export interface JellyXiaohongshuPayload { id: string; title?: string; body?: string; tags: string[]; images: string[]; videos: string[]; kind: "image" | "video" }
 export function parseJellyXiaohongshu(html: string, expectedID: string): JellyXiaohongshuPayload {
   const root = jellySourceEmbeddedJSON(html, "__INITIAL_STATE__");
-  if (!root) throw new JellySourceError(/登录|login|captcha|验证/iu.test(html) ? "jelly.source.restricted" : "jelly.source.unavailable", "小红书公开页没有可读内容；原链接保留，可以粘贴文字、上传文件或重试");
+  if (!root) throw (/登录|login|captcha|验证/iu.test(html) ? jellySourceErrors.restricted : jellySourceErrors.unavailable)("小红书公开页没有可读内容；原链接保留，可以粘贴文字、上传文件或重试");
   const rootObject = object(root); let chosen: Record<string, unknown> | undefined;
   for (const container of [object(rootObject.note).noteDetailMap, rootObject.noteDetailMap]) {
     const entry = object(object(container)[expectedID]); if (Object.keys(entry).length === 0) continue;
@@ -80,7 +80,7 @@ export function parseJellyXiaohongshu(html: string, expectedID: string): JellyXi
     const embeddedID = firstString(note, ["noteId", "noteID", "note_id"]); if (!embeddedID || embeddedID === expectedID) { chosen = note; break; }
   }
   chosen ??= walk(root, value => firstString(value, ["noteId", "noteID", "note_id"]) === expectedID ? value : undefined) as Record<string, unknown> | undefined;
-  if (!chosen) throw new JellySourceError("jelly.source.note_mismatch", "小红书页面与请求的笔记 ID 不一致；未读取其他笔记");
+  if (!chosen) throw jellySourceErrors.note_mismatch("小红书页面与请求的笔记 ID 不一致；未读取其他笔记");
   const title = firstString(chosen, ["title", "displayTitle"])?.trim().slice(0, 500);
   const body = firstString(chosen, ["desc", "description"])?.trim().slice(0, 200_000);
   const tags = [...new Set(array(chosen.tagList ?? chosen.tags).map(value => typeof value === "string" ? value : firstString(object(value), ["name", "title"])).filter((value): value is string => !!value).map(value => value.trim().slice(0, 100)))];
@@ -116,18 +116,18 @@ function coverage(issues: string[], sufficient: boolean, processed = 1, total = 
 function fetcher(options: JellySourceOptions) { return options.fetch ?? fetchJellyPublicBytes; }
 async function readPage(url: string, options: JellySourceOptions): Promise<{ html: string; response: JellyPublicResponse }> {
   checkAborted(options); const response = await fetcher(options)(url, { maxBytes: 4_000_000, headers: pageHeaders, signal: options.signal });
-  if (!/text\/html|application\/xhtml\+xml/iu.test(response.type)) throw new JellySourceError("jelly.source.unsupported", "来源没有返回公开网页");
+  if (!/text\/html|application\/xhtml\+xml/iu.test(response.type)) throw jellySourceErrors.unsupported("来源没有返回公开网页");
   return { html: response.data.toString("utf8"), response };
 }
 function extensionFor(type: string, fallback: "audio" | "video" | "image"): string {
   const mime = type.split(";")[0]!.toLowerCase();
   const types: Record<string, string> = { "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/mp4": "m4a", "audio/aac": "aac", "audio/flac": "flac", "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/gif": "gif" };
   if (types[mime]) return types[mime]!;
-  if (mime && mime !== "application/octet-stream" && !mime.startsWith(`${fallback}/`)) throw new JellySourceError("jelly.source.invalid_media", "来源媒体响应类型不符");
+  if (mime && mime !== "application/octet-stream" && !mime.startsWith(`${fallback}/`)) throw jellySourceErrors.invalid_media("来源媒体响应类型不符");
   return fallback === "video" ? "mp4" : fallback === "audio" ? "m4a" : "jpg";
 }
 async function remoteMaterial(home: string, url: string, kind: "audio" | "video" | "image", referer: string, options: JellySourceOptions, maxBytes = maxBinary): Promise<{ extraction: JellyMaterialExtraction; bytes: number }> {
-  checkAborted(options); if (!https(url)) throw new JellySourceError("jelly.source.invalid_media", "媒体必须使用公开 HTTPS 地址");
+  checkAborted(options); if (!https(url)) throw jellySourceErrors.invalid_media("媒体必须使用公开 HTTPS 地址");
   const response = await fetcher(options)(url, { maxBytes, headers: { ...pageHeaders, accept: `${kind}/*,application/octet-stream`, referer: safeReferer(referer) }, signal: options.signal });
   const extension = extensionFor(response.type, kind);
   const extraction = await (options.extractMaterial ?? extractJellyMaterial)(home, { file_name: `来源素材.${extension}`, data_base64: response.data.toString("base64"), allow_model_download: options.allow_model_download === true }, options);
@@ -135,15 +135,15 @@ async function remoteMaterial(home: string, url: string, kind: "audio" | "video"
 }
 function fromExtraction(extraction: JellyMaterialExtraction, source: string, provider: string, title?: string): JellySourceMaterial { return { text: extraction.text, ...(title ? { title } : {}), source_url: source, provider, extractor: extraction.extractor, coverage: extraction.coverage, pages: extraction.pages, segments: extraction.segments, frames: extraction.frames }; }
 function apiData(response: JellyPublicResponse): Record<string, unknown> {
-  const json = object(responseJSON(response)); if (typeof json.code === "number" && json.code !== 0) throw new JellySourceError([-403, 403, -101, -412].includes(json.code) ? "jelly.source.restricted" : "jelly.source.unavailable", "B站公开接口未返回可读内容；不尝试登录或绕过限制");
+  const json = object(responseJSON(response)); if (typeof json.code === "number" && json.code !== 0) throw ([-403, 403, -101, -412].includes(json.code) ? jellySourceErrors.restricted : jellySourceErrors.unavailable)("B站公开接口未返回可读内容；不尝试登录或绕过限制");
   return object(json.data);
 }
 function biliAudio(data: Record<string, unknown>): string | null { const first = object(array(object(data.dash).audio)[0]); return https(first.baseUrl ?? first.base_url); }
 async function bilibili(home: string, source: string, options: JellySourceOptions): Promise<JellySourceMaterial> {
   const { html, response } = await readPage(source, options);
-  if (classifyJellySource(response.final_url) !== "bilibili" || new URL(response.final_url).hostname === "b23.tv") throw new JellySourceError("jelly.source.redirect_mismatch", "短链接未跳转到B站视频页");
+  if (classifyJellySource(response.final_url) !== "bilibili" || new URL(response.final_url).hostname === "b23.tv") throw jellySourceErrors.redirect_mismatch("短链接未跳转到B站视频页");
   const state = object(jellySourceEmbeddedJSON(html, "__INITIAL_STATE__")); const video = object(state.videoData); const bvid = video.bvid ?? state.bvid; const cid = Number(video.cid ?? state.cid);
-  if (typeof bvid !== "string" || !/^BV[A-Za-z\d]+$/u.test(bvid) || !Number.isSafeInteger(cid) || cid <= 0) throw new JellySourceError("jelly.source.unavailable", "B站公开页缺少视频身份；原链接保留");
+  if (typeof bvid !== "string" || !/^BV[A-Za-z\d]+$/u.test(bvid) || !Number.isSafeInteger(cid) || cid <= 0) throw jellySourceErrors.unavailable("B站公开页缺少视频身份；原链接保留");
   const query = new URLSearchParams({ bvid, cid: String(cid) }); const request = fetcher(options); const headers = { ...pageHeaders, referer: safeReferer(response.final_url) };
   const player = apiData(await request(`https://api.bilibili.com/x/player/v2?${query}`, { maxBytes: 4_000_000, headers, signal: options.signal }));
   const rank = (language: unknown) => ["zh-hans", "zh-cn", "zh", "ai-zh"].indexOf(String(language).toLowerCase());
@@ -156,30 +156,30 @@ async function bilibili(home: string, source: string, options: JellySourceOption
       if (segments.length < 30 || segments.reduce((count, segment) => count + (segment.text.match(/\p{L}/gu)?.length ?? 0), 0) < 200) continue;
       const text = segments.map(segment => `[${segment.start_seconds}–${segment.end_seconds} 秒] ${segment.text}`).join("\n");
       return { text, title: typeof video.title === "string" ? video.title : metadata(html, "og:title"), source_url: source, provider: "bilibili", extractor: "bilibili-public-subtitles", segments, coverage: coverage(body.length > 10000 ? ["字幕仅提取前 10000 段"] : [], true) };
-    } catch (error) { checkAborted(options); if (error instanceof JellySourceError && error.code === "jelly.source.private_address") throw error; }
+    } catch (error) { checkAborted(options); if (isJellySourceFailure(error) && error.code === "jelly.source.private_address") throw error; }
   }
   let audio = biliAudio(player);
   if (!audio) { query.set("fnval", "16"); audio = biliAudio(apiData(await request(`https://api.bilibili.com/x/player/playurl?${query}`, { maxBytes: 4_000_000, headers, signal: options.signal }))); }
-  if (!audio) throw new JellySourceError("jelly.source.unavailable", "没有合格公开字幕或可读音轨；可以粘贴字幕或上传文件");
+  if (!audio) throw jellySourceErrors.unavailable("没有合格公开字幕或可读音轨；可以粘贴字幕或上传文件");
   const material = await remoteMaterial(home, audio, "audio", response.final_url, options);
   return fromExtraction(material.extraction, source, "bilibili", typeof video.title === "string" ? video.title : undefined);
 }
 async function xiaoyuzhou(home: string, source: string, options: JellySourceOptions): Promise<JellySourceMaterial> {
-  const { html, response } = await readPage(source, options); if (classifyJellySource(response.final_url) !== "xiaoyuzhou") throw new JellySourceError("jelly.source.redirect_mismatch", "链接未返回原小宇宙节目页");
-  const audio = parseJellyXiaoyuzhouAudio(html); if (!audio) throw new JellySourceError("jelly.source.unavailable", "小宇宙公开页未提供可读音频；可以上传音频或粘贴转写");
+  const { html, response } = await readPage(source, options); if (classifyJellySource(response.final_url) !== "xiaoyuzhou") throw jellySourceErrors.redirect_mismatch("链接未返回原小宇宙节目页");
+  const audio = parseJellyXiaoyuzhouAudio(html); if (!audio) throw jellySourceErrors.unavailable("小宇宙公开页未提供可读音频；可以上传音频或粘贴转写");
   const material = await remoteMaterial(home, audio, "audio", response.final_url, options);
   return fromExtraction(material.extraction, source, "xiaoyuzhou", metadata(html, "og:title"));
 }
 async function xiaohongshu(home: string, source: string, options: JellySourceOptions): Promise<JellySourceMaterial> {
   const expected = jellyXiaohongshuNoteID(source)!; const { html, response } = await readPage(source, options);
-  if (jellyXiaohongshuNoteID(response.final_url) !== expected) throw new JellySourceError("jelly.source.note_mismatch", "小红书跳转后的笔记 ID 不一致；未读取其他笔记");
+  if (jellyXiaohongshuNoteID(response.final_url) !== expected) throw jellySourceErrors.note_mismatch("小红书跳转后的笔记 ID 不一致；未读取其他笔记");
   const payload = parseJellyXiaohongshu(html, expected); const parts = [payload.title, payload.body, payload.tags.length ? `话题：${payload.tags.map(tag => `#${tag}`).join(" ")}` : undefined].filter((text): text is string => !!text);
   const issues: string[] = []; const pages: NonNullable<JellySourceMaterial["pages"]> = []; let segments: JellySourceMaterial["segments"]; let frames: JellySourceMaterial["frames"]; let modelRequired: JellySourceMaterial["model_required"]; let acquired = 0; let bytes = 0; let hasMaterial = !!payload.body;
   if (payload.kind === "video") {
     let material: JellyMaterialExtraction | undefined;
     for (const candidate of payload.videos.slice(0, 3)) {
       try { material = (await remoteMaterial(home, candidate, "video", response.final_url, options)).extraction; break; }
-      catch (error) { checkAborted(options); if (error instanceof JellyMaterialError && error.code === "jelly.material.model_required") { if (!hasMaterial) throw error; modelRequired = error.details ?? {}; issues.push("本地语音模型尚未启用；保留正文，视频转写等待明确下载选择"); break; } issues.push(error instanceof Error ? error.message : "视频素材读取失败"); }
+      catch (error) { checkAborted(options); if (isJellyMaterialFailure(error) && error.code === "jelly.material.model_required") { if (!hasMaterial) throw error; modelRequired = (error.details ?? {}) as { approximate_bytes?: number; variant?: string }; issues.push("本地语音模型尚未启用；保留正文，视频转写等待明确下载选择"); break; } issues.push(error instanceof Error ? error.message : "视频素材读取失败"); }
     }
     if (material) { parts.push(material.text); hasMaterial ||= !!material.text.trim(); pages.push(...material.pages); segments = material.segments; frames = material.frames; issues.push(...material.coverage.issues); acquired++; }
     else if (!modelRequired) issues.push("公开视频素材不可用");
@@ -188,12 +188,12 @@ async function xiaohongshu(home: string, source: string, options: JellySourceOpt
     for (const [index, url] of payload.images.slice(0, 20).entries()) {
       checkAborted(options); if (bytes >= maxBinary) { issues.push("图集总下载达到 25 MB 上限"); break; }
       try { const result = await remoteMaterial(home, url, "image", response.final_url, options, maxBinary - bytes); bytes += result.bytes; acquired++; if (result.extraction.text.trim()) { hasMaterial = true; parts.push(`[图片 ${index + 1}]\n${result.extraction.text}`); } pages.push(...result.extraction.pages.map(page => ({ ...page, number: index + 1 }))); issues.push(...result.extraction.coverage.issues); }
-      catch (error) { checkAborted(options); issues.push(`图片 ${index + 1}：${error instanceof Error ? error.message : "提取失败"}`); if (error instanceof JellyMaterialError && error.code === "jelly.material.native_unavailable") break; }
+      catch (error) { checkAborted(options); issues.push(`图片 ${index + 1}：${error instanceof Error ? error.message : "提取失败"}`); if (isJellyMaterialFailure(error) && error.code === "jelly.material.native_unavailable") break; }
     }
     if (payload.images.length) issues.push("图片仅提取文字，未理解纯视觉内容");
   }
   const text = parts.filter(Boolean).join("\n\n");
-  if (!text || !hasMaterial) throw new JellySourceError("jelly.source.insufficient", "小红书来源只有标题或元数据，没有足够的可读材料；原链接保留，可以粘贴原文继续");
+  if (!text || !hasMaterial) throw jellySourceErrors.insufficient("小红书来源只有标题或元数据，没有足够的可读材料；原链接保留，可以粘贴原文继续");
   return { text, title: payload.title, source_url: source, provider: "xiaohongshu", extractor: "xiaohongshu-public-page", coverage: coverage([...new Set(issues)], true, acquired, payload.kind === "video" ? 1 : payload.images.length), pages, segments, frames, ...(modelRequired ? { model_required: modelRequired } : {}) };
 }
 export async function readJellyMaterialSource(home: string, source: string, options: JellySourceOptions = {}): Promise<JellySourceMaterial> {
@@ -206,7 +206,7 @@ export async function readJellyMaterialSource(home: string, source: string, opti
       const response = await fetcher(options)(source, { maxBytes: 4_000_000, headers: pageHeaders, signal: options.signal });
       if (/html/iu.test(response.type)) { const article = jellyHTMLArticle(response.data.toString("utf8")); return { ...article, source_url: source, provider: "article", extractor: "public-html", coverage: coverage(["提取公开网页正文，未读取嵌入音视频和图片"], true) }; }
       if (/text\/(plain|markdown)/iu.test(response.type)) { const text = response.data.toString("utf8"); return { text, source_url: source, provider: "article", extractor: "public-text", coverage: coverage([], !!text.trim()) }; }
-      throw new JellySourceError("jelly.source.unsupported", "来源不属于可读网页；可以上传文件继续");
+      throw jellySourceErrors.unsupported("来源不属于可读网页；可以上传文件继续");
     }
   }
 }

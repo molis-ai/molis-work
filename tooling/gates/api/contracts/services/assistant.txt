@@ -399,6 +399,7 @@ export interface AssistantRound {
     executor?: "assistant" | "coding";
     character?: AssistantCharacter;
     text: string;
+    written_by?: "host";
     materials: Array<Pick<AssistantMaterial, "material_id" | "kind" | "title" | "explicit" | "draft" | "source" | "object">>;
     context: AssistantContextSnapshot | null;
     started_at: string;

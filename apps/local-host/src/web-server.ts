@@ -25,11 +25,12 @@ import { createLocalWebComposition, type LocalWebPlatform } from "./web-composit
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
 import { handleMolisWorkWebRequest } from "./web-request.js";
 import { assistantServiceFor } from "./assistant/assistant-http.js";
-import { BrowserHost } from "./browser/browser-host.js";
+import { lazyBrowserHost } from "./browser/browser-host.js";
 import { attachMolisWorkBrowserSocket } from "./browser/browser-socket.js";
 import { handleBrowserHttp } from "./browser/browser-http.js";
 import { BrowserSiteDecisions, registerBrowserSurfaces } from "./browser/browser-surfaces.js";
 import { createBrowserSurfaceDriver } from "./browser/surface-driver.js";
+import { installComputerDesk } from "./computer/computer-surfaces.js";
 import { locateBrowser } from "./browser/locate.js";
 import { createWebCatalogAccess } from "./web-catalog-access.js";
 import { finishLeftOverDeletions } from "./web-deletion-sweep.js";
@@ -109,16 +110,12 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     });
     // The side panel's browser (specs/archive/side-panel): started on first use, one page per project. Its pages may never load
     // this server itself, which hands its control token to whoever loads it.
-    let browsers: BrowserHost | null = null;
-    const browserHost = () => browsers ??= new BrowserHost({ homeDirectory: storageHome, forbiddenOrigins: () => {
-      const address = server.address();
-      const port = address && typeof address === "object" ? address.port : 0;
-      return port ? [`http://127.0.0.1:${port}`, `http://localhost:${port}`, `http://[::1]:${port}`] : [];
-    } });
+    const browserHost = lazyBrowserHost(storageHome, () => server);
     // The Assistant may look at and act on a project's page through Prologue (specs/archive/side-panel P5): one driver per page,
     // found by the project its round works on; sites the person allowed or blocked are kept beside the browser profile.
     const sites = new BrowserSiteDecisions(storageHome);
     const drivers = new Map<string, HostSurfaceDriver>();
+    const computer = installComputerDesk(localHost, storageHome); // the Assistant's desktop: desk, helper, providers, sweep, HTTP, socket (specs/computer-use)
     const unregisterSurfaces = registerBrowserSurfaces(localHost, {
       siteDecisions: () => sites.list(),
       driverFor: async projectId => {
@@ -173,6 +170,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             return;
           }
           if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
+          if (await computer.handleHttp(request, response, url)) return;
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
           if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog) || await handleProjectDeletionGatewayHttp(request, response, url, storageHome, webProjectDeletion(withCatalog, { isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }))) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
@@ -206,10 +204,11 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     })));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
-    awaitWebServerShutdown(server, () => { im.stop(); void browsers?.close(); }, async () => {
+    awaitWebServerShutdown(server, () => { im.stop(); void browserHost.current()?.close(); }, async () => {
       if (ownsLocalHost) { try { await localHost.close(); } finally { await catalogAccess?.close(); } }
     });
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
+    computer.attach(server, controlToken);
     pty.host = attachMolisWorkPtySocket(server, controlToken, {
       onData(panelId, sessionId, data) {
         void sessionResources
@@ -264,7 +263,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       clearInterval(assistantTimer);
       clearInterval(reminderTimer);
       im.close();
-      void browsers?.close();
+      void browserHost.current()?.close();
       unregisterSurfaces();
       clearInterval(schedulerTimer);
       feedSchedulers.clear();

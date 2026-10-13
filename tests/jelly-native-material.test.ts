@@ -5,7 +5,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { extractJellyMaterial, JellyMaterialError } from "../apps/local-host/src/jelly-native-material.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { extractJellyMaterial } from "../apps/local-host/src/jelly-native-material.js";
+/** A refusal of the material reader: an ActionError under Jelly's name, whose status comes from its kind. */
+const isJellyMaterialFailure = (error: unknown): error is ActionError => error instanceof ActionError && error.code.startsWith("jelly.material.");
 const helper = fileURLToPath(new URL("../apps/local-host/native/materials/bin/jelly-material", import.meta.url));
 const upload = (name: string, text: string | Buffer) => ({ file_name: name, data_base64: Buffer.from(text).toString("base64") });
 function home() { return mkdtempSync(path.join(tmpdir(), "molis-jelly-material-")); }
@@ -23,15 +27,15 @@ test("uploaded UTF8 and HTML become traceable text without evaluating scripts", 
 test("path names, invalid base64, empty, unsupported and non-UTF8 inputs fail", async () => {
   const directory = home();
   try {
-    for (const input of [upload("../private.txt", "safe"), upload("C:\\private.txt", "safe"), upload("program.exe", "binary"), upload("empty.txt", ""), { file_name: "bad.txt", data_base64: "%%%" }, upload("binary.txt", Buffer.from([0xFF, 0xFE]))]) await assert.rejects(extractJellyMaterial(directory, input), JellyMaterialError);
+    for (const input of [upload("../private.txt", "safe"), upload("C:\\private.txt", "safe"), upload("program.exe", "binary"), upload("empty.txt", ""), { file_name: "bad.txt", data_base64: "%%%" }, upload("binary.txt", Buffer.from([0xFF, 0xFE]))]) await assert.rejects(extractJellyMaterial(directory, input), isJellyMaterialFailure);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 test("missing native helper and unsupported host return explicit unavailable errors and leave no copy of the upload", async () => {
   const directory = home();
   try {
     const input = upload("document.pdf", "%PDF-1.4\n");
-    await assert.rejects(extractJellyMaterial(directory, input, { platform: "linux" }), (error: unknown) => error instanceof JellyMaterialError && error.status === 503);
-    await assert.rejects(extractJellyMaterial(directory, input, { platform: "darwin", helperPath: path.join(directory, "missing") }), (error: unknown) => error instanceof JellyMaterialError && error.code === "jelly.material.native_unavailable");
+    await assert.rejects(extractJellyMaterial(directory, input, { platform: "linux" }), (error: unknown) => isJellyMaterialFailure(error) && actionHttpStatus(error) === 503);
+    await assert.rejects(extractJellyMaterial(directory, input, { platform: "darwin", helperPath: path.join(directory, "missing") }), (error: unknown) => isJellyMaterialFailure(error) && error.code === "jelly.material.native_unavailable");
     assert.deepEqual(readdirSync(directory), []);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
@@ -39,7 +43,7 @@ test("a symlinked model cache cannot redirect the Home's writes outside the priv
   const directory = home(); const outside = home();
   try {
     mkdirSync(path.join(directory, "lingguang")); symlinkSync(outside, path.join(directory, "lingguang", "models"));
-    await assert.rejects(extractJellyMaterial(directory, upload("sample.wav", Buffer.from("RIFF"))), (error: unknown) => error instanceof JellyMaterialError && error.code === "jelly.material.unsafe_storage");
+    await assert.rejects(extractJellyMaterial(directory, upload("sample.wav", Buffer.from("RIFF"))), (error: unknown) => isJellyMaterialFailure(error) && error.code === "jelly.material.unsafe_storage");
     assert.deepEqual(readdirSync(outside), []);
     // A symlink where an upload copy used to go is simply never touched: the text is read from memory.
     symlinkSync(outside, path.join(directory, "lingguang", "imports"));
@@ -57,7 +61,7 @@ test("real macOS helper extracts image OCR, PDF text and image-only PDF pages", 
     const pdf = await extractJellyMaterial(directory, upload("sample.pdf", readFileSync(path.join(directory, "sample.pdf"))));
     assert.equal(pdf.coverage.total_pages, 2); assert.equal(pdf.pages[0]!.method, "pdf-text"); assert.equal(pdf.pages[1]!.method, "vision-ocr"); assert.match(pdf.text, /JELLY PDF NATIVE TEXT 2026/); assert.match(pdf.text, /JELLY MATERIAL SAMPLE 2026/);
     const capabilities = JSON.parse(execFileSync(helper, ["capabilities"], { encoding: "utf8" })); assert.equal(capabilities.image_ocr, "available"); assert.equal(capabilities.pdf, "available"); assert.equal(capabilities.foundation_models, undefined);
-    await assert.rejects(extractJellyMaterial(directory, upload("invalid.pdf", "broken pdf"), { helperPath: helper }), (error: unknown) => error instanceof JellyMaterialError && error.status === 422);
+    await assert.rejects(extractJellyMaterial(directory, upload("invalid.pdf", "broken pdf"), { helperPath: helper }), (error: unknown) => isJellyMaterialFailure(error) && actionHttpStatus(error) === 400);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 const whisperHelper = fileURLToPath(new URL("../apps/local-host/native/materials/bin/jelly-whisper", import.meta.url));
@@ -67,7 +71,7 @@ function silentWav(): Buffer {
 test("real Whisper helper requires an explicit model download choice and leaves no temporary audio", { skip: process.platform !== "darwin" || !existsSync(whisperHelper) }, async () => {
   const directory = home();
   try {
-    await assert.rejects(extractJellyMaterial(directory, upload("sample.wav", silentWav()), { whisperHelperPath: whisperHelper }), (error: unknown) => error instanceof JellyMaterialError && error.code === "jelly.material.model_required" && error.status === 409 && error.details?.approximate_bytes === 626000000);
+    await assert.rejects(extractJellyMaterial(directory, upload("sample.wav", silentWav()), { whisperHelperPath: whisperHelper }), (error: unknown) => isJellyMaterialFailure(error) && error.code === "jelly.material.model_required" && actionHttpStatus(error) === 409 && error.details?.approximate_bytes === 626000000);
     assert.deepEqual(readdirSync(path.join(directory, "lingguang", "models")), []);
     assert.ok(!readdirSync(path.join(directory, "lingguang")).some(file => file.startsWith("material-run-")));
   } finally { rmSync(directory, { recursive: true, force: true }); }
@@ -78,7 +82,7 @@ test("cancelling media extraction terminates the helper and removes its run dire
     const fake = path.join(directory, "wait-helper");
     writeFileSync(fake, `#!${process.execPath}\nprocess.stderr.write(JSON.stringify({stage:'transcribing',progress:0})+'\\n');setInterval(()=>{},1000);\n`, { mode: 0o700 });
     const controller = new AbortController();
-    await assert.rejects(extractJellyMaterial(directory, upload("sample.wav", silentWav()), { platform: "darwin", whisperHelperPath: fake, signal: controller.signal, onProgress() { controller.abort(); } }), (error: unknown) => error instanceof JellyMaterialError && error.code === "jelly.material.cancelled");
+    await assert.rejects(extractJellyMaterial(directory, upload("sample.wav", silentWav()), { platform: "darwin", whisperHelperPath: fake, signal: controller.signal, onProgress() { controller.abort(); } }), (error: unknown) => isJellyMaterialFailure(error) && error.code === "jelly.material.cancelled");
     assert.ok(!readdirSync(path.join(directory, "lingguang")).some(file => file.startsWith("material-run-")));
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

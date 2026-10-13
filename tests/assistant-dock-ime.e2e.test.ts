@@ -1,11 +1,36 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
+import { existsSync } from "node:fs";
+import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+
+/** Capture the fixture's real registered after hook so both successful deletion and a real permission refusal can be observed. */
+function fixtureCleanup(t: TestContext) {
+  let callback: (() => void | Promise<void>) | undefined;
+  const context = new Proxy(t, { get(target, key) {
+    if (key === "after") return (hook: () => void | Promise<void>) => { callback = hook; };
+    const value = Reflect.get(target, key, target);
+    return typeof value === "function" ? value.bind(target) : value;
+  } });
+  return { context, async close() { if (callback) await callback(); } };
+}
 
 // AC27: typing Chinese through an input method, the Enter that commits a candidate is the IME's, never a Send.
 test("底栏：输入法组合中按回车只确认候选、不发送；组合结束后回车才发送", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t, "seeded");
+  const cleanup = fixtureCleanup(t);
+  let homeDirectory: string | undefined;
+  t.after(async () => {
+    await cleanup.close();
+    // BROWSER-CLEAN-01: this existing Linux product-smoke entry proves its actual temporary Home was removed.
+    if (homeDirectory) assert.equal(existsSync(homeDirectory), false, "the browser fixture must remove its own Home after closing");
+  });
+  const browser = await openGoalBrowser(cleanup.context, "seeded");
   if (!browser) return;
+  homeDirectory = browser.homeDirectory;
+  const marker = join(homeDirectory, "cleanup-observation.txt");
+  await writeFile(marker, "an actual file created by this test");
+  assert.equal(existsSync(marker), true);
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
@@ -35,4 +60,54 @@ test("底栏：输入法组合中按回车只确认候选、不发送；组合�
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 }, sessionId);
   await waitFor(`!document.querySelector('[data-assistant-panel]').hidden`);
   assert.equal(await works(), before + 1, "one Enter after the composition sends once");
+});
+
+
+// BROWSER-CLEAN-01: retries never swallow a persistent permission refusal or replace its original filesystem cause.
+test("browser fixture cleanup preserves a real permission failure in its final AggregateError", {
+  timeout: 60_000,
+  skip: process.platform === "win32" ? "requires Unix directory permissions" : process.getuid?.() === 0 ? "root bypasses directory permissions" : false,
+}, async t => {
+  const cleanup = fixtureCleanup(t);
+  let homeDirectory: string | undefined;
+  let locked: string | undefined;
+  let closeStarted = false;
+  const failures: unknown[] = [];
+  try {
+    const browser = await openGoalBrowser(cleanup.context);
+    if (!browser) return;
+    homeDirectory = browser.homeDirectory;
+    locked = join(homeDirectory, "permission-refusal");
+    const deniedPath = locked;
+    await mkdir(locked);
+    await writeFile(join(locked, "kept.txt"), "a real file that cannot be unlinked without write permission");
+    await chmod(locked, 0o500);
+    closeStarted = true;
+    await assert.rejects(cleanup.close(), (error: unknown) => {
+      assert.ok(error instanceof AggregateError);
+      assert.equal(error.message, "Browser fixture cleanup failed");
+      assert.equal(error.errors.length, 1, "no Chrome, server, Host or database cleanup failure may be ignored");
+      const cause: unknown = error.errors[0];
+      assert.ok(cause instanceof Error && "code" in cause && (cause.code === "EACCES" || cause.code === "EPERM"));
+      assert.ok("path" in cause && (cause.path === deniedPath || cause.path === join(deniedPath, "kept.txt")),
+        "the sole filesystem cause must belong to the directory this test intentionally protected");
+      return true;
+    });
+    assert.equal(existsSync(homeDirectory), true, "a refused deletion must leave its directory observable");
+    assert.equal(existsSync(join(locked, "kept.txt")), true);
+  } catch (error) { failures.push(error); }
+  finally {
+    try { if (locked && existsSync(locked)) await chmod(locked, 0o700); }
+    catch (error) { failures.push(error); }
+    finally {
+      try { if (!closeStarted) await cleanup.close(); }
+      catch (error) { failures.push(error); }
+      finally {
+        try { if (homeDirectory) await rm(homeDirectory, { recursive: true, force: true }); }
+        catch (error) { failures.push(error); }
+      }
+    }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length) throw new AggregateError(failures, "Browser cleanup regression could not restore its temporary Home");
+  }
 });

@@ -13,6 +13,7 @@ import { functionAuthoringActions, functionContextActions, functionsActions, pub
 import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { grantMcpActions, revokeMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 test("Agent authoring discovers runtime capabilities, preserves exact references, and MCP recommendations require a separate authorized business call", { timeout: 120_000 }, async t => {
@@ -23,7 +24,7 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
       score: null, legend: null, probabilities: {}, confidence: null, model: record.model }; },
   } };
   const browser = await openGoalBrowser(t, "seeded", undefined, null, undefined, functions); if (!browser) return;
-  const { localHost, store, projectId, homeDirectory, command, sessionId, evaluate, waitFor, click, navigate, reloadPage, origin } = browser;
+  const { localHost, store, projectId, homeDirectory, command, sessionId, evaluate, waitFor, click, navigate, reloadPage, origin, web } = browser;
   assert.ok(localHost); assert.ok(projectId);
   const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
   store.db.exec("CREATE TABLE fixture_agent_notes (id TEXT PRIMARY KEY, content TEXT NOT NULL, state TEXT NOT NULL)");
@@ -100,12 +101,26 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
     assert.deepEqual(judgment.action.required_actions, [ref(write)]);
     const caller: ActionCallContext = { actor_id: "runtime:agent-notes", project_id: projectId, audience: "mcp", permissions: [] };
     const views = await localHost.inspectActions(caller, reference);
-    const grant = async (definition: ActionDefinition, enabled = true) => {
+    const viewOf = (definition: ActionDefinition) => {
       const view = views.find(row => row.capability_id === definition.capability_id && row.version === definition.version)!;
       assert.ok(view);
-      await writeMcpActionGrant(homeDirectory, createMcpActionGrant(caller.actor_id, view.action.scope === "home" ? null : projectId, view, enabled));
+      return view;
     };
-    await grant(judgment); await grant(read); await grant(functionsActions.invoke);
+    // Grants go through the access settings, as a person makes them; the Host checks each one against what the client can really use.
+    const grant = (...definitions: ActionDefinition[]) => grantMcpActions(web, { clientId: caller.actor_id, projectId, actions: definitions.map(viewOf) });
+    const revoke = (definition: ActionDefinition) => {
+      const view = viewOf(definition);
+      return revokeMcpAction(web, { clientId: caller.actor_id, projectId: view.action.scope === "home" ? null : projectId,
+        action: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id } });
+    };
+    // The one grant the access settings cannot make: they list a Home action's dependencies from the Home, where this project's action is not
+    // offered, so the Home-level judgment that recommends it is refused (`mcp.grant_requires`) even with that action granted in this project,
+    // although it runs here once it is. It is saved the way the route would save it; everything else is granted through the route.
+    await grant(write);
+    await assert.rejects(grant(judgment), { status: 400, code: "mcp.grant_requires" });
+    await revoke(write);
+    await writeMcpActionGrant(homeDirectory, createMcpActionGrant(caller.actor_id, null, viewOf(judgment), true));
+    await grant(read, functionsActions.invoke);
     external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId, databasePath: browser.databasePath, webBaseUrl: origin },
       { homeDirectory: homeDirectory, runtimeContext: { runtime_id: "agent-notes", stable_work_context_id: null, host_declares_stable: false } }, localHost);
     let request = 0;
@@ -113,8 +128,10 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
     const result = async (definition: ActionDefinition, input: unknown) => {
       const reply = await call(definition, input); assert.equal(reply.result.isError, false, JSON.stringify(reply)); return reply.result.structuredContent;
     };
-    assert.equal((await call(judgment, { content: "No target grant" })).result.isError, true);
-    assert.equal((await call(functionsActions.invoke, { function_key: published.function_key, input: "No target grant" })).result.isError, true);
+    const noTarget = await call(judgment, { content: "No target grant" });
+    assert.equal(noTarget.result.isError, true); assert.match(JSON.stringify(noTarget), /mcp\.tool_disabled/, "the recommendation target is not granted, so the judgment is not offered");
+    const noTargetInvoke = await call(functionsActions.invoke, { function_key: published.function_key, input: "No target grant" });
+    assert.equal(noTargetInvoke.result.isError, true); assert.match(JSON.stringify(noTargetInvoke), /actions\.recommendation_missing/);
     assert.equal(history().length, 0); assert.equal(note().state, "new");
     await grant(write);
     const recommendation = await result(judgment, { content: (await result(read, {})).content });
@@ -124,14 +141,15 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
     assert.equal((await result(write, { state: "reviewed" })).state, "reviewed"); assert.equal(note().state, "reviewed");
     assert.deepEqual((await result(functionsActions.invoke, { function_key: published.function_key, input: note().content })).recommended_actions, [ref(write)]);
     const count = history().length;
-    onEvaluate = () => grant(write, false);
+    onEvaluate = () => revoke(write).then(() => undefined);
     const revoked = await call(judgment, { content: "Revoke during model evaluation" });
-    assert.equal(revoked.result.isError, true); assert.match(JSON.stringify(revoked), /revoked|forbidden|unavailable/);
+    assert.equal(revoked.result.isError, true); assert.match(JSON.stringify(revoked), /mcp\.action_revoked/);
     assert.equal(history().length, count, "revocation must prevent recording or returning a stale authorized recommendation");
     assert.equal(note().state, "reviewed"); onEvaluate = undefined;
     await grant(write);
     onEvaluate = () => runtime.stop(install.install_id).then(() => undefined);
-    assert.equal((await call(functionsActions.invoke, { function_key: published.function_key, input: "Unload during model evaluation" })).result.isError, true);
+    const unloaded = await call(functionsActions.invoke, { function_key: published.function_key, input: "Unload during model evaluation" });
+    assert.equal(unloaded.result.isError, true); assert.match(JSON.stringify(unloaded), /actions\.recommendation_missing/);
     assert.equal(history().length, count); onEvaluate = undefined;
     await runtime.start(install.install_id);
     assert.deepEqual(record().action_map, { true: ref(write) });

@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
+import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { scheduleCapabilities } from "@molis-ai/molis-work-contracts/services/scheduler";
 import type { PluginCapabilityClient, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -12,6 +15,22 @@ import { crossEntrySchedule as subject, crossEntryTodo as todo, isCrossEntryObje
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const clientId = "runtime:cross-entry";
+async function scheduleSdk(t: Parameters<typeof openTestHome>[0], home: TestHome, project: TestProject) {
+  let sdk: BoundActionClient | undefined;
+  const actions = { registry: home.host.actionRegistry(project.reference), client: home.host.actionClient(project.reference, false), project_id: project.project_id };
+  const runtime = await home.host.withProject(project.reference, owner => new PluginRuntime(undefined, new PluginHostExecutor({ actions,
+    project_id: project.project_id, actor_id: "schedule-sdk-owner", artifacts: owner.coordinator.artifacts, processItems: owner.coordinator.processItems,
+    ui: new UiHost(), privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { actions }));
+  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.fixture.schedule-sdk", version: "1.0.0", name: "Schedule consumer", kind: "app",
+    publisher: { publisher_id: "fixture", signature: "schedule-sdk" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [{ permission: "schedule:read", required: true, reason: "Read the original task" }, { permission: "schedule:write", required: true, reason: "Save the authorized task" }],
+    capabilities: { provides: [], consumes: [subject.create.capability_id, subject.archive.capability_id, subject.list.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
+    async start(context) { sdk = context.services?.actions; return { kind: "app" }; } };
+  const install = runtime.install({ definition, deployment: "local", grants: ["schedule:read", "schedule:write"] }).install;
+  t.after(() => runtime.stop(install.install_id));
+  await runtime.start(install.install_id); assert.ok(sdk, "the real executor bound the declared action client"); return sdk;
+}
+
 function object(value: unknown) { assert.ok(isCrossEntryObject(value), JSON.stringify(value)); return value; }
 async function page(home: TestHome, path: string, input: unknown) {
   const response = await fetch(home.origin + path, { method: "POST", headers: { origin: home.origin, "content-type": "application/json",
@@ -47,13 +66,13 @@ function row(home: TestHome, callId: unknown, capabilityId: string) {
   return record;
 }
 
-test("W3-09-1-01 T1: page, actual MCP tool and typed-to-action creates agree on owner facts and findable operation ids", { timeout: 60_000 }, async t => {
+test("W3-09-1-01 T1: page, actual MCP tool and the bound plugin SDK action client creates agree on owner facts and findable operation ids", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), project = await home.createProject("Cross entry", ["schedule"]);
   await home.grant(clientId, project.project_id, [subject.create, subject.archive, subject.list]);
   const mcp = mcpFor(home, project); t.after(() => mcp.close());
   assert.ok(home.host.search);
   const changed = t.mock.method(home.host.search, "changed");
-  const assertChanged = (expected: number) => assert.equal(changed.mock.calls.filter(call => call.arguments[0] === "schedule" && call.arguments[1] === project.project_id).length, expected);
+  const assertChanged = (expected: number) => assert.equal(changed.mock.calls.filter(call => call.arguments[0] === "io.molis.work.schedule" && call.arguments[1] === project.project_id).length, expected);
   const target = new Date(Date.now() + 12 * 60 * 60_000);
   const time = `${String(target.getHours()).padStart(2, "0")}:${String(target.getMinutes()).padStart(2, "0")}`;
   const input = subject.input("同一个真实任务", time), results: Array<{ task: Record<string, unknown>; callId: unknown; actor: string; audience: string }> = [];
@@ -65,8 +84,14 @@ test("W3-09-1-01 T1: page, actual MCP tool and typed-to-action creates agree on 
   assert.notEqual(fromMcp.result.isError, true, JSON.stringify(fromMcp.result));
   results.push({ task: object(fromMcp.body.task), callId: fromMcp.callId, actor: clientId, audience: "mcp" });
   assertChanged(2);
-  const typedId = newCallId(), fromTyped = await withCallId(typedId, () => home.host.client(project.reference).invoke(subject.create, input));
-  results.push({ task: object(fromTyped.task), callId: typedId, actor: "local-host", audience: "user" });
+  const beforeLowPort = await home.web.get(subject.path(project.project_id)), lowPortId = newCallId();
+  await withCallId(lowPortId, () => assert.rejects(home.host.client(project.reference).invoke(subject.create, input), { code: "actions.forbidden" }));
+  assert.equal(row(home, lowPortId, subject.create.capability_id).code, "actions.forbidden");
+  assert.deepEqual(await home.web.get(subject.path(project.project_id)), beforeLowPort, "the low port borrows no ambient write permission");
+  assertChanged(2);
+  const sdk = await scheduleSdk(t, home, project);
+  const typedId = newCallId(), fromTyped = await withCallId(typedId, () => sdk.invoke(subject.create, input));
+  results.push({ task: object(fromTyped.task), callId: typedId, actor: "schedule-sdk-owner", audience: "plugin" });
   assertChanged(3);
   for (const result of results) {
     const record = row(home, result.callId, subject.create.capability_id);
@@ -93,7 +118,7 @@ test("W3-09-1-01 T4: the actual typed service records refusals, requires its ori
   };
   const home = await openTestHome(t, { host: { pluginFixtures: { project: [definition] } } });
   const project = await home.createProject("Cross entry typed service", ["schedule"]);
-  await home.host.withProject(project.reference, () => undefined);
+  await home.host.inspectActions({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] }, project.reference);
   assert.ok(client, "the production executor opened the fixture's declared service port");
   const changed = t.mock.method(home.host.search!, "changed");
   const directId = newCallId();
@@ -112,7 +137,7 @@ test("W3-09-1-01 T4: the actual typed service records refusals, requires its ori
   assert.equal(changed.mock.calls.length, 0, "the typed service creates no plugin owner-change signal");
 });
 
-test("W3-09-1-01 T2: an owner refusal preserves its literal error and each page/MCP/typed diagnostic row without changing tasks", { timeout: 60_000 }, async t => {
+test("W3-09-1-01 T2: an owner refusal preserves its literal error and each page/MCP/SDK action diagnostic row without changing tasks", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), project = await home.createProject("Cross entry refusals", ["schedule"]);
   await home.grant(clientId, project.project_id, [subject.create, subject.archive, subject.list]);
   const mcp = mcpFor(home, project); t.after(() => mcp.close());
@@ -123,7 +148,8 @@ test("W3-09-1-01 T2: an owner refusal preserves its literal error and each page/
   const refusedMcp = await mcpCall(mcp, subject.archive.capability_id, { task_id: "missing" });
   assert.equal(refusedMcp.result.isError, true); assert.equal(refusedMcp.body.code, subject.missing.code); assert.equal(refusedMcp.body.error, subject.missing.message);
   const typedId = newCallId();
-  await withCallId(typedId, () => assert.rejects(home.host.client(project.reference).invoke(subject.archive, { task_id: "missing" }), subject.missing));
+  const sdk = await scheduleSdk(t, home, project);
+  await withCallId(typedId, () => assert.rejects(sdk.invoke(subject.archive, { task_id: "missing" }), subject.missing));
   for (const id of [refusedPage.callId, refusedMcp.body.call_id, typedId]) {
     const record = row(home, id, subject.archive.capability_id);
     assert.deepEqual([record.ok, record.code, record.refused, record.operation], [false, subject.missing.code, undefined, "command"]);

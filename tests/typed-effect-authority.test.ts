@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { LocalHost, PluginHostExecutor, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
-import { PluginRuntime, createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginDefinition, PluginCapabilityClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { LocalHost, LocalProjectDatabase, PluginHostExecutor, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
+import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import type { HostCapabilityDefinition, HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { filesManifest } from "@molis-ai/molis-work-plugin-files";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { recordedCallId, withCallId } from "@molis-ai/molis-work-kernel";
@@ -22,7 +22,7 @@ const peer: ActionDefinition = { ...origin, capability_id: "fixture.typed.peer",
   ...origin.action, title: "Independently granted peer", kind: "query", output_schema: { type: "boolean" },
 } };
 
-test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow its peer's grant across SDK and the typed SDK port to a formal Goal note action", { timeout: 30_000 }, async t => {
+test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow its peer's grant across the bound SDK action client to a formal Goal note action", { timeout: 30_000 }, async t => {
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let originChecked = false, held = true;
   const home = await openTestHome(t, { catalogPolicy: false, host: { actionAvailability: async (caller, view) => {
@@ -48,11 +48,11 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
     capabilities: { provides: [], consumes: [goalsActions.note.capability_id] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [origin, peer],
   }, async start(context) {
-    assert.ok(context.services?.capabilities);
-    const capabilities = context.services.capabilities;
-    return { kind: "app", actions: [{ ...origin, handle: caller => capabilities.invoke(goalsActions.note, progress, {
+    assert.ok(context.services?.actions);
+    const actions = context.services.actions;
+    return { kind: "app", actions: [{ ...origin, handle: caller => actions.invoke(goalsActions.note, progress, {
       signal: caller.signal,
-      before_effect: async () => { await caller.beforeEffect(); originChecked = true; },
+      beforeEffect: async () => { await caller.beforeEffect(); originChecked = true; },
       assert_authority_current: () => { caller.assert_authority_current(); },
     }) }, { ...peer, handle: () => true }] };
   } };
@@ -126,7 +126,23 @@ for (const publishedAction of [false, true]) {
         return ++effects;
       };
       let remove = host.register(descriptor, handler);
-      const sdk = createPluginCapabilityClient({ ...filesManifest, capabilities: { provides: [], consumes: [descriptor.capability_id] } }, host.client(project));
+      const store = new LocalProjectDatabase(":memory:");
+      const persistence = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (id: string) => store.eventCursor(id) };
+      const artifacts = new ArtifactsModule(persistence), processItems = new ProcessItemsModule(persistence);
+      const actions = { registry: host.actionRegistry(project), client: { ...host.actionClient(project), ...host.syncActionClient(project) }, project_id: project.project_id };
+      const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "tail-fixture-actor",
+        artifacts, processItems, ui: new UiHost(), capabilities: host.client(project),
+        privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { actions });
+      let capturedSdk: PluginCapabilityClient | undefined;
+      const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.fixture.tail-consumer", version: "1.0.0", name: "Tail consumer", kind: "app",
+        publisher: { publisher_id: "fixture", signature: "tail" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
+        capabilities: { provides: [], consumes: [descriptor.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
+        async start(context) { capturedSdk = context.services?.capabilities; return { kind: "app" }; } };
+      const install = runtime.install({ definition, deployment: "local", grants: [] }).install;
+      t.after(async () => { await runtime.stop(install.install_id); store.close(); });
+      await runtime.start(install.install_id);
+      assert.ok(capturedSdk, "the production executor bound the capability port");
+      const sdk = capturedSdk;
       // A promise fits TypeScript's void callback convention; the production tail must reject it at runtime.
       const current = () => {
         if (!allowed) throw new ActionError("fixture.origin_revoked", "The original authority is gone");

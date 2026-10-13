@@ -503,8 +503,8 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async t => {
     const project = await served.createProject("MCP Promote");
     const databasePath = project.database_path;
     const caller = { actor_id: "runtime:codex", project_id: project.project_id, audience: "mcp" as const, permissions: [] };
-    const createName = molisWorkActionToolName(pagesActions.create), promoteName = molisWorkActionToolName(pagesActions.promote);
-    await served.grant(caller.actor_id, project.project_id, [pagesActions.create, pagesActions.promote]);
+    const createName = molisWorkActionToolName(pagesActions.create), readName = molisWorkActionToolName(pagesActions.read), promoteName = molisWorkActionToolName(pagesActions.promote);
+    await served.grant(caller.actor_id, project.project_id, [pagesActions.create, pagesActions.read, pagesActions.promote]);
     const server = new MolisWorkServer("runtime", {
       databasePath,
       projectId: project.project_id,
@@ -529,11 +529,16 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async t => {
       }) as { result: { isError: boolean; content: Array<{ text: string }> } };
       assert.equal(created.result.isError, false, created.result.content[0]?.text);
       const page = JSON.parse(created.result.content[0]?.text ?? "{}") as { document: { id: string } };
+      const current = await server.handleMessage({ jsonrpc: "2.0", id: 2, method: "tools/call",
+        params: { name: readName, arguments: { id: page.document.id } } }) as { result: { isError?: boolean; content: Array<{ text: string }> } };
+      assert.notEqual(current.result.isError, true, current.result.content[0]?.text);
+      const read = JSON.parse(current.result.content[0]?.text ?? "{}") as { document: { version: number } };
+      assert.ok(Number.isInteger(read.document.version));
       const promoted = await server.handleMessage({
         jsonrpc: "2.0",
-        id: 2,
+        id: 3,
         method: "tools/call",
-        params: { name: promoteName, arguments: { id: page.document.id, goal_id: "CORE" } },
+        params: { name: promoteName, arguments: { id: page.document.id, goal_id: "CORE", expected_version: read.document.version } },
       }) as { result: { isError: boolean; content: Array<{ text: string }> } };
       assert.equal(promoted.result.isError, false, promoted.result.content[0]?.text);
       const body = JSON.parse(promoted.result.content[0]?.text ?? "{}") as { artifact: { artifact_id: string } };

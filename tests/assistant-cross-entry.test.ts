@@ -46,8 +46,8 @@ test("W3-09-1-01 T1/T2 assistant: approved Schedule changes and owner refusals r
   const network: unknown[] = [], originalFetch = globalThis.fetch.bind(globalThis);
   t.mock.method(globalThis, "fetch", async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
     if (String(url) !== "https://1.1.1.1/v1/messages") return originalFetch(url, init);
-    assert.ok(typeof init?.body === "string");
-    const body: unknown = JSON.parse(init.body); network.push(body);
+    assert.ok(typeof init?.body === "string" || init?.body instanceof Uint8Array);
+    const body: unknown = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body)); network.push(body);
     assert.ok(network.length <= calls.length, "the scripted model must finish each actual round");
     return reply(calls[network.length - 1], "本轮已完成。");
   });
@@ -71,7 +71,7 @@ test("W3-09-1-01 T1/T2 assistant: approved Schedule changes and owner refusals r
   const task = facts.tasks.find(item => item.title === input.title); assert.ok(task);
   assert.deepEqual([task.instructions, task.clock_label, task.enabled], [input.instructions, clock, true]);
   assert.ok(Math.abs(Date.parse(task.next_due_at) - expected.getTime()) < 60_000);
-  assert.equal(changed.mock.calls.filter(call => call.arguments[0] === "schedule" && call.arguments[1] === project.project_id).length, 1);
+  assert.equal(changed.mock.calls.filter(call => call.arguments[0] === "io.molis.work.schedule" && call.arguments[1] === project.project_id).length, 1);
   const refusedId = newCallId();
   await withCallId(refusedId, () => service.send({ work_id: started.work.work_id, text: "归档不存在的任务", request_id: randomUUID() }, {}));
   const refusedReview = await until(async () => { const view = await service.read(started.work.work_id); return view.reviews.length ? view : undefined; }, "actual owner refusal review");
@@ -85,7 +85,7 @@ test("W3-09-1-01 T1/T2 assistant: approved Schedule changes and owner refusals r
   assert.match(JSON.stringify(network[3]), /schedule\.task_not_found/u);
   assert.match(JSON.stringify(network[3]), /定时任务不存在/u);
   assert.deepEqual(await home.web.get(subject.path(project.project_id)), facts, "the owner refusal leaves every persisted task unchanged");
-  assert.equal(changed.mock.calls.filter(call => call.arguments[0] === "schedule" && call.arguments[1] === project.project_id).length, 1);
+  assert.equal(changed.mock.calls.filter(call => call.arguments[0] === "io.molis.work.schedule" && call.arguments[1] === project.project_id).length, 1);
 });
 
 for (const failure of ["disabled", "invalid"] as const) test(`W3-09-2-01 assistant ${failure}: the actual preflight preserves its code and reason before review and before dispatch`, { timeout: 60_000 }, async t => {
@@ -105,7 +105,7 @@ for (const failure of ["disabled", "invalid"] as const) test(`W3-09-2-01 assista
   const originalFetch = globalThis.fetch.bind(globalThis), requests: unknown[] = [];
   t.mock.method(globalThis, "fetch", async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
     if (String(url) !== "https://1.1.1.1/v1/messages") return originalFetch(url, init);
-    assert.ok(typeof init?.body === "string"); const body: unknown = JSON.parse(init.body); requests.push(body);
+    assert.ok(typeof init?.body === "string" || init?.body instanceof Uint8Array); const body: unknown = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body)); requests.push(body);
     assert.ok(requests.length <= 2, "the model receives the refusal and ends the actual round");
     return requests.length === 1 ? reply({ name: "change-capability", input: { capability_id: create.capability_id, version: create.version, provider_id: create.provider.provider_id,
       input: failure === "invalid" ? { ...subject.input("x", "23:00"), title: "x".repeat(201) } : subject.input("不可写的定时", "23:00") } }) : reply(undefined, "没有执行，原内容保留。");

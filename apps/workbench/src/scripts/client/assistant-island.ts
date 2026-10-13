@@ -795,16 +795,16 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   /** A card no round proposed: a page put it in (it names the page in from), or its round is not one of this work's. */
   const pageCard = (card) => Boolean(card.from) || !card.run_id || !(view && view.rounds.some((round) => round.run_id === card.run_id));
+  const placeCard = (parent, work, card, put) => {
+    const node = keyed(parent, "data-card", card.card_id, () => el("div", "assistant-card assistant-card--action"));
+    const signature = card.revision + ":" + card.status;
+    if (node.dataset.signature !== signature) { node.dataset.signature = signature; renderCard(node, work, card); }
+    (put || ((one) => parent.append(one)))(node);
+  };
   const renderCards = (parent, work, cards, put) => {
-    // A card the person set aside leaves the list, like one that is gone.
     const shown = cards.filter((card) => card.status !== "dismissed");
     [...parent.children].forEach((child) => { if (child.dataset.card && !shown.some((card) => card.card_id === child.dataset.card)) child.remove(); });
-    shown.forEach((card) => {
-      const node = keyed(parent, "data-card", card.card_id, () => el("div", "assistant-card assistant-card--action"));
-      const signature = card.revision + ":" + card.status;
-      if (node.dataset.signature !== signature) { node.dataset.signature = signature; renderCard(node, work, card); }
-      (put || ((one) => parent.append(one)))(node);
-    });
+    shown.forEach((card) => placeCard(parent, work, card, put));
   };
   const FILE_GLYPH = [[/\.(png|jpe?g|gif|webp|heic|svg)$/i, "image"], [/\.(csv|tsv|xlsx?)$/i, "database"], [/\.(md|markdown|txt|log)$/i, "note"],
     [/\.(js|mjs|ts|tsx|py|json|ya?ml|html?|css|sh|go|rs|java|c|cpp|sql)$/i, "code"]];
@@ -1756,7 +1756,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     [...thread.children].forEach((node) => { if (node.dataset.card && !fromPages.some((card) => card.card_id === node.dataset.card)) node.remove(); });
     let placed = 0;
     const putPageCards = (before) => {
-      while (placed < fromPages.length && (before === null || fromPages[placed].created_at < before)) { renderCards(thread, work, [fromPages[placed]], put); placed += 1; }
+      while (placed < fromPages.length && (before === null || fromPages[placed].created_at < before)) { placeCard(thread, work, fromPages[placed], put); placed += 1; }
     };
     rounds.forEach((round) => { putPageCards(round.started_at); put(renderRound(work, round)); });
     putPageCards(null);
@@ -1884,8 +1884,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const id = currentId;
     try { const next = await api("/works/" + encodeURIComponent(id)); if (id === currentId) { view = next; render(); } }
     catch (error) {
+      if (id !== currentId) return;
       if (error.code === "assistant.not_found") { currentId = null; remember(); view = null; render(); return; }
-      if (id === currentId) showProblem({ message: error.message });
+      showProblem({ message: error.message });
     }
   };
   const schedule = () => {

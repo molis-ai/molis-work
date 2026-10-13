@@ -97,9 +97,9 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
           status.hidden = true;
           delete status.dataset.feedReadError;
         }
-      } catch {
+      } catch(error) {
         if (status) {
-          status.textContent = L("已打开，但未能保存已读状态；重新选择该 Item 即可重试");
+          molisWorkRequest.show(status,error);status.prepend(document.createTextNode(L("已打开，但未能保存已读状态；重新选择该 Item 即可重试")+" "));
           status.dataset.feedReadError = "true";
           status.hidden = false;
         }
@@ -108,10 +108,10 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       }
     };
     const setFeedSourceFeedback = (message, error = false) => {
-      if (message && feedSourcesDialog?.hidden) showToast(message);
+      if (message && feedSourcesDialog?.hidden) showToast(message,error);
       if (feedSourceError) feedSourceError.hidden = !error;
       if (feedSourceProgress) feedSourceProgress.hidden = error || !message;
-      if (error && feedSourceError) feedSourceError.textContent = message;
+      if(error && feedSourceError){if(typeof message==="string")feedSourceError.textContent=message;else molisWorkRequest.show(feedSourceError,message);}
       if (!error && feedSourceProgress) feedSourceProgress.textContent = message;
     };
     if (new URLSearchParams(location.search).get("feed-auth") === "gmail") {

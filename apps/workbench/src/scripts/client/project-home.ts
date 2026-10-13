@@ -21,6 +21,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   let eventId = "";
   let eventRows = [], eventWindow = null, eventIssues = [], loadingEvents = true, syncInFlight = null, refreshAgain = false;
   let opening = '', navigationError = '';
+  const issueText=value=>typeof value==='string'?value:molisWorkRequest.text(value);
   let events = [];
   let days = [];
   const esc = (value) => String(value ?? "")
@@ -132,12 +133,13 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         '<time data-home-date datetime="' + stamp + '">' + esc(L("{week}，{date}").replace("{week}", day.week).replace("{date}", date)) + '</time><i>·</i>' +
         '<span class="home-hero__sum">' + esc(sum) + '</span>' +
         (list.length ? '<i>·</i><span class="home-hero__lead">' + esc(summary.lead) + '</span>' : '') + '</p>' +
-      '<div data-home-event-status role="status">' + eventIssues.map(issue => '<p>' + esc(issue) + '</p>').join('') +
+      '<div data-home-event-status role="status">' + eventIssues.map(issue => '<p>' + esc(issueText(issue)) + '</p>').join('') +
       (eventIssues.length ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + L('重新读取') + '</button>' : '') + '</div></div>' +
       '<p class="home-month">' + ico("calendar") + esc(new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" }).format(new Date(stamp + "T12:00:00"))) + '</p>';
     $("[data-home-list-stats]").innerHTML = list.length
       ? L("个人") + ' <b>' + summary.me + '</b> · ' + L("组织") + ' <b>' + summary.org + '</b>'
       : '';
+    const problems=[...hero.querySelectorAll('[data-home-event-status] p')];eventIssues.forEach((issue,index)=>{if(typeof issue!=='string' && problems[index])molisWorkRequest.show(problems[index],issue);});
     if (dayChanged) enter(hero); else hero.classList.add("is-in");
   };
   // The Goal in progress: the project's active Goal while it is moving, otherwise the first moving Goal, otherwise
@@ -271,7 +273,8 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const mode = JSON.stringify([event.id, event.open, opening === event.id]);
     if (leftNode.dataset.mode !== mode) { leftNode.innerHTML = left; leftNode.dataset.mode = mode; }
     $("[data-home-open-talk]", footer).setAttribute("aria-pressed", String(talkOn));
-    const error = $('[data-home-navigation-error]', footer); error.hidden = !navigationError; error.innerHTML = navigationError ? esc(navigationError) + ' <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + L('重新读取') + '</button>' : '';
+    const error = $('[data-home-navigation-error]', footer); error.hidden = !navigationError; error.innerHTML = navigationError ? esc(issueText(navigationError)) + ' <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + L('重新读取') + '</button>' : '';
+    if(navigationError && typeof navigationError!=='string'){const retry=error.querySelector('button');molisWorkRequest.show(error,navigationError);if(retry)error.append(retry);}
     offers.render();
     $("[data-home-talk-ctx]").textContent = event.title ? "· " + event.title : "";
   };
@@ -328,7 +331,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     try {
       const result = await api('/api/home/events/open', 'POST', { window: eventWindow, source: event.source, event_id: event.event_id, target: event.open });
       if (current()?.id === event.id) openTarget?.(result.target);
-    } catch (error) { if (current()?.id === event.id) navigationError = error.message || L('无法打开事项，请重新读取'); }
+    } catch (error) { if (current()?.id === event.id) navigationError=error; }
     finally { opening = ''; if (current()?.id === event.id) renderDetail(); }
   };
   const talk = (${HOME_TALK_FACTORY_SCRIPT})({ root: home, current, translate: L, prepareApi: api, messageApi,
@@ -405,7 +408,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
           const result = await api('/api/home/events', 'POST', window);
           eventRows = result.events; eventIssues = result.issues; eventWindow = window;
           collect(); offers.refresh();
-        } catch (error) { eventRows = []; eventWindow = null; eventIssues = [error.message || L('暂时无法读取事项')]; }
+        } catch (error) { eventRows = []; eventWindow = null; eventIssues=[error]; }
         finally { loadingEvents = false; render(); }
       } while (refreshAgain);
     })().finally(() => { syncInFlight = null; });

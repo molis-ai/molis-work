@@ -201,7 +201,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       box.setAttribute("role", "alert");
       box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
       box.querySelector("strong").textContent = L("无法加载设置");
-      box.querySelector("p").textContent = message && message !== L("无法加载设置") ? message : L("请稍后重试");
+      if(typeof message==="string")box.querySelector("p").textContent=message && message!==L("无法加载设置")?message:L("请稍后重试");else molisWorkRequest.show(box.querySelector("p"),message,L("请稍后重试"));
       const button = box.querySelector("button");
       button.textContent = L("重试");
       button.addEventListener("click", () => { button.disabled = true; void retry(); });
@@ -238,7 +238,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
             globalThis.molisWorkBindPlanningAdoption?.(root);
           });
         } catch (error) {
-          pane.replaceChildren(settingsLoadFailed(error?.message, run));
+          pane.replaceChildren(settingsLoadFailed(error,run));
         }
       };
       await run();
@@ -262,7 +262,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
             globalThis.molisWorkBindProjectRules?.(root);
           });
         } catch (error) {
-          pane.replaceChildren(settingsLoadFailed(error?.message, run));
+          pane.replaceChildren(settingsLoadFailed(error,run));
         }
       };
       await run();
@@ -401,7 +401,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
             showToast(L("来源资料已保存。"));
           }
         } catch (error) {
-          showSourceStatus(detail, error.message || L("来源配置保存失败，请检查后重试。"));
+          showSourceStatus(detail,error);
         } finally {
           modal?.removeAttribute("aria-busy");
           modal?.querySelectorAll("[data-feed-sources-close], [data-feed-setup-back]").forEach(button => { button.disabled = false; });
@@ -433,7 +433,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           });
           sourceScheduleSave.disabled = false;
         } catch (error) {
-          showSourceStatus(sourceScheduleSave, error.message || L("拉取计划保存失败，请检查后重试。"));
+          showSourceStatus(sourceScheduleSave,error);
           sourceScheduleSave.disabled = false;
         }
         return;
@@ -467,7 +467,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           await refreshFeedStage();
           sourceRuntimeAction.disabled = false;
         } catch (error) {
-          showSourceStatus(sourceRuntimeAction, error.message || L("来源操作失败，请按提示处理后重试。"));
+          showSourceStatus(sourceRuntimeAction,error);
           sourceRuntimeAction.disabled = false;
         }
         return;
@@ -488,7 +488,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           setFeedAddOpen(false);
           await refreshFeedStage();
         } catch (error) {
-          showSourceStatus(sourceDelete, error.message || L("删除来源失败，请重试。"));
+          showSourceStatus(sourceDelete,error);
           sourceDelete.disabled = false;
         }
         return;
@@ -558,9 +558,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           const retryCopy = form?.dataset.createdSourceId
               ? L("任务已创建，拉取计划未保存。请重试，不会重复创建任务。")
               : "";
-          const message = retryCopy
-            ? retryCopy + " " + error.message
-            : error.message || L("添加来源失败");
+
           if (form?.dataset.createdSourceId) {
             form.querySelectorAll("input, [data-feed-rss-definition]").forEach(input => input.disabled = true);
             feedSourcesDialog.querySelector("[data-feed-setup-back]").hidden = true;
@@ -568,10 +566,10 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
             sourceRegister.textContent = L("重试保存计划");
           }
           if (inlineError) {
-            inlineError.textContent = message;
+            molisWorkRequest.show(inlineError,error,L("添加来源失败"));if(retryCopy)inlineError.prepend(document.createTextNode(retryCopy+" "));
             inlineError.hidden = false;
           }
-          setFeedSourceFeedback(message, true);
+          setFeedSourceFeedback(error,true);
           sourceRegister.disabled = false;
         } finally {
           form?.removeAttribute("aria-busy");
@@ -591,7 +589,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           await api("/api/feed/out-rules/evaluate", "POST", { item_ids: items.map(item => item.item_id) });
           await refreshFeedStage(); await refreshInboxStage();
           setFeedSourceFeedback(L("规则处理完成；请在 Inbox 查看筛选结果与待复核项。"));
-        } catch (error) { setFeedSourceFeedback(error.message, true); }
+        } catch (error) { setFeedSourceFeedback(error,true); }
         finally { evaluateRules.disabled = false; }
         return;
       }
@@ -607,7 +605,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           await refreshFeedStage();
           toggleOutRule.disabled = false;
         } catch (error) {
-          setFeedSourceFeedback(error.message || L("更新捕捉规则失败"), true);
+          setFeedSourceFeedback(error,true);
           toggleOutRule.disabled = false;
         }
         return;
@@ -622,7 +620,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           saveUiState();
           await refreshFeedStage();
         } catch (error) {
-          setFeedSourceFeedback(error.message || L("删除捕捉规则失败"), true);
+          setFeedSourceFeedback(error,true);
           deleteOutRule.disabled = false;
         }
         return;
@@ -640,7 +638,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           sourceToggle.disabled = false;
           setFeedSourceFeedback("");
         } catch (error) {
-          setFeedSourceFeedback(error.message || L("来源状态更新失败"), true);
+          setFeedSourceFeedback(error,true);
           sourceToggle.disabled = false;
         }
         return;
@@ -662,7 +660,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           await refreshFeedStage();
           sourceSync.disabled = false;
         } catch (error) {
-          setFeedSourceFeedback(error.message || L("来源同步失败"), true);
+          setFeedSourceFeedback(error,true);
           sourceSync.disabled = false;
         }
         return;

@@ -56,7 +56,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
           if (usage && label) label.textContent = !usage.enabled ? L("已停用") : usage.availability.available ? L("已启用") : usage.availability.reason;
           else if (label?.textContent.includes(L("正在检查判断能力"))) label.textContent = L("原判断能力不可用，请重新配置");
         }
-      } catch (error) { feedRuleStatus(section, error.message || L("无法读取判断能力，请重试。"), true); }
+      } catch (error) { feedRuleStatus(section,error,true); }
     };
     const hydrateFeedRuleDrafts = () => {
       feedSourcesDialog?.querySelectorAll("[data-feed-out-rules]").forEach(section => {
@@ -80,7 +80,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
     });
     const feedRuleStatus = (section, message, error = false) => {
       const node = section.querySelector("[data-feed-rule-status]");
-      if (node) { node.textContent = message; node.hidden = !message; node.dataset.error = String(error); }
+      if(node){if(typeof message==="string")node.textContent=message;else molisWorkRequest.show(node,message);node.hidden=!message;node.dataset.error=String(error);}
     };
     const readFeedRule = (section) => {
       const value = attr => String(section.querySelector("[" + attr + "]")?.value || "").trim();
@@ -204,7 +204,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
           showToast(L("规则已启用，将处理新消息和更新。"));
           feedRuleStatus(section, "");
         }
-      } catch (error) { feedRuleStatus(section, error.message || L("规则操作失败，输入已保留，请重试。"), true); }
+      } catch (error) { feedRuleStatus(section,error,true); }
       finally { composer.removeAttribute("aria-busy"); composer.inert = false; }
       return true;
     };

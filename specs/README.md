@@ -6,7 +6,6 @@
 
 - [issue-home-v0](issue-home-v0/spec.md)：个人 Home 的 Issue 插件；补齐 Home Runtime 与插件 SQLite 服务，接通页面、助理和 MCP。
 - [goal-closure-identity](goal-closure-identity/spec.md)：完成前的「必须你点头」接到真实检查（授权和接受要求都只对当时的约定和那一轮工作有效）；管理入口固定记本机这个人；决策工具 schema 不再要求 `actor_id`；这些 typed 入口插件够不到（`host_only`）。
-- [plugin-picker-dock](plugin-picker-dock/spec.md)：插件切换器里「常驻 Dock」与「装没装」合成一张网格，悬停才出现的两个图标按钮，添加与移除不刷新页面。
 - [repository-anti-corruption](repository-anti-corruption/spec.md)：系统性代码与架构防腐整理（防腐收尾第二步）。
 - [artifact-positioning](artifact-positioning/spec.md)：Artifact 定位与动线梳理，所有插件统一进同一个壳子。
 - [coding-quality-assurance](coding-quality-assurance/spec.md)：Coding 质量保证（已定方向，防腐收尾后做）。

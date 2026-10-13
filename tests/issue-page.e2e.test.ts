@@ -148,6 +148,8 @@ test("ISSUE-10 files dropped on the composer join it; an import started in a rec
   await v.press("[data-issue-editor] [data-issue-pick]");
   await b.command("DOM.setFileInputFiles", { nodeId, files: [files[0]] }, b.sessionId);
   await v.until("$('[data-issue-editor] [data-issue-tip]').textContent === '正在读取截图…'");
+  // I5-ISSUE-INTERLEAVE-01: wait for the real decoder to enter its held promise before cancelling the record.
+  await v.until("typeof window.issueFinish === 'function'");
   await v.press("[data-issue-cancel]"); await v.press("[data-issue-back]");
   await b.evaluate("window.issueFinish()"); await new Promise(resolve => setTimeout(resolve, 300));
   assert.equal(await v.ask("d.querySelectorAll('[data-issue-edit-shots] img').length"), 0, "a late picture does not join a record the person left");

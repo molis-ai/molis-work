@@ -1,14 +1,14 @@
 {
-  "giantUnits": 156,
+  "giantUnits": 155,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2611,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2586,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 2065,
+      "lines": 2052,
       "methods": 119
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
-      "lines": 282,
+      "lines": 281,
       "methods": 44
     },
     "class apps/local-host/src/browser/browser-host.ts#BrowserPage": {
@@ -22,10 +22,6 @@
     "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 539,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 183,
     "function apps/local-host/src/installed-plugin-host.ts#openInstalledPlugins": 164,
-    "class apps/local-host/src/installer/runtime-integration.ts#RuntimeIntegrationService": {
-      "lines": 341,
-      "methods": 15
-    },
     "class apps/local-host/src/local-host.ts#LocalHost": {
       "lines": 556,
       "methods": 23
@@ -50,7 +46,7 @@
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 228,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 259,
-    "file apps/workbench/src/functions/client.ts": 1299,
+    "file apps/workbench/src/functions/client.ts": 1290,
     "function apps/workbench/src/goals-page-renderer.ts#createWorkbenchGoalsPageRenderer": 223,
     "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 187,
     "file apps/workbench/src/i18n/en.ts": 3324,
@@ -58,9 +54,9 @@
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 355,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2745,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 1020,
-    "file apps/workbench/src/scripts/client/tab-workspace.ts": 2049,
+    "file apps/workbench/src/scripts/client/tab-workspace.ts": 2033,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
-    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 460,
+    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 442,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
     "function horizontal/agent-host/src/adapters/prologue-action-gateway.ts#prologueActionGateway": 171,
@@ -160,7 +156,7 @@
       "lines": 287,
       "methods": 29
     },
-    "file modules/shelf/src/store.ts": 1176,
+    "file modules/shelf/src/store.ts": 1139,
     "class modules/shelf/src/store.ts#ShelfStore": {
       "lines": 748,
       "methods": 35
@@ -201,7 +197,7 @@
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 174,
     "function packages/storage/src/adapters/search-storage.ts#createSearchOpaqueBlobStore": 161,
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 153,
-    "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 243,
+    "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 234,
     "class plugins/native/alchemist/src/studio/server/db/pulse-repository.ts#SqlitePulseRepository": {
       "lines": 381,
       "methods": 23
@@ -240,13 +236,13 @@
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
     "file plugins/native/pages/src/client.ts": 1152,
     "file plugins/native/pages/src/commands.ts": 2241,
-    "file plugins/native/pages/src/editor-browser.ts": 4043,
-    "function plugins/native/pages/src/editor-browser.ts#slashPlugin": 160,
+    "file plugins/native/pages/src/editor-browser.ts": 4020,
+    "function plugins/native/pages/src/editor-browser.ts#slashPlugin": 158,
     "function plugins/native/pages/src/editor-browser.ts#hoverHandlePlugin": 798,
     "function plugins/native/pages/src/editor-browser.ts#view": 676,
     "function plugins/native/pages/src/editor-browser.ts#renderMenu": 173,
     "function plugins/native/pages/src/editor-browser.ts#findPlugin": 169,
-    "function plugins/native/pages/src/editor-browser.ts#mount": 1024,
+    "function plugins/native/pages/src/editor-browser.ts#mount": 1020,
     "class plugins/native/pages/src/store.ts#PagesStore": {
       "lines": 376,
       "methods": 28
@@ -259,7 +255,7 @@
     },
     "file plugins/native/ppt/src/client.ts": 806,
     "file plugins/native/shelf/src/client.ts": 1708,
-    "file plugins/native/todo/src/client.ts": 1245,
+    "file plugins/native/todo/src/client.ts": 1240,
     "class plugins/native/todo/src/store.ts#TodoStore": {
       "lines": 381,
       "methods": 28
@@ -269,16 +265,16 @@
     "function plugins/native/work/src/terminal/client.ts#startWorkTerminalClient": 438,
     "function plugins/native/work/src/terminal/panels.ts#createTerminalPanels": 365,
     "function plugins/native/work/src/ui/render.ts#renderWorkSessionSurface": 350,
-    "function plugins/native/workflows/src/actions.ts#createWorkflowsActionHandlers": 268,
+    "function plugins/native/workflows/src/actions.ts#createWorkflowsActionHandlers": 237,
     "file plugins/native/workflows/src/client.ts": 1357,
-    "file plugins/official-integrations/catalog/src/catalog.ts": 1015,
+    "file plugins/official-integrations/catalog/src/catalog.ts": 1013,
     "function plugins/official-integrations/gmail/src/oauth-pending.ts#createGmailPendingSessions": 178,
     "function plugins/official-integrations/gmail/src/oauth-token-lifecycle.ts#createGmailTokenLifecycle": 170,
     "function plugins/official-integrations/gmail/src/oauth.ts#createGmailOAuth": 177,
-    "file plugins/official-integrations/gmail/src/provider.ts": 957,
+    "file plugins/official-integrations/gmail/src/provider.ts": 930,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 198
   },
-  "testInternalImports": 855,
+  "testInternalImports": 854,
   "testImports": {
     "tests/action-before-effect.test.ts": 1,
     "tests/action-call-log.test.ts": 3,
@@ -308,7 +304,6 @@
     "tests/agent-start-authority.test.ts": 4,
     "tests/agent-studio.e2e.test.ts": 5,
     "tests/agent-workspace-none.test.ts": 3,
-    "tests/alchemist-host-lifecycle.test.ts": 1,
     "tests/alchemist-host.test.ts": 11,
     "tests/alchemist-runtime.test.ts": 2,
     "tests/alchemist-structured-output.test.ts": 2,
@@ -1783,7 +1778,7 @@
     "server/src/http.ts": 2,
     "server/src/identity.ts": 3
   },
-  "errorCodeOwnerTotal": 1013,
+  "errorCodeOwnerTotal": 1006,
   "errorCodeOwner": {
     "apps/local-host/src/artifact-document-import.ts": 6,
     "apps/local-host/src/browser/browser-host.ts": 2,
@@ -1796,9 +1791,6 @@
     "apps/local-host/src/installer/home-files.ts": 5,
     "apps/local-host/src/installer/home-release.ts": 3,
     "apps/local-host/src/installer/home-source.ts": 6,
-    "apps/local-host/src/installer/runtime-config-adapters.ts": 1,
-    "apps/local-host/src/installer/runtime-config-text.ts": 3,
-    "apps/local-host/src/installer/runtime-integration.ts": 3,
     "apps/local-host/src/installer/runtime-payload.ts": 2,
     "apps/local-host/src/installer/uninstall.ts": 5,
     "apps/local-host/src/installer/web-service-operations.ts": 7,

@@ -3010,7 +3010,7 @@ export declare function objectOrMissing<T>(read: () => T): T | null;
 
 export declare function parseExactActionReferences(value: unknown): ExactActionReference[];
 
-export declare function pinActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<ArtifactPinResult>;
+export declare function pinActionSubject(client: ActionClient, caller: ActionExecutionContext, subject: ActionSubject): Promise<ArtifactPinResult>;
 
 export declare function pinnableSubjectKinds(client: ActionClient, caller: ActionCallContext): Promise<string[]>;
 

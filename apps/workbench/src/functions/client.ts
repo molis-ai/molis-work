@@ -827,6 +827,11 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const renderList = () => {
     keepListScroll(() => paintList());
   };
+  const rememberRecord = (record) => {
+    records = records.some((item) => item.id === record.id)
+      ? records.map((item) => item.id === record.id ? record : item) : [record, ...records];
+    renderList();
+  };
   const paintList = () => {
     empty.hidden = records.length > 0;
     rowsEl.replaceChildren();
@@ -917,31 +922,24 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   let saving = null;
   const saveDraft = async () => {
     clearTimeout(saveTimer); saveTimer = 0;
-    if (saving) await saving;
-    const operation = persistDraft();
+    const record = selected, revision = editRevision;
+    if (!record || record.status === "published") return record;
+    const body = draftBody();
+    if (saving) { const prior = await saving; if (prior?.id === record.id) body.updated_at = prior.updated_at; }
+    const operation = persistDraft(record.id, body, revision);
     saving = operation;
     try { return await operation; } finally { if (saving === operation) saving = null; }
   };
-  const persistDraft = async () => {
-    if (!selected || selected.status === "published") return selected;
-    const savingId = selected.id;
-    const body = draftBody();
-    const revision = editRevision;
-    saveStatus.textContent = L("正在保存…");
+  const persistDraft = async (savingId, body, revision) => {
+    if (selected?.id === savingId) saveStatus.textContent = L("正在保存…");
     try {
       const payload = await request("POST", "/api/functions/" + encodeURIComponent(savingId), body);
       const saved = payload.function;
-      records = records.some((item) => item.id === saved.id)
-        ? records.map((item) => item.id === saved.id ? saved : item)
-        : [saved, ...records];
-      if (selected?.id !== savingId) {
-        renderList();
-        return saved;
-      }
+      rememberRecord(saved);
+      if (selected?.id !== savingId) return saved;
       selected = saved;
       if (revision === editRevision) dirty = false;
       saveStatus.textContent = dirty ? L("有更改，等待保存…") : L("已保存");
-      renderList();
       titleEl.textContent = selected.name;
       showNote("", false);
       return selected;
@@ -966,15 +964,17 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       });
     }, 280);
   };
-  const remember = (record) => {
+  const remember = (record, origin) => {
+    rememberRecord(record);
+    if (origin && selected?.id !== origin.id) return;
+    if (origin && editRevision !== origin.revision) {
+      selected = { ...selected, updated_at: record.updated_at, samples: record.samples };
+      renderSamples(selected); return;
+    }
     const next = page.address(); next.searchParams.set("rule", record.id); next.searchParams.delete("key");
     page.replace(next);
     const listNote = workbench.querySelector("[data-functions-list-note]");
     if (listNote) listNote.hidden = true;
-    records = records.some((item) => item.id === record.id)
-      ? records.map((item) => item.id === record.id ? record : item)
-      : [record, ...records];
-    renderList();
     fillEditor(record);
   };
   workbench.addEventListener("molis-work:select-item", (event) => {
@@ -1042,16 +1042,13 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   deleteBtn.addEventListener("click", async () => {
     if (!selected || selected.status === "published") return;
+    const record = selected;
     if (!window.confirm(L("确定删除这个草稿？"))) return;
     try {
-      await request("POST", "/api/functions/" + encodeURIComponent(selected.id) + "/delete", {
-        updated_at: selected.updated_at,
-      });
-      closeEditor();
-      await loadList();
-    } catch (error) {
-      showNote(error.message, true);
-    }
+      await request("POST", "/api/functions/" + encodeURIComponent(record.id) + "/delete", { updated_at: record.updated_at });
+      if (selected?.id === record.id) closeEditor();
+      await loadList({ preserveForm: true });
+    } catch (error) { if (selected?.id === record.id) showNote(error.message, true); }
   });
   addCriterionBtn.addEventListener("click", () => {
     if (selected?.status === "published") return;
@@ -1168,29 +1165,23 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const sample = (selected.samples || []).find((item) => item.id === row.dataset.sampleId);
     if (load && sample) previewInput.value = sample.input || "";
     if (remove) {
+      const record = selected, origin = { id: record.id, revision: editRevision };
       try {
-        const payload = await request("POST", "/api/functions/" + encodeURIComponent(selected.id) + "/samples/delete", {
-          sample_id: row.dataset.sampleId,
-          updated_at: selected.updated_at,
+        const payload = await request("POST", "/api/functions/" + encodeURIComponent(record.id) + "/samples/delete", {
+          sample_id: row.dataset.sampleId, updated_at: record.updated_at,
         });
-        remember(payload.function);
-      } catch (error) {
-        showNote(error.message, true);
-      }
+        remember(payload.function, origin);
+      } catch (error) { if (selected?.id === record.id) showNote(error.message, true); }
     }
   });
   workbench.querySelector("[data-functions-save-sample]").addEventListener("click", async () => {
     if (!selected) return;
+    const origin = { id: selected.id, revision: editRevision }, input = previewInput.value;
     try {
-      await saveDraft();
-      const payload = await request("POST", "/api/functions/" + encodeURIComponent(selected.id) + "/samples", {
-        input: previewInput.value,
-        updated_at: selected.updated_at,
-      });
-      remember(payload.function);
-    } catch (error) {
-      showNote(error.message, true);
-    }
+      const saved = await saveDraft();
+      const payload = await request("POST", "/api/functions/" + encodeURIComponent(origin.id) + "/samples", { input, updated_at: saved.updated_at });
+      remember(payload.function, origin);
+    } catch (error) { if (selected?.id === origin.id) showNote(error.message, true); }
   });
   rowsEl.addEventListener("click", async (event) => {
     const row = event.target.closest("[data-function-id]");

@@ -6,7 +6,7 @@ import { promoteForm, type FormLineHeadPort, type FormPublishArtifactPort, type 
 import { formErrors } from "./error.js";
 import type { FormStore } from "./store.js";
 import { createFormSearchHandlers, formSearchActions } from "./search.js";
-import { formFillPageFilename, formFillPageHtml, formResultsCsv, formResultsCsvFilename } from "./fillpage.js";
+import { FORM_ANSWER_LIMIT, formFillPageFilename, formFillPageHtml, formResultsCsv, formResultsCsvFilename } from "./fillpage.js";
 import { formArtifactPreview, formArtifactPreviewHandler } from "./artifact-preview.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
@@ -18,7 +18,7 @@ const question = object({ ...questionFields, options: array(object(optionFields)
 const questionInput = object({ ...questionFields, options: array(object(optionFields, [])) }, []);
 const recordFields = { id, project_id: id, title: text, description: text, status: { enum: ["draft", "published", "closed"] }, share_id: { type: ["string", "null"] }, questions: array(question), created_at: text, updated_at: text, version, artifact_id: text, artifact_version: { type: "integer", minimum: 0 } };
 const record = object({ ...recordFields, publication_pending: object({ version, source_version: version }) }, Object.keys(recordFields));
-const answers = { type: "object", additionalProperties: { ...text, maxLength: 4000 } };
+const answers = { type: "object", additionalProperties: { ...text, maxLength: FORM_ANSWER_LIMIT } };
 const submission = object({ id, form_id: id, answers, submitted_at: text, form_version: { type: "integer", minimum: 1 }, questions: array(question),
   source: { enum: ["preview", "fill", "file", "agent", "mcp", "workflow", "plugin"] } }, ["id", "form_id", "answers", "submitted_at", "form_version", "questions", "source"]);
 const changed = object({ form: record }), identity = { id, expected_version: version };

@@ -444,7 +444,7 @@ test("the CLI's demo remove does not delete behind the back of a Host that refus
 
 // ---- How each door hears a refusal: documented in CALL-CHAINS chain 2 step 7 -----------------------------------------------
 
-test("a Host of another Home refuses the MCP tool at the control-token gate without a code, which the client reports as a transport denial before any deletion request, and nothing is deleted", { timeout: 60_000 }, async t => {
+test("a Host of another Home refuses the MCP tool at the control-token gate with the one opaque refusal code, which the client passes on before any deletion request, and nothing is deleted", { timeout: 60_000 }, async t => {
   const { directory, home, catalog } = await scratchHome(t);
   const project = await catalog.createProject({ display_name: "别的 Home 的服务", actor_id: "test-user" });
   const localHost = createMolisWorkLocalHost({ homeDirectory: home });
@@ -458,7 +458,7 @@ test("a Host of another Home refuses the MCP tool at the control-token gate with
   const refused = await callTool(mcp, "molis_work_v1_project_delete", { project_id: project.project_id, delete_confirmed: true, idempotency_key: "mcp-other-home" });
   assert.equal(refused.isError, true, refused.content[0]?.text);
   // The call meets the gate while the MCP lists its tools (the action gateway's client), so it never reaches the deletion request.
-  assert.match(refused.content[0]?.text ?? "", /"code":"actions\.transport_denied"/, "the gate's 403 has no code of its own");
+  assert.match(refused.content[0]?.text ?? "", /"code":"host\.request_refused"/, "the gate's 403 carries the one opaque refusal code, which the gateway passes on as it is");
   assert.match(refused.content[0]?.text ?? "", /本地控制请求校验失败/);
   assert.doesNotMatch(refused.content[0]?.text ?? "", /home_mismatch/, "that code is only reached by a Host whose token matches");
   assert.equal(existsSync(project.database_path), true);

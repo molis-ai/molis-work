@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { catalogSchemaCompatibilityError, type MolisWorkProjectCatalog, MolisWorkProjectCatalogError, type RuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { catalogSchemaCompatibilityError, type MolisWorkProjectCatalog, type RuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -57,7 +58,7 @@ test("catalog session closes its catalog when work fails", async () => {
 
 test("a reader that is older than the catalog reports exact versions and a non-destructive recovery", () => {
   const error = catalogSchemaCompatibilityError(9, 8);
-  assert.ok(error instanceof MolisWorkProjectCatalogError);
+  assert.ok(error instanceof ActionError);
   assert.equal(error.code, "catalog.reader_too_old");
   assert.deepEqual(error.details, {
     actual_schema_version: 9,
@@ -94,10 +95,10 @@ test("opening a future catalog fails without rewriting its schema or project fac
     await assert.rejects(
       () => openMolisWorkProjectCatalog({ homeDirectory: home }),
       (error: unknown) =>
-        error instanceof MolisWorkProjectCatalogError
+        error instanceof ActionError
         && error.code === "catalog.reader_too_old"
-        && error.details.actual_schema_version === futureVersion
-        && error.details.supported_schema_max === supportedVersion,
+        && error.details?.actual_schema_version === futureVersion
+        && error.details?.supported_schema_max === supportedVersion,
     );
 
     const preserved = new Database(databasePath, { readonly: true });
@@ -205,7 +206,7 @@ test("demo data is classified, idempotently opened, reset, and removable without
       const userProject = await catalog.createProject({ display_name: "用户项目", actor_id: "user" });
       await assert.rejects(
         () => catalog.ensureDemoProject({ actor_id: "user", user_confirmed: false }),
-        (error: unknown) => error instanceof MolisWorkProjectCatalogError
+        (error: unknown) => error instanceof ActionError
           && error.code === "catalog.demo_confirmation_required",
       );
       const created = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
@@ -298,7 +299,7 @@ test("demo data is classified, idempotently opened, reset, and removable without
           delete_confirmed: true,
           idempotency_key: "never-delete-user-as-demo",
         }),
-        (error: unknown) => error instanceof MolisWorkProjectCatalogError && error.code === "catalog.not_demo",
+        (error: unknown) => error instanceof ActionError && error.code === "catalog.not_demo",
       );
       await catalog.removeDemoProject({
         project_id: created.project.project_id,
@@ -360,7 +361,7 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
             user_confirmed: false,
           }),
         (error: unknown) =>
-          error instanceof MolisWorkProjectCatalogError && error.code === "context.user_confirmation_required",
+          error instanceof ActionError && error.code === "context.user_confirmation_required",
       );
       const initial = catalog.bindRuntimeContext({
         context: codexEntry,
@@ -401,7 +402,7 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
             user_confirmed: true,
           }),
         (error: unknown) =>
-          error instanceof MolisWorkProjectCatalogError && error.code === "context.rebind_confirmation_required",
+          error instanceof ActionError && error.code === "context.rebind_confirmation_required",
       );
       assert.equal(catalog.resolveRuntimeContext(codexEntry).connection?.project_id, first.project_id);
       assert.equal(catalog.resolveRuntimeContext(claudeEntry).connection?.project_id, first.project_id);
@@ -591,7 +592,7 @@ test("a fresh Runtime Session receives host suggestions but needs confirmation, 
             suggestion_clues: clues,
           }),
         (error: unknown) =>
-          error instanceof MolisWorkProjectCatalogError && error.code === "context.user_confirmation_required",
+          error instanceof ActionError && error.code === "context.user_confirmation_required",
       );
       const rejected = catalog.rejectRuntimeContextSuggestion({
         context: firstSession,
@@ -686,7 +687,7 @@ test("current Runtime can create and bind one new project without orphaning data
             idempotency_key: "create-current-runtime-project",
           }),
         (error: unknown) =>
-          error instanceof MolisWorkProjectCatalogError && error.code === "context.idempotency_conflict",
+          error instanceof ActionError && error.code === "context.idempotency_conflict",
       );
 
       await assert.rejects(
@@ -699,7 +700,7 @@ test("current Runtime can create and bind one new project without orphaning data
             idempotency_key: "create-without-rebind-confirmation",
           }),
         (error: unknown) =>
-          error instanceof MolisWorkProjectCatalogError && error.code === "context.rebind_confirmation_required",
+          error instanceof ActionError && error.code === "context.rebind_confirmation_required",
       );
       assert.equal(catalog.listProjects().length, 1);
 
@@ -717,7 +718,7 @@ test("current Runtime can create and bind one new project without orphaning data
             idempotency_key: "create-without-stable-context",
           }),
         (error: unknown) =>
-          error instanceof MolisWorkProjectCatalogError && error.code === "context.stable_identity_required",
+          error instanceof ActionError && error.code === "context.stable_identity_required",
       );
       assert.equal(catalog.listProjects().length, 1);
     } finally {
@@ -748,7 +749,7 @@ test("unbinding removes only the current Runtime entry and preserves the managed
             user_confirmed: false,
           }),
         (error: unknown) =>
-          error instanceof MolisWorkProjectCatalogError && error.code === "context.user_confirmation_required",
+          error instanceof ActionError && error.code === "context.user_confirmation_required",
       );
       assert.equal(catalog.resolveRuntimeContext(context).connection?.project_id, project.project_id);
 
@@ -803,7 +804,7 @@ test("project deletion needs separate confirmation and records an idempotent rec
       await assert.rejects(
         () => catalog.deleteProject({ ...deletionInput, delete_confirmed: false }),
         (error: unknown) =>
-          error instanceof MolisWorkProjectCatalogError && error.code === "catalog.delete_confirmation_required",
+          error instanceof ActionError && error.code === "catalog.delete_confirmation_required",
       );
 
       const deleted = await catalog.deleteProject(deletionInput);
@@ -824,7 +825,7 @@ test("project deletion needs separate confirmation and records an idempotent rec
       await assert.rejects(
         () => catalog.deleteProject({ ...deletionInput, project_id: other.project_id }),
         (error: unknown) =>
-          error instanceof MolisWorkProjectCatalogError && error.code === "catalog.deletion_idempotency_conflict",
+          error instanceof ActionError && error.code === "catalog.deletion_idempotency_conflict",
       );
       assert.equal(catalog.getProject(other.project_id).project_id, other.project_id);
     } finally {
@@ -851,7 +852,7 @@ test("opening a desktop TUI panel binds that work context to the Goal and aliase
           user_confirmed: false,
         }),
         (error: unknown) =>
-          error instanceof MolisWorkProjectCatalogError && error.code === "catalog.panel_confirmation_required",
+          error instanceof ActionError && error.code === "catalog.panel_confirmation_required",
       );
 
       const panel = catalog.openDesktopPanel({

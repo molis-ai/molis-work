@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { CATALOG_CONNECTORS } from "../plugins/official-integrations/catalog/src/catalog.js";
 import { catalogWhoami } from "../plugins/official-integrations/catalog/src/provider.js";
 import {
-  ExternalDocumentImportError, readExternalDocument, type ExternalDocumentSource,
+  readExternalDocument, type ExternalDocumentSource,
 } from "../plugins/official-integrations/catalog/src/document-import.js";
 
 const NOTION_ID = "12345678-1234-1234-1234-123456789abc";
@@ -19,9 +21,10 @@ const markdown = (overrides: Record<string, unknown> = {}) => ({
   object: "page_markdown", markdown: "# 项目\n\n这是正文。", truncated: false, unknown_block_ids: [], ...overrides,
 });
 
+/** The failure's reason under the integration's owner name, and (when given) the status of its kind. */
 function errorCode(code: string, status?: number) {
-  return (error: unknown) => error instanceof ExternalDocumentImportError && error.code === code
-    && (status === undefined || error.status === status);
+  return (error: unknown) => error instanceof ActionError && error.code === `catalog_integration.${code}`
+    && (status === undefined || actionHttpStatus(error) === status);
 }
 
 test("Notion import uses fixed API endpoints, current markdown version, complete title and no sharing secrets", async () => {
@@ -165,7 +168,7 @@ test("provider auth, rate-limit, redirect and network failures cannot become suc
   await assert.rejects(readExternalDocument({ source: "notion", url: NOTION_URL }, {
     token: "private-token", fetch: async () => { throw new Error("private-token in exception"); },
   }), (error: unknown) => errorCode("network", 502)(error) && !String(error).includes("private-token"));
-  await assert.rejects(readExternalDocument({ source: "notion", url: NOTION_URL }, { token: "" }), errorCode("needs_auth", 401));
+  await assert.rejects(readExternalDocument({ source: "notion", url: NOTION_URL }, { token: "" }), errorCode("needs_auth", 503));
 });
 
 test("document reads reject oversized declared and streamed responses", async () => {

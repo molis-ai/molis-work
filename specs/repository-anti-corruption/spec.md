@@ -2182,3 +2182,9 @@ SDK四文件实现/候选包与上述消费者已可审阅，Root已按交接与
 2026-10-13 I7 真实静态检查与 W2-10 回归接续：A1/A2 的整体构建成功，106 文件分三批得到 358/358、96/97、176/176，均无取消或跳过。唯一失败属于 A2 的 Cognia HTTP：导入统一后，两次创建同一 Home 的 Host 被 `inference.home_in_use` 拒绝；先做 ee84 干净基线对照，再让测试经已有构造注入共享服务宿主及其动作网关，保留全部 grant/search/read/revoke 拒绝断言，不改变单 Home 执行约束。A1 的 53 文件全部运行通过，确切 e128 head 的五项必需 CI、Product subset 与 Linux probe 均成功，准备按已有授权合入；A2 不提前合。
 
 I7 在已收齐 W3-07/09/10 源码后重新跑完整 health，六项实际失败：Goals 新交付物片段的两处 raw fetch（新文件从零）；新项目调度文件多点名 Feed/Inbox/Schedule；actions.provider_ambiguous 未列入平台码；原 Linux catalog 文件新增 Darwin 真沙箱验收。修复合同：交付物两请求用现有 UiRequest，保留一次性键、确认/未定结果、核对及迟到读保护（W3-10-5-01）；调度复用现有 Feed/Inbox 编排与 Schedule 专属宿主文件，保留无页面启动、身份/权限和清理（W2-18-SCHEDULE-01/02）；平台码登记为当前默认 invalid，保持原拒绝类别；真沙箱场景完整迁到独立 macOS 测试文件，原 Linux catalog 覆盖及 CI 清单保留（W3-07-8-02）。不改 gate/limits 或放宽断言。boundary 单项失败是尚未获批的临时 SDK file 路径与登记表不符，正式换包仍待用户决定，不以登记临时路径绕过。以上修复后的构建、定向回归、动作/资源快照及整合全量均待。
+
+2026-10-13 A1已真实合入：#474确切e128的五项必需、Product subset及Linux probe成功，推送前密钥扫描通过，19:52:33UTC合并为main f2024d6b2。A2改base main并同步f202为16a55971d，Cognia夹具复用服务Host和真实网关后3/3通过、无取消或跳过；原断言不变。完整health及向下baseline更新通过，密钥352新增行无命中，#475已推更新、CI在跑；ee84干净基线实际构建等待contextual全量释放名额，不提前合入。
+
+I7调度门禁修复为968463d0a，平台码与交付物请求为cff53afcb、公开快照ed4375d1b。沙箱测试初搬到新文件被内部导入0→1正确拦下；c6cb71a2f改为完整放入既有独立Darwin的installed-plugin-execution测试，原Linuxcatalog与CI清单不变，复用其生产broker、现行publicHost及同文件dist副本，无新增测试端口。实际health36完整通过，平台码仍当前default invalid；只读复核未发现新增P1，后一测试归属修正补审中。随后8b74a5d48合入A1，43137af1c合入A2，冲突均保留I7业务正文并用现行工具转导入，README保留两边要求。health37相对f202更新成功：695内部引用、93混用进程，raw fetch88、外部插件点名423，基线仅下降。新整合构建/定向/浏览器/全量仍待，temporary SDK单项boundary缺口仍待用户正式换包授权。
+
+A3第三批从16a重跑现行工具，53普通无浏览器/平台专属测试，只改导入；两动态引用分别是functions-system-capability的现行BUILTIN_PLUGIN_CATALOG和jelly-model的现行MolisWorkLocalHost。AST去导入目标后正文相同、语法零错误、工具无阻塞；actual health --update --base通过626内部引用、68混用进程。运行分40/13批，沿用未改生产源码的既有完整构建；还在跑，未以这些源审指标声明片完成。

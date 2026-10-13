@@ -1,5 +1,5 @@
-import { createGoalsActionHandlers, goalsManifest, goalsActions, GOALS_ACTION_PERMISSIONS, GOALS_PLUGIN_ID, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
-import { bindActionClient, pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { createGoalsActionHandlers, goalsManifest, goalsActions, GOALS_ACTION_PERMISSIONS, GOALS_PLUGIN_ID, hostEventDecisionAuthority, managementEventDecisionAuthority, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { ActionError, bindActionClient, pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
@@ -72,4 +72,71 @@ export function readProjectGuidance(client: ActionClient, reference: LocalHostPr
   const read = goalsActions.guidanceRead;
   return bindActionClient(client, () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: reference.project_id, permissions: read.action.permissions,
     allowed_actions: [{ capability_id: read.capability_id, version: read.version, provider_id: GOALS_PLUGIN_ID }] })).invoke({ ...read, provider_id: GOALS_PLUGIN_ID }, {});
+}
+
+/** What a management entry can do: Goals' actions as the person on this machine, origin management. */
+export interface GoalsManagementActions {
+  readonly project_id: string;
+  /** `evidence` is for the two decisions only: the conversation and message a decision came from, never who made it. */
+  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, evidence?: unknown): Promise<Output>;
+}
+
+/** The host decides who writes (the person on this machine, or a plugin's own call context); the arguments carry no identity. */
+export function refusePayloadIdentity(input: object, more: readonly string[] = []): void {
+  const named = ["actor_id", "actor_kind", ...more].filter(field => Object.hasOwn(input, field));
+  if (named.length) {
+    throw new ActionError("actions.input_invalid", `写入者由宿主确定（管理入口是本机这个人，插件取自调用上下文），参数里不能带 ${named.join("、")}`);
+  }
+}
+
+/**
+ * Besides `actor_id` and `actor_kind`, the identity fields a management entry's arguments may not carry for each write that takes an
+ * identity from the Host, refused in these words before the authority is built: the entry came through a typed capability that said
+ * so, and the command line's wire keeps it. An action not listed here has no such rule (its contract refuses what it does not know).
+ */
+const MANAGEMENT_REFUSED_IDENTITY: Readonly<Record<string, readonly string[]>> = {
+  [goalsActions.treeSubmit.capability_id]: ["submitted_session_id"],
+  [goalsActions.treeCheck.capability_id]: [],
+  [goalsActions.treeDecide.capability_id]: ["audit_actor_id", "runtime_actor_id"],
+  [goalsActions.decide.capability_id]: [],
+};
+
+/** The provenance a management call stores, in the format those entries have always recorded; the Host fixes the source and who acts. */
+function managementUserAction(projectId: string, capabilityId: string, input: unknown, evidence: unknown): NonNullable<ActionCallContext["user_action"]> {
+  const named = (input as { idempotency_key?: unknown } | null | undefined)?.idempotency_key;
+  const key = typeof named === "string" && named ? named : capabilityId;
+  if (capabilityId === goalsActions.treeDecide.capability_id) {
+    const authority = managementTreeAuthority(projectId, key, evidence);
+    return { source: "management", conversation_ref: authority.conversation_ref, message_ref: authority.message_ref,
+      ...(authority.whole_confirmation_prompted ? { whole_confirmation_prompted: true } : {}),
+      ...(authority.prompted_proposal_id ? { prompted_subject_id: authority.prompted_proposal_id } : {}) };
+  }
+  if (capabilityId === goalsActions.decide.capability_id) {
+    const authority = managementEventDecisionAuthority(projectId, key, evidence);
+    return { source: "management", conversation_ref: authority.conversation_ref, message_ref: authority.message_ref };
+  }
+  if (evidence !== undefined) throw new ActionError("actions.input_invalid", "只有结构提案和事件决定带出处");
+  return { source: "management", conversation_ref: `management:${projectId}`, message_ref: `management:${key}` };
+}
+
+/**
+ * The caller of a management entry (a `molis-work v1` command; the management-audience MCP), built by the Host after the entry's own
+ * check and never by the entry: the person on this machine, origin management, one Goals action at a time with that action's own
+ * permissions and nothing else pinned. The input names no one (an identity in the arguments of a write is refused first, in the words
+ * the typed door used), and the entry cannot say who acts or through which entry it came. The
+ * call number belongs to the operation the entry opened, which the kernel reads; it is not made here. Give it the client that does
+ * not prepare the project's plugins (`actionClient(reference, false)`): Goals is registered when the project opens.
+ */
+export function bindGoalsManagementActions(client: ActionClient, reference: LocalHostProjectReference): GoalsManagementActions {
+  const projectId = reference.project_id;
+  return {
+    project_id: projectId,
+    async invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, evidence?: unknown): Promise<Output> {
+      const refused = MANAGEMENT_REFUSED_IDENTITY[definition.capability_id];
+      if (refused && typeof input === "object" && input !== null) refusePayloadIdentity(input, refused);
+      return await client.invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
+        permissions: definition.action.permissions, allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id: GOALS_PLUGIN_ID }],
+        user_action: managementUserAction(projectId, definition.capability_id, input, evidence) }, { ...definition, provider_id: GOALS_PLUGIN_ID }, input) as Output;
+    },
+  };
 }

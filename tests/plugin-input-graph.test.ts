@@ -646,6 +646,7 @@ test("an input port can be given a fixed 成果 version instead of another plugi
   const deliveries: PluginUpstreamReadyInputs[] = [];
   const projects = portPlugin({ id: PROJECTS, outputs: [{ port: "project", type: PROJECT_TYPE }] });
   const coding = portPlugin({ id: CODING, inputs: [{ port: "project", type: PROJECT_TYPE }], onReady: (inputs) => { deliveries.push(inputs); } });
+  coding.definition.manifest.artifacts.consumes = [{ artifact_type_id: PROJECT_TYPE, schema_version: 1 }];
   const runtime = new PluginRuntime(), supervisor = new PluginSupervisor(runtime), store = artifactStore(), library = new Set<string>();
   const graph = new PluginInputGraph({ projectId: BOARD, lifecycle: supervisor, repository: new MemoryPluginWiringRepository(),
     artifacts: { read: (reference) => store.read(reference),

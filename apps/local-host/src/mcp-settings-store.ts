@@ -1,4 +1,5 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -59,6 +60,12 @@ export async function readMcpToolPreference(homeDirectory: string): Promise<McpT
   } catch {
     return EMPTY;
   }
+}
+
+/** The final effect check reads the same atomic file and current-version parser without yielding. */
+export function readMcpToolPreferenceSync(homeDirectory: string): McpToolPreference {
+  try { return parseMcpToolPreference(JSON.parse(readFileSync(mcpToolPreferencePath(homeDirectory), "utf8")) as unknown); }
+  catch { return EMPTY; }
 }
 
 const writes = new Map<string, Promise<unknown>>();

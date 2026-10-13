@@ -18,7 +18,7 @@ definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组
 
 公开业务能力放入 Manifest `actions`，从 `start` 返回对应 `actions` 处理器。已有 HTTP 入口可用 `bindPluginActionRoute(context, definition, request => input, routeId?)` 转发；仍需声明原 `routes`。这个适配器只转换参数/HTTP 结果，实际执行经过同一 Kernel 的 schema、项目策略和权限检查，禁止缺少动作服务时直调业务兜底。`context.services.actions` 调本插件声明的公开动作时绑定当前本地入口用户；另外，Manifest 在 `capabilities.consumes` 里写了宿主自己登记的动作 id 时（现在是工作区的两个读 `projects.workspace.files.read` 与 `projects.workspace.git.inspect`），它也能调这一个动作：按插件受众、用插件自己的 grant（要在 Manifest 里声明并持有该动作的权限，这两个是 `workspace:read`）、只放行写明的那个动作，受众、可用性与入参 schema 照常检查；别的插件的动作、没写进 `consumes` 的动作一律拒绝。`consumes` 非空的插件就有这个客户端，自己没有动作的插件也一样；`consumes` 为空而又没有自己的动作时没有。整份文件（`kind: "bytes"`，图片与 PDF 预览）只给宿主运行的这类插件：宿主按调用里由它确认的插件身份判断，生成（沙箱）插件以插件受众调用也没有这个身份，会被拒绝。它在停止、崩溃或启动失败后失效；外部 MCP 使用自己的逐客户端授权，不能借用此客户端冒充本地用户。私有同步成果 SDK 不通过这个异步入口递归调用。
 
-存量处理器仍依赖固定用户的私人存储/成果 SDK 时，可用 `bindOwnerPluginAction` 明确限制真实调用者与 owner 一致。它返回可解释的不可用原因，不把 MCP/Agent 身份改为启动用户。处理器拿到 `beforeWrite()`，必须在外部等待后、保存之前调用；它重查原授权、项目启停、Runtime grant 和取消。此适配用于渐进迁移，不能据此宣称跨调用者接线完成；新业务处理器应直接以可信 `ActionCallContext` 处理归属。
+存量处理器仍依赖固定用户的私人存储/成果 SDK 时，可用 `bindOwnerPluginAction` 明确限制真实调用者与 owner 一致。它返回可解释的不可用原因，不把 MCP/Agent 身份改为启动用户。处理器拿到 `beforeWrite()`，必须在外部等待后、保存之前调用；它重查原授权、项目启停、Runtime grant 和取消，并复用原 invocation 的 `beforeEffect` 与同步尾检，目录中的新登记不能替旧调用授权。此适配用于渐进迁移，不能据此宣称跨调用者接线完成；新业务处理器应直接以可信 `ActionCallContext` 处理归属。
 
 调用旧 Host Capability 后仍要创建审阅等副作用时，将 `before_effect` 放在 `capabilities.invoke(definition, input, { before_effect })` 的第三个参数中。Host 为服务处理器提供 `invocation.beforeEffect()`，服务在实际副作用前调用；它检查原授权、注册实例和调用是否仍有效。回调不是业务 input，不能接收自 HTTP/MCP JSON、序列化或保存在审阅记录中。审批后的实际执行继续由 Review owner 自己校验，不能复用已经结束的调用上下文。
 
@@ -151,13 +151,14 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
   - 项目、用户、生产者签名与安装身份由 Host 绑定，参数不能覆盖；停止或崩溃后的旧客户端不能继续操作。
   - `ActionExecutionPolicy` 描述提供方的时限、费用与频率；在 `action.execution` 声明，由 Kernel 执行，插件内不另写同一限额。
   - 动作适配只转换参数与结果，执行仍经同一 Kernel 的 schema、项目策略与权限；缺少动作服务时不直调业务兜底。
-  - 处理器在外部等待之后、保存之前调用 `beforeWrite()`。
+  - 处理器在外部等待之后、保存之前调用 `beforeWrite()`；owner binder 保留 owner、依赖、安装和 Runtime grant，最终复用原 execution fence，不能借新目录登记继续旧调用。
   - `availability()` 只读检查声明过的宿主能力，不代表给定参数一定能执行。
   - 包是 private，包名不等于已发布到 npm 的承诺。
   - 系统搜索的来源协议（`defineSearchEntriesAction`、`bindSearchEntriesHandler`）与 Host 用的是同一份合同，插件照此声明即可被搜到，不需要 Host 改名单。没有“查询时再搜”的来源（`defineSearchQueryAction` 已按决定 19 删除）。
   - 宿主自己运行的插件调模型用 `context.services.model`（类型 `PluginModelClient`、`PluginModelRequest`、`PluginModelResult`，限额 `PLUGIN_MODEL_LIMITS`），指令用 SDK 导出的 `defineInstructionPrompt`、`instructed`（W3-06 E）；`PluginDefinition.instructions` 是没有目录条目的插件登记自己指令的地方。规则和错误码在 `packages/plugin-runtime` 与 `docs/platform/PROLOGUE-AI.md` 第 4 节，这里只导出类型和两个帮手。
   - 平台合同里给插件作者用的 `define…Action`、`bind…Handler`、`with…` 辅助函数都从这里导出：到期提醒、情境片段推荐、成果库的预览/固定/比较/继续/被引用、`withActionEffect`。新增一个辅助函数而没有导出，`tests/plugin-sdk-exports.test.ts` 会失败；确实不该给插件用的，在那个测试的 `NOT_FOR_PLUGINS` 里写明理由。
 - 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-declaration-rules.test.ts tests/plugin-manifest-v2.test.ts tests/builtin-manifests-contract.test.ts tests/side-panel-platform.test.ts tests/contextual-interaction.test.ts tests/work-placement.test.ts tests/action-error-model.test.ts tests/plugin-action-route.test.ts tests/plugin-sample.e2e.test.ts tests/action-cross-references.test.ts tests/action-artifact-references.test.ts tests/diff-plugin.test.ts tests/plugin-model-service.test.ts tests/action-availability-kind.test.ts`
+- 授权尾检与消费者改动另跑：`node scripts/run-tests.mjs tests/mcp-effect-authority.test.ts tests/mcp-scene-effect-authority.test.ts tests/action-authority-tail.test.ts tests/plugin-owner-effect-fence.test.ts tests/action-before-effect.test.ts tests/functions-scene-configuration.test.ts tests/functions-effect-boundaries.test.ts`。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-DEVELOPMENT.md](../../docs/platform/PLUGIN-DEVELOPMENT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

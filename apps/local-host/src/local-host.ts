@@ -89,6 +89,19 @@ function snapshotCaller(caller: ActionCallContext): ActionCallContext {
   };
 }
 
+/** A scene keeps the Host's real closing fence across its asynchronous owner checks. */
+function hostAuthorityContext(caller: ActionCallContext, current: () => boolean): ActionCallContext {
+  const assertActive = () => {
+    if (!current()) throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
+    caller.signal?.throwIfAborted();
+  };
+  return { ...caller, assert_authority_current: (reference, requiredPermissions) => {
+    assertActive();
+    requireSynchronous(caller.assert_authority_current?.(reference, requiredPermissions), "最终授权检查必须同步完成");
+    assertActive();
+  } };
+}
+
 /** The provider of the Host's own actions: a capability registered with an `action` and no provider of its own (the workspace reads, for one). */
 export const HOST_PROVIDER_ID = "platform";
 
@@ -96,14 +109,10 @@ export class LocalHost<Runtime> {
   readonly instanceId: string;
   readonly capabilities = new CapabilityRegistry<ActionCallContext>();
   private readonly settled: CallSettled = (caller, action, outcome) => this.options.actionSettled?.(caller, action, outcome);
-  private readonly actionService = new ActionService(this.capabilities, { beforeEffect: async (caller, reference) => {
-    const assertActive = () => {
-      if (this.state !== "running" || this.executionScope.getStore()?.entry.state === "closing") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
-    };
-    assertActive();
-    await this.checkActionAvailability(caller, reference);
-    assertActive();
-  }, admit: (caller, reference) => this.checkActionAvailability(caller, reference), settled: this.settled });
+  private readonly actionService = new ActionService(this.capabilities, { assertCurrent: () => {
+    if (this.state !== "running" || this.executionScope.getStore()?.entry.state === "closing") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
+  }, beforeEffect: (caller, reference) => this.checkActionAvailability(caller, reference),
+    admit: (caller, reference) => this.checkActionAvailability(caller, reference), settled: this.settled });
   private readonly invocationRuntimes = new WeakMap<ActionCallContext, Runtime>();
   /** Callers that reached a Host capability through a plugin SDK adapter; restricted independently of the action audience. */
   private readonly pluginCapabilityCallers = new WeakSet<ActionCallContext>();
@@ -219,7 +228,8 @@ export class LocalHost<Runtime> {
     const prepare = async (caller: ActionCallContext): Promise<ActionCallContext> => {
       this.assertRunning();
       if (caller.project_id !== (project?.project_id ?? null)) throw new ActionError("actions.scope_mismatch", "场景上下文与项目不一致");
-      const bound = snapshotCaller(caller);
+      const bound = hostAuthorityContext(snapshotCaller(caller), () => this.state === "running"
+        && (!project || !this.closingKeys.has(project.storage_key)) && this.executionScope.getStore()?.entry.state !== "closing");
       if (project) await this.withRuntime(project, () => undefined);
       return bound;
     };

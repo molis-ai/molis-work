@@ -1,4 +1,4 @@
-import type { ActionCallContext, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionCallContext, type ActionExecutionContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { currentCallId, insideHandler, newCallId, withCallId, withCallIdSync } from "./call-scope.js";
 
@@ -16,6 +16,29 @@ export interface CallDescription extends ActionReference {
 export type CallOutcome = { readonly ok: true } | { readonly ok: false; readonly code?: string; readonly message: string; readonly refused?: true };
 /** Told once per call, never the input or the result. A failing hook never changes the call. */
 export type CallSettled = (context: CallContext, action: CallDescription, outcome: CallOutcome) => void;
+
+/** No asynchronous policy may run after this check and before the owner's synchronous effect. */
+export function assertCurrentAuthority(context: ActionCallContext, reference?: ActionReference, requiredPermissions?: readonly string[]): void {
+  requireSynchronous(context.assert_authority_current?.(reference, requiredPermissions), "最终授权检查必须同步完成");
+}
+
+/** Preserve the dispatcher's own registration/lifetime when this context reaches a nested call. */
+export function effectGuard(context: ActionCallContext, reference: ActionReference, permissions: readonly string[], assertCurrent: () => void,
+  beforeEffect?: (context: ActionCallContext, reference: ActionReference) => void | Promise<void>): Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current"> {
+  const assertAuthority = (target?: ActionReference, requiredPermissions?: readonly string[]) => {
+    assertCurrent();
+    assertCurrentAuthority(context, reference, requiredPermissions ? [...new Set([...permissions, ...requiredPermissions])] : permissions);
+    if (target && (target.capability_id !== reference.capability_id || target.version !== reference.version || target.provider_id !== reference.provider_id)) assertCurrentAuthority(context, target, requiredPermissions);
+    assertCurrent();
+  };
+  return { assert_authority_current: assertAuthority, beforeEffect: async () => {
+    assertCurrent();
+    await context.validate_authority?.(reference);
+    await context.validate_permissions?.(permissions);
+    await beforeEffect?.(context, reference);
+    assertAuthority();
+  } };
+}
 
 /** Calls whose handler has been entered; a failure of any other call is a refusal. Keyed by the call object, which is new for every call. */
 const started = new WeakSet<object>();

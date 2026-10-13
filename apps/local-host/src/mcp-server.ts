@@ -156,7 +156,7 @@ export class LocalMcpServer {
     const auditActor = sessionCall ? sessionActor(sessionCall) : undefined;
     const runtimeSessionId = auditActor?.slice(current.context.actor_id.length + 1);
     if (auditActor) current.context = { ...current.context, audit_actor_id: auditActor, actor_kind: "runtime", runtime_session_id: runtimeSessionId };
-    const checkContext = () => {
+    const checkContext = () => { this.connectionState.signal.throwIfAborted(); this.transportLifetime.signal.throwIfAborted();
       if (this.runtimeConnection !== connection || this.currentActions().context.actor_id !== current.context.actor_id
         || (sessionCall && sessionActor(sessionCall) !== auditActor))
         throw new ActionError("mcp.context_changed", "调用等待期间客户端或项目连接已变化，或会话身份不再一致，请重新发现能力");
@@ -174,7 +174,7 @@ export class LocalMcpServer {
         ports: createActionMcpPorts({ service, context: () => context, serverInfo: SERVER_INFO, toolName: molisWorkActionToolName }) };
     }
     const reference = this.runtimeConnection ? molisWorkHostProjectReference(this.runtimeConnection) : undefined;
-    const { context } = await authorizeMcpActions(this.localHost, current.context, home, reference, checkContext);
+    const { context } = await authorizeMcpActions(this.localHost, current.context, home, reference, checkContext, checkContext);
     return { ...current, context,
       ports: createActionMcpPorts({ service: current.service, context: () => context, serverInfo: SERVER_INFO, toolName: molisWorkActionToolName }) };
   }

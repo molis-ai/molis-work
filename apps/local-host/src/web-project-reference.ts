@@ -1,8 +1,15 @@
-import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { artifactsActions, ArtifactProjectReferenceError } from "@molis-ai/molis-work-plugin-artifacts";
-import { ProjectReferenceError } from "./project-file-reference.js";
+import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { hostErrors } from "./host-errors.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
+
+/** The reference as the address carries it; an escape that does not decode is a reference that cannot be opened, not a failure of the Host. */
+function decodedReference(encoded: string): string {
+  try { return decodeURIComponent(encoded); }
+  catch { throw hostErrors.project_reference_invalid("项目内引用编码无效"); }
+}
 
 export async function handleLocalProjectReferenceHttp(request: IncomingMessage, response: ServerResponse, url: URL,
   actions: BoundActionClient,
@@ -10,7 +17,7 @@ export async function handleLocalProjectReferenceHttp(request: IncomingMessage, 
   const projectReferenceMatch = url.pathname.match(/^\/api\/project-references\/([^/]+)$/);
   if (request.method === "GET" && projectReferenceMatch) {
     try {
-      const reference = decodeURIComponent(projectReferenceMatch[1]);
+      const reference = decodedReference(projectReferenceMatch[1]);
       const opened = await actions.invoke(artifactsActions.projectReference, { reference });
       response.writeHead(200, {
         "content-type": "text/plain; charset=utf-8",
@@ -20,11 +27,8 @@ export async function handleLocalProjectReferenceHttp(request: IncomingMessage, 
       });
       response.end(Buffer.from(opened.content_base64, "base64"));
     } catch (error) {
-      const status = error instanceof ProjectReferenceError || error instanceof ArtifactProjectReferenceError
-        ? error.status : error instanceof ActionError && error.code === "actions.forbidden" ? 403 : 400;
-      sendJson(response, status, {
-        error: error instanceof Error ? error.message : "项目内引用无法打开",
-      });
+      const failure = actionErrorResponse(error);
+      sendJson(response, failure.status, failure.body);
     }
     return true;
   }

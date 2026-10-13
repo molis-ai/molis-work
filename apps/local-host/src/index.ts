@@ -55,7 +55,7 @@ export * from "./web-locale.js";
 
 export { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 
-export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, isOwnedCatalogOwner, MolisWorkProjectCatalogError, catalogSchemaCompatibilityError, type MolisWorkProjectCatalogErrorDetails } from "./project-catalog-contract.js";
+export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, isOwnedCatalogOwner, catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
 export { initializeProjectDatabase, readManagedBoard, validateManagedBoard } from "./managed-project-database.js";
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
@@ -162,7 +162,7 @@ export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { createLocalPanelHttp } from "./web-panel.js";
 export { createLocalWorkSessionHttp } from "./web-work-session.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
-export { readProjectReference, ProjectReferenceError } from "./project-file-reference.js";
+export { readProjectReference } from "./project-file-reference.js";
 export { createLocalPlanningHttp } from "./web-planning.js";
 export { createLocalGoalsReadHttp } from "./web-goals-read.js";
 export { createLocalWebServerFactory } from "./web-server.js";

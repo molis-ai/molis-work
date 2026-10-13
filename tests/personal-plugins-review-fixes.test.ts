@@ -2,7 +2,7 @@ import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { handlePagesNativePluginHttp } from "../apps/local-host/src/pages-native-plugin-http.js";
 import type { PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";
 import { pagesTestPorts } from "./fixtures/pages-actions.js";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { handleFunctionsHttp } from "../apps/local-host/src/functions-http.ts";
 import assert from "node:assert/strict";
@@ -29,7 +29,7 @@ import { MolisWorkV1Error as ContractsError } from "@molis-ai/molis-work-contrac
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
-import { FunctionsError, openFunctionsStore } from "@molis-ai/molis-work-module-functions";
+import { openFunctionsStore } from "@molis-ai/molis-work-module-functions";
 import { MolisWorkV1Error as GoalsError } from "@molis-ai/molis-work-plugin-goals";
 import {
   DATASET_CLIENT_FACTORY_SCRIPT,
@@ -314,7 +314,7 @@ test("草稿 CAS：过期 updated_at 不能覆盖已写入的草稿、预览和�
       const stale = "2000-01-01T00:00:00.000Z";
       assert.throws(
         () => store.updateDraft(created.id, { name: "mine" }, stale),
-        (error: unknown) => error instanceof FunctionsError && error.code === "functions.conflict",
+        (error: unknown) => error instanceof ActionError && error.code === "functions.conflict",
       );
       assert.equal(store.get(created.id)?.name, "first");
 
@@ -322,7 +322,7 @@ test("草稿 CAS：过期 updated_at 不能覆盖已写入的草稿、预览和�
       store.addSample(live.id, { input: "样例一" });
       assert.throws(
         () => store.addSample(live.id, { input: "样例二" }, stale),
-        (error: unknown) => error instanceof FunctionsError && error.code === "functions.conflict",
+        (error: unknown) => error instanceof ActionError && error.code === "functions.conflict",
       );
       assert.equal(store.get(created.id)?.samples.length, 1);
 
@@ -344,7 +344,7 @@ test("草稿 CAS：过期 updated_at 不能覆盖已写入的草稿、预览和�
       store.savePreview(ready.id, preview);
       assert.throws(
         () => store.savePreview(ready.id, preview, stale),
-        (error: unknown) => error instanceof FunctionsError && error.code === "functions.conflict",
+        (error: unknown) => error instanceof ActionError && error.code === "functions.conflict",
       );
     } finally {
       store.close();

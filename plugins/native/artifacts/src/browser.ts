@@ -4,19 +4,13 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError, subjectContext, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { artifactsErrors } from "./errors.js";
 
 export interface ArtifactBrowserView {
   readonly versions: readonly ArtifactVersionRecord[];
   readonly selected: ArtifactVersionRecord | null;
   readonly requested: ArtifactReference | null;
   readonly compatibility: ArtifactConsumptionCompatibility | null;
-}
-
-export class ArtifactBrowserError extends Error {
-  constructor(readonly status: 400 | 404, message: string) {
-    super(message);
-    this.name = "ArtifactBrowserError";
-  }
 }
 
 export function readArtifactBrowser(
@@ -86,11 +80,11 @@ export function matchArtifactBrowserRoute(pathname: string): ArtifactBrowserRout
   const match = pathname.match(/^\/(api\/)?artifacts\/([^/]+)\/versions\/([^/]+)(\/export|\/file)?$/);
   if (!match || (Boolean(match[1]) !== Boolean(match[4]))) return null;
   if (!/^[1-9]\d*$/.test(match[3]!) || !Number.isSafeInteger(Number(match[3]))) {
-    throw new ArtifactBrowserError(400, "成果版本必须是正整数");
+    throw artifactsErrors.reference_invalid("成果版本必须是正整数");
   }
   let id: string;
   try { id = decodeURIComponent(match[2]!); }
-  catch { throw new ArtifactBrowserError(400, "成果 ID 编码无效"); }
+  catch { throw artifactsErrors.reference_invalid("成果 ID 编码无效"); }
   // `/file` hands back an imported file's original bytes (A3); `/export` the version's JSON record.
   return { kind: match[4] === "/file" ? "file" : match[1] ? "export" : "detail", reference: { artifact_id: id, version: Number(match[3]) } };
 }
@@ -117,6 +111,6 @@ export function artifactVersionPath(reference: ArtifactReference): string {
 /** Read-only local interchange; no publication, registration or state change. */
 export function exportArtifactVersion(query: ArtifactsQueryApi, projectId: string, reference: ArtifactReference): string {
   const artifact = query.getArtifactVersion(projectId, reference);
-  if (!artifact) throw new ArtifactBrowserError(404, "当前项目中找不到这个成果版本");
+  if (!artifact) throw artifactsErrors.version_not_found("当前项目中找不到这个成果版本");
   return `${JSON.stringify(artifact, null, 2)}\n`;
 }

@@ -4,7 +4,7 @@ import { functionsConnectionStatus } from "./functions-host.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { FunctionsHttpRouteTable } from "./functions-http/routes.js";
 import { createFunctionsRouteHandlers } from "./functions-http/route-handlers.js";
-import { functionsRouteErrorResponse } from "./functions-http/route-error.js";
+import { functionsErrors } from "@molis-ai/molis-work-module-functions";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { bindTypeSafeConnection, unbindTypeSafeConnection } from "./typesafe-connection.js";
 
@@ -27,11 +27,10 @@ export async function handleFunctionsHttp(
         if (input.body.clear === true) unbindTypeSafeConnection(homeDirectory);
         else if (typeof input.body.connection_id === "string" && input.body.connection_id.trim()) {
           bindTypeSafeConnection(homeDirectory, input.body.connection_id);
-        } else throw new Error("请在 Connectors 中选择 TypeSafe 连接");
+        } else throw functionsErrors.invalid("请在 Connectors 中选择 TypeSafe 连接");
         return { status: 200, body: functionsConnectionStatus(homeDirectory) };
       }
       return new FunctionsHttpRouteTable(createFunctionsRouteHandlers({ actions: options.actions })).handle(input);
     },
-    mapError: functionsRouteErrorResponse,
   });
 }

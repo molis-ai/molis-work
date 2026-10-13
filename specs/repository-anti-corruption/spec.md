@@ -1449,3 +1449,21 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 | 旧版 MCP 授权文件（按「不留兼容」不修） | #8 | 不修（§1） |
 
 逐条原文（问题、位置、场景、核验理由、复现脚本、修法提示）保存在会话临时目录 `logic-review.json`；修复 PR 的描述逐条引用编号。
+
+
+### 10.7 管理入口余项的接续验收（W3-07-PR-6/7/8/9）
+
+沿用§1的10-10决定及现行batchB-plan；PR-5删除最后的Goals管理桥后做6，7复用已存在的resident-host-request及G1/H共同错误出口，8拆为provider接线与Coding消费者两片。现行事实已核：runLocalPluginDevelopment只有一个typed消费者，Host已有withProject；pluginHostActions的dependencyCaller仍固定HOST_PROVIDER_ID，不能直接把Coding改成Goals动作后结束。原设计提到的Casebook已删除，不复建。
+
+| 编号 | 可观察结果与证明路径 |
+| --- | --- |
+| W3-07-6-01 | 私有开发Host复用withProject、同一runPluginDevelopment及原状态目录marker/非空目录拒绝；项目取已打开reference，操作者仍PLUGIN_DEVELOPMENT_ACTOR_ID，输入actor_id/actor_kind/audit_actor_id及不匹配项目在运行前拒绝。create/close只由本次私有Host负责，原真实插件安装、运行、成果与渲染证明保留。 |
+| W3-07-6-02 | 删除pluginDevelopmentCapability及其注册、HostCapabilityDescriptor.host_only、Kernel复制与LocalHost的typed专用拒绝分支；Input/Result实际类型及pluginCapabilityCallers仍留。旧literal ID的公开availability/invoke均为actions.dependency_missing，伪造描述符或声明consumes不恢复入口；相关安全断言改证真正不存在及原剩余能力权限，API/文档/计数同片同步。 |
+| W3-07-7-01 | CLI与management MCP只对当前Home目录登记的同一项目数据库借常驻Host；只读目录匹配，非目录数据库与Host未连接保留原进程内路径。Host明确拒绝、取消或已送出后结果未知均停止，不回退或重发。复用postToResidentHost的数字回环、Home令牌、Origin、一次性键、禁止redirect及发送前序列化；Runtime MCP继续原动作网关。 |
+| W3-07-7-02 | 新management-action端点挂在现行保护后，closed正文/有效调用号/项目及数据库均核对owner目录，仅受理原CLI/MCP管理动作集合与确切版本，真实身份由bindGoalsManagementActions构造。真实HTTP的无Origin、外来Origin、错误token、缺键、复用键及不匹配数据库拒绝且业务事实不变；请求断开不再提交。S-03/S-07与现有安全测试同片更新，不新增公开SDK端口或第二套目录。 |
+| W3-07-7-03 | 真实CLI与管理MCP各在常驻Host中留下同一操作号的一条动作记录、无typed或第二个项目执行Host；成功stdout/工具JSON不变，失败保留code/message/details及可查的实际已记录号。未留行与伪造_meta/输入不造号；Host停用后的进程内路径、在线拒绝后零回退、送出后断连结果未知均有真实证明。 |
+| W3-07-8-01 | dependencyCaller从真实目录解析唯一提供方，仅原Host或可信的内置进程内提供方；已安装外部提供方、缺失、歧义或伪造条目不放行。不固定错的HOST_PROVIDER_ID；actor_kind与真实Host插件/安装/项目身份同传，原声明/权限/世代/取消及beforeEffect仍生效。provider解析独立小文件，Executor巨单元不增长。 |
+| W3-07-8-02 | Coding的四个Goals桥改用现行Goals动作，五个引用的合同由contracts提供，插件不import Goals实现；manifest权限/consumes、Goals的plugin audience及真实host_plugin拒绝一起更新。真实Coding取得相同GoalContextSnapshot与进展结果，Goals移除仍明确不可用，生成插件/伪造身份不能借此取人审批准或写入。删除四桥、对应类型/注册/出口并验证旧literal协议不能恢复；动作/API快照、Skill及调用方影响同片记录。 |
+| W3-07-9-01 | 基于实际完整Host测量剩余typed家族与生产调用者，tests/typed-registry-inventory及mutation拒绝Goals/开发入口回流；CALL-CHAINS、GLOSSARY、SDK/Host/Goals/CLI/MCP README与Skill均只描述现行唯一业务路径。不存在的Casebook及已删host_only不留为当前清单；计数实测降低，不用改基线放过新增。 |
+
+本节是已核对的实施边界，尚未实现或验证。单片整体构建、契约/API/健康/资源/安全及实际相关入口回归后再进入协调全量；7的安全边界与8的可信身份必须做只读窄复核，不把测试工具或假caller当生产证明。

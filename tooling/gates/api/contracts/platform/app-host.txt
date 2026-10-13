@@ -85,6 +85,7 @@ export interface HostCapabilityCallOptions {
     signal?: AbortSignal;
     plugin_caller?: HostPluginCaller;
     before_effect?: () => void | Promise<void>;
+    assert_authority_current?: () => void;
     consumer?: "plugin";
 }
 
@@ -99,7 +100,6 @@ export interface HostCapabilityDescriptor {
     capability_id: string;
     version: number;
     operation: HostCapabilityOperation;
-    readonly host_only?: boolean;
     readonly scheduling?: "concurrent";
     readonly action?: import("@molis-ai/molis-work-contracts/platform/actions").ActionMetadata;
     readonly action_provider?: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider;
@@ -112,6 +112,7 @@ export interface HostCapabilityInvocation extends ActionCallOrigin {
     readonly plugin?: HostPluginCaller;
     readonly consumer?: "plugin";
     beforeEffect(): Promise<void>;
+    assertAuthorityCurrent(): void;
 }
 
 export type HostCapabilityOperation = "query" | "command" | "wait";

@@ -46,6 +46,16 @@ export interface ApplyGoalConcernInput {
     cited_decision_id?: string;
 }
 
+export interface BoardSnapshot {
+    cursor: number;
+    board: GoalsBoardRecord;
+    goals: GoalRecord[];
+    relations: GoalRelationRecord[];
+    planning_method_packs: PlanningMethodPack[];
+    project_guidance: ProjectGuidanceEntryRecord[];
+    goal_tree_proposals: GoalTreeProposalRecord[];
+}
+
 export interface CiteGoalDecisionInput {
     project_id: string;
     goal_id: string;
@@ -224,6 +234,10 @@ export interface GoalConfigurationWorkEventRecord extends GoalWorkEventBase {
 export interface GoalContextSnapshot {
     goal: GoalRecord;
     state: Omit<GoalEventStateView, "observed_event_cursor">;
+}
+
+export interface GoalContractView extends GoalFactsView {
+    goal_tree_proposals: GoalTreeProposalRecord[];
 }
 
 export type GoalDecisionMethod = (typeof goalDecisionMethods)[number];
@@ -1038,11 +1052,6 @@ export interface GoalPolicyHistoryRecord extends Omit<GoalPolicyBindingRecord, "
     created_at: string;
 }
 
-export interface GoalProgressActor {
-    actor_id?: string;
-    actor_kind?: "user" | "runtime";
-}
-
 export interface GoalProgressArtifactSource extends ArtifactReference {
     title: string;
     origin: {
@@ -1598,15 +1607,6 @@ export interface UpdateProjectGuidanceResult {
     replayed: boolean;
 }
 
-export declare const goalContextCapabilities: {
-    list: HostCapabilityDefinition<{
-        after_cursor?: string;
-    }, GoalEventDirectoryPage>;
-    read: HostCapabilityDefinition<{
-        goal_id: string;
-    }, GoalContextSnapshot>;
-};
-
 export declare const goalDecisionMethods: readonly ["automated_check", "measurement", "inspection", "human_decision"];
 
 export declare const goalDecompositionReviewStatuses: readonly ["complete", "paused"];
@@ -1645,14 +1645,6 @@ export declare function goalPluginObjectRef(subject: {
     kind: string;
     id: string;
 }): string;
-
-export declare const goalProgressCapabilities: {
-    record: HostCapabilityDefinition<Omit<RecordGoalProgressSummaryInput, "project_id" | "actor_id" | "actor_kind">, GoalEventProgressResult>;
-    receipt: HostCapabilityDefinition<{
-        goal_id: string;
-        idempotency_key: string;
-    } & Pick<GoalProgressActor, "actor_id">, GoalEventProgressResult | null>;
-};
 
 export declare const goalRelationTypes: readonly ["part_of", "depends_on", "conflicts_with", "mitigates", "extends", "replaces", "corrects", "invalidates", "migrates_from"];
 

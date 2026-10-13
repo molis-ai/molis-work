@@ -12,7 +12,6 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.home_mismatch": "forbidden";
     readonly "actions.plugin_disabled": "forbidden";
     readonly "actions.unauthenticated": "forbidden";
-    readonly "actions.host_only": "forbidden";
     readonly "actions.missing": "not_found";
     readonly "actions.binding_missing": "not_found";
     readonly "actions.scene_missing": "not_found";
@@ -37,6 +36,7 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.mcp_name_conflict": "conflict";
     readonly "actions.scene_duplicate": "conflict";
     readonly "actions.input_invalid": "invalid";
+    readonly "actions.version_required": "invalid";
     readonly "actions.project_required": "invalid";
     readonly "actions.reference_invalid": "invalid";
     readonly "actions.binding_invalid": "invalid";

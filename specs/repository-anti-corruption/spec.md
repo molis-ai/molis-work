@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，未达到整条防腐线的完成标准（2026-10-12 复查）。全部 71 包当前源码审查已完成，逐包职责、消费者、放置和验证边界见 §12.9；必要修复见 §12.3/§12.8，组合路径见 §12.7，均不因源码审完而关闭。I6 冻结稿 `af0fe957` 全量已结束，6,088 个用例中 4 个失败、9 个跳过，不能记为通过；独立修复按明确文件范围推进，共同 AUTH 与机器构建/浏览器队列仍由原会话统一管理（§12.11）。Dataset 文件导入与 Issue 手动保存的本地修复、缺陷复现和修后验证已核，尚待整合；其余准备稿不冒充已验收。第 1 波 W1-18 的源码裁决已补齐，整改未完；第 2 波 W2-18 的逐插件异常、组合路径、前端第二轮、测试有效性与动作消费仍在收口。第 3 波余项、第 4–6 波和维护八沿原路线推进。已合入代码、在途候选、原始失败、真实产品实操与用户验收分别记录，完整要求映射和任务书 §7 的逐条结论见 §12。
+状态：执行中，未达到整条防腐线的完成标准（2026-10-12 复查）。全部71包原冻结切点的源码审查已完成；2026-10-13新合入main的`fc18d5f62`（#472）涉及7包，当前按64包已审、7包待补审记录，不以旧审查覆盖新代码。逐包职责、消费者、放置和验证边界见§12.9；必要修复见 §12.3/§12.8，组合路径见 §12.7，均不因源码审完而关闭。I6 冻结稿 `af0fe957` 全量已结束，6,088 个用例中 4 个失败、9 个跳过，不能记为通过；独立修复按明确文件范围推进，共同 AUTH 与机器构建/浏览器队列仍由原会话统一管理（§12.11）。Dataset 文件导入与 Issue 手动保存的本地修复、缺陷复现和修后验证已核，尚待整合；其余准备稿不冒充已验收。第 1 波 W1-18 的源码裁决已补齐，整改未完；第 2 波 W2-18 的逐插件异常、组合路径、前端第二轮、测试有效性与动作消费仍在收口。第 3 波余项、第 4–6 波和维护八沿原路线推进。已合入代码、在途候选、原始失败、真实产品实操与用户验收分别记录，完整要求映射和任务书 §7 的逐条结论见 §12。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -722,11 +722,11 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `apps/cli` | 应用 | 5 | 177 | `command-dispatch.ts` 54 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `apps/desktop` | 应用 | 11 | 1,203 | `capsule-shell.ts` 555 | 1 | 6 | 1 | 在用 | 中 | 已审 |
-| `apps/local-host` | 应用 | 369 | 41,807 | `assistant/assistant-service.ts` 2,656 | 1 | 64 | 2 | 在用 | 深 | 已审 |
+| `apps/local-host` | 应用 | 369 | 41,807 | `assistant/assistant-service.ts` 2,656 | 1 | 64 | 2 | 在用 | 深 | 待审 |
 | `apps/mcp` | 应用 | 17 | 1,062 | `runtime-context-tools.ts` 161 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `apps/server` | 应用 | 5 | 186 | `assets.ts` 76 | 1 | 7 | 0 | 非产品 | 浅 | 已审 |
-| `apps/workbench` | 应用 | 171 | 40,687 | `i18n/en.ts` 3,380 | 1 | 32 | 1 | 在用 | 深 | 已审 |
-| `horizontal/agent-host` | 横向 | 35 | 9,410 | `adapters/prologue-node.ts` 1,764 | 1 | 1 | 1 | 在用 | 深 | 已审 |
+| `apps/workbench` | 应用 | 171 | 40,687 | `i18n/en.ts` 3,380 | 1 | 32 | 1 | 在用 | 深 | 待审 |
+| `horizontal/agent-host` | 横向 | 35 | 9,410 | `adapters/prologue-node.ts` 1,764 | 1 | 1 | 1 | 在用 | 深 | 待审 |
 | `horizontal/connector-host` | 横向 | 3 | 567 | `connection-store.ts` 317 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `horizontal/listener-host` | 横向 | 1 | 739 | `index.ts` 739 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `horizontal/memory` | 横向 | 5 | 1,560 | `service.ts` 1,338 | 1 | 1 | 1 | 在用 | 中 | 已审 |
@@ -747,8 +747,8 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `modules/shelf` | 模块 | 11 | 2,652 | `store.ts` 1,176 | 1 | 2 | 2 | 在用 | 中 | 已审 |
 | `modules/signals` | 模块 | 1 | 379 | `index.ts` 379 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `modules/sources` | 模块 | 1 | 395 | `index.ts` 395 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `packages/contracts` | 基础 | 91 | 16,544 | `services/agent-host.ts` 1,734 | 64 | 0 | 70 | 在用 | 深 | 已审 |
-| `packages/design-system` | 基础 | 45 | 17,218 | `styles/craft-finish.ts` 2,313 | 1 | 1 | 22 | 在用 | 深 | 已审 |
+| `packages/contracts` | 基础 | 91 | 16,544 | `services/agent-host.ts` 1,734 | 64 | 0 | 70 | 在用 | 深 | 待审 |
+| `packages/design-system` | 基础 | 45 | 17,218 | `styles/craft-finish.ts` 2,313 | 1 | 1 | 22 | 在用 | 深 | 待审 |
 | `packages/im-ui` | 基础 | 11 | 1,401 | `browser/controller.ts` 966 | 1 | 2 | 3 | 在用 | 中 | 已审 |
 | `packages/kernel` | 基础 | 6 | 1,160 | `action-service.ts` 490 | 2 | 1 | 4 | 在用 | 深 | 已审 |
 | `packages/plugin-runtime` | 基础 | 21 | 4,784 | `index.ts` 886 | 1 | 1 | 3 | 在用 | 深 | 已审 |
@@ -760,7 +760,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/alchemist` | 内置插件 | 97 | 10,327 | `studio/server/db/pulse-repository.ts` 567 | 1 | 4 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/artifacts` | 内置插件 | 19 | 1,628 | `browser-ui.ts` 242 | 1 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/characters` | 内置插件 | 13 | 978 | `client.ts` 217 | 1 | 2 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/coding` | 内置插件 | 58 | 10,718 | `client.ts` 1,656 | 1 | 2 | 2 | Runtime | 深 | 已审 |
+| `plugins/native/coding` | 内置插件 | 58 | 10,718 | `client.ts` 1,656 | 1 | 2 | 2 | Runtime | 深 | 待审 |
 | `plugins/native/cognia` | 内置插件 | 16 | 723 | `store.ts` 151 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/dataset` | 内置插件 | 16 | 2,042 | `client.ts` 694 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/diff` | 内置插件 | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
@@ -772,7 +772,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/images` | 内置插件 | 13 | 1,443 | `client.ts` 456 | 1 | 4 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/inbox` | 内置插件 | 13 | 1,016 | `ui.ts` 189 | 1 | 1 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/jelly` | 内置插件 | 27 | 2,355 | `content.ts` 202 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/lingguang` | 内置插件 | 14 | 1,819 | `client.ts` 645 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/lingguang` | 内置插件 | 14 | 1,819 | `client.ts` 645 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
 | `plugins/native/pages` | 内置插件 | 44 | 14,848 | `editor-browser.ts` 4,043 | 3 | 3 | 2 | 构建期 | 深 | 已审 |
 | `plugins/native/plugin-builder` | 内置插件 | 17 | 2,855 | `agent-authoring.ts` 800 | 1 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/ppt` | 内置插件 | 18 | 2,276 | `client.ts` 806 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
@@ -1937,6 +1937,7 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | W2-18-TODO-DRAFT / P1 | flush吞POST失败或空标题，导航/后续动作当成功继续，fillEditor覆盖尚未保存输入 | 保存失败/无效传给离开与后续动作，保留稿，明确丢弃才清。W2-18-TODO-DRAFT-01：真实409/500/断网/空标题后返回/换项/关联/搜索/换归属均不丢稿、不派后续写；恢复保存与明确丢弃可行。 |
 | W2-18-CATALOG-ERROR / P1 | Catalog把200业务错误原话当action/message，经Connector/Listener持久回执与Feed公开日志传播，可能含上游回显凭据 | Provider边界封闭原因/恢复动作，不持久服务原话，不依赖宽松secret正则。W2-18-CATALOG-ERROR-01：每类literal业务错带非真实fixture token，经正式失败链响应/回执/DB/日志/Inbox均无该值及派出编码；限流/重新授权原因仍准确，S-12同步。 |
 | W2-18-DIFF-FILE / P2 必修 | Diff渲染show-file按钮但无生产点击消费者，正式state有change_index仍只能看0；同path也不唯一 | 现行surface绑定原始索引，沿固定input/请求lifetime，不能改成果或工作树。W2-18-DIFF-FILE-01：真实Coding固定多文件含同路径两写，逐个点击/刷新/隐藏重开呈现对应literal前后文，旧响应不覆盖新选择。 |
+| W2-18-ASSET-JS / P1 必修（新main差异） | `fc18d5f62`的`served-page-text.ts`用未重扫模板尾的TS scanner删行首空白，插值后的多行模板正文被改；前置strip还把含换行的块注释改空格，改变return的自动分号语义。新web-assets将转换扩大到所有插件JS。协调方内存执行实际模块复现：`head ${1}`后两空格消失；return后含换行的块注释使结果由undefined变1 | 用现有成熟JS转换器直接处理原程序，失败时保留原文语义，移除有损预处理，不放宽资产预算。W2-18-ASSET-JS-01：多行插值/嵌套模板、正则与注释换行经正式资源HTTP后的执行结果逐项等于原程序独立期望；W2-18-ASSET-JS-02：原locale/ETag/HEAD缓存及实际资产字节门禁保持，非法fixture改有效程序仍核同一缓存约束。仅最小执行探针已复现，修复/工程/浏览器未运行；由原writer随最新main整合。 |
 
 | W1-18-PIN-CURRENT / P2 必修 | nextPinnedVersion在无pending、head=recorded+1且source_revision=null时复用“快照前”的旧版；当前四文档先存pending再固定，正常中断不产生此形状 | 删除这条历史特判及旧说明，已有head后正常递增；保留真实pending恢复、移动/复制/不同actor各项目版本线。W1-18-PIN-CURRENT-01：四owner真实固定中断/pending恢复与移动后编号仍正确；无pending的null head不当作旧发布恢复，不覆盖旧成果。由G6与同文件pinActionSubject父控制串行处理，G7不改promote协议。 |
 
@@ -1950,7 +1951,7 @@ Catalog 目标形状于2026-10-12联网核对官方资料：[Jira 3LO](https://d
 
 ### 12.9 已完成源码审查的逐包结论（持续归回，整改另计）
 
-本节按实际审查批次保留证据；最新累计为71包源码已审，整改及实操另计。首批 G3/G4 合计 13 个包的跟踪清单经协调方与冻结切点 `git ls-files` 对照，无漏项、重复或未披露可执行文件。G4 全部 191 文件（生产 170 文件/27,820 行）已逐段读；G3 180 文件含 26 个静态资源：CSS 全文件结构、装配/插值、公共令牌、focus/hidden/主题/响应式/减少动态与消费者已审，未逐行评价每个历史选择器；图片/字体核格式、引用及许可，不声称视觉/字形全验。此口径用于代码审查，视觉、原生与用户体验仍需实际证据。生产入口、失败/恢复与测试断言已随各包核对；未出现新问题的包也不是“所有场景已通过”。
+本节按实际审查批次保留证据；原冻结批次累计71包源码已审，整改及实操另计。2026-10-13 main合入`fc18d5f62`（#472 Prologue接入），相对`2cb35d4e8`新增93文件差异，涉及Local Host、Workbench、AgentHost、contracts、design-system、Coding、Lingguang七包；§5.1这七行暂记待审，其余64包保留结论。只补读这批新增/变化的生产实现、必要消费者及回归，不重做无变更的既有审查。G5只读复核AI/助理/Coding/合同与既有AUTH的交集，协调方核资源变换与其他客户端交集；新发现ASSET-JS见§12.8，整合与运行仍由原会话唯一writer承接。首批 G3/G4 合计 13 个包的跟踪清单经协调方与冻结切点 `git ls-files` 对照，无漏项、重复或未披露可执行文件。G4 全部 191 文件（生产 170 文件/27,820 行）已逐段读；G3 180 文件含 26 个静态资源：CSS 全文件结构、装配/插值、公共令牌、focus/hidden/主题/响应式/减少动态与消费者已审，未逐行评价每个历史选择器；图片/字体核格式、引用及许可，不声称视觉/字形全验。此口径用于代码审查，视觉、原生与用户体验仍需实际证据。生产入口、失败/恢复与测试断言已随各包核对；未出现新问题的包也不是“所有场景已通过”。
 
 | 已审包 / 覆盖 | 职责、依赖与实际消费者判断 | 变化原因、放置与冗余裁决 | 验证及整改边界 |
 | --- | --- | --- | --- |

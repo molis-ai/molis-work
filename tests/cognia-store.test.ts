@@ -1,4 +1,5 @@
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
 import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
 import { test } from "node:test";
@@ -152,3 +153,17 @@ test("a deleted knowledge material's fixed versions keep their sources, also whe
   assert.deepEqual(Object.keys(store.drafts()[0]!).sort(), [...Object.keys(draft)].sort(), "the draft shows only its own fields");
   assert.deepEqual(store.drafts()[0]!.references, [reference]);
 }));
+test("a directory with more files than a batch holds is refused whole as too large (kind too_large, 413); any other unreadable file is only one skipped row", async () => {
+  const vault = mkdtempSync(join(tmpdir(), "cognia-big-vault-"));
+  try {
+    for (let index = 0; index <= 1000; index++) writeFileSync(join(vault, `n${index}.md`), `# ${index}`);
+    await assert.rejects(scanCogniaDirectory(vault), (error: unknown) => error instanceof ActionError && error.code === "cognia.too_large" && actionHttpStatus(error) === 413);
+    const small = mkdtempSync(join(tmpdir(), "cognia-small-vault-"));
+    try {
+      writeFileSync(join(small, "a.md"), "# a"); symlinkSync(join(small, "a.md"), join(small, "link.md"));
+      const scan = await scanCogniaDirectory(small);
+      assert.deepEqual(scan.files.map(file => file.path).sort(), ["a.md", "link.md"]);
+      assert.equal(scan.files.find(file => file.path === "link.md")?.reason, "符号链接未读取");
+    } finally { rmSync(small, { recursive: true, force: true }); }
+  } finally { rmSync(vault, { recursive: true, force: true }); }
+});

@@ -7,7 +7,9 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { computeBuildSourceDigest } from "../apps/local-host/src/installer/fingerprint.js";
 import { declaredReleaseFileEntries, copyReleaseEntries } from "../apps/local-host/src/installer/package-release-files.js";
-import { createMaterialExtractor, extractMaterial, MaterialExtractionError, readMaterialHtml } from "../apps/local-host/src/material-extraction.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { createMaterialExtractor, extractMaterial, readMaterialHtml } from "../apps/local-host/src/material-extraction.js";
 import { extractJellyMaterial } from "../apps/local-host/src/jelly-native-material.js";
 import { prepareContextDocuments } from "../apps/local-host/src/context-onboarding-documents.js";
 
@@ -48,7 +50,7 @@ test("text limits preserve UTF-8/code points and HTML parsing excludes active co
   const html = await extractMaterial({ file_name: "article.html", bytes: Buffer.from('<title>标题 &amp; 名称</title><nav>导航</nav><article><h2>正文</h2><p>A &#x4E2D; &#99999999;</p><script>SECRET') }, { textFormat: "markdown" });
   assert.equal(html.title, "标题 & 名称"); assert.match(html.text, /## 正文/); assert.match(html.text, /A 中 &#99999999;/);
   assert.doesNotMatch(html.text, /SECRET|导航/); assert.equal(html.coverage.status, "partial"); assert.equal(html.coverage.truncated, false);
-  await assert.rejects(extractMaterial({ file_name: "binary.txt", bytes: Buffer.from([0xff]) }), MaterialExtractionError);
+  await assert.rejects(extractMaterial({ file_name: "binary.txt", bytes: Buffer.from([0xff]) }), (error: unknown) => error instanceof ActionError && error.code === "material.encoding" && actionHttpStatus(error) === 400);
   await assert.rejects(extractMaterial(source, { limits: { maxBytes: 1 } }), /容量/);
 });
 test("PDF cancellation and timeout terminate the worker before returning; later extraction still works", async () => {
@@ -57,7 +59,7 @@ test("PDF cancellation and timeout terminate the worker before returning; later 
   const controller = new AbortController(), stopped = new Error("cancel material");
   const pending = extractMaterial(source, { signal: controller.signal }); controller.abort(stopped);
   await assert.rejects(pending, error => error === stopped); assert.equal(ports(), initialPorts);
-  await assert.rejects(extractMaterial(source, { timeoutMs: 1 }), error => error instanceof MaterialExtractionError && error.code === "timeout");
+  await assert.rejects(extractMaterial(source, { timeoutMs: 1 }), error => error instanceof ActionError && error.code === "material.timeout" && actionHttpStatus(error) === 502);
   assert.equal(ports(), initialPorts);
   assert.equal((await extractMaterial(source)).text, "Live worker"); assert.equal(ports(), initialPorts);
 });
@@ -65,7 +67,7 @@ test("PDF cancellation and timeout terminate the worker before returning; later 
 test("malformed HTML cannot block the Host deadline; cancellation releases its worker and later parsing recovers", { timeout: 5_000 }, async () => {
   const ports = () => process.getActiveResourcesInfo().filter(name => name === "MessagePort").length;
   const initial = ports(), html = "<".repeat(200_000), started = performance.now();
-  await assert.rejects(readMaterialHtml(html, { timeoutMs: 200 }), error => error instanceof MaterialExtractionError && error.code === "timeout");
+  await assert.rejects(readMaterialHtml(html, { timeoutMs: 200 }), error => error instanceof ActionError && error.code === "material.timeout" && actionHttpStatus(error) === 502);
   assert.ok(performance.now() - started < 2_000); assert.equal(ports(), initial);
   const controller = new AbortController(), stopped = new Error("cancel HTML");
   const pending = extractMaterial({ file_name: "bad.html", bytes: Buffer.from(html) }, { signal: controller.signal });
@@ -134,7 +136,7 @@ test("Host sends the selected OCR languages to its helper and rejects invalid li
     assert.deepEqual(result.pages[0]!.lines, [{ text: "Known line", confidence: 0.9 }]);
     for (const line of [{ text: "Known line", confidence: 2 }, { text: "Different line", confidence: 0.9 }]) {
       fixture({ ...base, pages: [{ ...base.pages[0], lines: [line] }] });
-      await assert.rejects(extract(source), { code: "invalid_result" });
+      await assert.rejects(extract(source), { code: "material.invalid_result" });
     }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });

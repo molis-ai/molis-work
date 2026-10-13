@@ -1,6 +1,6 @@
-import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { CogniaStore } from "./store.js";
-import type { Material } from "./types.js";
+import { cogniaErrors, type Material } from "./types.js";
 
 /** Cognia's part in the system search: the person's imported knowledge (not attachments), in their own Home. */
 export const cogniaSearchActions = {
@@ -26,7 +26,7 @@ export function createCogniaSearchHandlers(withStore: <T>(run: (store: CogniaSto
       let material: Material;
       try { material = store.read((input as { subject_id: string }).subject_id); }
       catch (error) {
-        if ((error as { code?: string })?.code === "cognia.not_found") throw new ActionError("cognia.not_found", "资料已删除");
+        if ((error as { code?: string })?.code === "cognia.not_found") throw cogniaErrors.not_found("资料已删除");
         throw error;
       }
       return subjectContext({ subject: { kind: "cognia_material", id: material.id }, revision: revisionOf(material), title: titleOf(material),

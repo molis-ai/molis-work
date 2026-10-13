@@ -13,12 +13,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
   const L = host.translate;
   const embedded = window.parent !== window && document.body.hasAttribute("data-pane-embedded");
   const ownPane = embedded ? new URL(location.href).searchParams.get("workbenchPane") || "pane" : "main";
-  const post = (path, body, signal) => fetch(host.route(path), { method: "POST", headers: host.headers(), body: JSON.stringify(body), signal })
-    .then(async (response) => {
-      const value = await response.json().catch(() => ({}));
-      if (!response.ok) throw Object.assign(new Error(value.error || L("暂时处理不了，请稍后重试")), { code: value.code, status: response.status });
-      return value;
-    });
+  const post=(path,body,signal)=>molisWorkRequest(host.route(path),{body,signal,fallback:L("暂时处理不了，请稍后重试")});
   const requestId = () => (crypto.randomUUID ? crypto.randomUUID() : "cx-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   const quoted = (focus) => focus.targets.map((target) => target.text).join("\n\n").slice(0, 20000);
   const assistantDetail = (focus, text) => ({ new: true, text, source: { surface: focus.plugin_id, title: focus.object.title || "" },
@@ -103,8 +98,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
   // plugins declare as their search sources (surface → kind), so its text can be acted on like any declared object.
   (() => {
     let surfaces = null;
-    const known = () => surfaces || (surfaces = fetch(host.route("/api/contextual/surfaces"), { headers: host.headers() })
-      .then((response) => response.ok ? response.json() : { surfaces: {} }).then((value) => value.surfaces || {}).catch(() => { surfaces = null; return {}; }));
+    const known=()=>surfaces||(surfaces=molisWorkRequest(host.route("/api/contextual/surfaces")).then(value=>value.surfaces||{}).catch(()=>{surfaces=null;return {};}));
     const read = (node) => { try { return JSON.parse(node.getAttribute("data-assistant-context") || "null"); } catch { return null; } };
     const namedItself = (context) => Boolean(context && context.object && context.named_by !== "workbench");
     document.addEventListener("molis-work:select-item", (event) => {
@@ -211,7 +205,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     error(error) {
       this.idle();
       root.dataset.state = "active";
-      root.replaceChildren(el("div", { class: "context-actions-pill" }, el("span", { class: "context-actions-note", text: error.message || L("暂时处理不了，请稍后重试") })));
+      const note=el("span",{class:"context-actions-note"});molisWorkRequest.show(note,error,L("暂时处理不了，请稍后重试"));root.replaceChildren(el("div",{class:"context-actions-pill"},note));
     },
     scope(focus) {
       const pill = root.querySelector(".context-actions-pill");

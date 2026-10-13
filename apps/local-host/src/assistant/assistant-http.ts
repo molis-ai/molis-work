@@ -9,9 +9,10 @@ import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { actionEffect, type ActionCallContext, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
-import { AssistantError, AssistantService } from "./assistant-service.js";
-import type { PersonActions } from "./assistant-coding.js";
-import { ASSISTANT_STORE_NAME, AssistantStore, AssistantStoreError } from "./assistant-store.js";
+import { AssistantService } from "./assistant-service.js";
+import { assistantErrors } from "./assistant-errors.js";
+import { withPersonDispatchGuard, type PersonActions } from "./assistant-coding.js";
+import { ASSISTANT_STORE_NAME, AssistantStore } from "./assistant-store.js";
 import { codingCharacterPorts } from "../characters-host.js";
 import { assistantContributions } from "./assistant-contributions.js";
 import { registerAssistantRuleActions } from "./assistant-rule-actions.js";
@@ -67,7 +68,10 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
         views.catch(() => { if (directories.get(key)?.views === views) directories.delete(key); });
         return views;
       },
-      invoke: async (action, input) => client.invoke(await personContext(reference), action, input),
+      invoke: async (action, input, beforeDispatch) => {
+        const caller = await personContext(reference);
+        return client.invoke(withPersonDispatchGuard(caller, beforeDispatch), action, input);
+      },
     };
   };
   const service: AssistantService = new AssistantService(store, {
@@ -99,7 +103,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version) },
     // The person's own actions in the work's project, as the page there would use them.
     personActions: async work => {
-      if (!work.project_ref) throw new AssistantError("assistant.scope", "Coding Agent 在项目里工作");
+      if (!work.project_ref) throw assistantErrors.scope("Coding Agent 在项目里工作");
       return personClient(work.project_ref);
     },
     // The person's Home, for the reminders they set in Plugins.
@@ -139,7 +143,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       // The works that relate to one object here: for that object's own page ("belongs to …", continue it).
       if (method === "GET" && parts.length === 1 && parts[0] === "related") {
         const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
-        if (!kind || !id) return { status: 400, body: { error: "需要对象种类与标识" } };
+        if (!kind || !id) throw assistantErrors.invalid("需要对象种类与标识");
         return { status: 200, body: { works: await service.related(ports.projectRef?.project_id ?? null, { kind, id }) } };
       }
       // Characters the person may choose here: for a work (its own project), or for a new work on this page.
@@ -153,7 +157,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "send") {
         // A page marks the words it wrote itself ("page"); the marks of the Host's and the Assistant's own rounds are set in code and cannot be claimed from outside.
-        if (body.written_by !== undefined && body.written_by !== "page") throw new AssistantError("assistant.invalid", "written_by 只能是 page");
+        if (body.written_by !== undefined && body.written_by !== "page") throw assistantErrors.invalid("written_by 只能是 page");
         return { status: 200, body: await service.send(body as unknown as AssistantSendInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };
       }
       // What the Assistant may use here, and what the person switched off for it.
@@ -181,7 +185,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "capabilities") {
         if (typeof body.capability_id !== "string" || !Number.isSafeInteger(body.version) || typeof body.provider_id !== "string"
-          || (typeof body.enabled !== "boolean" && typeof body.confirm_always !== "boolean")) throw new AssistantError("assistant.invalid", "能力标识无效");
+          || (typeof body.enabled !== "boolean" && typeof body.confirm_always !== "boolean")) throw assistantErrors.invalid("能力标识无效");
         const key = actionKey({ capability_id: body.capability_id, version: body.version as number, provider_id: body.provider_id });
         if (typeof body.enabled === "boolean") store.setActionEnabled(WEB_ACTOR, key, body.enabled);
         if (typeof body.confirm_always === "boolean") store.setConfirmAlways(WEB_ACTOR, key, body.confirm_always);
@@ -214,7 +218,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "memories") {
         const action = body.action === "update" || body.action === "disable" || body.action === "enable" || body.action === "remove" ? body.action : null;
-        if (!action) throw new AssistantError("assistant.invalid", "不支持的操作");
+        if (!action) throw assistantErrors.invalid("不支持的操作");
         return { status: 200, body: { memories: await service.changeMemory({ memory_id: String(body.memory_id ?? ""), action, ...(typeof body.text === "string" ? { text: body.text } : {}) }, ports.projectRef?.project_id ?? null) } };
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "memory-prefs") return { status: 200, body: { prefs: service.saveMemoryPrefs(body as never) } };
@@ -258,15 +262,6 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (parts.length === 3 && parts[2] === "archive") return { status: 200, body: { work: await service.archive(workId, body.archived !== false) } };
       if (parts.length === 4 && parts[2] === "reviews") return { status: 200, body: await service.decide(workId, { review_id: parts[3]!, decision: body.decision as "approve" | "reject", ...(typeof body.note === "string" ? { note: body.note } : {}) }) };
       return null;
-    },
-    mapError(error) {
-      if (error instanceof AssistantError) {
-        const status = error.code === "assistant.not_found" ? 404 : error.code === "assistant.expired" ? 410 : error.code === "assistant.scope" ? 403
-          : ["assistant.conflict", "assistant.pending_request", "assistant.busy", "assistant.stale", "assistant.state", "assistant.needs_check"].includes(error.code) ? 409 : 400;
-        return { status, body: { error: error.message, code: error.code, ...(error.action ? { action: error.action } : {}), ...(error.work ? { work: error.work } : {}) } };
-      }
-      if (error instanceof AssistantStoreError) return { status: error.code === "assistant.not_found" ? 404 : 409, body: { error: error.message, code: error.code } };
-      return { status: 500, body: { error: error instanceof Error ? error.message : "助理暂时无法完成，输入已保留", code: "assistant.failed" } };
     },
   });
 }

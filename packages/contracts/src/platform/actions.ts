@@ -1,7 +1,7 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
 export * from "./action-execution.js";
-import { ActionError } from "./action-errors.js";
+import { ActionError, type ActionErrorKind } from "./action-errors.js";
 export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
 import type { ActionResultView } from "./action-result.js";
@@ -91,6 +91,10 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly allowed_actions?: readonly ActionReference[];
   /** Trusted authority owner rechecks revocable access at dispatch, including after a Host queue. */
   readonly validate_authority?: (reference: ActionReference) => void | Promise<void>;
+  /** Trusted synchronous check after the final await, never business input or persisted state.
+   * Additional permissions come from the current consumer's declaration, not from action input.
+   * Without a target, retain only the originating call's authority and lifetime (for disabling a binding). */
+  readonly assert_authority_current?: (reference?: ActionReference, requiredPermissions?: readonly string[]) => void;
   /** Recheck permissions consumed directly by a scene, without pretending it invoked another action. */
   readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
   readonly signal?: AbortSignal;
@@ -215,6 +219,8 @@ export type ActionAvailability = { readonly available: true } | {
   readonly available: false;
   readonly code: string;
   readonly reason: string;
+  /** The owner's classification of this refusal; the Kernel and SDK preserve it when raising the failure. */
+  readonly kind?: ActionErrorKind;
 };
 
 /**
@@ -399,15 +405,20 @@ export function requireSynchronous<T>(value: T, message = "此操作需要异步
 /** An entrypoint binds its authenticated context once; callers supply only business input. */
 export interface BoundActionClient {
   discover(): Promise<readonly ActionView[]>;
-  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">): Promise<Output>;
+  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">): Promise<Output>;
 }
 
 export function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient {
   return { discover: async () => client.discover(context()),
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">) => {
+    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">) => {
       const caller = context();
       return await client.invoke(control ? { ...caller, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context,
-        validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); } } : caller, definition, input) as Output;
+        validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); },
+        assert_authority_current: (reference, requiredPermissions) => {
+          // The control belongs to its original caller; the bound caller owns the child's reference and permissions.
+          requireSynchronous(control.assert_authority_current?.(), "最终授权检查必须同步完成");
+          requireSynchronous(caller.assert_authority_current?.(reference, requiredPermissions), "最终授权检查必须同步完成");
+        } } : caller, definition, input) as Output;
     } };
 }
 
@@ -415,12 +426,19 @@ export function bindActionClient(client: ActionClient, context: () => ActionCall
  * This does not grant permissions; the dispatcher still checks each target's current registration and policy. */
 export function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference & { provider_id: string }, beforeEffect?: () => Promise<void>): Context {
   const validate = context.validate_authority;
-  if (!validate && !beforeEffect) return context;
+  const assertCurrent = context.assert_authority_current;
+  if (!validate && !beforeEffect && !assertCurrent) return context;
   const pinned = { capability_id: origin.capability_id, version: origin.version, provider_id: origin.provider_id };
   return { ...context, validate_authority: async (reference: ActionReference) => {
-    await beforeEffect?.();
     await validate?.(pinned);
     if (reference.capability_id !== pinned.capability_id || reference.version !== pinned.version || reference.provider_id !== pinned.provider_id) await validate?.(reference);
+    await beforeEffect?.();
+  }, assert_authority_current: (reference?: ActionReference, requiredPermissions?: readonly string[]) => {
+    requireSynchronous(assertCurrent?.(), "最终授权检查必须同步完成");
+    requireSynchronous(assertCurrent?.(pinned, requiredPermissions), "最终授权检查必须同步完成");
+    if (reference && (reference.capability_id !== pinned.capability_id || reference.version !== pinned.version || reference.provider_id !== pinned.provider_id)) {
+      requireSynchronous(assertCurrent?.(reference, requiredPermissions), "最终授权检查必须同步完成");
+    }
   } };
 }
 

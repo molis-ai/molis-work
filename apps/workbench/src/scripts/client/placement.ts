@@ -16,12 +16,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   const hereTitle = () => here() === "personal" ? L("个人空间") : (host.projectTitle ? L("项目「{name}」", { name: host.projectTitle }) : L("当前项目"));
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined && text !== null) value.textContent = text; if (className) value.className = className; return value; };
   const ghost = (text) => { const value = node("button", text, "mw-btn mw-btn--ghost mw-btn--sm"); value.type = "button"; return value; };
-  const api = async (path, body) => {
-    const response = await fetch(route("/api/placement/" + path), body === undefined ? { headers: headers() } : { method: "POST", headers: headers(), body: JSON.stringify(body) });
-    const value = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(value.error || L("暂时处理不了，请稍后重试"));
-    return value;
-  };
+  const api=(path,body)=>molisWorkRequest(route("/api/placement/"+path),{body,fallback:L("暂时处理不了，请稍后重试")});
   let spaces = null;
   const loadSpaces = async () => { if (!spaces) spaces = (await api("spaces")).spaces || []; return spaces; };
   const cache = new Map();
@@ -113,7 +108,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   const card = (title, detail, actions, tone) => {
     const item = node("div", undefined, "placement-toast" + (tone ? " placement-toast--" + tone : ""));
     const text = node("div", undefined, "placement-toast-text");
-    text.append(node("strong", title)); if (detail) text.append(node("small", detail));
+    text.append(node("strong",title));if(detail){const line=node("small");if(typeof detail==="string")line.textContent=detail;else molisWorkRequest.show(line,detail);text.append(line);}
     item.append(text);
     for (const action of actions || []) {
       const button = node("button", action.label, "mw-btn mw-btn--sm " + (action.primary ? "mw-btn--primary" : "mw-btn--secondary"));
@@ -175,7 +170,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       if (description.state !== "ok") { card(L("暂时读不到它"), description.reason || "", [], "error"); return; }
       if (detail.action === "use-in-project") await useInProject(description);
       else if (detail.action === "move" || detail.action === "copy") await moveOrCopy(description, detail.action);
-    } catch (error) { card(L("暂时处理不了"), error.message, [], "error"); }
+    } catch (error) { card(L("暂时处理不了"), error, [], "error"); }
   });
 
   /* ---- Converting: a plugin hands content over, the placement service makes the new object and records where it came from ---- */
@@ -192,7 +187,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       card(named(detail.goal ? L("已建成 Goal") : L("已转成"), result.title), [L("存到 {place}", { place: result.location.title }), detail.note || L("原来的内容不变，新内容里记着它从哪里来")].filter(Boolean).join(" · "),
         result.open ? [{ label: L("打开"), primary: true, run: () => openObject(result.open, result.title) }] : [], "done");
       window.dispatchEvent(new CustomEvent("molis:placement-changed", { detail: { mode: "convert", from: source, to: result.object } }));
-    } catch (error) { card(L("没能转成"), error.message, [], "error"); }
+    } catch (error) { card(L("没能转成"), error, [], "error"); }
   });
 
   /* ---- “存到…” labels ---- */
@@ -230,7 +225,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     bar.append(where, access, links, saved);
     slot.append(bar);
     let description = null;
-    try { description = await describe(object, false); } catch (error) { where.textContent = L("位置读不到"); bar.title = error.message; return; }
+    try { description = await describe(object, false); } catch (error) { if(slot.isConnected&&slot.dataset.placementPainted===signature){where.textContent=L("位置读不到");const note=node("p",undefined,"placement-read-error");molisWorkRequest.show(note,error);slot.append(note);}return; }
     if (slot.dataset.placementPainted !== signature) return;
     const location = description.location;
     where.textContent = location ? location.title : L("位置读不到");
@@ -295,7 +290,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
           try {
             await api("unlink", { key: link.key }); invalidate(); closePanel(); repaint();
             card(L("已移除关联"), L("只去掉了关系；对象本身、复制品和固定版本都不变。"), [], "done");
-          } catch (error) { card(L("没能移除关联"), error.message, [], "error"); }
+          } catch (error) { card(L("没能移除关联"), error, [], "error"); }
         };
         row.append(remove);
       }
@@ -331,7 +326,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault(); ok.disabled = true; error.textContent = "";
       try { await run(new FormData(form)); shell.close(); }
-      catch (failure) { error.textContent = failure.message; ok.disabled = false; }
+      catch (failure) { molisWorkRequest.show(error,failure); ok.disabled = false; }
     });
     shell.addEventListener("close", () => shell.remove());
     shell.showModal();
@@ -366,20 +361,17 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     if (!fixed && object.kind !== "artifact") { await api("bind-goal", { object, project_id: projectId, goal_id: goalId }); return; }
     let body = { subject: { kind: object.kind, id: object.id }, used: true };
     if (object.kind === "artifact") { const [artifact_id, version] = JSON.parse(object.id); body = { reference: { artifact_id, version }, used: true }; }
-    const response = await fetch("/projects/" + encodeURIComponent(projectId) + "/api/goals/" + encodeURIComponent(goalId) + "/artifact-inputs",
-      { method: "POST", headers: { ...headers(), "content-type": "application/json" }, body: JSON.stringify(body) });
-    const value = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(value.error || L("没有记下输入"));
+    await molisWorkRequest("/projects/"+encodeURIComponent(projectId)+"/api/goals/"+encodeURIComponent(goalId)+"/artifact-inputs",{body,fallback:L("没有记下输入")});
   };
   // 「加输入…」 on a Goal: anything this project lists among its files, chosen here and taken one of the two ways.
   const addGoalInput = async (goalId) => {
-    const read = async (path) => { const response = await fetch(route(path), { headers: headers() }); const value = await response.json().catch(() => ({})); if (!response.ok) throw new Error(value.error || L("读不到项目的内容")); return value; };
+    const read=path=>molisWorkRequest(route(path),{fallback:L("读不到项目的内容")});
     const entries = [];
     try {
       for (const source of (await read("/api/side/files/sources")).sources || []) {
         try { for (const entry of ((await read("/api/side/files/entries?source=" + encodeURIComponent(source.id))).page || {}).entries || []) if (entry.subject) entries.push({ ...entry, group: source.title }); } catch {}
       }
-    } catch (error) { card(L("读不到项目的内容"), error.message, [], "error"); return; }
+    } catch (error) { card(L("读不到项目的内容"), error, [], "error"); return; }
     if (!entries.length) { card(L("这里还没有可以作为输入的内容"), L("先为这个 Goal 新建一份，或在成果库里导入。"), [], "error"); return; }
     const rows = entries.slice(0, 80).map((entry, index) => choice("object", JSON.stringify(entry.subject), entry.title, entry.group, index === 0));
     dialog(L("给这个 Goal 加输入"), L("成果库里的版本本来就是固定的；其余的可以跟着原文，或现在固定一版。"), [...rows, inputMode()], L("加入"), async (data) => {
@@ -455,7 +447,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     const found = [];
     for (const projectId of places) {
       try { for (const goal of (await api("goals?project_id=" + encodeURIComponent(projectId))).goals || []) found.push({ goal_id: goal.goal_id, title: goal.title, project_id: projectId }); }
-      catch (error) { if (projectId === home) { card(L("读不到目标"), error.message, [], "error"); return; } }
+      catch (error) { if (projectId === home) { card(L("读不到目标"), error, [], "error"); return; } }
     }
     if (!found.length) { card(L("这里还没有目标"), L("先在 Goals 里建一个目标，再把资料关联过去。"), [], "error"); return; }
     const bound = new Set(description.associations.filter((link) => link.type === "goal").map((link) => link.target.project_id + "|" + link.target.goal_id));
@@ -501,10 +493,10 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
             await api("unlink", { key: JSON.stringify(["goal", here(), row.dataset.goalId, row.dataset.placementBinding]) });
             row.remove(); invalidate();
             card(L("已移除关联"), L("只去掉了目标上的这条资料记录；资料本身不变。"), [], "done");
-          } catch (error) { card(L("没能移除关联"), error.message, [], "error"); }
+          } catch (error) { card(L("没能移除关联"), error, [], "error"); }
         };
         actions.append(remove);
-      }).catch((error) => { state.textContent = error.message; });
+      }).catch((error) => { molisWorkRequest.show(state,error); });
     });
   };
   document.addEventListener("click", (event) => {
@@ -514,13 +506,12 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     const act = event.target.closest && event.target.closest("[data-goal-input-post]");
     if (act && here()) {
       event.preventDefault(); act.disabled = true;
-      fetch(route(act.dataset.goalInputPost), { method: "POST", headers: { ...headers(), "content-type": "application/json" }, body: act.dataset.goalInputBody })
-        .then(async (response) => {
-          if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || L("暂时处理不了，请稍后重试"));
+      molisWorkRequest(route(act.dataset.goalInputPost),{body:JSON.parse(act.dataset.goalInputBody),fallback:L("暂时处理不了，请稍后重试")})
+        .then(() => {
           const row = act.closest("article"), done = act.dataset.goalInputDone;
           if (done) { row.querySelector("[data-goal-input-state]").textContent = done; act.parentNode.remove(); } else row.remove();
         })
-        .catch((error) => { act.disabled = false; card(act.dataset.goalInputFail, error.message, [], "error"); });
+        .catch((error) => { act.disabled = false; card(act.dataset.goalInputFail, error, [], "error"); });
     }
   });
   document.addEventListener("click", async (event) => {
@@ -547,7 +538,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       }
       card(L("已新建{kind}《{title}》", { kind: names[station] || "", title: result.title }), L("存到 {place}", { place: result.location.title }) + (goalId ? " · " + L("已关联到这个 Goal") : ""),
         result.open ? [{ label: L("打开"), primary: true, run: () => openObject(result.open, result.title) }] : [], "done");
-    } catch (error) { card(L("没能新建"), error.message, [], "error"); }
+    } catch (error) { card(L("没能新建"), error, [], "error"); }
     finally { button.disabled = false; }
   });
 
@@ -587,7 +578,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       remove.onclick = async () => {
         try { await api("unlink", { key: item.key }); row.remove(); if (!box.querySelector(".placement-related-row")) box.hidden = true;
           card(item.state === "ok" ? L("已移除关联") : L("已清理这条关联"), L("只去掉了关系记录；对象本身不受影响。"), [], "done"); }
-        catch (error) { card(L("没能移除关联"), error.message, [], "error"); }
+        catch (error) { card(L("没能移除关联"), error, [], "error"); }
       };
       actions.append(remove);
       row.append(text, actions);

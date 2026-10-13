@@ -21,11 +21,10 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const MAIL_TONE={queued:'attention',delivered:'progress',accepted:'progress',completed:'done',rejected:'blocked',cancelled:'idle',expired:'idle'};
   const TASK_STATE={running:'运行中',succeeded:'已成功结束',failed:'失败',stopped:'已停止',interrupted:'被服务重启打断'};
   const TASK_TONE={running:'progress',succeeded:'done',failed:'blocked',stopped:'idle',interrupted:'attention'};
-  let owner='',data=null,mail=[],commands=[],readAt=0,reading=false,drafts=new Map(),drawnKey='';
-  // Commands this session left running in the background: what, how it is going, and stopping one.
+  let owner='',data=null,mail=[],commands=[],backgroundUnknown=false,readAt=0,reading=false,drafts=new Map(),drawnKey='';
   const drawBackground=()=>{
-    backgroundSection.hidden=!commands.length;backgroundSection.replaceChildren();if(!commands.length)return;
-    backgroundSection.append(el('h3','','后台命令'));const list=el('ol','coding-coop-mail coding-background-list');
+    backgroundSection.hidden=!commands.length&&!backgroundUnknown;backgroundSection.replaceChildren();if(backgroundSection.hidden)return;
+    backgroundSection.append(el('h3','','后台命令'));if(backgroundUnknown)backgroundSection.append(el('p','','状态暂不可读'));const list=el('ol','coding-coop-mail coding-background-list');
     for(const task of commands.slice().reverse()){
       const item=el('li'),head=el('div','coding-coop-head'),chip=el('span','mw-status mw-status--plain',TASK_STATE[task.state]||task.state);chip.dataset.tone=TASK_TONE[task.state]||'idle';item.dataset.state=task.state;
       head.append(el('code','coding-background-command',task.summary),chip);
@@ -46,12 +45,10 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const sessionLink=(side)=>side?.title?button('「'+side.title+'」','ghost',()=>void openSession(side.session_id,side.title)):el('span','coding-coop-gone','已不存在的会话');
   const reasonForm=(label,confirm,handler)=>{const form=el('form','coding-coop-reason'),input=el('textarea','mw-textarea');input.rows=2;input.maxLength=2000;input.required=true;input.setAttribute('aria-label',label);input.placeholder=label;
     const send=el('button','mw-btn mw-btn--secondary',confirm);send.type='submit';form.append(input,send);lifetime.listen(form,'submit',event=>{event.preventDefault();if(input.value.trim())void handler(input.value.trim());});return form;};
-  // The receiving side: where the work came from, and handing the finished round back.
   const drawBanner=(incoming)=>{
     banner.hidden=!incoming;banner.replaceChildren();if(!incoming)return;
     const head=el('div','coding-coop-head');head.append(el('strong','','来自其他会话的委派'),stateChip(incoming));
     const from=el('p','coding-coop-line');from.append(document.createTextNode('发起：'),sessionLink(incoming.from),document.createTextNode(' · '+incoming.title));
-    // An ended delegation stays as one line with its receipts; it no longer asks anything of this session.
     const ended=['completed','rejected','cancelled','failed'].includes(incoming.state);banner.classList.toggle('is-ended',ended);
     if(ended){head.append(from);banner.append(head);banner.append(receipts(incoming));return;}
     const task=el('details','coding-coop-task');task.append(el('summary','','委派内容'),el('p','',incoming.task));
@@ -80,13 +77,10 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     else banner.append(el('p','coding-coop-note',incoming.state==='completed'?'发起的会话已收下交付，这个委派已完成。':(incoming.receipts.at(-1)?.note||incoming.state_label)));
     banner.append(receipts(incoming));
   };
-  // The asking side: each delegation's state and receipts, deliveries to take or return, and related sessions.
-  // Messages between the sessions' models: who wrote to whom, whether an answer is awaited, and withdrawing an open one.
   const drawMail=()=>{
     if(!mail.length)return;const list=el('ol','coding-coop-mail');
     for(const message of mail.slice().reverse()){
       const item=el('li'),head=el('div','coding-coop-head'),line=el('p','coding-coop-line');item.dataset.state=message.state;
-      // Ended because the receiving round failed, not withdrawn by anyone.
       const failed=message.state==='cancelled'&&(message.history||[]).some(entry=>entry.event==='failed');
       const chip=el('span','mw-status mw-status--plain',failed?'对方那一轮失败，未答复':(MAIL_STATE[message.state]||message.state));chip.dataset.tone=failed?'blocked':(MAIL_TONE[message.state]||'idle');
       head.append(el('strong','',(message.outgoing?'发出的':'收到的')+(MAIL_KIND[message.kind]||message.kind)+(message.await_reply?'（在等答复）':'')),chip);
@@ -105,14 +99,11 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     for(const delegation of value.outgoing){
       const card=el('article','coding-coop-card'),head=el('div','coding-coop-head'),path='/'+encodeURIComponent(delegation.delegation_id);
       head.append(el('strong','',delegation.title),stateChip(delegation));
-      // Settled or from before delegations went by letter: nothing more to decide on it.
       const open=!['completed','rejected','cancelled','failed'].includes(delegation.state);
       const to=el('p','coding-coop-line');to.append(document.createTextNode('委派给'),sessionLink(delegation.to));if(delegation.to?.state)to.append(el('span','coding-coop-note','那边：'+(SESSION_STATE[delegation.to.state]||delegation.to.state)));card.append(head,to);
       for(const delivery of delegation.deliveries){
         const row=el('div','coding-coop-delivery');row.dataset.state=delivery.state;
         row.append(el('p','','交付：'+(delivery.kind==='report'?'报告':'固定变更')+' · '+delivery.title+(delivery.note?' · '+delivery.note:'')+' · '+time(delivery.sent_at)));
-        // What came back can be read before it is taken: the fixed version opens in its own tab, read-only, and this
-        // session stays where it is.
         if(delivery.artifact&&openArtifact)row.append(button(delivery.kind==='report'?'查看交付的报告':'查看交付的变更','ghost',()=>openArtifact(delivery.artifact,delivery.title)));
         if(delivery.state==='sent'&&open){const actions=el('div','coding-coop-actions');
           actions.append(button('收下并作为下一轮材料','secondary',()=>void act(path+'/deliveries/'+encodeURIComponent(delivery.delivery_id),{decision:'accept',expected_revision:delegation.revision},'已收下，交付的成果已加入下一轮材料。').then(()=>materialsChanged())),
@@ -121,6 +112,7 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         else if(delivery.state!=='sent')row.append(el('p','coding-coop-note',delivery.state==='accepted'?'已收下 · '+time(delivery.decided_at):'没有收下：'+delivery.reason));
         card.append(row);
       }
+      if(delegation.state==='received')card.append(button('重试','secondary',()=>void act(path,{action:'deliver',expected_revision:delegation.revision})));
       if(open)card.append(button('取消委派','ghost',()=>void act(path,{action:'cancel',expected_revision:delegation.revision},'已取消这个委派。')));
       card.append(receipts(delegation));section.append(card);
     }
@@ -131,13 +123,11 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   };
   const refresh=async(force=false)=>{
     const id=current();if(!id||reading)return;if(!force && owner===id && Date.now()-readAt<3000)return;
-    reading=true;try{const [value,messages,background]=await Promise.all([api('/sessions/'+encodeURIComponent(id)+'/delegations'),api('/sessions/'+encodeURIComponent(id)+'/messages').catch(()=>({messages:[]})),api('/sessions/'+encodeURIComponent(id)+'/background').catch(()=>({commands:[]}))]);if(id!==current())return;owner=id;readAt=Date.now();data=value;mail=messages.messages;commands=background.commands;
-      // Redrawn only when something changed: a redraw replaces the forms, so a click or a half-written note would be lost.
-      const key=JSON.stringify([id,value,mail,commands,rounds().map(round=>[round.run_id,round.phase,round.number])]);
+    reading=true;try{const [value,messages,background]=await Promise.all([api('/sessions/'+encodeURIComponent(id)+'/delegations'),api('/sessions/'+encodeURIComponent(id)+'/messages').catch(()=>({messages:[]})),api('/sessions/'+encodeURIComponent(id)+'/background').catch(()=>({commands:null}))]);if(id!==current())return;backgroundUnknown=background.commands===null;commands=backgroundUnknown?(owner===id?commands:[]):background.commands;owner=id;readAt=Date.now();data=value;mail=messages.messages;
+      const key=JSON.stringify([id,value,mail,commands,backgroundUnknown,rounds().map(round=>[round.run_id,round.phase,round.number])]);
       if(force || key!==drawnKey){drawnKey=key;drawBanner(value.incoming);drawSection(value);drawBackground();}}
     catch(error){if(!lifetime.alive)return;if(id===current()){banner.hidden=true;}}finally{reading=false;}
   };
-  // Delegating: a new session gets the task as its draft, with fixed outputs handed over at their versions.
   const openDialog=async()=>{
     const id=current();if(!id)return;const form=dialog.querySelector('form'),list=dialog.querySelector('[data-coding-delegate-outputs]'),message=dialog.querySelector('[data-coding-delegate-status]');
     form.reset();message.textContent='';dialog.querySelector('[data-coding-delegate-task]').value=q('[data-coding-task]').value.trim();list.replaceChildren(el('p','coding-coop-note','正在读取可带上的固定成果…'));dialog.showModal();dialog.querySelector('[data-coding-delegate-title]').focus();
@@ -154,9 +144,9 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const materials=[...dialog.querySelectorAll('[data-coding-delegate-outputs] input:checked')].map(input=>JSON.parse(input.value));
     send.disabled=true;message.textContent='正在创建委派…';
     try{const result=await api('/sessions/'+encodeURIComponent(id)+'/delegations','POST',{task,...(title?{title}:{}),materials});dialog.close();
-      await refreshSessions();status('已委派给新会话「'+result.session.title+'」。对方接受并发送后才会执行。');await refresh(true);}
+      await refreshSessions();status(result.delivery_unconfirmed?'送达结果尚未确认。请核对原请求或查看会话，不要另发一遍。':'已委派给新会话「'+result.session.title+'」。对方接受并发送后才会执行。',Boolean(result.delivery_unconfirmed));await refresh(true);}
     catch(error){if(!lifetime.alive)return;message.textContent=error.message;}finally{send.disabled=false;}
   });
   lifetime.listen(dialog.querySelector('[data-coding-delegate-cancel]'),'click',()=>dialog.close());
-  return {refresh,openDialog,reset(){owner='';data=null;mail=[];commands=[];backgroundSection.hidden=true;backgroundSection.replaceChildren();banner.hidden=true;banner.replaceChildren();section.hidden=true;section.replaceChildren();}};
+  return {refresh,openDialog,reset(){owner='';data=null;mail=[];commands=[];backgroundUnknown=false;backgroundSection.hidden=true;backgroundSection.replaceChildren();banner.hidden=true;banner.replaceChildren();section.hidden=true;section.replaceChildren();}};
 }`;

@@ -39,6 +39,7 @@ No cloud sync, background watching, bidirectional sync, proprietary database mig
 - 公开入口：`@molis-ai/molis-work-plugin-cognia`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 目录扫描返回后，建立预览前复查原调用授权、取消及执行资格；嵌套扫描/预览沿共享动作控制传递原调用身份。返回列表、移出当前材料或删除其来源时清空本页当前对象，固定历史引用仍由资料 owner 读取。
   - 不改原文件；删除源文件不删除已导入的材料，取消预览不添加材料。
   - 提交后的预览只留回执（重复提交返回它），不再留整批文件；删除资料会让采纳过它的草稿回到未采纳，可再次采纳；已固定版本仍按草稿显示来源引用（草稿记着它采纳过的资料）。
   - 综合输出必须带有效的固定来源引用；取消、模型失败或引用无效时不保存草稿；草稿只有「存入知识库」后才进入知识。
@@ -47,5 +48,6 @@ No cloud sync, background watching, bidirectional sync, proprietary database mig
   - 失败都是 `ActionError`：码是 `cognia.<原因>`（`cogniaErrors`）；状态只由 kind 推出，没有错误类和状态表。原来码跟着状态走（404、409、499 各有一个码，其余都叫 `cognia.invalid`），现在模型没配置是 `cognia.model_unavailable`（503），模型没给出可用结果是 `cognia.model_invalid`（502），材料太大是 `cognia.too_large`（413）。目录扫描里只有 kind 为 `too_large` 的失败会中断整批，别的失败记成那个文件的跳过原因。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-cognia run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/cognia-actions.test.ts tests/cognia-store.test.ts tests/cognia-ai.test.ts tests/cognia-http.test.ts tests/cognia-prologue.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts`
+- 授权等待及可见对象定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-context-regressions.e2e.test.ts`（浏览器文件需要本机 Chrome；owner 用例的授权是受控策略回调）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[specs/archive/cognia-plugin/spec.md](../../../specs/archive/cognia-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

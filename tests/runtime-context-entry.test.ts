@@ -1,3 +1,4 @@
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -6,10 +7,9 @@ import { join } from "node:path";
 import test from "node:test";
 import { RuntimeProjectConnection } from "@molis-ai/molis-work-app-local-host";
 import { createMcpContextPresenter, createMcpRuntimeContextHandlers } from "@molis-ai/molis-work-app-mcp";
-import { readGoalResumeFacts, readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
+import { readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { type MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -35,7 +35,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     let failResponse = true;
     const handlers = createMcpRuntimeContextHandlers({
       connection,
-      createError: (code, message) => new MolisWorkV1Error(code, message),
+      createError: (code, message) => new ActionError(code, message),
       requireHost: () => host,
       actorFor: () => "runtime:codex:host-session",
       deleteProject: async () => { throw new Error("this test does not delete"); },
@@ -77,7 +77,6 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     assert.throws(() => scoped!.listProjects(), /closed|not open/);
     const localHost = createMolisWorkLocalHost();
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    const client = localHost.client(reference);
     // The resume reader the MCP server composes: the Goals directory through the connected client's own actions.
     const actions = bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "runtime:context-entry", audience: "mcp" as const,
       project_id: project.project_id, permissions: ["goals:read"] }));
@@ -85,10 +84,10 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     const calls: string[] = [];
     const presentResolution = createMcpContextPresenter({
       connection,
-      createError: (code, message, details) => new MolisWorkV1Error(code, message, details),
+      createError: (code, message, details) => new ActionError(code, message, { details }),
       readGuidance: async () => {
         calls.push("guidance");
-        const guidance = await client.invoke(readProjectGuidanceCapability, { project_id: project.project_id });
+        const guidance = await actions.invoke(goalsActions.guidanceRead, {});
         if (failGuidance) throw new Error("guidance unavailable");
         return guidance;
       },

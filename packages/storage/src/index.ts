@@ -30,6 +30,7 @@ export {
   SqliteSchemaVersionError,
   applySqliteBaseline,
   clearInExistingHomeSqlite,
+  describeSqliteBaseline,
   describeSqliteSchema,
   openBaselineHomeSqlite,
   type SqliteBaseline,

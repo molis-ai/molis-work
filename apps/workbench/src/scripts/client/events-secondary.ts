@@ -108,10 +108,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         makeTodo.setAttribute("aria-busy", "true");
         if (status) status.hidden = true;
         try {
-          const response = await fetch(route("/api/todo"), {
-            method: "POST",
-            headers: molisWorkControlHeaders(),
-            body: JSON.stringify({
+          const result = await api("/api/todo","POST",{
               title,
               placement: state.project?.project_id || document.body.dataset.projectId ? "project" : "personal",
               request_id: kind + ":" + id,
@@ -122,10 +119,8 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
                 subject: { kind: makeTodo.dataset.makeTodoSubject || kind, id },
                 open: { surface: makeTodo.dataset.makeTodoSurface || kind, id },
               }],
-            }),
           });
-          const result = await response.json().catch(() => ({}));
-          if (!response.ok || !result.item) throw new Error(result.error || L("没能转为待办"));
+          if(!result.item)throw new Error(L("没能转为待办"));
           const message = result.replayed ? L("这条已经转为待办") : L("已转为待办，这里的状态不变");
           if (status) {
             const open = document.createElement("button");
@@ -142,11 +137,11 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
           } else showToast(message);
         } catch (error) {
           if (status) {
-            status.textContent = error.message || L("没能转为待办");
+            molisWorkRequest.show(status,error,L("没能转为待办"));
             status.classList.remove("is-done");
             status.classList.add("is-error");
             status.hidden = false;
-          } else showToast(error.message || L("没能转为待办"), true);
+          } else showToast(error,true);
         } finally {
           makeTodo.disabled = false;
           makeTodo.removeAttribute("aria-busy");
@@ -165,7 +160,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         inboxAction.setAttribute("aria-busy", "true");
         if (status) status.hidden = true;
         try {
-          await feedApi("/api/inbox/entries/" + encodeURIComponent(entryId) + "/status", "POST", {
+          await api("/api/inbox/entries/" + encodeURIComponent(entryId) + "/status", "POST", {
             status: statusValue,
             expected_revision: expectedRevision,
           });
@@ -174,7 +169,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         } catch (error) {
           if (status) {
             status.classList.remove("is-done");
-            status.textContent = error.message || L("Inbox 操作失败");
+            molisWorkRequest.show(status,error,L("Inbox 操作失败"));
             status.hidden = false;
           }
           inboxAction.disabled = false;
@@ -196,15 +191,8 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         try {
           const expectedRevision = Number(feedAction.dataset.feedRevision || 0) || undefined;
           const restoreTarget = feedAction.dataset.feedRestoreTarget;
-          const response = await fetch(route("/api/feed/items/" + encodeURIComponent(itemId) + "/" + action), {
-            method: "POST",
-            headers: molisWorkControlHeaders(),
-            body: JSON.stringify(expectedRevision
-              ? { expected_revision: expectedRevision, ...(restoreTarget ? { restore_target: restoreTarget } : {}) }
-              : {}),
-          });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || L("Item 操作失败"));
+          const result = await api("/api/feed/items/" + encodeURIComponent(itemId) + "/" + action,"POST",expectedRevision
+            ? {expected_revision:expectedRevision,...(restoreTarget?{restore_target:restoreTarget}:{})}:{});
           if (action === "promote" || action === "start") {
             saveUiState();
             let existing = {};
@@ -229,7 +217,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
           if (action === "inbox") await refreshInboxStage();
         } catch (error) {
           if (status) {
-            status.textContent = error.message || L("Item 操作失败");
+            molisWorkRequest.show(status,error,L("Item 操作失败"));
             status.hidden = false;
           }
           feedAction.disabled = false;

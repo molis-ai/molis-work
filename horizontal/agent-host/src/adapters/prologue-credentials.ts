@@ -1,3 +1,4 @@
+import type { PrologueCredentialInput } from "../inference.js";
 import { createHash } from "node:crypto";
 import type { ExactRef } from "@prologue/sdk";
 import type { PrologueNodeAdapterOptions } from "./prologue-node.js";
@@ -71,3 +72,23 @@ export class PrologueCredentialBridge {
   }
 }
 
+
+/** One prepared credential and its rotation/cancellation check for a bounded inference. */
+export function prepareInferenceCredential(credentials: PrologueCredentialBridge) {
+  return async (input: PrologueCredentialInput, signal: AbortSignal, optional?: boolean) => {
+    const normalize = (value: string | null) => value?.trim() ? value : null;
+    signal.throwIfAborted();
+    await input.beforeDispatch?.();
+    const snapshot = normalize(await input.resolveCredential(input.credential_ref));
+    signal.throwIfAborted();
+    const assertCurrent = async () => {
+      signal.throwIfAborted();
+      if (normalize(await input.resolveCredential(input.credential_ref)) !== snapshot) throw new Error("模型凭据或配置已改变");
+      signal.throwIfAborted();
+    };
+    if (optional && snapshot === null) return { assertCurrent };
+    if (snapshot === null) throw new Error("模型凭据不可用");
+    const ref = await credentials.prologueRefFor(input.credential_ref, async () => { await assertCurrent(); return snapshot; }, signal);
+    return { ref, assertCurrent };
+  };
+}

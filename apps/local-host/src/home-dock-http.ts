@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type BoundActionClient, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { parseSceneFunctionKey } from "./functions-host.js";
 import { homeActions } from "./home-actions.js";
@@ -18,9 +19,8 @@ export async function handleHomeDockJudgmentHttp(request: IncomingMessage, respo
       sendJson(response, 200, url.pathname.endsWith("/open") ? await options.actions.invoke(homeActions.openEvent, body as HomeEventOpenInput)
         : await options.actions.invoke(homeActions.events, body as HomeEventWindow));
     } catch (error) {
-      const code = error instanceof ActionError ? error.code : "actions.failed";
-      sendJson(response, !(error instanceof ActionError) ? 500 : code === "actions.forbidden" ? 403 : code.startsWith("actions.event_") ? 409 : 400,
-        { code, error: error instanceof ActionError ? error.message : "暂时无法读取事项，请重新载入" });
+      const failure = actionErrorResponse(error);
+      sendJson(response, failure.status, failure.body);
     }
     return true;
   }
@@ -33,9 +33,8 @@ export async function handleHomeDockJudgmentHttp(request: IncomingMessage, respo
       if (url.pathname.endsWith("/execute")) options.invalidateWebView();
       sendJson(response, 200, result);
     } catch (error) {
-      const code = error instanceof ActionError ? error.code : "actions.failed";
-      sendJson(response, !(error instanceof ActionError) ? 500 : code === "actions.forbidden" ? 403 : code.startsWith("actions.offer_") ? 409 : 400,
-        { code, error: error instanceof ActionError ? error.message : "暂时无法取得动作结果，请先检查事项状态" });
+      const failure = actionErrorResponse(error);
+      sendJson(response, failure.status, failure.body);
     }
     return true;
   }
@@ -44,8 +43,8 @@ export async function handleHomeDockJudgmentHttp(request: IncomingMessage, respo
       const body = await readBody(request);
       sendJson(response, 200, await options.actions.invoke(homeActions.prepareTalk, body as { subject: { kind: string; id: string } }));
     } catch (error) {
-      sendJson(response, error instanceof ActionError && error.code === "actions.forbidden" ? 403 : 400,
-        { error: error instanceof Error ? error.message : "无法准备此事项", ...(error instanceof ActionError ? { code: error.code } : {}) });
+      const failure = actionErrorResponse(error);
+      sendJson(response, failure.status, failure.body);
     }
     return true;
   }
@@ -59,8 +58,8 @@ export async function handleHomeDockJudgmentHttp(request: IncomingMessage, respo
     }
     sendJson(response, 200, await options.actions.invoke(homeActions.readJudgment, {}));
   } catch (error) {
-    sendJson(response, error instanceof ActionError && error.code === "actions.forbidden" ? 403 : 400,
-      { error: error instanceof Error ? error.message : String(error), ...(error instanceof ActionError ? { code: error.code } : {}) });
+    const failure = actionErrorResponse(error);
+    sendJson(response, failure.status, failure.body);
   }
   return true;
 }

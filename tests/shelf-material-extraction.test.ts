@@ -29,7 +29,7 @@ for (const stop of ["cancel", "revoke", "withdraw", "copy-change", "job-cancel"]
     } });
     const service = new ActionService(); let dispose = service.registerProvider(registration);
     const context = { ...caller, signal: controller.signal, validate_authority: () => {
-      if (!allowed) throw new ActionError("actions.permission_denied", "revoked during extraction");
+      if (!allowed) throw new ActionError("actions.forbidden", "revoked during extraction");
     } };
     let pending: Promise<unknown> | undefined, rejected: Promise<void> | undefined;
     try {
@@ -38,7 +38,7 @@ for (const stop of ["cancel", "revoke", "withdraw", "copy-change", "job-cancel"]
       const store = openShelfStore(home), copy = join(home, "shelf", item.relative_path), before = store.snapshot().results;
       paused = true;
       pending = service.invoke(context, a.extract, { recipe: "extract_text", item_id: item.item_id });
-      const code = stop === "cancel" ? undefined : stop === "revoke" ? "actions.permission_denied" : stop === "withdraw" ? "actions.provider_changed" : stop === "copy-change" ? "shelf.hash_changed" : "shelf.cancelled";
+      const code = stop === "cancel" ? undefined : stop === "revoke" ? "actions.forbidden" : stop === "withdraw" ? "actions.provider_changed" : stop === "copy-change" ? "shelf.hash_changed" : "shelf.cancelled";
       rejected = assert.rejects(pending, code ? { code } : { name: "AbortError" });
       await entered.promise;
       const job = store.snapshot().running_jobs[0]!; assert.ok(job);

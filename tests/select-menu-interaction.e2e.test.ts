@@ -41,6 +41,17 @@ test("select keeps wrapping and external labels, validation focus and live field
   const trigger = "#kind + [data-mw-select-trigger]";
   assert.equal(await accessibleName(trigger), "方法类型 请选择");
   assert.equal(await accessibleName("#direction + [data-mw-select-trigger]"), "准确方向 当前目标提供结果");
+  // W2-18-FORM-LABEL-01: an owner's custom validation is announced without adding native submit validation.
+  const required = "document.querySelector('#direction + [data-mw-select-trigger]').getAttribute('aria-required')";
+  await evaluate("document.querySelector('#direction').setAttribute('aria-required','true')");
+  await waitFor(required + " === 'true'");
+  assert.equal(await evaluate("document.querySelector('#direction').required"), false);
+  await evaluate("document.querySelector('#direction').setAttribute('aria-required','false')");
+  await waitFor(required + " === 'false'");
+  await evaluate("document.querySelector('#direction').removeAttribute('aria-required'); document.querySelector('#direction').required=true");
+  await waitFor(required + " === 'true'");
+  await evaluate("document.querySelector('#direction').required=false");
+  await waitFor(required + " === 'false'");
   await click("#kind-label");
   await waitFor("document.querySelector('#kind').closest('[data-mw-select-picker]').querySelector('[role=listbox]').matches(':popover-open')");
   assert.equal(await accessibleName(trigger), "方法类型 请选择", "opening the menu does not add all options to the field name");

@@ -2,14 +2,13 @@ import { existsSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryEntry } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, type ActionCallContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryEntry, AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   MEMORY_PROVIDER_ID,
   memoryActions,
   type MemoryChangeRequest,
-  type MemoryConsumer,
   type MemoryListRequest,
   type MemoryPrefs,
   type MemoryRecallRequest,
@@ -17,7 +16,7 @@ import {
   type MemorySignalReport,
   type MemoryWriteRequest,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { MemoryError, MemoryService, purgeProjectMemories, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { memoryErrors, MemoryService, purgeProjectMemories, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { ProjectDeletedDeferred, projectDeletedHooksFor } from "../project-deleted-hooks.js";
 import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
 import { MEMORY_OWNER, memoryOwnerWithoutService } from "../project-deleted-owners.js";
@@ -27,6 +26,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { learnFromWork, type MemoryLearningRequest } from "./memory-learning.js";
 import { runUpkeep, subjectTitles } from "./memory-upkeep.js";
+import { memoryCallService, memoryCaller } from "./memory-effect.js";
 
 /**
  * Host wiring of the platform memory (specs/archive/memory-system §5.2): Prologue Memory of this Home's one runtime as the
@@ -98,55 +98,49 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const store = async (): Promise<AgentMemoryCapability> => {
     await ports.ready();
     const memory = ports.agentHost.adapter(RUNTIME).memory;
-    if (!memory) throw new MemoryError("memory.off", "当前运行时没有记忆能力");
+    if (!memory) throw memoryErrors.off("当前运行时没有记忆能力");
     return memory;
   };
   const backend = prologueMemoryBackend(store);
   const service = new MemoryService({ backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) });
-  const caller = (context: ActionCallContext, work?: { work_id: string; title: string } | null): MemoryCaller => {
-    const consumer: MemoryConsumer = context.audience === "plugin" ? "plugin" : context.audience === "mcp" ? "mcp" : context.audience === "user" ? "ui" : "agent";
-    return { actor_id: LOCAL_PERSON, project_id: context.project_id, consumer, plugin_id: context.host_plugin?.plugin_id ?? null, work: work ?? null,
-      person: context.audience === "user" && context.actor_kind !== "runtime" };
-  };
+  const forCall = (context: ActionExecutionContext) => memoryCallService(context, { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) },
+    control => prologueMemoryBackend(store, control), () => !closed);
+  const caller = memoryCaller;
   const input = <T>(value: unknown) => (value ?? {}) as T;
   const bindings: ActionHandlerBinding[] = [
-    { ...memoryActions.recall, handle: (context, value) => service.recall(caller(context), input<MemoryRecallRequest>(value), { beforeEffect: () => context.beforeEffect() }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
-    { ...memoryActions.list, handle: (context, value) => service.list(caller(context), input<MemoryListRequest>(value)) },
-    { ...memoryActions.write, handle: async (context, value) => { await context.beforeEffect(); return service.write(caller(context), input<MemoryWriteRequest>(value)); } },
-    { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return service.change(caller(context), input<MemoryChangeRequest>(value)); } },
-    { ...memoryActions.history, handle: (context, value) => service.history(caller(context), String(input<{ memory_id: string }>(value).memory_id)) },
-    { ...memoryActions.candidates, handle: async (context, value) => { return { candidates: await service.candidates(caller(context), input(value)) }; } },
+    { ...memoryActions.recall, handle: (context, value) => forCall(context).recall(caller(context), input<MemoryRecallRequest>(value), { beforeEffect: () => context.beforeEffect() }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
+    { ...memoryActions.list, handle: (context, value) => forCall(context).list(caller(context), input<MemoryListRequest>(value)) },
+    { ...memoryActions.write, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).write(caller(context), input<MemoryWriteRequest>(value)); } },
+    { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).change(caller(context), input<MemoryChangeRequest>(value)); } },
+    { ...memoryActions.history, handle: (context, value) => forCall(context).history(caller(context), String(input<{ memory_id: string }>(value).memory_id)) },
+    { ...memoryActions.candidates, handle: async (context, value) => { return { candidates: await forCall(context).candidates(caller(context), input(value)) }; } },
     { ...memoryActions.accept, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ candidate_id: string; text?: string }>(value);
-      return service.accept(caller(context), request.candidate_id, request.text !== undefined ? { text: request.text } : {}); } },
-    { ...memoryActions.discard, handle: async (context, value) => { await context.beforeEffect(); return service.discard(caller(context), input<{ candidate_id: string }>(value).candidate_id); } },
-    { ...memoryActions.changes, handle: (context, value) => ({ changes: service.changes(caller(context), input(value)) }) },
-    { ...memoryActions.undo, handle: async (context, value) => { await context.beforeEffect(); return service.undo(caller(context), input<{ change_id: string }>(value).change_id); } },
-    { ...memoryActions.prefs, handle: (context, value) => service.prefs(caller(context), input<{ scope?: MemoryScope }>(value).scope) },
+      return forCall(context).accept(caller(context), request.candidate_id, request.text !== undefined ? { text: request.text } : {}); } },
+    { ...memoryActions.discard, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).discard(caller(context), input<{ candidate_id: string }>(value).candidate_id); } },
+    { ...memoryActions.changes, handle: (context, value) => ({ changes: forCall(context).changes(caller(context), input(value)) }) },
+    { ...memoryActions.undo, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).undo(caller(context), input<{ change_id: string }>(value).change_id); } },
+    { ...memoryActions.prefs, handle: (context, value) => forCall(context).prefs(caller(context), input<{ scope?: MemoryScope }>(value).scope) },
     { ...memoryActions.savePrefs, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope?: MemoryScope; prefs: Partial<MemoryPrefs> }>(value);
-      return service.savePrefs(caller(context), request.scope, request.prefs); } },
-    { ...memoryActions.signal, handle: async (context, value) => { await context.beforeEffect(); return service.signal(caller(context), input<MemorySignalReport>(value)); } },
-    { ...memoryActions.pairs, handle: async (context, value) => { return { pairs: await service.pairs(caller(context), input(value)) }; } },
+      return forCall(context).savePrefs(caller(context), request.scope, request.prefs); } },
+    { ...memoryActions.signal, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).signal(caller(context), input<MemorySignalReport>(value)); } },
+    { ...memoryActions.pairs, handle: async (context, value) => { return { pairs: await forCall(context).pairs(caller(context), input(value)) }; } },
     { ...memoryActions.resolvePair, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ pair_id: string; keep: "a" | "b" | "both" }>(value);
-      return service.resolvePair(caller(context), request.pair_id, request.keep); } },
-    { ...memoryActions.upkeep, handle: async context => { if (context.audience !== "user") throw new ActionError("memory.forbidden", "只有本人能立即整理"); await context.beforeEffect(); return upkeepNow(); } },
-    { ...memoryActions.preview, handle: async (context, value) => { return service.previewScope(caller(context), input<{ scope: MemoryScope }>(value).scope); } },
+      return forCall(context).resolvePair(caller(context), request.pair_id, request.keep); } },
+    { ...memoryActions.upkeep, handle: async context => { if (context.audience !== "user") throw memoryErrors.forbidden("只有本人能立即整理"); await context.beforeEffect(); return upkeepNow(forCall(context)); } },
+    { ...memoryActions.preview, handle: async (context, value) => { return forCall(context).previewScope(caller(context), input<{ scope: MemoryScope }>(value).scope); } },
     { ...memoryActions.clear, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope: MemoryScope; fingerprint: string }>(value);
-      return service.clearScope(caller(context), request.scope, request.fingerprint); } },
-    { ...memoryActions.export, handle: async (context, value) => { return { package: await service.exportScope(caller(context), input<{ scope: MemoryScope }>(value).scope) }; } },
+      return forCall(context).clearScope(caller(context), request.scope, request.fingerprint); } },
+    { ...memoryActions.export, handle: async (context, value) => { return { package: await forCall(context).exportScope(caller(context), input<{ scope: MemoryScope }>(value).scope) }; } },
     { ...memoryActions.import, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope: MemoryScope; package: unknown }>(value);
-      return service.importScope(caller(context), request.scope, request.package); } },
+      return forCall(context).importScope(caller(context), request.scope, request.package); } },
   ];
-  // The service's own errors reach every caller as the directory's errors, with the same code and words.
-  const handlers: ActionHandlerBinding[] = bindings.map(binding => ({ ...binding, handle: async (context, value) => {
-    try { return await binding.handle(context, value); } catch (error) { throw asActionError(error); }
-  } }));
   const dispose = ports.localHost.actionRegistry().registerProvider({ provider: { provider_id: MEMORY_PROVIDER_ID, title: "记忆", kind: "system" },
-    definitions: Object.values(memoryActions), handlers });
+    definitions: Object.values(memoryActions), handlers: bindings });
   // Drawing out memories, and daily upkeep: tasks of the runtime's own durable queue (one runner for each kind).
   const LEARN_KIND = "memory.learn", UPKEEP_KIND = "memory.upkeep";
   let queueAttached = false;
   const person: MemoryCaller = { actor_id: LOCAL_PERSON, project_id: null, consumer: "ui", person: true };
-  const upkeepNow = async () => runUpkeep(service, { homeDirectory: ports.homeDirectory, localHost: ports.localHost, caller: person, projects: await ports.projects?.().catch(() => []) ?? [] });
+  const upkeepNow = async (current = service) => runUpkeep(current, { homeDirectory: ports.homeDirectory, localHost: ports.localHost, caller: person, projects: await ports.projects?.().catch(() => []) ?? [] });
   /** The runtime's queue hangs tasks on a session: upkeep has its own, made once and kept in the ledger. */
   const upkeepSession = async (): Promise<string> => {
     const saved = ledger.marker(LOCAL_PERSON, "upkeep-session")?.body as { session_id?: string } | undefined;
@@ -243,13 +237,19 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
 }
 
 /** Prologue Memory of the runtime as the memory service's store: personal memories are its `user` scope. */
-export function prologueMemoryBackend(store: () => Promise<AgentMemoryCapability>): MemoryBackendPort {
+export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapability>, control?: AgentMemoryExecutionControl): MemoryBackendPort {
+  const store = async () => {
+    const memory = await source();
+    if (!control) return memory;
+    if (!memory.withExecution) throw memoryErrors.off("当前运行时不能保留记忆调用的执行控制");
+    return memory.withExecution(control);
+  };
   const prologueScope = (scope: MemoryScope) => scope === "personal" ? "user" as const : scope === "character" ? "character" as const : "project" as const;
   const view = (entry: AgentMemoryEntry) => ({ memory_id: entry.memory_id, text: entry.text, origin: entry.origin, tags: [...entry.tags], version: entry.version,
     meta: entry.meta ?? {}, ...(entry.paused ? { paused: entry.paused } : {}), created_at_ms: entry.created_at_ms ?? 0, updated_at_ms: entry.updated_at_ms ?? 0 });
   const required = <K extends "setMeta" | "pause" | "resume" | "previewScope" | "clearScope">(memory: AgentMemoryCapability, name: K): NonNullable<AgentMemoryCapability[K]> => {
     const method = memory[name];
-    if (!method) throw new MemoryError("memory.off", "当前运行时的记忆不支持结构化信息与暂停");
+    if (!method) throw memoryErrors.off("当前运行时的记忆不支持结构化信息与暂停");
     return method.bind(memory) as NonNullable<AgentMemoryCapability[K]>;
   };
   return {
@@ -260,7 +260,7 @@ export function prologueMemoryBackend(store: () => Promise<AgentMemoryCapability
     pause: async input => view(await required(await store(), "pause")({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id, reason: input.reason })),
     resume: async input => view(await required(await store(), "resume")({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id })),
     remove: async input => { await (await store()).remove({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id }); },
-    screen: async text => { const memory = await store(); if (!memory.screen) throw new MemoryError("memory.off", "当前运行时不能筛查"); return memory.screen(text); },
+    screen: async text => { const memory = await store(); if (!memory.screen) throw memoryErrors.off("当前运行时不能筛查"); return memory.screen(text); },
     previewScope: async (scope, owner) => required(await store(), "previewScope")(prologueScope(scope), owner),
     clearScope: async input => required(await store(), "clearScope")({ scope: prologueScope(input.scope), owner: input.owner, fingerprint: input.fingerprint }),
     candidates: {
@@ -279,15 +279,10 @@ export function prologueMemoryBackend(store: () => Promise<AgentMemoryCapability
 
 const box = async (store: () => Promise<AgentMemoryCapability>) => {
   const candidates = (await store()).candidates;
-  if (!candidates) throw new MemoryError("memory.off", "当前运行时没有记忆候选箱");
+  if (!candidates) throw memoryErrors.off("当前运行时没有记忆候选箱");
   return candidates;
 };
 const candidateView = (item: AgentMemoryCandidateEntry) => ({ candidate_id: item.candidate_id, text: item.text, state: item.state, ...(item.memory_id ? { memory_id: item.memory_id } : {}) });
-
-export function asActionError(error: unknown): unknown {
-  if (error instanceof MemoryError) return new ActionError(error.code === "memory.not_found" ? "memory.not_found" : error.code, error.message);
-  return error;
-}
 
 /**
  * `/api/memory/*` for the settings pages and the work panel: each call is the shared directory's `memory.*` action,
@@ -334,12 +329,6 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       if (parts.length === 1 && parts[0] === "export") return { status: 200, body: await call(memoryActions.export, body) };
       if (parts.length === 1 && parts[0] === "import") return { status: 200, body: await call(memoryActions.import, body) };
       return null;
-    },
-    mapError(error) {
-      const code = error instanceof ActionError || error instanceof MemoryError ? error.code : "memory.failed";
-      const status = code === "memory.not_found" ? 404 : code === "memory.forbidden" || code === "memory.scope" || code === "actions.permission_denied" ? 403
-        : code === "memory.failed" ? 500 : 400;
-      return { status, body: { error: error instanceof Error ? error.message : "记忆暂时无法完成", code } };
     },
   });
 }

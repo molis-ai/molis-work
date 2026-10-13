@@ -37,7 +37,7 @@ export const diffManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: DIFF_PLUGIN_ID,
-  version: "1.4.0",
+  version: "1.4.1",
   name: "Diff",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-diff-binding" },
@@ -47,7 +47,14 @@ export const diffManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   actions: DIFF_ACTIONS,
-  artifacts: { produces: [], consumes: [] },
+  artifacts: {
+    produces: [],
+    consumes: [
+      { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION },
+      { artifact_type_id: DIFF_CHANGESET_TYPE, schema_version: DIFF_CHANGESET_SCHEMA_VERSION },
+      { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
+    ],
+  },
   process_items: {
     produces: [],
     consumes: [

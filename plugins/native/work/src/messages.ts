@@ -1,8 +1,9 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { sessionMessagePrompt, type SessionMessageApi, type SessionMessageRecord, type PrepareSessionMessage, type WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { RuntimeHostApi } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
 type Caller = { actor_id: string; project_id: string };
+type Control = Pick<ActionExecutionContext, "signal" | "assert_authority_current">;
 /** All effects stay in the Session owner; adapters only deliver to a fixed native target. */
 export class SessionMessageService {
   constructor(private readonly sessions: Pick<WorkSessionApi, "get">, private readonly messages: SessionMessageApi,
@@ -17,19 +18,19 @@ export class SessionMessageService {
     return record;
   }
 
-  async send(input: PrepareSessionMessage, authorize: () => Promise<void>): Promise<SessionMessageRecord> {
-    await authorize();
+  async send(input: PrepareSessionMessage, authorize: () => Promise<void>, control?: Control): Promise<SessionMessageRecord> {
+    await authorize(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     if (this.sessions.get(input.session_id).project_id !== input.project_id) throw new ActionError("sessions.not_found", "找不到此项目的 Session");
     const record = this.messages.prepare(input);
-    return this.deliver(record.request_id, input, false, authorize);
+    return this.deliver(record.request_id, input, false, authorize, control);
   }
 
-  async retry(requestId: string, caller: Caller, authorize: () => Promise<void>): Promise<SessionMessageRecord> {
-    return this.deliver(requestId, caller, true, authorize);
+  async retry(requestId: string, caller: Caller, authorize: () => Promise<void>, control?: Control): Promise<SessionMessageRecord> {
+    return this.deliver(requestId, caller, true, authorize, control);
   }
 
-  private async deliver(requestId: string, caller: Caller, retry: boolean, authorize: () => Promise<void>): Promise<SessionMessageRecord> {
-    await authorize();
+  private async deliver(requestId: string, caller: Caller, retry: boolean, authorize: () => Promise<void>, control?: Control): Promise<SessionMessageRecord> {
+    await authorize(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     const record = this.read(requestId, caller);
     if (record.state !== (retry ? "failed" : "pending")) return record;
     if (this.runtime.capabilities(record.target.runtime_id).message !== "native") throw new ActionError("session.message_unavailable", "此 Runtime 不支持原生消息发送");
@@ -45,9 +46,10 @@ export class SessionMessageService {
         delivery = { state: "failed", error_code: result.code };
       } else delivery = { state: "uncertain", error_code: result.status === "failed" ? result.code : "runtime.message_receipt_missing" };
     } catch { delivery = { state: "uncertain", error_code: "runtime.message_delivery_unknown" }; }
-    // Persist a real receipt before post-flight permission checks. Revocation cannot undo an accepted turn.
+    // Only a real accepted turn may settle the claimed request after revocation; other outcomes stay uncertain.
+    if (delivery.state !== "accepted") { await authorize(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted(); }
     const finished = this.messages.finish(requestId, claim.record.attempt_count, delivery);
-    await authorize();
+    await authorize(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     this.read(requestId, caller);
     return finished;
   }

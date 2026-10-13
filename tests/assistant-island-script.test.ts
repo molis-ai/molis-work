@@ -27,8 +27,8 @@ test("every Send the bottom bar writes itself is marked as the page's; only the 
     return script.slice(start, index - 1).trim();
   });
   assert.equal(calls.length, 3, "the bottom bar sends from three places: the browser hand-back, the stale card's redo, and the composer");
-  assert.equal(calls.filter(call => call === "body").length, 1, "the composer sends the body it builds");
-  for (const call of calls.filter(call => call !== "body")) assert.match(call, /written_by: "page"/, call.slice(0, 100));
+  assert.equal(calls.filter(call => call === "intent.body, intent.route").length, 1, "the composer sends the frozen body and trusted route it captured");
+  for (const call of calls.filter(call => call !== "intent.body, intent.route")) assert.match(call, /written_by: "page"/, call.slice(0, 100));
   assert.match(script, /const body = \{[^\n]*\.\.\.\(byPage \? \{ written_by: "page" \} : \{\}\)/, "the composer marks a hand-over the person neither wrote nor changed");
   assert.match(script, /pageText = message\.text && input\.value\.trim\(\);/, "a hand-over with words is remembered as the page's until it is sent");
 });

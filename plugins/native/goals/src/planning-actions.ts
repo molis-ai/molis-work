@@ -1,8 +1,8 @@
 import { ActionError, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalsPlanningApi, PlanningMethodPack, ResolvedPlanningMethodPack, SaveProjectPlanningMethodInput } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction, goalActor } from "./action-contract.js";
-import { identifier, count, boolean, object, array } from "./event-action-schemas.js";
-import { planningMethodInputSchema, planningMethodSchema, planningMethodSummarySchema, planningCompositionSchema, planningImpactSchema, planningGraphIssueSchema, planningSavedSchema } from "./planning-action-schemas.js";
+import { identifier, count, boolean, object, array } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { planningMethodInputSchema, planningMethodSchema, planningMethodSummarySchema, planningCompositionSchema, planningImpactSchema, planningGraphIssueSchema, planningSavedSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
 /** What `goals.planning.read` returns: the methods in effect for the project and the composition the project enabled. */
 export interface GoalPlanningComposition {
@@ -27,10 +27,10 @@ export const goalsPlanningActions = {
     object({ method: planningMethodInputSchema, user_confirmed: boolean }), planningSavedSchema),
   planningApply: goalAction<ApplyInput, Saved>("goals.planning.apply", "采用已有规划方法", "用户确认后将指定内置或个人方法完整复制到当前项目并启用；包括事件类型和默认要求，Goal 仍须显式采用其要求", "command",
     object({ method_id: identifier, user_confirmed: boolean }), planningSavedSchema),
-  planningImpact: goalAction<{ changed_goal_ids: string[] }, ReturnType<GoalsPlanningApi["analyzeChange"]>>("goals.planning.impact", "分析目标变更影响", "只读计算受影响的上层目标、下游消费者、相邻依赖、可复用工作和审查顺序；不会修改目标树", "query",
-    object({ changed_goal_ids: array(identifier) }), planningImpactSchema),
-  planningGraph: goalAction<Record<string, never>, ReturnType<GoalsPlanningApi["validateBoardGraph"]>>("goals.planning.graph.check", "检查目标关系图", "只读检查缺失引用、重复关系、父子循环、依赖循环和组合执行循环", "query",
-    object({}), object({ issues: array(planningGraphIssueSchema), observed_event_cursor: count })),
+  planningImpact: { ...goalAction<{ changed_goal_ids: string[] }, ReturnType<GoalsPlanningApi["analyzeChange"]>>("goals.planning.impact", "分析目标变更影响", "只读计算受影响的上层目标、下游消费者、相邻依赖、可复用工作和审查顺序；不会修改目标树", "query",
+    object({ changed_goal_ids: array(identifier) }), planningImpactSchema), version: 2 },
+  planningGraph: { ...goalAction<Record<string, never>, ReturnType<GoalsPlanningApi["validateBoardGraph"]>>("goals.planning.graph.check", "检查目标关系图", "只读检查缺失引用、重复关系、父子循环、依赖循环和组合执行循环", "query",
+    object({}), object({ issues: array(planningGraphIssueSchema), observed_event_cursor: count })), version: 2 },
 } as const;
 
 export function createGoalsPlanningActionHandlers(ports: GoalsPlanningActionPorts, projectId: string): ActionHandlerBinding[] {

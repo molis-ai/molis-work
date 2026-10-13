@@ -42,7 +42,7 @@ export function requiredVersion(
 
 export function requiredDecisionPurpose(error: EventFactsError, value: unknown): GoalEventDecisionPurpose {
   if (typeof value !== "string" || !(goalEventDecisionPurposes as readonly string[]).includes(value)) {
-    throw error("event_decision.invalid_purpose", "决定用途必须是 suggestion、requirement_acceptance、action 或 agreement_change");
+    throw error("goals.event_decision.invalid_purpose", "决定用途必须是 suggestion、requirement_acceptance、action 或 agreement_change");
   }
   return value as GoalEventDecisionPurpose;
 }
@@ -53,13 +53,13 @@ export function normalizeAgreementChange(
 ): CanonicalAgreementChange {
   const input = raw ?? {};
   if (input == null || typeof input !== "object" || Array.isArray(input)) {
-    throw error("event_agreement.invalid_change", "约定变更必须是对象");
+    throw error("goals.event_agreement.invalid_change", "约定变更必须是对象");
   }
   assertAllowedKeys(error, input, CHANGE_KEYS, "约定变更");
-  const outcome = input.outcome == null ? null : requiredText(error, input.outcome, "event_agreement.outcome_required", "结果说明不能是空文本").trim();
+  const outcome = input.outcome == null ? null : requiredText(error, input.outcome, "goals.event_agreement.outcome_required", "结果说明不能是空文本").trim();
   const newRequirements = normalizeNewRequirementList(error, input.new_requirements);
   const reviseRequirements = normalizeRevisions(error, input.revise_requirements);
-  const retireIds = uniqueIds(error, input.retire_requirement_ids, "event_agreement.duplicate_retire");
+  const retireIds = uniqueIds(error, input.retire_requirement_ids, "goals.event_agreement.duplicate_retire");
   return {
     outcome,
     new_requirements: newRequirements,
@@ -208,12 +208,12 @@ function normalizeNewRequirementList(
   items: GoalEventExtraRequirementInput[] | undefined,
 ): GoalEventExtraRequirementInput[] {
   if (items == null) return [];
-  if (!Array.isArray(items)) throw error("event_agreement.invalid_change", "新增要求必须是列表");
+  if (!Array.isArray(items)) throw error("goals.event_agreement.invalid_change", "新增要求必须是列表");
   const seen = new Set<string>();
   return items.map((item) => {
     const normalized = normalizeNewRequirement(error, item);
     if (seen.has(normalized.requirement_id)) {
-      throw error("event_config.duplicate_requirement", `同一配置不能重复新增要求: ${normalized.requirement_id}`);
+      throw error("goals.event_config.duplicate_requirement", `同一配置不能重复新增要求: ${normalized.requirement_id}`);
     }
     seen.add(normalized.requirement_id);
     return normalized;
@@ -225,28 +225,28 @@ function normalizeRevisions(
   items: GoalEventRequirementRevisionInput[] | undefined,
 ): CanonicalAgreementChange["revise_requirements"] {
   if (items == null) return [];
-  if (!Array.isArray(items)) throw error("event_agreement.invalid_change", "修订要求必须是列表");
+  if (!Array.isArray(items)) throw error("goals.event_agreement.invalid_change", "修订要求必须是列表");
   const seen = new Set<string>();
   return items.map((item, index) => {
     if (item == null || typeof item !== "object" || Array.isArray(item)) {
-      throw error("event_agreement.invalid_change", `第 ${index + 1} 条修订必须是对象`);
+      throw error("goals.event_agreement.invalid_change", `第 ${index + 1} 条修订必须是对象`);
     }
     assertAllowedKeys(error, item, REVISE_KEYS, `修订 ${index + 1}`);
-    const requirementId = requiredText(error, item.requirement_id, "event_config.requirement_id_required", "修订要求必须有稳定 ID").trim();
+    const requirementId = requiredText(error, item.requirement_id, "goals.event_config.requirement_id_required", "修订要求必须有稳定 ID").trim();
     if (seen.has(requirementId)) {
-      throw error("event_agreement.duplicate_revision", `同一请求不能重复修订要求: ${requirementId}`);
+      throw error("goals.event_agreement.duplicate_revision", `同一请求不能重复修订要求: ${requirementId}`);
     }
     seen.add(requirementId);
     if (item.statement == null && item.human_decision_required == null) {
-      throw error("event_agreement.revision_empty", `修订 ${requirementId} 需要 statement 或 human_decision_required`);
+      throw error("goals.event_agreement.revision_empty", `修订 ${requirementId} 需要 statement 或 human_decision_required`);
     }
     if (item.human_decision_required != null && typeof item.human_decision_required !== "boolean") {
-      throw error("event_config.invalid_human_decision_required", `要求 ${requirementId} 的 human_decision_required 必须是布尔值`);
+      throw error("goals.event_config.invalid_human_decision_required", `要求 ${requirementId} 的 human_decision_required 必须是布尔值`);
     }
     return {
       requirement_id: requirementId,
       ...(item.statement != null
-        ? { statement: assertConfigText(error, requiredText(error, item.statement, "event_config.requirement_statement_required", "修订要求必须说明具体结果").trim(), "修订要求") }
+        ? { statement: assertConfigText(error, requiredText(error, item.statement, "goals.event_config.requirement_statement_required", "修订要求必须说明具体结果").trim(), "修订要求") }
         : {}),
       ...(item.human_decision_required != null ? { human_decision_required: item.human_decision_required } : {}),
     };
@@ -255,11 +255,11 @@ function normalizeRevisions(
 
 function uniqueIds(error: EventFactsError, values: string[] | undefined, duplicateCode: string): string[] {
   if (values == null) return [];
-  if (!Array.isArray(values)) throw error("event_agreement.invalid_change", "退休要求必须是 ID 列表");
+  if (!Array.isArray(values)) throw error("goals.event_agreement.invalid_change", "退休要求必须是 ID 列表");
   const seen = new Set<string>();
   const ids: string[] = [];
   for (const value of values) {
-    const id = requiredText(error, value, "event_config.requirement_id_required", "退休要求必须有稳定 ID").trim();
+    const id = requiredText(error, value, "goals.event_config.requirement_id_required", "退休要求必须有稳定 ID").trim();
     if (seen.has(id)) throw error(duplicateCode, `同一请求不能重复退休要求: ${id}`);
     seen.add(id);
     ids.push(id);

@@ -1,3 +1,7 @@
+import { DatabaseSync } from "node:sqlite";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { ActionError, defineSubjectContextAction, subjectContext, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PLACEMENT_PROVIDER_ID, placementActions } from "@molis-ai/molis-work-contracts/services/placement";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -5,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -13,7 +17,8 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 // failed move are all still true after the Host stops and starts again on the same Home; nothing depends on the page.
 test("placement survives a restart: relations, a removed relation, a copy, a move, a failed move and collected answers", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-placement-restart-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  const stops = new Set<() => Promise<void>>();
+  t.after(async () => { try { for (const stop of stops) await stop(); } finally { await rm(home, { recursive: true, force: true }); } });
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const q4 = await catalog.createProject({ display_name: "Q4 新版发布", actor_id: "placement-test" });
   const interviews = await catalog.createProject({ display_name: "客户访谈计划", actor_id: "placement-test" });
@@ -34,9 +39,11 @@ test("placement survives a restart: relations, a removed relation, a copy, a mov
       return value;
     };
     const stop = async () => {
-      await new Promise<void>((resolve, reject) => { server.close(error => error ? reject(error) : resolve()); server.closeAllConnections(); });
-      await host.close();
+      if (!stops.delete(stop)) return;
+      try { await new Promise<void>((resolve, reject) => { server.close(error => error ? reject(error) : resolve()); server.closeAllConnections(); }); }
+      finally { await host.close(); }
     };
+    stops.add(stop);
     return { call, stop };
   };
   type Placed = { kind: string; id: string; project_id: string | null };
@@ -57,8 +64,12 @@ test("placement survives a restart: relations, a removed relation, a copy, a mov
   const copy = await before.call<{ object: Placed }>("/api/placement/copy", { object: checklist.object, to_project_id: interviews.project_id, request_id: "copy-once" });
   const brief = await created("发布简报");
   await before.call("/api/placement/move", { object: brief.object, to_project_id: q4.project_id });
-  const refused = await before.call<{ error: string }>("/api/placement/move", { object: { ...brief.object, project_id: q4.project_id }, to_project_id: "project-that-does-not-exist" }, 409);
-  assert.ok(refused.error, "a failed move says why");
+  // W3-02-G1-03: the shared error exit preserves the current default for a code without a declared kind.
+  const refused = await before.call<{ error: string; code: string }>("/api/placement/move", { object: { ...brief.object, project_id: q4.project_id }, to_project_id: "project-that-does-not-exist" }, 400);
+  assert.equal(refused.code, "placement.project_missing");
+  assert.equal(refused.error, "找不到要移到的位置");
+  const unchanged = await before.call<Description>("/api/placement/describe", { object: brief.object });
+  assert.deepEqual([unchanged.state, unchanged.location?.title, unchanged.moved_from?.title], ["ok", q4Title, "个人空间"], "the rejected move leaves the persisted placement unchanged before restart");
   const forms = openFormStore(home);
   let formId: string;
   try {
@@ -92,3 +103,44 @@ test("placement survives a restart: relations, a removed relation, a copy, a mov
   assert.deepEqual([form.state, form.location?.title], ["ok", q4Title]);
   await after.stop();
 });
+
+// W2-18-PLACEMENT-01 / -02: actual Host registration and SQLite, including an invocation in another owner partition.
+for (const operation of ["link", "convert"] as const) for (const stop of ["cancel", "revoke", "replace"] as const)
+  test(`placement ${operation} retains its original ${stop} control while the owner reader waits`, { timeout: 30_000 }, async t => {
+    const home = await mkdtemp(join(tmpdir(), "placement-effects-"));
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    const project = await catalog.createProject({ display_name: "Target", actor_id: "web-user" });
+    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "web-user" }); catalog.close();
+    const finished = Promise.withResolvers<void>(), originalRegistry = LocalHost.prototype.actionRegistry;
+    t.mock.method(LocalHost.prototype, "actionRegistry", function (this: LocalHost<unknown>, ...args) {
+      const registry = originalRegistry.apply(this, args);
+      return { ...registry, registerProvider: registration => registry.registerProvider({ ...registration, handlers: registration.handlers?.map(binding =>
+        binding.capability_id !== placementActions[operation].capability_id ? binding : { ...binding, handle: async (caller, input) => {
+          try { return await binding.handle(caller, input); } finally { finished.resolve(); }
+        } }) }) };
+    });
+    const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+    t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let valid = true, holding = true;
+    const reader = defineSubjectContextAction("fixture.clip.read", "fixture-clip", "Fixture", [], "home");
+    host.actionRegistry().registerProvider({ provider: { provider_id: "fixture-clip", title: "Fixture", kind: "system" }, definitions: [reader],
+      handlers: [{ ...reader, handle: async () => { if (holding) { entered.resolve(); await release.promise; }
+        return subjectContext({ subject: { kind: "fixture-clip", id: "original" }, revision: "1", title: "Fixed source", content: "original body", goal_ids: [], session_id: null }); } }] });
+    const controller = new AbortController(), definition = placementActions[operation];
+    const caller: ActionCallContext = { actor_id: "web-user", audience: "user", project_id: null, permissions: [...definition.action.permissions], signal: controller.signal,
+      validate_authority: reference => { if (!valid && reference.capability_id === definition.capability_id) throw new ActionError("actions.forbidden", "fixture grant revoked"); } };
+    const object = { kind: "fixture-clip", id: "original", project_id: null };
+    const input = operation === "link" ? { object, project_id: project.project_id } : { source: object, to: { station: "pages" }, to_project_id: project.project_id, request_id: randomUUID() };
+    const pending = host.homeActionClient().invoke(caller, definition, input), rejected = assert.rejects(pending);
+    await entered.promise;
+    if (stop === "cancel") controller.abort(); else if (stop === "revoke") valid = false;
+    else host.actionRegistry().registerProvider({ provider: { provider_id: PLACEMENT_PROVIDER_ID, title: "Replacement", kind: "system" }, definitions: [definition], handlers: [{ ...definition, handle: () => ({ key: "replacement" }) }] });
+    holding = false; release.resolve(); await Promise.all([rejected, finished.promise]);
+    const database = new DatabaseSync(homeSqlitePath(home, "placement"));
+    try {
+      assert.equal((database.prepare("SELECT count(*) AS count FROM context_edges").get() as { count: number }).count, 0);
+      assert.equal((database.prepare("SELECT count(*) AS count FROM placement_titles").get() as { count: number }).count, 0);
+    } finally { database.close(); }
+    const ref = { project_id: project.project_id, storage_key: project.database_path };
+    await host.withProject(ref, runtime => { assert.equal(runtime.store.db.prepare("SELECT count(*) AS count FROM pages_documents").get()!.count, 0); });
+  });

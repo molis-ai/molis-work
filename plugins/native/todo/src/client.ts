@@ -2,6 +2,7 @@ import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platfo
 import { parseTodoQuickText } from "./quick-parse.js";
 
 /** Todo workbench client: views, quick entry, inline completion, batch changes, the detail editor and undo.
+ * Saving failures block navigation and follow-up writes; explicit reload/delete may discard. Pending input survives outside refreshes.
  * `markView` scrolls only the narrow view-tab strip, sideways: `scrollIntoView` would scroll the list as well and put an organize result opened by its id back off the screen (tests/todo.e2e.test.ts, tests/narrow-lists.e2e.test.ts).
  * `todoObject` and `todoMaterial`: the resident Assistant hears about a todo through its page message (spec 8.3 of the Assistant), with the todo as the object and its details as material; handing over needs a real click here, anything else is only offered to the person. (The script is served as written and its bytes are budgeted in tooling/gates/page-assets.json, so a comment that belongs to no single line lives here.) */
 export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
@@ -275,6 +276,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!quickAttempt || quickAttempt.fingerprint !== fingerprint) quickAttempt = { fingerprint, request_id: crypto.randomUUID() };
     setBusy(true);
     try {
+      await flush();
       const payload = await request("POST", "/api/todo", { ...input, request_id: quickAttempt.request_id });
       quickAttempt = null;
       quickInput.value = "";
@@ -910,7 +912,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     history = payload.history || [];
     backlinks = payload.backlinks || [];
     linkPool = pool.items || [];
-    if (keepEdits && selected && selected.id === id && dirtyFields.size) { selected = payload.item; paintSave(); return; }
+    if (selected && (dirtyFields.size || saving)) { if (keepEdits && selected.id === id) selected = payload.item; paintSave(); return; }
     fillEditor(payload.item);
   };
   const patchFromEditor = () => {
@@ -926,9 +928,9 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const flush = async () => {
     clearTimeout(saveTimer); saveTimer = 0;
-    if (saving) await saving.catch(() => {});
+    if (saving) await saving;
     if (!selected || !dirtyFields.size) return;
-    if (dirtyFields.has("title") && !field("title").value.trim()) { showDetailNote(L("标题不能是空的"), true); return; }
+    if (dirtyFields.has("title") && !field("title").value.trim()) { const message = L("标题不能是空的"); showDetailNote(message, true); throw new Error(message); }
     const patch = patchFromEditor();
     const sent = new Set(dirtyFields);
     dirtyFields = new Set();
@@ -954,13 +956,13 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     };
     saving = run().finally(() => { saving = null; paintSave(); });
     paintSave();
-    await saving.catch(() => {});
+    await saving;
   };
   const queueSave = (name) => {
     dirtyFields.add(name);
     paintSave();
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { saveTimer = 0; void flush(); }, ["title", "notes", "waiting"].includes(name) ? 600 : 50);
+    saveTimer = setTimeout(() => { saveTimer = 0; void flush().catch(() => {}); }, ["title", "notes", "waiting"].includes(name) ? 600 : 50);
   };
   const closeDetail = async () => {
     await flush();
@@ -1019,6 +1021,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     const button = event.target.closest("button");
     if (!button || button.closest("dialog") || button.disabled) return;
     try {
+      if (!button.matches("[data-todo-reload],[data-todo-delete]")) await flush();
       if (button.matches("[data-todo-view]")) { view = button.dataset.todoView; picked.clear(); await load(); return; }
       if (button.matches("[data-todo-scope]")) { everything = !everything; await load(); return; }
       if (button.matches("[data-todo-quick-drop]")) { dropped.add(button.dataset.todoQuickDrop); renderQuick(); quickInput.focus(); return; }
@@ -1046,7 +1049,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (item) await setStatus(item.id, item.status === "done" ? "open" : "done", item.revision);
         return;
       }
-      if (button.matches("[data-todo-id]")) { await flush(); await openDetail(button.dataset.todoId); return; }
+      if (button.matches("[data-todo-id]")) { await openDetail(button.dataset.todoId); return; }
       const candidateId = button.dataset.todoCandidateIgnore || button.dataset.todoCandidateEditToggle || button.dataset.todoCandidateSuggest || button.dataset.candidate;
       const owner = candidateId ? batchOf(candidateId) : null;
       if (owner) {
@@ -1100,17 +1103,15 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         showNote(remindAt ? L("会在 {time} 再提醒「{title}」").replace("{time}", timeLabel(remindAt)).replace("{title}", item.title) : L("已关闭「{title}」的提醒").replace("{title}", item.title), { undo: undoOf(payload) });
         return;
       }
-      if (button.matches("[data-todo-open-linked]")) { await flush(); await openDetail(button.dataset.todoOpenLinked); return; }
+      if (button.matches("[data-todo-open-linked]")) { await openDetail(button.dataset.todoOpenLinked); return; }
       // Handing over or continuing: the same work whether started here or from the bottom bar, so an unfinished one goes on.
       if (button.matches("[data-todo-delegate]") && selected) {
-        await flush();
         const going = works.find((work) => !["completed", "failed", "stopped"].includes(work.state));
         tellAssistant("delegate", selected, { text: L("帮我推进「{title}」").replace("{title}", selected.title), materials: [todoMaterial(selected)], ...(going ? { work_id: going.work_id } : {}) });
         watchWorks();
         return;
       }
       if (button.matches("[data-todo-continue-work]") && selected) {
-        await flush();
         tellAssistant("delegate", selected, { text: L("继续推进「{title}」").replace("{title}", selected.title), materials: [todoMaterial(selected)], work_id: button.dataset.todoContinueWork });
         watchWorks();
         return;
@@ -1133,12 +1134,10 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (!selected) return;
       if (button.matches("[data-todo-status]")) {
-        await flush();
         await setStatus(selected.id, button.dataset.todoStatus, selected.revision);
         return;
       }
       if (button.matches("[data-todo-placement]")) {
-        await flush();
         const payload = await post(selected, "", { placement: button.dataset.todoPlacement });
         await load(); await openDetail(payload.item.id);
         showNote(L("已移到") + placeName(button.dataset.todoPlacement), { undo: undoOf(payload) });
@@ -1154,20 +1153,17 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (button.matches("[data-todo-link-add]")) {
         const target = $("[data-todo-link-target]").value;
         if (!target) { showDetailNote(L("先选一件待办"), true); return; }
-        await flush();
         const other = linkPool.find((entry) => entry.id === target);
         await post(selected, "/link", { add: { kind: "todo", subject: { kind: "todo_item", id: target }, title: other ? other.title : target, relation: $("[data-todo-link-relation]").value } });
         await openDetail(selected.id);
         return;
       }
       if (button.matches("[data-todo-unlink]")) {
-        await flush();
         await post(selected, "/link", { remove_link_id: button.dataset.todoUnlink });
         await openDetail(selected.id);
         return;
       }
       if (button.matches("[data-todo-archive]")) {
-        await flush();
         button.closest("details").open = false;
         const payload = await post(selected, "/archive", { archived: !selected.archived_at });
         await load(); await openDetail(payload.item.id);
@@ -1175,6 +1171,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (button.matches("[data-todo-reload]")) {
+        if (saving) await saving.catch(() => {});
         button.closest("details").open = false;
         if (dirtyFields.size && !await ask(L("重新读取会丢掉还没保存的输入。继续吗？"), L("重新读取"))) return;
         dirtyFields = new Set();
@@ -1184,9 +1181,11 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (button.matches("[data-todo-delete]")) {
         button.closest("details").open = false;
         if (!await ask(L("永久删除「{title}」？删除后不能撤销，修改记录也会一起删掉。").replace("{title}", selected.title), L("删除"))) return;
-        dirtyFields = new Set();
+        clearTimeout(saveTimer); saveTimer = 0;
+        if (saving) await saving.catch(() => {});
         const title = selected.title;
         await post(selected, "/delete");
+        dirtyFields = new Set();
         await closeDetail();
         await load();
         showNote(L("已删除「{title}」").replace("{title}", title));
@@ -1202,20 +1201,17 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     const id = event.detail && event.detail.itemId;
     if (!id) return;
     if (String(id).indexOf("batch:") === 0) {
-      focusBatch = String(id).slice(6);
-      view = "review";
-      void flush().then(() => closeDetail()).then(() => load()).catch((error) => showNote(error.message, { error: true }));
+      void closeDetail().then(() => { focusBatch = String(id).slice(6); view = "review"; return load(); }).catch((error) => showNote(error.message, { error: true }));
       return;
     }
     void flush().then(() => openDetail(id)).catch((error) => showNote(error.message, { error: true }));
   });
-  // The Assistant changed a todo: reread, never over unsaved input.
   window.addEventListener("molis:assistant-effect", (event) => {
     const capability = event.detail && event.detail.capability_id;
     if (typeof capability !== "string" || capability.indexOf("todo.") !== 0) return;
     void load().then(async () => {
       if (!selected) return;
-      if (dirtyFields.size) { showDetailNote(L("助理刚改过这件待办；你还有没保存的输入，保存时会提示冲突，不会覆盖。"), true); return; }
+      if (dirtyFields.size || saving) { showDetailNote(L("助理刚改过这件待办；你还有没保存的输入，保存时会提示冲突，不会覆盖。"), true); return; }
       await openDetail(selected.id).catch(() => closeDetail());
     }).catch(() => {});
   });
@@ -1224,7 +1220,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     const detail = event.detail || {};
     if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("todo_item")) return;
     void load().then(async () => {
-      if (!selected || !detail.from || selected.id !== detail.from.id || dirtyFields.size) return;
+      if (!selected || !detail.from || selected.id !== detail.from.id || dirtyFields.size || saving) return;
       try {
         // The person can still read it (the page may show every project), so the event alone does not say where it went:
         // read it, and close it when it now belongs to a project this page is not showing.
@@ -1234,7 +1230,6 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     }).catch(() => {});
   });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !dirtyFields.size) void load().catch(() => {}); });
-  // Reminders come due while the page stays open.
   setInterval(() => { if (!document.hidden && !workbench.hidden) void loadReminders().catch(() => {}); }, 60000);
   window.addEventListener("beforeunload", (event) => { if (dirtyFields.size || saving) { event.preventDefault(); event.returnValue = ""; } });
 

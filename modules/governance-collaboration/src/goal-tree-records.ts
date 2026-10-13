@@ -71,7 +71,7 @@ export class GovernanceGoalTreeRecords {
     semanticReview: GoalTreeSemanticReview | null,
   ): void {
     const proposal = new GovernanceRepository(this.db).getGoalTreeProposal(projectId, proposalId);
-    if (!proposal) throw this.errorFactory("goal_tree_proposal.not_found", `找不到 Goal Tree 提案: ${proposalId}`);
+    if (!proposal) throw this.errorFactory("goals.goal_tree_proposal.not_found", `找不到 Goal Tree 提案: ${proposalId}`);
     const hasOpen = proposal.items.some((item) => item.state === "pending" || item.state === "conflict");
     const state = deriveGoalTreeProposalState(proposal.items);
     this.transitionGoalTreeProposal(

@@ -28,10 +28,11 @@ node --import tsx --test --test-concurrency=1 tests/functions-system-capability.
 - 公开入口：`@molis-ai/molis-work-module-functions`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/functions`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 已发布版本不可变，只能删除草稿。
+  - 已发布配置与版本不可变，只能删除草稿；样本、试跑及判断记录仍独立管理。
+  - TypeSafe 原生 Choice 回答在转换边界核对本次声明的 criteria；非空的非法选项拒绝，不保存试跑或成功判断，不取得发布资格。null 保持 needs_review。
   - 执行要在“能力 → 对外接入”授予该客户端 `functions.invoke`。
   - 模型返回后经 `before_result` 复查权限；取消或撤权后不保存判断历史、不返回成功。
   - 编辑器在 Workbench 的 `src/functions`，没有独立的 Functions 插件包。
   - 项目被删除时由宿主按 `functionsProjectData`（`src/project-data.ts`：确认框里的标签与 `purgeFunctionsProject`；Functions 不是插件，宿主自己列它）调用清掉这个项目的场景绑定与判断记录；规则本身是本人的，保留；只读库文件，库不存在时不创建，重复运行没有副作用。
-- 改动后必跑：`node scripts/run-tests.mjs tests/functions-authoring-actions.test.ts tests/functions-system-capability.test.ts tests/functions-draft-retention.test.ts tests/project-deletion-owners.test.ts tests/functions-plugin.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/functions-authoring-actions.test.ts tests/functions-system-capability.test.ts tests/functions-draft-retention.test.ts tests/project-deletion-owners.test.ts tests/functions-plugin.test.ts tests/functions-choice-validation.test.ts`
 - 相关手册：[specs/archive/functions-independent-authoring/spec.md](../../specs/archive/functions-independent-authoring/spec.md)、[skills/molis-prologue-ai/SKILL.md](../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

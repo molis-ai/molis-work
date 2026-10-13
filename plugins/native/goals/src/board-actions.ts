@@ -1,8 +1,8 @@
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction, goalActor } from "./action-contract.js";
-import { text, identifier, count, boolean, object } from "./event-action-schemas.js";
-import type { InitializeBoardOutput } from "./board-entry-capabilities.js";
+import { text, identifier, count, boolean, object } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+export type InitializeBoardOutput = { project_id: string; replayed: boolean; observed_event_cursor: number };
 
 /** What board initialization needs from the Goals owner. */
 export interface GoalsBoardPorts {

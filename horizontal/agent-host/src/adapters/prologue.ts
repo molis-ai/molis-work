@@ -1,5 +1,6 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { parseAgentRunBudget, agentTextMaterialContent, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import { parseAgentRunBudget, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
   AgentSkillLibrary,
@@ -28,7 +29,7 @@ import type {
 
 import { emptyCapabilityMatrix } from "../capabilities.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "../execution-plan.js";
-import { freezeRunStart } from "./prologue-frozen.js";
+import { freezeRunStart, validateRunAttachments, assertSessionCreation } from "./prologue-frozen.js";
 import { switchRunModel } from "./prologue-model-switch.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
@@ -116,14 +117,16 @@ export interface PrologueControlPort {
   pause(): void;
   resume(): void;
   steer(input: { text: string }): void | Promise<void>;
+  /** Revalidate the original invocation after model-selection waits. */ beforeModelSwitch?(): Promise<void>;
   /** Later model calls of this Run go to this target, from its next model boundary. Absent where the runtime cannot. */
-  switchModel?(target: Pick<PrologueModelConfiguration, "protocol" | "endpoint" | "model" | "credential_ref">): Promise<void>;
+  switchModel?(target: Pick<PrologueModelConfiguration, "protocol" | "endpoint" | "model" | "credential_ref">, beforeAccept: () => void): Promise<void>;
   subscribe(listener: () => void): () => void;
 }
 
 export interface PrologueStartInput {
   /** Recheck original activation immediately before dispatch; never persisted. */
   beforeStart?: AgentStartExecution["beforeStart"];
+  assertBeforeStart?: AgentStartExecution["assertBeforeStart"];
   beforeDispatch?: AgentStartExecution["beforeDispatch"];
   actions?: NonNullable<AgentStartRequest["role"]>["actions"];
   action_gateway?: NonNullable<AgentStartRequest["role"]>["action_gateway"];
@@ -210,7 +213,7 @@ export interface PrologueRuntimePort {
   readPendingQuestion?(run: AgentRunRef, pendingId: string, revision: number): Promise<AgentPendingQuestion | null>;
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
-    create(input: AgentCreateSessionInput): Promise<{ ref: { id: string } }>;
+    create(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<{ ref: { id: string } }>;
     restore?(sessionId: string): Promise<PrologueRestoredSession | undefined>;
     /** Same owner/recovery checks as restore, without restoring historical controls or retaining transcripts. */
     readStatus?(sessionId: string): Promise<{
@@ -428,14 +431,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     return { ok: true, status: "ready", message: `已配置 ${configuration.model}` };
   }
 
-  async createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef> {
-    if (input.workspace === "none" && (!this.#runtime.workspaceNone || input.directory !== undefined || !input.actor_id?.trim())) {
-      throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此无工作区会话");
-    }
-    if (input.workspace === "business" && (!this.descriptor.supports_workspace_business || input.directory !== undefined || !input.actor_id?.trim())) {
-      throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此业务会话");
-    }
-    const session = await this.#runtime.sessions.create(input);
+  async createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef> {
+    assertSessionCreation(input, this.#runtime.workspaceNone, this.descriptor.supports_workspace_business);
+    await execution?.beforeStart?.(); requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
+    const session = await this.#runtime.sessions.create(input, execution);
     this.#sessions.set(session.ref.id, { title: input.title, workspace: input.workspace ?? "required", runs: [], owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id } });
     return { session_id: session.ref.id, runtime_id: PROLOGUE_RUNTIME_ID };
   }
@@ -527,13 +526,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async #start(request: AgentStartRequest, session: SessionRecord, execution?: AgentStartExecution): Promise<AgentRunHandle> {
-    const textMaterials = request.text_materials ?? [];
-    if (textMaterials.length > 30 || new Set(textMaterials.map(item => item.material_id)).size !== textMaterials.length) throw new Error("材料过多或选择重复");
-    textMaterials.forEach(agentTextMaterialContent);
-    const imageMaterials = request.image_materials ?? [];
-    if (imageMaterials.length > 6 || new Set(imageMaterials.map(item => item.material_id)).size !== imageMaterials.length
-      || imageMaterials.some(item => !item || typeof item.resource?.id !== "string" || !Number.isSafeInteger(item.resource.revision) || !/^image\//.test(String(item.media_type)))) throw new Error("图片过多、重复或格式无效");
-    if (imageMaterials.length && (!this.#runtime.imageAttachments || request.workspace !== "business")) throw new PrologueAdapterError("agent.capability_unavailable", "这个运行方式还不能把图片交给模型");
+    const { textMaterials, imageMaterials } = validateRunAttachments(request, Boolean(this.#runtime.imageAttachments));
     if (request.budget?.max_turns !== undefined && (!Number.isSafeInteger(request.budget.max_turns) || request.budget.max_turns < 1 || request.budget.max_turns > 100)) throw new Error("执行轮次预算必须为 1–100 的整数");
     const model = await this.#ports.modelConfiguration(request.model_selection);
     if (model === null) {
@@ -585,8 +578,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const frozen = freezeRunStart({ request, role, model, textMaterials, imageMaterials, defaultWindow: this.#runtime.defaultContextWindowTokens, callId: execution?.call_id });
 
     await execution?.beforeStart?.();
+    requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
     const started = await this.#runtime.startAgentRun({
       beforeStart: execution?.beforeStart,
+      assertBeforeStart: execution?.assertBeforeStart,
       beforeDispatch: execution?.beforeDispatch,
       provenance: { frozen, started_at: at },
       session_id: request.session.session_id,
@@ -751,7 +746,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         break;
       case "switch-model":
         await switchRunModel({ record, selection: control, configure: this.#ports.modelConfiguration, defaultWindow: this.#runtime.defaultContextWindowTokens,
-          requested: model => { if (model === undefined) delete record.state.model_requested; else record.state.model_requested = model; } });
+          requested: model => { record.state.model_requested = model; } });
         break;
       case "answer": {
         const answer = this.#answerPending;

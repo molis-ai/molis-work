@@ -494,6 +494,7 @@ export interface AgentMemoryCandidateEntry {
 }
 
 export interface AgentMemoryCapability {
+    withExecution?(control: AgentMemoryExecutionControl): AgentMemoryCapability;
     list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
     write(input: {
         scope: AgentMemoryEntry["scope"];
@@ -575,6 +576,11 @@ export interface AgentMemoryEntry {
     };
     created_at_ms: number;
     updated_at_ms: number;
+}
+
+export interface AgentMemoryExecutionControl {
+    beforeEffect(): void | Promise<void>;
+    assert_current(): void;
 }
 
 export interface AgentMemoryMeta {
@@ -956,6 +962,7 @@ export interface AgentRunView {
 }
 
 export interface AgentRuntimeAdapter {
+    withEffect?<T>(control: AgentMemoryExecutionControl, operation: () => Promise<T>): Promise<T>;
     diagnostics?(): AgentRuntimeDiagnostics;
     readonly recovery?: AgentRecoveryCapability;
     readonly schedule?: AgentScheduleCapability;
@@ -963,7 +970,7 @@ export interface AgentRuntimeAdapter {
     readonly documents?: AgentDocumentCapability;
     readonly descriptor: AgentRuntimeDescriptor;
     health(): Promise<AgentRuntimeHealth>;
-    createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef>;
+    createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef>;
     readSession(session: AgentSessionRef): Promise<AgentSessionView>;
     readSessionStatus?(session: AgentSessionRef): Promise<{
         owner: AgentSessionView["owner"];
@@ -1182,6 +1189,7 @@ export interface AgentSkillsCapability {
 
 export interface AgentStartExecution extends ActionCallOrigin {
     beforeStart?(): void | Promise<void>;
+    assertBeforeStart?(): void;
     beforeDispatch?(): void | Promise<void>;
 }
 

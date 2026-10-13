@@ -5,8 +5,42 @@
  * and motion can say what changed: a station arrives, slides or leaves; a handoff travels down the run's chain.
  */
 import { WORKFLOW_GAP_PICKER_SCRIPT } from "./gap-picker-client.js";
+import { WORKFLOW_SAVE_SCRIPT } from "./save-client.js";
 
 // Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `publishContext`: The workflow on screen, for the Assistant and the placement bar: a run is shown under the workflow it belongs to. `step search`: Many plugins offer steps: a search narrows the list by name, plugin or description; the current choice always stays. `readinessHtml`: One line says whether the link is connected; when a model is what is missing, it also says where to set one up. `run view motion`: A step that just changed state says so once: the check lands, the dot arrives, the line fills downward. `action step`: An action step has no page of its own: it shows what it was given and what the action returned. `judgment handoff`: A judgment that held the content back says what it decided; a person ending the run needs no reason. `run conflict`: A conflict or an action whose result is now unconfirmed: load what was recorded so the page shows the real state. `gap drag`: Drag a plugin (or a station) into a gap. Hovering a station picks the gap on the nearer side.
+/** Client notes kept outside the downloaded factory.
+ * ---------- motion ----------
+ * Surface arrival: the shared 6px rise.
+ * A smaller arrival for content that replaces content in the same place.
+ * A short notice; with an action (撤销) it stays a little longer and can be clicked.
+ * A station is named by what it is: a plugin, or the one action a step runs.
+ * Choice rules come from the same directory as everything else; they are read once per open and after publishing elsewhere.
+ * ---------- chain rules (mirrors model.ts) ----------
+ * ---------- data ----------
+ * The link editor belongs to the chain it was opened on; leaving that view closes it.
+ * ---------- list ----------
+ * ---------- workflow editor ----------
+ * Redraw the chain, then let each station travel from where it was; new ones arrive, changed handoffs settle.
+ * The exit is a courtesy: never let an unpainted frame hold the edit back.
+ * A station that only provides content (成果) starts the run, wherever it was dropped.
+ * ---------- popovers ----------
+ * Content grew or shrank: stay where the eye already is, only shift to stay on screen.
+ * ---------- action steps ----------
+ * Mirrors the Host check so the editor says what is missing before saving; the Host checks again on save and on every run.
+ * A saved step whose action went away stays visible as what it was, so nothing silently changes.
+ * The rule list arrives after the editor opens; only this link's fields and readiness are redrawn.
+ * Changing the handoff type keeps the editor where it is: the chip travels, the fields below swap.
+ * ---------- dialogs ----------
+ * ---------- run view ----------
+ * The embedded plugin is kept while the step stays the same, so continuing or opening the handoff form never reloads it. A new step's plugin fades in over the previous one once it has loaded; the first one shows a quiet skeleton.
+ * The action was called and never confirmed: nothing repeats it until the person has checked.
+ * ---------- events ----------
+ * Another action takes other fields: nothing is guessed across, each one is chosen again.
+ * A different rule has different answers: earlier ticks do not carry over.
+ * Typing keeps the field in place; only the readiness line and the save button follow.
+ * The embedded plugin asks its host to open another item; show it in the same frame.
+ * Open the plugin's surface the first time it is shown; come back to where the person was.
+ */
 export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const root = document.querySelector('[data-workflows=workbench]');
   if (!root) return;
@@ -41,19 +75,16 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     return result;
   }
 
-  // ---------- motion ----------
   const calm = () => Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const EASE_OUT = 'cubic-bezier(.16, 1, .3, 1)';
   const EASE_SETTLE = 'cubic-bezier(.32, 1.22, .52, 1)';
   const EASE_STANDARD = 'cubic-bezier(.32, .72, 0, 1)';
   const motion = (el, frames, options) => (!el || !el.animate || calm()) ? null : el.animate(frames, { easing: EASE_OUT, ...options });
-  /** Surface arrival: the shared 6px rise. */
   const arrive = (el) => {
     if (!el || calm()) return;
     el.classList.remove('is-arriving'); void el.offsetWidth; el.classList.add('is-arriving');
     el.addEventListener('animationend', () => el.classList.remove('is-arriving'), { once: true });
   };
-  /** A smaller arrival for content that replaces content in the same place. */
   const settle = (el) => motion(el, [{ opacity: 0, transform: 'translateY(3px)' }, { opacity: 1, transform: 'none' }], { duration: 160 });
 
   let toastTimer = 0; let toastAction = null;
@@ -62,7 +93,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     toastEl.classList.remove('is-on');
     setTimeout(() => { if (!toastEl.classList.contains('is-on')) toastEl.hidden = true; }, 200);
   };
-  /** A short notice; with an action (撤销) it stays a little longer and can be clicked. */
   const toast = (message, tone, action) => {
     toastAction = action || null;
     toastEl.innerHTML = '<span>' + esc(message) + '</span>' + (action ? '<button type="button" class="wf-toast__action" data-wf-toast-action>' + esc(action.label) + '</button>' : '');
@@ -81,11 +111,10 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
 
   const state = {
     workflows: [], stations: [], ai: false, loaded: false, judgments: null, actionSteps: null, stepDraft: null, stepQuery: '', stepIndex: null, workflow: null, instances: [], instance: null, step: 0,
-    saving: 0, handoff: null, busy: null, openLink: null, openGap: null, returnTo: null,
+    handoff: null, busy: null, openLink: null, openGap: null, returnTo: null,
   };
   const stationInfo = (plugin) => plugin === 'action' ? { plugin, label: '动作', icon: 'zap', supported: true }
     : state.stations.find((item) => item.plugin === plugin) || { plugin, label: plugin, icon: 'grid', supported: false };
-  // A station is named by what it is: a plugin, or the one action a step runs.
   const label = (value) => value && typeof value === 'object' ? (value.action ? value.action.title : L(stationInfo(value.plugin).label)) : L(stationInfo(value).label);
   const tint = (plugin) => 'var(--plugin-' + plugin + ', var(--muted))';
   const readiness = (link) => {
@@ -112,7 +141,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const verdictText = (verdict) => verdict.status === 'needs_review' ? L('需要人确认') : L('结果「{choice}」', { choice: verdict.choice || L('无') })
     + (verdict.confidence == null ? '' : ' · ' + L('把握 {value}%', { value: Math.round(verdict.confidence * 100) }));
   const judgmentKey = (ref) => ref ? ref.capability_id + '@' + ref.version + '@' + ref.provider_id : '';
-  /** Choice rules come from the same directory as everything else; they are read once per open and after publishing elsewhere. */
   async function loadJudgments(force) {
     if (state.judgments && !force) return state.judgments;
     try { state.judgments = (await api('/judgments')).judgments; } catch (error) { state.judgments = []; toast(error.message, 'error'); }
@@ -121,7 +149,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
   const when = (iso) => { if (!iso) return ''; const d = new Date(iso); const today = new Date(); return d.toDateString() === today.toDateString() ? d.toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString(document.documentElement.lang || undefined, { month: 'short', day: 'numeric' }); };
 
-  // ---------- chain rules (mirrors model.ts) ----------
   const insertStation = (chain, gap, plugin, id) => {
     const stations = [...chain.stations]; const links = [...chain.links];
     const at = Math.max(0, Math.min(gap, stations.length));
@@ -146,7 +173,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     return inserted;
   };
 
-  // ---------- data ----------
   async function loadList() {
     try {
       const result = await api('');
@@ -161,14 +187,16 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   }).catch((error) => toast(error.message, 'error')));
   let navigationRevision = 0;
   async function openWorkflow(id, { keepInstance = false, revision = ++navigationRevision } = {}) {
+    flushEdits();
     const result = await api('/' + id);
     if (revision !== navigationRevision) return;
     if (state.workflow?.workflow_id !== id) undoStack.length = 0;
-    state.workflow = result.workflow; state.instances = result.instances; state.ai = result.ai_available;
+    state.workflow = adoptWorkflow(result.workflow); state.instances = result.instances; state.ai = result.ai_available;
     if (state.returnTo && state.returnTo.workflow !== id) state.returnTo = null;
     if (!keepInstance) state.instance = null;
     remember();
     setMode('workflow'); renderList(); renderWorkflow();
+    return state.workflow;
   }
   async function openInstance(id, step, revision = ++navigationRevision) {
     const result = await api('/instances/' + id);
@@ -186,12 +214,12 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const mode = root.dataset.wfMode;
     const flow = mode === 'workflow' ? state.workflow : null;
     const runOf = mode === 'instance' && state.instance ? { id: state.instance.workflow_id, title: state.instanceWorkflowTitle } : null;
-    if (flow) context.object = { kind: 'workflow', id: flow.workflow_id, version: String(flow.revision), title: flow.title };
+    if (flow) { context.object = { kind: 'workflow', id: flow.workflow_id, version: String(flow.revision), title: flow.title }; context.unsaved = Boolean(Object.keys(edits.get(flow.workflow_id)?.patch || {}).length); }
     else if (runOf?.id) context.object = { kind: 'workflow', id: runOf.id, title: runOf.title || '' };
     root.setAttribute('data-assistant-context', JSON.stringify(context));
   };
   const setMode = (mode) => {
-    // The link editor belongs to the chain it was opened on; leaving that view closes it.
+    flushEdits();
     if (pop.matches?.(':popover-open')) pop.hidePopover();
     if (mode === 'list') view.replaceChildren();
     root.dataset.wfMode = mode;
@@ -201,7 +229,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     publishContext();
   };
 
-  // ---------- list ----------
   function chainText(chain) {
     if (!chain.stations.length) return '<span class="wf-muted">' + tx('还没有站') + '</span>';
     return chain.stations.map((station, index) => (index ? '<i class="wf-mini-link" data-kind="' + chain.links[index - 1].kind + '">' + esc(L(KIND_LABEL[chain.links[index - 1].kind])) + '</i>' : '')
@@ -225,7 +252,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     }).join('') + '</nav>';
   }
 
-  // ---------- workflow editor ----------
   function chainIssues(chain) {
     return chain.links.map((link, index) => ({ index, link, state: readiness(link) })).filter((item) => !item.state.ready);
   }
@@ -288,8 +314,9 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   }
   function runsHtml(flow) {
     const unavailable = flow.stations.find(station => station.availability?.available === false);
-    const canStart = flow.stations.length >= 2 && !unavailable;
-    const startReason = unavailable ? unavailable.availability.reason : L('至少要有两站才能开始');
+    const failed = edits.get(flow.workflow_id)?.error;
+    const canStart = flow.stations.length >= 2 && !unavailable && !failed;
+    const startReason = failed ? L('保存失败') : unavailable ? unavailable.availability.reason : L('至少要有两站才能开始');
     const head = '<div class="wf-section__head"><h2>' + tx('走过的每一次') + '</h2><span class="wf-muted">' + esc(state.instances.length ? L('{count} 次', { count: state.instances.length }) : '') + '</span>'
       + '<button class="mw-btn mw-btn--primary" type="button" data-wf-action="start"' + (canStart ? '' : ' disabled title="' + esc(startReason) + '"') + '>' + ico('play') + '<span>' + tx('开始一次') + '</span></button></div>';
     if (!state.instances.length) {
@@ -317,7 +344,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (!flow) return;
     publishContext();
     const current = view.querySelector('.wf-editor');
-    if (current && current.dataset.id === flow.workflow_id) { patchWorkflow(current); return; }
+    if (current && current.dataset.id === flow.workflow_id) { patchWorkflow(current); setSaveState(); return; }
     view.innerHTML = '<article class="wf-editor" data-id="' + esc(flow.workflow_id) + '">'
       + '<header class="plugin-stage-detail-bar wf-editor__bar"><button class="plugin-stage-back" type="button" data-wf-action="back" aria-label="' + tx('返回流程列表') + '" title="' + tx('返回流程列表') + '">' + ico('chevron-right') + '</button>'
       + '<input class="mw-input wf-title-input" data-wf-title data-inline-title value="' + esc(flow.title) + '" aria-label="' + tx('流程名称') + '" maxlength="120">'
@@ -331,6 +358,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       + '<div class="wf-palette" aria-label="' + tx('可以加入的插件') + '"><span class="wf-palette__label">' + tx('插件') + '</span>' + paletteHtml() + '</div></section>'
       + '<section class="wf-section" data-wf-runs>' + runsHtml(flow) + '</section></div></article>';
     arrive(view.querySelector('.wf-editor'));
+    setSaveState();
   }
   let pendingFocus = null;
   function patchWorkflow(editor) {
@@ -345,7 +373,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (!hadIssues && issues.firstElementChild) settle(issues.firstElementChild);
     editor.querySelector('[data-wf-runs]').innerHTML = runsHtml(flow);
   }
-  /** Redraw the chain, then let each station travel from where it was; new ones arrive, changed handoffs settle. */
   function patchChain(chainEl) {
     const flow = state.workflow;
     const before = new Map(); chainEl.querySelectorAll('[data-station-id]').forEach((el) => before.set(el.dataset.stationId, el.getBoundingClientRect()));
@@ -378,74 +405,23 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (focusId) chainEl.querySelector('[data-station-id="' + focusId + '"]')?.focus({ preventScroll: true });
   }
 
-  // ---------- saving the chain ----------
-  let saveQueue = Promise.resolve();
-  let saveShowTimer = 0;
-  function setSaveState(mode) {
-    const el = view.querySelector('[data-wf-save-state]');
-    if (!el) return;
-    el.dataset.state = mode;
-    el.innerHTML = mode === 'saving' ? '<span class="mw-spinner" aria-hidden="true"></span><span>' + tx('正在保存…') + '</span>' : (mode === 'saved' ? ico('check') : '') + '<span>' + tx('已保存') + '</span>';
-  }
-  const undoStack = [];
-  const configured = (link) => link.kind !== 'manual' || Boolean(link.title_template || link.body_template || link.instructions);
-  /** Put the chain back as it was before the last change to its order, stations or handoff types. */
-  function undo() {
-    const flow = state.workflow;
-    const last = undoStack.pop();
-    if (!flow || !last || last.id !== flow.workflow_id) { undoStack.length = 0; return false; }
-    if (pop.matches(':popover-open')) pop.hidePopover();
-    saveWorkflow({ chain: last.chain, undo: true });
-    toast(L('已撤回这次改动'));
-    return true;
-  }
-  function saveWorkflow(patch) {
-    const flow = state.workflow;
-    if (!flow) return;
-    if (patch.chain && patch.undoable) {
-      undoStack.push({ id: flow.workflow_id, chain: JSON.parse(JSON.stringify({ stations: flow.stations, links: flow.links })) });
-      if (undoStack.length > 30) undoStack.shift();
-    }
-    const lost = patch.chain && patch.undoable ? flow.links.filter(configured).length - patch.chain.links.filter(configured).length : 0;
-    Object.assign(flow, patch.chain || {}, patch.title !== undefined ? { title: patch.title } : {});
-    renderWorkflow(); renderList();
-    if (patch.announce) toast(patch.announce, '', { label: L('撤销'), run: undo });
-    else if (lost > 0) toast(L('{count} 段交接变回了手动', { count: lost }), '', { label: L('撤销'), run: undo });
-    state.saving += 1;
-    // Quick saves never flash a spinner; only a slow one says it is still saving.
-    clearTimeout(saveShowTimer); saveShowTimer = setTimeout(() => { if (state.saving) setSaveState('saving'); }, 260);
-    saveQueue = saveQueue.then(async () => {
-      try {
-        const body = { revision: state.workflow.revision };
-        if (patch.chain) body.chain = { stations: state.workflow.stations, links: state.workflow.links };
-        if (patch.title !== undefined) body.title = state.workflow.title;
-        const result = await api('/' + flow.workflow_id, body);
-        state.workflow.revision = result.workflow.revision;
-        const row = state.workflows.find((item) => item.workflow_id === flow.workflow_id);
-        if (row) Object.assign(row, result.workflow);
-      } catch (error) {
-        toast(error.message, 'error');
-        await openWorkflow(flow.workflow_id).catch(() => undefined);
-      } finally {
-        state.saving -= 1;
-        if (!state.saving) { clearTimeout(saveShowTimer); setSaveState('saved'); }
-      }
-    });
-  }
+  ${WORKFLOW_SAVE_SCRIPT}
   const chainOf = () => ({ stations: [...state.workflow.stations], links: [...state.workflow.links] });
   async function removeAt(index, { keyboard = false } = {}) {
     const flow = state.workflow; if (!flow) return;
+    const station = flow.stations[index];
     const el = view.querySelector('[data-wf-chain] [data-wf-station="' + index + '"]');
     const leaving = motion(el, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.88)' }], { duration: 130, easing: EASE_STANDARD, fill: 'forwards' });
-    // The exit is a courtesy: never let an unpainted frame hold the edit back.
     if (leaving) await Promise.race([leaving.finished.catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 180))]);
+    if (state.workflow !== flow || root.dataset.wfMode !== 'workflow') return;
+    index = flow.stations.findIndex(item => item.station_id === station.station_id);
+    if (index < 0) return;
     if (keyboard) { const next = flow.stations[index + 1] || flow.stations[index - 1]; pendingFocus = next ? next.station_id : null; }
     saveWorkflow({ chain: removeStation(chainOf(), index), undoable: true, announce: L('已拿掉 {plugin}', { plugin: label(flow.stations[index]) }) });
   }
   function insertAt(gap, plugin, { focus = false } = {}) {
     const id = uid();
     if (focus) pendingFocus = id;
-    // A station that only provides content (成果) starts the run, wherever it was dropped.
     saveWorkflow({ chain: insertStation(chainOf(), stationInfo(plugin).receives === false ? 0 : gap, plugin, id), undoable: true });
   }
   function moveTo(from, gap, { focus = false } = {}) {
@@ -454,7 +430,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     saveWorkflow({ chain: moveStation(chainOf(), from, gap), undoable: true });
   }
 
-  // ---------- popovers ----------
   let popAnchor = null;
   function positionPop(anchor) {
     const box = anchor.getBoundingClientRect(); const size = pop.getBoundingClientRect();
@@ -471,7 +446,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (!pop.matches(':popover-open')) pop.showPopover?.();
     positionPop(anchor);
   }
-  /** Content grew or shrank: stay where the eye already is, only shift to stay on screen. */
   function keepPopInView() {
     const box = pop.getBoundingClientRect();
     if (box.bottom > window.innerHeight - 12) pop.style.top = Math.max(12, window.innerHeight - 12 - box.height) + 'px';
@@ -494,7 +468,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     view.querySelectorAll('[data-wf-chain] [data-wf-gap]').forEach((gap) => gap.classList.toggle('is-picking', Number(gap.dataset.wfGap) === state.openGap));
   }
   ${WORKFLOW_GAP_PICKER_SCRIPT}
-  let linkTimer = 0;
   function linkFieldsHtml(link) {
     const field = (name, title, value, rows, placeholder) => '<label class="mw-field"><span class="mw-field__label">' + tx(title) + '</span>'
       + (rows === 1 ? '<input class="mw-input" data-wf-link-field="' + name + '" value="' + esc(value) + '" placeholder="' + tx(placeholder) + '">' : '<textarea class="mw-textarea" rows="' + rows + '" data-wf-link-field="' + name + '" placeholder="' + tx(placeholder) + '">' + esc(value) + '</textarea>') + '</label>';
@@ -525,7 +498,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (!state.returnTo) return '';
     return '<footer class="wf-pop__foot"><button class="mw-btn mw-btn--primary" type="button" data-wf-action="return-to-run" data-wf-return-button' + (ready.ready ? '' : ' disabled') + '>' + ico('arrow') + '<span>' + esc(L('回到「{title}」继续', { title: state.returnTo.title })) + '</span></button></footer>';
   }
-  // ---------- action steps ----------
   const FIELD_LABEL = { title: '标题', body: '正文', source: '来源', url: '链接', date: '日期' };
   const refKey = judgmentKey;
   async function loadActionSteps() {
@@ -534,7 +506,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     return state.actionSteps;
   }
   const stepChoice = (draft) => (state.actionSteps || []).find(row => refKey(row.ref) === refKey(draft.ref));
-  /** Mirrors the Host check so the editor says what is missing before saving; the Host checks again on save and on every run. */
   function stepProblem(draft, choice) {
     if (!draft.ref) return L('还没选动作');
     if (!choice) return L('这个动作已不可用或版本已变化');
@@ -576,7 +547,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   }
   function stepEditorHtml() {
     const draft = state.stepDraft; const rows = [...(state.actionSteps || [])];
-    // A saved step whose action went away stays visible as what it was, so nothing silently changes.
     if (draft.ref && state.actionSteps && !stepChoice(draft)) rows.unshift({ ref: draft.ref, title: draft.title, group: draft.group || '', fields: [], available: false, reason: '已不可用' });
     const choice = rows.find(row => refKey(row.ref) === refKey(draft.ref));
     const query = (state.stepQuery || '').trim().toLowerCase();
@@ -604,7 +574,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     keepPopInView();
   }
   async function openStepEditor(index, anchorOf) {
-    const station = index === null ? null : state.workflow.stations[index];
+    const flow = state.workflow; const station = index === null ? null : flow.stations[index];
     state.stepIndex = index;
     state.stepDraft = station?.action ? JSON.parse(JSON.stringify(station.action)) : { ref: null, title: '', group: '', mapping: {} };
     state.stepQuery = '';
@@ -614,7 +584,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     markOpen();
     placePop(anchorOf);
     await loadActionSteps();
-    if (pop.dataset.mode !== 'step' || !pop.matches(':popover-open')) return;
+    if (state.workflow !== flow || pop.dataset.mode !== 'step' || !pop.matches(':popover-open')) return;
     renderStepEditor(); settle(pop.querySelector('.wf-link-fields'));
     pop.querySelector('[data-wf-step-action]')?.focus({ preventScroll: true });
   }
@@ -657,15 +627,14 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     placePop(pillOf(index));
     if (link.kind === 'judgment' && !state.judgments) refreshJudgmentFields(index);
   }
-  /** The rule list arrives after the editor opens; only this link's fields and readiness are redrawn. */
   async function refreshJudgmentFields(index, force) {
+    const flow = state.workflow;
     await loadJudgments(force);
-    if (pop.dataset.mode !== 'link' || Number(pop.dataset.link) !== index) return;
+    if (state.workflow !== flow || pop.dataset.mode !== 'link' || Number(pop.dataset.link) !== index) return;
     const fields = pop.querySelector('[data-wf-link-fields]');
     if (fields && state.workflow.links[index].kind === 'judgment') { fields.innerHTML = linkFieldsHtml(state.workflow.links[index]); settle(fields); }
     refreshReadiness(index);
   }
-  /** Changing the handoff type keeps the editor where it is: the chip travels, the fields below swap. */
   function switchKind(index, kind, { pointer = false } = {}) {
     const chain = chainOf();
     if (chain.links[index].kind === kind) return;
@@ -697,7 +666,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     return ico('alert') + '<span>' + esc(L('未接上：{reason}', { reason: L(ready.reason) })) + fix + '</span>';
   }
 
-  // ---------- dialogs ----------
   let dialogSubmit = null;
   function openDialog(title, bodyHtml, submitLabel, onSubmit, { tone } = {}) {
     dialog.querySelector('[data-wf-dialog-title]').textContent = title;
@@ -712,7 +680,9 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   }
   const skeletonPicks = () => '<div class="wf-picks" aria-busy="true">' + [62, 48, 70].map((width) => '<div class="wf-pick wf-pick--skeleton"><span class="mw-skeleton wf-skeleton-dot"></span><span><span class="mw-skeleton" style="width:' + width + '%"></span><span class="mw-skeleton wf-skeleton-small"></span></span></div>').join('') + '</div>';
   async function startRun() {
-    const flow = state.workflow; const first = flow.stations[0].plugin;
+    const flow = state.workflow; flushEdits(); await saveQueue;
+    if (state.workflow !== flow || edits.get(flow.workflow_id)?.error || flow.stations.length < 2) return;
+    const first = flow.stations[0].plugin;
     const hint = '<p class="wf-hint">' + esc(L('这一次从 {plugin} 里的一条内容开始。每一次的内容互不相串。', { plugin: label(first) })) + '</p>';
     openDialog(L('开始一次'), hint + skeletonPicks(), L('开始'), null);
     try {
@@ -754,7 +724,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (checked && checked.closest('[data-wf-pick-text]').hidden && firstShown) firstShown.querySelector('input').checked = true;
   }
 
-  // ---------- run view ----------
   function stepState(run, index) {
     const step = run.steps[index];
     if (step.status === 'done' || (run.status === 'done' && index <= run.current)) return 'done';
@@ -848,10 +817,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
 
     syncFrame(article.querySelector('[data-wf-frame-slot]'), step, run.chain.stations[index]);
   }
-  /**
-   * The embedded plugin is kept while the step stays the same, so continuing or opening the handoff form never reloads it.
-   * A new step's plugin fades in over the previous one once it has loaded; the first one shows a quiet skeleton.
-   */
   function syncFrame(slot, step, station) {
     if (station?.action) {
       const key = 'action:' + (step.item ? step.item.item_id : 'pending') + ':' + (step.result === undefined ? '' : 'done');
@@ -944,7 +909,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const busy = state.busy && state.busy.index === index;
     const target = chain.stations[index + 1];
     if (target.action && step.pending?.attempted_at && !busy) {
-      // The action was called and never confirmed: nothing repeats it until the person has checked.
       return '<div class="wf-handoff__bar is-blocked wf-uncertain" role="status">' + ico('alert') + '<span>'
         + esc(step.pending.attempt_error ? L('上次执行「{action}」时出错：{error}', { action: target.action.title, error: step.pending.attempt_error }) : L('上次执行「{action}」没有确认结果', { action: target.action.title }))
         + ' · ' + esc(L('先到{place}核对，确认没有生效再重新执行。', { place: target.action.group || L('对应插件') })) + '</span>'
@@ -1006,7 +970,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     remember(); renderInstance();
   }
 
-  // ---------- events ----------
   root.addEventListener('click', async (event) => {
     const target = event.target.closest('[data-wf-action], [data-wf-open], [data-wf-open-instance], [data-wf-step]');
     if (!target || !root.contains(target) || pop.contains(target)) return;
@@ -1031,6 +994,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if (action === 'back') { navigationRevision++; state.workflow = null; state.instance = null; state.returnTo = null; remember(); setMode('list'); renderList(); return; }
       if (action === 'back-to-flow') { const id = state.instance?.workflow_id; state.instance = null; if (id) await openWorkflow(id); else setMode('list'); return; }
       if (action === 'return-to-run') { const back = state.returnTo; if (back) await openInstance(back.instance, back.step); return; }
+      if (action === 'retry-save') { retrySave(); return; }
       if (action === 'delete') {
         openDialog(L('删除流程'), '<p>' + esc(L('删除「{title}」后它不再出现在列表里。已经走过的每一次，以及交到各插件里的内容，都会保留。', { title: state.workflow.title })) + '</p>', L('删除'), async () => {
           await api('/' + state.workflow.workflow_id + '/delete', {}); dialog.close(); state.workflow = null; state.returnTo = null; remember(); setMode('list'); await loadList();
@@ -1054,7 +1018,8 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if (action === 'edit-link') {
         const run = state.instance; const index = Number(target.dataset.link);
         state.returnTo = { workflow: run.workflow_id, instance: run.instance_id, step: state.step, title: run.title };
-        await openWorkflow(run.workflow_id);
+        const opened = await openWorkflow(run.workflow_id);
+        if (!opened || state.workflow !== opened) return;
         openLinkEditor(index);
         pop.querySelector('[data-wf-link-fields] input, [data-wf-link-fields] textarea')?.focus({ preventScroll: true });
         return;
@@ -1122,7 +1087,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       const picked = event.target.closest('[data-wf-step-action]');
       if (picked) {
         const row = (state.actionSteps || []).find(item => refKey(item.ref) === picked.value);
-        // Another action takes other fields: nothing is guessed across, each one is chosen again.
         if (row) state.stepDraft = { ref: row.ref, title: row.title, group: row.group, mapping: {} };
         renderStepEditor(); settle(pop.querySelector('[data-wf-step-fields]'));
         pop.querySelector('[data-wf-step-action]')?.focus({ preventScroll: true });
@@ -1150,7 +1114,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (select) {
       const row = (state.judgments || []).find(item => judgmentKey(item.ref) === select.value);
       if (!row) return;
-      // A different rule has different answers: earlier ticks do not carry over.
       state.workflow.links[index] = { ...state.workflow.links[index], judgment: { ...row.ref, title: row.title }, pass: [] };
       const fields = pop.querySelector('[data-wf-link-fields]'); fields.innerHTML = linkFieldsHtml(state.workflow.links[index]); settle(fields);
       refreshReadiness(index); saveWorkflow({ chain: chainOf() });
@@ -1162,7 +1125,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       refreshReadiness(index); saveWorkflow({ chain: chainOf() });
     }
   });
-  /** Typing keeps the field in place; only the readiness line and the save button follow. */
   function refreshStepReadiness() {
     const problem = stepProblem(state.stepDraft, stepChoice(state.stepDraft));
     const line = pop.querySelector('[data-wf-step-ready]');
@@ -1189,15 +1151,13 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const index = Number(pop.dataset.link);
     state.workflow.links[index] = { ...state.workflow.links[index], [field.dataset.wfLinkField]: field.value };
     refreshReadiness(index);
-    clearTimeout(linkTimer);
-    linkTimer = setTimeout(() => saveWorkflow({ chain: chainOf() }), 450);
+    debounceEdit(state.workflow, { chain: chainOf() }, 'chain', 450);
   });
   window.addEventListener('resize', repositionPop);
   root.addEventListener('scroll', repositionPop, true);
 
-  let titleTimer = 0;
   const saveTitle = (input) => {
-    clearTimeout(titleTimer);
+    flushEdits();
     if (!state.workflow) return;
     const title = input.value.trim() || L('新的流程');
     if (title !== state.workflow.title) saveWorkflow({ title });
@@ -1205,7 +1165,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   root.addEventListener('input', (event) => {
     if (pop.contains(event.target)) return;
     const title = event.target.closest('[data-wf-title]');
-    if (title) { clearTimeout(titleTimer); titleTimer = setTimeout(() => saveTitle(title), 600); return; }
+    if (title) { debounceEdit(state.workflow, { title: title.value.trim() || L('新的流程') }, 'title', 600); return; }
     const filter = event.target.closest('[data-wf-pick-filter]');
     if (filter) { filterPicks(filter.value); return; }
     const manual = event.target.closest('[data-wf-manual]');
@@ -1232,7 +1192,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     }
     if (target.matches?.('[data-wf-title]')) {
       if (event.key === 'Enter') { event.preventDefault(); target.blur(); }
-      if (event.key === 'Escape') { target.value = state.workflow?.title || target.value; clearTimeout(titleTimer); target.blur(); }
+      if (event.key === 'Escape') { target.value = state.workflow?.title || target.value; clearTimeout(pendingEdits.get('title')?.timer); pendingEdits.delete('title'); target.blur(); }
       return;
     }
     if (target.matches?.('[data-wf-pick-filter]') && event.key === 'ArrowDown') {
@@ -1348,7 +1308,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     else moveTo(drag.from, gap);
   });
 
-  // The embedded plugin asks its host to open another item; show it in the same frame.
   window.addEventListener('message', (event) => {
     if (event.origin !== location.origin || event.data?.type !== 'workbench-pane-open' || !event.data.itemId) return;
     const frame = [...view.querySelectorAll('[data-wf-frame]')].find((candidate) => candidate.contentWindow === event.source);
@@ -1358,14 +1317,25 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     frame.src = url.pathname + url.search;
   });
 
-  // Open the plugin's surface the first time it is shown; come back to where the person was.
   let started = false;
+  let initialList = null;
+  let selectedItem;
+  const selectWorkflow = async (id, revision) => {
+    if (id) {
+      try { await openWorkflow(id, { revision }); }
+      catch (error) { if (revision === navigationRevision) toast(error.message, 'error'); }
+      return;
+    }
+    state.workflow = null; state.instance = null; state.returnTo = null; remember(); setMode('list'); renderList();
+  };
   const start = async () => {
     if (started || root.hidden) return;
     started = true;
     const revision = ++navigationRevision;
-    await loadList();
+    const requested = selectedItem;
+    initialList = loadList(); await initialList;
     if (revision !== navigationRevision) return;
+    if (requested !== undefined) { await selectWorkflow(requested, revision); return; }
     let memory = null;
     try { memory = JSON.parse(sessionStorage.getItem(memoryKey()) || 'null'); } catch {}
     try {
@@ -1375,10 +1345,12 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     } catch { if (revision === navigationRevision) setMode('list'); }
   };
   new MutationObserver(start).observe(root, { attributes: true, attributeFilter: ['hidden'] });
-  root.addEventListener('molis-work:select-item', (event) => {
-    if (event.detail?.itemId || !started) return;
-    navigationRevision++;
-    state.workflow = null; state.instance = null; state.returnTo = null; remember(); setMode('list'); renderList();
+  root.addEventListener('molis-work:select-item', async (event) => {
+    const id = event.detail?.itemId || null; selectedItem = id;
+    const revision = ++navigationRevision;
+    if (!started) { await start(); return; }
+    await initialList;
+    if (revision === navigationRevision) await selectWorkflow(id, revision);
   });
   start();
-}`;
+}`.replace(/^  /gm, '');

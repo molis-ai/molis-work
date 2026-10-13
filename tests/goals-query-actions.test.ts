@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, readGoalResumeFacts, snapshotBoardCapability } from "@molis-ai/molis-work-plugin-goals";
-import { goalContextCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
+import { goalsActions, readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals";
+import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { bindActionClient, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materializeGoalEventHistory, goalEventHistoryKinds } from "./goal-event-history-fixture.js";
 import { readTestGoalCollection } from "./fixtures/web-view.js";
 
-test("Goals query actions preserve full bodies, cursor order, scope and live policy for typed consumers", async () => {
+test("Goals query actions preserve full bodies, cursor order, scope and live policy for action consumers", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-query-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Queries", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
@@ -34,7 +34,7 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     assert.equal(state.work_status, "open");
     const snapshot = await actions.invoke(goalsActions.snapshot, {});
     assert.deepEqual(snapshot, await host.withProject(ref, r => r.store.snapshot(project_id)));
-    assert.deepEqual(await typed.invoke(snapshotBoardCapability, { project_id }), snapshot);
+    assert.deepEqual(await host.actionClient(ref, false).invoke({ actor_id: "second-reader", audience: "user", project_id, permissions: ["goals:read"] }, goalsActions.snapshot, {}), snapshot);
     const contract = await actions.invoke(goalsActions.contract, { goal_id });
     assert.deepEqual(contract, await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(project_id, goal_id)));
     const checkReadBoundary = async <Input, Output>(action: ActionDefinition<Input, Output>, input: Input) => {
@@ -47,7 +47,7 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     assert.deepEqual(collection, await host.withProject(ref, r => readTestGoalCollection(r.store, r.coordinator, project_id)));
     assert.equal(collection.goals[0]?.goal.goal_id, goal_id);
     await checkReadBoundary(goalsActions.collection, {});
-    await assert.rejects(typed.invoke(snapshotBoardCapability, { project_id: "foreign" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(host.actionClient(ref).invoke({ actor_id: "query-reader", audience: "user", project_id: "foreign", permissions: ["goals:read"] }, goalsActions.snapshot, {}), { code: "actions.scope_mismatch" });
     await assert.rejects(host.actionClient(ref).invoke({ actor_id: "query-reader", audience: "user", project_id: "foreign", permissions: ["goals:read"] }, goalsActions.contract, { goal_id }), { code: "actions.scope_mismatch" });
     const document = await actions.invoke(goalsActions.document, { goal_id });
     assert.deepEqual(document.state, state);
@@ -60,7 +60,9 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     await assert.rejects(actions.invoke(goalsActions.document, { goal_id, project_id: "foreign" } as never), { code: "actions.input_invalid" });
     await assert.rejects(host.actionClient(ref).invoke({ actor_id: "query-reader", audience: "mcp", project_id: "foreign", permissions: ["goals:read"] },
       goalsActions.document, { goal_id }), { code: "actions.scope_mismatch" });
-    const coding = await typed.invoke(goalContextCapabilities.read, { goal_id });
+    const { goal: codingGoal } = await actions.invoke(goalPluginActions.contract, { goal_id });
+    const { observed_event_cursor: _cursor, ...codingState } = await actions.invoke(goalPluginActions.state, { goal_id });
+    const coding = { goal: codingGoal, state: codingState };
     assert.equal(coding.goal.goal_id, goal_id); assert.equal(coding.state.goal_event_cursor, state.goal_event_cursor);
     const directory = await actions.invoke(goalsActions.directoryItem, { goal_id });
     assert.equal(directory?.title, state.intent.title);
@@ -107,16 +109,16 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     await assert.rejects(host.actionClient(ref).invoke({ actor_id: "query-reader", audience: "user", project_id: "foreign", permissions: ["goals:read"] }, goalsActions.state, { goal_id }), { code: "actions.scope_mismatch" });
     denied = goalsActions.state.capability_id;
     await assert.rejects(actions.invoke(goalsActions.state, { goal_id }), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalContextCapabilities.read, { goal_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(actions.invoke(goalPluginActions.state, { goal_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.list.capability_id;
     await assert.rejects(readGoalResumeFacts(actions, [goal_id]), { code: "actions.plugin_disabled" });
     denied = goalsActions.document.capability_id;
     await assert.rejects(actions.invoke(goalsActions.document, { goal_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.snapshot.capability_id;
-    await assert.rejects(typed.invoke(snapshotBoardCapability, { project_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(actions.invoke(goalsActions.snapshot, {}), { code: "actions.plugin_disabled" });
     denied = goalsActions.contract.capability_id;
     await assert.rejects(actions.invoke(goalsActions.contract, { goal_id }), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalContextCapabilities.read, { goal_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(actions.invoke(goalPluginActions.contract, { goal_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.collection.capability_id;
     await assert.rejects(actions.invoke(goalsActions.collection, {}), { code: "actions.plugin_disabled" });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
@@ -176,10 +178,10 @@ test("Goal definitions take only the four decision methods and the two review st
     // New criteria are held to the known methods.
     await assert.rejects(host.withProject(ref, r => r.coordinator.goals.commands.createGoal(project_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
       acceptance_criteria: [{ statement: "试玩", decision_method: "playtest" as never, pass_condition: "能进球" }] },
-      { actor_id: "user", idempotency_key: "new-goal" })), { code: "goal.acceptance_invalid", message: /automated_check、measurement、inspection、human_decision/ });
+      { actor_id: "user", idempotency_key: "new-goal" })), { code: "goals.goal.acceptance_invalid", message: /automated_check、measurement、inspection、human_decision/ });
     await assert.rejects(host.withProject(ref, r => r.coordinator.goals.commands.createGoal(project_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
       acceptance_criteria: [], decomposition_review: { status: "closed_leaf" as never, coverage: [], open_goal_ids: [], next_step: "" } },
-      { actor_id: "user", idempotency_key: "new-review" })), { code: "goal.decomposition_review_invalid", message: /complete、paused/ });
+      { actor_id: "user", idempotency_key: "new-review" })), { code: "goals.goal.decomposition_review_invalid", message: /complete、paused/ });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 

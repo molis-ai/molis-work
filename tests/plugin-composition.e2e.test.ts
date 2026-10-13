@@ -153,3 +153,52 @@ test('G7 waits for selection reads before acting on a repainted record and refus
     assert.equal(blocked.passed, false); assert.match(blocked.cases[0]!.detail, /被遮挡/); assert.equal(calls, 1, 'covered controls cause no operation');
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
 });
+
+test('W2-18-COMPONENT-DRAFT-01, W2-18-COMPONENT-DRAFT-02: delayed receipts preserve newer drafts in forms, sheets and dialogs', { timeout: 90_000 }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'molis-component-draft-')), browser = await openStudioChrome(directory);
+  assert.ok(browser, 'Chrome is required');
+  try {
+    const view = { contract: readingContract, nodes: [readingNodes.find(node => node.id === 'editor')!], connected: ['notes.add'] };
+    const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES
+      + 'body{margin:0;padding:20px}</style><main id="root"></main><script>globalThis.view=' + JSON.stringify(view)
+      + ';globalThis.requests=[];globalThis.app=(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')({root:document.querySelector("#root"),call:(id,binding,payload)=>{requests.push(structuredClone(payload));return new Promise((resolve,reject)=>{globalThis.deliver=error=>error?reject(Error(error)):resolve({saved:true})})}});app.update(view);</script>';
+    await writeFile(join(directory, 'index.html'), html);
+    const page = await browser.page(); await page.viewport(1024, 800);
+    for (const kind of ['form', 'sheet', 'dialog']) {
+      await page.command('Page.navigate', { url: 'file://' + join(directory, 'index.html') });
+      await page.wait('document.querySelector("[name=title]")');
+      await page.evaluate(`(async()=>{view=structuredClone(view);view.nodes[0].kind=${JSON.stringify(kind)};await app.update(view)})()`);
+      if (kind !== 'form') await page.click('[data-pc-open=editor]');
+      await page.fill('[name=title]', 'A'); await page.fill('[name=text]', 'A body');
+      await page.click('[type=submit]'); await page.wait('requests.length===1');
+      await page.fill('[name=title]', 'B'); await page.fill('[name=text]', 'B body');
+      await page.evaluate('deliver()'); await page.wait('!document.querySelector("[type=submit]").disabled');
+      assert.deepEqual(await page.evaluate('({title:document.querySelector("[name=title]").value,text:document.querySelector("[name=text]").value})'), { title: 'B', text: 'B body' }, kind);
+      assert.equal(await page.evaluate('!!document.querySelector("dialog[open]")'), kind !== 'form', 'new input keeps its overlay open');
+      assert.equal(await page.evaluate('requests[0].form.title'), 'A', 'the first request actually submitted A');
+      assert.match(await page.evaluate<string>('document.querySelector("[data-pc-feedback]").textContent'), /新输入还未提交/, 'the saved receipt does not claim that B was saved');
+      await page.click('[type=submit]'); await page.wait('requests.length===2');
+      assert.equal(await page.evaluate('requests[1].form.title'), 'B');
+      await page.evaluate('deliver()'); await page.wait('document.querySelector("[name=title]").value===""');
+      assert.equal(await page.evaluate('!!document.querySelector("dialog[open]")'), false, 'the unchanged submitted draft closes');
+
+      if (kind !== 'form') await page.click('[data-pc-open=editor]');
+      await page.fill('[name=title]', 'retry'); await page.fill('[name=text]', 'retry body'); await page.click('[type=submit]'); await page.wait('requests.length===3');
+      await page.evaluate('deliver("保存失败")'); await page.wait('document.querySelector(".pc-error")?.textContent.includes("保存失败")');
+      assert.equal(await page.evaluate('document.querySelector("[name=title]").value'), 'retry');
+      await page.click('[type=submit]'); await page.wait('requests.length===4');
+      await page.evaluate('(async()=>{view=structuredClone(view);view.contract.revision="next";await app.update(view);document.querySelector("[name=title]").value="new revision";document.querySelector("[name=title]").dispatchEvent(new Event("input",{bubbles:true}));deliver("late failure")})()');
+      await page.wait('!document.querySelector("[type=submit]").disabled');
+      assert.equal(await page.evaluate('document.querySelector("[name=title]").value'), 'new revision');
+      assert.doesNotMatch(await page.evaluate<string>('document.querySelector("[data-pc-feedback]").textContent'), /late failure/);
+      await page.click('[type=submit]'); await page.wait('requests.length===5');
+      await page.evaluate('(async()=>{view=structuredClone(view);view.contract.revision="third";await app.update(view);document.querySelector("[name=title]").value="third draft";document.querySelector("[name=title]").dispatchEvent(new Event("input",{bubbles:true}));deliver()})()');
+      await page.wait('!document.querySelector("[type=submit]").disabled');
+      assert.equal(await page.evaluate('document.querySelector("[name=title]").value'), 'third draft', 'old revision success cannot clear current input');
+      await page.click('[type=submit]'); await page.wait('requests.length===6');
+      await page.evaluate('app.destroy();deliver();');
+      await page.evaluate('new Promise(resolve=>setTimeout(resolve,0))');
+      assert.equal(await page.evaluate('document.querySelector("#root").childElementCount'), 0, 'destroyed renderer ignores its old success');
+    }
+  } finally { await browser.close(); await rm(directory, { recursive: true, force: true }); }
+});

@@ -21,6 +21,13 @@ reference can also be opened independently of the live input group. Coding's
 embedded reader adds feedback anchors only after saving a fixed version; no
 feedback action authorizes or applies an edit.
 
+Diff's workbench file buttons carry the original change index, including
+separate occurrences of the same path. The existing state action reads that
+index from the fixed Coding input; refresh and hiding/reopening the surface
+retain the selection, and late responses cannot replace a newer choice. The
+file list remains available when the chosen file has no text rows. Coding's
+embedded reader keeps its own selector rather than rendering duplicate buttons.
+
 - Status: `partial`
 - Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
@@ -33,6 +40,7 @@ feedback action authorizes or applies an edit.
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（逐行比较 `compareTexts` 等从 SDK 取，Diff 不再转出它们）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 三类输入按 `input_groups` 互换，只有选中的一组生效。
+  - 三类输入都可读取过程项或成果库里明确选定的固定版本；读取仍遵守 Manifest 消费类型与当前授权，固定输入失效时不改读最新版本。回归见 [plugin-fixed-input-sdk.test.ts](../../../tests/plugin-fixed-input-sdk.test.ts)。
   - 比较的是固定版本（带执行回执），不是对当前工作树的断言；反馈锚点只在保存固定版本后添加。
-- 改动后必跑：`node scripts/run-tests.mjs tests/diff-plugin.test.ts tests/workspace-plugin-graph.test.ts tests/companion-actions.test.ts tests/git-product-http.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/diff-plugin.test.ts tests/workspace-plugin-graph.test.ts tests/companion-actions.test.ts tests/git-product-http.test.ts tests/coding-changeset-http.test.ts tests/coding-companion-inputs.test.ts tests/companion-client-lifecycle.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

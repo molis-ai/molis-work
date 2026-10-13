@@ -1,3 +1,4 @@
+import { bindCharacterLaunch } from "./launch-action.js";
 import type { ArtifactJsonValue, ArtifactReference, ArtifactVersionRecord, ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, parseCharacterContent, type CharacterContent, type CharactersCommand, type CharactersQuery } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { PluginDefinition, PluginRouteBinding, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -146,9 +147,9 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
         }
         return { usages };
       }),
-      bindOwnerPluginAction(context, a.launch, input => {
+      bindCharacterLaunch(context, a.launch, (input, control) => {
         const selected = publication(input);
-        return imports().launch(selected.content, selected.reference, { workspace_id: input.workspace_id, task: input.task, request_id: input.request_id });
+        return imports().launch(selected.content, selected.reference, { workspace_id: input.workspace_id, task: input.task, request_id: input.request_id }, { ...control, assert_current: () => { control.assert_current(); publication(input); } });
       }),
     ];
     // The old paths translate parameters and keep their status codes; execution is the registered owner-bound action.
@@ -156,7 +157,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       if (request.actor_id !== ports.actorId) return { status: 403, body: { error: "不能操作其他人的角色" } };
       try {
         if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
-        return { status: 200, body: await context.services.actions.invoke(definition, input(request)) };
+        return { status: 200, body: await context.services.actions.invoke(definition, input(request), request.execution) };
       } catch (error) {
         const code = (error as { code?: string }).code;
         const status = code === "character.conflict" ? 409 : code === "character.not_found" || code === "actions.missing" ? 404

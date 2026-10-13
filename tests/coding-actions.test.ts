@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingManifest, codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
@@ -34,6 +34,10 @@ test("Coding's business surface is redeemed by the project Runtime, owner-bound,
     const renamed = await client.invoke(owner, find("coding.update-session"), { session_id: created.session.session_id, title: "修复登录超时" }) as { session: { title: string } };
     assert.equal(renamed.session.title, "修复登录超时");
     await assert.rejects(client.invoke(owner, find("coding.read-session"), { session_id: "missing" }), (error: { code?: string }) => error.code === "coding.session_unknown");
+
+    // W2-18-CODING-CONTROL-VERSION-01: the expanded control schema has one current version.
+    const control = find("coding.runs.control"); assert.equal(control.version, 2);
+    await assert.rejects(client.invoke(owner, { ...control, version: 1 }, {}), (error: unknown) => error instanceof ActionError && error.code === "actions.missing");
 
     // Other identities see the directory rows unavailable; starting rounds never reaches an Agent or MCP client at all.
     const external = (await client.discover({ ...owner, actor_id: "runtime:client", audience: "mcp" })).filter(row => row.provider.plugin_id === "io.molis.work.coding");

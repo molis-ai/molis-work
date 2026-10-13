@@ -78,7 +78,7 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     return validatePlanningGraph(this.context.repository.listGoals(projectId), projectPlanningRelations(
       this.context.repository.listRelations(projectId), [{ action: "add", relation_id: projectedId,
         from_goal_id: fromGoalId, to_goal_id: toGoalId, type: "part_of" }],
-    )).some(issue => issue.code === "planning.part_of_cycle" && issue.relation_ids.includes(projectedId));
+    )).some(issue => issue.code === "goals.planning.part_of_cycle" && issue.relation_ids.includes(projectedId));
   }
 
   projectComposition(projectId: string): PlanningMethodComposition {
@@ -109,7 +109,7 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     this.context.requireBoard(input.project_id);
     if (input.user_confirmed !== true) {
       throw this.context.error(
-        "planning.user_confirmation_required",
+        "goals.planning.user_confirmation_required",
         "项目方法会改变后续 Goal 的拆分和依赖判断，必须由用户确认",
       );
     }

@@ -53,12 +53,14 @@ export function createPluginInputsClient(input: PluginWiringServicesInput): Plug
   const declared = (manifest.ports?.inputs ?? []).map((port) => port.port);
   return {
     status(): PluginInputStatus {
+      input.requireGrant("artifact:read");
       return graph.status(pluginId);
     },
     read(port: string): FixedVersionRecord | null {
       if (!declared.includes(port)) {
         throw new PluginWiringError("port_unknown", `${pluginId} 没有输入端口 ${port}`);
       }
+      input.requireGrant("artifact:read");
       const status = graph.status(pluginId);
       if (status.status !== "ready") return null;
       const reference = graph.reference(pluginId, port);
@@ -68,6 +70,7 @@ export function createPluginInputsClient(input: PluginWiringServicesInput): Plug
       if (!declared.includes(port)) {
         throw new PluginWiringError("port_unknown", `${pluginId} 没有输入端口 ${port}`);
       }
+      input.requireGrant("artifact:read");
       return graph.reference(pluginId, port);
     },
     selectedGroup(): string | undefined {
@@ -203,6 +206,7 @@ export function createPluginCapabilityClient(
       // Caller authority is added by the trusted executor around this port.
       // A plugin may supply a stricter effect check, never its own identity.
       return await port.invoke(capability, input, { ...(options?.before_effect ? { before_effect: options.before_effect } : {}),
+        ...(options?.assert_authority_current ? { assert_authority_current: options.assert_authority_current } : {}),
         ...(options?.signal ? { signal: options.signal } : {}), consumer: "plugin" });
     },
   };

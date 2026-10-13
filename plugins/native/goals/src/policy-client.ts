@@ -1,6 +1,6 @@
 /** Existing browser handlers inserted by Workbench into its shared lexical host. */
 const GOALS_POLICY_SUBMIT_SCRIPT = `      const policyForm = submittedForm.closest?.("[data-policy-form]");
-      if (policyForm) {
+      if (policyForm?.querySelector('[name="scope"]')?.value === "project_default") {
         event.preventDefault();
         const submit = policyForm.querySelector('button[type="submit"]');
         const errorBox = policyForm.querySelector("[data-policy-error]");
@@ -15,22 +15,14 @@ const GOALS_POLICY_SUBMIT_SCRIPT = `      const policyForm = submittedForm.close
             method: "POST",
             headers: molisWorkControlHeaders(),
             body: JSON.stringify({
-              scope: values.get("scope"),
-              goal_id: values.get("goal_id") || undefined,
-              reason: String(values.get("reason") || "").trim(),
+              scope: "project_default",
               policy: { human_approval: values.has("human_approval") },
             }),
           });
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || L("工作规则保存失败"));
           await refreshBoard(true);
-          if (values.get("scope") === "goal") {
-            const policy = result?.resolved_policy || { human_approval: values.has("human_approval") };
-            showFactorReceipt("rules", L("工作规则已保存"),
-              L("最终生效：用户确认“{human}”。", { human: policy.human_approval ? L("需要") : L("不需要") }));
-          } else {
-            showToast(L("项目默认工作规则已保存"));
-          }
+          showToast(L("项目默认工作规则已保存"));
         } catch (error) {
           errorBox.textContent = humanDecisionError(error.message, L("工作规则保存失败，请检查输入后重试"));
           errorBox.hidden = false;
@@ -44,10 +36,10 @@ const GOALS_POLICY_SUBMIT_SCRIPT = `      const policyForm = submittedForm.close
 
 export const GOALS_POLICY_CLIENT_FACTORY_SCRIPT = `(host) => {
     const { route, controlHeaders: molisWorkControlHeaders, translate: L,
-      requireFormFacts, refreshBoard, showFactorReceipt, showToast, humanDecisionError } = host;
+      requireFormFacts, refreshBoard, showToast, humanDecisionError } = host;
     const submitMatchedPolicy = async (submittedForm, event) => {
 ${GOALS_POLICY_SUBMIT_SCRIPT}    };
-    // The project's rules page has its own script (project-policy-client); this one saves a Goal's rules.
+    // The full project rules page owns its submit; this handles only an embedded project-default form.
     const handleGoalPolicySubmit = (submittedForm, event) => submittedForm.closest?.("[data-policy-form]:not([data-project-rules-form])")
       ? submitMatchedPolicy(submittedForm, event) : null;
     return { handleGoalPolicySubmit };

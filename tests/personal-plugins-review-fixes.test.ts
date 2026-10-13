@@ -1,3 +1,5 @@
+import { ActionError as ContractsError } from "@molis-ai/molis-work-contracts/platform/actions";
+import * as goalsPluginExports from "@molis-ai/molis-work-plugin-goals";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { handlePagesNativePluginHttp } from "@molis-ai/molis-work-app-local-host";
 import type { PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";
@@ -13,7 +15,6 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-
 import {
   BUILTIN_PLUGIN_CATALOG,
   OWN_DIRECTORY_SURFACES,
@@ -25,12 +26,10 @@ import {
 } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkV1Error as ContractsError } from "@molis-ai/molis-work-contracts/platform/errors";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
 import { openFunctionsStore } from "@molis-ai/molis-work-module-functions";
-import { MolisWorkV1Error as GoalsError } from "@molis-ai/molis-work-plugin-goals";
 import {
   DATASET_CLIENT_FACTORY_SCRIPT,
   datasetManifest,
@@ -231,11 +230,8 @@ test("catalog 路径 Promote 不发 Artifact；注入口之后 MCP 与 HTTP 同�
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ project_id: "project-alpha", goal_id: "CORE" }),
       });
-      // W3-02-D: this refusal is an availability object (`{ available: false, code: "pages.unavailable" }`: no publisher in this environment), which the kernel
-      // raises as an ActionError with the code and no kind; a code of the owner's with no kind answers 400 where Pages' own mapper gave this one 409. The code is
-      // the same and nothing is written. The kernel passing an availability's kind on is the shared core's (W3-02-G1, wave3-batchB-plan.md, W3-02-D); PPT, Dataset and
-      // Form answer the same and are pinned in document-plugins-error-model.test.ts, and all four become 409 in the change that does it.
-      assert.equal(missing.status, 400);
+      // W3-02-G1-02: the owner availability carries conflict through the Kernel; no publisher means 409 with the same code and no write.
+      assert.equal(missing.status, 409);
       const missingBody = await missing.json() as { code: string; document?: { goal_id?: string } };
       assert.equal(missingBody.code, "pages.unavailable");
       assert.equal(missingBody.document, undefined);
@@ -411,9 +407,9 @@ test("Host 文本补全口暂无模型；注入后 Pages AI 返回模型的候�
 });
 
 test("Host 不再从插件包进口 openFunctionsStore；错误类型来自 contracts", async () => {
-  assert.equal(ContractsError, GoalsError);
+  assert.equal("MolisWorkV1Error" in goalsPluginExports, false, "W3-02-H-01 the retired error is not a plugin export");
   const error = new ContractsError("pages.unavailable", "当前环境不能发出 Artifact");
-  assert.equal(error instanceof GoalsError, true);
+  assert.equal(error.name, "ActionError");
   const files = [
     "apps/local-host/src/functions-host.ts",
     "apps/local-host/src/functions-http.ts",

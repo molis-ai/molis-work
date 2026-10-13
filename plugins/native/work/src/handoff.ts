@@ -1,5 +1,6 @@
 import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { RuntimeHostApi } from "@molis-ai/molis-work-contracts/services/runtime-host";
+import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SessionContentService } from "./content.js";
 import type { SessionDirectoryService } from "./directory.js";
 import {
@@ -26,7 +27,8 @@ export class SessionHandoffService {
     this.delivery = new SessionHandoffDelivery(registry, router, directory);
   }
 
-  async prepare(input: PrepareSessionHandoffInput): Promise<{ handoff: MolisWorkSessionHandoffRecord; reused: boolean }> {
+  async prepare(input: PrepareSessionHandoffInput, control?: Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">): Promise<{ handoff: MolisWorkSessionHandoffRecord; reused: boolean }> {
+    await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     const source = this.validateSource(input.source_session_id, input.project_id, input.goal_contract);
     const existing = this.registry.latestPendingHandoff(source.session_id);
     if (
@@ -38,6 +40,8 @@ export class SessionHandoffService {
       return { handoff: existing, reused: true };
     }
     const timeline = await this.content.read(source.session_id);
+    await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
+    this.validateSource(input.source_session_id, input.project_id, input.goal_contract);
     const packageContent = buildSessionHandoffPackage({
       source_session: source,
       project_name: input.project_name,
@@ -84,7 +88,8 @@ export class SessionHandoffService {
     });
   }
 
-  async send(input: SendSessionHandoffInput): Promise<SessionHandoffResult> {
+  async send(input: SendSessionHandoffInput, control?: Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">): Promise<SessionHandoffResult> {
+    await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     if (!input.user_confirmed) {
       throw new MolisWorkSessionError("session.confirmation_required", "创建目标 Session 并发送 Handoff 前必须明确确认");
     }
@@ -117,7 +122,7 @@ export class SessionHandoffService {
           : null,
       };
     }
-    return this.delivery.send(sending, input.actor_id);
+    return this.delivery.send(sending, input.actor_id, control);
   }
 
   cancel(packageId: string): MolisWorkSessionHandoffRecord {

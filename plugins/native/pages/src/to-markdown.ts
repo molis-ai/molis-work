@@ -1,6 +1,7 @@
 import { Node } from "prosemirror-model";
 import { bookmarkLabel, safePagesBookmarkTitle, safePagesHref, safePagesImageSrc } from "./link.js";
 import { safePagesLanguage } from "./code-language.js";
+import { cardText } from "./card-content.js";
 
 function inlineToMarkdown(node: Node): string {
   if (node.isText) {
@@ -13,10 +14,12 @@ function inlineToMarkdown(node: Node): string {
     else if (names.has("em")) text = `*${text}*`;
     if (names.has("underline")) text = `<u>${text}</u>`;
     const link = node.marks.find((mark) => mark.type.name === "link");
-    if (link) text = `[${text}](${String(link.attrs.href ?? "")})`;
+    const href = link ? safePagesHref(link.attrs.href) : "";
+    if (href) text = `[${text}](${href.replaceAll("(", "%28").replaceAll(")", "%29")})`;
     return text;
   }
   if (node.type.name === "hard_break") return "\n";
+  if (node.type.name === "page_mention") return "@" + String(node.attrs.title || "文档引用");
   let out = "";
   node.forEach((child) => {
     out += inlineToMarkdown(child);
@@ -49,6 +52,8 @@ function listToMarkdown(node: Node, indent: number): string {
 
 function blockToMarkdown(node: Node, indent: number): string {
   const name = node.type.name;
+  const card = cardText(node);
+  if (card.length) return indentLines(card.join("\n"), indent);
   if (name === "heading") return indentLines(`${"#".repeat(Number(node.attrs.level) || 1)} ${inlineToMarkdown(node)}`, indent);
   if (name === "paragraph") return indentLines(inlineToMarkdown(node), indent);
   if (name === "bullet_list" || name === "ordered_list" || name === "task_list") return listToMarkdown(node, indent);
@@ -88,7 +93,7 @@ function tableToMarkdown(node: Node): string {
   node.forEach((row) => {
     const cells: string[] = [];
     row.forEach((cell) => {
-      const text = cell.firstChild ? inlineToMarkdown(cell.firstChild) : cell.textContent;
+      const text = childrenOf(cell).map(inlineToMarkdown).join("<br>");
       cells.push(text.replaceAll("|", "\\|").replaceAll("\n", " "));
     });
     rows.push(`| ${cells.join(" | ")} |`);

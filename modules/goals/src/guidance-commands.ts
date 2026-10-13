@@ -42,22 +42,22 @@ export class GuidanceCommands {
     const sourceRefs = unique((input.source_refs ?? []).map((item) => item.trim()).filter(Boolean));
     if (input.user_confirmed !== true) {
       throw this.context.error(
-        "project_guidance.user_confirmation_required",
+        "goals.project_guidance.user_confirmation_required",
         "项目长期说明必须先向用户展示精确分类和原文，并获得明确同意后才能写入",
       );
     }
     if (!isProjectGuidanceKind(kind)) {
-      throw this.context.error("project_guidance.kind_invalid", `不支持的项目说明分类: ${kind}`);
+      throw this.context.error("goals.project_guidance.kind_invalid", `不支持的项目说明分类: ${kind}`);
     }
     if (!content || !reason || !confirmationSummary) {
       throw this.context.error(
-        "project_guidance.invalid",
+        "goals.project_guidance.invalid",
         "项目说明内容、持久化原因和用户确认摘要不能为空",
       );
     }
     if (content.length > PROJECT_GUIDANCE_ENTRY_MAX_CHARS) {
       throw this.context.error(
-        "project_guidance.entry_too_large",
+        "goals.project_guidance.entry_too_large",
         `单条项目说明不能超过 ${PROJECT_GUIDANCE_ENTRY_MAX_CHARS} 个字符`,
       );
     }
@@ -110,7 +110,7 @@ export class GuidanceCommands {
         .reduce((sum, entry) => sum + entry.content.length, 0) + content.length;
       if (totalChars > PROJECT_GUIDANCE_TOTAL_MAX_CHARS) {
         throw this.context.error(
-          "project_guidance.total_too_large",
+          "goals.project_guidance.total_too_large",
           `项目说明总长度不能超过 ${PROJECT_GUIDANCE_TOTAL_MAX_CHARS} 个字符`,
         );
       }
@@ -197,35 +197,35 @@ export class GuidanceCommands {
       : unique(input.source_refs.map((item) => item.trim()).filter(Boolean));
     if (input.user_confirmed !== true) {
       throw this.context.error(
-        "project_guidance.user_confirmation_required",
+        "goals.project_guidance.user_confirmation_required",
         "项目说明修改必须来自用户在当前对话的明确确认，或用户在项目说明页面的直接提交",
       );
     }
     if (!( ["edit", "deactivate", "restore"] as const).includes(action)) {
       throw this.context.error(
-        "project_guidance.action_invalid",
+        "goals.project_guidance.action_invalid",
         `不支持的项目说明操作: ${action}`,
       );
     }
     if (!input.guidance_id.trim() || !reason || !confirmationSummary) {
       throw this.context.error(
-        "project_guidance.invalid",
+        "goals.project_guidance.invalid",
         "项目说明 ID、变更原因和用户确认摘要不能为空",
       );
     }
     if (action === "edit") {
       if (requestedKind == null || !isProjectGuidanceKind(requestedKind)) {
         throw this.context.error(
-          "project_guidance.kind_invalid",
+          "goals.project_guidance.kind_invalid",
           `不支持的项目说明分类: ${requestedKind ?? ""}`,
         );
       }
       if (!requestedContent) {
-        throw this.context.error("project_guidance.invalid", "修改后的项目说明内容不能为空");
+        throw this.context.error("goals.project_guidance.invalid", "修改后的项目说明内容不能为空");
       }
       if (requestedContent.length > PROJECT_GUIDANCE_ENTRY_MAX_CHARS) {
         throw this.context.error(
-          "project_guidance.entry_too_large",
+          "goals.project_guidance.entry_too_large",
           `单条项目说明不能超过 ${PROJECT_GUIDANCE_ENTRY_MAX_CHARS} 个字符`,
         );
       }
@@ -257,18 +257,18 @@ export class GuidanceCommands {
       const current = entries.find((entry) => entry.guidance_id === request.guidance_id);
       if (!current) {
         throw this.context.error(
-          "project_guidance.not_found",
+          "goals.project_guidance.not_found",
           `找不到项目说明: ${request.guidance_id}`,
         );
       }
       if (action === "deactivate" && !current.active) {
-        throw this.context.error("project_guidance.already_inactive", "这条项目说明已经停用");
+        throw this.context.error("goals.project_guidance.already_inactive", "这条项目说明已经停用");
       }
       if (action === "restore" && current.active) {
-        throw this.context.error("project_guidance.already_active", "这条项目说明已经生效");
+        throw this.context.error("goals.project_guidance.already_active", "这条项目说明已经生效");
       }
       if (action === "edit" && !current.active) {
-        throw this.context.error("project_guidance.inactive", "请先恢复这条项目说明，再进行修改");
+        throw this.context.error("goals.project_guidance.inactive", "请先恢复这条项目说明，再进行修改");
       }
 
       const kind = action === "edit" ? requestedKind! : current.kind;
@@ -284,7 +284,7 @@ export class GuidanceCommands {
         content === current.content &&
         JSON.stringify(sourceRefs) === JSON.stringify(current.source_refs)
       ) {
-        throw this.context.error("project_guidance.no_changes", "项目说明没有发生变化");
+        throw this.context.error("goals.project_guidance.no_changes", "项目说明没有发生变化");
       }
       const duplicate = entries.find(
         (entry) =>
@@ -294,7 +294,7 @@ export class GuidanceCommands {
       );
       if (duplicate) {
         throw this.context.error(
-          "project_guidance.duplicate",
+          "goals.project_guidance.duplicate",
           "相同分类和内容的项目说明已经存在",
         );
       }
@@ -303,7 +303,7 @@ export class GuidanceCommands {
         .reduce((sum, entry) => sum + entry.content.length, 0) + (active ? content.length : 0);
       if (totalChars > PROJECT_GUIDANCE_TOTAL_MAX_CHARS) {
         throw this.context.error(
-          "project_guidance.total_too_large",
+          "goals.project_guidance.total_too_large",
           `项目说明总长度不能超过 ${PROJECT_GUIDANCE_TOTAL_MAX_CHARS} 个字符`,
         );
       }

@@ -12,7 +12,7 @@ Desktop 是 Molis Work 在 macOS 上的“外壳和控制台”。它负责开�
 1. Desktop 根据 Runtime 类型生成启动命令和环境变量。
 2. Desktop Panel Service 检查用户确认、工作目录和面板生命周期。
 3. Project/Context port 只负责确认 Project 存在并记录关联；Desktop 不直接读取 Projects Store。
-4. Tauri Adapter 启动 PTY、控制窗口，把输出交还给现有 Workbench 页面。
+4. Work 插件的终端客户端经受保护的 `/pty` WebSocket 调用 Local Host 终端服务；Tauri Adapter 控制窗口和原生入口。
 
 ## 2. 代码各管什么
 
@@ -33,7 +33,7 @@ Desktop 是 Molis Work 在 macOS 上的“外壳和控制台”。它负责开�
 
 - Projects Module 只拥有 Project 身份和正式事实；Desktop Panel 是 App control state，不进入 Projects Module。
 - Private Work Context 拥有 Session 和 Runtime workspace 关联；Desktop 只保存面板到稳定 work context 的别名。
-- Runtime Host 拥有通用 Runtime stream、重连和中断；本地 PTY 通过 Runtime Host 与 Desktop adapter 接入。
+- Runtime Host 拥有通用 Runtime stream、重连和中断；当前工作台终端的连接在 `plugins/native/work/src/terminal/connection.ts`，接 `apps/local-host/src/pty-socket.ts`。Tauri 仍登记原生 PTY 命令，其消费用途与 IPC 可达范围另待实探，不能以登记代替现行动线。
 - Workbench 提供共享页面壳；Desktop Capsule presentation 由 Desktop App 提供，Workbench 组合 read model，Local Host 注入主题与语言。
 - Feed Native Plugin 拥有外部内容脱敏规则；Desktop 推进提示直接调用其公开 API，不复制一份规则。
 
@@ -57,3 +57,11 @@ AP4 保持并迁移了以下既有能力：
 `apps/desktop/src-tauri/` 保留 Cargo/Tauri 发布配置和资源。最终 App、DMG、zip 与 ad-hoc 签名已构建，DMG 安装至临时目录后真实启动、退出并恢复原服务。没有升级现用安装，也未进行 Developer ID 公证或公开发布。
 
 历史分工见 [AP4](../../specs/molis-work-architecture-reorganization/ap4-validation.md)，最终证据见 [Cutover 验证](../../specs/molis-work-architecture-reorganization/cutover-validation.md)。
+
+## 本轮原生修复的验证边界
+
+胶囊的内容高度调用需要 `allow-capsule-window` 中明确允许 `capsule_resize`；窗口和远端来源仍服从原 S-14 配置。配置测试覆盖客户端调用到许可，实际短/长内容的 252–476 高度、菜单栏锚点、屏幕边界与外源/错误窗口拒绝仍要在隔离 Home 的真实构建中验（W2-18-CAPSULE-01/02）。
+
+Shelf 抓网页、收文件的热键在主线程捕获原前台应用；浏览器读取固定到该 bundle，复制事件固定到该 pid。进程、网络、文件 IO 和复制等待在 worker，AppKit 操作与结果呈现回主线程；在途收取不重复启动。文件复制保存所有 pasteboard item/type，读取首次可观察的新版本；没有变化不读取旧文件，恢复只改仍是该捕获版本的板，后来复制优先。完整类型、中文/空格 URL、无复制和交错写入的回归在 `shelf_clipboard_macos.rs`，只使用独立命名板与仓库夹具，不访问用户的 general pasteboard（W2-18-CLIPBOARD-01/02）。
+
+W2-18-HOTKEY-IO-01 的实操需排原生时段：隔离 Home/确认属于夹具的 4173 服务、独立浏览器 profile 中的受控网页和临时文件，令网页请求/automation/Host 响应延迟，检查收取期间 main/Capsule/toggle 仍能响应、结果与原应用一致、超时可读且无重复入库。此实操不得借用真实用户标签、剪贴板、文件或凭据；复制分支只用上述命名板回归。源码移动到 worker、Cargo 编译或普通浏览器测试都不能代替这个窗口响应证据。本轮安装/打包验收另记，历史 AP4 验收不自动覆盖本次修改。

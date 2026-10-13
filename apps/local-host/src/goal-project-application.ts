@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { randomUUID } from "node:crypto";
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
@@ -29,12 +30,11 @@ import {
   GoalReadApplication,
   GoalDecisionAttentionSync,
 } from "@molis-ai/molis-work-plugin-goals";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { LocalProjectDatabase } from "./project-database.js";
 import type { GoalRecord, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
-export { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
+
 
 export type GoalTreeProposalListQuery = import("@molis-ai/molis-work-plugin-goals").GoalTreeProposalListQuery;
 export type GoalTreeProposalListResult = import("@molis-ai/molis-work-plugin-goals").GoalTreeProposalListResult;
@@ -80,7 +80,7 @@ export class GoalProjectApplication {
       db: this.store.db as unknown as ArtifactsSqliteDatabase,
       homeOwner: LOCAL_PERSON_ACTOR_ID,
       now: () => this.clock().toISOString(),
-      errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
+      errorFactory: (code, message, details) => new ActionError(code, message, { details }),
       appendEvent: (input) => this.store.appendEvent(input),
       eventCursor: (projectId) => this.store.eventCursor(projectId),
       declared: builtinTypeDeclared,
@@ -92,7 +92,7 @@ export class GoalProjectApplication {
     const processItemsModule = new ProcessItemsModule({
       db: this.store.db as unknown as ArtifactsSqliteDatabase,
       now: () => this.clock().toISOString(),
-      errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
+      errorFactory: (code, message, details) => new ActionError(code, message, { details }),
       appendEvent: (input) => this.store.appendEvent(input),
       eventCursor: (projectId) => this.store.eventCursor(projectId),
       declared: builtinTypeDeclared,
@@ -101,7 +101,7 @@ export class GoalProjectApplication {
     const governanceModule = new GovernanceCollaborationModule({
       db: this.store.db as unknown as GovernanceSqliteDatabase,
       now: () => this.clock().toISOString(),
-      errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
+      errorFactory: (code, message, details) => new ActionError(code, message, { details }),
     });
     this.governance = {
       provenance: governanceModule.provenance,
@@ -122,7 +122,7 @@ export class GoalProjectApplication {
       },
       {
         now: this.clock,
-        errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
+        errorFactory: (code, message, details, kind) => new ActionError(code, message, { details, kind }),
         personalPlanningMethodPacks: this.personalPlanningMethodPacks,
       },
     );
@@ -142,7 +142,7 @@ export class GoalProjectApplication {
     this.goalTree = new GoalTreeQueryApplication({
       goals: this.goalsModule.query,
       governance: this.governance,
-      errorFactory: (code, message) => new MolisWorkV1Error(code, message),
+      errorFactory: (code, message) => new ActionError(code, message),
     });
     const attention = new AttentionModule(this.store.db, {
       exists: (projectId, subjectType, subjectId) => subjectType === "goal_decision"
@@ -170,15 +170,15 @@ export class GoalProjectApplication {
     this.goalTreeSubmission = new GoalTreeSubmissionApplication({
       goals: { query: this.goalsModule.query, commands: this.goals.commands, planning: this.goals.planning },
       governance: this.governance, query: this.goalTree, clock: this.clock,
-      errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
+      errorFactory: (code, message, details) => new ActionError(code, message, { details }),
       attention: this.goalDecisionAttention,
     });
     this.goalTreeInputs = new GoalTreeInputReader({ commands: this.goals.commands,
-      errorFactory: (code, message) => new MolisWorkV1Error(code, message) });
+      errorFactory: (code, message) => new ActionError(code, message) });
     this.goalTreeFacts = new GoalTreeFactMaterializer(
       { commands: this.goals.commands, query: this.goalsModule.query },
       this.goalTreeInputs,
-      (code, message, details) => new MolisWorkV1Error(code, message, details),
+      (code, message, details) => new ActionError(code, message, { details }),
       (input) => this.goalEvents.createIntent(input),
     );
     this.goalTreeConflicts = new GoalTreeMaterializationConflicts({ query: this.goalsModule.query, planning: this.goals.planning },
@@ -186,13 +186,13 @@ export class GoalProjectApplication {
     this.goalTreeMaterialization = new GoalTreeMaterializationApplication({
       goals: this.goalsModule.query, transactions: this.governance.decisions, facts: this.goalTreeFacts,
       conflicts: this.goalTreeConflicts,
-      isDomainError: (error): error is MolisWorkV1Error => error instanceof MolisWorkV1Error,
+      isDomainError: (error): error is ActionError => error instanceof ActionError,
     });
     this.goalTreeDecisionInputs = new GoalTreeDecisionNormalizer(this.governance.provenance,
-      (code, message) => new MolisWorkV1Error(code, message));
+      (code, message) => new ActionError(code, message));
     this.goalTreeDecisionFollowup = new GoalTreeDecisionFollowup({
       goals: { query: this.goalsModule.query, planning: this.goals.planning }, governance: this.governance,
-      query: this.goalTree, inputs: this.goalTreeInputs, errorFactory: (code, message) => new MolisWorkV1Error(code, message),
+      query: this.goalTree, inputs: this.goalTreeInputs, errorFactory: (code, message) => new ActionError(code, message),
     });
     this.goalQueries = new GoalReadApplication(goalsModule.query, {
       now: () => this.clock(),
@@ -203,15 +203,15 @@ export class GoalProjectApplication {
       goals: { ...this.goals, query: this.goalsModule.query }, governance: this.governance, query: this.goalTree,
       inputs: this.goalTreeInputs, normalizer: this.goalTreeDecisionInputs, conflicts: this.goalTreeConflicts,
       materialization: this.goalTreeMaterialization, followup: this.goalTreeDecisionFollowup, clock: this.clock,
-      errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
-      isDomainError: (error): error is MolisWorkV1Error => error instanceof MolisWorkV1Error,
+      errorFactory: (code, message, details) => new ActionError(code, message, { details }),
+      isDomainError: (error): error is ActionError => error instanceof ActionError,
       attention: this.goalDecisionAttention,
     });
     this.goalTreeCheck = new GoalTreeCheckApplication({
       goals: { query: this.goalsModule.query, planning: this.goals.planning }, governance: this.governance,
       query: this.goalTree, materialization: this.goalTreeMaterialization, clock: this.clock,
-      errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
-      isDomainError: (error): error is MolisWorkV1Error => error instanceof MolisWorkV1Error,
+      errorFactory: (code, message, details) => new ActionError(code, message, { details }),
+      isDomainError: (error): error is ActionError => error instanceof ActionError,
     });
   }
 

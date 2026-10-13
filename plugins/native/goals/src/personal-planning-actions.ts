@@ -1,8 +1,8 @@
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction } from "./action-contract.js";
-import { object, array } from "./event-action-schemas.js";
-import { planningMethodInputSchema, planningMethodSchema } from "./planning-action-schemas.js";
+import { object, array } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { planningMethodInputSchema, planningMethodSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
 function home<I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> {
   return { ...definition, action: { ...definition.action, scope: "home", subject_kinds: ["planning_method"],
@@ -25,7 +25,7 @@ function userAvailability(caller: ActionCallContext): ActionAvailability {
   const proof = caller.user_action;
   return caller.audience === "user" && caller.actor_kind === "user" && caller.actor_id.trim() && proof?.conversation_ref.trim()
     && proof.message_ref.trim() && ["web", "management"].includes(proof.source)
-    ? { available: true } : { available: false, code: "planning.user_required", reason: "个人规划修改需要受保护的用户操作" };
+    ? { available: true } : { available: false, code: "goals.planning.user_required", reason: "个人规划修改需要受保护的用户操作" };
 }
 export function createPersonalPlanningActionHandlers(ports: PersonalPlanningActionPorts): ActionHandlerBinding[] {
   return [

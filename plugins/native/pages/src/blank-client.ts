@@ -32,10 +32,10 @@ export const PAGES_BLANK_CLIENT_SCRIPT = String.raw`
   const savedByPerson = (doc) => { const made = fresh.get(doc.id); if (made && doc.version === made.version + 1) made.version = doc.version; };
   const blank = (node) => node.type === "text" ? !node.text.trim() : ["doc", "paragraph"].includes(node.type) && (node.content || []).every(blank);
   const blankLeaving = () => {
-    const made = selected && fresh.get(selected.id);
+    const made = sel && fresh.get(sel.id);
     if (!made || unshowable || saveTimer || dirty) return null;
     const draft = draftOf();
-    return (!draft.title.trim() || draft.title === made.title) && blank(draft.body) ? { id: selected.id, version: made.version } : null;
+    return (!draft.title.trim() || draft.title === made.title) && blank(draft.body) ? { id: sel.id, version: made.version } : null;
   };
   const dropBlank = async (left, unloading) => {
     if (!left) return;
@@ -52,8 +52,8 @@ export const PAGES_BLANK_CLIENT_SCRIPT = String.raw`
     closeEditor();
     void dropBlank(left, unloading);
   };
-  const leaveOnFold = () => queueMicrotask(() => { if (workbench.getAttribute("data-expanded") === "false") leaveBlank(); });
-  const lifetime = host.mountPluginClient?.(workbench);
+  const leaveOnFold = () => queueMicrotask(() => { if (bench.getAttribute("data-expanded") === "false") leaveBlank(); });
+  const lifetime = host.mountPluginClient?.(bench);
   lifetime?.whenVisible(() => () => { if (lifetime.alive && !document.hidden) leaveBlank(); });
   lifetime?.own(() => leaveBlank(true));
 `;

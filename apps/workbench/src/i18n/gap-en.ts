@@ -604,4 +604,11 @@ export const GAP_EN: Record<string, string> = {
   "显示更多结果": "Show more results",
   "这条内容已被删除或归档，已从结果中移除": "This item was deleted or archived and has been removed from the results",
   "暂时打不开：": "Can't open this right now: ",
+  "返回个人空间与项目": "Back to personal space and projects",
+  "重试启动": "Retry startup",
+  "停用插件": "Disable plugin",
+  "启用插件": "Enable plugin",
+  "插件已停用": "The plugin is disabled",
+  "返回模型设置": "Back to model settings",
+  "插件状态未能更改": "Couldn't change plugin state",
 };

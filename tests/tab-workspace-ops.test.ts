@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { createTabWorkspaceOps } from "../apps/workbench/src/tab-workspace-ops.js";
+import { createTabWorkspaceOps, isCurrentTabWorkspace } from "../apps/workbench/src/tab-workspace-ops.js";
 
 const ops = createTabWorkspaceOps();
 
@@ -231,15 +231,21 @@ test("a split pane can hold the same plugin default the other pane already has",
   assert.equal(ops.openPlugin(state, "goals").id, leftGoals.id);
 });
 
-test("restored mother tabs are dropped", () => {
+test("W1-18-TAB-FORMAT-01: current grouped items and nested panes remain valid after serialization", () => {
   const state = ops.create();
-  const pane = ops.focused(state);
-  pane.tabs.push({ id: "old-mother", plugin: "goals", kind: "mother", title: "画布", preview: true });
-  pane.activeTabId = "old-mother";
-  ops.normalizeLayout(state);
-  assert.equal(pane.tabs.some((tab) => tab.kind === "mother"), false);
-  assert.equal(pane.viewPlugin, "goals");
-  assert.equal(ops.activeTab(state), null);
+  const goal = ops.openItem(state, "goals", "CORE", "Core");
+  ops.addTabToNewGroup(state, state.focusedPaneId, goal.id);
+  ops.toggleGroup(state, state.focusedPaneId, ops.focused(state).groups[0].id);
+  ops.splitPane(state, state.focusedPaneId, "right", "copy");
+  ops.openItem(state, "pages", "DOC", "Document");
+  ops.splitPane(state, state.focusedPaneId, "bottom", "copy");
+  const restored = JSON.parse(JSON.stringify(state));
+  assert.equal(isCurrentTabWorkspace(restored, { home: true, goals: true, pages: true }), true);
+  ops.ensureHome(restored);
+  assert.equal(restored.panes.length, 3);
+  assert.equal(restored.panes[0].groups[0].collapsed, true);
+  assert.equal(ops.activeTab(restored).itemId, "DOC");
+  assert.equal(restored.layout.tree.children[1].children.length, 2);
 });
 
 test("manual groups stay contiguous, collapse is recorded, and pinning leaves the group", () => {
@@ -320,16 +326,17 @@ test("project root landing keeps item tabs", () => {
   assert.equal(ops.focused(state).viewPlugin, "goals");
 });
 
-test("old plugin collapsed maps are discarded and not restored as user groups", () => {
-  const state = ops.create();
-  ops.openPlugin(state, "goals");
-  ops.openItem(state, "goals", "CORE", "Core");
-  const pane = ops.focused(state);
-  pane.collapsed = { goals: true };
-  ops.normalizeLayout(state);
-  assert.equal("collapsed" in pane, false);
-  assert.equal(pane.groups.length, 0);
-  assert.equal(pane.tabs.some((tab) => tab.groupId), false);
+test("W1-18-TAB-FORMAT-01: unsupported saved shapes are rejected instead of becoming current tabs", () => {
+  for (const alter of [
+    state => { state.panes[0].tabs[0].kind = "mother"; },
+    state => { state.panes[0].tabs[0].preview = true; },
+    state => { state.panes[0].collapsed = { goals: true }; },
+    state => { state.panes[0].tabs[0] = { id: "saved", plugin: "task", kind: "item", goalId: "CORE", title: "Core" }; },
+    state => { state.panes[0].tabs[0] = { id: "saved", plugin: "task", kind: "item", itemId: "CORE", title: "Core" }; },
+  ]) {
+    const state = ops.create(); alter(state);
+    assert.equal(isCurrentTabWorkspace(state, { home: true, goals: true }), false);
+  }
 });
 
 test("fresh project-root navigation lands leftover plugin views on home", () => {

@@ -37,7 +37,7 @@ import {
   hashChoiceConfig,
   hashFunctionConfig,
   openFunctionsStore,
-  readChoiceAnswer,
+  readAnswer,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
 import { FunctionsHttpRouteTable } from "../apps/local-host/dist/functions-http/routes.js";
@@ -357,10 +357,10 @@ test("route table lists, previews, publishes, and maps missing functions to 404"
 });
 
 test("TypeSafe choice answers with a null pick are needs_review, not a thrown error", () => {
-  const result = readChoiceAnswer({
+  const result = readAnswer({
     model: "jev-1.13.0",
     answers: { ticket_route: { type: "choice", choice: null, probabilities: { a: 0.5, b: 0.5 } } },
-  }, "ticket_route");
+  }, { primitive: "choice", function_key: "ticket_route", criteria: [{ key: "a", description: "A" }, { key: "b", description: "B" }] });
   assert.equal(result.choice, null);
   assert.equal(result.model, "jev-1.13.0");
 });
@@ -381,7 +381,7 @@ test("the rules page suggests behaviors by the real page rule: destination, vers
   assert.equal(script.split(from).length, 2, "start anchor appears exactly once");
   assert.equal(script.split(to).length, 2, "end anchor appears exactly once");
   const rule = script.slice(script.indexOf(from), script.indexOf(to));
-  const build = (selected: Record<string, unknown> | undefined, catalog: FunctionAuthoringCatalog) => new Function("L", "catalog", "selected", "selectedDestId",
+  const build = (selected: Record<string, unknown> | undefined, catalog: FunctionAuthoringCatalog) => new Function("L", "catalog", "sel", "selectedDestId",
     rule + "\nreturn { suggestedBehaviors, destOf };")((value: string) => value, catalog, selected, () => selected?.scene_id ?? "") as {
     suggestedBehaviors: (destinationId: string, kinds: string[]) => { behavior_id: string; title: string; action_ref?: { capability_id: string } }[];
     destOf: (id: string) => { behavior_ids: string[] } | null;
@@ -421,7 +421,7 @@ test("the rules page suggests behaviors by the real page rule: destination, vers
 });
 
 test("Functions client clears leftover preview text when switching records and hides Noul section chrome", () => {
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const switching = selected\?\.id !== record\.id/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const switching = sel\?\.id !== record\.id/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions\/catalog/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-destination/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-source/);

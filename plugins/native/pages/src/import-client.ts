@@ -1,6 +1,6 @@
 /** Runs inside the Pages client factory and shares its editor/list helpers (and blankLeaving / dropBlank from blank-client.ts). */
 export const PAGES_IMPORT_CLIENT_SCRIPT = String.raw`
-  const importDialog = workbench.querySelector("[data-pages-import-dialog]");
+  const importDialog = bench.querySelector("[data-pages-import-dialog]");
   const importFilesInput = importDialog.querySelector("[data-pages-import-files]");
   const importSource = importDialog.querySelector("[data-pages-import-source]");
   const importFolder = importDialog.querySelector("[data-pages-import-folder]");
@@ -118,7 +118,7 @@ export const PAGES_IMPORT_CLIENT_SCRIPT = String.raw`
   const openImport = async () => {
     closeCreate(); closeMore(); closeMove();
     // A failed save must leave the current page and its editor intact.
-    if (selected) { clearTimeout(saveTimer); await save(); saveTimer = 0; }
+    if (sel) { clearTimeout(saveTimer); await save(); saveTimer = 0; }
     if (!importSubmission || importBlocked || importFinished.length || importProject !== projectId() || importPrefix !== routePrefix()) {
       importProject = projectId(); importPrefix = routePrefix(); importFiles = []; importSubmission = null; importFinished = []; importBlocked = false;
       importFilesInput.value = ""; importDocuments.replaceChildren(); importPreview.hidden = true; importMessage("");
@@ -129,7 +129,7 @@ export const PAGES_IMPORT_CLIENT_SCRIPT = String.raw`
     }
     importHelp(); syncImportControls(); importDialog.showModal();
   };
-  workbench.querySelectorAll("[data-pages-import]").forEach((button) => button.addEventListener("click", () => {
+  bench.querySelectorAll("[data-pages-import]").forEach((button) => button.addEventListener("click", () => {
     void openImport().catch((error) => showNote(error.message || L("保存失败"), true));
   }));
   importSource.addEventListener("change", importHelp);
@@ -169,11 +169,11 @@ export const PAGES_IMPORT_CLIENT_SCRIPT = String.raw`
         + (importBlocked ? "" : " " + L("可重试此批导入，不会重复创建文档。")), true);
     } finally { importBusy = false; syncImportControls(); }
   });
-  importOpen.addEventListener("click", () => {
+  importOpen.addEventListener("click", async () => {
     if (projectId() !== importProject || routePrefix() !== importPrefix) {
       importMessage(L("项目已切换，请在目标项目重新打开导入。"), true); return;
     }
-    if (importFinished[0]) { importDialog.close(); const left = blankLeaving(); openCreated(importFinished[0]); void dropBlank(left); }
+    if (importFinished[0]) { try { const left = blankLeaving(); await openCreated(importFinished[0]); importDialog.close(); void dropBlank(left); } catch (error) { importMessage(error.message || L("保存失败"), true); } }
   });
 `;
 

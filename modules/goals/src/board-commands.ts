@@ -11,7 +11,7 @@ export class MolisWorkCommands {
     idempotency_key: string;
   }): { project_id: string; replayed: boolean; observed_event_cursor: number } {
     if (!input.project_id.trim() || !input.title.trim()) {
-      throw this.context.error("request.invalid", "Board ID 和名称不能为空");
+      throw this.context.error("goals.request.invalid", "Board ID 和名称不能为空");
     }
     const hash = requestHash({ project_id: input.project_id, title: input.title });
     return this.context.repository.immediate(() => {
@@ -25,7 +25,7 @@ export class MolisWorkCommands {
       if (replay) return { ...replay, replayed: true };
 
       const exists = this.context.repository.boardExists(input.project_id);
-      if (exists) throw this.context.error("board.exists", `Board 已存在: ${input.project_id}`);
+      if (exists) throw this.context.error("goals.board.exists", `Board 已存在: ${input.project_id}`);
 
       const at = this.context.now().toISOString();
       this.context.repository.createBoard(input.project_id, input.title.trim(), at);
@@ -71,13 +71,13 @@ export class MolisWorkCommands {
       if (replay) return { ...replay, replayed: true };
       const goal = this.context.requireGoal(projectId, input.goal_id);
       if (goal.trashed_at) {
-        throw this.context.error("goal.trashed", "回收站中的 Goal 需要先恢复，才能设为当前产品目标");
+        throw this.context.error("goals.goal.trashed", "回收站中的 Goal 需要先恢复，才能设为当前产品目标");
       }
       if (goal.archived_at) {
-        throw this.context.error("goal.archived", "已归档 Goal 需要先恢复，才能设为当前产品目标");
+        throw this.context.error("goals.goal.archived", "已归档 Goal 需要先恢复，才能设为当前产品目标");
       }
       if (goal.fulfillment_state === "satisfied") {
-        throw this.context.error("goal.already_satisfied", "已完成的 Goal 不能成为当前进行中的 Goal");
+        throw this.context.error("goals.goal.already_satisfied", "已完成的 Goal 不能成为当前进行中的 Goal");
       }
       const now = this.context.now().toISOString();
       this.context.repository.setActiveGoal(projectId, input.goal_id, now);

@@ -150,8 +150,9 @@ function inspectUpgradeCompatibility(manifest: Record<string, unknown>): void {
 export function comparePluginVersions(left: string, right: string): number {
   const parse = (value: string) => {
     const withoutBuild = value.split("+", 1)[0]!;
-    const [core, prerelease] = withoutBuild.split("-", 2);
-    return { core: core!.split(".").map(BigInt), prerelease: prerelease?.split(".") ?? null };
+    const separator = withoutBuild.indexOf("-");
+    const core = separator < 0 ? withoutBuild : withoutBuild.slice(0, separator);
+    return { core: core.split(".").map(BigInt), prerelease: separator < 0 ? null : withoutBuild.slice(separator + 1).split(".") };
   };
   const a = parse(left), b = parse(right);
   for (let index = 0; index < 3; index += 1) {

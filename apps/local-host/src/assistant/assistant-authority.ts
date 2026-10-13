@@ -5,7 +5,7 @@ import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { ActionError, type ActionCallContext, type ActionReference, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readProjectGuidance } from "../goals-actions.js";
-import { assertActionInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
+import { assertActionCommandInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import type { StoredWork } from "./assistant-store.js";
@@ -100,8 +100,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       check: async (action, input) => {
         const view = (await service().discover(await context(validate))).find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
         if (!view) throw new ActionError("assistant.action_revoked", "这项能力已对助理关闭或不再可用");
-        assertActionInput(view.action.input_schema, input);
-        requireVersionPrecondition(view, input);
+        assertActionCommandInput(view, base(), input);
       },
       invoke: async (action, input, signal) => {
         const caller = await context(validate, signal);
@@ -130,21 +129,6 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       },
     }),
   };
-}
-
-/**
- * A change to an existing object that could carry the revision it was read at must carry it: otherwise it may
- * overwrite what the person (or anything else) changed since. Checked before the person is asked to approve.
- */
-export function requireVersionPrecondition(view: Pick<ActionView, "operation" | "action">, input: unknown): void {
-  if (view.operation !== "command") return;
-  const declared = (view.action.input_schema as { properties?: Record<string, unknown> }).properties ?? {};
-  const field = ["expected_version", "expected_revision"].find(name => name in declared);
-  if (!field || !input || typeof input !== "object") return;
-  const value = (input as Record<string, unknown>)[field];
-  if (value === undefined || value === null || value === "") {
-    throw new ActionError("assistant.version_required", `修改已有对象时要带上读取时的版本（${field}）：先读取它的当前版本再提交，避免覆盖别人在此之后的修改。`);
-  }
 }
 
 /** The project's confirmed guidance as the project layer; personal work and unreadable guidance contribute nothing. */

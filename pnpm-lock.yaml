@@ -238,6 +238,9 @@ importers:
       '@molis-ai/molis-work-app-server':
         specifier: workspace:*
         version: link:apps/server
+      '@molis-ai/molis-work-im-ui':
+        specifier: workspace:*
+        version: link:packages/im-ui
       '@molis-ai/molis-work-server':
         specifier: workspace:*
         version: link:server
@@ -542,6 +545,9 @@ importers:
       '@molis-ai/molis-work-plugin-goals':
         specifier: workspace:*
         version: link:../../plugins/native/goals
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
 
   apps/server:
     dependencies:

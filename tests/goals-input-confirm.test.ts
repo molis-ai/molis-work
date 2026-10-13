@@ -47,7 +47,7 @@ test("a confirmed source becomes the Goal's input receipt, once, under the calle
     await assert.rejects(bound.invoke(goalsActions.inputsConfirm, { ...input, actor_id: "forged" } as never), { code: "actions.input_invalid" });
     await assert.rejects(bound.invoke(goalsActions.inputsConfirm, { ...input, project_id: "foreign" } as never), { code: "actions.input_invalid" });
     await assert.rejects(bound.invoke(goalsActions.inputsConfirm, { ...input, source: { kind: "pages_document", id: "doc" } } as never), { code: "actions.input_invalid" });
-    await assert.rejects(bound.invoke(goalsActions.inputsConfirm, { ...input, goal_id: "MISSING" }), { code: "goal.not_found" });
+    await assert.rejects(bound.invoke(goalsActions.inputsConfirm, { ...input, goal_id: "MISSING" }), { code: "goals.not_found" });
     await assert.rejects(actions.invoke({ ...caller, project_id: "foreign" }, goalsActions.inputsConfirm, input), { code: "actions.scope_mismatch" });
     await assert.rejects(actions.invoke({ ...caller, permissions: ["goals:read"] }, goalsActions.inputsConfirm, input), { code: "actions.forbidden" });
     const runtime = await actions.invoke({ actor_id: "runtime:confirmer", audit_actor_id: "runtime:confirmer:session", runtime_session_id: "session", actor_kind: "runtime",
@@ -126,7 +126,7 @@ test("an input an Agent proposed waits for the person, who alone accepts it, and
     // The receipt is found under its own Goal and is a confirmable source.
     await assert.rejects(asPerson.invoke(goalsActions.inputsAccept, { goal_id: "OTHER-GOAL", binding_id: proposed.binding_id }), { code: "goals.not_found" });
     await assert.rejects(asPerson.invoke(goalsActions.inputsAccept, { goal_id: "ACCEPT-GOAL", binding_id: "no-such-binding" }), { code: "goals.not_found" });
-    await assert.rejects(asPerson.invoke(goalsActions.inputsAccept, { goal_id: "MISSING", binding_id: proposed.binding_id }), { code: "goal.not_found" });
+    await assert.rejects(asPerson.invoke(goalsActions.inputsAccept, { goal_id: "MISSING", binding_id: proposed.binding_id }), { code: "goals.not_found" });
     await assert.rejects(asPerson.invoke(goalsActions.inputsAccept, { goal_id: "ACCEPT-GOAL", binding_id: proposed.binding_id, actor_id: "forged" } as never), { code: "actions.input_invalid" });
 
     // The person accepts it: the receipt is confirmed, with the digest and the proposer's own words kept, and it is the same receipt.

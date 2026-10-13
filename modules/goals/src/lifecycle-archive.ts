@@ -9,11 +9,12 @@ import type {
 
 import { GoalsCommandContext, requestHash } from "./command-support.js";
 import { rowText } from "./repository.js";
+import type { GoalsCommandLifecycleHooks } from "./goal-commands.js";
 
 type Row = Record<string, unknown>;
 
 export class GoalArchiveCommands {
-  constructor(private readonly context: GoalsCommandContext) {}
+  constructor(private readonly context: GoalsCommandContext, private readonly hooks: GoalsCommandLifecycleHooks = {}) {}
 
   setArchived(
     projectId: string,
@@ -32,14 +33,14 @@ export class GoalArchiveCommands {
       if (replay) return { ...replay, replayed: true };
       const goal = this.context.requireGoal(projectId, input.goal_id);
       if (goal.trashed_at) {
-        throw this.context.error("goal.trashed", "回收站中的 Goal 需要先恢复，才能变更归档状态");
+        throw this.context.error("goals.goal.trashed", "回收站中的 Goal 需要先恢复，才能变更归档状态");
       }
       if (input.archived && goal.fulfillment_state !== "satisfied") {
-        throw this.context.error("goal.not_satisfied", "只有已完成的 Goal 可以归档");
+        throw this.context.error("goals.goal.not_satisfied", "只有已完成的 Goal 可以归档");
       }
       if (Boolean(goal.archived_at) === input.archived) {
         throw this.context.error(
-          "goal.archive_state_unchanged",
+          "goals.goal.archive_state_unchanged",
           input.archived ? "Goal 已经归档" : "Goal 当前未归档",
         );
       }
@@ -86,7 +87,7 @@ export class GoalArchiveCommands {
   ): GoalTrashResult & { replayed: boolean; observed_event_cursor: number } {
     const reasonText = input.reason.trim();
     if (!reasonText) {
-      throw this.context.error("goal.trash_reason_required", "移入或恢复回收站时必须说明原因");
+      throw this.context.error("goals.goal.trash_reason_required", "移入或恢复回收站时必须说明原因");
     }
     const hash = requestHash({ project_id: projectId, ...input, reason: reasonText });
     return this.context.repository.immediate(() => {
@@ -194,7 +195,7 @@ export class GoalArchiveCommands {
         ORDER BY trashed_at DESC, trash_record_id DESC LIMIT 1
       `).get(projectId, input.goal_id) as Row | undefined;
       if (!trashRecord) {
-        throw this.context.error("goal.trash_record_missing", "回收站 Goal 缺少可恢复的删除记录");
+        throw this.context.error("goals.goal.trash_record_missing", "回收站 Goal 缺少可恢复的删除记录");
       }
       this.context.repository.db.prepare(`
         UPDATE goals SET trashed_at = NULL, trashed_by = NULL, updated_at = ?
@@ -205,37 +206,7 @@ export class GoalArchiveCommands {
         SET restored_at = ?, restored_by = ?, restore_reason = ?
         WHERE trash_record_id = ?
       `).run(now, write.actor_id, reasonText, rowText(trashRecord.trash_record_id));
-      const recoverableRelations = this.context.repository.db.prepare(`
-        SELECT DISTINCT relation.relation_id, relation.from_goal_id, relation.to_goal_id
-        FROM goal_relations relation
-        JOIN goal_trash_relation_records record ON record.relation_id = relation.relation_id
-        WHERE relation.project_id = ?
-          AND (relation.from_goal_id = ? OR relation.to_goal_id = ?)
-          AND relation.state = 'inactive'
-          AND record.prior_state = 'active'
-          AND record.restored_at IS NULL
-        ORDER BY relation.relation_id
-      `).all(projectId, input.goal_id, input.goal_id) as Row[];
-      const restoredRelationIds: string[] = [];
-      const pendingRelationIds: string[] = [];
-      for (const relation of recoverableRelations) {
-        const relationId = rowText(relation.relation_id);
-        const availableEndpoints = this.context.repository.db.prepare(`
-          SELECT goal_id FROM goals
-          WHERE project_id = ? AND goal_id IN (?, ?) AND trashed_at IS NULL
-        `).all(projectId, rowText(relation.from_goal_id), rowText(relation.to_goal_id)) as Row[];
-        if (availableEndpoints.length !== 2) {
-          pendingRelationIds.push(relationId);
-          continue;
-        }
-        this.context.repository.db
-          .prepare("UPDATE goal_relations SET state = 'active', deactivated_at = NULL WHERE relation_id = ?")
-          .run(relationId);
-        this.context.repository.db
-          .prepare("UPDATE goal_trash_relation_records SET restored_at = ? WHERE relation_id = ? AND restored_at IS NULL")
-          .run(now, relationId);
-        restoredRelationIds.push(relationId);
-      }
+      const { restoredRelationIds, pendingRelationIds } = this.restoreRelations(projectId, input.goal_id, now);
       const cursor = this.context.repository.appendEvent({
         eventId: randomUUID(),
         projectId,
@@ -263,6 +234,46 @@ export class GoalArchiveCommands {
       this.context.remember(projectId, write.actor_id, "set_goal_trashed", write.idempotency_key, hash, outcome, now);
       return { ...outcome, replayed: false };
     });
+  }
+
+  private restoreRelations(projectId: string, goalId: string, now: string) {
+    const recoverableRelations = this.context.repository.db.prepare(`
+      SELECT DISTINCT relation.relation_id, relation.from_goal_id, relation.to_goal_id
+      FROM goal_relations relation
+      JOIN goal_trash_relation_records record ON record.relation_id = relation.relation_id
+      WHERE relation.project_id = ?
+        AND (relation.from_goal_id = ? OR relation.to_goal_id = ?)
+        AND relation.state = 'inactive'
+        AND record.prior_state = 'active'
+        AND record.restored_at IS NULL
+      ORDER BY relation.relation_id
+    `).all(projectId, goalId, goalId) as Row[];
+    const restoredRelationIds: string[] = [];
+    const pendingRelationIds: string[] = [];
+    for (const relation of recoverableRelations) {
+      const relationId = rowText(relation.relation_id);
+      const availableEndpoints = this.context.repository.db.prepare(`
+        SELECT goal_id FROM goals
+        WHERE project_id = ? AND goal_id IN (?, ?) AND trashed_at IS NULL
+      `).all(projectId, rowText(relation.from_goal_id), rowText(relation.to_goal_id)) as Row[];
+      if (availableEndpoints.length !== 2) {
+        pendingRelationIds.push(relationId);
+        continue;
+      }
+      const original = this.context.repository.getRelation(projectId, relationId)!;
+      if (["part_of", "depends_on"].includes(original.type)) {
+        const issue = this.hooks.validateRelationGraph?.(projectId, { ...original, state: "active" });
+        if (issue) throw this.context.error(issue.code, issue.message);
+      }
+      this.context.repository.db
+        .prepare("UPDATE goal_relations SET state = 'active', deactivated_at = NULL WHERE relation_id = ?")
+        .run(relationId);
+      this.context.repository.db
+        .prepare("UPDATE goal_trash_relation_records SET restored_at = ? WHERE relation_id = ? AND restored_at IS NULL")
+        .run(now, relationId);
+      restoredRelationIds.push(relationId);
+    }
+    return { restoredRelationIds, pendingRelationIds };
   }
 
   listTrashed(projectId: string): GoalRecord[] {

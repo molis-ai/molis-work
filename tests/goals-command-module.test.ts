@@ -88,7 +88,7 @@ test("Goals public Command API owns Goal, relation, and Guidance writes", () => 
         reason: "重复关系",
       }, { actor_id: "user-1", idempotency_key: "duplicate-relation" }),
       (error: unknown) =>
-        error instanceof GoalsCommandError && error.code === "relation.already_exists",
+        error instanceof GoalsCommandError && error.code === "goals.relation.already_exists",
     );
   } finally {
     store.close();
@@ -111,7 +111,7 @@ test("Goals public Lifecycle API owns archive and trash", () => {
     assert.equal(initialized.replayed, false);
     assert.deepEqual(goals.commands.initializeBoard(initialize), { ...initialized, replayed: true });
     assert.throws(() => goals.commands.initializeBoard({ ...initialize, title: "Changed" }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "request.idempotency_key_reused");
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.request.idempotency_key_reused");
     assert.equal(goals.query.getBoard("board-lifecycle")?.title, "Goals Lifecycle");
     assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE project_id = ? AND type = 'board.created'")
       .get("board-lifecycle")?.count, 1, "retry does not duplicate the Board event");

@@ -13,9 +13,9 @@ export class PersonalPlanningActions {
       definitions: PERSONAL_PLANNING_ACTIONS,
       handlers: createPersonalPlanningActionHandlers({ list: () => resolvePlanningMethodPacks(read()),
         saveAvailability: () => this.withCatalog ? { available: true }
-          : { available: false, code: "planning.catalog_unavailable", reason: "个人规划的 Catalog 写入服务尚未装配" },
+          : { available: false, code: "goals.planning.catalog_unavailable", reason: "个人规划的 Catalog 写入服务尚未装配" },
         save: async method => {
-          if (!this.withCatalog) throw new ActionError("planning.catalog_unavailable", "个人规划的 Catalog 写入服务尚未装配");
+          if (!this.withCatalog) throw new ActionError("goals.planning.catalog_unavailable", "个人规划的 Catalog 写入服务尚未装配");
           return this.withCatalog({ homeDirectory: this.home }, catalog => catalog.personalPlanningMethods.save(method, new Date().toISOString()));
         },
       }),

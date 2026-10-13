@@ -26,7 +26,7 @@ export class GoalTreeDecisionFollowup {
       structural_validation: "passed",
       status: required ? "required" : "not_required",
       next_action: required ? "review_affected_subgraph" : "continue",
-      review_action: { capability_id: "goals.planning.impact", version: 1 },
+      review_action: { capability_id: "goals.planning.impact", version: 2 },
       canonical_changes_require_new_user_confirmation: true,
     };
   }
@@ -44,7 +44,7 @@ export class GoalTreeDecisionFollowup {
     for (const revision of revisions) {
       if (itemIds.has(revision.revised_item.item_id)) {
         throw this.ports.errorFactory(
-          "goal_tree_proposal.revision_item_id_duplicate",
+          "goals.goal_tree_proposal.revision_item_id_duplicate",
           "同一份修订提案中的新 item_id 不能重复",
         );
       }
@@ -54,7 +54,7 @@ export class GoalTreeDecisionFollowup {
       );
       if (existing) {
         throw this.ports.errorFactory(
-          "goal_tree_proposal.revision_item_id_exists",
+          "goals.goal_tree_proposal.revision_item_id_exists",
           "修订条目必须使用新的稳定 item_id",
         );
       }

@@ -2,6 +2,7 @@ import type { FormRecord, FormSubmissionRecord } from "@molis-ai/molis-work-cont
 
 /** What an exported fill page writes and `form.answers.import` reads back. */
 export const FORM_ANSWER_FORMAT = "molis.form.answer.v1";
+export const FORM_ANSWER_LIMIT = 4000;
 
 const esc = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 /** JSON that can sit inside a <script> element without ending it. */
@@ -22,7 +23,7 @@ export function formFillPageHtml(form: FormRecord): string {
 @media (prefers-color-scheme:dark){:root{--ink:#f2f3f5;--muted:#9a9ea6;--line:#34363c;--paper:#18191b;--page:#0f1011;--accent:#8b93f1}}
 *{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif}
 main{max-width:640px;margin:32px auto;padding:0 16px}.sheet{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:28px}
-h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}.q{margin:0 0 20px}.q>span{display:block;font-weight:600;margin-bottom:8px}
+h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}.q{margin:0 0 20px}.q>:first-child{display:block;font-weight:600;margin-bottom:8px}
 .opts{display:grid;gap:6px}.opts label{display:flex;gap:8px;align-items:center}input[type=text],input[type=date],select,textarea{width:100%;font:inherit;color:inherit;background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 .rating{display:flex;gap:14px}.req{color:#c0392b}button{font:inherit;border:0;border-radius:8px;padding:10px 18px;background:var(--accent);color:#fff;cursor:pointer}
 .error{color:#c0392b;min-height:1.4em}.done{display:none}.done.on{display:block}.foot{margin-top:16px;font-size:12px;color:var(--muted)}
@@ -36,7 +37,7 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
 (function(){
   var data = JSON.parse(document.getElementById("form-data").textContent);
   // Whoever fills it in may not read the author's language: a browser not set to Chinese gets English.
-  var en = !/^zh/i.test(navigator.language || "") ? { title: "Form", untitled: "(Untitled question)", missing: "A required question is still empty: ", file: " · answers · ",
+  var en = !/^zh/i.test(navigator.language || "") ? { title: "Form", untitled: "(Untitled question)", required: "(Required)", missing: "A required question is still empty: ", tooLong: "Keep each answer within ${FORM_ANSWER_LIMIT} characters: ", file: " · answers · ",
     go: "Save my answers", h: "When you finish, an answer file (.json) is saved. Send it back to whoever asked; this page uploads nothing.",
     okt: "Answer file saved", okd: "Send the file you just downloaded back to whoever asked. To change an answer, fill it in again and save another; each file counts once when it is imported.",
     again: "Fill in again", foot: "Molis Work form · filled in your browser, no account needed" } : null;
@@ -46,9 +47,10 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
   document.getElementById("t").textContent = data.title || say("title", "问卷");
   document.getElementById("d").textContent = data.description || "";
   var el = function(tag, text){ var node = document.createElement(tag); if (text) node.textContent = text; return node; };
-  data.questions.forEach(function(q){
+  data.questions.forEach(function(q, index){
     var box = el("div"); box.className = "q"; box.dataset.id = q.id; box.dataset.type = q.type; box.dataset.required = q.required ? "1" : "";
-    var label = el("span", q.title || say("untitled", "（未命名题目）")); if (q.required) { var star = el("b", " *"); star.className = "req"; label.appendChild(star); } box.appendChild(label);
+    var label = el(q.type === "singleChoice" || q.type === "multiChoice" || q.type === "rating" ? "span" : "label", q.title || say("untitled", "（未命名题目）")); label.id = "question-" + index; box.setAttribute("role", q.type === "singleChoice" || q.type === "rating" ? "radiogroup" : "group"); box.setAttribute("aria-labelledby", label.id); if (box.getAttribute("role") === "radiogroup") box.setAttribute("aria-required", String(q.required));
+    if (q.required) { var star = el("b", " " + say("required", "（必填）")); star.className = "req"; label.appendChild(star); } box.appendChild(label);
     if (q.type === "singleChoice" || q.type === "multiChoice") {
       var opts = el("div"); opts.className = "opts";
       (q.options || []).forEach(function(o){ var l = el("label"); var i = el("input"); i.type = q.type === "multiChoice" ? "checkbox" : "radio"; i.name = q.id; i.value = o.label; l.appendChild(i); l.appendChild(document.createTextNode(o.label)); opts.appendChild(l); });
@@ -60,10 +62,11 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
     } else {
       var t = el("input"); t.type = q.type === "date" ? "date" : "text"; t.name = q.id; box.appendChild(t);
     }
+    [].forEach.call(box.querySelectorAll("input[type=text],input[type=date],select"), function(input){ input.id = label.id + "-input"; label.htmlFor = input.id; input.setAttribute("aria-labelledby", label.id); input.setAttribute("aria-required", String(q.required)); if (input.type === "text") input.maxLength = ${FORM_ANSWER_LIMIT}; });
     qs.appendChild(box);
   });
   var answers = function(){
-    var out = {};
+    var out = Object.create(null);
     [].forEach.call(qs.querySelectorAll(".q"), function(box){
       var id = box.dataset.id, type = box.dataset.type;
       if (type === "multiChoice") out[id] = [].map.call(box.querySelectorAll("input:checked"), function(i){ return i.value; }).join(String.fromCharCode(10));
@@ -78,6 +81,8 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
     var value = answers();
     var missing = data.questions.filter(function(q){ return q.required && !value[q.id]; });
     if (missing.length) { error.textContent = say("missing", "还有必填题没填：") + missing[0].title; return; }
+    var oversized = data.questions.find(function(q){ return value[q.id].trim().length > ${FORM_ANSWER_LIMIT}; });
+    if (oversized) { error.textContent = say("tooLong", "每题回答最多 ${FORM_ANSWER_LIMIT} 个字：") + oversized.title; return; }
     error.textContent = "";
     var answer = { format: data.format, form_id: data.form_id, form_version: data.form_version, answer_id: uuid(), submitted_at: new Date().toISOString(), questions: data.questions, answers: value };
     var blob = new Blob([JSON.stringify(answer, null, 2)], { type: "application/json" });

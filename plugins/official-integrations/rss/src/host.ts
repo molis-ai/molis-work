@@ -3,6 +3,9 @@ import type { SearchHostTransportPort } from "@adeptify/search-evidence-layer/ho
 import { isCustomRssFeedUrl, isDisallowedResolvedAddress } from "./custom-rss.js";
 import { classifyFeedBody } from "./feed-body.js";
 import { extractRssDocumentMetadata, type RssFetchReceipt } from "./http-state.js";
+import { isIP } from "node:net";
+import { assertRssDirectConnection, readPinnedRssResponse } from "./pinned-request.js";
+import { rssError } from "./errors.js";
 type FetchPort = (input: string | URL, init?: RequestInit) => Promise<Response>;
 const MAX_FEED_BYTES = 2 * 1024 * 1024;
 const MAX_REDIRECTS = 2;
@@ -23,6 +26,7 @@ export function createAllowlistedRssTransport(
   const lookupHost = options.lookup ?? lookupPublicAddresses;
   return {
     async execute(call) {
+      call.signal.throwIfAborted();
       if (
         call.binding.providerId !== "rss" ||
         call.request.providerId !== "rss" ||
@@ -43,7 +47,7 @@ export function createAllowlistedRssTransport(
         throw searchPolicyError();
       }
       const initialHost = new URL(current).hostname.toLowerCase();
-      if (customPublicFeed) await assertResolvedHostIsPublic(initialHost, lookupHost);
+      if (customPublicFeed) assertRssDirectConnection();
 
       for (let redirect = 0; redirect <= MAX_REDIRECTS; redirect += 1) {
         const headers: Record<string, string> = {
@@ -52,13 +56,19 @@ export function createAllowlistedRssTransport(
         };
         if (options.conditional?.etag) headers["If-None-Match"] = options.conditional.etag;
         if (options.conditional?.lastModified) headers["If-Modified-Since"] = options.conditional.lastModified;
-        const response = await fetchPort(current, {
+        call.signal.throwIfAborted();
+        const pinned = customPublicFeed ? await checkedAddress(initialHost, lookupHost, call.signal) : undefined;
+        const result = pinned ? await readPinnedRssResponse({ url: new URL(current), ...pinned, headers, signal: call.signal, limit: MAX_FEED_BYTES,
+          consume: response => readBoundedResponse(response, MAX_FEED_BYTES) }) : undefined;
+        const response = result?.response ?? await fetchPort(current, {
           method: "GET",
           redirect: "manual",
           signal: call.signal,
           headers,
         });
+        call.signal.throwIfAborted();
         if (isRedirect(response.status)) {
+          await response.body?.cancel();
           const location = response.headers.get("location");
           if (!location || redirect === MAX_REDIRECTS) return { status: response.status, body: "" };
           const next = normalizeFeedUrl(new URL(location, current).toString());
@@ -67,12 +77,12 @@ export function createAllowlistedRssTransport(
           if (youtubePublicFeed && options.isPublicChannelFeed?.(next) !== true) throw searchPolicyError();
           if (customPublicFeed) {
             if (nextHost !== initialHost || !isCustomRssFeedUrl(next)) throw searchPolicyError();
-            await assertResolvedHostIsPublic(nextHost, lookupHost);
           }
           current = next;
           continue;
         }
         if (response.status === 304) {
+          await response.body?.cancel();
           options.onReceipt?.({
             status: 304,
             not_modified: true,
@@ -85,8 +95,9 @@ export function createAllowlistedRssTransport(
             body: { body: "<rss version=\"2.0\"><channel><title>Not modified</title><link>https://example.invalid/</link></channel></rss>" },
           };
         }
-        if (!response.ok) return { status: response.status, body: "" };
-        const bodyText = await readBoundedResponse(response, MAX_FEED_BYTES);
+        if (!response.ok) { await response.body?.cancel(); return { status: response.status, body: "" }; }
+        const bodyText = result?.body ?? await readBoundedResponse(response, MAX_FEED_BYTES);
+        call.signal.throwIfAborted();
         const classification = classifyFeedBody(bodyText, response.headers.get("content-type"));
         if (classification.class !== "rss_xml") {
           throw new SearchError({
@@ -142,25 +153,43 @@ async function lookupPublicAddresses(hostname: string): Promise<readonly string[
   return (await dns.lookup(hostname, { all: true, verbatim: true })).map((record) => record.address);
 }
 
-async function assertResolvedHostIsPublic(
+async function checkedAddress(
   hostname: string,
   lookup: (hostname: string) => Promise<readonly string[]>,
-): Promise<void> {
+  signal: AbortSignal,
+): Promise<{ address: string; family: 4 | 6 }> {
+  signal.throwIfAborted();
   let addresses: readonly string[];
   try {
-    addresses = await lookup(hostname);
+    addresses = await new Promise<readonly string[]>((resolve, reject) => {
+      const finish = (error: unknown, value?: readonly string[]) => {
+        signal.removeEventListener("abort", abort);
+        if (error !== undefined) reject(error); else resolve(value!);
+      };
+      const abort = () => finish(signal.reason);
+      signal.addEventListener("abort", abort, { once: true });
+      void Promise.resolve().then(() => { signal.throwIfAborted(); return lookup(hostname); })
+        .then(value => finish(undefined, value), error => finish(error)).catch(reject);
+      if (signal.aborted) abort();
+    });
   } catch {
+    if (signal.aborted) throw signal.reason;
     throw feedUnavailableError();
   }
+  signal.throwIfAborted();
   if (addresses.length === 0 || addresses.some(isDisallowedResolvedAddress)) {
     throw searchPolicyError();
   }
+  const address = addresses[0]!, family = isIP(address);
+  if (family !== 4 && family !== 6) throw searchPolicyError();
+  return { address, family };
 }
 
 async function readBoundedResponse(response: Response, limit: number): Promise<string> {
   const declaredLength = Number(response.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > limit) {
-    throw new Error("feed response exceeds local ingest limit");
+    await response.body?.cancel();
+    throw rssError("content_too_large");
   }
   if (!response.body) return "";
   const reader = response.body.getReader();
@@ -173,7 +202,7 @@ async function readBoundedResponse(response: Response, limit: number): Promise<s
       bytes += value.byteLength;
       if (bytes > limit) {
         await reader.cancel();
-        throw new Error("feed response exceeds local ingest limit");
+        throw rssError("content_too_large");
       }
       chunks.push(value);
     }
@@ -184,20 +213,9 @@ async function readBoundedResponse(response: Response, limit: number): Promise<s
 }
 
 function searchPolicyError(): SearchError {
-  return new SearchError({
-    code: "provider_protocol_invalid",
-    retryable: false,
-    sideEffectState: "none",
-    recoveryAction: "none",
-  });
+  return rssError("provider_protocol_invalid");
 }
 
 function feedUnavailableError(): SearchError {
-  return new SearchError({
-    code: "feed_unavailable",
-    retryable: false,
-    sideEffectState: "none",
-    recoveryAction: "none",
-    safeContext: { providerId: "rss" },
-  });
+  return rssError("feed_unavailable");
 }

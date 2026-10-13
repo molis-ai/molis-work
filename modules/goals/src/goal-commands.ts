@@ -49,7 +49,7 @@ export class GoalCommands {
       this.context.requireBoard(projectId);
       const goalId = input.goal_id?.trim() || `goal-${randomUUID()}`;
       if (repository.getGoal(goalId)) {
-        throw this.context.error("goal.exists", `Goal 已存在: ${goalId}`);
+        throw this.context.error("goals.goal.exists", `Goal 已存在: ${goalId}`);
       }
       const at = this.context.now().toISOString();
       const definitionState = input.definition_state ?? "draft";
@@ -104,7 +104,7 @@ export class GoalCommands {
       this.context.requireNonTrashedGoal(projectId, input.from_goal_id);
       this.context.requireNonTrashedGoal(projectId, input.to_goal_id);
       if (input.from_goal_id === input.to_goal_id) {
-        throw this.context.error("relation.self_reference", "Goal 不能关联到自身");
+        throw this.context.error("goals.relation.self_reference", "Goal 不能关联到自身");
       }
       if ((input.state ?? "active") === "active" && ["part_of", "depends_on"].includes(input.type)) {
         const issue = this.lifecycle.validateRelationGraph?.(projectId, input);
@@ -112,7 +112,7 @@ export class GoalCommands {
       }
       const relationReason = input.reason.trim();
       if (!relationReason) {
-        throw this.context.error("relation.reason_required", "关系必须说明建立原因");
+        throw this.context.error("goals.relation.reason_required", "关系必须说明建立原因");
       }
       const alreadyActive = repository.db.prepare(`
         SELECT relation_id FROM goal_relations
@@ -127,7 +127,7 @@ export class GoalCommands {
       );
       if (alreadyActive) {
         throw this.context.error(
-          "relation.already_exists",
+          "goals.relation.already_exists",
           input.state === "proposed" ? "这条待确认关系已经存在" : "这条关系已经生效",
         );
       }
@@ -182,7 +182,7 @@ export class GoalCommands {
     const reasonText = input.reason.trim();
     if (!reasonText) {
       throw this.context.error(
-        "relation.deactivation_reason_required",
+        "goals.relation.deactivation_reason_required",
         "解除关系时必须说明原因",
       );
     }
@@ -197,10 +197,10 @@ export class GoalCommands {
       this.context.requireBoard(projectId);
       const relation = repository.getRelation(projectId, input.relation_id);
       if (!relation) {
-        throw this.context.error("relation.not_found", `找不到关系: ${input.relation_id}`);
+        throw this.context.error("goals.relation.not_found", `找不到关系: ${input.relation_id}`);
       }
       if (relation.state !== "active") {
-        throw this.context.error("relation.not_active", "只有正在生效的关系可以解除");
+        throw this.context.error("goals.relation.not_active", "只有正在生效的关系可以解除");
       }
       const at = this.context.now().toISOString();
       repository.db.prepare(`
@@ -239,25 +239,25 @@ export class GoalCommands {
 
   validateGoalInput(input: CreateGoalInput): void {
     if (!input.title?.trim()) {
-      throw this.context.error("goal.title_required", "Goal 必须有名称");
+      throw this.context.error("goals.goal.title_required", "Goal 必须有名称");
     }
     const reviewStatus = input.decomposition_review?.status;
     if (reviewStatus != null && !(goalDecompositionReviewStatuses as readonly string[]).includes(reviewStatus)) {
       throw this.context.error(
-        "goal.decomposition_review_invalid",
+        "goals.goal.decomposition_review_invalid",
         `拆分评审的状态只能是 ${goalDecompositionReviewStatuses.join("、")} 之一，收到「${String(reviewStatus)}」`,
       );
     }
     for (const criterion of input.acceptance_criteria) {
       if (!criterion.statement.trim() || !criterion.pass_condition.trim()) {
         throw this.context.error(
-          "goal.acceptance_invalid",
+          "goals.goal.acceptance_invalid",
           "每条验收条件都要说明检查什么和怎样算通过",
         );
       }
       if (!(goalDecisionMethods as readonly string[]).includes(criterion.decision_method)) {
         throw this.context.error(
-          "goal.acceptance_invalid",
+          "goals.goal.acceptance_invalid",
           `验收条件的判断方式只能是 ${goalDecisionMethods.join("、")} 之一，收到「${String(criterion.decision_method)}」`,
         );
       }

@@ -2,44 +2,44 @@
 // Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `fixedCell`: A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name. `molis:placement-changed`: Moved or copied from the placement bar: this list changed; a deck moved away is no longer here to edit.
 export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
-  const workbench = document.querySelector("[data-ppt=workbench]");
-  if (!workbench) return;
-  const list = workbench.querySelector("[data-ppt=directory]");
-  const rowsEl = workbench.querySelector("[data-ppt-rows]");
-  const empty = workbench.querySelector("[data-ppt-empty]");
-  const workspace = workbench.querySelector("[data-ppt-stage-workspace]");
-  const titleEl = workbench.querySelector("[data-ppt-editor-title]");
-  const statusEl = workbench.querySelector("[data-ppt-editor-status]");
-  const titleInput = workbench.querySelector("[data-ppt-title]");
-  const descriptionInput = workbench.querySelector("[data-ppt-description]");
-  const colorPrimary = workbench.querySelector("[data-ppt-color-primary]");
-  const colorBackground = workbench.querySelector("[data-ppt-color-background]");
-  const colorText = workbench.querySelector("[data-ppt-color-text]");
-  const slideList = workbench.querySelector("[data-ppt-slide-list]");
-  const slideTitle = workbench.querySelector("[data-ppt-slide-title]");
-  const slideBullets = workbench.querySelector("[data-ppt-slide-bullets]");
-  const slideNotes = workbench.querySelector("[data-ppt-slide-notes]");
-  const previewEl = workbench.querySelector("[data-ppt-preview]");
-  const note = workbench.querySelector("[data-ppt-note]");
-  const confirmDialog = workbench.querySelector("[data-ppt-confirm]");
+  const bench = document.querySelector("[data-ppt=workbench]");
+  if (!bench) return;
+  const list = bench.querySelector("[data-ppt=directory]");
+  const rowsEl = bench.querySelector("[data-ppt-rows]");
+  const empty = bench.querySelector("[data-ppt-empty]");
+  const workspace = bench.querySelector("[data-ppt-stage-workspace]");
+  const titleEl = bench.querySelector("[data-ppt-editor-title]");
+  const statusEl = bench.querySelector("[data-ppt-editor-status]");
+  const titleInput = bench.querySelector("[data-ppt-title]");
+  const descriptionInput = bench.querySelector("[data-ppt-description]");
+  const colorPrimary = bench.querySelector("[data-ppt-color-primary]");
+  const colorBackground = bench.querySelector("[data-ppt-color-background]");
+  const colorText = bench.querySelector("[data-ppt-color-text]");
+  const slideList = bench.querySelector("[data-ppt-slide-list]");
+  const slideTitle = bench.querySelector("[data-ppt-slide-title]");
+  const slideBullets = bench.querySelector("[data-ppt-slide-bullets]");
+  const slideNotes = bench.querySelector("[data-ppt-slide-notes]");
+  const previewEl = bench.querySelector("[data-ppt-preview]");
+  const note = bench.querySelector("[data-ppt-note]");
+  const confirmDialog = bench.querySelector("[data-ppt-confirm]");
   let records = [];
   let aiAvailable = false, aiUnavailableReason = "";
-  let selected = null;
-  let currentSlideId = "";
+  let sel = null;
+  let slideKey = "";
   let saveTimer = 0;
-  let editRevision = 0;
-  let savedRevision = 0;
+  let editRev = 0;
+  let savedRev = 0;
   let savePromise = null;
   /** Tell the workbench what just happened, so it can say where the result is and what comes next. */
   const placed = (detail) => { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); };
   /** The deck on screen, for the placement bar and the Assistant: identity, version, unsaved edits. */
   const publishContext = () => {
     const context = { plugin_id: "io.molis.work.ppt", surface_title: "PPT" };
-    if (selected) {
-      context.object = { kind: "presentation", id: selected.id, version: selected.version, title: titleInput.value || selected.title };
-      if (editRevision > savedRevision || saveError) context.unsaved = true;
+    if (sel) {
+      context.object = { kind: "presentation", id: sel.id, version: sel.version, title: titleInput.value || sel.title };
+      if (editRev > savedRev || saveError) context.unsaved = true;
     }
-    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
+    bench.setAttribute("data-assistant-context", JSON.stringify(context));
   };
   const slideNode = (record, slide, index) => {
     const card = document.createElement("article");
@@ -92,8 +92,8 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       watchSurface?.disconnect();
       if (document.fullscreenElement === stage) document.exitFullscreen().catch(() => {});
       stage.remove();
-      currentSlideId = slides[index].id;
-      if (selected && selected.id === record.id) { renderSlideList(selected); fillSlideFields(currentSlide()); renderPreview(liveRecord()); }
+      slideKey = slides[index].id;
+      if (sel && sel.id === record.id) { renderSlideList(sel); fillSlideFields(currentSlide()); paintView(liveRecord()); }
     };
     const key = (event) => {
       if (["ArrowRight", "ArrowDown", "PageDown", " ", "Enter"].includes(event.key)) index = Math.min(slides.length - 1, index + 1);
@@ -110,7 +110,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     document.addEventListener("keydown", key, true);
     // Switching to another plugin hides this surface; the show must not stay on top of the next one.
     // The surface hides through an ancestor (the tab workspace pool), so visibility is what to watch.
-    watchSurface = { timer: setInterval(() => { if (!workbench.isConnected || (workbench.checkVisibility && !workbench.checkVisibility())) leave(); }, 250), disconnect() { clearInterval(this.timer); } };
+    watchSurface = { timer: setInterval(() => { if (!bench.isConnected || (bench.checkVisibility && !bench.checkVisibility())) leave(); }, 250), disconnect() { clearInterval(this.timer); } };
     draw();
     document.body.append(stage);
     stage.focus();
@@ -185,11 +185,11 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!id) throw new Error(L("缺少项目"));
     return path + (path.includes("?") ? "&" : "?") + "project_id=" + encodeURIComponent(id);
   };
-  const request = async (method, path, body) => {
+  const request = async (method, path, body, signal) => {
     const payloadBody = body === undefined ? undefined : { ...body, project_id: projectId() };
     const response = await fetch(withProject(path), {
       method,
-      headers: headers(),
+      headers: headers(), signal,
       body: payloadBody === undefined || method === "GET" ? undefined : JSON.stringify(payloadBody),
     });
     const payload = await response.json().catch(() => ({}));
@@ -217,12 +217,12 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   const paintPages = (record) => {
     if (!statusEl) return;
     statusEl.className = "mw-status mw-status--" + (saveError ? "blocked" : "quiet");
-    const state = saveError ? L("保存失败") : savePromise ? L("保存中") : editRevision > savedRevision ? L("尚未保存") : busy ? L("处理中") : L("已保存");
+    const state = saveError ? L("保存失败") : savePromise ? L("保存中") : editRev > savedRev ? L("尚未保存") : busy ? L("处理中") : L("已保存");
     statusEl.textContent = (record.slides || []).length + " " + L("页") + " · " + state;
-    const pending = workbench.querySelector("[data-ppt-publication-note]");
+    const pending = bench.querySelector("[data-ppt-publication-note]");
     pending.hidden = !record.publication_pending;
     pending.textContent = record.publication_pending ? L("上次固定版本还没存完。恢复会使用上次的固定内容，之后的编辑可以再存一版。") : "";
-    if (selected && selected.id === record.id) publishContext();
+    if (sel && sel.id === record.id) publishContext();
   };
   const ask = (message, okLabel) => new Promise((resolve) => {
     if (!confirmDialog) { resolve(false); return; }
@@ -236,10 +236,10 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     confirmDialog.addEventListener("close", onClose);
     confirmDialog.showModal();
   });
-  const currentSlide = () => (selected?.slides || []).find((slide) => slide.id === currentSlideId) || selected?.slides?.[0];
+  const currentSlide = () => (sel?.slides || []).find((slide) => slide.id === slideKey) || sel?.slides?.[0];
   const slidesFromEditor = () => {
-    const slides = [...(selected?.slides || [])];
-    const index = slides.findIndex((slide) => slide.id === currentSlideId);
+    const slides = [...(sel?.slides || [])];
+    const index = slides.findIndex((slide) => slide.id === slideKey);
     if (index < 0) return slides;
     slides[index] = {
       ...slides[index],
@@ -259,7 +259,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const liveRecord = () => ({
-    ...selected,
+    ...sel,
     title: titleInput.value,
     description: descriptionInput.value,
     color_primary: colorOf(colorPrimary),
@@ -267,11 +267,11 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     color_text: colorOf(colorText),
     slides: slidesFromEditor(),
   });
-  const renderPreview = (record) => {
+  const paintView = (record) => {
     previewEl.replaceChildren();
     (record.slides || []).forEach((slide, index) => {
       const card = document.createElement("article");
-      card.className = "ppt-card" + (slide.id === currentSlideId ? " is-current" : "");
+      card.className = "ppt-card" + (slide.id === slideKey ? " is-current" : "");
       card.style.background = record.color_background;
       card.style.color = record.color_text;
       card.style.borderColor = record.color_primary;
@@ -310,7 +310,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     slideList.replaceChildren();
     (record.slides || []).forEach((slide, index) => {
       const row = document.createElement("div");
-      row.className = "ppt-slide-row" + (slide.id === currentSlideId ? " is-selected" : "");
+      row.className = "ppt-slide-row" + (slide.id === slideKey ? " is-selected" : "");
       row.dataset.slideId = slide.id;
       const button = document.createElement("button");
       button.type = "button";
@@ -345,16 +345,16 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const syncSlideLabel = () => {
-    const button = slideList.querySelector('[data-slide-id="' + currentSlideId + '"] [data-slide-select]');
+    const button = slideList.querySelector('[data-slide-id="' + slideKey + '"] [data-slide-select]');
     if (!button) return;
-    const index = (selected?.slides || []).findIndex((slide) => slide.id === currentSlideId);
+    const index = (sel?.slides || []).findIndex((slide) => slide.id === slideKey);
     const indexMark = button.querySelector(".ppt-slide-index");
     const label = button.querySelector(".ppt-slide-title");
     if (indexMark) indexMark.textContent = String(index + 1);
     if (label) label.textContent = slideTitle.value.trim() || L("未命名一页");
   };
   const fillSlideFields = (slide) => {
-    currentSlideId = slide?.id || "";
+    slideKey = slide?.id || "";
     slideTitle.value = slide?.title || "";
     slideBullets.value = (slide?.bullets || []).join("\\n");
     slideNotes.value = slide?.notes || "";
@@ -367,8 +367,8 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const remember = (record, redraw) => {
-    selected = record;
-    if (!record.slides.some((slide) => slide.id === currentSlideId)) currentSlideId = record.slides[0]?.id || "";
+    sel = record;
+    if (!record.slides.some((slide) => slide.id === slideKey)) slideKey = record.slides[0]?.id || "";
     const index = records.findIndex((item) => item.id === record.id);
     if (index >= 0) records[index] = record;
     else records.unshift(record);
@@ -377,18 +377,18 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     paintPages(record);
     markSelected(record.id);
     if (redraw) fillEditor(record);
-    else renderPreview(liveRecord());
+    else paintView(liveRecord());
     publishContext();
   };
   const fillEditor = (record) => {
     clearTimeout(saveTimer);
-    editRevision = savedRevision = 0;
+    editRev = savedRev = 0;
     saveError = null;
     showNote("", false);
-    selected = record;
-    if (!record.slides.some((slide) => slide.id === currentSlideId)) currentSlideId = record.slides[0]?.id || "";
+    sel = record;
+    if (!record.slides.some((slide) => slide.id === slideKey)) slideKey = record.slides[0]?.id || "";
     const opening = workspace.hidden;
-    workbench.setAttribute("data-expanded", "true");
+    bench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
     if (opening) arrive(workspace);
     titleEl.textContent = record.title;
@@ -400,18 +400,18 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     setColor(colorText, record.color_text);
     fillSlideFields(currentSlide());
     renderSlideList(record);
-    renderPreview(record);
+    paintView(record);
     markSelected(record.id);
     publishContext();
   };
   const closeEditor = () => {
     clearTimeout(saveTimer);
-    editRevision = savedRevision = 0;
+    editRev = savedRev = 0;
     saveError = null;
     showNote("", false);
-    selected = null;
-    currentSlideId = "";
-    workbench.setAttribute("data-expanded", "false");
+    sel = null;
+    slideKey = "";
+    bench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
     publishContext();
   };
@@ -427,9 +427,9 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       item.className = "feed-stage-item creative-artifact-row";
       const row = document.createElement("button");
       row.type = "button";
-      row.className = "feed-stage-entry directory-list-row" + (selected?.id === record.id ? " is-selected" : "");
+      row.className = "feed-stage-entry directory-list-row" + (sel?.id === record.id ? " is-selected" : "");
       row.dataset.pptId = record.id;
-      row.setAttribute("aria-selected", String(selected?.id === record.id));
+      row.setAttribute("aria-selected", String(sel?.id === record.id));
       const leading = document.createElement("span");
       leading.className = "feed-stage-leading";
       const title = document.createElement("strong");
@@ -445,8 +445,8 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       item.append(row);
       rowsEl.append(item);
     });
-    const bar = workbench.querySelector("[data-ppt-artifact-bar]");
-    if (bar) bar.textContent = artifactLabel(selected);
+    const bar = bench.querySelector("[data-ppt-artifact-bar]");
+    if (bar) bar.textContent = artifactLabel(sel);
   };
   const loadList = async () => {
     const seq = ++listSeq;
@@ -459,27 +459,26 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderList();
   };
   /* ---- Outline from text: a dialog that turns pasted text into slides, locally or through the model ---- */
-  const outlineDialog = workbench.querySelector("[data-ppt-outline-dialog]");
-  const outlineForm = workbench.querySelector("[data-ppt-outline-form]");
-  let outlineMode = "local", outlineSourceKind = "text";
-  // The other source is a Pages document: listed and read on the server through Pages' own actions, with this person's authority.
+  const outlineBox = bench.querySelector("[data-ppt-outline-dialog]"), outlineForm = bench.querySelector("[data-ppt-outline-form]");
+  let outlineMode = "local", outlineSourceKind = "text", outReq = null;
+  const endOutline = () => { const attempt = outReq; outReq = null; if (attempt) { attempt.controller.abort(); attempt.submit.disabled = false; attempt.submit.textContent = attempt.label; } };
   const paintOutlineSource = async () => {
-    if (!outlineDialog) return;
-    outlineDialog.querySelectorAll("[data-ppt-outline-source]").forEach((button) => {
+    if (!outlineBox) return;
+    outlineBox.querySelectorAll("[data-ppt-outline-source]").forEach((button) => {
       const on = button.dataset.pptOutlineSource === outlineSourceKind;
       button.classList.toggle("is-current", on);
       button.setAttribute("aria-checked", String(on));
     });
-    const pageField = outlineDialog.querySelector("[data-ppt-outline-page-field]");
-    const textField = outlineDialog.querySelector("[data-ppt-outline-text-field]");
-    const note = outlineDialog.querySelector("[data-ppt-outline-page-note]");
-    const textarea = outlineDialog.querySelector("[data-ppt-outline-text]");
+    const pageField = outlineBox.querySelector("[data-ppt-outline-page-field]");
+    const textField = outlineBox.querySelector("[data-ppt-outline-text-field]");
+    const note = outlineBox.querySelector("[data-ppt-outline-page-note]");
+    const textarea = outlineBox.querySelector("[data-ppt-outline-text]");
     const usePage = outlineSourceKind === "page";
     if (textField) textField.hidden = usePage;
     if (textarea) textarea.required = !usePage;
     if (pageField) pageField.hidden = !usePage;
     if (!usePage) { if (note) note.hidden = true; return; }
-    const select = outlineDialog.querySelector("[data-ppt-outline-page]");
+    const select = outlineBox.querySelector("[data-ppt-outline-page]");
     if (select && select.dataset.loaded === "true") return;
     if (note) { note.hidden = false; note.textContent = L("正在读取文档…"); }
     try {
@@ -498,12 +497,12 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   };
   const paintOutlineModes = () => {
-    if (!outlineDialog) return;
-    const ai = outlineDialog.querySelector('[data-ppt-outline-mode="ai"]');
-    const reason = outlineDialog.querySelector("[data-ppt-outline-ai-reason]");
+    if (!outlineBox) return;
+    const ai = outlineBox.querySelector('[data-ppt-outline-mode="ai"]');
+    const reason = outlineBox.querySelector("[data-ppt-outline-ai-reason]");
     if (ai) { ai.disabled = !aiAvailable; ai.title = aiAvailable ? "" : (aiUnavailableReason ? L(aiUnavailableReason) : L("请先配置可用的文字模型")); }
     if (!aiAvailable && outlineMode === "ai") outlineMode = "local";
-    outlineDialog.querySelectorAll("[data-ppt-outline-mode]").forEach((button) => {
+    outlineBox.querySelectorAll("[data-ppt-outline-mode]").forEach((button) => {
       const on = button.dataset.pptOutlineMode === outlineMode;
       button.classList.toggle("is-current", on);
       button.setAttribute("aria-checked", String(on));
@@ -511,64 +510,65 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (reason) { reason.hidden = aiAvailable; reason.textContent = aiAvailable ? "" : (aiUnavailableReason ? L(aiUnavailableReason) : L("请先配置可用的文字模型")); }
   };
   const showOutlineError = (text) => {
-    const box = outlineDialog?.querySelector("[data-ppt-outline-error]");
+    const box = outlineBox?.querySelector("[data-ppt-outline-error]");
     if (!box) return;
     box.hidden = !text;
     box.textContent = text || "";
   };
   const openOutline = () => {
-    if (!outlineDialog || !selected) return;
+    if (!outlineBox || !sel) return;
+    endOutline();
     showOutlineError("");
-    const replace = outlineDialog.querySelector("[data-ppt-outline-replace]");
-    // A deck that is still one blank page is simply filled; the box only matters once there is something to keep.
-    const blank = selected.slides.length === 1 && !selected.slides[0].bullets.length && !selected.slides[0].notes;
+    const replace = outlineBox.querySelector("[data-ppt-outline-replace]");
+    const blank = sel.slides.length === 1 && !sel.slides[0].title && !sel.slides[0].bullets.length && !sel.slides[0].notes;
     if (replace) { replace.checked = false; replace.closest("label").hidden = blank; }
     paintOutlineModes();
-    const select = outlineDialog.querySelector("[data-ppt-outline-page]");
+    const select = outlineBox.querySelector("[data-ppt-outline-page]");
     if (select) delete select.dataset.loaded;
     void paintOutlineSource();
-    outlineDialog.showModal();
-    outlineDialog.querySelector(outlineSourceKind === "page" ? "[data-ppt-outline-page]" : "[data-ppt-outline-text]")?.focus();
+    outlineBox.showModal();
+    outlineBox.querySelector(outlineSourceKind === "page" ? "[data-ppt-outline-page]" : "[data-ppt-outline-text]")?.focus();
   };
   const submitOutline = async () => {
-    if (!outlineDialog || !selected) return;
-    const textarea = outlineDialog.querySelector("[data-ppt-outline-text]");
+    if (!outlineBox || !sel || outReq) return;
+    const textarea = outlineBox.querySelector("[data-ppt-outline-text]");
     const text = (textarea?.value || "").trim();
-    const pageId = outlineSourceKind === "page" ? (outlineDialog.querySelector("[data-ppt-outline-page]")?.value || "") : "";
+    const pageId = outlineSourceKind === "page" ? (outlineBox.querySelector("[data-ppt-outline-page]")?.value || "") : "";
     if (outlineSourceKind === "page" && !pageId) { showOutlineError(L("先选一篇文档")); return; }
     if (outlineSourceKind === "text" && !text) { showOutlineError(L("收到的内容里没有可以做成幻灯片的文字")); textarea?.focus(); return; }
-    const submit = outlineDialog.querySelector("[data-ppt-outline-submit]");
-    const replace = Boolean(outlineDialog.querySelector("[data-ppt-outline-replace]")?.checked);
-    showOutlineError("");
-    submit.disabled = true;
-    const label = submit.textContent;
+    const submit = outlineBox.querySelector("[data-ppt-outline-submit]");
+    const replace = Boolean(outlineBox.querySelector("[data-ppt-outline-replace]")?.checked);
+    showOutlineError(""); submit.disabled = true;
+    const label = submit.textContent, attempt = { controller: new AbortController(), submit, label, id: sel.id, revision: editRev, mode: outlineMode, source: outlineSourceKind, text: textarea?.value || "" }; outReq = attempt;
     submit.textContent = outlineMode === "ai" ? L("整理中…") : label;
     try {
       await save();
-      const record = selected;
-      const payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(record.id) + (outlineMode === "ai" ? "/outline-ai" : "/outline"),
-        { ...(pageId ? { page_id: pageId } : { text }), replace, expected_version: record.version });
-      if (!selected || selected.id !== record.id) return;
-      currentSlideId = payload.presentation.slides[replace ? 0 : Math.max(0, payload.presentation.slides.length - payload.slide_count)]?.id || currentSlideId;
+      if (outReq !== attempt || !outlineBox.open || sel?.id !== attempt.id || editRev !== attempt.revision) return;
+      const record = sel;
+      const payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(record.id) + (attempt.mode === "ai" ? "/outline-ai" : "/outline"),
+        { ...(pageId ? { page_id: pageId } : { text }), replace, expected_version: record.version }, attempt.controller.signal);
+      if (outReq !== attempt || !outlineBox.open || sel?.id !== record.id || editRev !== attempt.revision || sel.version !== record.version) return;
+      slideKey = payload.presentation.slides[replace ? 0 : Math.max(0, payload.presentation.slides.length - payload.slide_count)]?.id || slideKey;
       fillEditor(payload.presentation);
       await loadList();
-      if (textarea) textarea.value = "";
-      outlineDialog.close();
+      if (outReq !== attempt || !outlineBox.open) return;
+      if ((textarea?.value || "") === attempt.text && outlineMode === attempt.mode && outlineSourceKind === attempt.source && (!pageId || outlineBox.querySelector("[data-ppt-outline-page]")?.value === pageId)) { if (textarea) textarea.value = ""; endOutline(); outlineBox.close(); }
       showNote(L("已生成 {count} 页").replace("{count}", String(payload.slide_count)), false);
     } catch (error) {
-      showOutlineError(error.message || L("演示稿请求失败"));
+      if (outReq === attempt && !attempt.controller.signal.aborted) showOutlineError(error.message || L("演示稿请求失败"));
     } finally {
-      submit.disabled = false;
-      submit.textContent = label;
+      if (outReq === attempt) endOutline();
     }
   };
-  outlineDialog?.addEventListener("click", (event) => {
-    if (event.target.closest("[data-ppt-outline-close]")) { outlineDialog.close(); return; }
+  outlineBox?.addEventListener("click", (event) => {
+    if (event.target.closest("[data-ppt-outline-close]")) { endOutline(); outlineBox.close(); return; }
     const sourceButton = event.target.closest("[data-ppt-outline-source]");
     if (sourceButton) { outlineSourceKind = sourceButton.dataset.pptOutlineSource; void paintOutlineSource(); return; }
     const mode = event.target.closest("[data-ppt-outline-mode]");
     if (mode && !mode.disabled) { outlineMode = mode.dataset.pptOutlineMode; paintOutlineModes(); }
   });
+  outlineBox?.addEventListener("cancel", endOutline);
+  outlineBox?.addEventListener("close", () => { if (!outlineBox.open) endOutline(); });
   outlineForm?.addEventListener("submit", (event) => { event.preventDefault(); void submitOutline(); });
   const draftFromDom = () => {
     const value = liveRecord();
@@ -580,53 +580,53 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (savePromise) return savePromise;
     const drain = async () => {
       if (saveError) throw saveError;
-      while (selected && savedRevision < editRevision) {
-        const revision = editRevision;
+      while (sel && savedRev < editRev) {
+        const revision = editRev;
         const draft = draftFromDom();
         try {
-          const payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(selected.id), { ...draft, expected_version: selected.version });
-          const laterDraft = editRevision > revision ? draftFromDom() : null;
-          savedRevision = revision;
+          const payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(sel.id), { ...draft, expected_version: sel.version });
+          const laterDraft = editRev > revision ? draftFromDom() : null;
+          savedRev = revision;
           remember(laterDraft ? { ...payload.presentation, ...laterDraft } : payload.presentation, false);
           showNote("", false);
         } catch (error) { saveError = error; throw error; }
       }
-      return selected;
+      return sel;
     };
-    savePromise = drain().finally(() => { savePromise = null; if (selected) paintPages(selected); });
-    if (selected) paintPages(selected);
+    savePromise = drain().finally(() => { savePromise = null; if (sel) paintPages(sel); });
+    if (sel) paintPages(sel);
     return savePromise;
   };
   const queueSave = () => {
     if (saveError && ["ppt.invalid", "actions.input_invalid"].includes(saveError.code)) saveError = null;
-    editRevision += 1;
-    if (selected) paintPages(selected);
+    editRev += 1;
+    if (sel) paintPages(sel);
     clearTimeout(saveTimer);
     if (!saveError) saveTimer = setTimeout(() => { void save().catch((error) => showNote(error.message || L("保存失败"), true)); }, 400);
   };
   const setBusy = (value) => {
     busy = value; workspace.inert = value; list.inert = value;
-    workbench.setAttribute("aria-busy", String(value));
-    if (selected) paintPages(selected);
+    bench.setAttribute("aria-busy", String(value));
+    if (sel) paintPages(sel);
   };
 
-  workbench.addEventListener("click", async (event) => {
+  bench.addEventListener("click", async (event) => {
     const button = event.target.closest("button");
     if (!button || button.closest("dialog") || button.disabled || busy) return;
     setBusy(true);
     try {
-      if (button.closest("[data-ppt-reload]") && selected) {
+      if (button.closest("[data-ppt-reload]") && sel) {
         clearTimeout(saveTimer);
         if (savePromise) await savePromise.catch(() => {});
-        if ((saveError || editRevision > savedRevision) && !await ask(L("重新读取会丢弃未保存的编辑。继续吗？"), L("重新读取"))) return;
-        const payload = await request("GET", "/api/plugins/ppt/" + encodeURIComponent(selected.id));
+        if ((saveError || editRev > savedRev) && !await ask(L("重新读取会丢弃未保存的编辑。继续吗？"), L("重新读取"))) return;
+        const payload = await request("GET", "/api/plugins/ppt/" + encodeURIComponent(sel.id));
         fillEditor(payload.presentation); await loadList(); return;
       }
       const swatch = event.target.closest("[data-ppt-swatch]");
-      if (swatch && selected) {
+      if (swatch && sel) {
         setColor(swatch.closest("[role=radiogroup]"), swatch.dataset.pptSwatch);
         queueSave();
-        renderPreview(liveRecord());
+        paintView(liveRecord());
         return;
       }
       const create = event.target.closest("[data-ppt-new]");
@@ -634,26 +634,26 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         await save();
         const payload = await request("POST", "/api/plugins/ppt", {});
         await loadList();
-        currentSlideId = payload.presentation.slides[0]?.id || "";
+        slideKey = payload.presentation.slides[0]?.id || "";
         fillEditor(payload.presentation);
         placed({ verb: "created", title: payload.presentation.title, object: { kind: "presentation", id: payload.presentation.id } });
         return;
       }
       const artifact = event.target.closest("[data-ppt-artifact]");
       if (artifact) {
-        const id = artifact.dataset.pptArtifact || (selected && selected.id);
+        const id = artifact.dataset.pptArtifact || (sel && sel.id);
         if (!id) return;
-        if (selected && selected.id === id) {
+        if (sel && sel.id === id) {
           await save();
         }
-        const record = selected?.id === id ? selected : records.find(item => item.id === id);
+        const record = sel?.id === id ? sel : records.find(item => item.id === id);
         let payload;
         try {
           payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(id) + "/promote", { expected_version: record.version });
         } catch (error) {
           if (error.code !== "ppt.conflict") {
             const fresh = await request("GET", "/api/plugins/ppt/" + encodeURIComponent(id)).catch(() => null);
-            if (fresh && selected?.id === id) remember(fresh.presentation, false);
+            if (fresh && sel?.id === id) remember(fresh.presentation, false);
             await loadList().catch(() => {});
           }
           throw error;
@@ -661,7 +661,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         placed({ verb: "versioned", title: payload.presentation.title, object: { kind: "presentation", id: payload.presentation.id }, artifact: payload.artifact,
           note: L("第 {version} 版 · 放在这个位置的成果里；继续编辑不会改变这一版", { version: payload.artifact.version }) });
         await loadList();
-        if (payload.presentation && selected && selected.id === payload.presentation.id) remember(payload.presentation, false);
+        if (payload.presentation && sel && sel.id === payload.presentation.id) remember(payload.presentation, false);
         return;
       }
       const row = event.target.closest("[data-ppt-id]");
@@ -677,32 +677,32 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         await loadList();
         return;
       }
-      if (event.target.closest("[data-ppt-outline-open]") && selected) { openOutline(); return; }
-      if (event.target.closest("[data-ppt-add-slide]") && selected) {
-        const slides = [...slidesFromEditor(), { id: "s-" + crypto.randomUUID(), title: L("未命名一页"), bullets: [], notes: "", order: selected.slides.length + 1 }];
-        selected = { ...selected, slides };
-        currentSlideId = slides.at(-1).id;
+      if (event.target.closest("[data-ppt-outline-open]") && sel) { openOutline(); return; }
+      if (event.target.closest("[data-ppt-add-slide]") && sel) {
+        const slides = [...slidesFromEditor(), { id: "s-" + crypto.randomUUID(), title: L("未命名一页"), bullets: [], notes: "", order: sel.slides.length + 1 }];
+        sel = { ...sel, slides };
+        slideKey = slides.at(-1).id;
         fillSlideFields(slides.at(-1));
-        renderSlideList(selected);
-        renderPreview(selected);
+        renderSlideList(sel);
+        paintView(sel);
         arrive(slideList.lastElementChild);
         arrive(previewEl.lastElementChild);
-        paintPages(selected);
+        paintPages(sel);
         queueSave();
         return;
       }
       const select = event.target.closest("[data-slide-select]");
-      if (select && selected) {
-        selected = liveRecord();
-        currentSlideId = select.closest("[data-slide-id]").dataset.slideId;
+      if (select && sel) {
+        sel = liveRecord();
+        slideKey = select.closest("[data-slide-id]").dataset.slideId;
         fillSlideFields(currentSlide());
-        renderSlideList(selected);
-        renderPreview(selected);
+        renderSlideList(sel);
+        paintView(sel);
         queueSave();
         return;
       }
       const move = event.target.closest("[data-slide-move]");
-      if (move && selected) {
+      if (move && sel) {
         const id = move.closest("[data-slide-id]").dataset.slideId;
         const delta = Number(move.dataset.slideMove);
         const slides = slidesFromEditor();
@@ -712,55 +712,55 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         const swap = slides[index];
         slides[index] = slides[next];
         slides[next] = swap;
-        selected = { ...selected, slides };
-        currentSlideId = id;
+        sel = { ...sel, slides };
+        slideKey = id;
         fillSlideFields(currentSlide());
-        renderSlideList(selected);
-        renderPreview(selected);
+        renderSlideList(sel);
+        paintView(sel);
         queueSave();
         return;
       }
-      if (event.target.closest("[data-slide-remove]") && selected) {
+      if (event.target.closest("[data-slide-remove]") && sel) {
         const id = event.target.closest("[data-slide-id]").dataset.slideId;
         const slides = slidesFromEditor().filter((slide) => slide.id !== id);
         if (!slides.length) { showNote(L("至少保留一页"), true); return; }
-        selected = { ...selected, slides };
-        currentSlideId = slides[0]?.id || "";
+        sel = { ...sel, slides };
+        slideKey = slides[0]?.id || "";
         fillSlideFields(currentSlide());
-        renderSlideList(selected);
-        renderPreview(selected);
-        paintPages(selected);
+        renderSlideList(sel);
+        paintView(sel);
+        paintPages(sel);
         queueSave();
         return;
       }
-      if (event.target.closest("[data-ppt-present]") && selected) {
+      if (event.target.closest("[data-ppt-present]") && sel) {
         await save();
-        const index = Math.max(0, (selected.slides || []).findIndex((slide) => slide.id === currentSlideId));
+        const index = Math.max(0, (sel.slides || []).findIndex((slide) => slide.id === slideKey));
         present(liveRecord(), index);
         return;
       }
       const exportButton = event.target.closest("[data-ppt-export]");
-      if (exportButton && selected) {
+      if (exportButton && sel) {
         exportButton.closest("details")?.removeAttribute("open");
         await save();
         const format = exportButton.dataset.pptExport || "pptx";
         if (format === "pdf") { printDeck(liveRecord()); return; }
         if (format === "pptx") {
-          const exported = await request("GET", "/api/plugins/ppt/" + encodeURIComponent(selected.id) + "/pptx?expected_version=" + selected.version);
+          const exported = await request("GET", "/api/plugins/ppt/" + encodeURIComponent(sel.id) + "/pptx?expected_version=" + sel.version);
           const bytes = Uint8Array.from(atob(exported.content_base64), (char) => char.charCodeAt(0));
           download(exported.filename, new Blob([bytes], { type: exported.mime_type }));
-          placed({ verb: "exported", title: selected.title, file: { name: exported.filename, format: L("PowerPoint · {count} 页，含讲者备注", { count: exported.slide_count }) } });
+          placed({ verb: "exported", title: sel.title, file: { name: exported.filename, format: L("PowerPoint · {count} 页，含讲者备注", { count: exported.slide_count }) } });
           return;
         }
-        const exported = await request("GET", "/api/plugins/ppt/" + encodeURIComponent(selected.id) + "/export?expected_version=" + selected.version);
+        const exported = await request("GET", "/api/plugins/ppt/" + encodeURIComponent(sel.id) + "/export?expected_version=" + sel.version);
         download(exported.filename, new Blob([exported.content], { type: exported.mime_type }));
-        placed({ verb: "exported", title: selected.title, file: { name: exported.filename, format: L("数据文件，不是演示文稿") } });
+        placed({ verb: "exported", title: sel.title, file: { name: exported.filename, format: L("数据文件，不是演示文稿") } });
         return;
       }
-      if (event.target.closest("[data-ppt-delete]") && selected) {
+      if (event.target.closest("[data-ppt-delete]") && sel) {
         if (!await ask(L("删除这份演示稿？"), L("删除"))) return;
         await save();
-        await request("POST", "/api/plugins/ppt/" + encodeURIComponent(selected.id) + "/delete", { expected_version: selected.version });
+        await request("POST", "/api/plugins/ppt/" + encodeURIComponent(sel.id) + "/delete", { expected_version: sel.version });
         closeEditor();
         await loadList();
       }
@@ -769,22 +769,22 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       showNote(error.message || L("演示稿请求失败"), true);
     } finally { setBusy(false); }
   });
-  workbench.addEventListener("input", (event) => {
-    if (busy || !event.target.closest(".ppt-workspace") || !selected) return;
-    selected = liveRecord();
-    renderPreview(selected);
+  bench.addEventListener("input", (event) => {
+    if (busy || !event.target.closest(".ppt-workspace") || !sel) return;
+    sel = liveRecord();
+    paintView(sel);
     if (event.target === slideTitle) syncSlideLabel();
     queueSave();
   });
   window.addEventListener("molis:placement-changed", (event) => {
     const detail = event.detail || {};
     if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("presentation")) return;
-    if (detail.mode === "move" && detail.from && selected && selected.id === detail.from.id) closeEditor();
+    if (detail.mode === "move" && detail.from && sel && sel.id === detail.from.id) closeEditor();
     void loadList().catch((error) => showNote(error.message, true));
   });
   document.addEventListener("molis-work:model-ready", () => void loadList().catch((error) => showNote(error.message, true)));
   window.addEventListener("beforeunload", (event) => {
-    if (selected && (saveError || editRevision > savedRevision)) { event.preventDefault(); event.returnValue = ""; }
+    if (sel && (saveError || editRev > savedRev)) { event.preventDefault(); event.returnValue = ""; }
   });
   // A list that cannot be read says so where the list is, with a way to try again (the note lives in the editor).
   const listFailed = (error) => {

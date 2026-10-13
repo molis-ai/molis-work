@@ -85,7 +85,7 @@
 - 定义：`HostCapabilityDescriptor` / `HostCapabilityDefinition`（`packages/contracts/src/platform/app-host.ts`）是注册表条目的类型，有 `capability_id`、`version`、`operation`（`query`、`command`、`wait`）。动作是带 `action` 元数据的 capability（`ActionDefinition extends HostCapabilityDefinition`）；不带 `action` 的叫宿主能力，经 `LocalHost.invoke()` 调用。`ActionService.discover` 只列带 `action` 的条目，所以宿主能力不进动作目录。
 - 现状：`LocalHost.register()`（`apps/local-host/src/local-host.ts`）里，带 `action` 的交给 `ActionService.registerProvider`，不带的进 `CapabilityRegistry`（`packages/kernel/src/index.ts`）。Manifest 的 `capabilities.provides` / `consumes` 列的是宿主能力 id，插件只能调用自己声明消费的（`packages/plugin-runtime/src/services.ts`）；动作写在 Manifest 的 `actions`。
 - 调用：`LocalHost.invoke()` 对带 `action` 的条目改走 `ActionService.invoke`（宿主策略、授权复查、输入输出合同、一次结算都与动作客户端相同）；不带 `action` 的宿主能力由宿主自己结算一次，结算带 `path: "typed"`，来源写「Molis Work」，标题是能力 id（`apps/local-host/src/typed-call-settlement.ts`）。
-- 方向（2026-10-07 用户决定，`specs/repository-anti-corruption/spec.md` §1「两套能力机制收敛」）：对外的只走动作；宿主能力只留作 Runtime 插件的宿主内服务通道（`agent.*`、`schedule` 等），不再新增。收敛还没完成。
+- 方向（2026-10-07 用户决定，`specs/repository-anti-corruption/spec.md` §1「两套能力机制收敛」）：对外的只走动作；宿主能力只留作 Runtime 插件的宿主内服务通道（`agent.*`、`schedule` 等），不再新增。Goals 的十四个 typed 桥与隔离开发入口已退出注册表；现存 Agent、调度与工作区服务由 `tests/typed-registry-inventory.test.ts` 核对，其他剩余家族仍按防腐路线推进。
 - 写法：文档写「动作」；只有讲注册表类型时写 capability；讲宿主内通道写「宿主能力」。`docs/system/ARCHITECTURE.md` §4 与 `docs/platform/PLUGIN-PLATFORM.md` §3 里的 Capability 指宿主能力这一层。
 
 ### 2.2 判断体系

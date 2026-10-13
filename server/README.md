@@ -82,7 +82,7 @@ node --import tsx --test tests/cross-device-client.test.ts tests/cross-device-la
 node --import tsx server/tooling/continuity-demo.mts /tmp/molis-continuity-isolated-qa
 ```
 
-QA 工具只创建显式隔离目录和实际业务对象；`lose-next-response` 文件只由该工具读取，用于在真实进展已提交后丢弃响应。该故障入口不存在于产品 HTTP。验证状态与交接见 `specs/archive/bp-delivery-parallel/work-items/cross-device-team/verification.md`。
+QA 工具只写系统临时目录中的专用子目录；启动前核对真实祖先路径，拒绝真实 Home 和指向临时目录以外的链接。该 QA 进程固定使用临时 Home 的文件密钥，不读取用户钥匙串或沿用环境中的加密键。先构建公开包，再运行上面的命令；可追加 `--port 0` 使用空闲端口。工具从公开 owner 入口创建/读取成员，按当前来源、标题和媒体类型注册固定成果，重启复用原成员与业务事实。`lose-next-response` 文件只由该工具读取，用于在真实进展已提交后丢弃响应；原键重试先核回执，不另写一条进展。该故障入口不存在于产品 HTTP。`tests/cross-device-launcher.test.ts` 的 W2-18-CONTINUITY-QA-01 实际启动这条命令并核重试、重启；验证状态与交接见 `specs/archive/bp-delivery-parallel/work-items/cross-device-team/verification.md`。
 
 ## 开发要求
 

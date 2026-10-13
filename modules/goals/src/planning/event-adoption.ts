@@ -32,11 +32,11 @@ export function resolvePlanningEventAdoption(
   const seen = new Set<string>();
   for (const item of requested) {
     const methodId = item.method_id?.trim();
-    if (!methodId) throw error("event_config.invalid_planning", "采用的规划方法 ID 不能为空");
+    if (!methodId) throw error("goals.event_config.invalid_planning", "采用的规划方法 ID 不能为空");
     const pack = lookupPlanningMethod(methodId, item.source, sources, error);
     if (item.version != null && item.version !== pack.version) {
       throw error(
-        "event_config.planning_version_unavailable",
+        "goals.event_config.planning_version_unavailable",
         `规划 ${methodId} 当前版本是 ${pack.version}，没有可读取的版本 ${item.version}`,
         { method_id: methodId, requested_version: item.version, current_version: pack.version, source: pack.scope },
       );
@@ -47,7 +47,7 @@ export function resolvePlanningEventAdoption(
       source: pack.scope,
     };
     const key = `${ref.source}:${ref.method_id}:${ref.version}`;
-    if (seen.has(key)) throw error("event_config.duplicate_planning", `重复采用规划: ${methodId}`);
+    if (seen.has(key)) throw error("goals.event_config.duplicate_planning", `重复采用规划: ${methodId}`);
     seen.add(key);
     adopted.push(ref);
     const methodRef: GoalEventPlanningMethodRef = {
@@ -83,7 +83,7 @@ function mergeAdoptedType(
   }
   if (!sameTypeShape(current, type)) {
     throw error(
-      "event_config.planning_type_conflict",
+      "goals.event_config.planning_type_conflict",
       `规划类型 ${type.type_id} 在不同方法中定义冲突，不能合并采用`,
       {
         type_id: type.type_id,
@@ -123,7 +123,7 @@ function mergeAdoptedRequirement(
   }
   if (current.statement !== requirement.statement || (current.bound_type_id ?? "") !== (requirement.bound_type_id ?? "")) {
     throw error(
-      "event_config.planning_requirement_conflict",
+      "goals.event_config.planning_requirement_conflict",
       `规划要求 ${requirement.requirement_id} 在不同方法中定义冲突，不能合并采用`,
       {
         requirement_id: requirement.requirement_id,
@@ -168,7 +168,7 @@ function lookupPlanningMethod(
   const pack = pool.find((item) => item.method_id === methodId && item.enabled !== false);
   if (pack) return pack;
   throw error(
-    "event_config.planning_not_found",
+    "goals.event_config.planning_not_found",
     source
       ? `在 ${source} 规划中找不到方法 ${methodId}`
       : `找不到规划方法 ${methodId}`,

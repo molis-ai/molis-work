@@ -371,7 +371,7 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
   const view = views.find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
   if (!view || !view.action.audiences.includes("agent")) return notOffered(views, parsed, known ?? new Set());
   known?.add(view.capability_id);
-  if (!view.availability.available) return `${view.availability.reason}; nothing was done.`;
+  if (!view.availability.available) return `${view.availability.code}: ${view.availability.reason}; nothing was done.`;
   const reads = actionEffect(view.action, view.capability_id) === "read";
   if ((toolName === GATEWAY_TOOLS.change || toolName === GATEWAY_TOOLS.direct) && reads) return `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`;
   if (toolName === GATEWAY_TOOLS.direct && !gateway.client.direct?.(view)) return `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`;
@@ -388,7 +388,7 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
     const at = /(?:^|[\s：:])(\/[\w/-]+)/.exec(message)?.[1];
     const found = at ? at.split("/").slice(1).reduce<unknown>((inner, key) => inner && typeof inner === "object" ? (inner as Record<string, unknown>)[key] : undefined, sent) : undefined;
     const named = at && found !== undefined ? ` At ${at} you sent ${Array.isArray(found) ? "an array" : typeof found === "string" ? "the text" : typeof found} ${JSON.stringify(found)?.slice(0, 120)}.` : "";
-    return `${message}.${named} (you sent ${kind}: ${excerpt}). The input must be a JSON value matching this schema: ${JSON.stringify(view.action.input_schema).slice(0, 2000)}`;
+    return `${error instanceof ActionError ? error.code + ": " : ""}${message}.${named} (you sent ${kind}: ${excerpt}). The input must be a JSON value matching this schema: ${JSON.stringify(view.action.input_schema).slice(0, 2000)}`;
   }
   return null;
 }

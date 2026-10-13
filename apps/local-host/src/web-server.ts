@@ -1,5 +1,6 @@
 import { createLocalImServer } from "./im-server.js";
 import { projectActionAvailability } from "./project-action-availability.js";
+import { handleManagementActionHttp } from "./management-action-gateway.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
 import { handleProjectDeletionGatewayHttp } from "./project-deletion-gateway.js";
 import { webProjectDeletion } from "./project-deletion-service.js";
@@ -22,7 +23,7 @@ import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
 import { fixtureWebBoardOptions } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
-import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
+import type { WebServerOptions } from "./web-types.js";
 import { handleMolisWorkWebRequest } from "./web-request.js";
 import { assistantServiceFor } from "./assistant/assistant-http.js";
 import { lazyBrowserHost } from "./browser/browser-host.js";
@@ -37,6 +38,7 @@ import { finishLeftOverDeletions } from "./web-deletion-sweep.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { awaitWebServerShutdown } from "./web-server-close.js";
+import { startWebProjectSchedulers } from "./web-project-schedulers.js";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
@@ -95,11 +97,14 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const controlToken = resolveWebControlToken(serverOptions);
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
-    const feedSchedulers = new Map<string, FeedSchedulerRuntime>();
     localHost.configureSessionRuntime(storageHome, serverOptions.runtimeSessionTransport);
     const sessionResources = localHost.sessionResources();
     void sessionResources.catch(() => undefined);
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
+    const warnBackground = (message: string, error: unknown) => console.warn(message, error);
+    const projectSchedulers = startWebProjectSchedulers({ localHost, homeDirectory: storageHome, withCatalog, fixture, agents,
+      changed: databasePath => webViewCache.delete(databasePath), onError: error => warnBackground("[schedule] 项目后台调度没有启动", error) });
+    const feedSchedulers = projectSchedulers.runtimes;
     const pty = { host: null as MolisWorkPtyHost | null };
     const im = createLocalImServer(storageHome, async id => {
       if (fixture && id === fixture.projectId) return { id, title: fixture.project?.display_name ?? 'Molis Work' };
@@ -172,7 +177,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
           if (await computer.handleHttp(request, response, url)) return;
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
-          if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog) || await handleProjectDeletionGatewayHttp(request, response, url, storageHome, webProjectDeletion(withCatalog, { isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }))) return;
+          if (await handleManagementActionHttp(request, response, url, storageHome, localHost) || await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog) || await handleProjectDeletionGatewayHttp(request, response, url, storageHome, webProjectDeletion(withCatalog, { isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }))) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
           await handleMolisWorkWebRequest(
@@ -192,10 +197,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             composition,
             agents.agentHost,
             () => agents.ready,
-            (projectId) => withCatalog(
-              { homeDirectory: serverOptions.homeDirectory },
-              (catalog) => workspaceRefFor(catalog, projectId),
-            ),
           );
         });
       } catch (error) {
@@ -204,7 +205,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     })));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
-    awaitWebServerShutdown(server, () => { im.stop(); void browserHost.current()?.close(); }, async () => {
+    awaitWebServerShutdown(server, () => { void projectSchedulers.stop().catch(() => undefined); im.stop(); void browserHost.current()?.close(); }, async () => {
+      await projectSchedulers.stop();
       if (ownsLocalHost) { try { await localHost.close(); } finally { await catalogAccess?.close(); } }
     });
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
@@ -221,21 +223,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           .catch(() => undefined);
       },
     });
-    const schedulerTimer = setInterval(() => runWithMolisWorkHome(storageHome, () => {
-      for (const [databasePath, runtime] of feedSchedulers) {
-        void runtime.scheduler.tick()
-          .then((result) => {
-            if (result.completed || result.failed) webViewCache.delete(databasePath);
-          })
-          .catch(() => undefined);
-        void withCallId(newCallId(), () => runtime.schedule.tick())
-          .then((result) => {
-            if (result.invoked) webViewCache.delete(databasePath);
-          })
-          .catch(() => undefined);
-      }
-    }), 30_000);
-    schedulerTimer.unref();
     // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
     // running is reported, never replayed late.
     const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready,
@@ -253,11 +240,11 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     });
     // New material that shares a Goal with a live work: looked for every five minutes.
     const assistantTimer = setInterval(() => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => { await assistant().scanNewMaterial(); }))
-      .catch(error => console.warn("[assistant] 新资料没有读到", error)), 300_000);
+      .catch(error => warnBackground("[assistant] 新资料没有读到", error)), 300_000);
     assistantTimer.unref();
     // Reminders the person set in Plugins: asked about once a minute, each told once when it comes due.
     const reminderTimer = setInterval(() => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => { await assistant().sweepReminders(); }))
-      .catch(error => console.warn("[assistant] 到期提醒没有读到", error)), 60_000);
+      .catch(error => warnBackground("[assistant] 到期提醒没有读到", error)), 60_000);
     reminderTimer.unref();
     server.once("close", () => {
       clearInterval(assistantTimer);
@@ -265,8 +252,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       im.close();
       void browserHost.current()?.close();
       unregisterSurfaces();
-      clearInterval(schedulerTimer);
-      feedSchedulers.clear();
+      void projectSchedulers.stop().catch(() => undefined);
     });
     if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, serverOptions.deletionSweepMs);
     return server;

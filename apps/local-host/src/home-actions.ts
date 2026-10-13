@@ -5,7 +5,7 @@ import { homeEventActions, createHomeEventHandlers } from "./home-event-actions.
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { judgmentRecommendationKeys, subjectOfferCompatibilityReason } from "@molis-ai/molis-work-kernel";
-import { ActionError, ACTION_SUBJECT_SCHEMA, resolveActionSubject, type ActionSubject, retainActionAuthority, type ActionExecutionContext, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference,
+import { ActionError, requireSynchronous, ACTION_SUBJECT_SCHEMA, resolveActionSubject, type ActionSubject, retainActionAuthority, type ActionExecutionContext, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference,
   type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HOME_DOCK_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { publishedFunctionAction, publishedFunctionKey } from "@molis-ai/molis-work-module-functions";
@@ -65,6 +65,10 @@ export const homeActions = {
 export const HOME_ACTION_PERMISSIONS = ["home:read", "home:write", "feed:read", "inbox:read", "model:invoke", "functions:invoke"] as const;
 export const homeDockBindingId = (project: string) => `${HOME_DOCK_SCENE_ID}:${project}`;
 
+const sameBinding = (left: ActionSceneBinding | null, right: ActionSceneBinding) => !!left?.enabled && left.binding_id === right.binding_id
+  && left.revision === right.revision && left.function.capability_id === right.function.capability_id
+  && left.function.version === right.function.version && left.function.provider_id === right.function.provider_id;
+
 /** Home owns its consumption contract; Functions remains the owner of saved bindings and history. */
 export function homeActionProvider(home: string, projectId: string, services: InboxSceneServices, onRecorded: (judgment: JudgmentRecord, caller: ActionCallContext) => void): ActionProviderRegistration {
   const read = <T>(operation: Parameters<typeof withFunctionsService<T>>[1]) => withFunctionsService(home, operation, services.functions);
@@ -102,9 +106,6 @@ export function homeActionProvider(home: string, projectId: string, services: In
   const offerRevision = (offers: HomeActionOffer[]) => createHash("sha256").update(JSON.stringify(ordered(offers
     .map(({ recommendation_key, source, action, input, title }) => ({ recommendation_key, source, action, input, title }))
     .sort((a, b) => a.recommendation_key!.localeCompare(b.recommendation_key!))))).digest("hex");
-  const sameBinding = (left: ActionSceneBinding | null, right: ActionSceneBinding) => !!left?.enabled && left.binding_id === right.binding_id
-    && left.revision === right.revision && left.function.capability_id === right.function.capability_id
-    && left.function.version === right.function.version && left.function.provider_id === right.function.provider_id;
   const referenceAvailable = (directory: readonly ActionView[], reference: ActionReference) => directory.some(action =>
     action.capability_id === reference.capability_id && action.version === reference.version
     && action.provider.provider_id === reference.provider_id && action.availability.available);
@@ -133,6 +134,7 @@ export function homeActionProvider(home: string, projectId: string, services: In
     if (!sameBinding(binding(), value)) throw new ActionError("actions.binding_changed", "首页判断绑定已变化，请重新判断");
     const fn = directory.find(action => action.capability_id === value.function.capability_id && action.version === value.function.version)!;
     if (subjectOfferCompatibilityReason(fn, directory)) throw new ActionError("actions.binding_changed", "规则引用的动作选项已失效，请重新配置");
+    for (const reference of [state.reader, value.function, ...chosen.flatMap(offer => [offer.source, offer.action])]) requireSynchronous(caller.assert_authority_current?.(reference, homeDockScene.permissions), "最终授权检查必须同步完成");
     const judgment = read(service => service.recordSceneJudgment({ function_key: publishedFunctionKey(value.function) ?? value.function.capability_id,
       function_version: value.function.version, subject: { kind: state.kind, id: state.id, project_id: projectId }, scene_id: HOME_DOCK_SCENE_ID,
       outcome: result.status, suggested_behavior_ids: result.status === "ok" ? selected : [], error_code: result.error_code ?? null,

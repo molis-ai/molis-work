@@ -9,10 +9,10 @@ export class ProjectPolicyCommands {
   save(input: Parameters<GoalsCommandApi["saveProjectPolicy"]>[0]): ReturnType<GoalsCommandApi["saveProjectPolicy"]> {
     const p = input.policy;
     if (input.user_confirmed !== true || !input.idempotency_key.trim()) {
-      throw this.context.error("policy.confirmation_required", "请确认项目规则。");
+      throw this.context.error("goals.policy.confirmation_required", "请确认项目规则。");
     }
     if (!p || typeof p.human_approval !== "boolean" || Object.keys(p).some(key => key !== "human_approval")) {
-      throw this.context.error("policy.invalid", "工作规则只有「需要用户验收」一项。");
+      throw this.context.error("goals.policy.invalid", "工作规则只有「需要用户验收」一项。");
     }
     const policy: GoalPolicy = { human_approval: p.human_approval };
     const hash = requestHash({ policy });

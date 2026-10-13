@@ -42,12 +42,13 @@ import { createPrologueMemory } from "./prologue-memory.js";
 import { createPrologueDocuments } from "./prologue-documents.js";
 import { runModelParams } from "./prologue-run-params.js";
 export { THINKING_OUTPUT_TOKENS } from "./prologue-run-params.js";
-import { PrologueCredentialBridge } from "./prologue-credentials.js";
+import { PrologueCredentialBridge, prepareInferenceCredential } from "./prologue-credentials.js";
 export { PrologueCredentialBridge, type PrologueCredentialHost } from "./prologue-credentials.js";
+import { prologueEffects } from "./prologue-effects.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentActionClient, AgentReviewReceipt, AgentRunRef, AgentRuntimeDiagnostics } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { actionEffect, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, actionEffect, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PrologueApprovalBridge, type ProloguePendingPort } from "./prologue-approvals.js";
 import type { AgentReviewQueue } from "../reviews.js";
 
@@ -140,7 +141,7 @@ export const MODEL_CALL_TIMEOUT_MS = 180_000;
 export async function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
 ): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort;
-  surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
+  surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
   const release = options.storageRoot ? acquirePrologueStorageOwner(options.storageRoot) : () => {};
   try {
     const adapter = await initializePrologueNodeAdapter(options);
@@ -167,6 +168,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
     retryUnansweredModelCalls: true,
   });
+  const effects = prologueEffects(host);
   // Timed work the runtime keeps across restarts. Its runner is attached here, once; the Host registers what each kind
   // does later, so a task that falls due while the Host is still starting waits for its runner instead of failing.
   const scheduleRunners = new Map<string, (task: import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduledTask) => Promise<void>>();
@@ -183,7 +185,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   let surfaceHost: PrologueSurfaces | undefined;
   const runtime = await createRuntime({
     app: options.app,
-    host,
+    host: effects.host,
     // Screenshots leave only after the driver covered password, card and one-time-code fields (spec D10).
     ...(options.surfaces ? { surfaces: { screenshots: "redact" as const,
       redactScreenshot: (bytes: Uint8Array) => surfaceHost ? surfaceHost.redact(bytes) : Promise.reject(new Error("界面控制尚未就绪")) } } : {}),
@@ -250,7 +252,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   /** Per session, what the round now running really kept and forgot (only for sessions given memory tools). */
   const memoryRounds = new Map<string, { keep: number; forget: number; off: boolean; spoken: string; /** Given memory, but not the tool that keeps (or forgets): a work handed down by another work. */ without: { keep: boolean; forget: boolean } }>();
   /** The platform memory port, and the exact Prologue references of the memories the Host chose for a run. */
-  const platformMemory = createPrologueMemory(runtime);
+  const platformMemory = createPrologueMemory(runtime, effects.bind);
   // Suggestions this round really made, for the same check: a reply may not say a button is ready when none was.
   const offerRounds = new Map<string, { offered: number }>();
   // Calls this round finished without error, for the same check: a reply may not say something was saved when no change was.
@@ -539,7 +541,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const saveIndex = async (value: SessionIndex): Promise<void> => {
     const bytes = new TextEncoder().encode(JSON.stringify(value));
     try {
-      const record = await host.storage.commit({ kind: indexKind, id: value.ref.id,
+      const record = await effects.host.storage.commit({ kind: indexKind, id: value.ref.id,
         expectedVersion: indexes.get(value.ref.id)?.version ?? 0, metadata: { schema: 1 }, secureBody: bytes });
       indexes.set(value.ref.id, { value: structuredClone(value), version: record.version });
     } finally { bytes.fill(0); }
@@ -686,22 +688,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     host: { writeCredential: (input) => runtime.credentials.write(input) },
     resolve: options.resolveCredential,
   });
-  const inference = createPrologueInference(runtime, async (input, signal, optional) => {
-    const normalize = (value: string | null) => value?.trim() ? value : null;
-    signal.throwIfAborted();
-    await input.beforeDispatch?.();
-    const snapshot = normalize(await input.resolveCredential(input.credential_ref));
-    signal.throwIfAborted();
-    const assertCurrent = async () => {
-      signal.throwIfAborted();
-      if (normalize(await input.resolveCredential(input.credential_ref)) !== snapshot) throw new Error("模型凭据或配置已改变");
-      signal.throwIfAborted();
-    };
-    if (optional && snapshot === null) return { assertCurrent };
-    if (snapshot === null) throw new Error("模型凭据不可用");
-    const ref = await credentials.prologueRefFor(input.credential_ref, async () => { await assertCurrent(); return snapshot; }, signal);
-    return { ref, assertCurrent };
-  }, (guard, operation) => dispatchGuards.run(guard, operation));
+  const inference = createPrologueInference(runtime, prepareInferenceCredential(credentials), (guard, operation) => dispatchGuards.run(guard, operation));
   const builders = new Set<Awaited<ReturnType<typeof createPluginBuilderAgent>>>();
   let closingBuilders = false;
   const createBuilderAgent = async (input: PluginBuilderAgentOptions) => {
@@ -960,33 +947,32 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         timed_out: receipt.timedOut, cancelled: receipt.cancelled, ...(receipt.stopReason ? { stop_reason: receipt.stopReason } : {}) };
     },
     sessions: {
-      async create(input) {
+      create: (input, execution) => effects.start(execution, async () => {
         const session = await runtime.sessions.create();
-        await saveIndex({ schema: 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
-          owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id }, attempts: [] });
+        try { await saveIndex({ schema: 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
+          owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id }, attempts: [] }); }
+        catch (error) {
+          try {
+            // Only this unpublished Session is eligible: a durable owner index is the Session acceptance point.
+            if (!await host.storage.get({ kind: indexKind, id: session.ref.id })) await effects.detach(async () => session.purge(await session.previewPurge()));
+          } catch (cleanup) { throw new AggregateError([error, cleanup], "新会话没有被接受，清理未完成"); }
+          throw error;
+        }
         sessions.set(session.ref.id, session.ref);
         return session;
-      },
+      }),
       restore: id => restoreSession(id),
       async readStatus(id) {
         const saved = await restoreSession(id, true);
         return saved ? { owner: saved.owner, recovery: saved.recovery, latest: saved.runs.at(-1), planned: saved.planned } : undefined;
       },
     },
-    async startAgentRun(input: PrologueStartInput) {
+    startAgentRun: async (input: PrologueStartInput) => {
       const none = input.workspace === "none";
       // Business work: no root; the Host's frozen actions as this session's pack, and root-free tools only.
       const business = input.workspace === "business";
-      const index = await readIndex(input.session_id);
-      if (!index || (index.workspace ?? "required") !== (input.workspace ?? "required")) throw new Error("会话工作区模式与原始归属不一致");
-      if (none && (input.root_path !== undefined || input.provenance.frozen.directory !== undefined
-        || input.character.tools.length || input.actions || input.mcp_tools?.length || input.mcp_sources?.length
-        || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
-        || actionToolSessions.has(input.session_id))) throw new Error("无目录会话不能获得工具或工作区授权");
-      if (business && (input.root_path !== undefined || input.provenance.frozen.directory !== undefined || input.mcp_tools?.length || input.mcp_sources?.length
-        || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
-        || input.character.tools.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool)))) throw new Error("业务会话只能使用宿主冻结的动作与不碰目录的工具");
-      if (!none && !business && !input.root_path) throw new Error("执行缺少已授权工作区");
+      const index = (await readIndex(input.session_id))!;
+      assertStartWorkspace(input, index?.workspace, Boolean(index), actionToolSessions.has(input.session_id));
       const ref = sessions.get(input.session_id);
       const actionController = new AbortController();
       // None sessions do not construct or adopt any tool pack.
@@ -1176,22 +1162,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const attempt: SessionIndex["attempts"][number] = { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
         ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
         ...(stepBoard ? { step_board: stepBoard.ref } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}) };
+      await input.beforeStart?.(); requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成");
       let attemptIndex = -1;
-      // Persist the intent before the SDK can dispatch a model or tool. A crash
-      // in this window remains visibly unresolved instead of silently retrying.
-      await updateIndex(input.session_id, index => {
-        attemptIndex = index.attempts.length;
-        index.attempts.push(attempt);
-      });
-      try { await input.beforeStart?.(); }
-      catch (error) {
-        // The SDK has not seen this intent, so it is known not to have dispatched.
-        await updateIndex(input.session_id, saved => {
-          const held = saved.attempts[attemptIndex];
-          if (held && !held.run_id && isDeepStrictEqual(held, attempt)) saved.attempts.splice(attemptIndex, 1);
-        });
-        throw error;
-      }
+      // Record only this invocation's prepared intent; acceptance is the SDK's initial durable Run commit.
+      await updateIndex(input.session_id, index => { attemptIndex = index.attempts.length; index.attempts.push(attempt); });
+      const abandonAttempt = () => effects.detach(() => updateIndex(input.session_id, saved => {
+        const held = saved.attempts[attemptIndex];
+        if (held && !held.run_id && isDeepStrictEqual(held, attempt)) saved.attempts.splice(attemptIndex, 1);
+      }));
       const params = runModelParams(input.model, input.provenance.frozen.budget, input.provenance.frozen.reasoning_effort);
       const dispatchGuard = async () => {
         await input.beforeDispatch?.();
@@ -1201,7 +1179,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         }
       };
       const started = await dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun({
-        session,
+        session: effects.session(session),
         ...(root ? { rootRef: root.ref } : business ? { workspace: "app" as const } : { workspace: "none" as const }),
         // A digest round carries earlier rounds in its task; replaying them verbatim too is what stopped long sessions.
         ...(input.history === "digest" ? {} : { history: "session" as const }),
@@ -1301,10 +1279,13 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           ...(pinnedMemory.length ? { memory: { pinned: pinnedMemory, budgetChars: input.memory!.budget_chars } } : {}),
         },
       })).catch(async (error: unknown) => {
-        // Refused while the context was still being packed: the runtime creates the run only after that, so nothing
-        // ran and the attempt is a settled refusal rather than an unknown outcome that would block the session.
-        const code = (error as { code?: string }).code;
-        if (code && REFUSED_BEFORE_RUN.has(code)) await updateIndex(input.session_id, index => { index.attempts[attemptIndex]!.refused = { code, at: new Date().toISOString() }; }).catch(() => undefined);
+        if (!effects.accepted()) {
+          const code = (error as { code?: string }).code;
+          let current = true;
+          try { requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成"); } catch { current = false; }
+          if (!current || !code || !REFUSED_BEFORE_RUN.has(code)) await abandonAttempt();
+          else await updateIndex(input.session_id, index => { index.attempts[attemptIndex]!.refused = { code, at: new Date().toISOString() }; }).catch(() => undefined);
+        }
         throw error;
       });
       if (root) runRoots.set(started.run.ref.id, root.ref);
@@ -1374,7 +1355,12 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           },
           pause: () => control.pause(), resume: () => control.resume(),
           // The new model's key is exchanged first; the runtime refuses a target or frozen settings it cannot carry.
-          switchModel: async target => control.switchModel({ protocol: target.protocol, endpoint: target.endpoint, model: target.model, credentialRef: await credentials.prologueRefFor(target.credential_ref) }),
+          beforeModelSwitch: effects.beforeEffect,
+          switchModel: async (target, beforeAccept) => {
+            const credentialRef = await credentials.prologueRefFor(target.credential_ref);
+            await effects.beforeEffect();
+            return control.switchModel({ protocol: target.protocol, endpoint: target.endpoint, model: target.model, credentialRef }, { beforeAccept: () => { effects.assertCurrent(); beforeAccept(); } });
+          },
           steer: input => control.steer(input), subscribe: listener => control.subscribe(listener),
         },
       };
@@ -1393,7 +1379,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   };
 
   return Object.assign(new PrologueAgentAdapter({
-    runtime: port,
+    runtime: { ...port, startAgentRun: input => effects.start(input, () => port.startAgentRun(input)) },
     modelConfiguration: options.modelConfiguration,
     stopHeld: runId => { const queue = heldLabels.get(runId); const next = queue?.shift(); if (queue && !queue.length) heldLabels.delete(runId); return next; },
     // Judged when the run ends, from its last words: the runtime stops consulting the hook after it has held twice.
@@ -1433,7 +1419,20 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       if (!attempts.length || attempts.some(attempt => attempt.frozen.execution !== "read-only" && attempt.frozen.directory && paths.includes(attempt.frozen.directory.canonical_path)
         || attempt.subagent_roots?.some(root => paths.includes(root.path)))) throw new Error(`“${index.title}”仍有涉及此目录的写入执行、待审或未知结果，请先核对原任务`);
     }
-  } });
+  }, withEffect: effects.call });
+}
+
+function assertStartWorkspace(input: PrologueStartInput, workspace: SessionIndex["workspace"], exists: boolean, actionPack: boolean): void {
+  const none = input.workspace === "none", business = input.workspace === "business";
+  if (!exists || (workspace ?? "required") !== (input.workspace ?? "required")) throw new Error("会话工作区模式与原始归属不一致");
+  if (none && (input.root_path !== undefined || input.provenance.frozen.directory !== undefined
+    || input.character.tools.length || input.actions || input.mcp_tools?.length || input.mcp_sources?.length
+    || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
+    || actionPack)) throw new Error("无目录会话不能获得工具或工作区授权");
+  if (business && (input.root_path !== undefined || input.provenance.frozen.directory !== undefined || input.mcp_tools?.length || input.mcp_sources?.length
+    || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
+    || input.character.tools.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool)))) throw new Error("业务会话只能使用宿主冻结的动作与不碰目录的工具");
+  if (!none && !business && !input.root_path) throw new Error("执行缺少已授权工作区");
 }
 
 /** A command's named extra access, as the runtime recorded it for review; null when it is not that shape. */

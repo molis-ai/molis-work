@@ -18,6 +18,12 @@
 
 每一项是 `{ 文件: 个数 }`；没有记录的文件从 0 开始，所以新文件不许带。CI 用同一份脚本量当前树和 merge-base 再比，改 `baseline.json` 放不过变大的。文件改名后记录跟着走。
 
+`rawFetchInScripts`（W3-10-5）也使用这一份比较，另要求 Workbench 始终为零：即使与 base 相等，或执行 `--update`，仍拒绝写基线。实现分为 [模块与绑定图](../../scripts/gates/browser-graph.mjs)、[浏览器程序展开](../../scripts/gates/browser-programs.mjs)、[fetch 调用检查](../../scripts/gates/browser-fetch.mjs)，接在 `SOURCE_COUNT_RULES` 中。按实际程序 AST 数裸、成员、静态计算属性、局部别名、赋值/解构/bind、call/apply；普通字符串、注释、HTML 文本及 JSON 数据脚本不算。计数仍归原文件，同一片段多次装配不重复计；插件现存计数随 W5-04 只降。
+
+程序从 SCRIPT/CLIENT 字符串声明、HTML 中执行的 script，以及 Workbench 的 terminal-client/browser-client TypeScript 入口识别。静态字符串/模板、拼接、数组 join 和已声明函数的 toString 按语法展开，相对 import 与 workspace export 跟到源文件；函数由 AST 去掉 TypeScript 类型，没有执行仓库模块。现行端口传递的脚本按字段的声明来源展开为静态候选；候选重复去掉后至多 256 种组合，不能展开或解析的已识别程序报位置，不当零。UiRequest 的 native port、scope/ports 选择以及 lifecycle 的 native transport 各只放现有一个站点；相邻或复制的新调用仍计数，文件和目录没有整段豁免。副作用 import 与执行性 export-from 进入 typed 闭包，纯类型边不进入；静态 String/替换与条件返回保持或明确展开，只有现行缩进/整行注释删除的精确正则可用，其他变换拒绝。删除或替换仍保留未改字符的片段来源，不能把多个输入重记到同一格式化节点。
+
+这是静态检查的边界：动态属性/反射、任意运行期程序生成、新的非 terminal-client/browser-client TypeScript 构建入口不是已证明的识别能力；同名端口字段按声明候选保守展开，别名赋值按可能取值保守检查，不做通用跨过程运行分析。增加新的浏览器装配方式时须同步扩识别与对抗用例。验证 [health-gates-browser-fetch.test.ts](../../tests/health-gates-browser-fetch.test.ts) 通过真实临时 Git 与 CLI 制造增长、新文件、跨片段、toString、精确例外、typed subpath 和基线篡改；不只验证计数函数。
+
 | 项（baseline.json 的键） | 口径 |
 | --- | --- |
 | `emptyCatches` | TypeScript 代码里的空 `catch`：块里既没有语句也没有注释，如 `catch {}`、`catch (error) { }`。块里写了注释的不算（那是写明了的取舍），有任何语句的也不算。不算 promise 的 `.catch(() => {})`（那是回调，不是 catch 子句）和 `finally`。**由静态检查数**（Biome 插件 `tooling/gates/lint/no-empty-catch.grit`，见下面「静态检查」），键和逐文件数字与 W1-04 的语法树计数一致 |

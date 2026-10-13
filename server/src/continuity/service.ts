@@ -152,7 +152,7 @@ export class ContinuityService {
       } catch (error) {
         const code = error && typeof error === "object" && "code" in error ? String(error.code) : "continuity.delivery_unknown";
         this.db.prepare("UPDATE mw_commands SET state='pending',error_code=? WHERE project_id=? AND member_id=? AND command_id=? AND result_json IS NULL").run(code,...key);
-        if (code === "event_progress.stale_goal" || code.includes("idempotency_key_reused")) throw new ImError(code,"桌面状态已变化，请查看最新状态后重新提交",409);
+        if (code === "goals.event_progress.stale_goal" || code.includes("idempotency_key_reused")) throw new ImError(code,"桌面状态已变化，请查看最新状态后重新提交",409);
         throw error;
       }
     });

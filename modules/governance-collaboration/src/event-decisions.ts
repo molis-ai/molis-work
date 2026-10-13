@@ -50,7 +50,7 @@ export class GovernanceEventDecisions implements GovernanceEventDecisionApi {
   record(input: RecordGoalUserDecisionInput & { authority: GoalEventTrustedAuthority }): GoalEventTrustedDecisionRecord {
     const authority = this.provenance.validateEventDecisionAuthority(input.authority);
     const conclusion = input.conclusion?.trim();
-    if (!conclusion) throw this.error("event_decision.conclusion_required", "用户决定需要结论");
+    if (!conclusion) throw this.error("goals.event_decision.conclusion_required", "用户决定需要结论");
     const at = this.now();
     const decisionId = `gedec-${randomUUID()}`;
     const scope = {

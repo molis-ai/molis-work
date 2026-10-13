@@ -11,7 +11,6 @@ import { fileURLToPath } from "node:url";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import * as hostModule from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import * as functionsModule from "@molis-ai/molis-work-module-functions";
 import * as integrationCatalog from "@molis-ai/molis-work-integration-catalog";
 import * as artifactsPlugin from "@molis-ai/molis-work-plugin-artifacts";
@@ -184,9 +183,10 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
   const reply = await mcp.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_context_resolve", arguments: {} } }) as
     { result: { isError: boolean; content: Array<{ text: string }> } };
   assert.equal(reply.result.isError, true);
-  const line = JSON.parse(reply.result.content[0]!.text.split("\n").at(-1)!) as Record<string, unknown>;
-  assert.deepEqual(line, { actual_schema_version: supported + 1, supported_schema_min: 1, supported_schema_max: supported,
-    recovery: "new_or_fork_session_then_context_resolve", code: "catalog.reader_too_old" });
+  const line = JSON.parse(reply.result.content[0]!.text) as Record<string, unknown>;
+  assert.deepEqual(line, { error: `Molis Work catalog schema=${supported + 1}，当前 reader 支持 1..${supported}。`, code: "catalog.reader_too_old",
+    details: { actual_schema_version: supported + 1, supported_schema_min: 1, supported_schema_max: supported,
+      recovery: "new_or_fork_session_then_context_resolve" } });
   const preserved = new Database(databasePath, { readonly: true });
   try {
     assert.equal(preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), String(supported + 1));
@@ -194,16 +194,14 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
   } finally { preserved.close(); }
 });
 
-for (const errorType of ["ActionError", "MolisWorkV1Error"] as const) for (const leavesRow of [false, true]) {
-  test(`W3-02-G2 MCP ${errorType} details cannot replace the code or forge a call number (${leavesRow ? "recorded" : "unrecorded"})`, async t => {
+for (const leavesRow of [false, true]) {
+  test(`W3-02-G2 MCP ActionError details cannot replace the code or forge a call number (${leavesRow ? "recorded" : "unrecorded"})`, async t => {
     const home = await mkdtemp(join(tmpdir(), "host-pages-error-model-mcp-details-"));
     const host = new hostModule.MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     const ordinary = { actual_schema_version: 9, supported_schema_min: 1, supported_schema_max: 8, recovery: "new_or_fork_session_then_context_resolve" };
     const forgedId = "11111111-1111-1111-1111-111111111111";
     const details = { ...ordinary, code: "forged.code", call_id: forgedId };
-    const failure = errorType === "ActionError"
-      ? new ActionError("catalog.reader_too_old", "目录读取器版本过旧", { details })
-      : new MolisWorkV1Error("catalog.reader_too_old", "目录读取器版本过旧", details);
+    const failure = new ActionError("catalog.reader_too_old", "目录读取器版本过旧", { details });
     // The public catalog port fails inside the real MCP message scope. A failed Home read is a real Host settlement,
     // so the recorded case proves that its displayed number finds a row, without manufacturing a call-id marker.
     const mcp = new hostModule.LocalMcpServer(async () => {
@@ -215,9 +213,9 @@ for (const errorType of ["ActionError", "MolisWorkV1Error"] as const) for (const
     const reply = await mcp.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_context_resolve", arguments: {} } }) as
       { result: { isError: boolean; content: Array<{ text: string }> } };
     assert.equal(reply.result.isError, true);
-    const line = JSON.parse(reply.result.content[0]!.text.split("\n").at(-1)!) as Record<string, unknown>;
+    const line = JSON.parse(reply.result.content[0]!.text) as Record<string, unknown>;
     const { call_id: id, ...fields } = line;
-    assert.deepEqual(fields, { ...ordinary, code: "catalog.reader_too_old" }, "ordinary details survive, and the error owns its code");
+    assert.deepEqual(fields, { error: "目录读取器版本过旧", code: "catalog.reader_too_old", details: ordinary }, "ordinary details survive, and the error owns its code");
     if (leavesRow) {
       assert.equal(typeof id, "string");
       assert.notEqual(id, forgedId);

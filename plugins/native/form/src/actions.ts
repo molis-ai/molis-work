@@ -6,7 +6,7 @@ import { promoteForm, type FormLineHeadPort, type FormPublishArtifactPort, type 
 import { formErrors } from "./error.js";
 import type { FormStore } from "./store.js";
 import { createFormSearchHandlers, formSearchActions } from "./search.js";
-import { formFillPageFilename, formFillPageHtml, formResultsCsv, formResultsCsvFilename } from "./fillpage.js";
+import { FORM_ANSWER_LIMIT, formFillPageFilename, formFillPageHtml, formResultsCsv, formResultsCsvFilename } from "./fillpage.js";
 import { formArtifactPreview, formArtifactPreviewHandler } from "./artifact-preview.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
@@ -18,7 +18,7 @@ const question = object({ ...questionFields, options: array(object(optionFields)
 const questionInput = object({ ...questionFields, options: array(object(optionFields, [])) }, []);
 const recordFields = { id, project_id: id, title: text, description: text, status: { enum: ["draft", "published", "closed"] }, share_id: { type: ["string", "null"] }, questions: array(question), created_at: text, updated_at: text, version, artifact_id: text, artifact_version: { type: "integer", minimum: 0 } };
 const record = object({ ...recordFields, publication_pending: object({ version, source_version: version }) }, Object.keys(recordFields));
-const answers = { type: "object", additionalProperties: { ...text, maxLength: 4000 } };
+const answers = { type: "object", additionalProperties: { ...text, maxLength: FORM_ANSWER_LIMIT } };
 const submission = object({ id, form_id: id, answers, submitted_at: text, form_version: { type: "integer", minimum: 1 }, questions: array(question),
   source: { enum: ["preview", "fill", "file", "agent", "mcp", "workflow", "plugin"] } }, ["id", "form_id", "answers", "submitted_at", "form_version", "questions", "source"]);
 const changed = object({ form: record }), identity = { id, expected_version: version };
@@ -84,7 +84,7 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const promote = (id: string, caller: ActionCallContext, expectedVersion?: number) => ports.withStore(store => promoteForm(store, id, project(caller), value => ports.publishArtifact!(value, caller),
     { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead }));
-  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "form.unavailable", reason: "当前环境不能发出成果" };
+  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "form.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
   return [
     formArtifactPreviewHandler,
     bind(formActions.list, (_, caller) => ports.withStore(store => {

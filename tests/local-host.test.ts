@@ -1,3 +1,6 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { managementGoals } from "./goal-management-caller.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,9 +16,7 @@ import { CapabilityRegistryError } from "@molis-ai/molis-work-kernel";
 
 import {
   createMolisWorkLocalHost,
-  createGoalIntentCapability,
   molisWorkHostProjectReference,
-  snapshotBoardCapability,
 } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -61,7 +62,8 @@ test("Local Host discovers one runtime and serializes typed capabilities", async
   assert.equal(host.status().projects.length, 1);
   await assert.rejects(
     () => first.invoke(missing, undefined),
-    (error: unknown) => error instanceof CapabilityRegistryError && error.code === "kernel.capability_missing",
+    (error: unknown) => error instanceof ActionError && error.code === "actions.dependency_missing" && error.cause instanceof CapabilityRegistryError
+      && error.message === error.cause.message,
   );
   assert.throws(
     () => host.client({ ...reference, project_id: "project-2" }),
@@ -101,7 +103,8 @@ test("a held wait runs beside the project's queue: a later read or command is no
   release();
   assert.equal(await following, "changed");
   await assert.rejects(client.invoke({ ...bump, operation: "wait" } as HostCapabilityDefinition<void, number>, undefined),
-    (error: unknown) => error instanceof CapabilityRegistryError && error.code === "kernel.capability_missing");
+    (error: unknown) => error instanceof ActionError && error.code === "actions.dependency_missing" && error.cause instanceof CapabilityRegistryError
+      && error.message === error.cause.message);
   await host.close();
 });
 
@@ -194,8 +197,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     assert.equal(mcpCreated.goal.goal_id, "shared-entry-goal");
     assert.equal(mcpReplay.replayed, true);
     assert.deepEqual(mcpReplay.goal, mcpCreated.goal, "the runtime action replays its own Goal");
-    const workbenchCreated = await host.client(reference).invoke(createGoalIntentCapability, {
-      project_id: projectId, goal_id: "workbench-entry-goal", title: "工作台入口 Goal",
+    const workbenchCreated = await managementGoals(host.actionClient(reference, false), projectId).invoke(goalsActions.create, { goal_id: "workbench-entry-goal", title: "工作台入口 Goal",
       outcome: "管理入口记本机这个人", idempotency_key: "workbench-goal-command",
     });
     assert.equal(workbenchCreated.replayed, false);
@@ -211,7 +213,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     await host.close();
     const restarted = createMolisWorkLocalHost({ instanceId: "restarted-entry-host" });
     try {
-      const restored = await restarted.client(reference).invoke(snapshotBoardCapability, { project_id: projectId });
+      const restored = await managementGoals(restarted.actionClient(reference, false), projectId).invoke(goalsActions.snapshot, {});
       assert.deepEqual(restored.goals.map((goal) => goal.goal_id).sort(), ["shared-entry-goal", "workbench-entry-goal"]);
     } finally {
       await restarted.close();

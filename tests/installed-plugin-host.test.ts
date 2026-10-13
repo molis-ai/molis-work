@@ -596,3 +596,56 @@ test('closing a project releases every owner and closes its database even when o
     assert.deepEqual(host.status().projects, [], 'the Host no longer lists the project');
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+// W2-18-UPGRADE-SECRETS-01: real Runtime/Supervisor, catalog inspection, sealed storage and exposed actions.
+for (const choice of ['catalog-failure', 'disable', 'disable-enable'] as const)
+  test(`an upgrade with new consent secrets preserves ${choice === 'catalog-failure' ? 'the old release on catalog failure' : 'the newer ' + choice + ' choice'}`, mac, async t => {
+    const home = await mkdtemp(join(tmpdir(), 'installed-upgrade-secrets-')), fixture = await publishedFixture(home, 'project', false, ['weather']);
+    const store = new LocalProjectDatabase(fixture.databasePath), service = new ActionService();
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), reexposed = Promise.withResolvers<void>();
+    let armed = false, inspections = 0, exposures = 0;
+    const register = service.registerProvider.bind(service);
+    t.mock.method(service, 'registerProvider', registration => {
+      const dispose = register(registration);
+      if (registration.definitions.some(definition => definition.capability_id === exposedActionId(fixture.release, 'read') && definition.version === 2)
+        && ++exposures === 2) reexposed.resolve();
+      return dispose;
+    });
+    const installed = await ensureInstalledPlugins({ store, projectId: DEMO_PROJECT_ID, homeDirectory: home, actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID,
+      inspect: async actor => {
+        const snapshot = service.inspect(actor);
+        if (armed && inspections++ === 0) { entered.resolve(); await release.promise; if (choice === 'catalog-failure') { armed = false; throw new Error('controlled catalog failure'); } }
+        return snapshot;
+      } } });
+    const pluginId = fixture.release.pluginId, old = { name: 'weather', header: 'X-Api-Key', value: randomUUID() }, replacement = { ...old, value: randomUUID() };
+    const fresh = { name: 'new-provider', header: 'Authorization', value: randomUUID() };
+    installed.secrets.save(pluginId, old);
+    const v2 = { ...fixture.release, version: 2, permissions: { ...fixture.release.permissions, secretRefs: ['weather', 'new-provider'] } }; installed.releases.release(v2);
+    const approvalKey = 'plugin-builder:agent-studio:approved:' + pluginId, beforeApproval = installed.storage.get(approvalKey);
+    try {
+      armed = true; const pending = installed.lifecycle('upgrade', v2, { consent: true, secrets: [replacement, fresh] });
+      const rejected = assert.rejects(pending);
+      await entered.promise;
+      let enabling: Promise<void> | undefined;
+      if (choice !== 'catalog-failure') await installed.lifecycle('disable', v2);
+      if (choice === 'disable-enable') { enabling = installed.lifecycle('enable', v2); await reexposed.promise; }
+      release.resolve(); await rejected; await enabling;
+      const record = installed.records().find(record => record.plugin_id === pluginId)!;
+      if (choice === 'catalog-failure') {
+        assert.equal(record.version, '1.0.0'); assert.equal(record.state, 'running');
+        assert.deepEqual(await installed.secrets.resolve(pluginId, old.name), { header: old.header, value: old.value });
+        assert.equal(await installed.secrets.resolve(pluginId, fresh.name), null); assert.equal(installed.storage.get(approvalKey), beforeApproval);
+      } else {
+        assert.equal(record.version, '2.0.0'); assert.equal(record.state, choice === 'disable' ? 'disabled' : 'running');
+        assert.deepEqual(await installed.secrets.resolve(pluginId, fresh.name), { header: fresh.header, value: fresh.value });
+        assert.deepEqual(await installed.secrets.resolve(pluginId, old.name), { header: replacement.header, value: replacement.value });
+      }
+      assert.ok(!JSON.stringify(installed.secrets.list(pluginId)).includes(fresh.value));
+      assert.ok(!installed.storage.get(approvalKey)!.includes(replacement.value));
+      if (choice === 'catalog-failure') {
+        await installed.lifecycle('upgrade', v2, { consent: true, secrets: [replacement, fresh] });
+        assert.equal(installed.records()[0]!.version, '2.0.0');
+        assert.deepEqual(await installed.secrets.resolve(pluginId, fresh.name), { header: fresh.header, value: fresh.value });
+      }
+    } finally { release.resolve(); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(home, { recursive: true, force: true }); }
+  });

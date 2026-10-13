@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { bindActionClient, bindWorkflowContentHandlers, defineWorkflowContentActions, workflowDeliveryKey, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, bindWorkflowContentHandlers, defineWorkflowContentActions, retainActionAuthority, workflowDeliveryKey, type ActionClient, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
 import { pagesActions, PAGES_SUBJECT_KIND } from "./actions.js";
 import { nodeFromUnknown } from "./schema.js";
 import { nodesToMarkdown } from "./to-markdown.js";
@@ -32,5 +33,6 @@ export function createPagesContentHandlers(actions: ActionClient) {
       const imported = await bindActionClient(actions, () => caller).invoke(pagesActions.importDocuments, { request_id: workflowDeliveryKey(context), request_hash, documents });
       return ref(imported.documents[0]!);
     },
-  });
+  }).map<ActionHandlerBinding>(binding => ({ ...binding, handle: (caller, input) => binding.handle(retainActionAuthority(caller,
+    { capability_id: binding.capability_id, version: binding.version, provider_id: PAGES_PLUGIN_ID }, caller.beforeEffect), input) }));
 }

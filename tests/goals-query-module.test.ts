@@ -126,7 +126,7 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
     assert.equal(goals.query.getGoal("another-board", "goal-child"), null);
     assert.throws(
       () => goals.query.readGoal("board-query", "missing"),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "goal.not_found",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.not_found",
     );
   } finally {
     store.close();

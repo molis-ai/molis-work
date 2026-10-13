@@ -17,11 +17,11 @@ test("native proposal provenance sorts sources and rejects premature confirmatio
   assert.deepEqual(input, before);
   assert.equal(provenance.normalizeProposalSource({ ...input, confidence: 1, requires_user_confirmation: true }, 0).confidence, 1);
   const cases = [
-    { input: { ...input, source_refs: [" "] }, code: "goal_tree_proposal.source_required", message: "第 3 个条目至少需要一个来源引用" },
-    { input: { ...input, reason: " " }, code: "goal_tree_proposal.reason_required", message: "第 3 个条目必须说明业务理由" },
+    { input: { ...input, source_refs: [" "] }, code: "goals.goal_tree_proposal.source_required", message: "第 3 个条目至少需要一个来源引用" },
+    { input: { ...input, reason: " " }, code: "goals.goal_tree_proposal.reason_required", message: "第 3 个条目必须说明业务理由" },
     ...[-1, 2, NaN, Infinity].map((confidence) => ({ input: { ...input, confidence },
-      code: "goal_tree_proposal.confidence_invalid", message: "第 3 个条目的置信度必须在 0 到 1 之间" })),
-    { input: { ...input, requires_user_confirmation: false }, code: "goal_tree_proposal.user_confirmation_required",
+      code: "goals.goal_tree_proposal.confidence_invalid", message: "第 3 个条目的置信度必须在 0 到 1 之间" })),
+    { input: { ...input, requires_user_confirmation: false }, code: "goals.goal_tree_proposal.user_confirmation_required",
       message: "Goal Tree 提案的每个条目都必须等待用户确认，不能提前物化为正式事实" },
   ];
   for (const entry of cases) assert.throws(() => provenance.normalizeProposalSource(entry.input, 2), (error) => {

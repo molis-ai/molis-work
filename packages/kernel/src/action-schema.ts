@@ -33,8 +33,9 @@ export function createActionSchemaCompiler(): (schema: ActionSchema) => Validate
   };
 }
 
-export function validateActionValue(validate: ValidateFunction, value: unknown, side: "input" | "output"): void {
+export function validateActionValue(validate: ValidateFunction, value: unknown, side: "input" | "output", classify?: (errors: readonly import("ajv").ErrorObject[]) => void): void {
   if (validate(value)) return;
+  classify?.(validate.errors ?? []);
   // Report paths and constraints, never the user's values or credentials.
   const detail = (validate.errors ?? []).map(e => `${e.instancePath || "/"} ${e.keyword}`).join(", ");
   throw new ActionError(`actions.${side}_invalid`, `${side === "input" ? "输入" : "结果"}不符合能力合同：${detail}`);

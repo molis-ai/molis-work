@@ -1397,7 +1397,7 @@ Home最后补证：be531e00f在真实installation查询后、retry/control成功
 
 W3-10-5 复用现有 SOURCE_COUNT_RULES 与逐文件 merge-base 比较，不另建计数系统。程序按实际装配顺序展开字符串、拼接与静态 join，再解析 AST；HTML 只取执行脚本，function.toString 按函数 AST 取体，不执行仓库源码。被浏览器入口引用的 TypeScript（包括 Work 插件 terminal-client）也计入，服务器 fetch 不计；插件现存请求仍按 W5-04 的范围冻结。计数归属原文件，同一片段被多次装配不重复计；UiRequest 底层传输及 lifecycle.fetch 的例外精确到函数或分支，邻接的新 fetch 仍被拦。不能静态展开或解析的已识别程序报位置，不能当零；动态属性构造、反射和任意运行期程序生成不是此静态规则的已验证能力。
 
-门禁回归以真实 Git 临时树和 CLI 制造旧文件增长、新文件 fetch、计算属性与局部别名、跨片段程序、相邻例外和 typed 浏览器入口；普通字符串/注释/HTML 文本应通过。Workbench 非零即拒绝（包括与 base 相等及 --update），插件按文件只降；修改已提交 baseline 不能放大 --base 比较，拒绝增长时 --update 不写入。当前仅为核对后的实现与证明边界，门禁尚未实现。
+门禁回归以真实 Git 临时树和 CLI 制造旧文件增长、新文件 fetch、计算属性与局部别名、跨片段程序、相邻例外和 typed 浏览器入口；普通字符串/注释/HTML 文本应通过。Workbench 非零即拒绝（包括与 base 相等及 --update），插件按文件只降；修改已提交 baseline 不能放大 --base 比较，拒绝增长时 --update 不写入。源码已实现于`5577c3c65`及复核补修`e9bcecea7`，实际小仓CLI与源码扫描证据见本节末的接续记录；整合后的完整门禁、构建、产品回归与合入仍待，不关闭验收。
 
 ### 10.4 共同错误出口的接续验收（W3-02-G1/G3）
 
@@ -2146,3 +2146,45 @@ W3-09-3源候选`59d825ec5`已保存（十四文件，不含快照更新）：Ke
 W3-09-3批次源审补两项，均已源修但待运行：`ed8247d97`将实际Todo batch载荷改为当前`change:{status:"doing"}`（不含不存在的kind字段），否则schema先拒、版本路径未被验证；后续进程内ActionClient的own property为undefined也必须算缺前提，Ajv会略过可选undefined，故共同检查显式拒绝并补原真实ActionService入口断言，合法expected_revision:null保留。`5b7e3b0be`进一步钉原actor_kind/runtime_session_id/plugin_install_id/host_plugin，另一会话即使持有原beforeEffect函数也不能借嵌套豁免；这些仍只有源码/Biome/diff证据。
 
 W3-10-2源候选`fc8887783`已保存：九处Workbench源码的引导/选择、Functions三个脚本、MCP授权、连接与Home模型读取统一经UiRequest；保留空项目的原feedApi分支、输入/选择序号、Controller取消、原已授权后刷新失败恢复，并在失败位置用同一failure view显示可查号。Home插件页原本已使用助手，未重复迁。Functions纯页面夹具挂现行公开UI_REQUEST_CLIENT_SCRIPT，业务保稿/冲突断言不改；新增真实Host/浏览器保稿、owner事实不变、真实诊断页及明确修正后保存用例。九处本范围raw fetch已归零，静态翻译缺失/未装词典/稳定键错误均为零、完整包边界errors为空。新增源与新用例Biome无诊断；原functions-draft-retention四处显式any仍是原基线，未新增，不能称该文件整份lint通过。当前仍待whole build、资产/actual-base健康门禁、浏览器运行和最后整合全量。
+
+
+2026-10-13 10:56，进度PR #473已按确切head`ef8fb699e`与当时main`0d5169efa`、五项必需检查/Verify及Product subset成功、再次密钥扫描零命中后合并（`ee84a8379`）。该PR只记录实际失败、已确认静态证据及仍待运行源码，未发布实现。剩余远端draft及冲突#180继续未作为可合候选。
+
+W3-10-2批次源修`74d554195`保留context rangePick与native+save共用捕获里的Host错误对象及实际编号，native其他错误保留原说明；连接refreshFailed/只读重试透传错误，仍显示已授权、不重新授权的提醒。W3-10-3a候选`b0d790ae9`、`f93be38e1`、`ffa56932d`、`ef73dbf9e`按同片迁api工厂和全部feedApi读者，保留Functions可空项目语义、既有409且state=failed收据、HTML/取消/选择序号与来源已创建只补计划；Feed/规则/Home显示链保留真实Error，Home草稿/原请求持久化不变。复制编号按钮加入后会改变宽泛button查询，现settingsLoadFailed只取原直接子级重试按钮，复制与只读重试各自生效。原builtin composition VM夹具同步api变量，挂载断言不改。静态翻译缺失零、完整包边界errors为空、源码/所改新用例Biome无诊断；整棵构建、资产/健康与真实浏览器仍待。
+
+W3-10-3b候选`376d2da54`及`2c92d01e1`、`f69fd2aa0`把Workbench自有插件/Review/companion请求统一到UiRequest。真实原requestLifetime、审批写入activation signal/读取view signal、五参数Files/Git adapter与返回后的assertCurrent、成果HTML404/fragmentheader、member串行修改及原错误对象透传均源核保留。审查刷新与固定成果读取也用共同failure view，原可见性/序号及只读刷新提示保留。未扩到Files/Git插件内部显示，其迁移仍在W5；回归尚未运行。
+
+尝试两条既有脚本验证的原始`w3-request-static-scripts01.log`为2文件、0通过/2启动失败：构建产物缺失导致进入断言前ERR_MODULE_NOT_FOUND，不能算静态/产品通过，也未通过改导入路径绕过。目前唯一I7构建26仍排在Grok全量之后；I7冻结`62a58259d`加临时SDK依赖、没有重复启动或停止他人任务。后续须实际整体构建，再在同一冻结树完成SDK消费者/变异和各批运行验收。
+
+W3-10-4源候选`4a822c9f1`已固定十三文件：两处助理、Placement、Context、搜索、Frame/Board与当前电脑面板经同一UiRequest。按G3仅从`body.details`恢复work/action，断线仍用原request_id；原文、材料、草稿与切换后的状态保护保持。Placement数据属性JSON解析一次交助手编码；Frame成果404与fragment header、Board三段读取回退、Computer二进制Response、原幂等键/失败撤回及409收据处理保留。错误展示保留code/status/callId/body，不再只取message。原电脑Shelf用例改接公开助手和真实Response，失败撤回/二进制/幂等断言保留；原断线发送浏览器用例补验收编号，不修改断言。相关十三TS与六个完整序列化程序语法零错误、十三文件分组Biome零诊断、静态包边界errors为空、缺英文/未挂词典零；grep定位Workbench直接fetch为零不等于AST门禁通过。当前仅源码候选，已发既有统筹只读复核；实际整体构建、脚本/浏览器运行、资源与健康门禁均待。唯一构建26仍等adoption全量释放，未重复启动或中断他人。
+
+W3-10-4只读复核发现主要写对话与几处最终显示仍压成message，补修`9907297e2`已源核：共用dialog保留失败输入及确认恢复；Placement位置失败的共同view放在bar按钮外、检查原slot/签名；Characters、handback、材料/图片、sideAction/budget与permissions透传Error，图片/PDF保留文件名和native错误文字。没有放宽测试断言；真实UI仍待构建后验证。
+
+W3-10-5独立源码候选`5577c3c65`及`e9bcecea7`保存七文件。模块/绑定图、程序展开与fetch AST扫描分开，沿用SOURCE_COUNT_RULES及现有逐文件merge-base比较，不另建基线体系。WorkBench绝对归零（含相等base、--update）；其他程序按文件只降。候选源码按已声明SCRIPT/CLIENT、HTML执行script及现行terminal/browser-client typed入口识别，相对/workspace出口、副作用import及运行性export-from跟到实际源文件；纯类型边排除。仅现行ui-host精确运输站点例外，邻接/复制的新调用仍拒绝。当前范围、字段候选保守展开及动态/反射/新构建入口的未证明边界已同步gate README；静态候选上限256，超限报错。
+
+复核实际补出的逃逸为：String/replace不能默认为占位或不变、条件返回不能丢分支、typed闭包不能漏副作用import与export-from、共享formatter不能覆盖输入owner后去重掉新片段、inline type-only import不能算运行边。现已用正式Git反例覆盖，未知程序变换明确拒绝；精确缩进/整行注释正则实际删除且保留未改字符来源。原始首轮15/15、第二轮39/39、第三轮47/47、第四轮48/48各留原日志；最终`raw-fetch-cli-tests05.log`新门禁与既有source-counts两文件50/50、0失败/跳过/取消。当前树`raw-fetch-scan10.log`358个静态程序变体、9个typed文件、展开/解析错误0、Workbench0；其余46文件90站点是当前测量，不固定数量。六源码/测试Biome无诊断。较早的实际health `--report --json --base origin/main`量到merge-base fc18、head90/base154，只是报告退出0，不是完整health通过。当前候选未推送/合入，整合预算、API/健康、产品/浏览器/全量仍待；SDK消费者构建26保持唯一排队，原冻结I7与临时包依赖未改。
+
+SDK消费者变异准备补齐一处测试接线：I7`bec456310`把`assistant-delegation.test.ts`的四处Host源码引用改为已存在的公开构建入口（现有独立handback用例已这样导入）。否则移除dist中的最后同步检查不会命中被测实现，可能给出无效变异结论。生产冻结仍为62a加临时候选SDK依赖，构建26尚未开始时仅改此测试；没有启动第二份构建，也没有跑变异或称SDK消费者通过。
+
+W2-10-A1从最新main`ee84a8379`重跑工具后固定`e128c0f5a`，已开并附加[#474](https://github.com/molis-ai/molis-work/pull/474)。64文件由53份测试导入、开发要求/九README构建前提及向下更新的基线组成。无新增公开出口；Alchemist两别名已核原声明、本地名保留。53文件语法零错误；剥离静态import及dynamic import/require目标后测试正文逐字相同。五动态引用位于三文件，独立源审逐一确认原声明对应的现行public出口或dist twin；没有新增Blocker/P1。真实`w2-10-a1-health01.log`完整health相对ee84的merge-base退出0，internal references752、mixed processes140；`--update --base`再次0，仅下降；密钥扫描199新增行通过。此健康通过仍含既有允许的存量lint项，不等于全仓零告警。PR确切head为e128、baseee84，CI启动中；53文件实际运行、本机构建与最终整合尚待，不能据源审或工具预计归零关闭W2-10。
+
+I7构建26实际退出1，Agent Host的类型修复已构建到，但Issues的esbuild缺darwin-arm64可选二进制；没有SDK消费者通过。27离线frozen force安装成功却再次同因失败，Root随后核到临时lock的非SDK删除888行，不能靠重装补回不存在的optional合同。现已从I7 HEAD完整恢复lock，只保留候选SDK必要路径、包完整性及snapshot键的五行替换；optional/omit环境均未设，不改共享配置。28使用offline frozen optional=true安装退出0，esbuild实际transform及Biome2.5.14启动都成功；整棵构建进一步到Host后因五TS错误退出1。`28a82c1b5`删未用off/requireRuntimeProject/workspaceFor及其旧调用、替换遗漏MemoryError为现行owner的memoryErrors.off，并让typed helper接受公开合同本有的ActionCallContext（call_id可选、原对象不clone、不造编号）。六TS语法零错；scopedBiome仍报告该六文件既有十项存量，不称零lint。下一段29仅一份构建及三个SDK消费者文件，实际仍排队；26/27/28原进程均已结束，未重复或中断他人。
+
+W2-10-A2在A1之后重测固定`e4a8d7e00`：五十三测试加基线，无额外文件或工具阻塞；除模块引用外正文逐字不变、语法零错。唯一dynamic为coding-surface的同文件src转dist，独立源审已核同一生产声明，未发现新增Blocker/P1。真实完整health及`--update --base origin/main`均退出0，相对ee84的当前internal references704、mixed processes95；基线仅下降。尚未运行、构建或推送，不能称模块运行验证或W2-10归零。A1的Product subset已有实际成功，必需Package boundaries/Verify尚待；未提前合入。
+
+I7第29轮整棵构建实际成功（原始日志`i7-build-sdk29.log`），随后三个SDK消费者首轮24条16通过/8失败：七条未到目标拒绝，是fixture仍调用LocalHost已不存在的registerCapability；一条owner-index未触发，是raw SDK inspector读裸sessions而真实ScopedStorage加appId前缀。补齐`87e61275c`后10/10：使用现行register，独立peer使用另一真实project队列（保留生产串行合同），raw inspector核appId~sessions且原清理/后续创建断言保持；没有更改生产语义来变绿。最初typed-start按同项目相互等待的30秒取消、旧owner-index的Missing rejection均保留在30日志，不记产品漏洞或通过。
+
+模型变异初两轮删选项/空通知误伤B显示，driver正确拒绝作为目标证据；最终03仅删Node接纳回调的effects.assertCurrent、保留SDK选项与beforeAccept显示通知：基线退出0，变异两条均Missing expected rejection退出1，字节恢复后0。交回03虽变异仍0，driver正确判无效；`3a7130585`把失效移到真实SDK Session同步授权回调，而非更早的async read微任务，原权限/入库/child未消费/本人恢复断言不变。04实际基线0→移除service最终assertSendCurrent后的拒绝通知缺失1→字节恢复0。没有改SDKstore或正式vendor，临时诊断移除；只停止过精确pid30256的本轮无效调试进程，未中断他人。最终`i7-sdk-consumers33.log`三个文件24/24、0失败/取消/跳过，测试仍对应候选包；agent-sdk-effects scopedBiome0，既有delegation的一处any未新增、不冒称该文件零lint。独立只读复核已核实际SDK调用链与原日志，无新增Blocker/P1。
+
+SDK四文件实现/候选包与上述消费者已可审阅，Root已按交接与Prologue AGENTS条款弹窗请求跨仓提交/上游分支推送/PR及正式computer-use vendor替换，当前授权仍待，不能据静默继续该部分。其余整合继续。A2已开并附加[#475](https://github.com/molis-ai/molis-work/pull/475)，exact e4a、叠A1；该base暂不触发main限定CI，A1合入后须重新指main及校验。A1 exact e128/baseee84必需五项与Product subset均已实际成功，尚待适用本地回归后裁定合入；Linux probe仅报告。当前A1/A2所在独立树已完整构建成功、按40/40/26文件分组拿一个浏览器名额运行，不与I7整合树混用证据。
+
+
+2026-10-13 I7 真实静态检查与 W2-10 回归接续：A1/A2 的整体构建成功，106 文件分三批得到 358/358、96/97、176/176，均无取消或跳过。唯一失败属于 A2 的 Cognia HTTP：导入统一后，两次创建同一 Home 的 Host 被 `inference.home_in_use` 拒绝；先做 ee84 干净基线对照，再让测试经已有构造注入共享服务宿主及其动作网关，保留全部 grant/search/read/revoke 拒绝断言，不改变单 Home 执行约束。A1 的 53 文件全部运行通过，确切 e128 head 的五项必需 CI、Product subset 与 Linux probe 均成功，准备按已有授权合入；A2 不提前合。
+
+I7 在已收齐 W3-07/09/10 源码后重新跑完整 health，六项实际失败：Goals 新交付物片段的两处 raw fetch（新文件从零）；新项目调度文件多点名 Feed/Inbox/Schedule；actions.provider_ambiguous 未列入平台码；原 Linux catalog 文件新增 Darwin 真沙箱验收。修复合同：交付物两请求用现有 UiRequest，保留一次性键、确认/未定结果、核对及迟到读保护（W3-10-5-01）；调度复用现有 Feed/Inbox 编排与 Schedule 专属宿主文件，保留无页面启动、身份/权限和清理（W2-18-SCHEDULE-01/02）；平台码登记为当前默认 invalid，保持原拒绝类别；真沙箱场景完整迁到独立 macOS 测试文件，原 Linux catalog 覆盖及 CI 清单保留（W3-07-8-02）。不改 gate/limits 或放宽断言。boundary 单项失败是尚未获批的临时 SDK file 路径与登记表不符，正式换包仍待用户决定，不以登记临时路径绕过。以上修复后的构建、定向回归、动作/资源快照及整合全量均待。
+
+2026-10-13 A1已真实合入：#474确切e128的五项必需、Product subset及Linux probe成功，推送前密钥扫描通过，19:52:33UTC合并为main f2024d6b2。A2改base main并同步f202为16a55971d，Cognia夹具复用服务Host和真实网关后3/3通过、无取消或跳过；原断言不变。完整health及向下baseline更新通过，密钥352新增行无命中，#475已推更新、CI在跑；ee84干净基线实际构建等待contextual全量释放名额，不提前合入。
+
+I7调度门禁修复为968463d0a，平台码与交付物请求为cff53afcb、公开快照ed4375d1b。沙箱测试初搬到新文件被内部导入0→1正确拦下；c6cb71a2f改为完整放入既有独立Darwin的installed-plugin-execution测试，原Linuxcatalog与CI清单不变，复用其生产broker、现行publicHost及同文件dist副本，无新增测试端口。实际health36完整通过，平台码仍当前default invalid；只读复核未发现新增P1，后一测试归属修正补审中。随后8b74a5d48合入A1，43137af1c合入A2，冲突均保留I7业务正文并用现行工具转导入，README保留两边要求。health37相对f202更新成功：695内部引用、93混用进程，raw fetch88、外部插件点名423，基线仅下降。新整合构建/定向/浏览器/全量仍待，temporary SDK单项boundary缺口仍待用户正式换包授权。
+
+A3第三批从16a重跑现行工具，53普通无浏览器/平台专属测试，只改导入；两动态引用分别是functions-system-capability的现行BUILTIN_PLUGIN_CATALOG和jelly-model的现行MolisWorkLocalHost。AST去导入目标后正文相同、语法零错误、工具无阻塞；actual health --update --base通过626内部引用、68混用进程。运行分40/13批，沿用未改生产源码的既有完整构建；还在跑，未以这些源审指标声明片完成。

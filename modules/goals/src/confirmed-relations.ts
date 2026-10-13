@@ -19,7 +19,7 @@ export class ConfirmedRelationCommands {
             : repository.db.prepare(`SELECT relation_id FROM goal_relations
                 WHERE project_id = ? AND from_goal_id = ? AND to_goal_id = ? AND type = ? AND state = 'active'
                 ORDER BY relation_id LIMIT 1`).get(projectId, relation.from_goal_id, relation.to_goal_id, relation.type)) as { relation_id: string } | undefined;
-          if (!current) throw this.context.error("goal_tree_proposal.relation_not_active", "要停用的关系已不存在或不再生效，请重新决定这项提案");
+          if (!current) throw this.context.error("goals.goal_tree_proposal.relation_not_active", "要停用的关系已不存在或不再生效，请重新决定这项提案");
           const relationId = current.relation_id;
           repository.db.prepare("UPDATE goal_relations SET state = 'inactive', deactivated_at = ? WHERE relation_id = ?").run(at, relationId);
           repository.appendEvent({ eventId: randomUUID(), projectId, actorId, at, reason,
@@ -28,7 +28,7 @@ export class ConfirmedRelationCommands {
           materialized.push({ relation_id: relationId });
           continue;
         }
-        if (!relation.type) throw this.context.error("goal_tree_proposal.relation_type_invalid", "新增关系缺少有效类型");
+        if (!relation.type) throw this.context.error("goals.goal_tree_proposal.relation_type_invalid", "新增关系缺少有效类型");
         this.context.requireNonTrashedGoal(projectId, relation.from_goal_id);
         this.context.requireNonTrashedGoal(projectId, relation.to_goal_id);
         const relationId = `relation-${randomUUID()}`;

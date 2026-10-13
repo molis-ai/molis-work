@@ -158,17 +158,17 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const openFile=async(sourceId,kind,id,fallback)=>{
     const source=sources.find(item=>item.id===sourceId),item=find(sourceId,kind,id)||fallback||null;
-    current={source:sourceId,kind,id};paint();show(true);
+    const request=current={source:sourceId,kind,id};paint();show(true);
     title.textContent=item?.title||L('文件');
     meta.textContent=[source?.title,item?.updated_at?new Date(item.updated_at).toLocaleString():'',sizeText(item?.size)].filter(Boolean).join(' · ');
     setOpen(item?.open||null);body.innerHTML='<p class="side-files-note">'+esc(L('正在读取…'))+'</p>';body.scrollTop=0;
     try{
       const result=await get('/api/side/files/content?source='+encodeURIComponent(sourceId)+'&kind='+encodeURIComponent(kind)+'&id='+encodeURIComponent(id)+'&media_type='+encodeURIComponent(item?.media_type||''));
-      if(!current||current.id!==id)return;
+      if(current!==request)return;
       if(!result.content){body.innerHTML='<p class="side-files-note">'+esc(L('这个插件没有提供预览，可以在插件中打开。'))+'</p>';return;}
       const raw=host.route('/api/side/files/raw?source='+encodeURIComponent(sourceId)+'&kind='+encodeURIComponent(kind)+'&id='+encodeURIComponent(id));
       render({...result.content,raw});
-    }catch(error){if(current?.id===id)body.innerHTML='<p class="side-files-problem">'+esc(error.message)+'</p>';}
+    }catch(error){if(current===request)body.innerHTML='<p class="side-files-problem">'+esc(error.message)+'</p>';}
   };
   // A preview another surface hands over (the Assistant's attachment, a result it made): shown as given.
   // Only same-origin paths and inline images: a preview never loads another site or a script-bearing data URL.
@@ -195,11 +195,11 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     if(event.detail?.tab!=='files'||event.detail?.open===false)return;
     const target=event.detail?.target;
     if(target?.preview){openGiven(target.preview);void load(false);return;}
-    await load(false);
     if(target?.subject){
+      const request=current={source:target.source||'',kind:target.subject.kind,id:target.subject.id};await load(false);if(current!==request)return;
       const source=target.source||sources.find(item=>item.kinds.some(kind=>kind.kind===target.subject.kind))?.id;
       if(source)void openFile(source,target.subject.kind,target.subject.id,target.entry);
       else openGiven({title:target.title||L('文件'),problem:L('这个文件所在的插件没有向侧栏提供文件，或当前没有读取权限。'),open:target.open});
-    }
+    }else await load(false);
   });
 }`.replace(/^[ \t]*\/\/.*\n/gm, "");

@@ -4,7 +4,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { alchemistActions as a } from "@molis-ai/molis-work-plugin-alchemist";
+import { alchemistActions as a, createAlchemistHttpApp } from "@molis-ai/molis-work-plugin-alchemist";
 import { alchemistFixture } from "./fixtures/alchemist-actions.js";
 
 async function fixture(t: test.TestContext) {
@@ -126,6 +126,17 @@ test("Alchemist Pulse, cancellation and exports use real repositories and preser
 
 test("Alchemist Kernel validates authority and schemas before side effects; HTTP cannot bypass the injected invoker", async t => {
   const f = await fixture(t);
+  // W3-02-G1-05: the production operation executor rejects an unknown operation or version with the current platform code.
+  const executor = f.runtime.actionsFor(f.caller.actor_id);
+  for (const definition of [{ ...a.bootstrap, version: 2 }, { ...a.bootstrap, capability_id: "example.unregistered" }]) {
+    await assert.rejects(executor.invoke(definition, {}), { code: "actions.missing", message: "没有这个炼金术士能力版本。" });
+    // The existing injected invoker forwards the route into that real rejected executor, rather than manufacturing an error body.
+    const app = createAlchemistHttpApp(undefined, { invoke: (reference, input, signal) => executor.invoke({ ...reference,
+      capability_id: definition.capability_id, version: definition.version }, input, signal) });
+    const denied = await app.request("http://localhost/api/v1/bootstrap");
+    assert.equal(denied.status, 404);
+    assert.deepEqual(await denied.json(), { code: "actions.missing", message: "没有这个炼金术士能力版本。" });
+  }
   await assert.rejects(f.service.invoke({ ...f.caller, project_id: "b" }, a.directionCreate, { description: "不得创建到其他项目的方向" }));
   await assert.rejects(f.service.invoke({ ...f.caller, permissions: ["alchemist:read"] }, a.directionCreate, { description: "缺少写权限不能创建方向" }), { code: "actions.forbidden" });
   for (const input of [{ description: "有效方向描述但是带有伪造身份", actor_id: "other" }, { description: "短" }, { description: "有效方向描述", project_id: "b" }]) {
@@ -140,7 +151,7 @@ test("Alchemist Kernel validates authority and schemas before side effects; HTTP
   assert.equal((await f.call(a.bootstrap, {})).directions.length, 1);
 });
 
-test("Alchemist aborting an event observer leaves its job intact; cancelled conversation cannot publish a late model answer", async t => {
+test("W2-18-ALCHEMIST-EFFECT-01: cancelled discussion writes no reply; event observers leave accepted jobs intact", async t => {
   const f = await fixture(t);
   const { direction } = await f.call(a.directionCreate, { description: "验证观察窗口关闭不会取消后台研究" });
   const receipt = await f.call(a.explorationStart, { id: direction.id });
@@ -156,8 +167,23 @@ test("Alchemist aborting an event observer leaves its job intact; cancelled conv
   f.ai.generate = async () => { entered.resolve(); await release.promise; return alchemistOutput('{"reply":"迟到的成功回复"}'); };
   const pending = f.service.invoke({ ...f.caller, signal: abort.signal }, a.conversationSend, { body: "这次讨论取消", context: { kind: "direction", label: direction.title, directionId: direction.id } });
   await entered.promise;
-  abort.abort(); release.resolve(); await pending;
+  const rejected = assert.rejects(pending); abort.abort(); release.resolve(); await rejected;
   const messages = (await f.call(a.conversationList, {})).messages;
-  assert.equal(messages[0]!.body, "这次讨论取消"); assert.equal(messages[1]!.responseState, "failed");
+  assert.equal(messages[0]!.body, "这次讨论取消"); assert.equal(messages.length, 1, "cancellation is not a fabricated failed assistant reply");
   assert.ok(messages.every(message => message.body !== "迟到的成功回复"));
+});
+
+test("W2-18-ALCHEMIST-EFFECT-02: a genuine model failure remains explained and an explicit new discussion can recover", async t => {
+  const f = await fixture(t);
+  const { direction } = await f.call(a.directionCreate, { description: "正常模型失败后可以继续讨论并保留原文" });
+  const context = { kind: "direction" as const, label: direction.title, directionId: direction.id };
+  const generate = f.ai.generate;
+  f.ai.generate = async () => { throw new Error("model unavailable during dispatch"); };
+  const failed = await f.call(a.conversationSend, { body: "保留这条合法消息", context });
+  assert.ok("assistantMessage" in failed); assert.equal(failed.assistantMessage.responseState, "failed");
+  f.ai.generate = generate;
+  const recovered = await f.call(a.conversationSend, { body: "再次明确讨论", context });
+  assert.ok("assistantMessage" in recovered); assert.equal(recovered.assistantMessage.responseState, "complete");
+  assert.deepEqual((await f.call(a.conversationList, {})).messages.map(row => [row.author, row.responseState]),
+    [["user", "complete"], ["assistant", "failed"], ["user", "complete"], ["assistant", "complete"]]);
 });

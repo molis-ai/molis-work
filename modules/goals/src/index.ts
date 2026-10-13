@@ -85,7 +85,7 @@ export class GoalsModule {
       options.personalPlanningMethodPacks,
     );
     this.events = new GoalEventFacts(context);
-    const lifecycle = new GoalLifecycleCommands(context);
+    const lifecycle = new GoalLifecycleCommands(context, { validateRelationGraph: hooks.validateRelationGraph });
     const goals = new GoalCommands(context, {
       validateRelationGraph: hooks.validateRelationGraph,
     });

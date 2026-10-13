@@ -10,8 +10,8 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
-import { createDiffPlugin } from "../plugins/native/diff/src/plugin.js";
-import { createTextStatsPlugin } from "../plugins/native/text-stats/src/plugin.js";
+import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
+import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 
 async function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "coding-companion-inputs-"));

@@ -6,13 +6,13 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 // Host and Coding surface come from the same modules, so one project platform serves both.
 import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { CODING_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/src/coding-surface.js";
+import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/dist/coding-surface.js";
 
 function codingHostFixture(root: string) {
   const starts: AgentStartRequest[] = [], runs: AgentRunView[] = [];

@@ -4,14 +4,14 @@ import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { ConnectorConnectionStore, withConnectorConnections } from "../apps/local-host/src/connector-connection-store.ts";
+import { ConnectorConnectionStore, withConnectorConnections } from "../apps/local-host/dist/connector-connection-store.js";
 import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { CONNECTOR_CONNECTIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
-import { ImagesHostService } from "../apps/local-host/src/images-service-host.ts";
-import { refreshFeedConnectionState } from "../apps/local-host/src/web-connector-connections.ts";
+import { ImagesHostService } from "../apps/local-host/dist/images-service-host.js";
+import { refreshFeedConnectionState } from "../apps/local-host/dist/web-connector-connections.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.ts";
-import { bindPrologueInference } from "../apps/local-host/src/prologue-inference-host.ts";
+import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
 
 const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 

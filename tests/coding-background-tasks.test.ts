@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore, listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
-import { codingBackgroundTasks } from "../apps/local-host/src/coding-background-tasks.js";
+import { codingBackgroundTasks } from "../apps/local-host/dist/coding-background-tasks.js";
 
 test("the background list shows Coding sessions under way or waiting in every project, and marks ones from before a restart", () => {
   const root = mkdtempSync(join(tmpdir(), "coding-background-"));

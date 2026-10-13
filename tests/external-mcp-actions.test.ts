@@ -7,10 +7,10 @@ import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-c
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
-import { MolisWorkLocalHost, type MolisWorkProjectRuntime } from "../apps/local-host/src/project-host.js";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
-import { createExternalMcpDirectory } from "../apps/local-host/src/external-mcp-actions.js";
-import { EXTERNAL_MCP_PERMISSION, isMcpToolCapability } from "../apps/local-host/src/mcp-tool-actions.js";
+import { MolisWorkLocalHost, type MolisWorkProjectRuntime } from "../apps/local-host/dist/project-host.js";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
+import { createExternalMcpDirectory } from "../apps/local-host/dist/external-mcp-actions.js";
+import { EXTERNAL_MCP_PERMISSION, isMcpToolCapability } from "../apps/local-host/dist/mcp-tool-actions.js";
 import { MCP_FIXTURE } from "./fixtures/mcp-notes-server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 

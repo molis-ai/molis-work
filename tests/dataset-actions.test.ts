@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { datasetActions as actions, DATASET_ACTION_PERMISSIONS, openDatasetStore, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 
 async function fixture(t: test.TestContext, completeText: HostCompleteText | null = null) {
   const home = await mkdtemp(join(tmpdir(), "dataset-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText });

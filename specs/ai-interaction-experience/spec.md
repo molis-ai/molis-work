@@ -703,6 +703,18 @@ node scripts/run-tests.mjs tests/ai-interaction-slice.e2e.test.ts
 
 ## 20. 远端交接（2026-10-13，当前接续入口）
 
+> **统筹补充（2026-10-13 晚，先读）：暂停期间 main 上有两次大合并，本节下文写于知道它们之前。**
+>
+> - **#471**（yijunw0212，10-13 08:24 UTC，78 个文件）把桌面 Computer Use 合进 main，并把 main 的 vendored SDK 换成 `prologue-sdk-0.0.0-rc.1-computer-use.tgz`。它的来源是 Prologue `d4908c11`（分支 `feat/desktop-computer-use`，基于 `c4b9fde3` = `4f7110fe` + 采用修正 + 5 个 Computer Use 提交）；provenance 写着 `pushed: false`，这个提交**不在 Prologue main，也不在 GitHub 远端**。这份包**不含**已进 Prologue main 的 S1–S3、带类型问卷（`a06ae62e`）、P1 合同、P2a–P2f。main 上同时还留着旧的 side-panel-memory 包与补丁（两份 tgz）。#471 还新增了右栏的电脑格（`apps/workbench/src/side-panel-computer.ts`）、`contracts/services/computer.ts`、`services/ui-surfaces.ts`，改了助理服务、`assistant-island.ts`、`prologue-node.ts`、`prologue-stream.ts`、`contracts/services/agent-host.ts`，并把 10-09 版的 `specs/ai-interaction-experience/spec.md` 与参考图带进了 main。
+> - **#472**（yijunw0212，10-13 10:54 UTC，93 个文件 +3399/−953）把旧采用树 `feat/prologue-adoption` 的 10 个提交（10-09 的 `77fde104`…`8b1a0522`）合进 main：一轮的推理力度、运行中换模型、逐轮写入记录（约等于 A1）、灵光流式（A3 的一部分）、助理把交出去的工作收回来后接着做（`8b1a0522`「第 14 项」，A0 当时明确不纳入的私有接续）、变化等待（`b3235bb1`/`8c0b60fb`，约等于 A4）。它沿用 #471 的 computer-use 包，没有换包。main 上的 `specs/prologue-adoption/spec.md` 是 10-09 的旧版（标题「Prologue 新能力接入：修复、适配与功能优化」）。
+> - 统筹层的说明与后续顺序见远端分支 `coordination/handoff-2026-10-13` 的 `coordination/2026-10-13/README.md` §2a。
+>
+> **对本线的影响：**
+> 1. Molis main 现在的 SDK 包**不含带类型问卷**（`a06ae62e`）。C1+H1 在 Molis main 上要等采用线把统一包（Prologue main + Computer Use 分支合流后重打）换进 main 才能接；它现在叠在 #408 的分支上，那个包有问卷。#471/#472 也改了 C1+H1 会碰的 `prologue-node.ts`、`prologue-stream.ts`、`contracts/services/agent-host.ts`，合进来时要按 main 的新形状重做那部分。
+> 2. #471 把 10-09 版的 `specs/ai-interaction-experience/spec.md` 与三张参考图带进了 main，和 #410 的新版冲突：合 main 时**规格以 #410 为准**，参考图逐字节相同的话两边无差别。
+> 3. #471/#472 都改了 `assistant-island.ts`（A1 要动的地方）、助理服务和页面资源预算（`page-assets.json`）：A1 的「共享客户端进 workbench.js，删旧渲染抵字节」要按新的 main 重新量字节。
+
+
 写给另一台机器上的接手者：这一节取代 2026-10-11 的旧交接，只靠远端分支就能接续；本机工作树、本机锁文件与 scratchpad 你看不到，需要的内容已复述在下面。统筹层的事实也在远端分支 `coordination/handoff-2026-10-13`（目录 `coordination/2026-10-13/`），与本线直接相关的部分已写进 §20.6。
 
 ### 20.1 一句话现状

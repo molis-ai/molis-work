@@ -6,6 +6,8 @@
  * no imports, no closures over module scope. Everything it shows comes from the run projection; it never
  * infers success the projection does not state.
  */
+import type { codingTimelineWords } from "./timeline-words.js";
+
 /** Runs in the browser only; the plugin build has no DOM library, so elements are typed structurally. */
 type Element = any;
 declare const document: any;
@@ -31,38 +33,23 @@ export interface TimelineRun {
   stop_reason?: string | null;
   step_board?: { terminal: boolean; nodes: Array<{ state: string }> };
   turns?: Array<{ kind: string; text: string; at?: string | null }>;
+  turn_changes?: TimelineTurnChanges[];
+}
+/** What one turn wrote, from the runtime's write receipts (AgentRunView.turn_changes). */
+export interface TimelineTurnChanges {
+  turn: number;
+  sequence: number;
+  files: Array<{ path: string; byte_length: number; digest: string; checkpoint_id: string }>;
 }
 
-export function createCodingTimeline() {
+/** The words and tables the timeline reads with (codingTimelineWords), passed in because the factory is injected alone. */
+export type TimelineWords = ReturnType<typeof codingTimelineWords>;
+
+export function createCodingTimeline(words: TimelineWords) {
   const TERMINAL = ["completed", "failed", "stopped", "cancelled", "reconcile-required"];
   const svg = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
   const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] as string));
-  const KIND: Record<string, { verb: string; icon: string; noun: string; unit: string }> = {
-    read: { verb: "读取", icon: "file", noun: "文件", unit: "个" },
-    "read-file": { verb: "读取", icon: "file", noun: "文件", unit: "个" },
-    edit: { verb: "修改", icon: "edit", noun: "文件", unit: "个" },
-    write: { verb: "写入", icon: "edit", noun: "文件", unit: "个" },
-    "run-command": { verb: "运行", icon: "terminal", noun: "命令", unit: "条" },
-    grep: { verb: "搜索", icon: "search", noun: "内容", unit: "次" },
-    search: { verb: "搜索", icon: "search", noun: "内容", unit: "次" },
-    glob: { verb: "查找", icon: "search", noun: "文件", unit: "次" },
-    list: { verb: "查看目录", icon: "folder", noun: "目录", unit: "个" },
-    "list-directory": { verb: "查看目录", icon: "folder", noun: "目录", unit: "个" },
-    "ask-user": { verb: "提问", icon: "question", noun: "问题", unit: "个" },
-    reasoning: { verb: "思考", icon: "sparkles", noun: "", unit: "" },
-    "dispatch-subagent": { verb: "派出子任务", icon: "workflow", noun: "子任务", unit: "个" },
-    "await-subagents": { verb: "等待子任务", icon: "clock", noun: "", unit: "" },
-    "steer-subagent": { verb: "补充子任务要求", icon: "workflow", noun: "次", unit: "" },
-    "board-read": { verb: "查看任务图", icon: "list", noun: "", unit: "" },
-    "board-report": { verb: "回报步骤", icon: "list", noun: "步骤", unit: "次" },
-    "start-command": { verb: "后台运行", icon: "terminal", noun: "命令", unit: "条" },
-    "command-output": { verb: "查看后台输出", icon: "terminal", noun: "次", unit: "" },
-    "command-stop": { verb: "停止后台命令", icon: "terminal", noun: "条", unit: "" },
-    "await-commands": { verb: "等待后台命令", icon: "clock", noun: "", unit: "" },
-    "session-send": { verb: "给其他会话发信", icon: "share", noun: "封", unit: "" },
-    "上下文整理": { verb: "整理上下文", icon: "clock", noun: "", unit: "次" },
-    "工具调用纠正": { verb: "纠正工具调用", icon: "circle-alert", noun: "", unit: "次" },
-  };
+  const { KIND, FAILURES, toolHint: hintFor } = words;
   const kindOf = (item: TimelineActivity) => KIND[item.name] ?? { verb: item.name, icon: "activity", noun: "操作", unit: "项" };
   /** A command's own exit code is a fact from its receipt; "passed" is never inferred beyond it. */
   const exitCode = (item: TimelineActivity): number | null => {
@@ -109,15 +96,22 @@ export function createCodingTimeline() {
     const all = text.replace(/\n$/, "").split("\n");
     return all.length <= limit ? { text: all.join("\n"), hidden: 0 } : { text: all.slice(0, limit).join("\n"), hidden: all.length - limit };
   };
+  const toolHint = (item: TimelineActivity): string => {
+    const hint = item.state === "failed" ? hintFor((item.output ?? "").trim()) : "";
+    return hint ? `<p class="coding-tool-hint">${escape(hint)}</p>` : "";
+  };
   const rowHtml = (item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[]) => {
     const kind = kindOf(item), result = outcome(item, ended, waiting, items);
     // Reasoning is prose, so its row previews the first line as text rather than as a code target.
     const firstLine = item.name === "reasoning" ? (item.output ?? "").trim().split("\n")[0]!.slice(0, 140) : "";
-    const what = item.target ? `<code>${escape(item.target)}</code>` : firstLine ? `<span class="coding-tool-preview">${escape(firstLine)}</span>` : "";
+    // A wait the Run sleeps in says until when, in this machine's time.
+    const until = item.name === "sleep-wait" && Number.isFinite(Date.parse(item.target)) ? `到 ${new Date(item.target).toLocaleTimeString()}` : "";
+    const what = until ? `<span class="coding-tool-preview">${escape(until)}</span>`
+      : item.target ? `<code>${escape(item.target)}</code>` : firstLine ? `<span class="coding-tool-preview">${escape(firstLine)}</span>` : "";
     const output = (item.output ?? "").trim();
     const shown = output ? lines(output, item.name === "reasoning" ? 120 : 24) : null;
     const hidden = (shown?.hidden ?? 0) + (item.output_hidden_lines ?? 0);
-    const body = shown ? `<pre class="coding-tool-output">${escape(shown.text)}${hidden ? `\n… 另有 ${hidden} 行` : ""}${item.output_truncated ? "\n（输出已截断）" : ""}</pre>` : "";
+    const body = shown ? `${toolHint(item)}<pre class="coding-tool-output">${escape(shown.text)}${hidden ? `\n… 另有 ${hidden} 行` : ""}${item.output_truncated ? "\n（输出已截断）" : ""}</pre>` : "";
     const head = `<span class="coding-tool-icon">${svg(kind.icon)}</span><span class="coding-tool-verb">${escape(kind.verb)}</span>${what}<span class="coding-tool-state" data-tone="${result.tone}">${statusMark(result.tone)}${result.label ? `<span>${escape(result.label)}</span>` : ""}</span>`;
     return body
       ? `<details class="coding-tool" data-tone="${result.tone}" data-kind="${escape(item.name)}" data-tool="${escape(item.call_id)}"><summary>${head}</summary>${body}</details>`
@@ -181,27 +175,6 @@ export function createCodingTimeline() {
    * A failure explained in the user's words, with what to do next. The original code stays visible so the
    * explanation never replaces the fact it explains.
    */
-  const FAILURES: Array<[RegExp, string, string]> = [
-    // The Host refused before sending (a Character disabled, a grant withdrawn): nothing reached the model.
-    [/EFFECT_NOT_AUTHORIZED/, "这一轮的授权已失效", "角色被停用或授权被收回，这一轮在发给模型前就停下了，没有发出任何内容。确认设置后再从断点继续。"],
-    // The model went silent or the connection dropped mid-answer: not a settings problem, and what was done is kept.
-    [/MODEL_NETWORK_FAILED.*(timeout|went quiet)/i, "模型服务长时间没有回应", "可能是网络不稳或服务繁忙；已完成的操作都保留着，从断点继续即可。反复出现时把任务拆小一些。"],
-    [/MODEL_NETWORK_FAILED.*(terminated|reset|hang up)/i, "和模型服务的连接中断了", "已完成的操作都保留着；网络恢复后从断点继续即可。"],
-    [/MODEL_NETWORK_FAILED|NETWORK_|ENOTFOUND|ECONN|ETIMEDOUT|DNS/i, "连不上模型服务", "检查网络或代理后，从断点继续即可。"],
-    [/TIMEOUT|超时/i, "请求超时", "稍后从断点继续；若反复超时，把任务拆小一些。"],
-    [/CREDENTIAL_/i, "模型凭据不可用或已过期", "到模型设置里重新检查凭据，再从断点继续。"],
-    [/MODEL_HTTP_ERROR.*(429|rate)|rate.?limit/i, "模型服务限流", "等一会儿再从断点继续。"],
-    [/MODEL_HTTP_ERROR.*\(5\d\d\)/i, "模型服务暂时出错", "这是服务方的问题，不是你的设置；已完成的操作都保留着，稍后从断点继续即可。"],
-    [/MODEL_HTTP_ERROR.*\((401|403)\)/i, "模型服务拒绝了凭据", "到模型设置里检查密钥和账号权限，再从断点继续。"],
-    [/MODEL_HTTP_ERROR|MODEL_NOT_FOUND|MODEL_PROTOCOL_UNSUPPORTED|MODEL_PARAM_UNSUPPORTED/i, "模型服务返回错误", "检查模型设置（地址、型号、协议）后再继续。"],
-    [/MODEL_CONTEXT_OVERFLOW|MODEL_REQUEST_TOO_LARGE|CONTEXT_BUDGET_EXCEEDED/i, "上下文超出模型上限", "从断点继续时会带上整理后的事实；也可以把任务拆小。"],
-    [/CONTEXT_COMPACTION_INVALID/i, "上下文整理失败", "已完成的操作都保留着；从断点继续时改用前面对话的摘要，不再整理原文。"],
-    [/AGENT_BUDGET_EXCEEDED|MODEL_BUDGET_EXCEEDED|RESOURCE_LIMIT_EXCEEDED/i, "达到这一轮的执行上限", "确认进度后从断点继续，会开启新的一轮额度。"],
-    [/too many tool turns/i, "用完了可用的执行轮次", "已完成的修改都保留着；重试时可以给更多轮次，或把任务拆小。"],
-    [/MODEL_RESPONSE_INVALID|MODEL_STRUCTURED_INVALID|MODEL_TOOL_NOT_DECLARED/i, "模型的回复格式不对", "通常是偶发的，从断点继续即可。"],
-    [/MODEL_REFUSED/i, "模型拒绝了这个请求", "换个说法或补充背景后再发。"],
-    [/MODEL_OUTPUT_TRUNCATED/i, "回答一直写不完", "已写出的部分和已完成的操作都保留着；从断点继续时让它分几次写，或把任务拆小。"],
-  ];
   const explainFailure = (reason: string) => {
     const match = FAILURES.find(([pattern]) => pattern.test(reason));
     return match ? { title: match[1], hint: match[2] } : null;

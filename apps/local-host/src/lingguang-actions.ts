@@ -23,7 +23,9 @@ export function lingguangActionProvider(home: string, projectId: string, actions
       completeText: (prompt, options) => runWithMolisWorkHome(home, () => {
         const complete = model();
         if (!complete) throw new ActionError("actions.connection_required", "请先配置文字模型，再继续对话");
-        return complete(resolveModelPrompt(home, prompt, "io.molis.work.lingguang"), options);
+        const { onText, ...rest } = options;
+        return complete(resolveModelPrompt(home, prompt, "io.molis.work.lingguang"), { ...rest,
+          ...(onText ? { onProgress: event => { if (event.type === "text-delta") onText(event.text); } } : {}) });
       }),
     }), ...createLingguangContentHandlers(actions)],
   };

@@ -1,3 +1,4 @@
+import { transformSync } from "esbuild";
 import { createRequire } from "node:module";
 import type ts from "typescript";
 
@@ -83,4 +84,98 @@ export function stripServedJsComments(source: string): string {
     cursor = range.end;
   }
   return out + source.slice(cursor);
+}
+
+/**
+ * Indentation at the start of a line is layout for people reading the sheet. Quotes keep their text, including a break
+ * inside a string. The page asset budget only falls (decision #17), so this layout is not sent.
+ */
+export function dedentServedCss(source: string): string {
+  let out = "";
+  let index = 0;
+  let lineStart = true;
+  while (index < source.length) {
+    const char = source[index]!;
+    if (char === "\"" || char === "'") {
+      const quote = char;
+      out += char;
+      index += 1;
+      lineStart = false;
+      while (index < source.length) {
+        const next = source[index]!;
+        out += next;
+        if (next === "\\") {
+          if (index + 1 < source.length) out += source[index + 1];
+          index += 2;
+          continue;
+        }
+        index += 1;
+        if (next === quote) break;
+        lineStart = next === "\n";
+      }
+      continue;
+    }
+    if (lineStart && (char === " " || char === "\t")) { index += 1; continue; }
+    out += char;
+    index += 1;
+    lineStart = char === "\n";
+  }
+  return out;
+}
+
+/** Same layout, for a script. A string, a template or a regular expression keeps the spaces that are part of its text. */
+export function dedentServedJs(source: string): string {
+  const ts = typescript();
+  const scanner = ts.createScanner(ts.ScriptTarget.ES2022, false, ts.LanguageVariant.Standard, source);
+  const kept = new Set<ts.SyntaxKind>([
+    ts.SyntaxKind.StringLiteral, ts.SyntaxKind.NoSubstitutionTemplateLiteral, ts.SyntaxKind.TemplateHead,
+    ts.SyntaxKind.TemplateMiddle, ts.SyntaxKind.TemplateTail, ts.SyntaxKind.RegularExpressionLiteral,
+  ]);
+  const spans: Array<[number, number]> = [];
+  while (true) {
+    const kind = scanner.scan();
+    if (kind === ts.SyntaxKind.EndOfFileToken) break;
+    if (kept.has(kind)) spans.push([scanner.getTokenPos(), scanner.getTextPos()]);
+  }
+  let out = "";
+  let index = 0;
+  let span = 0;
+  let lineStart = true;
+  while (index < source.length) {
+    const mark = spans[span];
+    if (mark && index === mark[0]) {
+      out += source.slice(mark[0], mark[1]);
+      lineStart = source[mark[1] - 1] === "\n";
+      index = mark[1];
+      span += 1;
+      continue;
+    }
+    const char = source[index]!;
+    if (lineStart && (char === " " || char === "\t")) { index += 1; continue; }
+    out += char;
+    index += 1;
+    lineStart = char === "\n";
+  }
+  return out;
+}
+
+/**
+ * Comments and indentation are not sent. Where esbuild can drop the remaining whitespace and the result is shorter, that
+ * is what is sent: it is the same program, and the names stay (tests match them). A text that is not a program, or a
+ * rewrite that comes out longer, keeps the comment-stripped form.
+ */
+export function tightenServedJs(source: string): string {
+  const prepared = dedentServedJs(stripServedJsComments(source));
+  try {
+    const minified = transformSync(prepared, { loader: "js", minifyWhitespace: true, legalComments: "none" }).code;
+    return Buffer.byteLength(minified) < Buffer.byteLength(prepared) ? minified : prepared;
+  } catch {
+    // The asset-cache test sends a marker, not a program. Anything esbuild will not rewrite is still sent without comments or indentation.
+    return prepared;
+  }
+}
+
+/** Comments and line-leading indentation are not sent. Spaces inside a rule stay, so a selector keeps the gaps it was written with. */
+export function tightenServedCss(source: string): string {
+  return dedentServedCss(stripServedCssComments(source));
 }

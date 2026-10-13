@@ -28,14 +28,14 @@ export function openConfiguredModels(home: string): { storage: LocalSqliteStorag
 }
 
 /** Available text models from the same catalog, checked through metadata without decrypting credentials. */
-export function configuredModelChoices(home: string): { provider_id: string; model_id: string; label: string; vision: boolean }[] {
+export function configuredModelChoices(home: string): { provider_id: string; model_id: string; label: string; vision: boolean; reasoning_effort: boolean }[] {
   const opened = openConfiguredModels(home);
   if (!opened) return [];
   try {
     return opened.store.list().flatMap(provider => provider.models.flatMap(model => {
       const selection = { provider_id: provider.provider_id, model_id: model.model_id };
       return selectConfiguredTextModel(home, opened.store, selection)
-        ? [{ ...selection, vision: model.vision === true, label: `${provider.display_name} · ${model.display_name ?? model.model_id}` }] : [];
+        ? [{ ...selection, vision: model.vision === true, reasoning_effort: model.reasoning_effort === true, label: `${provider.display_name} · ${model.display_name ?? model.model_id}` }] : [];
     }));
   } finally { opened.storage.close(); }
 }

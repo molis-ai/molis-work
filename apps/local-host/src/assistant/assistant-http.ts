@@ -230,6 +230,13 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (parts[0] !== "works" || !parts[1]) return null;
       const workId = parts[1];
       if (method === "GET" && parts.length === 2) return { status: 200, body: await service.read(workId) };
+      // The page follows a live work by waiting for its view to change (closing the request ends the wait).
+      if (method === "GET" && parts.length === 3 && parts[2] === "wait") {
+        const ended = new AbortController(), stop = () => ended.abort();
+        response.once("close", stop);
+        try { return { status: 200, body: await service.waitForChange(workId, url.searchParams.get("since") || null, Number(url.searchParams.get("timeout") ?? 20_000) || 0, ended.signal) }; }
+        finally { response.off("close", stop); }
+      }
       if (method === "GET" && parts.length === 3 && parts[2] === "recovery") return { status: 200, body: await service.recovery(workId) };
       if (method === "GET" && parts.length === 4 && parts[2] === "materials") return { status: 200, body: { material: service.material(workId, parts[3]!) } };
       if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materialImage(workId, parts[3]!) } };

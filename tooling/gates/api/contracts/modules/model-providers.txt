@@ -42,6 +42,7 @@ export interface ModelRecord {
     display_name?: string;
     context_tokens?: number;
     vision?: boolean;
+    reasoning_effort?: boolean;
     enabled: boolean;
 }
 

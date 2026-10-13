@@ -212,3 +212,68 @@ test("a spark reads back by the shared subject protocol: what it says now, its r
   assert.equal(client.split('version: selected.updated_at + ":" + (selected.status || "inbox")').length - 1, 2);
   assert.equal(client.split("version: selected.updated_at").length - 1, 2, "no other place names it by its time alone");
 });
+
+// specs/prologue-adoption §4.5 (item 10): a reply streams its text as a preview over the same Host action; closing the
+// request stops the call and saves nothing; a finished reply is saved only after its checks.
+test("a streamed reply shows the model's text as it comes; closing the request saves nothing; a finished one is saved", { timeout: 30_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "lingguang-stream-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const created = await catalog.createProject({ display_name: "Lingguang", actor_id: "test" });
+  const project = catalog.getProject(created.project_id);
+  const halfway = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>();
+  let calls = 0, stopped = false;
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: async (_prompt, options) => {
+    calls++;
+    await options?.beforeDispatch?.();
+    options?.onProgress?.({ type: "text-delta", text: "第一句，" } as never);
+    if (calls === 1) {
+      halfway.resolve();
+      // Held until the page goes away; the call then sees its cancellation.
+      await new Promise<void>(resolve => options?.signal?.addEventListener("abort", () => { stopped = true; resolve(); }, { once: true }));
+      options?.signal?.throwIfAborted();
+    }
+    await finish.promise;
+    options?.onProgress?.({ type: "text-delta", text: "第二句。" } as never);
+    return "第一句，第二句。";
+  } });
+  const token = "lingguang-test-01234567890123456789";
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
+  try {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address === "object");
+    const origin = `http://127.0.0.1:${address.port}`;
+    const headers = { origin, "content-type": "application/json", "x-molis-work-control-token": token };
+    const post = (path: string, body: unknown, signal?: AbortSignal) => fetch(origin + path, { method: "POST", body: JSON.stringify(body), signal,
+      headers: { ...headers, "x-molis-work-idempotency-key": crypto.randomUUID() } });
+    const path = `/projects/${project.project_id}/api/plugins/lingguang`;
+    const { spark } = await (await post(path, { title: "Stream", body: "A thought" })).json() as { spark: { id: string } };
+    const { conversation } = await (await post(`${path}/conversations`, { spark_ids: [spark.id] })).json() as { conversation: { id: string } };
+    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+    const bound = bindActionClient(host.actionClient(ref), () => ({ actor_id: "owner", project_id: project.project_id, audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS }));
+    // Stopped: the page reads the first words, then closes the request.
+    const controller = new AbortController();
+    const first = await post(`${path}/conversations/${conversation.id}/messages?stream=1`, { body: "继续" }, controller.signal);
+    assert.match(first.headers.get("content-type") ?? "", /ndjson/);
+    const reader = first.body!.getReader(), decoder = new TextDecoder();
+    let seen = "";
+    await halfway.promise;
+    while (!seen.includes("第一句")) seen += decoder.decode((await reader.read()).value, { stream: true });
+    assert.match(seen, /"text_delta":"第一句，"/, "the model's words reach the page as they are written");
+    controller.abort();
+    for (let i = 0; i < 200 && !stopped; i++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(stopped, true, "closing the request stops the call");
+    await new Promise(resolve => setTimeout(resolve, 50));
+    assert.equal((await bound.invoke(actions.getConversation, { id: conversation.id })).messages.length, 0, "a stopped reply saves nothing");
+    // Finished: the preview lines, then the saved state.
+    finish.resolve();
+    const lines = (await (await post(`${path}/conversations/${conversation.id}/messages?stream=1`, { body: "继续" })).text()).trim().split("\n").map(line => JSON.parse(line));
+    assert.deepEqual(lines.filter(line => line.type === "progress" && line.text_delta).map(line => line.text_delta), ["第一句，", "第二句。"]);
+    const result = lines.find(line => line.type === "result");
+    assert.equal(result.result.messages.at(-1).body, "第一句，第二句。");
+    assert.deepEqual((await bound.invoke(actions.getConversation, { id: conversation.id })).messages.map((message: { body: string }) => message.body), ["继续", "第一句，第二句。"]);
+  } finally {
+    finish.resolve();
+    if (server.listening) await new Promise<void>(resolve => { server.closeAllConnections?.(); server.close(() => resolve()); });
+    catalog.close(); await host.close(); await rm(home, { recursive: true, force: true });
+  }
+});

@@ -299,6 +299,8 @@ export interface AssistantRound {
   character?: AssistantCharacter;
   /** What the person sent this round. */
   text: string;
+  /** Set when the Host wrote `text`, not the person: a timed round, or the round a work goes on in when its sub-tasks came back. */
+  written_by?: "host";
   materials: Array<Pick<AssistantMaterial, "material_id" | "kind" | "title" | "explicit" | "draft" | "source" | "object">>;
   context: AssistantContextSnapshot | null;
   started_at: string;

@@ -234,17 +234,17 @@ test("W3-09-3-01/02: actual Home Todo MCP writes require complete read revisions
   assert.ok(typeof a.id === "string" && typeof b.id === "string" && typeof a.revision === "number" && typeof b.revision === "number");
   const ids = [a.id, b.id], paths = ids.map(id => `/api/todo/${encodeURIComponent(id)}`), before = await Promise.all(paths.map(path => home.web.get(path)));
   for (const expected of [undefined, {}, { [a.id]: a.revision }]) {
-    const input = { ids, change: { kind: "status", status: "doing" }, ...(expected === undefined ? {} : { expected_revisions: expected }) };
+    const input = { ids, change: { status: "doing" }, ...(expected === undefined ? {} : { expected_revisions: expected }) };
     const refused = await mcpCall(mcp, todo.batch.capability_id, input);
     assert.equal(refused.result.isError, true); assert.equal(refused.body.code, "actions.version_required");
     const record = row(home, refused.body.call_id, todo.batch.capability_id);
     assert.deepEqual([record.code, record.refused, record.ok], ["actions.version_required", true, false]);
     assert.deepEqual(await Promise.all(paths.map(path => home.web.get(path))), before, "missing or incomplete prerequisites change neither item nor history");
   }
-  const invalid = await mcpCall(mcp, todo.batch.capability_id, { ids, change: { kind: "status", status: "doing" }, expected_revisions: null });
+  const invalid = await mcpCall(mcp, todo.batch.capability_id, { ids, change: { status: "doing" }, expected_revisions: null });
   assert.equal(invalid.body.code, "actions.input_invalid");
   assert.deepEqual(await Promise.all(paths.map(path => home.web.get(path))), before);
-  const changed = await mcpCall(mcp, todo.batch.capability_id, { ids, change: { kind: "status", status: "doing" }, expected_revisions: { [a.id]: a.revision, [b.id]: b.revision } });
+  const changed = await mcpCall(mcp, todo.batch.capability_id, { ids, change: { status: "doing" }, expected_revisions: { [a.id]: a.revision, [b.id]: b.revision } });
   assert.notEqual(changed.result.isError, true, JSON.stringify(changed.result));
   for (const [index, path] of paths.entries()) {
     const state = await home.web.get<{ item: { status: string; revision: number } }>(path);

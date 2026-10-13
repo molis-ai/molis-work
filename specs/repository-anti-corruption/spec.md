@@ -1706,6 +1706,7 @@ Images 后台 job 未携带原 MCP 调用的持续授权，但 Prologue 手册�
 | Home candidate security | 192 总数：191 通过、1 外网可选项跳过 | 安全相关本地路径已验；跳过网络项未验，不能写 192/192 |
 | I6 整树预检 | 整体 build、boundary、类型、actual-base health、API/actions 与资源已通过；API 0 变，29 资源 11,366,475 字节 | 支持冻结候选的工程预检；不是全部测试通过或 main 已合入 |
 | I6 全量 i6-full-01.log | 冻结 af0fe957 的本轮已结束：6,088 tests，6,075 pass、4 fail、9 skipped、0 cancelled；失败为 agent-action-selection、tab-split-drop-preview、work-placement-restart、workbench-pane-feed。Placement 断言失败后其 HTTP 未关闭，子进程挂住，由原执行者单独终止后主回归继续 | 不能记全量通过；四文件由原负责人重跑并做干净基线对照。单独终止事实保留，后续修复/定向通过不改写本轮失败；各修复树不能把通过数相加当整合通过 |
+| I7 关键18文件，i7-critical-tests-01.log；四文件修后 i7-critical-fixtures-fixed-01.log | 首轮83条、77通过/6失败；测试修正 `05cc4931b` 后16/16、零跳过/取消。另14文件的67条保留首轮有效证据，共83个不同用例有通过证据 | 协调方核过原始日志与四文件实际diff：Choice补真实第二选项、Manifest补必需ui、诊断事实不依赖未承诺顺序、匹配夹具实际拒绝码。AUTH/MCP坏配置、固定输入与Diff、SemVer/密钥/事务、管理入口和Placement定向通过；不是新的18文件单次全绿或最终全量。Placement `09034f1d` 按现行合同断言400及具体错误码/文案，并新增拒绝后状态不变与失败清理，未放宽拒绝 |
 
 **Dataset 独立片的已核证据。** 本地提交 `f29e7074e`，三个文件 +228/-20，工作树干净、未推送。临时原始日志在 `/tmp/dataset-import-target-evidence/`：`baseline-browser-02.log` 的 6 条回归 2 通过/4 失败，诊断直接显示 B 收到 A 的 CSV 并以 200 落库，以及切 B 后迟到响应重开 A；首轮 harness 对文件选择触发 autosave 的错误假设已修，首轮失败日志保留、不充当最终复现。`fixed-browser.log` 21/21（含新回归 6/6）、`related-tests.log` 365/365，均零跳过/取消；整体 build、boundary、对真实 merge-base 的 health 通过。`page-assets.log` 仅报 Dataset JS 实测 33,710 字节小于旧快照 34,285，按共享文件归属留整合时正常下调；不是允许使用的余量，也没有放宽门禁。协调方已读实际客户端与测试 diff、旧故障诊断和各 footer，判定该片局部验收通过；最终整合验证另计。
 
@@ -2039,11 +2040,11 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 
 | 负责人 | 独占范围与依赖 | 当前证据 |
 | --- | --- | --- |
-| 原防腐会话 `01a130de-5470-7223-827e-b28663ee7e06` | 共同AUTH/同步最终检查、MCP坏配置、既有Schedule/Goals恢复片、I6失败归因与验证队列；提供可复用本地AUTH提交 | AUTH `b5504585a` 加 `4ef1d68ed` 的父子身份检查已核源码及回归断言、尚待构建/运行；I6四失败在归因，Placement 400/409依现行合同核测试预期，浏览器超时仍待基线证据 |
+| 原防腐会话 `01a130de-5470-7223-827e-b28663ee7e06` | 共同AUTH/同步最终检查、MCP坏配置、既有Schedule/Goals恢复片、I6失败归因与验证队列；提供可复用本地AUTH提交 | AUTH父子身份及MCP配置、管理入口的I7关键回归已核通过，详见§12.5；其余消费者整合后再跑最终全量。Placement预期已按现行400与错误码/文案修正，重启拒绝状态通过；I6其余浏览器超时仍待基线证据 |
 | G1 宿主 | Runtime接入/TOML、卡unknown/followup、model schema、系统目录、Gmail首次使用、native JSON、Host Git；不碰原AUTH文件 | 本地 `5aba9f06b`、`fab7520fa`、`74ee8c27f`、`2c0a21348` 的生产与回归diff已由协调方核对（模型schema、目录子进程、正文按字节、Runtime验证回滚/TOML）；尚未运行。`a9cab586e` 的卡unknown与主助理定时路径已核，Coding接续定时仍有等待窗口，由G1补齐 |
 | G2 工作台 | 浏览器upload/grant与工作台八项；不碰assistant-island与G9的coding-companions。HOME-LOCALE仅交Workbench helper和同一词典；Host/Issue由协调方串行接线（用户在G2聊天明确选择） | 独立树实现准备；未验收。STOP反馈以在途#469共用UiRequest为前置，不另造错误解析 |
 | G3 桌面/公共呈现 | 原生胶囊/剪贴板/worker IO、接续QA、component草稿 | 冻结 `11928b332`，三片 `631287a69`（原生）、`a5c9ac46e`（接续QA）、`11928b332`（表单草稿）。协调方已读实际生产/测试差异及相关上下文；仅rustfmt/diff通过，build/test及真实窗口待队列，未验收 |
-| G4 核心 | SemVer、缺key、Memory事务、固定输入/SDK/Diff Manifest；不改AUTH/helpers或历史pin | 本地四提交 `48c04310e`、`c64bbfd82`、`c93d01249`、`a538a9165`，协调方已核实际生产diff及新回归断言；仅diff格式通过，build/test尚未运行，不判验收 |
+| G4 核心 | SemVer、缺key、Memory事务、固定输入/SDK/Diff Manifest；不改AUTH/helpers或历史pin | 本地四提交 `48c04310e`、`c64bbfd82`、`c93d01249`、`a538a9165` 的生产diff已核，已纳入I7构建及关键回归；固定输入测试缺必需ui由 `05cc4931b` 修正后真实SDK/Diff三条通过，SemVer/密钥/事务亦通过。相关必跑与最终整合尚未收齐，不判整体验收 |
 | G5 AI/开发插件 | Placement/Memory调用控制、Agent预算/解析资源、Characters启动、Builder预览/升级密钥、Coding前台/后台/委派/报告；必要Host对应port | 独立实现准备，需复用原AUTH合同；不碰G1 AssistantService/Store或Runtime接入文件 |
 | G6 Module/Goals | Session确认、Shelf/Character当前库、Attention原子性、Functions Choice、Goals证据/固定/规划/policy | 独立实现准备；不碰原Goals恢复环，artifact-pins共同helper父控制和旧分支由同一writer串行处理 |
 | G7 内容 | 七插件必要整改；Dataset仅store/动作，client/import与README导入片留既有writer | 独立实现准备；内容嵌套调用复用AUTH，旧pin helper由G6串行处理 |
@@ -2053,7 +2054,7 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 | Issue既有writer `01a13342-5853-75e1-a3ce-929ee5ec4e75` | 手工页/capture保存与丢回执恢复 | 本地 `1d67c6408`，统筹已核实际diff、旧4失败、修后4/4与相关51/51及门禁；局部验收通过，最终整合与资源快照下调待做（§12.5）。该保存片冻结 |
 | 助理发送writer `01a13369-d79c-70f1-9798-7b84181fa7d0` | SEND/PAGE-CARDS/ASSISTANT-404同文件连续处理，保护在途#471 | 冻结 `d2ce01f35`，统筹已核发送意图、同owner草稿投影及A→B→A/重载回归；源码准备完成，build/test尚未运行、未验收 |
 | Workflows保存writer `01a13369-e221-7433-a2eb-24bcdcee1039` | WFSAVE/WF-OPEN客户端与README，backend留G8 | 本地 `c35d8ff9d`，统筹已核实际队列/快照/恢复代码及五条保存、对象打开回归；仅源码准备，build/test未运行、未验收 |
-| 协调方 Home 语言接线 | 用户在G2聊天明确选择协调方串行补齐。以Issue保存片 `1d67c6408` 和G2语言helper为前置，只改Host home-plugin-http两次render、Issue静态控件调用既有L及对应正式浏览器/README | 独占树冻结 `63612439a`，含root `f5bc76aea` 与G2 helper/词典/测试预期的三项合入。三条正式浏览器已准备：Home/项目中英、无模型设置失败重试及手动保存、真实503语言；还未build/run。需实测Issue资产并在原预算内完成；保存协议不变 |
+| 协调方 Home 语言接线 | 用户在G2聊天明确选择协调方串行补齐。以Issue保存片 `1d67c6408` 和G2语言helper为前置，Host两次render、Issue静态控件用既有L及正式浏览器/README；为保持资源预算，合并client/capture-client中的重复读取、按钮样式及相同CSS，保存协议不变 | `63612439a` 的offline安装与整体build通过；实测Issue 23,791字节，超旧预算23,559共232字节，报告不算门禁通过。等价精简候选冻结 `c64070463` 待重建测量。三条正式浏览器已准备：Home/项目中英、无模型设置失败重试及手动保存、真实503语言；尚未运行，不判验收 |
 
 共享spec、路线图、安全不变量、门禁/API/动作/资源快照由协调方按实际整合结果串行同步；writer不得放宽阈值或为绿删断言。当前均只获本地独立实现/提交，不自行推送、开PR、安装、发布或操作真实Home/凭据。§12.8中需同步安全表的具体拒绝必须有生产边界断言；受控第三方响应不等于真实外部账号验收。
 

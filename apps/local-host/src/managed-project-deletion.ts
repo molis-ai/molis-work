@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
-import { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
+import { catalogErrors } from "./project-catalog-contract.js";
 import { randomUUID } from "node:crypto";
 import type { StoredProjectDeletion } from "@molis-ai/molis-work-module-projects";
 import type { DeleteProjectInput as DeleteMolisWorkProjectInput, ProjectDeletionResult as MolisWorkProjectDeletionResult, ProjectDeletionRecord as MolisWorkProjectDeletionRecord } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -33,9 +33,7 @@ export class ManagedProjectDeletion {
     const replay = this.projects.lifecycle.findDeletion(actorId, idempotencyKey);
     if (replay) {
       if (replay.request_fingerprint !== requestFingerprint) {
-        throw new MolisWorkProjectCatalogError(
-          "catalog.deletion_idempotency_conflict",
-          "同一个项目删除请求键不能用于不同的项目或删除确认",
+        throw catalogErrors.deletion_idempotency_conflict("同一个项目删除请求键不能用于不同的项目或删除确认",
         );
       }
       const deletion = await this.finishProjectDeletionCleanup(replay);
@@ -51,9 +49,7 @@ export class ManagedProjectDeletion {
       const deletion = await this.commit(() => this.projects.lifecycle.transaction(() => {
         const racedReplay = this.projects.lifecycle.findDeletion(actorId, idempotencyKey);
         if (racedReplay) {
-          throw new MolisWorkProjectCatalogError(
-            "catalog.deletion_idempotency_conflict",
-            "同一个项目删除请求正在或已经由另一个调用处理，请重新读取项目列表",
+          throw catalogErrors.deletion_idempotency_conflict("同一个项目删除请求正在或已经由另一个调用处理，请重新读取项目列表",
           );
         }
         const now = new Date().toISOString();
@@ -141,7 +137,7 @@ export class ManagedProjectDeletion {
     for (const pending of this.projects.lifecycle.pendingDeletions(projectId)) {
       const settled = await this.finishProjectDeletionCleanup(pending);
       if (settled.cleanup_state !== "complete") {
-        throw new MolisWorkProjectCatalogError("catalog.project_storage_invalid", `这个项目上一次删除的清理还没有完成，先重试清理，或打开 Molis Work 让它接着做：${settled.cleanup_error ?? ""}`);
+        throw catalogErrors.project_storage_invalid(`这个项目上一次删除的清理还没有完成，先重试清理，或打开 Molis Work 让它接着做：${settled.cleanup_error ?? ""}`);
       }
     }
   }
@@ -163,9 +159,7 @@ export class ManagedProjectDeletion {
 /** What every door checks before it touches anything of the project: the person's separate, explicit confirmation. */
 export function requireDeletionConfirmed(confirmed: boolean): void {
   if (confirmed !== true) {
-    throw new MolisWorkProjectCatalogError(
-      "catalog.delete_confirmation_required",
-      "删除 Molis Work 项目及其数据库需要当前对话中的单独明确确认",
+    throw catalogErrors.delete_confirmation_required("删除 Molis Work 项目及其数据库需要当前对话中的单独明确确认",
     );
   }
 }
@@ -173,9 +167,7 @@ export function requireDeletionConfirmed(confirmed: boolean): void {
 export function requiredDeletionIdempotencyKey(value: string): string {
   const key = value.trim();
   if (!key) {
-    throw new MolisWorkProjectCatalogError(
-      "catalog.deletion_idempotency_conflict",
-      "删除项目需要幂等请求键",
+    throw catalogErrors.deletion_idempotency_conflict("删除项目需要幂等请求键",
     );
   }
   return key;

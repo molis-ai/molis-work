@@ -13,7 +13,7 @@ import { FUNCTIONS_EN } from '../apps/workbench/src/functions/en.ts';
 import { createFunctionsService, openFunctionsStore } from '@molis-ai/molis-work-module-functions';
 import { createFunctionsRouteHandlers } from '../apps/local-host/src/functions-http/route-handlers.ts';
 import { FunctionsHttpRouteTable } from '../apps/local-host/src/functions-http/routes.ts';
-import { functionsRouteErrorResponse } from '../apps/local-host/src/functions-http/route-error.ts';
+import { actionErrorResponse } from '@molis-ai/molis-work-plugin-sdk';
 import { liveHostFunctionAuthoringCatalog } from '../apps/local-host/src/behavior-catalog.ts';
 import { renderMolisWorkWorkbenchStylesheet } from '../tests/workbench-renderer-fixture.ts';
 import { renderIconSprite } from '@molis-ai/molis-work-design-system';
@@ -45,7 +45,7 @@ const server = createServer(async (req, res) => {
     try {
       const result = await routes.handle({ method: req.method as 'GET' | 'POST', pathname: url.pathname.replace('/api/plugins/functions', '/api/functions'), query: url.searchParams, body: raw ? JSON.parse(raw) : {} });
       res.writeHead(result?.status ?? 404, { 'content-type':'application/json' }); res.end(JSON.stringify(result?.body ?? {}));
-    } catch (error) { const result = functionsRouteErrorResponse(error); res.writeHead(result.status, { 'content-type':'application/json' }); res.end(JSON.stringify(result.body)); }
+    } catch (error) { const result = actionErrorResponse(error); res.writeHead(result.status, { 'content-type':'application/json' }); res.end(JSON.stringify(result.body)); }
     return;
   }
   const english = url.searchParams.get('lang') === 'en';

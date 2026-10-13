@@ -1,7 +1,7 @@
 import type { BoardSnapshot } from "@molis-ai/molis-work-plugin-goals";
 import { LocalProjectDatabase } from "./project-database.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
-import { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
+import { catalogErrors } from "./project-catalog-contract.js";
 
 export async function initializeProjectDatabase(
   databasePath: string,
@@ -26,7 +26,7 @@ export async function initializeProjectDatabase(
 export function validateManagedBoard(databasePath: string, expectedProjectId: string): void {
   const board = readManagedBoard(databasePath, false);
   if (board.projectId !== expectedProjectId) {
-    throw new MolisWorkProjectCatalogError("catalog.database_invalid", "新项目数据库的 project_id 与 project_id 不一致");
+    throw catalogErrors.database_invalid("新项目数据库的 project_id 与 project_id 不一致");
   }
 }
 
@@ -38,14 +38,12 @@ export function readManagedBoard(
   try {
     const projectIds = store.goalsQuery.listProjectIds();
     if (projectIds.length !== 1 || typeof projectIds[0] !== "string" || !projectIds[0]) {
-      throw new MolisWorkProjectCatalogError(
-        "catalog.database_invalid",
-        `项目数据库必须恰好包含一个 Board: ${databasePath}`,
+      throw catalogErrors.database_invalid(`项目数据库必须恰好包含一个 Board: ${databasePath}`,
       );
     }
     const projectId = projectIds[0];
     if (!store.integrityCheck()) {
-      throw new MolisWorkProjectCatalogError("catalog.database_invalid", `SQLite 完整性校验失败: ${databasePath}`);
+      throw catalogErrors.database_invalid(`SQLite 完整性校验失败: ${databasePath}`);
     }
     const snapshot = store.snapshot(projectId);
     if (checkpoint) store.checkpoint();

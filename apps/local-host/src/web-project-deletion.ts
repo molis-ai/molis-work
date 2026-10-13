@@ -1,18 +1,17 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { L } from "./web-locale.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
-import { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
 
 /** How the settings page hears a refused or failed deletion: a live terminal is a conflict the person can resolve (409, with its code), anything else a 400. */
 export function sendDeletionFailure(response: ServerResponse, error: unknown): void {
-  const live = error instanceof MolisWorkProjectCatalogError && error.code === "catalog.project_terminal_live";
+  const live = error instanceof ActionError && error.code === "catalog.project_terminal_live";
   sendJson(response, live ? 409 : 400, { error: error instanceof Error ? error.message : String(error), ...(live ? { code: error.code } : {}) });
 }
 

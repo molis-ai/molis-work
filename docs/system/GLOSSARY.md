@@ -294,7 +294,7 @@
 
 **U2　界面里出现的「Functions」改成「判断规则」**
 
-- 现状：Functions 插件已不存在，但这些用户可见的文字还在用这个名字：`apps/local-host/src/connector-access.ts`（错误提示「请在使用此连接的模型、Images、Functions 或 Coding 设置中……」）、`apps/local-host/src/connector-directory.ts`（TypeSafe 连接的说明与用途标签）、`apps/local-host/src/host-connector-methods.ts`、`apps/local-host/src/functions-http/route-error.ts` 和 `apps/workbench/src/functions/client.ts`（「Functions 请求失败」）、`apps/local-host/src/plugin-builder-surface.ts`（「请在 Functions 设置中配置 TypeSafe Key」）、`apps/workbench/src/settings-connector-guide.ts`、`apps/workbench/src/settings-connectors.ts`（含按钮「查看 Functions」，实际链到能力库）。英文界面的对应译文随之改。
+- 现状：Functions 插件已不存在，但这些用户可见的文字还在用这个名字：`apps/local-host/src/connector-access.ts`（错误提示「请在使用此连接的模型、Images、Functions 或 Coding 设置中……」）、`apps/local-host/src/connector-directory.ts`（TypeSafe 连接的说明与用途标签）、`apps/local-host/src/host-connector-methods.ts` 和 `apps/workbench/src/functions/client.ts`（「Functions 请求失败」）、`apps/local-host/src/plugin-builder-surface.ts`（「请在 Functions 设置中配置 TypeSafe Key」）、`apps/workbench/src/settings-connector-guide.ts`、`apps/workbench/src/settings-connectors.ts`（含按钮「查看 Functions」，实际链到能力库）。英文界面的对应译文随之改。
 - 建议：改成「判断规则」。
 - 备选：保持现状。
 

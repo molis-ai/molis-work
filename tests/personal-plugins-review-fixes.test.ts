@@ -1,4 +1,5 @@
-import { ActionError as ContractsError, ActionError as GoalsError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError as ContractsError } from "@molis-ai/molis-work-contracts/platform/actions";
+import * as goalsPluginExports from "@molis-ai/molis-work-plugin-goals";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { handlePagesNativePluginHttp } from "../apps/local-host/src/pages-native-plugin-http.js";
 import type { PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";

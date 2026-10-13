@@ -58,10 +58,10 @@ test("MCP action port: a Todo failure comes out as its own code and message, not
   const call = async (name: string, args: Record<string, unknown>) => {
     const reply = await handleMcpMessage({ id: 1, method: "tools/call", params: { name, arguments: args } }, ports);
     const result = reply!.result as { isError: boolean; content: Array<{ text: string }> };
-    return { isError: result.isError, ...(result.isError ? JSON.parse(result.content[0]!.text) as { code: string; message: string } : {}) };
+    return { isError: result.isError, ...(result.isError ? JSON.parse(result.content[0]!.text) as { code: string; error: string } : {}) };
   };
   const missing = await call(actionMcpToolName(todoActions.get), { id: "no-such-todo" });
-  assert.deepEqual(missing, { isError: true, code: "todo.not_found", message: "找不到这件待办，可能已被删除" });
+  assert.deepEqual(missing, { isError: true, code: "todo.not_found", error: "找不到这件待办，可能已被删除" });
   const created = await person.invoke(todoActions.create, { title: "写周报" });
   const stale = await call(actionMcpToolName(todoActions.update), { id: created.item.id, expected_revision: created.item.revision + 5, title: "改过的标题" });
   assert.deepEqual([stale.isError, stale.code], [true, "todo.conflict"]);
@@ -98,13 +98,10 @@ test("the Host's own MCP server: a Todo failure carries its code line", async t 
   const reply = await external.handleMessage({ id: 1, method: "tools/call", params: { name: molisWorkActionToolName(todoActions.get), arguments: { id: "no-such-todo" } } }) as
     { result: { isError: boolean; content: Array<{ text: string }> } };
   assert.equal(reply.result.isError, true, JSON.stringify(reply));
-  // CHANGED by W3-01 D. The text is still the message line and the code line; the failed read left a row in the call log, so the code line also names
-  // the operation (`call_id`), and a person who is given it can look the row up.
-  const [message, codeLine, ...rest] = reply.result.content[0]!.text.split("\n");
-  assert.equal(message, "错误: 找不到这件待办，可能已被删除");
-  assert.deepEqual(rest, []);
-  const line = JSON.parse(codeLine!) as { code: string; call_id?: string };
-  assert.deepEqual(Object.keys(line), ["code", "call_id"]);
+  // W3-02-H-01: one JSON error body; only the actual recorded read has a diagnostic number.
+  const line = JSON.parse(reply.result.content[0]!.text) as { error: string; code: string; call_id?: string };
+  assert.equal(line.error, "找不到这件待办，可能已被删除");
+  assert.deepEqual(Object.keys(line), ["error", "code", "call_id"]);
   assert.equal(line.code, "todo.not_found");
   assert.match(line.call_id ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
   assert.equal(host.callLog!.find(line.call_id!)[0]?.code, "todo.not_found", "the number finds the row of the failed read");

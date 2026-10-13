@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,7 +11,7 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 // produced it (specs/artifact-positioning, 2026-10-07), so the run is told apart by the producing actor in `created_by`, not by owner.
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 
-test("plugin dev lists the 成果 versions the plugin published although the person owns them", async () => {
+test("W3-07-6-01: plugin dev lists the 成果 versions the plugin published although the person owns them", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-dev-artifacts-"));
   try {
     // The repository sample, with the workspace SDK where `npm install` would put the packed one.
@@ -33,5 +33,20 @@ test("plugin dev lists the 成果 versions the plugin published although the per
     // Versions from earlier runs on the same development state stay listed.
     const second = await run();
     assert.deepEqual(second.artifacts.map(value => value.version).sort(), [1, 2]);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+
+test("W3-07-6-01: nonempty and unsupported development state are refused before loading code", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-dev-state-refusal-"));
+  try {
+    const ordinary = join(directory, "ordinary"), marked = join(directory, "marked"); mkdirSync(ordinary); mkdirSync(marked);
+    writeFileSync(join(ordinary, "keep.txt"), "preserve this ordinary directory");
+    writeFileSync(join(marked, ".molis-work-plugin-development.json"), JSON.stringify({ kind: "foreign", schema_version: 1 }));
+    const input = { directory: join(directory, "does-not-exist"), grants: [], allow_unsigned_development: true as const };
+    await assert.rejects(runLocalPluginDevelopment({ ...input, state_directory: ordinary }), /非空的普通目录/);
+    await assert.rejects(runLocalPluginDevelopment({ ...input, state_directory: marked }), /不是受支持/);
+    assert.equal(readFileSync(join(ordinary, "keep.txt"), "utf8"), "preserve this ordinary directory");
+    assert.equal(existsSync(join(ordinary, "development.db")), false); assert.equal(existsSync(join(marked, "development.db")), false);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

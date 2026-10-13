@@ -2,7 +2,6 @@ import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { goalsActions, GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
-import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { projectsCapabilities, projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { goalContextCapabilities, goalProgressCapabilities, type GoalProgressActor } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -10,9 +9,6 @@ import { workspaceReadActions, type WorkspaceFileQuery, type WorkspaceGitQuery, 
 import { readConflictFile, readGitSummary, readPullRequestSupport } from "./git-operations.js";
 import { readWorkspaceGit } from "./workspace-git.js";
 import { readWorkspaceFile } from "./workspace-files.js";
-import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
-import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { PLUGIN_DEVELOPMENT_ACTOR_ID, runPluginDevelopment } from "./plugin-development.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { registerHostScheduleCapabilities } from "./schedule-runtime.js";
@@ -135,19 +131,5 @@ export function registerProjectCapabilities(
       return workspace ? projectWorkspaceRef(workspace) : null;
     });
   }
-  host.register(pluginDevelopmentCapability, async (runtime, input) => {
-    // The development run is the Host's own door: it acts as the actor the Host fixes, in the project the client opened.
-    requireRuntimeProject(runtime, input.project_id);
-    refusePayloadIdentity(input, ["audit_actor_id"]);
-    runtime.coordinator.initializeBoard({ project_id: runtime.project_id, title: "Plugin Development",
-      actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID, idempotency_key: "plugin-development-board" });
-    const privateStorage = new SqlitePluginPrivateStorage(runtime.store.db);
-    const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
-    return runPluginDevelopment(input, { project_id: runtime.project_id, actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID,
-      actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: runtime.project_id },
-      artifacts: runtime.coordinator.artifacts, processItems: runtime.coordinator.processItems, ui: new UiHost(),
-      repository: new SqlitePluginRuntimeRepository(runtime.store.db),
-      privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
-  });
   registerHostScheduleCapabilities(host, (runtime) => runtime.store.db);
 }

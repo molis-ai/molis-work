@@ -154,11 +154,7 @@ export class LocalHost<Runtime> {
           assertAuthorityCurrent: () => { requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成"); } });
       } }],
     });
-    const hostOnly = definition.host_only === true;
-    return this.capabilities.register(definition, invoke, { availability: caller => hostOnly
-      && (this.pluginCapabilityCallers.has(caller) || caller.audience !== "user" || caller.actor_id !== "local-host")
-      ? { available: false, code: "actions.host_only", reason: "此适配入口仅供受保护的 Host 调用，插件声明不能授予用户权限" }
-      : { available: true } });
+    return this.capabilities.register(definition, invoke);
   }
 
   /** Composition-only registration. Project authority comes from the owner, never the Plugin. */

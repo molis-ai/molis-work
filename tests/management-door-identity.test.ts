@@ -6,13 +6,13 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import ts from "typescript";
 import { MolisWorkServer, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, runV1Cli } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, developInPrivateHost, runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import type { GoalEventDecisionResult } from "@molis-ai/molis-work-contracts/modules/goals";
 import { MCP_TOOLS } from "@molis-ai/molis-work-app-mcp";
 import { goalsActions, managementEventDecisionAuthority, type GoalTreeProposalDecisionResult } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostCapabilityDefinition, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
+const retiredDevelopment: HostCapabilityDefinition<unknown, unknown> = { capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" };
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { managementGoals } from "./goal-management-caller.js";
@@ -259,36 +259,38 @@ test("a plugin that lists the plugin development run under consumes is refused",
       declaration: { manifest: {} as HostPluginCaller["declaration"]["manifest"] }, assertActive: () => {} } });
   try {
     const entries = [
-      { name: "run plugin development", capability: pluginDevelopmentCapability as HostCapabilityDefinition<unknown, unknown>,
+      { name: "run plugin development", capability: retiredDevelopment,
         input: { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true } as unknown },
     ];
-    assert.deepEqual(entries.filter(entry => entry.capability.host_only !== true).map(entry => entry.name), [], "every one of them is flagged host_only");
+    // W3-07-6-02: the old protocol is absent from the actual Host, including the normal user client.
+    for (const { capability, input } of entries) await assert.rejects(typed.invoke(capability, input), { code: "actions.dependency_missing" });
     const manifest = { ...filesManifest, plugin_id: "io.molis.work.test.door-writer", capabilities: { provides: [], consumes: entries.map(entry => entry.capability.capability_id) } };
     const sdk = createPluginCapabilityClient(manifest, typed);
     for (const { name, capability, input } of entries) {
       const available = sdk.availability(capability);
       assert.equal(available.available, false, `${name} is not available to a plugin`);
-      assert.equal(!available.available && available.code, "actions.host_only", name);
-      await assert.rejects(sdk.invoke(capability, input), { code: "actions.host_only" }, `${name}: through the plugin client`);
-      await assert.rejects(sdk.invoke({ ...capability, host_only: false }, input), { code: "actions.host_only" }, `${name}: through an unflagged copy`);
-      await assert.rejects(typed.invoke(capability, input, asPlugin("plugin-person")), { code: "actions.host_only" }, `${name}: with the plugin's own call context`);
+      assert.equal(!available.available && available.code, "actions.dependency_missing", name);
+      await assert.rejects(sdk.invoke(capability, input), { code: "actions.dependency_missing" }, `${name}: through the plugin client`);
+      const forged = { ...capability, host_only: false };
+      await assert.rejects(sdk.invoke(forged, input), { code: "actions.dependency_missing" }, `${name}: through an unflagged copy`);
+      await assert.rejects(typed.invoke(capability, input, asPlugin("plugin-person")), { code: "actions.dependency_missing" }, `${name}: with the plugin's own call context`);
     }
     assert.deepEqual(await decisions(), [], "nothing was decided");
   } finally { await done(); }
 });
 
-test("the plugin development run takes no actor: one named in its arguments is refused, and the Host records its own", async () => {
-  const { typed, project_id, done } = await structureProject("development");
+test("W3-07-6-01: the plugin development run takes no actor: one named in its arguments is refused, and the Host records its own", async () => {
+  const { host, ref, project_id, done } = await structureProject("development");
   try {
     for (const identity of [{ actor_id: "someone-else" }, { actor_id: LOCAL_PERSON_ACTOR_ID }, { actor_kind: "user" }, { audit_actor_id: "runtime:forged:session" }]) {
-      await assert.rejects(typed.invoke(pluginDevelopmentCapability, { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true, ...identity } as never),
+      await assert.rejects(developInPrivateHost(host, ref, { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true, ...identity } as never),
         { code: "actions.input_invalid" }, `refuses ${Object.keys(identity).join(" and ")}`);
     }
     // The project is the one the client opened: another project in the arguments is a scope mismatch, checked before the identity.
-    await assert.rejects(typed.invoke(pluginDevelopmentCapability, { directory: "/nonexistent", project_id: "foreign", grants: [], allow_unsigned_development: true, actor_id: "someone-else" } as never),
+    await assert.rejects(developInPrivateHost(host, ref, { directory: "/nonexistent", project_id: "foreign", grants: [], allow_unsigned_development: true, actor_id: "someone-else" } as never),
       { code: "actions.scope_mismatch" });
     // Without an identity the call gets as far as the directory it was asked to load: the refusal above came first.
-    await assert.rejects(typed.invoke(pluginDevelopmentCapability, { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true }),
+    await assert.rejects(developInPrivateHost(host, ref, { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true }),
       (error: unknown) => (error as { code?: string }).code !== "actions.input_invalid");
   } finally { await done(); }
 });
@@ -309,9 +311,8 @@ function typeErrors(source: string): string[] {
 
 test("the decision actions and plugin development input carry no caller identity", { timeout: 180_000 }, () => {
   const source = `
-import type { HostCapabilityInput } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { PluginDevelopmentInput } from "@molis-ai/molis-work-contracts/platform/tooling";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 type Input<T> = T extends ActionDefinition<infer I, infer _O> ? I : never;
 type Identity = "actor_id" | "actor_kind" | "audit_actor_id" | "runtime_actor_id" | "authority";
@@ -319,7 +320,7 @@ type KeysOf<T> = T extends readonly [infer First, ...unknown[]] ? keyof First : 
 type Free<T> = [Extract<KeysOf<T>, Identity>] extends [never] ? true : false;
 export const decideFree: Free<Input<typeof goalsActions.treeDecide>> = true;
 export const eventDecideFree: Free<Input<typeof goalsActions.decide>> = true;
-export const developmentFree: Free<HostCapabilityInput<typeof pluginDevelopmentCapability>> = true;
+export const developmentFree: Free<PluginDevelopmentInput> = true;
 `;
   assert.deepEqual(typeErrors(source), []);
 });

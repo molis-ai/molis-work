@@ -132,7 +132,7 @@ test("W3-07-5-01: all ten retired Goals literals refuse Host and SDK callers, in
   try {
     await management.invoke(goalsActions.create, { goal_id, title: "插件", outcome: "不能冒充本机这个人", idempotency_key: "create" });
     const before = await management.invoke(goalsActions.snapshot, {});
-    const descriptors = RETIRED_GOALS_ENTRIES.map(([capability_id, operation]) => ({ capability_id, version: 1, operation, host_only: false }) as HostCapabilityDefinition<unknown, unknown>);
+    const descriptors = RETIRED_GOALS_ENTRIES.map(([capability_id, operation]) => ({ capability_id, version: 1, operation }) as HostCapabilityDefinition<unknown, unknown>);
     const sdk = createPluginCapabilityClient({ ...filesManifest, plugin_id: "io.molis.work.test.goal-writer",
       capabilities: { provides: [], consumes: descriptors.map(entry => entry.capability_id) } }, typed);
     for (const descriptor of descriptors) {

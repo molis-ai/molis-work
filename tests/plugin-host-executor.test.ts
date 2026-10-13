@@ -12,20 +12,17 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
-import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
+import { LocalProjectDatabase, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { artifactPreview } from "./fixtures/artifact-preview.js";
 
-test("an unknown Runtime plugin cannot turn a Host-only adapter into user authority through consumes", async () => {
+test("W3-07-6-02: an unknown Runtime plugin cannot revive the removed developer protocol through consumes", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-host-only-plugin-"));
   const file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
-  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const protectedEntry = { capability_id: "unfamiliar.user-approval", version: 1, operation: "command" as const, host_only: true };
-  let calls = 0;
-  host.register(protectedEntry, () => ++calls);
+  const host = new MolisWorkLocalHost();
+  const protectedEntry = { capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" as const };
   const port = host.client({ project_id: DEMO_PROJECT_ID, storage_key: file });
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, port.project.project_id),
     project_id: DEMO_PROJECT_ID, actor_id: "user", capabilities: port,
@@ -42,8 +39,9 @@ test("an unknown Runtime plugin cannot turn a Host-only adapter into user author
     async start(context) {
       const sdk = context.services!.capabilities!;
       const availability = sdk.availability(protectedEntry);
-      assert.equal(availability.available, false); assert.equal(!availability.available && availability.code, "actions.host_only");
-      await assert.rejects(sdk.invoke({ ...protectedEntry, host_only: false }, { authority: { actor_kind: "user" } }, { consumer: undefined }), { code: "actions.host_only" });
+      assert.equal(availability.available, false); assert.equal(!availability.available && availability.code, "actions.dependency_missing");
+      const forged = { ...protectedEntry, host_only: false };
+      await assert.rejects(sdk.invoke(forged, { authority: { actor_kind: "user" } }, { consumer: undefined }), { code: "actions.dependency_missing" });
       return base.start(context);
     },
   };
@@ -51,8 +49,7 @@ test("an unknown Runtime plugin cannot turn a Host-only adapter into user author
   try {
     installId = runtime.install({ definition, deployment: "local", grants: definition.manifest.permissions.map(p => p.permission) }).install.install_id;
     await runtime.start(installId);
-    assert.equal(calls, 0);
-    assert.equal(await port.invoke(protectedEntry, {}), 1);
+    await assert.rejects(port.invoke(protectedEntry, {}), { code: "actions.dependency_missing" }, "the normal Host client cannot restore the removed protocol");
   } finally {
     if (installId && runtime.get(installId).state === "running") await runtime.stop(installId);
     await host.close(); store.close(); rmSync(directory, { recursive: true, force: true });

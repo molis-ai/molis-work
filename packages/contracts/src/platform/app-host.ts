@@ -76,8 +76,6 @@ export interface HostCapabilityDescriptor {
   capability_id: string;
   version: number;
   operation: HostCapabilityOperation;
-  /** Authenticated Host composition only; a plugin's consumes declaration cannot grant access. */
-  readonly host_only?: boolean;
   /**
    * The call touches no project state (a model draft written in a directory of its own, say): it runs beside the
    * project's operation queue instead of holding every later operation until it answers. The Host reads this from the

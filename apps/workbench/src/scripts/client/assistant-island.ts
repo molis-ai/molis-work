@@ -1,5 +1,6 @@
 import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
 import { ASSISTANT_SEND_CLIENT_SCRIPT } from "./assistant-send.js";
+import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 
 /**
  * The resident Assistant in the bottom bar: one assistant, many works.
@@ -189,7 +190,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     void refresh().then(schedule).catch(() => {});
   });
   const codingHere = () => Boolean(project && document.querySelector('.plugin-rail-items [data-plugin-id="coding"]'));
-  let pollTimer = 0, draftTimer = 0, draftWrite = Promise.resolve();
+  let draftTimer = 0, draftWrite = Promise.resolve();
   let activeSend = null;
 
   const api = async (path, method, body, route = host.route("/api/assistant" + path)) => {
@@ -915,7 +916,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (entry.turn) {
         flush();
         const turn = entry.turn;
-        const kind = turn.kind === "user" ? "user" : turn.kind === "assistant" ? "assistant" : "note";
+        // Words the Host wrote (a timed round, a work going on when its sub-tasks came back) are not shown as the person's.
+        const kind = turn.kind === "user" ? (round.written_by === "host" ? "host" : "user") : turn.kind === "assistant" ? "assistant" : "note";
         const bubble = keyed(node, "data-entry", entry.key, () => el("div", "assistant-msg assistant-msg--" + kind));
         if (bubble.dataset.text !== turn.text) {
           bubble.dataset.text = turn.text;
@@ -949,7 +951,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           if (!more.textContent) more.textContent = bubble.hasAttribute("data-folded") ? L("展开全文") : L("收起");
           put(more);
         }
-        if (kind === "user" && carried) { put(carried); carried = null; }
+        if ((kind === "user" || kind === "host") && carried) { put(carried); carried = null; }
       } else run.push(entry.item);
     });
     flush();
@@ -1889,14 +1891,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       showProblem({ message: error.message });
     }
   };
-  const schedule = () => {
-    clearTimeout(pollTimer);
-    if (!currentId) return;
-    const state = view && view.work.work_id === currentId ? view.work.state : null;
-    // A hidden page still follows a live work, slowly, so it is current when the person looks again.
-    const delay = !isLive(state) ? 0 : document.hidden ? 8000 : state === "running" ? 1200 : 4000;
-    if (delay) pollTimer = setTimeout(async () => { await refresh(); schedule(); }, delay);
-  };
+  // A work is followed while it or a sub-task it handed out is live: what they hand back may move it on by itself.
+  const followed = (seen) => isLive(seen.work.state) || (seen.delegated || []).some((child) => !child.taken_back && isLive(child.state));
+  const follower = (${ASSISTANT_FOLLOW_FACTORY_SCRIPT})({ route: host.route, headers: host.headers, followed, current: () => currentId, show: (next) => { view = next; render(); } });
+  const schedule = () => { if (currentId && view && view.work.work_id === currentId && followed(view)) follower.follow(currentId); else follower.stop(); };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { refresh().then(schedule); loadWorks(); } });
   // Another window may have changed this work (a Coding mode, a new round): coming back to this one reads it again.
   window.addEventListener("focus", () => { if (!document.hidden && currentId) refresh().then(schedule); });
@@ -2740,5 +2738,5 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   return { isOpen: () => Boolean(panel && !panel.hidden),
     /** Where a new work goes, as the page changes what it is about: a project, or null for the person's own space. */
     setProject: (next) => { project = next && next.id ? next : null; if (!currentWork()) newScope = project ? "project" : "personal"; paintTarget(); paintSummary(); },
-    dispose: () => { clearTimeout(pollTimer); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
+    dispose: () => { follower.stop(); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
 }`;

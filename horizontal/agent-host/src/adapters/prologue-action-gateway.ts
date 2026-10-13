@@ -8,6 +8,14 @@ export const DELEGATION_TOOLS = { start: "delegate-work", check: "check-delegate
 /** The person's memory, present only where the caller lets this round form memories. */
 export const MEMORY_TOOLS = { remember: "remember", list: "list-memories", forget: "forget-memory", propose: "suggest-memory" } as const;
 const PACK_ID = "molis-action-gateway";
+/**
+ * Tools that record something (a suggestion, a work, a memory) under the Host's own rules and limits, so the person is
+ * not asked again for each call. They are not reads: the runtime may start a read before the model has finished
+ * speaking and may later fold its old output into "call it again", and neither is right for something that happened.
+ * The Runtime lets exactly these run with an allow rule (prologue-node.ts); every capability change still asks.
+ */
+export const HOST_GOVERNED_TOOLS: readonly string[] = [GATEWAY_TOOLS.suggest, DELEGATION_TOOLS.start, DELEGATION_TOOLS.follow, DELEGATION_TOOLS.stop,
+  MEMORY_TOOLS.remember, MEMORY_TOOLS.forget, MEMORY_TOOLS.propose];
 const FIND_LIMIT = 8;
 
 type Gateway = NonNullable<AgentFrozenRole["action_gateway"]>;
@@ -219,7 +227,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     tool(GATEWAY_TOOLS.read, "Run a capability that only reads data, with the exact identity from find-capabilities.", capability, "safe-read"),
     tool(GATEWAY_TOOLS.change, "Run a capability that changes data, with the exact identity from find-capabilities. The person reviews the exact capability and input before it runs; do not ask them separately.", capability, "mutate-external"),
     tool(GATEWAY_TOOLS.direct, "Run a change the capability directory marks 可撤销 (find-capabilities says use: change-reversible) directly, when the person has asked for exactly this effect. It runs without a confirmation and can be undone from the work; any other change goes through change-capability.", capability, "mutate-external"),
-    tool(GATEWAY_TOOLS.suggest, "Offer the person a ready-to-run action as a button, with its exact capability and prepared input, when you are suggesting something they may want done but have not asked you to do. Nothing runs until they click it.", suggest, "safe-read"),
+    tool(GATEWAY_TOOLS.suggest, "Offer the person a ready-to-run action as a button, with its exact capability and prepared input, when you are suggesting something they may want done but have not asked you to do. Nothing runs until they click it.", suggest, "mutate-external"),
     ...[
       tool(DELEGATION_TOOLS.start, "Hand one independent sub-task to a separate work that runs on its own (same person and scope, its own session). Give it a clear brief, the acceptance bar, and only the material it needs. Its changes still wait for the person's confirmation; it cannot delegate further. Use it for parts that can proceed independently; do small things yourself.",
         { type: "object", additionalProperties: false, required: ["title", "brief", "acceptance"], properties: {
@@ -228,13 +236,13 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
           acceptance: { type: "string", description: "How to tell it is done and right: what must exist and hold." },
           materials: { type: "array", items: { type: "object", properties: { title: { type: "string" }, text: { type: "string" } }, required: ["title", "text"] }, description: "Only the text it needs (at most 4)." },
           character: { type: "string", description: "Optional: the id of one professional role from \"可委托的专业角色\" when this part needs that role; the sub-task then runs as exactly that role. Leave it out otherwise." },
-        } }, "safe-read"),
+        } }, "mutate-external"),
       tool(DELEGATION_TOOLS.check, "Read the delegated works (all, or given work_ids): state, latest reply, objects they produced. With wait_seconds (≤50) it waits for them to finish or to need the person. A work's own report is not proof: check its results against the acceptance bar before relying on them.",
         { type: "object", additionalProperties: false, properties: { work_ids: { type: "array", items: { type: "string" } }, wait_seconds: { type: "integer", minimum: 0, maximum: 50 } } }, "safe-read"),
       tool(DELEGATION_TOOLS.follow, "Tell a delegated work exactly what to fix or add (its next round). Only a few follow-ups per work are allowed; if it still falls short, stop it and report to the person.",
-        { type: "object", additionalProperties: false, required: ["work_id", "text"], properties: { work_id: { type: "string" }, text: { type: "string" } } }, "safe-read"),
+        { type: "object", additionalProperties: false, required: ["work_id", "text"], properties: { work_id: { type: "string" }, text: { type: "string" } } }, "mutate-external"),
       tool(DELEGATION_TOOLS.stop, "Stop a delegated work that is no longer needed or keeps falling short.",
-        { type: "object", additionalProperties: false, required: ["work_id"], properties: { work_id: { type: "string" } } }, "safe-read"),
+        { type: "object", additionalProperties: false, required: ["work_id"], properties: { work_id: { type: "string" } } }, "mutate-external"),
     ],
   ];
   tools.push(
@@ -245,18 +253,18 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
         said: { type: "string", description: "The person's own message the text rests on (the same one, copied exactly). It is only a pointer: the text is checked against the message the Host saved, never against this, and what is recorded as theirs is that saved message." },
         kind: { type: "string", enum: ["preference", "convention", "fact", "experience"], description: "preference: how they like things done; convention: a project's agreed way; fact: background about their work; experience: a lesson from how work went. Default: preference (personal) or convention (project)." },
         replaces: { type: "string", description: "The id (from list-memories) of an earlier memory this one corrects." },
-      } }, "safe-read"),
+      } }, "mutate-external"),
     tool(MEMORY_TOOLS.list, "List what you keep for the person here (personal and this project's), with ids and where each came from. Use it when they ask what you remember, or before forgetting something.",
       { type: "object", additionalProperties: false, properties: {} }, "safe-read"),
     tool(MEMORY_TOOLS.forget, "Switch off one remembered item when the person asks you to forget it or it is no longer true (find its id with list-memories). It is no longer used anywhere, but it is not deleted: it stays in their memory settings, where they can switch it back on or delete it for good. Say it was switched off, not deleted. A newer explicit request corrects an older one with remember and replaces, not with this.",
-      { type: "object", additionalProperties: false, required: ["memory_id"], properties: { memory_id: { type: "string" } } }, "safe-read"),
+      { type: "object", additionalProperties: false, required: ["memory_id"], properties: { memory_id: { type: "string" } } }, "mutate-external"),
     tool(MEMORY_TOOLS.propose, "Suggest keeping something the person did NOT ask you to remember: a preference they showed more than once, a project convention, or a lesson from how this work went (a method that worked, why something failed). It only becomes a suggestion the person accepts or declines; until then nothing is kept. Never for a one-off choice, something they skipped once, or secrets. Say in your reply that you suggested it and it needs their approval.",
       { type: "object", additionalProperties: false, required: ["text", "scope", "why", "applies"], properties: {
         text: { type: "string", description: "What would be kept, one short self-contained sentence in the person's language." },
         scope: { type: "string", enum: ["personal", "project"], description: "personal: all their work; project: only this project's work." },
         why: { type: "string", description: "What in this work it rests on (e.g. they corrected the same thing twice)." },
         applies: { type: "string", description: "When it applies (situation, kind of work), so it is not used outside that." },
-      } }, "safe-read"),
+      } }, "mutate-external"),
   );
   // The runtime keeps one declaration per pack and one per tool name, so every session declares the same full set;
   // what a round may call is its own list of names (and a tool outside it refuses in its executor anyway).

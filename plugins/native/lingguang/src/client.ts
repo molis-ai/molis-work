@@ -128,6 +128,30 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const linkDialog = workbench.querySelector("[data-lingguang-link]");
   const fileInput = workbench.querySelector("[data-lingguang-file]");
   const READING_STAGES = { extracting: "正在读取内容", fetching: "正在读取网页", downloading: "正在下载转写模型", model_download: "正在下载转写模型", transcribing: "正在转写音频", loading: "正在加载模型", ocr: "正在识别文字", frames: "正在读取视频画面", frame_ocr: "正在读取视频画面" };
+  /**
+   * POST with ?stream=1 and read the reply line by line: each progress line goes to onProgress, an error line is
+   * thrown, and the result line is returned. Aborting the signal closes the request, which stops the call on the Host.
+   */
+  const postStream = async (path, payload, signal, onProgress) => {
+    const response = await fetch(host.route(path) + "?stream=1", { method: "POST", headers: headers(), body: JSON.stringify(payload), signal });
+    const reader = response.body.getReader(), decoder = new TextDecoder();
+    let buffer = "", result = null;
+    const consume = (line) => {
+      if (!line.trim()) return;
+      const event = JSON.parse(line);
+      if (event.type === "progress") onProgress(event);
+      else if (event.type === "result") result = event.result;
+      else if (event.type === "error") { const error = new Error(event.error || L("灵光请求失败")); error.code = event.code; error.details = event.details; throw error; }
+    };
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
+      const lines = buffer.split("\\n"); buffer = lines.pop(); lines.forEach(consume);
+    }
+    buffer += decoder.decode(); if (buffer.trim()) consume(buffer);
+    return result;
+  };
   /** Read a file or a page with its progress shown; closing the dialog stops it. The reading, or null when stopped. */
   const readMaterial = async (path, payload) => {
     const controller = new AbortController();
@@ -138,23 +162,9 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     readingDialog.showModal();
     let result = null, failure = null;
     try {
-      const response = await fetch(host.route(path) + "?stream=1", { method: "POST", headers: headers(), body: JSON.stringify(payload), signal: controller.signal });
-      const reader = response.body.getReader(), decoder = new TextDecoder();
-      let buffer = "";
-      const consume = (line) => {
-        if (!line.trim()) return;
-        const event = JSON.parse(line);
-        if (event.type === "progress") { stage.textContent = L(READING_STAGES[event.stage] || "正在读取…"); if (typeof event.progress === "number") bar.value = Math.max(0, Math.min(1, event.progress)); }
-        else if (event.type === "result") result = event.result;
-        else if (event.type === "error") { const error = new Error(event.error || L("读取失败")); error.code = event.code; error.details = event.details; throw error; }
-      };
-      for (;;) {
-        const chunk = await reader.read();
-        if (chunk.done) break;
-        buffer += decoder.decode(chunk.value, { stream: true });
-        const lines = buffer.split("\\n"); buffer = lines.pop(); lines.forEach(consume);
-      }
-      buffer += decoder.decode(); if (buffer.trim()) consume(buffer);
+      result = await postStream(path, payload, controller.signal, (event) => {
+        stage.textContent = L(READING_STAGES[event.stage] || "正在读取…"); if (typeof event.progress === "number") bar.value = Math.max(0, Math.min(1, event.progress));
+      });
       if (!result) throw new Error(L("读取没有返回结果"));
     } catch (error) { failure = error; }
     finally { readingDialog.removeEventListener("close", onClose); if (readingDialog.open) readingDialog.close(); }
@@ -627,6 +637,13 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   workspace.addEventListener("input", (event) => {
     if (event.target.closest("[data-lingguang-title], [data-lingguang-body]")) { syncTodo(); queueSave(); }
   });
+  /*
+   * The reply shows as the model writes it, marked as not yet kept; only the reply the Host checked and saved stays.
+   * Stop closes the request, which stops the call: nothing is saved and the words stay in the box.
+   */
+  let chatController = null;
+  const chatStop = chatForm.querySelector("[data-lingguang-chat-stop]");
+  chatStop?.addEventListener("click", () => chatController?.abort());
   chatForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!conversation || sending) return;
@@ -636,17 +653,27 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     const submit = chatForm.querySelector('[type="submit"]');
     if (submit) submit.disabled = true;
     showNote("", false);
+    const draft = document.createElement("article"), draftHead = document.createElement("strong"), draftBody = document.createElement("p");
+    draft.className = "lingguang-message is-draft"; draft.dataset.lingguangDraft = ""; draft.setAttribute("aria-busy", "true");
+    draftHead.textContent = L("灵光 · 正在写（还没保存）"); draftBody.textContent = "";
+    draft.append(draftHead, draftBody); messagesEl.append(draft);
+    chatController = new AbortController();
+    if (chatStop) chatStop.hidden = false;
     try {
-      const payload = await request("POST", api + "/conversations/" + encodeURIComponent(conversationId) + "/messages", { body });
+      const payload = await postStream("/api/plugins/lingguang/conversations/" + encodeURIComponent(conversationId) + "/messages", { body }, chatController.signal,
+        (progress) => { if (typeof progress.text_delta === "string") draftBody.textContent += progress.text_delta; });
+      if (!payload) throw new Error(L("回复没有保存，输入已保留，可重试"));
       if (conversation?.id !== conversationId) return;
       conversation = payload.conversation;
       renderContext(payload.sparks || []);
       renderMessages(payload.messages || []);
       if (chatInput.value === body) chatInput.value = "";
     } catch (error) {
-      if (conversation?.id === conversationId) showNote(error.message || L("灵光请求失败"), true);
+      draft.remove();
+      if (conversation?.id === conversationId) showNote(error.name === "AbortError" ? L("已停止，回复没有保存") : error.message || L("灵光请求失败"), error.name !== "AbortError");
     } finally {
-      sending = false;
+      sending = false; chatController = null;
+      if (chatStop) chatStop.hidden = true;
       if (submit) submit.disabled = false;
     }
   });

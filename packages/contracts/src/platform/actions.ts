@@ -98,8 +98,11 @@ export interface ActionCallContext extends ActionCallOrigin {
   /** Recheck permissions consumed directly by a scene, without pretending it invoked another action. */
   readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
   readonly signal?: AbortSignal;
-  /** Trusted transport callback; never accepted as capability input or persisted as run state. */
-  readonly on_progress?: (event: { readonly stage: string; readonly progress: number }) => void;
+  /**
+   * Trusted transport callback; never accepted as capability input or persisted as run state. `text_delta` is new text a
+   * model wrote since the last event, a preview only: what the action returns, after its checks, is the result.
+   */
+  readonly on_progress?: (event: { readonly stage: string; readonly progress: number; readonly text_delta?: string }) => void;
   /** Set by scene execution; result history is committed by the consumer after stale-state checks. */
   readonly scene_binding?: { readonly scene_id: string; readonly binding_id: string };
 }

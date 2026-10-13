@@ -209,10 +209,12 @@ test("a sub-task the person put away still counts for the work that handed it ou
     });
   try {
     const sent = await f.service.send({ text: "分给子任务起草", request_id: "req-delegation-archived" }, { project_ref: f.project });
-    const parent = await until(async () => { const view = await f.service.read(sent.work.work_id); return view.work.state === "completed" && view.delegated?.[0]?.state === "completed" ? view : undefined; }, "child done");
+    // The parent ended without checking on its sub-task, so the result comes back to it in one more round of its own
+    // (specs/prologue-adoption §4.6): the parent's round, the sub-task's, and that hand-back round.
+    const parent = await until(async () => { const view = await f.service.read(sent.work.work_id); return view.work.state === "completed" && view.rounds.length === 2 && view.delegated?.[0]?.state === "completed" ? view : undefined; }, "child done, handed back");
     const childId = parent.delegated![0]!.work_id;
     const before = (await f.service.read(sent.work.work_id)).usage!;
-    assert.ok(before.tokens > 0 && before.rounds === 2, JSON.stringify(before));
+    assert.ok(before.tokens > 0 && before.rounds === 3, JSON.stringify(before));
 
     await f.service.archive(childId, true);
     assert.equal((await f.service.read(sent.work.work_id)).delegated, undefined, "the board no longer shows a sub-task put away");

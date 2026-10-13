@@ -16,6 +16,7 @@ import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules
 import { initializeBoardCapability, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { managementGoals } from "./goal-management-caller.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -109,12 +110,24 @@ test("Agent Host loads current guidance through actions and freezes each real re
   } finally { await composition.dispose(); await localHost.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
-test("an Agent round carries the number of the call that started it: its tool calls and the start the Runtime is given", async () => {
+test("an Agent round carries the number of the call that started it: its tool calls and the start the Runtime is given", async t => {
   const home = await realpath(await mkdtemp(join(tmpdir(), "agent-call-id-")));
-  const databasePath = join(home, "project.db");
   const localHost = new MolisWorkLocalHost({ completeText: null });
-  const reference = molisWorkHostProjectReference({ databasePath, projectId: "board" });
-  const composition = composeAgentHost({ localHost, homeDirectory: home, workspaceFor: () => ({ workspace_id: "w", canonical_path: home, realpath_verified: true, display_name: "workspace" }) });
+  let served: Awaited<ReturnType<typeof serveTestHost>> | undefined;
+  t.after(async () => {
+    try { await served?.close(); }
+    finally {
+      try { await localHost.close(); }
+      finally { await rm(home, { recursive: true, force: true }); }
+    }
+  });
+  // The web server reuses the service this Host owns instead of registering a second Agent composition.
+  const composition = localHost.ensureAgentService(home, () => composeAgentHost({ localHost, homeDirectory: home,
+    workspaceFor: () => ({ workspace_id: "w", canonical_path: home, realpath_verified: true, display_name: "workspace" }) }));
+  // The tool lives on this Host, whose real catalog and access settings serve the grant.
+  served = await serveTestHost(null, { home, host: localHost });
+  const project = await served.createProject("Numbers");
+  const reference = project.reference;
   const ping: ActionDefinition = { capability_id: "fixture.agent.ping", version: 1, operation: "query", action: { title: "Ping", description: "Answers", kind: "query", scope: "project",
     audiences: ["agent", "mcp"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
   const handled: Array<string | undefined> = [];
@@ -127,7 +140,7 @@ test("an Agent round carries the number of the call that started it: its tool ca
     observe() { throw new Error("Not used by this fixture"); },
     async control() { throw new Error("Not used by this fixture"); },
     async readCommandOutput() { throw new Error("Not used by this fixture"); },
-    async readSession(session) { return { session, owner: { project_id: "board", plugin_id: CODING, install_id: "coding", actor_id: "user" }, title: "Read", runs: [], latest_run: null }; },
+    async readSession(session) { return { session, owner: { project_id: project.project_id, plugin_id: CODING, install_id: "coding", actor_id: "user" }, title: "Read", runs: [], latest_run: null }; },
     async start(given, guards) {
       request = given; execution = guards; tools = given.role!.actions!.client; const role = given.role!;
       return { ref: { run_id: "r1", session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution, model_id: "probe",
@@ -136,26 +149,23 @@ test("an Agent round carries the number of the call that started it: its tool ca
     },
   });
   const client = localHost.client(reference);
-  try {
-    await client.invoke(initializeBoardCapability, { project_id: "board", title: "Numbers", idempotency_key: "init" });
-    localHost.actionRegistry(reference).registerProvider({ provider: { provider_id: "fixture.agent", kind: "plugin", title: "Fixture" }, definitions: [ping],
-      handlers: [{ ...ping, handle(context) { handled.push(context.call_id); return "pong"; } }] });
-    await grantGoalsMcp(localHost, home, { project_id: "board", database_path: databasePath }, "agent:probe", [ping]);
-    const action = { capability_id: ping.capability_id, version: 1, provider_id: "fixture.agent" };
-    const start = { project_id: "board", plugin_id: CODING, install_id: "coding", actor_id: "user", session: { runtime_id: "probe", session_id: "s" },
-      task: "读取项目", role_id: "reader", directory: { canonical_path: home, realpath_verified: true }, action_tools: [action] };
-    // A number in the request body is the plugin's own data: it is never the round's number.
-    const started = newCallId();
-    const forged = { ...start, call_id: "forged" };
-    await withCallId(started, () => client.invoke(agentHostCapabilities.startRun, ["probe", forged]));
-    assert.equal(request?.role?.actions?.tools.length, 1, "the round was offered the tool");
-    // The Runtime calls its tools later, in its own loop, outside the call that started the round.
-    await tools!.invoke(action, {});
-    await tools!.invoke(action, {});
-    assert.equal(handled.length, 2);
-    assert.equal(execution?.call_id, started, "the start the Runtime is given carries the number of the typed call that started it");
-    assert.deepEqual(handled, [started, started], "every tool call of the round has the round's number");
-  } finally { await composition.dispose(); await localHost.close(); await rm(home, { recursive: true, force: true }); }
+  localHost.actionRegistry(reference).registerProvider({ provider: { provider_id: "fixture.agent", kind: "plugin", title: "Fixture" }, definitions: [ping],
+    handlers: [{ ...ping, handle(context) { handled.push(context.call_id); return "pong"; } }] });
+  await grantGoalsMcp(served, project, "agent:probe", [ping]);
+  const action = { capability_id: ping.capability_id, version: 1, provider_id: "fixture.agent" };
+  const start = { project_id: project.project_id, plugin_id: CODING, install_id: "coding", actor_id: "user", session: { runtime_id: "probe", session_id: "s" },
+    task: "读取项目", role_id: "reader", directory: { canonical_path: home, realpath_verified: true }, action_tools: [action] };
+  // A number in the request body is the plugin's own data: it is never the round's number.
+  const started = newCallId();
+  const forged = { ...start, call_id: "forged" };
+  await withCallId(started, () => client.invoke(agentHostCapabilities.startRun, ["probe", forged]));
+  assert.equal(request?.role?.actions?.tools.length, 1, "the round was offered the tool");
+  // The Runtime calls its tools later, in its own loop, outside the call that started the round.
+  await tools!.invoke(action, {});
+  await tools!.invoke(action, {});
+  assert.equal(handled.length, 2);
+  assert.equal(execution?.call_id, started, "the start the Runtime is given carries the number of the typed call that started it");
+  assert.deepEqual(handled, [started, started], "every tool call of the round has the round's number");
 });
 
 test("装配不带任何默认 Runtime：命令行 Runtime 已删除，没给 Prologue 时运行时列表为空", async () => {

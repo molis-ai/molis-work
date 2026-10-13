@@ -9,22 +9,28 @@ import {
   goalsActions,
 } from "@molis-ai/molis-work-plugin-goals";
 import { managementGoals } from "./goal-management-caller.js";
-import { createMolisWorkLocalHost, molisWorkHostProjectReference, initializeBoardCapability, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 
 test("CLI and MCP active Goal capabilities preserve rejection, canonical replay, current Goal state and restart", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-read-entry-"));
-  const databasePath = join(directory, "project.db");
-  const projectId = "project/a";
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
+  // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
+  const project = await catalog.createProject({ display_name: "原入口行为", actor_id: "user" });
+  const { database_path: databasePath, project_id: projectId } = project;
   const host = createMolisWorkLocalHost({ clock: () => new Date("2026-09-05T01:00:00Z") });
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
   const client = host.client(reference);
   const runtimeHost = { homeDirectory: directory, runtimeContext: { runtime_id: "codex", stable_work_context_id: "read-entry", host_declares_stable: true } };
   const management = new MolisWorkServer("management", null, null, host);
   const runtime = new MolisWorkServer("runtime", { databasePath, projectId, webBaseUrl: "https://example.com" }, runtimeHost, host);
+  // The MCP server below binds this Host to the Home, and a Home has one Host: the same Host serves the access settings the grant goes through.
+  const served = await serveTestHost(null, { home: directory, host });
   const snapshot = () => client.invoke(snapshotBoardCapability, { project_id: projectId });
   async function cli<T>(operation: string, input: Record<string, unknown>): Promise<T> {
     const lines: string[] = [];
@@ -41,7 +47,6 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
     goal_id: goalId, title: goalId, outcome: "保留入口行为", why: "重组", business_logic: "通过公开入口读写",
   });
   try {
-    await client.invoke(initializeBoardCapability, { project_id: projectId, title: "原入口行为", idempotency_key: "init" });
     await client.invoke(createGoalIntentCapability, makeIntent("working"));
     await client.invoke(createGoalIntentCapability, makeIntent("trashed-goal"));
     await host.withProject(reference, ({ coordinator }) => coordinator.goals.lifecycle.setTrashed(projectId, {
@@ -65,7 +70,7 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
     const beforeUnbound = await snapshot();
     await assert.rejects(management.callTool("molis_work_v1_action_goals.active.set__v1", request));
     assert.deepEqual(await snapshot(), beforeUnbound);
-    await grantGoalsMcp(host, directory, { project_id: projectId, database_path: databasePath });
+    await grantGoalsMcp(served, project);
     const active = { goal_id: input.goal_id, reason: input.reason, idempotency_key: "active-mcp" };
     const mcpSelected = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.active.set__v1", active));
     const afterMcp = await snapshot();
@@ -85,7 +90,7 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
     try { assert.deepEqual(await restarted.client(reference).invoke(snapshotBoardCapability, { project_id: projectId }), afterMcp); }
     finally { await restarted.close(); }
   } finally {
-    await management.close(); await runtime.close(); await host.close();
+    await management.close(); await runtime.close(); await served.close(); await host.close(); catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

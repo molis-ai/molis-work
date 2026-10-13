@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
+import { createUiFailureView, createUiRequest, type UiFetchInit } from "@molis-ai/molis-work-ui-host";
 import { WEB_SERVICE_SETTINGS_SCRIPT } from "../apps/workbench/src/scripts/settings-web-service.js";
 
 // DOM ports exercise the shipped script, not a substitute for the native App test.
@@ -25,6 +26,13 @@ class Element {
   focus() { this.focused = true; }
   closest(_selector: string): Element | null { return null; }
 }
+/** The page's `molisWorkRequest`, built from the package's two public factories over the fixture's fake network (as the page program builds it). */
+function pageRequest(fakeFetch: (url: string, init: UiFetchInit) => Promise<Response>) {
+  const call = createUiRequest({ fetch: fakeFetch, origin: "http://127.0.0.1:4173", token: () => "token", newKey: () => "key", translate: text => text });
+  const view = createUiFailureView({ createElement: () => ({ textContent: "", append() {}, setAttribute() {}, getAttribute: () => null, remove() {} }), copy: async () => {}, translate: text => text, setTimeout: () => 0, clearTimeout() {} });
+  return Object.assign(call, { text: view.text, show: view.show, toast: view.toast });
+}
+const answer = (body: unknown, ok = true) => new Response(JSON.stringify(body), { status: ok ? 200 : 409 });
 function fixture(failure?: "preview" | "confirm" | "restart" | "timeout" | "unowned") {
   const button = new Element(); button.textContent = "重启";
   button.closest = (selector: string) => selector === "[data-web-service-action]" ? button : null;
@@ -39,25 +47,26 @@ function fixture(failure?: "preview" | "confirm" | "restart" | "timeout" | "unow
       addEventListener: (type: string, callback: (event: { target: Element; preventDefault(): void }) => unknown) => { documentListeners.set(type, callback); },
       querySelectorAll: (s: string) => s === "[data-web-service-action]" ? [button] : [],
       querySelector: (s: string) => s === "[data-web-service-error]" ? error : s.split(",").map(part => part.trim()).includes("[data-settings-toast]") ? toast : null },
-    L: (value: string) => value, molisWorkControlHeaders: () => ({ "x-molis-work-control-token": "token" }),
+    L: (value: string) => value,
     setTimeout: (f: () => void, ms: number) => { if (ms === 500) { clock += 1000; f(); } else timers.push(f); }, location: { reload() {} },
     Date: { now: () => clock }, AbortSignal,
     window: { confirm() { throw new Error("Native confirm must not be used"); } },
-    fetch: async (url: string, init: { body: string; headers: Record<string, string> }) => {
-      if (url === "/health") {
+    molisWorkRequest: pageRequest(async (url, init) => {
+      const path = new URL(url).pathname;
+      if (path === "/health") {
         healthReads++;
         if (healthReads === 1) throw new Error("temporary disconnect");
-        return { ok: true, json: async () => ({ status: "ok", service_process_id: failure === "timeout" || healthReads === 2 ? 100 : 200 }) };
+        return answer({ status: "ok", service_process_id: failure === "timeout" || healthReads === 2 ? 100 : 200 });
       }
-      if (url === "/api/settings/web-service") return { ok: true, json: async () => ({ state: "running", owned: failure !== "unowned" }) };
+      if (path === "/api/settings/web-service") return answer({ state: "running", owned: failure !== "unowned" });
       assert.equal(init.headers["x-molis-work-control-token"], "token");
-      const suffix = url.split("/").at(-1)!; const input = JSON.parse(init.body);
+      const suffix = path.split("/").at(-1)!; const input = JSON.parse(init.body!);
       requests.push({ suffix, body: input });
       const failed = failure === "preview" && suffix === "plan" || failure === "confirm" && suffix === "confirm";
-      return { ok: !failed, json: async () => failed ? { error: "服务状态已变化，请重新预览" }
+      return answer(failed ? { error: "服务状态已变化，请重新预览" }
         : suffix === "plan" ? { status: "ready", plan_id: "plan-actual", message: "重启 Web", confirmation: "确认重启", changes: [{ operation: "restart", target: "<img src=x onerror=alert(1)>" }] }
-        : { status: input.decision === "declined" ? "declined" : ["restart", "timeout", "unowned"].includes(failure ?? "") ? "restarting" : "restarted", previous_process_id: 100, message: "已重启" } };
-    },
+        : { status: input.decision === "declined" ? "declined" : ["restart", "timeout", "unowned"].includes(failure ?? "") ? "restarting" : "restarted", previous_process_id: 100, message: "已重启" }, !failed);
+    }),
   });
   const click = () => documentListeners.get("click")?.({ target: button, preventDefault() {} });
   return { button, click, dialog: () => body.children[0]!, error, toast, requests, timers };

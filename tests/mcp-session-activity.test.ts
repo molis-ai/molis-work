@@ -44,7 +44,7 @@ test("successful MCP writes update only their Session and survive a secondary Re
   let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "Session 活动", actor_id: "user" });
-    await grantGoalsMcp(host, homeDirectory, project);
+    await grantGoalsMcp(homeDirectory, project);
     catalog.bindRuntimeContext({
       context: {
         runtime_id: "codex",

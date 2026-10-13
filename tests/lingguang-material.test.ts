@@ -9,8 +9,8 @@ import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-c
 import { LINGGUANG_BODY_LIMIT } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import { lingguangActions as actions, LINGGUANG_ACTION_PERMISSIONS, createLingguangActionHandlers } from "@molis-ai/molis-work-plugin-lingguang";
 import { jellyContentActions, JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { handleLingguangNativePluginHttp } from "../apps/local-host/src/lingguang-native-plugin-http.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { handleLingguangNativePluginHttp } from "@molis-ai/molis-work-app-local-host";
 
 /** 灵光 is the one place for ideas (specs/post-merge-review PMR-22): it reads files and pages, and hands a spark to Jelly as a note. */
 async function fixture(t: { after(fn: () => Promise<void>): void }) {

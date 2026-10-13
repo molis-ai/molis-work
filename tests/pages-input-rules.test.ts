@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createRequire } from "node:module";
 import { EditorState, TextSelection } from "prosemirror-state";
-import { pagesSchema as s } from "../plugins/native/pages/src/schema.js";
-import { pagesInputRules, confirmCodeFence } from "../plugins/native/pages/src/input-rules.js";
+import { pagesSchema as s } from "@molis-ai/molis-work-plugin-pages";
+import { pagesInputRules, confirmCodeFence } from "../plugins/native/pages/dist/input-rules.js";
 
 const localRequire = createRequire(new URL('../plugins/native/pages/package.json', import.meta.url));
 const { undoInputRule } = localRequire('prosemirror-inputrules');

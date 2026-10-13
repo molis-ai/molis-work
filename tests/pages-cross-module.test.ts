@@ -7,10 +7,10 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { inboxActions, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { createLocalFeedApplication } from "../apps/local-host/src/feed-application.js";
-import { createLocalFeedSourceService } from "../apps/local-host/src/feed-source-service.js";
-import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 
 const body = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 async function fixture(t: any, completeText: HostCompleteText | null = async () => "Generated from real material [材料 1]") {

@@ -1,14 +1,14 @@
 import { modelPromptText } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { JellyPluginRouteTable, openJellyStore, runJellyAi, jellySourceHash, scheduleJellyActions, jellyActions, jellyCommandActions, jellyManifest, emptyJellyWorkspace } from "../plugins/native/jelly/src/index.js";
-import { isJellyPublicAddress } from "../apps/local-host/src/jelly-source-reader.js";
+import { JellyPluginRouteTable, openJellyStore, runJellyAi, jellySourceHash, scheduleJellyActions, jellyActions, jellyCommandActions, jellyManifest, emptyJellyWorkspace } from "@molis-ai/molis-work-plugin-jelly";
+import { isJellyPublicAddress } from "../apps/local-host/dist/jelly-source-reader.js";
 const day="2026-09-22";
 function fixture(t: { after(fn:()=>void):void }) { const home=mkdtempSync(join(tmpdir(),'jelly-integration-')), store=openJellyStore(home);t.after(()=>{store.close();rmSync(home,{recursive:true,force:true});});return store; }
 test('Jelly HTTP enforces revisions; routes and actions share persisted facts', async t=>{

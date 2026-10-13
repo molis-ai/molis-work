@@ -1,3 +1,4 @@
+import { isBuiltinPluginCaller } from "./builtin-plugin-callers.js";
 import { createGoalsActionHandlers, goalsManifest, goalsActions, GOALS_ACTION_PERMISSIONS, GOALS_PLUGIN_ID, hostEventDecisionAuthority, managementEventDecisionAuthority, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, bindActionClient, pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
@@ -13,7 +14,9 @@ const pinPermissions = () => [...new Set([...artifactTypeDeclarations().values()
 export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMethods: () => readonly PlanningMethodPack[], client: ActionClient): ActionProviderRegistration {
   return { provider: { provider_id: goalsManifest.plugin_id, plugin_id: goalsManifest.plugin_id,
     title: goalsManifest.name, kind: "plugin", project_id: runtime.project_id },
-    definitions: goalsManifest.actions!.filter(definition => definition.action.scope === "project"), handlers: createGoalsActionHandlers({ events: runtime.coordinator.goalEvents, projectId: runtime.project_id,
+    definitions: goalsManifest.actions!.filter(definition => definition.action.scope === "project"), handlers: createGoalsActionHandlers({ trustedPluginCaller: caller => isBuiltinPluginCaller(caller.host_plugin)
+      && caller.actor_kind === "user" && caller.host_plugin!.actor_id === caller.actor_id
+      && caller.host_plugin!.project_id === caller.project_id && caller.host_plugin!.install_id === caller.plugin_install_id, events: runtime.coordinator.goalEvents, projectId: runtime.project_id,
       board: { initializeBoard: input => runtime.coordinator.initializeBoard(input) },
       collection: { snapshot: projectId => runtime.store.snapshot(projectId), events: projectId => runtime.store.readEventsDescending(projectId),
         goals: runtime.coordinator.goalQueries, inputs: runtime.coordinator.goalInputs, eventWork: runtime.coordinator.goalEvents },

@@ -1,10 +1,11 @@
+import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionDefinition, ActionHandlerBinding, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalEventWorkStatuses, goalIntentSourceKinds, type CreateGoalIntentInput, type CreateGoalIntentResult,
   type GoalEventDirectoryPage, type GoalEventDirectoryQuery, type GoalEventMutationResult, type RecordGoalNoteInput,
   type GoalEventStateView, type GoalEventDirectoryItem, type GoalEventHistoryPage, type GoalEventHistoryQuery, type GoalEventListPage,
   type GoalEventListQuery, type GoalEventTimelinePage, type GoalWorkEventRecord, type GoalEventProgressResult } from "@molis-ai/molis-work-contracts/modules/goals";
-import { goalAction as action, goalActor } from "./action-contract.js";
+import { goalAction as action, goalActor, protectBuiltinGoalAction } from "./action-contract.js";
 import { goalsFragmentOffersAction, prepareGoalsFragmentOffers } from "./fragment-offers.js";
 import type { FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsEventActions, createGoalsEventActionHandlers, goalProgressResultSchema } from "./event-command-actions.js";
@@ -17,12 +18,12 @@ import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
 import { goalsConfigurationActions, createGoalsConfigurationActionHandlers, type GoalsConfigurationActionPorts } from "./configuration-actions.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
 import { text, identifier, count, boolean, object, nullable, goalStateSchema, goalEventSchema, goalEventPageSchema, goalTimelineSchema,
-  goalDirectoryItemSchema, goalHistoryItemSchema, goalHistoryPageSchema } from "./event-action-schemas.js";
+  goalDirectoryItemSchema, goalHistoryItemSchema, goalHistoryPageSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { listGoalDocumentHistory } from "./event-document-model.js";
 import { readGoalHistory, type GoalHistoryQueryPorts, type GoalHistoryReadResult } from "./history-query.js";
 import type { GoalDocumentHistoryQuery, GoalHistoryTimelinePage } from "./event-history-map.js";
 import { goalDocumentAction, createGoalDocumentActionHandler } from "./document-action.js";
-import { boardSnapshotSchema, goalContractSchema } from "./snapshot-action-schemas.js";
+import { boardSnapshotSchema, goalContractSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { BoardSnapshot, GoalContractView } from "./goal-entry-contract.js";
 
 import { goalsBoardActions, createGoalsBoardActionHandlers } from "./board-actions.js";
@@ -73,16 +74,10 @@ export const goalsActions = {
   collection: goalsCollectionAction,
   snapshot: action<Record<string, never>, BoardSnapshot>("goals.snapshot.read", "读取项目目标完整快照",
     "读取当前项目的目标资料：全部目标、关系、规划方法、项目长期说明和结构提案；不含事件正文，需要时用 goals.events.list 或 goals.history.list 读取", "query", object({}), boardSnapshotSchema),
-  contract: action<GoalReadActionInput, GoalContractView>("goals.contract.read", "读取目标约定与历史资料",
-    "读取指定目标的原始约定、上级覆盖、关系、生效规则、项目长期说明和相关结构提案；包含归档及回收站目标。当前工作状态通过 goals.state.read 读取", "query", goalInput, goalContractSchema),
-  progressReceipt: action<GoalReadActionInput & { idempotency_key: string }, GoalEventProgressResult | null>("goals.progress.receipt", "读取进展保存回执", "按当前调用者和原幂等键读取此目标已保存的进展回执；未保存时返回 null，不新建记录", "query",
-    object({ goal_id: identifier, idempotency_key: identifier }), nullable(goalProgressResultSchema)),
-  list: action<GoalListActionInput, GoalEventDirectoryPage>("goals.list", "目标目录", "读取当前项目未归档和未丢弃的目标；分页游标来自上次列表结果", "query",
-    object({ work_status: { enum: [...goalEventWorkStatuses] }, limit: { type: "integer", minimum: 1, maximum: 100 }, after_cursor: text }, []),
-    object({ goals: { type: "array", items: goalDirectoryItemSchema },
-      // Installed plugins may read the directory and leave notes; nothing else in Goals is open to them.
-      next_cursor: { type: ["string", "null"] }, observed_event_cursor: count }), true),
-  state: action<GoalReadActionInput, GoalEventStateView>("goals.state.read", "读取目标状态", "读取当前约定、要求、报告摘要、决定及收尾状态；历史正文通过事件读取", "query", goalInput, goalStateSchema),
+  contract: goalPluginActions.contract,
+  progressReceipt: goalPluginActions.receipt,
+  list: goalPluginActions.list,
+  state: goalPluginActions.state,
   directoryItem: action<GoalReadActionInput, GoalEventDirectoryItem | null>("goals.directory.read", "读取目标目录项", "按目标 ID 读取目录摘要；不存在、已归档或已丢弃时返回 null", "query", goalInput, nullable(goalDirectoryItemSchema)),
   events: action<GoalReadActionInput & GoalEventListQuery, GoalEventListPage>("goals.events.list", "读取目标事件", "按记录顺序读取事件原文；after_cursor 为上次事件分页游标", "query",
     object({ goal_id: identifier, after_cursor: count, limit }, ["goal_id"]), goalEventPageSchema),
@@ -126,7 +121,8 @@ export async function readGoalResumeFacts(actions: Pick<BoundActionClient, "invo
 }
 
 /** The plugin keeps its original transaction, event history and idempotency owner. */
-export function createGoalsActionHandlers({ events, projectId, history, planning, guidance, lifecycle, tree, configuration, readGoal, readContract, collection, board, deliverables }: {
+export function createGoalsActionHandlers({ events, projectId, history, planning, guidance, lifecycle, tree, configuration, readGoal, readContract, collection, board, deliverables, trustedPluginCaller }: {
+  trustedPluginCaller?: (caller: import("@molis-ai/molis-work-contracts/platform/actions").ActionCallContext) => boolean;
   events: GoalEventApplication; projectId: string; history: GoalHistoryQueryPorts; planning: GoalsPlanningActionPorts;
   guidance: GoalsGuidanceActionPorts; lifecycle: GoalsLifecycleActionPorts; tree: GoalTreeApplicationApi; configuration: GoalsConfigurationActionPorts;
   readGoal: Parameters<typeof createGoalDocumentActionHandler>[1]["goal"];
@@ -137,7 +133,7 @@ export function createGoalsActionHandlers({ events, projectId, history, planning
   deliverables: Omit<GoalDeliverablePorts, "projectId" | "goalExists" | "boundObjects">;
 }): ActionHandlerBinding[] {
   const goalExists = (goalId: string) => Boolean(readGoal(goalId) && events.readDirectoryItem(projectId, goalId));
-  return [
+  const bindings: ActionHandlerBinding[] = [
     ...createGoalsDeliverableActionHandlers({ ...deliverables, projectId, goalExists, boundObjects: goalId => boundGoalObjects(collection.inputs.list(projectId), goalId) }),
     ...createGoalsInputActionHandlers(projectId, collection.inputs, goalId => Boolean(readGoal(goalId) && events.readDirectoryItem(projectId, goalId))),
     { ...goalsActions.subject, handle: (_caller, input) => {
@@ -208,4 +204,5 @@ export function createGoalsActionHandlers({ events, projectId, history, planning
     { ...goalsActions.note, handle: (caller, input) => events.recordNote({ ...(input as GoalNoteActionInput), project_id: projectId,
       ...goalActor(caller) }) },
   ];
+  return bindings.map(binding => protectBuiltinGoalAction(binding, trustedPluginCaller));
 }

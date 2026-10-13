@@ -1,8 +1,8 @@
 import { ActionError, withActionEffect, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalsLifecycleApi, GoalsCommandApi, GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction, goalActor } from "./action-contract.js";
-import { text, identifier, count, boolean, object, array } from "./event-action-schemas.js";
-import { goalRecordSchema, goalArchiveResultSchema, goalTrashResultSchema } from "./goal-record-schema.js";
+import { text, identifier, count, boolean, object, array } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalRecordSchema, goalArchiveResultSchema, goalTrashResultSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
 type ActiveInput = { goal_id: string; reason: string; idempotency_key: string };
 type ArchiveInput = ActiveInput & { archived: boolean };

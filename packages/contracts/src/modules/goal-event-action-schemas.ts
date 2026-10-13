@@ -1,8 +1,8 @@
-import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionSchema } from "../platform/actions.js";
 import { goalEventClosureKinds, goalEventConcernStatuses, goalEventDecisionEffectKinds, goalEventDecisionPurposes,
   goalEventFieldFormats, goalEventJudgmentVerdicts, goalEventRequirementCurrentStatuses, goalEventSemanticFamilies,
   goalEventTrustedAuthoritySources, goalEventTypeSourceKinds, goalEventUserConclusionVerdicts, goalEventWorkStatuses,
-  goalIntentSourceKinds, goalDecisionMethods, goalDecompositionReviewStatuses } from "@molis-ai/molis-work-contracts/modules/goals";
+  goalIntentSourceKinds, goalDecisionMethods, goalDecompositionReviewStatuses } from "./goals.js";
 
 export const text = { type: "string" };
 export const identifier = { type: "string", minLength: 1 };

@@ -1,5 +1,5 @@
-import { text, identifier, count, boolean, object, array, nullable, enumeration } from "./event-action-schemas.js";
-import { planningImpactSchema, planningGraphIssueSchema } from "./planning-action-schemas.js";
+import { text, identifier, count, boolean, object, array, nullable, enumeration } from "./goal-event-action-schemas.js";
+import { planningImpactSchema, planningGraphIssueSchema } from "./goal-planning-action-schemas.js";
 
 const strings = array(text), maybeText = nullable(text), record = { type: "object", additionalProperties: true };
 const affected = object({ object_type: enumeration(["goal", "relation"]), object_id: text });

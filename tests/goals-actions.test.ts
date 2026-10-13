@@ -10,7 +10,7 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import type { ResolvedPlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
-import { goalContextCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
+import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { DEFAULT_GOAL_POLICY, BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-module-goals";
@@ -62,7 +62,7 @@ test("Goals actions keep the runtime author; the management caller and the first
     const page = await bound.invoke(goalsActions.list, { limit: 1 });
     assert.equal(page.goals.length, 1);
     assert.ok(page.next_cursor, "two goals must produce a real pagination cursor");
-    const all = await typed.invoke(goalContextCapabilities.list, {});
+    const all = await bound.invoke(goalPluginActions.list, { limit: 100 });
     assert.ok(all.goals.some(goal => goal.goal_id === input.goal_id && goal.work_status === "open"));
     const next = await bound.invoke(goalsActions.list, { limit: 1, after_cursor: page.next_cursor });
     assert.equal(next.goals.length, 1);

@@ -1,3 +1,6 @@
+import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalProgressResultSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+export { goalProgressResultSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { ActionHandlerBinding, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalEventClosureKinds, goalEventConcernActions, goalEventDecisionPurposes,
   type ConfigureGoalEventsApplicationInput, type ConfigureGoalEventsResult, type ReportGoalEventsInput, type ReportGoalEventsResult,
@@ -8,7 +11,7 @@ import { goalEventClosureKinds, goalEventConcernActions, goalEventDecisionPurpos
 import type { GoalEventApplication } from "./goal-event-application.js";
 import { goalAction as action, goalActor } from "./action-contract.js";
 import { text, identifier, count, boolean, object, array, enumeration, nullable, goalConfigSchema, goalStateSchema, goalReportEventSchema,
-  eventType, binding, scope, artifactSource, progress, concern, option, change, decisionRequest, decision, reason, closure, judgment, agreement } from "./event-action-schemas.js";
+  eventType, binding, scope, artifactSource, progress, concern, option, change, decisionRequest, decision, reason, closure, judgment, agreement } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
 type BusinessInput<Input> = Omit<Input, "project_id" | "actor_id" | "actor_kind">;
 const version = { type: "integer", minimum: 1 };
@@ -16,7 +19,6 @@ const base = { goal_id: identifier, idempotency_key: identifier };
 const required = Object.keys(base);
 const partialScope = { ...scope, required: [] };
 const mutation = { event_id: text, observed_event_cursor: count, replayed: boolean, recorded: { const: true } };
-export const goalProgressResultSchema = object({ ...mutation, progress_summary: progress });
 const changeProperties = change.properties as Record<string, ActionSchema>;
 const stateProperties = goalStateSchema.properties as Record<string, ActionSchema>;
 
@@ -34,10 +36,7 @@ export const goalsEventActions = {
       progress: object({ summary: identifier, next_step: text, next_actor: text }, ["summary"]) }, [...required, "events"]),
     object({ events: array(goalReportEventSchema), observed_event_cursor: count, replayed: boolean, goal_event_cursor: count,
       work_status: stateProperties.work_status!, gaps: stateProperties.gaps!, progress_summary: nullable(progress), completion_effect: boolean, can_record: boolean })),
-  progress: action<BusinessInput<RecordGoalProgressSummaryInput>, GoalEventProgressResult>("goals.progress.record", "记录目标进展", "记录基于当前目标事件游标的进展与下一步；事务内核对预期 Goal 版本。可附成果引用，引用不代表成果内容已验证", "command",
-    object({ ...base, based_on_cursor: count, summary: identifier, next_step: text, next_actor: text,
-      source: artifactSource, expected_goal_cursor: count }, [...required, "based_on_cursor", "summary"]),
-    goalProgressResultSchema),
+  progress: goalPluginActions.progress,
   concern: action<BusinessInput<ApplyGoalConcernInput>, GoalEventConcernResult>("goals.concerns.apply", "处理目标问题", "提出问题须填标题、说明和影响范围；解决/撤销须引用问题后的实际事件或用户决定，接受风险须引用适用的用户决定", "command",
     object({ ...base, action: enumeration(goalEventConcernActions), concern_id: text, title: text, statement: text, scope: partialScope,
       blocks_closure: boolean, reason: text, supporting_event_ids: array(text), cited_decision_id: text }, [...required, "action"]),

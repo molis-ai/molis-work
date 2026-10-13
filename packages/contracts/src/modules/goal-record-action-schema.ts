@@ -1,4 +1,4 @@
-import { text, count, boolean, array, object, nullable, enumeration, recordedDecisionMethod, recordedReviewStatus } from "./event-action-schemas.js";
+import { text, count, boolean, array, object, nullable, enumeration, recordedDecisionMethod, recordedReviewStatus } from "./goal-event-action-schemas.js";
 
 const strings = array(text), maybeText = nullable(text);
 const coverageStatus = enumeration(["complete", "partial", "integration_required", "uncovered"]);

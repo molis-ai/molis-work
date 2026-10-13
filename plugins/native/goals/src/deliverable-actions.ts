@@ -2,7 +2,7 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextAccess, ContextEdge, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { goalAction, goalActor } from "./action-contract.js";
-import { text, identifier, boolean, array, object, nullable } from "./event-action-schemas.js";
+import { text, identifier, boolean, array, object, nullable } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
 /**
  * A version in the 成果库 a Goal hands in (specs/artifact-positioning A5), as callers see it. `proposed`: an assistant,

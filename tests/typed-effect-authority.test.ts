@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LocalHost, PluginHostExecutor, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
@@ -15,22 +14,22 @@ import { openTestHome } from "./fixtures/test-home.js";
 import { managementGoals } from "./goal-management-caller.js";
 
 const origin: ActionDefinition = { capability_id: "fixture.typed.progress", version: 1, operation: "command", action: {
-  title: "Record through the declared Host capability", description: "A real installed consumer of the existing Goals progress protocol",
+  title: "Record through the declared Host capability", description: "A real installed consumer of the existing Goal note action",
   kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["mcp"], permissions: ["goals:write"], subject_kinds: [],
-  input_schema: { type: "object", additionalProperties: false }, output_schema: goalsActions.progress.action.output_schema,
+  input_schema: { type: "object", additionalProperties: false }, output_schema: goalsActions.note.action.output_schema,
 } };
 const peer: ActionDefinition = { ...origin, capability_id: "fixture.typed.peer", operation: "query", action: {
   ...origin.action, title: "Independently granted peer", kind: "query", output_schema: { type: "boolean" },
 } };
 
-test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow its peer's grant across SDK and the typed Goals bridge", { timeout: 30_000 }, async t => {
+test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow its peer's grant across SDK and the typed SDK port to a formal Goal note action", { timeout: 30_000 }, async t => {
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let originChecked = false, held = true;
   const home = await openTestHome(t, { catalogPolicy: false, host: { actionAvailability: async (caller, view) => {
     // Hold the downstream Goals policy only after the actual originating execution's async check completed.
     // Discovery/permission inspectors have no pinned allowed_actions and cannot enter this barrier.
-    if (held && originChecked && view.capability_id === "goals.progress.record"
-      && caller.allowed_actions?.some(reference => reference.capability_id === "goals.progress.record")) {
+    if (held && originChecked && view.capability_id === "goals.note"
+      && caller.allowed_actions?.some(reference => reference.capability_id === "goals.note")) {
       entered.resolve(); await release.promise;
     }
     return { available: true };
@@ -41,17 +40,17 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
   const goal_id = "TYPED-EFFECT";
   await goals.invoke(goalsActions.create, { goal_id, title: "Only currently authorized progress", idempotency_key: "create" });
   const beforeState = await goals.invoke(goalsActions.state, { goal_id });
-  const progress = { goal_id, based_on_cursor: beforeState.goal_event_cursor, summary: "One genuinely authorized report", idempotency_key: "typed-progress" };
+  const progress = { goal_id, body: "One genuinely authorized note", idempotency_key: "typed-note" };
   const definition: PluginDefinition = { manifest: {
     schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.typed-authority", version: "1.0.0", name: "Typed consumer", kind: "app",
     publisher: { publisher_id: "example", signature: "typed-authority-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "goals:write", required: true, reason: "Record authorized progress" }],
-    capabilities: { provides: [], consumes: [goalProgressCapabilities.record.capability_id] },
+    capabilities: { provides: [], consumes: [goalsActions.note.capability_id] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [origin, peer],
   }, async start(context) {
     assert.ok(context.services?.capabilities);
     const capabilities = context.services.capabilities;
-    return { kind: "app", actions: [{ ...origin, handle: caller => capabilities.invoke(goalProgressCapabilities.record, progress, {
+    return { kind: "app", actions: [{ ...origin, handle: caller => capabilities.invoke(goalsActions.note, progress, {
       signal: caller.signal,
       before_effect: async () => { await caller.beforeEffect(); originChecked = true; },
       assert_authority_current: () => { caller.assert_authority_current(); },
@@ -90,18 +89,18 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
   assert.equal(outcome.recorded, callId);
   const rows = home.host.callLog!.find(callId);
   assert.deepEqual(rows.map(row => [row.capability_id, row.code, row.ok]).sort(([a], [b]) => String(a).localeCompare(String(b))),
-    [[origin.capability_id, "mcp.action_revoked", false], [goalProgressCapabilities.record.capability_id, "mcp.action_revoked", false], ["goals.progress.record", "mcp.action_revoked", false]]
+    [[origin.capability_id, "mcp.action_revoked", false], [goalsActions.note.capability_id, "mcp.action_revoked", false]]
       .sort(([a], [b]) => String(a).localeCompare(String(b))), "each real nested call is settled once under the original operation number");
   await home.grant(clientId, project.project_id, [origin]);
   const recovered = await mcp.client.invoke(mcp.caller, origin, {});
   assert.ok(recovered && typeof recovered === "object" && "event_id" in recovered);
   const after = await goals.invoke(goalsActions.state, { goal_id });
   assert.equal(after.goal_event_cursor, beforeState.goal_event_cursor + 1);
-  assert.equal(after.latest_progress_summary?.summary, progress.summary);
+  assert.equal((await goals.invoke(goalsActions.event, { goal_id, event_id: String(recovered.event_id) })).payload.body, progress.body);
   const replayed = await mcp.client.invoke(mcp.caller, origin, {});
   assert.ok(replayed && typeof replayed === "object" && "event_id" in replayed);
   assert.equal(replayed.event_id, recovered.event_id);
-  assert.deepEqual(await goals.invoke(goalsActions.state, { goal_id }), after, "retry leaves the one original progress fact");
+  assert.deepEqual(await goals.invoke(goalsActions.state, { goal_id }), after, "retry leaves the one original note fact");
 });
 
 for (const publishedAction of [false, true]) {

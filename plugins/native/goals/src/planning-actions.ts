@@ -1,8 +1,8 @@
 import { ActionError, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalsPlanningApi, PlanningMethodPack, ResolvedPlanningMethodPack, SaveProjectPlanningMethodInput } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction, goalActor } from "./action-contract.js";
-import { identifier, count, boolean, object, array } from "./event-action-schemas.js";
-import { planningMethodInputSchema, planningMethodSchema, planningMethodSummarySchema, planningCompositionSchema, planningImpactSchema, planningGraphIssueSchema, planningSavedSchema } from "./planning-action-schemas.js";
+import { identifier, count, boolean, object, array } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { planningMethodInputSchema, planningMethodSchema, planningMethodSummarySchema, planningCompositionSchema, planningImpactSchema, planningGraphIssueSchema, planningSavedSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
 /** What `goals.planning.read` returns: the methods in effect for the project and the composition the project enabled. */
 export interface GoalPlanningComposition {

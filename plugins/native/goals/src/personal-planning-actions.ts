@@ -1,8 +1,8 @@
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction } from "./action-contract.js";
-import { object, array } from "./event-action-schemas.js";
-import { planningMethodInputSchema, planningMethodSchema } from "./planning-action-schemas.js";
+import { object, array } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { planningMethodInputSchema, planningMethodSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
 function home<I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> {
   return { ...definition, action: { ...definition.action, scope: "home", subject_kinds: ["planning_method"],

@@ -249,6 +249,10 @@
     "./services/materials": {
       "types": "./dist/services/materials.d.ts",
       "import": "./dist/services/materials.js"
+    },
+    "./modules/goal-actions": {
+      "types": "./dist/modules/goal-actions.d.ts",
+      "import": "./dist/modules/goal-actions.js"
     }
   },
   "files": [

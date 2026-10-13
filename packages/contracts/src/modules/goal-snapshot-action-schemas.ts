@@ -1,10 +1,10 @@
-import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { text, count, array, object, nullable, enumeration } from "./event-action-schemas.js";
-import { goalRecordSchema, goalDecompositionReviewSchema } from "./goal-record-schema.js";
-import { goalPolicySchema, goalRelationSchema } from "./configuration-actions.js";
-import { projectGuidanceEntrySchema } from "./guidance-actions.js";
-import { treeProposalSchema } from "./tree-action-schemas.js";
-import { planningMethodSchema } from "./planning-action-schemas.js";
+import type { ActionSchema } from "../platform/actions.js";
+import { text, count, array, object, nullable, enumeration } from "./goal-event-action-schemas.js";
+import { goalRecordSchema, goalDecompositionReviewSchema } from "./goal-record-action-schema.js";
+import { goalPolicySchema, goalRelationSchema } from "./goal-policy-action-schemas.js";
+import { projectGuidanceEntrySchema } from "./goal-guidance-action-schemas.js";
+import { treeProposalSchema } from "./goal-tree-action-schemas.js";
+import { planningMethodSchema } from "./goal-planning-action-schemas.js";
 
 const maybeText = nullable(text);
 const board = object({ project_id: text, title: text, active_goal_id: maybeText, created_at: text, updated_at: text });

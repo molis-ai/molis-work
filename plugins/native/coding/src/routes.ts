@@ -2,7 +2,7 @@ import { CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { parseExactActionReferences, searchEntriesPage, subjectContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { dispatchCodingDelegation } from "./delegation-dispatch.js";
 import { codingBackgroundState } from "./background-state.js";
-import { codingRouteEntry, type CodingBeforeWrite } from "./route-entry.js";
+import { codingActionControl, codingRouteEntry, type CodingBeforeWrite } from "./route-entry.js";
 import { codingReportSteps } from "./report-steps.js";
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingWriterAssignments } from "./writers.js";
@@ -18,8 +18,8 @@ import { chosenEffort, nextConfiguration, runControl, text } from "./run-inputs.
 import type { AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingArtifacts, CODING_REPORT_TYPE } from "./artifacts.js";
 import { codingReportPreview, codingReportPublication, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
-import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
-import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
+import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { currentGoalDirectory, readCurrentGoalSnapshot, currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
 import { codingContinuation, CONTINUATION_MARKER } from "./continuation.js";
 import { COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./history-digest.js";
@@ -417,7 +417,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
   if (record.runtime_id !== "prologue") throw new Error("当前运行时尚未验证 Character 的工具限制，请使用 Prologue 或明确移除角色");
   execution.characters.resolve(character);
     }
-    const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null);
+    const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null, codingActionControl(beforeWrite));
     const text_materials = resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), sessionTitle(execution));
     if (goal) text_materials.unshift(goal.material);
     if (plan) text_materials.unshift(planMaterial(plan));
@@ -641,7 +641,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     const current = outputs.reference("report");
     return { reference: saved.reference, current, selected: current?.artifact_id === saved.reference.artifact_id && current?.version === saved.reference.version };
   });
-  const reportProgress = (write: boolean) => route(write ? "coding.record-report-progress" : "coding.report-progress", async (request, api, execution) => {
+  const reportProgress = (write: boolean) => route(write ? "coding.record-report-progress" : "coding.report-progress", async (request, api, execution, beforeWrite) => {
     const session = selected(request, execution);
     const runId = text(request.params.runId, "执行引用");
     const saved = readCodingExecutionReport(codingArtifacts(context), session.session_id, runId);
@@ -653,9 +653,9 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     const actorId = request.actor_id;
     if (!actorId) throw new Error("当前操作缺少用户身份");
     if (!write) {
-      const receipt = await api!.invoke(goalProgressCapabilities.receipt, { goal_id: goalId, idempotency_key: idempotencyKey });
+      const receipt = await context.services!.actions!.invoke(goalPluginActions.receipt, { goal_id: goalId, idempotency_key: idempotencyKey }, codingActionControl(beforeWrite));
       if (receipt) return { report_goal: report.goal, reference, title: report.title, recorded: receipt, current: null };
-      const current = await api!.invoke(goalContextCapabilities.read, { goal_id: goalId });
+      const current = await readCurrentGoalSnapshot(context, goalId, codingActionControl(beforeWrite));
       return { report_goal: report.goal, reference, title: report.title, recorded: null, current };
     }
     const body = bodyOf(request);
@@ -663,13 +663,13 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     if (typeof cursor !== "number" || !Number.isSafeInteger(cursor) || cursor < 0) throw new Error("请先查看原目标当前版本，再确认记录进展");
     // The original Goal transaction checks replay first, then versions and write.
     // Nothing is derived from a browser-supplied report, Goal id, or source body.
-    return api!.invoke(goalProgressCapabilities.record, {
+    return context.services!.actions!.invoke(goalPluginActions.progress, {
       goal_id: goalId, idempotency_key: idempotencyKey,
       based_on_cursor: cursor, expected_goal_cursor: cursor,
       summary: text(body.summary, "进展内容", 10000),
       ...(body.next_step ? { next_step: text(body.next_step, "下一步", 10000) } : {}),
       source: { ...reference, title: report.title, origin: { plugin_id: "coding", item_id: reference.artifact_id } },
-    });
+    }, codingActionControl(beforeWrite));
   });
   return [
     route("coding.writer-directories", async (request, api) => ({ directories: await api!.invoke(writerDirectoryCapabilities.list, { workspace_id: text(request.params.workspaceId, "主工作区") }) })),
@@ -710,11 +710,9 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       return { task: codingChangeFeedback(saved.change, bodyOf(request).comments), reference: saved.reference };
     }),
     reportRoute(false), reportRoute(true), reportOutput(false), reportOutput(true), reportProgress(false), reportProgress(true),
-    route("coding.goals", async (request, api) => api!.invoke(goalContextCapabilities.list, {
-      ...(request.query?.after_cursor ? { after_cursor: String(request.query.after_cursor) } : {}),
-    })),
-    route("coding.goal-context", async (request) => {
-      const value = await currentGoalContext(context, text(request.params.goalId, "目标"));
+    route("coding.goals", async (request, _api, _execution, beforeWrite) => currentGoalDirectory(context, request.query?.after_cursor ? String(request.query.after_cursor) : undefined, codingActionControl(beforeWrite))),
+    route("coding.goal-context", async (request, _api, _execution, beforeWrite) => {
+      const value = await currentGoalContext(context, text(request.params.goalId, "目标"), codingActionControl(beforeWrite));
       return { ...value, text: value.material.text };
     }),
     route("coding.read-goal", async (request, _api, execution) => {
@@ -728,7 +726,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       if (busy.has(record.session_id)) throw new Error("正在提交任务，请稍后修改下一轮目标");
       const goalId = body.goal_id === null ? null : text(body.goal_id, "目标");
       if (goalId) {
-        const value = await currentGoalContext(context, goalId);
+        const value = await currentGoalContext(context, goalId, codingActionControl(beforeWrite));
         if (value.reference.artifact_id !== body.expected_artifact_id) throw new Error("目标内容已变化，请重新查看后确认");
         await beforeWrite(); beforeWrite.assert_current();
         if (busy.has(record.session_id)) throw new Error("正在提交任务，请稍后修改下一轮目标");

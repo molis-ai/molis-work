@@ -1,4 +1,4 @@
-import { text, identifier, count, boolean, object, array, enumeration, eventType } from "./event-action-schemas.js";
+import { text, identifier, count, boolean, object, array, enumeration, eventType } from "./goal-event-action-schemas.js";
 
 const strings = array(text), version = { type: "integer", minimum: 1 };
 const scopes = enumeration(["built_in", "personal", "project"]);

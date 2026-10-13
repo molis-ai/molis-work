@@ -208,11 +208,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
         listed.add(definition.manifest.plugin_id);
       }
       assertDatabaseEntries(entries, options.home);
-      const qualified = entries.map(entry => entry.bundled && entry.releaseArtifact ? { ...entry, releaseArtifact: { ...entry.releaseArtifact,
-        restore: async (source: string) => { const released = await entry.releaseArtifact!.restore(source);
-          identity.remember([{ definition: released, bundled: true, database: entry.database }]); return released; } } } : entry);
-      identity.remember(qualified);
-      const report = await supervisor.start(qualified);
+      identity.remember(entries);
+      const report = await supervisor.start(entries);
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();
       await events.resume(options.project_id);

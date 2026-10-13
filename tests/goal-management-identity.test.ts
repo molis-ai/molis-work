@@ -10,7 +10,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import * as goalsPlugin from "@molis-ai/molis-work-plugin-goals";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
-import { goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
+import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionMetadata, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostCapabilityDefinition, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { managementCaller, managementGoals } from "./goal-management-caller.js";
@@ -87,7 +87,7 @@ test("every management write records the person on this machine and refuses an i
     await assert.rejects(actions.invoke(managementCaller("foreign"), goalsActions.treeCheck, forgedCheck as never), { code: "actions.scope_mismatch" });
     // The progress capability Coding uses has no project in its input; the typed Host client is the management door there too.
     for (const identity of [{ actor_id: "someone-else" }, { actor_kind: "runtime" }]) {
-      await assert.rejects(typed.invoke(goalProgressCapabilities.record, { goal_id, based_on_cursor: before, summary: "进展", idempotency_key: "refused-record", ...identity } as never),
+      await assert.rejects(management.invoke(goalPluginActions.progress, { goal_id, based_on_cursor: before, summary: "进展", idempotency_key: "refused-record", ...identity } as never),
         { code: "actions.input_invalid" });
     }
     assert.equal(await cursor(), before, "a refused call writes nothing");
@@ -103,9 +103,9 @@ test("every management write records the person on this machine and refuses an i
     const progress = { goal_id, based_on_cursor: await cursor(), summary: "进展", idempotency_key: "progress" };
     assert.equal((await management.invoke(goalsActions.progress, progress)).progress_summary.actor_id, LOCAL_PERSON_ACTOR_ID);
     const record = { goal_id, based_on_cursor: await cursor(), summary: "再一条进展", idempotency_key: "record" };
-    const recorded = await typed.invoke(goalProgressCapabilities.record, record);
+    const recorded = await management.invoke(goalPluginActions.progress, record);
     assert.equal(recorded.progress_summary.actor_id, LOCAL_PERSON_ACTOR_ID);
-    assert.equal((await typed.invoke(goalProgressCapabilities.record, record)).replayed, true);
+    assert.equal((await management.invoke(goalPluginActions.progress, record)).replayed, true);
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -116,9 +116,11 @@ const RETIRED_GOALS_ENTRIES = [
   ["io.molis.work.goals.submit-goal-tree-proposal", "command"], ["io.molis.work.goals.list-goal-tree-proposals", "query"],
   ["io.molis.work.goals.check-goal-tree-proposal", "command"], ["io.molis.work.goals.decide-goal-tree-proposal", "command"],
   ["io.molis.work.local-host.project.guidance", "query"], ["io.molis.work.local-host.goals.set-active", "command"],
+  ["goals.context.list.v1", "query"], ["goals.context.read.v1", "query"],
+  ["goals.progress.record.v1", "command"], ["goals.progress.receipt.v1", "query"],
 ] as const;
 
-test("W3-07-5-01: all ten retired Goals literals refuse Host and SDK callers, including an unflagged descriptor", async () => {
+test("W3-07-5-01 / W3-07-8-02: all fourteen retired Goals literals refuse Host and SDK callers, including an unflagged descriptor", async () => {
   const home = await mkdtemp(join(tmpdir(), "goal-management-plugin-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Plugin", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
@@ -155,22 +157,21 @@ test("W3-07-5-01: all ten retired Goals literals refuse Host and SDK callers, in
     const second = () => host.withProject(ref, runtime => runtime.coordinator.goalQueries.getGoal(project_id, "PLUGIN-SECOND"));
     await assert.rejects(second(), { code: "goal.not_found" }, "the retired create entry left no record");
 
-    // Live actions preserve the actual writer; a plugin input cannot claim the local person's identity.
+    // Create remains unavailable to plugins; note retains its existing identity boundary.
     const pluginCaller = { actor_id: "plugin-person", audience: "plugin" as const, project_id, permissions: ["goals:read", "goals:write"] };
     await assert.rejects(host.actionClient(ref).invoke(pluginCaller, goalsActions.create,
-      { goal_id: "PLUGIN-SECOND", title: "再一个", idempotency_key: "plugin-intent", actor_id: LOCAL_PERSON_ACTOR_ID } as never), { code: "actions.input_invalid" });
+      { goal_id: "PLUGIN-SECOND", title: "再一个", idempotency_key: "plugin-intent" }), { code: "actions.forbidden" });
     await assert.rejects(second(), { code: "goal.not_found" });
-    await host.actionClient(ref).invoke(pluginCaller, goalsActions.create, { goal_id: "PLUGIN-SECOND", title: "再一个", idempotency_key: "plugin-intent" });
-    assert.equal((await second())?.goal_id, "PLUGIN-SECOND");
+    await assert.rejects(host.actionClient(ref).invoke(pluginCaller, goalsActions.note,
+      { goal_id, body: "伪造写作者", idempotency_key: "forged-plugin-note", actor_id: LOCAL_PERSON_ACTOR_ID } as never), { code: "actions.input_invalid" });
     const pluginNote = await host.actionClient(ref).invoke(pluginCaller, goalsActions.note, { goal_id, body: "插件写的便笺", idempotency_key: "plugin-note" });
     assert.equal((await event(pluginNote.event_id)).actor_id, "plugin-person");
     const noted = await management.invoke(goalsActions.note, { goal_id, body: "本机这个人写的便笺", idempotency_key: "note" });
     assert.equal((await event(noted.event_id)).actor_id, LOCAL_PERSON_ACTOR_ID);
-    // PR8's remaining Coding protocol still takes the plugin's trusted context.
-    assert.equal(typed.availability(goalProgressCapabilities.record, { consumer: "plugin" }).available, true);
     const cursor = (await management.invoke(goalsActions.state, { goal_id })).goal_event_cursor;
-    const recorded = await typed.invoke(goalProgressCapabilities.record, { goal_id, based_on_cursor: cursor, summary: "插件的进展", idempotency_key: "plugin-progress" }, asPlugin("plugin-person"));
-    assert.equal(recorded.progress_summary.actor_id, "plugin-person");
+    await assert.rejects(host.actionClient(ref).invoke({ ...pluginCaller, actor_kind: "user", plugin_install_id: "install-1", host_plugin: asPlugin("plugin-person").plugin_caller },
+      goalPluginActions.progress, { goal_id, based_on_cursor: cursor, summary: "伪造内置身份", idempotency_key: "plugin-progress" }), { code: "goals.builtin_plugin_required" });
+    assert.equal((await management.invoke(goalsActions.state, { goal_id })).goal_event_cursor, cursor);
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 

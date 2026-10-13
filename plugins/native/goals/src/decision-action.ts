@@ -2,7 +2,7 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 import { goalEventTrustedAuthoritySources, type GoalEventDecisionResult, type GoalEventTrustedAuthority,
   type RecordGoalUserDecisionInput } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction } from "./action-contract.js";
-import { identifier, count, boolean, object, array, scope, change, effect, decision } from "./event-action-schemas.js";
+import { identifier, count, boolean, object, array, scope, change, effect, decision } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { GoalEventApplication } from "./goal-event-application.js";
 
 export type GoalDecisionActionInput = Omit<RecordGoalUserDecisionInput, "project_id" | "authority">;

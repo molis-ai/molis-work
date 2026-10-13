@@ -6,6 +6,10 @@ import type { CodingExecutionPorts } from "./routes.js";
 
 export type CodingBeforeWrite = (() => Promise<void>) & { assert_current(): void; signal?: AbortSignal };
 type Control = Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">;
+/** Carry the original route fence to a formal dependency action just as the typed adapter does. */
+export function codingActionControl(beforeWrite: CodingBeforeWrite): Control {
+  return { signal: beforeWrite.signal, beforeEffect: beforeWrite, assert_authority_current: beforeWrite.assert_current };
+}
 type Handler = (request: PluginRouteRequest, api: PluginCapabilityClient, execution: CodingExecutionPorts, beforeWrite: CodingBeforeWrite) => Promise<unknown>;
 
 /** Transport and per-call control; accepted background work uses the activation's original ports instead. */

@@ -1,8 +1,10 @@
+import { goalPolicySchema, goalPolicyBindingSchema, goalRelationSchema, goalRelationEndpoints } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+export { goalPolicySchema, goalPolicyBindingSchema, goalRelationSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalRelationTypes, type AddGoalRelationInput, type GoalPolicy, type GoalPolicyHistoryRecord,
   type GoalRelationRecord, type GoalsCommandApi, type GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction } from "./action-contract.js";
-import { text, identifier, boolean, count, object, array, enumeration, nullable } from "./event-action-schemas.js";
+import { text, identifier, boolean, count, object, array, enumeration, nullable } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
 function userOperation<I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> {
   return { ...definition, action: { ...definition.action, audiences: ["user"], permissions: ["goals:decide"] } };
@@ -21,15 +23,8 @@ function protectedHandler(binding: ActionHandlerBinding): ActionHandlerBinding {
   }, handle(caller, input) { requireUser(caller); return binding.handle(caller, input); } };
 }
 /** A Goal's rule is the user's acceptance at closure; quality checks belong to Coding (specs/coding-quality-assurance). */
-const policyFields = { human_approval: boolean };
-export const goalPolicySchema = object(policyFields);
 const policy = goalPolicySchema;
-export const goalPolicyBindingSchema = object({ policy_binding_id: text, goal_id: nullable(text), scope: enumeration(["project_default", "ancestor_minimum", "goal"]),
-  policy: object(policyFields, []), state: enumeration(["active", "replaced", "withdrawn"]), created_by: text, reason: text, created_at: text });
-const endpoints = { from_goal_id: identifier, to_goal_id: identifier, type: { ...enumeration(goalRelationTypes),
-  description: "part_of：子目标到父目标；depends_on：消费目标到前置目标。其他类型同样按 from → to 保存，不能颠倒。" } };
-export const goalRelationSchema = object({ relation_id: text, project_id: text, ...endpoints, state: enumeration(["proposed", "active", "inactive"]),
-  reason: text, created_by: text, created_at: text, deactivated_at: nullable(text) });
+const endpoints = goalRelationEndpoints;
 const relation = goalRelationSchema;
 type SavePolicyInput = Omit<Parameters<GoalsCommandApi["saveProjectPolicy"]>[0], "project_id" | "actor_id">;
 export const goalsConfigurationActions = {

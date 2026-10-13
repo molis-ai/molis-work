@@ -1,9 +1,7 @@
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
-import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { goalsActions, GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { projectsCapabilities, projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { goalContextCapabilities, goalProgressCapabilities, type GoalProgressActor } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { workspaceReadActions, type WorkspaceFileQuery, type WorkspaceGitQuery, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { readConflictFile, readGitSummary, readPullRequestSupport } from "./git-operations.js";
@@ -12,7 +10,6 @@ import { readWorkspaceFile } from "./workspace-files.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { registerHostScheduleCapabilities } from "./schedule-runtime.js";
-import { refusePayloadIdentity } from "./goals-actions.js";
 
 export interface ProjectCapabilityPorts {
   /** Resolves the workspace a project is bound to. See `MolisWorkLocalHostOptions`. */
@@ -20,65 +17,11 @@ export interface ProjectCapabilityPorts {
   workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
 }
 
-/**
- * Who a Goal progress call acts as. A plugin acts as the actor its own call context carries (the person whose page it serves)
- * and cannot name another; the arguments hold no identity for it. A Host-direct receipt lookup (the CLI, MCP and tests) still
- * names the actor it reads for. Recording is different: no caller names its actor (see the record handler).
- */
-function progressActor(named: GoalProgressActor, invocation: HostCapabilityInvocation): { actor_id: string; actor_kind?: "user" | "runtime" } {
-  if (invocation.consumer !== "plugin") {
-    if (!named.actor_id) throw new ActionError("actions.unauthenticated", "缺少调用者身份");
-    return { actor_id: named.actor_id, actor_kind: named.actor_kind };
-  }
-  if (!invocation.plugin) throw new ActionError("actions.forbidden", "插件调用缺少调用上下文，不能记录目标进展");
-  if (named.actor_id !== undefined || named.actor_kind !== undefined) throw new ActionError("actions.input_invalid", "插件的调用者身份来自调用上下文，参数里不能带 actor_id 或 actor_kind");
-  return { actor_id: invocation.plugin.actor_id, actor_kind: "user" };
-}
-
-function managementIdentity(runtime: MolisWorkProjectRuntime, key: string) {
-  return {
-    actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" as const, user_action: { source: "management" as const,
-      conversation_ref: `management:${runtime.project_id}`, message_ref: `management:${key}` },
-  };
-}
-
 export function registerProjectCapabilities(
   host: LocalHost<MolisWorkProjectRuntime>,
   ports: ProjectCapabilityPorts = {},
 ): void {
   const { workspaceFor } = ports;
-  // Coding's four remaining typed protocols forward to the same Goals actions and preserve their trusted caller.
-  const goalAction = <Input, Output>(runtime: MolisWorkProjectRuntime, definition: ActionDefinition<Input, Output>,
-    input: Input, identity: { actor_id: string; actor_kind?: "user" | "runtime"; audit_actor_id?: string; runtime_session_id?: string; user_action?: ActionCallContext["user_action"] }, invocation: HostCapabilityInvocation) => {
-    const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
-    return bindActionClient(host.actionClient(reference), () => ({ actor_id: identity.actor_id, actor_kind: identity.actor_kind ?? null,
-      audit_actor_id: identity.audit_actor_id, runtime_session_id: identity.runtime_session_id,
-      ...(identity.user_action ? { user_action: identity.user_action } : {}),
-      audience: identity.actor_kind === "runtime" ? "agent" : "user", project_id: runtime.project_id,
-      permissions: definition.action.permissions, allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id: GOALS_PLUGIN_ID }],
-      validate_authority: () => invocation.beforeEffect(),
-      assert_authority_current: () => invocation.assertAuthorityCurrent(),
-    })).invoke({ ...definition, provider_id: GOALS_PLUGIN_ID }, Object.fromEntries(Object.entries(input as object).filter(([, value]) => value !== undefined)) as Input);
-  };
-  host.register(goalProgressCapabilities.record, (runtime, input, invocation) => {
-    // A plugin acts as the actor its own call context carries; every other caller is the management door and acts as the person
-    // on this machine. Neither names an actor in the arguments.
-    const writer = invocation.consumer === "plugin" ? progressActor({}, invocation) : managementIdentity(runtime, input.idempotency_key);
-    refusePayloadIdentity(input);
-    return goalAction(runtime, goalsActions.progress, input, writer, invocation);
-  });
-  host.register(goalProgressCapabilities.receipt, (runtime, input, invocation) => {
-    const { actor_id, ...payload } = input;
-    return goalAction(runtime, goalsActions.progressReceipt, payload, progressActor({ actor_id }, invocation), invocation);
-  });
-  host.register(goalContextCapabilities.list, (runtime, input, invocation) => goalAction(runtime, goalsActions.list,
-    { limit: 100, ...(input.after_cursor ? { after_cursor: input.after_cursor } : {}) }, { actor_id: "local-host" }, invocation));
-  host.register(goalContextCapabilities.read, async (runtime, input, invocation) => {
-    const { goal } = await goalAction(runtime, goalsActions.contract, { goal_id: input.goal_id }, { actor_id: "local-host" }, invocation);
-    if (!goal || goal.trashed_at || goal.archived_at) throw new Error("这个目标已归档、删除或不属于当前项目，请重新选择");
-    const { observed_event_cursor: _cursor, ...state } = await goalAction(runtime, goalsActions.state, { goal_id: goal.goal_id }, { actor_id: "local-host" }, invocation);
-    return { goal, state };
-  });
   const readGit = async (runtime: MolisWorkProjectRuntime, query: WorkspaceGitQuery): Promise<WorkspaceGitResult> => {
     const current = async () => ports.workspacesFor ? await ports.workspacesFor(runtime.project_id) : [await workspaceFor!(runtime.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
     // Where committing, branching, pushing or a PR starts from; reads only.

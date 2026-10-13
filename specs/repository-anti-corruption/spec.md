@@ -1865,7 +1865,7 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | W2-18-RUNTIME-ROLLBACK / P1 | 接入写 config/Skill 后 await 验证；失败盲恢复旧整份文件并删当前任意 symlink，覆盖验证期间后来编辑/另一接入 | 唯一 confirm 按实际 Runtime 目标协调；回滚仅收回仍属于本次的内容，变化保留并明确冲突/备份，不谎称全部恢复。W2-18-RUNTIME-ROLLBACK-01：真实临时配置/Skill，验证 barrier 内改 key/链接后失败，后来内容保留；并发同目标确认不撤掉后来成功，备份可核。 |
 | W2-18-RUNTIME-TOML / P2 必修 | 文本 regex 不识别合法引号 key 的 TOML 表，同一 family 又追加裸表，最终实际配置不可解析 | 按当前 TOML key 语义识别/验证既有 owner，保留无关字节，不新增历史兼容。W2-18-RUNTIME-TOML-01：quoted owner prepare/confirm 只一份可解析 family；未知 owner 明确冲突、零写；现行裸表正常。 |
 | W2-18-CARD-UNKNOWN / P1 | 助理卡把 output_invalid_after_effect/outcome_unknown 记 failed，而 failed 可重试，已发生业务可能重复 | 按共同错误身份归 unknown 并禁止重派，供原 owner 核对。W2-18-CARD-UNKNOWN-01：真实 ActionService 先写库再返回坏 schema，卡 unknown，第二次/重启不再执行；生成插件 outcome_unknown 同样拒重派，正常未生效失败仍可恢复。 |
-| W2-18-FOLLOWUP-DELETE / P2 必修 | 定时回调持旧 followup 等待，删除只删队列和行，尾部 UPSERT 重建定时并再派下一次 | 等待后核现行同一记录，尾部仅 CAS 更新仍存在版本，再排下一次。W2-18-FOLLOWUP-DELETE-01：真实 Store/Adapter 状态读取 barrier 中删除，放行后不开始尚未派出的轮次、不复活记录、不排下一次；已开始轮次不自行扩大停止语义。 |
+| W2-18-FOLLOWUP-DELETE / P2 必修 | 定时回调持旧 followup 等待，删除只删队列和行，尾部 UPSERT 重建定时并再派下一次 | 等待后核现行同一记录，尾部仅 CAS 更新仍存在版本，再排下一次。W2-18-FOLLOWUP-DELETE-01：真实 Store/Adapter 状态读取 barrier 中删除，放行后不开始尚未派出的轮次、不复活记录、不排下一次；已开始轮次不自行扩大停止语义。覆盖已跑助理后转交Coding的同一工作：原session_id仍在、可继续定时，Coding state/update等待期间删除也不能runs.start；G1串行接Host CodingExecutor调用控制，G5仍管Coding实际effect边界。 |
 | W1-18-MODEL-SCHEMA / P2 必修 | openConfiguredModels 只检查宽版范围，与正式 Catalog 严格现行 schema 不一致，旧 21 库仍可读取模型 | 复用唯一 assertCurrentCatalog，旧/新/坏版拒绝且不改库、不解密、不调模型。W1-18-MODEL-SCHEMA-01：真实临时 21/22 Catalog 经独立模型入口分别拒绝/成功，版本和原库不变。 |
 | W2-18-DIRECTORY-PICKER / P2 必修 | 默认 runner await 原始 execFile 返回 ChildProcess，立即把 stdout 流当空文本，提前 cancelled/释放 busy | 唯一 runner 真正等待进程结束并收字符串。W2-18-DIRECTORY-PICKER-01：默认实际子进程的成功/取消/错误/超时可核，未结束前第二选择仍 busy；真实系统窗口单列实操。 |
 | W2-18-ONBOARDING-GMAIL / P2 必修 | 首次使用来源读绕过共同 resolver，以旧专用 expiry/client 规则读当前 API OAuth，过期后直接401而不刷新 | 复用被选账号的共同 resolver/lifecycle，不跨账号回退。W2-18-ONBOARDING-GMAIL-01：隔离现行 API OAuth 数字过期连接，经实际首次使用读取只刷新一次并固定材料；专用 Gmail 正常，断开不开始新请求。远端用测试替身，不读真实账户。 |
@@ -2040,9 +2040,9 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 | 负责人 | 独占范围与依赖 | 当前证据 |
 | --- | --- | --- |
 | 原防腐会话 `01a130de-5470-7223-827e-b28663ee7e06` | 共同AUTH/同步最终检查、MCP坏配置、既有Schedule/Goals恢复片、I6失败归因与验证队列；提供可复用本地AUTH提交 | AUTH `b5504585a` 加 `4ef1d68ed` 的父子身份检查已核源码及回归断言、尚待构建/运行；I6四失败在归因，Placement 400/409依现行合同核测试预期，浏览器超时仍待基线证据 |
-| G1 宿主 | Runtime接入/TOML、卡unknown/followup、model schema、系统目录、Gmail首次使用、native JSON、Host Git；不碰原AUTH文件 | 独立树实现准备；未验收 |
+| G1 宿主 | Runtime接入/TOML、卡unknown/followup、model schema、系统目录、Gmail首次使用、native JSON、Host Git；不碰原AUTH文件 | 本地 `5aba9f06b`、`fab7520fa`、`74ee8c27f`、`2c0a21348` 的生产与回归diff已由协调方核对（模型schema、目录子进程、正文按字节、Runtime验证回滚/TOML）；尚未运行。`a9cab586e` 的卡unknown与主助理定时路径已核，Coding接续定时仍有等待窗口，由G1补齐 |
 | G2 工作台 | 浏览器upload/grant与工作台八项；不碰assistant-island与G9的coding-companions。HOME-LOCALE仅交Workbench helper和同一词典；Host/Issue由协调方串行接线（用户在G2聊天明确选择） | 独立树实现准备；未验收。STOP反馈以在途#469共用UiRequest为前置，不另造错误解析 |
-| G3 桌面/公共呈现 | 原生胶囊/剪贴板/worker IO、接续QA、component草稿 | 代码与回归准备中；原生及浏览器尚待时段 |
+| G3 桌面/公共呈现 | 原生胶囊/剪贴板/worker IO、接续QA、component草稿 | 冻结 `11928b332`，三片 `631287a69`（原生）、`a5c9ac46e`（接续QA）、`11928b332`（表单草稿）。协调方已读实际生产/测试差异及相关上下文；仅rustfmt/diff通过，build/test及真实窗口待队列，未验收 |
 | G4 核心 | SemVer、缺key、Memory事务、固定输入/SDK/Diff Manifest；不改AUTH/helpers或历史pin | 本地四提交 `48c04310e`、`c64bbfd82`、`c93d01249`、`a538a9165`，协调方已核实际生产diff及新回归断言；仅diff格式通过，build/test尚未运行，不判验收 |
 | G5 AI/开发插件 | Placement/Memory调用控制、Agent预算/解析资源、Characters启动、Builder预览/升级密钥、Coding前台/后台/委派/报告；必要Host对应port | 独立实现准备，需复用原AUTH合同；不碰G1 AssistantService/Store或Runtime接入文件 |
 | G6 Module/Goals | Session确认、Shelf/Character当前库、Attention原子性、Functions Choice、Goals证据/固定/规划/policy | 独立实现准备；不碰原Goals恢复环，artifact-pins共同helper父控制和旧分支由同一writer串行处理 |
@@ -2053,7 +2053,7 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 | Issue既有writer `01a13342-5853-75e1-a3ce-929ee5ec4e75` | 手工页/capture保存与丢回执恢复 | 本地 `1d67c6408`，统筹已核实际diff、旧4失败、修后4/4与相关51/51及门禁；局部验收通过，最终整合与资源快照下调待做（§12.5）。该保存片冻结 |
 | 助理发送writer `01a13369-d79c-70f1-9798-7b84181fa7d0` | SEND/PAGE-CARDS/ASSISTANT-404同文件连续处理，保护在途#471 | 冻结 `d2ce01f35`，统筹已核发送意图、同owner草稿投影及A→B→A/重载回归；源码准备完成，build/test尚未运行、未验收 |
 | Workflows保存writer `01a13369-e221-7433-a2eb-24bcdcee1039` | WFSAVE/WF-OPEN客户端与README，backend留G8 | 本地 `c35d8ff9d`，统筹已核实际队列/快照/恢复代码及五条保存、对象打开回归；仅源码准备，build/test未运行、未验收 |
-| 协调方 Home 语言接线 | 用户在G2聊天明确选择协调方串行补齐。以Issue保存片 `1d67c6408` 和G2语言helper为前置，只改Host home-plugin-http两次render、Issue静态控件调用既有L及对应正式浏览器/README | 隔离源码准备；英文Home/项目侧栏、无模型设置往返、输入与原文保持、错误及中文回归待验证；不改保存协议、不另建词典 |
+| 协调方 Home 语言接线 | 用户在G2聊天明确选择协调方串行补齐。以Issue保存片 `1d67c6408` 和G2语言helper为前置，只改Host home-plugin-http两次render、Issue静态控件调用既有L及对应正式浏览器/README | 独占树冻结 `63612439a`，含root `f5bc76aea` 与G2 helper/词典/测试预期的三项合入。三条正式浏览器已准备：Home/项目中英、无模型设置失败重试及手动保存、真实503语言；还未build/run。需实测Issue资产并在原预算内完成；保存协议不变 |
 
 共享spec、路线图、安全不变量、门禁/API/动作/资源快照由协调方按实际整合结果串行同步；writer不得放宽阈值或为绿删断言。当前均只获本地独立实现/提交，不自行推送、开PR、安装、发布或操作真实Home/凭据。§12.8中需同步安全表的具体拒绝必须有生产边界断言；受控第三方响应不等于真实外部账号验收。
 

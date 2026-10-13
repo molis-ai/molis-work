@@ -218,7 +218,7 @@ export function compareRunChangeSet(
     const side: DiffSide = { workspace_id: change.origin?.workspace_id ?? change.run_id, workspace_name: change.origin?.workspace_name ?? change.run_id,
       path: chosen.path, source_plugin_id: input.source_plugin_id, content_version: input.content_version };
     return { ...renderComparison(group, side, { ...side }, chosen.review.before_text ?? "", chosen.review.after_text,
-      chosen.review.before_text === null, false), files: [] };
+      chosen.review.before_text === null, false), files };
   }
   let rows: readonly TextDiffRow[];
   try {

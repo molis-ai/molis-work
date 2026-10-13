@@ -10,7 +10,7 @@ import { feedContentActions, feedItemActions } from "@molis-ai/molis-work-plugin
 import { publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
 import type { ActionCallContext, ActionDefinition, ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/src/functions-host.js";
+import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
 
 test("Inbox consumes a registered judgment, retains the original binding and history across restart, and rejects stale results", async () => {
   const home = await mkdtemp(join(tmpdir(), "inbox-action-scene-"));

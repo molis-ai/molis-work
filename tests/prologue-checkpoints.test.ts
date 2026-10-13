@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
-import { createPrologueCheckpoints } from "../horizontal/agent-host/src/adapters/prologue-checkpoints.js";
+import { createPrologueCheckpoints } from "../horizontal/agent-host/dist/adapters/prologue-checkpoints.js";
 const requireSdk = createRequire(new URL('../horizontal/agent-host/package.json', import.meta.url));
 const { createRuntime } = await import(requireSdk.resolve('@prologue/sdk'));
 const { createNodeHost } = await import(requireSdk.resolve('@prologue/sdk/node'));

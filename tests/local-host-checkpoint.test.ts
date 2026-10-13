@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import type { HostCapabilityDefinition, HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 test("trusted capability checkpoints remain outside business input and cannot outlive caller or registration", async () => {

@@ -7,10 +7,10 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
-import { actionKey, assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { AssistantService } from "@molis-ai/molis-work-app-local-host";
+import { actionKey, assistantAuthority } from "../apps/local-host/dist/assistant/assistant-authority.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }

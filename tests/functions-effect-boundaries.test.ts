@@ -7,8 +7,8 @@ import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai
 import type { TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { functionAuthoringActions as authoring, functionsActions, functionsActionProvider, publishedFunctionProvider, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
-import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/src/functions-host.js";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
+import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/functions-host.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 
 const owner: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: ["functions:manage", "functions:invoke"] };
 

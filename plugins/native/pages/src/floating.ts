@@ -1,64 +1,5 @@
-const MARGIN = 8;
-
-export interface FloatingAnchor {
-  left: number;
-  top: number;
-  bottom: number;
-  right: number;
-}
-
-export interface FloatingSize {
-  width: number;
-  height: number;
-}
-
-/** Put a floating panel on the side that fits. A panel taller than the screen stays inside the margin. */
-export function placeFloating(
-  anchor: FloatingAnchor,
-  size: FloatingSize,
-  viewport: { width: number; height: number },
-  mode: "below" | "above" | "beside",
-): { left: number; top: number } {
-  const gap = 8;
-  const clamp = (value: number, limit: number, length: number) => Math.round(
-    Math.min(Math.max(MARGIN, value), Math.max(MARGIN, limit - length - MARGIN)),
-  );
-  if (mode === "beside") {
-    const onRight = anchor.right + gap;
-    const onLeft = anchor.left - gap - size.width;
-    const left = pick(
-      onRight,
-      onLeft,
-      onRight + size.width <= viewport.width - MARGIN,
-      onLeft >= MARGIN,
-      viewport.width - onRight,
-      anchor.left - MARGIN,
-    );
-    const top = anchor.top + size.height <= viewport.height - MARGIN
-      ? anchor.top
-      : viewport.height - MARGIN - size.height;
-    return { left: clamp(left, viewport.width, size.width), top: clamp(top, viewport.height, size.height) };
-  }
-  const below = anchor.bottom + gap;
-  const above = anchor.top - gap - size.height;
-  const top = mode === "above"
-    ? pick(above, below, above >= MARGIN, below + size.height <= viewport.height - MARGIN, anchor.top - MARGIN, viewport.height - below)
-    : pick(below, above, below + size.height <= viewport.height - MARGIN, above >= MARGIN, viewport.height - below, anchor.top - MARGIN);
-  return { left: clamp(anchor.left, viewport.width, size.width), top: clamp(top, viewport.height, size.height) };
-}
-
-function pick(
-  preferred: number,
-  alternate: number,
-  preferredFits: boolean,
-  alternateFits: boolean,
-  preferredRoom: number,
-  alternateRoom: number,
-): number {
-  if (preferredFits) return preferred;
-  if (alternateFits) return alternate;
-  return preferredRoom >= alternateRoom ? preferred : alternate;
-}
+// Placing a layer is the design system's (one way for every floating thing); what stays here is about rows and scrolling in Pages.
+export { placeFloating, scrollShouldFollow, type FloatingAnchor, type FloatingSize } from "@molis-ai/molis-work-design-system/floating";
 
 /** Scroll only the menu, so the highlighted row stays visible without moving the page. */
 export function scrollChildIntoView(
@@ -83,11 +24,4 @@ export function rowGapAt(y: number, rows: readonly { top: number; bottom: number
     if (y < (row.top + bottom) / 2) return index;
   }
   return rows.length;
-}
-
-/** Scrolling inside a floating panel should not move that panel. Page scroll should. */
-export function scrollShouldFollow(target: EventTarget | null, panel: Element | null): boolean {
-  const node = globalThis.Node;
-  if (!panel || !node || !(target instanceof node)) return true;
-  return !panel.contains(target);
 }

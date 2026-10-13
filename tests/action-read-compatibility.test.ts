@@ -4,8 +4,8 @@ import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DEMO_PROJECT_ID, seedDemoBoard } from "../apps/local-host/src/demo-seed.js";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalEventHistoryKinds, materializeGoalEventHistory } from "./goal-event-history-fixture.js";
 
 /**

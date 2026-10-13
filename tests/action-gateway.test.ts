@@ -12,7 +12,7 @@ import { isRuntimeContextMcpTool, molisWorkActionToolName } from "@molis-ai/moli
 import { newCallId, recordedCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { LocalActionGatewayClient, ACTION_GATEWAY_PATH, actionGatewayHomeId } from "../apps/local-host/src/action-gateway.js";
+import { LocalActionGatewayClient, ACTION_GATEWAY_PATH, actionGatewayHomeId } from "../apps/local-host/dist/action-gateway.js";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { serveTestHost } from "./fixtures/test-home.js";
 

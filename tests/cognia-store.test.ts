@@ -1,7 +1,7 @@
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, symlinkSync } from "node:fs";
@@ -9,8 +9,8 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { join } from "node:path";
-import { CogniaPluginRouteTable, openCogniaStore, linksFor, type CogniaStore, type ImportFile } from "../plugins/native/cognia/src/index.js";
-import { scanCogniaDirectory } from "../apps/local-host/src/cognia-directory.js";
+import { CogniaPluginRouteTable, openCogniaStore, linksFor, type CogniaStore, type ImportFile } from "@molis-ai/molis-work-plugin-cognia";
+import { scanCogniaDirectory } from "../apps/local-host/dist/cognia-directory.js";
 const text = (path: string, body: string): ImportFile => ({ path, data: Buffer.from(body).toString("base64") });
 function fixture(fn: (store: CogniaStore, home: string) => void | Promise<void>) { return async () => { const home = mkdtempSync(join(tmpdir(), "cognia-store-")); const store = openCogniaStore(home); try { await fn(store, home); } finally { store.close(); rmSync(home, { recursive: true, force: true }); } }; }
 const preview = (store: CogniaStore, files: ImportFile[], locator = "local:/vault") => store.preview({ name: "vault", kind: "obsidian", locator, files });

@@ -8,9 +8,9 @@ import test from "node:test";
 import { createServer } from "node:http";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { hostTextGeneration } from "../apps/local-host/src/host-complete-text.js";
-import { createPrologueInference } from "../horizontal/agent-host/src/adapters/prologue-inference.js";
-import { PrologueCredentialBridge } from "../horizontal/agent-host/src/adapters/prologue-node.js";
-import { isDispatchRefusal } from "../horizontal/agent-host/src/inference.js";
+import { createPrologueInference } from "../horizontal/agent-host/dist/adapters/prologue-inference.js";
+import { PrologueCredentialBridge } from "@molis-ai/molis-work-service-agent-host";
+import { isDispatchRefusal } from "@molis-ai/molis-work-service-agent-host";
 
 const require = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createRuntime } = await import(require.resolve("@prologue/sdk"));

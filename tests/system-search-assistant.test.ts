@@ -10,9 +10,9 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { formActions } from "@molis-ai/molis-work-plugin-form";
 import { SEARCH_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/search";
-import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
-import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
+import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { AssistantService } from "@molis-ai/molis-work-app-local-host";
+import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 

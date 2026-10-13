@@ -1,5 +1,5 @@
 import { goalRelationTypes } from "./goals.js";
-import { text, identifier, boolean, count, object, array, enumeration, nullable } from "./goal-event-action-schemas.js";
+import { text, identifier, boolean, object, enumeration, nullable } from "./goal-event-action-schemas.js";
 
 const policyFields = { human_approval: boolean };
 export const goalPolicySchema = object(policyFields);

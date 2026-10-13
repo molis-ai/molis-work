@@ -1,6 +1,6 @@
 import type { ActionAudience, ActionDefinition, ActionSchema } from "../platform/actions.js";
 import { goalEventWorkStatuses, type GoalEventDirectoryQuery, type GoalEventDirectoryPage, type GoalContractView, type GoalEventStateView, type RecordGoalProgressSummaryInput, type GoalEventProgressResult } from "./goals.js";
-import { text, identifier, count, object, nullable, array, goalDirectoryItemSchema, artifactSource } from "./goal-event-action-schemas.js";
+import { text, identifier, count, object, nullable, goalDirectoryItemSchema, artifactSource } from "./goal-event-action-schemas.js";
 import { goalContractSchema } from "./goal-snapshot-action-schemas.js";
 import { goalStateSchema } from "./goal-event-action-schemas.js";
 import { goalProgressResultSchema } from "./goal-progress-action-schema.js";

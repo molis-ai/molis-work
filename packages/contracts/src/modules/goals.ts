@@ -1,6 +1,5 @@
-import type { RecordGoalProgressSummaryInput, GoalEventProgressResult } from "./goal-event-state.js";
 import type { ContractDescriptor } from "../platform/package.js";
-import type { GoalEventDirectoryPage, GoalEventStateView } from "./goal-events.js";
+import type { GoalEventStateView } from "./goal-events.js";
 
 /** Read-only, scoped by the Host's project. Consumers cannot supply another board. */
 export interface GoalContextSnapshot {

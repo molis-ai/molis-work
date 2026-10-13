@@ -1,6 +1,6 @@
 # 采用合同与 Computer Use 闭环
 
-状态：执行中（2026-10-13）。
+状态：执行中（2026-10-13）。变基到 origin/main `ee84a8379` 之后，`tests/coding-run-control-contract.test.ts`、`tests/lingguang-actions.test.ts`、`tests/served-program.test.ts`、`tests/coding-turn-changes.test.ts`、`tests/computer-use-act-loop.test.ts`、`tests/computer-use-gaps.test.ts`、`tests/computer-use-task-done.test.ts` 通过；`node scripts/gates/page-assets.mjs --base origin/main` 与 `node scripts/check-health-gates.mjs --base origin/main` 退出码为 0。二十步跨两个应用的真机没有跑：这台机器有人在用，没有启动走查，没有发 Ctrl+Cmd+Q，没有输入或猜测密码。`specs/computer-use/spec.md` 那一格保持未勾。
 
 把已经在 main 上的 Prologue 采用收成同一份合同，并补上桌面「看一次、点一次」还缺的那一截。防腐以 `docs/prompts/repository-anti-corruption.md` 为准，Computer Use 的禁区与挡法以 `specs/computer-use/spec.md` 的 D01–D19 为准。一个 PR 一个主题。
 

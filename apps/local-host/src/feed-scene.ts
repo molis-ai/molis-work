@@ -21,7 +21,7 @@ export function createLocalFeedScene(home: string, projectId: string, feed: Feed
         if (!binding) continue;
         let item;
         try { item = runWithMolisWorkHome(home, () => hydrateFeedItemContent(feed.getFeedItem(projectId, record.subject.id))); }
-        catch (error) { if (error instanceof Error && "code" in error && error.code === "feed_item_not_found") continue; throw error; }
+        catch (error) { if (error instanceof Error && "code" in error && error.code === "feed.item_not_found") continue; throw error; }
         if (feedCaptureSubjectRevision(item) !== provenance.subject_revision) continue;
         recommendations.push({ item_id: item.item_id, suggested_behavior_ids: [...record.suggested_behavior_ids] });
       }

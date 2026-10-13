@@ -15,7 +15,7 @@
 //   (the owner of a code lives in error-owners.mjs; it reads the code sites listed here)
 //
 // WHAT A CODE SITE IS. The code of an error is the argument that the error class takes as `code`, found by reading the class:
-// `new FeedDomainError(message, code)` has its code second because the constructor says so. The index is built from every class
+// `new SomeError(message, code)` has its code second when the constructor says so (FeedDomainError did, until W3-02-E). The index is built from every class
 // declaration with a heritage of `…Error` (by name; a class without a constructor takes its base's), so a new error class is
 // followed without a list. Besides `new …Error("x.y", …)` the sites are the codes of `defineErrorCodes("prefix", { reason: kind })`
 // (prefix.reason) and the first argument of a call to one of the error factories the Goals modules use (`error`, `errorFactory`,

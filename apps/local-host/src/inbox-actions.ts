@@ -1,4 +1,5 @@
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { createInboxActionHandlers, createInboxContentHandlers, createInboxPagesHandlers, inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import type { ActionProviderRegistration, WorkflowPayload, WorkflowItemRef } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
@@ -31,7 +32,7 @@ export function inboxActionProvider(runtime: MolisWorkProjectRuntime, home: stri
             await caller.validate_permissions?.(["inbox:read"]);
             caller.signal?.throwIfAborted();
             const entry = feed.getInboxEntry(runtime.project_id, entryId);
-            if (entry.subject_type !== "feed_item") throw new ActionError("pages.invalid", "只支持整理有原始内容的 Feed 材料");
+            if (entry.subject_type !== "feed_item") throw inboxErrors.invalid("只支持整理有原始内容的 Feed 材料");
             if (entry.status !== "open" && entry.status !== "in_progress") throw new ActionError("actions.subject_unavailable", "事项已不在待处理列表中");
             const original = feed.getFeedItem(runtime.project_id, entry.subject_id);
             if (original.disposition === "archived" || !original.source_id) throw new ActionError("actions.subject_unavailable", "原材料已归档或移除");
@@ -48,7 +49,7 @@ export function inboxActionProvider(runtime: MolisWorkProjectRuntime, home: stri
             caller.signal?.throwIfAborted();
             const item = hydrateFeedItemContent(current);
             const body = item.body || item.materials.map(material => material.content || material.preview).join("\n\n") || item.summary;
-            if (!body.trim()) throw new ActionError("pages.invalid", "所选材料没有可读取的正文");
+            if (!body.trim()) throw inboxErrors.invalid("所选材料没有可读取的正文");
             return { entry_id: entryId, item_id: item.item_id, revision: item.revision, title: item.title, body, url: item.url,
               source_label: item.source_label, captured_at: new Date().toISOString(), provenance: item.materials.map(material => material.provenance) };
           }),

@@ -1,8 +1,9 @@
+import { compactScript } from "@molis-ai/molis-work-design-system";
 import { PAGES_BLANK_CLIENT_SCRIPT } from "./blank-client.js";
 import { PAGES_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
 
 /** Pages workbench client: library, autosave, ProseMirror host. */
-export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
+export const PAGES_CLIENT_FACTORY_SCRIPT = compactScript(`(host) => {
   const { translate: L } = host;
   const workbench = document.querySelector("[data-pages=workbench]");
   if (!workbench) return;
@@ -1143,4 +1144,4 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   void loadList().catch((error) => { showNote(error.message || L("文档请求失败"), true); listFailed(error); });
   void loadGoals();
-}`;
+}`);

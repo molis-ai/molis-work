@@ -2236,3 +2236,5 @@ I8接续共享核心整合：新树i8-error-test-import-integration由当前main
 R3独立源审确认148literal/32TS/90码之外正文仅两注释，2990JS/TS含嵌入脚本零旧错误码；八业务type/三宿主in-flight保留，无Blocker/P1。运行与动作快照缺口继续保留。
 
 C/D冻结ada822a15的25文件真实浏览器组合已完成：w2-10-cd-browser-runtime01.log实际77/77，零fail/cancel/skip，session65943退出0；C 7Darwin63条与D42非浏览器108条既有独立有效证据保留，不重复计 rerun。I8预检01安装frozen/offline/optional通过，整体build退出1，contracts报告闲置导入（原日志i8-build01.log）；未执行后续动作快照/门禁/类型/79文件，不记运行通过。先最小清理编译阻断后整体重建。
+
+I8编译接续：02验证contracts已越过，但Goals报告13闲置import，02b7c66cf仅移除这些绑定；03先单包Goal编译，明确TS4023是公共动作使用contracts私有GoalReadActionInput、插件另有同形输入定义。沿P-MCP的单一合同主人公开现有{goal_id:string}输入到goal-actions subpath，插件import/re-export现行类型并删本地定义，同步API；不改字段/动作schema/运行行为，不增加读取兼容。03仍未整体build或运行，不记通过。

@@ -2229,3 +2229,5 @@ W3-02-R3沿当前错误owner规则接在H/R1/R2后：仅Goals树提案、依赖�
 
 A4 #483已在2026-10-13T21:40:11Z合入main c33448f29bbfa3c0eedc49a8b23bd125da9c4bdd：精确HEAD2a78babc0ec25e8201655cf63f2da7a19bad8551对齐目标726e281e，五必需检查与Product subset实际SUCCESS、fresh secrets通过；Linux probe仍运行，仅报告，不记已通过。A4有效本机回归243/243及源码只读复核保留；C/D浏览器与E零混载整合仍待，不把A4合入当全部W2-10完成。
 R2固定源码dd7db1df3已由统筹独立只读核对AST、七业务词元、planning cycle分支、四动作v2与对应消费者/API/文档及health原日志，无当前Blocker/P1；运行证据缺口仍全部保留。
+
+R3源码20e9b32e9固定：148错误词元/32TS、90现行码；AST门禁仅识别其中58码，数据式校验已按实际来源一起迁移。八树提案业务事件词元及三宿主request.in_flight保留。38文件含五现行文档/CHANGELOG与两验收编号注释，身份/确认/幂等/原子写与SQL不改。实际Source health通过（非主人码781→697，零语法错误），API实测零变化；独立只读复核已送。H/R整合构建、动作v2实际快照/消费者与真实入口、全量仍待。

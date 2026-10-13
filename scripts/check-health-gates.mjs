@@ -524,12 +524,11 @@ if (update) {
     console.error(`Baseline not written: executable browser programs failed:\n- ` + browserErrors.join("\n- "));
     process.exit(1);
   }
-  if (mergeBase) {
-    const errors = [...growth(), ...limitErrors()];
-    if (errors.length) {
-      console.error(`Baseline not written: something grew relative to ${against}:\n- ` + errors.join("\n- "));
-      process.exit(1);
-    }
+  const splitMetric = METRICS.find(metric => metric.id === "testImportSplits");
+  const errors = [...(splitMetric?.absolute(head.testImportSplits) ?? []), ...(mergeBase ? [...growth(), ...limitErrors()] : [])];
+  if (errors.length) {
+    console.error(`Baseline not written: the working tree violates a gate${mergeBase ? ` relative to ${against}` : ""}:\n- ` + errors.join("\n- "));
+    process.exit(1);
   }
   const written = Object.assign({}, ...METRICS.map((metric) => metric.toBaseline(head[metric.id])),
     { note: "Only decreases. Lower it with `node scripts/check-health-gates.mjs --update --base origin/main` in the PR that lowers a number. CI compares with the merge-base, not with this file." });

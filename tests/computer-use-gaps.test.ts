@@ -276,6 +276,7 @@ function desktop(state: ReturnType<typeof seen>, probe: { window?: { pid?: numbe
       if (op === "apps.installed" || op === "apps.running") return { apps: [{ bundle_id: state.bundle_id, name: state.name }] } as T;
       if (op === "probe.point") return probe as T;
       if (op === "observe.screenshot") return shot as T;
+      if (op === "observe.tree") return { window: { title: state.window?.title ?? "", frame: state.window?.frame ?? [0, 0, 1, 1] }, nodes: [{ role: "AXButton", name: "按钮", depth: 0, frame: [0, 0, 10, 10] }], truncated: false, menus: [] } as T;
       if (op.startsWith("input.") || op === "focused.field") return (op === "focused.field" ? extra.field ?? { name: "", secure: false } : {}) as T;
       throw new Error(op);
     } },

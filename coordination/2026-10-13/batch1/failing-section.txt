@@ -1,0 +1,520 @@
+✖ failing tests:
+
+test at tests/action-artifact-references.test.ts:1:11169
+✖ declarations that are not what the shape rules expect do not make the check throw (0.779619ms)
+  TypeError: Cannot read properties of null (reading 'action')
+
+test at tests/agent-action-selection.e2e.test.ts:1:828
+✖ Character and Coding discover authorized unknown actions, preserve exact selections and explain withdrawn providers (15199.45346ms)
+  AssertionError [ERR_ASSERTION]: {"exceptionId":1,"text":"Uncaught (in promise) Error: DOM condition timeout: !document.querySelector('[data-character-workspace]').hidden && !document.querySelector('[data-character-title]').disabled; toast=; focused=<body class=\"immersive-workbench\" data-board-vi
+  + actual - expected
+  
+  + {
+  +   columnNumber: 0,
+  +   exception: {
+  +     className: 'Error',
+  +     description: `Error: DOM condition timeout: !document.querySelector('[data-character-workspace]').hidden && !document.querySelector('[data-character-title]').disabled; toast=; focused=<body class="immersive-workbench" data-board-view="current" data-route-prefix="/projects/project-c7cd8f87-a5
+  +       '    at check (<anonymous>:3:212)',
+  +     objectId: '-2331912637517995039.2.1',
+  +     subtype: 'error',
+  +     type: 'object'
+  +   },
+  +   exceptionId: 1,
+  +   lineNumber: 0,
+  +   text: `Uncaught (in promise) Error: DOM condition timeout: !document.querySelector('[data-character-workspace]').hidden && !document.querySelector('[data-character-title]').disabled; toast=; focused=<body class="immersive-workbench" data-board-view="current" data-route-prefix="/projects/projec
+  + }
+  - undefined
+  
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { exceptionId: 1, text: `Uncaught (in promise) Error: DOM condition timeout: !document.querySelector('[data-character-workspace]').hidden && !document.querySelector('[data-character-title]').disabled; toast=; focused=<body class="immersive-workbench" data-board-view="current" data-route-
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests/alchemist-mcp.test.ts:1:522
+✖ Alchemist standard MCP shares persisted business state across processes with project and read-only fixture grants (30000.795443ms)
+  'test timed out after 30000ms'
+
+test at tests/alchemist-workbench.e2e.test.ts:1:4762
+✖ native Alchemist: candidates, reports, decision, memory, annotations, Pulse and recoverable model failure in host (56607.710376ms)
+  Error: Navigation did not finish; page diagnostics unavailable: Error: CDP timeout: Runtime.evaluate · JSON.stringify({url:location.pathname,error:document.querySelector('[role=alert]:not([hidden])')?.textContent,invalid:Array.from(document.querySelectorAll(':invalid')).map(x=>x.name)})
+
+test at tests/artifact-clipboard.e2e.test.ts:1:660
+✖ migrated result reference copies exact text and handles denied clipboard permission without changing facts (8284.715331ms)
+  Error: CDP timeout: Page.navigate
+
+test at tests/assistant-dock-ime.e2e.test.ts:1:238
+✖ 底栏：输入法组合中按回车只确认候选、不发送；组合结束后回车才发送 (11097.75841ms)
+  AssertionError [ERR_ASSERTION]: the candidate is committed into the input
+  
+  'ceshi测试' !== '测试'
+  
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'ceshi测试',
+    expected: '测试',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests/feed-capture.e2e.test.ts:1:808
+✖ Feed discovers an installed plugin judgment, previews without admission, saves and really consumes it on desktop and narrow screens (19835.076779ms)
+  AssertionError [ERR_ASSERTION]: {"exceptionId":1,"text":"Uncaught (in promise) Error: DOM condition timeout: !document.querySelector('[data-feed-out-rules=\"feed-source-8419984b8e1542824bd6b766acb1221d\"] [data-feed-out-rules-evaluate]')?.disabled; toast=规则已启用，将处理新消息和更�
+  + actual - expected
+  
+  + {
+  +   columnNumber: 0,
+  +   exception: {
+  +     className: 'Error',
+  +     description: `Error: DOM condition timeout: !document.querySelector('[data-feed-out-rules="feed-source-8419984b8e1542824bd6b766acb1221d"] [data-feed-out-rules-evaluate]')?.disabled; toast=规则已启用，将处理新消息和更新。; focused=<body class="immersive-workbench" data-board-v
+  +       '    at check (<anonymous>:3:226)',
+  +     objectId: '8624161294536982729.2.1',
+  +     subtype: 'error',
+  +     type: 'object'
+  +   },
+  +   exceptionId: 1,
+  +   lineNumber: 0,
+  +   text: `Uncaught (in promise) Error: DOM condition timeout: !document.querySelector('[data-feed-out-rules="feed-source-8419984b8e1542824bd6b766acb1221d"] [data-feed-out-rules-evaluate]')?.disabled; toast=规则已启用，将处理新消息和更新。; focused=<body class="immersive-workbench"
+  + }
+  - undefined
+  
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { exceptionId: 1, text: `Uncaught (in promise) Error: DOM condition timeout: !document.querySelector('[data-feed-out-rules="feed-source-8419984b8e1542824bd6b766acb1221d"] [data-feed-out-rules-evaluate]')?.disabled; toast=规则已启用，将处理新消息和更新。; focused=<body cla
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests/goals-document.e2e.test.ts:15:960
+✖ public document clients isolate requests and keep Host callbacks, failure recovery and both pane layouts (17038.454647ms)
+  Error: CDP timeout: Runtime.evaluate · (async () => {
+      const createClient = ((host) => {
+      const { documentPane, documentCollection, route, translate: L,
+        beforeReplace, afterReplace, isAbortError, showError } = host;
+      let goalDocumentRequest = null;
+  
+      const replaceGoalDocument = (html) => {
+        beforeReplace?.();
+        const template = do
+
+test at tests/goals-narrow-navigation.e2e.test.ts:54:254
+✖ narrow Goal drawer shows the list, restores the stored view, and keeps work tabs (19221.569722ms)
+  AssertionError [ERR_ASSERTION]: {"exceptionId":1,"text":"Uncaught (in promise) Error: DOM condition timeout: Number(document.querySelector('[data-goal-event-document]')?.dataset.goalEventCursor || 0) > 72; toast=Failed to fetch; focused=<body class=\"immersive-workbench\" data-board-view=\"current
+  + actual - expected
+  
+  + {
+  +   columnNumber: 0,
+  +   exception: {
+  +     className: 'Error',
+  +     description: `Error: DOM condition timeout: Number(document.querySelector('[data-goal-event-document]')?.dataset.goalEventCursor || 0) > 72; toast=Failed to fetch; focused=<body class="immersive-workbench" data-board-view="current" data-route-prefix="" data-project-id="" data-desktop-shell="
+  +       '\n' +
+  +       '  <svg class="icon-sprite" aria-hidden="true"><symbol id="icon-\n' +
+  +       '    at check (<anonymous>:3:185)',
+  +     objectId: '7231027280002834182.2.1',
+  +     subtype: 'error',
+  +     type: 'object'
+  +   },
+  +   exceptionId: 1,
+  +   lineNumber: 0,
+  +   text: `Uncaught (in promise) Error: DOM condition timeout: Number(document.querySelector('[data-goal-event-document]')?.dataset.goalEventCursor || 0) > 72; toast=Failed to fetch; focused=<body class="immersive-workbench" data-board-view="current" data-route-prefix="" data-project-id="" data-de
+  +     '\n' +
+  +     '  <svg class="icon-sprite" aria-hidden="true"><symbol id="icon-'
+  + }
+  - undefined
+  
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { exceptionId: 1, text: `Uncaught (in promise) Error: DOM condition timeout: Number(document.querySelector('[data-goal-event-document]')?.dataset.goalEventCursor || 0) > 72; toast=Failed to fetch; focused=<body class="immersive-workbench" data-board-view="current" data-route-prefix="" da
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests/immersive-directory.e2e.test.ts:1:509
+✖ Immersive directories resize and retain compact, operable Goal, Feed and Session lists (11994.48214ms)
+  AssertionError [ERR_ASSERTION]: Add sits with the split on the titlebar right {"lastRight":377,"addLeft":1280,"addRight":1306,"splitLeft":1310,"splitRight":1336,"titlebarRight":1440,"addCy":16,"splitCy":16}
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at tests/installed-plugin-host.test.ts:1:4988
+✖ Host discovery and invocation refresh generated cost without rewriting installed identity or running its capabilities (31671.463727ms)
+  'test timed out after 30000ms'
+
+test at tests/jelly-native-material.test.ts:1:3625
+✖ real macOS helper extracts image OCR, PDF text and image-only PDF pages (15.550612ms)
+  Error: Command failed: swift /var/folders/l4/f02jn3yn1pn5t7ysypbp4gyw0000gn/T/molis-jelly-material-wnkvGN/fixtures.swift /var/folders/l4/f02jn3yn1pn5t7ysypbp4gyw0000gn/T/molis-jelly-material-wnkvGN
+  mkdir: /.build: Read-only file system
+  
+    status: 1,
+    signal: null,
+    output: [ null, <Buffer >, <Buffer 6d 6b 64 69 72 3a 20 2f 2e 62 75 69 6c 64 3a 20 52 65 61 64 2d 6f 6e 6c 79 20 66 69 6c 65 20 73 79 73 74 65 6d 0a> ],
+    pid: 40573,
+    stdout: <Buffer >,
+    stderr: <Buffer 6d 6b 64 69 72 3a 20 2f 2e 62 75 69 6c 64 3a 20 52 65 61 64 2d 6f 6e 6c 79 20 66 69 6c 65 20 73 79 73 74 65 6d 0a>
+  }
+
+test at tests/jelly-native-material.test.ts:20:1759
+✖ real Whisper helper requires an explicit model download choice and leaves no temporary audio (311.425835ms)
+  AssertionError [ERR_ASSERTION]: The validation function is expected to return "true". Received false
+  
+  Caught error:
+  
+  JellyMaterialError: 素材提取失败
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: JellyMaterialError: 素材提取失败
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at tests/jelly-native-material.test.ts:22:484
+✖ real silent video extracts timestamped frame OCR without downloading a speech model (8.646889ms)
+  Error: Command failed: swift /var/folders/l4/f02jn3yn1pn5t7ysypbp4gyw0000gn/T/molis-jelly-material-A2i18F/video.swift /var/folders/l4/f02jn3yn1pn5t7ysypbp4gyw0000gn/T/molis-jelly-material-A2i18F
+  mkdir: /.build: Read-only file system
+  
+    status: 1,
+    signal: null,
+    output: [ null, <Buffer >, <Buffer 6d 6b 64 69 72 3a 20 2f 2e 62 75 69 6c 64 3a 20 52 65 61 64 2d 6f 6e 6c 79 20 66 69 6c 65 20 73 79 73 74 65 6d 0a> ],
+    pid: 40583,
+    stdout: <Buffer >,
+    stderr: <Buffer 6d 6b 64 69 72 3a 20 2f 2e 62 75 69 6c 64 3a 20 52 65 61 64 2d 6f 6e 6c 79 20 66 69 6c 65 20 73 79 73 74 65 6d 0a>
+  }
+
+test at tests/lingguang-mcp.test.ts:1:523
+✖ official stdio MCP client uses actual Lingguang business actions with scoped grants and shared persisted results (30001.974903ms)
+  'test timed out after 30000ms'
+
+test at tests/material-extraction.test.ts:20:1695
+✖ Host release assets include executable native extraction and its licenses without shipping Swift caches (356.762614ms)
+  Error: Command failed: /var/folders/l4/f02jn3yn1pn5t7ysypbp4gyw0000gn/T/molis-material-release-VtdGrF/native/materials/bin/jelly-material capabilities
+  native helper unavailable on this dev machine
+  
+    status: 1,
+    signal: null,
+    output: [ null, '', 'native helper unavailable on this dev machine\n' ],
+    pid: 43865,
+    stdout: '',
+    stderr: 'native helper unavailable on this dev machine\n'
+  }
+
+test at tests/pages-mcp.test.ts:1:580
+✖ official stdio MCP client queries, imports, edits and generates with actual Pages actions across isolated projects (30000.954408ms)
+  'test timed out after 30000ms'
+
+test at tests/plugin-market-upgrade.e2e.test.ts:1:124
+✖ plugin market sends a manual upgrade after a real browser click (11768.108185ms)
+  AssertionError [ERR_ASSERTION]: {"exceptionId":1,"text":"Uncaught (in promise) TypeError: Cannot read properties of null (reading 'hidden')","lineNumber":0,"columnNumber":0,"exception":{"type":"object","subtype":"error","className":"TypeError","description":"TypeError: Cannot read properties of nu
+  + actual - expected
+  
+  + {
+  +   columnNumber: 0,
+  +   exception: {
+  +     className: 'TypeError',
+  +     description: "TypeError: Cannot read properties of null (reading 'hidden')\n" +
+  +       '    at check (<anonymous>:3:129)\n' +
+  +       '    at <anonymous>:3:502\n' +
+  +       '    at new Promise (<anonymous>)\n' +
+  +       '    at <anonymous>:1:1',
+  +     objectId: '4598364868529639233.9.1',
+  +     subtype: 'error',
+  +     type: 'object'
+  +   },
+  +   exceptionId: 1,
+  +   lineNumber: 0,
+  +   text: "Uncaught (in promise) TypeError: Cannot read properties of null (reading 'hidden')"
+  + }
+  - undefined
+  
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { exceptionId: 1, text: "Uncaught (in promise) TypeError: Cannot read properties of null (reading 'hidden')", lineNumber: 0, columnNumber: 0, exception: { type: 'object', subtype: 'error', className: 'TypeError', description: "TypeError: Cannot read properties of null (reading 'hidden')\
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests/product-experience-polish.e2e.test.ts:1:531
+✖ Product journeys: discover tools, create from empty states, save and recover without losing context (40720.213088ms)
+  AssertionError [ERR_ASSERTION]: {"exceptionId":1,"text":"Uncaught (in promise) Error: DOM condition timeout: document.body.dataset.desktopSurface === 'dataset' && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open'); toast=; focused=<dialog class=\"global-sear
+  + actual - expected
+  
+  + {
+  +   columnNumber: 0,
+  +   exception: {
+  +     className: 'Error',
+  +     description: `Error: DOM condition timeout: document.body.dataset.desktopSurface === 'dataset' && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open'); toast=; focused=<dialog class="global-search-dialog" data-global-search-dialog="" aria-label="搜索�
+  +       '    <form class="global-search-shell" data-global-search-form="">\n' +
+  +       '      <div class="global-search-field"><svg aria-hidden="true"><use href="#icon-search"></use></svg><input class="global-search-query" ty\n' +
+  +       '    at check (<anonymous>:3:234)',
+  +     objectId: '-6902161617652881250.9.1',
+  +     subtype: 'error',
+  +     type: 'object'
+  +   },
+  +   exceptionId: 1,
+  +   lineNumber: 0,
+  +   text: `Uncaught (in promise) Error: DOM condition timeout: document.body.dataset.desktopSurface === 'dataset' && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open'); toast=; focused=<dialog class="global-search-dialog" data-global-search-dialog="" aria-la
+  +     '    <form class="global-search-shell" data-global-search-form="">\n' +
+  +     '      <div class="global-search-field"><svg aria-hidden="true"><use href="#icon-search"></use></svg><input class="global-search-query" ty'
+  + }
+  - undefined
+  
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { exceptionId: 1, text: `Uncaught (in promise) Error: DOM condition timeout: document.body.dataset.desktopSurface === 'dataset' && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open'); toast=; focused=<dialog class="global-search-dialog" data-global-
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests/project-settings-standalone.e2e.test.ts:1:303
+✖ settings serve complete category pages; the project gear opens them in the workbench stage (33621.297315ms)
+  Error: CDP timeout: Runtime.evaluate · document.querySelector('[data-tab-edge=right]').click()
+
+test at tests/project-settings-standalone.e2e.test.ts:34:5821
+✖ project settings preserve edits on failed saves, record guidance versions, and combine planning search with filters (63596.927779ms)
+  'test timed out after 60000ms'
+
+test at tests/project-user-journey.e2e.test.ts:1:581
+✖ Project journey 390: create Goal, record note, create Feed task, read and process Inbox (55291.186863ms)
+  AssertionError [ERR_ASSERTION]: {"exceptionId":1,"text":"Uncaught (in promise) Error: DOM condition timeout: [...document.querySelectorAll('[data-inbox-row]')].some(row=>row.textContent.includes('评审工作区的用户动线')); toast=; focused=<body class=\"immersive-workbench\" data-board-view
+  + actual - expected
+  
+  + {
+  +   columnNumber: 0,
+  +   exception: {
+  +     className: 'Error',
+  +     description: `Error: DOM condition timeout: [...document.querySelectorAll('[data-inbox-row]')].some(row=>row.textContent.includes('评审工作区的用户动线')); toast=; focused=<body class="immersive-workbench" data-board-view="current" data-route-prefix="/projects/molis-work-v1-demo" d
+  +       '    at check (<anonymous>:3:190)',
+  +     objectId: '-7295973219074898140.23.1',
+  +     subtype: 'error',
+  +     type: 'object'
+  +   },
+  +   exceptionId: 1,
+  +   lineNumber: 0,
+  +   text: `Uncaught (in promise) Error: DOM condition timeout: [...document.querySelectorAll('[data-inbox-row]')].some(row=>row.textContent.includes('评审工作区的用户动线')); toast=; focused=<body class="immersive-workbench" data-board-view="current" data-route-prefix="/projects/molis-wo
+  + }
+  - undefined
+  
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { exceptionId: 1, text: `Uncaught (in promise) Error: DOM condition timeout: [...document.querySelectorAll('[data-inbox-row]')].some(row=>row.textContent.includes('评审工作区的用户动线')); toast=; focused=<body class="immersive-workbench" data-board-view="current" data-route-pr
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests/session-association-journey.e2e.test.ts:1:466
+✖ Session association 1440: failed draft, protected pending request, one saved relation and settings return (43119.554234ms)
+  Error: Navigation did not finish; {"url":"/projects/molis-work-v1-demo/","error":"","invalid":["","shortcut_name","shortcut_url","","reason","","reason","","reason","","reason","","reason",{},"name","purpose","","event_title","result","","statement","","summary","","title","statement","","conclusi
+
+test at tests/session-association-journey.e2e.test.ts:1:466
+✖ Session association 390: failed draft, protected pending request, one saved relation and settings return (60804.935208ms)
+  'test timed out after 60000ms'
+
+test at tests/session-workspace.e2e.test.ts:1:2680
+✖ Codex native journey stays project-scoped from discovery through Handoff and restart (73515.280561ms)
+  [TypeError: fetch failed] {
+    [cause]: Error: read ECONNRESET
+      errno: -54,
+      code: 'ECONNRESET',
+      syscall: 'read'
+    }
+  }
+
+test at tests/settings-viewport.e2e.test.ts:1:457
+✖ Settings 1024×400: fixed actions, cancel, failed retry and pending save (63537.22102ms)
+  'test timed out after 60000ms'
+
+test at tests/settings-viewport.e2e.test.ts:1:457
+✖ Settings 390×500: fixed actions, cancel, failed retry and pending save (64169.197112ms)
+  'test timed out after 60000ms'
+
+test at tests/shelf-material-extraction.test.ts:1:1172
+✖ Shelf withdraw during Host extraction cannot commit an output or failure result and can recover (20000.757234ms)
+  'test timed out after 20000ms'
+
+test at tests/shelf-material-extraction.test.ts:1:6997
+✖ the packaged Host Vision helper reads clear English and Chinese with line confidence (53.496374ms)
+  Error: Command failed: swift /var/folders/l4/f02jn3yn1pn5t7ysypbp4gyw0000gn/T/shelf-vision-languages-Og5AdE/image.swift /var/folders/l4/f02jn3yn1pn5t7ysypbp4gyw0000gn/T/shelf-vision-languages-Og5AdE/source.png
+  mkdir: /.build: Read-only file system
+  
+    status: 1,
+    signal: null,
+    output: [ null, <Buffer >, <Buffer 6d 6b 64 69 72 3a 20 2f 2e 62 75 69 6c 64 3a 20 52 65 61 64 2d 6f 6e 6c 79 20 66 69 6c 65 20 73 79 73 74 65 6d 0a> ],
+    pid: 2888,
+    stdout: <Buffer >,
+    stderr: <Buffer 6d 6b 64 69 72 3a 20 2f 2e 62 75 69 6c 64 3a 20 52 65 61 64 2d 6f 6e 6c 79 20 66 69 6c 65 20 73 79 73 74 65 6d 0a>
+  }
+
+test at tests/shelf-recipes.test.ts:1:5088
+✖ local Vision still extracts the original image without a model (531.160507ms)
+  Error [ShelfError]: 素材提取失败
+    code: 'shelf.job_failed',
+    execution: undefined,
+    details: undefined
+  }
+
+test at tests/side-panel-narrow-stage.e2e.test.ts:1:392
+✖ an open record keeps a readable width when the side panel narrows the stage (34298.333269ms)
+  Error: CDP timeout: Runtime.evaluate · new Promise((resolve, reject) => {
+        const deadline = Date.now() + 4000;
+        const check = () => { if (document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('小王周五前')) resolve(true); else if (Date.now() >= d
+
+test at tests/system-search-lifecycle.test.ts:1:1743
+✖ a plugin disabled in the project leaves the results and comes back when enabled; restart keeps the index; a lost index is rebuilt (8351.994073ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + []
+  - [
+  -   '季度复盘会议'
+  - ]
+  
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ '季度复盘会议' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at tests/tab-reorder-preview.e2e.test.ts:1:124
+✖ dragging a tab on the strip shows a live landing slot (23170.62243ms)
+  Error: CDP timeout: Input.dispatchMouseEvent
+
+test at tests/tab-split-drop-preview.e2e.test.ts:6:5
+✖ tab split drag preview matches the pane that will exist after drop (40446.193215ms)
+  Error: CDP timeout: Runtime.evaluate · (() => {
+      const tab = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=home]');
+      const transfer = new DataTransfer();
+      transfer.effectAllowed = 'copy';
+      document.body.dataset.tabDragCopy = '1';
+      tab.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+  
+
+test at tests/tab-split-drop-preview.e2e.test.ts:57:581
+✖ already split panes keep later drags and previews on the hovered pane (31071.835732ms)
+  Error: CDP timeout: Runtime.evaluate · document.querySelector('[data-tab-edge=right]').click()
+
+test at tests/todo-from-inbox.e2e.test.ts:1:573
+✖ Todo 1440px: an Inbox entry and a 灵光 become todos that keep where they came from; neither original is handled for the person (93407.507789ms)
+  Error: CDP timeout: Runtime.evaluate · (() => {
+      const title = document.querySelector("[data-lingguang-title]"), body = document.querySelector("[data-lingguang-body]");
+      title.value = "给新人写一页入门"; body.value = "先列常见问题，再配截图。";
+      title.dispatchEvent(new InputEvent("input", { bubbles: true })); body.dispatchEvent(new InputEvent("input", { bubbles: true 
+
+test at tests/touch-targets.e2e.test.ts:268:2266
+✖ touch windows: the shell's controls are 44px and the Assistant line stays inside its pill · light (13915.622762ms)
+  AssertionError [ERR_ASSERTION]: home · 390: a control this test does not know is a control nobody measured
+  + actual - expected
+  
+  + [
+  +   'unlisted button.mw-btn'
+  + ]
+  - []
+  
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unlisted button.mw-btn' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at tests/touch-targets.e2e.test.ts:268:13699
+✖ a fine-pointer window keeps the desktop bar's written sizes and its floor · light (13615.903814ms)
+  AssertionError [ERR_ASSERTION]: home · 1280: every control is a known one
+  + actual - expected
+  
+  + [
+  +   'unlisted button.mw-btn'
+  + ]
+  - []
+  
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unlisted button.mw-btn' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at tests/touch-targets.e2e.test.ts:268:2266
+✖ touch windows: the shell's controls are 44px and the Assistant line stays inside its pill · dark (11461.572232ms)
+  AssertionError [ERR_ASSERTION]: home · 390: a control this test does not know is a control nobody measured
+  + actual - expected
+  
+  + [
+  +   'unlisted button.mw-btn'
+  + ]
+  - []
+  
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unlisted button.mw-btn' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at tests/touch-targets.e2e.test.ts:268:13699
+✖ a fine-pointer window keeps the desktop bar's written sizes and its floor · dark (10633.158191ms)
+  AssertionError [ERR_ASSERTION]: home · 1280: every control is a known one
+  + actual - expected
+  
+  + [
+  +   'unlisted button.mw-btn'
+  + ]
+  - []
+  
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unlisted button.mw-btn' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at tests/ui-audit-browser.e2e.test.ts:1:607
+✖ UI audit fixes hold in an isolated workbench (46504.830545ms)
+  Error: CDP timeout: Input.dispatchMouseEvent
+
+test at tests/work-placement-journeys.e2e.test.ts:5:5822
+✖ placement journey: one document used by two projects and a Goal — edit, remove one use, a failed move, delete (99339.098231ms)
+  Error: CDP timeout: Input.dispatchMouseEvent
+
+test at tests/workbench-deferred-clients.e2e.test.ts:12:1071
+✖ registered clients mount on demand, retry resources and retain their original surfaces (30010.810437ms)
+  Error: CDP timeout: Runtime.evaluate · new Promise((resolve, reject) => {
+        const deadline = Date.now() + 4000;
+        const check = () => { if (document.querySelector('[data-work-surface=pages]').dataset.uiClientState === 'ready') resolve(true); else if (Date.now() >= deadline) reject(new Error('DOM condition timeout: ' + "document.querySelector('[data-
+
+test at tests/workbench-pane-feed.e2e.test.ts:1:198
+✖ Feed source navigation, independent nested panes, resize and restore (18643.202496ms)
+  Error: CDP timeout: Input.dispatchMouseEvent
+
+test at tests/workbench-pane-feed.e2e.test.ts:1:6835
+✖ merging a Feed overview pane preserves its unfinished inline source form (19242.934872ms)
+  Error: CDP timeout: Input.dispatchMouseEvent
+
+test at tests/workbench-pane-feed.e2e.test.ts:19:773
+✖ opening a related Goal inside a pane leaves the original Goal tab intact (52344.338143ms)
+  Error: CDP timeout: Runtime.evaluate · new Promise((resolve, reject) => {
+        const deadline = Date.now() + 8000;
+        const check = () => { if ([...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-go
+
+test at tests/workbench-tab-workspace.e2e.test.ts:1:271
+✖ project workbench adds tabs without replacing existing ones and keeps split panes (58795.314661ms)
+  Error: CDP timeout: Runtime.evaluate · (() => {
+      const panes = [...document.querySelectorAll('[data-tab-pane]')].sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+      const left = panes[0].querySelector('[data-tab-strip]').getBoundingClientRect();
+      const right = panes[1].getBoundingClientRect();
+      return left.right <= 

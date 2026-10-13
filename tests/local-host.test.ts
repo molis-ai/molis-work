@@ -4,7 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalHost, LocalHostError } from "@molis-ai/molis-work-app-local-host";
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CapabilityRegistryError } from "@molis-ai/molis-work-kernel";
@@ -152,13 +154,15 @@ test("a capability call copies only the descriptor it needs: the registry grows 
 
 test("CLI snapshot, MCP intent, and Workbench-style client share one writer and recover after restart", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-local-host-"));
-  const databasePath = join(directory, "molis-work.db");
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
+  // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
+  const project = await catalog.createProject({ display_name: "Shared Host", actor_id: "user" });
+  const { database_path: databasePath, project_id: projectId } = project;
   let openCount = 0;
   const host = createMolisWorkLocalHost({
     instanceId: "shared-entry-host",
     onRuntimeOpen: () => { openCount += 1; },
   });
-  const projectId = "shared-host-board";
   const intent = {
     project_id: projectId,
     goal_id: "shared-entry-goal",
@@ -172,24 +176,16 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
   const mcp = new MolisWorkServer("management", { databasePath, projectId, webBaseUrl: "http://127.0.0.1:4173" }, {
     homeDirectory: directory, runtimeContext: { runtime_id: "shared", stable_work_context_id: "session", host_declares_stable: true },
   }, host);
+  // The MCP server below binds this Host to the Home, and a Home has one Host: the same Host serves the access settings the grant goes through.
+  const served = await serveTestHost(null, { home: directory, host });
   try {
-    await captureCli(() => runV1Cli([
-      "init",
-      "--db", databasePath,
-      "--json", JSON.stringify({
-        project_id: projectId,
-        title: "Shared Host",
-        actor_id: "cli-user",
-        idempotency_key: "shared-host-init",
-      }),
-    ], { localHost: host }));
     await assert.rejects(
       () => runV1Cli(["create-goal", "--db", databasePath, "--json", JSON.stringify(intent)], { localHost: host }),
       /未知 V1 operation: create-goal/,
     );
 
     const reference = molisWorkHostProjectReference({ databasePath, projectId });
-    await grantGoalsMcp(host, directory, { project_id: projectId, database_path: databasePath }, "runtime:shared");
+    await grantGoalsMcp(served, project, "runtime:shared");
     const { project_id, actor_id, actor_kind, source_kind, ...businessInput } = intent;
     const mcpCreated = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", businessInput)) as {
       goal: { goal_id: string }; observed_event_cursor: number; replayed: boolean };
@@ -204,10 +200,12 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     });
     assert.equal(workbenchCreated.replayed, false);
     assert.equal(workbenchCreated.goal.goal_id, "workbench-entry-goal");
-    assert.equal(openCount, 1, "all three entries must share one Store/Coordinator runtime");
+    assert.equal(openCount, 1, "the access settings, MCP and the Workbench client must share one Store/Coordinator runtime");
     const snapshot = await captureCli(() => runV1Cli([
       "snapshot", "--db", databasePath, "--json", JSON.stringify({ project_id: projectId }),
     ], { localHost: host }));
+    // The CLI no longer opens the project first (the catalog made it), so the CLI is checked on its own: it joins the runtime the others opened.
+    assert.equal(openCount, 1, "the CLI snapshot must join the same Store/Coordinator runtime, not open a second one");
     assert.deepEqual((snapshot.goals as { goal_id: string }[]).map((goal) => goal.goal_id).sort(), ["shared-entry-goal", "workbench-entry-goal"]);
 
     await host.close();
@@ -220,7 +218,9 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     }
   } finally {
     await mcp.close();
+    await served.close();
     await host.close();
+    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

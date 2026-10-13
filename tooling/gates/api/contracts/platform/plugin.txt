@@ -419,6 +419,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly on_progress?: (event: {
         readonly stage: string;
         readonly progress: number;
+        readonly text_delta?: string;
     }) => void;
     readonly scene_binding?: {
         readonly scene_id: string;
@@ -2281,6 +2282,13 @@ export declare const PLACEMENT_RESULT_SCHEMA: {
 
 export declare const PLUGIN_EVENT_PAYLOAD_MAX_BYTES = 16384;
 
+export declare const PLUGIN_MODEL_LIMITS: {
+    readonly default_timeout_ms: 120000;
+    readonly max_timeout_ms: 600000;
+    readonly default_output_tokens: 5000;
+    readonly max_output_tokens: 12000;
+};
+
 export interface PlacementCopyInput {
     subject: ActionSubject;
     to_project_id: string;
@@ -2367,6 +2375,7 @@ export interface PluginDefinition {
     event_types?: readonly PluginEventType[];
     agent_prompts?: readonly AgentPromptText[];
     agent_skills?: readonly AgentSkillDefinition[];
+    instructions?: readonly InstructionPrompt[];
     start(context: PluginStartContext): Promise<PluginContribution>;
     stop?(context: PluginStartContext): Promise<void>;
     health?(context: PluginStartContext): Promise<{
@@ -2588,6 +2597,7 @@ export interface PluginHostServices {
     readonly actions?: import("@molis-ai/molis-work-contracts/platform/actions").BoundActionClient;
     readonly storage?: PluginPrivateStorage;
     readonly database?: import("platform/plugin-database").PluginDatabase;
+    readonly model?: PluginModelClient;
     readonly artifacts?: PluginArtifactClient;
     readonly processItems?: PluginProcessItemClient;
     readonly ui: PluginUiClient;
@@ -2783,6 +2793,28 @@ export interface PluginManifest {
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
+}
+
+export interface PluginModelClient {
+    availability(): ActionAvailability;
+    complete(prompt: InstructedPrompt, request?: PluginModelRequest): Promise<PluginModelResult>;
+}
+
+export interface PluginModelRequest {
+    readonly signal?: AbortSignal;
+    readonly system?: InstructionPrompt;
+    readonly output?: "text" | "json";
+    readonly timeout_ms?: number;
+    readonly max_output_tokens?: number;
+}
+
+export interface PluginModelResult {
+    readonly text: string;
+    readonly value?: unknown;
+    readonly usage?: {
+        readonly input_tokens: number;
+        readonly output_tokens: number;
+    };
 }
 
 export interface PluginOutputPublishInput {
@@ -3023,7 +3055,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "model"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -3816,10 +3848,6 @@ export declare function bindObjectCopyHandler(definition: ActionDefinition<Place
 export declare function bindObjectMoveHandler(definition: ActionDefinition<PlacementMoveInput, PlacementResult>, move: (input: PlacementMoveInput & {
     from_project_id: string;
 }, caller: ActionCallContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding;
-
-export declare function bindOwnerPluginAction<Input, Output>(context: import("@molis-ai/molis-work-contracts/platform/plugin").PluginStartContext, definition: ActionDefinition<Input, Output>, handle: (input: Input, beforeWrite: () => Promise<void>) => Output | Promise<Output>, dependencies?: readonly ActionReference[]): ActionHandlerBinding;
-
-export declare function bindPluginActionRoute<Input, Output>(context: import("@molis-ai/molis-work-contracts/platform/plugin").PluginStartContext, definition: ActionDefinition<Input, Output>, input: (request: import("@molis-ai/molis-work-contracts/platform/plugin").PluginRouteRequest) => Input, route_id?: string): import("@molis-ai/molis-work-contracts/platform/plugin").PluginRouteBinding;
 
 export declare function bindSearchEntriesHandler(definition: ActionDefinition<SearchEntriesInput, SearchEntriesPage>, list: (caller: ActionCallContext) => readonly SearchEntry[] | Promise<readonly SearchEntry[]>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding;
 

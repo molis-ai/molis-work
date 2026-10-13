@@ -15,10 +15,8 @@ export type { CreateMolisWorkProjectInput } from "./project-catalog-contract.js"
 export type { ManageMolisWorkDemoProjectInput } from "./project-catalog-contract.js";
 export type { MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
 import { assertCurrentCatalog, assertOwnedCatalog, initializeCatalog } from "./catalog-schema.js";
-import { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
-export { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
+import { catalogErrors, catalogFailure } from "./project-catalog-contract.js";
 export { catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
-export { type MolisWorkProjectCatalogErrorDetails } from "./project-catalog-contract.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { resolveConfiguredHome } from "./product-home.js";
@@ -183,8 +181,7 @@ export class MolisWorkProjectCatalog {
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");
     this.projects = new ProjectsModule({
       db,
-      errorFactory: (code, message) =>
-        new MolisWorkProjectCatalogError(code as MolisWorkProjectCatalogError["code"], message),
+      errorFactory: catalogFailure,
       // Which Plugins a project may enable comes from what this build ships, not
       // from a list compiled into Projects.
       plugins: BUILTIN_PLUGIN_REGISTRY,
@@ -195,7 +192,7 @@ export class MolisWorkProjectCatalog {
     this.contextResolution = new RuntimeProjectResolution(this.projects.query, this.workContexts);
     this.contextBindings = new RuntimeProjectBindingCommands(
       this.workContexts, this.contextResolution, this.projects, contextBindingValidation,
-      (code, message) => new MolisWorkProjectCatalogError(code, message),
+      catalogFailure,
       operation => db.transaction(operation)(),
     );
     this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation, this.commit);
@@ -213,7 +210,7 @@ export class MolisWorkProjectCatalog {
       this.commit, projectDeletedHooksFor(homeDirectory),
     );
     this.desktopPanels = platform.createPanels(db, {
-      errorFactory: (code, message) => new MolisWorkProjectCatalogError(code, message),
+      errorFactory: catalogFailure,
       context: {
         assertProject: (projectId) => { this.getProject(projectId); },
         bind: (input) => {
@@ -323,7 +320,7 @@ export class MolisWorkProjectCatalog {
   async createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput): Promise<MolisWorkRuntimeContextResolution> {
     return createRuntimeProjectSetup({
       bindings: this.contextBindings, validation: contextBindingValidation,
-      error: (code, message) => new MolisWorkProjectCatalogError(code, message),
+      error: catalogFailure,
       getProject: projectId => this.getProject(projectId),
       registerProject: (record, eventType, actorId) => this.insertProjectInTransaction(record, eventType, actorId),
       insertSetupRequest: input => this.workContexts.insertSetupRequest(input),
@@ -425,12 +422,12 @@ export class MolisWorkProjectCatalog {
     return this.projects.query.listProjectDeletions();
   }
   async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
-    if (input.project_id === PERSONAL_SPACE_PROJECT_ID) throw new MolisWorkProjectCatalogError("catalog.personal_space", "个人空间不能删除；可以把里面的内容移到项目或逐个删除");
+    if (input.project_id === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space("个人空间不能删除；可以把里面的内容移到项目或逐个删除");
     return this.projectDeletion.deleteProject(input);
   }
 
   renameProject(projectId: string, displayName: string, actorId: string): MolisWorkProjectRecord {
-    if (projectId === PERSONAL_SPACE_PROJECT_ID) throw new MolisWorkProjectCatalogError("catalog.personal_space", "个人空间不能改名");
+    if (projectId === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space("个人空间不能改名");
     return this.projects.commands.renameProject(projectId, displayName, actorId);
   }
 
@@ -444,7 +441,7 @@ export class MolisWorkProjectCatalog {
 }
 
 const contextBindingValidation = createRuntimeProjectBindingValidation({
-  error: (code, message) => new MolisWorkProjectCatalogError(code, message),
+  error: catalogFailure,
   normalizeProjectWorkspace,
 });
 export const { normalizeRuntimeWorkContext } = contextBindingValidation;

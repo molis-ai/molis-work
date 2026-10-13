@@ -86,6 +86,7 @@ export const SIDE_FILES_STYLES = String.raw`
 `;
 
 /** Factory: the Workbench passes `route`, `translate` and `openRecord(surface, id)` (the search open target). */
+// Shipped without its full-line comments (they stay in this source).
 export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const root=document.querySelector('[data-side-files-root]');
   if(!root||document.body.hasAttribute('data-pane-embedded'))return;
@@ -96,7 +97,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const esc=(value)=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
   const icons={file:document.querySelector('[data-side-tab="files"] svg')?.outerHTML||''};
   let sources=[],entries=new Map(),loadedAt=0,loading=null,current=null,wide=false;
-  const get=async(path)=>{const response=await fetch(host.route(path),{headers:{accept:'application/json'}});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||L('文件没有读到'));return result;};
+  const get=(path)=>molisWorkRequest(host.route(path),{fallback:L('文件没有读到')});
   const sizeText=(bytes)=>bytes==null?'':bytes<1024?bytes+' B':bytes<1048576?(bytes/1024).toFixed(bytes<10240?1:0)+' KB':(bytes/1048576).toFixed(1)+' MB';
   const load=async(force)=>{
     if(loading)return loading;
@@ -201,4 +202,4 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
       else openGiven({title:target.title||L('文件'),problem:L('这个文件所在的插件没有向侧栏提供文件，或当前没有读取权限。'),open:target.open});
     }
   });
-}`;
+}`.replace(/^[ \t]*\/\/.*\n/gm, "");

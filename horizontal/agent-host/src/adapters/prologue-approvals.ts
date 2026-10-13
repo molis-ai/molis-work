@@ -66,6 +66,8 @@ export interface PrologueApprovalBridgeOptions {
   now?: () => Date;
   /** Persist the Host's decision before waking SDK execution; not an effect receipt. */
   recordDecision?(pending: ProloguePending, receipt: AgentReviewReceipt): Promise<void>;
+  /** The person allowed this run to act in the approved desktop action's app for the rest of the round (D06). */
+  allowAppForRound?(pending: ProloguePending): Promise<void>;
   /** Preserve the original presentation before a later restart projects it. */
   recordRequest?(pending: ProloguePending, request: AgentReviewRequest): Promise<void>;
 }
@@ -83,6 +85,7 @@ export class PrologueApprovalBridge {
   readonly #pendings: ProloguePendingPort;
   readonly #now: () => Date;
   readonly #recordDecision: PrologueApprovalBridgeOptions["recordDecision"];
+  readonly #allowAppForRound: PrologueApprovalBridgeOptions["allowAppForRound"];
   readonly #recordRequest: PrologueApprovalBridgeOptions["recordRequest"];
   readonly #pendingByReview = new Map<string, ProloguePendingRef>();
   readonly #answered = new Set<(run: AgentRunRef, pendingId: string) => void>();
@@ -98,6 +101,7 @@ export class PrologueApprovalBridge {
     this.#pendings = options.pendings;
     this.#now = options.now ?? (() => new Date());
     this.#recordDecision = options.recordDecision;
+    this.#allowAppForRound = options.allowAppForRound;
     this.#recordRequest = options.recordRequest;
   }
 
@@ -181,6 +185,7 @@ export class PrologueApprovalBridge {
     decision: "approve" | "reject";
     actor_id: string;
     note?: string;
+    remember?: "session" | "app-this-round";
   }): Promise<AgentReviewReceipt> {
     const pendingRef = this.#pendingByReview.get(input.review_id);
     if (!pendingRef) {
@@ -223,6 +228,8 @@ export class PrologueApprovalBridge {
     try {
       await this.#recordDecision?.(pending, receipt);
       if (input.decision === "approve") this.#queue.consumeApproval(input.review_id);
+      // "Allow in this app this round" rests on the same approval: applied only after it was accepted, never on a reject.
+      if (input.decision === "approve" && input.remember === "app-this-round") await this.#allowAppForRound?.(pending);
       const result = await this.#pendings.answer(pendingRef, {
         kind: "effect-approval", answer: input.decision === "approve" ? "allow" : "deny",
       });

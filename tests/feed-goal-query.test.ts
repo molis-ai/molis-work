@@ -33,7 +33,7 @@ test("Feed Goal subject checks use project-scoped facts without hiding archived/
     const events = readEvents();
     for (const [projectId, subjectId] of [[DEMO_PROJECT_ID, "missing"], ["other-project", "CORE"]]) {
       assert.throws(() => feed.createInboxEntry({ projectId: projectId!, subjectType: "goal_decision", subjectId: subjectId!, reason: "goal_decision" }),
-        (error: unknown) => error instanceof Error && "code" in error && error.code === "feed_invalid_transition");
+        (error: unknown) => error instanceof Error && "code" in error && error.code === "feed.invalid_transition");
     }
     assert.deepEqual(feed.listInboxEntries(DEMO_PROJECT_ID), entries);
     assert.deepEqual(feed.listInboxEntries("other-project"), []);

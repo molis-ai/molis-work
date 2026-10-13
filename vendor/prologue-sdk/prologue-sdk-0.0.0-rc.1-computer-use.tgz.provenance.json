@@ -1,0 +1,44 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/prologue.git",
+    "path": "packages/sdk",
+    "commit": "d4908c118f7899d44e3d1975806797a05f0094b9",
+    "inFlight": {
+      "branch": "feat/desktop-computer-use",
+      "base": "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
+      "pushed": false,
+      "note": "Upstream main 4f7110fe, the Prologue adoption commit c4b9fde3 (feat/molis-adoption, specs/prologue-adoption), and five commits for desktop computer use (desktop typed actions, app-identity scope judged by the target app, four first-class refusals, irreversible actions as mutate-external, run-bound approvals; specs/computer-use). Not on upstream main yet: before this package reaches Molis main, both branches are merged upstream and the package is rebuilt from that main commit."
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-computer-use.tgz",
+    "bytes": 1074186,
+    "sha256": "0272431a46d0201dfc5aa4d12af648d8cc0f129a1eb1454a5123a8518826d282",
+    "integrity": "sha512-An3kYeO3B/cO20i7DrDlBxmJUGAxkOJ2iCyHSjaI5SDYS78Sa3/xy9tNX8kQHaM+r707VBpkMiNM8bYp/qahKQ=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "git archive d4908c118f7899d44e3d1975806797a05f0094b9 | tar -x -C <dir>",
+      "pnpm install --frozen-lockfile --ignore-scripts",
+      "pnpm --filter @prologue/sdk build",
+      "cd packages/sdk && pnpm pack --out <absolute path>/prologue-sdk-0.0.0-rc.1-computer-use.tgz"
+    ],
+    "packedOn": "2026-10-09",
+    "reproducedOn": "2026-10-09",
+    "reproducedByteIdentical": true
+  }
+}

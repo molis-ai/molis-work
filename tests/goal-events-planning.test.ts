@@ -64,7 +64,7 @@ test("engineering planning drives configure/report; no template is not auto-adop
 
     catalog.personalPlanningMethods.save(eventMethod("personal-story", "留下玩家观察", "个人版"), new Date().toISOString());
     const project = await catalog.createProject({ display_name: "规划采用", actor_id: "user" });
-    await grantGoalsMcp(null, homeDirectory, project);
+    await grantGoalsMcp(homeDirectory, project);
     const runtimeHost = {
       homeDirectory,
       runtimeContext: {
@@ -280,7 +280,7 @@ test("configure idempotency uses the original request before resolving upgraded 
   let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "幂等采用", actor_id: "user" });
-    await grantGoalsMcp(null, homeDirectory, project);
+    await grantGoalsMcp(homeDirectory, project);
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
@@ -373,7 +373,7 @@ test("equivalent planning packs merge with provenance; conflicting packs fail at
   let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "合并规划", actor_id: "user" });
-    await grantGoalsMcp(null, homeDirectory, project);
+    await grantGoalsMcp(homeDirectory, project);
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",

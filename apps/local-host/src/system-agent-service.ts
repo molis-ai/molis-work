@@ -12,6 +12,7 @@ import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
 import { registerMemoryHost } from "./memory/memory-host.js";
 import { browserSurfacesFor } from "./browser/browser-surfaces.js";
+import { computerSurfacesFor } from "./computer/computer-surfaces.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 
 const owners = new WeakMap<MolisWorkLocalHost, { withCatalog?: LocalWebCatalogRunner; home: string; release?: () => void }>();
@@ -46,10 +47,12 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         : workspaces.workspaceFor?.(projectId) ?? null,
       prologue: {
         storageRoot: agentRuntimeDirectory(storageHome),
-        // The side panel's browser, when the server that owns it registered one for this Host (specs/archive/side-panel P5).
+        // The side panel's browser and the desktop desk, when the server that owns them registered them for this Host
+        // (specs/archive/side-panel P5, specs/computer-use).
         surfaces: {
           driverFor: owner => browserSurfacesFor(localHost)?.driverFor(owner) ?? null,
           siteDecisions: () => browserSurfacesFor(localHost)?.siteDecisions() ?? [],
+          desktop: () => computerSurfacesFor(localHost)?.desktop() ?? null,
         },
         resolveMcpConnection: connectors.resolveMcpConnection,
         subscribeMcpConnections: connectors.subscribeMcpConnections,

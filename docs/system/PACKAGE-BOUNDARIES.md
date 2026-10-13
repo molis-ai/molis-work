@@ -46,7 +46,7 @@ the published surface (contracts, plugin-sdk) is the lowest layer
 - Module 导入 Horizontal Service、App 或 Plugin（代码 import 与 `package.json` 依赖都查，`module-upward-dependency`）。
 - Plugin 导入另一个 Plugin implementation、Store 或未公开 UI 组件。
 - Plugin 导入 App、Horizontal Service 或 Module implementation（`plugin-upward-dependency`）。在册的唯一例外：`plugins/native/shelf → modules/shelf`（Shelf 仍用 Shelf Module 的配方与设置解析，是待还的债，不是先例）。Goals 插件曾声明却从未导入 `modules/goals`，该依赖已删。
-- Plugin SDK 导入或依赖 contracts 以外的任何工作区包（`public-sdk-private-dependency`，源码 import 与 `package.json` 依赖都查）。外部作者只装 contracts 与 SDK 两个包；SDK 依赖了私有包，打包后的示例就装不上（2026-09-30 出过一次）。所以作者和平台共用、会运行的工具放在 SDK 里，而不是私有的 kernel 或 plugin-runtime，平台各层从 SDK 取同一份。现在在 SDK 里的是执行生命周期（kernel、宿主、调度服务、Shelf 模块和沙箱从 SDK 取）、Manifest 解析与版本比较（`parsePluginManifest` 等，Plugin Runtime 与命令行从 SDK 取）动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，kernel 注册时用）和逐行文本比较（`compareTexts` 等，工作台审查界面、Coding 与 Diff 从 SDK 取；结果与行的类型留在合同包）；W3-03 要从合同包搬出的三样会运行的东西都已在 SDK 里。
+- Plugin SDK 导入或依赖 contracts 以外的任何工作区包（`public-sdk-private-dependency`，源码 import 与 `package.json` 依赖都查）。外部作者只装 contracts 与 SDK 两个包；SDK 依赖了私有包，打包后的示例就装不上（2026-09-30 出过一次）。所以作者和平台共用、会运行的工具放在 SDK 里，而不是私有的 kernel 或 plugin-runtime，平台各层从 SDK 取同一份。现在在 SDK 里的是执行生命周期（kernel、宿主、调度服务、Shelf 模块和沙箱从 SDK 取）、Manifest 解析与版本比较（`parsePluginManifest` 等，Plugin Runtime 与命令行从 SDK 取）动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，kernel 注册时用）和逐行文本比较（`compareTexts` 等，工作台审查界面、Coding 与 Diff 从 SDK 取；结果与行的类型留在合同包）以及动作的两个绑定函数（`bindPluginActionRoute`、`bindOwnerPluginAction`，失败按错误的 kind 答，合同包里的那张状态表随之删除）；W3-03 要从合同包搬出的三样会运行的东西都已在 SDK 里；W3-02-C 又把这两个绑定函数从合同包搬了进来。
 - App 导入另一个 App，列出的启动器边之外都拒绝（`app-dependency-not-allowed`）：产品根的启动器 → desktop / local-host / mcp，desktop → local-host，local-host → cli / mcp / workbench，`apps/server` → desktop / local-host。
 - App Shell、CLI、MCP、Workbench 或 Desktop 直接写业务数据库。
 - Horizontal Service 或平台产品服务（记忆、放置、搜索、情境排序）拥有或决定 Goal、Signal、Action、Session 等插件或 Module 的业务事实。
@@ -176,6 +176,6 @@ typed 条目的新增、Repository 导出的新增、宿主入口的变宽、合
 
 旧根 `src/` 与 0.1.x 的根 SDK 都已退出产品实现，根包 `@molis-ai/molis-work` 只发布命令行入口，不导出代码。`pnpm boundary:check` 拒绝任何根目录 `src/`（不再有兼容白名单）；各包的大文件由 `pnpm health:check` 的巨大单元门禁只许变小。
 
-Goal 的 typed compatibility capability 现在仍作为统一 Action 的薄适配存在，门禁检查其实际返回 `goalAction` 的结果。CLI 的 snapshot 仍消费该适配，标准 MCP 按 Action 目录发现，不要求恢复已退出的旧 MCP snapshot 分支。两者仍不得越过 Host 直接读写领域 owner。2026-10-07 的 N-12 决定是对外只走动作、没有生产调用方的 Goals typed 桥要删（W2-08、W3-07 做），在此之前 `typedCapabilities` 只许减少，不许新增。
+Goal 的 typed compatibility capability 现在仍作为统一 Action 的薄适配存在，门禁检查其实际返回 `goalAction` 的结果。CLI 与管理 MCP 经宿主造的管理调用者调用 Goals 动作（现在 CLI 已是，管理 MCP 仍用带作用域的 Host Client，W3-07 PR-4 接着改；门禁 `checkGoalTransportCallers` 按这个现状守着），标准 MCP 按 Action 目录发现，不要求恢复已退出的旧 MCP snapshot 分支。它们仍不得越过 Host 直接读写领域 owner。2026-10-07 的 N-12 决定是对外只走动作、没有生产调用方的 Goals typed 桥要删（W2-08、W3-07 做），在此之前 `typedCapabilities` 只许减少，不许新增。
 
 Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public entrypoint 仍导出构造类型，尚待将 Host 装配与普通消费者接口分清。`moduleRepositoryExports` 把现有导出冻结住，只许减少。不能将现有导出视为任意调用 Store 的许可，也不能通过删除此约束宣称边界已完成收口。

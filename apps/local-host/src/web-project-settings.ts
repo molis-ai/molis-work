@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebSettingsProject } from "@molis-ai/molis-work-app-workbench";
-import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions, MolisWorkProjectCatalogError } from "./project-catalog.js";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions } from "./project-catalog.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { settingsProject, installationDiagnostics } from "./web-project-presentation.js";
 import { L } from "./web-locale.js";
@@ -46,8 +47,8 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
         });
         sendJson(response, 200, { project_id: projectId, ...membership });
       } catch (error) {
-        sendJson(response, error instanceof MolisWorkProjectCatalogError && error.code === "catalog.project_not_found" ? 404 : 400,
-          { error: error instanceof Error ? error.message : String(error) });
+        const failure = actionErrorResponse(error);
+        sendJson(response, failure.status, failure.body);
       }
       return true;
     }
@@ -65,8 +66,8 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
         })));
         sendJson(response, 200, { project_id: projectId, ...membership });
       } catch (error) {
-        sendJson(response, error instanceof MolisWorkProjectCatalogError && error.code === "catalog.project_not_found" ? 404 : 400,
-          { error: error instanceof Error ? error.message : String(error) });
+        const failure = actionErrorResponse(error);
+        sendJson(response, failure.status, failure.body);
       }
       return true;
     }

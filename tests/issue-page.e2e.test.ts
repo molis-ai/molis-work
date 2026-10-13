@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { mkdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { dirname, join, resolve } from "node:path";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { dirname, join } from "node:path";
 import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import type { Issue } from "@molis-ai/molis-work-plugin-issues";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { issueView } from "./fixtures/issue-browser.js";
+
+const create = (title: string, type: "bug" | "experience" | "feature", description: string) => ({ title, type, description });
 
 test("ISSUE-01 the failed Home page retries only on click and recovers without restarting Work", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "empty", path => {
@@ -26,7 +29,8 @@ test("ISSUE-01 the failed Home page retries only on click and recovers without r
   await rename(path, path + ".rejected");
   await navigate(() => click("[data-home-lifecycle=retry]"));
   await waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
-  assert.ok(await evaluate("document.querySelector('[data-issue-list]').textContent.includes('还没有问题记录')"));
+  await waitFor("document.querySelector('[data-issue-list]').textContent.includes('还没有记录')");
+  assert.ok(await evaluate("document.querySelector('[data-issue-list]').textContent.includes('随手记一笔')"));
   assert.deepEqual(await readFile(path + ".rejected"), original);
   await navigate(() => click("[data-home-lifecycle=disable]"));
   await waitFor("document.querySelector('[data-home-lifecycle=enable]')?.textContent === '启用插件'");
@@ -34,310 +38,129 @@ test("ISSUE-01 the failed Home page retries only on click and recovers without r
   await waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
 });
 
-test("ISSUE-01 ISSUE-06 real page captures, keeps conflicting drafts, crosses projects, and confirms deletion", { timeout: 120_000 }, async t => {
-  const browser = await openGoalBrowser(t, "empty"); if (!browser) return;
-  const { origin, sessionId, command, evaluate, waitFor, navigate, click, homeDirectory } = browser;
-  const evidence = resolve(".impeccable/qa/review/issue-home-v0"); await mkdir(evidence, { recursive: true });
-  const screenshot = async (name: string) => {
-    const image = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
-    await writeFile(resolve(evidence, `${name}.png`), Buffer.from(image.data, "base64"));
-  };
-  t.after(async () => { if (t.error) await screenshot("failure"); });
-  const resize = (width: number) => command("Emulation.setDeviceMetricsOverride", { width, height: 940, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const enter = async (selector: string, text: string) => {
-    await click(selector); await command("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", modifiers: 4, commands: ["selectAll"] }, sessionId);
-    await command("Input.insertText", { text }, sessionId);
-  };
-  const api = <T>(path: string, body?: unknown) => evaluate<T>(`(async()=>{const response=await fetch('/api/plugins/io.molis.work.issues/'+${JSON.stringify(path)},
-    {method:${JSON.stringify(body === undefined ? "GET" : "POST")},headers:globalThis.molisWorkControlHeaders(),${body === undefined ? "" : `body:JSON.stringify(${JSON.stringify(body)})`}});
-    if(!response.ok)throw new Error(await response.text());return response.json();})()`);
-  await resize(1440);
-  await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
-  await waitFor("document.querySelector('[data-issue-list]').textContent.includes('还没有问题记录')");
-  await evaluate("document.documentElement.dataset.theme='light';document.documentElement.dataset.resolvedTheme='light'");
-  await screenshot("empty-light-1440");
-  await click("[data-issue-new]"); await click("[data-issue-manual]");
-  await enter('[name="title"]', "切换项目后记录应保留");
-  await enter('[name="description"]', "  从问题列表进入详情，\n希望原文和空白都保留。\n");
-  assert.equal(await evaluate("document.querySelector('[name=supplement]')"), null);
-  await click("[data-issue-save]");
-  assert.equal(await evaluate("document.querySelector('[name=type]').validity.valueMissing"), true);
-  assert.equal((await api<{ items: unknown[] }>("list")).items.length, 0);
-  await evaluate("document.querySelector('[name=type]').value='experience';document.querySelector('[name=type]').dispatchEvent(new Event('change',{bubbles:true}))");
-  await click("[data-issue-save]");
-  await waitFor("document.querySelector('[data-issue-note]').textContent === '已保存'");
-  const saved = (await api<{ items: Array<{ id: string; description: string; version: number }> }>("list")).items[0]!;
-  assert.equal(saved.description, "  从问题列表进入详情，\n希望原文和空白都保留。\n");
-  assert.equal(saved.version, 1);
-  assert.match(await evaluate<string>("document.querySelector('[data-issue-meta]').textContent"), /录入时间：/u);
-  await screenshot("detail-light-1440");
-  await evaluate("document.documentElement.dataset.theme='dark';document.documentElement.dataset.resolvedTheme='dark'");
-  await screenshot("detail-dark-1440");
-  await resize(1024); await screenshot("detail-dark-1024");
-  await resize(390); await screenshot("detail-dark-390");
-  assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
-  await evaluate("document.documentElement.dataset.theme='light';document.documentElement.dataset.resolvedTheme='light'");
-  await screenshot("detail-light-390");
-  await resize(1440);
-
-  await click("[data-issue-edit]"); await enter('[name="title"]', "只改标题，保留记录信息"); await click("[data-issue-save]");
-  await waitFor("document.querySelector('[data-issue-note]').textContent === '已保存'");
-  const titleEdit = await api<{ version: number; context: { recorded_at: string } }>("read?id=" + saved.id);
-  assert.equal(titleEdit.version, 2); assert.ok(titleEdit.context.recorded_at);
-  await api("update", { id: saved.id, expected_version: 2, title: "另一入口已修改", description: "另一入口新增的描述" });
-  await click("[data-issue-edit]");
-  await enter('[name="title"]', "仍保留我的草稿");
-  await click("[data-issue-save]");
-  await waitFor("!document.querySelector('[data-issue-comparison]').hidden");
-  assert.equal(await evaluate("document.querySelector('[name=title]').value"), "仍保留我的草稿");
-  assert.equal(await evaluate("document.querySelector('[data-issue-latest=title]').textContent"), "另一入口已修改");
-  assert.equal(await evaluate("document.querySelector('[data-issue-draft=title]').textContent"), "仍保留我的草稿");
-  assert.equal((await api<{ version: number }>("read?id=" + saved.id)).version, 3, "conflict comparison does not write");
-  await screenshot("conflict-preserved");
-  await resize(390); await screenshot("conflict-light-390");
-  assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
-  await resize(1440);
-  await click("[data-issue-keep]");
-  assert.equal(await evaluate("document.querySelector('[name=title]').value"), "仍保留我的草稿");
-  assert.equal(await evaluate("document.querySelector('[name=description]').value"), "另一入口新增的描述", "unchanged draft fields adopt the latest content");
-  assert.equal((await api<{ version: number }>("read?id=" + saved.id)).version, 3, "choosing a draft does not save it");
-  await api("update", { id: saved.id, expected_version: 3, title: "核对期间又被修改" });
-  await click("[data-issue-save]"); await waitFor("!document.querySelector('[data-issue-comparison]').hidden");
-  assert.equal(await evaluate("document.querySelector('[data-issue-latest=title]').textContent"), "核对期间又被修改");
-  assert.equal(await evaluate("document.querySelector('[name=title]').value"), "仍保留我的草稿");
-  await click("[data-issue-keep]"); await click("[data-issue-save]");
-  await waitFor("document.querySelector('[data-issue-note]').textContent === '已保存'");
-  const merged = await api<{ title: string; description: string; version: number; context: { recorded_at: string } }>("read?id=" + saved.id);
-  assert.equal(merged.title, "仍保留我的草稿"); assert.equal(merged.description, "另一入口新增的描述");
-  assert.equal(merged.version, 5); assert.equal(merged.context.recorded_at, titleEdit.context.recorded_at);
-  await api("update", { id: saved.id, expected_version: 5, title: "另一入口已修改" });
-  await click("[data-issue-edit]");
-  await enter('[name="description"]', "这份草稿决定放弃"); await click("[data-issue-reread]");
-  await waitFor("!document.querySelector('[data-issue-comparison]').hidden");
-  assert.equal(await evaluate("document.querySelector('[name=description]').value"), "这份草稿决定放弃");
-  await click("[data-issue-accept]");
-  await waitFor("document.querySelector('[name=title]').value === '另一入口已修改'");
-  assert.equal(await evaluate("document.querySelector('[name=description]').value"), "另一入口新增的描述");
-  assert.equal(await evaluate("document.querySelector('[data-issue-meta]').textContent.includes('补充信息')"), false);
-
-  const projects = await withMolisWorkProjectCatalog({ homeDirectory }, async catalog => [
-    await catalog.createProject({ display_name: "Issue 页面验证 A", actor_id: "web-user" }),
-    await catalog.createProject({ display_name: "Issue 页面验证 B", actor_id: "web-user" }),
-  ]);
-  const records = await Promise.all(projects);
-  for (const project of records) {
-    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${project.project_id}/?openPlugin=issues` }, sessionId));
-    await waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'", 15_000);
-    await waitFor("document.querySelector('[data-issue-list]').textContent.includes('另一入口已修改')", 10_000);
-    await click(`[data-issue-id="${saved.id}"]`);
-    await waitFor("document.querySelector('[name=title]').value === '另一入口已修改'");
-  }
-  await screenshot("project-b-same-issue");
-  await click("[data-issue-delete]"); await waitFor("document.querySelector('[data-issue-dialog]').open");
-  await screenshot("delete-confirmation"); await click('[data-issue-dialog] [value="cancel"]');
-  assert.equal((await api<{ items: unknown[] }>("list")).items.length, 1);
-  await click("[data-issue-delete]"); await click("[data-issue-dialog-ok]");
-  await waitFor("document.querySelector('[data-issue-list]').textContent.includes('还没有问题记录')");
-  assert.equal((await api<{ items: unknown[] }>("list")).items.length, 0);
-});
-
-test("ISSUE-16 manual entry is explicit; edited and saved titles stay unchanged by description edits", { timeout: 60_000 }, async t => {
-  const b=await openGoalBrowser(t,"empty");if(!b)return;
-  const {origin,command,sessionId,evaluate,waitFor,click,navigate,homeDirectory}=b;
-  const enter=async(selector:string,text:string)=>{
-    await click(selector);await command("Input.dispatchKeyEvent",{type:"keyDown",key:"a",code:"KeyA",modifiers:4,commands:["selectAll"]},sessionId);
-    await command("Input.insertText",{text},sessionId);
-  };
-  await command("Emulation.setDeviceMetricsOverride",{width:1440,height:940,deviceScaleFactor:1,mobile:false},sessionId);
-  await navigate(()=>command("Page.navigate",{url:`${origin}/plugins/issues`},sessionId));
-  await waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");await click("[data-issue-new]");
-  assert.equal(await evaluate("document.activeElement.name"),"description");
-  assert.equal(await evaluate("document.querySelector('[name=title]').closest('label').hidden"),true);
-  await enter('[name=description]',"原文。第二句话。\n");
-  assert.equal(await evaluate("document.querySelector('[name=title]').value"),"");
-  await click("[data-issue-manual]");await click("[data-issue-save]");
-  assert.equal(await evaluate("document.querySelector('[name=title]').validity.valueMissing"),true);
-  await enter('[name=title]',"我手动定的标题");
-  await evaluate("document.querySelector('[name=type]').value='experience'");await click("[data-issue-save]");
-  await waitFor("document.querySelector('[data-issue-note]').textContent === '已保存'");
-  const db=new DatabaseSync(join(homeDirectory,"issues","issues.db"),{readOnly:true});t.after(()=>db.close());
-  const first=db.prepare("SELECT id,title,description FROM issues").get()!;
-  assert.equal(first.description,"原文。第二句话。\n"); assert.equal(first.title,"我手动定的标题");
-  await click("[data-issue-edit]"); await enter('[name=description]',"修改描述，不改标题。");
-  assert.equal(await evaluate("document.querySelector('[name=title]').value"),first.title);
-  await click("[data-issue-save]");await waitFor("document.querySelector('[data-issue-note]').textContent === '已保存'");
-  await navigate(()=>command("Page.reload",{},sessionId));await waitFor(`document.querySelector('[data-issue-id="${first.id}"]')`);
-  await click(`[data-issue-id="${first.id}"]`);await waitFor(`document.querySelector('[name=title]').value === ${JSON.stringify(first.title)}`);
-  assert.equal(db.prepare("SELECT description FROM issues WHERE id=?").get(first.id!)!.description,"修改描述，不改标题。");
-});
-
-test("ISSUE-09 ISSUE-11 image drafts survive errors, reload and conflicts, with drop, paste and file input", { timeout: 120_000 }, async t => {
+test("ISSUE-06 ISSUE-18 a record opens read-only; edits save or cancel; a conflict merges the person's changes; delete asks first", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty"); if (!b) return;
-  const { origin, command, sessionId, evaluate, waitFor, click, navigate, homeDirectory } = b;
-  const evidence = resolve(".impeccable/qa/review/issue-home-v0"); await mkdir(evidence,{recursive:true});
-  await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
-  await waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
-  await click("[data-issue-new]"); await click("[data-issue-manual]");
-  await evaluate(`window.issuePictures={}; const canvas=document.createElement('canvas');canvas.width=800;canvas.height=400;
-    const ctx=canvas.getContext('2d');ctx.fillStyle='#f0f0f0';ctx.fillRect(0,0,800,400);ctx.fillStyle='#222';ctx.font='28px sans-serif';ctx.fillText('保存按钮：点击后没有反馈',40,80);
-    issuePictures.url=canvas.toDataURL('image/png');
-    issuePictures.file=async(name='screen.png')=>new File([Uint8Array.from(atob(issuePictures.url.split(',')[1]),c=>c.charCodeAt(0))],name,{type:'image/png'});
-    issuePictures.drop=async(file)=>{const data=new DataTransfer();data.items.add(file);document.querySelector('[name=description]').dispatchEvent(new DragEvent('drop',{bubbles:true,dataTransfer:data}));};
-    document.querySelector('[name=title]').value='带截图的问题';document.querySelector('[name=type]').value='bug';document.querySelector('[name=description]').value='  点击保存没有反应。\\n截图保留当时的画面。';
-    document.querySelector('[name=description]').dispatchEvent(new Event('input',{bubbles:true}));`);
-  await evaluate("issuePictures.file().then(issuePictures.drop)");
-  await waitFor("document.querySelector('[data-issue-images] img')?.naturalWidth === 800 && !document.querySelector('[data-issue-save]').disabled");
-  assert.match(await evaluate<string>("document.querySelector('[name=description]').value"), /^  点击保存/u);
-  await evaluate("issuePictures.drop(new File(['<svg/>'],'not-an-image.svg',{type:'image/svg+xml'}))");
-  await waitFor("document.querySelector('[data-issue-note]').textContent.includes('PNG、JPEG')");
-  assert.equal(await evaluate("document.querySelectorAll('[data-issue-images] img').length"),1);
-  await evaluate(`(async()=>{const data=new DataTransfer();data.items.add(await issuePictures.file('第二张.png'));document.querySelector('[name=description]').dispatchEvent(new ClipboardEvent('paste',{bubbles:true,clipboardData:data}));})()`);
-  await waitFor("document.querySelectorAll('[data-issue-images] img').length === 2 && !document.querySelector('[data-issue-save]').disabled");
-  await click("[data-issue-preview]"); await waitFor("document.querySelector('[data-issue-image-dialog]').open");
-  assert.equal(await evaluate("document.querySelector('[data-issue-image-dialog] img').naturalWidth"),800);
-  await click("[data-issue-image-close]");
-  await click("[data-issue-save]"); await waitFor("document.querySelector('[data-issue-note]').textContent === '已保存'");
-  const db = new DatabaseSync(join(homeDirectory,"issues","issues.db"),{readOnly:true}); t.after(()=>db.close());
-  const row = () => db.prepare("SELECT * FROM issues").get()!;
-  const id = String(row().id); assert.equal(JSON.parse(String(row().images_json)).length,2);
-  assert.equal(JSON.parse(String(row().images_json))[0].data_url,await evaluate("issuePictures.url"));
-  await navigate(() => command("Page.reload", {}, sessionId));
-  await waitFor(`document.querySelector('[data-issue-id="${id}"]')`); await click(`[data-issue-id="${id}"]`);
-  await waitFor("document.querySelectorAll('[data-issue-images] img').length === 2");
-  await click("[data-issue-edit]");
-  const imagePath = join(evidence,"image-input.png"), stored = JSON.parse(String(row().images_json));
-  const largePng = await evaluate<string>("(()=>{const c=document.createElement('canvas');c.width=3000;c.height=1000;const x=c.getContext('2d');x.fillStyle='#ccc';x.fillRect(0,0,3000,1000);return c.toDataURL('image/png')})()");
-  await writeFile(imagePath,Buffer.from(largePng.split(',')[1]!,"base64"));
-  const {root:doc} = await command<{root:{nodeId:number}}>("DOM.getDocument",{},sessionId);
-  const {nodeId} = await command<{nodeId:number}>("DOM.querySelector",{nodeId:doc.nodeId,selector:"[data-issue-files]"},sessionId);
-  await command("DOM.setFileInputFiles",{nodeId,files:[imagePath]},sessionId);
-  await waitFor("document.querySelectorAll('[data-issue-images] img').length === 3 && !document.querySelector('[data-issue-save]').disabled");
-  assert.equal(await evaluate("document.querySelectorAll('[data-issue-images] img')[2].naturalWidth"),2560);
-  assert.ok(await evaluate("document.querySelectorAll('[data-issue-images] img')[2].src.startsWith('data:image/webp;')"));
-  for (const theme of ["light","dark"]) for (const width of [1440,1024,390]) {
-    await evaluate(`document.documentElement.dataset.theme='${theme}';document.documentElement.dataset.resolvedTheme='${theme}'`);
-    await command("Emulation.setDeviceMetricsOverride",{width,height:940,deviceScaleFactor:1,mobile:false},sessionId);
-    assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"),true);
-    await evaluate("Promise.all(document.getAnimations().filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})))");
-    const shot=await command<{data:string}>("Page.captureScreenshot",{format:"png"},sessionId);
-    await writeFile(join(evidence,`images-${theme}-${width}.png`),Buffer.from(shot.data,"base64"));
+  const v = issueView(b, "issue-page");
+  t.after(async () => { if (t.error) await v.shot("failure"); });
+  await v.viewport(1440, 940); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
+  const first = await v.api<Issue>("/api/plugins/io.molis.work.issues/create", create("切换项目后记录应保留", "bug", "切换项目，原来的记录还在。"));
+  await v.api("/api/plugins/io.molis.work.issues/create", create("列表需要按类型筛选", "feature", "希望列表可以只看 Bug。"));
+  await v.go("/plugins/issues"); await v.until("d.querySelectorAll('.issues-row').length === 2");
+  assert.match(await v.ask<string>("$('.issues-row').textContent"), /列表需要按类型筛选功能需求 · 刚刚/, "newest first, with its type and age");
+  await v.shot("list-light-1440");
+  await v.press(`[data-issue-id="${first.id}"]`);
+  await v.until("!$('[data-issue-detail]').hidden && $('[data-issue-title]').textContent === '切换项目后记录应保留'");
+  assert.deepEqual(await v.ask("({ type: $('[data-issue-type]').textContent, text: $('[data-issue-text]').textContent, edit: !$('[data-issue-edit]').hidden, editor: $('[data-issue-editor]').hidden, focus: d.activeElement === $('[data-issue-back]') })"),
+    { type: "Bug", text: "切换项目，原来的记录还在。", edit: true, editor: true, focus: true });
+  assert.match(await v.ask<string>("$('[data-issue-source]').textContent"), /手动记录/);
+  await v.shot("detail-light-1440");
+  // Escape goes back to the list from a record; it never edits.
+  await v.escape(); await v.until("$('[data-issue-detail]').hidden && d.activeElement?.dataset.issueId === " + JSON.stringify(first.id));
+  await v.press(`[data-issue-id="${first.id}"]`); await v.press("[data-issue-edit]");
+  await v.until("!$('[data-issue-editor]').hidden && d.activeElement === $('[data-issue-editor] [name=title]')");
+  await v.type("，并且换项目后还在");
+  await v.press("[data-issue-cancel]");
+  await v.until("$('[data-issue-editor]').hidden && $('[data-issue-title]').textContent === '切换项目后记录应保留'");
+  assert.equal((await v.read(first.id)).version, 1, "cancel writes nothing");
+  await v.press("[data-issue-edit]"); await v.press("[data-issue-editor] [data-type=experience]");
+  await v.press("[data-issue-save]");
+  await v.until("$('[data-issue-editor]').hidden && $('[data-issue-type]').textContent === '体验问题'");
+  assert.equal((await v.read(first.id)).type, "experience");
+  // Leaving with unsaved changes asks; keeping them stays in the editor.
+  await v.press("[data-issue-edit]"); await v.press("[data-issue-editor] [name=description]"); await v.type(" 补一句。");
+  await v.press("[data-issue-back]"); await v.until("$('[data-issue-dialog]').open");
+  await v.press("[data-issue-dialog] [value=cancel]"); await v.until("!$('[data-issue-dialog]').open && !$('[data-issue-editor]').hidden");
+  // Someone else saves first: their title stays, this person's words go on top, nothing is written until saved again.
+  await v.api("/api/plugins/io.molis.work.issues/update", { id: first.id, expected_version: 2, title: "别处改过的标题" });
+  await v.press("[data-issue-save]");
+  await v.until("$('[data-issue-flag]').textContent.includes('已合并你的修改')");
+  assert.deepEqual(await v.ask("({ title: $('[data-issue-editor] [name=title]').value, text: $('[data-issue-editor] [name=description]').value })"),
+    { title: "别处改过的标题", text: "切换项目，原来的记录还在。 补一句。" });
+  assert.equal((await v.read(first.id)).version, 3);
+  await v.shot("conflict-merged");
+  await v.press("[data-issue-save]"); await v.until("$('[data-issue-editor]').hidden");
+  const merged = await v.read(first.id);
+  assert.deepEqual([merged.title, merged.description, merged.version], ["别处改过的标题", "切换项目，原来的记录还在。 补一句。", 4]);
+  // A write whose answer is lost says it may have happened, and keeps the edit.
+  await v.press("[data-issue-edit]"); await v.press("[data-issue-editor] [name=title]"); await v.type("！");
+  await v.ask("(d.defaultView.issueFetch = d.defaultView.fetch, d.defaultView.fetch = (url, init) => String(url).endsWith('/update') ? Promise.reject(new TypeError('offline')) : d.defaultView.issueFetch(url, init), true)");
+  await v.press("[data-issue-save]");
+  await v.until("$('[data-issue-toast] span').textContent.includes('可能已经生效')");
+  assert.equal(await v.ask("$('[data-issue-editor] [name=title]').value"), "别处改过的标题！");
+  await v.ask("(d.defaultView.fetch = d.defaultView.issueFetch, true)");
+  await v.press("[data-issue-cancel]");
+  // Delete asks once; cancelling keeps the record, confirming removes it and returns to writing.
+  await v.press("[data-issue-delete]"); await v.until("$('[data-issue-dialog]').open && $('[data-issue-dialog] p').textContent.startsWith('别处改过的标题')");
+  await v.press("[data-issue-dialog] [value=cancel]"); await v.until("!$('[data-issue-dialog]').open");
+  assert.equal((await v.list()).items.length, 2);
+  await v.press("[data-issue-delete]"); await v.press("[data-issue-dialog] [value=confirm]");
+  await v.until("$('[data-issue-detail]').hidden && d.querySelectorAll('.issues-row').length === 1 && d.activeElement === $('[data-issue-composer] [name=description]')");
+  assert.equal((await v.list()).items.length, 1);
+  for (const [width, theme] of [[390, "dark"], [1024, "light"]] as const) {
+    await v.viewport(width, 844); await b.evaluate(`document.documentElement.dataset.theme='${theme}';document.documentElement.dataset.resolvedTheme='${theme}'`);
+    assert.equal(await b.evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+    await v.shot(`list-${theme}-${width}`);
   }
-  await command("Emulation.setDeviceMetricsOverride",{width:1440,height:940,deviceScaleFactor:1,mobile:false},sessionId);
-  // A real concurrent write replaces the images, so comparison must show both collections.
-  await evaluate(`fetch('/api/plugins/io.molis.work.issues/update',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({id:${JSON.stringify(id)},expected_version:1,images:[]})}).then(r=>{if(!r.ok)throw Error(r.status)})`);
-  await click("[data-issue-save]"); await waitFor("!document.querySelector('[data-issue-comparison]').hidden");
-  assert.equal(await evaluate("document.querySelectorAll('[data-issue-draft=images] img').length"),3);
-  assert.equal(await evaluate("document.querySelector('[data-issue-latest=images]').textContent"),"无图片");
-  assert.equal(row().version,2);
-  await click("[data-issue-keep]"); assert.equal(row().version,2);
-  await evaluate(`window.issueOriginalFetch=fetch;window.fetch=(url,options)=>String(url).endsWith('/update')?Promise.resolve(new Response(JSON.stringify({error:'测试保存失败'}),{status:503})):issueOriginalFetch(url,options)`);
-  await click("[data-issue-save]"); await waitFor("document.querySelector('[data-issue-note]').textContent === '测试保存失败'");
-  assert.equal(await evaluate("document.querySelectorAll('[data-issue-images] img').length"),3); assert.equal(row().version,2);
-  await evaluate("window.fetch=issueOriginalFetch"); await click("[data-issue-save]");
-  await waitFor("document.querySelector('[data-issue-note]').textContent === '已保存'");
-  assert.equal(JSON.parse(String(row().images_json)).length,3); assert.equal(row().version,3);
-  await click("[data-issue-edit]"); await click('[data-issue-remove="1"]'); await click("[data-issue-save]");
-  await waitFor("document.querySelector('[data-issue-note]').textContent === '已保存'");
-  assert.equal(JSON.parse(String(row().images_json)).length,2);
-  await evaluate(`fetch('/api/plugins/io.molis.work.issues/update',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({id:${JSON.stringify(id)},expected_version:4,images:[]})}).then(r=>{if(!r.ok)throw Error(r.status)})`);
-  await click("[data-issue-edit]");
-  await evaluate("document.querySelector('[name=title]').value='图片核对后的问题';document.querySelector('[name=title]').dispatchEvent(new Event('input',{bubbles:true}))");
-  await click("[data-issue-save]"); await waitFor("!document.querySelector('[data-issue-comparison]').hidden");
-  await click("[data-issue-keep]");
-  assert.equal(await evaluate("document.querySelectorAll('[data-issue-images] img').length"),0,"untouched images adopt the latest collection");
-  await click("[data-issue-save]"); await waitFor("document.querySelector('[data-issue-note]').textContent === '已保存'");
-  await click("[data-issue-edit]");
-  const doc2=await command<{root:{nodeId:number}}>("DOM.getDocument",{},sessionId);
-  const input2=await command<{nodeId:number}>("DOM.querySelector",{nodeId:doc2.root.nodeId,selector:"[data-issue-files]"},sessionId);
-  await command("DOM.setFileInputFiles",{nodeId:input2.nodeId,files:[imagePath]},sessionId);
-  await waitFor("document.querySelectorAll('[data-issue-images] img').length === 1 && !document.querySelector('[data-issue-save]').disabled");
-  await click("[data-issue-reread]"); await waitFor("document.querySelector('[data-issue-note]').textContent.includes('已是最新版本')");
-  assert.equal(await evaluate("document.querySelector('[data-issue-comparison]').hidden && document.querySelectorAll('[data-issue-images] img').length===1"),true);
-  await evaluate(`fetch('/api/plugins/io.molis.work.issues/update',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({id:${JSON.stringify(id)},expected_version:${row().version},description:'其他入口更新了复现说明'})}).then(r=>{if(!r.ok)throw Error(r.status)})`);
-  await click("[data-issue-reread]"); await waitFor("!document.querySelector('[data-issue-comparison]').hidden");
-  await click("[data-issue-accept]"); assert.equal(await evaluate("document.querySelectorAll('[data-issue-images] img').length"),0);
-  await click("[data-issue-edit]");
-  await command("DOM.setFileInputFiles",{nodeId:input2.nodeId,files:[imagePath]},sessionId);
-  await waitFor("document.querySelectorAll('[data-issue-images] img').length === 1 && !document.querySelector('[data-issue-save]').disabled");
-  await click("[data-issue-save]"); await waitFor("document.querySelector('[data-issue-note]').textContent === '已保存'");
-  const project=await withMolisWorkProjectCatalog({homeDirectory},catalog=>catalog.createProject({display_name:"图文跨项目",actor_id:"web-user"}));
-  await navigate(()=>command("Page.navigate",{url:`${origin}/projects/${project.project_id}/?openPlugin=issues`},sessionId));
-  await waitFor(`document.querySelector('[data-issue-id="${id}"]')`); await click(`[data-issue-id="${id}"]`);
-  await waitFor("document.querySelector('[data-issue-images] img')?.naturalWidth === 2560");
-  assert.equal(await evaluate("document.querySelector('[name=title]').value"),"图片核对后的问题");
-  await click("[data-issue-delete]"); await click("[data-issue-dialog-ok]");
-  await waitFor("document.querySelector('[data-issue-list]').textContent.includes('还没有问题记录')");
-  assert.equal(db.prepare("SELECT count(*) AS n FROM issues").get()!.n,0);
 });
 
-test("ISSUE-09 the exact image byte limit is accepted and an extra image is refused without losing the draft", { timeout: 60_000 }, async t => {
-  const b=await openGoalBrowser(t,"empty");if(!b)return;
-  const {origin,command,sessionId,evaluate,waitFor,click,navigate}=b;
-  await navigate(()=>command("Page.navigate",{url:`${origin}/plugins/issues`},sessionId));
-  await waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'"); await click("[data-issue-new]"); await click("[data-issue-manual]");
-  await evaluate(`window.issueByteLimit={};const canvas=document.createElement('canvas');canvas.width=canvas.height=10;
-    const png=Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]),c=>c.charCodeAt(0));
-    const padded=new Uint8Array(2*1024*1024);padded.set(png);
-    issueByteLimit.file=new File([padded],'boundary.png',{type:'image/png'});
-    issueByteLimit.drop=count=>{const data=new DataTransfer();for(let i=0;i<count;i++)data.items.add(issueByteLimit.file);
-      document.querySelector('[name=description]').dispatchEvent(new DragEvent('drop',{bubbles:true,dataTransfer:data}));};
-    document.querySelector('[name=title]').value='图片容量边界';document.querySelector('[name=type]').value='bug';
-    document.querySelector('[name=description]').value='保留文字';issueByteLimit.drop(4);`);
-  await waitFor("!document.querySelector('[data-issue-save]').disabled");
-  assert.equal(await evaluate("document.querySelectorAll('[data-issue-images] img').length"),4,"four exact 2 MiB images fit the 8 MiB limit, including base64 padding");
-  await click("[data-issue-save]"); await waitFor("document.querySelector('[data-issue-note]').textContent === '已保存'");
-  await click("[data-issue-edit]");
-  await evaluate("issueByteLimit.drop(1)");
-  await waitFor("document.querySelector('[data-issue-note]').textContent.includes('总大小不能超过')");
-  assert.equal(await evaluate("document.querySelectorAll('[data-issue-images] img').length"),4);
-  assert.equal(await evaluate("document.querySelector('[name=description]').value"),"保留文字");
-  assert.equal(await evaluate("fetch('/api/plugins/io.molis.work.issues/list').then(r=>r.json()).then(r=>r.items[0].image_count)"),4);
+test("ISSUE-09 ISSUE-27 screenshots: six join a capture, a seventh and a mislabeled file are refused without losing the draft", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
+  const v = issueView(b, "issue-page");
+  await v.viewport(1440, 940); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
+  await v.press("[data-issue-composer] [name=description]"); await v.type("一次贴六张截图");
+  for (let index = 0; index < 6; index++) { await v.paste(`第${index + 1}张.png`, 200 + index); await v.until(`d.querySelectorAll('[data-issue-thumbs] img').length === ${index + 1}`); }
+  assert.equal(await v.ask("$('[data-issue-composer] [data-issue-tip]').textContent"), "6 / 6 张截图");
+  await v.paste("第七张.png"); await v.until("$('[data-issue-composer] [data-issue-tip]').textContent === '每条最多 6 张截图'");
+  assert.equal(await v.ask("d.querySelectorAll('[data-issue-thumbs] img').length"), 6);
+  await v.press("[data-issue-thumbs] figure:nth-child(2) [data-remove]");
+  await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 5 && d.activeElement === $('[data-issue-composer] [data-issue-pick]')");
+  // A JPEG named PNG decodes in a browser, but its declared type must match its bytes to be saved: refused at once.
+  await v.ask(`(async () => { const c = d.createElement('canvas'); c.width = 20; c.height = 20; const blob = await new Promise(r => c.toBlob(r, 'image/jpeg'));
+    const t = new DataTransfer(); t.items.add(new File([blob], '改名的.png', { type: 'image/png' }));
+    $('[data-issue-composer] [name=description]').dispatchEvent(new ClipboardEvent('paste', { clipboardData: t, bubbles: true, cancelable: true })); return true; })()`);
+  await v.until("$('[data-issue-composer] [data-issue-tip]').textContent === '图片无法读取，请重新选择有效的图片。'");
+  assert.deepEqual(await v.ask("({ shots: d.querySelectorAll('[data-issue-thumbs] img').length, text: $('[data-issue-composer] [name=description]').value })"), { shots: 5, text: "一次贴六张截图" });
+  // Preview fits the window, zooms to the original size and closes with Escape back to its thumbnail.
+  await v.press("[data-issue-thumbs] figure:first-child [data-preview]"); await v.until("$('[data-issue-preview]').open");
+  await v.press("[data-issue-zoom]"); await v.until("$('[data-issue-preview]').hasAttribute('data-zoom') && $('[data-issue-zoom]').textContent === '适应窗口'");
+  await v.escape(); await v.until("!$('[data-issue-preview]').open && d.activeElement?.matches('[data-issue-thumbs] figure:first-child [data-preview]')");
 });
 
-test("ISSUE-10 external image files drop into the editor without screen access; hidden views reject pending imports", { timeout: 60_000 }, async t => {
-  const b=await openGoalBrowser(t,"empty");if(!b)return;
-  const {origin,command,sessionId,evaluate,waitFor,click,navigate,homeDirectory}=b;
-  await command("Emulation.setDeviceMetricsOverride",{width:1440,height:940,deviceScaleFactor:1,mobile:false},sessionId);
-  await navigate(()=>command("Page.navigate",{url:`${origin}/plugins/issues`},sessionId));
-  await waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'"); await click("[data-issue-new]"); await click("[data-issue-manual]");
-  assert.equal(await evaluate("document.querySelector('[data-issue-capture]')"),null);
-  await evaluate(`window.issueImport={screenRequests:0};navigator.mediaDevices.getDisplayMedia=async()=>{issueImport.screenRequests++;throw Error('screen access must not be requested');};
-    document.querySelector('[name=title]').value='从电脑拖入两张图片';document.querySelector('[name=type]').value='experience';
-    document.querySelector('[name=description]').value='原有描述保留';document.querySelector('[name=description]').dispatchEvent(new Event('input',{bubbles:true}));`);
-  const pngUrl=await evaluate<string>("(()=>{const canvas=document.createElement('canvas');canvas.width=64;canvas.height=32;const context=canvas.getContext('2d');context.fillStyle='#246';context.fillRect(0,0,64,32);return canvas.toDataURL('image/png')})()");
-  const png=Buffer.from(pngUrl.split(',')[1]!,"base64");
-  const files=[join(homeDirectory,"第一张.png"),join(homeDirectory,"第二张.png")];
-  for(const file of files) await writeFile(file,png);
-  const {x,y}=await evaluate<{x:number;y:number}>("(()=>{const r=document.querySelector('[name=description]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()");
+test("ISSUE-10 files dropped on the composer join it; an import started in a record that is then left joins nothing", { timeout: 60_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
+  const v = issueView(b, "issue-page");
+  await v.viewport(1440, 940); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
+  await b.evaluate("window.issueScreen = 0; navigator.mediaDevices.getDisplayMedia = async () => { issueScreen++; throw Error('screen access must not be requested'); }");
+  const pngUrl = await b.evaluate<string>("(() => { const c = document.createElement('canvas'); c.width = 64; c.height = 32; c.getContext('2d').fillRect(0, 0, 64, 32); return c.toDataURL('image/png'); })()");
+  const files = [join(b.homeDirectory, "第一张.png"), join(b.homeDirectory, "第二张.png")];
+  for (const file of files) await writeFile(file, Buffer.from(pngUrl.split(",")[1]!, "base64"));
+  const { x, y } = await b.evaluate<{ x: number; y: number }>("(() => { const r = document.querySelector('[data-issue-composer] [name=description]').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()");
   // Browser-native file drag supplies FileList and MIME metadata, without constructing a DOM drop event.
-  for(const type of ["dragEnter","dragOver","drop"]) await command("Input.dispatchDragEvent",{type,x,y,data:{items:[],files,dragOperationsMask:1}},sessionId);
-  await waitFor("document.querySelectorAll('[data-issue-images] img').length === 2 && !document.querySelector('[data-issue-save]').disabled");
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-issue-images] img')].map(i=>i.alt)"),["第一张.png","第二张.png"]);
-  assert.equal(await evaluate("document.querySelector('[name=description]').value"),"原有描述保留");
-  await click("[data-issue-save]"); await waitFor("document.querySelector('[data-issue-note]').textContent === '已保存'");
-  const db=new DatabaseSync(join(homeDirectory,"issues","issues.db"),{readOnly:true});t.after(()=>db.close());
-  assert.equal(JSON.parse(String(db.prepare("SELECT images_json FROM issues").get()!.images_json)).length,2);
-  await click("[data-issue-edit]");
-  await evaluate(`const decode=createImageBitmap;window.createImageBitmap=file=>new Promise(resolve=>{issueImport.finish=()=>decode(file).then(resolve)});`);
-  const {root:doc}=await command<{root:{nodeId:number}}>("DOM.getDocument",{},sessionId);
-  const {nodeId}=await command<{nodeId:number}>("DOM.querySelector",{nodeId:doc.nodeId,selector:"[data-issue-files]"},sessionId);
-  await command("DOM.setFileInputFiles",{nodeId,files:[files[0]]},sessionId);
-  await waitFor("document.querySelector('[data-issue-save]').disabled");
-  await click("[data-issue-new]");
-  assert.equal(await evaluate("document.querySelector('[name=title]').value"),"从电脑拖入两张图片","pending images cannot attach to another issue");
-  await evaluate("document.querySelector('[data-issues=workbench]').hidden=true;new Promise(resolve=>requestAnimationFrame(resolve))");
-  await evaluate("issueImport.finish()");
-  await waitFor("!document.querySelector('[data-issue-save]').disabled");
-  assert.equal(await evaluate("document.querySelectorAll('[data-issue-images] img').length"),2);
-  assert.equal(await evaluate("issueImport.screenRequests"),0);
-  assert.equal(db.prepare("SELECT version FROM issues").get()!.version,1,"late import must not alter the saved record");
+  for (const type of ["dragEnter", "dragOver", "drop"]) await b.command("Input.dispatchDragEvent", { type, x, y, data: { items: [], files, dragOperationsMask: 1 } }, b.sessionId);
+  await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 2");
+  assert.deepEqual(await v.ask("[...d.querySelectorAll('[data-issue-thumbs] img')].map(i => i.alt)"), ["第一张.png", "第二张.png"]);
+  assert.equal(await b.evaluate("issueScreen"), 0, "adding pictures never asks for the screen");
+  const saved = await v.api<Issue>("/api/plugins/io.molis.work.issues/create", create("已有记录", "bug", "原文"));
+  await v.go("/plugins/issues"); await v.press(`[data-issue-id="${saved.id}"]`); await v.press("[data-issue-edit]");
+  await b.evaluate("const decode = createImageBitmap; window.createImageBitmap = file => new Promise(resolve => { window.issueFinish = () => decode(file).then(resolve); })");
+  const { root } = await b.command<{ root: { nodeId: number } }>("DOM.getDocument", {}, b.sessionId);
+  const { nodeId } = await b.command<{ nodeId: number }>("DOM.querySelector", { nodeId: root.nodeId, selector: "[data-issue-files]" }, b.sessionId);
+  await v.press("[data-issue-editor] [data-issue-pick]");
+  await b.command("DOM.setFileInputFiles", { nodeId, files: [files[0]] }, b.sessionId);
+  await v.until("$('[data-issue-editor] [data-issue-tip]').textContent === '正在读取截图…'");
+  // I5-ISSUE-INTERLEAVE-01: wait for the real decoder to enter its held promise before cancelling the record.
+  await v.until("typeof window.issueFinish === 'function'");
+  await v.press("[data-issue-cancel]"); await v.press("[data-issue-back]");
+  await b.evaluate("window.issueFinish()"); await new Promise(resolve => setTimeout(resolve, 300));
+  assert.equal(await v.ask("d.querySelectorAll('[data-issue-edit-shots] img').length"), 0, "a late picture does not join a record the person left");
+  assert.equal((await v.read(saved.id)).images.length, 0);
 });
 
 test("ISSUE-06 hidden and removed Issue views stop refreshing; one remount keeps one listener", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "empty"); if (!browser) return;
   const { origin, sessionId, command, evaluate, waitFor, navigate } = browser;
   await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
-  await waitFor("document.querySelector('[data-issue-list]').textContent.includes('还没有问题记录')");
+  await waitFor("document.querySelector('[data-issue-list]').textContent.includes('还没有记录')");
   await evaluate(`window.issueChecks = { reads: 0, root: document.querySelector('[data-issues=workbench]') };
     const originalFetch = window.fetch.bind(window);
     window.fetch = (...args) => { if (String(args[0]).includes('/api/plugins/io.molis.work.issues/list')) window.issueChecks.reads++; return originalFetch(...args); };

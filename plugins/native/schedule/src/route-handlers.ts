@@ -1,6 +1,7 @@
-import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SchedulePluginRouteHandler, SchedulePluginRouteResponse } from "./routes.js";
 import { scheduleActions, type ScheduleTaskInput } from "./actions.js";
+import { scheduleErrors } from "./error.js";
 
 export interface ScheduleRouteHandlerPorts {
   readonly actions: BoundActionClient;
@@ -25,15 +26,15 @@ export function createScheduleRouteHandlers(options: ScheduleRouteHandlerPorts):
   return {
     "schedule.list": () => run(scheduleActions.list, {}),
     "schedule.workbench": async () => {
-      if (!options.renderWorkbench) return { status: 501, body: { error: "Schedule 工作区不可用" } };
+      if (!options.renderWorkbench) throw new ActionError("actions.service_unavailable", "Schedule 工作区不可用");
       await options.actions.invoke(scheduleActions.list, {});
       return { status: 200, html: await options.renderWorkbench() };
     },
     "schedule.readiness": () => run(scheduleActions.readiness, {}),
     "schedule.job.enabled": ({ params, request }) => {
       const value = enabled(request.body);
-      if (value === null) return { status: 400, body: { error: "请指定是否启用" } };
-      if (!params.job_id) return { status: 404, body: { error: "定时任务不存在", code: "schedule_job_not_found" } };
+      if (value === null) throw scheduleErrors.job_invalid("请指定是否启用");
+      if (!params.job_id) throw scheduleErrors.job_not_found("定时任务不存在");
       return run(scheduleActions.setJobEnabled, { job_id: params.job_id, enabled: value });
     },
     "schedule.reminder.recover": ({ params, request }) => run(scheduleActions.recoverReminder, {
@@ -51,26 +52,13 @@ export function createScheduleRouteHandlers(options: ScheduleRouteHandlerPorts):
     "schedule.task.archive": ({ params }) => run(scheduleActions.archiveTask, { task_id: params.task_id ?? "" }),
     "schedule.task.enabled": ({ params, request }) => {
       const value = enabled(request.body);
-      if (value === null) return { status: 400, body: { error: "请指定是否启用" } };
-      if (!params.task_id) return { status: 404, body: { error: "定时任务不存在", code: "schedule_task_not_found" } };
+      if (value === null) throw scheduleErrors.task_invalid("请指定是否启用");
+      if (!params.task_id) throw scheduleErrors.task_not_found("定时任务不存在");
       return run(scheduleActions.setTaskEnabled, { task_id: params.task_id, enabled: value });
     },
     "schedule.task.open": ({ params }) => {
-      if (!params.task_id) return { status: 404, body: { error: "定时任务不存在", code: "schedule_task_not_found" } };
+      if (!params.task_id) throw scheduleErrors.task_not_found("定时任务不存在");
       return run(scheduleActions.openTask, { task_id: params.task_id });
     },
   };
-}
-
-export function scheduleRouteErrorResponse(error: unknown): SchedulePluginRouteResponse {
-  const code = error && typeof error === "object" && "code" in error && typeof error.code === "string"
-    ? error.code
-    : "";
-  const message = error instanceof Error ? error.message : String(error);
-  if (code === "schedule_job_not_found" || code === "schedule_task_not_found" || code === "actions.missing") {
-    return { status: 404, body: { error: message, code } };
-  }
-  if (["actions.forbidden", "actions.scope_mismatch", "actions.owner_mismatch"].includes(code)) return { status: 403, body: { error: message, code } };
-  if (code === "actions.unredeemed") return { status: 503, body: { error: message, code } };
-  return { status: 400, body: { error: message, ...(code ? { code } : {}) } };
 }

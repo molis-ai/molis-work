@@ -2,7 +2,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   ShelfPluginRouteTable,
   createShelfRouteHandlers,
-  shelfRouteErrorResponse,
   type ShelfPluginRouteResponse,
   type ShelfRouteHandlerPorts,
 } from "@molis-ai/molis-work-plugin-shelf";
@@ -19,7 +18,6 @@ export async function handleShelfNativePluginHttp(
     prefix: "/api/shelf",
     maxBodyBytes: 96 * 1024 * 1024,
     handle: input => new ShelfPluginRouteTable(createShelfRouteHandlers(ports)).handle(input),
-    mapError: shelfRouteErrorResponse,
     write: (res, result) => writeShelfResponse(res, result as ShelfPluginRouteResponse),
   });
 }

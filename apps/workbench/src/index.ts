@@ -5,6 +5,7 @@ export type { WorkbenchPlanningPageOwners } from "./goals-planning-request.js";
 export type { WorkbenchGoalsPageView, WorkbenchGoalsPageOwners } from "./goals-page-renderer.js";
 export { ARTIFACT_EMBED_STYLES } from "./artifact-ui.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
+export { homeToolKeysScript } from "./home-plugin-navigation.js";
 export type { ArtifactBrowserUiModel } from "@molis-ai/molis-work-plugin-artifacts";
 export { isProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
 export { PROJECT_OPERATIONS_STYLES, PROJECT_OPERATIONS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-work";
@@ -57,7 +58,6 @@ export {
 } from "./goals-document-routes.js";
 export {
   CLIENT_SCRIPT,
-  CONTROL_CLIENT_SCRIPT,
   MORE_STYLES,
   ONBOARDING_DISMISS_CLIENT_SCRIPT,
   PROJECT_GUIDANCE_CLIENT_SCRIPT,
@@ -100,6 +100,7 @@ export type { ArrivalPrimitives, ArrivalShellPrimitives } from "./arrival/shell.
 export type { WebSettingsProject, WebInstallationDiagnostics, MolisWorkSettingsView } from "./settings-view.js";
 export { createWorkbenchSettingsRenderer, type SettingsRenderPrimitives } from "./settings-renderer.js";
 export type { CapabilitiesView, CapabilitySection } from "./capabilities.js";
+export type { CallRowView } from "./call-row.js";
 export { renderMcpAccess, renderMcpAccessRows, mcpAccessEntryKey, type McpAccessModel, type McpAccessEntry } from "./mcp-access.js";
 export type { MolisWorkWebView } from "./page-view.js";
 export * from "./i18n.js";

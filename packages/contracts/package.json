@@ -190,6 +190,10 @@
       "types": "./dist/services/browser.d.ts",
       "import": "./dist/services/browser.js"
     },
+    "./services/computer": {
+      "types": "./dist/services/computer.d.ts",
+      "import": "./dist/services/computer.js"
+    },
     "./services/im": {
       "types": "./dist/services/im.d.ts",
       "import": "./dist/services/im.js"

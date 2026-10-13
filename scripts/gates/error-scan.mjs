@@ -15,7 +15,7 @@
 //   (the owner of a code lives in error-owners.mjs; it reads the code sites listed here)
 //
 // WHAT A CODE SITE IS. The code of an error is the argument that the error class takes as `code`, found by reading the class:
-// `new FeedDomainError(message, code)` has its code second because the constructor says so. The index is built from every class
+// `new SomeError(message, code)` has its code second when the constructor says so (FeedDomainError did, until W3-02-E). The index is built from every class
 // declaration with a heritage of `…Error` (by name; a class without a constructor takes its base's), so a new error class is
 // followed without a list. Besides `new …Error("x.y", …)` the sites are the codes of `defineErrorCodes("prefix", { reason: kind })`
 // (prefix.reason) and the first argument of a call to one of the error factories the Goals modules use (`error`, `errorFactory`,
@@ -26,9 +26,9 @@
 // (`new SearchError({ code: "provider_unavailable", … })`); at W3-02-B that is about 300 literals in about 100 files (some of them keyboard
 // codes, not errors), so the counts reaching zero does not mean every code is renamed. Two more groups of the same kind: a code
 // handed to one of the four factories that has no dot (LOOKS_LIKE_CODE below asks for a dot, so exactly the wrong shapes are not
-// read: 49 sites in 2 files, the `fail("REUSE_…", …)` of plugins/native/alchemist/src/work-reuse/service.ts and the
-// `fail("invalid_url", …)` of plugins/official-integrations/catalog/src/document-import.ts, each a local `fail` that throws its own
-// error), and a class field `code = "…"` (only the constructor parameter named `code` is read: 4 literals in 4 files). Besides: a code
+// read: 19 sites in 1 file, the `fail("REUSE_…", …)` of plugins/native/alchemist/src/work-reuse/service.ts, a local `fail` that throws
+// its own error; the `fail("invalid_url", …)` of plugins/official-integrations/catalog/src/document-import.ts was the other, and since
+// W3-02-G2 its `fail` raises a declared `catalog_integration.<reason>`, so the codes are read from the declaration), and a class field `code = "…"` (only the constructor parameter named `code` is read: 4 literals in 4 files). Besides: a code
 // that is not a literal (a variable, a template with a substitution, a helper that builds `prefix + "." + reason`), a factory under another name
 // (`requireCognia(…)`), an error class whose name does not end in `Error`, a base class that is not declared in the repository, two
 // classes of one name with different constructors (the first one with a `code` parameter wins), a status chosen from `error.kind` or

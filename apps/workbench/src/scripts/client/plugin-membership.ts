@@ -1,5 +1,5 @@
 /**
- * Adding a plugin to the project, or taking it away, without bringing the page back (specs/plugin-picker-dock).
+ * Adding a plugin to the project, or taking it away, without bringing the page back (specs/archive/plugin-picker-dock).
  *
  * The request is the one the market makes. Then the page that follows the project's plugins is brought in line with what the
  * server renders now: each tile of the switcher in place (so its colour, glyphs and buttons change where they stand), the

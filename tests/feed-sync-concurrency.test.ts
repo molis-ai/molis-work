@@ -34,11 +34,11 @@ for (const change of ["paused", "edited", "revoked", "cancelled"] as const) test
     const source = (await actions.invoke(feedSourceActions.register, { kind: "web_query", query: "fixture" })).source;
     const id = source.source_id;
     const pending = actions.invoke(feedSourceActions.sync, { source_id: id, idempotency_key: "guard-request-1" });
-    const rejected = assert.rejects(pending, change === "paused" ? { code: "feed_source_paused" } : change === "edited" ? { code: "feed_source_changed" } : change === "revoked" ? { code: "fixture.revoked" } : undefined);
+    const rejected = assert.rejects(pending, change === "paused" ? { code: "feed.source_paused" } : change === "edited" ? { code: "feed.source_changed" } : change === "revoked" ? { code: "fixture.revoked" } : undefined);
     await entered.promise;
     // Another factory and another connection to the same file must share the lease.
     const other = new LocalProjectDatabase(path);
-    try { await assert.rejects(createLocalFeedSourceService(other.db, reference.project_id, factory).sync(id, { idempotencyKey: "guard-request-2" }), { code: "feed_source_sync_interrupted" }); }
+    try { await assert.rejects(createLocalFeedSourceService(other.db, reference.project_id, factory).sync(id, { idempotencyKey: "guard-request-2" }), { code: "feed.source_sync_interrupted" }); }
     finally { other.close(); }
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {

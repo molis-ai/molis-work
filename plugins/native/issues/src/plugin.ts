@@ -1,7 +1,7 @@
-import { bindPluginActionRoute } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { issueActionHandlers, issuesActions } from "./actions.js";
-import type { IssueDraft } from "./capture.js";
+import type { IssueCapture, IssueDraft } from "./capture.js";
 import { issuesManifest } from "./manifest.js";
 import { IssueStore, type IssueCreate, type IssueDelete, type IssueList, type IssueUpdate } from "./store.js";
 import { issuesUiContribution } from "./ui.js";
@@ -13,6 +13,8 @@ export function createIssuesPlugin(): PluginDefinition {
     return { kind: "app", actions: issueActionHandlers(store), views: [issuesUiContribution], routes: [
       bindPluginActionRoute(context, issuesActions.prepare, request => request.body as IssueDraft),
       bindPluginActionRoute(context, issuesActions.cancel, request => request.body as { draft_id: string }),
+      bindPluginActionRoute(context, issuesActions.capture, request => request.body as IssueCapture),
+      bindPluginActionRoute(context, issuesActions.discard, request => request.body as IssueDelete),
       bindPluginActionRoute(context, issuesActions.list, request => ({
         ...(request.query.type ? { type: request.query.type as IssueList["type"] } : {}),
         ...(request.query.limit ? { limit: Number(request.query.limit) } : {}),

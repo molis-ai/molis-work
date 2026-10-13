@@ -4,15 +4,41 @@
 
 目录里现在有这些东西：
 
-- 当前包 `prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它）；
-- 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
+- 当前包 `prologue-sdk-0.0.0-rc.1-computer-use.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它），见下面「当前依赖」；
+- 上一份包 `prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`（换成主线提交构建的包之前留在目录里，份数仍是门禁允许的两份）；
+- 两个包各自的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
 - `patch-history.json`：已删除的 25 份历史补丁和 9 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - `side-panel-memory.patch`：现行包早先的重建补丁。重建现行包已经用不着它（见「重建」），留到用户确认删除（[方案](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §4.2）；
 - 本文件。
 
 另外两个 vendored 包各自带 `.sha256`、`.provenance.json` 和 `sbom.cdx.json`：[intelligence-client](../intelligence-client/)、[search-evidence-layer](../search-evidence-layer/)。这三个包的 tgz 按决定（2026-10-08，[spec](../../specs/repository-anti-corruption/spec.md) §1「Prologue SDK 收敛与私有包」）将来改从私有 registry 或 release 附件取，不再放进公开仓库；registry 就绪前仍留在仓库里（[方案](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §5）。`pnpm health:check` 限制本目录的 tgz 份数（`tooling/gates/limits.json` 的 `vendoredPrologueSdk`），并由 `scripts/gates/vendored-provenance.mjs` 核对三个包的 tgz 与各自的 `.sha256`、`.provenance.json` 相符、`alsoBuildableFrom` 点名的补丁在目录里且字节数、SHA-256 相符、`patch-history.json` 的格式对、已删的补丁没有回到目录里（只核对形状，不去 Git 里重算 `gitBlob` 的字节数与 SHA-256，见 [REPOSITORY-HYGIENE](../../docs/system/REPOSITORY-HYGIENE.md)）；`tests/vendor-provenance.test.ts` 给门禁的每一条检查各造一个违例，方法与限度也在那份文档里。
 
-## 当前依赖：side-panel-memory（2026-09-30，平台侧栏的界面控制 + 平台记忆）
+## 当前依赖：computer-use（2026-10-09，桌面 Computer Use）
+
+`prologue-sdk-0.0.0-rc.1-computer-use.tgz`（1,074,186 字节），SHA-256 `0272431a46d0201dfc5aa4d12af648d8cc0f129a1eb1454a5123a8518826d282`。
+
+**来源**：Prologue 本机分支 `feat/desktop-computer-use`（工作树 `~/code/prologue-computer-use`）的提交 `d4908c118f7899d44e3d1975806797a05f0094b9`。版本线只有一条：
+
+1. 上游主线 `4f7110fe`；
+2. `c4b9fde3`（本机分支 `feat/molis-adoption`）：微压缩不收修改回执、独占写主人重开时清遗留写声明、让出的续跑可以归 App——这一层先前单独打成 `prologue-sdk-0.0.0-rc.1-molis-adoption.tgz`（1,057,983 字节，SHA-256 `100aa5770b5e48844f770cba8a1bd3706f389673671956c84ab7375942919b01`），本包含它，故不再另放那一份；
+3. 五个提交（[computer-use](../../specs/computer-use/spec.md)）：桌面的有类型动作（滚动、拖动、悬停、切应用、菜单）、应用身份作 scope 且切应用按目标应用判、四种一等拒绝（驱动不可用、用户在场、屏幕锁定、落点不在目标上）、收不回的动作归改外部、只活一轮的常驻批准（`remember(rule, { run })`）。Prologue 侧合同见该分支的 `docs/slices/computer-use.md` 与 `docs/product/requirements/modules/ui-control/observe-act.md`。
+
+**还没有推到上游**：这条桌面线合入上游主线之后，再换成主线提交构建的包（[方案](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §4.3）。这次不改那份方案，也不把包挪出仓库。
+
+**重建**（2026-10-09 在 macOS arm64、Node 24.14.0、pnpm 11.9.0 上两次构建，逐字节相同）：
+
+```bash
+git -C <prologue 克隆> archive d4908c118f7899d44e3d1975806797a05f0094b9 | tar -x -C <空目录>
+cd <空目录>
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm --filter @prologue/sdk build
+cd packages/sdk && pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-computer-use.tgz
+shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-computer-use.tgz   # 与 .sha256 一致
+```
+
+**验证**：在 `d4908c11` 上 SDK 类型检查与构建通过，单元与行为测试 190 个文件 2593 项全过（不含 live）；桌面一刀 46 个手工变异全部杀死，真实 macOS 桌面 live 6/6 通过（见该分支 `docs/slices/computer-use.md`）。Molis 侧见 [computer-use](../../specs/computer-use/spec.md) §7。
+
+## 上一份包：side-panel-memory（2026-09-30，平台侧栏的界面控制 + 平台记忆）
 
 `prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`（953,138 字节），SHA-256 `942de9c594d8fc0bbb81d3b36d766761427ff51c2c4cee33aab342033c85846c`。
 

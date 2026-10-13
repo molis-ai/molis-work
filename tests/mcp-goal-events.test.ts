@@ -36,7 +36,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
   let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "事件闭环", actor_id: "user" });
-    await grantGoalsMcp(host, homeDirectory, project);
+    await grantGoalsMcp(homeDirectory, project);
     const runtimeHost = {
       homeDirectory,
       runtimeContext: {
@@ -240,7 +240,7 @@ test("event report stays persisted when secondary Session indexing fails", async
   let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "事件活动", actor_id: "user" });
-    await grantGoalsMcp(host, homeDirectory, project);
+    await grantGoalsMcp(homeDirectory, project);
     const registry = await openWorkSessionRegistry({ homeDirectory });
     let sessionId: string;
     try {
@@ -293,7 +293,7 @@ test("missing stable Session identity rejects event writes with no Goal or event
   let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "身份拒绝", actor_id: "user" });
-    await grantGoalsMcp(host, homeDirectory, project);
+    await grantGoalsMcp(homeDirectory, project);
     const reference = molisWorkHostProjectReference({
       databasePath: project.database_path, projectId: project.project_id,
     });
@@ -351,7 +351,7 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
   let store: LocalProjectDatabase | undefined;
   try {
     const project = await catalog.createProject({ display_name: "创建来源", actor_id: "user" });
-    await grantGoalsMcp(host, homeDirectory, project);
+    await grantGoalsMcp(homeDirectory, project);
     const runtimeHost = {
       homeDirectory,
       runtimeContext: {
@@ -452,7 +452,7 @@ test("no-config note and combined report progress persist; implicit focus, illeg
   let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "笔记继续", actor_id: "user" });
-    await grantGoalsMcp(host, homeDirectory, project);
+    await grantGoalsMcp(homeDirectory, project);
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",

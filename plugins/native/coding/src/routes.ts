@@ -1,5 +1,6 @@
 import { CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
-import { bindOwnerPluginAction, parseExactActionReferences, searchEntriesPage, subjectContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { parseExactActionReferences, searchEntriesPage, subjectContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { codingRouteActions } from "./route-actions.js";
 import { codingReportSteps } from "./report-steps.js";
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -8,10 +9,11 @@ import { codingTaskBoardPlans, stepVerdictKey } from "./taskboard.js";
 import { isDeepStrictEqual } from "node:util";
 import { materialChoices, materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentMessageAttachment, type AgentPeopleMessageAction, type AgentSessionMessage, type AgentWait, type AgentSessionStatus, type AgentSubagentWorkspace, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentMessageAttachment, type AgentPeopleMessageAction, type AgentSessionMessage, type AgentWait, type AgentSessionStatus, type AgentSubagentWorkspace, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { CodingSessionRecord, CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
+import { chosenEffort, nextConfiguration, runControl, text } from "./run-inputs.js";
 import type { AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingArtifacts, CODING_REPORT_TYPE } from "./artifacts.js";
 import { codingReportPreview, codingReportPublication, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
@@ -26,10 +28,9 @@ import { DELEGATION_ENDED, MAX_DELEGATION_HOPS } from "./cooperation.js";
 import { attachMentions, symbolsIn, workspaceFileIndex, workspaceFileReader } from "./mentions.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint, summaryCache } from "./session-window.js";
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
-import { CODING_CHANGESET_TYPE } from "./artifacts.js";
+import { CODING_CHANGESET_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import { characterSelection, characterTitle, savedCharacter, savedCharacterSkills, characterSkillSelection, type CodingCharacterPorts } from "./characters.js";
 import { confirmedPlan, executionSteps, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
-import { CODING_PLAN_TYPE } from "./artifacts.js";
 import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 import { CODING_RUN_UPDATED_EVENT } from "./events.js";
@@ -42,7 +43,9 @@ export function codingSessionTitleFrom(task: string): string {
   return chars.length <= 36 ? line : `${chars.slice(0, 35).join("")}…`;
 }
 
-export interface CodingModelChoice { provider_id: string; model_id: string; label: string }
+export interface CodingModelChoice { provider_id: string; model_id: string; label: string;
+  /** The person marked this model as taking a reasoning effort; only then is one offered and sent. */
+  reasoning_effort?: boolean }
 export interface CodingExecutionPorts {
   characters?: CodingCharacterPorts;
   sessions: CodingSessionStore;
@@ -62,10 +65,6 @@ function bodyOf(request: PluginRouteRequest): Record<string, unknown> {
 function savedActions(context: PluginStartContext, id: string) {
   const value = context.services?.storage?.get(`actions:${id}`);
   return typeof value === "string" ? parseExactActionReferences(JSON.parse(value)) : [];
-}
-function text(value: unknown, label: string, maximum = 200): string {
-  if (typeof value !== "string" || !value.trim() || value.length > maximum) throw new Error(`${label}不能为空，且不能超过 ${maximum} 字符`);
-  return value.trim();
 }
 function methodSelection(value: unknown): AgentSkillRef[] {
   if (!Array.isArray(value) || value.length > 20) throw new Error("方法选择格式无效");
@@ -104,37 +103,6 @@ const unlessMissing = <T>(call: Promise<T>, fallback: T): Promise<T> =>
   call.catch((error: unknown) => { if ((error as { code?: unknown })?.code === "kernel.capability_missing") return fallback; throw error; });
 /** A delegation's letters are the people's to answer, at their pace: they are kept a year before they lapse. */
 const DELEGATION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
-function nextConfiguration(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("下一轮配置格式无效");
-  const config = value as Record<string, unknown>;
-  if (!["discuss", "plan", "collaborate", "parallel", "edit", "execute", "review"].includes(String(config.intent))) throw new Error("执行方式无效");
-  for (const key of ["provider_id", "model_id", "workspace_id"]) {
-    if (typeof config[key] !== "string" || (config[key] as string).length > 1000) throw new Error("模型或工作区配置无效");
-  }
-  return { intent: config.intent as string, provider_id: config.provider_id as string,
-    model_id: config.model_id as string, workspace_id: config.workspace_id as string,
-    ...(config.writer_assignments === undefined ? {} : { writer_assignments: codingWriterAssignments(config.writer_assignments) }) };
-}
-function questionAnswer(body: Record<string, unknown>): Extract<AgentRunControl, { kind: "answer" }> {
-  const pending_id = text(body.pending_id, "问题引用");
-  const pending_revision = body.pending_revision;
-  if (typeof pending_revision !== "number" || !Number.isInteger(pending_revision) || pending_revision < 1) throw new Error("问题版本无效，请重新读取原问题");
-  if (body.answers === undefined) {
-    text(body.text, "回答", 100_000);
-    // Validate blank/oversized input without rewriting the user's answer.
-    return { kind: "answer", pending_id, pending_revision, text: body.text as string };
-  }
-  if (body.text !== undefined || !Array.isArray(body.answers) || body.answers.length < 1 || body.answers.length > 10) throw new Error("问卷回答格式无效");
-  const answers = body.answers.map(value => {
-    if (!value || typeof value !== "object") throw new Error("问卷回答格式无效");
-    const { question, indexes, other } = value as Record<string, unknown>;
-    if (typeof question !== "number" || !Number.isInteger(question) || !Array.isArray(indexes) || indexes.length > 20
-      || !indexes.every(index => typeof index === "number" && Number.isInteger(index))
-      || other !== undefined && (typeof other !== "string" || other.length > 500)) throw new Error("问题或选项编号无效");
-    return { question, indexes: indexes as number[], ...(other === undefined ? {} : { other: other as string }) };
-  });
-  return { kind: "answer", pending_id, pending_revision, answers };
-}
 /** A person's plan change, checked before it reaches the Host. */
 function stepAmendment(value: unknown): AgentStepAmendment {
   const entry = value && typeof value === "object" ? value as Record<string, unknown> : {};
@@ -447,6 +415,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     const models = await execution.models();
     const model = models.find((entry) => entry.provider_id === body.provider_id && entry.model_id === body.model_id);
     if (!model) throw new Error("所选模型不可用，请在全局模型设置中检查配置");
+    const effort = chosenEffort(body, model);
     const roles = await api!.invoke(agent.availableRoles, [record.runtime_id, context.plugin_id]);
     const availability = roles.find((entry) => entry.role_id === role);
     if (!availability?.available) throw new Error(availability?.reason ?? "这个执行方式尚未接通");
@@ -492,7 +461,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       session_title: firstRound && record.title === DEFAULT_SESSION_TITLE ? codingSessionTitleFrom(task) : record.title,
   ...(mode === "digest" ? { history: "digest" as const } : {}),
   budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
-  model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), action_tools: body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
+  model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: methodSelection(body.methods ?? []), action_tools: body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
     let run;
     try { run = await start(history); }
     catch (error) {
@@ -514,6 +483,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     const lastStart = (() => { try { return JSON.parse(context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as { origin_task?: unknown } | null; } catch { return null; } })();
     const continued = typeof body.task === "string" && body.task.startsWith(CONTINUATION_MARKER) && typeof lastStart?.origin_task === "string";
     context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
+      ...(effort ? { reasoning_effort: effort } : {}),
       workspace_id: body.workspace_id, actor_id: actorId,
       origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
     follow(api!, execution, record.session_id, session, run.ref, workspace.workspace_id);
@@ -1544,10 +1514,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       if (!run) throw new Error("找不到属于这个会话的执行");
       const current = await api!.invoke(agent.readRun, [session, run]);
       if (isTerminalAgentPhase(current.phase)) throw new Error("这一轮已经结束，请开始新一轮");
-      const control: AgentRunControl = body.kind === "answer" ? questionAnswer(body)
-        : body.kind === "steer" ? { kind: "steer", text: text(body.text, "补充要求", 100_000) }
-        : body.kind === "stop" ? { kind: "stop" } : body.kind === "pause" ? { kind: "pause" }
-        : body.kind === "resume" ? { kind: "resume" } : (() => { throw new Error("不支持的控制动作"); })();
+      const control = await runControl(body, () => execution.models());
       await api!.invoke(agent.controlRun, [session, run, control]);
       return { accepted: true };
     }),

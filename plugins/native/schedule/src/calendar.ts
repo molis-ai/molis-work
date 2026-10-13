@@ -1,4 +1,4 @@
-import { ScheduleTaskError } from "./task-error.js";
+import { scheduleErrors } from "./error.js";
 
 export function assertClockTime(hour: number, minute: number): void {
   assertClockField(hour, 0, 23, "小时");
@@ -17,7 +17,7 @@ export function nextDailyLocalDue(hour: number, minute: number, from = new Date(
 export function parseClockTime(value: unknown): { hour: number; minute: number } {
   const raw = typeof value === "string" ? value.trim() : "";
   const matched = /^([01]?\d|2[0-3]):([0-5]\d)$/u.exec(raw);
-  if (!matched) throw new ScheduleTaskError("schedule_task_invalid", "请填写每天的时间");
+  if (!matched) throw scheduleErrors.task_invalid("请填写每天的时间");
   return { hour: Number(matched[1]), minute: Number(matched[2]) };
 }
 
@@ -27,6 +27,6 @@ export function formatClockTime(hour: number, minute: number): string {
 
 function assertClockField(value: number, min: number, max: number, label: string): void {
   if (!Number.isInteger(value) || value < min || value > max) {
-    throw new ScheduleTaskError("schedule_task_invalid", `${label}无效`);
+    throw scheduleErrors.task_invalid(`${label}无效`);
   }
 }

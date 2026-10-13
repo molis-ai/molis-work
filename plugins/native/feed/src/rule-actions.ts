@@ -3,7 +3,7 @@ import { feedCaptureContent } from "./scenes.js";
 import { retainActionAuthority, ActionError, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ActionSceneUsage, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import type { FeedItemRecord, FeedOutRuleRecord } from "./projection.js";
-import { FeedStoreError } from "./application-errors.js";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { feedOutRuleMatches, type FeedOutRuleWrite } from "./out-rules.js";
 
 const text = { type: "string" };
@@ -64,7 +64,7 @@ export function createFeedRuleHandlers(feed: FeedApplication, projectId: string,
   };
   const checkSource = (sourceId?: string) => {
     if (sourceId?.trim() && !feed.snapshot(projectId).sources.some(source => source.source_id === sourceId.trim())) {
-      throw new FeedStoreError("feed_invalid_transition", "请选择当前项目的来源");
+      throw feedErrors.invalid_transition("请选择当前项目的来源");
     }
   };
   return [
@@ -93,7 +93,7 @@ export function createFeedRuleHandlers(feed: FeedApplication, projectId: string,
     bind(feedRuleActions.evaluate, (args, caller) => feed.evaluateItems(projectId, args.item_ids, retainActionAuthority(caller, { ...feedRuleActions.evaluate, provider_id: FEED_PLUGIN_ID }, caller.beforeEffect))),
     bind(feedRuleActions.preview, args => {
       const snapshot = feed.snapshot(projectId);
-      if (!snapshot.sources.some(source => source.source_id === args.source_id)) throw new FeedStoreError("feed_invalid_transition", "请选择当前项目的来源");
+      if (!snapshot.sources.some(source => source.source_id === args.source_id)) throw feedErrors.invalid_transition("请选择当前项目的来源");
       const rule: FeedOutRuleRecord = { project_id: projectId, rule_id: "preview", name: "preview", enabled: true,
         match: { source_id: args.source_id, contains: args.contains?.trim() ?? "" }, judgment: null, revision: "preview", admission: "suggest", created_at: "", updated_at: "" };
       return { samples: snapshot.feed_items.filter(item => item.source_id === args.source_id)

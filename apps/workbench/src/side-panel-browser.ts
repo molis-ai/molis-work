@@ -97,6 +97,7 @@ export const SIDE_BROWSER_STYLES = String.raw`
 `;
 
 /** Runs once per workbench document; connects the first time the browser tab shows. */
+// Shipped without its full-line comments (they stay in this source).
 export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   if(document.body.hasAttribute('data-pane-embedded'))return;
   const root=document.querySelector('[data-browser]'),projectId=document.body.dataset.projectId;
@@ -119,7 +120,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     clearTimeout(retryTimer);
     socket=new WebSocket((location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+'/browser');
     socket.binaryType='arraybuffer';
-    socket.addEventListener('open',()=>{socket.send(JSON.stringify({type:'auth',token:document.querySelector('meta[name="molis-work-control-token"]')?.content||''}));});
+    socket.addEventListener('open',()=>{socket.send(JSON.stringify({type:'auth',token:molisWorkRequest.token()}));});
     socket.addEventListener('message',event=>{
       if(event.data instanceof ArrayBuffer){pending=event.data;if(!drawing)draw();return;}
       let message;try{message=JSON.parse(event.data);}catch{return;}
@@ -220,9 +221,8 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     clearTimeout(reviewTimer);reviewTimer=null;
     let rows=[];
     try{
-      const response=await fetch(routePrefix+'/api/agent/reviews?status=pending',{headers:{accept:'application/json'}});
-      const result=await response.json();
-      rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(!row.receipt||row.receipt.status==='pending'));
+      const result=await molisWorkRequest(routePrefix+'/api/agent/reviews?status=pending');
+      rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(row.request.document.fields||[]).some(f=>f.label==='网站')&&(!row.receipt||row.receipt.status==='pending'));
     }catch{}
     renderApproval(rows[0]||null);
     if(rows.length||state?.control?.mode==='assistant'||state?.control?.mode==='taken-over')reviewTimer=setTimeout(pollReviews,1500);
@@ -246,14 +246,12 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   };
   const decide=async(decision)=>{
     const id=reviewing;if(!id)return;
-    const response=await fetch(routePrefix+'/api/agent/reviews/decide',{method:'POST',headers:{...molisWorkControlHeaders(),'content-type':'application/json'},body:JSON.stringify({review_id:id,decision})});
-    const result=await response.json().catch(()=>({}));
-    if(!response.ok)say(result.error||L('确认没有提交'),true);
+    try{await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body:{review_id:id,decision},fallback:L('确认没有提交')});}catch(error){say(molisWorkRequest.text(error),true);}
     approval.hidden=true;reviewing=null;void pollReviews();
   };
   const sitesUrl='/api/browser/sites';
   const renderSites=async()=>{
-    let rows=[],enabled=true;try{rows=(await (await fetch(sitesUrl,{headers:{accept:'application/json'}})).json()).sites||[];enabled=(await (await fetch('/api/browser/assistant',{headers:{accept:'application/json'}})).json()).enabled!==false;}catch{}
+    let rows=[],enabled=true;try{rows=(await molisWorkRequest(sitesUrl)).sites||[];enabled=(await molisWorkRequest('/api/browser/assistant')).enabled!==false;}catch{}
     const here=state?.origin||'',mine=rows.find(row=>row.scope===here);
     const label=(row)=>row.decision==='allow'?L('不用问就可以操作'):L('禁止查看和操作');
     sitesBox.innerHTML='<h2>'+esc(L('助理在网站上的权限'))+'</h2>'+(here?'<p>'+esc(here)+' · '+esc(mine?label(mine):L('每次操作前都会问你'))+'</p><div class="side-browser-actions-row">'+(mine?.decision!=='allow'?button('site-allow',L('不用问就可以操作')):'')+(mine?.decision!=='block'?button('site-block',L('禁止助理使用这个网站')):'')+(mine?button('site-forget',L('恢复为每次都问'),'ghost'):'')+'</div>':'<p>'+esc(L('打开一个网站后可以在这里设置。'))+'</p>')
@@ -261,17 +259,9 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
       +'<p class="side-browser-cover-copy">'+esc(L('上传文件永远要先问你。'))+'</p>'
       +'<label class="side-browser-toggle"><input type="checkbox" data-browser-assistant'+(enabled?' checked':'')+'> '+esc(L('允许助理使用侧栏浏览器'))+'</label>';
   };
-  const setSite=async(scope,decision)=>{
-    const response=await fetch(sitesUrl,{method:'POST',headers:{...molisWorkControlHeaders(),'content-type':'application/json'},body:JSON.stringify({scope,decision})});
-    const result=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(result.error||L('没有保存'));
-  };
-  const post=async(path,body)=>{
-    const response=await fetch('/projects/'+encodeURIComponent(projectId)+'/api/browser/'+path,{method:'POST',headers:{...molisWorkControlHeaders(),'content-type':'application/json'},body:JSON.stringify(body||{})});
-    const result=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(result.error||L('操作没有完成'));
-    return result;
-  };
+  const setSite=(scope,decision)=>molisWorkRequest(sitesUrl,{body:{scope,decision},fallback:L('没有保存')});
+  const post=(path,body)=>molisWorkRequest('/projects/'+encodeURIComponent(projectId)+'/api/browser/'+path,{body:body||{},fallback:L('操作没有完成')});
+  const fail=(error)=>say(molisWorkRequest.text(error),true);
   root.addEventListener('submit',event=>{event.preventDefault();sendRaw({type:'navigate',input:address.value});address.blur();focusPage();});
   address.addEventListener('focus',()=>address.select());
   address.addEventListener('keydown',event=>{if(event.key==='Escape'&&state){address.value=state.url||'';event.stopPropagation();event.preventDefault();focusPage();}});
@@ -300,21 +290,20 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
         window.dispatchEvent(new CustomEvent('molis:assistant-message',{detail:{message_id:crypto.randomUUID(),purpose:'suggest',source:{surface:'browser',title:L('侧栏浏览器')},
           text:'',materials:[{title,text:text.slice(0,20000)}]}}));
         say(L('已把这一页交给助理，在底栏上方确认后放进输入框。'));
-      }catch(error){say(error.message||L('没有取到页面内容'),true);}
+      }catch(error){fail(error);}
       return;
     }
     if(action==='takeover'||action==='handback'){sendRaw({type:action});document.dispatchEvent(new CustomEvent('molis:side-browser-control',{detail:{action,project_id:projectId,session_id:state?.control?.work_id||null}}));if(action==='handback')say(L('已交还给助理。助理会先重新查看页面再继续。'));return;}
     if(action==='approve-once'){await decide('approve');return;}
     if(action==='reject'){await decide('reject');return;}
-    if(action==='approve-site'){try{await setSite(approval.dataset.site,'allow');}catch(error){say(error.message,true);}await decide('approve');return;}
+    if(action==='approve-site'){try{await setSite(approval.dataset.site,'allow');}catch(error){fail(error);}await decide('approve');return;}
     if(action==='sites'){const open=sitesBox.hidden;sitesBox.hidden=!open;target.setAttribute('aria-expanded',String(open));if(open)await renderSites();return;}
-    if(action==='site-allow'||action==='site-block'||action==='site-forget'){try{await setSite(target.dataset.scope||state?.origin||'',action.slice(5));await renderSites();}catch(error){say(error.message,true);}return;}
+    if(action==='site-allow'||action==='site-block'||action==='site-forget'){try{await setSite(target.dataset.scope||state?.origin||'',action.slice(5));await renderSites();}catch(error){fail(error);}return;}
   });
   sitesBox.addEventListener('change',async event=>{
     if(event.target?.nodeType!==1||!event.target.matches('input[data-browser-assistant]'))return;
     const enabled=event.target.checked;
-    const response=await fetch('/api/browser/assistant',{method:'POST',headers:{...molisWorkControlHeaders(),'content-type':'application/json'},body:JSON.stringify({enabled})}).catch(()=>null);
-    if(!response?.ok){event.target.checked=!enabled;say(L('没有保存'),true);return;}
+    try{await molisWorkRequest('/api/browser/assistant',{body:{enabled}});}catch{event.target.checked=!enabled;say(L('没有保存'),true);return;}
     say(enabled?L('助理可以使用侧栏浏览器了（每次操作前仍会问你）。'):L('助理不再使用侧栏浏览器。'));
   });
   fileInput.addEventListener('change',async()=>{
@@ -323,7 +312,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
       const encoded=await Promise.all(files.map(file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve({name:file.name,data:String(reader.result).split(',')[1]||''});reader.onerror=()=>reject(reader.error);reader.readAsDataURL(file);})));
       await post('upload',{chooser_id:fileInput.dataset.chooser,files:encoded});
       say(L('已把 {count} 个文件交给网页',{count:files.length}));
-    }catch(error){say(error.message||L('文件没有交给网页'),true);}
+    }catch(error){fail(error);}
     focusPage();
   });
   // Pointer and wheel, in the page's CSS pixels.
@@ -382,4 +371,4 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(now&&event.detail?.target?.url){if(ready)sendRaw({type:'navigate',input:event.detail.target.url});else queuedAddress=event.detail.target.url;}
     syncVisible();
   });
-})();`;
+})();`.replace(/^[ \t]*\/\/.*\n/gm, "");

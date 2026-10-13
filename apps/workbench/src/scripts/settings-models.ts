@@ -21,22 +21,13 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
       root.addEventListener('input', () => { dirty = true; status(L('有未保存的修改')); });
       root.addEventListener('change', () => { dirty = true; });
       const refresh = async (query = '') => {
-        const response = await fetch('/settings/models' + query);
-        if (!response.ok) throw new Error(L('无法读取模型设置'));
-        const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+        const doc = new DOMParser().parseFromString(await molisWorkRequest('/settings/models' + query, { as: 'text', fallback: L('无法读取模型设置') }), 'text/html');
         const replacement = doc.querySelector('[data-model-settings]');
         if (!replacement) throw new Error(L('模型设置页面不完整'));
         root.replaceChildren(...replacement.childNodes);
         dirty = false;
       };
-      const mutate = async (path, method, body) => {
-        const response = await fetch('/api/settings/models/' + path, {
-          method, headers: molisWorkControlHeaders(), ...(body ? { body: JSON.stringify(body) } : {}),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || L('模型设置操作失败'));
-        return result;
-      };
+      const mutate = (path, body, method = 'POST') => molisWorkRequest('/api/settings/models/' + path, { method, body, fallback: L('模型设置操作失败') });
       root.addEventListener('click', async (event) => {
         const button = event.target.closest('button');
         if (!button || !root.contains(button) || busy) return;
@@ -66,7 +57,7 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
             begin(); status(L('正在保存，并检查连接…'));
             const keyField = root.querySelector('[data-model-key-field]');
             const apiKey = keyField && !keyField.hidden ? root.querySelector('[data-model-api-key]')?.value.trim() : '';
-            const saved = await mutate(encodeURIComponent(provider), 'POST', {
+            const saved = await mutate(encodeURIComponent(provider), {
               check_connection: true,
               display_name: root.querySelector('[data-model-name]').value,
               base_url: root.querySelector('[data-model-base-url]').value,
@@ -76,7 +67,7 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
               thinking: root.querySelector('[data-model-thinking]')?.value || 'off',
               models: [...root.querySelectorAll('[data-model-rows] [data-model-row]')].map((row) => ({
                 ...JSON.parse(row.dataset.modelRecord || '{}'), model_id: row.querySelector('[data-model-id]').value.trim(),
-                enabled: row.querySelector('[data-model-enabled]').checked,
+                enabled: row.querySelector('[data-model-enabled]').checked, reasoning_effort: Boolean(row.querySelector('[data-model-effort]')?.checked),
               })),
               connection_id: root.querySelector('[data-model-connection]')?.value || '',
               ...(apiKey ? { api_key: apiKey } : {}),
@@ -87,13 +78,13 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
           } else if (button.matches('[data-model-test]')) {
             if (dirty) { status(L('请先保存配置，再测试这个模型。')); return; }
             begin(); status(L('正在等待模型响应…'));
-            const result = await mutate(encodeURIComponent(provider) + '/test', 'POST', {
+            const result = await mutate(encodeURIComponent(provider) + '/test', {
               model_id: button.closest('[data-model-row]').querySelector('[data-model-id]').value,
             });
             status(result.model_id + '：' + L(result.message));
           } else if (button.matches('[data-model-delete]')) {
             begin();
-            await mutate(encodeURIComponent(provider), 'DELETE'); await refresh(); status(L('供应商及其密钥已移除'));
+            await mutate(encodeURIComponent(provider), undefined, 'DELETE'); await refresh(); status(L('供应商及其密钥已移除'));
           } else if (button.matches('[data-model-provider], [data-model-add-provider], [data-model-template], [data-model-refresh], [data-model-discard]')) {
             if (dirty && !button.matches('[data-model-discard]')) {
               status(L('请先保存修改，或使用「撤销未保存修改」后切换。')); return;
@@ -106,7 +97,7 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
             if (button.dataset.modelTemplate) root.querySelector('[data-model-api-key]')?.focus();
           }
         } catch (error) {
-          status(error instanceof TypeError ? L('无法连接本地服务，输入已保留，请重试。') : error.message || L('操作失败，输入已保留'), true);
+          status(molisWorkRequest.text(error, L('操作失败，输入已保留')), true);
         } finally { busy = false; root.removeAttribute('aria-busy'); locked.forEach((control) => { if (control.isConnected) control.disabled = false; }); }
       });
       const syncKeyField = () => {

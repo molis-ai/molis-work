@@ -2,6 +2,7 @@ import type { ModelSettingsModel } from "./settings-models.js";
 import type { ConnectorAuthKind, ConnectorConnectionView, ConnectorDirectoryAvailability, ConnectorDirectoryGroupId, ConnectorMethodOption, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { RuntimeIntegrationDetection, MolisWorkWebServiceDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { WebProjectNavigation, WebSettingsSection } from "./settings-navigation.js";
+import type { CallRowView } from "./call-row.js";
 export interface WebSettingsProject extends WebProjectNavigation {
   database_path: string;
   source: "created";
@@ -39,6 +40,10 @@ export interface MolisWorkSettingsView {
   projects: WebSettingsProject[];
   web_service: MolisWorkWebServiceDetection;
   diagnostics: WebInstallationDiagnostics;
+  /** 设置 › 诊断: what was typed into the lookup by 诊断编号, the fewest characters it takes, and the rows it found (none when the text is too short to look for). */
+  call_query?: { text: string; min_length: number; matches?: readonly CallRowView[] };
+  /** 设置 › 诊断: with no id asked for, the newest calls of any project that failed or were turned away. */
+  recent_calls?: readonly CallRowView[];
 }
 
 export interface ConnectorSettingsCardView {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -23,8 +23,8 @@ function reply(tool?: { name: string; input: unknown }): string {
   return events.join("");
 }
 
-/** The model replies are scripted; HTTP, Prologue, confirmation, Action Host and SQLite are real. */
-test("ISSUE-07 assistant discovers Home Issue and confirms exact writes; refusal and stale versions do not write", { timeout: 120_000 }, async t => {
+/** A Home with the real Assistant, Prologue, action directory and SQLite; only the model's replies are scripted. */
+async function assistantHome(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "issue-assistant-"));
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
@@ -65,12 +65,22 @@ test("ISSUE-07 assistant discovers Home Issue and confirms exact writes; refusal
     }
     throw new Error(`Assistant state not reached: ${JSON.stringify(last)}`);
   };
-  const send = async (text: string) => request<AssistantSendResult>("/api/assistant/send", { text, request_id: randomUUID(),
-    context: { source: { surface: "issues", title: "Issue 页面" }, captured_at: new Date().toISOString() } });
+  const send = async (text: string, extra: Record<string, unknown> = {}) => request<AssistantSendResult>("/api/assistant/send", { text, request_id: randomUUID(),
+    context: { source: { surface: "issues", title: "Issue 页面" }, captured_at: new Date().toISOString() }, ...extra });
+  t.after(async () => {
+    server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await host.close();
+    model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); await rm(home, { recursive: true, force: true });
+  });
+  return { replies, requests, request, list, state, send };
+}
+
+/** The model replies are scripted; HTTP, Prologue, confirmation, Action Host and SQLite are real. */
+test("ISSUE-07 assistant discovers Home Issue and confirms exact writes; refusal and stale versions do not write", { timeout: 120_000 }, async t => {
+  const { replies, requests, request, list, state, send } = await assistantHome(t);
   const change = (capability_id: string, input: unknown) => reply({ name: "change-capability", input: { capability_id, version: capability_id === "issues.delete" ? 1 : 2, provider_id: ISSUES_PLUGIN_ID, input } });
   const input = { title: "按确认标题记录", type: "experience", description: "  我的原话\n第二行。\n" };
   const decide = (id: string, view: AssistantWorkView, decision: "approve" | "reject") => request(`/api/assistant/works/${id}/reviews/${view.reviews[0]!.review_id}`, { decision });
-  try {
+  {
     replies.push(reply({ name: "find-capabilities", input: { query: "Issue" } }), change("issues.create", input), reply());
     const sent = await send("录入体验问题，标题是按确认标题记录，原文保持不变。");
     assert.equal(sent.outcome, "started"); assert.equal(sent.work.scope.kind, "personal");
@@ -119,8 +129,33 @@ test("ISSUE-07 assistant discovers Home Issue and confirms exact writes; refusal
     await decide(deletion.work.work_id, deleteReview, "approve");
     await state(deletion.work.work_id, view => view.work.state === "completed");
     assert.equal((await list()).items.length, 0, "confirmed assistant deletion removes the persisted record");
-  } finally {
-    server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await host.close();
-    model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); await rm(home, { recursive: true, force: true });
   }
+});
+
+test("ISSUE-36 ISSUE-38 asked to record, the Assistant saves a page draft or a spoken issue directly, and its undo takes the new record back", { timeout: 120_000 }, async t => {
+  const { replies, requests, request, list, state, send } = await assistantHome(t);
+  const draft_id = randomUUID(), page = { url: "/projects/p-1/", title: "Goals · Molis" };
+  await request(`/api/plugins/${ISSUES_PLUGIN_ID}/prepare`, { draft_id, description: "  点保存没反应\n", page });
+  const direct = (capability_id: string, version: number, input: unknown) => reply({ name: "change-reversible", input: { capability_id, version, provider_id: ISSUES_PLUGIN_ID, input } });
+  replies.push(direct("issues.capture", 1, { draft_id, title: "Goals 里点保存没有反应", type: "bug" }), reply());
+  const sent = await send(`记录 Issue：点保存没反应\n录入草稿 ${draft_id}。请按 Issue 方法处理。`, {
+    materials: [{ material_id: "issue-method", kind: "method", title: "Issue", explicit: true, method: { method_id: `${ISSUES_PLUGIN_ID}/issues-capture` } }] });
+  const done = await state(sent.work.work_id, view => view.work.state === "completed");
+  assert.equal(done.reviews.length, 0, "no confirmation: the save says how it is undone"); assert.equal(done.cards.length, 0);
+  const saved = (await list()).items[0]!;
+  assert.deepEqual([saved.id, saved.title, saved.entered_via, saved.description], [draft_id, "Goals 里点保存没有反应", "assistant", "  点保存没反应\n"]);
+  assert.deepEqual(saved.context.page, { ...page, provenance: "client_reported" }, "the page the person reported, not the Assistant's");
+  // The method the model reads: one direct save, no discovery round, and the title rules.
+  const method = JSON.stringify(requests[0]);
+  for (const rule of ["直接用 change-reversible", "不要 find-capabilities", "记录时所在页面", "依据不足"]) assert.ok(method.includes(rule), rule);
+  const undoable = (done as AssistantWorkView & { undoable?: Array<{ undo_id: string; state: string; capability_id?: string }> }).undoable ?? [];
+  assert.equal(undoable.length, 1); assert.equal(undoable[0]!.capability_id, "issues.discard");
+  await request(`/api/assistant/works/${sent.work.work_id}/undo/${undoable[0]!.undo_id}`, {});
+  assert.equal((await list()).items.length, 0, "the work's undo takes the new record back");
+  // Spoken in the resident composer, an issue is recorded the same way, with the person's words kept.
+  replies.push(direct("issues.create", 2, { title: "切换项目后草稿丢失", type: "bug", description: "记个 issue：切换项目后草稿丢失" }), reply());
+  const spoken = await send("记个 issue：切换项目后草稿丢失");
+  await state(spoken.work.work_id, view => view.work.state === "completed");
+  const recorded = (await list()).items[0]!;
+  assert.deepEqual([recorded.title, recorded.entered_via, recorded.context.page?.title], ["切换项目后草稿丢失", "assistant", "Issue 页面"]);
 });

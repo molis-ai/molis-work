@@ -1,13 +1,12 @@
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash, randomUUID } from "node:crypto";
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import type {
   ArtifactJsonValue,
   ArtifactVersionRecord,
   ArtifactVersionResult,
   RegisterArtifactVersionInput,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { FeedStoreError } from "./application-errors.js";
 import type { FeedItemRecord, FeedOutRuleMatch, FeedOutRuleRecord } from "./projection.js";
 
 import { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
@@ -81,7 +80,7 @@ export class FeedOutRuleStore {
     const row = this.db.prepare(
       "SELECT * FROM feed_out_rules WHERE project_id = ? AND rule_id = ?",
     ).get(projectId, ruleId) as Row | undefined;
-    if (!row) throw new FeedStoreError("feed_out_rule_not_found", "找不到这条捕捉规则");
+    if (!row) throw feedErrors.out_rule_not_found("找不到这条捕捉规则");
     return mapOutRule(row);
   }
 
@@ -159,7 +158,7 @@ export class FeedOutRuleStore {
       expectedRevision ?? null,
       expectedRevision ?? null,
     );
-    if (!result.changes) throw new FeedStoreError("feed_revision_conflict", "规则已变化，请刷新后再保存");
+    if (!result.changes) throw feedErrors.revision_conflict("规则已变化，请刷新后再保存");
     return next;
   }
 
@@ -279,13 +278,13 @@ export function parseFeedOutRulePatch(body: Readonly<Record<string, unknown>>): 
 function normalizeAdmission(value: unknown): "suggest" | "inbox" {
   if (value === undefined || value === "suggest") return "suggest";
   if (value === "inbox") return "inbox";
-  throw new FeedDomainError("请选择仅建议或自动加入 Inbox", "feed_out_rule_invalid");
+  throw feedErrors.out_rule_invalid("请选择仅建议或自动加入 Inbox");
 }
 
 function normalizeName(value: string): string {
   const name = value.trim();
   if (name.length < 1 || name.length > 80) {
-    throw new FeedDomainError("规则名称需要 1–80 个字", "feed_out_rule_invalid");
+    throw feedErrors.out_rule_invalid("规则名称需要 1–80 个字");
   }
   return name;
 }
@@ -295,10 +294,10 @@ function normalizeMatch(match: FeedOutRuleMatch): FeedOutRuleMatch {
   const sourceId = match.source_id?.trim() ?? "";
   const sourceKind = match.source_kind?.trim() ?? "";
   if (!contains && !sourceId && !sourceKind) {
-    throw new FeedDomainError("请填写包含关键字，或选择来源过滤", "feed_out_rule_invalid");
+    throw feedErrors.out_rule_invalid("请填写包含关键字，或选择来源过滤");
   }
   if (contains.length > 200) {
-    throw new FeedDomainError("包含关键字不能超过 200 个字", "feed_out_rule_invalid");
+    throw feedErrors.out_rule_invalid("包含关键字不能超过 200 个字");
   }
   return {
     ...(contains ? { contains } : {}),

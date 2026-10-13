@@ -39,12 +39,8 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
   let focusRole = new URLSearchParams(address.search || "").get("role");
   const focusedRole = () => focusRole ? roles.find((role) => role.key === focusRole) : undefined;
   const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
-  const api = async (path, method, payload) => {
-    const response = await fetch("/api/agent-definitions" + path, method === "POST" ? { method, headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload || {}) } : undefined);
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
-    return data;
-  };
+  const api = (path, payload) => molisWorkRequest("/api/agent-definitions" + path, { body: payload });
+  const problem = (failure) => { const note = el("p", "settings-form-error"); molisWorkRequest.show(note, failure); return note; };
   const toast = (text) => { const node = document.querySelector("[data-settings-toast]") || document.querySelector(".toast"); if (!node) return; node.textContent = text; node.classList.add("is-visible"); setTimeout(() => node.classList.remove("is-visible"), 2400); };
   const KIND = { agent: "角色组成", instruction: "模型调用指令" };
   const LAYER = { base: "产品约束", role: "角色", project: "项目", task: "任务" };
@@ -79,14 +75,14 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     const run = async (button, work) => {
       button.disabled = true; error.hidden = true;
       try { const result = await work(); const index = prompts.findIndex((row) => row.key === result.prompt.key); if (index >= 0) prompts[index] = result.prompt; open = result.prompt.key; paint(); toast(L("已保存，下一轮开始生效")); }
-      catch (failure) { error.textContent = failure.message; error.hidden = false; }
+      catch (failure) { molisWorkRequest.show(error, failure); error.hidden = false; }
       finally { button.disabled = false; }
     };
     save.addEventListener("click", () => {
       if (!area.value.trim()) { error.textContent = L("Prompt 不能为空；要回到原来的文字请用“恢复默认”"); error.hidden = false; return; }
-      run(save, () => api("/prompt?key=" + encodeURIComponent(prompt.key), "POST", { body: area.value, expected_revision: prompt.user ? prompt.user.revision : null }));
+      run(save, () => api("/prompt?key=" + encodeURIComponent(prompt.key), { body: area.value, expected_revision: prompt.user ? prompt.user.revision : null }));
     });
-    reset.addEventListener("click", () => run(reset, () => api("/prompt/reset?key=" + encodeURIComponent(prompt.key), "POST", { expected_revision: prompt.user ? prompt.user.revision : null })));
+    reset.addEventListener("click", () => run(reset, () => api("/prompt/reset?key=" + encodeURIComponent(prompt.key), { expected_revision: prompt.user ? prompt.user.revision : null })));
     cancel.addEventListener("click", () => { open = null; paint(); });
     actions.append(save, cancel, reset, count);
     box.append(area, actions, error);
@@ -112,7 +108,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
         data.history.forEach((row) => list.append(el("li", "", "#" + row.revision + " · " + (row.action === "reset" ? L("恢复默认") : L("保存")) + " · " + new Date(row.at).toLocaleString())));
         if (data.uses.length) list.append(el("li", "settings-muted", L("最近一次使用") + "：" + new Date(data.uses[0].at).toLocaleString() + " · " + (data.uses[0].user_revision ? L("你的版本") + " #" + data.uses[0].user_revision : L("默认"))));
         history.append(list);
-      } catch (failure) { history.append(el("p", "settings-form-error", failure.message)); }
+      } catch (failure) { history.append(problem(failure)); }
     });
     box.append(history);
     return box;
@@ -209,7 +205,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
         data.unregistered.forEach((call) => { const item = el("li", "prompt-diagnostics-owner"); item.append(el("strong", "", L(call.title)), el("span", "settings-muted", L(call.reason))); rest.append(item); });
         diagnosticsBody.append(rest);
       }
-    } catch (failure) { delete diagnostics.dataset.loaded; diagnosticsBody.replaceChildren(el("p", "settings-form-error", failure.message)); }
+    } catch (failure) { delete diagnostics.dataset.loaded; diagnosticsBody.replaceChildren(problem(failure)); }
   };
   diagnostics.addEventListener("toggle", () => { if (diagnostics.open) loadDiagnostics(); });
   if (address.hash === "#diagnostics") { diagnostics.open = true; loadDiagnostics(); requestAnimationFrame(() => diagnostics.scrollIntoView({ block: "start" })); }
@@ -226,7 +222,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     if (role) open = prompts.find((prompt) => role.prompt_keys.includes(prompt.key) && prompt.layer === "role")?.key ?? role.prompt_keys[0] ?? null;
     paint();
   })
-    .catch((failure) => { body.replaceChildren(el("p", "settings-form-error", failure.message)); });
+    .catch((failure) => { body.replaceChildren(problem(failure)); });
 };
 globalThis.molisWorkBindPromptSettings(document);
 `;

@@ -20,10 +20,7 @@ export * from "./operation-management.js";
 
 export * from "./ui.js";
 export * from "./routes.js";
-export {
-  createScheduleRouteHandlers,
-  scheduleRouteErrorResponse,
-} from "./route-handlers.js";
+export { createScheduleRouteHandlers } from "./route-handlers.js";
 export type { ScheduleRouteHandlerPorts } from "./route-handlers.js";
 export { createScheduleActionPorts } from "./service.js";
 export {
@@ -50,7 +47,7 @@ export {
   parseClockTime,
   formatClockTime,
 } from "./calendar.js";
-export { ScheduleTaskError } from "./task-error.js";
+export { scheduleErrors } from "./error.js";
 export {
   parseScheduledAgentReply,
   composeScheduledTaskPrompt,

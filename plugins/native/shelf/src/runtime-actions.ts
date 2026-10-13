@@ -1,7 +1,9 @@
-import { bindOwnerPluginAction, ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionAudience } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionAudience } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import type { ArtifactReference, FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { parseShelfTextMaterial, type ShelfArtifactPreview, type ShelfItemRecord, type ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
 
 const text = { type: "string" };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -40,22 +42,29 @@ export interface ShelfResultPorts {
   receive(preview: ShelfArtifactPreview): { item: ShelfItemRecord; snapshot: ShelfSnapshot };
 }
 
+/** What the artifact and output services refuse (a version that is not there, a stale expected output) and what a payload that is not a Shelf
+ * material fails with is the caller's mistake (400), not a failure of ours. */
+const refused = <T>(run: () => T): T => {
+  try { return run(); }
+  catch (error) { throw error instanceof ActionError ? error : shelfErrors.invalid(error instanceof Error ? error.message : "Shelf 请求无效"); }
+};
+
 /** Owner-bound: the results land in, and the output points at, the local user's personal Shelf. */
 export function shelfRuntimeActionHandlers(context: PluginStartContext, results?: ShelfResultPorts): ActionHandlerBinding[] {
   const services = context.services;
   const read = (ref: ArtifactReference) => {
-    if (!results) throw new ActionError("shelf.unavailable", "项目成果接收尚未装配");
-    const record = services?.artifacts?.read(ref);
-    if (!record || record.lifecycle_state !== "active" || record.availability !== "available") throw new ActionError("shelf.unavailable", "原成果已归档、不可用或不存在");
+    if (!results) throw shelfErrors.unavailable("项目成果接收尚未装配");
+    const record = refused(() => services?.artifacts?.read(ref));
+    if (!record || record.lifecycle_state !== "active" || record.availability !== "available") throw shelfErrors.unavailable("原成果已归档、不可用或不存在");
     return results.preview(record);
   };
   const outputs = () => {
-    if (!services?.outputs) throw new ActionError("shelf.unavailable", "项目材料输出尚未连接");
+    if (!services?.outputs) throw shelfErrors.unavailable("项目材料输出尚未连接");
     return services.outputs;
   };
   return [
     bindOwnerPluginAction(context, shelfRuntimeActions.results, () => {
-      if (!results) throw new ActionError("shelf.unavailable", "项目成果接收尚未装配");
+      if (!results) throw shelfErrors.unavailable("项目成果接收尚未装配");
       const connected = ["coding-report", "coding-changeset"].flatMap(port => { const ref = services?.inputs?.reference(port); return ref ? [ref] : []; });
       const seen = new Set<string>();
       return { results: [...connected, ...results.references()].flatMap(ref => {
@@ -68,16 +77,17 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, results?
     // Commands are rechecked by the owner binding before they run; the reads and writes below do not yield.
     bindOwnerPluginAction(context, shelfRuntimeActions.receive, input => {
       const value = read(input.reference);
-      if (input.expected_fingerprint !== value.fingerprint) throw new ActionError("shelf.conflict", "成果与已查看的版本不一致，请重新预览后接收");
+      if (input.expected_fingerprint !== value.fingerprint) throw shelfErrors.conflict("成果与已查看的版本不一致，请重新预览后接收");
       return results!.receive(value);
     }),
     bindOwnerPluginAction(context, shelfRuntimeActions.output, () => ({ reference: outputs().reference("material") })),
     bindOwnerPluginAction(context, shelfRuntimeActions.selectOutput, input => {
-      if (!services?.artifacts) throw new ActionError("shelf.unavailable", "项目成果服务尚未连接");
-      const record = services.artifacts.read(input.reference);
-      const material = parseShelfTextMaterial(record?.payload);
-      if (input.reference.artifact_id !== "shelf-material:" + context.project_id + ":" + material.source.item_id) throw new ActionError("shelf.invalid", "Shelf 材料身份不一致");
-      return { reference: outputs().select({ port: "material", reference: input.reference, expected_reference: input.expected_reference }) };
+      if (!services?.artifacts) throw shelfErrors.unavailable("项目成果服务尚未连接");
+      const artifacts = services.artifacts;
+      const record = refused(() => artifacts.read(input.reference));
+      const material = refused(() => parseShelfTextMaterial(record?.payload));
+      if (input.reference.artifact_id !== "shelf-material:" + context.project_id + ":" + material.source.item_id) throw shelfErrors.invalid("Shelf 材料身份不一致");
+      return { reference: refused(() => outputs().select({ port: "material", reference: input.reference, expected_reference: input.expected_reference })) };
     }),
   ];
 }

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { createGitSkillFetcher, DEFAULT_INSTALL_LIMITS, installSkill, MAX_SKILL_BODY_CHARS, type FetchedPackage, type Runtime } from "@prologue/sdk";
+import { createGitSkillFetcher, DEFAULT_INSTALL_LIMITS, fillSkillBody, installSkill, MAX_SKILL_BODY_CHARS, prepareSkillIntent, type FetchedPackage, type Runtime, type Skill } from "@prologue/sdk";
 import type { AgentSkillCandidate, AgentSkillCatalogEntry, AgentSkillLibrary, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 const KIND = "molis-coding-method";
 interface MethodMeta extends AgentSkillOwner {
@@ -119,4 +120,22 @@ export function createPrologueSkillLibrary(runtime: Runtime): AgentSkillLibrary 
       return entry(captured.meta);
     },
   };
+}
+
+/**
+ * The methods the person chose for this round, registered once per exact version and filled in as instructions. Long
+ * instructions travel as a resource reference, not inline in the profile; a version whose body changed is refused.
+ */
+export function inlineMethods(runtime: Runtime, registered: Map<string, Skill>, definitions: readonly AgentSkillDefinition[],
+  characterTools: readonly string[], toolName: (name: string) => string): string[] {
+  return definitions.map(definition => {
+    const key = `${definition.skill_id}@${definition.version}`;
+    const manifest = { id: definition.skill_id, version: definition.version, label: definition.name,
+      shape: "bounded" as const, tools: definition.tools.map(toolName), body: definition.body, humanInvocable: true };
+    let skill = registered.get(key);
+    if (skill && (skill.manifest.body !== manifest.body || skill.manifest.label !== manifest.label || JSON.stringify(skill.manifest.tools) !== JSON.stringify(manifest.tools))) throw new Error("方法同版本正文发生变化，请发布新版本");
+    if (!skill) { skill = runtime.skills.register(manifest); registered.set(key, skill); }
+    prepareSkillIntent({ registry: runtime.skills, skillRef: skill.ref, parameters: {}, mode: "inline", parentTools: [...characterTools], hostTools: [...characterTools] });
+    return `用户为本轮选择的方法：${definition.name}（${key}）\n${fillSkillBody({ body: skill.manifest.body!, parameters: {} })}`;
+  });
 }

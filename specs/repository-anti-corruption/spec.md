@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，未达到整条防腐线的完成标准（2026-10-12 复查）。当前在第 3 波 B/C 的整合回归与分片收尾；首轮确认的精确授权、Dataset、Issue、Schedule、Goals 缺陷见 §12.3；全部 71 包深审正在继续，新增源码确认与修复验收见 §12.8，不以旧五项当作完整缺陷清单。I6 冻结稿 `af0fe957` 正在全量回归，不能记为通过；经用户追加授权，独立修复会话按不冲突范围并行准备，原 writer 处理共同权限，机器构建与浏览器仍排队（§12.6–12.8）。已合入的代码、在途候选和原始失败分别见 §10；第 1 波 W1-18 只完成包事实表，第 2 波 W2-18 只完成首轮证据与相关修复，均未整项完成。剩余包含 71 包职责复核的未审范围、逐插件异常与组合路径、前端第二轮、测试有效性与动作消费合同核查，以及第 3 波余项、第 4–6 波和维护八。工程通过、真实集成/产品实操与用户验收分别裁决；完整要求映射、必须收口项和任务书 §7 的逐条结论见 §12。
+状态：执行中，未达到整条防腐线的完成标准（2026-10-12 复查）。全部 71 包当前源码审查已完成，逐包职责、消费者、放置和验证边界见 §12.9；必要修复见 §12.3/§12.8，组合路径见 §12.7，均不因源码审完而关闭。I6 冻结稿 `af0fe957` 全量已结束，6,088 个用例中 4 个失败、9 个跳过，不能记为通过；独立修复按明确文件范围推进，共同 AUTH 与机器构建/浏览器队列仍由原会话统一管理（§12.11）。Dataset 文件导入的本地修复及缺陷复现/修后验证已核，尚待整合；其余准备稿不冒充已验收。第 1 波 W1-18 的源码裁决已补齐，整改未完；第 2 波 W2-18 的逐插件异常、组合路径、前端第二轮、测试有效性与动作消费仍在收口。第 3 波余项、第 4–6 波和维护八沿原路线推进。已合入代码、在途候选、原始失败、真实产品实操与用户验收分别记录，完整要求映射和任务书 §7 的逐条结论见 §12。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -903,12 +903,12 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 2026-10-12 复查：下列范围仍不能记为完成，具体 owner、接续切片与验收见 §12.1–§12.4。
 
-- 71 个包的逐包职责与代码放置裁决；现有事实表、边界门禁和重点调用链抽查只支持局部结论。
+- 71 个包的源码、职责与代码放置裁决已完成（§12.9）；必要整改及整改后的运行验证未完成，事实表的“已审”只表示源码审查。
 - 所有现行插件及官方接入的失败、取消、撤权、并发、重启恢复和组合使用。旧的 26 插件首轮表包含已删除的 Experiments、未含新增 Issue，不能直接当现行全集。
 - 前端第二轮：键盘、读屏、暗色、英文、多窗口、离线、加载/空/失败/部分成功/无权限，以及配置真实模型后的核心路径。已有局部浏览器用例和 31 张首轮截图可复用，但不代表全部覆盖。
 - 全部动作的实际生产消费入口、真实返回与声明输出、不同入口的拒绝/持久化/副作用一致性；动作快照只固定声明。
 - 测试与有效需求的系统对照，以及跳过项、过度 Mock、自证预期和只测内部方法的复核；迁移到公开 import 不等于测试有效性已确认。
-- 最终分支的完整工程检查与 CI、第一步全部跨功能场景、能力/UI 快照差异、真实模型和外部服务路径、用户验收。I5 原始三项失败保留；I6 尚在运行。
+- 最终分支的完整工程检查与 CI、第一步全部跨功能场景、能力/UI 快照差异、真实模型和外部服务路径、用户验收。I5 原始三项失败保留；I6 原始四项失败及跳过项见 §12.5。
 - Form Runtime 样板、声明式扩展探针、剩余旧装配、浏览器打包/类型检查、巨大单元、统一 Home 库登记与快照、最终手册/Skill 演练仍随第 4–6 波推进。
 - 维护八及新版本对真实 Home 的最终验证尚未完成；§4.1 维护六/七的已有结果不扩展成对所有后续候选的验证。
 
@@ -1626,7 +1626,7 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 | W2-18-TE | P1 测试有效性缺口：把 import 耦合下降、用例数和全绿当作需求覆盖 | 沿需求与生产路径审断言/Mock/fixture、期望的独立性、只断言不抛错、内部注入、skip/排除项；实际缺陷才补定向回归，关键疑点可变异。保留原失败分类与干净基线，不为覆盖率造矩阵、不改语义求绿。结果记回原需求/用例而不造独立进度系统 |
 | W2-18-AC | P1 契约与消费证据缺口：动作快照只有声明，不能发现无人消费或 handler 输出不符 | 从实际登记目录追到用户/工作流/Agent/MCP/插件消费者，核发现过滤、身份权限、输入输出与拒绝；“无仓内消费者”先查公开用途，不能直接删公共动作。对实际合同缺陷补真实 action/HTTP/MCP 路径测试；有意改形状按合同规则升版/更新快照。接 W3-09/W4-01 |
 | W6-04/06（本次） | P1 进度文档相互矛盾：§8 暂无、W1 全完、W3-02 未开始、历史现场混入现状 | 本次改回有基线、有证据层级的结论；本节逐条对任务书验收、补同口径数据。只代表文档整改，其他行须由对应验证结案 |
-| W2-18-FR/LC（Dataset） | P1 错目标覆盖，源码经统筹/只读复核交叉确认，运行复现未做：文件导入没有持有 busy/目标，await file.text() 后才读可变 selected.id/version；期间切到 B 会将 A 所选 CSV 带 B 的现行版本覆盖 B，版本检查不能拒错目标；迟到 fillEditor 还会覆盖已切换的界面 | 由 §12.6 的 Dataset 独立会话处理，验证服从同一机器队列。W2-18-DATASET-01：两张非空表，真实浏览器延迟文件读取，确认 A 导入后切 B 不得写 B/丢 A/B 原数据；请求绑定确认时的真实目标和版本。W2-18-DATASET-02：响应迟到时切表不得覆盖当前界面；文件读取失败后编辑及再次导入可恢复。保留原缺陷复现与生产 HTTP/SQLite 结果，当前只读代码证据（Dataset client.ts 579–582/630/649–662、store.ts 167–170），不能称已修复。 |
+| W2-18-FR/LC（Dataset） | P1 错目标覆盖，已由真实 Chrome/HTTP/SQLite 复现并在本地提交 `f29e7074e` 修复：旧代码在文件读取后才读可变 selected.id/version，将 A 所选 CSV 写到 B；迟到响应还会重开旧编辑器。现持有已有 busy、绑定 save 返回的目标/版本，并以 editorSeq 拒绝失效读取与回包 | W2-18-DATASET-01：两张非空表、真实文件读取屏障、指针尝试切 B，核 A 请求目标/已确认版本及 B 内容/版本不变。W2-18-DATASET-02：响应/移走时不重开旧对象，读取失败保留输入并可重选同文件，其他客户端修改导致 409 且不覆盖。六条新回归旧实现 2 通过/4 失败，修后新旧浏览器 21/21、相关 365/365；统筹已读实际 diff 与原始日志。局部验收通过，未整合；资源快照下调和最终整合检查仍待完成，详见 §12.5。 |
 | W2-18-LC/TE（Issue ISSUE-15/37） | P2 重复业务写，源码经统筹/只读复核交叉确认，运行未证：手动编辑 submit/Cmd-Enter 没有提交中锁，keep 每次 release 旧草稿再造新 UUID；双提交可各获 saved_id:null，并发新 id 绕过后端同 draft 幂等。丢回执时新 id 未存 pending，刷新/重试可能再次新建 | 由 §12.6 的 Issue 独立会话接续，浏览器验证排在 Dataset 之后。W2-18-ISSUE-01：真实浏览器阻塞 capture 响应后双提交只建一条真实 SQL 记录。W2-18-ISSUE-02：回执丢失后刷新、再次保存沿同一持久草稿/记录核对，保留原文与截图且无重复。按现行 ISSUE-15/37 修复，不改用户产品语义；路径为 plugins/native/issues（复数）的 client.ts 129–146、capture-client.ts 104–110 与 capture.ts 65–70。 |
 | W2-18-LC/AC、W4-09（Schedule/Feed 周期任务） | P2 无页面访问时不执行，统筹已核真实装配链，复现未跑：Web server 的 timer 仅遍历最初为空的 feedSchedulers，唯一 set 在项目 Web 请求；持久任务重启或纯 MCP/ActionGateway 创建均不登记，该服务活着也不会触发。旧“Web 未开不响”不能解释这一路缺线；手工 tick/只验创建列表的用例不能证明实际后台调度 | 随既有周期任务注册路线收口，不另建元系统。W2-18-SCHEDULE-01：隔离 Home 持久任务，关闭/重启真实 Host/服务，完全不访问项目页面，到期只写一次真实收据/业务结果；纯动作网关新建同样执行。W2-18-SCHEDULE-02：关闭/删除项目清理且无重复 timer/执行。核 web-server.ts 97/177/226–237、web-request.ts 262–278 及 schedule-actions/installed-plugin-host 的 runner 接线后先复现，再选择现有唯一调度机制；I6 冻结期间不占构建/浏览器，当前不宣称已修复。 |
 | W1-18 / W2-18-LC（Goals 恢复） | P2 恢复可持久化非法关系图，统筹/只读复核确认源码，运行待复现：`modules/goals/src/lifecycle-archive.ts` 220–237 只检查旧关系两端已恢复就直接激活。先有 C part_of A、A part_of B，trash A 后新增 B part_of C 当前合法；恢复 A 却把旧边接成环。正常 `goal-commands.ts` 109–112 经 Host `goal-project-application.ts` 121 注入校验；`planning/goal-graph.ts` 184–190 明确拒绝父子/依赖/组合环，恢复入口绕过同一不变量 | 原整线负责人在 Goals owner 内接续，不动其他模块的事实。W2-18-GOALS-01：用生产命令与真实库构造三 Goal 中途改图，恢复不得激活导致环的关系或损坏既有合法关系；对 part_of、depends_on 及组合规则使用同一现行图校验。W2-18-GOALS-02：核实际恢复/待恢复结果、事务失败不留半状态、重放与重启后图仍合法。现生命周期动作测试和 v1 双端恢复只验 extends，不能覆盖本例。先明确冲突关系保留待恢复还是整体拒绝的现行合同，再做最小修复，不另建图框架。 |
@@ -1666,7 +1666,7 @@ Images 后台 job 未携带原 MCP 调用的持续授权，但 Prologue 手册�
 | RAC-15 [人工] 防兼容回流 CI、AGENTS/文档更新 | 通过（已实施清理范围） | merge-base 只降、schema/旧名/vendor/文档规则存在；后续实现改动仍须同步文档，不等于 RAC-12 全仓结论已证 |
 | RAC-16 [人工] 报告、附录 A、第一步每项有结论与证据 | 未通过完成态 | §12.2 已逐项裁决，仍多项在途/未验证；不能因有一个行号或 PR 链接就记已解决 |
 | RAC-17 [人工] 安全不变量测试、依赖/SDK方案用户确认 | 未通过 | 安全表/测试/CI、依赖与 SDK 方案已存在且经决定；本次 S-08/S-18 精确授权竞态未受现有测试守住，须先修并补真实交错回归。外部网络跳过与未采用的上游防护仍保留证据边界 |
-| RAC-18 [人工] 跨功能基线无退化，build/type/boundary/CI通过 | 未验证 | I6 预检通过、全量未结束；最终 main、真实模型场景与快照仍 W6-05。I5 修后定向通过不能替代 |
+| RAC-18 [人工] 跨功能基线无退化，build/type/boundary/CI通过 | 未通过 | I6 预检通过、全量四失败；最终 main、真实模型场景与快照仍 W6-05。局部修后定向通过不能替代 |
 | RAC-19 [人工] 持续完成必要工作，不早停/无限扩重构 | 未通过整线收尾 | 原线程继续第 3–6 波及本次漏项；新建议无当前要求/证据则不扩入。本次只关闭已证实完成的审查与文档工作 |
 
 ### 12.5 可比度量与有效运行证据
@@ -1706,6 +1706,8 @@ Images 后台 job 未携带原 MCP 调用的持续授权，但 Prologue 手册�
 | Home candidate security | 192 总数：191 通过、1 外网可选项跳过 | 安全相关本地路径已验；跳过网络项未验，不能写 192/192 |
 | I6 整树预检 | 整体 build、boundary、类型、actual-base health、API/actions 与资源已通过；API 0 变，29 资源 11,366,475 字节 | 支持冻结候选的工程预检；不是全部测试通过或 main 已合入 |
 | I6 全量 i6-full-01.log | 冻结 af0fe957 的本轮已结束：6,088 tests，6,075 pass、4 fail、9 skipped、0 cancelled；失败为 agent-action-selection、tab-split-drop-preview、work-placement-restart、workbench-pane-feed。Placement 断言失败后其 HTTP 未关闭，子进程挂住，由原执行者单独终止后主回归继续 | 不能记全量通过；四文件由原负责人重跑并做干净基线对照。单独终止事实保留，后续修复/定向通过不改写本轮失败；各修复树不能把通过数相加当整合通过 |
+
+**Dataset 独立片的已核证据。** 本地提交 `f29e7074e`，三个文件 +228/-20，工作树干净、未推送。临时原始日志在 `/tmp/dataset-import-target-evidence/`：`baseline-browser-02.log` 的 6 条回归 2 通过/4 失败，诊断直接显示 B 收到 A 的 CSV 并以 200 落库，以及切 B 后迟到响应重开 A；首轮 harness 对文件选择触发 autosave 的错误假设已修，首轮失败日志保留、不充当最终复现。`fixed-browser.log` 21/21（含新回归 6/6）、`related-tests.log` 365/365，均零跳过/取消；整体 build、boundary、对真实 merge-base 的 health 通过。`page-assets.log` 仅报 Dataset JS 实测 33,710 字节小于旧快照 34,285，按共享文件归属留整合时正常下调；不是允许使用的余量，也没有放宽门禁。协调方已读实际客户端与测试 diff、旧故障诊断和各 footer，判定该片局部验收通过；最终整合验证另计。
 
 I5 的九个跳过包含 live 账号/真实网络、MiniMax 凭据与本机缺 shellcheck 的两条；CI 的 Shell/Python 检查有独立证据，不能因此说本地那两条已运行。真实产品证据目前是各片实际 HTTP/SQLite/Chrome 覆盖的路径与历史维护窗口；外部模型/账户、完整辅助技术和最终用户验收没有全量结论。
 
@@ -1762,14 +1764,14 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 
 **Workflows 停止的原待决边界，现已由用户明确（本轮决定与验收见 §12.10）。** 在 `actions.ts` 214–215，下游仅保留原 caller 权限；341–344 先记 attempt 再 invoke；451–453 的 stop 只经 `store.ts` 164–167 将实例改成 stopped/CAS 新 token。若当前 Form AI 动作尚在等模型，stop 返回后 Form 仍可能提交题目，外层流程随后因 CAS 冲突而不记 arrival。这不依赖精确授权 P1。现行文案是“后面的站不会再继续，已经交出去的内容保留”，未明确当前已派发、尚未提交动作的停止含义，不能自行把它解释成撤回外部效果。
 
-可审阅的两个收口方向：保留当前动作继续的合同，但停止结果/页面明确呈现当前执行或结果未知并能核对；或让实例停止进入下游调用的 signal/beforeEffect，阻止尚未提交的本机效果，已提交及外部效果仍保留。先以真实 Host actions、FormStore 和模型 barrier 复现“派发→stop→放行模型”，核问题事实及有效需求，再定最小改法。现有 action-step 测试直接 abort 自建控制器、stop 测试串行核 token，均不能证明真实 stop 接口阻止下游效果。归 W2-18-LC/TE，由整线负责人裁决，不扩建任务恢复框架。
+用户已选择让实例停止进入下游控制，阻止尚未提交的本机效果；已经发生的外部结果保留并显示（§12.10）。G8 按同一合同用真实 Host actions、FormStore 与模型 barrier 验“派发→stop→放行模型”，不扩建任务恢复框架。旧 action-step 测试直接 abort 自建控制器、stop 测试串行核 token，不能代替真实 stop 接口的迟到写入拒绝。
 
 **并行负责人与当前状态。** 用户后续要求提高并发，以下两个独立会话已启动并设为 `gpt-6.1-sol / max`；这是一项本任务分工决定，不改变仓库的全局默认。
 
 | 会话与范围 | 修改边界/依赖 | 当前可证明状态 |
 | --- | --- | --- |
-| 原防腐会话 `01a130de-5470-7223-827e-b28663ee7e06` | 共同权限 P1、PR4 与既有整合；管理 I6、原 PR/CI、后续 Schedule 与 Goals 生命周期片。共同合同/快照按原流程处理 | AUTH 方案与真实交错回归准备中；不是已修复。Dataset/Issue 不再重复分派给原 writer |
-| 修复 Dataset 文件导入错表覆盖，`01a13341-d712-73f2-99f4-992f8645847c` | 自己隔离工作树；仅 Dataset 客户端、相关测试/README；不改 Dataset action 错误映射及共享核心 | 已核根因并准备客户端与浏览器回归；W2-18-DATASET-01/02 尚未运行 |
+| 原防腐会话 `01a130de-5470-7223-827e-b28663ee7e06` | 共同权限 P1、PR4 与既有整合；管理 I6、原 PR/CI、后续 Schedule 与 Goals 生命周期片。共同合同/快照按原流程处理 | AUTH 本地候选 `b5504585a` 与真实交错回归已备，运行未验；不是已验收。Dataset/Issue 不再重复分派给原 writer |
+| 修复 Dataset 文件导入错表覆盖，`01a13341-d712-73f2-99f4-992f8645847c` | 自己隔离工作树；仅 Dataset 客户端、相关测试/README；不改 Dataset action 错误映射及共享核心 | 本地 `f29e7074e` 的 W2-18-DATASET-01/02 已有缺陷复现与修后通过证据；统筹已核，未整合 |
 | 修复 Issue 手动保存重复创建，`01a13342-5853-75e1-a3ce-929ee5ec4e75` | 自己隔离工作树；Issue client/capture-client 与必要回归/README；优先复用现有后端幂等。浏览器批次排 Dataset 之后 | 已准备客户端及连续提交、丢回执/重载和请求未到 Host 的回归；W2-18-ISSUE-01/02 尚未运行 |
 | 协调复查会话与只读审查代理 | 核 diff、源码证据与验收，串行维护本 spec/原路线图；只读审查不启动构建、测试、浏览器或修改代码 | 15 节、附录与 §7 已对应；逐包/逐插件深审和真实实操的缺口保持可见，不把派发与代码准备记作关闭 |
 
@@ -1801,17 +1803,17 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 
 | 原编号 | 本轮核查的真实路径与边界 | 审查组及当前结论 |
 | --- | --- | --- |
-| S1 | 灵光/Pages 选区→Todo、Jelly、Goals；核来源、内容与返回入口、失败输入保持 | G2/G6/G7/G9，待补全链证据 |
-| S2 | 连接/Feed→Inbox→Pages→固定成果；无模型、撤权、来源删除/变更、部分成功与重试 | G1/G7/G9，待核 |
-| S3 | Pages 固定版本→Artifacts→Goal 输入/交付→Diff；固定引用、删除/移动后读取与授权 | G6/G7/G8/G9，待核 |
-| S4 | Form 答卷 CSV→Dataset 文件/粘贴导入；Pages→PPT 大纲/文件；只验现行人工衔接，不新增一键流转 | G7；Dataset P1 原 writer 在修，当前未通过 |
-| S5 | Shelf 材料提取/处理→项目材料→Coding 会话实际消费 | G1/G5/G8，待核 |
-| S6 | Coding 变更集→Git 审批/暂存或提交→Diff；实际批准范围、状态失效与工作目录变化 | G5/G9，待核，不执行真实仓库发布 |
-| S7 | 助理按需发现→选择→审批→真实动作→撤销/刷新；来源精确权限、用户输入保留与真实模型的独立证据 | G1/G2/G4/G5；共同权限 P1 在修，真实模型路径待核 |
+| S1 | 灵光/Pages 选区→Todo、Jelly、Goals；核来源、内容与返回入口、失败输入保持 | 已核 `lingguang-one-place.e2e` 的文件导入→spark→Jelly 原文持久化及打开；`work-placement-plugins.e2e` 核灵光→Pages→Goal 的标题/来源关系。`contextual-interaction.e2e` 的卡只 prepare，不能证明 Todo 真正新增；该接点仍缺完整执行证据 |
+| S2 | 连接/Feed→Inbox→Pages→固定成果；无模型、撤权、来源删除/变更、部分成功与重试 | 已核 `feed-inbox-pages-loop`、`pages-cross-module` 的真实 owner/动作、固定来源快照与重试保留编辑；Feed 为直接 seed，生成是模型 callback。Gmail/GitHub 分页、Catalog 拒绝与内容控制整改后须核接入链；真实外部账号/模型未验 |
+| S3 | Pages 固定版本→Artifacts→Goal 输入/交付→Diff；固定引用、删除/移动后读取与授权 | 已核 `artifact-goal-input.e2e`、`artifact-continue.e2e` 真 Chrome 1440/390 与正文/版本；`document-pin-after-move` 核四文档、跨 actor/项目及移动后版本。固定输入 SDK read 确有缺陷，G4 修复候选尚未运行；历史 pin 分支由 G6 处理，不能称全链通过 |
+| S4 | Form 答卷 CSV→Dataset 文件/粘贴导入；Pages→PPT 大纲/文件；只验现行人工衔接，不新增一键流转 | `work-placement-journeys.e2e` 核真实中英离线表单下载答卷→owner 导入及去重；`work-placement-plugins.e2e` 已有 results→Dataset UI，但只验标题/来源，G7 补行列答案。Dataset 文件导入局部已验（§12.5），表头/列数与PPT生成整改未验 |
+| S5 | Shelf 材料提取/处理→项目材料→Coding 会话实际消费 | `shelf-coding-materials-http` 核真实 HTTP/SQLite、固定原 bytes、scope/CAS、重启/归档；Agent start 是 spy，只证明材料进入启动参数。G5/G8 修复后仍须核实际 Agent 消费，不能将 spy 当模型证据 |
+| S6 | Coding 变更集→Git 审批/暂存或提交→Diff；实际批准范围、状态失效与工作目录变化 | 已核 `git-operations` 隔离 repo/bare remote 和 `git-product-http` 正式审批/拒绝、重启、index锁、精确Diff及结果交给Coding；PR用 fake gh，Coding只建会话/读材料。Git目标与冲突修复由G1、Diff点击由G9；真实Agent变更到提交仍未全验 |
+| S7 | 助理按需发现→选择→审批→真实动作→撤销/刷新；来源精确权限、用户输入保留与真实模型的独立证据 | 已核 `agent-action-tools-prologue` 真SDK/授权文件/SQLite与 `assistant-undo-refresh.e2e` 真Chrome新增Todo后撤销；模型SSE为脚本。共同AUTH与SEND等修复未整合，真实模型推理与质量未验 |
 | S8 | Todo 提醒→Schedule；持久任务重启/纯动作创建→自动触发→一次业务结果 | G1/G5/G9；无页面漏调度 P2 待复现修复 |
-| S9 | Workflows 串联 Feed/Inbox/Pages/灵光及动作站；接收回执、结果未知/重试、停止与已派发操作 | G7/G8/G9；停止取消尚未提交的本地步骤，已发生外部结果保留显示（§12.10），实现/验证待完成 |
-| S10 | 现行 26 内置与 6 官方接入的安装/启用/配置变化/停用/卸载/重启→目录/调用/UI/持久事实一致 | 各组按自身包 + G1/G4 装配核对；不以已退役 Experiments 代替 Issue |
-| S11 | 删除项目→所有实际 owner 清理→进程/任务/文件/引用与失败重试；共享个人内容按既有合同保留 | G1/G3/G4/G6/相关插件组，待核当前实际回归 |
+| S9 | Workflows 串联 Feed/Inbox/Pages/灵光及动作站；接收回执、结果未知/重试、停止与已派发操作 | `workflows-plugin` 已核真实Host动作/owner持久正文、原subject、固定成果起点、回执/并发CAS与重试；RouteTable调用并非网络HTTP，模型callback。停止取消未提交本地步骤、保留外部事实的§12.10合同与WFSAVE/WF-OPEN整改仍待实际验证 |
+| S10 | 现行 26 内置与 6 官方接入的安装/启用/配置变化/停用/卸载/重启→目录/调用/UI/持久事实一致 | 已核公共Runtime生命周期/SQLite重开、真实Home动作与HTTP取消、旧实例权限失效/重装世代、项目插件加删依赖；GitHub组合跑到Connector→Listener→Signals但provider是fixture。各包源码全审不等于32项都完成所有UI生命周期；真实账号、逐插件第二轮仍未全验，Issue已纳入 |
+| S11 | 删除项目→所有实际 owner 清理→进程/任务/文件/引用与失败重试；共享个人内容按既有合同保留 | 已核唯一删除服务、managed删除事务/回执、声明owner与活服务替换接线，并读全部8份 `project-deletion-*` 测试；I6相应原始结果均通过。真CLI/MCP/HTTP、两连接/子进程锁、失败重试、同回执并发、Sessions内容、Memory/Assistant/Studio/图片与个人/其他项目保留有实际断言；模型SSE/部分清理owner为受控fixture，非真实账号试用 |
 | 补充接点 | Images→Pages、Cognia 固定证据→文稿/PPT、Characters→Artifacts→Coding、创作台→安装→实际调用、Jelly 音频/网页→内容 | 各负责组报告现行真实支持与边界，不能凭同类功能存在就推断可组合 |
 
 真实页面仍按 W2-18-FR 补键盘/辅助技术、暗色/英文、三宽度、离线/失败/无权限/部分成功、多窗口、配置返回与核心模型路径。只读会话先把具体缺证据动线和可复用用例列清；协调方在 I6 及已排修复验证释放机器后安排实操。没有必要账号、权限或产品未支持的路径写明，实质产品语义待决定时只暂停依赖部分，其余继续。当前 71/71 包源码审查完成，必要修复与组合核查仍在进行；整条防腐线不标完成。
@@ -1914,6 +1916,8 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | W2-18-TODO-DRAFT / P1 | flush吞POST失败或空标题，导航/后续动作当成功继续，fillEditor覆盖尚未保存输入 | 保存失败/无效传给离开与后续动作，保留稿，明确丢弃才清。W2-18-TODO-DRAFT-01：真实409/500/断网/空标题后返回/换项/关联/搜索/换归属均不丢稿、不派后续写；恢复保存与明确丢弃可行。 |
 | W2-18-CATALOG-ERROR / P1 | Catalog把200业务错误原话当action/message，经Connector/Listener持久回执与Feed公开日志传播，可能含上游回显凭据 | Provider边界封闭原因/恢复动作，不持久服务原话，不依赖宽松secret正则。W2-18-CATALOG-ERROR-01：每类literal业务错带非真实fixture token，经正式失败链响应/回执/DB/日志/Inbox均无该值及派出编码；限流/重新授权原因仍准确，S-12同步。 |
 | W2-18-DIFF-FILE / P2 必修 | Diff渲染show-file按钮但无生产点击消费者，正式state有change_index仍只能看0；同path也不唯一 | 现行surface绑定原始索引，沿固定input/请求lifetime，不能改成果或工作树。W2-18-DIFF-FILE-01：真实Coding固定多文件含同路径两写，逐个点击/刷新/隐藏重开呈现对应literal前后文，旧响应不覆盖新选择。 |
+
+| W1-18-PIN-CURRENT / P2 必修 | nextPinnedVersion在无pending、head=recorded+1且source_revision=null时复用“快照前”的旧版；当前四文档先存pending再固定，正常中断不产生此形状 | 删除这条历史特判及旧说明，已有head后正常递增；保留真实pending恢复、移动/复制/不同actor各项目版本线。W1-18-PIN-CURRENT-01：四owner真实固定中断/pending恢复与移动后编号仍正确；无pending的null head不当作旧发布恢复，不覆盖旧成果。由G6与同文件pinActionSubject父控制串行处理，G7不改promote协议。 |
 
 Gmail 增量判断也与 [Gmail 官方 history.list 合同](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.history/list) 对照：历史按 ID 递增，startHistoryId 排除以前的记录，单条历史可包含多封邮件。因此“最后一页已读”不能替代“候选已消费”。本轮不实际读取外部账户。
 
@@ -2033,17 +2037,17 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 
 | 负责人 | 独占范围与依赖 | 当前证据 |
 | --- | --- | --- |
-| 原防腐会话 `01a130de-5470-7223-827e-b28663ee7e06` | 共同AUTH/同步最终检查、MCP坏配置、既有Schedule/Goals恢复片、I6失败归因与验证队列；提供可复用本地AUTH提交 | I6失败四文件在归因；Placement 400/409依现行G1-03合同核测试预期，浏览器超时仍待基线/环境证据 |
+| 原防腐会话 `01a130de-5470-7223-827e-b28663ee7e06` | 共同AUTH/同步最终检查、MCP坏配置、既有Schedule/Goals恢复片、I6失败归因与验证队列；提供可复用本地AUTH提交 | AUTH `b5504585a` 已给各消费方复用接口、尚待构建/运行；I6四失败在归因，Placement 400/409依现行合同核测试预期，浏览器超时仍待基线证据 |
 | G1 宿主 | Runtime接入/TOML、卡unknown/followup、model schema、系统目录、Gmail首次使用、native JSON、Host Git；不碰原AUTH文件 | 独立树实现准备；未验收 |
 | G2 工作台 | 浏览器upload/grant与工作台八项；不碰assistant-island，也不碰G9的coding-companions | 独立树实现准备；未验收 |
 | G3 桌面/公共呈现 | 原生胶囊/剪贴板/worker IO、接续QA、component草稿 | 代码与回归准备中；原生及浏览器尚待时段 |
 | G4 核心 | SemVer、缺key、Memory事务、固定输入/SDK/Diff Manifest；不改AUTH/helpers或历史pin | 本地四提交 `48c04310e`、`c64bbfd82`、`c93d01249`、`a538a9165`，协调方已核实际生产diff及新回归断言；仅diff格式通过，build/test尚未运行，不判验收 |
 | G5 AI/开发插件 | Placement/Memory调用控制、Agent预算/解析资源、Characters启动、Builder预览/升级密钥、Coding前台/后台/委派/报告；必要Host对应port | 独立实现准备，需复用原AUTH合同；不碰G1 AssistantService/Store或Runtime接入文件 |
-| G6 Module/Goals | Session确认、Shelf/Character当前库、Attention原子性、Functions Choice、Goals证据/固定/规划/policy | 独立实现准备；不碰原Goals恢复环，artifact-pins共同helper改动先串行归属 |
-| G7 内容 | 七插件必要整改；Dataset仅store/动作，client/import与README导入片留既有writer | 独立实现准备；内容嵌套调用复用AUTH，旧pin helper清理尚未派实现 |
+| G6 Module/Goals | Session确认、Shelf/Character当前库、Attention原子性、Functions Choice、Goals证据/固定/规划/policy | 独立实现准备；不碰原Goals恢复环，artifact-pins共同helper父控制和旧分支由同一writer串行处理 |
+| G7 内容 | 七插件必要整改；Dataset仅store/动作，client/import与README导入片留既有writer | 独立实现准备；内容嵌套调用复用AUTH，旧pin helper由G6串行处理 |
 | G8 流程/执行 | Work/Alchemist effects与客户端、Shelf客户端、Workflows backend stop | 代码/正式Host回归准备中；不碰WFSAVE客户端，遵守§12.10窄回执例外 |
 | G9 接入/日常 | Gmail/GitHub/Catalog、Todo与Diff点击；唯一workbench例外为coding-companions，G2不改该文件 | 独立实现准备；Git Host归G1；RSS传输验证仍候选待实际证明 |
-| Dataset既有writer `01a13341-d712-73f2-99f4-992f8645847c` | 文件导入目标/草稿与对应浏览器，独占client/import | writer报告浏览器批次已通过并释放时段，boundary/actual-base health通过；协调方仍待原日志与最终diff核实。资源变小的共享快照留整合更新 |
+| Dataset既有writer `01a13341-d712-73f2-99f4-992f8645847c` | 文件导入目标/草稿与对应浏览器，独占client/import | 本地 `f29e7074e`，统筹已核实际diff、旧复现4失败、新旧浏览器21/21、相关365/365及门禁；局部验收通过。资源快照下调与最终整合验证待做，见§12.5 |
 | Issue既有writer `01a13342-5853-75e1-a3ce-929ee5ec4e75` | 手工页/capture保存与丢回执恢复 | Dataset之后进入整体构建及旧实现四项复现，未验收 |
 | 助理发送writer `01a13369-d79c-70f1-9798-7b84181fa7d0` | SEND/PAGE-CARDS/ASSISTANT-404同文件连续处理，保护在途#471 | 源码/真实HTTP barrier回归准备；未验收 |
 | Workflows保存writer `01a13369-e221-7433-a2eb-24bcdcee1039` | WFSAVE/WF-OPEN客户端与README，backend留G8 | 源码/回归准备；未验收 |

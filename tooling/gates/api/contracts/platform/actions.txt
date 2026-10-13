@@ -408,6 +408,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly allowed_capability_ids?: readonly string[];
     readonly allowed_actions?: readonly ActionReference[];
     readonly validate_authority?: (reference: ActionReference) => void | Promise<void>;
+    readonly assert_authority_current?: (reference?: ActionReference, requiredPermissions?: readonly string[]) => void;
     readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
     readonly signal?: AbortSignal;
     readonly on_progress?: (event: {
@@ -784,7 +785,7 @@ export interface ArtifactReferrersResult {
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">): Promise<Output>;
 }
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";

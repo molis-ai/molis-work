@@ -410,6 +410,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly allowed_capability_ids?: readonly string[];
     readonly allowed_actions?: readonly ActionReference[];
     readonly validate_authority?: (reference: ActionReference) => void | Promise<void>;
+    readonly assert_authority_current?: (reference?: ActionReference, requiredPermissions?: readonly string[]) => void;
     readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
     readonly signal?: AbortSignal;
     readonly on_progress?: (event: {
@@ -871,7 +872,7 @@ export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">): Promise<Output>;
 }
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
@@ -2574,7 +2575,7 @@ export interface PluginEventsRepository {
     deleteCursors(projectId: string, subscriberPluginId: string): void;
 }
 
-export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context">;
+export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">;
 
 export interface PluginExecutor {
     start(definition: PluginDefinition, context: PluginStartContext): Promise<PluginExecutorHandle>;

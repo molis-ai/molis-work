@@ -146,8 +146,9 @@ export class PluginInputGraph implements PluginWiringApi {
     if (!version) throw new PluginWiringError("port_artifact_invalid", "成果库里没有这一版");
     const wanted = portTypeKey(port.artifact_type_id, port.schema_version), offered = portTypeKey(version.artifact_type_id, version.schema_version);
     if (wanted !== offered) throw new PluginWiringError("port_type_mismatch", `端口类型不匹配：${input.target_port} 需要 ${wanted}，这一版是 ${offered}`);
-    if (!acceptsLibraryVersion(manifest, version)) throw new PluginWiringError("port_artifact_invalid", "插件未声明读取这种成果");
-    if (!usableVersion(version)) throw new PluginWiringError("port_artifact_invalid", "这一版现在不可用或已归档");
+    const unavailable = !acceptsLibraryVersion(manifest, version) ? "插件未声明读取这种成果"
+      : !usableVersion(version) ? "这一版现在不可用或已归档" : null;
+    if (unavailable) throw new PluginWiringError("port_artifact_invalid", unavailable);
     const record: PluginPortArtifactBindingRecord = { project_id: this.#projectId, ...input, created_at: this.#now().toISOString() };
     this.#repository.saveArtifactBinding(record);
     return { ...record };

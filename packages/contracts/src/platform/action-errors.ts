@@ -52,7 +52,7 @@ export const ACTION_ERROR_KINDS = {
   "actions.definition_invalid": "invalid", "actions.provider_invalid": "invalid", "actions.target_invalid": "invalid", "actions.scene_incompatible": "invalid",
   "actions.scene_ambiguous": "invalid", "actions.subject_incompatible": "invalid", "actions.subject_mismatch": "invalid", "actions.subject_ambiguous": "invalid",
   "actions.recommendation_incompatible": "invalid", "actions.gateway_mismatch": "invalid", "actions.home_required": "invalid", "actions.dependency_cycle": "invalid",
-  "actions.function_unpublished": "invalid",
+  "actions.function_unpublished": "invalid", "actions.provider_ambiguous": "invalid",
   "actions.input_too_large": "too_large",
   "actions.rate_limited": "rate_limited",
   "actions.cancelled": "cancelled",

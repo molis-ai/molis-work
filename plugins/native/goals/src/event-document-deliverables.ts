@@ -10,11 +10,7 @@ export const GOALS_DELIVERABLES_SCRIPT = `    // The closure form's deliverables
       if (reconcile) { status.hidden = false; status.textContent = L("正在读取成果…"); }
       else list.textContent = L("正在读取成果…");
       try {
-        const read = async (path) => {
-          const response = await fetch(route(path), { cache: "no-store" });
-          if (!response.ok) throw new Error(L("交付物清单未读回，请重新核对。"));
-          return response.json();
-        };
+        const read = (path) => molisWorkRequest(route(path), { fallback: L("交付物清单未读回，请重新核对。") });
         const [library, current] = await Promise.all([read("/api/artifacts/versions"),
           read("/api/goals/" + encodeURIComponent(currentGoal) + "/deliverables")]);
         if (goalId() !== currentGoal || !form.isConnected) return;
@@ -69,10 +65,9 @@ export const GOALS_DELIVERABLES_SCRIPT = `    // The closure form's deliverables
         const pin = input.name === "deliverable-pin";
         if (pin) box.dataset.attemptedPins = JSON.stringify([...JSON.parse(box.dataset.attemptedPins || "[]"), input.value]);
         try {
-          const response = await fetch(route("/api/goals/" + encodeURIComponent(currentGoal) + "/deliverables"), { method: "POST",
-            headers: { ...jsonHeaders(), "x-molis-work-idempotency-key": globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random() },
-            body: JSON.stringify({ [pin ? "subject" : "reference"]: JSON.parse(input.value), delivered: input.checked }) });
-          if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || L("交付物没有记下"));
+          await molisWorkRequest(route("/api/goals/" + encodeURIComponent(currentGoal) + "/deliverables"), { method: "POST",
+            headers: { accept: "application/json" }, key: globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random(),
+            body: { [pin ? "subject" : "reference"]: JSON.parse(input.value), delivered: input.checked }, fallback: L("交付物没有记下") });
           input.dataset.was = String(input.checked);
           // A pinned version is now an ordinary deliverable; pinning again would write another version.
           if (pin) input.disabled = true;

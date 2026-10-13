@@ -1,6 +1,6 @@
 import ts from "typescript";
 
-const HOST_NAMES = new Set(["LocalHostProjectClient", "actionClient", "client", "withProject", "withScope", "coordinator"]);
+const HOST_NAMES = new Set(["LocalHostProjectClient", "actionClient", "client", "withProject", "withScope", "coordinator", "goalQueries"]);
 /** Verify the resident path and its lazy local fallback without granting a second business port. */
 export function checkGoalsManagementWiring(source, mode) {
   const mcp = mode === "mcp", path = `apps/local-host/src/${mcp ? "mcp-v1-tool" : "cli-project"}.ts`;

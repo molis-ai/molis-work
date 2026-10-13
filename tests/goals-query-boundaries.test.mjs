@@ -217,6 +217,7 @@ test("the CLI boundary rule reads every way into the Goals package and into a Ho
     ["type-only factory import", source => source.replace('import { bindGoalsManagementActions }', 'import type { bindGoalsManagementActions }')],
     ["unused selected port", source => source.replace("dispatchCliProjectCommand(actions, args, input)", "dispatchCliProjectCommand(makeActions(), args, input)")],
     ["second typed route", source => source.replace("const actions =", "const extra = localHost.client(reference);\n  const actions =")],
+    ["direct Goal Query port", source => `${source}\nconst query = runtime.goalQueries;`],
     ["eager local fallback", source => source.replace("const fallback = () => ", "const fallback = ")],
     ["bypass resident", source => source.replace("project ? residentManagementActions", "false ? residentManagementActions")],
     ["lost cancellation signal", source => source.replace("signal: options.signal, fallback", "signal: undefined, fallback")],

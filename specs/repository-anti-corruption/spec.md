@@ -2208,3 +2208,5 @@ D候选3a42f62e7固定19文件（18入口/夹具及baseline），两个动态导
 E真实CLI第二轮32/32通过，零skip/cancel；首轮实际抓到无--base的update绕过绝对校验，已在入口修复为写baseline前无条件检查本指标absolute，不改变其他门禁分类或放宽graph。快查实际移除testImportSplits/Total两键，完整health待最后结束；其余报告保留精确两边路径。D第一40非浏览器文件100/100，第二2文件唯一真实registry TLS探针被当前fake-IP DNS地址拒绝（NETWORK_DENIED），安全拒绝保持正确，不记整批通过；用该测试已存在的明确DoH端口选项只获取可核公网地址重跑，未更改生产或绕过公网/证书校验。结果仍待。
 
 #482 A3在确切95dad0fff、五必需及Product subset成功、currentmain/密钥核对后于21:10:07UTC真实合入main726e281e5（Linux probe只报告）。A4 #483现在转main并同步，冲突按当前门禁重生成。E候选73e6af397七文件，完整health/update相对39通过，快查两旧混用键真实删除，32真实CLI通过、只读复核无P1；整合到I7必须保留它已有browserErrors的update前置拒绝，同时加入split absolute。D组合40文件100/100，后两文件8条7通过1真实公网失败，零取消/跳过；DoH重跑仍TLS连接错误，干净基线同旗标对照未结束。不得将网络或C/D浏览器、H/I7构建/全量标为通过。
+
+公网探针根因已更新：基线同败不能证明环境故障。两份DoH运行均得到93.184.216.34，实际是前一DNS单元测试桩值；全新进程实际解析到VPN假IP，再经已存在的明确DoH端口得到104.16.*及对应公网IPv6，resolver正常。Node测试同一属性两次mock的自动恢复在finally之后又把第一个桩装回默认dns.lookup，污染后续live的默认对象端口。最小test-only修复为先t.mock.reset清空恢复跟踪，再按现有方法还原并syncBuiltinESMExports；所有DNS/SSRF/pin/TLS/secret/cancel拒绝断言保留，不改生产与VPN设置。真实公网固定04正在重跑，未运行完不得记通过。

@@ -11,7 +11,7 @@ test("W2-18-HOME-LOCALE-01: the Home document uses its request locale before mou
   const content = '<section data-work-surface="issues">我的原文不能翻译</section>';
   const english = renderHomePluginPage(entry, content, null, randomUUID(), createWorkbenchLocale(() => "en"), false, true);
   assert.match(english, /<html lang="en"/);
-  assert.match(english, /id="home-model-title">Model settings<\/h2>/);
+  assert.match(english, /id="home-model-title">Models<\/h2>/);
   assert.match(english, /data-home-model-close autofocus>Close<\/button>/);
   assert.ok(english.includes(content), "owner content is passed through; this renderer only translates its own chrome");
   assert.match(english, /translate:globalThis\.L/);

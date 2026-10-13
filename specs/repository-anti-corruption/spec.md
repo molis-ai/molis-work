@@ -1384,7 +1384,7 @@ W3-10-5 复用现有 SOURCE_COUNT_RULES 与逐文件 merge-base 比较，不另�
 | W3-02-G1-02 | ActionAvailability 的可选 kind 在 Kernel 两处与 SDK 路由两处抛错贯通；Pages/PPT/Dataset/Form 的现有 owner unavailable 带 conflict，恢复409。无 kind 的其余项仍按现行共同规则处理，API快照与真实动作/HTTP证明同片更新。 |
 | W3-02-G1-03 | HomeDock、search、placement、contextual 的失败统一经共同出口；Todo不存在回404/todo.not_found，Search坏hit/cursor及缺项目分别为400/actions.input_invalid和actions.project_required、scope拒绝403；Search的missing/unavailable业务结果仍为200。Placement现行same_location按invalid回400，其余码不猜义新增kind。Contextual原码保留，input_invalid为invalid，stale/unavailable/not_offered为conflict，原400/409不变。真实HTTP断言literal状态/code/details与事实未写。 |
 | W3-02-G1-04 | 四入口共用readLocalWebBody保留256000个UTF-8字节上限、早停及空正文行为；超限与坏JSON按actions.input_too_large/too_large及actions.input_invalid/invalid，分别413/400，原消息保留。不换成按字符计数的Native reader；真实超限、中文正文和坏JSON在业务前拒绝，不造调用编号或事实。Home的12MiB消费者先用严格instanceof ActionError保留新reader的kind，再处理原未编码拒绝；组合仍证明>1MiB成功/>12MiB413、不写事实，不扩大上传限额。 |
-| W3-02-G1-05 | 平台同义码not_found→missing、invalid_input→input_invalid、permission_denied→forbidden，改全体生产消费者及三处测试假码后删合同表not_found/invalid_input/failed/transport_failed四行及过渡测试例外；不留读取兼容。真实原缺失与输入拒绝的404/400及文案保留，Memory这片只改读码，mapper删除归G3。API快照同片更新。 |
+| W3-02-G1-05 | 平台同义码not_found→missing、invalid_input→input_invalid、permission_denied→forbidden，改全体生产消费者及三处测试假码后删合同表not_found/invalid_input/failed/transport_failed四行及过渡测试例外；共同客户端替代最后fallback后孤立的transport_denied亦删除；不留读取兼容。真实原缺失与输入拒绝的404/400及文案保留，Memory这片只改读码，mapper删除归G3。API快照同片更新。 |
 | W3-02-G3-01 | 主人声明 kind，删除最后三处 HTTP mapper 及选项、全部 Memory→Assistant 码重写（含 memory tools 回调）；未知内部异常经共同出口回答500，保留 owner拒绝的消息/详情。Host不另起一套码或同义状态表。 |
 | W3-02-G3-02 | Memory的权限、对象不存在、待处理建议上限与预览后变动分别按 forbidden/not_found/conflict 分类；invalid/off保持invalid。真实Memory HTTP验证scope403与preview交错409，Assistant HTTP验证其可达的404/invalid及原owner码无重写，真实memoryTools证明forbidden/limit的owner码、kind与事实未写；保留候选的拒绝/去重、本人接受及可撤销停用行为。Assistant管理入口只有person=true的change/prefs/candidate，不新增propose/clear路由或假造owner拒绝凑两个HTTP入口的矩阵；400→403/409是已记录的分类修正。 |
 | W3-02-G3-03 | 真实助理失败仍持久化原文草稿并返回同一 publicWork，work/action放在details，island同片读failure.code与failure.data=details；保留修复按钮、原request_id与恢复流程，不读取旧顶层work/action。浏览器证明失败后草稿、同一work及修复按钮实际可用。 |
@@ -1481,3 +1481,19 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 | CI-MCP-PIPE-02 | 同一闭管道fixture通过公开RuntimeIntegrationService实际验证，失败后配置字节/无关Runtime设置、Skill状态和原receipt恢复，没有成功接入或新授权记录；再次可用launcher能正常接入。独立源码复核、整体build、定向Runtime/MCP公开回归及当前main门禁通过后开独立PR，Linux CI另记实际结果。 |
 
 当前仅已定位、实测复现并安排唯一writer实施；不称修复完成或CI通过。
+
+
+### 10.9 产品 HTTP 错误出口的接续验收（W3-02-G4）
+
+固定I5的只读调用链核对已补足旧计划遗漏，按G1/G3、Home F/F1及Goals H的实际依赖接续；G4不改Coding尚在用的四个Goals桥（PR-8另片），不提前做owner改名或Session全迁移。目标为六组实际HTTP出口走共同SDK，先给现行明确用户/状态拒绝owner kind，再移除mapper，保留成功/部分成功与原业务事实。
+
+| 编号 | 可观察结果与证明路径 |
+| --- | --- |
+| W3-02-G4-01 | Coding现行输入解析、执行前提、工作区拒绝仍400/invalid且句子不变；只分类真实已知用户拒绝，不把整段catch/外来IO包成invalid。真实CodingStore session_unknown与actual Agent busy owner分别not_found/conflict，保持现有404/409；未知500/actions.execution_failed。真产品HTTP拒绝后session/round/draft不变，重启草稿仍在；Coding巨单元不增长。 |
+| W3-02-G4-02 | Browser原Error的已知失败保留409/conflict，原64MB上限亦保留409与句子，不额外改成413；明确HTTP缺项目/下载404与参数400仍在。JSON读体改共同400/413及reader原消息，原“开关”catch不再掩盖解析错误，限额不变。下载仍binary stream/附件/no-store/nosniff，chooser与真实页面capture的边界保留；必要surface-driver消费者同步，不扩Chrome/CDP传输。 |
+| W3-02-G4-03 | Agent review/recovery已知状态与revision核对拒绝保留409，实际foreign/missing404、坏note400及receipt200/effect_settled语义保留；在真正prologue-git handler分类原裸状态拒绝，保留recovering finally、两次observe、先保存核对依据再reconcile，零重执行。按实际raiser区分输入与不存在，不仅凭review_unknown名字猜全局kind；共同出口覆盖读体并补literal状态/code/无effect。 |
+| W3-02-G4-04 | MCP授权设置经共同SDK保留code/message/details/availability.kind；with先核全套授权再一次提交，拒绝不写任何grant、不调用业务handler。真实owner409及平台404/403/503按已接受kind，无kind的fixture仍400；失效provider可撤销、GET missing业务200、method405及精确project/provider/version合同不变。 |
+| W3-02-G4-05 | Work各HTTP异常走共同SDK；scope/not_found/conflict由真实owner定型，public context中旧classifyError移除/改接同步唯一web-panel消费者。workspace.change_rolled_back/recovery_required owner为unavailable，Host project-workspace-actions不再重建丢kind，最终503及恢复事实不变；projects.workspace_not_found仍404/原消息。Session发送sent201、failed409、其它202（含uncertain）、handoff未送达502/原error_message、picker取消200/busy409/unavailable503都是现行业务结果，保留，不能改为throw。 |
+| W3-02-G4-06 | F1/Home的唯一shared operations及controls/hooks/readBody/取消/revision/卸载边界保留；仅真正抛出的失败经SDK，不改restart/upgrade409、not-running503等supervisor结果。Work未知异常按共同500/actions.execution_failed保留实际消息，原状态查询与草稿保留证明结果未知恢复，不加自动重发。实际HTTP、必要Browser/Work公开路径与安全拒绝证明完整后再协调整合，API/动作/资产均按实测记录。 |
+
+本节的Browser64MB409、recovery原409与Work未知共同出口取舍保留现行业务并采用已接受的共同分类，不追加产品语义变化。允许路径按真实owner/消费者扩到Work workspace-actions与Host project-workspace-actions、Agent reviews/prologue-git及必要busy raiser；不增公开测试口、重复码表、兼容读或预算。当前只读计划核到必要调用链，尚未实施或运行；全部Session/Agent raiser与浏览器失败路径仍须在实际片中按影响面验证，不把部分源码阅读记成工程通过。

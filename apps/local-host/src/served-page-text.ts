@@ -54,11 +54,12 @@ export function stripServedCssComments(source: string): string {
  * a string, a template or a regular expression stays. A line comment is dropped and its newline stays (that newline
  * is what the language already counts). A block comment becomes one space, so it cannot glue two names and cannot
  * insert a newline the language would treat as the end of a statement.
+ * Whitespace trivia before a node keeps one space or one newline; literal text and automatic semicolon boundaries stay.
  */
 export function stripServedJsComments(source: string): string {
   const ts = typescript();
   const file = ts.createSourceFile("served.js", source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
-  const ranges: { pos: number; end: number }[] = [];
+  const ranges: { pos: number; end: number; replacement?: string }[] = [];
   const seen = new Set<number>();
   const add = (list: readonly ts.CommentRange[] | undefined) => {
     for (const range of list ?? []) {
@@ -70,6 +71,12 @@ export function stripServedJsComments(source: string): string {
   const visit = (node: ts.Node): void => {
     add(ts.getLeadingCommentRanges(source, node.getFullStart()));
     add(ts.getTrailingCommentRanges(source, node.end));
+    const pos = node.getFullStart(), end = node.getStart(file);
+    const trivia = source.slice(pos, end);
+    if (end - pos > 1 && /^\s+$/u.test(trivia) && !seen.has(pos)) {
+      seen.add(pos);
+      ranges.push({ pos, end, replacement: /[\r\n\u2028\u2029]/u.test(trivia) ? "\n" : " " });
+    }
     ts.forEachChild(node, visit);
   };
   visit(file);
@@ -79,7 +86,7 @@ export function stripServedJsComments(source: string): string {
   for (const range of ranges) {
     if (range.pos < cursor) continue;
     out += source.slice(cursor, range.pos);
-    out += source.startsWith("//", range.pos) ? "" : " ";
+    out += range.replacement ?? (source.startsWith("//", range.pos) ? "" : " ");
     cursor = range.end;
   }
   return out + source.slice(cursor);

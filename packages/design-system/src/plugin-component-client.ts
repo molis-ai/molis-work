@@ -3,8 +3,7 @@
 import type { SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginComponentNode } from './plugin-components.js';
 import type { PluginPresentation } from './plugin-presentation.js';
-import { createPluginPresentationClient } from './plugin-presentation-client.js';
-import { createPluginFormDraft } from './plugin-form-draft.js';
+import { createPluginPresentationClient as present } from './plugin-presentation-client.js';
 export interface PluginComponentView { contract: SandboxPluginContract; nodes: PluginComponentNode[]; connected: string[]; presentation?: PluginPresentation }
 export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: string, binding: 'read' | 'submit', payload: unknown): Promise<unknown>; inspect?(nodeId: string): void;
   /** The inspect button's label (the studio passes it translated). */
@@ -20,7 +19,7 @@ export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: 
  */
 export function createPluginComponentClient(options: PluginComponentClientOptions) {
   const root = options.root; root.classList.add('pc-view');
-  const composition = createPluginPresentationClient();
+  const composition = present();
   const make = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: string) => {
     const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (cls) el.className = cls; return el;
   };
@@ -36,7 +35,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
   };
   /** The schema a binding's output path points at, from the contract in view. */
   const pluginSchemaOf = (operationId?: string, path?: string) => {
-    let schema = view?.contract.operations.find(op => op.id === operationId)?.output;
+    let schema = operation(operationId)?.output;
     for (const key of path ? path.split('.') : []) schema = schema?.type === 'object' ? schema.properties?.[key] : undefined;
     return schema;
   };
@@ -91,9 +90,11 @@ export function createPluginComponentClient(options: PluginComponentClientOption
   const tabs = make('nav', undefined, 'mw-tabs pc-tabs'), tabList = make('div', undefined, 'mw-tabs__list'); tabs.dataset.slot = 'tabs'; tabList.setAttribute('role', 'tablist'); tabList.setAttribute('aria-label', '插件页面'); tabs.append(tabList); root.append(tabs);
   let view: PluginComponentView | undefined, currentPage = '', selection: Record<string, unknown> = {}, disposed = false, epoch = 0, fresh = false;
   const selectionVersions = new Map<string, number>();
+  const operation = (id?: string) => view?.contract.operations.find(op => op.id === id);
   const pages = new Map<string, HTMLElement>(), regions = new Map<string, HTMLElement>();
-  interface Part { node: PluginComponentNode; root: HTMLElement; output: HTMLElement; feedback: HTMLElement; form?: HTMLFormElement; dialog?: HTMLDialogElement; opener?: HTMLButtonElement; confirm?: HTMLDialogElement; filter?: HTMLElement; tools?: HTMLElement; waiting?: ReturnType<typeof setTimeout>; feedbackTimer?: ReturnType<typeof setTimeout>; busy: boolean; query: number; signature: string; prefilled: Map<string, number>; rows?: unknown[]; seen?: Set<string> }
+  interface Part { node: PluginComponentNode; root: HTMLElement; output: HTMLElement; feedback: HTMLElement; form?: HTMLFormElement; dialog?: HTMLDialogElement; opener?: HTMLButtonElement; confirm?: HTMLDialogElement; filter?: HTMLElement; tools?: HTMLElement; waiting?: ReturnType<typeof setTimeout>; feedbackTimer?: ReturnType<typeof setTimeout>; busy: boolean; query: number; draft: number; signature: string; prefilled: Map<string, number>; rows?: unknown[]; seen?: Set<string> }
   const parts = new Map<string, Part>();
+  const live = (part: Part, generation: number) => !disposed && generation === epoch && parts.get(part.node.id) === part;
   const details = new Map<string, { layout: HTMLElement; pane: HTMLElement; back: HTMLButtonElement; content?: string; scroll?: Array<[Element, number]> }>();
   const detailEnabled = (id: string) => !!view?.presentation?.parts[id]?.detail;
   function showDetail(part: Part, focus = false) {
@@ -143,8 +144,8 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     .some(source => source.source === 'selection' && source.componentId === componentId || source.source === 'form' && source.prefill?.componentId === componentId)));
   /** A form that adds something new: every value typed by the person, nothing taken from elsewhere, nothing to show back. */
   const composer = (node: PluginComponentNode) => !node.read && !!node.submit && !node.submit.outputPath && Object.values(node.submit.input).some(source => source.source === 'form')
-    && Object.values(node.submit.input).every(source => source.source === 'form' && !source.prefill) && view?.contract.operations.find(op => op.id === node.submit!.operationId)?.kind === 'command';
-  const signature = (node: PluginComponentNode) => JSON.stringify({ kind: node.kind, read: node.read, submit: node.submit, input: view?.contract.operations.find(op => op.id === node.submit?.operationId)?.input, composer: composer(node) });
+    && Object.values(node.submit.input).every(source => source.source === 'form' && !source.prefill) && operation(node.submit!.operationId)?.kind === 'command';
+  const signature = (node: PluginComponentNode) => JSON.stringify({ kind: node.kind, read: node.read, submit: node.submit, input: operation(node.submit?.operationId)?.input, composer: composer(node) });
   const selectPage = (id: string) => {
     currentPage = id; pages.forEach((page, key) => { page.hidden = key !== id; });
     tabList.querySelectorAll<HTMLButtonElement>('button').forEach(tab => { tab.setAttribute('aria-selected', String(tab.dataset.page === id)); tab.classList.toggle('is-active', tab.dataset.page === id); });
@@ -410,7 +411,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     return ['number', 'integer'].includes(spec.type) ? Number(input.value) : ['object', 'array', 'null'].includes(spec.type) ? JSON.parse(input.value) : input.value;
   }
   function filterValues(part: Part): Record<string, unknown> | null {
-    const binding = part.node.read!, schema = view!.contract.operations.find(op => op.id === binding.operationId)!.input, values: Record<string, unknown> = {};
+    const binding = part.node.read!, schema = operation(binding.operationId)!.input, values: Record<string, unknown> = {};
     for (const input of part.filter?.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-field]') ?? []) {
       const value = typedValue(input, schema.properties![input.dataset.field!]!);
       if (value !== undefined) values[input.name] = value;
@@ -469,14 +470,14 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     if (!part.output.childNodes.length || part.output.querySelector('[data-idle]')) part.output.replaceChildren(skeleton(false));
     try {
       const result = await options.call(part.node.id, 'read', { selection, form });
-      if (!disposed && generation === epoch && ticket === part.query && parts.get(part.node.id) === part) {
+      if (live(part, generation) && ticket === part.query) {
         output(part, result, 'read');
         options.onRead?.(part.node.id, { value: result });
         // An error a read left goes once a read succeeds; a failed save's message stays with the person's input.
         if (part.feedback.dataset.pcRead !== undefined) { part.feedback.className = ''; part.feedback.textContent = ''; delete part.feedback.dataset.pcRead; }
       }
     }
-    catch (error) { if (!disposed && generation === epoch && ticket === part.query && parts.get(part.node.id) === part) { const message = error instanceof Error ? error.message : '读取失败，稍后可以重试'; part.output.querySelector('.pc-skeleton')?.remove(); report(part, 'error', message); part.feedback.dataset.pcRead = ''; options.onRead?.(part.node.id, { error: message }); } }
+    catch (error) { if (live(part, generation) && ticket === part.query) { const message = error instanceof Error ? error.message : '读取失败，稍后可以重试'; part.output.querySelector('.pc-skeleton')?.remove(); report(part, 'error', message); part.feedback.dataset.pcRead = ''; options.onRead?.(part.node.id, { error: message }); } }
   }
   /** What a part reports: an error as the catalog's alert, a success as a short badge that fades, work in progress as plain words. */
   function report(part: Part, tone: 'error' | 'success' | 'working' | '', message: string) {
@@ -560,12 +561,12 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     } else { const header = make('header', undefined, 'pc-part-head'); header.append(title); header.hidden = title.hidden; element.append(header, description); }
     if (options.inspect) { const inspect = make('button', options.inspectLabel || '检查零件', 'pc-inspect'); inspect.type = 'button'; inspect.addEventListener('click', () => options.inspect?.(node.id)); element.append(inspect); }
     const content = make('div', undefined, 'pc-output'), feedback = make('div'); feedback.dataset.pcFeedback = node.id; feedback.setAttribute('role', 'status'); feedback.setAttribute('aria-live', 'polite');
-    const part: Part = { node, root: element, output: content, feedback, busy: false, query: 0, signature: signature(node), prefilled: new Map() };
+    const part: Part = { node, root: element, output: content, feedback, busy: false, query: 0, draft: 0, signature: signature(node), prefilled: new Map() };
     const filtered = node.read && Object.entries(node.read.input).filter(([, source]) => source.source === 'form');
     // The collection's toolbar: its filters, how many records show, and a way to take them out as a spreadsheet.
     const toolbar = make('div', undefined, 'mw-toolbar pc-toolbar'); toolbar.dataset.slot = 'toolbar';
     if (filtered?.length) {
-      const schema = view!.contract.operations.find(op => op.id === node.read!.operationId)!.input, filter = make('div', undefined, 'pc-filter'); filter.setAttribute('role', 'search');
+      const schema = operation(node.read!.operationId)!.input, filter = make('div', undefined, 'pc-filter'); filter.setAttribute('role', 'search');
       for (const [field, source] of filtered) {
         const spec = schema.properties![field]!, required = schema.required?.includes(field) ?? false, words = vocabulary(node.pageId, field), label = spec.description ? naming(spec.description, field).label : words.label || field;
         const made = control(spec, (source as { field: string }).field, field, label, required, true, words.values);
@@ -590,7 +591,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     if (toolbar.childNodes.length) element.append(toolbar);
     if (node.read) element.append(content);
     if (node.submit) {
-      const schema = view!.contract.operations.find(op => op.id === node.submit!.operationId)!.input, fields = make('div', undefined, 'pc-form-fields');
+      const schema = operation(node.submit!.operationId)!.input, fields = make('div', undefined, 'pc-form-fields');
       const typed = Object.values(node.submit.input).filter(source => source.source === 'form').length;
       for (const [field, source] of Object.entries(node.submit.input)) if (source.source === 'form') {
         const spec = schema.properties![field]!, words = vocabulary(node.pageId, field), label = spec.description ? naming(spec.description, field).label : words.label || field;
@@ -645,10 +646,10 @@ export function createPluginComponentClient(options: PluginComponentClientOption
         form.append(panel);
         if (composer(node)) form.classList.add('pc-composer');
       }
-      const draft = createPluginFormDraft(form, syncChoices);
+      const edited = () => { part.draft++; }; form.addEventListener('input', edited); form.addEventListener('change', edited);
       form.addEventListener('submit', async event => {
         event.preventDefault(); if (part.busy || !ready(node.submit?.operationId)) return;
-        const generation = epoch, submittedDraft = draft.version;
+        const generation = epoch, submitted = part.draft;
         try {
           const values: Record<string, unknown> = {};
           for (const input of form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('[data-field]')) {
@@ -656,25 +657,29 @@ export function createPluginComponentClient(options: PluginComponentClientOption
             values[input.name] = spec.type === 'boolean' ? input instanceof HTMLInputElement && input.type === 'checkbox' ? input.checked : input.value === 'true' : typedValue(input, spec) ?? input.value;
           }
           // A model call can take tens of seconds; say so rather than "saving".
-          const slow = view!.contract.operations.find(op => op.id === node.submit!.operationId)?.effects.capabilities?.includes('model.generate');
+          const slow = operation(node.submit!.operationId)?.effects.capabilities?.includes('model.generate');
           part.busy = true; submit.disabled = true; submit.dataset.loading = ''; const spinner = make('span', undefined, 'mw-spinner'); spinner.dataset.slot = 'button-loading-indicator'; spinner.setAttribute('aria-hidden', 'true'); submit.prepend(spinner);
           report(part, 'working', slow ? '模型正在生成，可能要几十秒…' : '正在保存…');
           const result = await options.call(node.id, 'submit', { form: values, selection });
-          if (disposed || generation !== epoch || parts.get(node.id) !== part) return;
+          if (!live(part, generation)) return;
           select(node.id, result);
           const verb = /^(保存|添加|提交|记录|删除|打卡|完成|生成|发送|更新|创建|记下|记一笔|写入|加入)/u.exec(submit.textContent ?? '')?.[1];
           // A toggle ("打卡" again on a checked day) answers with its new state: false means it was undone.
           const flags = result && typeof result === 'object' && !Array.isArray(result) ? Object.values(result as Record<string, unknown>).filter(value => typeof value === 'boolean') : [];
           const undone = (verb === '打卡' || verb === '完成') && flags.length === 1 && flags[0] === false;
-          report(part, 'success', (undone ? '已取消' + verb : verb ? '已' + verb : '已完成') + (draft.version === submittedDraft ? '' : '；新输入还未提交'));
+          report(part, 'success', (undone ? '已取消' + verb : verb ? '已' + verb : '已完成') + (part.draft === submitted ? '' : '；新输入还未提交'));
           // Show a command's result only when the design points at it or it is a plain value; an internal id or record is not a message.
           if (!part.node.read && (part.node.submit?.outputPath || ['string', 'number', 'boolean'].includes(typeof result))) output(part, result, 'submit');
-          if (draft.complete(submittedDraft, Object.values(part.node.submit?.input ?? {}).some(source => source.source === 'form' && source.prefill))) {
+          if (part.draft === submitted) {
+            if (!Object.values(part.node.submit?.input ?? {}).some(source => source.source === 'form' && source.prefill)) {
+              form.reset(); form.querySelectorAll<HTMLInputElement>('input[data-pc-choice]').forEach(input => { input.value = input.dataset.pcInitial ?? ''; }); syncChoices(form);
+              form.querySelectorAll('textarea').forEach(area => { area.style.height = ''; }); form.querySelectorAll('select').forEach(choice => choice.dispatchEvent(new Event('change', { bubbles: true })));
+            }
             part.dialog?.close();
             if (form.classList.contains('pc-composer')) form.querySelector<HTMLElement>('input:not([type=hidden]),textarea')?.focus({ preventScroll: true });
           }
           fresh = true; try { await refresh(); } finally { fresh = false; }
-        } catch (error) { if (!disposed && generation === epoch && parts.get(node.id) === part) report(part, 'error', error instanceof Error ? error.message : '操作失败，输入已保留'); }
+        } catch (error) { if (live(part, generation)) report(part, 'error', error instanceof Error ? error.message : '操作失败，输入已保留'); }
         finally { part.busy = false; delete submit.dataset.loading; submit.querySelector('.mw-spinner')?.remove(); submit.disabled = !ready(node.submit?.operationId); }
       });
       part.form = form; if (!part.dialog) element.append(form);
@@ -770,4 +775,4 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     destroy() { disposed = true; epoch++; for (const part of parts.values()) { clearTimeout(part.waiting); clearTimeout(part.feedbackTimer); } parts.clear(); details.clear(); pages.clear(); regions.clear(); root.replaceChildren(); },
   };
 }
-export const PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT = '((createPluginPresentationClient,createPluginFormDraft)=>(' + createPluginComponentClient.toString() + '))(' + createPluginPresentationClient.toString() + ',' + createPluginFormDraft.toString() + ')';
+export const PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT = '((present)=>(' + createPluginComponentClient.toString() + '))(' + present.toString() + ')';

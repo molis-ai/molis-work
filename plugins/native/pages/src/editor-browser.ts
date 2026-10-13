@@ -2981,7 +2981,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   let popRequest = 0;
   // The popup is a selection's form or result: the context toolbar draws it under itself when it can (`docked`); otherwise it sits in the stage.
   let docked = false;
-  const hidePop = (fromPanel = false) => {
+  const clearPop = (fromPanel = false) => {
     const restoreFocus = pop.contains(document.activeElement);
     pop.hidden = true;
     pop.replaceChildren();
@@ -2991,6 +2991,18 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     const stage = overlayRoot();
     if (pop.parentElement !== stage) stage.append(pop);
     if (restoreFocus) view.focus();
+  };
+  let hidePop: (fromPanel?: boolean) => void = clearPop;
+  const showPop = () => {
+    hidePop();
+    let fromPanel = false;
+    const stop = ownPagesTransient(view, () => clearPop(fromPanel));
+    hidePop = (panel = false) => { fromPanel = panel; stop(); };
+    pop.hidden = false;
+  };
+  const anchorPop = (from: number, to: number) => {
+    const token = crypto.randomUUID(); popToken = token; freezePagesFocus(view, token, { from, to }, true);
+    return () => popToken === token && !view.isDestroyed ? resolvePagesFrozen(view, token) : null;
   };
   // `keep`: a result the person is waiting for stays where it is when they select something else.
   const placePop = (anchor: FloatingAnchor, mode: "above" | "below", label: string, keep = false) => {
@@ -3842,6 +3854,7 @@ export function setDoc(handle: PagesEditorHandle, value: unknown): void {
 }
 
 export function destroy(handle: PagesEditorHandle): void {
+  endPagesTransients(handle.view);
   handle.release();
   handle.view.destroy();
 }

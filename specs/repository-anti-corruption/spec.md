@@ -2256,3 +2256,5 @@ W3-02-R4a1接续现行owner命名决定：先只迁私人Session/消息/交接�
 R4a1源码准备实际完成：118个TS错误词元（105生产/13断言）涉及22文件，另将recoverInterrupted的现行SQL写入码改为work.handoff.interrupted，未改历史查询。AST逆转owner名后22份文件正文一致、解析零；只刷新PrivateWorkContextErrorCode一份API，其他公开快照不变，现行base健康门禁通过。新增R4A1-01标在真实消息撤关联与租约恢复用例。动作/权限/业务type/关系/数据库名保持；数据维护、构建、真实运行与组合全量尚未执行，不验收。D现行main/C同步至c816d570e，重新量得500内部引用/0混载，剩19文件差异；须C先合及新版实际回归后发布D。
 
 R4a2按事实owner收口同词context错误：私人工作绑定产出的context.*为work.context.*；Projects/桌面Panel各自产出的context.*为catalog.context.*；Ledger四种拒绝为context_ledger.*。三类producer与各自当前类型/调用消费者同片同步，传入同一个catalogFailure工厂不改变事实归属；跨owner透传仍保留原码。R4A2-01：真实项目绑定/Panel/Ledger拒绝产生相应owner码，拒绝理由、确认门槛及事务/事件不变；R4A2-02：context.bound/rebound/unbound、目录/关系及业务事件SQL一字不改，错误类型/API同步；R4A2-03：各producer定向真实用例及共享组合回归证明当前消费者，无读取旧码兼容。该片从现行main隔离准备，不修改I8/#477冻结树。
+
+R4a3按已登记Work owner承接Workspace句柄/文件快照校验与Session目录更新回滚的错误：只将workspace.invalid_ref/handle_not_opaque/invalid_path/invalid_payload/change_rolled_back/recovery_required及实际消费者变成work.workspace.*，字段、opaque句柄、安全路径、内容、事务回滚/重试不变。R4A3-01：真实校验仍拒绝路径泄露、越界及错误载荷，目录变更失败仍回滚或明确恢复失败，返回现行owner码；R4A3-02：公开错误union/API及现行比较同步、workspace.name等业务键和历史SQL保持；R4A3-03：真实生产路径与现有断言、资源/门禁及组合全量通过后验收。与前两片共享组合一次验证，不新增测试专用API。

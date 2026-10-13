@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { defineFragmentOffersAction, defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
+import { inspectActionDeclarations, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 // What a plugin may declare about being put things into (W1-4, context-program §18): creation entries (`intake`), appends
@@ -120,6 +120,28 @@ test("W1-04: a right-panel cell lists the kinds it shows, each with a reader in 
     assert.equal(manifestProblems(manifest(actions, [view({ objects })])), wrong, JSON.stringify(objects));
   }
   assert.equal(manifestProblems(manifest(actions, [view()])), "", "a view that lists nothing is as before");
+});
+
+test("W1-04: entries that are not shaped like actions or views are reported by the shape rules, never thrown at by the cross-declaration checks", () => {
+  const withPrepare = writing({ intake: intake({ prepare: { capability_id: "example.prepare", version: 1 } }), attach: attach() });
+  const refused = (input: unknown) => {
+    try { parsePluginManifest(input); return null; } catch (error) {
+      if (error instanceof PluginManifestError) return error.code;
+      throw error;
+    }
+  };
+  // A null or a number among the actions, ahead of and after the ones the declarations point at.
+  for (const stray of [null, 5, "action", [], {}]) {
+    const actions = [stray, withPrepare, prepare, reader, stray, itemReader] as Part[];
+    assert.equal(refused(manifest(actions)), "plugin_declaration_invalid", JSON.stringify(stray));
+  }
+  // A reader that lists its kinds in the wrong shape owns no kind, so the append to its object is told so.
+  for (const kinds of ["example_doc", null, 7, { 0: "example_doc" }, [7]]) {
+    const odd = { ...reader, action: { ...(reader.action as Part), subject_kinds: kinds } };
+    assert.match(manifestProblems(manifest([writing({ attach: attach() }), odd as Part, itemReader])), /example_doc 不是本插件拥有的种类/u, JSON.stringify(kinds));
+  }
+  // A view that is not an object says what it lacks, as before, and does not stop the other views being read.
+  assert.match(manifestProblems(manifest([reader, itemReader], [5 as unknown as Part, view({ objects: ["ghost"] })])), /视图 cell 的对象种类 ghost 没有对象读取器/u);
 });
 
 test("W1-04: the new checks come after every older one, so what an author read before does not move", () => {

@@ -8,7 +8,7 @@ import { assertContract } from '../packages/plugin-sandbox/dist/index.js';
 import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts } from '../plugins/native/plugin-builder/src/index.js';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/src/agent-definitions/agent-definitions.js';
@@ -1150,6 +1150,60 @@ test('through the studio surface: the studio asks Jev the question the person sa
 });
 
 // W2-18-BUILDER-LATE-01: a reset belonging to an older job cannot adopt or connect into its replacement.
+test('W2-18-BUILDER-LATE-01: real Host sandbox cleanup cannot delete the resumed build preview', { timeout: 180_000, skip: process.platform !== 'darwin' }, async t => {
+  const home = mkdtempSync(join(tmpdir(), 'builder-reset-http-')), file = join(home, 'project.db'); seedDemoBoard(file);
+  const store = new LocalProjectDatabase(file), options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, ...agentStudioFixture(0) };
+  const server = createServer((request, response) => {
+    void handleAgentStudioHttp(request, response, new URL(request.url ?? '/', 'http://localhost'), options, 'control-token').then(handled => { if (!handled) { response.writeHead(404); response.end(); } });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address(); assert.ok(address && typeof address === 'object'); const origin = `http://127.0.0.1:${address.port}/api/plugin-builder/studio`;
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), removed = Promise.withResolvers<void>(); let arm = false, heldPath = '';
+  const remove = fs.rm;
+  const mock = t.mock.method(fs, 'rm', async (path: Parameters<typeof fs.rm>[0], settings?: Parameters<typeof fs.rm>[1]) => {
+    const name = String(path);
+    if (arm && name.startsWith(join(tmpdir(), 'molis-plugin-sandbox-'))) {
+      arm = false; heldPath = name; entered.resolve(); await release.promise;
+    }
+    try { return await remove(path, settings); } finally { if (name === heldPath) removed.resolve(); }
+  });
+  const send = async <Output>(path: string, body?: object): Promise<Output> => {
+    const response = await fetch(origin + path, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-molis-work-control-token': 'control-token' }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    assert.equal(response.status, path === '/builds' && body ? 201 : 200, await response.clone().text()); return response.json() as Promise<Output>;
+  };
+  const read = async (id: string) => (await send<{ build: AgentBuild }>('/builds/' + id)).build;
+  const reached = async (id: string, phase: AgentBuild['phase']) => {
+    const deadline = Date.now() + 60_000;
+    for (;;) { const build = await read(id); if (build.phase === phase) return build; assert.notEqual(build.phase, 'failed', build.error); if (Date.now() > deadline) assert.fail('real studio phase timeout: ' + phase); await new Promise(resolve => setTimeout(resolve, 25)); }
+  };
+  try {
+    const created = (await send<{ build: AgentBuild }>('/builds', { brief: '做一个随手记笔记的插件' })).build;
+    const choice = await reached(created.id, 'choosing');
+    await send('/builds/' + created.id + '/action', { action: 'choose', revision: choice.revision, candidateId: 'board' });
+    const ready = await reached(created.id, 'ready');
+    await send('/builds/' + ready.id + '/call', { componentId: 'editor', binding: 'submit', payload: { text: 'Old preview record' } });
+    arm = true;
+    await send('/builds/' + ready.id + '/action', { action: 'revise', revision: ready.revision, message: '保留这两个笔记操作，重新确认完整设计。' });
+    await Promise.race([entered.promise, new Promise<never>((_, reject) => setTimeout(() => reject(new Error('real Host reset did not reach old sandbox cleanup')), 30_000))]);
+    assert.ok(heldPath, 'the paused operation is the real old SandboxRunner cleanup');
+    const pause = send('/builds/' + ready.id + '/action', { action: 'pause' });
+    const paused = await reached(ready.id, 'paused');
+    await send('/builds/' + ready.id + '/action', { action: 'resume', revision: paused.revision });
+    await reached(ready.id, 'ready');
+    await send('/builds/' + ready.id + '/call', { componentId: 'editor', binding: 'submit', payload: { text: 'New preview must remain' } });
+    const preview = await send<{ value: unknown }>('/builds/' + ready.id + '/call', { componentId: 'notes', binding: 'read', payload: {} });
+    assert.match(JSON.stringify(preview.value), /New preview must remain/);
+    const resumed = await read(ready.id);
+    release.resolve(); await removed.promise; await pause;
+    assert.deepEqual(await read(ready.id), resumed, 'the old reset cannot replace the current ready build');
+    assert.deepEqual(await send('/builds/' + ready.id + '/call', { componentId: 'notes', binding: 'read', payload: {} }), preview, 'the real preview storage remains after old cleanup finishes');
+  } finally {
+    arm = false; release.resolve(); mock.mock.restore();
+    await releaseAgentStudio(store, DEMO_PROJECT_ID); await releaseInstalledPlugins(store, DEMO_PROJECT_ID);
+    server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); store.close(); rmSync(home, { recursive: true, force: true });
+  }
+});
+
 for (const stage of ["adopt", "connect"] as const) test(`a late ${stage} reset cannot change a newer ready build`, { timeout: 20_000 }, async () => {
   const h = harness([PROPOSALS, detail('Old detail'), detail('New detail')]);
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let resets = 0;

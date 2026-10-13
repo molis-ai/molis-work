@@ -1,3 +1,4 @@
+import { ActionError as ContractsError, ActionError as GoalsError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { handlePagesNativePluginHttp } from "../apps/local-host/src/pages-native-plugin-http.js";
 import type { PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";
@@ -13,7 +14,6 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-
 import {
   BUILTIN_PLUGIN_CATALOG,
   OWN_DIRECTORY_SURFACES,
@@ -25,12 +25,10 @@ import {
 } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication } from "../apps/local-host/src/goal-project-application.js";
 import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
-import { MolisWorkV1Error as ContractsError } from "@molis-ai/molis-work-contracts/platform/errors";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
 import { openFunctionsStore } from "@molis-ai/molis-work-module-functions";
-import { MolisWorkV1Error as GoalsError } from "@molis-ai/molis-work-plugin-goals";
 import {
   DATASET_CLIENT_FACTORY_SCRIPT,
   datasetManifest,
@@ -408,9 +406,9 @@ test("Host 文本补全口暂无模型；注入后 Pages AI 返回模型的候�
 });
 
 test("Host 不再从插件包进口 openFunctionsStore；错误类型来自 contracts", async () => {
-  assert.equal(ContractsError, GoalsError);
+  assert.equal("MolisWorkV1Error" in goalsPluginExports, false, "W3-02-H-01 the retired error is not a plugin export");
   const error = new ContractsError("pages.unavailable", "当前环境不能发出 Artifact");
-  assert.equal(error instanceof GoalsError, true);
+  assert.equal(error.name, "ActionError");
   const files = [
     "apps/local-host/src/functions-host.ts",
     "apps/local-host/src/functions-http.ts",

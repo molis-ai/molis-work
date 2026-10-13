@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { respondGoalsFailure } from "./failure.js";
 import { randomUUID } from "node:crypto";
 import { goalsActions } from "../actions.js";
 import type { GoalsHttpContext } from "./types.js";
@@ -12,16 +14,12 @@ export async function handleGoalEventDecisionHttp(context: GoalsHttpContext): Pr
   ]);
   const unexpected = Object.keys(body).filter((key) => !allowed.has(key));
   if (unexpected.length) {
-    context.respond(400, {
-      error: `不能使用未许可字段：${unexpected.join("、")}`,
-      code: "event_http.unexpected_field",
-      details: { fields: unexpected },
-    });
+    respondGoalsFailure(context, { code: "event_http.unexpected_field", message: `不能使用未许可字段：${unexpected.join("、")}`, details: { fields: unexpected } });
     return true;
   }
   const conclusion = typeof body.conclusion === "string" ? body.conclusion.trim() : "";
   if (!conclusion) {
-    context.respond(400, { error: "用户决定需要结论" });
+    respondGoalsFailure(context, new ActionError("actions.input_invalid", "用户决定需要结论"));
     return true;
   }
   const goalId = decodeURIComponent(match[1]);
@@ -42,8 +40,6 @@ export async function handleGoalEventDecisionHttp(context: GoalsHttpContext): Pr
     });
     context.changed();
     context.respond(200, result);
-  } catch (error) {
-    context.respond(400, { error: error instanceof Error ? error.message : String(error) });
-  }
+  } catch (error) { return respondGoalsFailure(context, error); }
   return true;
 }

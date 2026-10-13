@@ -25,7 +25,7 @@
 
 Session 身份来自 Host 上下文，不能把模型提交的参数直接当作身份。工具 schema 与响应适配属于这里；Goal 事件事实和完成效果属于 Goals，可信用户决定属于 Governance，UI 不另算完成。插件的对外能力就是它声明的动作，由 Local Host 按授权列入目录，不进本包静态目录。作者与 Host 改法见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
 
-工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`、`@molis-ai/molis-work-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
@@ -78,3 +78,5 @@ management audience 的三个 Goals 管理工具对当前 Home 目录登记的�
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
 连接工具的附带内容与公开动作共享精确授权：`context_resolve/bind/create_and_bind` 接受 Catalog 连接后，以同一客户端调用 `goals.guidance.read`、`goals.list`，必要时调用 `goals.directory.read` 恢复目录窗口外的焦点。生产 launcher 使用常驻服务通道，不能回退到本地 typed Host 读取。说明或恢复目录不可读时仍返回真实连接，对应内容为 null 并附 `project_guidance_error`/`resume_error`；不伪报空项目、不自动重新绑定。客户端或项目在等待期间改变则拒绝旧摘要。
+
+错误由 `formatMcpToolError` 统一为 JSON `{ error, code, details?, call_id? }`，标准动作、上下文及管理工具共用 SDK 错误体。details 保留 owner 数据但不能覆盖 code 或伪造编号；只有 Host 确实记下的操作才给 call_id。旧的「错误文本加末行 JSON」和 message 字段已退役，调用方改读现行字段。

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionReference,
   type ActionSchema, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { McpProtocolPorts, McpToolDefinition } from "./protocol.js";
+import { formatMcpToolError } from "./tool-error.js";
 
 /** Stable public names; neither install identity nor catalog order changes them. */
 export function actionMcpToolName(reference: ActionReference): string {
@@ -70,10 +71,6 @@ export function createActionMcpPorts(options: {
         ? result as Record<string, unknown> : { result: result ?? null };
       return { content: [{ type: "text", text: JSON.stringify(structuredContent) }], structuredContent, isError: false };
     },
-    formatToolError(error) {
-      return JSON.stringify(error instanceof ActionError
-        ? { code: error.code, message: error.message }
-        : { code: "actions.execution_failed", message: "能力执行失败" });
-    },
+    formatToolError: formatMcpToolError,
   };
 }

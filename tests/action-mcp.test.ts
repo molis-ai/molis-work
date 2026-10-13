@@ -79,3 +79,21 @@ test("W3-09-2-01: the public MCP adapter hides an unavailable granted action whi
     error => error instanceof ActionError && error.code === "actions.plugin_disabled" && error.message === "插件已停用");
   assert.equal(ran, 0);
 });
+
+for (const internal of [false, true]) test(`W3-02-H-01 actual action MCP keeps the shared error body (${internal ? "internal" : "owner"})`, async () => {
+  const service = new ActionService();
+  const failure = internal ? new Error("forced failure") : new ActionError("catalog.reader_too_old", "future catalog", {
+    details: { current_version: 9, fields: ["revision"], recovery: "refresh", code: "forged.code", call_id: "forged-id" },
+  });
+  service.registerProvider({ provider: { provider_id: "words", title: "Words", kind: "system" }, definitions: [definition],
+    handlers: [{ ...definition, handle: () => { throw failure; } }] });
+  const ports = createActionMcpPorts({ service, context: () => context, serverInfo: { name: "actions", version: "1" } });
+  const name = (await ports.tools)[0]!.name;
+  const reply = await handleMcpMessage({ id: 7, method: "tools/call", params: { name, arguments: { input: "read" },
+    _meta: { "molis-work/callId": "forged-id" } } }, ports);
+  const result = reply!.result as { isError: boolean; content: Array<{ text: string }> };
+  assert.equal(result.isError, true);
+  const body = JSON.parse(result.content[0]!.text);
+  assert.deepEqual(body, internal ? { error: "forced failure", code: "actions.execution_failed" }
+    : { error: "future catalog", code: "catalog.reader_too_old", details: { current_version: 9, fields: ["revision"], recovery: "refresh" } });
+});

@@ -1,3 +1,4 @@
+import { respondGoalsFailure } from "./failure.js";
 import { randomUUID } from "node:crypto";
 import type { GoalsHttpContext } from "./types.js";
 import { goalsActions } from "../actions.js";
@@ -142,7 +143,7 @@ export async function handleGoalEventHttp(context: GoalsHttpContext): Promise<bo
     }
     if (action === "event-close") {
       if (body.kind !== "complete" && body.kind !== "cancel") {
-        context.respond(400, { error: "收尾类型只能是 complete 或 cancel", code: "event_closure.invalid_kind" });
+        respondGoalsFailure(context, { code: "event_closure.invalid_kind", message: "收尾类型只能是 complete 或 cancel" });
         return true;
       }
       return writeOk(context, await context.actions.invoke(goalsActions.close, {
@@ -167,10 +168,7 @@ export async function handleGoalEventHttp(context: GoalsHttpContext): Promise<bo
       }));
     }
     return false;
-  } catch (error) {
-    const responded = respondGoalEventError(context, error);
-    return responded;
-  }
+  } catch (error) { return respondGoalsFailure(context, error); }
 }
 
 function readTimelineQuery(context: GoalsHttpContext): { before_cursor?: string; limit?: number } {
@@ -197,17 +195,5 @@ function requiredInt(value: unknown, name: string): number {
 function writeOk(context: GoalsHttpContext, body: unknown): true {
   context.changed();
   context.respond(200, body);
-  return true;
-}
-
-function respondGoalEventError(context: GoalsHttpContext, error: unknown): true {
-  const code = error && typeof error === "object" && "code" in error ? String((error as { code: unknown }).code) : "";
-  const details = error && typeof error === "object" && "details" in error ? (error as { details: unknown }).details : undefined;
-  const conflict = /version_conflict|stale_version|already_adopted|completed_requires/.test(code);
-  context.respond(conflict ? 409 : 400, {
-    error: error instanceof Error ? error.message : String(error),
-    ...(code ? { code } : {}),
-    ...(details !== undefined ? { details } : {}),
-  });
   return true;
 }

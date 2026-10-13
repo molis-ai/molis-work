@@ -294,7 +294,7 @@ export class GoalEventState {
       throw this.context.error(
         "event_closure.stale_version",
         `正式版本已是 ${current}，不能用期望版本 ${expected} 覆盖新事实`,
-        { current_version: current, expected_version: expected },
+        { current_version: current, expected_version: expected }, "conflict",
       );
     }
   }
@@ -305,7 +305,7 @@ export class GoalEventState {
       throw this.context.error(
         code,
         `当前约定版本已是 ${current}，不能用期望版本 ${expected} 覆盖`,
-        { current_version: current, expected_version: expected },
+        { current_version: current, expected_version: expected }, "conflict",
       );
     }
   }

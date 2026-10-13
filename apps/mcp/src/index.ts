@@ -38,3 +38,5 @@ export { validateMolisWorkMcpLauncher } from "./launcher-validation.js";
 export type { McpLauncherValidationContext } from "./launcher-validation.js";
 export { dispatchMcpProjectTool } from "./tool-dispatch.js";
 export type { McpToolDispatchPorts, McpManagementActions } from "./tool-dispatch.js";
+
+export { formatMcpToolError } from "./tool-error.js";

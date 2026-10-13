@@ -134,7 +134,7 @@ test("W3-07-4-01 / W3-07-4-02: pre-action refusals have no number or row; each a
   const refusal = async (server: LocalMcpServer, name: string, input: Record<string, unknown>, code: string, action?: string) => {
     const rows = host.callLog!.list(PROJECT), count = recordCount(host), result = await message(server, name, fixture.args(input));
     assert.equal(result.isError, true, JSON.stringify(result)); assert.equal(result._meta?.["molis-work/callId"], undefined);
-    const body = JSON.parse(result.content[0]!.text.split("\n").at(-1)!) as { code: string; call_id?: string; fields?: string[] };
+    const body = JSON.parse(result.content[0]!.text) as { code: string; call_id?: string; details?: { fields?: string[] } };
     assert.equal(body.code, code);
     if (action) { oneAction(host, body.call_id, action, false, count); assert.equal(host.callLog!.find(body.call_id!)[0]!.refused, true); }
     else { assert.equal(body.call_id, undefined); assert.deepEqual(host.callLog!.list(PROJECT), rows); }
@@ -148,7 +148,7 @@ test("W3-07-4-01 / W3-07-4-02: pre-action refusals have no number or row; each a
   const event = { goal_id: "absent", conclusion: "确认", idempotency_key: "event" };
   for (const extra of [{ actor_id: "forged" }, { authority: { conversation_ref: "conversation://forged" } }]) {
     const body = await refusal(management, "molis_work_v1_event_decide", { ...event, ...extra }, "mcp.unexpected_field");
-    assert.deepEqual(body.fields, Object.keys(extra), "the original unexpected-field detail is retained");
+    assert.deepEqual(body.details?.fields, Object.keys(extra), "the original unexpected-field detail is retained");
   }
   await refusal(management, "molis_work_v1_goal_tree_decide", { proposal_id: "absent", idempotency_key: "tree", runtime_actor_id: "forged" }, "actions.input_invalid");
   await refusal(management, "molis_work_v1_goal_tree_decide", { proposal_id: "absent", idempotency_key: "tree", authority: { actor_id: "forged" } }, "goal_tree_proposal.authority_source_invalid");

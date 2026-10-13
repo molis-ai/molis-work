@@ -106,10 +106,6 @@
       "types": "./dist/platform/dom-events.d.ts",
       "import": "./dist/platform/dom-events.js"
     },
-    "./platform/errors": {
-      "types": "./dist/platform/errors.d.ts",
-      "import": "./dist/platform/errors.js"
-    },
     "./platform/kernel": {
       "types": "./dist/platform/kernel.d.ts",
       "import": "./dist/platform/kernel.js"

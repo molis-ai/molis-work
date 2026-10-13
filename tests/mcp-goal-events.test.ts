@@ -10,7 +10,6 @@ import { join } from "node:path";
 import test from "node:test";
 import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { molisWorkHostProjectReference, createMolisWorkLocalHost, LocalProjectDatabase, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import type { GoalEventStateView, ReportGoalEventsResult } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -174,7 +173,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
           { type_id: "story-delivery", type_version: 1, title: "缺字段", fields: {} },
         ],
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_report.missing_required_field",
+      (error: unknown) => error instanceof ActionError && error.code === "event_report.missing_required_field",
     );
     const afterInvalid = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id }));
     assert.equal(afterInvalid.events.length, beforeInvalid.events.length);
@@ -506,7 +505,7 @@ test("no-config note and combined report progress persist; implicit focus, illeg
     assert.ok(reported.goal_event_cursor > reported.events[0]!.journal_seq);
     await assert.rejects(
       () => mcp!.callTool("molis_work_v1_action_goals.events.report__v1", { ...batch, progress: { summary: "不同进展" } }),
-      (error: unknown) => error instanceof MolisWorkV1Error && /幂等|重复|idempot|conflict|冲突/i.test(error.message),
+      (error: unknown) => error instanceof ActionError && /幂等|重复|idempot|conflict|冲突/i.test(error.message),
     );
     const prior = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id, limit: 100 }));
     await assert.rejects(
@@ -542,7 +541,7 @@ test("no-config note and combined report progress persist; implicit focus, illeg
     const openBefore = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     await assert.rejects(
       () => mcp!.callTool("molis_work_v1_action_goals.work.resume__v1", { goal_id, reason: "已在进行", idempotency_key: "resume-open" }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_resume.already_open",
+      (error: unknown) => error instanceof ActionError && error.code === "event_resume.already_open",
     );
     assert.equal((JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView).goal_event_cursor, openBefore.goal_event_cursor);
   } finally {

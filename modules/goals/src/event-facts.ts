@@ -214,7 +214,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
         throw this.context.error(
           "event_config.version_conflict",
           `配置版本已是 ${currentVersion}，不能用期望版本 ${input.expected_version} 覆盖`,
-          { current_version: currentVersion, expected_version: input.expected_version },
+          { current_version: currentVersion, expected_version: input.expected_version }, "conflict",
         );
       }
 

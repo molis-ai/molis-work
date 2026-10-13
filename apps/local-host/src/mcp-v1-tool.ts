@@ -1,5 +1,4 @@
 import type { MolisWorkRuntimeConnection } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { dispatchMcpProjectTool, type McpPresentationErrorFactory } from "@molis-ai/molis-work-app-mcp";
 import { readProductEnv } from "@molis-ai/molis-work-storage";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
@@ -8,7 +7,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { catalogManagementProject, residentManagementActions } from "./management-action-client.js";
 import { bindGoalsManagementActions } from "./goals-actions.js";
 
-export const createPresentationError: McpPresentationErrorFactory = (code, message, details) => new MolisWorkV1Error(code, message, details);
+export const createPresentationError: McpPresentationErrorFactory = (code, message, details) => new ActionError(code, message, { details });
 
 /** Who is calling a v1 project tool, and on what. A Runtime call runs in its bound project; a management call names its own database. */
 export interface McpV1ToolCaller {
@@ -30,13 +29,13 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
     ? runtimeConnection!.databasePath
     : namedDatabasePath(arguments_.database_path) ?? namedDatabasePath(readProductEnv("DATABASE"));
   if (!location) {
-    throw new MolisWorkV1Error("mcp.path_required",
+    throw new ActionError("mcp.path_required",
       "管理入口需要明确的数据库路径：在参数 database_path 里给出，或设置环境变量 MOLIS_WORK_DATABASE。没有默认路径，不会按当前目录猜一个。");
   }
   const storage = prepareLocalProjectStorage(location, name === "molis_work_v1_initialize" ? "create" : "existing");
   const { databasePath } = storage;
   if (storage.status === "missing") {
-    throw new MolisWorkV1Error("mcp.not_found", `Molis Work 数据库不存在: ${databasePath}`);
+    throw new ActionError("mcp.not_found", `Molis Work 数据库不存在: ${databasePath}`);
   }
   const projectId = String(
     audience === "runtime"

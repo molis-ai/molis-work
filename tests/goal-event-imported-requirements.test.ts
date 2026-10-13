@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -5,7 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkV1Error, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { materializeGoalEventHistory, type GoalEventHistoryKind } from "./goal-event-history-fixture.js";
 
 const BOARD = "goalboard-v1-demo";
@@ -67,7 +68,7 @@ test("imported criterion and policy requirements follow the same user revise and
         idempotency_key: "runtime-revise-imported-criterion", ...humanVersions,
         revise_requirements: [{ requirement_id: "OLD-HUMAN-C1", human_decision_required: false }],
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_agreement.unauthorized_change",
+      (error: unknown) => error instanceof ActionError && error.code === "event_agreement.unauthorized_change",
     );
     const blockedHuman = app.goalEvents.readState(BOARD, "OLD-HUMAN");
     assert.equal(blockedHuman.requirements.find((item) => item.requirement_id === "OLD-HUMAN-C1")?.statement, originalStatement);
@@ -97,7 +98,7 @@ test("imported criterion and policy requirements follow the same user revise and
         idempotency_key: "runtime-retire-imported-policy", ...policyVersions,
         retire_requirement_ids: ["imported-policy:OLD-POLICY"],
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_agreement.unauthorized_change",
+      (error: unknown) => error instanceof ActionError && error.code === "event_agreement.unauthorized_change",
     );
     assert.ok(app.goalEvents.readState(BOARD, "OLD-POLICY").requirements.some((item) => item.requirement_id === "imported-policy:OLD-POLICY"));
     app.goalEvents.setAgreement({

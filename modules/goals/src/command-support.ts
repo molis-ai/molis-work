@@ -1,7 +1,6 @@
+import type { ActionErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash } from "node:crypto";
-
 import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
-
 import { GoalsCommandError, type GoalsErrorFactory } from "./errors.js";
 import { GoalsRepository } from "./repository.js";
 
@@ -19,12 +18,12 @@ export class GoalsCommandContext {
     options: GoalsCommandContextOptions = {},
   ) {
     this.now = options.now ?? (() => new Date());
-    this.errorFactory = options.errorFactory ?? ((code, message, details) =>
-      new GoalsCommandError(code, message, details));
+    this.errorFactory = options.errorFactory ?? ((code, message, details, kind) =>
+      new GoalsCommandError(code, message, details, kind));
   }
 
-  error(code: string, message: string, details?: Record<string, unknown>): Error {
-    return this.errorFactory(code, message, details);
+  error(code: string, message: string, details?: Record<string, unknown>, kind?: ActionErrorKind): Error {
+    return this.errorFactory(code, message, details, kind);
   }
 
   requireBoard(projectId: string): void {

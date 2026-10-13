@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { managementGoals } from "./goal-management-caller.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
@@ -12,7 +13,6 @@ import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalTreeProposalDecisionResult, GoalTreeProposalListResult, GoalTreeApplicationApi } from "@molis-ai/molis-work-plugin-goals";
 
 test("CLI and MCP share current Goal/Relation proposal decisions across Host restart", async () => {
@@ -110,7 +110,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
         confirm_all_pending: true,
         idempotency_key: "forged-decision",
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error || /确认|user_impersonation|Web|权限|拒绝|unsupported/i.test(String(error)),
+      (error: unknown) => error instanceof ActionError || /确认|user_impersonation|Web|权限|拒绝|unsupported/i.test(String(error)),
     );
     assert.deepEqual(await snapshot(), beforeDenied);
     const decided = await cli<GoalTreeProposalDecisionResult>("goal-tree-decide", {

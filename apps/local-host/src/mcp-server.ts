@@ -5,7 +5,6 @@ import { projectActionAvailability } from "./project-action-availability.js";
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsActions, readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { createMcpRuntimeContextHandlers, createMcpContextPresenter, handleMcpMessage,
   mcpRuntimeSessionActivity, MCP_SERVER_INFO as SERVER_INFO,
   createActionMcpPorts, isPlatformMcpTool, isRuntimeContextMcpTool, molisWorkActionToolName,
@@ -241,7 +240,7 @@ export class LocalMcpServer {
     await this.linkPanelSession(this.runtimeContextHost, callContext.runtimeSessionId);
     const entry = findAssembledMcpTool(catalog, name);
     if (!entry) {
-      throw new MolisWorkV1Error("mcp.tool_unknown", `未知 MCP 方法：${name}`);
+      throw new ActionError("mcp.tool_unknown", `未知 MCP 方法：${name}`);
     }
     if (entry.source === "action") {
       if (this.runtimeConnection !== connection) throw new ActionError("mcp.context_changed", "客户端项目连接已变化，请重新发现能力");

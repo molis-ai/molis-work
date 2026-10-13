@@ -545,6 +545,9 @@ importers:
       '@molis-ai/molis-work-plugin-goals':
         specifier: workspace:*
         version: link:../../plugins/native/goals
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
 
   apps/server:
     dependencies:

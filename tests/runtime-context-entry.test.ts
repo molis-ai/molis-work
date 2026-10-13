@@ -10,7 +10,6 @@ import { createMcpContextPresenter, createMcpRuntimeContextHandlers } from "@mol
 import { readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { type MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -36,7 +35,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     let failResponse = true;
     const handlers = createMcpRuntimeContextHandlers({
       connection,
-      createError: (code, message) => new MolisWorkV1Error(code, message),
+      createError: (code, message) => new ActionError(code, message),
       requireHost: () => host,
       actorFor: () => "runtime:codex:host-session",
       deleteProject: async () => { throw new Error("this test does not delete"); },
@@ -85,7 +84,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     const calls: string[] = [];
     const presentResolution = createMcpContextPresenter({
       connection,
-      createError: (code, message, details) => new MolisWorkV1Error(code, message, details),
+      createError: (code, message, details) => new ActionError(code, message, { details }),
       readGuidance: async () => {
         calls.push("guidance");
         const guidance = await actions.invoke(goalsActions.guidanceRead, {});

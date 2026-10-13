@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { CATALOG_SCHEMA_VERSION, LocalProjectDatabase, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
@@ -8,9 +9,8 @@ import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import Database from "better-sqlite3";
 import { MolisWorkServer, runtimeContextHostFromEnvironment } from "../apps/desktop/launchers/mcp/server.js";
-
 import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -108,7 +108,7 @@ it("returns structured reader-too-old diagnostics without exposing the catalog p
       }) as { result: { isError: boolean; content: Array<{ text: string }> } };
       const errorText = response.result.content[0]?.text ?? "";
       assert.equal(response.result.isError, true);
-      assert.match(errorText, new RegExp(`错误: Molis Work catalog schema=${futureSchema}`));
+      assert.match(JSON.parse(errorText).error, new RegExp(`Molis Work catalog schema=${futureSchema}`));
       assert.match(errorText, /"code":"catalog\.reader_too_old"/);
       assert.match(errorText, new RegExp(`"actual_schema_version":${futureSchema}`));
       assert.match(errorText, new RegExp(`"supported_schema_max":${CATALOG_SCHEMA_VERSION}`));
@@ -158,7 +158,7 @@ it("a management call that names no database fails instead of using a path under
       for (const named of [{}, { database_path: "" }, { database_path: "  " }, { database_path: 5 }]) {
         await assert.rejects(
           () => management.callTool("molis_work_v1_initialize", { project_id: "no-default", title: "无默认库", idempotency_key: "k", ...named }),
-          (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.path_required",
+          (error: unknown) => error instanceof ActionError && error.code === "mcp.path_required",
           JSON.stringify(named),
         );
       }
@@ -168,7 +168,7 @@ it("a management call that names no database fails instead of using a path under
       process.env.MOLIS_WORK_DATABASE = named;
       await assert.rejects(
         () => management.callTool("molis_work_v1_goal_tree_decide", { project_id: "no-default" }),
-        (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.not_found" && error.message.includes(named),
+        (error: unknown) => error instanceof ActionError && error.code === "mcp.not_found" && error.message.includes(named),
       );
       assert.deepEqual(fs.readdirSync(directory), []);
     } finally {

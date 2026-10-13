@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -10,7 +11,6 @@ import {
 import { managementGoals } from "./goal-management-caller.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -53,9 +53,9 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
     }, { actor_id: "user", idempotency_key: "trash-working" }));
     const before = await snapshot();
     await assert.rejects(cli("active-goal", { project_id: projectId, goal_id: "missing", reason: "不存在", actor_id: "user", idempotency_key: "denied-missing" }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "goal.not_found");
+      (error: unknown) => error instanceof ActionError && error.code === "goal.not_found");
     await assert.rejects(cli("active-goal", { project_id: projectId, goal_id: "trashed-goal", reason: "不能选择回收站", actor_id: "user", idempotency_key: "denied-trash" }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "goal.trashed");
+      (error: unknown) => error instanceof ActionError && error.code === "goal.trashed");
     assert.deepEqual(await snapshot(), before);
     const input = { project_id: projectId, goal_id: "working", reason: "当前工作", actor_id: "user", idempotency_key: "active-cli" };
     const selected = await cli<{ active_goal_id: string; replayed: boolean; observed_event_cursor: number }>("active-goal", input);

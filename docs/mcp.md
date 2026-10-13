@@ -77,3 +77,5 @@ AI来源修改已有对象时，提交动作schema声明的读取版本（`expec
 - 只有这次操作在调用记录里留了行才给编号：命令（成功或失败）、处理器之前就被拒绝的调用（记为「未执行」）、失败的读取。读取成功不留行，什么都不带；还没走到动作的失败（例如工具未授权、`mcp.tool_unknown`、常驻服务不在）也没有编号。
 - 向用户报告失败时把编号（至少前 6 位）和错误码一起带上，用户和维护者据此在 Molis Work 的调用记录里找到这次操作的每一步（界面上按编号查找随后续版本）。
 - 常驻服务和 `molis-work-mcp` 进程要是同一个版本：旧版本的 MCP 进程调用动作时不带编号，会被新版常驻服务以 `actions.input_invalid` 拒绝，重启 MCP 进程即可。
+
+错误响应的 text 是一份 JSON `{ error, code, details?, call_id? }`，标准动作、上下文与管理工具共用现行格式。旧的文本前缀/末行 JSON 与 message 字段已退役；owner 的 current_version、fields、recovery 等保留在 details，code 与真实已记录的 call_id 由出口给出。没有调用记录就没有编号。

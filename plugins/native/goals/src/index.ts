@@ -106,7 +106,7 @@ export { GoalDecisionAttentionSync } from "./goal-decision-attention.js";
 
 export { readMolisWorkSnapshot, type MolisWorkSnapshotPorts } from "./board-snapshot-query.js";
 
-export { MolisWorkV1Error } from "./errors.js";
+
 
 export { TRASH_GOAL_STYLES } from "./trash-document-styles.js";
 

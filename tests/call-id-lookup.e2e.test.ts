@@ -3,8 +3,8 @@ import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // W3-01 F in the workbench: 设置 › 诊断 opens in the workbench's settings (a settings address opened directly lands there), so the page's own
-// inline script never runs; the lookup is a GET form the settings directory loads in place, and the id is copied by the handler the workbench
-// already has. This checks both in a real browser, with the real clipboard.
+// inline script never runs; the lookup is a GET form the settings directory loads in place, and the id is copied by the request helper's handler,
+// which the Workbench's own program carries (W3-10-1b). This checks both in a real browser, with the real clipboard.
 const FIRST = "a1b2c3d4-0001-4000-8000-000000000001", SECOND = "b2c3d4e5-0002-4000-8000-000000000002";
 
 test("a diagnostic id is looked up in the workbench's settings, in place, and copied whole", { timeout: 90_000 }, async t => {
@@ -28,7 +28,7 @@ test("a diagnostic id is looked up in the workbench's settings, in place, and co
 
   // The id is copied whole, not the short form on the button.
   await click(panel + " [data-molis-call-id]");
-  await waitFor("document.querySelector('[data-toast]')?.textContent.includes('已复制')", 10_000);
+  await waitFor(`document.querySelector(${JSON.stringify(panel + " [data-molis-call-id]")}).textContent === "已复制"`, 10_000);
   assert.equal(await evaluate("navigator.clipboard.readText()"), FIRST);
 
   // The lookup is a GET form of the page: it loads the other id in place.

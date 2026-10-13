@@ -29,25 +29,18 @@ export const WEB_SERVICE_SETTINGS_SCRIPT = `
       const deadline = Date.now() + 30000;
       while (Date.now() < deadline) {
         try {
-          const response = await fetch("/health", { cache: "no-store", signal: AbortSignal.timeout(1000) });
-          const health = await response.json();
+          const health = await molisWorkRequest("/health", { signal: AbortSignal.timeout(1000) });
           const pid = health.service_process_id || health.process_id;
-          if (response.ok && health.status === "ok" && Number.isSafeInteger(pid) && pid !== previousProcessId) {
-            const statusResponse = await fetch("/api/settings/web-service", { cache: "no-store", signal: AbortSignal.timeout(1000) });
-            const status = await statusResponse.json();
-            if (statusResponse.ok && status.state === "running" && status.owned) return;
+          if (health.status === "ok" && Number.isSafeInteger(pid) && pid !== previousProcessId) {
+            const status = await molisWorkRequest("/api/settings/web-service", { signal: AbortSignal.timeout(1000) });
+            if (status.state === "running" && status.owned) return;
           }
         } catch { /* A short disconnect is expected while launchd replaces the process. */ }
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
       throw new Error(L("尚未确认服务重启成功，请刷新诊断页检查状态；不要连续重复重启。"));
     };
-    const post = async (suffix, body) => {
-      const response = await fetch("/api/settings/web-service/" + suffix, { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify(body) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || L("常驻服务操作失败"));
-      return result;
-    };
+    const post = (suffix, body) => molisWorkRequest("/api/settings/web-service/" + suffix, { body, fallback: L("常驻服务操作失败") });
     document.addEventListener("click", async (event) => {
       const button = event.target.closest("[data-web-service-action]");
       if (!button || busy) return;
@@ -92,7 +85,7 @@ export const WEB_SERVICE_SETTINGS_SCRIPT = `
       } catch (caught) {
         const toast = document.querySelector("[data-settings-toast], [data-toast]");
         if (toast) toast.classList.remove("is-visible");
-        if (error) { error.textContent = caught.message || L("常驻服务操作失败"); error.hidden = false; }
+        if (error) { molisWorkRequest.show(error, caught); error.hidden = false; }
       } finally {
         buttons.forEach((item, index) => { item.disabled = disabled[index]; });
         busy = false;

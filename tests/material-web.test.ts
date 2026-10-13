@@ -70,14 +70,14 @@ test('Host web extraction shares HTML semantics, preserves plaintext, follows bo
   const saved = f.store().readFile(imported.item.item_id).bytes.toString();
   assert.match(saved, /# 网页 & 材料/); assert.match(saved, /中文 🙂/); assert.match(saved, new RegExp(f.origin));
   const count = f.requests();
-  await assert.rejects(readMaterialWebsite(f.origin + '/loop'), { code: 'redirect' }); assert.equal(f.requests() - count, 6);
-  await assert.rejects(readMaterialWebsite('file:///etc/passwd'), { code: 'url' });
-  await assert.rejects(readMaterialWebsite(f.origin.replace('http://', 'http://person:secret@')), { code: 'url' });
+  await assert.rejects(readMaterialWebsite(f.origin + '/loop'), { code: 'material.redirect' }); assert.equal(f.requests() - count, 6);
+  await assert.rejects(readMaterialWebsite('file:///etc/passwd'), { code: 'material.url' });
+  await assert.rejects(readMaterialWebsite(f.origin.replace('http://', 'http://person:secret@')), { code: 'material.url' });
 });
 
 for (const path of ['/large', '/gzip'] as const) test(`Host capture bounds decoded bytes and closes ${path} instead of silently saving a prefix`, { timeout: 15_000 }, async t => {
   const f = await fixture(t);
-  await assert.rejects(readMaterialWebsite(f.origin + path), { code: 'too_large' });
+  await assert.rejects(readMaterialWebsite(f.origin + path), { code: 'material.too_large' });
   await f.closed;
   if (path === '/large') assert.ok(f.sentBytes() < 6 * 1024 * 1024, 'the Host stops the producing response instead of downloading it all');
   const result = await f.service.invoke(f.caller, shelfActions.admit, { text: f.origin + path }) as { item: { item_id: string } };
@@ -130,7 +130,7 @@ test('a bounded text extraction keeps its partial-content notice in the saved Sh
 
 test('Host enforces the real 12-second deadline and cancels the unfinished response', { timeout: 20_000 }, async t => {
   const f = await fixture(t), start = performance.now();
-  await assert.rejects(readMaterialWebsite(f.origin + '/hold'), { code: 'timeout' });
+  await assert.rejects(readMaterialWebsite(f.origin + '/hold'), { code: 'material.timeout' });
   await f.closed; assert.ok(performance.now() - start < 16_000);
 });
 

@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { ImagesError } from "./error.js";
+import { imagesErrors } from "./error.js";
 
 export type StoredConnection = Omit<ImageConnection, "has_key">;
 type Row = Record<string, unknown>;
@@ -144,7 +144,7 @@ export class ImagesStore {
 
   deleteConnection(id: string): void {
     const result = this.db.prepare("DELETE FROM connections WHERE id = ?").run(id);
-    if (Number(result.changes) !== 1) throw new ImagesError("images.not_found", "找不到要删除的生图服务。", 404);
+    if (Number(result.changes) !== 1) throw imagesErrors.not_found("找不到要删除的生图服务。");
   }
 
   listJobs(projectId: string): ImageJob[] {
@@ -156,15 +156,15 @@ export class ImagesStore {
   getJob(projectId: string, id: string): ImageJob {
     this.recoverInterrupted();
     const row = this.db.prepare("SELECT * FROM jobs WHERE project_id = ? AND id = ?").get(projectId, id) as Row | undefined;
-    if (!row) throw new ImagesError("images.not_found", "找不到这次图片生成记录。", 404);
+    if (!row) throw imagesErrors.not_found("找不到这次图片生成记录。");
     return jobFromRow(row);
   }
 
   deleteJob(projectId: string, id: string): ImageJob {
     const job = this.getJob(projectId, id);
-    if (job.status === "running") throw new ImagesError("images.running", "请先停止生成，再删除记录。", 409);
+    if (job.status === "running") throw imagesErrors.running("请先停止生成，再删除记录。");
     const result = this.db.prepare("DELETE FROM jobs WHERE project_id = ? AND id = ? AND status != 'running'").run(projectId, id);
-    if (Number(result.changes) !== 1) throw new ImagesError("images.running", "请先停止生成，再删除记录。", 409);
+    if (Number(result.changes) !== 1) throw imagesErrors.running("请先停止生成，再删除记录。");
     return job;
   }
 
@@ -176,7 +176,7 @@ export class ImagesStore {
   private requestInTransaction(projectId: string, requestId: string, inputHash: string): ImageJob | null {
     const row = this.db.prepare("SELECT * FROM jobs WHERE project_id = ? AND request_id = ?").get(projectId, requestId) as Row | undefined;
     if (!row) return null;
-    if (row.input_hash !== inputHash) throw new ImagesError("images.request_conflict", "该请求 ID 已用于其他生成内容，请创建新的请求。", 409);
+    if (row.input_hash !== inputHash) throw imagesErrors.request_conflict("该请求 ID 已用于其他生成内容，请创建新的请求。");
     return jobFromRow(row);
   }
 
@@ -187,7 +187,7 @@ export class ImagesStore {
       const existing = this.requestInTransaction(job.project_id, job.request_id, inputHash);
       if (existing) { this.db.exec("COMMIT"); return existing; }
       const count = this.db.prepare("SELECT COUNT(*) AS count FROM jobs WHERE status = 'running'").get() as { count: number };
-      if (count.count >= 2) throw new ImagesError("images.busy", "本机已有 2 个生成任务，请等待完成或停止等待后再生成。", 429);
+      if (count.count >= 2) throw imagesErrors.busy("本机已有 2 个生成任务，请等待完成或停止等待后再生成。");
       this.db.prepare(`INSERT INTO jobs
         (id,project_id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at,finished_at,runner_id)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)

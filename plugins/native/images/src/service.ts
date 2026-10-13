@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
-import { ImagesError } from "./error.js";
+import { imagesErrors, isImagesFailure } from "./error.js";
 import { generateProviderImages, isLocalImageEndpoint, normalizeImageBaseUrl, type ImageGeneration, type ImageProviderRequest } from "./providers.js";
 import { ImagesStore, removeAssetFiles, type StoredConnection } from "./store.js";
 
@@ -33,7 +33,7 @@ export class ImagesService {
 
   constructor(private readonly options: ImagesServiceOptions) {
     this.home = resolve(options.homeDirectory);
-    if (activeHomes.has(this.home)) throw new ImagesError("images.already_open", "本机图片服务已经启动。", 409);
+    if (activeHomes.has(this.home)) throw imagesErrors.already_open("本机图片服务已经启动。");
     this.assets = join(this.home, "images", "assets");
     mkdirSync(this.assets, { recursive: true, mode: 0o700 });
     this.store = new ImagesStore(this.home);
@@ -47,11 +47,11 @@ export class ImagesService {
 
   saveConnection(input: ImageConnectionInput): ImageConnection {
     this.assertOpen();
-    if (!input || typeof input !== "object") throw new ImagesError("images.invalid", "请填写生图服务配置。");
+    if (!input || typeof input !== "object") throw imagesErrors.invalid("请填写生图服务配置。");
     const id = input.id === undefined ? randomUUID() : textField(input.id, "服务 ID", 128);
     const previous = this.store.getConnection(id);
-    if (input.id !== undefined && !previous) throw new ImagesError("images.not_found", "找不到要修改的生图服务。", 404);
-    if (input.api_format !== "openai-images" && input.api_format !== "gemini") throw new ImagesError("images.invalid", "请选择受支持的图片 API 协议。");
+    if (input.id !== undefined && !previous) throw imagesErrors.not_found("找不到要修改的生图服务。");
+    if (input.api_format !== "openai-images" && input.api_format !== "gemini") throw imagesErrors.invalid("请选择受支持的图片 API 协议。");
     const base = normalizeImageBaseUrl(textField(input.base_url, "API 基址", 2048));
     const authConnectionId = input.auth_connection_id?.trim();
     const now = new Date().toISOString();
@@ -63,7 +63,7 @@ export class ImagesService {
       this.store.saveConnection(connection);
       if (authConnectionId) this.options.selectConnection(id, authConnectionId);
     } catch {
-      throw new ImagesError("images.save_failed", "无法保存生图服务，请检查服务连接和磁盘权限。", 500);
+      throw imagesErrors.save_failed("无法保存生图服务，请检查服务连接和磁盘权限。");
     }
     return this.publicConnection(connection);
   }
@@ -71,7 +71,7 @@ export class ImagesService {
   deleteConnection(id: string): void {
     this.assertOpen();
     const connectionId = textField(id, "服务 ID", 128);
-    if (!this.store.getConnection(connectionId)) throw new ImagesError("images.not_found", "找不到要删除的生图服务。", 404);
+    if (!this.store.getConnection(connectionId)) throw imagesErrors.not_found("找不到要删除的生图服务。");
     this.store.deleteConnection(connectionId);
     this.options.clearConnection(connectionId);
   }
@@ -100,7 +100,7 @@ export class ImagesService {
   start(projectId: string, input: ImageGenerateInput): ImageJob {
     this.assertOpen();
     const projectIdValue = project(projectId);
-    if (!input || typeof input !== "object") throw new ImagesError("images.invalid", "请填写生成内容。");
+    if (!input || typeof input !== "object") throw imagesErrors.invalid("请填写生成内容。");
     const requestId = textField(input.request_id, "请求 ID", 128);
     const normalized = {
       connection_id: textField(input.connection_id, "生图服务", 128), prompt: textField(input.prompt, "图片描述", 32_000),
@@ -110,16 +110,16 @@ export class ImagesService {
     const existing = this.store.findRequest(projectIdValue, requestId, inputHash);
     if (existing) return existing;
     const connection = this.store.getConnection(normalized.connection_id);
-    if (!connection) throw new ImagesError("images.not_found", "找不到所选生图服务，请重新选择。", 404);
+    if (!connection) throw imagesErrors.not_found("找不到所选生图服务，请重新选择。");
     if ((connection.api_format === "gemini" && normalized.size) || (connection.api_format === "openai-images" && normalized.aspect_ratio)) {
-      throw new ImagesError("images.invalid", "尺寸参数与当前 API 协议不匹配，请重新选择尺寸或宽高比。");
+      throw imagesErrors.invalid("尺寸参数与当前 API 协议不匹配，请重新选择尺寸或宽高比。");
     }
     const authorization = this.options.connectionStatus?.(connection);
-    if (authorization && !authorization.available) throw new ImagesError("images.key_required", authorization.reason || "所选图像连接不可用", 409);
+    if (authorization && !authorization.available) throw imagesErrors.key_required(authorization.reason || "所选图像连接不可用");
     const selectedKey = this.options.resolveConnectionKey(connection.id, connection.base_url);
-    if (selectedKey === null) throw new ImagesError("images.key_required", "所选图像连接不可用", 409);
+    if (selectedKey === null) throw imagesErrors.key_required("所选图像连接不可用");
     const key = selectedKey ?? "";
-    if (!key && !isLocalImageEndpoint(connection.base_url)) throw new ImagesError("images.key_required", "请先为所选生图服务选择一条带 API Key 的服务连接。");
+    if (!key && !isLocalImageEndpoint(connection.base_url)) throw imagesErrors.key_required("请先为所选生图服务选择一条带 API Key 的服务连接。");
     const job: ImageJob = {
       id: randomUUID(), project_id: projectIdValue, request_id: requestId, connection_id: connection.id,
       connection_name: connection.name, api_format: connection.api_format, model: connection.model,
@@ -137,15 +137,15 @@ export class ImagesService {
     const assertCurrent = () => {
       const current = this.store.getConnection(connection.id);
       if (!current || current.base_url !== connection.base_url || current.api_format !== connection.api_format || current.model !== connection.model) {
-        throw new ImagesError("images.connection_changed", "图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。", 409);
+        throw imagesErrors.connection_changed("图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。");
       }
       const status = this.options.connectionStatus?.(current);
       if (authorization && (!status?.available || status.revision !== authorization.revision)) {
-        throw new ImagesError("images.connection_changed", "图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。", 409);
+        throw imagesErrors.connection_changed("图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。");
       }
       const selected = this.options.resolveConnectionKey(current.id, current.base_url);
       const currentKey = selected === undefined ? "" : selected;
-      if (currentKey === null || currentKey !== key) throw new ImagesError("images.connection_changed", "图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。", 409);
+      if (currentKey === null || currentKey !== key) throw imagesErrors.connection_changed("图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。");
     };
     const promise = Promise.resolve().then(() => this.run(job, request, controller, assertCurrent)).finally(() => this.active.delete(job.id));
     this.active.set(job.id, { controller, promise, projectId: projectIdValue });
@@ -174,9 +174,9 @@ export class ImagesService {
   readImage(projectId: string, jobId: string, imageId: string): { bytes: Buffer; mime: GeneratedImage["mime_type"]; filename: string } {
     const job = this.getJob(projectId, jobId);
     const image = job.images.find((item) => item.id === imageId);
-    if (!image || !/^[a-f0-9-]+\.(png|jpg|webp)$/u.test(image.filename)) throw new ImagesError("images.not_found", "找不到这张图片。", 404);
+    if (!image || !/^[a-f0-9-]+\.(png|jpg|webp)$/u.test(image.filename)) throw imagesErrors.not_found("找不到这张图片。");
     try { return { bytes: readFileSync(join(this.assets, image.filename)), mime: image.mime_type, filename: image.filename }; }
-    catch { throw new ImagesError("images.not_found", "图片文件已丢失，请重新生成。", 404); }
+    catch { throw imagesErrors.not_found("图片文件已丢失，请重新生成。"); }
   }
 
   close(): Promise<void> {
@@ -200,7 +200,7 @@ export class ImagesService {
 
   private async run(job: ImageJob, request: ImageProviderRequest, controller: AbortController, assertCurrent: () => void): Promise<void> {
     const files: string[] = [];
-    const timeout = new ImagesError("images.timeout", "等待厂商响应已超过 180 秒。厂商可能仍在生成或计费，请检查用量后再手动重试。", 504);
+    const timeout = imagesErrors.timeout("等待厂商响应已超过 180 秒。厂商可能仍在生成或计费，请检查用量后再手动重试。");
     const lifetime = createExecutionLifetime({ signal: controller.signal,
       timeout: { milliseconds: REQUEST_TIMEOUT_MS, reason: timeout },
       monitor: { intervalMs: 200, check: () => {
@@ -212,7 +212,7 @@ export class ImagesService {
     try {
       lifetime.assertActive();
       assertCurrent();
-      if (!this.options.generate) throw new ImagesError("images.runtime_unavailable", "Prologue 图片执行服务尚未接通，请稍后重试。", 503);
+      if (!this.options.generate) throw imagesErrors.runtime_unavailable("Prologue 图片执行服务尚未接通，请稍后重试。");
       const results = await generateProviderImages(request, lifetime.signal, this.options.generate);
       lifetime.assertActive();
       if (this.store.getJob(job.project_id, job.id).status !== "running") return;
@@ -236,7 +236,7 @@ export class ImagesService {
       else {
         try { assertCurrent(); } catch (changed) { error = changed; }
       }
-      this.store.finish(job.project_id, job.id, "failed", [], error instanceof ImagesError ? error.message : "生成失败：无法连接厂商、下载图片或保存结果。请检查网络、API 基址及磁盘空间，然后手动重试。");
+      this.store.finish(job.project_id, job.id, "failed", [], isImagesFailure(error) ? error.message : "生成失败：无法连接厂商、下载图片或保存结果。请检查网络、API 基址及磁盘空间，然后手动重试。");
     } finally {
       lifetime.dispose();
       for (const path of files) {
@@ -254,14 +254,14 @@ export class ImagesService {
     return { ...connection, has_key: Boolean(this.options.resolveConnectionKey(connection.id, connection.base_url)),
       ...(selected ? { auth_connection_id: selected } : {}) };
   }
-  private assertOpen(): void { if (this.closed) throw new ImagesError("images.closed", "图片服务已停止。", 503); }
+  private assertOpen(): void { if (this.closed) throw imagesErrors.closed("图片服务已停止。"); }
 }
 
 /** Names the key for one request to the Prologue runtime; nothing is stored under it. */
 function credentialRef(id: string): string { return `images:${id}`; }
 function textField(value: unknown, name: string, maximum: number): string {
   if (typeof value !== "string" || !value.trim() || value.trim().length > maximum) {
-    throw new ImagesError("images.invalid", `${name}不能为空，且最多 ${maximum} 个字符。`);
+    throw imagesErrors.invalid(`${name}不能为空，且最多 ${maximum} 个字符。`);
   }
   return value.trim();
 }

@@ -204,7 +204,8 @@ describe("the records of this repository", () => {
   const file = (relative: string) => readFileSync(path.join(repoRoot, relative), "utf8");
   const json = (relative: string) => JSON.parse(file(relative));
   const folder = "vendor/prologue-sdk";
-  const current = "prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz";
+  // The package agent-host depends on. It contains the desktop computer-use line and is rebuilt from upstream main before that line is published.
+  const current = "prologue-sdk-0.0.0-rc.1-computer-use.tgz";
 
   test("every vendored archive matches its .sha256 and provenance", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
@@ -214,15 +215,17 @@ describe("the records of this repository", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    assert.equal(provenance.source.commit, "9fc3b17386419625a36359b74fb4789c17a3adc8");
+    assert.equal(provenance.source.commit, "d4908c118f7899d44e3d1975806797a05f0094b9");
     assert.deepEqual(provenance.source.patches, []);
     assert.equal(provenance.source.dirty, false);
   });
 
-  test("only the patch the provenance names is left in vendor/prologue-sdk", () => {
-    const named = json(`${folder}/${current}.provenance.json`).alsoBuildableFrom?.patch?.file;
-    const patches = readdirSync(path.join(repoRoot, folder)).filter((name) => name.endsWith(".patch"));
-    assert.deepEqual(patches, named ? [named] : []);
+  test("only a patch a vendored provenance still names is left in vendor/prologue-sdk", () => {
+    // The current package was built without a patch. An older package may still name one it has not been told to delete.
+    const named = readdirSync(path.join(repoRoot, folder)).filter((name) => name.endsWith(".provenance.json"))
+      .map((name) => json(`${folder}/${name}`).alsoBuildableFrom?.patch?.file).filter((file): file is string => typeof file === "string").sort();
+    const patches = readdirSync(path.join(repoRoot, folder)).filter((name) => name.endsWith(".patch")).sort();
+    assert.deepEqual(patches, named);
   });
 
   test("patch-history.json holds the 25 deleted patches and the 9 packages that never had one", () => {

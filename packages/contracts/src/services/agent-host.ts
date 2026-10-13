@@ -898,6 +898,8 @@ export interface AgentToolOperationReviewDocument {
   tool: string;
   summary: string;
   fields: Array<{ label: string; value: string }>;
+  /** Reversible desktop action not yet allowed this round; the card may offer allowing that app (specs/computer-use D06). */
+  round_allow?: { app: string; label: string };
 }
 
 export interface AgentMcpReviewDocument {
@@ -956,11 +958,8 @@ export interface AgentReviewDecisionInput {
   decision: "approve" | "reject";
   actor_id: string;
   note?: string;
-  /**
-   * A person approving a command may also allow the same command for the rest of this Agent session.
-   * Only an in-boundary command qualifies; the Host records who set it and applies it to exact repeats.
-   */
-  remember?: "session";
+  /** "session" repeats one in-boundary command; "app-this-round" allows that desktop app until the run ends (specs/computer-use D06). */
+  remember?: "session" | "app-this-round";
 }
 
 export interface AgentReviewReceipt {

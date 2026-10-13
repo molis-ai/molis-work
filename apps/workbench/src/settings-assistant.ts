@@ -48,6 +48,20 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
         ${projectId ? `<a class="mw-btn mw-btn--ghost mw-btn--sm" href="/projects/${encodeURIComponent(projectId)}/settings/memory">${L("去项目记忆")}</a>` : ""}
       </div>
     </section>
+    <section class="settings-section assistant-computer" aria-labelledby="assistant-computer-title" data-assistant-computer>
+      <h2 id="assistant-computer-title">${L("使用电脑")}</h2>
+      <p class="settings-muted">${L("开启后，助理能看这台 Mac 的屏幕、操作其他桌面应用，完成跨应用的多步任务；每一步先问你，过程在侧栏的「电脑」标签实时可见。它需要系统授权、会影响整台电脑，所以默认关闭。网页上的事仍用侧栏浏览器。")}</p>
+      <label class="settings-check"><input type="checkbox" data-computer-enable> ${L("允许助理使用电脑")}</label>
+      <p class="settings-muted" data-computer-perms></p>
+      <h3 class="settings-subhead">${L("禁区应用")}</h3>
+      <p class="settings-muted">${L("助理连看都不看的应用。系统设置、钥匙串、密码和支付类应用，以及 Molis Work 自己，已经在禁区里、不能移除；你可以再加别的。")}</p>
+      <div data-computer-forbidden><p class="settings-muted">${L("正在读取…")}</p></div>
+      <form class="assistant-rule-form" data-computer-forbid-form>
+        <input class="mw-input" type="text" data-computer-forbid-id placeholder="${L("应用标识，如 com.example.app")}" aria-label="${L("应用标识")}">
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${L("加入禁区")}</button>
+      </form>
+      <p class="settings-form-error" data-computer-error role="alert" hidden></p>
+    </section>
     <p class="prompt-settings-notice" role="note">${L("读取类能力直接使用；修改类每次执行前都会请你确认准确参数；不可撤回的操作每次单独确认。")}</p>
     <div class="prompt-settings-tools">
       <div class="mw-toggle-group settings-segmented" role="group" aria-label="${L("范围")}" data-assistant-scope-group>
@@ -255,6 +269,52 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   runUsage(() => usageApi());
   if (location.hash === "#contributions") { contributions.open = true; loadContributions(); }
   load();
+
+  // 使用电脑: the master switch (off by default), the helper's system-permission status, and the forbidden apps the person added.
+  const computer = root.querySelector("[data-assistant-computer]");
+  if (computer) {
+    const enable = computer.querySelector("[data-computer-enable]");
+    const permsEl = computer.querySelector("[data-computer-perms]");
+    const forbiddenEl = computer.querySelector("[data-computer-forbidden]");
+    const forbidForm = computer.querySelector("[data-computer-forbid-form]");
+    const forbidId = computer.querySelector("[data-computer-forbid-id]");
+    const computerError = computer.querySelector("[data-computer-error]");
+    const PERM = { accessibility: L("辅助功能"), screen_recording: L("屏幕录制"), input_monitoring: L("输入监控") };
+    const computerApi = async (path, payload) => {
+      const response = await fetch("/api/computer" + path, payload ? { method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload) } : undefined);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
+      return data;
+    };
+    const paintForbidden = (forbidden) => {
+      forbiddenEl.replaceChildren();
+      if (!forbidden || !forbidden.length) { forbiddenEl.append(el("p", "settings-muted", L("你还没有额外添加禁区应用。"))); return; }
+      const list = el("ul", "prompt-list");
+      forbidden.forEach((app) => {
+        const item = el("li", "prompt-row");
+        item.append(el("span", "", (app.name || app.bundle_id) + "（" + app.bundle_id + "）"));
+        const remove = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("移除"));
+        remove.type = "button";
+        remove.addEventListener("click", () => runComputer(() => computerApi("/forbidden", { remove: app.bundle_id }).then((data) => paintForbidden(data.forbidden))));
+        item.append(remove);
+        list.append(item);
+      });
+      forbiddenEl.append(list);
+    };
+    const paintPerms = async () => {
+      if (!enable.checked) { permsEl.textContent = ""; return; }
+      try {
+        const data = await computerApi("/permissions");
+        if (!data.permissions) { permsEl.textContent = data.problem ? L("电脑助手：") + data.problem : L("电脑助手尚未就绪。"); return; }
+        const missing = Object.keys(data.permissions).filter((key) => !data.permissions[key]).map((key) => PERM[key] || key);
+        permsEl.textContent = missing.length ? L("还缺系统授权：") + missing.join("、") + L("。在侧栏的「电脑」标签里按引导授权。") : L("系统授权齐全。");
+      } catch (failure) { permsEl.textContent = failure.message; }
+    };
+    const runComputer = async (work) => { computerError.hidden = true; try { await work(); } catch (failure) { computerError.textContent = failure.message; computerError.hidden = false; } };
+    enable.addEventListener("change", () => runComputer(async () => { const data = await computerApi("/settings", { enabled: enable.checked }); enable.checked = data.enabled; await paintPerms(); }));
+    forbidForm.addEventListener("submit", (event) => { event.preventDefault(); const id = String(forbidId.value || "").trim(); if (!id) return; runComputer(async () => { const data = await computerApi("/forbidden", { bundle_id: id, name: id }); forbidId.value = ""; paintForbidden(data.forbidden); }); });
+    runComputer(async () => { const data = await computerApi("/settings"); enable.checked = data.enabled; paintForbidden(data.forbidden); await paintPerms(); });
+  }
 };
 globalThis.molisWorkBindAssistantSettings(document);
 `;

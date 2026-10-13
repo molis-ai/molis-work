@@ -12,10 +12,10 @@ import { feedItemActions, feedManifest } from "@molis-ai/molis-work-plugin-feed"
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { SqlitePluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { definePlugin, defineSubjectContextAction, subjectContext } from "../packages/plugin-sdk/src/index.js";
+import { definePlugin, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
-import { HOME_TALK_PERMISSIONS } from "../apps/local-host/src/home-talk-actions.js";
+import { HOME_TALK_PERMISSIONS } from "../apps/local-host/dist/home-talk-actions.js";
 
 test("real Home HTTP and capability library use installed plugin grants without a Host permission list", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "home-local-grants-"));

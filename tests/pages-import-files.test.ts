@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { preparePagesFileImport as preparePagesImport } from "../apps/local-host/src/pages-import.js";
-import { pagesSchema } from "../plugins/native/pages/src/schema.js";
+import { pagesSchema } from "@molis-ai/molis-work-plugin-pages";
 
 const requirePages = createRequire(new URL("../apps/local-host/package.json", import.meta.url));
 const { zipSync } = requirePages("fflate") as {

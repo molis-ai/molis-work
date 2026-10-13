@@ -11,10 +11,10 @@ import {
   LocalProjectDatabase,
 } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { createPagesRouteHandlers } from "../plugins/native/pages/src/route-handlers.ts";
-import { PagesPluginRouteTable } from "../plugins/native/pages/src/routes.ts";
+import { createPagesRouteHandlers } from "@molis-ai/molis-work-plugin-pages";
+import { PagesPluginRouteTable } from "@molis-ai/molis-work-plugin-pages";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { registerPagesArtifactVersion } from "../apps/local-host/src/pages-artifact.ts";
+import { registerPagesArtifactVersion } from "../apps/local-host/dist/pages-artifact.js";
 
 const TOKEN = "pages-project-binding-token-0123456789";
 

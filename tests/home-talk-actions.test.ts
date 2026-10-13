@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import { definePlugin, defineSubjectContextAction, subjectContext, resolveActionSubject } from "../packages/plugin-sdk/src/index.js";
+import { definePlugin, defineSubjectContextAction, subjectContext, resolveActionSubject } from "@molis-ai/molis-work-plugin-sdk";
 import { bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
-import { homeTalkActions, HOME_TALK_PERMISSIONS, createHomeTalkHandlers } from "../apps/local-host/src/home-talk-actions.js";
+import { homeTalkActions, HOME_TALK_PERMISSIONS, createHomeTalkHandlers } from "../apps/local-host/dist/home-talk-actions.js";
 import { workActions } from "@molis-ai/molis-work-plugin-work";
 
 const caller: ActionCallContext = { actor_id: "owner", project_id: "talk-project", audience: "user", permissions: [...HOME_TALK_PERMISSIONS, "notes:read"] };

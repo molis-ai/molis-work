@@ -982,7 +982,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         return saved ? { owner: saved.owner, recovery: saved.recovery, latest: saved.runs.at(-1), planned: saved.planned } : undefined;
       },
     },
-    startAgentRun: (input: PrologueStartInput) => effects.start(input, async () => {
+    startAgentRun: async (input: PrologueStartInput) => {
       const none = input.workspace === "none";
       // Business work: no root; the Host's frozen actions as this session's pack, and root-free tools only.
       const business = input.workspace === "business";
@@ -1374,7 +1374,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           steer: input => control.steer(input), subscribe: listener => control.subscribe(listener),
         },
       };
-    }),
+    },
     shutdown: async () => {
       mcpLibrary.dispose();
       closingBuilders = true;
@@ -1389,7 +1389,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   };
 
   return Object.assign(new PrologueAgentAdapter({
-    runtime: port,
+    runtime: { ...port, startAgentRun: input => effects.start(input, () => port.startAgentRun(input)) },
     modelConfiguration: options.modelConfiguration,
     stopHeld: runId => { const queue = heldLabels.get(runId); const next = queue?.shift(); if (queue && !queue.length) heldLabels.delete(runId); return next; },
     // Judged when the run ends, from its last words: the runtime stops consulting the hook after it has held twice.

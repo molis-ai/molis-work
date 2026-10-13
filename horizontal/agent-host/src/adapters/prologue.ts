@@ -1,6 +1,6 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import { parseAgentRunBudget, agentTextMaterialContent, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { parseAgentRunBudget, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
   AgentSkillLibrary,
@@ -29,7 +29,7 @@ import type {
 
 import { emptyCapabilityMatrix } from "../capabilities.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "../execution-plan.js";
-import { freezeRunStart } from "./prologue-frozen.js";
+import { freezeRunStart, validateRunAttachments } from "./prologue-frozen.js";
 import { switchRunModel } from "./prologue-model-switch.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
@@ -534,13 +534,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async #start(request: AgentStartRequest, session: SessionRecord, execution?: AgentStartExecution): Promise<AgentRunHandle> {
-    const textMaterials = request.text_materials ?? [];
-    if (textMaterials.length > 30 || new Set(textMaterials.map(item => item.material_id)).size !== textMaterials.length) throw new Error("材料过多或选择重复");
-    textMaterials.forEach(agentTextMaterialContent);
-    const imageMaterials = request.image_materials ?? [];
-    if (imageMaterials.length > 6 || new Set(imageMaterials.map(item => item.material_id)).size !== imageMaterials.length
-      || imageMaterials.some(item => !item || typeof item.resource?.id !== "string" || !Number.isSafeInteger(item.resource.revision) || !/^image\//.test(String(item.media_type)))) throw new Error("图片过多、重复或格式无效");
-    if (imageMaterials.length && (!this.#runtime.imageAttachments || request.workspace !== "business")) throw new PrologueAdapterError("agent.capability_unavailable", "这个运行方式还不能把图片交给模型");
+    const { textMaterials, imageMaterials } = validateRunAttachments(request, Boolean(this.#runtime.imageAttachments));
     if (request.budget?.max_turns !== undefined && (!Number.isSafeInteger(request.budget.max_turns) || request.budget.max_turns < 1 || request.budget.max_turns > 100)) throw new Error("执行轮次预算必须为 1–100 的整数");
     const model = await this.#ports.modelConfiguration(request.model_selection);
     if (model === null) {

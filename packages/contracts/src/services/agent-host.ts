@@ -1,3 +1,5 @@
+import type { AgentStartExecution } from "./agent-host-start.js";
+export type { AgentStartExecution } from "./agent-host-start.js";
 import type { ActionCallOrigin, ActionView, ExactActionReference } from "../platform/actions.js";
 import type {
   AgentPromptLayer,
@@ -1248,14 +1250,6 @@ export interface AgentRecoveryCapability {
   close(session: AgentSessionRef, runId: string, expectedVersion: number): Promise<AgentRecoveryReport>;
 }
 
-/** Host-owned, in-memory: authority checks, and the call number the Host gave the round (never from a Plugin payload). */
-export interface AgentStartExecution extends ActionCallOrigin {
-  beforeStart?(): void | Promise<void>;
-  /** Original invocation's synchronous fence; only the start/accept phase uses it, never background dispatch. */
-  assertBeforeStart?(): void;
-  /** Live owner authority, valid beyond the start invocation's lifetime. */
-  beforeDispatch?(): void | Promise<void>;
-}
 
 /**
  * What a Runtime says about itself, for developers: how it was assembled, what the machine gives it, and what it could

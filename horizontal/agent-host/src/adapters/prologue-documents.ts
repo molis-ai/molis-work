@@ -49,6 +49,7 @@ export function createPrologueDocuments(runtime: Runtime, storageRoot: string | 
     },
     parse: input => parsePrologueDocument(runtime, input),
   };
+}
 
 
 /** This port returns text, so neither the source bytes nor its derived resource have a consumer. */
@@ -66,3 +67,4 @@ export async function parsePrologueDocument(runtime: Runtime, input: { bytes: Ui
     try { if (derived) await runtime.resources.revoke(derived); }
     finally { await runtime.resources.revoke(stage.ref); }
   }
+}

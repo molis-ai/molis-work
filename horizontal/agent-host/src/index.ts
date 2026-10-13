@@ -1,6 +1,6 @@
 import { parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { parseExactActionReferences, requireSynchronous, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { importedCharacterInstructions } from "./character-import.js";
+import { importedCharacterInstructions, currentCharacterMatches } from "./character-import.js";
 import type {
   AgentManifest,
   AgentPromptText,
@@ -486,8 +486,7 @@ export class AgentHost implements AgentHostApi {
 
     const validateCharacter = character ? () => {
       const current = authority.resolveCharacter!(character.reference, request.actor_id);
-      if (current.reference.artifact_id !== character.reference.artifact_id || current.reference.version !== character.reference.version
-        || current.content_digest !== character.content_digest || current.project_id !== request.project_id || current.source.owner_actor_id !== request.actor_id) {
+      if (!currentCharacterMatches(character, current, request.project_id, request.actor_id)) {
         throw new AgentHostError("agent.capability_unavailable", "原 Character 版本已变化，请重新选择后执行");
       }
     } : undefined;

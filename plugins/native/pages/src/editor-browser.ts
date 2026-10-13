@@ -28,7 +28,6 @@ import {
   indentUnderPrevious,
   insertCodeIndent,
   insertHardBreak,
-  insertImage,
   setImageWidth,
   setImageCaption,
   setBookmarkTitle,

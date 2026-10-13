@@ -203,7 +203,7 @@ export {
   type AgentHostComposition,
   type AgentHostCompositionOptions,
 } from "./agent-host-composition.js";
-export { handleAgentReviewHttp, type AgentReviewHttpPorts } from "./agent-review-http.js";
+export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
 export {
   codingDirectoryPanel,
   diffStagePanel,
@@ -231,3 +231,25 @@ export { AssistantService } from "./assistant/assistant-service.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { prologueMemoryBackend } from "./memory/memory-host.js";
+export { ComputerRecords } from "./computer/computer-records.js";
+export { ComputerDesk } from "./computer/computer-desk.js";
+export { ComputerSettings } from "./computer/computer-settings.js";
+export { ComputerDriver, type DeskContext } from "./computer/computer-driver.js";
+export { helperFailure, isRefused } from "./computer/computer-errors.js";
+export {
+  COMPUTER_RECORD_SOURCE_ID,
+  computerRecordFileSource,
+  handleUnscopedComputerFiles,
+  recordsOwnedBy,
+} from "./computer/computer-record-source.js";
+export {
+  SELF_APPROVAL_QUIET_MS,
+  confirmArrivedTooSoon,
+  refuseCapture,
+  refuseDespiteWindowText,
+  refuseLanding,
+  refuseSelfApproval,
+  reviewProjectFor,
+  type ComputerRoundHolder,
+} from "./computer/computer-policy.js";
+export { ASSISTANT_RULES_PROVIDER } from "./assistant/assistant-rule-actions.js";

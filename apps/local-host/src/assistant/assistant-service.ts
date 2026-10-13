@@ -29,6 +29,7 @@ import { randomUUID } from "node:crypto";
 import type { MemoryCandidate, MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { CodingExecutor, CodingUnavailable, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
+import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 
 const RUNTIME = "prologue";
 const MAX_TEXT = 20_000;
@@ -462,9 +463,9 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     "只说未做": "ended-on-promise" };
   return activity.flatMap(item => {
     if (item.name === "reasoning" || item.name === "context-remaining") return [];
-    const verb = verbs[item.name] ?? item.name;
-    const named = titles?.get(item.target);
-    const target = (verb === "read" || verb === "change" || verb === "suggest") && named ? `${named.provider} · ${named.title}` : item.target;
+    const verb = desktopVerb(item, verbs[item.name] ?? item.name);
+    const named = titles?.get(shownActivityTarget(item.target));
+    const target = (verb === "read" || verb === "change" || verb === "suggest") && named ? `${named.provider} · ${named.title}` : shownActivityTarget(item.target);
     // Sent and not finished: it may have happened, so it is neither done nor a failure to retry.
     const uncertain = item.state === "failed" && /actions\.outcome_unknown|may or may not have taken effect/.test(`${item.summary} ${item.output ?? ""}`);
     const said = `${item.summary} ${item.output ?? ""}`;
@@ -500,7 +501,6 @@ function answerOf(output: string | undefined): string {
   return text.length <= 300 ? text : `${text.slice(0, 300)}…`;
 }
 
-/** Words to recall by: Latin words and Chinese two-character pieces, most of each; the store matches them as substrings. */
 /** Recall words: the platform memory's own (Chinese two-character pieces and Latin words). */
 export { recallKeywords } from "@molis-ai/molis-work-service-memory";
 

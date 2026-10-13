@@ -2,9 +2,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentReviewStatus, AgentGitIndexObservation, AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { ASSISTANT_PERSONAL_OWNER } from "@molis-ai/molis-work-contracts/services/assistant";
 import { renderAgentReviewSurface, renderAgentReviewRecovery } from "@molis-ai/molis-work-app-workbench";
 import { icon } from "@molis-ai/molis-work-design-system";
 
+import { confirmArrivedTooSoon, reviewProjectFor, type ComputerRoundHolder } from "./computer/computer-policy.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
 /**
@@ -22,6 +24,10 @@ export interface AgentReviewHttpPorts {
   /** Who the decision is recorded against. */
   actorId: string;
   observeGitIndex?: (request: AgentReviewRequest) => Promise<AgentGitIndexObservation>;
+  /** The round holding the computer, when this process has a desk. Absent on a forwarder. */
+  computerHolder?: () => ComputerRoundHolder | null;
+  /** Clock for the self-approval quiet period. Defaults to the wall clock. */
+  now?: () => number;
 }
 
 const STATUSES: readonly AgentReviewStatus[] = [
@@ -53,20 +59,21 @@ export async function handleAgentReviewHttp(
     return true;
   }
   if (request.method === "GET" && url.pathname === "/api/agent/reviews") {
-    await ports.agentHost.reviews.refresh(ports.projectId);
+    // Every run of one runtime session, without naming each: a long session's history is not a list of ids.
+    const runSessionId = url.searchParams.get("run_session_id");
+    const projectId = reviewProjectFor(ports.projectId, runSessionId, ports.computerHolder?.() ?? null);
+    await ports.agentHost.reviews.refresh(projectId);
     const requested = url.searchParams.get("status");
     const status = STATUSES.find((entry) => entry === requested);
     const runIds = url.searchParams.getAll("run_id");
     const sessionId = url.searchParams.get("session_id");
     const workspaceId = url.searchParams.get("workspace_id");
-    // Every run of one runtime session, without naming each: a long session's history is not a list of ids.
-    const runSessionId = url.searchParams.get("run_session_id");
     const limitParam = url.searchParams.get("limit"), limit = limitParam === null ? undefined : Number(limitParam);
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000)) {
       sendLocalWebJson(response, 400, { error: "审查记录数量必须为 1–1000" });
       return true;
     }
-    const matched = ports.agentHost.reviews.list(ports.projectId, status)
+    const matched = ports.agentHost.reviews.list(projectId, status)
       .filter(review => runIds.length === 0 && !sessionId && !workspaceId && !runSessionId || review.run && runIds.includes(review.run.run_id)
         || runSessionId && review.run?.session_id === runSessionId
         || sessionId && review.operation?.session_id === sessionId || workspaceId && review.operation?.workspace_id === workspaceId)
@@ -91,7 +98,6 @@ export async function handleAgentReviewHttp(
   }
 
   if (request.method === "POST" && url.pathname === "/api/agent/reviews/decide") {
-    await ports.agentHost.reviews.refresh(ports.projectId);
     const body = await readLocalWebBody(request);
     const reviewId = typeof body.review_id === "string" ? body.review_id : "";
     const decision = body.decision === "approve" || body.decision === "reject"
@@ -104,20 +110,28 @@ export async function handleAgentReviewHttp(
     if (body.note !== undefined && (typeof body.note !== "string" || body.note.length > 2000)) {
       sendLocalWebJson(response, 400, { error: "审查说明最多 2000 字符" }); return true;
     }
-    if (body.remember !== undefined && body.remember !== "session") {
-      sendLocalWebJson(response, 400, { error: "remember 只能是 session" }); return true;
+    if (body.remember !== undefined && body.remember !== "session" && body.remember !== "app-this-round") {
+      sendLocalWebJson(response, 400, { error: "remember 只能是 session 或 app-this-round" }); return true;
     }
-    if (ports.agentHost.reviews.get(reviewId)?.project_id !== ports.projectId) {
+    const holder = ports.computerHolder?.() ?? null;
+    const review = ports.agentHost.reviews.get(reviewId);
+    const projectId = reviewProjectFor(ports.projectId, review?.run?.session_id ?? null, holder);
+    if (!review || review.project_id !== projectId) {
       sendLocalWebJson(response, 404, { error: "找不到这条待审操作" });
       return true;
     }
+    if (holder?.lastInjectAt != null && review.run?.session_id === holder.sessionId && confirmArrivedTooSoon(holder.lastInjectAt, ports.now?.() ?? Date.now())) {
+      sendLocalWebJson(response, 409, { error: "这一步刚落到屏幕上，助理不能马上批准自己", code: "computer.self_approval" });
+      return true;
+    }
+    await ports.agentHost.reviews.refresh(projectId);
     try {
       const receipt = await ports.agentHost.reviews.respond({
         review_id: reviewId,
         decision,
         actor_id: ports.actorId,
         ...(typeof body.note === "string" && body.note !== "" ? { note: body.note } : {}),
-        ...(body.remember === "session" ? { remember: "session" as const } : {}),
+        ...(body.remember === "session" || body.remember === "app-this-round" ? { remember: body.remember } : {}),
       });
       // 200 carries the receipt, not a claim that the effect happened: that is
       // `effect_settled`, and it stays false until a real result comes back.
@@ -134,4 +148,26 @@ export async function handleAgentReviewHttp(
   }
 
   return false;
+}
+
+/**
+ * Confirm cards on the project list, where no project is open.
+ * Personal work stores them under the home owner. A round that holds the computer
+ * still resolves to that round's project when the request names its session.
+ */
+export async function handleUnscopedAgentReviews(
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+  ports: Pick<AgentReviewHttpPorts, "agentHost" | "actorId" | "computerHolder" | "now"> & { ready?: () => Promise<void> },
+): Promise<boolean> {
+  if (url.pathname !== "/api/agent/reviews" && url.pathname !== "/api/agent/reviews/decide") return false;
+  await ports.ready?.();
+  return handleAgentReviewHttp(request, response, url, {
+    projectId: ASSISTANT_PERSONAL_OWNER,
+    agentHost: ports.agentHost,
+    actorId: ports.actorId,
+    computerHolder: ports.computerHolder,
+    now: ports.now,
+  });
 }

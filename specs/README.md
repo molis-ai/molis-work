@@ -10,6 +10,8 @@
 - [artifact-positioning](artifact-positioning/spec.md)：Artifact 定位与动线梳理，所有插件统一进同一个壳子。
 - [coding-quality-assurance](coding-quality-assurance/spec.md)：Coding 质量保证（已定方向，防腐收尾后做）。
 - [risk-plugin](risk-plugin/spec.md)：专门记录风险的插件（风险已移出 Goals）。
+- [ai-interaction-experience](ai-interaction-experience/spec.md)：跨插件的 AI 对话与动态动作交互（执行中，2026-10-09 方案已对齐）。
+- [computer-use](computer-use/spec.md)：个人助理的完整 Computer Use——操作 macOS 桌面应用，过程与结果在侧栏的「电脑」「文件」与对话里交给用户（进行中）。
 
 ## 现行规范
 

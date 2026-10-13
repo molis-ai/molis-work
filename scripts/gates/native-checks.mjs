@@ -7,9 +7,10 @@
 //   node scripts/gates/native-checks.mjs rust     rustfmt --check on every tracked .rs file; cargo clippy --all-targets
 //                                                 -D warnings for apps/desktop/src-tauri (compiles the crate, so it needs the
 //                                                 platform the crate is for: macOS)
-//   node scripts/gates/native-checks.mjs swift    swiftc -typecheck of the standalone Swift file; with --package also
-//                                                 `swift build` of the SwiftPM package (needs the network on the first run and a
-//                                                 Swift that reads its swift-tools-version, 6.2; about 7 minutes cold)
+//   node scripts/gates/native-checks.mjs swift    swiftc -typecheck of the standalone Swift file, and of the computer
+//                                                 helper's sources together (one executable, same frameworks as its build.sh);
+//                                                 with --package also `swift build` of the SwiftPM package (needs the network on
+//                                                 the first run and a Swift that reads its swift-tools-version, 6.2; about 7 minutes cold)
 //   node scripts/gates/native-checks.mjs shell    shellcheck --severity=warning on every tracked .sh file and every tracked file
 //                                                 whose first line is a sh/bash shebang
 //   node scripts/gates/native-checks.mjs python  every tracked .py file parses (python3 -I, nothing is written)
@@ -29,11 +30,23 @@ import { fileURLToPath } from "node:url";
 
 export const RUST_ROOT = "apps/desktop";
 export const RUST_MANIFEST = "apps/desktop/src-tauri/Cargo.toml";
-/** The Swift files and what checks them: `typecheck` (a standalone file) or `package` (compiled by a SwiftPM package). */
+/** The Swift files and what checks them: `typecheck` (a standalone file), `executable` (sources typechecked together), or `package` (compiled by a SwiftPM package). */
 export const SWIFT_UNITS = [
   { file: "apps/local-host/native/materials/JellyMaterial.swift", check: "typecheck", target: "macosx14.0" },
   { file: "apps/local-host/native/materials/whisper/Sources/JellyWhisper/JellyWhisper.swift", check: "package", package: "apps/local-host/native/materials/whisper" },
   { file: "apps/local-host/native/materials/whisper/Package.swift", check: "package", package: "apps/local-host/native/materials/whisper" },
+  // The computer helper is one executable: the four sources typecheck together, the same way build.sh compiles them.
+  {
+    check: "executable",
+    target: "macos14.0",
+    frameworks: ["Cocoa", "ApplicationServices", "ScreenCaptureKit", "Carbon"],
+    files: [
+      "apps/local-host/native/computer/Sources/Input.swift",
+      "apps/local-host/native/computer/Sources/Observe.swift",
+      "apps/local-host/native/computer/Sources/Presence.swift",
+      "apps/local-host/native/computer/Sources/main.swift",
+    ],
+  },
 ];
 const SHELL_SHEBANG = /^#!\s*(?:\/usr\/bin\/env\s+)?(?:\/\S*\/)?(?:ba|da|k|z)?sh\b/;
 
@@ -76,7 +89,7 @@ export const checkRust = (root, files = trackedFiles(root)) => {
 export const checkSwift = (root, { withPackages = false } = {}, files = trackedFiles(root)) => {
   const sources = files.filter((file) => file.endsWith(".swift"));
   if (!sources.length) return { problems: [], summary: "no Swift files" };
-  const known = new Set(SWIFT_UNITS.map((unit) => unit.file));
+  const known = new Set(SWIFT_UNITS.flatMap((unit) => unit.files ?? [unit.file]));
   const problems = sources.filter((file) => !known.has(file)).map((file) => `${file} is Swift code the checks do not know; add it to SWIFT_UNITS in scripts/gates/native-checks.mjs`);
   if (problems.length) return { problems, summary: "" };
   if (process.platform !== "darwin") unusable("the Swift checks need macOS (swiftc with the macOS SDK)");
@@ -85,6 +98,10 @@ export const checkSwift = (root, { withPackages = false } = {}, files = trackedF
   for (const unit of SWIFT_UNITS.filter((candidate) => candidate.check === "typecheck" && sources.includes(candidate.file))) {
     const result = run("swiftc", ["-typecheck", "-parse-as-library", "-target", `${arch}-apple-${unit.target}`, unit.file], { cwd: root });
     if (result.status !== 0) problems.push(`swiftc -typecheck ${unit.file} failed:\n${tail(result.stderr + result.stdout)}`);
+  }
+  for (const unit of SWIFT_UNITS.filter((candidate) => candidate.check === "executable" && candidate.files.every((file) => sources.includes(file)))) {
+    const result = run("swiftc", ["-typecheck", "-swift-version", "5", "-target", `${arch}-apple-${unit.target}`, ...unit.frameworks.flatMap((framework) => ["-framework", framework]), ...unit.files], { cwd: root });
+    if (result.status !== 0) problems.push(`swiftc -typecheck ${unit.files.join(" ")} failed:\n${tail(result.stderr + result.stdout)}`);
   }
   const packages = [...new Set(SWIFT_UNITS.filter((unit) => unit.check === "package" && sources.includes(unit.file)).map((unit) => unit.package))];
   if (withPackages) {
@@ -97,7 +114,9 @@ export const checkSwift = (root, { withPackages = false } = {}, files = trackedF
     }
   }
   const built = withPackages ? "; the SwiftPM package builds" : "; the SwiftPM package is built only with --package";
-  return { problems, summary: `${sources.length} Swift files known, the standalone one typechecks${built}` };
+  const executables = SWIFT_UNITS.filter((unit) => unit.check === "executable" && unit.files.every((file) => sources.includes(file))).length;
+  const executableNote = executables ? `, ${executables} executable typechecks together` : "";
+  return { problems, summary: `${sources.length} Swift files known, the standalone one typechecks${executableNote}${built}` };
 };
 
 export const checkShell = (root, files = trackedFiles(root)) => {

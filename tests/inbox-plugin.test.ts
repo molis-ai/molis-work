@@ -1,4 +1,4 @@
-import { inboxActions, inboxManifest, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxActions, inboxContentActions, createInboxContentHandlers, inboxManifest, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import { sceneConfigurationActions, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
@@ -9,8 +9,28 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 
 const TOKEN = "inbox-plugin-test-token-0123456789012345";
+
+test("W3-02-G1-05 Inbox refuses a Goal decision handover without changing the attention fact", async () => {
+  const entry = { entry_id: "decision-1", subject_type: "goal_decision" as const, subject_id: "goal-1", reason: "goal_decision" as const,
+    status: "open" as const, detail: {}, revision: 1, created_at: "2026-10-12T00:00:00Z", updated_at: "2026-10-12T00:00:00Z", completed_at: null };
+  const before = structuredClone(entry), effects: string[] = [];
+  const unexpected = (): never => { effects.push("unexpected write or Feed access"); throw new Error("a Goal decision has no Feed handover body"); };
+  const handlers = createInboxContentHandlers({ entries: () => [entry], entry: () => entry, items: () => [], sources: () => [],
+    readFeed: async () => unexpected(), receiveFeed: async () => unexpected(), ensure: unexpected, reopen: unexpected, flush: async () => unexpected() });
+  const definitions = Object.values(inboxContentActions), service = new ActionService();
+  const dispose = service.registerProvider({ provider: { provider_id: inboxManifest.plugin_id, plugin_id: inboxManifest.plugin_id,
+    project_id: "board", title: "Inbox", kind: "plugin" }, definitions,
+    handlers: handlers.filter(handler => definitions.some(definition => definition.capability_id === handler.capability_id)) });
+  try {
+    await assert.rejects(service.invoke({ actor_id: "owner", project_id: "board", audience: "user", permissions: INBOX_ACTION_PERMISSIONS },
+      inboxContentActions.read, { item_id: entry.entry_id }), { code: "actions.input_invalid", message: "这条 Inbox 事项没有可以交接的正文" });
+    assert.deepEqual(effects, []);
+    assert.deepEqual(entry, before);
+  } finally { dispose(); }
+});
 
 test("Inbox plugin lists Attention entries, completes without deleting the Feed Item", async (t) => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-inbox-plugin-"));

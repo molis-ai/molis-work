@@ -550,7 +550,7 @@ test("every input Pages prepares passes the input contract of the action it name
 });
 
 // ---- P3: memory ---------------------------------------------------------------------------------------------------
-test("memory: recalled for this situation when the directory has it; signals carry the capability and title, never the content", async () => {
+test("W3-02-G1-03 memory: recalled for this situation when the directory has it; signals carry the capability and title, never the content", async () => {
   const memory = provider("system.memory", "记忆");
   const views = [view(pages, "pages.fragment.offers", { ...pagesActions.fragmentOffers.action }), view(pages, "pages.ai"),
     view(memory, "memory.recall"), view(memory, "memory.signals.report")];
@@ -583,13 +583,15 @@ test("memory: recalled for this situation when the directory has it; signals car
     assert.equal(sent.situation.label, "Pages 里选中的文字");
     assert.equal(sent.event_id, "ev-1");
     assert.doesNotMatch(JSON.stringify(sent), /我们认为主因/, "no selected content leaves in a signal");
-    assert.equal((await call({ pane_id: "main", focus: f, key, signal: "loved", event_id: "ev-2" })).status, 400);
-    assert.equal((await call({ pane_id: "main", focus: f, key: "frag.unknown", signal: "ignored", event_id: "ev-3" })).status, 409);
+    const invalid = await call({ pane_id: "main", focus: f, key, signal: "loved", event_id: "ev-2" });
+    assert.deepEqual([invalid.status, invalid.body.code, invalid.body.error], [400, "contextual.input_invalid", "情境请求的 signal 不合法"]);
+    const stale = await call({ pane_id: "main", focus: f, key: "frag.unknown", signal: "ignored", event_id: "ev-3" });
+    assert.deepEqual([stale.status, stale.body.code, stale.body.error], [409, "contextual.stale", "这个动作已不在当前内容的候选里"]);
   } finally { server.close(); }
 });
 
 // ---- P1: Host transport ------------------------------------------------------------------------------------------
-test("host routes: rules at once, prepare returns the provider's own input for exactly this fragment; stale or unoffered refuse", async () => {
+test("W3-02-G1-03 host routes: rules at once, prepare returns the provider's own input for exactly this fragment; stale or unoffered refuse", async () => {
   const views = [view(pages, "pages.fragment.offers", { ...pagesActions.fragmentOffers.action }), view(pages, "pages.ai")];
   let prepares: (input: FragmentOffersInput) => unknown = input => ({ offers: preparePagesFragmentOffers(input, "pages_document", pages.provider_id) });
   const invoked: ActionReference[] = [];
@@ -637,6 +639,7 @@ test("host routes: rules at once, prepare returns the provider's own input for e
     views[1] = view(pages, "pages.ai");
     const invalid = await call("/api/contextual/candidates", { pane_id: "main", focus: { ...f, activity: "dancing" } });
     assert.equal(invalid.status, 400);
+    assert.equal(invalid.body.code, "contextual.input_invalid");
     const tooMany = await call("/api/contextual/candidates", { pane_id: "main", focus: { ...f, targets: Array.from({ length: 30 }, () => f.targets[0]) } });
     assert.equal(tooMany.status, 400);
     const long = await call("/api/contextual/candidates", { pane_id: "main", focus: { ...f, targets: [{ kind: "text_range", text: "长".repeat(20_000) }] } });

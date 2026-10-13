@@ -77,7 +77,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
       readBody: async request => {
         // Bounded image-bearing Home actions; each plugin additionally validates its own input.
         try { return await readLocalWebBody(request, 12 * 1024 * 1024); }
-        catch (error) { throw new ActionError(error instanceof RangeError ? "actions.input_too_large" : "actions.input_invalid",
+        catch (error) { if (error instanceof ActionError) throw error; throw new ActionError(error instanceof RangeError ? "actions.input_too_large" : "actions.input_invalid",
           error instanceof Error ? error.message : "请求读取失败"); }
       },
     });

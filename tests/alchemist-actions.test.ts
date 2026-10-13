@@ -4,7 +4,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { alchemistActions as a } from "@molis-ai/molis-work-plugin-alchemist";
+import { alchemistActions as a, createAlchemistHttpApp } from "@molis-ai/molis-work-plugin-alchemist";
 import { alchemistFixture } from "./fixtures/alchemist-actions.js";
 
 async function fixture(t: test.TestContext) {
@@ -126,6 +126,17 @@ test("Alchemist Pulse, cancellation and exports use real repositories and preser
 
 test("Alchemist Kernel validates authority and schemas before side effects; HTTP cannot bypass the injected invoker", async t => {
   const f = await fixture(t);
+  // W3-02-G1-05: the production operation executor rejects an unknown operation or version with the current platform code.
+  const executor = f.runtime.actionsFor(f.caller.actor_id);
+  for (const definition of [{ ...a.bootstrap, version: 2 }, { ...a.bootstrap, capability_id: "example.unregistered" }]) {
+    await assert.rejects(executor.invoke(definition, {}), { code: "actions.missing", message: "没有这个炼金术士能力版本。" });
+    // The existing injected invoker forwards the route into that real rejected executor, rather than manufacturing an error body.
+    const app = createAlchemistHttpApp(undefined, { invoke: (reference, input, signal) => executor.invoke({ ...reference,
+      capability_id: definition.capability_id, version: definition.version }, input, signal) });
+    const denied = await app.request("http://localhost/api/v1/bootstrap");
+    assert.equal(denied.status, 404);
+    assert.deepEqual(await denied.json(), { code: "actions.missing", message: "没有这个炼金术士能力版本。" });
+  }
   await assert.rejects(f.service.invoke({ ...f.caller, project_id: "b" }, a.directionCreate, { description: "不得创建到其他项目的方向" }));
   await assert.rejects(f.service.invoke({ ...f.caller, permissions: ["alchemist:read"] }, a.directionCreate, { description: "缺少写权限不能创建方向" }), { code: "actions.forbidden" });
   for (const input of [{ description: "有效方向描述但是带有伪造身份", actor_id: "other" }, { description: "短" }, { description: "有效方向描述", project_id: "b" }]) {

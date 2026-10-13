@@ -76,7 +76,7 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
       readGoal: async (goalId) => {
         const collection = await actions.invoke(goalsActions.collection, {});
         const entry = [...collection.goals, ...collection.archived_goals, ...collection.trashed_goals].find(row => row.goal.goal_id === goalId);
-        if (!entry) throw new ActionError("actions.not_found", "找不到这个 Goal");
+        if (!entry) throw new ActionError("actions.missing", "找不到这个 Goal");
         const { goal, event_work } = entry;
         const state = event_work ? await actions.invoke(goalsActions.state, { goal_id: goalId }) : null;
         const event_facts = state

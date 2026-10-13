@@ -142,6 +142,19 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     const personal = await post("/api/search/query", { query: "OKR" });
     assert.equal(personal.status, 200, await personal.clone().text());
     assert.deepEqual(ids(await personal.json() as SearchQueryResponse), [], "the project list page searches personal content only");
+    // W3-02-G1-03: actual HTTP input refusals keep their current codes; a formerly live, deleted result remains a normal business answer.
+    for (const [path, input, code, message] of [
+      [`/projects/${a.project_id}/api/search/open`, { hit_id: "not a hit" }, "actions.input_invalid", "搜索结果标识无效，请重新搜索"],
+      [`/projects/${a.project_id}/api/search/query`, { query: "OKR", cursor: "not a cursor" }, "actions.input_invalid", "翻页位置已失效，请从第一页重新搜索"],
+      ["/api/search/query", { query: "OKR", scope: "project" }, "actions.project_required", "当前没有打开项目，只能搜索个人内容"],
+    ] as const) {
+      const refused = await post(path, input), answer = await refused.json();
+      assert.equal(refused.status, 400);
+      assert.deepEqual([answer.code, answer.error], [code, message]);
+    }
+    const gone = await post(`/projects/${a.project_id}/api/search/open`, { hit_id: hit.hit_id });
+    assert.equal(gone.status, 200);
+    assert.equal((await gone.json()).state, "missing");
   } finally {
     await new Promise<void>(resolve => server.listening ? server.close(() => resolve()) : resolve());
     await host.close();

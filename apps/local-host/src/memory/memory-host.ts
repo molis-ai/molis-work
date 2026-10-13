@@ -337,7 +337,7 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
     },
     mapError(error) {
       const code = error instanceof ActionError || error instanceof MemoryError ? error.code : "memory.failed";
-      const status = code === "memory.not_found" ? 404 : code === "memory.forbidden" || code === "memory.scope" || code === "actions.permission_denied" ? 403
+      const status = code === "memory.not_found" ? 404 : code === "memory.forbidden" || code === "memory.scope" || code === "actions.forbidden" ? 403
         : code === "memory.failed" ? 500 : 400;
       return { status, body: { error: error instanceof Error ? error.message : "记忆暂时无法完成", code } };
     },

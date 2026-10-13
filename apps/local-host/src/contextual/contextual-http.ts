@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
-import { ActionError, FRAGMENT_GRANULARITIES, FRAGMENT_ROLES, type ActionReference, type ActionView, type FragmentActionOffer, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes, FRAGMENT_GRANULARITIES, FRAGMENT_ROLES, type ActionReference, type ActionView, type FragmentActionOffer, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { FUNCTIONS_DEFAULT_MODEL } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { ContextualJudgeRequest, SurfaceActivity, SurfaceFocus, SurfaceFocusTarget } from "@molis-ai/molis-work-contracts/services/contextual";
 import { contextualCandidates, type JudgmentWording } from "@molis-ai/molis-work-kernel/contextual";
@@ -82,7 +83,7 @@ async function reportSignal(focus: SurfaceFocus, key: string, signal: string, ev
   const view = memoryAction(views, "memory.signals.report");
   if (!view) return { state: "unavailable" as const };
   const candidate = contextualCandidates(views, focus).find(item => item.key === key);
-  if (!candidate) throw new ContextualRequestError(409, "contextual.stale", "这个动作已不在当前内容的候选里");
+  if (!candidate) throw contextualErrors.stale("这个动作已不在当前内容的候选里");
   const surface = views.find(item => (item.provider.plugin_id ?? item.provider.provider_id) === focus.plugin_id)?.provider.title;
   const where = focus.activity === "completed" ? "刚完成的一步" : focus.activity === "editing" ? "正在写的段落" : WHERE[focus.granularity] ?? "选中的内容";
   return caller.actions.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {
@@ -147,7 +148,7 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
   if (url.pathname === "/api/contextual/surfaces") {
     if (request.method !== "GET") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
     try { sendJson(response, 200, { surfaces: surfaceKinds(await ports.actions().discover()) }); }
-    catch { sendJson(response, 500, { code: "contextual.failed", error: "暂时处理不了，请稍后重试" }); }
+    catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
     return true;
   }
   const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare|signal)$/u.exec(url.pathname);
@@ -178,10 +179,8 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     }
     sendJson(response, 200, await prepare(judgeRequest.focus, readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), caller));
   } catch (error) {
-    const status = error instanceof ContextualRequestError ? error.status
-      : error instanceof ActionError ? (error.code === "actions.forbidden" ? 403 : error.code === "actions.input_invalid" ? 400 : 409) : 500;
-    sendJson(response, status, { code: error instanceof ActionError ? error.code : error instanceof ContextualRequestError ? error.code : "contextual.failed",
-      error: error instanceof ContextualRequestError || error instanceof ActionError ? error.message : "暂时处理不了，请稍后重试" });
+    const failure = actionErrorResponse(error);
+    sendJson(response, failure.status, failure.body);
   }
   return true;
 }
@@ -192,15 +191,15 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
  */
 async function prepare(focus: SurfaceFocus, key: string, requestId: string, caller: Caller) {
   const candidate = contextualCandidates(await caller.actions.discover(), focus).find(item => item.key === key);
-  if (!candidate) throw new ContextualRequestError(409, "contextual.stale", "这个动作已不在当前内容的候选里，请重新选择");
-  if (!candidate.available) throw new ContextualRequestError(409, "contextual.unavailable", candidate.reason ?? "这个动作现在不可用");
+  if (!candidate) throw contextualErrors.stale("这个动作已不在当前内容的候选里，请重新选择");
+  if (!candidate.available) throw contextualErrors.unavailable(candidate.reason ?? "这个动作现在不可用");
   // One of the object's subject offers: prepared exactly as the Home / Dock prepares it, by the query that declared it.
   if (candidate.origin === "subject") {
-    const notOffered = () => new ContextualRequestError(409, "contextual.not_offered", `${candidate.provider_title} 没有为这件事项准备「${candidate.title}」`);
+    const notOffered = () => contextualErrors.not_offered(`${candidate.provider_title} 没有为这件事项准备「${candidate.title}」`);
     const offer = await prepareSubjectOffer(caller.actions, { kind: focus.object.kind, id: focus.object.id }, requestId, candidate.source,
       item => item.recommendation_key === candidate.key).catch(error => { throw error instanceof ActionError && error.code === "actions.offer_changed" ? notOffered() : error; });
     if (!sameReference(offer.action, candidate.action)) throw notOffered();
-    if (!offer.availability.available) throw new ContextualRequestError(409, "contextual.unavailable", offer.availability.reason);
+    if (!offer.availability.available) throw contextualErrors.unavailable(offer.availability.reason);
     return { key, offer_id: candidate.offer_id, title: offer.title, intent: candidate.intent, apply: candidate.apply,
       action: candidate.action, provider_title: candidate.provider_title, input: offer.input, origin: "subject" as const };
   }
@@ -218,7 +217,7 @@ async function prepare(focus: SurfaceFocus, key: string, requestId: string, call
   const offer = offers.find(item => item.offer_id === candidate.offer_id);
   if (!offer || offer.action.capability_id !== candidate.action.capability_id || offer.action.version !== candidate.action.version
     || (offer.action.provider_id && offer.action.provider_id !== candidate.action.provider_id)) {
-    throw new ContextualRequestError(409, "contextual.not_offered", `${candidate.provider_title} 没有为这段内容准备「${candidate.title}」`);
+    throw contextualErrors.not_offered(`${candidate.provider_title} 没有为这段内容准备「${candidate.title}」`);
   }
   return { key, offer_id: candidate.offer_id, title: candidate.title, intent: candidate.intent, apply: candidate.apply,
     action: candidate.action, provider_title: candidate.provider_title, input: offer.input, ...(whole ? { scope: "object" as const } : {}),
@@ -247,11 +246,8 @@ export function surfaceKinds(directory: readonly ActionView[]): Record<string, {
   return out;
 }
 
-class ContextualRequestError extends Error {
-  constructor(readonly status: number, readonly code: string, message: string) { super(message); }
-}
-
-const invalid = (field: string) => new ContextualRequestError(400, "contextual.input_invalid", `情境请求的 ${field} 不合法`);
+const contextualErrors = defineErrorCodes("contextual", { stale: "conflict", unavailable: "conflict", not_offered: "conflict", input_invalid: "invalid" });
+const invalid = (field: string) => contextualErrors.input_invalid(`情境请求的 ${field} 不合法`);
 const ACTIVITIES: ReadonlySet<string> = new Set<SurfaceActivity>(["browsing", "selecting", "editing", "comparing", "completed"]);
 const GRANULARITIES: ReadonlySet<string> = new Set(["page", "object", ...FRAGMENT_GRANULARITIES]);
 const ROLES: ReadonlySet<string> = new Set(FRAGMENT_ROLES);

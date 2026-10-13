@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { searchActions, type SearchOpenRequest, type SearchQueryRequest, type SearchScope } from "@molis-ai/molis-work-contracts/services/search";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "./web-http.js";
 
@@ -20,9 +21,8 @@ export async function handleSearchHttp(request: IncomingMessage, response: Serve
       sendJson(response, 200, await client.invoke(searchActions.query, await readBody(request) as unknown as SearchQueryRequest));
     }
   } catch (error) {
-    const code = error instanceof ActionError ? error.code : "search.failed";
-    sendJson(response, code === "actions.forbidden" ? 403 : code === "actions.input_invalid" || code === "actions.project_required" ? 400 : error instanceof ActionError ? 409 : 500,
-      { code, error: error instanceof ActionError ? error.message : "搜索暂时不可用，请稍后重试" });
+    const failure = actionErrorResponse(error);
+    sendJson(response, failure.status, failure.body);
   }
   return true;
 }

@@ -221,7 +221,7 @@ test("a cancelled asynchronous document dispatch guard does not send a late requ
 });
 
 test("document authority is rechecked before each API read and refusal stays distinct from network failure", async () => {
-  const reason = Object.assign(new Error("permission revoked"), { code: "actions.permission_denied" });
+  const reason = Object.assign(new Error("permission revoked"), { code: "actions.forbidden" });
   let checks = 0, calls = 0;
   await assert.rejects(readExternalDocument({ source: "notion", url: NOTION_URL }, { token: "fixture",
     beforeDispatch: () => { if (++checks === 2) throw reason; },

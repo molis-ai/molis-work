@@ -289,7 +289,7 @@ export async function handleMolisWorkWebRequest(
           view = { ...view, feed: { ...view.feed, out_rules: rules, feed_items: view.feed.feed_items.map(item => ({ ...item,
             suggested_behavior_ids: recommendations.find(result => result.item_id === item.item_id)?.suggested_behavior_ids ?? [] })) } };
         } catch (error) {
-          if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.not_found"].includes(String(error.code)))) throw error;
+          if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(String(error.code)))) throw error;
         }
         const inboxActionsClient = bindLocalWebActions(localHost, hostReference, INBOX_ACTION_PERMISSIONS);
         try {
@@ -299,7 +299,7 @@ export async function handleMolisWorkWebRequest(
             inbox_entries: view.feed.inbox_entries.map(entry => { const judgment = byEntry.get(entry.entry_id) ?? null;
               return { ...entry, next_judgment: judgment, suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [] }; }) } };
         } catch (error) {
-          if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.not_found"].includes(String(error.code)))) throw error;
+          if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(String(error.code)))) throw error;
         }
         return { ...view, plugin_stages: await renderHomePluginStages(localHost.homePlugins) };
       };

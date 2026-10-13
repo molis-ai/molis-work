@@ -28,7 +28,7 @@ export function bindArtifactPluginInput(platform: PluginPlatform | null, artifac
   input: { plugin_id: string; port: string; restore: boolean }, actorId: string, projectId: string): ArtifactPluginInput[] {
   if (!platform) throw new ActionError("artifacts.unavailable", "这里没有运行中的插件，不能改插件的输入");
   if (!artifactPluginInputs(platform, artifact).some(row => row.plugin_id === input.plugin_id && row.port === input.port)) {
-    throw new ActionError("actions.invalid_input", "这个插件输入不接收这一版的类型");
+    throw new ActionError("actions.input_invalid", "这个插件输入不接收这一版的类型");
   }
   try {
     if (input.restore) {
@@ -43,7 +43,7 @@ export function bindArtifactPluginInput(platform: PluginPlatform | null, artifac
       platform.wiring.evaluate(input.plugin_id);
     }
   } catch (error) {
-    if (error instanceof PluginWiringError) throw new ActionError("actions.invalid_input", error.message);
+    if (error instanceof PluginWiringError) throw new ActionError("actions.input_invalid", error.message);
     throw error;
   }
   return artifactPluginInputs(platform, artifact);

@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, runV1Cli } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { goalsActions, setActiveGoalCapability } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -18,6 +18,55 @@ async function recordDelivery(actions: BoundActionClient, goal_id: string) {
     title: "Delivered result", fields: { body: "The agreed result is available" }, judgments: [{ requirement_id: "delivered", verdict: "supports" }] }] });
 }
 
+for (const graph of [
+  { types: ["part_of", "part_of", "part_of"], code: "planning.part_of_cycle" },
+  { types: ["depends_on", "depends_on", "depends_on"], code: "planning.dependency_cycle" },
+  { types: ["part_of", "part_of", "depends_on"], code: "planning.execution_cycle" },
+] as const) test(`W2-18-GOALS-01/02 restore refuses ${graph.code} atomically and the same request recovers after a graph correction`, async t => {
+  const home = await mkdtemp(join(tmpdir(), "goal-restore-cycle-"));
+  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Restore graph", actor_id: "user" }));
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  t.after(async () => { await host.closeProject(ref); await host.close(); await rm(home, { recursive: true, force: true }); });
+  const caller: ActionCallContext = { actor_id: "runtime:restore", project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] };
+  const actions = bindActionClient(host.actionClient(ref), () => caller);
+  for (const goal_id of ["A", "B", "C"]) await actions.invoke(goalsActions.create, { goal_id, title: goal_id, outcome: "Keep the graph valid", requirements: [], idempotency_key: "create-" + goal_id });
+  const add = (from_goal_id: string, to_goal_id: string, type: typeof graph.types[number], key: string) => host.withProject(ref, r => r.coordinator.goals.commands.addRelation(project.project_id,
+    { from_goal_id, to_goal_id, type, reason: "Observed graph" }, { actor_id: caller.actor_id, idempotency_key: key }));
+  const ca = await add("C", "A", graph.types[0], "C-A"), ab = await add("A", "B", graph.types[1], "A-B");
+  await actions.invoke(goalsActions.trash, { goal_id: "A", trashed: true, reason: "Confirmed removal", user_confirmed: true, idempotency_key: "trash-A" });
+  const currentEdge = graph.code === "planning.execution_cycle"
+    ? await add("C", "B", graph.types[2], "C-B")
+    : await add("B", "C", graph.types[2], "B-C");
+  const state = () => host.withProject(ref, r => ({
+    graph: r.store.snapshot(project.project_id), cursor: r.store.eventCursor(project.project_id),
+    trash: r.store.db.prepare("SELECT * FROM goal_trash_records WHERE project_id = ? ORDER BY trash_record_id").all(project.project_id),
+    relations: r.store.db.prepare("SELECT * FROM goal_trash_relation_records ORDER BY relation_id, trash_record_id").all(),
+    receipts: r.store.db.prepare("SELECT * FROM idempotency_records WHERE project_id = ? AND actor_id = ? ORDER BY operation, idempotency_key").all(project.project_id, caller.actor_id),
+  }));
+  const before = await state(), restore = { goal_id: "A", trashed: false, reason: "Restore the original Goal", user_confirmed: true, idempotency_key: "restore-A" };
+  await assert.rejects(actions.invoke(goalsActions.trash, restore), { code: graph.code });
+  assert.deepEqual(await state(), before);
+  assert.ok((await actions.invoke(goalsActions.trashed, {})).goals.some(goal => goal.goal_id === "A"));
+  await host.closeProject(ref);
+  assert.deepEqual(await state(), before, "reopening the real database retains the rejected transaction");
+  await assert.rejects(actions.invoke(goalsActions.trash, restore), { code: graph.code });
+  assert.deepEqual(await state(), before);
+  await host.withProject(ref, r => r.coordinator.goals.commands.deactivateRelation(project.project_id, { relation_id: currentEdge.relation_id, reason: "Remove the conflicting current edge" }, { actor_id: caller.actor_id, idempotency_key: "correct-B-C" }));
+  const corrected = await state();
+  await host.withProject(ref, r => r.store.db.exec("CREATE TEMP TRIGGER reject_restore BEFORE INSERT ON events WHEN NEW.type = 'goal.restored_from_trash' BEGIN SELECT RAISE(ABORT, 'injected restore append failure'); END"));
+  await assert.rejects(actions.invoke(goalsActions.trash, restore), /injected restore append failure/);
+  assert.deepEqual(await state(), corrected, "an owner event failure rolls back both restored edges and the Goal");
+  await host.withProject(ref, r => r.store.db.exec("DROP TRIGGER reject_restore"));
+  const restored = await actions.invoke(goalsActions.trash, restore);
+  assert.equal(restored.goal.trashed_at, null); assert.equal(restored.replayed, false);
+  assert.deepEqual([...restored.restored_relation_ids].sort(), [ca.relation_id, ab.relation_id].sort());
+  assert.deepEqual(restored.pending_relation_ids, []);
+  const after = await state();
+  assert.equal((await actions.invoke(goalsActions.trash, restore)).replayed, true);
+  assert.deepEqual(await state(), after, "retry records no duplicate restore event or relation change");
+});
+
 test("lifecycle actions preserve old receipts, active Goal, relations, history, rollback and restart", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-lifecycle-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Lifecycle", actor_id: "user" }));
@@ -26,7 +75,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>
     denied.has(action.capability_id) ? { available: false, code: "actions.plugin_disabled", reason: "Lifecycle disabled" } : { available: true } });
   const caller: ActionCallContext = { actor_id: "runtime:lifecycle", project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] };
-  const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
+  const client = host.actionClient(ref), typed = host.client(ref), bound = bindActionClient(client, () => caller);
   const snapshot = () => host.withProject(ref, r => r.store.snapshot(project.project_id));
   const active = { goal_id: "left", reason: "Continue this Goal", idempotency_key: "active-original" };
   const trash = { goal_id: "left", trashed: true, reason: "User confirmed trash", user_confirmed: true, idempotency_key: "trash-original" };
@@ -76,9 +125,8 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     assert.deepEqual(rightRestored.restored_relation_ids, [relation.relation_id]);
     assert.equal((await snapshot()).relations.find(r => r.relation_id === relation.relation_id)?.state, "active");
     assert.equal(((await bound.invoke(goalsActions.event, { goal_id: "left", event_id: note.event_id }))?.payload as { body: string }).body, "Preserve this complete history");
-    await assert.rejects(bound.invoke(goalsActions.active, { goal_id: "done", reason: "Finish this Goal", actor_id: caller.actor_id, idempotency_key: "forged-active" } as never), { code: "actions.input_invalid" });
-    await runV1Cli(["active-goal", "--db", project.database_path, "--json", JSON.stringify({ project_id: project.project_id,
-      goal_id: "done", reason: "Finish this Goal", idempotency_key: "active-done" })], { localHost: host });
+    await assert.rejects(typed.invoke(setActiveGoalCapability, { project_id: project.project_id, goal: { goal_id: "done", reason: "Finish this Goal" }, write: { actor_id: caller.actor_id, idempotency_key: "forged-active" } as { idempotency_key: string } }), { code: "actions.input_invalid" });
+    await typed.invoke(setActiveGoalCapability, { project_id: project.project_id, goal: { goal_id: "done", reason: "Finish this Goal" }, write: { idempotency_key: "active-done" } });
     await recordDelivery(bound, "done");
     const state = await bound.invoke(goalsActions.state, { goal_id: "done" });
     const closed = await bound.invoke(goalsActions.close, { goal_id: "done", kind: "complete", result: "Delivered the agreed work", reason: "Delivered", expected_config_version: state.config.version,
@@ -93,7 +141,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     assert.equal(restored.goal.archived_at, null); assert.equal(restored.goal.fulfillment_state, "satisfied");
 
     denied.add(goalsActions.active.capability_id); denied.add(goalsActions.trash.capability_id); denied.add(goalsActions.trashed.capability_id);
-    await assert.rejects(bound.invoke(goalsActions.active, { ...active, idempotency_key: "denied" }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(setActiveGoalCapability, { project_id: project.project_id, goal: active, write: { idempotency_key: "denied" } }), { code: "actions.plugin_disabled" });
     await assert.rejects(bound.invoke(goalsActions.trash, { ...trash, idempotency_key: "denied" }), { code: "actions.plugin_disabled" });
     await assert.rejects(bound.invoke(goalsActions.trashed, {}), { code: "actions.plugin_disabled" });
     const final = await snapshot();

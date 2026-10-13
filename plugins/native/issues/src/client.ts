@@ -16,8 +16,8 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   const L = host.translate || (text => text), $ = key => root.querySelector('[data-issue-' + key + ']');
   // Only static controls opt in: never translate a person's title, description, or screenshot name.
   for (const node of root.querySelectorAll('[data-issue-label]')) {
-    for (const text of node.childNodes) if (text.nodeType === 3) text.textContent = L(text.textContent);
-    for (const name of ['placeholder', 'aria-label', 'title']) if (node.hasAttribute(name)) node.setAttribute(name, L(node.getAttribute(name)));
+    for (const text of [...node.childNodes, ...node.attributes])
+      if (text.nodeType === 3 || ['placeholder', 'aria-label', 'title'].includes(text.name)) text.textContent = L(text.textContent);
   }
   const home = $('home'), detail = $('detail'), composer = $('composer'), editor = $('editor'), list = $('list'), toastBox = $('toast');
   const desc = composer.elements.description, titleInput = editor.elements.title, detailInput = editor.elements.description;
@@ -41,6 +41,8 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     if (!response.ok) throw Object.assign(new Error(L(result.error || '操作失败，请重试')), { status: response.status });
     return result;
   };
+  const read = id => api('read?id=' + encodeURIComponent(id));
+  const primary = (key, yes = true) => { $(key).className = 'mw-btn mw-btn--sm mw-btn--' + (yes ? 'primary' : 'secondary'); };
   const run = work => { void Promise.resolve().then(work).catch(error => { if (error.name !== 'AbortError') toast(error.message); }); };
   const toast = (text, action = '', then = null) => {
     scope.clearTimeout(toastTimer); toastRun = then;
@@ -101,7 +103,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   const mode = () => {
     $('view').hidden = editing; editor.hidden = !editing; $('edit').hidden = $('delete').hidden = editing;
     $('redo').hidden = !draft(); $('cancel').textContent = L(draft() ? '放弃' : '取消');
-    if (!draft()) $('save').className = 'mw-btn mw-btn--sm mw-btn--primary';
+    if (!draft()) primary('save');
     if (editing) scope.frame(() => fit(detailInput));
   };
   const show = issue => {
@@ -119,10 +121,10 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
       current = item; editing = true; fill(item.card ? { ...item, ...item.card } : item); flag(item.note); home.hidden = true; detail.hidden = false; mode();
       // Asked for a fact: the words come first and the Assistant tries again. Failed: name it by hand.
       const asked = item.kind === 'question', area = detailInput;
-      $('redo').className = 'mw-btn mw-btn--sm mw-btn--' + (asked ? 'primary' : 'secondary'); $('save').className = 'mw-btn mw-btn--sm mw-btn--' + (asked ? 'secondary' : 'primary');
+      primary('redo', asked); primary('save', !asked);
       if (asked) { area.focus(); area.setSelectionRange(area.value.length, area.value.length); } else titleInput.focus();
       return; }
-    const epoch = ++readEpoch, issue = await api('read?id=' + encodeURIComponent(id));
+    const epoch = ++readEpoch, issue = await read(id);
     if (epoch === readEpoch) show(issue);
   };
   const back = async () => {
@@ -148,7 +150,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
       } catch (error) {
         if (error.status !== 409) throw error;
         // Someone else saved first: their fields stay, this person's edits go on top, and nothing is written until they save again.
-        current = await api('read?id=' + encodeURIComponent(current.id)); fill({ ...current, ...patch });
+        current = await read(current.id); fill({ ...current, ...patch });
         flag(L('这条 Issue 刚在别处更新过，已合并你的修改，核对后再保存。'));
       }
     } finally { saving = editor.inert = $('save').disabled = false; if (editing) focus?.focus(); }

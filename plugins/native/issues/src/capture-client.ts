@@ -55,7 +55,7 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
       if (already) saved(item, already); else attention(item, L('整理超时，点开补全标题和类型'));
       return;
     }
-    try { saved(item, await api('read?id=' + encodeURIComponent(item.id))); return; }
+    try { saved(item, await read(item.id)); return; }
     catch (error) { if (error.status !== 404) { attention(item, error.message); return; } }
     if (card) {
       const field = key => card.fields.find(entry => entry.key === key);
@@ -98,7 +98,7 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
   // Retires an unfinished draft. The Assistant may have saved it meanwhile: then that record is the result.
   const release = async item => {
     await api('cancel-capture', { draft_id: item.id }); void quiet(item, true);
-    try { return await api('read?id=' + encodeURIComponent(item.id)); }
+    try { return await read(item.id); }
     catch (error) { if (error.status !== 404) throw error; return null; }
   };
   const settled = async (item, issue, original) => {

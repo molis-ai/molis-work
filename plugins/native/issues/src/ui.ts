@@ -87,7 +87,8 @@ export const ISSUES_STYLES = `
 .issues textarea{display:block;width:100%;resize:none;overflow:hidden;font:inherit;font-size:15px;line-height:1.65;color:var(--ink);background:transparent}
 .issues-composer textarea{border:0!important;outline:0!important;box-shadow:none!important;border-radius:0;padding:0;min-height:69px}
 .issues-bar{display:flex;align-items:center;gap:6px;margin-top:6px}
-.issues-tip{flex:1;min-width:0;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.issues-tip{flex:1;color:var(--muted);font-size:12px}
+.issues-tip,.issues-toast>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .issues-tip.is-error{color:var(--red)}
 .issues-shots{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.issues-shots:empty{display:none}
 .issues-shots figure{position:relative;margin:0}
@@ -121,7 +122,6 @@ export const ISSUES_STYLES = `
 .issues-editor .issues-bar{position:sticky;bottom:-60px;padding:8px 0 60px;margin-bottom:-60px;background:var(--paper)}
 .issues-flag{margin:0;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--amber) 12%,transparent);color:var(--ink);font-size:13px;line-height:1.6}
 .issues-toast{position:absolute;left:50%;bottom:14px;z-index:5;transform:translateX(-50%);display:flex;align-items:center;gap:6px;max-width:calc(100% - 24px);padding:4px 4px 4px 14px;border-radius:999px;background:var(--action);color:var(--action-ink);box-shadow:var(--shadow);font-size:13px;animation:issues-toast var(--dur-move) var(--ease-quint)}
-.issues-toast>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .issues-toast .mw-btn{background:transparent;color:inherit;text-decoration:underline;text-underline-offset:3px}.issues-toast .mw-btn:empty{display:none}
 @keyframes issues-toast{from{opacity:0;transform:translate(-50%,8px)}}
 dialog.issues-preview{width:calc(100vw - 32px);max-width:1440px;height:calc(100dvh - 32px);padding:0}

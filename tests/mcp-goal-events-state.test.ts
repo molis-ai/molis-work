@@ -277,7 +277,7 @@ test("MCP agreement_change request keeps request-time commitment; later related 
         effects: [{ kind: "authorize_agreement_change" }],
       }),
       (error: unknown) => error instanceof ActionError
-        && error.code === "event_decision.stale_commitment"
+        && error.code === "goals.event_decision.stale_commitment"
         && /变化|变更|匹配|过期|基线/.test(error.message),
     );
     const afterApprove = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;

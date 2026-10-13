@@ -79,3 +79,5 @@ AI来源修改已有对象时，提交动作schema声明的读取版本（`expec
 - 常驻服务和 `molis-work-mcp` 进程要是同一个版本：旧版本的 MCP 进程调用动作时不带编号，会被新版常驻服务以 `actions.input_invalid` 拒绝，重启 MCP 进程即可。
 
 错误响应的 text 是一份 JSON `{ error, code, details?, call_id? }`，标准动作、上下文与管理工具共用现行格式。旧的文本前缀/末行 JSON 与 message 字段已退役；owner 的 current_version、fields、recovery 等保留在 details，code 与真实已记录的 call_id 由出口给出。没有调用记录就没有编号。
+
+Goals 事件拒绝的现行 code 使用 goals.<原前缀>.<原因>，例如 goals.event_config.version_conflict、goals.event_progress.stale_goal、goals.event_http.unexpected_field。消息、kind 与 details 保持原含义；不读取或返回旧前缀。

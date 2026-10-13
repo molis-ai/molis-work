@@ -442,7 +442,7 @@ test("equivalent planning packs merge with provenance; conflicting packs fail at
         goal_id: conflictGoal.goal.goal_id, expected_version: 0, idempotency_key: "conflict-adopt",
         adopted_planning: [{ method_id: "conflict-a" }, { method_id: "conflict-b" }],
       }),
-      (error: unknown) => error instanceof ActionError && error.code === "event_config.planning_type_conflict",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_config.planning_type_conflict",
     );
     const unchanged = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", {
       goal_id: conflictGoal.goal.goal_id,

@@ -86,7 +86,7 @@ test("user can revise a createIntent requirement; runtime cannot relax it withou
         idempotency_key: "runtime-revise-created", ...versions,
         revise_requirements: [{ requirement_id: target.requirement_id, statement: "Runtime 自行放宽原文" }],
       }),
-      (error: unknown) => error instanceof ActionError && error.code === "event_agreement.unauthorized_change",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_agreement.unauthorized_change",
     );
     const blocked = data.app.goalEvents.readState("board", created.goal.goal_id);
     assert.equal(blocked.requirements[0]?.statement, "真实付款成功");

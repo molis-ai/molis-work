@@ -300,7 +300,7 @@ export class GoalEventApplication {
     const persist = this.ports.recordTrustedDecision;
     if (!persist) {
       throw new ActionError(
-        "event_decision.untrusted_actor",
+        "goals.event_decision.untrusted_actor",
         "用户决定必须经 Host 受保护入口与 Governance 来源校验，不能由 Runtime 自填",
       );
     }

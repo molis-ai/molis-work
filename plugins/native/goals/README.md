@@ -62,7 +62,7 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 
 动作输入不含调用者或项目；结构提交不含 Runtime 会话，结构检查的领域输入 `GoalTreeProposalCheckInput` 由动作处理器补作者。管理决定的两个 authority 和共用证据检查归 `src/management-evidence.ts`，仍拒证据里的 `actor_id`、`actor_kind` 或 `authority_source`。`BoardSnapshot`、`GoalContractView` 保留事实 owner 的记录形状；初始化输出 `InitializeBoardOutput` 归现有 `src/board-actions.ts`。同一幂等键只在同一作者下重放，Runtime 动作保留自己的 Session 作者。
 
-项目规则「完成前必须你点头」（`human_approval`）进入完成检查：没有仍然有效的可信用户结论、也没有授权 `complete` 的当前决定时，收尾回执的原因是 `event_closure.human_approval_required`。授权 `complete` 的决定和某条要求上的接受结论（含协议里 `requirement_acceptance` 请求的答复）都只对做出它时的约定和那一轮工作有效：约定整份承诺里任何一处变了，或 Goal 被继续、重新打开之后，要重新授权或接受。
+项目规则「完成前必须你点头」（`human_approval`）进入完成检查：没有仍然有效的可信用户结论、也没有授权 `complete` 的当前决定时，收尾回执的原因是 `goals.event_closure.human_approval_required`。授权 `complete` 的决定和某条要求上的接受结论（含协议里 `requirement_acceptance` 请求的答复）都只对做出它时的约定和那一轮工作有效：约定整份承诺里任何一处变了，或 Goal 被继续、重新打开之后，要重新授权或接受。
 
 文档页完整集合和所选正文已共用动作；Host 仅组合已授权资料，正文另读当前规划方法，个人方法更新不会被页面缓存遮蔽。初始化管理入口也已转入动作；与其他插件的剩余消费和系统生命周期仍待全量审计。MCP 连接恢复摘要已使用当前客户端的精确动作授权与常驻服务；typed 恢复和 MCP 共用原目录/焦点组合，缺权限或服务不可用时返回缺失内容原因，连接状态保持真实。同步事务和历史合并内部继续使用原业务 owner。
 

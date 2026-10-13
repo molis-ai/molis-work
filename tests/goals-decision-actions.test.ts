@@ -51,9 +51,9 @@ test("user decisions share the action path without granting user authority to mo
       await assert.rejects(client.invoke(model, goalsActions.decide, payload), { code: "actions.forbidden" });
     }
     await assert.rejects(client.invoke({ ...trusted, permissions: ["goals:write"] }, goalsActions.decide, payload), { code: "actions.forbidden" });
-    await assert.rejects(client.invoke(caller, goalsActions.decide, payload), { code: "event_decision.untrusted_actor" });
-    await assert.rejects(client.invoke({ ...trusted, actor_kind: "runtime" }, goalsActions.decide, payload), { code: "event_decision.untrusted_actor" });
-    await assert.rejects(client.invoke({ ...trusted, user_action: { ...provenance, source: "runtime_dialogue" } }, goalsActions.decide, payload), { code: "event_decision.runtime_dialogue_not_user" });
+    await assert.rejects(client.invoke(caller, goalsActions.decide, payload), { code: "goals.event_decision.untrusted_actor" });
+    await assert.rejects(client.invoke({ ...trusted, actor_kind: "runtime" }, goalsActions.decide, payload), { code: "goals.event_decision.untrusted_actor" });
+    await assert.rejects(client.invoke({ ...trusted, user_action: { ...provenance, source: "runtime_dialogue" } }, goalsActions.decide, payload), { code: "goals.event_decision.runtime_dialogue_not_user" });
     for (const extra of [{ authority: oldAuthority }, { actor_id: "another-user" }, { user_confirmed: true }, { user_action: provenance }]) {
       await assert.rejects(client.invoke(trusted, goalsActions.decide, { ...payload, ...extra }), { code: "actions.input_invalid" });
     }

@@ -184,22 +184,22 @@ export class GoalEventState {
       ...(input.expected_goal_cursor === undefined ? {} : { expected_goal_cursor: input.expected_goal_cursor }),
     });
     return this.mutate(input, "record_goal_progress", hash, (goal, actorKind) => {
-      const summary = requiredText(this.error, input.summary, "event_progress.summary_required", "进展摘要需要原文");
+      const summary = requiredText(this.error, input.summary, "goals.event_progress.summary_required", "进展摘要需要原文");
       if (!Number.isInteger(input.based_on_cursor) || input.based_on_cursor < 0) {
-        throw this.context.error("event_progress.invalid_cursor", "摘要必须依据当前 Goal 已存在的事件游标");
+        throw this.context.error("goals.event_progress.invalid_cursor", "摘要必须依据当前 Goal 已存在的事件游标");
       }
       const maxCursor = this.facts.maxGoalCursor(goal.project_id, goal.goal_id);
       if (input.expected_goal_cursor !== undefined && input.expected_goal_cursor !== maxCursor) {
-        throw this.context.error("event_progress.stale_goal", "原目标已变化，请重新查看目标和拟记录内容后再确认");
+        throw this.context.error("goals.event_progress.stale_goal", "原目标已变化，请重新查看目标和拟记录内容后再确认");
       }
       if (input.source && !parseGoalProgressSource(input.source)) {
-        throw this.context.error("event_progress.invalid_source", "成果必须引用一个明确的固定版本及其阅读入口");
+        throw this.context.error("goals.event_progress.invalid_source", "成果必须引用一个明确的固定版本及其阅读入口");
       }
       if (input.based_on_cursor > maxCursor) {
-        throw this.context.error("event_progress.future_cursor", "不能引用尚未发生的事件游标");
+        throw this.context.error("goals.event_progress.future_cursor", "不能引用尚未发生的事件游标");
       }
       if (!this.facts.hasGoalCursor(goal.project_id, goal.goal_id, input.based_on_cursor)) {
-        throw this.context.error("event_progress.cursor_not_on_goal", "摘要游标必须是当前 Goal 的事件，不能用其他 Goal 的更新");
+        throw this.context.error("goals.event_progress.cursor_not_on_goal", "摘要游标必须是当前 Goal 的事件，不能用其他 Goal 的更新");
       }
       return this.writeProgress(goal, input.actor_id, actorKind, {
         summary,
@@ -249,7 +249,7 @@ export class GoalEventState {
       body: input.body,
     });
     return this.mutate(input, "record_goal_note", hash, (goal, actorKind) => {
-      const body = requiredText(this.error, input.body, "event_note.body_required", "补充需要原文");
+      const body = requiredText(this.error, input.body, "goals.event_note.body_required", "补充需要原文");
       const event = this.insertSystem(goal, input.actor_id, actorKind, body.slice(0, 80), {
         operation: "observation_note",
         body,
@@ -270,19 +270,19 @@ export class GoalEventState {
     const scope = normalizeScope(raw);
     for (const eventId of scope.event_ids) {
       if (!this.facts.getWorkEvent(goal.project_id, goal.goal_id, eventId)) {
-        throw this.context.error("event_concern.cross_goal_reference", `事件 ${eventId} 不属于当前 Goal`);
+        throw this.context.error("goals.event_concern.cross_goal_reference", `事件 ${eventId} 不属于当前 Goal`);
       }
     }
     const requirements = this.host.readCurrentRequirements(goal.project_id, goal.goal_id);
     const known = new Set(requirements.map((item) => item.requirement_id));
     for (const requirementId of scope.requirement_ids) {
       if (!known.has(requirementId)) {
-        throw this.context.error("event_report.cross_goal_reference", `要求 ${requirementId} 不属于当前 Goal`);
+        throw this.context.error("goals.event_report.cross_goal_reference", `要求 ${requirementId} 不属于当前 Goal`);
       }
     }
     for (const concernId of scope.concern_ids) {
       if (!this.records.getConcern(goal.project_id, goal.goal_id, concernId)) {
-        throw this.context.error("event_concern.cross_goal_reference", `Concern ${concernId} 不属于当前 Goal`);
+        throw this.context.error("goals.event_concern.cross_goal_reference", `Concern ${concernId} 不属于当前 Goal`);
       }
     }
     return scope;
@@ -292,7 +292,7 @@ export class GoalEventState {
     const current = this.host.configVersion(goal.project_id, goal.goal_id);
     if (expected !== current) {
       throw this.context.error(
-        "event_closure.stale_version",
+        "goals.event_closure.stale_version",
         `正式版本已是 ${current}，不能用期望版本 ${expected} 覆盖新事实`,
         { current_version: current, expected_version: expected }, "conflict",
       );
@@ -314,7 +314,7 @@ export class GoalEventState {
     const goal = this.host.requireWritableGoal(projectId, goalId);
     if (!this.records.isOwner(projectId, goalId)) {
       throw this.context.error(
-        "event_state.not_owner",
+        "goals.event_state.not_owner",
         "这个 Goal 还没有事件状态归属。请先保存意图或登记事件配置，不要把旧完成入口和新状态效果混用",
       );
     }
@@ -334,7 +334,7 @@ export class GoalEventState {
       const cancelled = this.records.workStatus(goal.project_id, goal.goal_id) === "cancelled";
       const ordinaryRecord = operation === "record_goal_note" || operation === "record_goal_progress";
       if (cancelled && !ordinaryRecord && operation !== "resume_goal_event_work") {
-        throw this.context.error("event_closure.cancelled", "已取消的 Goal 不会被普通记录自动恢复，需要显式继续");
+        throw this.context.error("goals.event_closure.cancelled", "已取消的 Goal 不会被普通记录自动恢复，需要显式继续");
       }
       const outcome = write(goal, this.host.actorKind(input.actor_kind));
       this.context.remember(goal.project_id, input.actor_id, operation, input.idempotency_key, hash, outcome, this.context.now().toISOString());

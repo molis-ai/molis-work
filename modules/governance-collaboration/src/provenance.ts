@@ -41,14 +41,14 @@ export class GovernanceProvenance implements GovernanceProvenanceApi {
 
   validateEventDecisionAuthority(authority: GoalEventTrustedAuthority): GoalEventTrustedAuthority {
     if (!authority || typeof authority !== "object") {
-      throw this.error("event_decision.untrusted_actor", "用户决定必须来自 Host 受保护入口，不能由客户端自填身份");
+      throw this.error("goals.event_decision.untrusted_actor", "用户决定必须来自 Host 受保护入口，不能由客户端自填身份");
     }
     if (authority.actor_kind !== "user") {
-      throw this.error("event_decision.untrusted_actor", "用户决定必须来自可信用户入口，Runtime 不能声明自己是用户");
+      throw this.error("goals.event_decision.untrusted_actor", "用户决定必须来自可信用户入口，Runtime 不能声明自己是用户");
     }
     if (authority.authority_source !== "web" && authority.authority_source !== "management") {
       throw this.error(
-        "event_decision.runtime_dialogue_not_user",
+        "goals.event_decision.runtime_dialogue_not_user",
         "Runtime 对话摘要引用不是系统读取到的用户消息，不能当作用户批准",
       );
     }
@@ -56,7 +56,7 @@ export class GovernanceProvenance implements GovernanceProvenanceApi {
     const conversationRef = authority.conversation_ref?.trim();
     const messageRef = authority.message_ref?.trim();
     if (!actorId || !conversationRef || !messageRef) {
-      throw this.error("event_decision.untrusted_actor", "可信用户决定需要 Host 注入的 actor、会话与消息来源");
+      throw this.error("goals.event_decision.untrusted_actor", "可信用户决定需要 Host 注入的 actor、会话与消息来源");
     }
     return {
       actor_id: actorId,

@@ -50,20 +50,20 @@ export class GoalEventStateAgreement {
       const expectedAgreement = requiredVersion(
         this.core.error,
         input.expected_agreement_version,
-        "event_agreement.expected_agreement_version_required",
+        "goals.event_agreement.expected_agreement_version_required",
         "约定更新需要 expected_agreement_version",
       );
       const expectedConfig = requiredVersion(
         this.core.error,
         input.expected_config_version,
-        "event_agreement.expected_config_version_required",
+        "goals.event_agreement.expected_config_version_required",
         "约定更新需要 expected_config_version",
       );
-      this.core.assertAgreementVersion(goal, expectedAgreement, "event_agreement.stale_version");
+      this.core.assertAgreementVersion(goal, expectedAgreement, "goals.event_agreement.stale_version");
       const currentConfig = this.host.configVersion(goal.project_id, goal.goal_id);
       if (expectedConfig !== currentConfig) {
         throw this.context.error(
-          "event_agreement.stale_config_version",
+          "goals.event_agreement.stale_config_version",
           `当前配置版本已是 ${currentConfig}，不能用期望版本 ${expectedConfig} 覆盖`,
           { current_version: currentConfig, expected_version: expectedConfig },
         );
@@ -77,7 +77,7 @@ export class GoalEventStateAgreement {
         currentOutcome,
       );
       if (isEmptyChange(change, currentOutcome)) {
-        throw this.context.error("event_agreement.no_changes", "需要补充结果说明、新增、修订或退休要求");
+        throw this.context.error("goals.event_agreement.no_changes", "需要补充结果说明、新增、修订或退休要求");
       }
       this.assertRequirementTargets(goal, change, requirements);
       if (isProtectedAgreementChange(change, requirements, currentOutcome)) {
@@ -146,17 +146,17 @@ export class GoalEventStateAgreement {
     const current = new Map(requirements.map((item) => [item.requirement_id, item]));
     for (const item of change.new_requirements) {
       if (current.has(item.requirement_id) || goal.acceptance_criteria.some((criterion) => criterion.criterion_id === item.requirement_id)) {
-        throw this.context.error("event_config.requirement_exists", `要求 ID 已存在: ${item.requirement_id}`);
+        throw this.context.error("goals.event_config.requirement_exists", `要求 ID 已存在: ${item.requirement_id}`);
       }
     }
     for (const revision of change.revise_requirements) {
       if (!current.has(revision.requirement_id)) {
-        throw this.context.error("event_requirement.not_current", `不能修订不在当前约定中的要求: ${revision.requirement_id}`);
+        throw this.context.error("goals.event_requirement.not_current", `不能修订不在当前约定中的要求: ${revision.requirement_id}`);
       }
     }
     for (const requirementId of change.retire_requirement_ids) {
       if (!current.has(requirementId)) {
-        throw this.context.error("event_requirement.not_current", `不能退休不在当前约定中的要求: ${requirementId}`);
+        throw this.context.error("goals.event_requirement.not_current", `不能退休不在当前约定中的要求: ${requirementId}`);
       }
     }
   }
@@ -172,25 +172,25 @@ export class GoalEventStateAgreement {
     if (actorKind === "user") return;
     const citedId = input.cited_decision_id?.trim();
     if (!citedId) {
-      throw this.context.error("event_agreement.unauthorized_change", "替换已有结果、修订要求原文、退休要求或取消人工验收需要引用针对这一份变化的可信用户授权");
+      throw this.context.error("goals.event_agreement.unauthorized_change", "替换已有结果、修订要求原文、退休要求或取消人工验收需要引用针对这一份变化的可信用户授权");
     }
     const existing = this.records.getAppliedDecision(goal.project_id, goal.goal_id, citedId)
       ?? this.records.getAppliedDecisionByGovernanceId(goal.project_id, goal.goal_id, citedId);
     if (!existing) {
-      throw this.context.error("event_decision.not_found", "只能引用当前 Goal 已持久化的可信决定");
+      throw this.context.error("goals.event_decision.not_found", "只能引用当前 Goal 已持久化的可信决定");
     }
     if (!existing.effects.some((effect) => effect.kind === "authorize_agreement_change") || !existing.authorized_change) {
-      throw this.context.error("event_agreement.unauthorized_change", "任意动作授权或结论文本不能代替针对这一份约定变化的批准");
+      throw this.context.error("goals.event_agreement.unauthorized_change", "任意动作授权或结论文本不能代替针对这一份约定变化的批准");
     }
     if (!agreementChangeEquals(existing.authorized_change, businessDelta(change), this.core.error)) {
-      throw this.context.error("event_agreement.change_mismatch", "引用的决定批准的是另一份变化，不能套用到这次约定修改");
+      throw this.context.error("goals.event_agreement.change_mismatch", "引用的决定批准的是另一份变化，不能套用到这次约定修改");
     }
     if (!agreementChangeCommitmentCurrent(existing.commitment, requirements, currentOutcome, change)) {
-      throw this.context.error("event_decision.stale_commitment", "原约定或受影响要求已经变化，不能把旧决定套用到新约定");
+      throw this.context.error("goals.event_decision.stale_commitment", "原约定或受影响要求已经变化，不能把旧决定套用到新约定");
     }
     const later = laterComparableDecision(this.records.listAppliedDecisions(goal.project_id, goal.goal_id), existing);
     if (later) {
-      throw this.context.error("event_decision.superseded", "已有更新的决定覆盖了这个授权，不能把旧决定当作当前有效结果");
+      throw this.context.error("goals.event_decision.superseded", "已有更新的决定覆盖了这个授权，不能把旧决定当作当前有效结果");
     }
   }
 

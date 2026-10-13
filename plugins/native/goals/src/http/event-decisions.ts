@@ -14,7 +14,7 @@ export async function handleGoalEventDecisionHttp(context: GoalsHttpContext): Pr
   ]);
   const unexpected = Object.keys(body).filter((key) => !allowed.has(key));
   if (unexpected.length) {
-    respondGoalsFailure(context, { code: "event_http.unexpected_field", message: `不能使用未许可字段：${unexpected.join("、")}`, details: { fields: unexpected } });
+    respondGoalsFailure(context, { code: "goals.event_http.unexpected_field", message: `不能使用未许可字段：${unexpected.join("、")}`, details: { fields: unexpected } });
     return true;
   }
   const conclusion = typeof body.conclusion === "string" ? body.conclusion.trim() : "";

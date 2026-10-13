@@ -30,3 +30,5 @@ Each action tool appears only after the user grants that exact action to this cl
 Treat context_resolve.runtime_prompt_prefix as saved project guidance. To persist new guidance, show the precise category and text and obtain authority for that addition or edit; do not promote a temporary inference into project instructions.
 
 Goal state changes use the host-provided Goal action tools. If MCP fails, report the failure and use documented connection recovery. Do not switch databases, use SQLite or management CLI as a hidden fallback, create another Runtime, or change terminal bindings.
+
+Tool errors use one JSON text body `{ error, code, details?, call_id? }`. Read the current owner code and preserve details (including fields, current_version and recovery); only a recorded Host call has call_id. Goals event errors use `goals.<original_prefix>.<reason>`, including `goals.event_config.version_conflict` and `goals.event_progress.stale_goal`; there is no old-prefix fallback.

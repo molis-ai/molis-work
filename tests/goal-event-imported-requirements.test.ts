@@ -68,7 +68,7 @@ test("imported criterion and policy requirements follow the same user revise and
         idempotency_key: "runtime-revise-imported-criterion", ...humanVersions,
         revise_requirements: [{ requirement_id: "OLD-HUMAN-C1", human_decision_required: false }],
       }),
-      (error: unknown) => error instanceof ActionError && error.code === "event_agreement.unauthorized_change",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_agreement.unauthorized_change",
     );
     const blockedHuman = app.goalEvents.readState(BOARD, "OLD-HUMAN");
     assert.equal(blockedHuman.requirements.find((item) => item.requirement_id === "OLD-HUMAN-C1")?.statement, originalStatement);
@@ -98,7 +98,7 @@ test("imported criterion and policy requirements follow the same user revise and
         idempotency_key: "runtime-retire-imported-policy", ...policyVersions,
         retire_requirement_ids: ["imported-policy:OLD-POLICY"],
       }),
-      (error: unknown) => error instanceof ActionError && error.code === "event_agreement.unauthorized_change",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_agreement.unauthorized_change",
     );
     assert.ok(app.goalEvents.readState(BOARD, "OLD-POLICY").requirements.some((item) => item.requirement_id === "imported-policy:OLD-POLICY"));
     app.goalEvents.setAgreement({
@@ -154,7 +154,7 @@ test("still-valid same-scope complete approval satisfies imported policy after t
       reason: "风险未解决前不能完成", ...versions(),
     });
     assert.equal(blocked.completion_applied, false);
-    assert.ok(blocked.unmet_reasons.some((reason) => reason.code === "event_closure.blocking_concern"));
+    assert.ok(blocked.unmet_reasons.some((reason) => reason.code === "goals.event_closure.blocking_concern"));
 
     const note = app.goalEvents.recordNote({
       project_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
@@ -243,7 +243,7 @@ test("real event closure stays distinct; after an explicit continue the old appr
       reason: "按迁入后的当前要求核对收尾", ...versions(),
     });
     assert.equal(held.completion_applied, false);
-    assert.deepEqual(held.unmet_reasons.map((reason) => reason.code), ["event_closure.human_approval_required"]);
+    assert.deepEqual(held.unmet_reasons.map((reason) => reason.code), ["goals.event_closure.human_approval_required"]);
     const heldState = app.goalEvents.readState(BOARD, "MIXED-OWNER");
     assert.equal(heldState.requirements.find((item) => item.requirement_id === "imported-policy:MIXED-OWNER")?.currently_satisfied, true);
     assert.deepEqual(heldState.current_decisions.map((item) => item.decision_id), [original.decision_id]);

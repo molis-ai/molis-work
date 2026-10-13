@@ -597,7 +597,7 @@ test("HTTP event-agree rejects unknown fields and omitted agreement version with
     });
     assert.equal(unknown.status, 400);
     const unknownBody = await unknown.json() as { code?: string };
-    assert.equal(unknownBody.code, "event_http.unexpected_field");
+    assert.equal(unknownBody.code, "goals.event_http.unexpected_field");
     const omitted = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-close`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "omit-agreement" },
@@ -1157,9 +1157,9 @@ test("W3-02-H-02 actual Goals HTTP distinguishes input, owner conflict and inter
   const configure = "/" + encodeURIComponent(goalId) + "/event-configure";
   const conflict = await post(configure, JSON.stringify({ idempotency_key: "stale", expected_version: 1, types: [] }));
   assert.equal(conflict.status, 409);
-  const stale = await conflict.json(); assert.equal(stale.code, "event_config.version_conflict");
+  const stale = await conflict.json(); assert.equal(stale.code, "goals.event_config.version_conflict");
   assert.deepEqual(stale.details, { current_version: 0, expected_version: 1 });
-  assert.equal(host.callLog!.find(stale.call_id)[0]?.code, "event_config.version_conflict", "the owner failure points to its actual diagnostic row");
+  assert.equal(host.callLog!.find(stale.call_id)[0]?.code, "goals.event_config.version_conflict", "the owner failure points to its actual diagnostic row");
   await host.withProject(project.reference, runtime => {
     const original = runtime.coordinator.goalEvents.configure;
     runtime.coordinator.goalEvents.configure = () => { throw new Error("forced owner failure"); };

@@ -173,7 +173,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
           { type_id: "story-delivery", type_version: 1, title: "缺字段", fields: {} },
         ],
       }),
-      (error: unknown) => error instanceof ActionError && error.code === "event_report.missing_required_field",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_report.missing_required_field",
     );
     const afterInvalid = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id }));
     assert.equal(afterInvalid.events.length, beforeInvalid.events.length);
@@ -541,7 +541,7 @@ test("no-config note and combined report progress persist; implicit focus, illeg
     const openBefore = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     await assert.rejects(
       () => mcp!.callTool("molis_work_v1_action_goals.work.resume__v1", { goal_id, reason: "已在进行", idempotency_key: "resume-open" }),
-      (error: unknown) => error instanceof ActionError && error.code === "event_resume.already_open",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_resume.already_open",
     );
     assert.equal((JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView).goal_event_cursor, openBefore.goal_event_cursor);
   } finally {

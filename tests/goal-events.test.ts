@@ -356,21 +356,21 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
         project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "bad-field",
         events: [reportDelivery({ fields: { piece: "有内容", unknown_field: "nope" } as Record<string, string> })],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_report.unknown_field",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_report.unknown_field",
     );
     assert.throws(
       () => data.module.events.report({
         project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "missing-required",
         events: [reportDelivery({ fields: { piece: "   ", limits: "可选" } })],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_report.missing_required_field",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_report.missing_required_field",
     );
     assert.throws(
       () => data.module.events.report({
         project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "wrong-version",
         events: [reportDelivery({ type_version: 9, fields: { piece: "有内容" } })],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_type.version_not_found",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_type.version_not_found",
     );
     assert.throws(
       () => data.module.events.report({
@@ -380,7 +380,7 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
           judgments: [{ requirement_id: "other-criterion", verdict: "supports" }],
         })],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_report.cross_goal_reference",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_report.cross_goal_reference",
     );
     assert.throws(
       () => data.module.events.report({
@@ -400,7 +400,7 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
           ],
         }],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_config.unsupported_field_format",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_config.unsupported_field_format",
     );
     assert.throws(
       () => data.module.events.configure({
@@ -413,7 +413,7 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
           fields: [{ field_id: "body", name: "正文", purpose: "说明", format: "text", required: true }],
         }],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_config.executable_content",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_config.executable_content",
     );
     assert.throws(
       () => data.module.events.report({
@@ -423,7 +423,7 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
           reportDelivery({ title: "后项缺必填", fields: { limits: "只有可选" } }),
         ],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_report.missing_required_field",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_report.missing_required_field",
     );
 
     assert.equal(data.module.events.listEvents(BOARD, GOAL).events.length, before);
@@ -511,7 +511,7 @@ test("retries replay without duplicates; reused keys conflict; stale config vers
             fields: [{ field_id: "behavior", name: "观察到什么", purpose: "记录行为", format: "longtext", required: true }],
           }],
         }),
-        (error: unknown) => error instanceof GoalsCommandError && error.code === "event_config.version_conflict",
+        (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_config.version_conflict",
       );
       const current = secondEvents.readConfig(BOARD, GOAL);
       assert.equal(current.version, 2);
@@ -641,7 +641,7 @@ test("bound requirements reject incompatible types in a batch; unbound and bound
           },
         ],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_report.incompatible_requirement",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_report.incompatible_requirement",
     );
     assert.throws(
       () => data.module.events.report({
@@ -652,7 +652,7 @@ test("bound requirements reject incompatible types in a batch; unbound and bound
           judgments: [{ requirement_id: "playable-scene", verdict: "supports" }],
         }],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_report.incompatible_requirement",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_report.incompatible_requirement",
     );
 
     assert.equal(count(data.store, "SELECT COUNT(*) AS count FROM events WHERE project_id = ?", BOARD), beforeJournal);
@@ -723,7 +723,7 @@ test("constructor and __proto__ field ids keep own text through save and reopen"
         project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "missing-constructor",
         events: [{ type_id: "shape-note", type_version: 1, title: "缺必填", fields: missing }],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_report.missing_required_field",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_report.missing_required_field",
     );
     const onlyProto = JSON.parse("{\"__proto__\":\"只有可选\"}") as Record<string, string>;
     assert.throws(
@@ -731,7 +731,7 @@ test("constructor and __proto__ field ids keep own text through save and reopen"
         project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "proto-without-constructor",
         events: [{ type_id: "shape-note", type_version: 1, title: "仍缺构造", fields: onlyProto }],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_report.missing_required_field",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_report.missing_required_field",
     );
 
     const payload = JSON.parse("{\"constructor\":\"工厂方法\",\"__proto__\":\"原文 <b>仍保留</b>\"}") as Record<string, string>;
@@ -803,25 +803,25 @@ test("event pages keep server order without gaps or duplicates; bad cursor, limi
 
     assert.throws(
       () => data.module.events.listEvents(BOARD, GOAL, { after_cursor: -1 }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_list.invalid_cursor",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_list.invalid_cursor",
     );
     assert.throws(
       () => data.module.events.listEvents(BOARD, GOAL, { after_cursor: 1.5 }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_list.invalid_cursor",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_list.invalid_cursor",
     );
     assert.throws(
       () => data.module.events.listEvents(BOARD, GOAL, { limit: 0 }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_list.invalid_limit",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_list.invalid_limit",
     );
     assert.throws(
       () => data.module.events.listEvents(BOARD, GOAL, { limit: 101 }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_list.invalid_limit",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_list.invalid_limit",
     );
     const foreign = all.find((item) => item.kind === "report");
     assert.ok(foreign);
     assert.throws(
       () => data.module.events.readEvent(BOARD, "goal-sibling", foreign.event_id),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event.not_found",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event.not_found",
     );
 
     const latest1 = data.module.events.listLatestEvents(BOARD, GOAL, { limit: 2 });
@@ -841,7 +841,7 @@ test("event pages keep server order without gaps or duplicates; bad cursor, limi
     assert.deepEqual(forwardAfterLatest.events.map((item) => item.event_id), page2.events.map((item) => item.event_id));
     assert.throws(
       () => data.module.events.listLatestEvents(BOARD, GOAL, { before_cursor: 0 }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_list.invalid_cursor",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_list.invalid_cursor",
     );
   } finally {
     close(data);
@@ -992,7 +992,7 @@ test("type v2 can rename and drop fields while old events stay on v1", () => {
         expected_version: 2, idempotency_key: "cfg-rewrite-v2",
         types: [{ ...storyDelivery(1), version: 2, name: "偷偷改同一版" }],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_config.cannot_rewrite_type",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_config.cannot_rewrite_type",
     );
   } finally {
     close(data);
@@ -1020,7 +1020,7 @@ test("extra requirement unknown control fields are rejected and human_decision_r
           independently_verified: true,
         } as never],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "event_config.unsupported_property",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.event_config.unsupported_property",
     );
     assert.equal(data.module.events.listEvents(BOARD, GOAL).events.length, before);
     data.module.events.setAgreement({

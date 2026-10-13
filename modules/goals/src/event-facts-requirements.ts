@@ -99,7 +99,7 @@ export function applyGoalEventAgreementChange(
   for (const revision of input.revise_requirements) {
     const existing = records.getExtraRequirement(revision.requirement_id);
     if (!existing || existing.project_id !== goal.project_id || existing.goal_id !== goal.goal_id) {
-      throw context.error("event_requirement.not_current", `不能修订不在当前约定中的要求: ${revision.requirement_id}`);
+      throw context.error("goals.event_requirement.not_current", `不能修订不在当前约定中的要求: ${revision.requirement_id}`);
     }
     records.updateRequirementCurrent({
       requirementId: revision.requirement_id,
@@ -114,7 +114,7 @@ export function applyGoalEventAgreementChange(
   for (const requirementId of input.retire_requirement_ids) {
     const existing = records.getExtraRequirement(requirementId);
     if (!existing || existing.project_id !== goal.project_id || existing.goal_id !== goal.goal_id) {
-      throw context.error("event_requirement.not_current", `不能退休不在当前约定中的要求: ${requirementId}`);
+      throw context.error("goals.event_requirement.not_current", `不能退休不在当前约定中的要求: ${requirementId}`);
     }
     records.updateRequirementCurrent({
       requirementId,

@@ -224,7 +224,7 @@ test("under the project approval rule a close from the management door, the Web 
     web: async (goal_id: string, key: string) => web.invoke(goalsActions.close, await closeInput(goal_id, key)),
     management: async (goal_id: string, key: string) => management.invoke(goalsActions.close, await closeInput(goal_id, key)),
   };
-  const APPROVAL_REQUIRED = "event_closure.human_approval_required";
+  const APPROVAL_REQUIRED = "goals.event_closure.human_approval_required";
   try {
     // Without the rule the management door completes a supported Goal, so a refusal below is the rule's and not the door's.
     await supported("CONTROL");
@@ -264,7 +264,7 @@ test("under the project approval rule a close from the management door, the Web 
  */
 test("under the project approval rule a decision from the Web that accepts a requirement and authorizes complete ends with the round and with the agreement", async () => {
   const { runtime, web, requirement, supported, closeInput, done } = await approvalProject("accepting");
-  const APPROVAL_REQUIRED = "event_closure.human_approval_required";
+  const APPROVAL_REQUIRED = "goals.event_closure.human_approval_required";
   const approve = (goal_id: string, idempotency_key: string, requirement_ids: string[]) => web.invoke(goalsActions.decide, { goal_id, idempotency_key,
     conclusion: "这些要求通过，可以完成", accepts_requirements: true, scope: { action: "complete", requirement_ids } });
   const closeNow = async (goal_id: string, key: string) => runtime.invoke(goalsActions.close, await closeInput(goal_id, key));
@@ -309,7 +309,7 @@ test("under the project approval rule a decision from the Web that accepts a req
  */
 test("under the project approval rule a plain acceptance of a requirement from the Web ends with the round and with the agreement", async () => {
   const { runtime, web, requirement, supported, closeInput, done } = await approvalProject("accepted");
-  const APPROVAL_REQUIRED = "event_closure.human_approval_required";
+  const APPROVAL_REQUIRED = "goals.event_closure.human_approval_required";
   const accept = (goal_id: string, idempotency_key: string, requirement_ids: string[]) => web.invoke(goalsActions.decide, { goal_id, idempotency_key,
     conclusion: "接受这些要求", accepts_requirements: true, scope: { requirement_ids } });
   const authorize = (goal_id: string, idempotency_key: string) => web.invoke(goalsActions.decide, { goal_id, idempotency_key,
@@ -356,7 +356,7 @@ test("under the project approval rule a plain acceptance of a requirement from t
     // needs its own acceptance, and accepting it is both. Resumed with nothing new, it stays accepted, and the rule asks again.
     await supported("HUMAN", { human: true });
     await authorize("HUMAN", "authorize-human");
-    await heldFor("HUMAN", "close-human-1", ["event_closure.human_decision_required"], "authorized, the requirement not accepted");
+    await heldFor("HUMAN", "close-human-1", ["goals.event_closure.human_decision_required"], "authorized, the requirement not accepted");
     await accept("HUMAN", "accept-human", [requirement("HUMAN")]);
     assert.equal((await closeNow("HUMAN", "close-human-2")).completion_applied, true);
     await runtime.invoke(goalsActions.resume, { goal_id: "HUMAN", idempotency_key: "resume-human", reason: "还要再做一轮" });

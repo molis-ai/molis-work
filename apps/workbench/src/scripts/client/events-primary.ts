@@ -202,7 +202,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
       box.querySelector("strong").textContent = L("无法加载设置");
       if(typeof message==="string")box.querySelector("p").textContent=message && message!==L("无法加载设置")?message:L("请稍后重试");else molisWorkRequest.show(box.querySelector("p"),message,L("请稍后重试"));
-      const button = box.querySelector("button");
+      const button = box.querySelector(":scope > button");
       button.textContent = L("重试");
       button.addEventListener("click", () => { button.disabled = true; void retry(); });
       return box;

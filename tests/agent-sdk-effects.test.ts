@@ -117,17 +117,18 @@ function switchReadResponse(): Response {
   return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
 }
 
-for (const stage of ["configuration", "credential"] as const) for (const invalidation of ["cancel", "revoke"] as const)
+for (const stage of ["configuration", "credential", "sdk-acceptance"] as const) for (const invalidation of ["cancel", "revoke"] as const)
   test(`W2-18-MODEL-SWITCH-01/02: ${invalidation} during ${stage} keeps accepted B and its display`, { timeout: 60_000 }, async t => {
     const home = await mkdtemp(join(tmpdir(), "switch-original-call-")); await writeFile(join(home, "note.txt"), "A real bounded read before finishing.");
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), network = Promise.withResolvers<void>(), response = Promise.withResolvers<void>();
-    const models: string[] = []; let held = false, current = true;
+    const models: string[] = []; let held = false, current = true, credentialReads = 0;
     const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.switch-authority-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
       modelConfiguration: async selection => {
         const name = selection?.model_id === "denied" ? "C" : selection?.model_id === "peer" ? "B" : "START";
         if (stage === "configuration" && name === "C" && !held) { held = true; entered.resolve(); await release.promise; }
         return { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: name, credential_ref: name };
       }, resolveCredential: async ref => {
+        if (ref === "C") credentialReads++;
         if (stage === "credential" && ref === "C" && !held) { held = true; entered.resolve(); await release.promise; }
         return "fixture-only";
       } });
@@ -137,7 +138,16 @@ for (const stage of ["configuration", "credential"] as const) for (const invalid
     const client = local.client({ project_id: "project", storage_key: join(home, "project.db") });
     const owner = { project_id: "project", plugin_id: "io.molis.work.coding", install_id: "install", actor_id: "person" }, directory = { canonical_path: home, realpath_verified: true };
     const controller = new AbortController();
-    const check = () => { controller.signal.throwIfAborted(); if (!current) throw new ActionError("actions.forbidden", "original switch revoked"); };
+    const invalidate = () => { if (invalidation === "cancel") controller.abort(new Error("original switch cancelled")); else current = false; };
+    const check = () => {
+      if (stage === "sdk-acceptance" && !held && credentialReads >= 2 && /[\\/]agent[\\/]core[\\/]control\.js/.test(new Error().stack ?? "")) {
+        // Observe the actual SDK control frame, not a count of earlier preparation checks.
+        // This trusted caller revokes at that final checkpoint; dropping Node's beforeAccept
+        // leaves this checkpoint unreachable and permits C, which the outcomes below reject.
+        held = true; entered.resolve(); invalidate();
+      }
+      controller.signal.throwIfAborted(); if (!current) throw new ActionError("actions.forbidden", "original switch revoked");
+    };
     t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
       const payload = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
       const body = JSON.parse(payload); models.push(body.model);
@@ -153,9 +163,10 @@ for (const stage of ["configuration", "credential"] as const) for (const invalid
     assert.equal((await adapter.read(handle.ref)).model_switch?.requested, "B");
     const refused = client.invoke(agent.controlRun, [...requested("denied")], { signal: controller.signal, before_effect: async () => check(), assert_authority_current: check });
     const rejected = assert.rejects(refused);
-    await entered.promise;
+    if (stage === "sdk-acceptance") { await rejected; assert.equal(held, true, "the original checker reached the actual SDK acceptance frame"); }
+    else await entered.promise;
     assert.equal((await adapter.read(handle.ref)).model_switch?.requested, "B", "preparing C does not alter the accepted display");
-    if (invalidation === "cancel") controller.abort(new Error("original switch cancelled")); else current = false;
+    if (stage !== "sdk-acceptance") invalidate();
     release.resolve(); await rejected;
     assert.equal((await adapter.read(handle.ref)).model_switch?.requested, "B", "rejection preserves the SDK's still-pending B");
     response.resolve();

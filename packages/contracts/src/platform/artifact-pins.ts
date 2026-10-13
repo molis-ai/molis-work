@@ -1,4 +1,4 @@
-import { ActionError, retainActionAuthority, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference } from "./actions.js";
+import { ActionError, retainActionAuthority, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "./actions.js";
 import type { ActionSubject } from "./action-subjects.js";
 import type { ArtifactReference, ArtifactVersionRecord } from "../modules/artifacts.js";
 

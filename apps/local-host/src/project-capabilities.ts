@@ -18,6 +18,7 @@ import { PLUGIN_DEVELOPMENT_ACTOR_ID, runPluginDevelopment } from "./plugin-deve
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { registerHostScheduleCapabilities } from "./schedule-runtime.js";
+import { refusePayloadIdentity } from "./goals-actions.js";
 
 export interface ProjectCapabilityPorts {
   /** Resolves the workspace a project is bound to. See `MolisWorkLocalHostOptions`. */
@@ -38,14 +39,6 @@ function progressActor(named: GoalProgressActor, invocation: HostCapabilityInvoc
   if (!invocation.plugin) throw new ActionError("actions.forbidden", "插件调用缺少调用上下文，不能记录目标进展");
   if (named.actor_id !== undefined || named.actor_kind !== undefined) throw new ActionError("actions.input_invalid", "插件的调用者身份来自调用上下文，参数里不能带 actor_id 或 actor_kind");
   return { actor_id: invocation.plugin.actor_id, actor_kind: "user" };
-}
-
-/** The host decides who writes (the person on this machine, or a plugin's own call context); the arguments carry no identity. */
-function refusePayloadIdentity(input: object, more: readonly string[] = []): void {
-  const named = ["actor_id", "actor_kind", ...more].filter(field => Object.hasOwn(input, field));
-  if (named.length) {
-    throw new ActionError("actions.input_invalid", `写入者由宿主确定（管理入口是本机这个人，插件取自调用上下文），参数里不能带 ${named.join("、")}`);
-  }
 }
 
 function managementIdentity(runtime: MolisWorkProjectRuntime, key: string) {

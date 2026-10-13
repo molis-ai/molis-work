@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { artifactSubjectId, parseArtifactSubjectId, type ArtifactVersionRecord, type RegisterArtifactVersionInput } from "../packages/contracts/src/modules/artifacts.js";
-import { ActionError, resolveActionSubject, type ActionCallContext } from "../packages/contracts/src/platform/actions.js";
-import { ActionService } from "../packages/kernel/src/action-service.js";
-import { ArtifactsModule, createArtifactsSchema } from "../modules/artifacts/src/index.js";
+import { artifactSubjectId, parseArtifactSubjectId, type ArtifactVersionRecord, type RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { ActionError, resolveActionSubject, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { ArtifactsModule, createArtifactsSchema } from "@molis-ai/molis-work-module-artifacts";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
-import { createContextLedger, createContextLedgerSchema } from "../modules/context-ledger/src/index.js";
-import { artifactsActions, createArtifactActionHandlers } from "../plugins/native/artifacts/src/actions.js";
-import { artifactsManifest } from "../plugins/native/artifacts/src/manifest.js";
-import { requireArtifactAnalysisRecord } from "../plugins/native/artifacts/src/browser.js";
+import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
+import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
+import { requireArtifactAnalysisRecord } from "@molis-ai/molis-work-plugin-artifacts";
 
 const projectId = "canonical-project";
 const reference = { artifact_id: 'report/季度@2:["draft"]', version: 1 };

@@ -43,7 +43,7 @@ test("Session project actions are confirmed, atomic, isolated and keep Goal hist
         project_id: "project-b",
       }),
       (error: unknown) => error instanceof MolisWorkSessionError
-        && error.code === "session.confirmation_required",
+        && error.code === "work.session.confirmation_required",
     );
 
     const switched = registry.updateAssociations({

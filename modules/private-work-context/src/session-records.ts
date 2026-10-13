@@ -67,7 +67,7 @@ export class SessionRecordRepository {
         const existing = this.findBySurface(surfaceId);
         if (existing) {
           if (existing.runtime_id !== runtimeId) {
-            throw new MolisWorkSessionError("session.runtime_mismatch", "这个 surface 已属于另一个 Runtime Session");
+            throw new MolisWorkSessionError("work.session.runtime_mismatch", "这个 surface 已属于另一个 Runtime Session");
           }
           return this.updateAssociationsInTransaction(existing, input, actorId, now);
         }
@@ -176,15 +176,15 @@ export class SessionRecordRepository {
     return this.db.transaction(() => {
       const current = this.get(sessionId);
       if (current.runtime_id !== runtimeId) {
-        throw new MolisWorkSessionError("session.runtime_mismatch", "Runtime 与 Molis Work Session 不匹配");
+        throw new MolisWorkSessionError("work.session.runtime_mismatch", "Runtime 与 Molis Work Session 不匹配");
       }
       if (current.native_runtime_session_id === nativeId) return current;
       if (current.native_runtime_session_id && current.native_runtime_session_id !== nativeId) {
-        throw new MolisWorkSessionError("session.identity_conflict", "Molis Work Session 已连接另一个 Runtime 原生 Session");
+        throw new MolisWorkSessionError("work.session.identity_conflict", "Molis Work Session 已连接另一个 Runtime 原生 Session");
       }
       const byNative = this.findByNativeRuntimeSession(runtimeId, nativeId);
       if (byNative && byNative.session_id !== current.session_id) {
-        throw new MolisWorkSessionError("session.identity_conflict", "Runtime 原生 Session 已连接另一条 Molis Work Session");
+        throw new MolisWorkSessionError("work.session.identity_conflict", "Runtime 原生 Session 已连接另一条 Molis Work Session");
       }
       const tokenMatches = Boolean(
         current.correlation_token
@@ -195,7 +195,7 @@ export class SessionRecordRepository {
       const surfaceMatches = Boolean(current.surface_id && input.surface_id === current.surface_id);
       if (!tokenMatches && !surfaceMatches) {
         throw new MolisWorkSessionError(
-          "session.correlation_invalid",
+          "work.session.correlation_invalid",
           "晚到的 Runtime 原生 Session 缺少有效 correlation 或匹配的 surface",
         );
       }
@@ -220,7 +220,7 @@ export class SessionRecordRepository {
     requireConfirmation(input.user_confirmed);
     requiredText(input.actor_id, "Session 写入必须记录执行者");
     if (input.status !== "active" && input.status !== "closed") {
-      throw new MolisWorkSessionError("session.invalid_input", "Session 只能归档或恢复");
+      throw new MolisWorkSessionError("work.session.invalid_input", "Session 只能归档或恢复");
     }
     const now = this.now().toISOString();
     return this.db.transaction(() => {
@@ -239,7 +239,7 @@ export class SessionRecordRepository {
     const previousWorkspaceId = optionalText(input.previous_workspace_id);
     const previousWorkspacePath = optionalAbsolutePath(input.previous_workspace_path);
     if (!previousWorkspaceId && !previousWorkspacePath) {
-      throw new MolisWorkSessionError("session.invalid_input", "必须提供要修复或解除的工作目录");
+      throw new MolisWorkSessionError("work.session.invalid_input", "必须提供要修复或解除的工作目录");
     }
     const workspaceId = optionalText(input.workspace_id);
     const workspacePath = optionalAbsolutePath(input.workspace_path);
@@ -264,7 +264,7 @@ export class SessionRecordRepository {
     const row = this.db.prepare("SELECT * FROM sessions WHERE session_id = ?").get(sessionId.trim()) as
       | Record<string, unknown>
       | undefined;
-    if (!row) throw new MolisWorkSessionError("session.not_found", "找不到这条 Molis Work Session");
+    if (!row) throw new MolisWorkSessionError("work.session.not_found", "找不到这条 Molis Work Session");
     return { ...mapSession(row), ...this.associations.read(String(row.session_id)) };
   }
 

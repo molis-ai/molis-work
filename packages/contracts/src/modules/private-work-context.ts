@@ -398,22 +398,22 @@ export interface PrivateWorkContextApplicationApi {
 }
 
 export type PrivateWorkContextErrorCode =
-  | "session.message_content_unavailable"
-  | "session.message_conflict"
-  | "session.message_target_changed"
-  | "session.message_unavailable"
-  | "session.message_not_found"
-  | "session.message_attempt_changed"
-  | "session.not_found"
-  | "session.confirmation_required"
-  | "session.identity_conflict"
-  | "session.runtime_mismatch"
-  | "session.correlation_invalid"
-  | "session.invalid_input"
-  | "session.handoff_not_found"
-  | "session.handoff_invalid_state"
-  | "session.registry_unknown"
-  | "session.registry_reader_too_old";
+  | "work.session.message_content_unavailable"
+  | "work.session.message_conflict"
+  | "work.session.message_target_changed"
+  | "work.session.message_unavailable"
+  | "work.session.message_not_found"
+  | "work.session.message_attempt_changed"
+  | "work.session.not_found"
+  | "work.session.confirmation_required"
+  | "work.session.identity_conflict"
+  | "work.session.runtime_mismatch"
+  | "work.session.correlation_invalid"
+  | "work.session.invalid_input"
+  | "work.session.handoff_not_found"
+  | "work.session.handoff_invalid_state"
+  | "work.session.registry_unknown"
+  | "work.session.registry_reader_too_old";
 
 export class PrivateWorkContextError extends Error {
   constructor(

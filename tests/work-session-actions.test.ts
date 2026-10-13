@@ -123,7 +123,7 @@ test("Work actions use original session facts, enforce project scope and revalid
     assert.equal(directory.runtimes.find(row => row.runtime_id === "opencode")!.capabilities.read, "unsupported");
     const noPermission = bindActionClient(host.actionClient(reference), () => ({ ...caller, permissions: [] }));
     await assert.rejects(noPermission.invoke(workActions.content, { session_id: session.session_id }), { code: "actions.forbidden" });
-    await assert.rejects(client.invoke(workActions.content, { session_id: foreign.session_id }), { code: "sessions.not_found" });
+    await assert.rejects(client.invoke(workActions.content, { session_id: foreign.session_id }), { code: "work.sessions.not_found" });
     assert.equal(requests.length, 0);
     const content = await client.invoke(workActions.content, { session_id: session.session_id });
     assert.deepEqual(content.events.map(event => event.content).sort(), ["native answer", "persisted user question"].sort());
@@ -138,7 +138,7 @@ test("Work actions use original session facts, enforce project scope and revalid
     nativeEffect = () => owner.registry.updateAssociations({ session_id: session.session_id, current_goal_id: "changed-goal", actor_id: "owner", user_confirmed: true });
     await assert.rejects(client.invoke(workActions.content, { session_id: session.session_id }), { code: "actions.subject_changed" });
     nativeEffect = () => owner.registry.updateAssociations({ session_id: session.session_id, project_id: "other-project", actor_id: "owner", user_confirmed: true });
-    await assert.rejects(client.invoke(workActions.content, { session_id: session.session_id }), { code: "sessions.not_found" });
+    await assert.rejects(client.invoke(workActions.content, { session_id: session.session_id }), { code: "work.sessions.not_found" });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 

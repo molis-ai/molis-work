@@ -41,13 +41,13 @@ export class SessionSurfaceRecorder {
         });
       }
       if (current.runtime_id !== panel.runtime_id) {
-        throw new MolisWorkSessionError("session.runtime_mismatch", "panel 与已有 Session 的 Runtime 不匹配");
+        throw new MolisWorkSessionError("work.session.runtime_mismatch", "panel 与已有 Session 的 Runtime 不匹配");
       }
       if (current.project_id && current.project_id !== panel.project_id) {
-        throw new MolisWorkSessionError("session.identity_conflict", "panel 与已有 Session 指向不同项目");
+        throw new MolisWorkSessionError("work.session.identity_conflict", "panel 与已有 Session 指向不同项目");
       }
       if (panel.host_session_id && current.native_runtime_session_id && current.native_runtime_session_id !== panel.host_session_id) {
-        throw new MolisWorkSessionError("session.identity_conflict", "panel 已连接另一个 Runtime 原生 Session");
+        throw new MolisWorkSessionError("work.session.identity_conflict", "panel 已连接另一个 Runtime 原生 Session");
       }
       this.sessions.setAssociationReferences(current.session_id, current.project_id ?? panel.project_id,
         panel.goal_id, current.workspace_id ?? panel.workspace_id, actor, now);
@@ -94,7 +94,7 @@ export class SessionSurfaceRecorder {
         });
       }
       if (current.project_id && current.project_id !== binding.project_id) {
-        throw new MolisWorkSessionError("session.identity_conflict", "这个 Runtime Session 已属于另一个项目");
+        throw new MolisWorkSessionError("work.session.identity_conflict", "这个 Runtime Session 已属于另一个项目");
       }
       if (!current.project_id) {
         this.sessions.setAssociationReferences(current.session_id, binding.project_id,

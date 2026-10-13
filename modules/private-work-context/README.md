@@ -69,3 +69,5 @@ node --import tsx --test --test-concurrency=1 tests/private-work-context-module.
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-wk1`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+当前 Session、消息和交接错误使用 `work.session.*`、`work.sessions.*` 或 `work.handoff.*`；业务关系、动作 ID 和数据库文件名沿用各自合同。已经写入的历史错误由防腐维护步骤处理，不在读取时翻译旧码。

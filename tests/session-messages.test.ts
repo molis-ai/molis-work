@@ -28,15 +28,16 @@ test("W2-18-WORK-RECEIPT-01: Session message actions persist actual acceptance a
     const owner = await host.sessionResources();
     const session = owner.registry.explicitlyLinkSession({ runtime_id: "codex", native_runtime_session_id: "chosen-thread", project_id: reference.project_id, current_goal_id: "chosen-goal", actor_id: "owner", user_confirmed: true });
     const input = { session_id: session.session_id, expected_goal_id: "chosen-goal", idempotency_key: "user-submit-1", text: "  保留用户原文\n第二行  ", context: { kind: "feed_item", id: "source-1", content: "所选材料的明确上下文" } };
-    await assert.rejects(actions.invoke(workActions.messageSend, { ...input, expected_goal_id: "wrong-goal" }), { code: "session.message_target_changed" });
+  // R4A1-01: target changes refuse under the current Work owner without sending another turn.
+    await assert.rejects(actions.invoke(workActions.messageSend, { ...input, expected_goal_id: "wrong-goal" }), { code: "work.session.message_target_changed" });
     const pending = actions.invoke(workActions.messageSend, input); await started.promise;
     const duplicate = await actions.invoke(workActions.messageSend, input);
     assert.equal(duplicate.state, "uncertain"); assert.equal(duplicate.attempt_count, 1); assert.equal(calls.length, 1);
     assert.equal(owner.registry.eventCount(session.session_id), 0, "unconfirmed delivery is not a sent timeline message");
     assert.deepEqual(calls[0], { method: "turn/start", params: { threadId: "chosen-thread", input: [{ type: "text", text: "所选材料的明确上下文\n\n用户消息：\n  保留用户原文\n第二行  ", text_elements: [] }], turnTrigger: "molis_work_message" } });
-    await assert.rejects(actions.invoke(workActions.messageSend, { ...input, text: "changed" }), { code: "session.message_conflict" });
+    await assert.rejects(actions.invoke(workActions.messageSend, { ...input, text: "changed" }), { code: "work.session.message_conflict" });
     const stranger = bindActionClient(host.actionClient(reference), () => ({ ...caller, actor_id: "stranger" }));
-    await assert.rejects(stranger.invoke(workActions.messageRead, { request_id: duplicate.request_id }), { code: "session.message_not_found" });
+    await assert.rejects(stranger.invoke(workActions.messageRead, { request_id: duplicate.request_id }), { code: "work.session.message_not_found" });
     revoked = true; response.resolve({ turn: { id: "turn-accepted" } });
     await assert.rejects(pending, { code: "actions.forbidden" });
     assert.equal(owner.registry.messages.get(duplicate.request_id).state, "accepted", "real acceptance survives response-time revocation");
@@ -47,7 +48,7 @@ test("W2-18-WORK-RECEIPT-01: Session message actions persist actual acceptance a
     assert.equal((await actions.invoke(workActions.messageRetry, { request_id: replay.request_id })).state, "accepted");
     assert.equal(calls.length, 1);
     const foreign = owner.registry.createSession({ runtime_id: "codex", project_id: "foreign", native_runtime_session_id: "foreign-thread", actor_id: "owner", user_confirmed: true });
-    await assert.rejects(actions.invoke(workActions.messageSend, { ...input, session_id: foreign.session_id, idempotency_key: "foreign" }), { code: "sessions.not_found" });
+    await assert.rejects(actions.invoke(workActions.messageSend, { ...input, session_id: foreign.session_id, idempotency_key: "foreign" }), { code: "work.sessions.not_found" });
     assert.equal(calls.length, 1);
     const persisted = await readFile(owner.registry.databasePath); assert.ok(!persisted.includes(Buffer.from(input.text)));
   } finally { response.resolve({ turn: { id: "cleanup" } }); await host.close(); await rm(home, { recursive: true, force: true }); }
@@ -115,7 +116,7 @@ test("only definite rejections are retried; unknown delivery survives restart an
     behavior = "reject";
     const changed = await resources.messages.send({ ...input, idempotency_key: "changed-target" }, auth);
     resources.registry.updateAssociations({ session_id: session.session_id, current_goal_id: "new-goal", actor_id: caller.actor_id, user_confirmed: true });
-    await assert.rejects(resources.messages.retry(changed.request_id, caller, auth), { code: "session.message_target_changed" });
+    await assert.rejects(resources.messages.retry(changed.request_id, caller, auth), { code: "work.session.message_target_changed" });
     const staged = resources.registry.messages.prepare({ ...input, expected_goal_id: "new-goal", idempotency_key: "crash-window" });
     const claim = resources.registry.messages.claim(staged.request_id, false); assert.equal(claim.claimed, true);
     const other = await openWorkSessionRegistry({ homeDirectory: home });

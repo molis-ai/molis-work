@@ -14,7 +14,7 @@ export class HandoffAssociationRepository {
     const project = this.ledger.query.get(access(), `handoff.project:${packageId}`)?.target;
     const workspace = this.ledger.query.get(access(), `handoff.workspace:${packageId}`)?.target;
     if (!goal?.project_id || goal.module !== "goals" || project?.module !== "projects") {
-      throw new MolisWorkSessionError("session.invalid_input", "Handoff 的来源或目标关系缺失，不能猜测恢复");
+      throw new MolisWorkSessionError("work.session.invalid_input", "Handoff 的来源或目标关系缺失，不能猜测恢复");
     }
     return { source_project_id: goal.project_id, source_goal_id: goal.id,
       target_project_id: project.id, target_workspace_id: workspace?.id ?? null };

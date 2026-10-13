@@ -13,14 +13,14 @@ export class SessionMessageService {
     const record = this.messages.get(requestId);
     if (record.actor_id !== caller.actor_id || record.project_id !== caller.project_id
       || this.sessions.get(record.target.session_id).project_id !== caller.project_id) {
-      throw new ActionError("session.message_not_found", "找不到此调用者和项目的消息请求");
+      throw new ActionError("work.session.message_not_found", "找不到此调用者和项目的消息请求");
     }
     return record;
   }
 
   async send(input: PrepareSessionMessage, authorize: () => Promise<void>, control?: Control): Promise<SessionMessageRecord> {
     await authorize(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
-    if (this.sessions.get(input.session_id).project_id !== input.project_id) throw new ActionError("sessions.not_found", "找不到此项目的 Session");
+    if (this.sessions.get(input.session_id).project_id !== input.project_id) throw new ActionError("work.sessions.not_found", "找不到此项目的 Session");
     const record = this.messages.prepare(input);
     return this.deliver(record.request_id, input, false, authorize, control);
   }
@@ -33,7 +33,7 @@ export class SessionMessageService {
     await authorize(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     const record = this.read(requestId, caller);
     if (record.state !== (retry ? "failed" : "pending")) return record;
-    if (this.runtime.capabilities(record.target.runtime_id).message !== "native") throw new ActionError("session.message_unavailable", "此 Runtime 不支持原生消息发送");
+    if (this.runtime.capabilities(record.target.runtime_id).message !== "native") throw new ActionError("work.session.message_unavailable", "此 Runtime 不支持原生消息发送");
     const claim = this.messages.claim(requestId, retry);
     if (!claim.claimed) return claim.record;
     let delivery: Parameters<SessionMessageApi["finish"]>[2];

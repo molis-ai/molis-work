@@ -105,7 +105,7 @@ export function createWorkActionHandlers(projectId: string, resources: () => Pro
   const check = (registry: WorkSessionApi, sessionId: string, caller: ActionCallContext): WorkSessionRecord => {
     if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "Session 调用不属于当前项目");
     const session = registry.get(sessionId);
-    if (session.project_id !== projectId) throw new ActionError("sessions.not_found", "找不到此项目的 Session");
+    if (session.project_id !== projectId) throw new ActionError("work.sessions.not_found", "找不到此项目的 Session");
     return session;
   };
   const same = (before: WorkSessionRecord, after: WorkSessionRecord) => before.runtime_id === after.runtime_id && before.native_runtime_session_id === after.native_runtime_session_id
@@ -213,7 +213,7 @@ export function createWorkActionHandlers(projectId: string, resources: () => Pro
       const owner = await resources(); await assertAuthority(caller, workActions.handoffPrepare);
       if (!owner.handoff || !readGoalContract) throw new ActionError("actions.unredeemed", "Session 交接服务尚未接通");
       const source = check(owner.registry, input.session_id, caller);
-      if (!source.current_goal_id) throw new ActionError("sessions.goal_required", "请先为来源 Session 选择当前 Goal，再创建 Handoff");
+      if (!source.current_goal_id) throw new ActionError("work.sessions.goal_required", "请先为来源 Session 选择当前 Goal，再创建 Handoff");
       const contract = await readGoalContract(source.current_goal_id, caller);
       await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
       const result = await owner.handoff.prepare({ source_session_id: source.session_id, project_id: projectId, project_name: input.project_name?.trim() || projectId,
@@ -227,7 +227,7 @@ export function createWorkActionHandlers(projectId: string, resources: () => Pro
       const owner = await resources(); await assertAuthority(caller, definition);
       if (!owner.handoff) throw new ActionError("actions.unredeemed", "Session 交接服务尚未接通");
       const current = owner.registry.getHandoff(input.package_id);
-      if (current.source_project_id !== projectId) throw new ActionError("sessions.not_found", "找不到这条 Handoff package");
+      if (current.source_project_id !== projectId) throw new ActionError("work.sessions.not_found", "找不到这条 Handoff package");
       await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
       const target = { package_id: current.package_id, target_runtime_id: input.target_runtime_id, ...(input.target_workspace_id !== undefined && input.target_workspace_id !== null ? { target_workspace_id: input.target_workspace_id } : {}),
         target_workspace_path: input.target_workspace_path?.trim() || null, content: input.content, actor_id: caller.actor_id };
@@ -238,7 +238,7 @@ export function createWorkActionHandlers(projectId: string, resources: () => Pro
     bind(workActions.handoffCancel, async (input, caller) => {
       const owner = await resources(); await assertAuthority(caller, workActions.handoffCancel);
       if (!owner.handoff) throw new ActionError("actions.unredeemed", "Session 交接服务尚未接通");
-      if (owner.registry.getHandoff(input.package_id).source_project_id !== projectId) throw new ActionError("sessions.not_found", "找不到这条 Handoff package");
+      if (owner.registry.getHandoff(input.package_id).source_project_id !== projectId) throw new ActionError("work.sessions.not_found", "找不到这条 Handoff package");
       await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
       return { handoff: publicSessionHandoff(owner.handoff.cancel(input.package_id), false) };
     }),

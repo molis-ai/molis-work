@@ -70,7 +70,7 @@ export class SessionHandoffDelivery {
       } catch (error) {
         const failed = this.registry.markHandoffFailed({
           package_id: handoff.package_id,
-          error_code: error instanceof MolisWorkSessionError ? error.code : "session.identity_conflict",
+          error_code: error instanceof MolisWorkSessionError ? error.code : "work.session.identity_conflict",
           error_message: error instanceof Error ? error.message : String(error),
           retryable: false,
         });
@@ -119,7 +119,7 @@ export class SessionHandoffDelivery {
     if (deliveredNativeSessionId && deliveredNativeSessionId !== nativeSessionId) {
       const failed = this.registry.markHandoffFailed({
         package_id: handoff.package_id,
-        error_code: "session.identity_conflict",
+        error_code: "work.session.identity_conflict",
         error_message: "目标 Runtime 返回了另一条 Session 身份；Molis Work 没有覆盖已确认的目标关系。",
         retryable: false,
         destination_session_id: destination.session_id,
@@ -186,7 +186,7 @@ export class SessionHandoffDelivery {
       await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
       const failed = this.registry.markHandoffFailed({
         package_id: handoff.package_id,
-        error_code: "handoff.fallback_failed",
+        error_code: "work.handoff.fallback_failed",
         error_message: destination
           ? "目标托管 Session 已创建，但 package 写入失败；重试会继续使用这条 Session。"
           : "Molis Work 无法创建目标托管 Session；来源 Session 与草稿已保留。",
@@ -206,7 +206,7 @@ export class SessionHandoffDelivery {
     if (handoff.destination_session_id) {
       const current = this.registry.get(handoff.destination_session_id);
       if (current.native_runtime_session_id === nativeSessionId) return current;
-      throw new MolisWorkSessionError("session.identity_conflict", "Handoff 已连接另一个目标 Runtime Session");
+      throw new MolisWorkSessionError("work.session.identity_conflict", "Handoff 已连接另一个目标 Runtime Session");
     }
     const existing = this.registry.findByNativeRuntimeSession(handoff.target_runtime_id, nativeSessionId);
     if (existing) {
@@ -215,7 +215,7 @@ export class SessionHandoffDelivery {
         && existing.metadata.handoff_package_id === handoff.package_id
       ) return existing;
       throw new MolisWorkSessionError(
-        "session.identity_conflict",
+        "work.session.identity_conflict",
         "目标 Runtime 返回的不是一条新的 Session；Molis Work 没有覆盖现有 Session 关系",
       );
     }

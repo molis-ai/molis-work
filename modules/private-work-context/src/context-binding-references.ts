@@ -12,7 +12,7 @@ export class RuntimeContextProjectReferences {
   get(bindingId: string): string {
     const edge = this.ledger.query.get(access(), `work.binding_project:${bindingId}`);
     if (!edge || edge.target.module !== "projects") {
-      throw new MolisWorkSessionError("session.invalid_input", "Runtime 工作入口的 Project 关系缺失，不能猜测绑定");
+      throw new MolisWorkSessionError("work.session.invalid_input", "Runtime 工作入口的 Project 关系缺失，不能猜测绑定");
     }
     return edge.target.id;
   }

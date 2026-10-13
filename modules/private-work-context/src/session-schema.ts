@@ -77,7 +77,7 @@ export function validateSessionRegistryMeta(db: Database.Database): void {
     | { value?: unknown }
     | undefined)?.value;
   if (!isOwnedSessionRegistry(owner)) {
-    throw new MolisWorkSessionError("session.registry_unknown", "不会复用未知 Session Registry 数据库");
+    throw new MolisWorkSessionError("work.session.registry_unknown", "不会复用未知 Session Registry 数据库");
   }
   const version = Number((db.prepare("SELECT value FROM session_meta WHERE key = 'schema_version'").get() as
     | { value?: unknown }
@@ -85,7 +85,7 @@ export function validateSessionRegistryMeta(db: Database.Database): void {
   // Only the current schema is read: older registries are not upgraded in place (no compatibility path).
   if (version !== SESSION_REGISTRY_SCHEMA_VERSION) {
     throw new MolisWorkSessionError(
-      "session.registry_reader_too_old",
+      "work.session.registry_reader_too_old",
       `Session Registry schema=${version}，当前只读 ${SESSION_REGISTRY_SCHEMA_VERSION}`,
     );
   }
@@ -183,7 +183,7 @@ export function optionalText(value: unknown): string | null {
 
 export function requiredText(value: unknown, message: string): string {
   const text = optionalText(value);
-  if (!text) throw new MolisWorkSessionError("session.invalid_input", message);
+  if (!text) throw new MolisWorkSessionError("work.session.invalid_input", message);
   return text;
 }
 
@@ -191,7 +191,7 @@ export function optionalAbsolutePath(value: unknown): string | null {
   const text = optionalText(value);
   if (!text) return null;
   if (!path.isAbsolute(text)) {
-    throw new MolisWorkSessionError("session.invalid_input", "Session 工作目录必须是绝对路径");
+    throw new MolisWorkSessionError("work.session.invalid_input", "Session 工作目录必须是绝对路径");
   }
   return path.resolve(text);
 }
@@ -199,7 +199,7 @@ export function optionalAbsolutePath(value: unknown): string | null {
 export function requireConfirmation(value: boolean): void {
   if (value !== true) {
     throw new MolisWorkSessionError(
-      "session.confirmation_required",
+      "work.session.confirmation_required",
       "创建或改变 Session 关联前必须获得用户明确确认",
     );
   }
@@ -208,7 +208,7 @@ export function requireConfirmation(value: boolean): void {
 export function correlationTtl(value: number | undefined): number {
   if (value == null) return DEFAULT_CORRELATION_TTL_SECONDS;
   if (!Number.isSafeInteger(value) || value <= 0 || value > 24 * 60 * 60) {
-    throw new MolisWorkSessionError("session.invalid_input", "correlation TTL 必须是 1 秒到 24 小时之间的整数");
+    throw new MolisWorkSessionError("work.session.invalid_input", "correlation TTL 必须是 1 秒到 24 小时之间的整数");
   }
   return value;
 }

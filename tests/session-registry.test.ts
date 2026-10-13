@@ -27,7 +27,7 @@ test("Session Registry keeps Molis Work, Runtime, surface and workspace identiti
     assert.throws(
       () => registry.createSession({ runtime_id: "codex", actor_id: "user", user_confirmed: false }),
       (error: unknown) =>
-        error instanceof MolisWorkSessionError && error.code === "session.confirmation_required",
+        error instanceof MolisWorkSessionError && error.code === "work.session.confirmation_required",
     );
 
     const first = registry.createSession({
@@ -96,7 +96,7 @@ test("late native identity requires matching correlation or surface and preserve
         correlation_token: "wrong-token",
       }),
       (error: unknown) =>
-        error instanceof MolisWorkSessionError && error.code === "session.correlation_invalid",
+        error instanceof MolisWorkSessionError && error.code === "work.session.correlation_invalid",
     );
 
     const linked = registry.linkNativeRuntimeSession({
@@ -145,7 +145,7 @@ test("Runtime discovery syncs metadata without creating project, Goal or workspa
         project_id: "project-a",
       }),
       (error: unknown) =>
-        error instanceof MolisWorkSessionError && error.code === "session.confirmation_required",
+        error instanceof MolisWorkSessionError && error.code === "work.session.confirmation_required",
     );
     const linked = registry.explicitlyLinkSession({
       runtime_id: "codex",

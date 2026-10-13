@@ -14,7 +14,7 @@ export * from "./goal-guidance-action-schemas.js";
 export * from "./goal-progress-action-schema.js";
 
 type GoalListActionInput = Omit<GoalEventDirectoryQuery, "project_id">;
-interface GoalReadActionInput { goal_id: string }
+export interface GoalReadActionInput { goal_id: string }
 type BusinessInput<Input> = Omit<Input, "project_id" | "actor_id" | "actor_kind">;
 const goalInput = object({ goal_id: identifier });
 const base = { goal_id: identifier, idempotency_key: identifier }, required = Object.keys(base);

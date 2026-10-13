@@ -1,4 +1,5 @@
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalPluginActions, type GoalReadActionInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+export type { GoalReadActionInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionDefinition, ActionHandlerBinding, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalIntentSourceKinds, type CreateGoalIntentInput, type CreateGoalIntentResult, type GoalEventDirectoryQuery, type GoalEventMutationResult, type RecordGoalNoteInput, type GoalEventDirectoryItem, type GoalEventHistoryPage, type GoalEventHistoryQuery, type GoalEventListPage, type GoalEventListQuery, type GoalEventTimelinePage, type GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -34,7 +35,6 @@ import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 export type GoalCreateActionInput = Omit<CreateGoalIntentInput, "project_id" | "actor_id" | "actor_kind">;
 export type GoalListActionInput = Omit<GoalEventDirectoryQuery, "project_id">;
 export type GoalNoteActionInput = Omit<RecordGoalNoteInput, "project_id" | "actor_id" | "actor_kind">;
-export interface GoalReadActionInput { goal_id: string }
 const goalInput = object({ goal_id: identifier });
 const limit = { type: "integer", minimum: 1, maximum: 100 };
 

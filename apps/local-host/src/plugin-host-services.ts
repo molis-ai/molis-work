@@ -2,7 +2,7 @@ import {
   ActionError, type ActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PluginDatabase, PluginDefinition, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabase, PluginDefinition, PluginManifest, PluginModelClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
 import {
   createPluginCapabilityClient,
@@ -14,6 +14,8 @@ import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { openPluginDatabase } from "./plugin-database.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
+import { registerPluginInstructions } from "./plugin-instructions.js";
+import { pluginModelFor } from "./plugin-model-service.js";
 
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
@@ -35,7 +37,8 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let active = true;
   let disposeArtifacts = () => {};
   let library: ReturnType<typeof openPluginDatabase> | undefined;
-  const dispose = () => { active = false; disposeArtifacts(); library?.close(); ui.dispose(); };
+  let withdrawInstructions: (() => void) | undefined;
+  const dispose = () => { active = false; disposeArtifacts(); library?.close(); withdrawInstructions?.(); ui.dispose(); };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     const manifest = definition.manifest;
@@ -45,8 +48,9 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
       project_id: options.project_id, actor_id: options.actor_id });
     disposeArtifacts = artifactService.dispose;
     library = openDeclaredLibrary(options, definition, context, assertActive);
+    withdrawInstructions = registerPluginInstructions(options.home, definition, context.install_id);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
-      database: library?.client });
+      database: library?.client, model: pluginModelFor(options.home, definition, context, assertActive) });
     return { context: hosted, revoke: () => { active = false; }, dispose };
   } catch (error) {
     dispose();
@@ -87,6 +91,8 @@ interface SessionParts {
   readonly isActive: () => boolean;
   /** The library the Host's start list declared for this plugin, if any (`openDeclaredLibrary`). */
   readonly database: PluginDatabase | undefined;
+  /** The Host's text model, when the Manifest declares `model:invoke` and the Host runs the plugin itself (`pluginModelFor`). */
+  readonly model: PluginModelClient | undefined;
 }
 
 /** The context the Plugin's `start` receives: its identity plus the services below. */
@@ -106,6 +112,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...((manifest.process_items?.produces ?? []).length > 0 ? { processItems: artifactService.process } : {}),
       ui: ui.client,
       ...(parts.database === undefined ? {} : { database: parts.database }),
+      ...(parts.model === undefined ? {} : { model: parts.model }),
       ...coordinationServices(options, manifest, context, parts),
     }) });
 }

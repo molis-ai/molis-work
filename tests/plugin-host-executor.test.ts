@@ -13,7 +13,7 @@ import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { artifactPreview } from "./fixtures/artifact-preview.js";
 

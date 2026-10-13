@@ -357,7 +357,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const write = () => {
       if (!id) { store.set(NEW_DRAFT_KEY, text || null); return; }
       if (activeSend && activeSend.work === id) {
-        if (text.trim() !== activeSend.body.text) activeSend.draft = text;
+        if (text.trim() !== activeSend.body.text || inputRevision !== activeSend.inputRevision) activeSend.draft = text;
         else delete activeSend.draft;
         return;
       }

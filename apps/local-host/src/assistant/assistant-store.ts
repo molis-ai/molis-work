@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { assistantErrors } from "./assistant-errors.js";
+import { saveFollowUpRecord } from "./assistant-followups.js";
 import { applySqliteBaseline, type openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
@@ -300,9 +301,8 @@ export class AssistantStore {
     return rows.map(row => JSON.parse(String(row.body)) as AssistantFollowUp).sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
-  saveFollowUp(actorId: string, followUp: AssistantFollowUp): void {
-    this.db.prepare("INSERT INTO assistant_followups(followup_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(followup_id) DO UPDATE SET body=excluded.body")
-      .run(followUp.followup_id, actorId, followUp.work_id, JSON.stringify(followUp));
+  saveFollowUp(actorId: string, followUp: AssistantFollowUp, expected?: AssistantFollowUp): boolean {
+    return saveFollowUpRecord(this.db, actorId, followUp, expected);
   }
 
   /** Changes left running when a round ended, newest last; `untold` only those the next round has not been told of. */

@@ -57,6 +57,8 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 
 Runtime 接入按配置路径串行确认。验证失败只恢复仍与本次写入的文件身份、正文或 Skill 链接一致的项；后来改过的项保留并返回冲突，原配置备份可用于核对。TOML 表按引号、点分键的语义识别，字符串和数组里的表头不参与修改；同名未知、重复或无法安全改写的内联定义在写入前拒绝。回归见 `tests/runtime-integration-ownership.test.ts`。
 
+助理操作卡遇到 `actions.outcome_unknown` 或 `actions.output_invalid_after_effect` 时保存为结果未知，重启和重复点击都不再执行。删除定时跟进先移除事实，再取消队列任务；在途回调在等待与发送边界核对原请求，只更新仍存在且未变化的记录。回归见 `tests/assistant-card-outcomes.test.ts`、`tests/assistant-followup-deletion.test.ts`。
+
 PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信任的进程内开发执行。应用通过 openWorkSessionRegistry 组合 Work 与 Ledger，关闭 Registry 时释放其拥有的连接。
 
 Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定唤醒，无须打开 Studio。`schedule-reminders.ts` 只连接安装仓库和同库 Feed/Inbox 投递；时间、数量、安装隔离和一次性消费归 Schedule 插件。`schedule-operations.ts` 同样只装配安装执行器和 Inbox；计划与 occurrence、重装后的归属确认、未知结果恢复归 Schedule。执行器注册不派出工作，新的 lease 才能运行持久 pending；结果未知必须在 Schedule 核对后明确重试或跳过。

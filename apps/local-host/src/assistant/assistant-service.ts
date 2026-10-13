@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
+import { FOLLOW_UP_KIND, followUpTask, enqueueCurrentFollowUp, runDueFollowUp } from "./assistant-followups.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentDelegatedWork, AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -70,8 +71,6 @@ export interface AssistantCaller {
   project_ref?: LocalHostProjectReference;
 }
 
-/** A due time later than this (Molis Work was not running) is reported as missed, not run late. */
-const FOLLOW_UP_GRACE_MS = 10 * 60 * 1000;
 const MAX_FOLLOW_UPS_PER_WORK = 5;
 
 /** Delegation bounds: works one work may hand out in all, at once, and follow-ups to each. */
@@ -505,7 +504,6 @@ function answerOf(output: string | undefined): string {
 /** Recall words: the platform memory's own (Chinese two-character pieces and Latin words). */
 export { recallKeywords } from "@molis-ai/molis-work-service-memory";
 
-const FOLLOW_UP_KIND = "assistant.follow-up";
 const JOB_KIND = "assistant.job-check";
 /** The value at a dot path (`run.jobId`), or undefined. */
 function pathValue(value: unknown, path: string): unknown {
@@ -519,21 +517,11 @@ function setPath(target: Record<string, unknown>, path: string, value: unknown):
   return target;
 }
 /** A follow-up's next due time as a queued task: one key per follow-up and due time. */
-function followUpTask(followUp: AssistantFollowUp, sessionId: string) {
-  return { key: `fu-${followUp.followup_id}-${Date.parse(followUp.next_at!)}`, session_id: sessionId, kind: FOLLOW_UP_KIND,
-    payload: { followup_id: followUp.followup_id }, due_at: followUp.next_at!, max_attempts: 1 };
-}
 
-/** The same wall-clock time `days` later where the person is: “每天六点” stays at six across a daylight-saving change. */
-export function sameLocalTimeLater(at: number, days: number, timeZone: string | undefined): number {
-  let wall: (ms: number) => number;
-  try {
-    const format = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    wall = ms => { const part = Object.fromEntries(format.formatToParts(new Date(ms)).map(item => [item.type, item.value])); return Date.UTC(+part.year!, +part.month! - 1, +part.day!, +part.hour!, +part.minute!, +part.second!) + ms % 1000; };
-  } catch { return at + days * 86_400_000; }
-  const target = wall(at) + days * 86_400_000;
-  const guess = target - (wall(at) - at);
-  return target - (wall(guess) - guess);
+export { sameLocalTimeLater } from "./assistant-followups.js";
+
+function assertSendCurrent(stillCurrent: (() => boolean) | undefined): void {
+  if (stillCurrent && !stillCurrent()) throw new AssistantError("assistant.cancelled", "这项定时已删除或变化，这一轮没有开始");
 }
 
 export class AssistantService {
@@ -709,14 +697,15 @@ export class AssistantService {
       time_zone: input.time_zone || this.ports.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone, enabled: true, created_at: this.now().toISOString() };
     this.store.saveFollowUp(this.actorId, followUp);
     this.#runnerFor(schedule);
-    await schedule.enqueue(followUpTask(followUp, work.session_id));
+    await enqueueCurrentFollowUp(this.store, this.actorId, followUp, work.session_id, schedule);
     return followUp;
   }
 
   async removeFollowUp(followupId: string): Promise<boolean> {
     const followUp = this.store.followUps(this.actorId).find(item => item.followup_id === followupId);
+    const removed = this.store.removeFollowUp(this.actorId, followupId);
     if (followUp?.next_at) await (await this.schedule().catch(() => null))?.cancel(followUpTask(followUp, "").key).catch(() => null);
-    return this.store.removeFollowUp(this.actorId, followupId);
+    return removed;
   }
 
   #detachSchedule: (() => void) | null = null;
@@ -746,7 +735,7 @@ export class AssistantService {
       // Its time came with no runner attached (the Host was still starting): decided now by the same rule — on time
       // enough it runs, too late it is reported as missed — never left silently undone.
       if (held && (held.state === "failed" || held.state === "reconcile-required")) { await this.runFollowUp(followUp).catch(() => undefined); continue; }
-      await schedule.enqueue(task).catch(() => undefined);
+      await enqueueCurrentFollowUp(this.store, this.actorId, followUp, work.session_id, schedule).catch(() => undefined);
     }
     return true;
   }
@@ -779,32 +768,9 @@ export class AssistantService {
    * time is queued.
    */
   private async runFollowUp(followUp: AssistantFollowUp): Promise<void> {
-    const now = this.now(), due = followUp.next_at!;
-    let outcome: NonNullable<AssistantFollowUp["last"]>["outcome"] = "started", detail: string | undefined;
-    let work: StoredWork | undefined;
-    try { work = this.store.get(this.actorId, followUp.work_id); } catch { outcome = "failed"; detail = "这项工作已不存在"; }
-    if (work?.archived) { outcome = "skipped"; detail = "这项工作已归档，这一次没有开始"; }
-    else if (work && now.getTime() - Date.parse(due) > FOLLOW_UP_GRACE_MS) {
-      outcome = "missed"; detail = "当时 Molis Work 没有在运行，没有补做";
-      this.store.raiseNotice(this.actorId, { kind: "failed", work_id: work.work_id, work_title: work.title,
-        text: `错过了「${followUp.label}」（原定 ${new Date(due).toLocaleString("zh-CN", { timeZone: followUp.time_zone })}）：当时 Molis Work 没有在运行，没有补做` }, `followup:${followUp.followup_id}:${due}:missed`);
-    } else if (work) {
-      const host = await this.ports.host();
-      const state = await this.stateFor(host, work);
-      if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) { outcome = "skipped"; detail = "上一轮还没结束，这一次没有开始"; }
-      else {
-        try { await this.send({ work_id: work.work_id, text: `（按你的定时安排「${followUp.label}」）${followUp.text}`, request_id: `fu-${followUp.followup_id}-${Date.parse(due)}` }, {}, "host"); }
-        catch (error) { outcome = "failed"; detail = error instanceof Error ? error.message : String(error); }
-      }
-    }
-    const days = followUp.repeat === "daily" ? 1 : followUp.repeat === "weekly" ? 7 : 0;
-    let next = days && !work?.archived ? sameLocalTimeLater(Date.parse(due), days, followUp.time_zone) : undefined;
-    while (next !== undefined && next <= now.getTime()) next = sameLocalTimeLater(next, days, followUp.time_zone);
-    const { next_at: _next, ...rest } = followUp;
-    const saved: AssistantFollowUp = { ...rest, ...(next !== undefined ? { next_at: new Date(next).toISOString() } : {}), enabled: next !== undefined,
-      last: { due_at: due, at: now.toISOString(), outcome, ...(detail ? { detail } : {}) } };
-    this.store.saveFollowUp(this.actorId, saved);
-    if (next !== undefined && work?.session_id) await (await this.schedule()).enqueue(followUpTask(saved, work.session_id));
+    await runDueFollowUp(followUp, { store: this.store, actorId: this.actorId, now: this.now,
+      host: () => this.ports.host(), state: (host, work) => this.stateFor(host, work), schedule: () => this.schedule(),
+      send: (work, text, request_id, stillCurrent) => this.send({ work_id: work.work_id, text, request_id }, {}, "host", stillCurrent) });
   }
 
   /** Add or change one of the person's attention rules; checked strictly, since the Host applies them exactly as written. */
@@ -989,7 +955,7 @@ export class AssistantService {
    * answers the round's open question when that is what the round is waiting for. A repeated press returns the first
    * outcome and does nothing more. A round whose words the person did not write is marked (`writtenBy` for Host code, `input.written_by` from a page).
    */
-  async send(input: AssistantSendInput, caller: AssistantCaller, writtenBy?: StoredRound["written_by"]): Promise<AssistantSendResult> {
+  async send(input: AssistantSendInput, caller: AssistantCaller, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean): Promise<AssistantSendResult> {
     const text = checkText(input?.text, "要发送的内容", MAX_TEXT);
     let materials = checkMaterials(input.materials);
     const images = materials.filter(item => item.kind === "image");
@@ -1018,12 +984,14 @@ export class AssistantService {
       work = await this.chooseCharacter(work, input.character);
       if (materials.some(item => item.reference)) materials = await this.readReferences(work, materials);
       if (materials.some(item => item.kind === "method")) materials = await this.chosenMethods(work, materials);
+      assertSendCurrent(stillCurrent);
       this.linkSent(work, materials, created ? context : null);
-      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by);
+      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent);
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
     } catch (error) {
       this.store.releaseRequest(this.actorId, input.request_id);
+      if (stillCurrent && !stillCurrent()) throw error;
       // Nothing the person typed is lost: an unsent message stays as the work's draft.
       if (work) {
         const kept = this.store.update(this.actorId, work.work_id, null, { draft: text }, false);
@@ -1827,7 +1795,7 @@ export class AssistantService {
       const code = (error as { code?: string }).code ?? "";
       const message = error instanceof Error ? error.message : String(error);
       // An unknown outcome is never offered again as a plain retry: it may already have happened.
-      const unknown = /delivery_unknown|host_replaced/.test(code);
+      const unknown = ["actions.outcome_unknown", "actions.output_invalid_after_effect"].includes(code) || /delivery_unknown|host_replaced/.test(code);
       // The data moved on since the suggestion: say so, and let the person ask for a fresh one; never re-aim it quietly.
       const moved = !unknown && (/conflict|stale|revision|version/i.test(code) || /已在其他窗口修改|版本|已变化|已更新|revision|version/i.test(message));
       return cardView(this.store.updateCard(card, card.revision, unknown ? { status: "unknown", outcome: `结果未确认：${message}。请到原处核对，不会自动重试` }
@@ -1890,7 +1858,7 @@ export class AssistantService {
   }
 
   /** A work carried by Coding: its round starts, continues or is answered in Coding's own session. */
-  private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"]): Promise<AssistantSendResult> {
+  private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean): Promise<AssistantSendResult> {
     if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("Coding 工作暂时不能带图片；可以把图里的要点写成文字再发");
     const coding = await this.coding(work);
     let sessionId = work.executor.kind === "coding" ? work.executor.session_id : null;
@@ -1902,6 +1870,7 @@ export class AssistantService {
       if (mode) await coding.setMode(sessionId, mode);
     }
     const read = await coding.read(sessionId, 2);
+    assertSendCurrent(stillCurrent);
     if (read.recovery_required) throw assistantErrors.needs_check(read.error ?? "Coding 会话有需要核对的中断操作", { action: "打开 Coding 核对" });
     const latest = read.runs.at(-1);
     if (latest && !isTerminalAgentPhase(latest.phase)) {
@@ -1922,18 +1891,23 @@ export class AssistantService {
     return this.result(work, "started", run?.ref.run_id ?? "");
   }
 
-  private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"]): Promise<AssistantSendResult> {
-    if (work.executor.kind === "coding") return this.codingDispatch(work, text, materials, context, mode, writtenBy);
+  private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean): Promise<AssistantSendResult> {
+    if (work.executor.kind === "coding") return this.codingDispatch(work, text, materials, context, mode, writtenBy, stillCurrent);
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
-    const authority = await this.ports.authority(work);
+    const base = await this.ports.authority(work);
+    const authority = stillCurrent ? { ...base, beforeStart: async () => {
+      await base.beforeStart?.(); assertSendCurrent(stillCurrent);
+    } } : base;
     if (!work.session_id) {
       const session = await host.createSession(RUNTIME, { project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID,
         actor_id: this.actorId, title: work.title, workspace: "business", role_id: ASSISTANT_ROLE_ID }, authority);
       work = this.store.update(this.actorId, work.work_id, null, { session_id: session.session_id });
     }
+    assertSendCurrent(stillCurrent);
     const session = await adapter.readSession(sessionRef(work));
     if (session.recovery) throw assistantErrors.needs_check(session.recovery.reason, { action: "核对上一轮的实际结果后再继续" });
+    assertSendCurrent(stillCurrent);
     const latest = session.latest_run;
     if (latest && !isTerminalAgentPhase(latest.phase)) {
       if (latest.phase === "reconcile-required") throw assistantErrors.needs_check("上一轮有结果未确认的操作，需要先核对", { action: "打开这项工作核对" });
@@ -1963,6 +1937,7 @@ export class AssistantService {
     try {
       await this.memoryForRound(work, text, context);
       prepared = await this.roundMaterials(work, materials, context, offered);
+      assertSendCurrent(stillCurrent);
       handle = await host.start(RUNTIME, {
         project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
         session: sessionRef(work), role_id: ASSISTANT_ROLE_ID, workspace: "business", task: text,

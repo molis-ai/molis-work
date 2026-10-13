@@ -4,6 +4,7 @@ import { dispatchMcpProjectTool, type McpPresentationErrorFactory } from "@molis
 import { readProductEnv } from "@molis-ai/molis-work-storage";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
+import { bindGoalsManagementActions } from "./goals-actions.js";
 
 export const createPresentationError: McpPresentationErrorFactory = (code, message, details) => new MolisWorkV1Error(code, message, details);
 
@@ -43,12 +44,11 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
     databasePath,
     projectId,
   });
-  const client = caller.localHost.client(reference);
-  return dispatchMcpProjectTool(client, name, arguments_, {
+  // Preserve the original project binding IO before payload validation; an empty scope runs no typed business capability.
+  await caller.localHost.client(reference).withScope(() => undefined);
+  const actions = audience === "management" ? bindGoalsManagementActions(caller.localHost.actionClient(reference, false), reference) : null;
+  return dispatchMcpProjectTool(actions, name, arguments_, {
     audience,
-    webBaseUrl: () => String(audience === "runtime" ? runtimeConnection!.webBaseUrl
-      : arguments_.web_base_url ?? readProductEnv("WEB_URL") ?? "http://127.0.0.1:4173"),
-    projectId: runtimeConnection?.projectId,
     createError: createPresentationError,
   });
 }

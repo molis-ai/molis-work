@@ -45,16 +45,18 @@ test("Host-internal callers reach the first-run Goal and the project guidance th
 });
 
 const read = file => readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
-const transportSources = () => ({ cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") }, mcp: read("apps/mcp/src/tool-dispatch.ts") });
-/** The rule's answer for the real sources with one part (`dispatcher`, `project` or `mcp`) edited. */
+const transportSources = () => ({ cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
+  mcp: { dispatcher: read("apps/mcp/src/tool-dispatch.ts"), host: read("apps/local-host/src/mcp-v1-tool.ts") } });
+/** The rule's answer for the real sources with one dispatcher or its Host composition edited. */
 const changed = (part, edit) => {
   const all = transportSources();
-  const next = part === "mcp" ? { ...all, mcp: edit(all.mcp) } : { ...all, cli: { ...all.cli, [part]: edit(all.cli[part]) } };
+  const next = part === "mcp" || part === "mcpHost" ? { ...all, mcp: { ...all.mcp, [part === "mcp" ? "dispatcher" : "host"]: edit(all.mcp[part === "mcp" ? "dispatcher" : "host"]) } }
+    : { ...all, cli: { ...all.cli, [part]: edit(all.cli[part]) } };
   return checkGoalTransportCallers(next).join("\n");
 };
 const add = text => source => `${text}\n${source}`;
 
-test("the CLI calls Goals' actions through the management caller the Host builds, and the management MCP still uses the scoped Host client", () => {
+test("the CLI and management MCP call Goals' actions through the management caller the Host builds", () => {
   assert.deepEqual(checkGoalTransportCallers(transportSources()), []);
   // The dispatcher is handed the management port; it holds no Host client, no typed Goals descriptor and no domain port of its own.
   assert.match(changed("dispatcher", add('import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";')), /command-dispatch\.ts.*LocalHostProjectClient/);
@@ -70,9 +72,81 @@ test("the CLI calls Goals' actions through the management caller the Host builds
   assert.match(changed("project", source => source.replace("bindGoalsManagementActions(", "somethingElse(")), /cli-project\.ts.*bindGoalsManagementActions/);
   assert.match(changed("project", source => source.replace("actionClient(reference, false)", "actionClient(reference)")), /cli-project\.ts.*actionClient\(reference, false\)/);
   assert.match(changed("project", source => source.replace("actionClient(reference, false)", "client(reference)")), /cli-project\.ts/);
-  // The management MCP keeps the old rule until it moves too.
-  assert.match(changed("mcp", source => source.replace(/LocalHostProjectClient/g, "Other")), /tool-dispatch\.ts.*scoped Host Client/);
+  // W3-07-4-01: management MCP has the same boundary; Runtime is handed no management port.
+  assert.match(changed("mcp", source => source.replace(/McpManagementActions/g, "Other")), /tool-dispatch\.ts.*McpManagementActions/);
   assert.match(changed("mcp", add("const x = coordinator.goals;")), /tool-dispatch\.ts/);
+});
+
+test("W3-07-4-01: the MCP gate rejects typed or domain callers and requires three actual Goals action calls", () => {
+  const goals = "@molis-ai/molis-work-plugin-goals";
+  for (const code of [
+    `import { initializeBoardCapability } from "${goals}";`,
+    `import { goalTreeCapabilities } from "${goals}";`,
+    `import { recordGoalUserDecisionCapability } from "${goals}";`,
+    `import * as goals from "${goals}";`, `import goals from "${goals}";`, `import "${goals}";`,
+    `import { initializeBoardCapability as goalsActions } from "${goals}";`,
+    `export { initializeBoardCapability } from "${goals}";`, `export * from "${goals}";`,
+    `const goals = await import("${goals}");`, `const goals = require("${goals}");`,
+    `type Typed = import("${goals}").GoalTreeEntryApi;`, "const goals = await import(specifier);",
+  ]) assert.match(changed("mcp", add(code)), /tool-dispatch\.ts/, code);
+  for (const specifier of ["@molis-ai/molis-work-contracts/platform/app-host", "@molis-ai/molis-work-app-local-host",
+    `${goals}/typed`, "./goal-event-commands.js", "./goal-tree-commands.js", "node:fs"]) {
+    assert.match(changed("mcp", add(`import { anything } from "${specifier}";`)), /tool-dispatch\.ts.*imports/, specifier);
+  }
+  for (const code of ["const c = host.client(reference);", 'const c = host["client"](reference);', "const { client } = host;",
+    "const c = host.actionClient(reference, false);", "const c = reader.withProject(reference);", "const c = reader.withScope(scope);",
+    "let c: LocalHostProjectClient | undefined;", "const c = coordinator.goals.query;"]) {
+    assert.match(changed("mcp", add(code)), /tool-dispatch\.ts.*Host client/, code);
+  }
+  assert.equal(changed("mcp", add('// No host.client(reference), withScope or coordinator.goals here.\nconst note = "LocalHostProjectClient";')), "");
+  for (const action of ["initialize", "decide", "treeDecide"]) {
+    const actual = `actions.invoke(goalsActions.${action},`;
+    const source = transportSources().mcp.dispatcher;
+    assert.ok(source.includes(actual), `${action} mutation reaches the production call`);
+    assert.match(changed("mcp", text => text.replace(actual, "actions.invoke(goalsActions.list,")
+      .concat(`\n// ${actual}\nconst note = ${JSON.stringify(actual)};`)), new RegExp(`goalsActions\\.${action}`));
+  }
+  assert.match(changed("mcp", text => text.replace("actions.invoke(goalsActions.initialize,", "actions.invoke(typed,")), /invoke must name a Goals action/);
+});
+
+test("W3-07-4-01 / W3-07-4-02: the MCP Host gate preserves the bound pre-open and gives only management its unprepared action port", () => {
+  const bind = "bindGoalsManagementActions(caller.localHost.actionClient(reference, false), reference)";
+  const preopen = "await caller.localHost.client(reference).withScope(() => undefined);";
+  const dispatch = "dispatchMcpProjectTool(actions, name, arguments_,";
+  const source = transportSources().mcp.host;
+  for (const actual of [bind, preopen, dispatch]) assert.ok(source.includes(actual), "mutation reaches the production call");
+  for (const [mutation, edit] of [
+    ["wrong factory", text => text.replace("bindGoalsManagementActions(", "anotherFactory(")],
+    ["factory from elsewhere", text => text.replace('from "./goals-actions.js"', 'from "./elsewhere.js"')],
+    ["type-only factory", text => text.replace("import { bindGoalsManagementActions }", "import type { bindGoalsManagementActions }")],
+    ["prepared client", text => text.replace("actionClient(reference, false)", "actionClient(reference, true)")],
+    ["default preparation", text => text.replace("actionClient(reference, false)", "actionClient(reference)")],
+    ["another Host", text => text.replace("caller.localHost.actionClient", "otherHost.actionClient")],
+    ["another client reference", text => text.replace("actionClient(reference, false)", "actionClient(otherReference, false)")],
+    ["another factory reference", text => text.replace(bind, bind.replace(", reference)", ", otherReference)"))],
+    ["extra factory argument", text => text.replace(bind, `${bind.slice(0, -1)}, caller)`) ],
+    ["missing reference", text => text.replace(bind, "bindGoalsManagementActions(caller.localHost.actionClient(reference, false))")],
+    ["Runtime gets a port", text => text.replace('audience === "management"', 'audience === "runtime"')],
+    ["every audience gets a port", text => text.replace(`audience === "management" ? ${bind} : null`, bind)],
+    ["Runtime gets an object", text => text.replace(`${bind} : null`, `${bind} : {}`)],
+    ["unused factory result", text => text.replace(dispatch, "dispatchMcpProjectTool(makeActions(), name, arguments_,")],
+    ["typed route", text => text.replace("const actions =", "const extra = caller.localHost.client(reference);\n  const actions =")],
+    ["second action client", text => text.replace("const actions =", "const extra = caller.localHost.actionClient(reference);\n  const actions =")],
+    ["aliased typed route", text => text.replace("const actions =", "const { client: extra } = caller.localHost;\n  const actions =")],
+    ["no pre-open", text => text.replace(preopen, `// ${preopen}`)],
+    ["unawaited pre-open", text => text.replace(preopen, preopen.replace("await ", ""))],
+    ["another pre-open reference", text => text.replace(preopen, preopen.replace("client(reference)", "client(otherReference)"))],
+    ["another pre-open Host", text => text.replace(preopen, preopen.replace("caller.localHost", "otherHost"))],
+    ["business IO in pre-open", text => text.replace(preopen, preopen.replace("undefined", "runtime.goalQueries.snapshot(reference)"))],
+    ["typed invocation in scope", text => text.replace(preopen, preopen.replace("() => undefined", "project => project.invoke(initializeBoardCapability, input)"))],
+    ["preparation in pre-open", text => text.replace(preopen, "await caller.localHost.withProject(reference, () => undefined);")],
+    ["second typed scope", text => `${preopen}\n${text}`],
+    ["pre-open after dispatch", text => text.replace(preopen, "").concat(`\n${preopen}`)],
+  ]) {
+    assert.notEqual(edit(source), source, mutation);
+    assert.match(changed("mcpHost", edit), /mcp-v1-tool\.ts/, mutation);
+  }
+  assert.equal(changed("mcpHost", add('// client.withScope and coordinator.goals are not calls.\nconst note = "client(reference)";')), "");
 });
 
 test("the CLI boundary rule reads every way into the Goals package and into a Host client, not only a named import and one identifier", () => {

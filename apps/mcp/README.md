@@ -16,7 +16,7 @@
 | --- | --- |
 | [src/protocol.ts](src/protocol.ts) | handleMcpMessage：协议处理 |
 | [src/tool-catalog.ts](src/tool-catalog.ts) | 平台工具目录：7 个连接工具与受信管理入口的 initialize、event_decide、goal_tree_decide。插件与 Goals 能力都是动作工具，不在这里写死 |
-| [src/tool-dispatch.ts](src/tool-dispatch.ts) | 项目工具分发 |
+| [src/tool-dispatch.ts](src/tool-dispatch.ts) | 三个管理工具的 wire 适配；只接 Host 构造的管理动作端口或 null |
 | [src/launcher-validation.ts](src/launcher-validation.ts) | 启动器验证 |
 
 可对照现有调用方 [apps/local-host/src/mcp-server.ts](../local-host/src/mcp-server.ts) 阅读装配方式。
@@ -52,12 +52,15 @@ node --import tsx --test --test-concurrency=1 tests/host-entry-consistency.test.
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。方向：apps → 组合根 → 公开合同（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - Runtime 与 Session 身份由 Host 写入，工具参数不能自填用户、批准或身份。连接工具（绑定、解绑、拒绝建议、新建并绑定、删项目）也不收 `actor_id`：操作者是 Host 记下的 MCP 客户端与 Runtime 会话（`ports.actorFor`），参数里带身份字段被 `mcp.unexpected_field` 拒绝，什么也不写；删项目交给 Host 的删除服务（`ports.deleteProject`），本包不自己开项目目录删。
-  - 受信管理入口的 `goal_tree_decide` 同样不收身份：schema 里没有 `actor_id`、`actor_kind`、`audit_actor_id`、`runtime_actor_id`，`authority` 只指向对话出处，带 `actor_id`、`actor_kind`、`authority_source` 被宿主拒绝；决定记本机这个人，没有 Runtime 转交。`event_decide` 同样由宿主造出身份（本机这个人，出处 management），转发给宿主的 `recordGoalUserDecisionCapability` 时不带 `authority`；该能力的 `authority` 只收对话出处，带身份被拒绝（`goals.event_decision_authority_invalid`）。
+  - 三个管理工具各调用一个 Goals 动作：`initialize` → `goals.board.initialize`，`event_decide` → `goals.decisions.record`，`goal_tree_decide` → `goals.tree.decide`。Host 私有的 `bindGoalsManagementActions` 复用命令行的本人身份、management 出处、动作自己的权限和单一授权；本包没有 Host 客户端、typed Goals 描述符或第二份工厂，Runtime 只得到 null 端口。
+  - `goal_tree_decide` 不收身份：schema 里没有 `actor_id`、`actor_kind`、`audit_actor_id`、`runtime_actor_id`，`authority` 只指向对话出处，带 `actor_id`、`actor_kind`、`authority_source` 被宿主拒绝；决定记本机这个人，没有 Runtime 转交。`event_decide` 只取当前 schema 的业务字段，额外身份或 `authority` 仍以 `mcp.unexpected_field` 拒绝；Host 为它生成管理入口默认的对话出处。`initialize` 仍手选并转字符串，额外身份字段忽略。
+  - 项目路径仍由 Host 解析，参数 `database_path` 优先于 `MOLIS_WORK_DATABASE`，没有默认路径。Host 保留原 `client(reference).withScope(() => undefined)` 的空预打开，只用于绑定原项目与库身份，不运行 typed 业务、不额外准备插件；随后才校验 payload，管理业务只经 `actionClient(reference, false)`。前置身份、authority 或未知字段拒绝可无动作行、无编号；真正进入动作的调用只结算一次，结果或错误里的编号能查到这一行，客户端自带的 `_meta` 编号不读。
   - 平台工具只有连接工具与受信管理入口的工具；其余能力都是动作工具，不进本包的静态目录，也不按名称写 `if`。
   - 生产启动器走常驻服务通道，不回退到本地 typed Host。
   - Host 的 Runtime 安装验证只运行自己的 launcher 子进程；stdin 管道失败或退出经现有失败收口，收口后的 stdout（含同一 chunk 的后续消息）不再发送请求。管道监听保留到该子进程关闭，10 秒验证限额不变；失败由现有安装服务恢复配置、Skill 和既存 receipt，再次正常 launcher 可重新接入。
   - 说明或恢复目录不可读时返回真实连接并把对应内容置 null、附错误字段；不伪报空项目、不自动重新绑定。
 - 改动后必跑：`node scripts/run-tests.mjs tests/mcp-protocol.test.ts tests/mcp-action-grants.test.ts tests/mcp-action-settings.test.ts tests/action-mcp.test.ts tests/mcp-goal-events.test.ts tests/mcp-connection-identity.test.ts tests/runtime-skill-flow.test.ts tests/management-door-identity.test.ts`；安装验证改动另跑：`node scripts/run-tests.mjs tests/runtime-integration.test.ts`。
+- 管理动作端口或 wire 适配改动另跑：`node scripts/run-tests.mjs tests/mcp-management-actions.test.ts tests/mcp.test.ts tests/mcp-goal-events-state.test.ts tests/proposal-entry-chain.test.ts tests/goals-query-boundaries.test.mjs tests/cli-goals-actions.test.ts`；同片同步 S-17 与 `pnpm test:security` 的公开管理拒绝用例。
 - 相关手册：[docs/mcp.md](../../docs/mcp.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

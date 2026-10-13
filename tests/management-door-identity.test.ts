@@ -200,8 +200,8 @@ test("the management MCP's initialize reads only project_id, title and idempoten
   } finally { await management.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-/** W3-01 D: the management door is reached through MCP messages too. Its tool call is an operation: the typed command it runs leaves a row, and the result says which. */
-test("a management tool call is one operation: its typed command leaves a row and the result names that operation", async () => {
+/** W3-01 D / W3-07-4-01: the management door is reached through MCP messages too. Its one Goals action leaves a row, and the result says which. */
+test("a management tool call is one operation: its single Goals action leaves a row and the result names that operation", async () => {
   const home = await mkdtemp(join(tmpdir(), "management-door-call-id-"));
   const databasePath = join(home, "project.db"), project_id = "project/call-id";
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -214,8 +214,10 @@ test("a management tool call is one operation: its typed command leaves a row an
     assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     assert.notEqual(id, "11111111-2222-4333-8444-555555555555", "a number the client put in `_meta` is not taken");
     const rows = host.callLog!.find(id);
-    assert.ok(rows.length >= 1, "the operation left a row the number finds");
-    assert.ok(rows.every(row => row.call_id === id && row.operation === "command" && row.ok), JSON.stringify(rows));
+    assert.equal(rows.length, 1, "the operation left exactly one Goals action row");
+    assert.equal(rows[0]!.count ?? 1, 1, "the first message settled only once");
+    assert.deepEqual(rows.map(row => [row.call_id, row.operation, row.path ?? "action", row.capability_id, row.ok]),
+      [[id, "command", "action", "goals.board.initialize", true]]);
   } finally { await management.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 

@@ -1,5 +1,5 @@
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { CATALOG_SCHEMA_VERSION, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { CATALOG_SCHEMA_VERSION, LocalProjectDatabase, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -205,12 +205,21 @@ describe("mcp server", () => {
     const management = new MolisWorkServer("management", null, null, host);
     try {
       const project = await withMolisWorkProjectCatalog({ homeDirectory: directory }, catalog => catalog.createProject({ display_name: "没有项目号", actor_id: "user" }));
+      // W3-07-4-02: inspect the real facts without binding the Host to the catalog's project name first.
+      const facts = () => {
+        const store = new LocalProjectDatabase(project.database_path, { existingOnly: true });
+        try { return { snapshot: store.snapshot(project.project_id), events: store.readEventsDescending(project.project_id) }; }
+        finally { store.close(); }
+      };
+      const before = facts();
       // goal_tree_decide reads no project_id of its own: only the scope the call runs in is in play.
       await assert.rejects(() => management.callTool("molis_work_v1_goal_tree_decide", { database_path: project.database_path }),
         { code: "actions.scope_mismatch" });
       await assert.rejects(() => management.callTool("molis_work_v1_goal_tree_decide", { database_path: project.database_path, project_id: project.project_id }),
         (error: unknown) => (error as { code?: string }).code === "host.project_identity_conflict"
           && (error as Error).message.includes(`database:${path.resolve(project.database_path)}`));
+      assert.deepEqual(facts(), before, "both refusals preserve the original project facts");
+      assert.deepEqual(host.callLog!.recent(), [], "project pre-open and scope/identity refusal invoke no action or typed business capability");
     } finally {
       await management.close();
       await host.close();

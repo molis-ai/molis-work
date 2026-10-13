@@ -588,7 +588,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   }
   errors.push(...checkGoalTransportCallers({
     cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
-    mcp: read("apps/mcp/src/tool-dispatch.ts"),
+    mcp: { dispatcher: read("apps/mcp/src/tool-dispatch.ts"), host: read("apps/local-host/src/mcp-v1-tool.ts") },
   }));
   for (const app of ["mcp", "cli"]) {
     if (fs.existsSync(path.join(repositoryRoot, `apps/${app}/src/goal-commands.ts`))) {
@@ -1272,7 +1272,7 @@ function moduleReferences(file) {
 function goalsBindingsOtherThanActions(node, kind) {
   if (kind !== "import") return [`a ${kind} of the whole package`];
   const clause = node.importClause;
-  if (!clause) return ["a bare import (the CLI imports { goalsActions })"];
+  if (!clause) return ["a bare import (the transport imports { goalsActions })"];
   const names = [];
   if (clause.name) names.push(`default import ${clause.name.text}`);
   const bindings = clause.namedBindings;
@@ -1288,13 +1288,13 @@ function goalsBindingsOtherThanActions(node, kind) {
  * management port the Host builds (`CliManagementActions`), reaches only the action contract, `goalsActions` and its protocol file,
  * holds no Host client under any spelling and reads the snapshot through Goals' own action; `cli-project.ts` builds that port with
  * `bindGoalsManagementActions(<host>.actionClient(reference, false), reference)`, over the client that does not prepare the project's
- * plugins and the very reference the command is bound to, and hands the dispatcher what it returned. `mcp`: the management MCP still
- * uses the scoped Host client, until it moves to the same port. Each part is the source text of the file it names; a comment or a
+ * plugins and the very reference the command is bound to, and hands the dispatcher what it returned. `mcp`: the dispatcher takes only
+ * the Host's management port or null; mcp-v1-tool builds it only for management over the same unprepared client/reference. Each part is the source text of the file it names; a comment or a
  * string is not a caller.
  */
 export function checkGoalTransportCallers({ cli, mcp }) {
   const errors = [];
-  const dispatcherPath = "apps/cli/src/command-dispatch.ts", projectPath = "apps/local-host/src/cli-project.ts", toolPath = "apps/mcp/src/tool-dispatch.ts";
+  const dispatcherPath = "apps/cli/src/command-dispatch.ts", projectPath = "apps/local-host/src/cli-project.ts";
   const dispatcher = ts.createSourceFile(dispatcherPath, cli.dispatcher, ts.ScriptTarget.Latest, true);
   for (const { node, kind, specifier } of moduleReferences(dispatcher)) {
     if (specifier === undefined) {
@@ -1351,10 +1351,76 @@ export function checkGoalTransportCallers({ cli, mcp }) {
     }
   }
   for (const name of reached) errors.push(`${projectPath}: .${name} is a Host client of the project; a CLI command's Goals calls all go through the management port`);
-  if (!mcp.includes("LocalHostProjectClient") || !mcp.includes("client.withScope(")
-    || mcp.includes(".withProject(") || mcp.includes("coordinator.goals")) {
-    errors.push(`${toolPath}: Goal transport must use the scoped Host Client`);
+  errors.push(...checkMcpGoalTransportCallers(mcp));
+  return errors;
+}
+
+/** The MCP transport holds no Host client; only its Host composition can build the management port. */
+function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) {
+  const errors = [], toolPath = "apps/mcp/src/tool-dispatch.ts", hostPath = "apps/local-host/src/mcp-v1-tool.ts";
+  const file = ts.createSourceFile(toolPath, source, ts.ScriptTarget.Latest, true);
+  const allowed = new Set(["@molis-ai/molis-work-contracts/platform/actions", GOALS_PACKAGE, "./goal-presentation.js"]);
+  for (const { node, kind, specifier } of moduleReferences(file)) {
+    if (!allowed.has(specifier)) errors.push(`${toolPath}: imports ${specifier ?? "a module that is not a string literal"} (${kind}); only the action contract, goalsActions and the presentation error type belong to the transport`);
+    else if (specifier === GOALS_PACKAGE) for (const held of goalsBindingsOtherThanActions(node, kind)) errors.push(`${toolPath}: ${held} is not a Goals action`);
   }
+  const actions = new Set(); let port = false;
+  const visit = node => {
+    if (ts.isInterfaceDeclaration(node) && node.name.text === "McpManagementActions") port = true;
+    if (ts.isIdentifier(node) && HOST_CLIENT_NAMES.has(node.text)) errors.push(`${toolPath}: ${node.text} is a Host client; use McpManagementActions`);
+    if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_CLIENT_NAMES.has(node.argumentExpression.text)) errors.push(`${toolPath}: ${node.argumentExpression.text} is a Host client`);
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "invoke") {
+      const action = node.arguments[0];
+      if (action && ts.isPropertyAccessExpression(action) && ts.isIdentifier(action.expression) && action.expression.text === "goalsActions") actions.add(action.name.text);
+      else errors.push(`${toolPath}: invoke must name a Goals action, never a typed descriptor or caller`);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  if (!port) errors.push(`${toolPath}: declare the Host's McpManagementActions port`);
+  for (const action of ["initialize", "decide", "treeDecide"]) if (!actions.has(action)) errors.push(`${toolPath}: the management tool must invoke goalsActions.${action}`);
+
+  const host = ts.createSourceFile(hostPath, hostSource, ts.ScriptTarget.Latest, true), factory = "bindGoalsManagementActions";
+  const imported = moduleReferences(host).some(({ node, kind, specifier }) => kind === "import" && specifier === "./goals-actions.js"
+    && !node.importClause?.isTypeOnly && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)
+    && node.importClause.namedBindings.elements.some(element => element.name.text === factory && !element.propertyName && !element.isTypeOnly));
+  const calls = [], dispatches = [], opens = [], typedAccesses = [], heldNames = [];
+  const find = node => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      if (node.expression.text === factory) calls.push(node);
+      if (node.expression.text === "dispatchMcpProjectTool") dispatches.push(node);
+    }
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "withScope") opens.push(node);
+    if ((ts.isPropertyAccessExpression(node) && ["client", "withScope", "withProject", "coordinator", "actionClient"].includes(node.name.text))
+      || (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_CLIENT_NAMES.has(node.argumentExpression.text))) typedAccesses.push(node);
+    if (ts.isIdentifier(node) && HOST_CLIENT_NAMES.has(node.text)) heldNames.push(node);
+    ts.forEachChild(node, find);
+  };
+  find(host);
+  const text = node => node?.getText(host), call = calls.length === 1 ? calls[0] : undefined, opened = call?.arguments[0];
+  const conditional = call?.parent, declaration = conditional?.parent;
+  const guarded = conditional && ts.isConditionalExpression(conditional) && conditional.whenTrue === call && conditional.whenFalse.kind === ts.SyntaxKind.NullKeyword
+    && ts.isBinaryExpression(conditional.condition) && conditional.condition.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken
+    && text(conditional.condition.left) === "audience" && ts.isStringLiteralLike(conditional.condition.right) && conditional.condition.right.text === "management";
+  if (!imported || !call || call.arguments.length !== 2 || text(call.arguments[1]) !== "reference" || !opened || !ts.isCallExpression(opened)
+    || !ts.isPropertyAccessExpression(opened.expression) || text(opened.expression) !== "caller.localHost.actionClient"
+    || opened.arguments.length !== 2 || text(opened.arguments[0]) !== "reference" || opened.arguments[1].kind !== ts.SyntaxKind.FalseKeyword || !guarded) {
+    errors.push(`${hostPath}: management alone must bindGoalsManagementActions(caller.localHost.actionClient(reference, false), reference); Runtime gets null`);
+  }
+  if (!declaration || !ts.isVariableDeclaration(declaration) || !ts.isIdentifier(declaration.name)
+    || dispatches.length !== 1 || text(dispatches[0].arguments[0]) !== declaration.name.text) errors.push(`${hostPath}: dispatchMcpProjectTool must receive the factory's actual port/null result`);
+  const preopen = opens.length === 1 ? opens[0] : undefined, callback = preopen?.arguments[0];
+  const scopedClient = preopen?.expression.expression;
+  if (!preopen || preopen.arguments.length !== 1 || !scopedClient || !ts.isCallExpression(scopedClient)
+    || text(scopedClient.expression) !== "caller.localHost.client" || scopedClient.arguments.length !== 1 || text(scopedClient.arguments[0]) !== "reference"
+    || !ts.isAwaitExpression(preopen.parent) || !callback || !ts.isArrowFunction(callback)
+    || callback.parameters.length !== 0 || !ts.isIdentifier(callback.body) || callback.body.text !== "undefined"
+    || !call || preopen.pos >= call.pos) {
+    errors.push(`${hostPath}: preserve only caller.localHost.client(reference).withScope(() => undefined) as the awaited pre-open before the factory, with no typed business call or plugin preparation`);
+  }
+  const permitted = [preopen?.expression, scopedClient?.expression, opened?.expression];
+  for (const access of typedAccesses) if (!permitted.includes(access)) errors.push(`${hostPath}: no second route through a Host client`);
+  for (const name of heldNames) if (!permitted.some(access => access?.name === name)) errors.push(`${hostPath}: ${name.text} is not the single empty scope or factory client`);
   return errors;
 }
 

@@ -188,7 +188,7 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
     if (JSON.stringify(body.messages).includes("委托给你的子任务")) return child(childRound++, init.signal);
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))();
   });
-  const flags = { model: true, beforeAuthority: undefined as (() => Promise<void>) | undefined, beforeStart: undefined as (() => Promise<void>) | undefined };
+  const flags = { model: true, beforeAuthority: undefined as (() => Promise<void>) | undefined, beforeStart: undefined as (() => Promise<void>) | undefined, assertBeforeStart: undefined as (() => void) | undefined };
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-fixture-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
@@ -198,7 +198,7 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
     authority: async work => {
       const base = assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work));
       if (!work.delegated_by) await flags.beforeAuthority?.();
-      return { ...base, beforeStart: async () => { await base.beforeStart?.(); if (!work.delegated_by) await flags.beforeStart?.(); } };
+      return { ...base, beforeStart: async () => { await base.beforeStart?.(); if (!work.delegated_by) await flags.beforeStart?.(); }, assertBeforeStart: () => { base.assertBeforeStart?.(); if(!work.delegated_by)flags.assertBeforeStart?.(); } };
     }, projectTitle: async () => "项目" }, "web-user");
   return { service, store, project, flags, adapter, home, close: async () => { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
@@ -285,17 +285,14 @@ for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const
     else {
       const inspector = createNodeHost({ storageRoot: join(f.home, "sdk") });
       const indexKind = "molis-agent-index-" + createHash("sha256").update("io.molis.work.assistant-delegation-fixture-test").digest("hex").slice(0, 24);
-      const get = f.store.get.bind(f.store); let armed = false, held = false;
-      t.mock.method(f.store, "get", (actor: string, id: string) => {
-        const current = get(actor, id);
-        if (armed && id === sent.work.work_id) {
-          armed = false;
-          // Commit the owner's archive immediately after the async guard's current-state read;
-          // the actual SDK commit must still run the synchronous acceptance fence.
-          queueMicrotask(() => f.store.update("web-user", id, null, { archived: true }));
-        }
-        return current;
-      });
+      let armed = false, held = false;
+      f.flags.assertBeforeStart = () => {
+        if(!armed || !/[\\/]session[\\/]core[\\/]session\.js/.test(new Error().stack ?? ""))return;
+        armed=false;
+        // The real SDK Session commit calls this original authority checker synchronously.
+        // Archive in that checker; the hand-back's final guard must reject before SDK acceptance.
+        f.store.update("web-user",sent.work.work_id,null,{archived:true});
+      };
       f.flags.beforeStart = async () => {
         const bytes = await inspector.storage.readSecure({ kind: indexKind, id: before.session_id! });
         const prepared = JSON.parse(new TextDecoder().decode(bytes)); bytes.fill(0);
@@ -314,7 +311,7 @@ for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const
     assert.equal(parentCalls, 2, "no automatic model inference was dispatched");
     const child = f.store.delegatedBy("web-user", sent.work.work_id, "any")[0]!;
     assert.equal(child.handed_back_run, undefined, "a rejected hand-back did not consume the child's result");
-    f.flags.beforeAuthority = undefined; f.flags.beforeStart = undefined;
+    f.flags.beforeAuthority = undefined; f.flags.beforeStart = undefined; f.flags.assertBeforeStart = undefined;
     await f.service.archive(sent.work.work_id, false);
     await f.service.send({ work_id: sent.work.work_id, text: "恢复后核对子任务交回的结果", request_id: "handback-resume-" + stage });
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "explicit resumed round completes");

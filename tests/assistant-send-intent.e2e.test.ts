@@ -89,6 +89,59 @@ test("W2-18-SEND-01: text written after Send survives in A while B remains curre
   } finally { await barrier.close(); }
 });
 
+// W2-18-SEND-01: returning to A before its receipt must read A's later draft, even after B rereads the work list.
+test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on screen, in Host and after reload", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const a = await seedWork(browser, "工作 A"), b = await seedWork(browser, "工作 B");
+  await openWork(browser, b); await openWork(browser, a);
+  await browser.waitFor("document.querySelector('[data-assistant-thread]').textContent.includes('工作 A')");
+  await browser.command("Network.enable", {}, browser.sessionId);
+  const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+  try {
+    await putInput(browser, "A 已发送的文字");
+    await browser.click("[data-assistant-send]");
+    const sent = await barrier.next();
+    await putInput(browser, "A 等回执期间写下的 X");
+    await browser.click(`[data-assistant-tabs] [data-tab="${b}"] .assistant-tab-main`);
+    await browser.waitFor("document.querySelector('[data-assistant-thread]').textContent.includes('工作 B')");
+    await putInput(browser, "B 自己的 Y");
+    assert.equal((await readWork(browser, a)).work.draft, "", "A's later draft is still intentionally deferred on the Host");
+    // Observe the real list request, so A's local pending draft must also survive a fresh server snapshot while B is current.
+    let listRequest = "";
+    let stopResponse = () => {}, stopFinished = () => {};
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const reread = new Promise<void>((resolve, reject) => {
+      timer = setTimeout(() => reject(new Error("Work-list reread did not finish")), 5_000);
+      stopResponse = browser.on("Network.responseReceived", (event, session) => {
+        const response = event.response as { url: string; status: number };
+        if (session === browser.sessionId && new URL(response.url).pathname.endsWith("/api/assistant/works") && response.status === 200) listRequest = String(event.requestId);
+      });
+      stopFinished = browser.on("Network.loadingFinished", (event, session) => {
+        if (session === browser.sessionId && event.requestId === listRequest) resolve();
+      });
+    });
+    try {
+      await browser.click("[data-assistant-works-toggle]");
+      await reread;
+      await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    } finally { clearTimeout(timer); stopResponse(); stopFinished(); }
+    await browser.click(`[data-assistant-works] [data-work-id="${a}"]`);
+    assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), a);
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "A 等回执期间写下的 X", "loadDraft must use A's later input before the receipt arrives");
+    await barrier.release(sent);
+    await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "A 等回执期间写下的 X", "the send receipt cannot restore the sent words over the later input");
+    const afterA = await waitWork(browser, a, view => view.work.draft === "A 等回执期间写下的 X");
+    assert.equal(afterA.rounds.at(-1)?.text, "A 已发送的文字"); assert.equal(afterA.rounds.length, 2);
+    const afterB = await waitWork(browser, b, view => view.work.draft === "B 自己的 Y"); assert.equal(afterB.rounds.length, 1);
+    await browser.reloadPage();
+    await browser.waitFor("document.querySelector('[data-assistant-input]').value === 'A 等回执期间写下的 X'");
+    assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), a);
+    await openWork(browser, b);
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 自己的 Y");
+  } finally { await barrier.close(); }
+});
+
 // W2-18-SEND-02: even the chooser's trusted HTTP project route and an unknown result's retry stay fixed at the click.
 test("W2-18-SEND-02: chooser changes and a lost receipt retry the original scope, materials and request_id exactly once", { timeout: 90_000 }, async t => {
   const browser = await sendBrowser(t); if (!browser) return;

@@ -168,3 +168,32 @@ test("W3-09-1-01 T5: a real Shelf page caller retains the operation id on schema
   assert.deepEqual([record.ok, record.code, record.refused, record.project_id, record.actor_id], [false, "actions.input_invalid", true, null, "web-user"]);
   assert.deepEqual(await home.web.get(path), before, "invalid material creates no Shelf item or job");
 });
+
+test("W3-09-1-01 T6: a disabled ordinary plugin returns the same 403 refusal through its page and actual Host gateway, with findable rows and no owner write", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), project = await home.createProject("Disabled cross entry", ["schedule"]);
+  await home.grant(clientId, project.project_id, [subject.create, subject.list]);
+  const path = subject.path(project.project_id), before = await home.web.get(path);
+  const connection = await home.mcp(clientId, project.project_id);
+  await home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
+  const input = subject.input("停用后不得新建", "23:00");
+  const refusedPage = await page(home, path + "/tasks", input);
+  assert.equal(refusedPage.status, 403); assert.equal(refusedPage.body.code, "actions.plugin_disabled");
+  assert.equal(refusedPage.callId, refusedPage.body.call_id); assert.ok(typeof refusedPage.body.error === "string");
+  const gatewayId = newCallId();
+  await withCallId(gatewayId, () => assert.rejects(connection.client.invoke(connection.caller, subject.create, input),
+    { code: "actions.plugin_disabled", message: refusedPage.body.error }));
+  const typedId = newCallId();
+  await withCallId(typedId, () => assert.rejects(home.host.client(project.reference).invoke(subject.create, input),
+    { code: "actions.plugin_disabled", message: refusedPage.body.error }));
+  for (const id of [refusedPage.callId, gatewayId, typedId]) {
+    const record = row(home, id, subject.create.capability_id);
+    assert.deepEqual([record.ok, record.code, record.refused], [false, "actions.plugin_disabled", true]);
+    const diagnostics = await fetch(home.origin + "/settings/diagnostics?call=" + String(id).slice(0, 8));
+    assert.equal(diagnostics.status, 200);
+    const html = await diagnostics.text();
+    assert.ok(html.includes(`data-molis-call-id="${id}"`), "the real diagnostics page offers the actual operation number for copying");
+    assert.match(html, /actions\.plugin_disabled/u); assert.match(html, /未执行/u);
+  }
+  await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
+  assert.deepEqual(await home.web.get(path), before, "reenabling exposes the unchanged owner's task facts");
+});

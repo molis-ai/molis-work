@@ -1,7 +1,7 @@
 import { modelPromptText, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -20,6 +20,7 @@ import { contextSources, readContextSource, readOnboardingGmail } from "../apps/
 import { createContextOnboardingHttp } from "../apps/local-host/src/web-context-onboarding.js";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
 import { handleLocalConnectorsSettingsHttp } from "../apps/local-host/src/web-connectors-settings.js";
+import { startApiOAuth, completeApiOAuth } from "../apps/local-host/src/connector-api-oauth.js";
 import { storeGmailOAuthClient } from "../apps/local-host/src/gmail-oauth.js";
 import { authorizeLocalWebRequest, type LocalMutationState } from "../apps/local-host/src/web-http.js";
 
@@ -183,6 +184,73 @@ test('Gmail reads only chosen account/time with real MIME body parsing; network 
     assert.equal(calls.length,2);const body=Buffer.from(result.files[0]!.data!,'base64').toString();assert.match(body,/Real full body content/);assert.doesNotMatch(body,/Attachment excluded/);
   });
 });
+
+for (const mode of ["expired", "401", "401-repeated", "disconnect"] as const) {
+  test(`W2-18-ONBOARDING-GMAIL-01 generic OAuth ${mode} stays on the selected account and stops on disconnect`, async t => {
+    const dir = await home(t), origin = "http://127.0.0.1:19358";
+    const gmail: Array<{ url: string; authorization: string }> = [];
+    const refreshes: string[] = [];
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    t.after(() => release.resolve());
+    let rejected = false;
+    const transport: typeof fetch = async (input, init) => {
+      const url = new URL(String(input)), authorization = new Headers(init?.headers).get("authorization") ?? "";
+      if (url.origin === "https://oauth2.googleapis.com") {
+        const form = new URLSearchParams(String(init?.body));
+        const account = (form.get("refresh_token") ?? form.get("code") ?? "").slice(-1);
+        assert.ok(["a", "b"].includes(account));
+        assert.equal(form.get("client_id"), `fixture-app-${account}`);
+        if (form.get("grant_type") === "refresh_token") {
+          refreshes.push(account);
+          return Response.json({ access_token: `fresh-${account}`, refresh_token: `refresh-${account}`, expires_in: 3600 });
+        }
+        return Response.json({ access_token: `access-${account}`, refresh_token: `refresh-${account}`, expires_in: 3600 });
+      }
+      if (url.origin === "https://openidconnect.googleapis.com") return Response.json({ sub: `account-${authorization.slice(-1)}`, email: `${authorization.slice(-1)}@example.test` });
+      assert.equal(url.origin, "https://gmail.googleapis.com");
+      if (url.pathname.endsWith("/profile")) return Response.json({ emailAddress: `${authorization.slice(-1)}@example.test` });
+      gmail.push({ url: url.href, authorization });
+      if (url.pathname.endsWith("/messages")) {
+        if (mode === "401" && !rejected || mode === "401-repeated") { rejected = true; return Response.json({}, { status: 401 }); }
+        assert.equal(url.searchParams.get("q"), "newer_than:7d -in:spam -in:trash");
+        return Response.json({ messages: mode === "disconnect" ? [{ id: "one" }, { id: "two" }] : [{ id: "one" }] });
+      }
+      if (mode === "disconnect") { entered.resolve(); await release.promise; }
+      return Response.json({ payload: { mimeType: "text/plain", body: { data: Buffer.from("Selected account mail").toString("base64url") } } });
+    };
+    t.mock.method(globalThis, "fetch", transport);
+    const authorize = async (account: string) => {
+      const begun = await startApiOAuth(dir, { serviceId: "gmail", displayName: account, clientId: `fixture-app-${account}`, clientSecret: "fixture-only", origin }, transport);
+      await completeApiOAuth(dir, { origin, state: new URL(begun.authorization_url).searchParams.get("state")!, code: `code-${account}` }, transport);
+      return withConnectorConnections(dir, store => store.require(begun.connection_id, "gmail"));
+    };
+    const a = await authorize("a"), b = await authorize("b");
+    if (mode === "expired") runWithMolisWorkHome(dir, () => createFileSecretStore().put(b.expires_ref!, "1"));
+    const source = { kind: "gmail" as const, selected: true, connection_id: b.connection_id, days: 7 as const };
+    if (mode === "disconnect") {
+      const pending = readOnboardingGmail(dir, source, transport);
+      await entered.promise;
+      withConnectorConnections(dir, store => store.disconnect(b.connection_id));
+      release.resolve();
+      await assert.rejects(pending, /连接已改变|断开/);
+      assert.equal(gmail.length, 2, "the second message was never requested");
+      await assert.rejects(readOnboardingGmail(dir, source, transport), /连接|断开/);
+      assert.equal(gmail.length, 2);
+    } else if (mode === "401-repeated") {
+      await assert.rejects(readOnboardingGmail(dir, source, transport), /无读取权限/);
+      assert.deepEqual(refreshes, ["b"]);
+      assert.equal(gmail.length, 2, "a second 401 is surfaced rather than refreshed again");
+    } else {
+      const read = await readOnboardingGmail(dir, source, transport);
+      assert.equal(read.name, "Gmail · b@example.test");
+      assert.match(Buffer.from(read.files[0]!.data!, "base64").toString(), /Selected account mail/);
+      assert.deepEqual(refreshes, ["b"]);
+      assert.equal(gmail.at(-1)!.authorization, "Bearer fresh-b");
+    }
+    assert.ok(gmail.every(call => call.authorization.endsWith("-b")), "no other saved account is used");
+    assert.equal(runWithMolisWorkHome(dir, () => createFileSecretStore().get(a.credential_ref!)), "access-a");
+  });
+}
 
 test('HTTP control gate, persisted selection, Google PKCE start, cancellation and callback resume correct journey',async t=>{
   const dir=await home(t),id=randomUUID(),token='onboarding-control-test';const handle=createContextOnboardingHttp({...pagesPorts(dir),model:async()=>({})});

@@ -59,6 +59,8 @@ Runtime 接入按配置路径串行确认。验证失败只恢复仍与本次写
 
 助理操作卡遇到 `actions.outcome_unknown` 或 `actions.output_invalid_after_effect` 时保存为结果未知，重启和重复点击都不再执行。删除定时跟进先移除事实，再取消队列任务；在途回调在等待与发送边界核对原请求，只更新仍存在且未变化的记录。回归见 `tests/assistant-card-outcomes.test.ts`、`tests/assistant-followup-deletion.test.ts`。
 
+Gmail 上手读取复用 `resolveApiConnection` 与连接生命周期，支持所选账号的通用 OAuth 数字到期时间和一次 401 刷新；连接断开或重新授权后，不再读取下一封邮件，也不接受旧请求返回的正文。上手选项只列 API 可用的 OAuth/token 方式；读取仍保持 7/30 天和 20 封范围，回归见 `tests/context-onboarding.test.ts`。
+
 PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信任的进程内开发执行。应用通过 openWorkSessionRegistry 组合 Work 与 Ledger，关闭 Registry 时释放其拥有的连接。
 
 Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定唤醒，无须打开 Studio。`schedule-reminders.ts` 只连接安装仓库和同库 Feed/Inbox 投递；时间、数量、安装隔离和一次性消费归 Schedule 插件。`schedule-operations.ts` 同样只装配安装执行器和 Inbox；计划与 occurrence、重装后的归属确认、未知结果恢复归 Schedule。执行器注册不派出工作，新的 lease 才能运行持久 pending；结果未知必须在 Schedule 核对后明确重试或跳过。

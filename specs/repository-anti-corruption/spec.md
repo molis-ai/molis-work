@@ -1439,7 +1439,7 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 
 ### 10.6 跨入口与 AI 版本前提的接续验收（W3-09）
 
-固定 I5 8bac4a4ea 的只读核对确认 §1 的 10-10/10-11 决定完整，不重问。按 1a（页面/MCP/typed）→1b（真实助理 gateway 与批准）→1c（等 G1/H 的状态与诊断出口）→2→3 串行；使用已有公开 Test Home、真实 HTTP 项目/授权和 MCP/Assistant/AgentHost 接口，不复制内部导入或全局拦截 fetch。状态与 code 用合同中的 literal 断言，不能用生产 actionHttpStatus 计算期望。
+固定 I5 8bac4a4ea 的只读核对确认 §1 的 10-10/10-11 决定完整，不重问。按 1a（页面/MCP/typed）→1b（真实助理 gateway 与批准）→1c（等 G1/H 的状态与诊断出口）→2→3 串行；使用已有公开 Test Home、真实 HTTP 项目/授权和 MCP/Assistant/AgentHost 接口，不复制内部导入；实际SDK仅用受控模型响应，精确匹配模型URL的fetch桩转发所有其他URL，真实HTTP、gateway与owner不被替换。状态与 code 用合同中的 literal 断言，不能用生产 actionHttpStatus 计算期望。
 
 | 编号 | 可观察结果与证明路径 |
 | --- | --- |
@@ -2133,3 +2133,6 @@ PR-9的后续`ed4f57663`恢复原CLI `goalQueries` 拒绝并增加实际mutation
 跨入口候选已保存T5 Shelf真实页面schema拒绝、1b真实SDK/助理gateway批准及owner拒绝（`0a66d7709`），以及T6真实停用后的页面/Host gateway/typed同码同原因、拒绝后零业务写入、实际诊断页编号查询（`f6f78647f`）。不增加私有导入、测试端口、显式any或类型双断言，语法与Biome检查无诊断；全部新运行断言仍未运行，尤其助理实际review、持久化及SDK后续模型材料的code证明待核。按名调用隐藏MCP动作的两层目录修改属于W3-09-2，尚未实现；不能据Host gateway直调称实际工具按名已通过。
 
 用户已授权向「Work | 进行中 | 优化 Pages 和个人助理交互」发送一次构建/浏览器名额协调消息；Root已发送，未停止他人进程或重复派发。Pages在完成预览后自行释放，I7构建25实际运行退出1：`prologueEffects`返回类型推断泄露SDK私有storage声明（TS2742）。`62a58259d`通过现行公共`PrologueHost`明确返回边界，源码语法/diff检查通过；构建26为唯一接续任务，仍在排队。I7当前仍使用隔离候选SDK临时依赖，仅用于验证；SDK自身62/62及build通过不代替Molis消费者，换模/handback原同步fence变异及最终整合全量仍待。未提交或推送Prologue、未正式替换/删除vendor、未写真实Home。
+
+
+W3-09-2候选`725879ff1`已保存：两层MCP只保留精确授权但暂不可用的调用条目，tools/list继续隐藏，按名进入同一Host拒绝/留行；无授权、撤权、不同provider/version及管理入口仍拒绝。助理gateway的availability与check错误保留稳定code，确认前仍零review、零调用行。实际工具停用/撤权、public adapter、错误provider/version及两种真实SDK preflight用例已补，源码语法/Biome检查零诊断、完整包边界errors为空；运行仍待。批次源审核Schedule create的HTTP合同为201（route handler明确声明、native回应原样传递），新跨入口用例已修正期望；MCP README空预开改为实际!owned条件与resident路径，精确模型URL桩的范围同步写清。上述不放宽业务断言或新增网络框架。

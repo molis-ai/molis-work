@@ -1774,7 +1774,7 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | --- | --- | --- |
 | 原防腐会话 `01a130de-5470-7223-827e-b28663ee7e06` | 共同权限 P1、PR4 与既有整合；管理 I6、原 PR/CI、后续 Schedule 与 Goals 生命周期片。共同合同/快照按原流程处理 | AUTH 本地候选 `b5504585a` 与真实交错回归已备，运行未验；不是已验收。Dataset/Issue 不再重复分派给原 writer |
 | 修复 Dataset 文件导入错表覆盖，`01a13341-d712-73f2-99f4-992f8645847c` | 自己隔离工作树；仅 Dataset 客户端、相关测试/README；不改 Dataset action 错误映射及共享核心 | 本地 `f29e7074e` 的 W2-18-DATASET-01/02 已有缺陷复现与修后通过证据；统筹已核，未整合 |
-| 修复 Issue 手动保存重复创建，`01a13342-5853-75e1-a3ce-929ee5ec4e75` | 自己隔离工作树；Issue client/capture-client 与必要回归/README；优先复用现有后端幂等。浏览器批次排 Dataset 之后 | 本地 `1d67c6408` 的W2-18-ISSUE-01/02缺陷复现与修后4/4、相关51/51已核，局部验收通过、未整合；保存片冻结，后续语言接线由G2串行 |
+| 修复 Issue 手动保存重复创建，`01a13342-5853-75e1-a3ce-929ee5ec4e75` | 自己隔离工作树；Issue client/capture-client 与必要回归/README；优先复用现有后端幂等。浏览器批次排 Dataset 之后 | 本地 `1d67c6408` 的W2-18-ISSUE-01/02缺陷复现与修后4/4、相关51/51已核，局部验收通过、未整合；保存片冻结，后续语言接线由协调方串行 |
 | 协调复查会话与只读审查代理 | 核 diff、源码证据与验收，串行维护本 spec/原路线图；只读审查不启动构建、测试、浏览器或修改代码 | 15 节、附录与 §7 已对应；逐包/逐插件深审和真实实操的缺口保持可见，不把派发与代码准备记作关闭 |
 
 新会话只提交自己的本地改动，不自行推送、开 PR、发布或安装，不改总 spec、路线图和共享门禁快照；由协调方在实际整合后记录验证与去向。I6 结束并释放机器锁前先准备源码，不起第二全量；之后按单一构建/浏览器队列做有意义的缺陷复现和修复验证。最终共享核心整合结果不能用三个独立工作树的通过数相加代替。
@@ -2041,7 +2041,7 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 | --- | --- | --- |
 | 原防腐会话 `01a130de-5470-7223-827e-b28663ee7e06` | 共同AUTH/同步最终检查、MCP坏配置、既有Schedule/Goals恢复片、I6失败归因与验证队列；提供可复用本地AUTH提交 | AUTH `b5504585a` 加 `4ef1d68ed` 的父子身份检查已核源码及回归断言、尚待构建/运行；I6四失败在归因，Placement 400/409依现行合同核测试预期，浏览器超时仍待基线证据 |
 | G1 宿主 | Runtime接入/TOML、卡unknown/followup、model schema、系统目录、Gmail首次使用、native JSON、Host Git；不碰原AUTH文件 | 独立树实现准备；未验收 |
-| G2 工作台 | 浏览器upload/grant与工作台八项；不碰assistant-island与G9的coding-companions。HOME-LOCALE最小接线含Host的home-plugin-http两次render及Issue静态控件的既有L调用，Issue保存片1d67为前置、冻结后串行修改 | 独立树实现准备；未验收。STOP反馈以在途#469共用UiRequest为前置，不另造错误解析 |
+| G2 工作台 | 浏览器upload/grant与工作台八项；不碰assistant-island与G9的coding-companions。HOME-LOCALE仅交Workbench helper和同一词典；Host/Issue由协调方串行接线（用户在G2聊天明确选择） | 独立树实现准备；未验收。STOP反馈以在途#469共用UiRequest为前置，不另造错误解析 |
 | G3 桌面/公共呈现 | 原生胶囊/剪贴板/worker IO、接续QA、component草稿 | 代码与回归准备中；原生及浏览器尚待时段 |
 | G4 核心 | SemVer、缺key、Memory事务、固定输入/SDK/Diff Manifest；不改AUTH/helpers或历史pin | 本地四提交 `48c04310e`、`c64bbfd82`、`c93d01249`、`a538a9165`，协调方已核实际生产diff及新回归断言；仅diff格式通过，build/test尚未运行，不判验收 |
 | G5 AI/开发插件 | Placement/Memory调用控制、Agent预算/解析资源、Characters启动、Builder预览/升级密钥、Coding前台/后台/委派/报告；必要Host对应port | 独立实现准备，需复用原AUTH合同；不碰G1 AssistantService/Store或Runtime接入文件 |
@@ -2051,7 +2051,10 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 | G9 接入/日常 | Gmail/GitHub/Catalog、Todo与Diff点击；唯一workbench例外为coding-companions，G2不改该文件 | 独立实现准备；Git Host归G1；RSS传输验证仍候选待实际证明 |
 | Dataset既有writer `01a13341-d712-73f2-99f4-992f8645847c` | 文件导入目标/草稿与对应浏览器，独占client/import | 本地 `f29e7074e`，统筹已核实际diff、旧复现4失败、新旧浏览器21/21、相关365/365及门禁；局部验收通过。资源快照下调与最终整合验证待做，见§12.5 |
 | Issue既有writer `01a13342-5853-75e1-a3ce-929ee5ec4e75` | 手工页/capture保存与丢回执恢复 | 本地 `1d67c6408`，统筹已核实际diff、旧4失败、修后4/4与相关51/51及门禁；局部验收通过，最终整合与资源快照下调待做（§12.5）。该保存片冻结 |
-| 助理发送writer `01a13369-d79c-70f1-9798-7b84181fa7d0` | SEND/PAGE-CARDS/ASSISTANT-404同文件连续处理，保护在途#471 | 初稿实际diff与HTTP barrier用例已核；统筹发现等待回包时A写新稿→切B→切回A仍可能读回旧客户端草稿，writer补同owner投影及来回切换/重载回归；未运行、未验收 |
+| 助理发送writer `01a13369-d79c-70f1-9798-7b84181fa7d0` | SEND/PAGE-CARDS/ASSISTANT-404同文件连续处理，保护在途#471 | 冻结 `d2ce01f35`，统筹已核发送意图、同owner草稿投影及A→B→A/重载回归；源码准备完成，build/test尚未运行、未验收 |
 | Workflows保存writer `01a13369-e221-7433-a2eb-24bcdcee1039` | WFSAVE/WF-OPEN客户端与README，backend留G8 | 本地 `c35d8ff9d`，统筹已核实际队列/快照/恢复代码及五条保存、对象打开回归；仅源码准备，build/test未运行、未验收 |
+| 协调方 Home 语言接线 | 用户在G2聊天明确选择协调方串行补齐。以Issue保存片 `1d67c6408` 和G2语言helper为前置，只改Host home-plugin-http两次render、Issue静态控件调用既有L及对应正式浏览器/README | 隔离源码准备；英文Home/项目侧栏、无模型设置往返、输入与原文保持、错误及中文回归待验证；不改保存协议、不另建词典 |
 
 共享spec、路线图、安全不变量、门禁/API/动作/资源快照由协调方按实际整合结果串行同步；writer不得放宽阈值或为绿删断言。当前均只获本地独立实现/提交，不自行推送、开PR、安装、发布或操作真实Home/凭据。§12.8中需同步安全表的具体拒绝必须有生产边界断言；受控第三方响应不等于真实外部账号验收。
+
+2026-10-12 用户要求完成的会话从Codex列表清理。协调方已归档Dataset与Issue两个独立修复会话，并读回确认：两片局部验收完成，候选提交已由原防腐会话纳入I7，最终资源快照及整合验证继续由该会话承接。仅归档聊天，工作树、提交和原始日志保留；助理发送、Workflows保存与G4仍待验证，保留会话，不将idle当作完成。

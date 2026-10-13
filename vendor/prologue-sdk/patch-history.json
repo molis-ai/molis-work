@@ -9,9 +9,9 @@
   },
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
-    "checkedOn": "2026-10-12",
-    "mainHead": "f5ef12e6085c2865133b732ebc8ec235142685e1",
-    "statement": "下面 commitsChecked 里的每个 Prologue 提交（各项的基线、提交，以及来源里写出的提交链）都是上游 main 头的祖先（git merge-base --is-ancestor；2026-10-08 核对 4f7110fe；2026-10-12 PR #4、#5 合并后上游 main 头是 f5ef12e6，`c4b9fde3` 随 a13bf067 进入 main，复核同样成立）。远端特性分支已不能当定位点，所以按提交号定位，不按分支名。",
+    "checkedOn": "2026-10-13",
+    "mainHead": "b219d8592d6eae6de56dda3a7ebbb616bdd862f8",
+    "statement": "下面 commitsChecked 里的每个 Prologue 提交（各项的基线、提交，以及来源里写出的提交链）都是上游 main 头的祖先（git merge-base --is-ancestor；2026-10-08 核对 4f7110fe；2026-10-12 PR #4、#5 合并后上游 main 头是 f5ef12e6，`c4b9fde3` 随 a13bf067 进入 main，复核同样成立）。远端特性分支已不能当定位点，所以按提交号定位，不按分支名。2026-10-13 对 `b219d859` 复核：`f5ef12e6`（PR #5）同样是祖先。当前包的来源 `08b84296` 不在 main 上（过渡包，用户 2026-10-13 决定），它的两个父提交在，见它的 provenance。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -33,7 +33,8 @@
       "af7375c74a2e551184c443e2a5e06e105168fed3",
       "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
       "c63ea1a16eec8d8217223db1624b2409a1a33d14",
-      "d2f5a05df6459440a253787e94ee6520f12d754d"
+      "d2f5a05df6459440a253787e94ee6520f12d754d",
+      "f5ef12e6085c2865133b732ebc8ec235142685e1"
     ]
   },
   "patches": [
@@ -594,6 +595,14 @@
       "gitBlob": "f25ca5f4d66b0e1d8279e9f8867b52023571ad16",
       "commit": "55b0c85aed4a0cd9296a58180f99e31a419a9608",
       "description": "提交 `55b0c85a`（Prologue PR #4 合入 main 的合并提交；树与 PR head `a13bf067` 相同，两者与 `8db0d7d6` 打出逐字节相同的包）。A0 采用修正 + 输入回执第一刀 + 带类型的问卷，2026-10-12 正式依赖，同日被加入第二、三刀的 adoption-receipts-handling 换掉。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-adoption-receipts-handling.tgz",
+      "bytes": 1102754,
+      "sha256": "c474ee431a0c9594cbea60b339f966231b241f924c0651fef0eebf39f2e6339c",
+      "gitBlob": "84cb777f1773e894162452e98dfea86a85f0ae60",
+      "commit": "f5ef12e6085c2865133b732ebc8ec235142685e1",
+      "description": "提交 `f5ef12e6`（Prologue PR #5 合入 main 的合并提交；树与 PR head `87e063e8` 相同，两者打出逐字节相同的包）。在 adoption-receipts-fields 之上加输入回执第二、三刀；2026-10-12 起是采用交接分支 `feature/handoff-prologue-adoption`（#408）的依赖，从未是 main 的依赖；2026-10-13 被 interim-p1-cu 换掉。"
     }
   ],
   "notes": [

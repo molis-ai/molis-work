@@ -1,4 +1,4 @@
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.ts";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -8,7 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createFileSecretStore, createLazyFileSecretStore, openBaselineHomeSqlite, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { CONNECTORS_BASELINE } from "@molis-ai/molis-work-app-local-host";
-import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/src/functions-host.ts";
+import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/functions-host.js";
 import { functionsActions } from "@molis-ai/molis-work-module-functions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -179,7 +179,12 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
         { encoding: "utf8", timeout: 20_000, stdio: ["ignore", "pipe", "pipe"] });
       assert.deepEqual(JSON.parse(result), { listed: true, name: live.name });
     }
-    const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: "keychain-fixture-control-0123456789" });
+    // W2-10: the served Home and credential-refusal action share one execution Host.
+    let providerCalls = 0;
+    const actionHost = new MolisWorkLocalHost({ homeDirectory: home, functions: {
+      env: {}, provider: { async evaluate() { providerCalls++; throw new Error("must not reach provider"); } },
+    } });
+    const server = createMolisWorkWebServer({ homeDirectory: home, localHost: actionHost, controlToken: "keychain-fixture-control-0123456789" });
     try {
       await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
       const address = server.address();
@@ -191,10 +196,6 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
         assert.match(await response.text(), /lazy_keychain/u);
       }
       assert.deepEqual(calls(), [], "HTTP and all independent MCP reads must leave Keychain untouched");
-      let providerCalls = 0;
-      const actionHost = new MolisWorkLocalHost({ homeDirectory: home, functions: {
-        env: {}, provider: { async evaluate() { providerCalls++; throw new Error("must not reach provider"); } },
-      } });
       const actions = bindActionClient(actionHost.homeActionClient(),
         () => ({ actor_id: "test", project_id: null, audience: "mcp", permissions: ["functions:invoke"] }));
       for (let i = 0; i < 3; i++) await assert.rejects(() => actions.invoke(functionsActions.invoke, { function_key: live.function_key, input: "needs actual credential" }), /Keychain/u);
@@ -204,9 +205,9 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
       assert.equal((await fetch(origin + "/api/functions")).status, 200, "local work remains available after authentication fails");
       assert.deepEqual(readFileSync(file), before);
       assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
-      await actionHost.close();
     } finally {
       if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
+      await actionHost.close();
     }
   }, "exit 36"));
 

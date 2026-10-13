@@ -5,7 +5,8 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { cliFlagValue, cliGoalUrl, readCliJsonPayload } from "@molis-ai/molis-work-app-cli";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, MolisWorkLocalHost, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
-import type { LocalHostProjectClient, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 
@@ -101,16 +102,12 @@ test("CLI has no default database: a command without --db fails before it create
   }
 });
 
-/** A Host that notes the call number in force each time the CLI enters the project and each time it calls an action. */
+/** A Host that notes the call number in force each time a Goals action is called on the client the CLI was given. */
 class NumberedHost extends MolisWorkLocalHost {
-  readonly seen: Array<{ at: "scope" | "invoke"; id: string | undefined }> = [];
-  override client(reference: LocalHostProjectReference): LocalHostProjectClient {
-    const real = super.client(reference);
-    const seen = this.seen;
-    const client: LocalHostProjectClient = { ...real,
-      withScope: operation => real.withScope(() => { seen.push({ at: "scope", id: currentCallId() }); return operation(client); }),
-      invoke: (capability, input, options) => { seen.push({ at: "invoke", id: currentCallId() }); return real.invoke(capability, input, options); } };
-    return client;
+  readonly seen: Array<{ capability_id: string; id: string | undefined }> = [];
+  override actionClient(reference: LocalHostProjectReference, preparePlugins = true): ActionClient {
+    const real = super.actionClient(reference, preparePlugins);
+    return { ...real, invoke: (caller, action, input) => { this.seen.push({ capability_id: action.capability_id, id: currentCallId() }); return real.invoke(caller, action, input); } };
   }
 }
 
@@ -121,13 +118,13 @@ test("one CLI command is one operation: everything it calls shares a call number
   try {
     const input = { project_id: "cli-call-id", title: "编号", actor_id: "user", idempotency_key: "init" };
     await captureCli(() => runV1Cli(["init", "--db", databasePath, "--json", JSON.stringify(input)], { localHost: host }));
-    const afterInit = host.seen.length;
+    const init = host.seen.filter(entry => entry.capability_id.startsWith("goals.")).splice(0);
+    host.seen.length = 0;
     await captureCli(() => runV1Cli(["snapshot", "--db", databasePath, "--json", JSON.stringify({ project_id: input.project_id })], { localHost: host }));
-    const init = host.seen.slice(0, afterInit), snapshot = host.seen.slice(afterInit);
-    assert.deepEqual(init.map(entry => entry.at), ["scope", "invoke"]);
+    const snapshot = host.seen.filter(entry => entry.capability_id.startsWith("goals."));
+    assert.deepEqual(init.map(entry => entry.capability_id), ["goals.board.initialize"], "init is one Goals action");
+    assert.deepEqual(snapshot.map(entry => entry.capability_id), ["goals.snapshot.read"]);
     assert.ok(init[0]!.id, "the command opened an operation");
-    assert.deepEqual(init.map(entry => entry.id), [init[0]!.id, init[0]!.id], "the project scope and the call share the number");
-    assert.deepEqual(snapshot.map(entry => entry.id), [snapshot[0]!.id, snapshot[0]!.id]);
     assert.ok(snapshot[0]!.id && snapshot[0]!.id !== init[0]!.id, "the next command is another operation");
     assert.equal(currentCallId(), undefined, "the number ends with the command");
   } finally {

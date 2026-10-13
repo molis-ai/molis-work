@@ -2188,3 +2188,49 @@ I7 在已收齐 W3-07/09/10 源码后重新跑完整 health，六项实际失败
 I7调度门禁修复为968463d0a，平台码与交付物请求为cff53afcb、公开快照ed4375d1b。沙箱测试初搬到新文件被内部导入0→1正确拦下；c6cb71a2f改为完整放入既有独立Darwin的installed-plugin-execution测试，原Linuxcatalog与CI清单不变，复用其生产broker、现行publicHost及同文件dist副本，无新增测试端口。实际health36完整通过，平台码仍当前default invalid；只读复核未发现新增P1，后一测试归属修正补审中。随后8b74a5d48合入A1，43137af1c合入A2，冲突均保留I7业务正文并用现行工具转导入，README保留两边要求。health37相对f202更新成功：695内部引用、93混用进程，raw fetch88、外部插件点名423，基线仅下降。新整合构建/定向/浏览器/全量仍待，temporary SDK单项boundary缺口仍待用户正式换包授权。
 
 A3第三批从16a重跑现行工具，53普通无浏览器/平台专属测试，只改导入；两动态引用分别是functions-system-capability的现行BUILTIN_PLUGIN_CATALOG和jelly-model的现行MolisWorkLocalHost。AST去导入目标后正文相同、语法零错误、工具无阻塞；actual health --update --base通过626内部引用、68混用进程。运行分40/13批，沿用未改生产源码的既有完整构建；还在跑，未以这些源审指标声明片完成。
+
+2026-10-13 A3 真回归结束：40/13 文件实际321/321与104/104，均零失败、取消或跳过。只读核对两动态声明、原测试正文与基线无增长，无新增P1。f3625612d已密钥扫描并推送，开并附加#482，当前叠#475；A2合入后转main并核其CI。Cognia干净对照复用ee84的干净adoption-main-baseline，未修改源码且无活动进程；公共computeBuildSourceDigest与19:09:34UTC完整构建manifest严格一致，实际3/3通过。仅停止Root自己还在排队的baseline54821，不动foreign contextual全量。原迁移唯一失败与修复后3/3的原日志全部保留。
+
+W3-02-H源码继续：删除旧MolisWorkV1Error与platform/errors出口/快照，原第三参数details改为ActionError options.details，无旧导出别名。MCP包复用SDK actionErrorBody，一份formatter处理普通动作/连接/管理的JSON {error,code,details?,call_id?}，保留owner详情，拒绝其code/call_id覆盖，Host只附已留行编号。Goals HTTP catch及已知输入共用SDK，删除transport regex猜kind；实际配置与协议版本检查在owner处携conflict，原8裸输入归invalid，未知内部500。旧event_http等数据式拒绝保留当前code与表示，送共同SDK，改名仍归R1。模块factory可携kind到Host的Goal ActionError。H-01/02/03构建、真实入口、重启及回归仍待。锁工具曾删optional项，已恢复当前完整锁，只保留MCP新增SDK的3行workspace链接。旧API快照删除，含新文件门禁与MCP消费者仍检查，不宣称H通过。
+
+2026-10-13 接续状态：#475确切16a在五必需与Product subset成功、currentmain及密钥核对后真实合入39a1a800c（20:28:54UTC），Linux probe是报告任务。A3 #482已转main、同步39并重生成626/68下降基线为95dad0fff后推送，现等CI。A4从95重测剩余100文件，选51普通测试（4动态引用），导入外正文相同、语法0、完整health/update通过570内部引用/29混用进程。首次测试在导入尚写入时启动，结果废弃并保留日志；仅核对并停Root75645/75678，完成写入后02批重新运行，首40文件已202/202，其余11文件待，未称片完成。
+
+H源码候选6a330c8de，源复核发现Personal测试缺Goal namespace和action-error-edges遗漏旧message/两行协议断言，b7f00b793均修正，保留真实Todo conflict、编号查询及业务断言。f2322857a补公共Host及真实Goals HTTP的400输入/坏JSON、owner版本冲突409/details/实际调用行、内部故障500与业务事实不变。H04含两个新增文件完整health通过，仅源码/静态证据；H05与新测试构建/类型/运行均待。I7仍冻结71405559e等待唯一整合构建15935，不在测试冻结树改源码。
+
+2026-10-13 A4完成普通测试运行：正确02两批202/202与41/41（243条），源码及四动态入口复核无新增P1，3fc5bb4a7已密钥扫描并推送，开并附加#483叠#482，等A3合入后转main、刷新实际CI。剩余49文件按现行工具为23浏览器、7平台专属、4授予相关、14夹具/支持文件和1可选网络实操。C片同为导入机械迁移，将平台专属7文件与23浏览器文件一起收口，生产正文/断言/生命周期保持，源审及静态门禁后仅用隔离Home按整机slot逐组运行；不碰真实Keychain。其余授予/夹具沿D的已有依赖，网络实操在确认其实际外部输入后验证，不以skip补齐实操。H源修复及新增HTTP测试在f2322857a保存，含新增文件H05完整health通过；独立构建/19真实路径回归已排队47546，并在现有临时SDK上验证，正式vendor与上游提交仍待用户授权，保留package/lock临时未提交差异。I7唯一队列15935仍保持冻结。
+
+2026-10-13 C源迁移30测试及1关联支持文件，逐字正文/语法比对与源复核无新增P1；完整health/update通过520内部引用、7混用进程（不是运行全绿）。Darwin首批63条62通过/1失败，唯一Keychain测试与Cognia相同：Web默认Host后又建同Home actionHost，统一模块后正确被inference.home_in_use拒绝。已在Source将带计数的actionHost提前并注入Web，一份Host负责实际HTTP和动作；保留三独立MCP读、未触凭据断言、三次授权拒绝、providerCalls=0、原密文不变及恢复读断言。ee84干净已核构建对照该文件真实通过，修后定向02还在跑；不改生产约束。Keychain全程只用假security/PATH隔离。剩余工具计划18文件，7混用链逐条在D/w2-10-after-c-splits01.txt保存，D/硬门禁与最终全量未结束。
+
+C源候选fd660a3ac固定32文件（30测试、1被现有工具自动纳入的支持文件及baseline）；原Darwin01唯一夹具失败后实际该文件8/8，干净基线8/8，其他6已通过结果不重复相加。C浏览器尚未运行；继承C的D片18个最后入口/夹具先机械转换，C/D共用这些夹具，运行将明确注明组合证据，不能假称C独立运行。四授予调用者沿已完成W2-11的依赖，唯一可选网络用例新导入仅移生产resolver原声明，真实TLS只访问已明示registry.npmjs.org、不调用模型或真实凭据。D之后工具/过程图必须实际归零，E才单独按用户接受收紧到绝对零，source检查不替代完整回归。
+
+D候选3a42f62e7固定19文件（18入口/夹具及baseline），两个动态导入均对应原声明。actual AST正文/语法通过；工具check显示0/899混用进程，report无任何待改/阻塞/附加/错误；完整health/update实际500内部引用、0混用。相关42非浏览器消费文件分40/2在隔离Home运行，含唯一明确启用的真实registry HTTPS探针；未完成，不宣称D运行或W2-10整片完成。C/D浏览器仍待，共用夹具的组合证据将单列。E在独立分支实现用户已接受绝对零：复用同一图与现有报告字段，零以外均拒绝，含未增长、比旧基线下降、改baseline和--update；不放宽图规则。旧测试期望在相同混用基线仍通过的部分改为拒绝，新增实际CLI旧基线/更新不得洗大与真正全零通过；C/D运行树保持冻结。
+
+E真实CLI第二轮32/32通过，零skip/cancel；首轮实际抓到无--base的update绕过绝对校验，已在入口修复为写baseline前无条件检查本指标absolute，不改变其他门禁分类或放宽graph。快查实际移除testImportSplits/Total两键，完整health待最后结束；其余报告保留精确两边路径。D第一40非浏览器文件100/100，第二2文件唯一真实registry TLS探针被当前fake-IP DNS地址拒绝（NETWORK_DENIED），安全拒绝保持正确，不记整批通过；用该测试已存在的明确DoH端口选项只获取可核公网地址重跑，未更改生产或绕过公网/证书校验。结果仍待。
+
+#482 A3在确切95dad0fff、五必需及Product subset成功、currentmain/密钥核对后于21:10:07UTC真实合入main726e281e5（Linux probe只报告）。A4 #483现在转main并同步，冲突按当前门禁重生成。E候选73e6af397七文件，完整health/update相对39通过，快查两旧混用键真实删除，32真实CLI通过、只读复核无P1；整合到I7必须保留它已有browserErrors的update前置拒绝，同时加入split absolute。D组合40文件100/100，后两文件8条7通过1真实公网失败，零取消/跳过；DoH重跑仍TLS连接错误，干净基线同旗标对照未结束。不得将网络或C/D浏览器、H/I7构建/全量标为通过。
+
+公网探针根因已更新：基线同败不能证明环境故障。两份DoH运行均得到93.184.216.34，实际是前一DNS单元测试桩值；全新进程实际解析到VPN假IP，再经已存在的明确DoH端口得到104.16.*及对应公网IPv6，resolver正常。Node测试同一属性两次mock的自动恢复在finally之后又把第一个桩装回默认dns.lookup，污染后续live的默认对象端口。最小test-only修复为先t.mock.reset清空恢复跟踪，再按现有方法还原并syncBuiltinESMExports；所有DNS/SSRF/pin/TLS/secret/cancel拒绝断言保留，不改生产与VPN设置。真实公网固定04正在重跑，未运行完不得记通过。
+
+D公网回归已真实通过：a2525e9c2只增加测试清理t.mock.reset并保留原同步，固定04实际7/7、零skip/cancel/fail，核定公网DNS地址及registry.npmjs.org固定HTTPS返回200。生产网络策略无变。D非浏览器42文件共108条独立用例已有通过证据（100首批及末8的唯一网络重跑），不把历史失败/重跑叠成更多用例。C/D仍缺浏览器组合；源码零混用、健康门禁与公网通过不替代该项或I7最终全量。A4本地2a78同步726后首推SSL失败，已按原密钥/最新main规则重试，成功须读实际工具返回。
+
+W3-02-R1沿§1已接受错误码规则和batchB-plan串在H之后准备：仅Goals事件类当前错误码，按AST把旧前缀保留为第二段 goals.<原前缀>.<原因>，生产方和MCP/HTTP/测试/文档同片更新。不碰持久化业务事件type、历史SQL夹具，不新增旧码读取或alias。R1-01：生产与真实入口拒绝给新owner码，消息/kind/details/编号及事实不变；R1-02：旧码生产消费者归零，原历史event/SQL内容不变；R1-03：真实事件/管理MCP定向回归及H/R整合全量通过后才开验收，机械语法替换或静态计数不足。Root先核每个literal语境再改，当前只读inventory，没有运行或完成声明。H/I7/C-D冻结等待任务不改源码。
+
+R1语法树清点当前308处、140种码、31份TS文件，比历史设计估数多，逐处语境已核：producer error/validation调用、completion reason.code、当前HTTP failure.code与两处读码比较。Governance事件决定与provenance在owner表明确归Goals，同片接续；server连续性只改其消费比较，业务事件type、SQL及历史日志不改。源码已按同一当前词元位置迁到goals.<旧前缀>.<原因>，解析0，新增MCP/Skill说明和README现行码，API快照无变化。真实HTTP/MCP/状态与整合回归仍待，源迁移不算R1完成。
+
+W3-02-R2准备仍沿§1现行决定：Goal/board/planning/guidance/relation/policy错误码按事实owner接续，goal.not_found按计划归goals.not_found，其余保留旧前缀第二段，业务事件type/命令ID/历史SQL不改。R2-01：AST只迁生产错误与其消费，错误类/kind/消息/details/编号保持；R2-02：规划issue公开enum同当前码，API/实际动作快照同步且形状变动按合同规则升版、所有当前消费者同片更新；R2-03：错误与业务type同名的goal.trashed等各证明，历史数据/事件仍按原type，相关真实HTTP/MCP/状态回归后验收。当前清点279匹配词元横跨105文件，包含大量实际业务type，不能全字替换；仅可确定的生产错误集合用于下一轮语境裁决。尚未修改或运行R2。
+
+R2实测生产错误集合50种，134待迁词元；与其同字的7个实际业务事件/读取断言已单独保留，不按279总匹配替换。规划issue的7个公开enum改变输出合同，因此goals.planning.impact、goals.planning.graph.check、goals.tree.check、goals.tree.decide改v2，实际semantic_review的review_action及公开type/schema同步v2，三现行显式tree.check MCP消费者转v2；无旧版保留。具体消费者与实际快照仍需最终构建后的严格对照，未据源改声称完整。当前Source语法、API及health检查继续，原Goal事件type和SQL不变。
+
+A1–A3合入后的Codex合规复查（按systematic-review §1–15）：本批差异实际仅测试导入、构建前提文档和只下降快查；§1–7的身份、注册、事实owner、生命周期及生产边界没有新生产路径，公开声明对原定义、私有项对同文件构建已核，无测试专用API；§8/13没有新增模型路径或SDK依赖；§9未改用户界面，浏览器C/D仍待；§10隔离Home/FileSecrets、Cognia基线的真实build指纹与单Home约束已核，未读写真Home/Keychain；§11工具空计划只证明本轮导入迁移，不宣称全仓死码清理；§12/14 AST正文保留加实跑与CI，Cognia暴露的重复Host夹具按现行合同修正、授权/读回/撤权及持久化断言未放宽，基线与失败日志保留；§15原总验收未全部满足，维护8、SourceI7/H/R及剩余路线未关闭。当前该批没有新增必须修复P1；后续片实际合入后再按其diff复查，不把本批复查扩成新功能完整验收。
+
+R2源码固定dd7db1df3：47文件，134错误词元/35TS迁当前owner；七处同名业务事件/读取保持原值。实际Source health通过（w3-r2-health01.log，零语法错误；非主人码845→781）；Goals/Governance两个API快照同步，四规划输出动作v2及实际review_action/显式MCP消费者同片更新。生命周期与真实Runtime已有测试加R2验收编号，未修改断言。动作快照、全量构建、真实HTTP/MCP/事件与H-R整合全量均待，不据源码提交宣称R2验收通过。
+
+W3-02-R3沿当前错误owner规则接在H/R1/R2后：仅Goals树提案、依赖提案、决定与Governance request错误及其现行消费者，按goals.<原前缀>.<原因>同片迁移；身份/授权/决定动作、存储业务type/SQL/事实与结果不改。R3-01：真实受保护审批/Runtime拒绝给现行owner码，kind/details/编号及拒绝副作用保持；R3-02：按AST核对生产与MCP/HTTP/测试/活文档消费者，旧码无生成/读取兼容；公开schema或API实际变化才升动作版本并同片更新消费者。R3-03：事件/树/管理MCP授权、幂等、原子性与重启定向回归，H/R合并全量通过才验收；当前先清点语境，尚无运行或完成声明。由Root独立隔离树串行写入，与冻结构建队列无修改冲突。
+
+A4 #483已在2026-10-13T21:40:11Z合入main c33448f29bbfa3c0eedc49a8b23bd125da9c4bdd：精确HEAD2a78babc0ec25e8201655cf63f2da7a19bad8551对齐目标726e281e，五必需检查与Product subset实际SUCCESS、fresh secrets通过；Linux probe仍运行，仅报告，不记已通过。A4有效本机回归243/243及源码只读复核保留；C/D浏览器与E零混载整合仍待，不把A4合入当全部W2-10完成。
+R2固定源码dd7db1df3已由统筹独立只读核对AST、七业务词元、planning cycle分支、四动作v2与对应消费者/API/文档及health原日志，无当前Blocker/P1；运行证据缺口仍全部保留。
+
+R3源码20e9b32e9固定：148错误词元/32TS、90现行码；AST门禁仅识别其中58码，数据式校验已按实际来源一起迁移。八树提案业务事件词元及三宿主request.in_flight保留。38文件含五现行文档/CHANGELOG与两验收编号注释，身份/确认/幂等/原子写与SQL不改。实际Source health通过（非主人码781→697，零语法错误），API实测零变化；独立只读复核已送。H/R整合构建、动作v2实际快照/消费者与真实入口、全量仍待。
+
+I8接续共享核心整合：新树i8-error-test-import-integration由当前main c33448f29建立，4778d5636合入H/R1–R3与此前I7源码，194a288fa合入C/D测试与隔离夹具/DNS恢复，2e29acd4e承接E绝对零；冲突保留新增业务测试正文并按现行入口重写导入。E入口同时保留I7浏览器程序拒写guard与新增混载绝对零检查，不放宽门禁。实际静态图零混载（967进程），缺的整体构建/类型、MCP/HTTP与动作v2、核心与全量由这一组合统一补证。Root已核pid/cwd/未启动日志，仅取消自己未启动的H47546/82294与I7 15935/78750两个排队构建，组合代替它们，不重复构建；外来全量自然结束，其进程未动，C/D25浏览器已拿到名额。候选SDK仍只在私有临时树引用，pkg1+/1-、lock5+/5-且118optional项保留；上游commit/push/PR与正式vendor替换许可仍待，未动正式vendor。
+R3独立源审确认148literal/32TS/90码之外正文仅两注释，2990JS/TS含嵌入脚本零旧错误码；八业务type/三宿主in-flight保留，无Blocker/P1。运行与动作快照缺口继续保留。

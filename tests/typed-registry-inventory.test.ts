@@ -30,7 +30,9 @@ test("W3-07-9-01: the assembled Host registers only the remaining internal servi
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspacesFor: () => [workspace], workspaceFor: () => workspace });
   try {
     await host.withProject(ref, () => undefined);
-    assert.deepEqual(keys(host.status().capabilities), keys([...internalServices, ...workspaceEntries]));
+    assert.deepEqual(keys(workspaceEntries), [], "all five workspace entries already carry action metadata");
+    assert.deepEqual(keys(host.status().capabilities), keys(internalServices));
+    for (const definition of workspaceEntries) assert.equal(host.client(ref).availability(definition).available, true, definition.capability_id);
     const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" as const, audience: "management" as const,
       project_id: ref.project_id, permissions: ["goals:read", "goals:write"] };
     const directory = await host.actionClient(ref).discover(caller);
@@ -41,13 +43,17 @@ test("W3-07-9-01: the assembled Host registers only the remaining internal servi
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("W3-07-9-01: absent workspace wiring offers no typed workspace service or fabricated empty directory", async () => {
+test("W3-07-9-01: absent workspace wiring registers none of its five actions and does not change the typed inventory", async () => {
   const home = await mkdtemp(join(tmpdir(), "typed-registry-no-workspace-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "unopened-project.db"), projectId: DEMO_PROJECT_ID });
   try {
     assert.deepEqual(keys(host.status().capabilities), keys(internalServices));
     for (const definition of workspaceEntries) {
       assert.ok(!host.status().capabilities.some(entry => entry.capability_id === definition.capability_id), definition.capability_id);
+      const availability = host.client(ref).availability(definition);
+      assert.equal(availability.available, false, definition.capability_id);
+      assert.equal(!availability.available && availability.code, "actions.dependency_missing", definition.capability_id);
     }
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

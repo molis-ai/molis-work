@@ -33,7 +33,7 @@ Local Host 是本地产品的“总装配间”。以前 Web、CLI、MCP 各自�
 | --- | --- | --- |
 | Agent `agent.*` | Coding 的 `routes.ts`、`delegation-dispatch.ts`、`background-state.ts`；Coding、创作台、Characters、Schedule 的 Manifest 声明；Characters `plugin.ts` | 注册集中在 `horizontal/agent-host/src/capability-registration.ts` 与 Host 的 `agent-host-composition.ts`。助理直接消费其 Agent 服务端口，不因此算 typed 客户端。 |
 | `schedule.register/cancel/setEnabled/list` | 当前无生产消费者；Host 登记服务端口，Schedule 业务直接调自己的 service | 为插件提供的现存服务要求原调用实例身份；跨入口 T4 通过真实 executor 的服务夹具核拒绝与读取，不能称已有业务链。 |
-| 项目工作区与设置读取 | Coding、Files、Git 的 Manifest 与路由/动作；创作台 Manifest；`web-request.ts` 的设置消费 | 只有配置工作区端口才登记。带动作元数据的设置写入属于动作，不计入 typed 清单。 |
+| 项目工作区与设置读取 | Coding、Files、Git 的 Manifest 与路由/动作；创作台 Manifest；`web-request.ts` 的设置消费 | 只有配置工作区端口才登记。这组五项（两项工作区、三项设置）全部有动作元数据，读取和写入都不属于剩余 typed；经旧客户端调用时也是 typed 入口转动作。 |
 | Git 审阅准备与结果 | Git Manifest 与 `actions.ts` | 四项现存读/准备服务由 Host 装配，实际 Git 写入仍经审阅。 |
 | Writer 目录与集成 | Coding Manifest 与 `routes.ts` | 目录、准备与集成由 Host 给当前项目的原工作区，不接受另选项目的身份。 |
 

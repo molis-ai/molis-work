@@ -2216,3 +2216,5 @@ D公网回归已真实通过：a2525e9c2只增加测试清理t.mock.reset并保�
 W3-02-R1沿§1已接受错误码规则和batchB-plan串在H之后准备：仅Goals事件类当前错误码，按AST把旧前缀保留为第二段 goals.<原前缀>.<原因>，生产方和MCP/HTTP/测试/文档同片更新。不碰持久化业务事件type、历史SQL夹具，不新增旧码读取或alias。R1-01：生产与真实入口拒绝给新owner码，消息/kind/details/编号及事实不变；R1-02：旧码生产消费者归零，原历史event/SQL内容不变；R1-03：真实事件/管理MCP定向回归及H/R整合全量通过后才开验收，机械语法替换或静态计数不足。Root先核每个literal语境再改，当前只读inventory，没有运行或完成声明。H/I7/C-D冻结等待任务不改源码。
 
 R1语法树清点当前308处、140种码、31份TS文件，比历史设计估数多，逐处语境已核：producer error/validation调用、completion reason.code、当前HTTP failure.code与两处读码比较。Governance事件决定与provenance在owner表明确归Goals，同片接续；server连续性只改其消费比较，业务事件type、SQL及历史日志不改。源码已按同一当前词元位置迁到goals.<旧前缀>.<原因>，解析0，新增MCP/Skill说明和README现行码，API快照无变化。真实HTTP/MCP/状态与整合回归仍待，源迁移不算R1完成。
+
+W3-02-R2准备仍沿§1现行决定：Goal/board/planning/guidance/relation/policy错误码按事实owner接续，goal.not_found按计划归goals.not_found，其余保留旧前缀第二段，业务事件type/命令ID/历史SQL不改。R2-01：AST只迁生产错误与其消费，错误类/kind/消息/details/编号保持；R2-02：规划issue公开enum同当前码，API/实际动作快照同步且形状变动按合同规则升版、所有当前消费者同片更新；R2-03：错误与业务type同名的goal.trashed等各证明，历史数据/事件仍按原type，相关真实HTTP/MCP/状态回归后验收。当前清点279匹配词元横跨105文件，包含大量实际业务type，不能全字替换；仅可确定的生产错误集合用于下一轮语境裁决。尚未修改或运行R2。

@@ -237,7 +237,7 @@ test('arbitrarily named providers drive sandbox limits, cost disclosure and rate
   assert.equal(calls, 1);
 });
 
-test('W3-07-8-02 a real installed sandbox cannot acquire builtin Goal authority for the four protected actions', { skip: process.platform !== 'darwin', timeout: 30_000 }, async () => {
+test('W3-07-8-02 a real sandbox and production broker cannot acquire builtin Goal authority for the four protected actions', { skip: process.platform !== 'darwin', timeout: 30_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'goal-sandbox-authority-')), databasePath = join(directory, 'project.db');
   seedDemoBoard(databasePath);
   const host = new MolisWorkLocalHost({ completeText: null }), ref = molisWorkHostProjectReference({ projectId: DEMO_PROJECT_ID, databasePath });
@@ -251,7 +251,9 @@ test('W3-07-8-02 a real installed sandbox cannot acquire builtin Goal authority 
     const actions = { registry: host.actionRegistry(ref), client: host.actionClient(ref, false), project_id: DEMO_PROJECT_ID,
       inspect: (caller: import('@molis-ai/molis-work-contracts/platform/actions').ActionCallContext) => host.inspectActions(caller, ref) };
     const catalog = () => capabilityCatalog(actions, 'person');
-    for (const entry of (await catalog()).filter(entry => ids.includes(entry.id))) assert.equal(entry.offered, false, entry.id);
+    const protectedEntries = (await catalog()).filter(entry => ids.includes(entry.id));
+    assert.deepEqual(protectedEntries.map(entry => entry.id).sort(), [...ids].sort(), 'all four actual contracts are present');
+    for (const entry of protectedEntries) assert.equal(entry.offered, false, entry.id);
     const effects = { capabilities: [goalPluginActions.list.capability_id, ...ids] }, bundlePath = join(directory, 'plugin.mjs');
     await writeFile(bundlePath, `export const operations={run:async(input,sdk)=>{
       const listed=await sdk.capability.call('goals.list',{limit:100});const denied=[];

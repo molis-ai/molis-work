@@ -3,6 +3,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
   const unsettled = new Map();
   const sendTarget = () => currentId || JSON.stringify([project && project.id, newScope, newExecutor, newMode, newCharacter]);
   const rememberSentWork = (work) => {
+    if (activeSend?.work === work.work_id && activeSend.draft !== undefined) work = { ...work, draft: activeSend.draft };
     const index = works.findIndex(row => row.work_id === work.work_id);
     if (index >= 0) works[index] = work; else works.unshift(work);
     paintWorks(); paintTabs();
@@ -26,7 +27,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     };
     requestOverride = pageText = null;
     const here = () => sendTarget() === intent.target && host.route("/api/assistant/send") === intent.route;
-    const unchangedInput = () => inputRevision === intent.inputRevision && String(input.value || "").trim() === text;
+    const unchangedInput = () => (intent.work ? intent.draft === undefined : inputRevision === intent.inputRevision) && String(input.value || "").trim() === text;
     const selectSentWork = (work) => { currentId = work.work_id; remember(); openTab(currentId); };
     busy = true; activeSend = intent; syncSend(); problem = null; setPanel(true);
     setStarters(false); if (materialsList) setMaterials(false); clearTimeout(draftTimer);

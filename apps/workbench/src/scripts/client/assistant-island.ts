@@ -350,17 +350,17 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   if ("MutationObserver" in window) new MutationObserver(sideChanged).observe(document.body, { attributes: true, attributeFilter: ["data-side-open", "style"] });
   window.addEventListener("resize", () => { if (sideWidth()) sideChanged(); });
 
-  /* ─── Drafts: every work keeps its own unsent text ─────────────────────── */
+  /* Each work keeps its own unsent text. */
   const saveDraft = (immediate) => {
     clearTimeout(draftTimer);
     const id = currentId, text = String(input.value || "");
+    if (id && activeSend?.work === id) {
+      const work = works.find((row) => row.work_id === id); if (work) work.draft = text;
+      if (!immediate || text.trim() !== activeSend.body.text || activeSend.draft !== undefined) activeSend.draft = text;
+      return;
+    }
     const write = () => {
       if (!id) { store.set(NEW_DRAFT_KEY, text || null); return; }
-      if (activeSend && activeSend.work === id) {
-        if (text.trim() !== activeSend.body.text || inputRevision !== activeSend.inputRevision) activeSend.draft = text;
-        else delete activeSend.draft;
-        return;
-      }
       const work = works.find((row) => row.work_id === id);
       if (work && work.draft === text) return;
       if (work) work.draft = text;
@@ -1868,7 +1868,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     try {
       const result = await api("/works");
       const drafts = new Map(works.map((work) => [work.work_id, work.draft]));
-      works = (result.works || []).map((work) => drafts.has(work.work_id) && work.work_id === currentId ? Object.assign(work, { draft: drafts.get(work.work_id) }) : work);
+      works = (result.works || []).map((work) => drafts.has(work.work_id) && (work.work_id === currentId || work.work_id === activeSend?.work) ? Object.assign(work, { draft: drafts.get(work.work_id) }) : work);
       if (currentId && !works.some((work) => work.work_id === currentId)) { currentId = null; remember(); view = null; }
       // A tab whose work is gone closes; the work in front always has one.
       const kept = tabs.filter((id) => works.some((work) => work.work_id === id));

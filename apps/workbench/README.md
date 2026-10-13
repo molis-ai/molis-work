@@ -129,7 +129,7 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
   - 界面文字走 i18n，新增中文文案同时补英文，缺英文、词典没并进 `EN` 由 `pnpm health:check` 拦下（CI 里也跑；做法与稳定键的迁移见上节「界面文字」）；控件只用 design-system，不引入系统弹窗或原生下拉。
   - `development: true` 只标明隔离预览，不能当作真实团队接通的证明。
   - 浏览器端程序由 `src/scripts/client/*` 字符串片段拼成，类型检查看不到里面：改动后跑 `tests/client-script-undeclared.test.ts`，它检查拼接结果里没有未声明的名称（页面全局在测试里列白名单）；进入工作台之前的三段程序（选择页、引导、动效）也在其中。
-  - 助理的发送片段 `scripts/client/assistant-send.ts` 在点击时固定工作、作用域、执行者/方式、Character、页面上下文、材料、HTTP 路由与 request_id。等待草稿或回执时可以继续选择别的工作、项目和输入；回执只更新对应工作，仍属于当前输入时才清掉已发送材料和文字。连接中断后的同一条重试沿用原请求；发送期间对原工作的后续草稿留到回执后写，不让发送清掉新输入。真实 Host/HTTP/Store 与 Chrome 网络 barrier 回归见 `tests/assistant-send-intent.e2e.test.ts`（W2-18-SEND-01/02）。
+  - 助理的发送片段 `scripts/client/assistant-send.ts` 在点击时固定工作、作用域、执行者/方式、Character、页面上下文、材料、HTTP 路由与 request_id。等待草稿或回执时可以继续选择别的工作、项目和输入；回执只更新对应工作，仍属于当前输入时才清掉已发送材料和文字。连接中断后的同一条重试沿用原请求；发送期间的后续输入立即留在对应工作草稿，列表重读和发送回执保留它，回执后再提交。A→B→A 不恢复已发送文字，B 的编辑不算 A 的新草稿。真实 Host/HTTP/Store 与 Chrome 网络 barrier 回归见 `tests/assistant-send-intent.e2e.test.ts`（W2-18-SEND-01/02）。
   - 助理操作卡按完整集合清理，逐张放到时间线时保留其他卡；刷新工作所得成功或失败只影响仍对应原工作 ID 的页面。回归 `tests/assistant-page-cards.e2e.test.ts` 验同一工作的两张页面卡、独立执行/忽略与重读；`tests/assistant-stale-refresh.e2e.test.ts` 验真实 owner 删除、迟到 404 与后选工作的草稿保持（W2-18-PAGE-CARDS-01、W2-18-ASSISTANT-404-01）。
   - 进入工作台之前的页面是一个框架（标题栏 · 舞台 · 常驻底栏，`arrival/shell.ts`）和一张样式表（`/assets/molis-work-arrival.css`，`styles/arrival.ts`）：页面之间是整页跳转，框架不动；控件与部件只用 design-system 的 `mw-*`，页面样式只排版，不另画一套。
   - 项目简介由 `composeProjectBrief` 从公开读口（Goals 目录与状态、Home 事项、长期背景）的结果决定，读不到的部分如实写「读不到」，不猜、不补示例数据；选择页不读任何项目的私有存储。

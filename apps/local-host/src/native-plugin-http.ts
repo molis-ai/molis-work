@@ -21,20 +21,32 @@ export function readNativePluginJsonBody(
   maxBytes = 1_000_000,
 ): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
-    let body = "";
-    request.setEncoding("utf8");
-    request.on("data", (chunk) => {
-      body += chunk;
-      if (body.length > maxBytes) reject(new ActionError("actions.input_too_large", "请求内容过大"));
+    const chunks: Buffer[] = [];
+    let bytes = 0, settled = false;
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true; chunks.length = 0; reject(error);
+    };
+    // Keep draining after a refusal so the edge can answer 413, without retaining or decoding later bytes.
+    request.on("data", (chunk: Buffer) => {
+      if (settled) return;
+      bytes += chunk.length;
+      if (bytes > maxBytes) fail(new ActionError("actions.input_too_large", "请求内容过大"));
+      else chunks.push(chunk);
     });
     request.on("end", () => {
+      if (settled) return;
       try {
+        const body = Buffer.concat(chunks, bytes).toString("utf8");
+        settled = true; chunks.length = 0;
         resolve(body ? JSON.parse(body) as Record<string, unknown> : {});
       } catch {
+        settled = true; chunks.length = 0;
         reject(new ActionError("actions.input_invalid", "请求不是有效 JSON"));
       }
     });
-    request.on("error", reject);
+    request.on("error", fail);
+    request.on("aborted", () => fail(new ActionError("actions.cancelled", "请求已取消")));
   });
 }
 

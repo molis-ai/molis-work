@@ -188,3 +188,5 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 独立文字模型读取（`configured-models.ts`，Jelly、Shelf与调度就绪检查等消费）复用正式Catalog的owner与现行schema断言。旧版、未来版或无效版本在读取模型与凭据之前拒绝，不就地升级；回归见 `tests/jelly-model.test.ts` 的 W1-18-MODEL-SCHEMA-01。
 
 目录选择的默认runner等待实际子进程退出，期间保持busy；stdout、取消、错误与超时由同一个runner收口。`tests/workspace-directory-picker.test.ts` 的 W2-18-DIRECTORY-PICKER-01使用临时Node子进程，系统目录窗口仍需单列实操。
+
+原生插件HTTP共用的 `native-plugin-http.ts` 按收到的UTF-8字节执行各边缘现有容量上限，超限后继续排空但不保留或解析后来正文，仍能回答413；畸形JSON回答400。`tests/native-plugin-body.test.ts` 的 W2-18-NATIVE-BODY-01覆盖真实Pages HTTP/owner与分块拒绝；容量不改成字符数，也不扩大各插件预算。

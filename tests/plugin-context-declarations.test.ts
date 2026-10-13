@@ -141,7 +141,8 @@ test("W1-04: entries that are not shaped like actions or views are reported by t
     assert.match(manifestProblems(manifest([writing({ attach: attach() }), odd as Part, itemReader])), /example_doc 不是本插件拥有的种类/u, JSON.stringify(kinds));
   }
   // A view that is not an object says what it lacks, as before, and does not stop the other views being read.
-  assert.match(manifestProblems(manifest([reader, itemReader], [5 as unknown as Part, view({ objects: ["ghost"] })])), /视图 cell 的对象种类 ghost 没有对象读取器/u);
+  const notAView: unknown = 5;
+  assert.match(manifestProblems(manifest([reader, itemReader], [notAView as Part, view({ objects: ["ghost"] })])), /视图 cell 的对象种类 ghost 没有对象读取器/u);
 });
 
 test("W1-04: the new checks come after every older one, so what an author read before does not move", () => {

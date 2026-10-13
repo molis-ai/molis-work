@@ -83,3 +83,14 @@ test("S-14 the shell's own configuration does not turn on remote IPC for every d
   assert.equal(JSON.stringify(configuration).includes("dangerousDisableAssetCspModification"), false);
   assert.equal(configuration.build.frontendDist, "../webview-placeholder");
 });
+
+// W2-18-CAPSULE-01, W2-18-CAPSULE-02: configuration coverage; actual window geometry and remote IPC still need the native probe.
+test("W2-18-CAPSULE: every command the capsule calls has its existing explicit permission", () => {
+  const client = readFileSync(new URL("../apps/desktop/src/capsule-shell.ts", import.meta.url), "utf8");
+  const invoked = [...new Set([...client.matchAll(/invoke\?\.\("(capsule_[a-z_]+)"/g)].map(match => match[1]!))].sort();
+  const permission = readFileSync(join(SHELL, "permissions", "capsule.toml"), "utf8");
+  const allowed = [...(/commands\.allow\s*=\s*\[([^\]]*)\]/.exec(permission)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map(match => match[1]!).sort();
+  assert.ok(invoked.includes("capsule_resize"), "the production resize call was read");
+  assert.deepEqual(allowed, ["capsule_hide", "capsule_open_main", "capsule_resize", "capsule_set_locale", "capsule_update_menu_bar"]);
+  for (const command of invoked) assert.ok(allowed.includes(command), `${command}: capsule invocation has no permission`);
+});

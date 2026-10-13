@@ -61,6 +61,7 @@ export function registerProjectCapabilities(
       audience: identity.actor_kind === "runtime" ? "agent" : "user", project_id: runtime.project_id,
       permissions: definition.action.permissions, allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id: GOALS_PLUGIN_ID }],
       validate_authority: () => invocation.beforeEffect(),
+      assert_authority_current: () => invocation.assertAuthorityCurrent(),
     })).invoke({ ...definition, provider_id: GOALS_PLUGIN_ID }, Object.fromEntries(Object.entries(input as object).filter(([, value]) => value !== undefined)) as Input);
   };
   const requireRuntimeProject = (runtime: MolisWorkProjectRuntime, projectId: string) => {
@@ -121,6 +122,7 @@ export function registerProjectCapabilities(
       const workspaces = await list(runtime);
       if (!workspaces.some(item => item.workspace_id === workspaceId && item.realpath_verified)) throw new ActionError("projects.workspace_unavailable", "请选择当前项目已关联且可用的工作目录");
       await invocation.beforeEffect?.();
+      invocation.assertAuthorityCurrent();
       return new ProjectBrowsingSettings(runtime.store.db).select(runtime.project_id, workspaceId, workspaces);
     });
   }

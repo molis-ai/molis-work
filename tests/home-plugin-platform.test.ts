@@ -83,7 +83,7 @@ test("W3-06-F-02 Home consumes Host actions with its real identity and no projec
     const registry = new CapabilityRegistry<{ project_id: string }>(), agent = new AgentHost();
     let effects = 0;
     const dispose = registerAgentHostCapabilities<{ project_id: string }>({ register: (definition, handler) => registry.register(definition, (context, input) => handler(context, input,
-      { consumer: "plugin", plugin: caller, beforeEffect: async () => { effects++; } })) },
+      { consumer: "plugin", plugin: caller, beforeEffect: async () => { effects++; }, assertAuthorityCurrent: () => {} })) },
       { agentHost: () => agent, projectId: context => context.project_id, authority: () => { throw new Error("a Home caller cannot receive Agent project authority"); } });
     try {
       await assert.rejects(registry.invoke({ project_id: one.project_id }, agentHostCapabilities.listRuntimes, []), { code: "agent.session_unknown" });

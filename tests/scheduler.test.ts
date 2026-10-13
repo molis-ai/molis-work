@@ -285,7 +285,7 @@ function scheduleChannel(clock: { now: Date }, plugins: string[] = ["io.molis.wo
     return () => { handlers.delete(definition.capability_id); };
   } }, () => schedule);
   const as = (pluginId: string, active: () => void = () => {}): HostCapabilityInvocation => ({
-    consumer: "plugin", beforeEffect: async () => {},
+    consumer: "plugin", beforeEffect: async () => {}, assertAuthorityCurrent: () => {},
     plugin: { plugin_id: pluginId, install_id: `install-${pluginId}`, actor_id: "web-user", project_id: "board", declaration: {} as never, assertActive: active },
   });
   const call = (definition: { capability_id: string }, input: unknown, invocation?: HostCapabilityInvocation) =>
@@ -337,7 +337,7 @@ test("a schedule.* call with no plugin identity, or from a stopped installation,
   const { schedule, call, as } = scheduleChannel({ now: new Date("2026-09-20T03:00:00.000Z") });
   const mine = call(scheduleCapabilities.register, registration, as("io.molis.work.caller")) as { job_id: string };
   const stopped = as("io.molis.work.caller", () => { throw new Error("此插件实例已停止"); });
-  const hostOnly: Array<HostCapabilityInvocation | undefined> = [undefined, { beforeEffect: async () => {} }, { consumer: "plugin", beforeEffect: async () => {} }];
+  const hostOnly: Array<HostCapabilityInvocation | undefined> = [undefined, { beforeEffect: async () => {}, assertAuthorityCurrent: () => {} }, { consumer: "plugin", beforeEffect: async () => {}, assertAuthorityCurrent: () => {} }];
   for (const invocation of hostOnly) {
     assert.throws(() => call(scheduleCapabilities.register, { ...registration, plugin_id: "io.molis.work.caller", object_ref: "second" }, invocation), { code: "schedule_job_invalid" });
     assert.throws(() => call(scheduleCapabilities.cancel, { job_id: mine.job_id, plugin_id: "io.molis.work.caller" }, invocation), { code: "schedule_job_invalid" });

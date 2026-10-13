@@ -142,6 +142,8 @@ export interface HostCapabilityCallOptions {
   /** Host-only binding. The Plugin SDK executor always overrides a supplied value. */
   plugin_caller?: HostPluginCaller;
   before_effect?: () => void | Promise<void>;
+  /** A stricter original-call fence, invoked synchronously without borrowing this typed target's authority. */
+  assert_authority_current?: () => void;
   /** SDK-enforced restriction, not caller authority; plugins cannot remove it through invocation options. */
   consumer?: "plugin";
 }
@@ -151,6 +153,8 @@ export interface HostCapabilityInvocation extends ActionCallOrigin {
   readonly consumer?: "plugin";
   /** Recheck original authority and live project policy immediately before a side effect. */
   beforeEffect(): Promise<void>;
+  /** Final synchronous fence after the last await and immediately before the owner's effect. */
+  assertAuthorityCurrent(): void;
 }
 
 export interface LocalHostProjectClient {

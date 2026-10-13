@@ -1,5 +1,5 @@
 import {
-  ActionError, type ActionReference,
+  ActionError, requireSynchronous, type ActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDatabase, PluginDefinition, PluginManifest, PluginModelClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -156,9 +156,15 @@ function withPluginCaller(caller: HostPluginCaller, port: PluginCapabilityPort):
     ...(port.availability ? { availability: (capability: ActionReference, options?: Pick<HostCapabilityCallOptions, "consumer">) => port.availability!(capability, options) } : {}),
     invoke(capability, input, options) {
       caller.assertActive();
+      const beforeEffect = options?.before_effect, current = options?.assert_authority_current, signal = options?.signal;
+      const assertAuthorityCurrent = () => {
+        caller.assertActive(); signal?.throwIfAborted();
+        requireSynchronous(current?.(), "最终授权检查必须同步完成");
+        signal?.throwIfAborted(); caller.assertActive();
+      };
       const bound = { ...options, consumer: "plugin" as const, plugin_caller: caller, before_effect: async () => {
-        caller.assertActive(); await options?.before_effect?.(); caller.assertActive();
-      } };
+        caller.assertActive(); signal?.throwIfAborted(); await beforeEffect?.(); assertAuthorityCurrent();
+      }, assert_authority_current: assertAuthorityCurrent };
       // The port knows no capability by name: a capability that depends on who is calling reads the trusted invocation itself.
       return port.invoke(capability, input, bound);
     },

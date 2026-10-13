@@ -1,4 +1,5 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parseAgentRunBudget, agentTextMaterialContent, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -118,6 +119,7 @@ export interface PrologueControlPort {
 export interface PrologueStartInput {
   /** Recheck original activation immediately before dispatch; never persisted. */
   beforeStart?: AgentStartExecution["beforeStart"];
+  assertBeforeStart?: AgentStartExecution["assertBeforeStart"];
   beforeDispatch?: AgentStartExecution["beforeDispatch"];
   actions?: NonNullable<AgentStartRequest["role"]>["actions"];
   action_gateway?: NonNullable<AgentStartRequest["role"]>["action_gateway"];
@@ -204,7 +206,7 @@ export interface PrologueRuntimePort {
   readPendingQuestion?(run: AgentRunRef, pendingId: string, revision: number): Promise<AgentPendingQuestion | null>;
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
-    create(input: AgentCreateSessionInput): Promise<{ ref: { id: string } }>;
+    create(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<{ ref: { id: string } }>;
     restore?(sessionId: string): Promise<PrologueRestoredSession | undefined>;
     /** Same owner/recovery checks as restore, without restoring historical controls or retaining transcripts. */
     readStatus?(sessionId: string): Promise<{
@@ -298,6 +300,15 @@ interface RunRecord {
   timingReady?: boolean;
   timingError?: string;
   observedEndAt?: string;
+}
+
+function assertSessionCreation(input: AgentCreateSessionInput, workspaceNone: boolean | undefined, workspaceBusiness: boolean | undefined): void {
+  if (input.workspace === "none" && (!workspaceNone || input.directory !== undefined || !input.actor_id?.trim())) {
+    throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此无工作区会话");
+  }
+  if (input.workspace === "business" && (!workspaceBusiness || input.directory !== undefined || !input.actor_id?.trim())) {
+    throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此业务会话");
+  }
 }
 
 export class PrologueAgentAdapter implements AgentRuntimeAdapter {
@@ -420,14 +431,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     return { ok: true, status: "ready", message: `已配置 ${configuration.model}` };
   }
 
-  async createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef> {
-    if (input.workspace === "none" && (!this.#runtime.workspaceNone || input.directory !== undefined || !input.actor_id?.trim())) {
-      throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此无工作区会话");
-    }
-    if (input.workspace === "business" && (!this.descriptor.supports_workspace_business || input.directory !== undefined || !input.actor_id?.trim())) {
-      throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此业务会话");
-    }
-    const session = await this.#runtime.sessions.create(input);
+  async createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef> {
+    assertSessionCreation(input, this.#runtime.workspaceNone, this.descriptor.supports_workspace_business);
+    await execution?.beforeStart?.(); requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
+    const session = await this.#runtime.sessions.create(input, execution);
     this.#sessions.set(session.ref.id, { title: input.title, workspace: input.workspace ?? "required", runs: [], owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id } });
     return { session_id: session.ref.id, runtime_id: PROLOGUE_RUNTIME_ID };
   }
@@ -615,8 +622,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     };
 
     await execution?.beforeStart?.();
+    requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
     const started = await this.#runtime.startAgentRun({
       beforeStart: execution?.beforeStart,
+      assertBeforeStart: execution?.assertBeforeStart,
       beforeDispatch: execution?.beforeDispatch,
       provenance: { frozen, started_at: at },
       session_id: request.session.session_id,

@@ -40,10 +40,12 @@ import { createPrologueTaskBoards, codingExecutionRules } from "./prologue-taskb
 import { createProjectWork, projectWorkDigest, workPaths } from "./prologue-project-work.js";
 import { createSessionMessages, MAX_BROADCAST } from "./prologue-messages.js";
 import { createPrologueWaits } from "./prologue-waits.js";
+import { parsePrologueDocument } from "./prologue-documents.js";
+import { prologueEffects } from "./prologue-effects.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentActionClient, AgentReviewReceipt, AgentRunRef, AgentRuntimeDiagnostics } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { actionEffect, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, actionEffect, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PrologueApprovalBridge, type ProloguePendingPort } from "./prologue-approvals.js";
 import type { AgentReviewQueue } from "../reviews.js";
 
@@ -140,7 +142,7 @@ const IMAGE_MEDIA_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"]
 export async function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
 ): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort;
-  surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
+  surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
   const release = options.storageRoot ? acquirePrologueStorageOwner(options.storageRoot) : () => {};
   try {
     const adapter = await initializePrologueNodeAdapter(options);
@@ -165,6 +167,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
     retryUnansweredModelCalls: true,
   });
+  const effects = prologueEffects(host);
   // Timed work the runtime keeps across restarts. Its runner is attached here, once; the Host registers what each kind
   // does later, so a task that falls due while the Host is still starting waits for its runner instead of failing.
   // The Host's private directory images are taken in from (authorized once, on first use).
@@ -183,7 +186,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   let surfaceHost: PrologueSurfaces | undefined;
   const runtime = await createRuntime({
     app: options.app,
-    host,
+    host: effects.host,
     // Screenshots leave only after the driver covered password, card and one-time-code fields (spec D10).
     ...(options.surfaces ? { surfaces: { screenshots: "redact" as const,
       redactScreenshot: (bytes: Uint8Array) => surfaceHost ? surfaceHost.redact(bytes) : Promise.reject(new Error("界面控制尚未就绪")) } } : {}),
@@ -533,7 +536,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const saveIndex = async (value: SessionIndex): Promise<void> => {
     const bytes = new TextEncoder().encode(JSON.stringify(value));
     try {
-      const record = await host.storage.commit({ kind: indexKind, id: value.ref.id,
+      const record = await effects.host.storage.commit({ kind: indexKind, id: value.ref.id,
         expectedVersion: indexes.get(value.ref.id)?.version ?? 0, metadata: { schema: 1 }, secureBody: bytes });
       indexes.set(value.ref.id, { value: structuredClone(value), version: record.version });
     } finally { bytes.fill(0); }
@@ -885,14 +888,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           } catch (error) { await batch.cancel(); throw error; }
         } finally { await rm(path.join(dir.path, file), { force: true }); }
       },
-      parse: async input => {
-        const stage = runtime.resources.stage({ mediaKind: "binary", byteLength: input.bytes.byteLength, label: input.name.slice(0, 120) || "attachment" });
-        let ref;
-        try { stage.write(input.bytes); ref = (await stage.publishDurable()).ref; }
-        catch (error) { stage.discard(); throw error; }
-        const parsed = await runtime.parseResource({ ref });
-        return { text: parsed.text, truncated: parsed.truncated, ...(parsed.pages !== undefined ? { pages: parsed.pages } : {}) };
-      },
+      parse: input => parsePrologueDocument(runtime, input),
     },
     memory: (() => {
       type Entry = import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryEntry;
@@ -942,6 +938,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         return found.ref;
       };
       const capability: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryCapability = {
+        withExecution: control => effects.bind(capability, control),
         list: async (scope, owner) => { await ready(scope, owner); return runtime.memory.list({ scope, owner }).map(view); },
         write: async input => { await ready(input.scope, input.owner); return view(await runtime.memory.write({ scope: input.scope, owner: input.owner, text: input.text, origin: input.origin,
           ...(input.tags ? { tags: input.tags } : {}), ...(input.meta ? { meta: toSdk(input.meta) } : {}) })); },
@@ -1097,33 +1094,32 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         timed_out: receipt.timedOut, cancelled: receipt.cancelled, ...(receipt.stopReason ? { stop_reason: receipt.stopReason } : {}) };
     },
     sessions: {
-      async create(input) {
+      create: (input, execution) => effects.start(execution, async () => {
         const session = await runtime.sessions.create();
-        await saveIndex({ schema: 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
-          owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id }, attempts: [] });
+        try { await saveIndex({ schema: 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
+          owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id }, attempts: [] }); }
+        catch (error) {
+          try {
+            // Only this unpublished Session is eligible: a durable owner index is the Session acceptance point.
+            if (!await host.storage.get({ kind: indexKind, id: session.ref.id })) await effects.detach(async () => session.purge(await session.previewPurge()));
+          } catch (cleanup) { throw new AggregateError([error, cleanup], "新会话没有被接受，清理未完成"); }
+          throw error;
+        }
         sessions.set(session.ref.id, session.ref);
         return session;
-      },
+      }),
       restore: id => restoreSession(id),
       async readStatus(id) {
         const saved = await restoreSession(id, true);
         return saved ? { owner: saved.owner, recovery: saved.recovery, latest: saved.runs.at(-1), planned: saved.planned } : undefined;
       },
     },
-    async startAgentRun(input: PrologueStartInput) {
+    startAgentRun: (input: PrologueStartInput) => effects.start(input, async () => {
       const none = input.workspace === "none";
       // Business work: no root; the Host's frozen actions as this session's pack, and root-free tools only.
       const business = input.workspace === "business";
-      const index = await readIndex(input.session_id);
-      if (!index || (index.workspace ?? "required") !== (input.workspace ?? "required")) throw new Error("会话工作区模式与原始归属不一致");
-      if (none && (input.root_path !== undefined || input.provenance.frozen.directory !== undefined
-        || input.character.tools.length || input.actions || input.mcp_tools?.length || input.mcp_sources?.length
-        || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
-        || actionToolSessions.has(input.session_id))) throw new Error("无目录会话不能获得工具或工作区授权");
-      if (business && (input.root_path !== undefined || input.provenance.frozen.directory !== undefined || input.mcp_tools?.length || input.mcp_sources?.length
-        || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
-        || input.character.tools.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool)))) throw new Error("业务会话只能使用宿主冻结的动作与不碰目录的工具");
-      if (!none && !business && !input.root_path) throw new Error("执行缺少已授权工作区");
+      const index = (await readIndex(input.session_id))!;
+      assertStartWorkspace(input, index?.workspace, Boolean(index), actionToolSessions.has(input.session_id));
       const ref = sessions.get(input.session_id);
       const actionController = new AbortController();
       // None sessions do not construct or adopt any tool pack.
@@ -1325,22 +1321,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const attempt: SessionIndex["attempts"][number] = { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
         ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
         ...(stepBoard ? { step_board: stepBoard.ref } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}) };
+      await input.beforeStart?.(); requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成");
       let attemptIndex = -1;
-      // Persist the intent before the SDK can dispatch a model or tool. A crash
-      // in this window remains visibly unresolved instead of silently retrying.
-      await updateIndex(input.session_id, index => {
-        attemptIndex = index.attempts.length;
-        index.attempts.push(attempt);
-      });
-      try { await input.beforeStart?.(); }
-      catch (error) {
-        // The SDK has not seen this intent, so it is known not to have dispatched.
-        await updateIndex(input.session_id, saved => {
-          const held = saved.attempts[attemptIndex];
-          if (held && !held.run_id && isDeepStrictEqual(held, attempt)) saved.attempts.splice(attemptIndex, 1);
-        });
-        throw error;
-      }
+      // Record only this invocation's prepared intent; acceptance is the SDK's initial durable Run commit.
+      await updateIndex(input.session_id, index => { attemptIndex = index.attempts.length; index.attempts.push(attempt); });
+      const abandonAttempt = () => effects.detach(() => updateIndex(input.session_id, saved => {
+        const held = saved.attempts[attemptIndex];
+        if (held && !held.run_id && isDeepStrictEqual(held, attempt)) saved.attempts.splice(attemptIndex, 1);
+      }));
       const dispatchGuard = async () => {
         await input.beforeDispatch?.();
         if (!none && !business) {
@@ -1349,7 +1337,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         }
       };
       const started = await dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun({
-        session,
+        session: effects.session(session),
         ...(root ? { rootRef: root.ref } : business ? { workspace: "app" as const } : { workspace: "none" as const }),
         // A digest round carries earlier rounds in its task; replaying them verbatim too is what stopped long sessions.
         ...(input.history === "digest" ? {} : { history: "session" as const }),
@@ -1419,7 +1407,10 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           endpoint: input.model.endpoint,
           model: input.model.model,
           credentialRef,
-          ...(input.provenance.frozen.budget?.max_output_tokens === undefined ? {} : { params: { maxOutputTokens: input.provenance.frozen.budget.max_output_tokens } }),
+          ...(input.model.thinking || input.provenance.frozen.budget?.max_output_tokens !== undefined ? { params: {
+            ...(input.model.thinking ? { thinking: input.model.thinking } : {}),
+            maxOutputTokens: input.provenance.frozen.budget?.max_output_tokens ?? THINKING_OUTPUT_TOKENS,
+          } } : {}),
           // How long one model call may take to answer and then pause between parts. The SDK's 60 s default cut off
           // reasoning models on larger rounds before their first byte (MiniMax-M3, measured 2026-09-28); a round with
           // a time budget keeps that budget.
@@ -1432,9 +1423,6 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           ...(input.model.prompt_cache === undefined || input.model.prompt_cache === "off"
             ? {}
             : { promptCache: input.model.prompt_cache }),
-          // Absent when off: the request carries no thinking field at all. On, thinking and the answer share one
-          // output limit, and the SDK's default (4096) is spent on thinking before a plan or file is written.
-          ...(input.model.thinking ? { params: { thinking: input.model.thinking, maxOutputTokens: THINKING_OUTPUT_TOKENS } } : {}),
         },
         agent: {
           // A round started without a budget keeps the turns it always had; only subagents use the raised default.
@@ -1452,10 +1440,13 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           ...(pinnedMemory.length ? { memory: { pinned: pinnedMemory, budgetChars: input.memory!.budget_chars } } : {}),
         },
       })).catch(async (error: unknown) => {
-        // Refused while the context was still being packed: the runtime creates the run only after that, so nothing
-        // ran and the attempt is a settled refusal rather than an unknown outcome that would block the session.
-        const code = (error as { code?: string }).code;
-        if (code && REFUSED_BEFORE_RUN.has(code)) await updateIndex(input.session_id, index => { index.attempts[attemptIndex]!.refused = { code, at: new Date().toISOString() }; }).catch(() => undefined);
+        if (!effects.accepted()) {
+          const code = (error as { code?: string }).code;
+          let current = true;
+          try { requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成"); } catch { current = false; }
+          if (!current || !code || !REFUSED_BEFORE_RUN.has(code)) await abandonAttempt();
+          else await updateIndex(input.session_id, index => { index.attempts[attemptIndex]!.refused = { code, at: new Date().toISOString() }; }).catch(() => undefined);
+        }
         throw error;
       });
       if (root) runRoots.set(started.run.ref.id, root.ref);
@@ -1527,7 +1518,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           steer: input => control.steer(input), subscribe: listener => control.subscribe(listener),
         },
       };
-    },
+    }),
     shutdown: async () => {
       mcpLibrary.dispose();
       closingBuilders = true;
@@ -1582,7 +1573,20 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       if (!attempts.length || attempts.some(attempt => attempt.frozen.execution !== "read-only" && attempt.frozen.directory && paths.includes(attempt.frozen.directory.canonical_path)
         || attempt.subagent_roots?.some(root => paths.includes(root.path)))) throw new Error(`“${index.title}”仍有涉及此目录的写入执行、待审或未知结果，请先核对原任务`);
     }
-  } });
+  }, withEffect: effects.call });
+}
+
+function assertStartWorkspace(input: PrologueStartInput, workspace: SessionIndex["workspace"], exists: boolean, actionPack: boolean): void {
+  const none = input.workspace === "none", business = input.workspace === "business";
+  if (!exists || (workspace ?? "required") !== (input.workspace ?? "required")) throw new Error("会话工作区模式与原始归属不一致");
+  if (none && (input.root_path !== undefined || input.provenance.frozen.directory !== undefined
+    || input.character.tools.length || input.actions || input.mcp_tools?.length || input.mcp_sources?.length
+    || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
+    || actionPack)) throw new Error("无目录会话不能获得工具或工作区授权");
+  if (business && (input.root_path !== undefined || input.provenance.frozen.directory !== undefined || input.mcp_tools?.length || input.mcp_sources?.length
+    || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
+    || input.character.tools.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool)))) throw new Error("业务会话只能使用宿主冻结的动作与不碰目录的工具");
+  if (!none && !business && !input.root_path) throw new Error("执行缺少已授权工作区");
 }
 
 /** Whether any call this round finished was a change (a capability no longer offered counts as one: nothing is held then). */

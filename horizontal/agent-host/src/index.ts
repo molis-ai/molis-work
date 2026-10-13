@@ -1,5 +1,5 @@
 import { parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { parseExactActionReferences, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { parseExactActionReferences, requireSynchronous, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { importedCharacterInstructions } from "./character-import.js";
 import type {
   AgentManifest,
@@ -202,6 +202,24 @@ function assertBusinessRole(role: AgentRoleDeclaration, manifest: AgentManifest)
   }
 }
 
+function assertSessionCreation(adapter: AgentRuntimeAdapter, input: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCreateSessionInput, authority: AgentStartAuthority): void {
+  if (input.workspace === "none") {
+    const role = authority.manifest.roles.find(row => row.role_id === input.role_id);
+    if (!role) throw new AgentHostError("agent.role_not_declared", "无工作区会话需要插件声明的推理角色");
+    assertInferenceRole(role, authority.manifest);
+    if (!adapter.descriptor.supports_workspace_none) throw new AgentHostError("agent.capability_unavailable", "当前运行时尚未接通无工作区推理");
+    if (input.directory !== undefined || !input.actor_id?.trim()) throw new AgentHostError("agent.directory_unauthorized", "无工作区会话不能携带目录且必须有明确用户归属");
+  } else if (input.workspace === "business") {
+    const role = authority.manifest.roles.find(row => row.role_id === input.role_id);
+    if (!role) throw new AgentHostError("agent.role_not_declared", "业务会话需要已声明的业务角色");
+    assertBusinessRole(role, authority.manifest);
+    if (!adapter.descriptor.supports_workspace_business) throw new AgentHostError("agent.capability_unavailable", "当前运行时尚未接通无目录的业务执行");
+    if (input.directory !== undefined || !input.actor_id?.trim()) throw new AgentHostError("agent.directory_unauthorized", "业务会话不能携带目录且必须有明确用户归属");
+  } else if (!input.directory?.realpath_verified || !authority.authorizedDirectories.includes(input.directory.canonical_path)) {
+    throw new AgentHostError("agent.directory_unauthorized", "这个目录没有被授权给当前项目");
+  }
+}
+
 export interface AgentStartAuthority {
   /**
    * The number of the operation that starts this round (`ActionCallOrigin`). Only the Host gives it; nothing in a request is read for it.
@@ -210,6 +228,8 @@ export interface AgentStartAuthority {
   call_id?: string;
   /** Original invocation guard, after all asynchronous preparation and before starting the Runtime. */
   beforeStart?(): void | Promise<void>;
+  /** Final check in the same synchronous segment as accepting a session or Run. */
+  assertBeforeStart?(): void;
   /** Recheck installation/material authority at real dispatch, without retaining a completed invocation. */
   beforeDispatch?(): void | Promise<void>;
   /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
@@ -332,23 +352,10 @@ export class AgentHost implements AgentHostApi {
 
   async createSession(runtimeId: string, input: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCreateSessionInput, authority: AgentStartAuthority) {
     const adapter = this.adapter(runtimeId);
-    if (input.workspace === "none") {
-      const role = authority.manifest.roles.find(row => row.role_id === input.role_id);
-      if (!role) throw new AgentHostError("agent.role_not_declared", "无工作区会话需要插件声明的推理角色");
-      assertInferenceRole(role, authority.manifest);
-      if (!adapter.descriptor.supports_workspace_none) throw new AgentHostError("agent.capability_unavailable", "当前运行时尚未接通无工作区推理");
-      if (input.directory !== undefined || !input.actor_id?.trim()) throw new AgentHostError("agent.directory_unauthorized", "无工作区会话不能携带目录且必须有明确用户归属");
-    } else if (input.workspace === "business") {
-      const role = authority.manifest.roles.find(row => row.role_id === input.role_id);
-      if (!role) throw new AgentHostError("agent.role_not_declared", "业务会话需要已声明的业务角色");
-      assertBusinessRole(role, authority.manifest);
-      if (!adapter.descriptor.supports_workspace_business) throw new AgentHostError("agent.capability_unavailable", "当前运行时尚未接通无目录的业务执行");
-      if (input.directory !== undefined || !input.actor_id?.trim()) throw new AgentHostError("agent.directory_unauthorized", "业务会话不能携带目录且必须有明确用户归属");
-    } else if (!input.directory?.realpath_verified || !authority.authorizedDirectories.includes(input.directory.canonical_path)) {
-      throw new AgentHostError("agent.directory_unauthorized", "这个目录没有被授权给当前项目");
-    }
+    assertSessionCreation(adapter, input, authority);
     await authority.beforeStart?.();
-    return adapter.createSession(input);
+    requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成");
+    return adapter.createSession(input, { beforeStart: authority.beforeStart, assertBeforeStart: authority.assertBeforeStart });
   }
 
   /**
@@ -484,7 +491,8 @@ export class AgentHost implements AgentHostApi {
         throw new AgentHostError("agent.capability_unavailable", "原 Character 版本已变化，请重新选择后执行");
       }
     } : undefined;
-    const beforeStart = async () => { await authority.beforeStart?.(); validateCharacter?.(); };
+    const assertBeforeStart = () => { requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成"); validateCharacter?.(); };
+    const beforeStart = async () => { await authority.beforeStart?.(); assertBeforeStart(); };
     const beforeDispatch = async () => { await authority.beforeDispatch?.(); validateCharacter?.(); };
 
     if (character && request.character_skill_ids !== undefined) {
@@ -612,7 +620,7 @@ export class AgentHost implements AgentHostApi {
     const prompts = composeRolePrompts(role, authority, character, character ? importedCharacterInstructions(character, request.directory?.canonical_path, characterSkillIds) : undefined);
     // The memories this run is given: the Host's recall for this consumer. A failed recall runs without memory, never stops the run.
     const memory = authority.memory ? await authority.memory(request.task, character ? { character: { artifact_id: character.reference.artifact_id, title: character.title } } : {}).catch(() => null) : null;
-    await beforeStart();
+    await beforeStart(); assertBeforeStart();
     const handle = await adapter.start({
       ...request,
       ...(actionRefs.length || request.action_tools !== undefined || character?.action_tools ? { action_tools: actionRefs } : {}),
@@ -635,7 +643,7 @@ export class AgentHost implements AgentHostApi {
         ...(compaction ? { compaction } : {}),
         host_tools: hostTools,
       },
-    }, { beforeStart, beforeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}) });
+    }, { beforeStart, assertBeforeStart, beforeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}) });
     // The Runtime cannot widen what the Manifest froze. A mismatch is the
     // adapter's fault, and the run does not continue on a wider authority.
     if ((handle.frozen.workspace ?? "required") !== workspace

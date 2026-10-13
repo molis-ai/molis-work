@@ -1249,8 +1249,16 @@ export interface AgentDocumentCapability {
   readImage?(resource: { id: string; revision: number }): Promise<Uint8Array | null>;
 }
 
+/** Trusted per-call control; never part of memory text, metadata, persisted work or model input. */
+export interface AgentMemoryExecutionControl {
+  beforeEffect(): void | Promise<void>;
+  assert_current(): void;
+}
+
 /** Prologue Memory through the Host: each call names its scope and owner; the store keeps them apart. */
 export interface AgentMemoryCapability {
+  /** A fresh facade whose actual storage commits retain this invocation's control, including SDK preparation waits. */
+  withExecution?(control: AgentMemoryExecutionControl): AgentMemoryCapability;
   list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
   write(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
   update(input: { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string; text: string }): Promise<AgentMemoryEntry>;
@@ -1327,6 +1335,8 @@ export interface AgentRecoveryCapability {
 /** Host-owned, in-memory: authority checks, and the call number the Host gave the round (never from a Plugin payload). */
 export interface AgentStartExecution extends ActionCallOrigin {
   beforeStart?(): void | Promise<void>;
+  /** Original invocation's synchronous fence; only the start/accept phase uses it, never background dispatch. */
+  assertBeforeStart?(): void;
   /** Live owner authority, valid beyond the start invocation's lifetime. */
   beforeDispatch?(): void | Promise<void>;
 }
@@ -1350,6 +1360,8 @@ export interface AgentRuntimeDiagnostics {
 }
 
 export interface AgentRuntimeAdapter {
+  /** Trusted Host commit scope through the runtime's asynchronous preparation; never an Agent payload. */
+  withEffect?<T>(control: AgentMemoryExecutionControl, operation: () => Promise<T>): Promise<T>;
   /** The Runtime's own account of its assembly, for the developer diagnostics page; absent when it keeps none. */
   diagnostics?(): AgentRuntimeDiagnostics;
   readonly recovery?: AgentRecoveryCapability;
@@ -1358,7 +1370,7 @@ export interface AgentRuntimeAdapter {
   readonly documents?: AgentDocumentCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   health(): Promise<AgentRuntimeHealth>;
-  createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef>;
+  createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef>;
   readSession(session: AgentSessionRef): Promise<AgentSessionView>;
   /** The session's standing without copying its rounds; a Runtime without it is read through readSession. */
   readSessionStatus?(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }>;

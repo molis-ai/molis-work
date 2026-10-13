@@ -89,8 +89,9 @@ test("W2-18-PAGES-EXPORT-01: real Markdown/HTML download and print-frame documen
   for (const file of exported) for (const fact of expected) assert.ok(file.content.includes(fact), `${file.name}: ${fact}`);
   assert.match(exported.find(file => file.name.endsWith(".md"))!.content, /Cell first<br>Cell second/);
   // Intercept the native print dialog after the actual iframe has loaded, and inspect the document passed to it.
-  await b.evaluate(`(() => { const append=Element.prototype.append;Element.prototype.append=function(...nodes){for(const node of nodes)if(node instanceof HTMLIFrameElement)node.addEventListener('load',()=>{node.contentWindow.print=()=>window.contentPrint=node.contentDocument.body.innerText;},{once:true});return append.apply(this,nodes);};window.restoreContentPrint=()=>Element.prototype.append=append;})()`);
+  await b.evaluate(`(() => { const append=Element.prototype.append;Element.prototype.append=function(...nodes){for(const node of nodes)if(node instanceof HTMLIFrameElement)node.addEventListener('load',()=>{if(node.contentDocument.URL!=='about:srcdoc')return;node.contentWindow.print=()=>{window.contentPrintCalls=(window.contentPrintCalls||0)+1;window.contentPrint=node.contentDocument.body.innerText;};},{capture:true});return append.apply(this,nodes);};window.restoreContentPrint=()=>Element.prototype.append=append;})()`);
   await b.click("[data-pages-more]"); await b.click("[data-pages-print]"); await b.waitFor("window.contentPrint");
+  assert.equal(await b.evaluate<number>("window.contentPrintCalls"), 1, "the production handler actually called print on its loaded document");
   const printed = await b.evaluate<string>("window.contentPrint");
   for (const fact of expected) assert.ok(printed.includes(fact), `print frame: ${fact}`);
   await b.evaluate("window.restoreContentDownloads();window.restoreContentPrint()");

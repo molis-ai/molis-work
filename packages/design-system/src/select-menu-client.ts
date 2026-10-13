@@ -98,7 +98,7 @@ export const SELECT_MENU_CLIENT_SCRIPT = `
       item.disabled = !option || optionDisabled(option);
     });
     trigger.disabled = select.matches(":disabled");
-    trigger.setAttribute("aria-required", String(select.required));
+    trigger.setAttribute("aria-required", select.getAttribute("aria-required") ?? String(select.required));
     for (const name of ["aria-describedby", "aria-errormessage", "title"]) copyAttribute(select, trigger, name);
     const invalid = select.getAttribute("aria-invalid") || (control.validationFailed && !select.validity.valid ? "true" : null);
     if (invalid != null) trigger.setAttribute("aria-invalid", invalid);

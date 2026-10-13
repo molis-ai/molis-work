@@ -11,6 +11,7 @@ const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "tex
 const body = (text: string) => ({ type: "doc" as const, content: [paragraph(text)] });
 const readPage = (b: Browser, id: string) => { const store = openPagesStore(b.homeDirectory); try { return store.get(id, b.projectId!); } finally { store.close(); } };
 const open = async (b: Browser, plugin: string, id: string) => {
+  await b.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, b.sessionId);
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=${plugin}&${plugin === 'ppt' ? 'openRecord' : 'openItem'}=${id}` }, b.sessionId));
   await b.waitFor(`document.querySelector('[data-${plugin}=workbench]')?.dataset.expanded === 'true'`);
 };
@@ -86,14 +87,14 @@ test("W2-18-PAGES-TRANSIENT-01: delayed image/popup on A cannot write B; a read 
   await b.evaluate(`(() => { window.contentView=document.querySelector('.ProseMirror').pmViewDesc.view; const original=FileReader.prototype.readAsDataURL;FileReader.prototype.readAsDataURL=function(file){this.onloadend=()=>window.contentReadDone=true;window.releaseContentRead=()=>original.call(this,file);};window.restoreContentRead=()=>FileReader.prototype.readAsDataURL=original; })()`);
   const paste = () => b.evaluate(`(() => { window.contentReadDone=false;const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jM1sAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const data=new DataTransfer();data.items.add(new File([bytes],'fixture.png',{type:'image/png'}));document.querySelector('.ProseMirror').dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:data}));})()`);
   await paste(); await b.waitFor("typeof window.releaseContentRead === 'function'");
-  await b.evaluate(`document.querySelector('[data-page-id="${c.id}"]').click()`);
+  await b.click(`button[data-page-id="${c.id}"]`);
   await b.waitFor("document.querySelector('.ProseMirror').textContent.includes('Original anchor')");
   assert.equal(await b.evaluate("window.contentView === document.querySelector('.ProseMirror').pmViewDesc.view"), true);
   await b.evaluate("window.releaseContentRead()"); await b.waitFor("window.contentReadDone === true");
   assert.deepEqual(readPage(b, c.id), c);
-  await b.evaluate(`document.querySelector('[data-page-id="${a.id}"]').click()`); await b.waitFor("document.querySelector('.pages-card--task')");
+  await b.click(`button[data-page-id="${a.id}"]`); await b.waitFor("document.querySelector('.pages-card--task')");
   await b.click(".pages-card--task"); await b.waitFor("document.querySelector('.pages-pop[data-open=card]')");
-  await b.evaluate(`document.querySelector('[data-page-id="${c.id}"]').click()`); await b.waitFor("!document.querySelector('.pages-pop[data-open=card]')");
+  await b.click(`button[data-page-id="${c.id}"]`); await b.waitFor("!document.querySelector('.pages-pop[data-open=card]')");
   assert.deepEqual(readPage(b, c.id), c);
   await b.evaluate(`(() => { const editor=document.querySelector('.ProseMirror'),text=editor.querySelector('p').firstChild;editor.focus();const range=document.createRange();range.setStart(text,text.length);range.collapse(true);getSelection().removeAllRanges();getSelection().addRange(range);})()`);
   await paste();
@@ -111,7 +112,7 @@ test("W2-18-PAGES-TRANSIENT-01: delayed image/popup on A cannot write B; a read 
 test("W2-18-PAGES-ACTIONS-01: real candidate inserts exact unchecked tasks once and refuses a changed frozen passage", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, async () => "- Ask Alice\n- Publish roadmap"); if (!b) return;
   const store = openPagesStore(b.homeDirectory);
-  const [a, changed] = (() => { try { return [store.create({ project_id: b.projectId!, title: "Plan", body: body("安排访谈并发布计划。") }), store.create({ project_id: b.projectId!, title: "Changed", body: body("安排采访和发布。") })]; } finally { store.close(); } })();
+  const [a, changed] = (() => { try { return [store.create({ project_id: b.projectId!, title: "Plan", body: body("安排访谈并发布计划。") }), store.create({ project_id: b.projectId!, title: "Changed", body: body("安排采访和后续发布完整计划。") })]; } finally { store.close(); } })();
   await open(b, "pages", a.id); await chooseActions(b);
   await b.evaluate("window.oldContentApply=document.querySelector('.pages-pop .mw-btn--primary');window.oldContentApply.click();window.oldContentApply.click()");
   await b.waitFor("document.querySelector('.ProseMirror .pages-task-list') && document.querySelector('[data-pages-editor-status]').textContent === '已保存'");

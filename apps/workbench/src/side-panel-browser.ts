@@ -106,13 +106,13 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   const $=(selector)=>root.querySelector(selector);
   const view=$('[data-browser-view]'),canvas=$('[data-browser-canvas]'),keys=$('[data-browser-keys]'),address=$('[data-browser-address]');
   const cover=$('[data-browser-cover]'),coverCopy=$('[data-browser-cover-copy]'),strip=$('[data-browser-strip]'),sheet=$('[data-browser-sheet]');
-  const control=$('[data-browser-control]'),live=$('[data-browser-live]'),marker=$('[data-browser-marker]'),picker=$('[data-browser-file]');
+  const control=$('[data-browser-control]'),live=$('[data-browser-live]'),marker=$('[data-browser-marker]'),fileInput=$('[data-browser-file]');
   const esc=(value)=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
   const ctx=canvas.getContext('2d');
-  let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,selection='',announced='',queued='',attached=false,lastMode='person',lastWork=null,revTimer=null,reviewId=null,reviewMode=null,reviewRow=null,polled=false;
-  const prefix=document.body.dataset.routePrefix||('/projects/'+encodeURIComponent(projectId));
+  let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,selection='',announced='',queuedAddress='',attached=false,lastMode='person',lastWork=null,reviewTimer=null,reviewing=null,reviewMode=null,reviewRow=null,polled=false;
+  const routePrefix=document.body.dataset.routePrefix||('/projects/'+encodeURIComponent(projectId));
   const approval=$('[data-browser-approval]'),sitesBox=$('[data-browser-sites]');
-  let fileChoice=null,siteSeq=0;
+  let fileChoice=null,sitesRender=0;
   const sendRaw=(message)=>{if(socket&&socket.readyState===1&&ready)socket.send(JSON.stringify(message));};
   const viewport=()=>{const rect=view.getBoundingClientRect();return {width:Math.max(240,Math.floor(rect.width)),height:Math.max(200,Math.floor(rect.height)),dpr:Math.min(2,Math.max(1,devicePixelRatio||1))};};
   const visible=()=>shown&&panelOpen&&document.visibilityState==='visible';
@@ -133,7 +133,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     socket.addEventListener('close',()=>{socket=null;ready=false;attached=false;retryTimer=setTimeout(connect,Math.min(15000,500*2**retry++));});
   };
   // Listening starts with the workbench; the browser itself starts only when the tab is first shown.
-  const attach=()=>{if(attached||!ready)return;attached=true;sendRaw({type:'attach',project_id:projectId,viewport:viewport()});sendRaw({type:'visible',visible:visible()});if(queued){sendRaw({type:'navigate',input:queued});queued='';}};
+  const attach=()=>{if(attached||!ready)return;attached=true;sendRaw({type:'attach',project_id:projectId,viewport:viewport()});sendRaw({type:'visible',visible:visible()});if(queuedAddress){sendRaw({type:'navigate',input:queuedAddress});queuedAddress='';}};
   const draw=async()=>{
     drawing=true;
     while(pending){
@@ -176,26 +176,26 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(problem&&cover.hidden){strip.hidden=false;strip.dataset.tone='problem';strip.innerHTML='<p>'+esc(problem.message)+'</p>'+(problem.code==='page.load_failed'?button('reload',L('刷新')):'');say(problem.message,true);}
     else if(state.popup_depth>0){strip.hidden=false;strip.dataset.tone='popup';strip.innerHTML='<p>'+esc(L('这是网页打开的新窗口（例如登录）。关闭后回到原来的页面。'))+'</p>'+button('popup-close',L('关闭并返回'));}
     else{strip.hidden=true;strip.innerHTML='';}
-    renderSheet();paintCtrl();
+    renderSheet();renderControl();
     // A page that failed to load is announced by its problem above, never as opened.
     if(state.status==='ready'&&!state.loading&&state.title&&!problem)say(L('已打开：{title}',{title:state.title}));
   };
   const renderSheet=()=>{
-    const dialog=state.dialog,chooser=state.file_chooser,download=[...state.downloads].reverse().find(item=>item.state==='completed'&&!seen.has(item.id));
+    const dialog=state.dialog,chooser=state.file_chooser,download=[...state.downloads].reverse().find(item=>item.state==='completed'&&!seenDownloads.has(item.id));
     if(dialog){
       const title={alert:L('网页提示'),confirm:L('网页请你确认'),prompt:L('网页请你输入'),beforeunload:L('确定离开这个页面？')}[dialog.type]||L('网页提示');
       sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(title)+' · '+esc(state.origin)+'</h2><p>'+esc(dialog.message)+'</p>'+(dialog.type==='prompt'?'<input type="text" data-browser-prompt value="'+esc(dialog.default_prompt)+'" aria-label="'+esc(L('输入内容'))+'">':'')+'<div class="side-browser-actions">'+(dialog.type==='alert'?'':button('dialog-cancel',L('取消')))+button('dialog-accept',dialog.type==='beforeunload'?L('离开'):L('确定'),'primary')+'</div>';
       sheet.dataset.kind='dialog';sheet.dataset.id=dialog.id;sheet.hidden=false;
     }else if(chooser){
       sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(L('网页请你选择文件'))+'</h2><p>'+esc(L('选中的文件会发送给 {origin}。',{origin:state.origin||L('这个网页')}))+'</p><div class="side-browser-actions">'+button('file-cancel',L('取消'))+button('file-pick',chooser.multiple?L('选择文件…'):L('选择一个文件…'),'primary')+'</div>';
-      sheet.dataset.kind='file';sheet.dataset.id=chooser.id;sheet.hidden=false;picker.multiple=!!chooser.multiple;
+      sheet.dataset.kind='file';sheet.dataset.id=chooser.id;sheet.hidden=false;fileInput.multiple=!!chooser.multiple;
     }else if(download){
       sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(L('下载完成'))+'</h2><p>'+esc(download.filename)+'</p><div class="side-browser-actions">'+button('download-dismiss',L('关闭'))+'<a class="mw-btn mw-btn--primary mw-btn--sm" data-browser-download="'+esc(download.id)+'" href="/projects/'+encodeURIComponent(projectId)+'/api/browser/downloads/'+encodeURIComponent(download.id)+'" download="'+esc(download.filename)+'">'+esc(L('保存到本机'))+'</a></div>';
       sheet.dataset.kind='download';sheet.dataset.id=download.id;sheet.hidden=false;
     }else{sheet.hidden=true;sheet.innerHTML='';delete sheet.dataset.kind;}
   };
-  const seen=new Set();
-  const paintCtrl=()=>{
+  const seenDownloads=new Set();
+  const renderControl=()=>{
     const mode=state.control?.mode||'person',activity=state.control?.activity;
     if(mode==='assistant'){
       control.hidden=false;control.dataset.mode=mode;
@@ -215,25 +215,25 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     const changed=mode!==lastMode;
     lastMode=mode;
     // A step may already be waiting (the panel was reloaded, or the person took the page over): look once per change.
-    if(!revTimer&&(mode!=='person'||changed||!reviewId&&!polled)){polled=true;void poll();}
-    else if(changed&&reviewRow)paintReview(reviewRow,true);
+    if(!reviewTimer&&(mode!=='person'||changed||!reviewing&&!polled)){polled=true;void pollReviews();}
+    else if(changed&&reviewRow)renderApproval(reviewRow,true);
   };
-  const poll=async()=>{
-    clearTimeout(revTimer);revTimer=null;
+  const pollReviews=async()=>{
+    clearTimeout(reviewTimer);reviewTimer=null;
     let rows=[];
     try{
-      const result=await molisWorkRequest(prefix+'/api/agent/reviews?status=pending');
+      const result=await molisWorkRequest(routePrefix+'/api/agent/reviews?status=pending');
       rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(row.request.document.fields||[]).some(f=>f.label==='网站')&&(!row.receipt||row.receipt.status==='pending'));
     }catch{}
-    paintReview(rows[0]||null);
-    if(rows.length||state?.control?.mode==='assistant'||state?.control?.mode==='taken-over')revTimer=setTimeout(poll,1500);
+    renderApproval(rows[0]||null);
+    if(rows.length||state?.control?.mode==='assistant'||state?.control?.mode==='taken-over')reviewTimer=setTimeout(pollReviews,1500);
   };
-  const paintReview=(row,force=false)=>{
+  const renderApproval=(row,force=false)=>{
     reviewRow=row;
-    if(!row){approval.hidden=true;approval.innerHTML='';reviewId=null;reviewMode=null;return;}
+    if(!row){approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;return;}
     const held=state?.control?.mode==='taken-over';
-    if(!force&&reviewId===row.request.review_id&&reviewMode===held)return;
-    reviewId=row.request.review_id;reviewMode=held;
+    if(!force&&reviewing===row.request.review_id&&reviewMode===held)return;
+    reviewing=row.request.review_id;reviewMode=held;
     const doc=row.request.document||{},fields=doc.fields||[],site=(fields.find(field=>field.label==='网站')||{}).value||state?.origin||'';
     // Uploads always ask; a blank page is no site to remember.
     const upload=/上传/.test(doc.summary||''),remember=!upload&&/^https?:\/\//.test(site);
@@ -247,15 +247,15 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   };
   const decide=async(decision,id)=>{
     if(!id)return;
-    try{await molisWorkRequest(prefix+'/api/agent/reviews/decide',{body:{review_id:id,decision},fallback:L('确认没有提交')});}catch(error){say(molisWorkRequest.text(error),true);return;}
-    if(reviewId===id){approval.hidden=true;reviewId=null;}
-    void poll();
+    try{await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body:{review_id:id,decision},fallback:L('确认没有提交')});}catch(error){say(molisWorkRequest.text(error),true);return;}
+    if(reviewing===id){approval.hidden=true;reviewing=null;}
+    void pollReviews();
   };
   const sitesUrl='/api/browser/sites';
-  const paintSites=async()=>{
-    const here=state?.origin||'',request=++siteSeq;
+  const renderSites=async()=>{
+    const here=state?.origin||'',request=++sitesRender;
     let rows=[],enabled=true;try{rows=(await molisWorkRequest(sitesUrl)).sites||[];enabled=(await molisWorkRequest('/api/browser/assistant')).enabled!==false;}catch{}
-    if(request!==siteSeq||sitesBox.hidden)return;
+    if(request!==sitesRender||sitesBox.hidden)return;
     const mine=rows.find(row=>row.scope===here);
     const label=(row)=>row.decision==='allow'?L('不用问就可以操作'):L('禁止查看和操作');
     sitesBox.innerHTML='<h2>'+esc(L('助理在网站上的权限'))+'</h2>'+(here?'<p>'+esc(here)+' · '+esc(mine?label(mine):L('每次操作前都会问你'))+'</p><div class="side-browser-actions-row">'+(mine?.decision!=='allow'?button('site-allow',L('不用问就可以操作'),'secondary',here):'')+(mine?.decision!=='block'?button('site-block',L('禁止助理使用这个网站'),'secondary',here):'')+(mine?button('site-forget',L('恢复为每次都问'),'ghost',here):'')+'</div>':'<p>'+esc(L('打开一个网站后可以在这里设置。'))+'</p>')
@@ -266,26 +266,26 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   const setSite=(scope,decision)=>molisWorkRequest(sitesUrl,{body:{scope,decision},fallback:L('没有保存')});
   const post=(path,body)=>molisWorkRequest('/projects/'+encodeURIComponent(projectId)+'/api/browser/'+path,{body:body||{},fallback:L('操作没有完成')});
   const fail=(error)=>say(molisWorkRequest.text(error),true);
-  root.addEventListener('submit',event=>{event.preventDefault();sendRaw({type:'navigate',input:address.value});address.blur();focusFn();});
+  root.addEventListener('submit',event=>{event.preventDefault();sendRaw({type:'navigate',input:address.value});address.blur();focusPage();});
   address.addEventListener('focus',()=>address.select());
-  address.addEventListener('keydown',event=>{if(event.key==='Escape'&&state){address.value=state.url||'';event.stopPropagation();event.preventDefault();focusFn();}});
+  address.addEventListener('keydown',event=>{if(event.key==='Escape'&&state){address.value=state.url||'';event.stopPropagation();event.preventDefault();focusPage();}});
   root.addEventListener('click',async event=>{
     // Checked by node type, not instanceof: a node first touched from a same-origin frame carries that frame's prototype.
     const target=event.target?.nodeType===1?event.target.closest('[data-browser-action],[data-browser-download]'):null;if(!target)return;
-    if(target.matches('[data-browser-download]')){seen.add(target.dataset.browserDownload);setTimeout(()=>{if(state)renderSheet();},0);return;}
+    if(target.matches('[data-browser-download]')){seenDownloads.add(target.dataset.browserDownload);setTimeout(()=>{if(state)renderSheet();},0);return;}
     const action=target.dataset.browserAction;
     if(action==='back'||action==='forward'){sendRaw({type:'history',delta:action==='back'?-1:1});return;}
     if(action==='reload'){sendRaw({type:'reload'});return;}
     if(action==='stop'){sendRaw({type:'stop'});return;}
     if(action==='retry'||action==='restart'){sendRaw({type:'restart'});return;}
     if(action==='popup-close'){sendRaw({type:'popup-close'});return;}
-    if(action==='dialog-accept'||action==='dialog-cancel'){sendRaw({type:'dialog',id:sheet.dataset.id,accept:action==='dialog-accept',prompt_text:sheet.querySelector('[data-browser-prompt]')?.value});focusFn();return;}
-    if(action==='file-cancel'){sendRaw({type:'file-chooser-cancel',id:sheet.dataset.id});focusFn();return;}
+    if(action==='dialog-accept'||action==='dialog-cancel'){sendRaw({type:'dialog',id:sheet.dataset.id,accept:action==='dialog-accept',prompt_text:sheet.querySelector('[data-browser-prompt]')?.value});focusPage();return;}
+    if(action==='file-cancel'){sendRaw({type:'file-chooser-cancel',id:sheet.dataset.id});focusPage();return;}
     if(action==='file-pick'){
       if(!state?.file_chooser||state.file_chooser.id!==sheet.dataset.id)return;
-      fileChoice={id:state.file_chooser.id,origin:state.origin,url:state.url};picker.value='';picker.click();return;
+      fileChoice={id:state.file_chooser.id,origin:state.origin,url:state.url};fileInput.value='';fileInput.click();return;
     }
-    if(action==='download-dismiss'){seen.add(sheet.dataset.id);renderSheet();return;}
+    if(action==='download-dismiss'){seenDownloads.add(sheet.dataset.id);renderSheet();return;}
     if(action==='give'){
       // What the person sees (their selection, or the page's readable text), with where and when it came from; the
       // Assistant offers it above the bar and the person decides what to ask (continuity.md: suggest).
@@ -301,15 +301,15 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
       return;
     }
     if(action==='takeover'||action==='handback'){sendRaw({type:action});document.dispatchEvent(new CustomEvent('molis:side-browser-control',{detail:{action,project_id:projectId,session_id:state?.control?.work_id||null}}));if(action==='handback')say(L('已交还给助理。助理会先重新查看页面再继续。'));return;}
-    if(action==='approve-once'){await decide('approve',reviewId);return;}
-    if(action==='reject'){await decide('reject',reviewId);return;}
+    if(action==='approve-once'){await decide('approve',reviewing);return;}
+    if(action==='reject'){await decide('reject',reviewing);return;}
     if(action==='approve-site'){
-      const id=reviewId,site=approval.dataset.site;if(!id)return;
+      const id=reviewing,site=approval.dataset.site;if(!id)return;
       try{await setSite(site,'allow');}catch(error){fail(error);return;}
       await decide('approve',id);return;
     }
-    if(action==='sites'){const open=sitesBox.hidden;sitesBox.hidden=!open;target.setAttribute('aria-expanded',String(open));if(open)await paintSites();else siteSeq++;return;}
-    if(action==='site-allow'||action==='site-block'||action==='site-forget'){try{await setSite(target.dataset.scope,action.slice(5));await paintSites();}catch(error){fail(error);}return;}
+    if(action==='sites'){const open=sitesBox.hidden;sitesBox.hidden=!open;target.setAttribute('aria-expanded',String(open));if(open)await renderSites();else sitesRender++;return;}
+    if(action==='site-allow'||action==='site-block'||action==='site-forget'){try{await setSite(target.dataset.scope,action.slice(5));await renderSites();}catch(error){fail(error);}return;}
   });
   sitesBox.addEventListener('change',async event=>{
     if(event.target?.nodeType!==1||!event.target.matches('input[data-browser-assistant]'))return;
@@ -317,15 +317,15 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     try{await molisWorkRequest('/api/browser/assistant',{body:{enabled}});}catch{event.target.checked=!enabled;say(L('没有保存'),true);return;}
     say(enabled?L('助理可以使用侧栏浏览器了（每次操作前仍会问你）。'):L('助理不再使用侧栏浏览器。'));
   });
-  picker.addEventListener('change',async()=>{
-    const files=[...picker.files||[]],choice=fileChoice;fileChoice=null;if(!files.length||!choice)return;
+  fileInput.addEventListener('change',async()=>{
+    const files=[...fileInput.files||[]],choice=fileChoice;fileChoice=null;if(!files.length||!choice)return;
     try{
       const encoded=await Promise.all(files.map(file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve({name:file.name,data:String(reader.result).split(',')[1]||''});reader.onerror=()=>reject(reader.error);reader.readAsDataURL(file);})));
       if(choice.id!==state?.file_chooser?.id||choice.origin!==state.origin||choice.url!==state.url)throw new Error(L('文件没有交给网页'));
       await post('upload',{chooser_id:choice.id,files:encoded});
       say(L('已把 {count} 个文件交给网页',{count:files.length}));
     }catch(error){fail(error);}
-    focusFn();
+    focusPage();
   });
   // Pointer and wheel, in the page's CSS pixels.
   const point=(event)=>{const rect=canvas.getBoundingClientRect(),w=state?.viewport.width||rect.width,h=state?.viewport.height||rect.height;return {x:Math.round((event.clientX-rect.left)*w/rect.width),y:Math.round((event.clientY-rect.top)*h/rect.height)};};
@@ -334,7 +334,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   let moveFrame=0,lastMove=null,down=false;
   canvas.addEventListener('pointerdown',event=>{
     if(!state||!cover.hidden)return;
-    event.preventDefault();canvas.setPointerCapture(event.pointerId);down=true;focusFn(event);
+    event.preventDefault();canvas.setPointerCapture(event.pointerId);down=true;focusPage(event);
     sendRaw({type:'mouse',event:'down',...point(event),button:buttonName(event.button),buttons:event.buttons,click_count:Math.max(1,event.detail||1),modifiers:modifiers(event)});
   });
   canvas.addEventListener('pointermove',event=>{
@@ -347,14 +347,14 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   canvas.addEventListener('contextmenu',event=>event.preventDefault());
   view.addEventListener('wheel',event=>{if(!state||!cover.hidden)return;event.preventDefault();const scale=event.deltaMode===1?16:event.deltaMode===2?view.clientHeight:1;sendRaw({type:'mouse',event:'wheel',...point(event),button:'none',buttons:0,click_count:0,modifiers:modifiers(event),delta_x:event.deltaX*scale,delta_y:event.deltaY*scale});},{passive:false});
   // Keys and input methods go through a hidden field that stays focused while the person types into the page.
-  const focusFn=(event)=>{if(event){const rect=view.getBoundingClientRect();keys.style.left=Math.max(0,event.clientX-rect.left)+'px';keys.style.top=Math.max(0,event.clientY-rect.top)+'px';}keys.focus({preventScroll:true});};
+  const focusPage=(event)=>{if(event){const rect=view.getBoundingClientRect();keys.style.left=Math.max(0,event.clientX-rect.left)+'px';keys.style.top=Math.max(0,event.clientY-rect.top)+'px';}keys.focus({preventScroll:true});};
   const forwardKey=(event,type)=>{
     const text=type==='down'&&event.key.length===1?event.key:type==='down'&&event.key==='Enter'?'\r':undefined;
     sendRaw({type:'key',event:type,key:event.key,code:event.code,key_code:event.keyCode||0,text,modifiers:modifiers(event)});
   };
-  let inIme=false;
+  let composing=false;
   keys.addEventListener('keydown',event=>{
-    if(inIme||event.isComposing||event.keyCode===229)return;
+    if(composing||event.isComposing||event.keyCode===229)return;
     // Shift+Escape hands the keyboard back to the panel; plain Escape belongs to the page, like every other key.
     if(event.key==='Escape'&&event.shiftKey){event.preventDefault();event.stopPropagation();$('[data-browser-action="reload"]')?.focus();return;}
     const mod=event.metaKey||event.ctrlKey;
@@ -362,17 +362,17 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(mod&&(event.key==='c'||event.key==='C'||event.key==='x'||event.key==='X')){forwardKey(event,'down');return;} // the copy event below fills the clipboard
     event.preventDefault();event.stopPropagation();forwardKey(event,'down');
   });
-  keys.addEventListener('keyup',event=>{if(inIme||event.isComposing)return;event.preventDefault();forwardKey(event,'up');if(event.shiftKey||event.key.startsWith('Arrow'))sendRaw({type:'copy'});});
-  keys.addEventListener('compositionstart',()=>{inIme=true;});
+  keys.addEventListener('keyup',event=>{if(composing||event.isComposing)return;event.preventDefault();forwardKey(event,'up');if(event.shiftKey||event.key.startsWith('Arrow'))sendRaw({type:'copy'});});
+  keys.addEventListener('compositionstart',()=>{composing=true;});
   keys.addEventListener('compositionupdate',event=>sendRaw({type:'compose',text:event.data||''}));
-  keys.addEventListener('compositionend',event=>{inIme=false;sendRaw({type:'compose',text:''});if(event.data)sendRaw({type:'text',text:event.data});keys.value='';});
-  keys.addEventListener('input',event=>{if(inIme||event.isComposing)return;if(keys.value){sendRaw({type:'text',text:keys.value});keys.value='';}});
+  keys.addEventListener('compositionend',event=>{composing=false;sendRaw({type:'compose',text:''});if(event.data)sendRaw({type:'text',text:event.data});keys.value='';});
+  keys.addEventListener('input',event=>{if(composing||event.isComposing)return;if(keys.value){sendRaw({type:'text',text:keys.value});keys.value='';}});
   keys.addEventListener('paste',event=>{event.preventDefault();const text=event.clipboardData?.getData('text/plain');if(text)sendRaw({type:'text',text});});
   keys.addEventListener('copy',event=>{event.preventDefault();event.clipboardData?.setData('text/plain',selection);});
   keys.addEventListener('cut',event=>{event.preventDefault();event.clipboardData?.setData('text/plain',selection);});
   // Size and visibility follow the panel.
-  let sizeTimer=null;
-  new ResizeObserver(()=>{clearTimeout(sizeTimer);sizeTimer=setTimeout(()=>{if(ready&&view.clientWidth)sendRaw({type:'resize',viewport:viewport()});if(state)paintCtrl();},120);}).observe(view);
+  let resizeTimer=null;
+  new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(ready&&view.clientWidth)sendRaw({type:'resize',viewport:viewport()});if(state)renderControl();},120);}).observe(view);
   const syncVisible=()=>sendRaw({type:'visible',visible:visible()});
   document.addEventListener('visibilitychange',syncVisible);
   connect();
@@ -380,7 +380,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     panelOpen=event.detail?.open!==false;
     const now=event.detail?.tab==='browser'&&panelOpen;
     if(now&&!shown){shown=true;connect();attach();}else shown=now&&shown;
-    if(now&&event.detail?.target?.url){if(ready)sendRaw({type:'navigate',input:event.detail.target.url});else queued=event.detail.target.url;}
+    if(now&&event.detail?.target?.url){if(ready)sendRaw({type:'navigate',input:event.detail.target.url});else queuedAddress=event.detail.target.url;}
     syncVisible();
   });
 })();`.replace(/^[ \t]*\/\/.*\n/gm, "");

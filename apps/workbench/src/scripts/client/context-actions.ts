@@ -632,4 +632,4 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     if (event.key === back && index >= 0) { event.preventDefault(); items[(index - 1 + items.length) % items.length].focus(); }
   });
   return { current: () => bus.focus, plan: () => bar.plan };
-}`;
+}`.replace(/^[ \t]*\/\/.*\n/gm, "");

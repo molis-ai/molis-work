@@ -13,27 +13,27 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const form = bench.querySelector("[data-functions-editor]");
   const nameInput = bench.querySelector("[data-functions-name]");
   const keyInput = bench.querySelector("[data-functions-key]");
-  const instr = bench.querySelector("[data-functions-instructions]");
-  const colLabel = bench.querySelector("[data-functions-criteria-label]");
-  const addCol = bench.querySelector("[data-functions-add-criterion]");
+  const instructionsInput = bench.querySelector("[data-functions-instructions]");
+  const criteriaLabel = bench.querySelector("[data-functions-criteria-label]");
+  const addCriterionBtn = bench.querySelector("[data-functions-add-criterion]");
   const criteriaHead = bench.querySelector("[data-functions-criteria-head]");
-  const colHint = bench.querySelector("[data-functions-criteria-hint]");
-  const cols = bench.querySelector("[data-functions-criteria]");
-  const palette = bench.querySelector("[data-functions-palette]");
+  const criteriaHint = bench.querySelector("[data-functions-criteria-hint]");
+  const criteriaEl = bench.querySelector("[data-functions-criteria]");
+  const paletteEl = bench.querySelector("[data-functions-palette]");
   const mapPanel = bench.querySelector("[data-functions-map-panel]");
   const mapEl = bench.querySelector("[data-functions-map]");
   const samplesEl = bench.querySelector("[data-functions-samples]");
-  const previewFn = bench.querySelector("[data-functions-preview-input]");
-  const publish = bench.querySelector("[data-functions-publish]");
+  const previewInput = bench.querySelector("[data-functions-preview-input]");
+  const publishBtn = bench.querySelector("[data-functions-publish]");
   const note = bench.querySelector("[data-functions-note]");
-  const lastTry = bench.querySelector("[data-functions-last-preview]");
-  const usedBy = bench.querySelector("[data-functions-usages]");
-  const createBox = bench.querySelector("[data-functions-create-dialog]");
+  const lastPreview = bench.querySelector("[data-functions-last-preview]");
+  const usagesEl = bench.querySelector("[data-functions-usages]");
+  const createDialog = bench.querySelector("[data-functions-create-dialog]");
   const createForm = bench.querySelector("[data-functions-create-form]");
-  const choiceHint = bench.querySelector("[data-functions-choice-only]");
-  const savedAt = bench.querySelector("[data-functions-save-status]");
-  const poolQuery = bench.querySelector("[data-functions-palette-search]");
-  const poolDetail = bench.querySelector("[data-functions-palette-details]");
+  const choiceOnlyHint = bench.querySelector("[data-functions-choice-only]");
+  const saveStatus = bench.querySelector("[data-functions-save-status]");
+  const paletteSearch = bench.querySelector("[data-functions-palette-search]");
+  const paletteDetails = bench.querySelector("[data-functions-palette-details]");
   const destinationHint = bench.querySelector("[data-functions-destination-hint]");
   const releaseHint = bench.querySelector("[data-functions-release-hint]");
   let activeStep = "look";
@@ -58,14 +58,14 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   bench.querySelector("[data-functions-next]").addEventListener("click", () => setStep(stepOrder[Math.min(2, stepOrder.indexOf(activeStep) + 1)], true));
   let records = [];
   let sel = null;
-  let pickSeq = 0;
+  let selectionSeq = 0;
   let openingId = null;
-  let timer = 0;
+  let saveTimer = 0;
   let dirty = false;
-  let editRev = 0;
+  let editRevision = 0;
   let listSeq = 0;
   let usagesSeq = 0;
-  const cfgCalls = new WeakMap();
+  const configurationRequests = new WeakMap();
   let catalog = { subjects: [], destinations: [], behaviors: [] };
   const keepListScroll = (paint) => {
     const top = list?.scrollTop || 0;
@@ -98,12 +98,12 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       availability: { available: false, reason: L(matches.length > 1 ? "请为原用途选择具体版本。" : "当前范围未注册原用途，请检查插件状态或重新选择。") },
     } : null;
   };
-  const matchesFn = (row, destId, record = sel) => {
+  const behaviorMatches = (row, destId, record = sel) => {
     const dest = destOf(destId, record);
     return row.destination_id === destId && (!row.scene_version || row.scene_version === dest?.scene_version)
       && (!row.provider_id || row.provider_id === dest?.provider_id);
   };
-  const behOf = (id, destId = destFn()) => catalog.behaviors.find((row) => row.behavior_id === id && matchesFn(row, destId))
+  const behaviorOf = (id, destId = selectedDestId()) => catalog.behaviors.find((row) => row.behavior_id === id && behaviorMatches(row, destId))
     || catalog.behaviors.find((row) => row.behavior_id === id && !row.destination_id) || {
     behavior_id: id,
     title: id,
@@ -114,12 +114,12 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     subject_kinds: [],
     clickable: true,
   };
-  const behTitle = (behavior) => behavior.source === "mcp" && behavior.hint
+  const behaviorTitle = (behavior) => behavior.source === "mcp" && behavior.hint
     ? L(behavior.hint).split(/[。\\n]/)[0]
     : L(behavior.title);
   const outputLabel = (record, key) => {
-    const behavior = catalog.behaviors.find((row) => row.behavior_id === key && (!row.destination_id || matchesFn(row, record.scene_id, record)));
-    if (behavior) return behTitle(behavior);
+    const behavior = catalog.behaviors.find((row) => row.behavior_id === key && (!row.destination_id || behaviorMatches(row, record.scene_id, record)));
+    if (behavior) return behaviorTitle(behavior);
     const criterion = Array.isArray(record.criteria) && record.criteria.find((row) => row.key === key);
     return criterion?.description || key;
   };
@@ -129,93 +129,93 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (dest?.title) return L(dest.title) + (dest.scene_version ? " · v" + dest.scene_version : "");
     return id === "home.dock" ? L("首页") : id === "inbox.next" ? L("Inbox") : id === "feed.capture" ? L("Feed") : id === "agent.mcp" ? L("Agent") : L("还没选");
   };
-  const idsFn = () => new Set(catalog.behaviors.filter(row => !row.destination_id || matchesFn(row, destFn())).map((row) => row.behavior_id));
+  const catalogBehaviorIds = () => new Set(catalog.behaviors.filter(row => !row.destination_id || behaviorMatches(row, selectedDestId())).map((row) => row.behavior_id));
   const matchesSubjects = (behavior, kinds) => {
     if (!kinds.length || !behavior.subject_kinds?.length) return true;
     return (behavior.subject_kinds || []).some((kind) => kinds.includes(kind));
   };
-  const suggestedFn = (destId, kinds) => {
+  const suggestedBehaviors = (destId, kinds) => {
     const dest = destOf(destId);
     const match = (row) => matchesSubjects(row, kinds);
     if (!destId) return kinds.length ? catalog.behaviors.filter(row => !row.destination_id && match(row)) : [];
     if (destId === "agent.mcp" || dest?.kind === "mcp") return catalog.behaviors.filter(row => row.destination_id === "agent.mcp" && match(row));
-    return (dest?.behavior_ids || []).map((id) => behOf(id, destId)).filter(match);
+    return (dest?.behavior_ids || []).map((id) => behaviorOf(id, destId)).filter(match);
   };
   const defaultChoiceRows = () => [{ key: "yes", description: "" }, { key: "no", description: "" }];
-  const followCtx = (keys) => {
+  const criteriaFollowContext = (keys) => {
     if (!keys.length) return true;
     if (keys.length === 2 && keys[0] === "yes" && keys[1] === "no") return true;
-    const ids = idsFn();
+    const ids = catalogBehaviorIds();
     return keys.every((key) => ids.has(key));
   };
   const currentChoiceMap = () => {
     const map = new Map();
-    cols.querySelectorAll("[data-choice-row]").forEach((row) => {
+    criteriaEl.querySelectorAll("[data-choice-row]").forEach((row) => {
       const key = ((row.querySelector("[data-choice-key]") || {}).value || "").trim();
       if (!key) return;
       map.set(key, ((row.querySelector("[data-choice-description]") || {}).value || "").trim());
     });
     return map;
   };
-  const applyRows = (rows) => {
+  const applyChoiceRows = (rows) => {
     const prev = currentChoiceMap();
-    cols.replaceChildren();
+    criteriaEl.replaceChildren();
     rows.forEach((row) => {
-      addChoice(row.key, prev.has(row.key) ? prev.get(row.key) : (row.description || ""));
+      addChoiceRow(row.key, prev.has(row.key) ? prev.get(row.key) : (row.description || ""));
     });
   };
   const pruneSceneMap = (map, destId) => {
     const dest = destOf(destId);
     if (!destId || destId === "agent.mcp" || dest?.kind !== "event") return {};
-    const keys = new Set(outs());
+    const keys = new Set(outputKeysFromForm());
     const next = {};
     Object.entries(map || {}).forEach(([key, value]) => {
       if (keys.has(key)) next[key] = value;
     });
     return next;
   };
-  const hintFn = (destId, suggested) => {
-    if (!colHint || prim(sel) !== "choice") return;
+  const updateCriteriaHint = (destId, suggested) => {
+    if (!criteriaHint || primitiveOf(sel) !== "choice") return;
     const dest = destOf(destId);
-    const follow = followCtx(outs());
-    if (dest && dest.kind === "event" && follow && suggested.length >= 2 && outs().every((key) => idsFn().has(key))) {
-      colHint.textContent = L("已按用途提供动作。请补充每个动作的选择条件；切换用途会更新默认动作，自定义结果会保留。");
+    const follow = criteriaFollowContext(outputKeysFromForm());
+    if (dest && dest.kind === "event" && follow && suggested.length >= 2 && outputKeysFromForm().every((key) => catalogBehaviorIds().has(key))) {
+      criteriaHint.textContent = L("已按用途提供动作。请补充每个动作的选择条件；切换用途会更新默认动作，自定义结果会保留。");
     } else if (dest && dest.kind === "event" && follow && suggested.length < 2) {
-      colHint.textContent = destId === "home.dock" && !feedApi
+      criteriaHint.textContent = destId === "home.dock" && !feedApi
         ? L("请先选择项目，再配置这个项目可用的首页动作。")
         : suggested.length ? L("可以设置多个判断结果，再为每个结果选择对应动作。") : L("当前没有可用的推荐动作，请检查对象类型、插件状态和权限。");
     } else {
-      colHint.textContent = L("至少保留两个结果，说明各自在什么情况下被选中。");
+      criteriaHint.textContent = L("至少保留两个结果，说明各自在什么情况下被选中。");
     }
   };
-  const syncCols = () => {
+  const syncCriteriaPanel = () => {
     if (!sel) return;
-    const destId = destFn();
-    const kinds = subj();
-    const suggested = suggestedFn(destId, kinds);
+    const destId = selectedDestId();
+    const kinds = subjectKindsFromForm();
+    const suggested = suggestedBehaviors(destId, kinds);
     if (destOf(destId)?.availability?.available === false) {
       sel = { ...sel, scene_id: destId || null, subject_kinds: kinds };
-      paintFn(sel); mapView(sel);
+      renderPalette(sel); renderMap(sel);
       return;
     }
-    if (sel.status === "published" || prim(sel) !== "choice") {
+    if (sel.status === "published" || primitiveOf(sel) !== "choice") {
       sel = { ...sel, scene_id: destId || null, subject_kinds: kinds };
-      hintFn(destId, suggested);
-      paintFn(sel);
-      mapView(sel);
+      updateCriteriaHint(destId, suggested);
+      renderPalette(sel);
+      renderMap(sel);
       return;
     }
-    const keys = outs();
+    const keys = outputKeysFromForm();
     const dest = destOf(destId);
     const eventDest = Boolean(dest && dest.kind === "event");
-    const follow = followCtx(keys);
-    const hasCatalogKeys = keys.some((key) => idsFn().has(key));
+    const follow = criteriaFollowContext(keys);
+    const hasCatalogKeys = keys.some((key) => catalogBehaviorIds().has(key));
     let nextMap = sel.scene_map || {};
     if (follow && eventDest && suggested.length >= 2) {
-      applyRows(suggested.map((row) => ({ key: row.behavior_id, description: row.title || "" })));
+      applyChoiceRows(suggested.map((row) => ({ key: row.behavior_id, description: row.title || "" })));
       nextMap = {};
     } else if (follow && hasCatalogKeys && destId !== "agent.mcp") {
-      applyRows(defaultChoiceRows());
+      applyChoiceRows(defaultChoiceRows());
       nextMap = {};
     } else if (!eventDest) {
       nextMap = {};
@@ -227,11 +227,11 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       scene_id: destId || null,
       subject_kinds: kinds,
       scene_map: nextMap,
-      criteria: fields(),
+      criteria: criteriaFromForm(),
     };
-    hintFn(destId, suggested);
-    paintFn(sel);
-    mapView(sel);
+    updateCriteriaHint(destId, suggested);
+    renderPalette(sel);
+    renderMap(sel);
   };
   const functionMeta = (record) => {
     const bits = [];
@@ -265,40 +265,40 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     return payload;
   };
-  const say = (text, isError) => {
+  const showNote = (text, isError) => {
     const target = workspace.hidden ? bench.querySelector("[data-functions-list-note]") : note;
     if (!target) return;
     target.hidden = !text;
     target.textContent = text || "";
     target.classList.toggle("is-error", Boolean(isError && text));
   };
-  const prim = (record) => record?.primitive || "choice";
-  const destFn = () => {
+  const primitiveOf = (record) => record?.primitive || "choice";
+  const selectedDestId = () => {
     const current = bench.querySelector("[data-functions-destination].is-current");
     if (!current) return sel?.scene_id || "";
     return current.dataset.functionsDestination || "";
   };
-  const destRef = (node) => ({ scene_id: node?.dataset.functionsDestination || null,
+  const destinationReference = (node) => ({ scene_id: node?.dataset.functionsDestination || null,
     scene_version: Number(node?.dataset.sceneVersion) || null, scene_provider_id: node?.dataset.sceneProvider || null });
-  const sceneRef = () => {
+  const selectedSceneReference = () => {
     const current = bench.querySelector("[data-functions-destination].is-current");
-    return current ? destRef(current) : { scene_id: sel?.scene_id || null,
+    return current ? destinationReference(current) : { scene_id: sel?.scene_id || null,
       scene_version: sel?.scene_version || null, scene_provider_id: sel?.scene_provider_id || null };
   };
-  const subj = () => [...bench.querySelectorAll("[data-functions-source]:checked")]
+  const subjectKindsFromForm = () => [...bench.querySelectorAll("[data-functions-source]:checked")]
     .map((node) => node.dataset.functionsSource)
     .filter(Boolean);
-  const outs = () => {
-    const kind = prim(sel);
+  const outputKeysFromForm = () => {
+    const kind = primitiveOf(sel);
     if (kind === "noul") return ["true", "false"];
     if (kind === "score") return [];
-    return [...cols.querySelectorAll("[data-choice-row]")].map((row) => {
+    return [...criteriaEl.querySelectorAll("[data-choice-row]")].map((row) => {
       const key = ((row.querySelector("[data-choice-key]") || {}).value || "").trim();
       return key;
     }).filter(Boolean);
   };
-  const scenes = () => {
-    const destId = destFn();
+  const sceneMapFromForm = () => {
+    const destId = selectedDestId();
     const dest = destOf(destId);
     if (!destId || destId === "agent.mcp" || dest?.kind !== "event") return {};
     const mapped = {};
@@ -309,28 +309,28 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
     return mapped;
   };
-  const acts = () => {
-    if (destFn() !== "agent.mcp") return {};
+  const actionMapFromForm = () => {
+    if (selectedDestId() !== "agent.mcp") return {};
     const mapped = {};
     mapEl.querySelectorAll("[data-map-key]").forEach((select) => {
       if (select.dataset.mapKey && select.value) mapped[select.dataset.mapKey] = JSON.parse(select.value);
     });
     return mapped;
   };
-  const actRef = (reference) => reference ? JSON.stringify({ capability_id: reference.capability_id,
+  const actionReferenceValue = (reference) => reference ? JSON.stringify({ capability_id: reference.capability_id,
     version: reference.version, provider_id: reference.provider_id }) : "";
-  const fields = () => {
-    const kind = prim(sel);
+  const criteriaFromForm = () => {
+    const kind = primitiveOf(sel);
     if (kind === "noul") {
       return {
-        true_description: (cols.querySelector("[data-noul-true]") || {}).value || "",
-        false_description: (cols.querySelector("[data-noul-false]") || {}).value || "",
+        true_description: (criteriaEl.querySelector("[data-noul-true]") || {}).value || "",
+        false_description: (criteriaEl.querySelector("[data-noul-false]") || {}).value || "",
       };
     }
     if (kind === "score") {
-      return [...cols.querySelectorAll("[data-score-level]")].map((input) => input.value);
+      return [...criteriaEl.querySelectorAll("[data-score-level]")].map((input) => input.value);
     }
-    const picked = [...cols.querySelectorAll("[data-choice-row]")].map((row) => ({
+    const picked = [...criteriaEl.querySelectorAll("[data-choice-row]")].map((row) => ({
       key: ((row.querySelector("[data-choice-key]") || {}).value || "").trim(),
       description: ((row.querySelector("[data-choice-description]") || {}).value || "").trim(),
     })).filter((row) => row.key);
@@ -343,7 +343,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (dest?.availability?.available === false) return false;
     const pool = dest?.behavior_ids || [];
     if (!pool.length) return false;
-    const kind = prim(record);
+    const kind = primitiveOf(record);
     const keys = kind === "noul"
       ? ["true", "false"]
       : kind === "choice" && Array.isArray(record.criteria)
@@ -351,7 +351,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
         : [];
     if (!keys.length) return false;
     const map = record.scene_map || {};
-    return keys.every((key) => pool.includes(map[key] || key) && behOf(map[key] || key).availability?.available !== false);
+    return keys.every((key) => pool.includes(map[key] || key) && behaviorOf(map[key] || key).availability?.available !== false);
   };
   const addScoreRow = (value) => {
     const row = document.createElement("div");
@@ -360,28 +360,28 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       + '<input class="mw-input" data-score-level autocomplete="off" placeholder="' + L("档位说明") + '">'
       + '<button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-score-remove aria-label="' + L("去掉档位") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button>';
     row.querySelector("[data-score-level]").value = value || "";
-    row.querySelector("[data-score-level]").setAttribute("aria-label", L("档位说明") + " " + cols.children.length);
-    cols.append(row);
-    [...cols.querySelectorAll("[data-score-index]")].forEach((node, index) => { node.textContent = String(index); });
+    row.querySelector("[data-score-level]").setAttribute("aria-label", L("档位说明") + " " + criteriaEl.children.length);
+    criteriaEl.append(row);
+    [...criteriaEl.querySelectorAll("[data-score-index]")].forEach((node, index) => { node.textContent = String(index); });
   };
   const nextOptionKey = () => {
-    const used = new Set(outs());
+    const used = new Set(outputKeysFromForm());
     let n = 1;
     while (used.has("option_" + n)) n += 1;
     return "option_" + n;
   };
-  const addChoice = (key, description) => {
+  const addChoiceRow = (key, description) => {
     const row = document.createElement("div");
     row.className = "functions-criterion";
     row.dataset.choiceRow = "true";
-    const keyBox = document.createElement("input");
-    keyBox.className = "mw-input";
-    keyBox.dataset.choiceKey = "true";
-    keyBox.spellcheck = false;
-    keyBox.autocomplete = "off";
-    keyBox.placeholder = L("选项 key");
-    keyBox.value = key || "";
-    keyBox.setAttribute("aria-label", L("结果标识"));
+    const keyInputEl = document.createElement("input");
+    keyInputEl.className = "mw-input";
+    keyInputEl.dataset.choiceKey = "true";
+    keyInputEl.spellcheck = false;
+    keyInputEl.autocomplete = "off";
+    keyInputEl.placeholder = L("选项 key");
+    keyInputEl.value = key || "";
+    keyInputEl.setAttribute("aria-label", L("结果标识"));
     const desc = document.createElement("input");
     desc.className = "mw-input";
     desc.dataset.choiceDescription = "true";
@@ -398,25 +398,25 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     remove.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
     const label = document.createElement("label");
     label.className = "functions-field functions-option-condition";
-    const behavior = catalog.behaviors.find((item) => item.behavior_id === key && (!item.destination_id || matchesFn(item, destFn())));
+    const behavior = catalog.behaviors.find((item) => item.behavior_id === key && (!item.destination_id || behaviorMatches(item, selectedDestId())));
     const caption = document.createElement("span");
-    caption.textContent = behavior ? behTitle(behavior) : L("结果") + " · " + (key || "");
+    caption.textContent = behavior ? behaviorTitle(behavior) : L("结果") + " · " + (key || "");
     label.append(caption, desc);
     const advanced = document.createElement("details");
     advanced.className = "functions-option-key";
     const summary = document.createElement("summary");
     summary.textContent = L("标识");
-    advanced.append(summary, keyBox);
+    advanced.append(summary, keyInputEl);
     row.append(label, advanced, remove);
-    cols.append(row);
+    criteriaEl.append(row);
   };
   const sourceLabel = (source) => source === "mcp" ? L("MCP") : source === "plugin" ? L("插件") : L("系统");
-  const appendFn = (behavior, parent) => {
+  const appendPaletteRow = (behavior, parent) => {
     const row = document.createElement("div");
     row.className = "functions-palette-row";
     const body = document.createElement("span");
     const title = document.createElement("strong");
-    title.textContent = behTitle(behavior);
+    title.textContent = behaviorTitle(behavior);
     const meta = document.createElement("small");
     const bits = [sourceLabel(behavior.source)];
     if (behavior.plugin_title && behavior.source !== "system") bits.push(behavior.plugin_title);
@@ -436,26 +436,26 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     row.append(body, effect, add);
     parent.append(row);
   };
-  const paintFn = (record) => {
-    palette.replaceChildren();
-    if (poolDetail) poolDetail.hidden = prim(record) !== "choice" || record.status === "published";
-    if (prim(record) !== "choice" || record.status === "published") return;
-    const destId = destFn() || record.scene_id || "";
-    const kinds = subj();
-    const used = new Set(outs());
-    const query = (poolQuery?.value || "").trim().toLocaleLowerCase();
-    const fresh = suggestedFn(destId, kinds).filter((row) => row && !used.has(row.behavior_id))
+  const renderPalette = (record) => {
+    paletteEl.replaceChildren();
+    if (paletteDetails) paletteDetails.hidden = primitiveOf(record) !== "choice" || record.status === "published";
+    if (primitiveOf(record) !== "choice" || record.status === "published") return;
+    const destId = selectedDestId() || record.scene_id || "";
+    const kinds = subjectKindsFromForm();
+    const used = new Set(outputKeysFromForm());
+    const query = (paletteSearch?.value || "").trim().toLocaleLowerCase();
+    const fresh = suggestedBehaviors(destId, kinds).filter((row) => row && !used.has(row.behavior_id))
       .filter((row) => !query || [row.title, row.hint, row.plugin_title, row.behavior_id].join(" ").toLocaleLowerCase().includes(query));
     if (!fresh.length) {
       const hint = document.createElement("p");
       hint.className = "functions-hint";
       hint.textContent = query ? L("没有匹配的能力，试试其他关键词。") : !destId && !kinds.length ? L("先选择用途或判断对象，即可查看相关能力。") : L("没有可添加的动作：可能已加入全部结果，或所选对象不适用于此用途。");
-      palette.append(hint);
+      paletteEl.append(hint);
       return;
     }
     const head = document.createElement("strong");
     head.textContent = L("从动作库加入");
-    palette.append(head);
+    paletteEl.append(head);
     if (destId === "agent.mcp") {
       const groups = new Map();
       fresh.forEach((row) => {
@@ -470,34 +470,34 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
         const name = document.createElement("span");
         name.textContent = label;
         group.append(name);
-        groupItems.forEach((behavior) => appendFn(behavior, group));
-        palette.append(group);
+        groupItems.forEach((behavior) => appendPaletteRow(behavior, group));
+        paletteEl.append(group);
       });
       return;
     }
-    fresh.forEach((behavior) => appendFn(behavior, palette));
+    fresh.forEach((behavior) => appendPaletteRow(behavior, paletteEl));
   };
-  const mapView = (record) => {
+  const renderMap = (record) => {
     mapEl.replaceChildren();
     const destId = record.scene_id || "";
     const dest = destOf(destId, record);
     const eventDest = dest && dest.kind === "event";
-    const kind = prim(record);
-    const agentTo = destId === "agent.mcp";
-    if (mapPanel) mapPanel.hidden = !(eventDest || agentTo) || kind === "score";
-    if (!(eventDest || agentTo) || kind === "score") return;
-    mapPanel.querySelector("[data-functions-map-title]").textContent = L(agentTo ? "结果推荐的能力" : "结果对应的页面动作");
-    mapPanel.querySelector("[data-functions-map-hint]").textContent = L(agentTo
+    const kind = primitiveOf(record);
+    const agentDest = destId === "agent.mcp";
+    if (mapPanel) mapPanel.hidden = !(eventDest || agentDest) || kind === "score";
+    if (!(eventDest || agentDest) || kind === "score") return;
+    mapPanel.querySelector("[data-functions-map-title]").textContent = L(agentDest ? "结果推荐的能力" : "结果对应的页面动作");
+    mapPanel.querySelector("[data-functions-map-hint]").textContent = L(agentDest
       ? "可为每个结果选择推荐能力，也可只返回判断。推荐不会自动执行动作。"
       : "每个结果都需要对应一个动作，才能在所选页面启用。");
-    const pool = agentTo ? suggestedFn(destId, subj()) : (dest.behavior_ids || []).map(id => behOf(id));
-    const map = agentTo ? record.action_map || {} : record.scene_map || {};
+    const pool = agentDest ? suggestedBehaviors(destId, subjectKindsFromForm()) : (dest.behavior_ids || []).map(id => behaviorOf(id));
+    const map = agentDest ? record.action_map || {} : record.scene_map || {};
     const rows = kind === "noul"
       ? [
         { key: "true", label: L("成立") },
         { key: "false", label: L("不成立") },
       ]
-      : [...cols.querySelectorAll("[data-choice-row]")].flatMap((row) => {
+      : [...criteriaEl.querySelectorAll("[data-choice-row]")].flatMap((row) => {
         const key = ((row.querySelector("[data-choice-key]") || {}).value || "").trim();
         if (!key) return [];
         const description = ((row.querySelector("[data-choice-description]") || {}).value || "").trim();
@@ -513,17 +513,17 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       select.dataset.mapKey = row.key;
       const empty = document.createElement("option");
       empty.value = "";
-      empty.textContent = L(agentTo ? "只返回判断" : "请选择对应动作");
+      empty.textContent = L(agentDest ? "只返回判断" : "请选择对应动作");
       select.append(empty);
       pool.forEach((behavior) => {
         const option = document.createElement("option");
-        option.value = agentTo ? actRef(behavior.action_ref) : behavior.behavior_id;
-        option.textContent = behavior.title + (agentTo ? " · " + behavior.plugin_title + " · v" + behavior.action_ref.version : "")
+        option.value = agentDest ? actionReferenceValue(behavior.action_ref) : behavior.behavior_id;
+        option.textContent = behavior.title + (agentDest ? " · " + behavior.plugin_title + " · v" + behavior.action_ref.version : "")
           + (behavior.availability?.available === false ? " · " + behavior.availability.reason : "");
         option.disabled = behavior.availability?.available === false;
         select.append(option);
       });
-      const current = agentTo ? actRef(map[row.key]) : map[row.key] || row.key;
+      const current = agentDest ? actionReferenceValue(map[row.key]) : map[row.key] || row.key;
       if (current && ![...select.options].some(option => option.value === current)) {
         const missing = document.createElement("option");
         missing.value = current;
@@ -538,42 +538,42 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const renderCriteria = (record) => {
-    const kind = prim(record);
+    const kind = primitiveOf(record);
     const locked = record.status === "published";
-    cols.replaceChildren();
-    addCol.hidden = kind === "noul";
+    criteriaEl.replaceChildren();
+    addCriterionBtn.hidden = kind === "noul";
     if (criteriaHead) criteriaHead.hidden = kind === "noul";
-    if (colHint) colHint.hidden = kind !== "choice";
+    if (criteriaHint) criteriaHint.hidden = kind !== "choice";
     if (kind === "noul") {
-      colLabel.textContent = L("成立时");
+      criteriaLabel.textContent = L("成立时");
       const wrap = document.createElement("div");
       wrap.className = "functions-noul-fields";
       wrap.innerHTML = '<label class="functions-field">' + L("成立时") + '<textarea class="mw-input" data-noul-true rows="2"></textarea></label>'
         + '<label class="functions-field">' + L("不成立时") + '<textarea class="mw-input" data-noul-false rows="2"></textarea></label>';
       wrap.querySelector("[data-noul-true]").value = record.criteria?.true_description || "";
       wrap.querySelector("[data-noul-false]").value = record.criteria?.false_description || "";
-      cols.append(wrap);
+      criteriaEl.append(wrap);
     } else if (kind === "score") {
-      colLabel.textContent = L("档位");
+      criteriaLabel.textContent = L("档位");
       const levels = Array.isArray(record.criteria) && record.criteria.length ? record.criteria : ["", ""];
       levels.forEach((level) => addScoreRow(level));
     } else {
-      colLabel.textContent = L("返回哪些结果");
+      criteriaLabel.textContent = L("返回哪些结果");
       const rows = Array.isArray(record.criteria) && record.criteria.length
         ? record.criteria
         : [{ key: "yes", description: "" }, { key: "no", description: "" }];
-      rows.forEach((row) => addChoice(row.key, row.description || ""));
+      rows.forEach((row) => addChoiceRow(row.key, row.description || ""));
     }
-    cols.querySelectorAll("input, textarea, button").forEach((node) => { node.disabled = locked; });
-    addCol.disabled = locked;
-    paintFn(record);
-    mapView(record);
-    hintFn(record.scene_id || "", suggestedFn(record.scene_id || "", subj()));
+    criteriaEl.querySelectorAll("input, textarea, button").forEach((node) => { node.disabled = locked; });
+    addCriterionBtn.disabled = locked;
+    renderPalette(record);
+    renderMap(record);
+    updateCriteriaHint(record.scene_id || "", suggestedBehaviors(record.scene_id || "", subjectKindsFromForm()));
   };
-  const renderTo = (record) => {
-    const kind = prim(record);
+  const renderRoute = (record) => {
+    const kind = primitiveOf(record);
     const destId = record.scene_id || "";
-    const kindsFn = new Set(record.subject_kinds || []);
+    const selectedKinds = new Set(record.subject_kinds || []);
     const list = bench.querySelector(".functions-dest-list");
     list.replaceChildren();
     const destinations = [{ destination_id: "", kind: "none", title: L("独立使用"), when: L("先写规则、试跑，暂不接入页面。") }, ...catalog.destinations];
@@ -589,7 +589,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       const hint = document.createElement("small"); hint.textContent = destination.availability?.available === false ? L(destination.availability.reason) : L(destination.when || "");
       button.append(title, hint); list.append(button);
     });
-    for (const kindId of kindsFn) if (![...bench.querySelectorAll("[data-functions-source]")].some(node => node.dataset.functionsSource === kindId)) {
+    for (const kindId of selectedKinds) if (![...bench.querySelectorAll("[data-functions-source]")].some(node => node.dataset.functionsSource === kindId)) {
       const label = document.createElement("label"); label.className = "functions-chip";
       const input = document.createElement("input"); input.type = "checkbox"; input.className = "mw-check"; input.dataset.functionsSource = kindId;
       const text = document.createElement("span"); text.textContent = kindId + " · " + L("原对象类型");
@@ -597,16 +597,16 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     bench.querySelectorAll("[data-functions-destination]").forEach((node) => {
       const id = node.dataset.functionsDestination || "";
-      const reference = destRef(node);
+      const reference = destinationReference(node);
       const on = id === destId && (id ? reference.scene_version === (chosen?.scene_version || null) && reference.scene_provider_id === (chosen?.provider_id || null) : true);
       node.classList.toggle("is-current", on);
       node.setAttribute("aria-pressed", String(on));
       const dest = destOf(id, reference);
-      const related = dest && dest.subject_kinds && dest.subject_kinds.some((item) => kindsFn.has(item));
+      const related = dest && dest.subject_kinds && dest.subject_kinds.some((item) => selectedKinds.has(item));
       node.classList.toggle("is-related", Boolean(related && !on));
       node.disabled = record.status === "published" || dest?.availability?.available === false || (kind === "score" && dest && dest.kind === "event");
     });
-    if (choiceHint) choiceHint.hidden = kind !== "score";
+    if (choiceOnlyHint) choiceOnlyHint.hidden = kind !== "score";
     destinationHint.textContent = destOf(destId)?.availability?.available === false ? L(destOf(destId).availability.reason) : destId === "agent.mcp"
       ? L("返回建议给 Agent；不会自动执行工具。实际调用取决于工具启用状态和权限。")
       : destId === "feed.capture" ? L("发布后，到 Feed 任务的捕捉规则中选择此函数；具体处理由该规则决定。")
@@ -614,13 +614,13 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       : L("可先保存和试跑，不必绑定任何页面。发布后也可通过接口调用。");
     bench.querySelectorAll("[data-functions-source]").forEach((node) => {
       const kindId = node.dataset.functionsSource;
-      node.checked = kindsFn.has(kindId);
+      node.checked = selectedKinds.has(kindId);
       node.disabled = record.status === "published";
       const dest = destOf(destId);
       node.closest(".functions-chip")?.classList.toggle("is-related", Boolean(dest?.subject_kinds?.includes(kindId)));
     });
   };
-  const paintSamples = (record) => {
+  const renderSamples = (record) => {
     samplesEl.replaceChildren();
     (record.samples || []).forEach((sample) => {
       const row = document.createElement("div");
@@ -651,18 +651,18 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const renderPreview = (record) => {
     const preview = record?.last_preview;
-    lastTry.replaceChildren();
+    lastPreview.replaceChildren();
     if (!preview) {
-      lastTry.hidden = true;
-      if (record && !previewFn.value) previewFn.value = "";
+      lastPreview.hidden = true;
+      if (record && !previewInput.value) previewInput.value = "";
       return;
     }
-    if (!previewFn.value) previewFn.value = preview.input || "";
-    lastTry.hidden = false;
+    if (!previewInput.value) previewInput.value = preview.input || "";
+    lastPreview.hidden = false;
     const head = document.createElement("div");
     head.className = "functions-preview-head";
     const title = document.createElement("strong");
-    const kind = preview.primitive || prim(record);
+    const kind = preview.primitive || primitiveOf(record);
     if (preview.outcome === "needs_review") title.textContent = L("需要复核");
     else if (kind === "choice") title.textContent = L("已选出") + " " + outputLabel(record, preview.choice || "");
     else if (kind === "noul") title.textContent = L("成立概率") + " " + Number(preview.noul ?? 0).toFixed(2);
@@ -670,11 +670,11 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const model = document.createElement("small");
     model.textContent = preview.model ? "model " + preview.model : "";
     head.append(title, model);
-    lastTry.append(head);
+    lastPreview.append(head);
     const hint = document.createElement("small");
     hint.textContent = L("模型概率不是正确率。");
-    lastTry.append(hint);
-    if (kind === "noul") lastTry.append(meter(preview.noul ?? 0));
+    lastPreview.append(hint);
+    if (kind === "noul") lastPreview.append(meter(preview.noul ?? 0));
     if (kind === "choice") {
       Object.entries(preview.probabilities || {}).forEach(([key, value]) => {
         const row = document.createElement("div");
@@ -685,7 +685,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
         const pct = document.createElement("small");
         pct.textContent = (Number(value) * 100).toFixed(1) + "%";
         row.append(code, meter(value), pct);
-        lastTry.append(row);
+        lastPreview.append(row);
       });
     }
     if (kind === "score") {
@@ -699,26 +699,26 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
         item.append(code, document.createTextNode(" " + label));
         legend.append(item);
       });
-      lastTry.append(legend);
+      lastPreview.append(legend);
     }
   };
-  const readRule = (record, suffix, method = "GET", body) => {
+  const ruleRequest = (record, suffix, method = "GET", body) => {
     const path = "/api/functions/" + encodeURIComponent(record.id) + "/" + suffix;
     return feedApi ? feedApi(path, method, body) : request(method, path, body);
   };
-  const usagesFn = async (record) => {
-    if (!usedBy) return;
+  const renderUsages = async (record) => {
+    if (!usagesEl) return;
     const sequence = ++usagesSeq;
     const current = () => sel?.id === record.id && sequence === usagesSeq;
-    usedBy.replaceChildren();
-    const head = document.createElement("strong"); head.textContent = L("使用状态"); usedBy.append(head);
-    const line = (text) => { const p = document.createElement("p"); p.textContent = L(text); usedBy.append(p); return p; };
+    usagesEl.replaceChildren();
+    const head = document.createElement("strong"); head.textContent = L("使用状态"); usagesEl.append(head);
+    const line = (text) => { const p = document.createElement("p"); p.textContent = L(text); usagesEl.append(p); return p; };
     if (record.status !== "published") {
       line("草稿尚未生效。发布后将在这里显示可配置的位置。");
       return;
     }
     try {
-      const [uses, locations] = await Promise.all([readRule(record, "usages"), readRule(record, "targets")]);
+      const [uses, locations] = await Promise.all([ruleRequest(record, "usages"), ruleRequest(record, "targets")]);
       if (!current()) return;
       const usages = uses.usages || [];
       const sameRule = (binding) => binding?.function?.capability_id === "functions.published." + record.function_key
@@ -751,16 +751,16 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
         button.dataset.functionsSceneId = target.scene_id;
         button.dataset.functionsSceneVersion = String(target.scene_version);
         button.disabled = !availability.available;
-        cfgCalls.set(button, { id: record.id, scene_id: target.scene_id, scene_version: target.scene_version,
+        configurationRequests.set(button, { id: record.id, scene_id: target.scene_id, scene_version: target.scene_version,
           provider_id: target.provider_id, binding_id: target.binding_id, expected_revision: target.revision, enabled: !active });
-        section.append(button); usedBy.append(section);
+        section.append(button); usagesEl.append(section);
         if (own) shown.add(targetKey(target));
       });
       usages.filter(row => !shown.has(targetKey(row))).forEach(row => {
         const summary = document.createElement("p"); title(summary, row);
         const state = row.availability?.available === false ? row.availability.reason : row.enabled === false ? "已停用" : row.enabled === true ? "已启用" : "";
         if (state) summary.append(document.createTextNode(" · " + L(state)));
-        usedBy.append(summary);
+        usagesEl.append(summary);
       });
       if (!targets.length && !usages.length) line(record.scene_id === "agent.mcp"
         ? "已发布，可供授权的 Agent 调用。返回判断和推荐能力，具体动作需另行调用。"
@@ -776,14 +776,14 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (switching) {
       dirty = false;
       bench.querySelector("[data-functions-subject-details]").open = Boolean(record.subject_kinds?.length);
-      poolDetail.open = false;
+      paletteDetails.open = false;
       setStep(record.status === "published" ? "use" : "look");
-      poolQuery.value = "";
+      paletteSearch.value = "";
     }
-    savedAt.textContent = record.status === "published" ? L("已发布 · 规则只读") : L("草稿自动保存");
-    bench.querySelector("[data-functions-kind-description]").textContent = prim(record) === "noul"
+    saveStatus.textContent = record.status === "published" ? L("已发布 · 规则只读") : L("草稿自动保存");
+    bench.querySelector("[data-functions-kind-description]").textContent = primitiveOf(record) === "noul"
       ? L("是非判断：返回成立的概率，例如材料是否足够。")
-      : prim(record) === "score" ? L("等级评分：按你定义的档位返回分数，例如紧急程度。")
+      : primitiveOf(record) === "score" ? L("等级评分：按你定义的档位返回分数，例如紧急程度。")
       : L("结果选择：从你定义的结果中选出一个，例如跟进、保存或忽略。");
     releaseHint.textContent = record.status === "published" ? L("规则已锁定，可以继续试跑，并查看或调整使用状态。") : L("发布会锁定名称、规则和用途。确认试跑符合预期后再发布；发布不会自动启用页面判断。");
     bench.setAttribute("data-expanded", "true");
@@ -795,25 +795,25 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const locked = record.status === "published";
     nameInput.disabled = locked;
     keyInput.disabled = locked;
-    instr.disabled = locked;
-    instr.value = record.instructions;
+    instructionsInput.disabled = locked;
+    instructionsInput.value = record.instructions;
     deleteBtn.hidden = locked;
-    publish.hidden = locked;
-    publish.textContent = L("发布 v1");
-    if (switching) previewFn.value = record.last_preview?.input || "";
-    renderTo(record);
+    publishBtn.hidden = locked;
+    publishBtn.textContent = L("发布 v1");
+    if (switching) previewInput.value = record.last_preview?.input || "";
+    renderRoute(record);
     renderCriteria(record);
-    paintSamples(record);
+    renderSamples(record);
     renderPreview(record);
-    void usagesFn(record);
-    say(locked ? L("已发布。") : "", false);
+    void renderUsages(record);
+    showNote(locked ? L("已发布。") : "", false);
     list.querySelectorAll("[data-function-id]").forEach((row) => {
       const on = row.dataset.functionId === record.id;
       row.classList.toggle("is-selected", on);
       row.setAttribute("aria-selected", String(on));
     });
   };
-  const closeFn = () => {
+  const closeEditor = () => {
     sel = null;
     const next = page.address(); next.searchParams.delete("rule"); next.searchParams.delete("key");
     page.replace(next);
@@ -827,7 +827,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const renderList = () => {
     keepListScroll(() => paintList());
   };
-  const rememberRec = (record) => {
+  const rememberRecord = (record) => {
     records = records.some((item) => item.id === record.id)
       ? records.map((item) => item.id === record.id ? record : item) : [record, ...records];
     renderList();
@@ -870,7 +870,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (payload.catalog) catalog = payload.catalog;
     const subjects = bench.querySelector("[data-functions-subject-list]");
     if (catalog.subjects.length && subjects) {
-      const checked = new Set(sel?.subject_kinds || subj());
+      const checked = new Set(sel?.subject_kinds || subjectKindsFromForm());
       subjects.replaceChildren();
       catalog.subjects.forEach((subject) => {
         const label = document.createElement("label");
@@ -887,7 +887,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       });
     }
   };
-  const loadFn = async (opts = {}) => {
+  const loadList = async (opts = {}) => {
     const seq = ++listSeq;
     const payload = await request("GET", "/api/functions");
     if (seq !== listSeq) return;
@@ -896,7 +896,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!sel) return;
     const next = records.find((item) => item.id === sel.id);
     if (opts.preserveForm) {
-      if (!next) closeFn();
+      if (!next) closeEditor();
       return;
     }
     if (next) {
@@ -906,23 +906,23 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
         titleEl.textContent = next.name;
       }
     }
-    else closeFn();
+    else closeEditor();
   };
   const draftBody = () => ({
     name: nameInput.value,
     function_key: keyInput.value,
-    instructions: instr.value,
-    criteria: fields(),
-    ...sceneRef(),
-    subject_kinds: subj(),
-    scene_map: scenes(),
-    action_map: acts(),
+    instructions: instructionsInput.value,
+    criteria: criteriaFromForm(),
+    ...selectedSceneReference(),
+    subject_kinds: subjectKindsFromForm(),
+    scene_map: sceneMapFromForm(),
+    action_map: actionMapFromForm(),
     updated_at: sel.updated_at,
   });
   let saving = null;
-  const save = async () => {
-    clearTimeout(timer); timer = 0;
-    const record = sel, revision = editRev;
+  const saveDraft = async () => {
+    clearTimeout(saveTimer); saveTimer = 0;
+    const record = sel, revision = editRevision;
     if (!record || record.status === "published") return record;
     const body = draftBody();
     if (saving) { const prior = await saving; if (prior?.id === record.id) body.updated_at = prior.updated_at; }
@@ -931,45 +931,45 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     try { return await operation; } finally { if (saving === operation) saving = null; }
   };
   const persistDraft = async (savingId, body, revision) => {
-    if (sel?.id === savingId) savedAt.textContent = L("正在保存…");
+    if (sel?.id === savingId) saveStatus.textContent = L("正在保存…");
     try {
       const payload = await request("POST", "/api/functions/" + encodeURIComponent(savingId), body);
       const saved = payload.function;
-      rememberRec(saved);
+      rememberRecord(saved);
       if (sel?.id !== savingId) return saved;
       sel = saved;
-      if (revision === editRev) dirty = false;
-      savedAt.textContent = dirty ? L("有更改，等待保存…") : L("已保存");
+      if (revision === editRevision) dirty = false;
+      saveStatus.textContent = dirty ? L("有更改，等待保存…") : L("已保存");
       titleEl.textContent = sel.name;
-      say("", false);
+      showNote("", false);
       return sel;
     } catch (error) {
       if (sel?.id === savingId) {
-        savedAt.textContent = L("未保存 · 请修正后重试");
-        await loadFn({ preserveForm: true }).catch(() => {});
+        saveStatus.textContent = L("未保存 · 请修正后重试");
+        await loadList({ preserveForm: true }).catch(() => {});
       }
       throw error;
     }
   };
-  const queue = () => {
+  const queueSave = () => {
     if (!sel || sel.status === "published") return;
     const savingId = sel.id;
     dirty = true;
-    editRev++;
-    savedAt.textContent = L("有更改，等待保存…");
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      void save().catch((error) => {
-        if (sel?.id === savingId) say(error.message, true);
+    editRevision++;
+    saveStatus.textContent = L("有更改，等待保存…");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      void saveDraft().catch((error) => {
+        if (sel?.id === savingId) showNote(error.message, true);
       });
     }, 280);
   };
   const remember = (record, origin) => {
-    rememberRec(record);
+    rememberRecord(record);
     if (origin && sel?.id !== origin.id) return;
-    if (origin && editRev !== origin.revision) {
+    if (origin && editRevision !== origin.revision) {
       sel = { ...sel, updated_at: record.updated_at, samples: record.samples };
-      paintSamples(sel); return;
+      renderSamples(sel); return;
     }
     const next = page.address(); next.searchParams.set("rule", record.id); next.searchParams.delete("key");
     page.replace(next);
@@ -979,32 +979,32 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   bench.addEventListener("molis-work:select-item", (event) => {
     const id = event.detail?.itemId;
-    if (!id) { pickSeq++; openingId = null; return; }
+    if (!id) { selectionSeq++; openingId = null; return; }
     if (sel?.id === id) {
       bench.setAttribute("data-expanded", "true"); workspace.hidden = false; return;
     }
     if (openingId === id) return;
     openingId = id;
-    const seq = ++pickSeq;
+    const seq = ++selectionSeq;
     void (async () => {
-      if (sel && (timer || saving || dirty)) { clearTimeout(timer); timer = 0; await save(); }
+      if (sel && (saveTimer || saving || dirty)) { clearTimeout(saveTimer); saveTimer = 0; await saveDraft(); }
       await loadCatalog();
       const payload = await request("GET", "/api/functions/" + encodeURIComponent(id));
-      if (seq === pickSeq) remember(payload.function);
-    })().catch((error) => { if (seq === pickSeq) say(error.message, true); })
-      .finally(() => { if (seq === pickSeq) openingId = null; });
+      if (seq === selectionSeq) remember(payload.function);
+    })().catch((error) => { if (seq === selectionSeq) showNote(error.message, true); })
+      .finally(() => { if (seq === selectionSeq) openingId = null; });
   });
   const openCreate = () => {
-    if (typeof createBox.showModal === "function") createBox.showModal();
-    else createBox.setAttribute("open", "");
+    if (typeof createDialog.showModal === "function") createDialog.showModal();
+    else createDialog.setAttribute("open", "");
   };
   const closeCreate = () => {
-    if (typeof createBox.close === "function") createBox.close();
-    else createBox.removeAttribute("open");
+    if (typeof createDialog.close === "function") createDialog.close();
+    else createDialog.removeAttribute("open");
   };
 
   bench.querySelector("[data-functions-new]").addEventListener("click", () => {
-    say("", false);
+    showNote("", false);
     openCreate();
   });
   bench.querySelectorAll("[data-functions-create-close]").forEach((node) => {
@@ -1021,10 +1021,10 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const primitive = submitter && submitter.value ? submitter.value : "choice";
     createForm.querySelectorAll("button").forEach((node) => { node.disabled = true; });
     try {
-      if (dirty || timer || saving) await save();
+      if (dirty || saveTimer || saving) await saveDraft();
       const payload = await request("POST", "/api/functions", { primitive });
       closeCreate();
-      await loadFn();
+      await loadList();
       remember(payload.function);
     } catch (error) {
       createNote.textContent = error.message || L("保存失败");
@@ -1035,10 +1035,10 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   bench.querySelector("[data-functions-back]").addEventListener("click", async () => {
     try {
-      await save();
-      closeFn();
-      await loadFn();
-    } catch (error) { say(error.message, true); }
+      await saveDraft();
+      closeEditor();
+      await loadList();
+    } catch (error) { showNote(error.message, true); }
   });
   deleteBtn.addEventListener("click", async () => {
     if (!sel || sel.status === "published") return;
@@ -1046,44 +1046,44 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!window.confirm(L("确定删除这个草稿？"))) return;
     try {
       await request("POST", "/api/functions/" + encodeURIComponent(record.id) + "/delete", { updated_at: record.updated_at });
-      if (sel?.id === record.id) closeFn();
-      await loadFn({ preserveForm: true });
-    } catch (error) { if (sel?.id === record.id) say(error.message, true); }
+      if (sel?.id === record.id) closeEditor();
+      await loadList({ preserveForm: true });
+    } catch (error) { if (sel?.id === record.id) showNote(error.message, true); }
   });
-  addCol.addEventListener("click", () => {
+  addCriterionBtn.addEventListener("click", () => {
     if (sel?.status === "published") return;
-    if (prim(sel) === "score") addScoreRow("");
-    else if (prim(sel) === "choice") addChoice(nextOptionKey(), "");
-    paintFn(sel);
-    mapView(sel);
-    queue();
+    if (primitiveOf(sel) === "score") addScoreRow("");
+    else if (primitiveOf(sel) === "choice") addChoiceRow(nextOptionKey(), "");
+    renderPalette(sel);
+    renderMap(sel);
+    queueSave();
   });
-  usedBy?.addEventListener("click", async (event) => {
+  usagesEl?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-functions-scene-bind]");
-    const args = button && cfgCalls.get(button);
+    const args = button && configurationRequests.get(button);
     if (!args || button.disabled || sel?.id !== args.id) return;
     const record = sel;
     button.disabled = true;
     try {
-      await readRule(record, "configure", "POST", args);
-      if (sel?.id === record.id) await usagesFn(sel);
+      await ruleRequest(record, "configure", "POST", args);
+      if (sel?.id === record.id) await renderUsages(sel);
     } catch (error) {
       if (sel?.id !== record.id) return;
-      await usagesFn(sel);
+      await renderUsages(sel);
       if (sel?.id !== record.id) return;
       const status = document.createElement("p"); status.setAttribute("role", "alert");
-      status.textContent = error.message || L("配置未保存，请重试。"); usedBy.append(status);
+      status.textContent = error.message || L("配置未保存，请重试。"); usagesEl.append(status);
     }
   });
   bench.querySelector("[data-functions-destinations]").addEventListener("click", (event) => {
     const button = event.target.closest("[data-functions-destination]");
     if (!button || !sel || sel.status === "published" || button.disabled) return;
     const destId = button.dataset.functionsDestination || "";
-    if (prim(sel) === "score" && destId && destId !== "agent.mcp") {
-      say(L("Score 不能绑 Inbox、首页、Feed。"), true);
+    if (primitiveOf(sel) === "score" && destId && destId !== "agent.mcp") {
+      showNote(L("Score 不能绑 Inbox、首页、Feed。"), true);
       return;
     }
-    const reference = destRef(button);
+    const reference = destinationReference(button);
     if (destId === (sel.scene_id || "") && reference.scene_version === (sel.scene_version || null)
       && reference.scene_provider_id === (sel.scene_provider_id || null)) return;
     sel = {
@@ -1092,69 +1092,69 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       scene_map: destId && destId !== "agent.mcp" ? (sel.scene_map || {}) : {},
       action_map: destId === "agent.mcp" ? (sel.action_map || {}) : {},
     };
-    renderTo(sel);
-    syncCols();
-    void usagesFn(sel);
-    queue();
+    renderRoute(sel);
+    syncCriteriaPanel();
+    void renderUsages(sel);
+    queueSave();
   });
-  poolQuery.addEventListener("input", () => { if (sel) paintFn(sel); });
+  paletteSearch.addEventListener("input", () => { if (sel) renderPalette(sel); });
   form.addEventListener("submit", (event) => event.preventDefault());
   form.addEventListener("input", (event) => {
     if (event.target.matches("[data-functions-palette-search], [data-functions-preview-input]")) return;
     if (event.target.matches("[data-choice-key], [data-choice-description]")) {
-      if (sel) mapView({ ...sel, criteria: fields(), scene_map: scenes(), action_map: acts() });
+      if (sel) renderMap({ ...sel, criteria: criteriaFromForm(), scene_map: sceneMapFromForm(), action_map: actionMapFromForm() });
     }
-    queue();
+    queueSave();
   });
   form.addEventListener("change", (event) => {
     if (event.target.matches("[data-functions-source]")) {
       if (sel && sel.status !== "published") {
-        sel = { ...sel, subject_kinds: subj(), scene_map: scenes(), action_map: acts() };
-        renderTo(sel);
-        syncCols();
+        sel = { ...sel, subject_kinds: subjectKindsFromForm(), scene_map: sceneMapFromForm(), action_map: actionMapFromForm() };
+        renderRoute(sel);
+        syncCriteriaPanel();
       }
     }
     if (event.target.matches("[data-map-key]") && sel) {
-      sel = { ...sel, scene_map: scenes(), action_map: acts(), criteria: fields() };
-      void usagesFn(sel);
+      sel = { ...sel, scene_map: sceneMapFromForm(), action_map: actionMapFromForm(), criteria: criteriaFromForm() };
+      void renderUsages(sel);
     }
-    queue();
+    queueSave();
   });
   form.addEventListener("click", (event) => {
     const paletteAdd = event.target.closest("[data-palette-add]");
-    if (paletteAdd && sel?.status !== "published" && prim(sel) === "choice") {
-      const behavior = behOf(paletteAdd.dataset.paletteAdd);
-      sel = { ...sel, scene_map: scenes(), action_map: acts() };
-      if (behavior.action_ref && destFn() === "agent.mcp") sel.action_map[behavior.behavior_id] = behavior.action_ref;
-      if (!outs().includes(behavior.behavior_id)) {
-        addChoice(behavior.behavior_id, behTitle(behavior));
+    if (paletteAdd && sel?.status !== "published" && primitiveOf(sel) === "choice") {
+      const behavior = behaviorOf(paletteAdd.dataset.paletteAdd);
+      sel = { ...sel, scene_map: sceneMapFromForm(), action_map: actionMapFromForm() };
+      if (behavior.action_ref && selectedDestId() === "agent.mcp") sel.action_map[behavior.behavior_id] = behavior.action_ref;
+      if (!outputKeysFromForm().includes(behavior.behavior_id)) {
+        addChoiceRow(behavior.behavior_id, behaviorTitle(behavior));
       }
-      paintFn(sel);
-      mapView(sel);
-      queue();
+      renderPalette(sel);
+      renderMap(sel);
+      queueSave();
       return;
     }
     const removeChoice = event.target.closest("[data-choice-remove]");
     if (removeChoice && sel?.status !== "published") {
-      if (cols.querySelectorAll("[data-choice-row]").length < 3) {
-        say(L("Choice 至少需要两个选项"), true);
+      if (criteriaEl.querySelectorAll("[data-choice-row]").length < 3) {
+        showNote(L("Choice 至少需要两个选项"), true);
         return;
       }
       removeChoice.closest("[data-choice-row]").remove();
-      paintFn(sel);
-      mapView(sel);
-      queue();
+      renderPalette(sel);
+      renderMap(sel);
+      queueSave();
       return;
     }
     const removeScore = event.target.closest("[data-score-remove]");
     if (removeScore && sel?.status !== "published") {
-      if (cols.querySelectorAll("[data-score-level]").length < 3) {
-        say(L("Score 至少需要两个档位"), true);
+      if (criteriaEl.querySelectorAll("[data-score-level]").length < 3) {
+        showNote(L("Score 至少需要两个档位"), true);
         return;
       }
       removeScore.closest(".functions-criterion").remove();
-      [...cols.querySelectorAll("[data-score-index]")].forEach((node, index) => { node.textContent = String(index); });
-      queue();
+      [...criteriaEl.querySelectorAll("[data-score-index]")].forEach((node, index) => { node.textContent = String(index); });
+      queueSave();
     }
   });
   samplesEl.addEventListener("click", async (event) => {
@@ -1163,25 +1163,25 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const row = event.target.closest("[data-sample-id]");
     if (!row || !sel) return;
     const sample = (sel.samples || []).find((item) => item.id === row.dataset.sampleId);
-    if (load && sample) previewFn.value = sample.input || "";
+    if (load && sample) previewInput.value = sample.input || "";
     if (remove) {
-      const record = sel, origin = { id: record.id, revision: editRev };
+      const record = sel, origin = { id: record.id, revision: editRevision };
       try {
         const payload = await request("POST", "/api/functions/" + encodeURIComponent(record.id) + "/samples/delete", {
           sample_id: row.dataset.sampleId, updated_at: record.updated_at,
         });
         remember(payload.function, origin);
-      } catch (error) { if (sel?.id === record.id) say(error.message, true); }
+      } catch (error) { if (sel?.id === record.id) showNote(error.message, true); }
     }
   });
   bench.querySelector("[data-functions-save-sample]").addEventListener("click", async () => {
     if (!sel) return;
-    const origin = { id: sel.id, revision: editRev }, input = previewFn.value;
+    const origin = { id: sel.id, revision: editRevision }, input = previewInput.value;
     try {
-      const saved = await save();
+      const saved = await saveDraft();
       const payload = await request("POST", "/api/functions/" + encodeURIComponent(origin.id) + "/samples", { input, updated_at: saved.updated_at });
       remember(payload.function, origin);
-    } catch (error) { if (sel?.id === origin.id) say(error.message, true); }
+    } catch (error) { if (sel?.id === origin.id) showNote(error.message, true); }
   });
   rowsEl.addEventListener("click", async (event) => {
     const row = event.target.closest("[data-function-id]");
@@ -1190,35 +1190,35 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (record) {
       if (sel?.id === record.id) return;
       try {
-        if (timer || saving || dirty) await save();
+        if (saveTimer || saving || dirty) await saveDraft();
         fillEditor(record);
-      } catch (error) { say(error.message, true); }
+      } catch (error) { showNote(error.message, true); }
     }
   });
   let previewing = false;
-  const tryBtn = bench.querySelector("[data-functions-preview]");
-  tryBtn.addEventListener("click", async () => {
+  const previewBtn = bench.querySelector("[data-functions-preview]");
+  previewBtn.addEventListener("click", async () => {
     if (!sel || previewing) return;
     const previewId = sel.id;
     previewing = true;
     bench.querySelectorAll("[data-functions-col=look], [data-functions-col=fn]").forEach((node) => { node.inert = true; });
-    publish.disabled = true;
-    tryBtn.disabled = true;
-    tryBtn.textContent = L("正在试跑…");
-    say(L("正在请求判断，通常需要几秒。"), false);
+    publishBtn.disabled = true;
+    previewBtn.disabled = true;
+    previewBtn.textContent = L("正在试跑…");
+    showNote(L("正在请求判断，通常需要几秒。"), false);
     try {
-      await save();
+      await saveDraft();
       if (sel?.id !== previewId) return;
       const payload = await request("POST", "/api/functions/" + encodeURIComponent(previewId) + "/preview", {
-        input: previewFn.value,
+        input: previewInput.value,
         updated_at: sel.updated_at,
       });
       if (sel?.id !== previewId) return;
       remember(payload.function);
     } catch (error) {
       if (sel?.id === previewId) {
-        if (error.code === "functions.invalid" && !instr.value.trim()) setStep("fn", true);
-        say(error.message, true);
+        if (error.code === "functions.invalid" && !instructionsInput.value.trim()) setStep("fn", true);
+        showNote(error.message, true);
         if (error.code === "functions.provider_not_configured" || error.code === "actions.connection_required") {
           const link = document.createElement("a");
           const connection = new URL("/capabilities/connections", location.origin);
@@ -1233,35 +1233,35 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     } finally {
       previewing = false;
       bench.querySelectorAll("[data-functions-col=look], [data-functions-col=fn]").forEach((node) => { node.inert = false; });
-      publish.disabled = false;
-      tryBtn.disabled = false;
-      tryBtn.textContent = L("试跑");
+      publishBtn.disabled = false;
+      previewBtn.disabled = false;
+      previewBtn.textContent = L("试跑");
     }
   });
-  publish.addEventListener("click", async () => {
-    if (!sel || publish.disabled) return;
-    if (destFn() && destFn() !== "agent.mcp" && !mappingReady({ ...sel, scene_id: destFn(), criteria: fields(), scene_map: scenes() })) {
+  publishBtn.addEventListener("click", async () => {
+    if (!sel || publishBtn.disabled) return;
+    if (selectedDestId() && selectedDestId() !== "agent.mcp" && !mappingReady({ ...sel, scene_id: selectedDestId(), criteria: criteriaFromForm(), scene_map: sceneMapFromForm() })) {
       setStep("fn", true);
-      say(L("还有结果未对应页面动作，请补齐后再发布。"), true);
+      showNote(L("还有结果未对应页面动作，请补齐后再发布。"), true);
       return;
     }
     const publishId = sel.id;
-    publish.disabled = true;
-    say("", false);
+    publishBtn.disabled = true;
+    showNote("", false);
     try {
-      await save();
+      await saveDraft();
       if (sel?.id !== publishId) return;
       const path = "/api/functions/" + encodeURIComponent(publishId) + "/publish";
       const body = { updated_at: sel.updated_at };
       const payload = feedApi ? await feedApi(path, "POST", body) : await request("POST", path, body);
       if (sel?.id !== publishId) return;
       remember(payload.function);
-      await loadFn();
+      await loadList();
     } catch (error) {
-      if (sel?.id === publishId) say(error.message, true);
-    } finally { publish.disabled = false; }
+      if (sel?.id === publishId) showNote(error.message, true);
+    } finally { publishBtn.disabled = false; }
   });
-  const load = () => loadCatalog().then(loadFn).catch((error) => {
+  const load = () => loadCatalog().then(loadList).catch((error) => {
     empty.hidden = false;
     empty.querySelector("p").textContent = error.message || L("Functions 请求失败");
     let retry = empty.querySelector("button");
@@ -1283,7 +1283,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const params = page.address().searchParams;
     const id = params.get("rule") || records.find(record => record.function_key === params.get("key"))?.id;
     if (id) bench.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: id } }));
-    else if (params.get("key")) say(L("找不到这条判断规则，请从列表重新选择。"), true);
+    else if (params.get("key")) showNote(L("找不到这条判断规则，请从列表重新选择。"), true);
   });
 }
 `;

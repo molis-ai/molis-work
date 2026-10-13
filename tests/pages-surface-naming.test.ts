@@ -5,7 +5,7 @@ import { PAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-pages";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/context-actions.ts";
 
 // Pages and the workbench's fallback naming (context-actions) share one surface element: whoever writes
-// data-assistant-context last is what the Assistant and the context row read. Pages' own naming must win.
+// data-assistant-context last is what the Assistant and the context toolbar read. Pages' own naming must win.
 
 type Listener = (event: { type: string; detail?: unknown; target?: unknown }) => unknown;
 
@@ -32,8 +32,10 @@ function node(): Record<string, unknown> {
     hidden: true, textContent: "", value: "", title: "", className: "", innerHTML: "", draggable: false, disabled: false,
     dataset: {}, style: {}, children: [] as unknown[], scrollTop: 0,
     classList: { toggle() {}, add() {}, remove() {} },
-    setAttribute() {}, getAttribute() { return null; }, removeAttribute() {},
+    setAttribute(name: string, value: string) { if (name === "class") self.className = value; }, getAttribute() { return null; }, removeAttribute() {}, toggleAttribute() {}, matches() { return false; }, remove() {},
+    getBoundingClientRect() { return { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 }; }, offsetWidth: 0, offsetHeight: 0, scrollWidth: 0,
     append(...nodes: unknown[]) { (self.children as unknown[]).push(...nodes); },
+    prepend(...nodes: unknown[]) { (self.children as unknown[]).unshift(...nodes); },
     replaceChildren(...nodes: unknown[]) { self.children = nodes; },
     querySelector() { return node(); }, querySelectorAll() { return []; },
     closest() { return null; }, contains() { return false; },
@@ -68,8 +70,11 @@ async function flush() {
 
 const DOC = { id: "doc-a", title: "Q4 计划", version: 7, body: { type: "doc", content: [] }, goal_id: "", artifact_version: 0, starred: false };
 
-/** One workbench page: the Pages client and the context row's script, with a hand-driven clock and held responses. */
-async function workbench(t: { after(fn: () => void): void }) {
+/** One workbench page: the Pages client and the context toolbar's script, with a hand-driven clock and held responses. */
+async function workbench(t: { after(fn: () => void): void }, routes: Record<string, unknown> = {}) {
+  const dispatched: Array<{ type: string; detail?: unknown }> = [];
+  const requested: string[] = [];
+  const created: Array<Record<string, unknown>> = [];
   const surface = new FakeElement();
   surface.setAttribute("data-work-surface", "pages");
   surface.setAttribute("data-pages", "workbench");
@@ -86,18 +91,22 @@ async function workbench(t: { after(fn: () => void): void }) {
   const hold = (path: string) => { const gate = deferred(); held.set(path, gate); return gate; };
   const saved = { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout, fetch: globalThis.fetch,
     document: (globalThis as Record<string, unknown>).document, window: (globalThis as Record<string, unknown>).window,
-    Element: (globalThis as Record<string, unknown>).Element };
+    Element: (globalThis as Record<string, unknown>).Element, innerWidth: (globalThis as Record<string, unknown>).innerWidth,
+    innerHeight: (globalThis as Record<string, unknown>).innerHeight, matchMedia: (globalThis as Record<string, unknown>).matchMedia,
+    getSelection: (globalThis as Record<string, unknown>).getSelection, addEventListener: (globalThis as Record<string, unknown>).addEventListener };
   t.after(() => Object.assign(globalThis, saved));
   globalThis.setTimeout = ((fn: () => unknown, delay = 0) => { const id = ++timerId; timers.set(id, { at: now + delay, fn }); return id; }) as unknown as typeof setTimeout;
   globalThis.clearTimeout = ((id?: number) => { if (id) timers.delete(id); }) as typeof clearTimeout;
   globalThis.fetch = (async (url: string) => {
     const path = new URL(url, "http://workbench.test").pathname;
+    requested.push(path);
     const gate = held.get(path);
     if (gate) await gate.promise;
     if (path === "/api/plugins/pages") return json({ documents: [DOC], folders: [] });
     if (path === "/api/plugins/pages/" + DOC.id) return json({ document: DOC });
     if (path === "/api/contextual/surfaces") return json({ surfaces: { pages: { kind: "pages_document", plugin_id: "io.molis.work.pages" } } });
     if (path === "/api/board") return json({ goals: [] });
+    if (path in routes) return json(routes[path]);
     return json({});
   }) as typeof fetch;
   const windowStub: Record<string, unknown> = {
@@ -107,6 +116,8 @@ async function workbench(t: { after(fn: () => void): void }) {
   windowStub.parent = windowStub;
   Object.assign(globalThis, {
     Element: FakeElement,
+    // What the toolbar program reads from the page it is drawn in.
+    innerWidth: 1440, innerHeight: 900, matchMedia: () => ({ matches: false }), getSelection: () => null, addEventListener() {},
     window: windowStub,
     document: {
       body: { dataset: { routePrefix: "" }, hasAttribute: () => false, append() {} },
@@ -115,9 +126,10 @@ async function workbench(t: { after(fn: () => void): void }) {
       // The document's open tab, named after it (tab-workspace's appendTab).
       querySelectorAll: (selector: string) => selector === ".tab-item[data-item-id]"
         ? [{ dataset: { itemId: DOC.id }, getAttribute: (name: string) => name === "title" ? DOC.title : null }] : [],
-      createElement: () => node(),
+      getElementById: () => null,
+      createElement: () => { const made = node(); created.push(made); return made; },
       addEventListener: (type: string, fn: Listener, capture?: boolean) => { documentListeners.push({ type, fn, capture: capture === true }); },
-      dispatchEvent: () => true,
+      dispatchEvent: (event: { type: string; detail?: unknown }) => { dispatched.push(event); return true; },
     },
   });
   const pages = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: unknown) => void;
@@ -128,6 +140,14 @@ async function workbench(t: { after(fn: () => void): void }) {
   return {
     surface,
     hold,
+    dispatched,
+    requested,
+    // The toolbar's own element and the labels of its buttons (an action, then 更多 and the Assistant).
+    toolbar: () => created.find((made) => made.className === "mw-ctx")!,
+    actions: () => ((created.find((made) => made.className === "mw-ctx")!.children as Array<{ className: string; children: Array<{ textContent: string }> }>)
+      .filter((child) => child.className === "mw-btn mw-btn--ghost").map((child) => child.children[0]?.textContent ?? "")),
+    // The surface reports what the person has in hand (or, with null, that it is gone), as Pages and the DOM selection do.
+    focus: (detail: unknown) => dispatch(surface, { type: "molis:surface-focus", detail }),
     context: () => JSON.parse(surface.getAttribute("data-assistant-context") ?? "null") as Record<string, unknown> | null,
     // The workbench opens an item on the surface (tab-workspace's selectItem / jumpToRecord).
     selectItem: (itemId: string | null) => dispatch(surface, { type: "molis-work:select-item", detail: { itemId } }),
@@ -199,4 +219,30 @@ test("shown again after the workbench hid it (its tab, after the Pages list): Pa
   await page.advance(250);
   assert.deepEqual(page.context()?.object, ownNaming);
   assert.equal(page.context()?.named_by, undefined);
+});
+
+// W2-00: the bus works on its own: a document takes the focus, asks the Host and has the toolbar draw the plan once the
+// selection has been steady; it holds no timer and shows nothing once nothing is in hand.
+test("W2-00: the bus takes the focus, asks the Host and has the toolbar show the plan", async (t) => {
+  const plan = { context_id: "ctx-1", basis: "rules", primary: ["k1"], emphasis: null, more: [], assistant: null,
+    candidates: [{ key: "k1", title: "解释", hint: "h", provider_title: "Pages", available: true, source: { provider_id: "pages" }, action: { capability_id: "pages.ai" } }] };
+  const answer = { plan, judgment: null, receipt: { context_id: "ctx-1", state_digest: null, candidate_count: 1, screened: [] } };
+  const page = await workbench(t, { "/api/contextual/candidates": answer, "/api/contextual/judge": answer, "/api/contextual/cancel": {} });
+  const focus = { context_id: "ctx-1", plugin_id: "io.molis.work.pages", activity: "selecting", granularity: "range",
+    object: { kind: "pages_document", id: DOC.id, title: DOC.title }, targets: [{ kind: "text_range", role: "paragraph", text: "一段文字" }] };
+  assert.equal(page.toolbar().hidden, true, "nothing in hand, nothing shown");
+  try {
+    page.focus(focus);
+    await page.advance(0);
+    assert.ok(page.requested.includes("/api/contextual/candidates"), "the Host is asked what can be done with it");
+    assert.equal(page.toolbar().hidden, true, "a selection that has only just changed is not drawn yet");
+    await page.advance(400);
+    assert.equal(page.toolbar().hidden, false);
+    assert.deepEqual(page.actions(), ["解释", "更多 ▾", "✦ 助理"]);
+    assert.ok(page.requested.includes("/api/contextual/judge"), "the judged plan follows");
+  } finally {
+    page.focus(null);
+    await page.advance(0);
+  }
+  assert.equal(page.toolbar().hidden, true, "putting the focus away takes the toolbar down");
 });

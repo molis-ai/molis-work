@@ -161,13 +161,14 @@ export function dedentServedJs(source: string): string {
 
 /**
  * Comments and indentation are not sent. Where esbuild can drop the remaining whitespace and the result is shorter, that
- * is what is sent: it is the same program, and the names stay (tests match them). A text that is not a program, or a
- * rewrite that comes out longer, keeps the comment-stripped form.
+ * is what is sent: it is the same program, and the names stay (tests match them). Text in strings stays as written: the
+ * asset is served as UTF-8, so a Chinese character is three bytes, not a six-byte `\uXXXX` escape. A text that is not a
+ * program, or a rewrite that comes out longer, keeps the comment-stripped form.
  */
 export function tightenServedJs(source: string): string {
   const prepared = dedentServedJs(stripServedJsComments(source));
   try {
-    const minified = transformSync(prepared, { loader: "js", minifyWhitespace: true, legalComments: "none" }).code;
+    const minified = transformSync(prepared, { loader: "js", minifyWhitespace: true, legalComments: "none", charset: "utf8" }).code;
     return Buffer.byteLength(minified) < Buffer.byteLength(prepared) ? minified : prepared;
   } catch {
     // The asset-cache test sends a marker, not a program. Anything esbuild will not rewrite is still sent without comments or indentation.

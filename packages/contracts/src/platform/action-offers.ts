@@ -1,5 +1,6 @@
 import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
 import type { ActionDefinition, ActionReference } from "./actions.js";
+import type { SurfacePlace } from "../services/contextual.js";
 export const SUBJECT_OFFERS_INPUT_TYPE = "molis.subject-offers.input.v1";
 export const SUBJECT_OFFERS_OUTPUT_TYPE = "molis.subject-offers.output.v1";
 export interface SubjectOffersInput { subject: ActionSubject; request_id: string }
@@ -11,6 +12,8 @@ export interface SubjectOfferChoice {
   readonly action: Pick<ActionReference, "capability_id" | "version">;
   /** Omit to use the query's kinds; otherwise a nonempty subset of them. */
   readonly subject_kinds?: readonly string[];
+  /** Offered only while the thing in hand is in one of these places; omitted, anywhere. */
+  readonly places?: readonly SurfacePlace[];
 }
 const id = { type: "string", minLength: 1 };
 export const ACTION_REFERENCE_SCHEMA = { type: "object", properties: { capability_id: id, version: { type: "integer", minimum: 1 }, provider_id: id }, required: ["capability_id", "version"], additionalProperties: false };

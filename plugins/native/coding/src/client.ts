@@ -452,7 +452,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const holders=session.steps?[session.steps.mine?'你负责 '+session.steps.mine+' 步':'',session.steps.subtasks?session.steps.subtasks+' 步在子任务手上':'',session.steps.unowned?'没人认领 '+session.steps.unowned+' 步':''].filter(Boolean).join(' · '):'';
       // Two sessions under way on the same Goal may be doing the same thing twice.
       const busyStates=['running','paused','waiting-answer','waiting-approval','queued'],twin=session.goal_id&&busyStates.includes(session.state)?visible.find(other=>other!==session&&other.goal_id===session.goal_id&&busyStates.includes(other.state)):null;
-      const label=(session.priority?'优先 · ':'')+(session.checkpoint_busy ? '回退待处理' : labels[session.state] || session.state)+(holders?' · '+holders:'')+(twin?' · 可能与「'+twin.title.slice(0,16)+'」重复':'');if(mark.textContent!==label) mark.textContent=label;
+      const label=(session.priority?'优先 · ':'')+(session.checkpoint_busy ? '回退待处理' : labels[session.state] || session.state)+(session.background_unreadable?' · 后台命令 · 状态暂不可读':'')+(holders?' · '+holders:'')+(twin?' · 可能与「'+twin.title.slice(0,16)+'」重复':'');if(mark.textContent!==label) mark.textContent=label;
       mark.dataset.state=session.checkpoint_busy ? 'waiting-approval' : session.state;
       const goalKey=session.goal_id || '';let group=directoryGroups.get(goalKey);
       if(!group) {group=document.createElement('section');group.className='coding-session-group';const heading=document.createElement('h2');heading.className='mw-dir__heading';group.append(heading);directoryGroups.set(goalKey,group);}
@@ -1227,7 +1227,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const surfaceChanged=id=>{if(lifetime.alive && id)window.dispatchEvent(new CustomEvent('molis:assistant-surface-changed',{detail:{plugin_id:'coding',object:{kind:'coding-session',id}}}));};
   // The bottom Assistant can carry this same session through Coding's own actions. When it changes the session's
   // settings or starts a round, the page takes what is saved, so its next save cannot write the old choice back.
-  window.addEventListener('molis:assistant-effect',event=>{
+  lifetime.listen(window,'molis:assistant-effect',event=>{
     const detail=event.detail || {};
     if(typeof detail.capability_id!=='string' || detail.capability_id.indexOf('coding.')!==0 || !current || detail.session_id!==current)return;
     const id=current;

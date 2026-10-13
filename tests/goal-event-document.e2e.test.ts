@@ -288,6 +288,7 @@ for (const action of ["resolve", "overturn"] as const) test(`W2-18-CONCERN-EVIDE
     await waitFor(`Number(document.querySelector('[data-goal-event-document]')?.dataset.goalEventCursor) > ${cursor} && document.querySelector('[data-document-pane]')?.getAttribute('aria-busy') !== 'true'`, 10_000);
   };
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + goal.goal_id }, sessionId));
+  await browser.openGoalWork();
   await open("concern");
   await evaluate(`(() => { const form = document.querySelector(${JSON.stringify(formSelector)});
     form.querySelector('[name=title]').value='待核对的问题'; form.querySelector('[name=statement]').value='需要真实后续事实';
@@ -348,6 +349,7 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
   };
   const submit = '[data-event-form=closure] button[type=submit]';
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + goal.goal_id }, sessionId));
+  await browser.openGoalWork();
   await openClosure();
   await evaluate(`(() => { const original=window.fetch; window.__pinPosts=0; window.__pinLost=true; window.__rejectDeliverableRead=false;
     window.fetch=async(url, options)=>{
@@ -375,7 +377,7 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
   await waitFor("document.querySelector('[data-reconcile-deliverables]').hidden && !!document.querySelector('[data-event-form=closure] input[name=deliverable]:checked')");
   await click(submit); await waitFor("document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent.includes('收尾未生效') && !document.querySelector('[data-event-form=closure] [type=submit]').disabled", 10_000);
   assert.deepEqual(versions(), [1]); assert.deepEqual(await linked(), [1]);
-  await reloadPage(); await openClosure();
+  await reloadPage(); await browser.openGoalWork(); await openClosure();
   await click('[data-event-form=closure] input[name=deliverable-pin]'); await click(submit);
   await waitFor("document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent.includes('收尾未生效') && !document.querySelector('[data-event-form=closure] [type=submit]').disabled", 10_000);
   assert.deepEqual(versions(), [1, 2]); assert.deepEqual((await linked()).sort(), [1, 2]);

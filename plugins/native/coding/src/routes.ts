@@ -575,7 +575,10 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       for (let failures = 0; !stopped.signal.aborted;) {
         let fired: AgentWait[];
         try { fired = await api.invoke(agent.awaitFiredWaits, [runtimeId, 25_000, [...held]], { signal: stopped.signal }); failures = 0; }
-        catch { failures += 1; await pause(Math.min(30_000, failures * 5_000)); continue; }
+        catch (error) {
+          if (error && typeof error === "object" && "code" in error && error.code === "agent.capability_unavailable") break;
+          failures += 1; await pause(Math.min(30_000, failures * 5_000)); continue;
+        }
         if (stopped.signal.aborted) break;
         let later = false;
         for (const wait of fired) {

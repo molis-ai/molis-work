@@ -89,7 +89,7 @@ test("W2-18-MARKET-REFRESH-01: reopening the market after a switcher membership 
   if (!initially && !await browser.evaluate("document.querySelector('[data-plugin-tile=form] .dock-keep')?.getAttribute('aria-pressed') === 'true'")) {
     await browser.click("[data-plugin-tile=form] .dock-keep");
   }
-  await browser.evaluate("document.querySelector('[data-plugin-picker-popover]')?.hidePopover()");
+  await browser.click("[data-plugin-picker-toggle]");
   await browser.click('[data-global-menu] [data-plugin-id="market"]');
   await browser.waitFor(`!document.querySelector('[data-market-add=form]').disabled && ${membership} === ${JSON.stringify(initially ? "available" : "added")}`, 15_000);
   assert.equal(await browser.evaluate("!!document.querySelector('[data-plugin-strip] [data-plugin-id=form]')"), !initially);

@@ -2086,6 +2086,8 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 
 随后`d42f19dc2`的7文件定向运行`i7-main-sdk-and-assets-tests-01.log`为119/119、0失败/取消/跳过，实际退出0；协调方已核driver、HEAD/命令、exit记录与完整日志。包括上述RAC-19真实HTTP资源语义与缓存两条、Functions19条，以及当前Computer Use/助理相关回归和vendor来源校验。G5及typed桥尚未纳入，这119条不支持其效果控制验收；同切点13文件浏览器复跑仍待最终结果。
 
+同切点13文件浏览器复跑`i7-six-owner-browser-fixed-02.log`现已结束：47条、33通过、14失败、0取消/跳过，实际命令退出1；已核HEAD、命令、完整footer与失败原文。Images真实设置到本机provider、PPT取消后迟到响应、Lingguang冲突、Planning两种迟到结果、Browser真实上传/授权、Functions四条、既有companion与放置组合均有该轮通过证据。剩余Diff夹具缺必需appendEvent、Market对非popover元素调用hidePopover、Goal四条未到可见工作区和S1输入建议层遮挡继续修正操作步骤，业务断言不放宽；Pages/Form六类继续按实际失败诊断。STOP进程406秒仍忙循环，抓栈后仅终止该精确PID，计失败而非通过或跳过；Host无waits立即空成功与Coding重复等待已定位为生产缺陷，纳入W2-18-CODING-WAKE-02。typed桥已纳入`022893041`，G5首片整合为`cb8f0be17`，余片正按既有事实owner解决冲突，均尚无本切点运行证据。该批不是整体通过，G5效果控制、Builder真实Host停止与S6整链仍未验收。
+
 共享spec、路线图、安全不变量、门禁/API/动作/资源快照由协调方按实际整合结果串行同步；writer不得放宽阈值或为绿删断言。当前均只获本地独立实现/提交，不自行推送、开PR、安装、发布或操作真实Home/凭据。§12.8中需同步安全表的具体拒绝必须有生产边界断言；受控第三方响应不等于真实外部账号验收。
 
 2026-10-12 用户要求完成的会话从Codex列表清理。协调方已归档Dataset、Issue、G4核心、Workflows保存与助理发送五个独立会话，工具均确认成功：各片局部验收与交接已完成，候选提交已由原防腐会话纳入I7，最终资源快照及整合验证继续由该会话承接。仅归档聊天，工作树、提交和原始日志保留；其余仍有实现或验证工作，不将idle当作完成。

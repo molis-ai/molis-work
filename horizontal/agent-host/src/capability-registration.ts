@@ -301,7 +301,7 @@ export function registerAgentHostCapabilities<Context>(
     register(agentHostCapabilities.awaitFiredWaits, async (context, [runtimeId, timeoutMs, exclude]) => {
       pluginFor(context);
       const adapter = ports.agentHost(context).adapter(runtimeId);
-      if (!adapter.waits) return [];
+      if (!adapter.waits) throw new AgentHostError("agent.capability_unavailable", "当前运行时没有挂起与唤醒");
       return adapter.waits.awaitFired(ports.projectId(context), Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000), Array.isArray(exclude) ? exclude.map(String).slice(0, 200) : []);
     }),
     register(agentHostCapabilities.resumeWait, async (context, [runtimeId, waitId, note]) => {

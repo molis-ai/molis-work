@@ -17,6 +17,7 @@ test("W1-18-GOAL-POLICY-01 Goal requirements use events, while the project rules
       const posts = JSON.parse(sessionStorage.getItem('policy-posts') || '[]'); posts.push(JSON.parse(options.body).scope); sessionStorage.setItem('policy-posts', JSON.stringify(posts)); }
       return original(url, options); }; })()` }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/" + goal.goal_id }, sessionId));
+  await browser.openGoalWork();
   const posts = () => evaluate<string[]>("JSON.parse(sessionStorage.getItem('policy-posts') || '[]')");
   const projectDefaults = () => JSON.stringify(browser.store.db.prepare("SELECT policy_binding_id, policy_json FROM policy_bindings WHERE scope = 'project_default' AND state = 'active'").all());
   const before = projectDefaults();

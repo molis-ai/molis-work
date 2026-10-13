@@ -72,7 +72,7 @@ Directory candidates and browsing preferences come from the [current-project set
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（变更集的逐行比较 `compareTexts` 与 `splitLines`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 前台 HTTP/动作调用把原信号、beforeEffect 与同步 checker 传到实际 Host/SDK 写点；报告、变更、计划与启动的最后一次等待后再核。已经接受的 Run、follow 和 wake 使用 activation 的独立生命线。
-  - 后台命令读取失败保留最后事实并标未知；activation ready 后恢复持久等待消费者，服务故障退避重试，stop 释放。委派保留已经提交或未知的原目标、原信，只能核对同一封信继续送达；失权不得返回受保护正文。
+  - 后台命令读取失败保留最后事实并标未知；activation ready 后恢复持久等待消费者，服务临时故障退避重试，Runtime 不支持 waits 时明确拒绝并停止该消费者，stop 释放。委派保留已经提交或未知的原目标、原信，只能核对同一封信继续送达；失权不得返回受保护正文。
   - 收下交付先检查 30 项材料容量，已有同版本引用不重复添加；合法插步的当前 SDK 图和用户评价一起固定进报告，后续变化不改固定版本。
   - 模型与 Agent 只经 Host 注入的 Prologue 能力，不直接依赖 SDK。
   - 按精确引用消费材料与报告；生产者发布新版本不改写在跑的任务与历史报告；归档、删除或超限显式拒绝，不截断或偷换版本。

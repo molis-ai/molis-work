@@ -37,14 +37,6 @@ export function createTypeSafeProvider(execute: TypeSafeExecution): TypeSafeProv
   };
 }
 
-export function readChoiceAnswer(body: unknown, questionKey: string): TypeSafeEvaluateResult {
-  return readAnswer(body, {
-    primitive: "choice",
-    function_key: questionKey,
-    criteria: [],
-  });
-}
-
 export function readAnswer(
   body: unknown,
   record: { primitive: FunctionsPrimitive; function_key: string; criteria: FunctionRecord["criteria"] },
@@ -90,6 +82,9 @@ export function readAnswer(
     };
   }
   const choice = typeof answer.choice === "string" && answer.choice ? answer.choice : null;
+  if (choice !== null && !(record.criteria as readonly ChoiceCriterion[]).some(item => item.key === choice)) {
+    throw new FunctionsError("functions.provider_failed", "TypeSafe 返回了这条规则未声明的选项");
+  }
   return {
     primitive: "choice",
     choice,

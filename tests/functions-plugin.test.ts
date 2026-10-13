@@ -37,7 +37,7 @@ import {
   hashChoiceConfig,
   hashFunctionConfig,
   openFunctionsStore,
-  readChoiceAnswer,
+  readAnswer,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
 import { FunctionsHttpRouteTable } from "../apps/local-host/src/functions-http/routes.ts";
@@ -357,10 +357,10 @@ test("route table lists, previews, publishes, and maps missing functions to 404"
 });
 
 test("TypeSafe choice answers with a null pick are needs_review, not a thrown error", () => {
-  const result = readChoiceAnswer({
+  const result = readAnswer({
     model: "jev-1.13.0",
     answers: { ticket_route: { type: "choice", choice: null, probabilities: { a: 0.5, b: 0.5 } } },
-  }, "ticket_route");
+  }, { primitive: "choice", function_key: "ticket_route", criteria: [{ key: "a", description: "A" }, { key: "b", description: "B" }] });
   assert.equal(result.choice, null);
   assert.equal(result.model, "jev-1.13.0");
 });

@@ -26,6 +26,8 @@ createGmailIntegrationPlugin 注册 Provider/Adapter；OAuth 处理配置、pend
 
 默认 scope、授权回调和 refresh token 规则见 oauth-types/scope 的实际定义。凭据不能写进 Source 或 Signal 正文；游标失效与授权过期是不同恢复路径。
 
+首次接入仍只取最新 25 封快照。增量每批最多读取 25 封详情、20 页历史；游标只越过本批详情已成功处理的完整记录。一个历史记录包含更多邮件时，保存该记录的下一条偏移，下一批继续；不把尚未处理的尾部算作完成，也不把短期 page token 写进游标。详情或历史读取失败保留旧进度，重开后从同一位置继续，Feed/Signals 按正式身份去重。
+
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
@@ -55,7 +57,7 @@ node --import tsx --test --test-concurrency=1 tests/gmail-oauth.test.ts tests/fe
   - 授权邮件更新进入 Signal/Feed 链路，本包不拥有其状态。
   - 凭据不写进 Source 或 Signal 正文。
   - 测试用隔离数据或注入端口，通过不代表真实账号已连通。
-- 改动后必跑：`node scripts/run-tests.mjs tests/gmail-oauth.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/gmail-oauth.test.ts tests/feed-connectors.test.ts tests/integration-pagination.test.ts`
 - 相关手册：[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

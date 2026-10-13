@@ -626,11 +626,9 @@ async function runIncremental(
   const profile = await fetchProfileHighWaterMark(ctx);
   if (!profile.ok) return profile;
   const authHeaders = { headers: { Authorization: `Bearer ${ctx.token}` } };
-  let state: GmailHistoryReduceState = initialGmailHistoryReduceState();
-  let pageToken: string | undefined = undefined;
-  let finalCandidate: GmailLiveCursor | undefined;
-  const collectedMessageIds: string[] = [];
-  let pendingNextPageToken: string | undefined = undefined;
+  let state: GmailHistoryReduceState = initialGmailHistoryReduceState(startCursor);
+  let pageToken: string | undefined;
+  let completed: Extract<GmailHistoryPageDecision, { kind: "complete" }> | undefined;
 
   for (let i = 0; i < GMAIL_HISTORY_PAGE_LIMIT; i += 1) {
     const url = buildHistoryListUrl({
@@ -684,49 +682,24 @@ async function runIncremental(
     });
 
     if (decision.kind === "continue") {
-      state = {
-        messageIds: decision.messageIds,
-        pagesSeen: decision.pagesSeen,
-      };
-      // Hold the in-progress id set; a later page may still fail.
-      collectedMessageIds.length = 0;
-      collectedMessageIds.push(...state.messageIds);
-      pendingNextPageToken = decision.nextPageToken;
+      state = { messageIds: decision.messageIds, pagesSeen: decision.pagesSeen, cursor: decision.cursor, startHistoryId: decision.startHistoryId };
       pageToken = decision.nextPageToken;
-      continue;
-    }
-
-    if (decision.kind === "complete") {
-      finalCandidate = decision.candidateCursor;
-      collectedMessageIds.length = 0;
-      collectedMessageIds.push(...decision.messageIds);
-      pendingNextPageToken = undefined;
-      break;
-    }
-
-    // fail (pagination_limit / missing_history_id / unsafe_page / incomplete)
-    return providerFailure("history", { reason: "malformed" });
+    } else if (decision.kind === "complete") {
+      completed = decision; break;
+    } else return providerFailure("history", { reason: "malformed" });
   }
-
-  if (pendingNextPageToken !== undefined) {
-    // Exited the cap while still expecting more pages - never advance cursor.
-    return providerFailure("history", { reason: "malformed" });
-  }
-  if (!finalCandidate) {
-    // No final page produced an eligible cursor - no partial success.
-    return providerFailure("history", { reason: "malformed" });
-  }
+  if (!completed) return providerFailure("history", { reason: "malformed" });
 
   const details = await fetchBoundedDetails({
     ctx,
-    ids: collectedMessageIds,
+    ids: completed.messageIds,
     maxDetails: GMAIL_DETAIL_FETCH_LIMIT,
     accountEmail: profile.emailAddress,
   });
   if (!details.ok) return details;
 
   const items: ConnectorIngestItem[] = [];
-  for (const id of collectedMessageIds) {
+  for (const id of completed.messageIds) {
     if (details.raceSkipped.has(id)) continue;
     const item = details.byId.get(id);
     if (item) items.push(item);
@@ -736,7 +709,7 @@ async function runIncremental(
     ok: true,
     mode: "live",
     items,
-    cursor: finalCandidate,
+    cursor: completed.candidateCursor,
   };
 }
 

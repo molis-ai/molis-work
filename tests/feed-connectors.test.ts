@@ -383,7 +383,7 @@ test("Gmail incremental sync enforces the configured range and preserves account
       if (url.includes("/history?")) {
         return new Response(JSON.stringify({
           historyId: "201",
-          history: [{
+          history: [{ id: "200",
             messagesAdded: [
               { message: { id: "starred-1" } },
               { message: { id: "ordinary-2" } },

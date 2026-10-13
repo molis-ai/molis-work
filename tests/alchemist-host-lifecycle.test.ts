@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { alchemistActions as a, ALCHEMIST_ACTION_PERMISSIONS, createAlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
+import { alchemistActions as a, ALCHEMIST_ACTION_PERMISSIONS, createAlchemistStudioRuntime, type AlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
 import { alchemistOutput } from "./fixtures/alchemist-output.js";
@@ -49,6 +49,18 @@ for (const operation of ["conversation", "plan", "settings"] as const) {
       }
       const before = await first.bound.invoke(a.settingsGet, {});
       const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), abort = new AbortController();
+      const finished = Promise.withResolvers<void>();
+      if (refusal === "cancel") {
+        // Observe the actual resident Studio executor. No new runtime, fake business handler or production test hook.
+        // The outer Kernel can refuse while that executor is still unwinding a non-cooperative model/metadata read.
+        const owner = Reflect.get(first.host, "alchemist") as { get(caller: ActionCallContext): AlchemistStudioRuntime };
+        const studio = owner.get(first.caller), invoke = studio.actions.invoke.bind(studio.actions);
+        const actionId = (operation === "conversation" ? a.conversationSend : operation === "plan" ? a.researchPlan : a.settingsUpdate).capability_id;
+        studio.actions.invoke = async (definition, input, signal, control) => {
+          try { return await invoke(definition, input, signal, control); }
+          finally { if (definition.capability_id === actionId) finished.resolve(); }
+        };
+      }
       f.beforeClose.push(() => release.resolve());
       let revoked = false;
       const listModels = f.ai.listModels;
@@ -63,7 +75,9 @@ for (const operation of ["conversation", "plan", "settings"] as const) {
         : first.client.invoke(caller, a.researchPlan, { id: ideaId, ideaVersion: 1, lens: "build_cost", modelPolicy: "auto", budget: { kind: "calls", limit: 3 } });
       const rejected = assert.rejects(pending);
       await entered.promise; if (refusal === "cancel") abort.abort(); else revoked = true;
-      release.resolve(); await rejected; f.ai.listModels = listModels;
+      release.resolve(); await rejected;
+      if (refusal === "cancel") await finished.promise;
+      f.ai.listModels = listModels;
       const db = new Database(f.path, { readonly: true });
       try {
         assert.equal((db.prepare("SELECT COUNT(*) AS count FROM research_plans").get() as { count: number }).count, 0);

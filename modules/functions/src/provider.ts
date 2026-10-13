@@ -83,7 +83,7 @@ export function readAnswer(
   }
   const choice = typeof answer.choice === "string" && answer.choice ? answer.choice : null;
   if (choice !== null && !(record.criteria as readonly ChoiceCriterion[]).some(item => item.key === choice)) {
-    throw new FunctionsError("functions.provider_failed", "TypeSafe 返回了这条规则未声明的选项");
+    throw functionsErrors.provider_failed("TypeSafe 返回了这条规则未声明的选项");
   }
   return {
     primitive: "choice",

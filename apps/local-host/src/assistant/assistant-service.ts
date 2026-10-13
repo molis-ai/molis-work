@@ -521,7 +521,7 @@ function setPath(target: Record<string, unknown>, path: string, value: unknown):
 export { sameLocalTimeLater } from "./assistant-followups.js";
 
 function assertSendCurrent(stillCurrent: (() => boolean) | undefined): void {
-  if (stillCurrent && !stillCurrent()) throw new AssistantError("assistant.cancelled", "这项定时已删除或变化，这一轮没有开始");
+  if (stillCurrent && !stillCurrent()) throw assistantErrors.cancelled("这项定时已删除或变化，这一轮没有开始");
 }
 
 export class AssistantService {

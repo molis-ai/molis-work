@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { validateMolisWorkMcpLauncher } from "@molis-ai/molis-work-app-mcp";

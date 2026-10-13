@@ -995,6 +995,15 @@ Molis 层的事实（L0「发送中」、页面代写来源、本人的纠正与
 
 ## 19. 远端交接（2026-10-13，当前接续入口）
 
+> **统筹补充（2026-10-13 晚，先读）：暂停期间 main 上有两次大合并，本节下文写于知道它们之前。**
+>
+> - **#471**（yijunw0212，10-13 08:24 UTC，78 个文件）把桌面 Computer Use 合进 main，并把 main 的 vendored SDK 换成 `prologue-sdk-0.0.0-rc.1-computer-use.tgz`。它的来源是 Prologue `d4908c11`（分支 `feat/desktop-computer-use`，基于 `c4b9fde3` = `4f7110fe` + 采用修正 + 5 个 Computer Use 提交）；provenance 写着 `pushed: false`，这个提交**不在 Prologue main，也不在 GitHub 远端**。这份包**不含**已进 Prologue main 的 S1–S3、带类型问卷（`a06ae62e`）、P1 合同、P2a–P2f。main 上同时还留着旧的 side-panel-memory 包与补丁（两份 tgz）。#471 还新增了右栏的电脑格（`apps/workbench/src/side-panel-computer.ts`）、`contracts/services/computer.ts`、`services/ui-surfaces.ts`，改了助理服务、`assistant-island.ts`、`prologue-node.ts`、`prologue-stream.ts`、`contracts/services/agent-host.ts`，并把 10-09 版的 `specs/ai-interaction-experience/spec.md` 与参考图带进了 main。
+> - **#472**（yijunw0212，10-13 10:54 UTC，93 个文件 +3399/−953）把旧采用树 `feat/prologue-adoption` 的 10 个提交（10-09 的 `77fde104`…`8b1a0522`）合进 main：一轮的推理力度、运行中换模型、逐轮写入记录（约等于 A1）、灵光流式（A3 的一部分）、助理把交出去的工作收回来后接着做（`8b1a0522`「第 14 项」，A0 当时明确不纳入的私有接续）、变化等待（`b3235bb1`/`8c0b60fb`，约等于 A4）。它沿用 #471 的 computer-use 包，没有换包。main 上的 `specs/prologue-adoption/spec.md` 是 10-09 的旧版（标题「Prologue 新能力接入：修复、适配与功能优化」）。
+> - 统筹层的说明与后续顺序见远端分支 `coordination/handoff-2026-10-13` 的 `coordination/2026-10-13/README.md` §2a。
+>
+> **对本线的影响：** Molis main 现在的 SDK 包（computer-use，来源 `d4908c11`）**不含 S1–S3**，所以 D7 的第一项「正式 SDK 来源」在 main 上不成立；采用线只有旧提交进了 main（#472），#408 还没进。Molis 侧的生产接入要等采用线把「Prologue main + Computer Use 分支」合流后的统一包换进 Molis main，再由统筹重新判定 D7。#471/#472 都改了助理服务和 `assistant-island.ts`（你的阶段 1、阶段 3 会动这两处），恢复后先合 main、按防腐清单复查。S4（Prologue #10）照旧可以合进 Prologue main，不受影响。
+
+
 本节自成一体：接手的人可能在另一台机器上，看不到本机的工作树、`.claude/locks/` 和临时目录。凡是和本线直接相关的统筹层事实，这里都复述了；统筹层的完整材料在 Molis 远端分支 `coordination/handoff-2026-10-13` 的 `coordination/2026-10-13/` 目录（统筹负责推送，BOARD、防腐复查清单、四条线进展盘点都在里面），只当补充。**§17（2026-10-11 的交接）已被本节取代，只作历史。**
 
 ### 19.1 一句话现状

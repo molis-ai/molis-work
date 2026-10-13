@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { freezeProjectCharacter } from "../apps/local-host/src/characters-host.ts";
+import { freezeProjectCharacter } from "../apps/local-host/dist/characters-host.js";
 import { CHARACTERS_CLIENT_FACTORY_SCRIPT, renderCharacters } from "@molis-ai/molis-work-plugin-characters";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";

@@ -98,5 +98,6 @@ QA 工具只写系统临时目录中的专用子目录；启动前核对真实�
   - 私人版本不原地改成共享；邀请前被选中的 Artifact 必须已是 `team_project` 版本。
   - `mw_*`、`im_*` 表只由本包读写：宿主的 IM 挂载（`apps/local-host/src/im-server.ts`）与 `apps/server` 启动器用 `Identity`、`ContinuityService` 的方法（`roleOf`、`hasMember`、`memberAccess`、`projectOwner`、`closeProjectsExcept`），不写 SQL（`scripts/gates/table-owners.mjs`）。
   - Home 里的库 `{home}/server/server.sqlite`（本机「讨论」页签用它）是用户内容，登记在 [`docs/system/HOME-DATA.md`](../docs/system/HOME-DATA.md)：必备份，库里有明文的房间邀请令牌（`im_rooms.invite_token`），副本按密钥对待；`uninstall --purge-user-data` 经 `PERSONAL_HOME_SQLITE_STORES` 的 `server` 清除，普通卸载保留。改库的路径、文件名或版本，同一个 PR 改那一行、那份名单和 `docs/releases/CHECKLIST.md` 的版本表。
+- 运行前构建：`pnpm --filter @molis-ai/molis-work-server run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/cross-device-http.test.ts tests/cross-device-launcher.test.ts tests/cross-device-gateway.test.ts tests/im-domain.test.ts tests/im-local-project.test.ts tests/server-database-baseline.test.ts`
 - 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

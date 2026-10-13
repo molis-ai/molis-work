@@ -6,7 +6,7 @@ import { SessionTuiRecorder } from "@molis-ai/molis-work-plugin-work";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { LocalProjectDatabase, createPluginPlatform, seedDemoBoard, DEMO_PROJECT_ID, attachMolisWorkPtySocket, openWorkSessionRegistry } from "../apps/local-host/src/index.js";
+import { LocalProjectDatabase, createPluginPlatform, seedDemoBoard, DEMO_PROJECT_ID, attachMolisWorkPtySocket, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -14,7 +14,7 @@ import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createCharactersPlugin, type CharactersPluginPorts } from "@molis-ai/molis-work-plugin-characters";
 import type { CharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
-import { characterNativeExecution, characterNativeArgs } from "../apps/local-host/src/character-native-execution.ts";
+import { characterNativeExecution, characterNativeArgs } from "../apps/local-host/dist/character-native-execution.js";
 
 test("native preparation saves exact files and provenance, validates directories and never relaunches a repeated request", async t => {
   const home = mkdtempSync(join(tmpdir(), "character-native-")); t.after(() => rmSync(home, { recursive: true, force: true }));

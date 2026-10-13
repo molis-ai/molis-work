@@ -6,11 +6,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
-import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
-import { pdfDocumentParser } from "../apps/local-host/src/pdf-document-parser.js";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { AssistantService } from "@molis-ai/molis-work-app-local-host";
+import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { pdfDocumentParser } from "../apps/local-host/dist/pdf-document-parser.js";
 import { deflateSync, crc32 } from "node:zlib";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {

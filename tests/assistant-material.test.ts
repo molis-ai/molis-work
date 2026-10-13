@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { defineHomeEventsAction, defineSubjectContextAction, subjectContext, type ActionCallContext, type HomeEvent } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 
 /**
  * A project with Goals and a Feed: items the Feed shows carry the Goals they belong to, as owners report them. The

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ActionCallContext, ActionDefinition, ActionExecutionContext, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { compileActionSchema, createActionSchemaCompiler } from "../packages/kernel/src/action-schema.js";
-import { ActionService } from "../packages/kernel/src/action-service.js";
+import { compileActionSchema, createActionSchemaCompiler } from "../packages/kernel/dist/action-schema.js";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 
 const dialects = ["http://json-schema.org/draft-07/schema#", "https://json-schema.org/draft/2020-12/schema"];
 const rootId = "https://schema.test/record";

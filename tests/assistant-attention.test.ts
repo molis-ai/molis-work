@@ -6,12 +6,12 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import type { AssistantRule } from "@molis-ai/molis-work-contracts/services/assistant";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantService, holdingRule } from "../apps/local-host/src/assistant/assistant-service.js";
-import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { AssistantService, holdingRule } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { ASSISTANT_RULE_ACTIONS, registerAssistantRuleActions } from "../apps/local-host/src/assistant/assistant-rule-actions.js";
+import { ASSISTANT_RULE_ACTIONS, registerAssistantRuleActions } from "../apps/local-host/dist/assistant/assistant-rule-actions.js";
 
 const rule = (partial: Partial<AssistantRule>): AssistantRule => ({ rule_id: "r", kind: "quiet", surfaces: [], except: [], label: "规则", enabled: true, created_at: "2026-09-28T00:00:00.000Z", ...partial });
 

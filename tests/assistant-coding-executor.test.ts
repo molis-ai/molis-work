@@ -6,9 +6,9 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantService, presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
-import { withPersonDispatchGuard, type PersonActions } from "../apps/local-host/src/assistant/assistant-coding.js";
+import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { withPersonDispatchGuard, type PersonActions } from "../apps/local-host/dist/assistant/assistant-coding.js";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 

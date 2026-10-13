@@ -211,12 +211,12 @@
 
 | # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 入口 | 系统动作 `memory.write`、`memory.recall`、`memory.change` 等（提供方 `system.memory`）；设置页走 `/api/memory/*`（`handleMemoryHttp`） | 请求 → `MemoryService` | 使用方（助理、Agent、界面、插件、MCP）从可信上下文的受众得出，不从输入读；`memory.recall` 声明了 `user`、`agent`、`workflow`、`mcp`；`memory.list` 与 `memory.write` 声明了 `user`、`agent`，MCP 不能列、不能写；这三个都带 `plugin: false`，插件今天不是记忆的使用方（见缺口）；其余动作只对 `user`。外部 MCP 客户端只有在本人给它授权 `memory.recall`（`mcp-tools.json`）之后才看得到、调得了它 | `memory.forbidden`；`memory.invalid`；`memory.not_found`；`memory.off`（运行时没有记忆能力） | 无 |
+| 1 | 入口 | 系统动作 `memory.write`、`memory.recall`、`memory.change` 等（提供方 `system.memory`）；设置页走 `/api/memory/*`（`handleMemoryHttp`） | 请求 → `MemoryService` | 使用方（助理、Agent、界面、插件、MCP）从可信上下文的受众得出，不从输入读；`memory.recall` 声明了 `user`、`agent`、`workflow`、`mcp`；`memory.list` 与 `memory.write` 声明了 `user`、`agent`，MCP 不能列、不能写；这三个都带 `plugin: false`，插件今天不是记忆的使用方（见缺口）；其余动作只对 `user`。外部 MCP 客户端只有在本人给它授权 `memory.recall`（`mcp-tools.json`）之后才看得到、调得了它 | `memoryErrors.forbidden(...)`；`memoryErrors.invalid(...)`；`memory.not_found`；`memoryErrors.off(...)`（运行时没有记忆能力） | 无 |
 | 2 | 写入门 | `MemoryService.write` / `offer`（`horizontal/memory/src/service.ts`） | 文字 + 范围 + 种类 → 写入、替换、重复、候选或拒绝 | 开关、秘密形状、像指令的文字、范围、重复与冲突；Agent 必须带 `said`；插件只能写进自己的命名空间且要有人允许 | 结果是 `outcome`，不是异常：`refused`、`candidate` 带原因 | 每次写入记一条「最近变动」，规则版本写进来源 |
-| 3 | 存储 | `prologueMemoryBackend`（memory-host.ts）→ Agent Host 的 Prologue 适配器 | → 记忆条目 | 运行时没起来则先启动 | `memory.off` | 旁表（开关、候选、变动、使用记录、配对）在 `{home}/memory/memory.db`（`openMemoryLedger`） |
+| 3 | 存储 | `prologueMemoryBackend`（memory-host.ts）→ Agent Host 的 Prologue 适配器 | → 记忆条目 | 运行时没起来则先启动 | `memoryErrors.off(...)` | 旁表（开关、候选、变动、使用记录、配对）在 `{home}/memory/memory.db`（`openMemoryLedger`） |
 | 4 | 召回 | `MemoryService.recall`；助理轮次用 `memoryForRound`，其他 Agent 轮次用 `memoryForAgentRun`，情境判断用 `memory.recall` | 查询 + 情境 → 带出处和类别的条目 | 按使用方的开关取范围与类别；停用、暂停、过期、不适用的不返回；外部 AI 客户端默认读不到个人记忆 | 全部范围被关掉时返回 `state: "off"` 和原因 | 每次召回生成回执，用上的和因预算或上限没带上的都记使用记录 |
 | 5 | 使用回执 | `MemoryService.uses` / `settleUses` | 回执 → 设置里「最近用于」 | 本人 | — | 删除一条记忆后，旁表和最近变动里的正文也一并清除 |
-| 6 | 查看与撤销 | 设置页 `apps/workbench/src/settings-memory.ts` → `/api/memory/overview`、`/api/memory/changes/<id>/undo` | 变动 → 撤销（写入的删除、替换的还原、停用的恢复） | 只有本人能撤销 | `memory.invalid`（这次变动不能撤销） | 变动标为 `undone` |
+| 6 | 查看与撤销 | 设置页 `apps/workbench/src/settings-memory.ts` → `/api/memory/overview`、`/api/memory/changes/<id>/undo` | 变动 → 撤销（写入的删除、替换的还原、停用的恢复） | 只有本人能撤销 | `memoryErrors.invalid(...)`（这次变动不能撤销） | 变动标为 `undone` |
 
 **守住它的用例**：`tests/memory-service.test.ts`、`tests/memory-actions.test.ts`、`tests/memory-scopes.test.ts`、`tests/memory-mcp.test.ts`、`tests/memory-agent-runs.test.ts`、`tests/memory-learning.test.ts`、`tests/memory-upkeep.test.ts`、`tests/assistant-memory.test.ts`。
 

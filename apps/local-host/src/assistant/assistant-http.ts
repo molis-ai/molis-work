@@ -11,7 +11,7 @@ import { actionEffect, type ActionCallContext, type ActionView, LOCAL_PERSON_ACT
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { AssistantService } from "./assistant-service.js";
 import { assistantErrors } from "./assistant-errors.js";
-import type { PersonActions } from "./assistant-coding.js";
+import { withPersonDispatchGuard, type PersonActions } from "./assistant-coding.js";
 import { ASSISTANT_STORE_NAME, AssistantStore } from "./assistant-store.js";
 import { codingCharacterPorts } from "../characters-host.js";
 import { assistantContributions } from "./assistant-contributions.js";
@@ -70,10 +70,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       },
       invoke: async (action, input, beforeDispatch) => {
         const caller = await personContext(reference);
-        if (!beforeDispatch) return client.invoke(caller, action, input);
-        return client.invoke({ ...caller, validate_authority: async selected => {
-          await caller.validate_authority?.(selected); await beforeDispatch();
-        } }, action, input);
+        return client.invoke(withPersonDispatchGuard(caller, beforeDispatch), action, input);
       },
     };
   };

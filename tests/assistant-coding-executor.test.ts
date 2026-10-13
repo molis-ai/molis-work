@@ -8,7 +8,9 @@ import { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platf
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantService, presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
-import type { PersonActions } from "../apps/local-host/src/assistant/assistant-coding.js";
+import { withPersonDispatchGuard, type PersonActions } from "../apps/local-host/src/assistant/assistant-coding.js";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Coding as its page sees it: the same actions, over sessions kept in memory. */
 function fakeCoding() {
@@ -47,6 +49,28 @@ function fixture() {
   const caller = { project_ref: { project_id: "project", storage_key: "memory:project" } as any };
   return { coding, store, service, caller };
 }
+
+test("W2-18-FOLLOWUP-DELETE-04 production person-client wiring refuses a deleted request after the final beforeEffect await", async () => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const actions = new ActionService(undefined, { beforeEffect: async () => { entered.resolve(); await release.promise; } });
+  const definition: ActionDefinition = { capability_id: "coding.fixture.start", version: 1, operation: "command", action: {
+    title: "Start", description: "Start a round", kind: "operation", scope: "project", audiences: ["user"], permissions: ["coding:write"],
+    subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
+  let current = true, writes = 0;
+  actions.registerProvider({ provider: { provider_id: "fixture.coding", kind: "plugin", title: "Coding" }, definitions: [definition],
+    handlers: [{ ...definition, async handle(context) { await context.beforeEffect(); writes++; return {}; } }] });
+  const seen: Array<{ reference: unknown; permissions: unknown }> = [];
+  const caller: ActionCallContext = { actor_id: "web-user", project_id: "project", audience: "user", permissions: ["coding:write"],
+    assert_authority_current: (reference, permissions) => { seen.push({ reference, permissions }); } };
+  const guarded = withPersonDispatchGuard(caller, () => { if (!current) throw new Error("Follow-up removed"); });
+  const reference = { capability_id: definition.capability_id, version: 1, provider_id: "fixture.coding" };
+  const pending = actions.invoke(guarded, reference, {});
+  try { await entered.promise; current = false; release.resolve(); await assert.rejects(pending, /Follow-up removed/); }
+  finally { release.resolve(); }
+  assert.equal(writes, 0);
+  assert.ok(seen.some(row => JSON.stringify(row.reference) === JSON.stringify(reference) && JSON.stringify(row.permissions) === '["coding:write"]'),
+    "the original synchronous authority receives both the exact reference and declared required permissions");
+});
 
 test("a Coding work keeps its mode on Coding's own session, so the bottom bar and the Coding page start rounds alike", async () => {
   const { coding, service, caller } = fixture();

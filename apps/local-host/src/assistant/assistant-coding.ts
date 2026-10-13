@@ -1,10 +1,19 @@
-import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRunControl, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** The person's own action client in a project: what the Coding page itself can do, nothing more. */
 export interface PersonActions {
   discover(): Promise<readonly ActionView[]>;
-  invoke(reference: ExactActionReference, input: unknown, beforeDispatch?: () => void | Promise<void>): Promise<unknown>;
+  invoke(reference: ExactActionReference, input: unknown, beforeDispatch?: () => void): Promise<unknown>;
+}
+
+/** The page client retains its own authority checks and adds the standing request's liveness at the common final boundary. */
+export function withPersonDispatchGuard(caller: ActionCallContext, beforeDispatch?: () => void): ActionCallContext {
+  if (!beforeDispatch) return caller;
+  return { ...caller, validate_authority: async selected => { await caller.validate_authority?.(selected); beforeDispatch(); },
+    assert_authority_current: (reference, requiredPermissions) => {
+      caller.assert_authority_current?.(reference, requiredPermissions); beforeDispatch();
+    } };
 }
 
 export interface CodingSessionRead {
@@ -28,7 +37,7 @@ export class CodingExecutor {
   // dispatcher still checks each call's current definition and availability).
   private offered: Promise<readonly ActionView[]> | null = null;
 
-  constructor(private readonly actions: PersonActions, private readonly beforeDispatch?: () => void | Promise<void>) {}
+  constructor(private readonly actions: PersonActions, private readonly beforeDispatch?: () => void) {}
 
   private async reference(name: string): Promise<ExactActionReference> {
     this.offered ??= this.actions.discover();
@@ -40,7 +49,7 @@ export class CodingExecutor {
 
   private async call<T>(name: string, input: Record<string, unknown>): Promise<T> {
     const reference = await this.reference(name);
-    await this.beforeDispatch?.();
+    this.beforeDispatch?.();
     return await this.actions.invoke(reference, input, this.beforeDispatch) as T;
   }
 

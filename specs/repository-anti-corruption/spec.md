@@ -813,7 +813,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 
 **计划深度**按风险定（任务书 §0：深入程度按风险决定）。四个量各给分：源文件行数 ≥ 9,000 记 2 分、≥ 3,000 记 1 分；2026-09-08（Cutover）以来碰过这个包的非合并提交数 ≥ 100 记 2 分、≥ 40 记 1 分；被依赖数 ≥ 17 记 2 分、≥ 4 记 1 分；`tooling/gates/baseline.json` 里记在它名下的巨大单元数 ≥ 10 记 2 分、≥ 4 记 1 分。总分 ≥ 4 为「深」。另有两个包放在授权脊梁上，也列「深」：`packages/kernel`（`ActionService`：可信身份、`beforeEffect`、撤销后不再写，见 `AGENTS.md` 硬约束）和 `packages/plugin-runtime`（安装、grant、签名）；每个能力调用和每次插件安装都经过它们，体量小，出错的代价最大。其余有 ≥ 1,000 行源码、或有巨大单元、或被 ≥ 3 个包依赖的为「中」，再其余为「浅」。结果：深 11（`apps/local-host`、`apps/workbench`、`horizontal/agent-host`、`modules/goals`、`packages/contracts`、`packages/design-system`、`packages/kernel`、`packages/plugin-runtime`、`plugins/native/coding`、`plugins/native/goals`、`plugins/native/pages`）、中 43、浅 17（现行 §5.1 的计划；I6 按阈值重算建议为深 11、中 42、浅 18，审查时再判定，不机械改已有深度）。深度是计划，不是门禁：以后某个包越过阈值不会让门禁变红，审它的时候再按当时的数重定。
 
-**审查**：「待审」含尚未开始和已开始但未审完；「已审」须在同一 spec 有完整逐包结论和已核实的实现覆盖。现行表已有 19 个包完成当前源码审查并标「已审」（G3/G4/G8，逐包结论见 §12.9）；其余 52 个仍「待审」，含正在补读的包。缺陷与运行未完成项另记，不能以代码审完代替整改完成。W1-18 的事实表与门禁已经完成，但逐包的职责、依赖、变化原因、放置与冗余判断没有交齐，不能据 #322 已合入或 §12.6 的局部读码记为整项完成；代码审完、缺陷修复、工程通过、产品实操分别判定。
+**审查**：「待审」含尚未开始和已开始但未审完；「已审」须在同一 spec 有完整逐包结论和已核实的实现覆盖。现行71包源码均已审，逐包职责、依赖、放置与冗余结论及覆盖核对见 §12.9。缺陷修复和运行未完成项另记于 §12.8/§12.11，不能以代码审完代替整改完成，也不能据 #322 已合入或 §12.6 的历史局部读码记整条防腐线完成；代码审完、缺陷修复、工程通过、产品实操分别判定。
 
 ### 5.x 本轮补记的清单项（2026-10-03）
 
@@ -1707,7 +1707,7 @@ Images 后台 job 未携带原 MCP 调用的持续授权，但 Prologue 手册�
 | I6 整树预检 | 整体 build、boundary、类型、actual-base health、API/actions 与资源已通过；API 0 变，29 资源 11,366,475 字节 | 支持冻结候选的工程预检；不是全部测试通过或 main 已合入 |
 | I6 全量 i6-full-01.log | 冻结 af0fe957 的本轮已结束：6,088 tests，6,075 pass、4 fail、9 skipped、0 cancelled；失败为 agent-action-selection、tab-split-drop-preview、work-placement-restart、workbench-pane-feed。Placement 断言失败后其 HTTP 未关闭，子进程挂住，由原执行者单独终止后主回归继续 | 不能记全量通过；四文件由原负责人重跑并做干净基线对照。单独终止事实保留，后续修复/定向通过不改写本轮失败；各修复树不能把通过数相加当整合通过 |
 | I7 关键18文件，i7-critical-tests-01.log；四文件修后 i7-critical-fixtures-fixed-01.log | 首轮83条、77通过/6失败；测试修正 `05cc4931b` 后16/16、零跳过/取消。另14文件的67条保留首轮有效证据，共83个不同用例有通过证据 | 协调方核过原始日志与四文件实际diff：Choice补真实第二选项、Manifest补必需ui、诊断事实不依赖未承诺顺序、匹配夹具实际拒绝码。AUTH/MCP坏配置、固定输入与Diff、SemVer/密钥/事务、管理入口和Placement定向通过；不是新的18文件单次全绿或最终全量。Placement `09034f1d` 按现行合同断言400及具体错误码/文案，并新增拒绝后状态不变与失败清理，未放宽拒绝 |
-| I7 相关回归，冻结 `1485e959f` | AUTH相关28文件245/245；SDK/存储/Runtime/Diff首组30文件549/549，均零失败/跳过/取消，执行退出0 | 协调方核实际运行命令、文件清单、原始日志footer和头。日志为 `i7-auth-related-tests-01.log`、`i7-core-related-tests-01.log`；剩余17文件与Workflows相关组仍待完成。以上按批保留，不相加称单次全量或全部71包已修复 |
+| I7 相关回归，冻结 `1485e959f` | AUTH相关28文件245/245；SDK/存储/Runtime/Diff首组30文件549/549，第二组17文件58/58，均零失败/跳过/取消，执行退出0 | 协调方核实际运行命令、文件清单、原始日志footer和头。日志为 `i7-auth-related-tests-01.log`、`i7-core-related-tests-01.log`、`i7-core-related-tests-02.log`。G4局部相关验证已收齐；以上按批保留，不相加称单次全量或全部71包已修复 |
 
 **Dataset 独立片的已核证据。** 本地提交 `f29e7074e`，三个文件 +228/-20，工作树干净、未推送。临时原始日志在 `/tmp/dataset-import-target-evidence/`：`baseline-browser-02.log` 的 6 条回归 2 通过/4 失败，诊断直接显示 B 收到 A 的 CSV 并以 200 落库，以及切 B 后迟到响应重开 A；首轮 harness 对文件选择触发 autosave 的错误假设已修，首轮失败日志保留、不充当最终复现。`fixed-browser.log` 21/21（含新回归 6/6）、`related-tests.log` 365/365，均零跳过/取消；整体 build、boundary、对真实 merge-base 的 health 通过。`page-assets.log` 仅报 Dataset JS 实测 33,710 字节小于旧快照 34,285，按共享文件归属留整合时正常下调；不是允许使用的余量，也没有放宽门禁。协调方已读实际客户端与测试 diff、旧故障诊断和各 footer，判定该片局部验收通过；最终整合验证另计。
 
@@ -1715,7 +1715,7 @@ Images 后台 job 未携带原 MCP 调用的持续授权，但 Prologue 手册�
 
 **Home 语言接线局部验收。** 协调方独占候选 `967a19aef`（前置Issue `1d67c6408`，含G2独立helper/既有词典），11文件+205/-48、干净未推。`/tmp/home-locale-wiring-evidence/` 的 `locale-tests-01.log` 为5/5（两helper、三实际Chrome/Host），`issue-regression-01.log` 为README十文件42/42，均零失败/跳过/取消；`baseline-tests-01.log` 在冻结I6对相同三条新浏览器0/3，实际失败分别是中文控件、中文模型设置链接、503的zh-CN。验证英文Home/项目侧栏和中文返回、原文恰为翻译键仍不变、空模型设置加载失败后重试并手动保存原文，以及坏Runtime实际503；没有真实模型质量结论。两次整体build通过，首次资源超232字节，合并重复读取/按钮样式/CSS后issues.js实测23,536，较merge-base预算23,559下降23，正式assets/boundary/actual-base health均通过。47个不同用例只支持本片；最终组合资产和全量另计，具体提交顺序与原始日志见临时Handoff。
 
-**Workflows 保存与对象打开定向证据。** 候选 `c35d8ff9d` 已纳入I7；协调方已核实际源码、原始 `wfsave-baseline-browser-01.log`（同七条旧实现0/7，目标误写/丢第二请求/迟到重开/动画误写真实复现）与 `i7-wfsave-browser-01.log`（7/7，零跳过/取消）。搜索首次懒加载与已有对象、A的多次保存/防抖在切B或目录后仍归A、真实CAS失败保留草稿并重开恢复均通过；README相关回归未收齐，尚不判整片验收。
+**Workflows 保存与对象打开局部验收。** 候选 `c35d8ff9d` 已纳入I7；协调方已核实际源码、原始 `wfsave-baseline-browser-01.log`（同七条旧实现0/7，目标误写/丢第二请求/迟到重开/动画误写真实复现）与 `i7-wfsave-browser-01.log`（7/7，零跳过/取消）。搜索首次懒加载与已有对象、A的多次保存/防抖在切B或目录后仍归A、真实CAS失败保留草稿并重开恢复均通过。相关九文件 `i7-wfsave-related-tests-01.log` 32/32；实际Feed→Shelf动作流程和迟到结果/窄屏两条 `i7-wfsave-browser-action-steps-01.log` 2/2；受影响的模型就绪恢复一条 `i7-wfsave-browser-model-ready-01.log` 1/1，均零失败/跳过/取消、实际命令退出0。project-deletion-owners复用上述首组核心相关的有效结果，不重复计数。该片局部验收通过，Workflow停止与最终组合全量仍另计。
 
 I5 的九个跳过包含 live 账号/真实网络、MiniMax 凭据与本机缺 shellcheck 的两条；CI 的 Shell/Python 检查有独立证据，不能因此说本地那两条已运行。真实产品证据目前是各片实际 HTTP/SQLite/Chrome 覆盖的路径与历史维护窗口；外部模型/账户、完整辅助技术和最终用户验收没有全量结论。
 
@@ -2051,18 +2051,18 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 | G1 宿主 | Runtime接入/TOML、卡unknown/followup、model schema、系统目录、Gmail首次使用、native JSON、Host Git；不碰原AUTH文件 | `5aba9f06b`、`fab7520fa`、`74ee8c27f`、`2c0a21348`、`d437779bc` 的生产与回归diff已核（含账号绑定的通用Gmail OAuth、刷新一次与断连）；尚未运行。`a9cab586e` 卡unknown与主助理定时已核；`bb798e2cb` 后的 `23d4d6901` 已将同一同步liveness接入原caller的最终assert并保留原精确reference/permissions，正式personClient接线和Kernel最终等待回归源码已核；新测试未构造完整assistantServiceFor链，未运行。Git部分仍在收尾 |
 | G2 工作台 | 浏览器upload/grant与工作台八项；不碰assistant-island与G9的coding-companions。HOME-LOCALE仅交Workbench helper和同一词典；Host/Issue由协调方串行接线（用户在G2聊天明确选择） | 独立树实现准备；未验收。STOP反馈以在途#469共用UiRequest为前置，不另造错误解析 |
 | G3 桌面/公共呈现 | 原生胶囊/剪贴板/worker IO、接续QA、component草稿 | 冻结 `11928b332`，三片 `631287a69`（原生）、`a5c9ac46e`（接续QA）、`11928b332`（表单草稿）。协调方已读实际生产/测试差异及相关上下文；仅rustfmt/diff通过，build/test及真实窗口待队列，未验收 |
-| G4 核心 | SemVer、缺key、Memory事务、固定输入/SDK/Diff Manifest；不改AUTH/helpers或历史pin | 本地四提交 `48c04310e`、`c64bbfd82`、`c93d01249`、`a538a9165` 的生产diff已核，已纳入I7构建及关键回归；固定输入测试缺必需ui由 `05cc4931b` 修正后真实SDK/Diff三条通过，SemVer/密钥/事务亦通过。相关必跑与最终整合尚未收齐，不判整体验收 |
+| G4 核心 | SemVer、缺key、Memory事务、固定输入/SDK/Diff Manifest；不改AUTH/helpers或历史pin | 本地四提交 `48c04310e`、`c64bbfd82`、`c93d01249`、`a538a9165` 的生产diff已核，已纳入I7构建及关键回归；固定输入测试缺必需ui由 `05cc4931b` 修正后真实SDK/Diff三条通过，SemVer/密钥/事务亦通过。两组相关30/17文件549/58条已核，局部验收与交接完成，聊天已归档；最终消费者整合与全量仍待原会话完成 |
 | G5 AI/开发插件 | Placement/Memory调用控制、Agent预算/解析资源、Characters启动、Builder预览/升级密钥、Coding前台/后台/委派/报告；必要Host对应port | 独立实现准备，需复用原AUTH合同；不碰G1 AssistantService/Store或Runtime接入文件 |
-| G6 Module/Goals | Session确认、Shelf/Character当前库、Attention原子性、Functions Choice、Goals证据/固定/规划/policy | 独立实现准备；不碰原Goals恢复环，artifact-pins共同helper父控制和旧分支由同一writer串行处理 |
-| G7 内容 | 七插件必要整改；Dataset仅store/动作，client/import与README导入片留既有writer | 独立实现准备；内容嵌套调用复用AUTH，旧pin helper由G6串行处理 |
-| G8 流程/执行 | Work/Alchemist effects与客户端、Shelf客户端、Workflows backend stop | Work effects/窄回执、Workflow stop/持续调用的源码和新测试已初审；停止落库与信号失效须消除await间隙，模型fixture须不主动配合取消并等待真实下游结束后回读。仍未冻结/未运行；不碰WFSAVE客户端，遵守§12.10窄回执例外 |
+| G6 Module/Goals | Session确认、Shelf/Character当前库、Attention原子性、Functions Choice、Goals证据/固定/规划/policy | 七提交冻结至 `5a54e3d8d`，生产/回归/README与词典diff均已核；无新源码阻断，待整合AUTH后构建、合同快照和相关回归。未运行，不将静态复核作验收 |
+| G7 内容 | 七插件必要整改；Dataset仅store/动作，client/import与README导入片留既有writer | 当前生产diff已初核，含Pages编辑器/便携导出/异步切换、Lingguang保存版本、PPT大纲与Form/Dataset输入；必要回归仍准备，未冻结/未运行。内容嵌套调用复用AUTH，旧pin helper由G6串行处理 |
+| G8 流程/执行 | Work/Alchemist effects与客户端、Shelf客户端、Workflows backend stop | 四提交至 `cb7ff9f7f` 的生产diff已核；stop落库/取消已同同步回调，Form用例改为模型照常返回并等待真实handler结束。Alchemist取消测试仍需补处理器完成后回读，窄修待追加；未构建/运行。不碰WFSAVE客户端，遵守§12.10窄回执例外 |
 | G9 接入/日常 | Gmail/GitHub/Catalog、Todo与Diff点击；唯一workbench例外为coding-companions，G2不改该文件 | Gmail游标/真实接入链测试、GitHub分页、Catalog目标/封闭错误、Todo日期与草稿、Diff点击及S1的当前源码已初审，未冻结/未运行。Todo日期控件测试事件和在途保存时删除的序列需补齐；Git Host归G1；RSS传输验证仍候选待实际证明 |
 | Dataset既有writer `01a13341-d712-73f2-99f4-992f8645847c` | 文件导入目标/草稿与对应浏览器，独占client/import | 本地 `f29e7074e`，统筹已核实际diff、旧复现4失败、新旧浏览器21/21、相关365/365及门禁；局部验收通过。资源快照下调与最终整合验证待做，见§12.5 |
 | Issue既有writer `01a13342-5853-75e1-a3ce-929ee5ec4e75` | 手工页/capture保存与丢回执恢复 | 本地 `1d67c6408`，统筹已核实际diff、旧4失败、修后4/4与相关51/51及门禁；局部验收通过，最终整合与资源快照下调待做（§12.5）。该保存片冻结 |
 | 助理发送writer `01a13369-d79c-70f1-9798-7b84181fa7d0` | SEND/PAGE-CARDS/ASSISTANT-404同文件连续处理，保护在途#471 | 冻结 `d2ce01f35`，统筹已核发送意图、同owner草稿投影及A→B→A/重载回归；源码准备完成，build/test尚未运行、未验收 |
-| Workflows保存writer `01a13369-e221-7433-a2eb-24bcdcee1039` | WFSAVE/WF-OPEN客户端与README，backend留G8 | 本地 `c35d8ff9d` 已纳入I7构建，旧七条全失败、修后7/7已核原始日志；README相关回归仍待收齐，未判整片验收 |
+| Workflows保存writer `01a13369-e221-7433-a2eb-24bcdcee1039` | WFSAVE/WF-OPEN客户端与README，backend留G8 | 本地 `c35d8ff9d` 已纳入I7构建，旧七条全失败、修后7/7和相关32/32、浏览器2/2、模型就绪1/1均已核，局部验收通过（§12.5），聊天已归档；最终组合验证由原会话承接 |
 | 协调方 Home 语言接线 | 用户在G2聊天明确选择协调方串行补齐。以Issue保存片 `1d67c6408` 和G2语言helper为前置，Host两次render、Issue静态控件用既有L及正式浏览器/README；为保持资源预算，合并client/capture-client中的重复读取、按钮样式及相同CSS，保存协议不变 | `967a19aef` 的build/正式assets/boundary/actual-base health、新5/5、相关42/42、旧三条0/3均已核，局部验收通过。因I7先降至23,535，追加私有标记机械改名 `b3cff85a9` 回收最后1字符；该新头待整合build/资源/三条locale验证，不把旧证据改写为新头。最终组合全量未完成，见§12.5 |
 
 共享spec、路线图、安全不变量、门禁/API/动作/资源快照由协调方按实际整合结果串行同步；writer不得放宽阈值或为绿删断言。当前均只获本地独立实现/提交，不自行推送、开PR、安装、发布或操作真实Home/凭据。§12.8中需同步安全表的具体拒绝必须有生产边界断言；受控第三方响应不等于真实外部账号验收。
 
-2026-10-12 用户要求完成的会话从Codex列表清理。协调方已归档Dataset与Issue两个独立修复会话，并读回确认：两片局部验收完成，候选提交已由原防腐会话纳入I7，最终资源快照及整合验证继续由该会话承接。仅归档聊天，工作树、提交和原始日志保留；助理发送、Workflows保存与G4仍待验证，保留会话，不将idle当作完成。
+2026-10-12 用户要求完成的会话从Codex列表清理。协调方已归档Dataset、Issue、G4核心与Workflows保存四个独立会话，工具均确认成功：各片局部验收与交接已完成，候选提交已由原防腐会话纳入I7，最终资源快照及整合验证继续由该会话承接。仅归档聊天，工作树、提交和原始日志保留；其余仍有实现或验证工作，不将idle当作完成。

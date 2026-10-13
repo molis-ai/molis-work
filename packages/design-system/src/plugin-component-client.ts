@@ -89,14 +89,11 @@ export function createPluginComponentClient(options: PluginComponentClientOption
   // Pages switch with the catalog's tabs.
   const tabs = make('nav', undefined, 'mw-tabs pc-tabs'), tabList = make('div', undefined, 'mw-tabs__list'); tabs.dataset.slot = 'tabs'; tabList.setAttribute('role', 'tablist'); tabList.setAttribute('aria-label', '插件页面'); tabs.append(tabList); root.append(tabs);
   let view: PluginComponentView | undefined, currentPage = '', selection: Record<string, unknown> = {}, disposed = false, epoch = 0, fresh = false;
-  const selectionVersions = new Map<string, number>();
-  const operation = (id?: string) => view?.contract.operations.find(op => op.id === id);
+  const selectionVersions = new Map<string, number>(), parts = new Map<string, Part>();
+  const operation = (id?: string) => view?.contract.operations.find(op => op.id === id), live = (part: Part, generation: number) => !disposed && generation === epoch && parts.get(part.node.id) === part;
   const pages = new Map<string, HTMLElement>(), regions = new Map<string, HTMLElement>();
   interface Part { node: PluginComponentNode; root: HTMLElement; output: HTMLElement; feedback: HTMLElement; form?: HTMLFormElement; dialog?: HTMLDialogElement; opener?: HTMLButtonElement; confirm?: HTMLDialogElement; filter?: HTMLElement; tools?: HTMLElement; waiting?: ReturnType<typeof setTimeout>; feedbackTimer?: ReturnType<typeof setTimeout>; busy: boolean; query: number; draft: number; signature: string; prefilled: Map<string, number>; rows?: unknown[]; seen?: Set<string> }
-  const parts = new Map<string, Part>();
-  const live = (part: Part, generation: number) => !disposed && generation === epoch && parts.get(part.node.id) === part;
-  const details = new Map<string, { layout: HTMLElement; pane: HTMLElement; back: HTMLButtonElement; content?: string; scroll?: Array<[Element, number]> }>();
-  const detailEnabled = (id: string) => !!view?.presentation?.parts[id]?.detail;
+  const details = new Map<string, { layout: HTMLElement; pane: HTMLElement; back: HTMLButtonElement; content?: string; scroll?: Array<[Element, number]> }>(), detailEnabled = (id: string) => !!view?.presentation?.parts[id]?.detail;
   function showDetail(part: Part, focus = false) {
     const id = part.node.id;
     part.root.toggleAttribute('data-has-detail', detailEnabled(id));
@@ -674,8 +671,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
             if (!Object.values(part.node.submit?.input ?? {}).some(source => source.source === 'form' && source.prefill)) {
               form.reset(); form.querySelectorAll<HTMLInputElement>('input[data-pc-choice]').forEach(input => { input.value = input.dataset.pcInitial ?? ''; }); syncChoices(form);
               form.querySelectorAll('textarea').forEach(area => { area.style.height = ''; }); form.querySelectorAll('select').forEach(choice => choice.dispatchEvent(new Event('change', { bubbles: true })));
-            }
-            part.dialog?.close();
+            } part.dialog?.close();
             if (form.classList.contains('pc-composer')) form.querySelector<HTMLElement>('input:not([type=hidden]),textarea')?.focus({ preventScroll: true });
           }
           fresh = true; try { await refresh(); } finally { fresh = false; }

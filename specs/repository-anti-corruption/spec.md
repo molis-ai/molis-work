@@ -1467,3 +1467,17 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 | W3-07-9-01 | 基于实际完整Host测量剩余typed家族与生产调用者，tests/typed-registry-inventory及mutation拒绝Goals/开发入口回流；CALL-CHAINS、GLOSSARY、SDK/Host/Goals/CLI/MCP README与Skill均只描述现行唯一业务路径。不存在的Casebook及已删host_only不留为当前清单；计数实测降低，不用改基线放过新增。 |
 
 本节是已核对的实施边界，尚未实现或验证。单片整体构建、契约/API/健康/资源/安全及实际相关入口回归后再进入协调全量；7的安全边界与8的可信身份必须做只读窄复核，不把测试工具或假caller当生产证明。
+
+
+### 10.8 MCP launcher 闭管道拒绝（CI 独立修复）
+
+新一轮Linux CI的#457和仅test-only的#464产品子集均360文件通过、同一runtime-integration整文件失败；两次尝试仅有file-level test failed报告，尚未取得其原始异常。当前main0568的Linux同文件实跑13/13、I5按同CI runner在本机13/13，故不把它定性为已确认CLI或Issue回归。只读核对发现现行validateMolisWorkMcpLauncher没处理child.stdin的error；经公开MCP包的真实子进程故障注入，两次在输入已关闭而id1回答到达后写tools/list稳定产生未处理EPIPE并退出。此缺陷已确认，但它是否解释原CI的全部失败仍待新CI与原始异常证明。
+
+修复目标是维持原“验证失败→恢复配置及Skill”的行为，范围仅现行MCP launcher验证函数及其公开Runtime安装测试/必要README；单独从最新main提交，不夹带G1/G3，不改CI门槛、清单或超时。真实Home与凭据不访问。输入管道失败让现有finish(false)收口，settled后不再发送请求；不增加重试或进程管理设施。
+
+| 编号 | 可观察结果与证明路径 |
+| --- | --- |
+| CI-MCP-PIPE-01 | 真实launcher关闭stdin后发送initialize结果（包括退出/失败已收口后到达的剩余消息），公开验证函数返回false且父进程存活，不产生未处理EPIPE、不再发tools/list。原initialize→tools/list成功、退出launcher和慢启动证明保留，10秒限制及仅关闭自己child不变。 |
+| CI-MCP-PIPE-02 | 同一闭管道fixture通过公开RuntimeIntegrationService实际验证，失败后配置字节/无关Runtime设置、Skill状态和原receipt恢复，没有成功接入或新授权记录；再次可用launcher能正常接入。独立源码复核、整体build、定向Runtime/MCP公开回归及当前main门禁通过后开独立PR，Linux CI另记实际结果。 |
+
+当前仅已定位、实测复现并安排唯一writer实施；不称修复完成或CI通过。

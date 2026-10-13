@@ -176,6 +176,6 @@ typed 条目的新增、Repository 导出的新增、宿主入口的变宽、合
 
 旧根 `src/` 与 0.1.x 的根 SDK 都已退出产品实现，根包 `@molis-ai/molis-work` 只发布命令行入口，不导出代码。`pnpm boundary:check` 拒绝任何根目录 `src/`（不再有兼容白名单）；各包的大文件由 `pnpm health:check` 的巨大单元门禁只许变小。
 
-Goal 的 typed compatibility capability 现在仍作为统一 Action 的薄适配存在，门禁检查其实际返回 `goalAction` 的结果。CLI 的 snapshot 仍消费该适配，标准 MCP 按 Action 目录发现，不要求恢复已退出的旧 MCP snapshot 分支。两者仍不得越过 Host 直接读写领域 owner。2026-10-07 的 N-12 决定是对外只走动作、没有生产调用方的 Goals typed 桥要删（W2-08、W3-07 做），在此之前 `typedCapabilities` 只许减少，不许新增。
+Goal 的 typed compatibility capability 现在仍作为统一 Action 的薄适配存在，门禁检查其实际返回 `goalAction` 的结果。CLI 与管理 MCP 经宿主造的管理调用者调用 Goals 动作（现在 CLI 已是，管理 MCP 仍用带作用域的 Host Client，W3-07 PR-4 接着改；门禁 `checkGoalTransportCallers` 按这个现状守着），标准 MCP 按 Action 目录发现，不要求恢复已退出的旧 MCP snapshot 分支。它们仍不得越过 Host 直接读写领域 owner。2026-10-07 的 N-12 决定是对外只走动作、没有生产调用方的 Goals typed 桥要删（W2-08、W3-07 做），在此之前 `typedCapabilities` 只许减少，不许新增。
 
 Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public entrypoint 仍导出构造类型，尚待将 Host 装配与普通消费者接口分清。`moduleRepositoryExports` 把现有导出冻结住，只许减少。不能将现有导出视为任意调用 Store 的许可，也不能通过删除此约束宣称边界已完成收口。

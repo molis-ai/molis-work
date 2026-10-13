@@ -5,10 +5,11 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkV1Error, handleGoalEventDecisionHttp, hostEventDecisionAuthority, GOALS_ACTIONS, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkV1Error, handleGoalEventDecisionHttp, hostEventDecisionAuthority, GOALS_ACTIONS, GOALS_PLUGIN_ID, goalsActions, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { bindGoalsWebActions } from "../apps/local-host/src/goals-actions.js";
+import { bindGoalsManagementActions, bindGoalsWebActions } from "../apps/local-host/src/goals-actions.js";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalEventTypeDefinitionInput, SetGoalEventAgreementInput } from "@molis-ai/molis-work-contracts/modules/goals";
 
 const BOARD = "board-state";
@@ -3037,4 +3038,59 @@ test("without the project rule an acceptance of a requirement is not limited to 
   } finally {
     close(data);
   }
+});
+
+test("the management caller factory acts as the person on this machine, builds the authority of a decision itself, and pins the one Goals action", async () => {
+  const seen: Array<{ caller: ActionCallContext; action: ActionReference; input: unknown }> = [];
+  const client: ActionClient = { discover: async () => [], invoke: async (caller, action, input) => { seen.push({ caller, action, input }); return {} as never; } };
+  const management = bindGoalsManagementActions(client, { project_id: BOARD, storage_key: "fixture" });
+  assert.equal(management.project_id, BOARD);
+  const decision = { goal_id: "g", conclusion: "允许发布当前结果", idempotency_key: "event-1" };
+
+  await management.invoke(goalsActions.decide, decision, { conversation_ref: "conversation://x", message_ref: "message://y" });
+  const [pointed] = seen;
+  assert.deepEqual([pointed!.caller.actor_id, pointed!.caller.actor_kind, pointed!.caller.audience, pointed!.caller.project_id], [LOCAL_PERSON_ACTOR_ID, "user", "user", BOARD]);
+  assert.deepEqual(pointed!.caller.user_action, { source: "management", conversation_ref: "conversation://x", message_ref: "message://y" }, "the decision points at its conversation, and says nothing of who decides");
+  assert.deepEqual(pointed!.caller.permissions, goalsActions.decide.action.permissions, "only what that action asks");
+  assert.deepEqual(pointed!.caller.allowed_actions, [{ capability_id: goalsActions.decide.capability_id, version: goalsActions.decide.version, provider_id: GOALS_PLUGIN_ID }]);
+  assert.equal(pointed!.action.provider_id, GOALS_PLUGIN_ID);
+  assert.deepEqual(pointed!.input, decision, "the input is the caller's, untouched");
+  assert.equal("call_id" in pointed!.caller, false, "the call number is the operation's (the scope the entry runs in), not made here");
+
+  seen.length = 0;
+  await management.invoke(goalsActions.decide, { ...decision, idempotency_key: "event-2" });
+  assert.deepEqual(seen[0]!.caller.user_action, { source: "management", conversation_ref: `management:${BOARD}`, message_ref: "management-event-decision:event-2" }, "no evidence: the decision points at the management entry itself");
+
+  seen.length = 0;
+  await management.invoke(goalsActions.snapshot, {});
+  assert.deepEqual(seen[0]!.caller.user_action, { source: "management", conversation_ref: `management:${BOARD}`, message_ref: `management:${goalsActions.snapshot.capability_id}` }, "a read has no key: its reference is the action");
+  await management.invoke(goalsActions.initialize, { title: "资料库", idempotency_key: "init" });
+  assert.deepEqual(seen[1]!.caller.user_action, { source: "management", conversation_ref: `management:${BOARD}`, message_ref: "management:init" });
+
+  // Who decides is the Host's to say: an identity in the evidence is refused, and evidence belongs to the two decisions only. Nothing reaches the client.
+  seen.length = 0;
+  for (const named of [{ actor_id: "someone-else" }, { actor_kind: "runtime" }, { authority_source: "web" }]) {
+    await assert.rejects(management.invoke(goalsActions.decide, decision, { conversation_ref: "conversation://x", ...named }), { code: "goals.event_decision_authority_invalid" }, Object.keys(named).join());
+    await assert.rejects(management.invoke(goalsActions.treeDecide, { proposal_id: "p", idempotency_key: "k" }, { conversation_ref: "conversation://x", ...named }), { code: "goal_tree_proposal.authority_source_invalid" }, Object.keys(named).join());
+  }
+  await assert.rejects(management.invoke(goalsActions.initialize, { title: "资料库", idempotency_key: "init" }, { conversation_ref: "conversation://x" }), { code: "actions.input_invalid" });
+
+  // Nor do the arguments of a write take an identity: refused in the words the typed door used, naming the field, and before the evidence is
+  // looked at, for the two decisions that take evidence (an identity in both is the arguments' refusal). Nothing reaches the client.
+  const refusedInArguments: Array<[string, (field: string) => Promise<unknown>, string[]]> = [
+    [goalsActions.treeSubmit.capability_id, field => management.invoke(goalsActions.treeSubmit, { summary: "s", items: [], idempotency_key: "k", [field]: "x" } as never), ["submitted_session_id"]],
+    [goalsActions.treeCheck.capability_id, field => management.invoke(goalsActions.treeCheck, { proposal_id: "p", idempotency_key: "k", [field]: "x" } as never), []],
+    [goalsActions.treeDecide.capability_id, field => management.invoke(goalsActions.treeDecide, { proposal_id: "p", idempotency_key: "k", [field]: "x" } as never, { conversation_ref: "c", actor_id: "also" }), ["audit_actor_id", "runtime_actor_id"]],
+    [goalsActions.decide.capability_id, field => management.invoke(goalsActions.decide, { ...decision, [field]: "x" } as never, { conversation_ref: "c", actor_id: "also" }), []],
+  ];
+  for (const [capabilityId, call, more] of refusedInArguments) {
+    for (const field of ["actor_id", "actor_kind", ...more]) {
+      await assert.rejects(call(field), { code: "actions.input_invalid", message: new RegExp(`^写入者由宿主确定（管理入口是本机这个人，插件取自调用上下文），参数里不能带 ${field}$`) }, `${capabilityId} refuses ${field}`);
+    }
+  }
+  assert.deepEqual(seen, []);
+
+  // A read has no such rule here: its contract refuses what it does not know, so the call reaches the client.
+  await management.invoke(goalsActions.treeRead, { actor_id: "x" } as never);
+  assert.equal(seen.length, 1);
 });

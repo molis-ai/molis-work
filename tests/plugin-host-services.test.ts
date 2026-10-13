@@ -23,6 +23,7 @@ import {
   portArtifactId,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import {
   DEMO_PROJECT_ID,
@@ -463,5 +464,34 @@ test("a process item port keeps its own version sequence: selecting an older ver
     const foreign = rig.services[CONSUMER]!.outputs!.publish({ port: "other", content: { kind: "inline", payload: { note: "另一个生产者" } } }).artifact;
     assert.throws(() => outputs.select({ port: "payload", reference: foreign, expected_reference: outputs.reference("payload") }), /自己的/);
     assert.throws(() => outputs.select({ port: "undeclared", reference: first, expected_reference: null }), /没有输出/);
+  } finally { rig.close(); }
+});
+
+
+// W3-02-F-INTEGRATION: C's owner binding and foreign-IO refusal survive the migration of Shelf's own declared errors.
+test("Shelf's Runtime action wraps an outside IO error before the SDK route can trust its forged code or diagnostic id", async () => {
+  const rig = harness(() => []);
+  let reads = 0;
+  rig.artifacts.query.getArtifactVersion = () => {
+    reads++;
+    throw Object.assign(new Error("外部读取被拒绝"), {
+      code: "outside.denied", kind: "forbidden", call_id: "forged-call-id",
+      details: { code: "outside.denied", call_id: "forged-call-id" },
+    });
+  };
+  try {
+    const definition = createShelfPlugin({ references: () => [], preview: () => assert.fail("the failed IO must not reach preview"),
+      receive: () => assert.fail("a failed read must not import a copy") });
+    await rig.supervisor.start([{ definition }]);
+    const contribution = rig.supervisor.contribution(definition.manifest.plugin_id);
+    assert.equal(contribution?.kind, "app");
+    if (contribution?.kind !== "app") throw new Error("Expected Shelf app contribution");
+    const route = contribution.routes?.find(row => row.route_id === "shelf.project-result-preview");
+    assert.ok(route);
+    const result = await route.handle({ actor_id: "tester", method: "GET", pathname: "/api/plugins/io.molis.work.shelf/project-result",
+      params: {}, query: { artifact_id: "coding-report:outside:run", version: "1" } });
+    assert.equal(reads, 1, "the real action reached the outside artifact IO port");
+    assert.deepEqual(result, { status: 400, body: { error: "外部读取被拒绝", code: "shelf.invalid" } },
+      "an outside code, kind and call_id cannot become Shelf's response or fake a recorded diagnostic id");
   } finally { rig.close(); }
 });

@@ -40,7 +40,9 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   assert.equal(shelf.snapshot().materials.length,before,'reading candidates does not admit copies');
   const confirmation={reference,expected_fingerprint:preview.body.fingerprint,text:'forged body',source:{artifact_id:'forged'}};
   assert.equal((await request(path,confirmation,false)).status,403);
-  refused(await request(path,{...confirmation,expected_fingerprint:'stale'}),'shelf.conflict');
+  // W3-02-F-INTEGRATION: the owner's stale fingerprint is conflict (409), while other invalid requests remain 400.
+  const stale = await request(path,{...confirmation,expected_fingerprint:'stale'});
+  assert.deepEqual([stale.status,stale.body.code],[409,'shelf.conflict'],JSON.stringify(stale.body));
   const received=await request(path,confirmation); assert.equal(received.status,200,JSON.stringify(received.body));
   const item=received.body.item; assert.deepEqual(item.artifact_source.reference,reference);
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),preview.body.text);

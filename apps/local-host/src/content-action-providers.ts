@@ -5,7 +5,7 @@ import type { FunctionsHostOptions } from "./functions-host.js";
 import { inboxContentActions } from "@molis-ai/molis-work-plugin-inbox";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ActionError, retainActionAuthority, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionSceneClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { feedManifest, feedQueryActions, promoteOffered, readLinkedFeedContext, feedItemContext, FeedStoreError, createFeedQueryHandlers, createFeedCaptureTrigger, createFeedContentHandlers, createFeedItemHandlers, createFeedRuleHandlers, createFeedSourceHandlers, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
+import { feedManifest, feedQueryActions, promoteOffered, readLinkedFeedContext, feedItemContext, createFeedQueryHandlers, createFeedCaptureTrigger, createFeedContentHandlers, createFeedItemHandlers, createFeedRuleHandlers, createFeedSourceHandlers, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
 import { createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { createHomeJudgmentTrigger } from "./home-actions.js";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
@@ -51,7 +51,7 @@ export function nativeContentProviders(runtime: MolisWorkProjectRuntime, feed: F
           readGoal: () => goal,
           readItem: id => {
             try { return feed.getItem(runtime.project_id, id); }
-            catch (error) { if (error instanceof FeedStoreError && error.code === "feed_item_not_found") return null; throw error; }
+            catch (error) { if (error instanceof ActionError && error.code === "feed.item_not_found") return null; throw error; }
           },
           renderItem: item => feedItemContext(hydrate(item)),
         });

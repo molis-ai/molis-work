@@ -128,8 +128,8 @@ for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "dele
       const input = { source_id: source.source_id, idempotency_key: "public-authority-1" };
       const pending = authorized.service.invoke({ ...authorized.context, signal: controller.signal }, feedSourceActions.sync, input);
       const error = mode === "cancelled" ? { name: "AbortError" } : code(mode === "disabled" ? "actions.plugin_disabled"
-        : mode === "paused" ? "feed_source_paused" : mode === "reconfigured" ? "feed_source_configuration_changed"
-          : mode === "deleted" ? "feed_source_not_found" : "mcp.action_revoked");
+        : mode === "paused" ? "feed.source_paused" : mode === "reconfigured" ? "feed.source_configuration_changed"
+          : mode === "deleted" ? "feed.source_not_found" : "mcp.action_revoked");
       const rejected = assert.rejects(pending, error);
       await enteredOrFailure(entered.promise, pending);
       if (mode === "grant-revoked" || mode === "revoked-provider-failure") await served.revoke(mcpCaller.actor_id, PROJECT, [view]);
@@ -175,7 +175,7 @@ for (const mode of ["disabled", "paused", "reconfigured"] as const) {
     t.mock.method(globalThis, "fetch", async () => { requests++; entered.resolve(); await release.promise; return new Response(rss, { headers: { "content-type": "application/rss+xml" } }); });
     try {
       const client = host.actionClient(reference), pending = client.invoke(caller, feedSourceActions.tick, {});
-      const rejected = assert.rejects(pending, code(mode === "disabled" ? "actions.plugin_disabled" : mode === "paused" ? "feed_source_paused" : "feed_source_configuration_changed"));
+      const rejected = assert.rejects(pending, code(mode === "disabled" ? "actions.plugin_disabled" : mode === "paused" ? "feed.source_paused" : "feed.source_configuration_changed"));
       await enteredOrFailure(entered.promise, pending);
       assert.equal((await client.invoke(caller, feedSourceActions.tick, {})).skipped, 1, "overlapping timer ticks share the original source guard");
       if (mode === "disabled") enabled = false;
@@ -225,7 +225,7 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "revoked-p
     try {
       const input = { source_id: source.source_id, idempotency_key: "account-authority-1" };
       const pending = mode === "scheduled-revoked" ? actions.invoke(context, feedSourceActions.tick, {}) : actions.invoke({ ...context, signal: controller.signal }, feedSourceActions.sync, input);
-      const rejected = assert.rejects(pending, mode === "cancelled" ? { name: "AbortError" } : code(mode === "paused" ? "feed_source_paused" : mode === "disconnected" ? "feed_source_connection_changed" : "actions.revoked"));
+      const rejected = assert.rejects(pending, mode === "cancelled" ? { name: "AbortError" } : code(mode === "paused" ? "feed.source_paused" : mode === "disconnected" ? "feed.source_connection_changed" : "actions.revoked"));
       await enteredOrFailure(entered.promise, pending);
       if (mode === "revoked" || mode === "revoked-provider-failure" || mode === "scheduled-revoked") allowed = false;
       if (mode === "paused") sources.setEnabled(source.source_id, false);

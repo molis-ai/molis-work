@@ -4,10 +4,10 @@ import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { createScheduleReminders, createScheduleReminderManagement, getScheduleReminder, createScheduleActionPorts, scheduleActions, SCHEDULE_ACTION_PERMISSIONS,
-  SchedulePluginRouteTable, createScheduleRouteHandlers, type ScheduleJobView } from "@molis-ai/molis-work-plugin-schedule";
+  SchedulePluginRouteTable, createScheduleRouteHandlers, createReminderActionHandlers, reminderActions, type ScheduleJobView } from "@molis-ai/molis-work-plugin-schedule";
 import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
 import { seedDemoBoard } from "../apps/local-host/src/demo-seed.js";
 import { scheduleServiceFor } from "../apps/local-host/src/schedule-runtime.js";
@@ -61,6 +61,41 @@ test("recovery respects the current installation's reminder limit and requires a
     reminders.cancel(identity, created[0]!);
     assert.equal(management.recover(input).enabled, true);
     assert.throws(() => reminders.add(identity, { at, text: "overflow" }), /提醒已经太多/);
+  } finally { store.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("W3-02-E: a plugin whose installation is not running cannot set or cancel a reminder; the action answers schedule.job_invalid, not an uncoded failure", async () => {
+  const home = await mkdtemp(join(tmpdir(), "reminder-not-running-")), path = join(home, "project.db"); seedDemoBoard(path, "p");
+  const store = new LocalProjectDatabase(path);
+  try {
+    const repository = new SqlitePluginRuntimeRepository(store.db);
+    const reminders = hostScheduleReminders({ db: store.db, projectId: "p", schedule: scheduleServiceFor(store.db) });
+    const handlers = createReminderActionHandlers("p", { add: (identity, input) => reminders.add(identity, input), cancel: (identity, input) => reminders.cancel(identity, input) });
+    const bind = (definition: { capability_id: string; version: number }): ActionHandlerBinding =>
+      handlers.find(row => row.capability_id === definition.capability_id && row.version === definition.version)!;
+    const add = bind(reminderActions.add), cancel = bind(reminderActions.cancel);
+    const caller = (installId = installation().install_id): ActionExecutionContext =>
+      ({ actor_id: `plugin:${pluginId}`, project_id: "p", audience: "plugin", permissions: [], plugin_install_id: installId, beforeEffect: async () => {} });
+    const at = new Date(Date.now() + 86_400_000).toISOString();
+    const refused = { code: "schedule.job_invalid", kind: "invalid" };
+
+    // No installation record yet (a plugin that schedules before Runtime has saved its record), and every state that is not running.
+    await assert.rejects(add.handle(caller(), { at, text: "复习" }), refused);
+    await assert.rejects(cancel.handle(caller(), { reminderId: "any" }), refused);
+    for (const state of ["installed", "disabled", "crashed", "quarantined", "uninstalled"] as const) {
+      repository.save({ ...installation(), state });
+      await assert.rejects(add.handle(caller(), { at, text: "复习" }), refused, `add while ${state}`);
+      await assert.rejects(cancel.handle(caller(), { reminderId: "any" }), refused, `cancel while ${state}`);
+    }
+    // The installation belongs to another plugin than the caller claims to be.
+    repository.save({ ...installation(), plugin_id: "io.molis.work.test.other", state: "running" });
+    await assert.rejects(add.handle(caller(), { at, text: "复习" }), refused, "add under another plugin's installation");
+
+    // A running installation of the caller still sets and cancels.
+    repository.save({ ...installation(), state: "running" });
+    const { reminderId } = await add.handle(caller(), { at, text: "复习" }) as { reminderId: string };
+    assert.equal(typeof reminderId, "string");
+    assert.deepEqual(await cancel.handle(caller(), { reminderId }), { cancelled: true });
   } finally { store.close(); await rm(home, { recursive: true, force: true }); }
 });
 

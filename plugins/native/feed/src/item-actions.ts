@@ -1,8 +1,6 @@
 import { FEED_PLUGIN_ID } from "./identity.js";
 import { retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionView, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedApplication } from "./application.js";
-import { FeedStoreError } from "./application-errors.js";
 import type { FeedGoalPromotionInput, promoteFeedItemToGoal } from "./goal-promotion.js";
 import type { FeedItemRecord } from "./projection.js";
 
@@ -61,16 +59,11 @@ export interface FeedItemActionPorts {
   promoteAvailable?(caller: ActionCallContext): Promise<boolean>;
 }
 
-/** Store refusals keep their own code so every caller sees the same reason; the Workbench route maps them back to its statuses. */
-function asActionError(error: unknown): unknown {
-  return error instanceof FeedStoreError || error instanceof FeedDomainError ? new ActionError(error.code, error.message) : error;
-}
-
 export function createFeedItemHandlers(feed: FeedApplication, board: string, ports: FeedItemActionPorts): ActionHandlerBinding[] {
   const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Output | Promise<Output>, enabled = true): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
     availability: () => enabled ? { available: true } : { available: false, code: "actions.connection_required", reason: "此项目尚未接通 Goal 服务" },
-    handle: async (caller, input) => { try { return await handle(input as Input, caller); } catch (error) { throw asActionError(error); } },
+    handle: async (caller, input) => await handle(input as Input, caller),
   });
   const ref = (definition: ActionDefinition) => ({ capability_id: definition.capability_id, version: definition.version });
   return [

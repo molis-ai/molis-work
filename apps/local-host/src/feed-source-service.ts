@@ -10,7 +10,15 @@ import { createLocalFeedApplication, type LocalFeedApplicationOptions } from "./
 import { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";
 import { syncResearchLibrarySource } from "./research-library-source.js";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { withConnectorConnections } from "./connector-connection-store.js";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { ConnectorConnectionError, withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
+
+/** The connector host's refusal (no such connection, another service's, a disconnected one) is the person choosing a connection Feed cannot use. */
+function requireFeedConnection(connections: ConnectorConnectionStore, connectionId: string, serviceId: string) {
+  try { return connections.require(connectionId, serviceId); }
+  catch (error) { throw error instanceof ConnectorConnectionError ? feedErrors.source_invalid_configuration(error.message) : error; }
+}
+
 export function listFeedSourceCatalog(): FeedSourceCatalogView[] {
   return listRegisterableFeeds().filter((source) => source.enabled).map((source) => ({
     id: source.sourceId,
@@ -48,10 +56,10 @@ export function createLocalFeedSourceService(
     createRuntime: (source) => runtimeFactory(db, source),
     transaction: (operation) => db.transaction(operation).immediate(),
     resolveConnection: (serviceId, connectionId) => withConnectorConnections(homeDirectory ?? resolveMolisWorkHome(), (connections) => {
-      const connection = connections.require(connectionId, serviceId);
-      if (connection.disconnected_at || connection.auth_method === "mcp" || connection.auth_method === "cli") throw new Error("Feed 自动同步请选择 API OAuth 或令牌连接；CLI / MCP 请在连接器中使用其原生操作");
+      const connection = requireFeedConnection(connections, connectionId, serviceId);
+      if (connection.disconnected_at || connection.auth_method === "mcp" || connection.auth_method === "cli") throw feedErrors.source_invalid_configuration("Feed 自动同步请选择 API OAuth 或令牌连接；CLI / MCP 请在连接器中使用其原生操作");
       if (connections.state(connection) !== "connected" || (!connection.credential_ref && connection.auth_method !== "none")) {
-        throw new Error("所选账号连接不可用，请在 Connectors 中重新授权");
+        throw feedErrors.source_invalid_configuration("所选账号连接不可用，请在 Connectors 中重新授权");
       }
       return {
         credentialRef: connection.credential_ref,

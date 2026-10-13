@@ -1,11 +1,11 @@
 import { feedRuleActions } from "./rule-actions.js";
 import type { FeedPluginRouteHandler } from "./routes.js";
 import type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
-import { FeedStoreError } from "./application-errors.js";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { parseFeedOutRulePatch, parseFeedOutRuleWrite } from "./out-rules.js";
 
 function requireRuleId(value: string | undefined): string {
-  if (!value) throw new FeedStoreError("feed_out_rule_not_found", "找不到这条捕捉规则");
+  if (!value) throw feedErrors.out_rule_not_found("找不到这条捕捉规则");
   return value;
 }
 
@@ -20,7 +20,7 @@ export function createFeedOutRuleRouteHandlers(options: FeedRouteHandlerPorts): 
     }) }),
     "feed.out-rules.evaluate": async ({ request }) => {
       const ids = request.body.item_ids;
-      if (!Array.isArray(ids) || !ids.every((id) => typeof id === "string")) throw new FeedStoreError("feed_invalid_transition", "请选择消息试跑规则");
+      if (!Array.isArray(ids) || !ids.every((id) => typeof id === "string")) throw feedErrors.invalid_transition("请选择消息试跑规则");
       const result = await options.actions.invoke(feedRuleActions.evaluate, { item_ids: ids });
       changed();
       return { status: 200, body: result };

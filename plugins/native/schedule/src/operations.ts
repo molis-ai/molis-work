@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { ScheduleError, type ScheduleJobRecord, type ScheduleRegisterInput, type ScheduleWakeupControl, type ScheduleWakeupInput, type ScheduleWakeupReply } from "@molis-ai/molis-work-contracts/services/scheduler";
 import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import type { ScheduleTaskDatabase } from "./tasks.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { scheduleErrors } from "./error.js";
 import { SCHEDULE_PLUGIN_ID } from "./manifest.js";
 
 export const SCHEDULE_OPERATION_WAKEUP = "schedule.operation.wakeup";
@@ -95,9 +97,9 @@ export function createScheduledOperations(options: {
   const { db, schedule, projectId } = options;
   db.exec(SCHEDULED_OPERATIONS_SCHEMA_SQL);
   const describe = (identity: ScheduledOperationIdentity) => {
-    if (identity.projectId !== options.projectId || !identity.installationId || !identity.pluginId) throw new Error("定时操作缺少当前项目的插件安装身份");
+    if (identity.projectId !== options.projectId || !identity.installationId || !identity.pluginId) throw new ActionError("actions.forbidden", "定时操作缺少当前项目的插件安装身份");
     const current = options.describe(identity);
-    if (!current || current.installationId !== identity.installationId || !current.generation) throw new Error("只有安装好的插件才能设定时执行");
+    if (!current || current.installationId !== identity.installationId || !current.generation) throw scheduleErrors.job_invalid("只有安装好的插件才能设定时执行");
     return current;
   };
   const remove = (run: ScheduledOperation) => {
@@ -109,16 +111,16 @@ export function createScheduledOperations(options: {
   return {
     add(identity: ScheduledOperationIdentity, input: ScheduledOperationInput): { scheduleId: string } {
       const now = options.now?.() ?? Date.now(), at = Date.parse(input.at), repeat = input.repeat ?? "none";
-      if (!Number.isFinite(at) || !/(?:Z|[+-]\d{2}:?\d{2})$/.test(input.at.trim())) throw new Error("时间要写成带时区的时间");
-      if (at < now - 60_000) throw new Error("时间已经过去了");
-      if (at > now + 366 * DAY) throw new Error("时间最多设在一年以内");
-      if (!["none", "daily", "weekly"].includes(repeat)) throw new Error("未知的定时重复方式");
+      if (!Number.isFinite(at) || !/(?:Z|[+-]\d{2}:?\d{2})$/.test(input.at.trim())) throw scheduleErrors.job_invalid("时间要写成带时区的时间");
+      if (at < now - 60_000) throw scheduleErrors.job_invalid("时间已经过去了");
+      if (at > now + 366 * DAY) throw scheduleErrors.job_invalid("时间最多设在一年以内");
+      if (!["none", "daily", "weekly"].includes(repeat)) throw scheduleErrors.job_invalid("未知的定时重复方式");
       return db.transaction(() => {
         const current = describe(identity), operation = current.operations.find(item => item.id === input.operation);
-        if (!operation) throw new Error("只能定时运行这个插件自己的功能：没有 " + input.operation);
+        if (!operation) throw scheduleErrors.job_invalid("只能定时运行这个插件自己的功能：没有 " + input.operation);
         const count = listScheduledOperations(db, projectId).filter(run => run.pluginId === identity.pluginId && run.installationId === identity.installationId
           && run.installationGeneration === current.generation && run.state !== "completed").length;
-        if (count >= OPERATIONS_PER_INSTALLATION) throw new Error("这个插件的定时执行已经太多了，先取消一些");
+        if (count >= OPERATIONS_PER_INSTALLATION) throw scheduleErrors.job_invalid("这个插件的定时执行已经太多了，先取消一些");
         const id = randomUUID(), title = operation.description || operation.id, due = new Date(at).toISOString();
         const job = schedule.register({ plugin_id: SCHEDULE_PLUGIN_ID, capability_id: SCHEDULE_OPERATION_WAKEUP, object_ref: projectId + "|" + id,
           title: (current.title + "：" + title).slice(0, 120), due_at: due,
@@ -173,10 +175,10 @@ export function setScheduledOperationEnabled(db: ScheduleTaskDatabase, schedule:
     const run = scheduledOperationForJob(db, jobId);
     if (!run) return null;
     if (enabled && (run.state === "needs_confirmation" || run.state === "needs_review" || run.state === "completed")) {
-      throw new ScheduleError("schedule_job_invalid", run.state === "completed" ? "这条一次性定时操作已经完成，请新建定时" : run.detail ?? "请先在定时操作详情确认恢复方式");
+      throw scheduleErrors.job_invalid(run.state === "completed" ? "这条一次性定时操作已经完成，请新建定时" : run.detail ?? "请先在定时操作详情确认恢复方式");
     }
     if (enabled && run.state === "paused" && listScheduledOperationOccurrences(db, run.projectId, run.id).some(item => item.state === "running" || item.state === "unknown")) {
-      throw new ScheduleError("schedule_job_invalid", "上次定时操作的结果尚未确认，不能直接重跑");
+      throw scheduleErrors.job_invalid("上次定时操作的结果尚未确认，不能直接重跑");
     }
     saveScheduledOperation(db, { ...run, state: enabled ? "enabled" : run.state === "needs_confirmation" || run.state === "needs_review" || run.state === "completed" ? run.state : "paused" });
     return schedule.setEnabled(jobId, enabled, run.jobOwner);

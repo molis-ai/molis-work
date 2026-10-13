@@ -4,13 +4,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createCodingTimeline } from "@molis-ai/molis-work-plugin-coding";
-import { ChromeHarness } from "./fixtures/plugin-builder-browser.js";
+import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 
 interface Reading { summary: string; rows: string[]; footer: string }
 
 test("时间线在等审查时只让要审批的操作显示“等你批准”，完成后如实收尾", { timeout: 30000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), "coding-timeline-"));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();

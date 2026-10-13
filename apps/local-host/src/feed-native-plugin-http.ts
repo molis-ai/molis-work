@@ -1,18 +1,20 @@
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { optionalPluginQuery } from "./web-view.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { feedRuleActions, FeedPluginRouteTable, createFeedRouteHandlers, feedRouteErrorResponse, type FeedPluginRouteResponse } from "@molis-ai/molis-work-plugin-feed";
+import { feedRuleActions, FeedPluginRouteTable, createFeedRouteHandlers, type FeedPluginRouteResponse } from "@molis-ai/molis-work-plugin-feed";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { readNativePluginJsonBody } from "./native-plugin-http.js";
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { LocalFeedApplicationOptions } from "./feed-application.js";
-import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { writeNativePluginJsonResponse } from "./native-plugin-http.js";
 
 export interface FeedNativePluginHttpOptions {
   readonly actions: BoundActionClient;
   readonly renderer: Pick<WorkbenchRenderer, "renderFeedWorkbenchFragment" | "renderPersistedFeedItemDetail">;
-  readonly boardId: string;
+  readonly projectId: string;
   readonly routePrefix: string;
   readonly store: LocalProjectDatabase;
   readonly readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>;
@@ -32,9 +34,10 @@ export async function handleFeedNativePluginHttp(
   }
   const method = request.method;
   if (!method || !["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method)) return false;
-  const body = method === "GET" || method === "DELETE" ? await readOptionalBody(request) : await readBody(request);
   const routes = new FeedPluginRouteTable(createHandlers(options));
+  // The body is read inside the try: a body that is too large or not JSON is a coded failure like any other, not an error that escapes the edge.
   try {
+    const body = await readNativePluginJsonBody(request, 256_000);
     const result = await routes.handle({
       method: method as "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
       pathname: url.pathname,
@@ -45,7 +48,7 @@ export async function handleFeedNativePluginHttp(
     writeResponse(response, result);
     return true;
   } catch (error) {
-    writeResponse(response, feedRouteErrorResponse(error));
+    writeResponse(response, actionErrorResponse(error));
     return true;
   }
 }
@@ -55,7 +58,6 @@ function createHandlers(options: FeedNativePluginHttpOptions): ReturnType<typeof
     actions: options.actions,
     routePrefix: options.routePrefix,
     inboxEntries: async () => (await optionalPluginQuery(options.actions, inboxActions.list, {}))?.entries ?? [],
-    connectors: () => createLocalFeedConnectorService(options.store.db, options.boardId, undefined, options.homeDirectory, options.feedOptions),
     changed: () => options.invalidateWebView(),
     hydrateItem: async item => {
       const { recommendations } = await options.actions.invoke(feedRuleActions.recommendations, {});
@@ -86,30 +88,5 @@ function writeResponse(response: ServerResponse, result: FeedPluginRouteResponse
     response.end(result.html);
     return;
   }
-  response.writeHead(result.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...result.headers });
-  response.end(JSON.stringify(result.body ?? {}));
-}
-
-function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    request.setEncoding("utf8");
-    request.on("data", (chunk) => {
-      body += chunk;
-      if (body.length > 256_000) reject(new Error("请求内容过大"));
-    });
-    request.on("end", () => {
-      try {
-        resolve(body ? JSON.parse(body) as Record<string, unknown> : {});
-      } catch {
-        reject(new Error("请求不是有效 JSON"));
-      }
-    });
-    request.on("error", reject);
-  });
-}
-
-function readOptionalBody(request: IncomingMessage): Promise<Record<string, unknown>> {
-  const contentLength = Number(request.headers["content-length"] ?? 0);
-  return contentLength > 0 ? readBody(request) : Promise.resolve({});
+  writeNativePluginJsonResponse(response, result);
 }

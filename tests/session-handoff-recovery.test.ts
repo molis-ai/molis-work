@@ -18,17 +18,17 @@ function definitelyRejected(message: string): Error {
   return Object.assign(new Error(message), { deliveryAccepted: false, retryable: true });
 }
 
-function contractFixture(databasePath: string, boardId: string, goalId: string) {
+function contractFixture(databasePath: string, projectId: string, goalId: string) {
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   coordinator.initializeBoard({
-    board_id: boardId,
+    project_id: projectId,
     title: "Recovery",
     actor_id: "owner",
-    idempotency_key: `${boardId}-init`,
+    idempotency_key: `${projectId}-init`,
   });
   coordinator.goalEvents.createIntent({
-    board_id: boardId,
+    project_id: projectId,
     goal_id: goalId,
     title: "恢复 Handoff",
     outcome: "失败后不会重复创建目标 Session",
@@ -42,7 +42,7 @@ function contractFixture(databasePath: string, boardId: string, goalId: string) 
       statement: "重试复用目标 Session",
     }],
   });
-  return { store, contract: sessionHandoffGoalContext(coordinator, boardId, goalId) };
+  return { store, contract: sessionHandoffGoalContext(coordinator, projectId, goalId) };
 }
 
 function services(registry: MolisWorkSessionRegistry, transport: RuntimeSessionTransport) {
@@ -63,9 +63,9 @@ function services(registry: MolisWorkSessionRegistry, transport: RuntimeSessionT
 test("turn delivery failure keeps the real target and retry sends only to that thread after restart", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-recovery-"));
   const home = path.join(directory, ".molis-work");
-  const boardId = "project-handoff-recovery";
+  const projectId = "project-handoff-recovery";
   const goalId = "goal-handoff-recovery";
-  const { store, contract } = contractFixture(path.join(directory, "board.db"), boardId, goalId);
+  const { store, contract } = contractFixture(path.join(directory, "board.db"), projectId, goalId);
   let registry = await openWorkSessionRegistry({ homeDirectory: home });
   const calls: Array<{ method: string; threadId: string | null }> = [];
   let failTurn = true;
@@ -86,14 +86,14 @@ test("turn delivery failure keeps the real target and retry sends only to that t
       native_runtime_session_id: "thread-recovery-source",
       actor_id: "user",
       user_confirmed: true,
-      project_id: boardId,
+      project_id: projectId,
       current_goal_id: goalId,
       title: "Recovery source",
     });
     let runtime = services(registry, transport);
     const prepared = await runtime.handoff.prepare({
       source_session_id: source.session_id,
-      project_id: boardId,
+      project_id: projectId,
       project_name: "Recovery",
       target_runtime_id: "codex",
       actor_id: "user",
@@ -108,7 +108,7 @@ test("turn delivery failure keeps the real target and retry sends only to that t
     });
     assert.equal(failed.handoff.state, "failed");
     assert.equal(failed.destination_session?.native_runtime_session_id, "thread-recovery-target");
-    assert.equal(registry.list({ project_id: boardId }).length, 2);
+    assert.equal(registry.list({ project_id: projectId }).length, 2);
     assert.deepEqual(calls.map((call) => call.method), ["thread/read", "thread/start", "turn/start"]);
 
     registry.close();
@@ -126,7 +126,7 @@ test("turn delivery failure keeps the real target and retry sends only to that t
     assert.equal(retried.destination_session?.session_id, failed.destination_session?.session_id);
     assert.deepEqual(calls.map((call) => call.method), ["thread/read", "thread/start", "turn/start", "turn/start"]);
     assert.equal(calls.at(-1)?.threadId, "thread-recovery-target");
-    assert.equal(registry.list({ project_id: boardId }).length, 2);
+    assert.equal(registry.list({ project_id: projectId }).length, 2);
   } finally {
     registry.close();
     store.close();
@@ -136,9 +136,9 @@ test("turn delivery failure keeps the real target and retry sends only to that t
 
 test("thread creation failure keeps a retryable package without a false destination Session", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-create-failure-"));
-  const boardId = "project-handoff-create-failure";
+  const projectId = "project-handoff-create-failure";
   const goalId = "goal-handoff-create-failure";
-  const { store, contract } = contractFixture(path.join(directory, "board.db"), boardId, goalId);
+  const { store, contract } = contractFixture(path.join(directory, "board.db"), projectId, goalId);
   const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   const transport: RuntimeSessionTransport = {
     async request(method) {
@@ -154,13 +154,13 @@ test("thread creation failure keeps a retryable package without a false destinat
       native_runtime_session_id: "thread-create-failure-source",
       actor_id: "user",
       user_confirmed: true,
-      project_id: boardId,
+      project_id: projectId,
       current_goal_id: goalId,
     });
     const runtime = services(registry, transport);
     const prepared = await runtime.handoff.prepare({
       source_session_id: source.session_id,
-      project_id: boardId,
+      project_id: projectId,
       project_name: "Create failure",
       target_runtime_id: "codex",
       actor_id: "user",
@@ -176,7 +176,7 @@ test("thread creation failure keeps a retryable package without a false destinat
     assert.equal(failed.handoff.state, "failed");
     assert.equal(failed.handoff.retryable, true);
     assert.equal(failed.destination_session, null);
-    assert.equal(registry.list({ project_id: boardId }).length, 1);
+    assert.equal(registry.list({ project_id: projectId }).length, 1);
   } finally {
     registry.close();
     store.close();
@@ -186,9 +186,9 @@ test("thread creation failure keeps a retryable package without a false destinat
 
 test("an ambiguous thread creation result is not automatically replayed", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-ambiguous-create-"));
-  const boardId = "project-handoff-ambiguous-create";
+  const projectId = "project-handoff-ambiguous-create";
   const goalId = "goal-handoff-ambiguous-create";
-  const { store, contract } = contractFixture(path.join(directory, "board.db"), boardId, goalId);
+  const { store, contract } = contractFixture(path.join(directory, "board.db"), projectId, goalId);
   const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   const calls: string[] = [];
   const transport: RuntimeSessionTransport = {
@@ -206,13 +206,13 @@ test("an ambiguous thread creation result is not automatically replayed", async 
       native_runtime_session_id: "thread-ambiguous-create-source",
       actor_id: "user",
       user_confirmed: true,
-      project_id: boardId,
+      project_id: projectId,
       current_goal_id: goalId,
     });
     const runtime = services(registry, transport);
     const prepared = await runtime.handoff.prepare({
       source_session_id: source.session_id,
-      project_id: boardId,
+      project_id: projectId,
       project_name: "Ambiguous create",
       target_runtime_id: "codex",
       actor_id: "user",
@@ -241,9 +241,9 @@ test("an ambiguous thread creation result is not automatically replayed", async 
 
 test("a successful create response without a native Session ID is not automatically replayed", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-missing-native-id-"));
-  const boardId = "project-handoff-missing-native-id";
+  const projectId = "project-handoff-missing-native-id";
   const goalId = "goal-handoff-missing-native-id";
-  const { store, contract } = contractFixture(path.join(directory, "board.db"), boardId, goalId);
+  const { store, contract } = contractFixture(path.join(directory, "board.db"), projectId, goalId);
   const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   const calls: string[] = [];
   const transport: RuntimeSessionTransport = {
@@ -261,13 +261,13 @@ test("a successful create response without a native Session ID is not automatica
       native_runtime_session_id: "thread-missing-native-id-source",
       actor_id: "user",
       user_confirmed: true,
-      project_id: boardId,
+      project_id: projectId,
       current_goal_id: goalId,
     });
     const runtime = services(registry, transport);
     const prepared = await runtime.handoff.prepare({
       source_session_id: source.session_id,
-      project_id: boardId,
+      project_id: projectId,
       project_name: "Missing native Session ID",
       target_runtime_id: "codex",
       actor_id: "user",
@@ -296,9 +296,9 @@ test("a successful create response without a native Session ID is not automatica
 
 test("an ambiguous delivery result keeps the target but blocks automatic replay", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-ambiguous-delivery-"));
-  const boardId = "project-handoff-ambiguous-delivery";
+  const projectId = "project-handoff-ambiguous-delivery";
   const goalId = "goal-handoff-ambiguous-delivery";
-  const { store, contract } = contractFixture(path.join(directory, "board.db"), boardId, goalId);
+  const { store, contract } = contractFixture(path.join(directory, "board.db"), projectId, goalId);
   const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   const calls: string[] = [];
   const transport: RuntimeSessionTransport = {
@@ -317,13 +317,13 @@ test("an ambiguous delivery result keeps the target but blocks automatic replay"
       native_runtime_session_id: "thread-ambiguous-delivery-source",
       actor_id: "user",
       user_confirmed: true,
-      project_id: boardId,
+      project_id: projectId,
       current_goal_id: goalId,
     });
     const runtime = services(registry, transport);
     const prepared = await runtime.handoff.prepare({
       source_session_id: source.session_id,
-      project_id: boardId,
+      project_id: projectId,
       project_name: "Ambiguous delivery",
       target_runtime_id: "codex",
       actor_id: "user",
@@ -352,9 +352,9 @@ test("an ambiguous delivery result keeps the target but blocks automatic replay"
 
 test("a concurrent send cannot create a second target Session", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-concurrent-"));
-  const boardId = "project-handoff-concurrent";
+  const projectId = "project-handoff-concurrent";
   const goalId = "goal-handoff-concurrent";
-  const { store, contract } = contractFixture(path.join(directory, "board.db"), boardId, goalId);
+  const { store, contract } = contractFixture(path.join(directory, "board.db"), projectId, goalId);
   const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   let releaseThreadStart!: () => void;
   let reportThreadStart!: () => void;
@@ -382,13 +382,13 @@ test("a concurrent send cannot create a second target Session", async () => {
       native_runtime_session_id: "thread-concurrent-source",
       actor_id: "user",
       user_confirmed: true,
-      project_id: boardId,
+      project_id: projectId,
       current_goal_id: goalId,
     });
     const runtime = services(registry, transport);
     const prepared = await runtime.handoff.prepare({
       source_session_id: source.session_id,
-      project_id: boardId,
+      project_id: projectId,
       project_name: "Concurrent",
       target_runtime_id: "codex",
       actor_id: "user",
@@ -411,7 +411,7 @@ test("a concurrent send cannot create a second target Session", async () => {
     const sent = await first;
     assert.equal(sent.handoff.state, "sent");
     assert.deepEqual(calls, ["thread/read", "thread/start", "turn/start"]);
-    assert.equal(registry.list({ project_id: boardId }).length, 2);
+    assert.equal(registry.list({ project_id: projectId }).length, 2);
   } finally {
     releaseThreadStart?.();
     await first?.catch(() => undefined);
@@ -423,9 +423,9 @@ test("a concurrent send cannot create a second target Session", async () => {
 
 test("a Runtime cannot reuse the source native ID as the Handoff target", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-source-reuse-"));
-  const boardId = "project-handoff-source-reuse";
+  const projectId = "project-handoff-source-reuse";
   const goalId = "goal-handoff-source-reuse";
-  const { store, contract } = contractFixture(path.join(directory, "board.db"), boardId, goalId);
+  const { store, contract } = contractFixture(path.join(directory, "board.db"), projectId, goalId);
   const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   const transport: RuntimeSessionTransport = {
     async request(method) {
@@ -441,13 +441,13 @@ test("a Runtime cannot reuse the source native ID as the Handoff target", async 
       native_runtime_session_id: "thread-source-reused",
       actor_id: "user",
       user_confirmed: true,
-      project_id: boardId,
+      project_id: projectId,
       current_goal_id: goalId,
     });
     const runtime = services(registry, transport);
     const prepared = await runtime.handoff.prepare({
       source_session_id: source.session_id,
-      project_id: boardId,
+      project_id: projectId,
       project_name: "Source reuse",
       target_runtime_id: "codex",
       actor_id: "user",
@@ -464,7 +464,7 @@ test("a Runtime cannot reuse the source native ID as the Handoff target", async 
     assert.equal(failed.handoff.retryable, false);
     assert.match(failed.handoff.error_message ?? "", /不是一条新的 Session/);
     assert.equal(failed.destination_session, null);
-    assert.deepEqual(registry.list({ project_id: boardId }).map((session) => session.session_id), [source.session_id]);
+    assert.deepEqual(registry.list({ project_id: projectId }).map((session) => session.session_id), [source.session_id]);
     await assert.rejects(
       () => runtime.handoff.send({
         package_id: prepared.handoff.package_id,

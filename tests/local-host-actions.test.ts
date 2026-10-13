@@ -3,16 +3,17 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalHost, LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference, type LocalHostOptions } from "@molis-ai/molis-work-app-local-host";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
-import type { ActionCallContext, ActionDefinition, ActionSceneBinding, ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionAvailability, ActionCallContext, ActionDefinition, ActionSceneBinding, ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 
 const counter: ActionDefinition<{ amount: number }, number> = { capability_id: "host.counter.add", version: 1, operation: "command",
   action: { title: "累计", description: "累计项目值", kind: "operation", scope: "project", audiences: ["user", "mcp"],
     permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { amount: { type: "integer" } }, required: ["amount"], additionalProperties: false },
     output_schema: { type: "integer" } } };
-const ref = (id: string) => ({ project_id: id, board_id: id, storage_key: `memory:${id}` });
+const ref = (id: string) => ({ project_id: id, storage_key: `memory:${id}` });
 const context = (id: string): ActionCallContext => ({ actor_id: "alice", project_id: id, audience: "user", permissions: [] });
 
 test("a Plugin action can await a nested Host capability without waiting behind itself", { timeout: 2_000 }, async () => {
@@ -90,7 +91,7 @@ test("existing project workspace capability is discoverable and executable throu
   const directory = await mkdtemp(join(tmpdir(), "host-actions-"));
   const workspace = { workspace_id: "a-root", canonical_path: "/authorized/a", realpath_verified: true, display_name: "A" };
   const host = new MolisWorkLocalHost({ workspacesFor: id => id === "a" ? [workspace] : [] });
-  const project = molisWorkHostProjectReference({ databasePath: join(directory, "a.sqlite"), projectId: "a", boardId: "board-a" });
+  const project = molisWorkHostProjectReference({ databasePath: join(directory, "a.sqlite"), projectId: "a" });
   const c = context("a");
   try {
     const service = host.actionClient(project);
@@ -103,7 +104,7 @@ test("existing project workspace capability is discoverable and executable throu
     await assert.rejects(service.invoke({ ...c, project_id: "b" }, projectsCapabilities.listWorkspaces, []), { code: "actions.scope_mismatch" });
     // The production server discovers common actions too; there is no private Session here.
     const server = new LocalMcpServer(async () => { throw new Error("Unbound catalog should not be accessed"); }, "runtime",
-      { databasePath: project.storage_key, boardId: project.board_id, projectId: project.project_id, webBaseUrl: "http://localhost" }, null, host);
+      { databasePath: project.storage_key, projectId: project.project_id, webBaseUrl: "http://localhost" }, null, host);
     const publicName = actionMcpToolName({ ...projectsCapabilities.listWorkspaces,
       capability_id: `molis_work_v1_action_${projectsCapabilities.listWorkspaces.capability_id}` });
     const list = () => server.handleMessage({ id: 2, method: "tools/list" });
@@ -238,5 +239,134 @@ test("Host scene clients enforce current judgment and consumer policy before app
     consumerEnabled = true; duringInvoke = undefined;
     assert.equal(await client.runScene(caller, scene, saved!.binding_id, { amount: 1 }), "applied");
     assert.equal(consumed, 1);
+  } finally { await host.close(); }
+});
+
+interface SettledRow { call_id: string; actor_id: string; capability_id: string; provider_id?: string; operation: string; title: string; provider_title: string;
+  ok: boolean; code?: string; refused?: true; path?: string }
+function settlements() {
+  const rows: SettledRow[] = [];
+  const actionSettled: NonNullable<LocalHostOptions<object>["actionSettled"]> = (settledCaller, action, outcome) => {
+    rows.push({ call_id: settledCaller.call_id, actor_id: settledCaller.actor_id, capability_id: action.capability_id, provider_id: action.provider_id, operation: action.operation,
+      title: action.title, provider_title: action.provider_title, ok: outcome.ok, ...(outcome.ok ? {} : { code: outcome.code, ...(outcome.refused ? { refused: outcome.refused } : {}) }),
+      ...(action.path ? { path: action.path } : {}) });
+  };
+  return { rows, actionSettled };
+}
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+const note: HostCapabilityDefinition<{ text: string }, string> = { capability_id: "host.notes.record", version: 1, operation: "command" };
+const broken: HostCapabilityDefinition<Record<string, never>, string> = { capability_id: "host.notes.broken", version: 1, operation: "command" };
+const syncCounter: ActionDefinition<number, number> = { capability_id: "host.counter.sync", version: 1, operation: "command",
+  action: { ...counter.action, title: "同步累计", audiences: ["plugin"], input_schema: { type: "integer" } } };
+const pluginCaller = (id: string): ActionCallContext => ({ ...context(id), audience: "plugin" });
+
+test("every route into an action or a typed capability is settled exactly once, each operation with its own id", async () => {
+  const { rows, actionSettled } = settlements();
+  const host = new LocalHost({ runtimeFactory: { open: () => ({ total: 0 }), close: () => {} }, actionSettled });
+  const project = ref("routes"), caller = context("routes"), noted: Array<string | undefined> = [];
+  const homeRead = { ...counter, capability_id: "host.home.read", action: { ...counter.action, title: "首页读取", scope: "home" as const } };
+  host.register(counter, (runtime, input) => (runtime.total += input.amount));
+  host.register(note, (_runtime, input, invocation) => { noted.push(invocation.call_id); return input.text; });
+  host.register(broken, () => { throw new Error("the handler failed"); });
+  host.actionRegistry().registerProvider({ provider: { provider_id: "home", kind: "system", title: "Home" }, definitions: [homeRead], handlers: [{ ...homeRead, handle: () => 7 }] });
+  host.actionRegistry(project).registerProvider({ provider: { provider_id: "sync", kind: "plugin", title: "Sync", project_id: project.project_id },
+    definitions: [syncCounter], handlers: [{ ...syncCounter, execution: "sync", handle: (_context, input) => input }] });
+  const settledOnce = async (run: () => unknown, expected: Partial<SettledRow>) => {
+    const before = rows.length;
+    try { await run(); } catch (error) { assert.ok(error instanceof Error, "a refusal is an error"); }
+    assert.equal(rows.length, before + 1, `${JSON.stringify(expected)} is settled exactly once`);
+    const row = rows.at(-1)!;
+    assert.match(row.call_id, UUID);
+    assert.deepEqual(Object.fromEntries(Object.keys(expected).map(key => [key, row[key as keyof SettledRow]])), expected);
+  };
+  try {
+    const action = { title: "累计", provider_title: "Molis Work", provider_id: "platform", operation: "command", ok: true };
+    await settledOnce(() => host.actionClient(project).invoke(caller, counter, { amount: 1 }), { ...action, actor_id: "alice" });
+    await settledOnce(() => host.client(project).invoke(counter, { amount: 1 }), { ...action, actor_id: "local-host" });
+    await settledOnce(() => host.homeActionClient().invoke({ ...caller, project_id: null }, homeRead, { amount: 0 }),
+      { title: "首页读取", provider_title: "Home", provider_id: "home", operation: "command", ok: true });
+    await settledOnce(() => host.syncActionClient(project).invokeSync(pluginCaller("routes"), syncCounter, 5),
+      { title: "同步累计", provider_title: "Sync", provider_id: "sync", operation: "command", ok: true });
+    await settledOnce(() => host.client(project).invoke(note, { text: "hello" }),
+      { title: note.capability_id, provider_title: "Molis Work", provider_id: undefined, operation: "command", ok: true, path: "typed", actor_id: "local-host" });
+    assert.equal(noted[0], rows.at(-1)!.call_id, "the handler of a typed capability is given the id its settlement carries");
+    await settledOnce(() => host.client(project).invoke(broken, {}),
+      { title: broken.capability_id, ok: false, code: undefined, refused: undefined, path: "typed", operation: "command" });
+    await settledOnce(() => host.actionClient(project).invoke(caller, { capability_id: "host.nowhere", version: 1 }, {}),
+      { operation: "unknown", title: "host.nowhere", provider_title: "", ok: false, code: "actions.missing", refused: true });
+    await settledOnce(() => host.actionClient(project).invoke(caller, counter, { amount: "x" }), { title: "累计", ok: false, code: "actions.input_invalid", refused: true });
+    await settledOnce(() => host.client(project).invoke({ ...counter, capability_id: "host.counter.unregistered" }, { amount: 1 }),
+      { title: "host.counter.unregistered", ok: false, code: "kernel.capability_missing", refused: true, path: "typed" });
+    assert.equal(new Set(rows.map(row => row.call_id)).size, rows.length, "operations do not share ids");
+  } finally { await host.close(); }
+});
+
+test("a typed wait only observes: it runs but is not settled, while the typed query and command around it are", async () => {
+  const { rows, actionSettled } = settlements();
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionSettled });
+  const project = ref("observe"), followed: string[] = [];
+  const peek: HostCapabilityDefinition<Record<string, never>, string> = { capability_id: "host.notes.peek", version: 1, operation: "query" };
+  const follow: HostCapabilityDefinition<{ after: number }, string> = { capability_id: "host.notes.follow", version: 1, operation: "wait" };
+  host.register(peek, () => "peeked");
+  host.register(follow, (_runtime, input) => { followed.push(`after ${input.after}`); return `followed ${input.after}`; });
+  host.register(note, (_runtime, input) => input.text);
+  try {
+    assert.equal(await host.client(project).invoke(peek, {}), "peeked");
+    assert.equal(await host.client(project).invoke(follow, { after: 3 }), "followed 3");
+    assert.equal(await host.client(project).invoke(note, { text: "after the wait" }), "after the wait");
+    assert.deepEqual(followed, ["after 3"], "the wait ran");
+    assert.deepEqual(rows.map(row => [row.capability_id, row.operation, row.path]), [[peek.capability_id, "query", "typed"], [note.capability_id, "command", "typed"]],
+      "the wait left no settlement, so it can never reach the call log");
+  } finally { await host.close(); }
+});
+
+test("a typed call made while an action is handled belongs to the same operation", async () => {
+  const { rows, actionSettled } = settlements();
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionSettled });
+  const project = ref("nested"), seen: Array<string | undefined> = [];
+  host.register(note, (_runtime, input, invocation) => { seen.push(invocation.call_id); return input.text; });
+  host.register(counter, async (_runtime, input, invocation) => {
+    seen.push(invocation.call_id);
+    await host.client(project).invoke(note, { text: "inner" });
+    return input.amount;
+  });
+  try {
+    await host.actionClient(project).invoke(context("nested"), counter, { amount: 1 });
+    assert.deepEqual(rows.map(row => row.capability_id), [note.capability_id, counter.capability_id], "the inner call is settled when it ends, the outer one after it");
+    assert.equal(new Set([...seen, ...rows.map(row => row.call_id)]).size, 1, "the action's handler, the typed handler and both settlements share one id");
+  } finally { await host.close(); }
+});
+
+test("the host's availability policy refuses before dispatch on every route into an action, and each refusal is settled", async () => {
+  const { rows, actionSettled } = settlements();
+  let policy: ActionAvailability = { available: true }, ran = 0;
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionAvailability: () => policy, actionSettled });
+  const project = ref("policy"), homeRead = { ...counter, capability_id: "host.home.policy", action: { ...counter.action, scope: "home" as const } };
+  host.register(counter, () => ++ran);
+  host.actionRegistry().registerProvider({ provider: { provider_id: "home", kind: "system", title: "Home" }, definitions: [homeRead], handlers: [{ ...homeRead, handle: () => ++ran }] });
+  host.actionRegistry(project).registerProvider({ provider: { provider_id: "sync", kind: "plugin", title: "Sync", project_id: project.project_id },
+    definitions: [syncCounter], handlers: [{ ...syncCounter, execution: "sync", handle: () => ++ran }] });
+  try {
+    await host.withRuntime(project, () => undefined);
+    policy = { available: false, code: "actions.plugin_disabled", reason: "插件已停用" };
+    await assert.rejects(host.actionClient(project).invoke(context("policy"), counter, { amount: 1 }), { code: "actions.plugin_disabled" });
+    await assert.rejects(host.client(project).invoke(counter, { amount: 1 }), { code: "actions.plugin_disabled" });
+    await assert.rejects(host.homeActionClient().invoke({ ...context("policy"), project_id: null }, homeRead, { amount: 0 }), { code: "actions.plugin_disabled" });
+    assert.throws(() => host.syncActionClient(project).invokeSync(pluginCaller("policy"), syncCounter, 1), { code: "actions.plugin_disabled" });
+    assert.equal(ran, 0, "no handler was entered");
+    assert.deepEqual(rows.map(row => [row.title, row.ok, row.code, row.refused, row.actor_id]), [["累计", false, "actions.plugin_disabled", true, "alice"],
+      ["累计", false, "actions.plugin_disabled", true, "local-host"], ["累计", false, "actions.plugin_disabled", true, "alice"], ["同步累计", false, "actions.plugin_disabled", true, "alice"]]);
+  } finally { await host.close(); }
+});
+
+test("an id registered only for another project is refused as missing and described by the caller's reference alone", async () => {
+  const { rows, actionSettled } = settlements();
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionSettled });
+  const secret = { ...counter, capability_id: "host.counter.secret", action: { ...counter.action, title: "只在项目 b 里看得见" } };
+  host.actionRegistry(ref("b")).registerProvider({ provider: { provider_id: "b-only", title: "项目 b 的来源", kind: "plugin" }, definitions: [secret], handlers: [{ ...secret, handle: () => 1 }] });
+  try {
+    await assert.rejects(host.actionClient(ref("a")).invoke(context("a"), secret, { amount: 1 }), { code: "actions.missing" });
+    assert.deepEqual(rows.map(row => [row.operation, row.title, row.provider_title, row.code, row.refused]), [["unknown", secret.capability_id, "", "actions.missing", true]]);
+    assert.doesNotMatch(JSON.stringify(rows), /项目 b/u);
   } finally { await host.close(); }
 });

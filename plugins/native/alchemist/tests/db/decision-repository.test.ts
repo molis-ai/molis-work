@@ -5,7 +5,7 @@ import { createDecision } from "../../src/studio/domain/decision/decision.js";
 import { buildLensCompatibilityKey, marketLensCompatibilityKey } from "../../src/studio/domain/research/lens.js";
 import type { LensReport } from "../../src/studio/domain/research/report.js";
 import { SqliteDecisionRepository } from "../../src/studio/server/db/decision-repository.js";
-import { migrate } from "../../src/studio/server/db/migrate.js";
+import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
 import { openDatabase, type SqliteDatabase } from "../../src/studio/server/db/open-database.js";
 import { SqliteResearchRepository } from "../../src/studio/server/db/research-repository.js";
 import { seedResearchIdea } from "./helpers/seed-research-idea.js";
@@ -22,7 +22,7 @@ afterEach(() => {
 it("persists a frozen Decision and updates the Idea lifecycle atomically", () => {
   temporary = createTempDatabase();
   database = openDatabase(temporary.path);
-  migrate(database);
+  applyStudioBaseline(database, ":memory:");
   seedResearchIdea(database);
   const research = new SqliteResearchRepository(database);
   seedMinimalReport(database, research, marketReport());

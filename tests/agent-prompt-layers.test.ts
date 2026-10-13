@@ -3,7 +3,6 @@ import test from "node:test";
 
 import {
   AGENT_PROMPT_LAYERS,
-  inspectAgentDeclaration,
   orderPromptsByLayer,
   promptLayerOf,
   type AgentManifest,
@@ -12,6 +11,7 @@ import {
 import { AgentHost, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { codingAgentManifest, codingPrompts, projectCodingIdentity, renderCodingIdentity } from "@molis-ai/molis-work-plugin-coding";
 import { scheduleAgentManifest } from "@molis-ai/molis-work-plugin-schedule";
+import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 /**
  * 一轮执行的指令来自四个不同的主人：产品、角色、项目、用户。
@@ -45,8 +45,7 @@ test("包里不能声明 task 层的 prompt：任务是用户这一次写的", (
     roles: [{ role_id: "r", version: 1, name: "r", prompts: ["p"] }],
     prompts: [{ prompt_id: "p", version: 1, layer: "task" }],
   };
-  const problems = inspectAgentDeclaration(manifest, []);
-  assert.equal(problems.some((text) => /不能声明为 task 层/.test(text)), true);
+  assert.match(manifestProblems(declarationManifest({ agent: manifest })), /不能声明为 task 层/);
 });
 
 test("不认识的层级被拒，而不是当成默认值收下", () => {
@@ -54,12 +53,12 @@ test("不认识的层级被拒，而不是当成默认值收下", () => {
     roles: [{ role_id: "r", version: 1, name: "r", prompts: ["p"] }],
     prompts: [{ prompt_id: "p", version: 1, layer: "whatever" }],
   } as unknown as AgentManifest;
-  assert.equal(inspectAgentDeclaration(manifest, []).some((text) => /层级不合法/.test(text)), true);
+  assert.match(manifestProblems(declarationManifest({ agent: manifest })), /层级不合法/);
 });
 
 test("Coding 自己的声明是合法的，且 base 那一段独立成层", () => {
-  assert.deepEqual(inspectAgentDeclaration(codingAgentManifest, []), []);
-  assert.deepEqual(inspectAgentDeclaration(scheduleAgentManifest, []), []);
+  assert.equal(manifestProblems(declarationManifest({ agent: codingAgentManifest })), "");
+  assert.equal(manifestProblems(declarationManifest({ agent: scheduleAgentManifest })), "");
   const base = codingPrompts.find((prompt) => prompt.prompt_id === "coding-base");
   assert.equal(base?.layer, "base", "产品约束不能被角色的措辞悄悄顶替");
   const roleOnly = codingPrompts.filter((prompt) => prompt.prompt_id !== "coding-base");
@@ -106,7 +105,7 @@ test("项目那一层由宿主补，而且被强制标成 project —— 不管�
       return { session_id: "session-1", runtime_id: "probe" };
     },
     async readSession(session: unknown) {
-      return { session, owner: { board_id: "board-1", plugin_id: "io.molis.work.coding", install_id: "install-1", actor_id: "tester" },
+      return { session, owner: { project_id: "board-1", plugin_id: "io.molis.work.coding", install_id: "install-1", actor_id: "tester" },
         title: "probe", runs: [], latest_run: null };
     },
     async start(request) {
@@ -133,7 +132,7 @@ test("项目那一层由宿主补，而且被强制标成 project —— 不管�
 
   await host.start("probe", {
     session: { session_id: "session-1", runtime_id: "probe" },
-    board_id: "board-1",
+    project_id: "board-1",
     plugin_id: "io.molis.work.coding",
     install_id: "install-1",
     actor_id: "tester",

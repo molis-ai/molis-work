@@ -43,7 +43,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
             <section class="assistant-block assistant-block--attention" data-assistant-block="attention" aria-label="${L("还等你处理")}" hidden></section>
             <section class="assistant-block" data-assistant-block="path" aria-label="${L("路径")}" hidden></section>
             <section class="assistant-block" data-assistant-block="materials" aria-label="${L("材料")}" hidden></section>
-            <section class="assistant-block" data-assistant-block="results" aria-label="${L("成果")}" hidden></section>
+            <section class="assistant-block" data-assistant-block="results" aria-label="${L("产出")}" hidden></section>
             <section class="assistant-block assistant-block--usage" data-assistant-usage hidden></section>
           </aside>
           <div class="assistant-main">

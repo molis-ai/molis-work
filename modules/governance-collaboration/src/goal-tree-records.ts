@@ -13,7 +13,7 @@ export class GovernanceGoalTreeRecords {
     const decisionId = `goal-tree-decision-${randomUUID()}`;
     const decisionRecord: GoalTreeProposalDecisionRecord = {
       decision_id: decisionId,
-      board_id: input.board_id,
+      project_id: input.project_id,
       proposal_id: input.proposal_id,
       item_id: input.item.item_id,
       decision: input.decision,
@@ -39,7 +39,7 @@ export class GovernanceGoalTreeRecords {
     });
     new GovernanceRepository(this.db).appendEvent({
       event_id: randomUUID(),
-      board_id: input.board_id,
+      project_id: input.project_id,
       actor_id: input.authority.actor_id,
       type: `goal_tree_proposal.item_${input.decision}`,
       object_type: "goal_tree_proposal_item",
@@ -64,13 +64,13 @@ export class GovernanceGoalTreeRecords {
   }
 
   refreshGoalTreeProposalState(
-    boardId: string,
+    projectId: string,
     proposalId: string,
     actorId: string,
     at: string,
     semanticReview: GoalTreeSemanticReview | null,
   ): void {
-    const proposal = new GovernanceRepository(this.db).getGoalTreeProposal(boardId, proposalId);
+    const proposal = new GovernanceRepository(this.db).getGoalTreeProposal(projectId, proposalId);
     if (!proposal) throw this.errorFactory("goal_tree_proposal.not_found", `找不到 Goal Tree 提案: ${proposalId}`);
     const hasOpen = proposal.items.some((item) => item.state === "pending" || item.state === "conflict");
     const state = deriveGoalTreeProposalState(proposal.items);
@@ -87,7 +87,7 @@ export class GovernanceGoalTreeRecords {
     );
     new GovernanceRepository(this.db).appendEvent({
       event_id: randomUUID(),
-      board_id: boardId,
+      project_id: projectId,
       actor_id: actorId,
       type: "goal_tree_proposal.state_updated",
       object_type: "goal_tree_proposal",
@@ -100,23 +100,23 @@ export class GovernanceGoalTreeRecords {
 
   findGoalTreeItemOwner(itemId: string): GoalTreeItemOwner | null {
     const row = this.db.prepare(
-      "SELECT proposal_id, board_id FROM goal_tree_proposal_items WHERE item_id = ?",
+      "SELECT proposal_id, project_id FROM goal_tree_proposal_items WHERE item_id = ?",
     ).get(itemId) as GovernanceRow | undefined;
-    return row ? { proposal_id: text(row.proposal_id), board_id: text(row.board_id) } : null;
+    return row ? { proposal_id: text(row.proposal_id), project_id: text(row.project_id) } : null;
   }
 
   insertGoalTreeProposal(proposal: NewNativeGoalTreeProposal): void {
     this.db.prepare(`INSERT INTO goal_tree_proposals (
-      proposal_id, board_id, root_goal_id, submitted_by, discovered_in_run_id,
-      submitted_session_id, state, version, supersedes_proposal_id, supersedes_legacy_proposal_id,
+      proposal_id, project_id, root_goal_id, submitted_by,
+      submitted_session_id, state, version, supersedes_proposal_id,
       base_event_cursor, summary, narrative_json, decision_json,
       created_at, updated_at, decided_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)`)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)`)
       .run(
-        proposal.proposal_id, proposal.board_id, proposal.root_goal_id,
-        proposal.submitted_by, proposal.discovered_in_run_id, proposal.submitted_session_id ?? null,
+        proposal.proposal_id, proposal.project_id, proposal.root_goal_id,
+        proposal.submitted_by, proposal.submitted_session_id ?? null,
         proposal.state, proposal.version, proposal.supersedes_proposal_id,
-        proposal.supersedes_legacy_proposal_id ?? null, proposal.base_event_cursor,
+        proposal.base_event_cursor,
         proposal.summary, proposal.narrative == null ? null : json(proposal.narrative),
         proposal.created_at, proposal.updated_at,
       );
@@ -124,14 +124,14 @@ export class GovernanceGoalTreeRecords {
 
   insertGoalTreeProposalItem(item: NewNativeGoalTreeProposalItem): void {
     this.db.prepare(`INSERT INTO goal_tree_proposal_items (
-      item_id, proposal_id, board_id, ordinal, kind, operation, payload_json,
+      item_id, proposal_id, project_id, ordinal, kind, operation, payload_json,
       source_refs_json, reason, explanation_json, confidence, affected_objects_json,
       baseline_versions_json, requires_user_confirmation, state, conflict_json,
       materialized_objects_json, revision_proposal_id, supersedes_item_id,
       created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, '[]', NULL, ?, ?, ?)`)
       .run(
-        item.item_id, item.proposal_id, item.board_id, item.ordinal, item.kind,
+        item.item_id, item.proposal_id, item.project_id, item.ordinal, item.kind,
         item.operation, json(item.payload), json(item.source_refs), item.reason,
         item.explanation == null ? null : json(item.explanation), item.confidence,
         json(item.affected_objects), json(item.baseline_versions),
@@ -203,12 +203,12 @@ export class GovernanceGoalTreeRecords {
 
   insertGoalTreeDecision(decision: GoalTreeProposalDecisionRecord): void {
     this.db.prepare(`INSERT INTO goal_tree_proposal_decisions (
-      decision_id, board_id, proposal_id, item_id, decision, actor_id,
+      decision_id, project_id, proposal_id, item_id, decision, actor_id,
       authority_source, runtime_actor_id, conversation_ref, message_ref,
       reason, revision_proposal_id, materialized_objects_json, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(
-        decision.decision_id, decision.board_id, decision.proposal_id,
+        decision.decision_id, decision.project_id, decision.proposal_id,
         decision.item_id, decision.decision, decision.actor_id,
         decision.authority_source, decision.runtime_actor_id,
         decision.conversation_ref, decision.message_ref, decision.reason,

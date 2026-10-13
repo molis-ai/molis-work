@@ -3,9 +3,11 @@ import path from "node:path";
 import { ActionError, FRAGMENT_GRANULARITIES, FRAGMENT_ROLES, type ActionReference, type ActionView, type FragmentActionOffer, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FUNCTIONS_DEFAULT_MODEL } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { ContextualJudgeRequest, SurfaceActivity, SurfaceFocus, SurfaceFocusTarget } from "@molis-ai/molis-work-contracts/services/contextual";
-import { contextualCandidates } from "@molis-ai/molis-work-kernel";
+import { contextualCandidates, type JudgmentWording } from "@molis-ai/molis-work-kernel/contextual";
 import { TYPESAFE_SYSTEMONE_URL } from "@molis-ai/molis-work-module-functions";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
+import { registeredInstructionBody, registeredInstructionRevision } from "../agent-definitions/instructions.js";
+import { CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE } from "../agent-definitions/system-prompts.js";
 import { resolvePrologueInference } from "../prologue-inference-host.js";
 import { typeSafeConfiguration, typeSafeCredential } from "../typesafe-connection.js";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "../web-http.js";
@@ -89,6 +91,20 @@ async function reportSignal(focus: SurfaceFocus, key: string, signal: string, ev
     occurrence: focus.context_id.slice(0, 120) });
 }
 
+/**
+ * The wording of the two questions the bar puts to the judgment service, as the person left it in 设置 › 提示词. The judgment service reads the
+ * revision on every judgment to know whether a cached answer was asked under the same words (a read of the register that records nothing),
+ * and the text only when it really asks (one recorded use of each question).
+ */
+const WORDING_CALLER = "contextual.judgment";
+
+/** One short string that changes whenever the person saves or restores either question; `-` stands for the default. */
+export const judgmentWordingRevision = (home: string): string =>
+  `${registeredInstructionRevision(home, CONTEXTUAL_NEXT) ?? "-"}.${registeredInstructionRevision(home, CONTEXTUAL_SURFACE) ?? "-"}`;
+
+export const judgmentWording = (home: string): JudgmentWording =>
+  ({ next: registeredInstructionBody(home, CONTEXTUAL_NEXT, WORDING_CALLER), surface: registeredInstructionBody(home, CONTEXTUAL_SURFACE, WORDING_CALLER) });
+
 /** One service per Home: per-pane cancellation and the judgment cache outlive a single request. */
 function serviceFor(home: string | undefined): ContextualJudgmentService<Caller> {
   const key = home ? path.resolve(home) : "";
@@ -96,7 +112,8 @@ function serviceFor(home: string | undefined): ContextualJudgmentService<Caller>
   if (service) return service;
   service = createContextualJudgmentService<Caller>({
     directory,
-    ...(home ? { evaluate: jevEvaluator(home), configured: () => Boolean(credential(home)) } : {}),
+    ...(home ? { evaluate: jevEvaluator(home), configured: () => Boolean(credential(home)),
+      wording: { revision: () => judgmentWordingRevision(home), text: () => judgmentWording(home) } } : {}),
     recall: (focus, caller) => recallForJudgment(focus, caller),
     screen: screenModelMaterial,
   });
@@ -105,20 +122,20 @@ function serviceFor(home: string | undefined): ContextualJudgmentService<Caller>
 }
 
 /** The judgment's TypeSafe key: the process override the other TypeSafe callers honour, else the Home's selected connection. */
-const credential = (home: string) => process.env.TYPESAFE_API_KEY?.trim() || typeSafeCredential(home, "functions");
+const credential = (home: string) => process.env.TYPESAFE_API_KEY?.trim() || typeSafeCredential(home);
 
 /** Multi-question Jev through the Home's Prologue inference; the key never leaves this process's memory. */
 function jevEvaluator(home: string): NonNullable<Parameters<typeof createContextualJudgmentService>[0]["evaluate"]> {
   return async ({ state, questions, signal }) => {
     if (!credential(home)) throw new Error("这个 Home 没有可用的 TypeSafe 连接");
-    const configuration = JSON.stringify(typeSafeConfiguration(home, "functions"));
+    const configuration = JSON.stringify(typeSafeConfiguration(home));
     const inference = await resolvePrologueInference(home);
     const credential_ref = "typesafe:contextual";
     const body = await inference.evaluateTypeSafe({ endpoint: TYPESAFE_SYSTEMONE_URL, model: FUNCTIONS_DEFAULT_MODEL, state, questions,
       credential_ref, signal, timeout_ms: 30_000,
       // The connection may be changed while the question waits; an answer is only used from the one it was asked on.
       resolveCredential: ref => ref !== credential_ref ? null
-        : JSON.stringify(typeSafeConfiguration(home, "functions")) === configuration ? credential(home) : null });
+        : JSON.stringify(typeSafeConfiguration(home)) === configuration ? credential(home) : null });
     const model = typeof (body as { model?: unknown }).model === "string" ? (body as { model: string }).model : FUNCTIONS_DEFAULT_MODEL;
     return { body, basis: "jev", model: `Jev · ${model}` };
   };

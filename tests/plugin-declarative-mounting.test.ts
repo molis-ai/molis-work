@@ -12,6 +12,7 @@ import {
   PluginRouteRouter,
   PluginRuntime,
   PluginSupervisor,
+  type PluginHostLifecycle,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { UiViewRegistry } from "@molis-ai/molis-work-ui-host";
 
@@ -223,7 +224,8 @@ test("a route refuses a caller without the permission it declared", async () => 
     actor_id: "actor",
     granted: [],
   });
-  assert.deepEqual(response, { status: 403, body: { error: "plugin_route_permission_denied" } });
+  // W3-02-C: the router answers with the platform's codes and the sentences the action layer already uses for the same facts.
+  assert.deepEqual(response, { status: 403, body: { error: "此能力的本地用户授权已失效，请检查插件权限和运行状态", code: "actions.forbidden" } });
 });
 
 test("a route on a Plugin that cannot start reports unavailable rather than crashing", async () => {
@@ -243,7 +245,19 @@ test("a route on a Plugin that cannot start reports unavailable rather than cras
     pathname: `${PLUGIN_ROUTE_PREFIX}/${CODING}/sessions`,
     actor_id: "actor",
   });
-  assert.deepEqual(response, { status: 503, body: { error: "plugin_unavailable" } });
+  assert.deepEqual(response, { status: 503, body: { error: "插件未运行或已停用", code: "actions.plugin_unavailable" } });
+});
+
+test("a route on a Plugin that is not enabled answers 403 actions.plugin_disabled, and a declared route with no handler is the Plugin's fault (500)", async () => {
+  // The router asks its lifecycle only for the enablement epoch and the running instance.
+  const router = (lifecycle: Pick<PluginHostLifecycle, "generation"> & Partial<Pick<PluginHostLifecycle, "ensureStarted">>) =>
+    new PluginRouteRouter({ ensureStarted: async () => undefined, ...lifecycle } as PluginHostLifecycle, [codingManifest]);
+  const input = { method: "GET", pathname: `${PLUGIN_ROUTE_PREFIX}/${CODING}/sessions`, actor_id: "actor" };
+  assert.deepEqual(await router({ generation: () => undefined }).dispatch(input),
+    { status: 403, body: { error: "此项目未启用该插件", code: "actions.plugin_disabled" } });
+  const unbound = { install_id: "install", active: () => true, contribution: { kind: "app" as const, routes: [] } };
+  assert.deepEqual(await router({ generation: () => 1, ensureStarted: async () => unbound }).dispatch(input),
+    { status: 500, body: { error: "能力执行失败", code: "actions.execution_failed" } });
 });
 
 test("route parameters reach the handler as declared", async () => {
@@ -302,7 +316,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
       ["dataset", "Dataset", "database"],
       ["ppt", "PPT", "presentation"], // its own glyph; "image" belongs to 图片 (spec → 第三轮 · 图标)
       ["alchemist", "炼金术士", "zap"],
-      ["artifacts", "Artifacts", "package"],
+      ["artifacts", "成果", "package"],
     ],
     "侧栏轨只挂 Manifest 声明了 navigator 的插件；灵光在岛上",
   );

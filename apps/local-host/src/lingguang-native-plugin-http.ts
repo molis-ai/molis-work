@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LingguangPluginRouteTable, createLingguangRouteHandlers, lingguangRouteErrorResponse,
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { LingguangPluginRouteTable, createLingguangRouteHandlers,
   type LingguangRoutePorts, type LingguangPluginRouteRequest } from "@molis-ai/molis-work-plugin-lingguang";
 import { dispatchNativePluginJsonHttp, readNativePluginJsonBody, type NativePluginJsonResult } from "./native-plugin-http.js";
 import { withRewrittenPluginApi } from "./native-plugin-api.js";
@@ -9,7 +10,7 @@ export type LingguangHttpTransport = Pick<ActionCallContext, "signal" | "on_prog
 /** Reading a file or a page can take minutes (transcription): with `?stream=1` it reports progress line by line. */
 const STREAMED = new Set(["/api/lingguang/material", "/api/lingguang/source"]);
 
-/** The caller binds the project (a scoped URL, or the catalog for a global legacy URL); this request's transport rides along. */
+/** The caller binds the project from the scoped URL; this request's transport rides along. */
 export async function handleLingguangNativePluginHttp(request: IncomingMessage, response: ServerResponse, incomingUrl: URL,
   ports: (input: LingguangPluginRouteRequest, transport: LingguangHttpTransport) => LingguangRoutePorts | Promise<LingguangRoutePorts>): Promise<boolean> {
   const url = withRewrittenPluginApi(incomingUrl);
@@ -30,9 +31,9 @@ export async function handleLingguangNativePluginHttp(request: IncomingMessage, 
       if (result) write({ type: "result", result: result.body });
     } catch (error) {
       if (!response.headersSent) response.writeHead(200, { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store" });
-      const result = lingguangRouteErrorResponse(error); write({ type: "error", status: result.status, ...result.body as object });
+      const result = actionErrorResponse(error); write({ type: "error", status: result.status, ...result.body });
     } finally { if (!response.destroyed) response.end(); }
     return true;
   }
-  return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/lingguang", maxBodyBytes: 36_000_000, handle: input => handle(input), mapError: lingguangRouteErrorResponse });
+  return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/lingguang", maxBodyBytes: 36_000_000, handle: input => handle(input) });
 }

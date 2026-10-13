@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { SqliteDirectionRepository } from "../../src/studio/server/db/direction-repository.js";
 import { SqliteExplorationRepository } from "../../src/studio/server/db/exploration-repository.js";
-import { migrate } from "../../src/studio/server/db/migrate.js";
+import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
 import { openDatabase } from "../../src/studio/server/db/open-database.js";
 import { createJobHandlers } from "../../src/studio/server/jobs/job-handlers.js";
 import { LocalWorker } from "../../src/studio/server/jobs/local-worker.js";
@@ -17,7 +17,7 @@ describe("SqliteJobRunner recovery", () => {
     const temp = createTempDatabase();
     const database = openDatabase(temp.path);
     try {
-      migrate(database);
+      applyStudioBaseline(database, ":memory:");
       const mutableClock = new MutableClock("2026-07-31T09:00:00.000Z");
       let nextId = 0;
       const idFactory = { next: (prefix: string) => `${prefix}-${++nextId}` };

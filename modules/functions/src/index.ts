@@ -13,12 +13,13 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { FunctionsError, assertFunctionKey, assertOptionKey, isPinnedJevModel, suggestFunctionKey } from "./keys.js";
 export { hashChoiceConfig, hashFunctionConfig } from "./hash.js";
-export { openFunctionsStore, FunctionsStore, assertReadyToPublish, assertReadyToEvaluate } from "./store.js";
+export { openFunctionsStore, FunctionsStore, FUNCTIONS_STORE_BASELINE, assertReadyToPublish, assertReadyToEvaluate } from "./store.js";
+export { purgeFunctionsProject, functionsProjectData } from "./project-data.js";
 export { createFunctionsService, FunctionsService } from "./service.js";
-export type { FunctionsSecretPort, TypeSafeProvider, TypeSafeEvaluateResult } from "./service.js";
+export type { TypeSafeProvider, TypeSafeEvaluateResult } from "./service.js";
 export { createTypeSafeProvider, type TypeSafeExecution, readAnswer, readChoiceAnswer, TYPESAFE_SYSTEMONE_URL } from "./provider.js";
 export { seedBuiltinFunctions } from "./builtin.js";
 
-export { functionsActions, publishedFunctionAction, functionsActionProvider, publishedFunctionProvider } from "./actions.js";
+export { functionsActions, publishedFunctionAction, publishedFunctionKey, functionsActionProvider, publishedFunctionProvider } from "./actions.js";
 export type { FunctionsActionPorts } from "./actions.js";
 export { functionAuthoringActions, functionContextActions } from "./authoring-actions.js";

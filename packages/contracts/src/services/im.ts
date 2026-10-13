@@ -79,7 +79,7 @@ export interface ImShareInput extends ImMutation { message_id: string; body?: st
  * GET /rooms -> ImRoomList; POST /rooms -> { room: ImRoom }.
  * POST /projects/:project/room -> { room: ImRoom }, creating the project's
  * unique main room if needed. Current project access is required on every read
- * and write; unbound legacy rooms retain their original membership boundary.
+ * and write; rooms created without a project keep their own membership.
  * POST /join -> { room: ImRoom }; GET /rooms/:room -> ImRoomState.
  * GET /rooms/:room/invite and POST .../invite/rotate -> ImInvite (owner only).
  * GET /rooms/:room/messages?before=sequence&limit=50 -> ImMessagePage.

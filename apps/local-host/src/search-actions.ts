@@ -4,6 +4,8 @@ import { SEARCH_PROVIDER_ID, prepareSearchFragmentOffers, searchActions, type Se
 import { SearchService, type SearchAccess } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
+import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
+import { SEARCH_OWNER } from "./project-deleted-owners.js";
 
 /**
  * Host wiring for the system search (specs/archive/system-search §6): the index lives in this Home, indexing reads with the local
@@ -66,11 +68,14 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
   ];
   const dispose = ports.registry.registerProvider({ provider: { provider_id: SEARCH_PROVIDER_ID, title: "搜索", kind: "system" },
     definitions: Object.values(searchActions), handlers });
+  let closed = false;
+  // A deleted project's entries leave the index with it; the index is derived, so this needs no label in the dialog.
+  projectDeletedHooksFor(ports.homeDirectory).register({ ...SEARCH_OWNER, alive: () => !closed, clear: projectId => { service.removeProject(projectId); } });
   return {
     service,
     changed: (providerId, projectId) => service.markChanged(providerId, projectId),
     providerChanged: provider => service.markRegistration(provider.provider_id, provider.project_id ?? null),
     projectDeleted: projectId => { service.removeProject(projectId); },
-    close: async () => { dispose(); await service.close(); index.close(); },
+    close: async () => { closed = true; dispose(); await service.close(); index.close(); },
   };
 }

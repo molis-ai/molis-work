@@ -21,11 +21,15 @@ export type BoundaryViolationCode =
   | "contracts-root-import"
   | "cross-module-implementation"
   | "deep-import"
+  | "app-dependency-not-allowed"
   | "horizontal-reverse-dependency"
-  | "legacy-root-import"
+  | "module-upward-dependency"
+  | "root-package-import"
   | "platform-reverse-dependency"
   | "plugin-implementation-import"
+  | "plugin-upward-dependency"
   | "production-test-kit-dependency"
+  | "public-sdk-private-dependency"
   | "relative-cross-owner"
   | "undeclared-workspace-dependency";
 
@@ -45,6 +49,7 @@ export interface BoundaryViolation {
 }
 
 const CONTRACTS_PACKAGE_NAME = "@molis-ai/molis-work-contracts";
+const PLUGIN_SDK_PACKAGE_NAME = "@molis-ai/molis-work-plugin-sdk";
 
 const DATABASE_IMPLEMENTATIONS = new Set([
   "better-sqlite3",
@@ -66,6 +71,43 @@ const NETWORK_CLIENTS = new Set([
   "undici",
   "ws",
 ]);
+
+/**
+ * App → App edges that exist today, by package path ("." is the product root, whose launchers start the apps). An App is a
+ * composition root: one App importing another is a launcher embedding the host it starts, never a shortcut around a public
+ * Contract. Anything not listed is rejected, and the list only shrinks (docs/system/PACKAGE-BOUNDARIES.md §2).
+ */
+export const APP_IMPORT_ALLOWLIST: readonly string[] = [
+  ". -> apps/desktop",
+  ". -> apps/local-host",
+  ". -> apps/mcp",
+  "apps/desktop -> apps/local-host",
+  "apps/local-host -> apps/cli",
+  "apps/local-host -> apps/mcp",
+  "apps/local-host -> apps/workbench",
+  "apps/server -> apps/desktop",
+  "apps/server -> apps/local-host",
+];
+
+/**
+ * Plugin → Module edges that exist today, by package path. A Plugin reaches a business fact through the unified action
+ * directory or a public Contract, not through a Module implementation package. The Shelf plugin still imports the Shelf
+ * Module's recipes and its settings parser: that is debt to remove, not a precedent, and the list only shrinks.
+ */
+export const PLUGIN_MODULE_IMPORT_ALLOWLIST: readonly string[] = [
+  "plugins/native/shelf -> modules/shelf",
+];
+
+/**
+ * The listed layer exceptions that nothing uses: entries of APP_IMPORT_ALLOWLIST or PLUGIN_MODULE_IMPORT_ALLOWLIST for which
+ * the repository has neither an import nor a declared dependency. `observedEdges` are "<importer path> -> <target path>" strings
+ * from every scanned import and manifest dependency (scripts/check-package-boundaries.mjs). An edge the repository no longer
+ * has must leave the list, or it stays allowed and can come back without a decision.
+ */
+export function unusedLayerExceptions(observedEdges: Iterable<string>): readonly string[] {
+  const observed = new Set(observedEdges);
+  return [...APP_IMPORT_ALLOWLIST, ...PLUGIN_MODULE_IMPORT_ALLOWLIST].filter((edge) => !observed.has(edge));
+}
 
 function importsListedPackage(specifier: string, packageNames: ReadonlySet<string>): boolean {
   return [...packageNames].some(
@@ -108,6 +150,73 @@ function violation(
   };
 }
 
+/** Dependency direction between layers: Apps over Plugins and Modules and Horizontal Services over platform packages. */
+function layerViolations(observation: ImportObservation, target: BoundaryPackage): readonly BoundaryViolation[] {
+  const { importer } = observation;
+  const violations: BoundaryViolation[] = [];
+  const edge = `${importer.path} -> ${target.path}`;
+
+  if (importer.kind === "horizontal" && isAppModuleOrPlugin(target)) {
+    violations.push(
+      violation(
+        "horizontal-reverse-dependency",
+        observation,
+        `${importer.name} must not import ${target.name}; a Horizontal Service consumes public Contracts and colocated adapter ports, not an App, Module implementation, or Plugin implementation`,
+      ),
+    );
+  }
+
+  if (
+    importer.kind === "foundation"
+    && importer.name !== CONTRACTS_PACKAGE_NAME
+    && (isAppModuleOrPlugin(target) || target.kind === "horizontal")
+  ) {
+    violations.push(
+      violation(
+        "platform-reverse-dependency",
+        observation,
+        `${importer.name} must not import ${target.name}; a platform package does not depend upward on an App, Module, Horizontal Service, or Plugin implementation`,
+      ),
+    );
+  }
+
+  if (importer.kind === "module" && (target.kind === "horizontal" || target.kind === "app" || isPlugin(target.kind))) {
+    violations.push(
+      violation(
+        "module-upward-dependency",
+        observation,
+        `${importer.name} must not import ${target.name}; a Module consumes public Contracts and platform packages, not a Horizontal Service, App, or Plugin implementation`,
+      ),
+    );
+  }
+
+  if (
+    isPlugin(importer.kind)
+    && (target.kind === "app" || target.kind === "horizontal" || target.kind === "module")
+    && !PLUGIN_MODULE_IMPORT_ALLOWLIST.includes(edge)
+  ) {
+    violations.push(
+      violation(
+        "plugin-upward-dependency",
+        observation,
+        `${importer.name} must not import ${target.name}; a Plugin consumes the Plugin SDK, public Contracts and the action directory, not an App, Horizontal Service, or Module implementation`,
+      ),
+    );
+  }
+
+  if (importer.kind === "app" && target.kind === "app" && !APP_IMPORT_ALLOWLIST.includes(edge)) {
+    violations.push(
+      violation(
+        "app-dependency-not-allowed",
+        observation,
+        `${importer.name} must not import ${target.name}; the App-to-App edges are listed in APP_IMPORT_ALLOWLIST, and a new one needs a decision, not a shortcut`,
+      ),
+    );
+  }
+
+  return violations;
+}
+
 /**
  * Evaluate one import without touching the filesystem. Repository scanners and
  * package authors can reuse the same policy instead of copying architecture rules.
@@ -129,9 +238,9 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
   if (specifier === "@molis-ai/molis-work" || specifier.startsWith("@molis-ai/molis-work/")) {
     violations.push(
       violation(
-        "legacy-root-import",
+        "root-package-import",
         observation,
-        "New workspace packages must not import the legacy root implementation; add or consume an explicit public Contract",
+        "The root package exports no code; import an explicit public Contract instead",
       ),
     );
   }
@@ -224,6 +333,18 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
     );
   }
 
+  // The two packages an author installs are the contracts and the Plugin SDK; the SDK is the lowest layer that runs code, and
+  // every private package may depend on it, so it may depend on nothing private (docs/system/PACKAGE-BOUNDARIES.md §1).
+  if (importer.name === PLUGIN_SDK_PACKAGE_NAME && target.name !== CONTRACTS_PACKAGE_NAME) {
+    violations.push(
+      violation(
+        "public-sdk-private-dependency",
+        observation,
+        `${importer.name} must depend on ${CONTRACTS_PACKAGE_NAME} only: an author installs the contracts and the SDK, so ${target.name} would be missing`,
+      ),
+    );
+  }
+
   if (
     importer.name === CONTRACTS_PACKAGE_NAME
     && !importsDatabaseImplementation(specifier)
@@ -238,30 +359,7 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
     );
   }
 
-  if (importer.kind === "horizontal" && isAppModuleOrPlugin(target)) {
-    violations.push(
-      violation(
-        "horizontal-reverse-dependency",
-        observation,
-        `${importer.name} must not import ${target.name}; a Horizontal Service consumes public Contracts and colocated adapter ports, not an App, Module implementation, or Plugin implementation`,
-      ),
-    );
-  }
-
-  if (
-    importer.kind === "foundation"
-    && importer.name !== CONTRACTS_PACKAGE_NAME
-    && (isAppModuleOrPlugin(target) || target.kind === "horizontal")
-  ) {
-    violations.push(
-      violation(
-        "platform-reverse-dependency",
-        observation,
-        `${importer.name} must not import ${target.name}; a platform package does not depend upward on an App, Module, Horizontal Service, or Plugin implementation`,
-      ),
-    );
-  }
-
+  violations.push(...layerViolations(observation, target));
   return violations;
 }
 

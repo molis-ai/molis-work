@@ -3,6 +3,7 @@ import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
 import { BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, DOCK_DEFAULT_PINS, RELOAD_ON_MEMBERSHIP_IDS, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderSidePanel, type SidePanelPluginTab } from "./side-panel.js";
+import { renderHomePluginNavigation } from "./home-plugin-navigation.js";
 
 export interface ImmersiveShellPrimitives {
   L(value: string): string;
@@ -85,7 +86,7 @@ const RAIL_TOOL_GROUPS: ReadonlyArray<readonly [label: string, ids: readonly str
   ["推进", ["schedule", "workflows"]],
   ["写与做", ["pages", "form", "dataset", "ppt", "images", "artifacts"]],
   ["个人", ["todo", "jelly", "cognia", "shelf"]],
-  ["研究", ["experiments", "alchemist"]],
+  ["研究", ["alchemist"]],
   ["编码", ["coding"]],
 ];
 const RAIL_HOME_HINT = "今天的工作、当天的事件和回到手边的入口。";
@@ -112,10 +113,11 @@ export function renderPluginRail(
   accountFooter: string,
   personalIsland = "",
   installed: readonly InstalledRailEntry[] = [],
+  options: { readonly developerMode?: boolean } = {},
 ): string {
   const { L, icon, escapeHtml } = primitives;
   const have = new Set(enabled);
-  const cards = pluginMarketCards();
+  const cards = pluginMarketCards(options);
   const addable = cards.map(card => card.id).filter(id => !have.has(id) && !RAIL_EXTEND_PLUGIN_IDS.has(id));
   const everyone = [...enabled, ...addable];
   const entries = directoryPlugins(everyone);
@@ -148,8 +150,8 @@ export function renderPluginRail(
       attrs: { "data-dock-choice": plugin.id, "aria-pressed": String(kept), title: resident ? L("固定在底栏右侧") : L("常驻 Dock"), ...(resident ? { "data-resident": "true" } : {}) } });
   };
   // One button, two states: a plus while the plugin is not in the project, a red trash can once it is. Both glyphs are in the
-  // button, so a change of state is the tile's class and nothing more; the stylesheet shows the one that fits. Goals is the
-  // project's core and stays.
+  // button, so a change of state is the tile's class and nothing more; the stylesheet shows the one that fits. Goals is created
+  // with the project and stays.
   const toggleButton = (plugin: { id: string; label: string }, owned: boolean, along: readonly string[]) => {
     const locked = owned && plugin.id === "goals";
     const sites = sitesOf.get(plugin.id) ?? [];
@@ -157,7 +159,7 @@ export function renderPluginRail(
     const button = renderButton({ variant: owned ? "secondary" : "primary", size: "sm", icon: "plus", iconOnly: true, className: "plugin-toggle", disabled: locked,
       label: `${owned ? L("移除") : L("添加")}：${plugin.label}`,
       attrs: { "data-plugin-toggle": plugin.id, "data-state": owned ? "added" : "available",
-        title: locked ? L("Goals 是项目的核心，不能移除") : owned ? L("从本项目移除") : `${L("添加到本项目")}${alongNote}${sites.length ? `；${L("会在侧栏浏览器里使用")}：${sites.join("、")}` : ""}` } });
+        title: locked ? L("Goals 随项目一起创建，不能从项目移除") : owned ? L("从本项目移除") : `${L("添加到本项目")}${alongNote}${sites.length ? `；${L("会在侧栏浏览器里使用")}：${sites.join("、")}` : ""}` } });
     return button.replace(glyph("plus"), glyph("plus", "plugin-toggle-add") + glyph("trash", "plugin-toggle-remove"));
   };
   // At rest the end of the tile shows only a small pin when the plugin is kept; looked at, the buttons replace it.
@@ -294,6 +296,7 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
     <nav class="tab-strip tab-strip--chrome" data-titlebar-tabs aria-label="${L("工作区标签")}"></nav>
     <nav class="container-tabs" data-container-tabs aria-label="${L("工作区标签")}" hidden></nav>
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>
+    ${renderHomePluginNavigation()}
     <button class="mw-btn mw-btn--ghost background-tasks-button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-background-tasks-count>0</span></button>
   </header>`;
 }
@@ -338,11 +341,11 @@ export function renderGlobalSearchOverlay({ L, icon }: ImmersiveShellPrimitives)
   </dialog>`;
 }
 
-export function renderPluginMarket({ L, icon, escapeHtml }: ImmersiveShellPrimitives): string {
+export function renderPluginMarket({ L, icon, escapeHtml }: ImmersiveShellPrimitives, options: { readonly developerMode?: boolean } = {}): string {
   // Sites a Plugin says it uses in the side panel browser are read before it is added (specs/archive/side-panel D16).
   const sites = (plugin: { sites: readonly string[] }) => plugin.sites.length
     ? `<small class="plugin-market-sites" data-market-sites>${L("会在侧栏浏览器里使用")}：${plugin.sites.map(site => escapeHtml(site)).join("、")}</small>` : "";
-  const rows = pluginMarketCards().map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"><div class="plugin-market-icon">${icon(plugin.glyph as MolisWorkIcon)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
+  const rows = pluginMarketCards(options).map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"><div class="plugin-market-icon">${icon(plugin.glyph as MolisWorkIcon)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
   return `<div class="plugin-market-body">
     <header class="plugin-market-heading"><div><h1>${L("插件")}</h1><p>${L("给这个项目添加插件，或打开已经在用的。")}</p></div><div class="plugin-market-destination"><label id="plugin-market-destination-label" for="plugin-market-project-trigger">${L("添加到")}</label><button type="button" class="plugin-market-project-trigger" id="plugin-market-project-trigger" data-market-project-trigger popovertarget="plugin-market-project-menu" aria-labelledby="plugin-market-destination-label plugin-market-project-label" aria-haspopup="listbox" aria-expanded="false" disabled><strong id="plugin-market-project-label" data-market-project-label></strong>${icon("chevron-down")}</button><div id="plugin-market-project-menu" popover="auto" class="plugin-market-project-popover" data-market-project-popover role="listbox" aria-labelledby="plugin-market-destination-label"><nav data-market-project-options></nav></div><select data-market-project hidden tabindex="-1" aria-hidden="true" disabled></select><template data-market-project-check>${icon("check")}</template></div></header>
     <label class="plugin-market-search mw-input-group">${icon("search")}<input class="mw-input" type="search" data-market-search placeholder="${L("搜索插件")}" aria-label="${L("搜索插件")}" autocomplete="off"></label>

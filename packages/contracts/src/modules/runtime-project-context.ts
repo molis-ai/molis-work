@@ -10,7 +10,6 @@ export interface MolisWorkProjectSuggestion extends MolisWorkProjectSelection {
 
 export interface MolisWorkProjectConnection {
   project_id: string;
-  board_id: string;
   database_path: string;
 }
 

@@ -38,16 +38,9 @@ export function goalWorkSatisfied(item: GoalsTreeItem): boolean {
   );
 }
 
-/**
- * Presentation progress follows the authoritative Goal result. Evidence remains
- * a separate fact: a compound Goal can be satisfied through its children and a
- * human decision without producing one direct Evidence row per criterion.
- */
+/** Presentation progress follows the authoritative Goal result: a satisfied Goal has met all its criteria. */
 export function displayedPassedCriterionIds(item: GoalsTreeItem): string[] {
-  const criterionIds = item.goal.acceptance_criteria.map((criterion) => criterion.criterion_id);
-  if (goalWorkSatisfied(item)) return criterionIds;
-  const knownCriterionIds = new Set(criterionIds);
-  return [...new Set(item.passed_criteria.filter((criterionId) => knownCriterionIds.has(criterionId)))];
+  return goalWorkSatisfied(item) ? item.goal.acceptance_criteria.map((criterion) => criterion.criterion_id) : [];
 }
 
 export function isBlockedWorkStatus(status: GoalPresentationState): boolean {

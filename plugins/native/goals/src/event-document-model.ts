@@ -5,9 +5,7 @@ import type {
   GoalRecord,
   GoalRelationRecord,
   PlanningMethodPack,
-  RiskRecord,
 } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { ReviewObligationRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalEventApplication } from "./goal-event-application.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
@@ -15,10 +13,8 @@ import {
   compareHistoryItems,
   indexItemFromTimeline,
   mapJournalHistoryItems,
-  mapLegacyHistoryItems,
   mergeGoalHistoryItems,
   mixedPageIsStable,
-  parseHistoryItemId,
   relatedHistoryObjectIds,
   type GoalDocumentHistoryQuery,
   type GoalHistoryIndexItem,
@@ -43,7 +39,6 @@ export interface GoalEventDocumentView {
     promised_outputs: string[];
   };
   relations: GoalRelationRecord[];
-  risks: RiskRecord[];
   planning_methods: PlanningMethodPack[];
   transfer: {
     available: boolean;
@@ -58,7 +53,7 @@ export type GoalEventDocumentPorts = Pick<
 >;
 
 export function listGoalDocumentHistory(input: {
-  boardId: string;
+  projectId: string;
   goalId: string;
   ports: GoalEventDocumentPorts;
   snapshot: BoardSnapshot;
@@ -71,12 +66,6 @@ export function listGoalDocumentHistory(input: {
     : TIMELINE_PAGE;
   const related = relatedHistoryObjectIds(input.snapshot, input.goalId);
   const journal = (input.events ?? []).filter((event) => related.has(event.object_id));
-  const legacyMapped = mapLegacyHistoryItems({
-    runs: input.snapshot.runs.filter((item) => item.goal_id === input.goalId),
-    evidence: input.snapshot.evidence.filter((item) => item.goal_id === input.goalId),
-    reviews: input.snapshot.reviews.filter((item) => item.goal_id === input.goalId),
-    obligations: input.snapshot.review_obligations.filter((item) => item.goal_id === input.goalId),
-  });
   let cursorItem: GoalHistoryIndexItem | null = null;
   if (query.before_cursor) {
     cursorItem = findHistoryIndexItem(input, query.before_cursor);
@@ -84,7 +73,7 @@ export function listGoalDocumentHistory(input: {
       return {
         items: [],
         next_cursor: null,
-        observed_event_cursor: input.ports.listLatestTimeline(input.boardId, input.goalId, { limit: 1 }).observed_event_cursor,
+        observed_event_cursor: input.ports.listLatestTimeline(input.projectId, input.goalId, { limit: 1 }).observed_event_cursor,
       };
     }
   }
@@ -92,14 +81,14 @@ export function listGoalDocumentHistory(input: {
   const workItems: GoalEventTimelineItem[] = [];
   let observed = 0;
   for (;;) {
-    const result = input.ports.listLatestTimeline(input.boardId, input.goalId, { before_cursor: workBefore, limit: 100 });
+    const result = input.ports.listLatestTimeline(input.projectId, input.goalId, { before_cursor: workBefore, limit: 100 });
     observed = result.observed_event_cursor;
     workItems.push(...result.items);
     const workIds = new Set(workItems.map((item) => item.event_id));
     if (cursorItem?.event_id) workIds.add(cursorItem.event_id);
     let merged = mergeGoalHistoryItems({
       work: { items: workItems, observed_event_cursor: observed },
-      legacy: [...legacyMapped, ...mapJournalHistoryItems(journal, workIds, input.snapshot)],
+      journal: mapJournalHistoryItems(journal, workIds, input.snapshot),
     });
     if (cursorItem) merged = merged.filter((item) => compareHistoryItems(item, cursorItem) > 0);
     const pageItems = merged.slice(0, limit);
@@ -128,11 +117,10 @@ export function findHistoryIndexItem(
   const goalId = input.goalId;
   const related = relatedHistoryObjectIds(snapshot, goalId);
   const journal = (input.events ?? []).filter((event) => related.has(event.object_id));
-  const parsed = parseHistoryItemId(itemId);
-  const originalId = parsed?.original_id ?? itemId;
-  if (!parsed) {
+  const journalId = itemId.startsWith("journal:") ? itemId.slice("journal:".length) : null;
+  if (!journalId) {
     try {
-      const event = input.ports.readEvent(input.boardId, goalId, originalId);
+      const event = input.ports.readEvent(input.projectId, goalId, itemId);
       return indexItemFromTimeline({
         event_id: event.event_id,
         journal_seq: event.journal_seq,
@@ -150,39 +138,22 @@ export function findHistoryIndexItem(
       if (code && code !== "event.not_found") throw error;
     }
   }
-  if (parsed?.source === "legacy_run" || (!parsed && snapshot.runs.some((row) => row.run_id === originalId && row.goal_id === goalId))) {
-    const run = snapshot.runs.find((row) => row.run_id === originalId && row.goal_id === goalId);
-    return run ? mapLegacyHistoryItems({ runs: [run], evidence: [], reviews: [] })[0] ?? null : null;
-  }
-  if (parsed?.source === "legacy_evidence" || (!parsed && snapshot.evidence.some((row) => row.evidence_id === originalId && row.goal_id === goalId))) {
-    const evidence = snapshot.evidence.find((row) => row.evidence_id === originalId && row.goal_id === goalId);
-    return evidence ? mapLegacyHistoryItems({ runs: [], evidence: [evidence], reviews: [] })[0] ?? null : null;
-  }
-  if (parsed?.source === "legacy_review" || (!parsed && snapshot.reviews.some((row) => row.review_id === originalId && row.goal_id === goalId))) {
-    const review = snapshot.reviews.find((row) => row.review_id === originalId && row.goal_id === goalId);
-    const obligations = snapshot.review_obligations.filter((row) => row.goal_id === goalId);
-    return review ? mapLegacyHistoryItems({ runs: [], evidence: [], reviews: [review], obligations })[0] ?? null : null;
-  }
-  const event = journal.find((row) => row.event_id === originalId);
-  if ((parsed?.source === "legacy_record" || !parsed) && event) {
-    return mapJournalHistoryItems([event], new Set(), input.snapshot)[0] ?? null;
-  }
-  return null;
+  const event = journal.find((row) => row.event_id === (journalId ?? itemId));
+  return event ? mapJournalHistoryItems([event], new Set(), input.snapshot)[0] ?? null : null;
 }
 
 export function createGoalEventDocumentView(input: {
-  boardId: string;
+  projectId: string;
   goal: GoalRecord;
   ports: GoalEventDocumentPorts;
   snapshot: BoardSnapshot;
   relations: readonly GoalRelationRecord[];
-  risks: readonly RiskRecord[];
   events?: readonly GoalsDecisionEvent[];
   planning_methods?: readonly PlanningMethodPack[];
 }): GoalEventDocumentView {
-  const state = input.ports.readState(input.boardId, input.goal.goal_id);
+  const state = input.ports.readState(input.projectId, input.goal.goal_id);
   const timeline = listGoalDocumentHistory({
-    boardId: input.boardId,
+    projectId: input.projectId,
     goalId: input.goal.goal_id,
     ports: input.ports,
     snapshot: input.snapshot,
@@ -204,7 +175,6 @@ export function createGoalEventDocumentView(input: {
       promised_outputs: [...input.goal.promised_outputs],
     },
     relations: [...input.relations],
-    risks: [...input.risks],
     planning_methods: [...(input.planning_methods ?? [])],
     transfer: transferFor(owned, state.work_status),
     types: state.config.types,
@@ -289,4 +259,3 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
   };
 }
 
-export type { ReviewObligationRecord };

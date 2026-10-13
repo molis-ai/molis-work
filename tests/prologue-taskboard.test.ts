@@ -64,7 +64,7 @@ test('confirmed step graphs use scoped SDK reports, dependency/version guards an
   const make=()=>createPrologueNodeAdapter({app:{appId:'io.molis.work.step-board-test',appVersion:'1.0.0'},storageRoot:join(root,'runtime'),reviewQueue:new AgentReviewQueue(),
     modelConfiguration:async()=>({protocol:'anthropic-compatible',endpoint:'https://1.1.1.1/v1/messages',model:'fixture',credential_ref:'fixture'}),resolveCredential:()=> 'test-only'});
   let adapter=await make();
-  const owner={board_id:'b',plugin_id:'io.molis.work.coding',install_id:'i',actor_id:'user'},directory={canonical_path:root,realpath_verified:true};
+  const owner={project_id:'b',plugin_id:'io.molis.work.coding',install_id:'i',actor_id:'user'},directory={canonical_path:root,realpath_verified:true};
   const plan={source:{artifact_id:'fixed-plan',version:1},title:'Original plan',steps:[{id:'step-1',title:'读取 sample.txt',acceptance:'内容为 ORIGINAL PLAN EVIDENCE'},{id:'step-2',title:'核对材料',acceptance:'记录结果，不修改文件'}]};
   const material={material_id:'plan',source_artifact_id:plan.source.artifact_id,source_version:1,title:plan.title,text:JSON.stringify(plan)};
   try{

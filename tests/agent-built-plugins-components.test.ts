@@ -4,9 +4,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
-import { ChromeHarness } from './fixtures/plugin-builder-browser.js';
+import { openStudioChrome } from './fixtures/plugin-builder-browser.js';
 import { validatePluginComponentPlans, resolvePluginComponentCall, PLUGIN_COMPONENT_STYLES } from '../packages/design-system/src/plugin-components.js';
 import type { SandboxPluginContract } from '../packages/contracts/src/platform/plugin-sandbox.js';
+/** The acceptance driver, loaded when a test needs it (one reference to its source for the whole file). */
+const loadDriver = () => import('../apps/local-host/src/plugin-builder/browser.js');
 const contract: SandboxPluginContract = {
   version: 1, pluginId: 'test.components', revision: 'one', entities: [], acceptance: [],
   operations: [{ id: 'save', kind: 'command', input: { type: 'object', properties: { text: { type: 'string', maxLength: 100 }, enabled: { type: 'boolean' }, choice: { type: 'boolean', enum: [true, false] } }, required: ['text', 'enabled', 'choice'], additionalProperties: false }, output: { type: 'string' }, errors: [], effects: {}, examples: [{ input: { text: 'hello', enabled: false, choice: false }, output: 'saved' }] }],
@@ -22,7 +24,7 @@ test('component contracts reject unsupported bindings and resolve selected sourc
 });
 test('real browser retains forms and focus, refreshes changed schemas, preserves failed input and submits false booleans', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
@@ -48,7 +50,7 @@ test('real browser retains forms and focus, refreshes changed schemas, preserves
 });
 test('real browser puts an action on each record it acts on, follows the view order and hides a single page switcher', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const records: SandboxPluginContract = {
     version: 1, pluginId: 'test.records', revision: 'one', entities: [], acceptance: [],
@@ -58,8 +60,8 @@ test('real browser puts an action on each record it acts on, follows the view or
     pages: [{ id: 'home', title: '笔记', regions: [{ id: 'main', title: '笔记', operationIds: ['notes.list', 'notes.remove'] }] }],
   };
   const nodes = [
-    { id: 'title', pageId: 'home', regionId: 'main', intent: 'heading', purpose: '笔记', props: {}, kind: 'heading' },
-    { id: 'notes', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '浏览笔记', props: { idField: 'id', titleField: 'text' }, read: { operationId: 'notes.list', input: {} }, kind: 'list' },
+    { id: 'title', pageId: 'home', regionId: 'main', intent: 'heading', purpose: '笔记', props: {}, kind: 'frame' },
+    { id: 'notes', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '浏览笔记', props: { idField: 'id', titleField: 'text' }, read: { operationId: 'notes.list', input: {} }, kind: 'directory' },
     { id: 'remove', pageId: 'home', regionId: 'main', intent: 'action', purpose: '删除选中的笔记', props: { submitLabel: '删除选中' }, submit: { operationId: 'notes.remove', input: { id: { source: 'selection', componentId: 'notes', field: 'id' } } }, kind: 'button' },
   ];
   try {
@@ -79,12 +81,12 @@ test('real browser puts an action on each record it acts on, follows the view or
 });
 test('real browser shows a model answer\'s emphasis without ever treating it as markup', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const records: SandboxPluginContract = { version: 1, pluginId: 'test.prose', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'answers.list', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: {}, examples: [] }],
     pages: [{ id: 'home', title: '回答', regions: [{ id: 'main', title: '回答', operationIds: ['answers.list'] }] }] };
-  const nodes = [{ id: 'answers', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '回答', props: { idField: 'id', titleField: 'title', textField: 'text' }, read: { operationId: 'answers.list', input: {} }, kind: 'list' }];
+  const nodes = [{ id: 'answers', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '回答', props: { idField: 'id', titleField: 'title', textField: 'text' }, read: { operationId: 'answers.list', input: {} }, kind: 'directory' }];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
     const page = await browser.page();
@@ -98,7 +100,7 @@ test('real browser shows a model answer\'s emphasis without ever treating it as 
 
 test('real browser: a table chosen for a titled list still shows the title, named from the contract', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const books: SandboxPluginContract = { version: 1, pluginId: 'test.titles', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'books.list', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string', description: '书名' }, author: { type: 'string' } } } }, errors: [], effects: {}, examples: [] }],
@@ -116,12 +118,12 @@ test('real browser: a table chosen for a titled list still shows the title, name
 
 test('real browser: an error an earlier read left goes away once a read succeeds', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const contract: SandboxPluginContract = { version: 1, pluginId: 'test.retry', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'notes.list', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: {}, examples: [] }],
     pages: [{ id: 'home', title: '笔记', regions: [{ id: 'main', title: '笔记', operationIds: ['notes.list'] }] }] };
-  const nodes = [{ id: 'notes', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '笔记', kind: 'list', props: { idField: 'id', titleField: 'text' }, read: { operationId: 'notes.list', input: {} } }];
+  const nodes = [{ id: 'notes', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '笔记', kind: 'directory', props: { idField: 'id', titleField: 'text' }, read: { operationId: 'notes.list', input: {} } }];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
     const page = await browser.page();
@@ -135,13 +137,13 @@ test('real browser: an error an earlier read left goes away once a read succeeds
 
 test('real browser shows a total and its breakdown as labelled figures, named from the contract', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const contract: SandboxPluginContract = { version: 1, pluginId: 'test.summary', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'summary.read', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false },
       output: { type: 'object', properties: { total: { type: 'number', description: '本月总支出' }, byCategory: { type: 'array', description: '各分类合计', items: { type: 'object', properties: { category: { type: 'string', description: '分类' }, amount: { type: 'number', description: '合计' } } } } } }, errors: [], effects: {}, examples: [] }],
     pages: [{ id: 'home', title: '账', regions: [{ id: 'main', title: '账', operationIds: ['summary.read'] }] }] };
-  const nodes = [{ id: 'summary', pageId: 'home', regionId: 'main', intent: 'description', purpose: '本月合计', kind: 'text', props: {}, read: { operationId: 'summary.read', input: {} } }];
+  const nodes = [{ id: 'summary', pageId: 'home', regionId: 'main', intent: 'description', purpose: '本月合计', kind: 'card', props: {}, read: { operationId: 'summary.read', input: {} } }];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
     const page = await browser.page();
@@ -160,12 +162,12 @@ test('real browser shows a total and its breakdown as labelled figures, named fr
 
 test('real browser filters a collection by its read\'s own fields: 全部 first, re-read on every change', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const books: SandboxPluginContract = { version: 1, pluginId: 'test.books', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'books.list', kind: 'query', input: { type: 'object', properties: { status: { type: 'string', enum: ['想读', '在读', '读完'], description: '状态' }, keyword: { type: 'string', description: '书名包含' } }, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: {}, examples: [] }],
     pages: [{ id: 'home', title: '书', regions: [{ id: 'main', title: '书', operationIds: ['books.list'] }] }] };
-  const nodes = [{ id: 'books', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '书单', props: { idField: 'id', titleField: 'title' }, kind: 'list',
+  const nodes = [{ id: 'books', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '书单', props: { idField: 'id', titleField: 'title' }, kind: 'directory',
     read: { operationId: 'books.list', input: { status: { source: 'form', field: 'status' }, keyword: { source: 'form', field: 'keyword' } } } }];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
@@ -186,7 +188,7 @@ test('real browser filters a collection by its read\'s own fields: 全部 first,
 
 test('real browser shows a field in the column\'s own words, and a plain boolean as 是/否, in tables and lists alike', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const habits: SandboxPluginContract = { version: 1, pluginId: 'test.habits', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'habits.list', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: {}, examples: [] }],
@@ -210,7 +212,7 @@ test('the acceptance driver works through catalog overlays: a sheet form, choice
   const { existsSync } = await import('node:fs');
   if (!['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium'].some(path => existsSync(path)) && !process.env.MOLIS_WORK_BUILDER_BROWSER) { t.skip('Chrome is required'); return; }
   const { createServer } = await import('node:http');
-  const { runBuilderBrowserAcceptance } = await import('../apps/local-host/src/plugin-builder/browser.js');
+  const { runBuilderBrowserAcceptance } = await loadDriver();
   const tag = { type: 'string' as const, enum: ['设计', '阅读', '产品'], description: '标签' };
   const contract: SandboxPluginContract = { version: 1, pluginId: 'test.catalog', revision: 'one', entities: [], acceptance: [],
     operations: [
@@ -255,9 +257,21 @@ test('the acceptance driver works through catalog overlays: a sheet form, choice
   } finally { server.close(); }
 });
 
+// Security invariant S-09 (docs/system/SECURITY-INVARIANTS.md): the acceptance browser asks the shared loopback check what counts as the host's own preview.
+test("the acceptance browser opens only the host's own preview: another host, another scheme and a look-alike name are refused before any navigation", { timeout: 120_000 }, async t => {
+  const { existsSync } = await import('node:fs');
+  if (!['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium'].some(path => existsSync(path)) && !process.env.MOLIS_WORK_BUILDER_BROWSER) { t.skip('Chrome is required'); return; }
+  const { runBuilderBrowserAcceptance } = await loadDriver();
+  // The driver reads nothing of a build before it navigates: it refuses the address first.
+  const build = { design: { acceptance: [] }, nodes: [] } as never;
+  for (const url of ['http://example.com/', 'https://127.0.0.1/', 'file:///etc/hosts', 'http://localhost.evil.example/', 'http://127.0.0.2/', 'http://0.0.0.0/']) {
+    await assert.rejects(runBuilderBrowserAcceptance(build, { url, signal: new AbortController().signal }), /界面验收只能打开宿主本机预览/, url);
+  }
+});
+
 test('real browser fills a sentence the design wrote around a result, and never shows the raw template', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const contract: SandboxPluginContract = { version: 1, pluginId: 'test.water', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'water.today', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'object', properties: { count: { type: 'integer' } } }, errors: [], effects: {}, examples: [] }],

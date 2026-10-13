@@ -5,13 +5,14 @@ import type {
   PluginManifest,
   PluginRuntimeApi,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { comparePluginVersions } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 
 import { buildEventContract, type PluginEventContract } from "./event-contract.js";
-import { pluginManifestDigest, pluginInstallationGeneration } from "./identity.js";
+import { pluginManifestDigest } from "./identity.js";
+import { persistReleaseArtifact } from "./supervisor-releases.js";
+import { defaultGrants, directlyUsable } from "./install-rules.js";
 import type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
 import {
-  createPluginRuntimeReleaseArtifact,
   type PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
 import {
@@ -34,8 +35,17 @@ export interface PluginSupervisorEntry {
   /** Latest Host-provided definition; kept as the manual upgrade candidate. */
   definition: PluginDefinition;
   deployment?: PluginDeployment;
-  /** Defaults to every required permission the Manifest declares. */
+  /** Defaults to every required permission the Manifest declares. A `bundled` entry does not use it: it holds every permission the Manifest declares. */
   grants?: string[];
+  /** Host-persisted initial enablement. False registers the entry without activating it. */
+  enabled?: boolean;
+  /**
+   * Ships with the Host: on start the install record is moved onto this build whatever it holds (a higher or a lower version,
+   * or the same version with another Manifest digest, or this build with fewer permissions), it holds every permission the
+   * Manifest declares whatever `grants` says, and no stored release is restored for it. Every other entry keeps the rules that
+   * need a person's confirmation or a declared upgrade source (docs/releases/POLICY.md section 7).
+   */
+  bundled?: boolean;
   /** Trusted Host adapter for retaining and restoring this Native factory. */
   releaseArtifact?: {
     capture(): string | Promise<string>;
@@ -128,6 +138,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     for (const entry of entries) {
       const pluginId = entry.definition.manifest.plugin_id;
       this.#entries.set(pluginId, entry);
+      if (entry.enabled === false) this.revoke(pluginId);
       let active: PluginSupervisorEntry;
       try {
         active = await this.#resolveInstalledEntry(entry);
@@ -316,7 +327,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     if (!this.#isEnabled(pluginId)) return undefined;
     const manifest = this.#activeEntries.get(pluginId)?.definition.manifest;
     const record = this.#runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === manifest?.publisher.signature && item.state !== "uninstalled");
-    return record ? { install_id: record.install_id, installation_generation: pluginInstallationGeneration(record), version: record.version,
+    return record ? { install_id: record.install_id, installation_generation: record.installation_generation, version: record.version,
       running: record.state === "running" && this.#runtime.contribution(record.install_id) !== null } : undefined;
   }
 
@@ -328,6 +339,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     const records = this.#runtime.list();
     const candidates: PluginUpgradeCandidate[] = [];
     for (const [pluginId, entry] of this.#entries) {
+      if (entry.bundled) continue; // it follows the Host's build at start: the market has nothing to confirm for it
       const target = entry.definition.manifest;
       const current = records.find(record => record.plugin_id === pluginId
         && record.publisher_signature === target.publisher.signature
@@ -357,22 +369,29 @@ export class PluginSupervisor implements PluginHostLifecycle {
   }
 
   async #changeVersion(pluginId: string, definition: PluginDefinition | undefined, rollbackCode: boolean, grants?: string[]): Promise<PluginSupervisorState> {
-    const priorEntry = this.#entries.get(pluginId);
-    if (!priorEntry) return this.#fail(pluginId, null, "plugin_unknown", "没有登记过这个插件");
-    const entry = definition ? { ...priorEntry, definition } : priorEntry;
+    const prior = this.#entries.get(pluginId), entry = definition ? { ...prior, definition } : prior;
+    // A switched-off install is not registered after a Host restart: the target stands in for its entry, and an
+    // answer about a plugin nobody registered is not remembered.
+    const refuse = (installId: string | null, code: string, message: string): PluginSupervisorState => prior
+      ? this.#fail(pluginId, installId, code, message) : { plugin_id: pluginId, status: "failed", install_id: installId, code, message };
+    if (!entry) return refuse(null, "plugin_unknown", "没有登记过这个插件");
     if (entry.definition.manifest.plugin_id !== pluginId) {
-      return this.#fail(pluginId, null, "plugin_definition_conflict", "升级目标的 Plugin ID 不匹配");
+      return refuse(null, "plugin_definition_conflict", "升级目标的 Plugin ID 不匹配");
     }
     let candidateContract: PluginEventContract;
     try {
       candidateContract = buildEventContract(entry.definition);
     } catch (error) {
-      return this.#fail(pluginId, this.#states.get(pluginId)?.install_id ?? null, safeCode(error), safeMessage(error));
+      return refuse(this.#states.get(pluginId)?.install_id ?? null, safeCode(error), safeMessage(error));
     }
     const current = this.#runtime.list().find(record => record.plugin_id === pluginId
       && record.publisher_signature === entry.definition.manifest.publisher.signature
       && record.state !== "uninstalled");
-    if (!current) return this.#fail(pluginId, null, "plugin_definition_missing", "找不到当前安装版本");
+    if (!current) return refuse(null, "plugin_definition_missing", "找不到当前安装版本");
+    // Switching a plugin off and on is the person's call: a new version moves the installation and never starts it.
+    const off = current.state === "disabled";
+    if (!prior && !off) return refuse(null, "plugin_unknown", "没有登记过这个插件");
+    if (this.#revoked.has(pluginId) && !off) return { plugin_id: pluginId, status: "failed", install_id: current.install_id, code: "plugin_revoked", message: "插件的停用还没有完成，请稍后再试" };
     const activeContract = this.#contracts.get(pluginId);
     // Keep the candidate registered after a failed attempt so the same update
     // can be retried. The active contract is switched for startup validation,
@@ -380,7 +399,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     this.#entries.set(pluginId, entry);
     this.#contracts.set(pluginId, candidateContract);
     try {
-      await this.#persistReleaseArtifact(entry);
+      await persistReleaseArtifact(entry, this.#releaseArtifacts);
       const receipt = rollbackCode ? await this.#runtime.rollback({ install_id: current.install_id, definition: entry.definition }) : await this.#runtime.upgrade({
         install_id: current.install_id,
         definition: entry.definition,
@@ -388,26 +407,18 @@ export class PluginSupervisor implements PluginHostLifecycle {
         ...(grants ? { grants } : {}),
       });
       this.#activeEntries.set(pluginId, { ...entry, grants: receipt.install.grants });
+      if (off) { this.revoke(pluginId); return this.#revokedState(pluginId, receipt.install.install_id); }
       return this.#running(pluginId, receipt.install.install_id);
     } catch (error) {
-      const failure = {
-        plugin_id: pluginId,
-        status: "failed" as const,
-        install_id: current.install_id,
-        code: safeCode(error),
-        message: safeMessage(error),
-      };
-      const recovered = this.#runtime.get(current.install_id);
-      const active = this.#states.get(pluginId);
-      if (!this.#revoked.has(pluginId)
-        && recovered.state === "running"
-        && active?.status === "running"
-        && active.install_id === current.install_id) {
-        if (activeContract) this.#contracts.set(pluginId, activeContract);
-        else this.#contracts.delete(pluginId);
-        // Return the failed upgrade operation to its caller without marking the
-        // restored old implementation unhealthy. Host routes and views continue
-        // to use it, and the unchanged candidate remains available for retry.
+      const failure = { plugin_id: pluginId, status: "failed" as const, install_id: current.install_id, code: safeCode(error), message: safeMessage(error) };
+      const recovered = this.#runtime.get(current.install_id), active = this.#states.get(pluginId);
+      // The failed attempt did not move the installation, so the old implementation, running or not, keeps its own
+      // event declarations; only the candidate entry stays registered for a retry.
+      if (recovered.version === current.version) { if (activeContract) this.#contracts.set(pluginId, activeContract); else this.#contracts.delete(pluginId); }
+      if (off) { if (!prior) this.#entries.delete(pluginId); return failure; } // still switched off, as the person left it
+      if (!this.#revoked.has(pluginId) && recovered.state === "running" && active?.status === "running" && active.install_id === current.install_id) {
+        // Return the failed upgrade operation to its caller without marking the restored old implementation unhealthy.
+        // Host routes and views continue to use it, and the unchanged candidate remains available for retry.
         return failure;
       }
       return this.#fail(pluginId, current.install_id, failure.code, failure.message);
@@ -483,13 +494,8 @@ export class PluginSupervisor implements PluginHostLifecycle {
       && record.state !== "uninstalled");
     if (!installed || !candidate.releaseArtifact) return candidate;
 
-    const directlyUsable = installed.version === manifest.version
-      ? installed.manifest_digest === pluginManifestDigest(manifest)
-        || (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(installed.version)
-      : comparePluginVersions(manifest.version, installed.version) > 0
-        && (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(installed.version);
-    if (directlyUsable) {
-      await this.#persistReleaseArtifact(candidate);
+    if (directlyUsable(manifest, candidate.bundled === true, installed)) {
+      await persistReleaseArtifact(candidate, this.#releaseArtifacts);
       return candidate;
     }
 
@@ -528,19 +534,6 @@ export class PluginSupervisor implements PluginHostLifecycle {
     throw codedError("plugin_release_artifact_missing", `找不到 ${installed.version} 的可运行 Native 发行物；未启动不兼容的新版本`);
   }
 
-  async #persistReleaseArtifact(entry: PluginSupervisorEntry): Promise<void> {
-    if (!entry.releaseArtifact) return;
-    const repository = this.#releaseArtifacts;
-    if (!repository) {
-      throw codedError("plugin_release_store_unavailable", "Native 插件 Runtime 发行物存储未装配");
-    }
-    const manifest = entry.definition.manifest;
-    const digest = pluginManifestDigest(manifest);
-    if (repository.get(manifest.plugin_id, manifest.publisher.signature, manifest.version, digest)) return;
-    const source = await entry.releaseArtifact.capture();
-    repository.save(createPluginRuntimeReleaseArtifact(manifest, source));
-  }
-
   async #activate(pluginId: string): Promise<PluginSupervisorState> {
     if (this.#revoked.has(pluginId)) return this.#revokedState(pluginId);
     const entry = this.#activeEntries.get(pluginId);
@@ -553,14 +546,12 @@ export class PluginSupervisor implements PluginHostLifecycle {
     try {
       if (installId === null) {
         if (entry.definition.execution === "sandbox" && entry.grants === undefined) throw new Error("生成插件必须先确认安装权限，不能自动授予全部必需权限");
-        await this.#persistReleaseArtifact(entry);
-        const grants = entry.grants ?? manifest.permissions
-          .filter((permission) => permission.required)
-          .map((permission) => permission.permission);
+        await persistReleaseArtifact(entry, this.#releaseArtifacts);
+        const grants = entry.grants ?? defaultGrants(manifest, this.#runtime.list());
         const installed = this.#runtime.install({
           definition: entry.definition,
           deployment: entry.deployment ?? "local",
-          grants,
+          grants, ...(entry.bundled ? { bundled: true } : {}),
         });
         installId = installed.install.install_id;
         if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {

@@ -1,4 +1,6 @@
 export const FUNCTIONS_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "判断规则在这个项目里的场景绑定和判断记录": "Function bindings and judgments made in this project",
   "仅列出插件已声明的工具和页面动作。": "Only declared plugin tools and page actions are listed.",
   "重新加载": "Reload",
   "新事项来时，建议整理成稿、先核查或处理状态": "Suggest drafting, verification or status changes for new items",
@@ -211,4 +213,27 @@ export const FUNCTIONS_EN: Record<string, string> = {
   "选择用途后，再写判断规则。也可以先做一个独立函数。": "Choose where to use the result, then write the rules. You can also start with a standalone function.",
   "限定判断对象（可选）": "Limit judgment subjects (optional)",
   "高级：调用标识": "Advanced: invocation key",
+  // apps/workbench/src/functions/bootstrap.ts
+  "请求失败": "Request failed",
+  // apps/workbench/src/functions/client.ts
+  "原用途不可用": "The original purpose is unavailable",
+  "请为原用途选择具体版本。": "Choose a specific version for the original purpose.",
+  "当前范围未注册原用途，请检查插件状态或重新选择。": "The original purpose isn't registered in this scope. Check the plugin status or choose again.",
+  "请先选择项目，再配置这个项目可用的首页动作。": "Choose a project first, then configure the Home actions available in it.",
+  "可以设置多个判断结果，再为每个结果选择对应动作。": "You can set several judgment results, then choose an action for each.",
+  "当前没有可用的推荐动作，请检查对象类型、插件状态和权限。": "No recommended actions are available. Check the subject type, plugin status and permissions.",
+  "原动作不可用，请重新选择": "The original action is unavailable. Choose again",
+  "原对象类型": "Original subject type",
+  "草稿尚未生效。发布后将在这里显示可配置的位置。": "This draft is not active. Places you can configure will appear here after publishing.",
+  "在此启用": "Enable here",
+  "当前范围没有可配置的位置。请先在对应场景中创建规则或检查插件状态。": "This scope has no places to configure. Create a rule in the matching scene or check the plugin status first.",
+  "当前范围未绑定消费场景，可独立调用。": "No consuming scene is bound in this scope, so it can be called on its own.",
+  "未能读取实际使用位置，请重试。": "Couldn't load where this is actually used. Please retry.",
+  "配置未保存，请重试。": "The settings weren't saved. Please retry.",
+  // apps/workbench/src/functions/settings-client.ts
+  "还未选择账号连接。": "No account connection selected yet.",
+  // apps/workbench/src/functions/settings-ui.ts
+  "TypeSafe 账号连接": "TypeSafe account connection",
+  "选择连接": "Choose connection",
+  "保存选择": "Save selection",
 };

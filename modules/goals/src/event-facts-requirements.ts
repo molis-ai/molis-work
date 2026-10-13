@@ -13,15 +13,15 @@ import { GoalEventStateRepository } from "./event-state-repository.js";
 export function readCurrentGoalEventRequirements(
   context: GoalsCommandContext,
   records: GoalEventFactsRepository,
-  boardId: string,
+  projectId: string,
   goalId: string,
 ): GoalEventRequirementStatus[] {
-  const goal = context.requireGoal(boardId, goalId);
-  const bindings = records.listBindings(boardId, goalId);
-  const extra = records.listExtraRequirements(boardId, goalId);
+  const goal = context.requireGoal(projectId, goalId);
+  const bindings = records.listBindings(projectId, goalId);
+  const extra = records.listExtraRequirements(projectId, goalId);
   const latest = new Map<string, GoalEventRequirementStatus["current_report"]>();
-  const conclusions = new GoalEventStateRepository(context.repository.db).latestConclusions(boardId, goalId);
-  for (const row of records.listLatestJudgments(boardId, goalId)) {
+  const conclusions = new GoalEventStateRepository(context.repository.db).latestConclusions(projectId, goalId);
+  for (const row of records.listLatestJudgments(projectId, goalId)) {
     if (latest.has(row.requirement_id)) continue;
     latest.set(row.requirement_id, {
       event_id: row.event_id,
@@ -93,12 +93,12 @@ export function applyGoalEventAgreementChange(
   goal: GoalRecord,
 ): void {
   const at = context.now().toISOString();
-  const configVersion = records.getConfig(goal.board_id, goal.goal_id)?.current_version ?? 0;
+  const configVersion = records.getConfig(goal.project_id, goal.goal_id)?.current_version ?? 0;
   configWrites.applyRequirements(goal, input.new_requirements, input.actor_id, [], configVersion, at);
   const touched = new Set<string>();
   for (const revision of input.revise_requirements) {
     const existing = records.getExtraRequirement(revision.requirement_id);
-    if (!existing || existing.board_id !== goal.board_id || existing.goal_id !== goal.goal_id) {
+    if (!existing || existing.project_id !== goal.project_id || existing.goal_id !== goal.goal_id) {
       throw context.error("event_requirement.not_current", `不能修订不在当前约定中的要求: ${revision.requirement_id}`);
     }
     records.updateRequirementCurrent({
@@ -113,7 +113,7 @@ export function applyGoalEventAgreementChange(
   }
   for (const requirementId of input.retire_requirement_ids) {
     const existing = records.getExtraRequirement(requirementId);
-    if (!existing || existing.board_id !== goal.board_id || existing.goal_id !== goal.goal_id) {
+    if (!existing || existing.project_id !== goal.project_id || existing.goal_id !== goal.goal_id) {
       throw context.error("event_requirement.not_current", `不能退休不在当前约定中的要求: ${requirementId}`);
     }
     records.updateRequirementCurrent({
@@ -129,7 +129,7 @@ export function applyGoalEventAgreementChange(
   for (const requirementId of input.expire_requirement_ids) {
     if (touched.has(requirementId)) continue;
     const existing = records.getExtraRequirement(requirementId);
-    if (!existing || existing.board_id !== goal.board_id || existing.goal_id !== goal.goal_id) continue;
+    if (!existing || existing.project_id !== goal.project_id || existing.goal_id !== goal.goal_id) continue;
     records.updateRequirementCurrent({
       requirementId,
       statement: existing.statement,

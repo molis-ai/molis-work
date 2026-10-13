@@ -1,4 +1,5 @@
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { createHash } from "node:crypto";
+import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import { LINGGUANG_BODY_LIMIT } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type {
@@ -8,7 +9,7 @@ import type {
   LingguangSpark,
   LingguangStatus,
 } from "@molis-ai/molis-work-contracts/modules/lingguang";
-import { LingguangError } from "./error.js";
+import { lingguangErrors } from "./error.js";
 
 interface SparkRow {
   id: string;
@@ -61,34 +62,32 @@ export class LingguangStore {
 
   get(id: string, projectId?: string): LingguangSpark {
     const row = this.db.prepare("SELECT * FROM sparks WHERE id = ?").get(id) as unknown as SparkRow | undefined;
-    if (!row) throw new LingguangError("lingguang.not_found", "找不到这条灵光");
+    if (!row) throw lingguangErrors.not_found("找不到这条灵光");
     if (projectId && row.project_id !== normalizeProjectId(projectId)) {
-      throw new LingguangError("lingguang.not_found", "找不到这条灵光");
+      throw lingguangErrors.not_found("找不到这条灵光");
     }
     return fromSparkRow(row);
   }
 
-  /** A repeated `request_id` (a retried workflow delivery) returns the spark it created the first time. */
+  /**
+   * A request id names one save. Repeating it with the same input (a retried workflow delivery) returns the spark it
+   * created the first time, wherever that spark lives now; another input under the same id is refused, so a save is
+   * never silently dropped in favour of someone else's spark.
+   */
   create(input: { title?: string; body?: string; project_id: string; request_id?: string }): LingguangSpark {
-    if (input.request_id) {
-      const requestId = input.request_id;
-      return this.transaction(() => {
-        const prior = this.db.prepare("SELECT spark_id FROM spark_requests WHERE project_id = ? AND request_id = ?")
-          .get(normalizeProjectId(input.project_id), requestId) as { spark_id: string } | undefined;
-        if (prior) return this.get(prior.spark_id, input.project_id);
-        const created = this.create({ title: input.title, body: input.body, project_id: input.project_id });
-        this.db.prepare("INSERT INTO spark_requests (project_id, request_id, spark_id) VALUES (?, ?, ?)").run(created.project_id, requestId, created.id);
-        return created;
-      });
-    }
-    const now = new Date().toISOString();
     const project_id = normalizeProjectId(input.project_id);
     const body = normalizeBody(input.body ?? "");
-    const title = normalizeTitle(input.title ?? "", body);
+    const title = normalizeTitle(input.title ?? "", body) || "未命名灵光";
+    if (!input.request_id) return this.insertSpark(project_id, title, body);
+    return this.once(project_id, input.request_id, fingerprint("create", title, body), () => this.insertSpark(project_id, title, body));
+  }
+
+  private insertSpark(project_id: string, title: string, body: string): LingguangSpark {
+    const now = new Date().toISOString();
     const record: LingguangSpark = {
       id: crypto.randomUUID(),
       project_id,
-      title: title || "未命名灵光",
+      title,
       body,
       source_kind: "manual",
       status: "inbox",
@@ -104,13 +103,33 @@ export class LingguangStore {
     return record;
   }
 
+  /**
+   * Run `make` once for a request id in a partition. The stored key is the id plus a fingerprint of the input: the table
+   * has no column for one, and its schema version is not raised for it (an existing store would be refused). A repeat with
+   * the same fingerprint returns the earlier spark by its id alone, because the person may have moved it since.
+   */
+  private once(project_id: string, requestId: string, inputFingerprint: string, make: () => LingguangSpark): LingguangSpark {
+    return this.transaction(() => {
+      const sameId = (this.db.prepare("SELECT request_id, spark_id FROM spark_requests WHERE project_id = ? AND request_id >= ? AND request_id < ?")
+        .all(project_id, requestId + "#", requestId + "$") as { request_id: string; spark_id: string }[])
+        .filter(row => row.request_id.length === requestId.length + 1 + FINGERPRINT_LENGTH);
+      const key = requestId + "#" + inputFingerprint;
+      const prior = sameId.find(row => row.request_id === key);
+      if (prior) return this.get(prior.spark_id);
+      if (sameId.length) throw lingguangErrors.request_conflict("这个请求 ID 已用于保存另一条灵光，请换一个新的请求 ID");
+      const created = make();
+      this.db.prepare("INSERT INTO spark_requests (project_id, request_id, spark_id) VALUES (?, ?, ?)").run(project_id, key, created.id);
+      return created;
+    });
+  }
+
   update(id: string, patch: { title?: string; body?: string; expected_updated_at?: string }, projectId?: string): LingguangSpark {
     return this.transaction(() => {
       const current = this.get(id, projectId);
       if (patch.expected_updated_at !== undefined && current.updated_at !== patch.expected_updated_at) {
-        throw new LingguangError("lingguang.conflict", "这条灵光已在别处修改，请重新打开后再编辑");
+        throw lingguangErrors.conflict("这条灵光已在别处修改，请重新打开后再编辑");
       }
-      if (current.status !== "inbox") throw new LingguangError("lingguang.invalid", "丢掉的灵光不能再改");
+      if (current.status !== "inbox") throw lingguangErrors.invalid("丢掉的灵光不能再改");
       const body = patch.body !== undefined ? normalizeBody(patch.body) : current.body;
       const title = patch.title !== undefined ? (normalizeTitle(patch.title, body) || "未命名灵光") : current.title;
       const next: LingguangSpark = {
@@ -137,7 +156,7 @@ export class LingguangStore {
       const talks = (this.db.prepare("SELECT id, spark_ids_json FROM conversations WHERE project_id = ?").all(normalizeProjectId(from)) as { id: string; spark_ids_json: string }[])
         .filter(row => (JSON.parse(row.spark_ids_json) as string[]).includes(id));
       if (talks.some(row => (JSON.parse(row.spark_ids_json) as string[]).length > 1)) {
-        throw new LingguangError("lingguang.invalid", "这条灵光和其他灵光在同一场头脑风暴里，移走会让那场对话缺了它；可以复制到别处");
+        throw lingguangErrors.invalid("这条灵光和其他灵光在同一场头脑风暴里，移走会让那场对话缺了它；可以复制到别处");
       }
       // A move is not an edit: the spark keeps its time and revision, so work that recorded it still matches.
       this.db.prepare("UPDATE sparks SET project_id = ? WHERE id = ? AND updated_at = ?").run(target, id, current.updated_at);
@@ -148,15 +167,26 @@ export class LingguangStore {
 
   /** An independent copy in another partition (without its brainstorms); the same request returns the same copy. */
   duplicate(id: string, from: string, to: string, requestId: string): LingguangSpark {
-    const source = this.get(id, from);
-    return this.create({ title: source.title, body: source.body, project_id: to, request_id: "copy:" + requestId });
+    const target = normalizeProjectId(to), origin = normalizeProjectId(from);
+    // The request is the copy of this spark from this partition: what the spark says at retry time does not change it.
+    return this.once(target, "copy:" + requestId, fingerprint("copy", id, origin), () => {
+      const source = this.get(id, origin);
+      return this.insertSpark(target, source.title, source.body);
+    });
   }
 
-  discard(ids: readonly string[], projectId?: string): void {
+  /**
+   * Move sparks out of the list, keeping their data. `expected_updated_at` is the same guard `update` has, per spark: the copy
+   * the caller decided on. A spark that has changed since (words written elsewhere) is not discarded, and nothing in the batch is.
+   */
+  discard(ids: readonly string[], projectId?: string, expected?: Readonly<Record<string, string>>): void {
     const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
-    if (!unique.length) throw new LingguangError("lingguang.invalid", "先选至少一条");
+    if (!unique.length) throw lingguangErrors.invalid("先选至少一条");
+    if (Object.keys(expected ?? {}).some(id => !unique.includes(id))) throw lingguangErrors.invalid("expected_updated_at 只能写所选灵光的 id");
     this.transaction(() => {
       const records = unique.map(id => this.get(id, projectId));
+      const changed = records.find(current => current.status !== "discarded" && expected?.[current.id] !== undefined && expected[current.id] !== current.updated_at);
+      if (changed) throw lingguangErrors.conflict("这条灵光已在别处修改，没有丢掉；重新打开后再决定");
       for (const current of records) {
         if (current.status === "discarded") continue;
         const now = new Date(Math.max(Date.now(), Date.parse(current.updated_at) + 1)).toISOString();
@@ -173,9 +203,9 @@ export class LingguangStore {
     return this.transaction(() => {
       const project_id = normalizeProjectId(projectId);
       const sparks = uniqueSparkIds(sparkIds).map((id) => this.get(id, project_id));
-      if (!sparks.length) throw new LingguangError("lingguang.invalid", "先选至少一条");
+      if (!sparks.length) throw lingguangErrors.invalid("先选至少一条");
       if (sparks.some((spark) => spark.status !== "inbox")) {
-        throw new LingguangError("lingguang.invalid", "丢掉的灵光不能再拿去聊");
+        throw lingguangErrors.invalid("丢掉的灵光不能再拿去聊");
       }
       const spark_ids = sparks.map((spark) => spark.id).sort();
       const spark_key = spark_ids.join(",");
@@ -196,7 +226,7 @@ export class LingguangStore {
   conversation(conversationId: string, projectId: string): LingguangConversationState {
     const project_id = normalizeProjectId(projectId);
     const row = this.db.prepare("SELECT * FROM conversations WHERE id = ? AND project_id = ?").get(conversationId, project_id) as unknown as ConversationRow | undefined;
-    if (!row) throw new LingguangError("lingguang.not_found", "找不到这场对话");
+    if (!row) throw lingguangErrors.not_found("找不到这场对话");
     const conversation = fromConversationRow(row);
     return { conversation, sparks: conversation.spark_ids.map(id => this.get(id, project_id)), messages: this.listMessages(conversationId) };
   }
@@ -204,13 +234,13 @@ export class LingguangStore {
   /** Commit a completed turn atomically, against exactly the material the model saw. */
   addReply(conversationId: string, body: string, reply: string, projectId: string, expected: LingguangConversationState): LingguangConversationState {
     const text = normalizeChat(body);
-    if (!reply.trim()) throw new LingguangError("lingguang.invalid", "回复正文不能为空");
+    if (!reply.trim()) throw lingguangErrors.invalid("回复正文不能为空");
     return this.transaction(() => {
       const current = this.conversation(conversationId, projectId);
       if (JSON.stringify(current) !== JSON.stringify(expected)) {
-        throw new LingguangError("lingguang.conflict", "生成回复期间灵光或对话已变化，请重新打开后再发送");
+        throw lingguangErrors.conflict("生成回复期间灵光或对话已变化，请重新打开后再发送");
       }
-      if (current.sparks.some(spark => spark.status !== "inbox")) throw new LingguangError("lingguang.invalid", "关联灵光已丢弃");
+      if (current.sparks.some(spark => spark.status !== "inbox")) throw lingguangErrors.invalid("关联灵光已丢弃");
       const now = new Date(Math.max(Date.now(), Date.parse(current.conversation.updated_at) + 1)).toISOString();
       insertMessage(this.db, conversationId, "user", text, now);
       insertMessage(this.db, conversationId, "assistant", reply.trim(), now);
@@ -239,42 +269,47 @@ export class LingguangStore {
   }
 }
 
+/**
+ * The 灵光 store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
+ * must already be at its version.
+ */
+export const LINGGUANG_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE sparks (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    source_kind TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE conversations (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    spark_key TEXT NOT NULL,
+    spark_ids_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (project_id, spark_key)
+  );
+  CREATE TABLE spark_requests (
+    project_id TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    spark_id TEXT NOT NULL,
+    PRIMARY KEY (project_id, request_id)
+  );
+  CREATE TABLE messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+` };
+
 export function openLingguangStore(homeDirectory: string): LingguangStore {
-  const db = openHomeSqliteDatabase(homeDirectory, "lingguang");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS sparks (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      body TEXT NOT NULL,
-      source_kind TEXT NOT NULL,
-      status TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS conversations (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      spark_key TEXT NOT NULL,
-      spark_ids_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      UNIQUE (project_id, spark_key)
-    );
-    CREATE TABLE IF NOT EXISTS spark_requests (
-      project_id TEXT NOT NULL,
-      request_id TEXT NOT NULL,
-      spark_id TEXT NOT NULL,
-      PRIMARY KEY (project_id, request_id)
-    );
-    CREATE TABLE IF NOT EXISTS messages (
-      id TEXT PRIMARY KEY,
-      conversation_id TEXT NOT NULL,
-      role TEXT NOT NULL,
-      body TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-  `);
+  const db = openBaselineHomeSqlite(homeDirectory, "lingguang", LINGGUANG_STORE_BASELINE);
   return new LingguangStore(db);
 }
 
@@ -337,29 +372,35 @@ function uniqueSparkIds(value: readonly string[]): string[] {
   return [...new Set(value.map((id) => id.trim()).filter(Boolean))];
 }
 
+/** Two hex digits per byte of SHA-256. */
+const FINGERPRINT_LENGTH = 64;
+function fingerprint(...parts: string[]): string {
+  return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
+}
+
 function normalizeProjectId(value: string): string {
   const id = value.trim();
-  if (!id) throw new LingguangError("lingguang.invalid", "缺少项目");
-  if (id.length > 80) throw new LingguangError("lingguang.invalid", "项目标识过长");
+  if (!id) throw lingguangErrors.invalid("缺少项目");
+  if (id.length > 80) throw lingguangErrors.invalid("项目标识过长");
   return id;
 }
 
 function normalizeTitle(value: string, body: string): string {
   const title = value.trim();
-  if (title.length > 80) throw new LingguangError("lingguang.invalid", "标题须为 1 到 80 个字");
+  if (title.length > 80) throw lingguangErrors.invalid("标题须为 1 到 80 个字");
   if (title) return title;
   const fallback = body.trim().split(/\r?\n/u)[0]?.trim() ?? "";
   return fallback.slice(0, 80);
 }
 
 function normalizeBody(value: string): string {
-  if (value.length > LINGGUANG_BODY_LIMIT) throw new LingguangError("lingguang.invalid", `正文须为 0 到 ${LINGGUANG_BODY_LIMIT} 个字`);
+  if (value.length > LINGGUANG_BODY_LIMIT) throw lingguangErrors.invalid(`正文须为 0 到 ${LINGGUANG_BODY_LIMIT} 个字`);
   return value;
 }
 
 function normalizeChat(value: string): string {
   const text = value.trim();
-  if (!text) throw new LingguangError("lingguang.invalid", "先写下要接着说的话");
-  if (text.length > 2000) throw new LingguangError("lingguang.invalid", "这句话须为 1 到 2000 个字");
+  if (!text) throw lingguangErrors.invalid("先写下要接着说的话");
+  if (text.length > 2000) throw lingguangErrors.invalid("这句话须为 1 到 2000 个字");
   return text;
 }

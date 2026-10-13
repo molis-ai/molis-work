@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,11 +11,9 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { imagesActions } from "@molis-ai/molis-work-plugin-images";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
-import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../apps/local-host/src/web-control-token.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 async function until(check: () => boolean | Promise<boolean>) {
@@ -28,13 +26,13 @@ async function until(check: () => boolean | Promise<boolean>) {
 
 // One Home has one execution owner: the resident Web Host. The standard MCP launcher forwards its calls there,
 // as in production, so both entries act on the same live jobs. Owner-crash recovery is covered by images-service.
-test("Images Web and the standard MCP launcher share live jobs through the resident Host, deduplicate and cancel from either side", { timeout: 60_000 }, async () => {
+test("Images Web and the standard MCP launcher share live jobs through the resident Host, deduplicate and cancel from either side", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "images-concurrency-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Images concurrency", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
-  // As in production the resident service writes its control token into the Home, where the MCP launcher finds it.
-  const web = createMolisWorkWebServer({ homeDirectory: home, localHost: host });
+  // As in production the resident service writes its control token into the Home, where the MCP launcher finds it; its grants are saved the way a person saves them.
+  const web = await serveTestHost(t, { home, host });
   const runtime = "images-concurrency";
   const caller: ActionCallContext = { actor_id: `runtime:${runtime}`, project_id: project.project_id, audience: "mcp", permissions: [] };
   const requests = new Map<string, ServerResponse>();
@@ -48,12 +46,10 @@ test("Images Web and the standard MCP launcher share live jobs through the resid
   });
   const clients: Client[] = [];
   try {
-    await new Promise<void>(resolve => web.listen(0, "127.0.0.1", resolve));
     await new Promise<void>(resolve => provider.listen(0, "127.0.0.1", resolve));
-    const webAddress = web.address(), providerAddress = provider.address();
-    assert.ok(webAddress && typeof webAddress === "object" && providerAddress && typeof providerAddress === "object");
-    const origin = `http://127.0.0.1:${webAddress.port}`;
-    const token = (await readFile(join(home, WEB_CONTROL_TOKEN_RELATIVE_PATH), "utf8")).trim();
+    const providerAddress = provider.address();
+    assert.ok(providerAddress && typeof providerAddress === "object");
+    const { origin, controlToken: token } = web;
     const http = async (method: string, path: string, body?: unknown, expected = 200) => {
       const result = await fetch(`${origin}/projects/${project.project_id}/api/plugins/images${path}`, { method, headers: { "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
       const value = await result.json() as any; assert.equal(result.status, expected, JSON.stringify(value)); return value;
@@ -62,9 +58,6 @@ test("Images Web and the standard MCP launcher share live jobs through the resid
       context: { runtime_id: runtime, stable_work_context_id: `${runtime}-session`, host_declares_stable: true },
       project_id: project.project_id, actor_id: "user", user_confirmed: true,
     }));
-    // The job actions are project-scoped; Home-wide connection actions would need a separate global grant.
-    for (const view of (await host.inspectActions(caller, ref)).filter(view => view.action.scope === "project" && Object.values(imagesActions).some(action => action.capability_id === view.capability_id)))
-      await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, view, true));
     const connect = async () => {
       const client = new Client({ name: "concurrent-images", version: "1" }); clients.push(client);
       const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("../apps/desktop/launchers/mcp/server.ts", import.meta.url))], env: {
@@ -77,11 +70,14 @@ test("Images Web and the standard MCP launcher share live jobs through the resid
       return { client, transport };
     };
     const mcp = async (client: Client, action: ActionDefinition, args: Record<string, unknown> = {}) => {
-      const result = await client.callTool({ name: hostActionToolName(action), arguments: args });
+      const result = await client.callTool({ name: molisWorkActionToolName(action), arguments: args });
       assert.equal(result.isError, false, JSON.stringify(result)); return result.structuredContent as any;
     };
 
     const { connection } = await http("POST", "/connections", { name: "Concurrent", api_format: "openai-images", base_url: `http://127.0.0.1:${providerAddress.port}/v1`, model: "fixture" });
+    // The job actions are project-scoped; Home-wide connection actions would need a separate global grant. The Host saves a grant only for
+    // an action that can then be used, so the person adds the image service first and grants after.
+    await web.grant(caller.actor_id, project.project_id, (await host.inspectActions(caller, ref)).filter(view => view.action.scope === "project" && Object.values(imagesActions).some(action => action.capability_id === view.capability_id)));
     const { client, transport } = await connect();
     const input = (name: string) => ({ connection_id: connection.id, request_id: name, prompt: name });
 
@@ -106,7 +102,7 @@ test("Images Web and the standard MCP launcher share live jobs through the resid
     const remoteJob = (await mcp(client, imagesActions.start, input("remote-cancel"))).job;
     await until(() => requests.has("web-owner") && requests.has("remote-cancel"));
     assert.equal((await http("POST", "/jobs", input("over-limit"), 429)).code, "images.busy");
-    const denied = await client.callTool({ name: hostActionToolName(imagesActions.start), arguments: input("over-limit") });
+    const denied = await client.callTool({ name: molisWorkActionToolName(imagesActions.start), arguments: input("over-limit") });
     assert.equal(denied.isError, true); assert.equal(counts.has("over-limit"), false);
     await http("POST", `/jobs/${remoteJob.id}/cancel`, {});
     await until(() => aborted.has("remote-cancel"));
@@ -134,8 +130,8 @@ test("Images Web and the standard MCP launcher share live jobs through the resid
     assert.equal(counts.get("race"), 1);
   } finally {
     await Promise.all(clients.map(client => client.close().catch(() => undefined)));
+    await web.close();
     await host.close();
-    web.closeAllConnections(); if (web.listening) await new Promise<void>(resolve => web.close(() => resolve()));
     provider.closeAllConnections(); if (provider.listening) await new Promise<void>(resolve => provider.close(() => resolve()));
     await rm(home, { recursive: true, force: true });
   }

@@ -55,7 +55,7 @@ export function inboxReasonLabel(
     source_rule: text("来源规则命中"),
     goal_decision: text("Molis Work 等待决定"),
     source_fault: text("来源需要人工恢复"),
-    artifact_out_failed: text("出 Artifact 失败"),
+    artifact_out_failed: text("存为成果失败"),
   } as const)[reason];
 }
 
@@ -78,7 +78,7 @@ export function inboxKindLabel(
 ): string {
   if (subjectType === "source_fault") return text("Inbox · 来源故障");
   if (subjectType === "goal_decision") return text("Inbox · Goal 决定");
-  if (reason === "artifact_out_failed") return text("Inbox · 出 Artifact 失败");
+  if (reason === "artifact_out_failed") return text("Inbox · 存为成果失败");
   return reason === "manual" ? text("Inbox · 手工加入") : text("Inbox · 来源规则");
 }
 
@@ -150,7 +150,7 @@ function nextAction(
     return text("到 Goals 完成判断，Inbox 不内嵌决定表单。");
   }
   if (entry.reason === "artifact_out_failed") {
-    return text("出 Artifact 失败，原消息仍在 Feed。可重试同步或完成这条注意力。");
+    return text("存为成果失败，原消息仍在 Feed。可重试同步或完成这条注意力。");
   }
   return text("查看原消息并处理，或直接完成 / 忽略这条注意力引用。");
 }

@@ -1,10 +1,10 @@
 import { createLocalImServer } from "./im-server.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
-import { closeExperiments } from "./experiments-native-plugin-http.js";
-import { loadCasebookConfiguration } from "./casebook/config.js";
-import { handleCasebookHttp } from "./casebook/http.js";
+import { handleProjectDeletionGatewayHttp } from "./project-deletion-gateway.js";
+import { webProjectDeletion } from "./project-deletion-service.js";
 import { resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -15,12 +15,12 @@ import { createMolisWorkLocalHost } from "./project-host.js";
 import { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import { resolveWebControlToken } from "./web-control-token.js";
-import { sendLocalWebJson as sendJson, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";
+import { sendLocalWebJson as sendJson, authorizeLocalWebRequest, refuseForeignRequest, type LocalMutationState } from "./web-http.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
 import { seedDemoBoard } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
-import { fixtureWebBoardOptions, resolveWebRequest } from "./web-routing.js";
+import { fixtureWebBoardOptions } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
 import { handleMolisWorkWebRequest } from "./web-request.js";
@@ -32,8 +32,10 @@ import { BrowserSiteDecisions, registerBrowserSurfaces } from "./browser/browser
 import { createBrowserSurfaceDriver } from "./browser/surface-driver.js";
 import { locateBrowser } from "./browser/locate.js";
 import { createWebCatalogAccess } from "./web-catalog-access.js";
+import { finishLeftOverDeletions } from "./web-deletion-sweep.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import { awaitWebServerShutdown } from "./web-server-close.js";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
@@ -57,11 +59,11 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     // configured board is the authority; other project callers still use catalog policy.
     const actionAvailability = Object.assign((...args: Parameters<typeof catalogAvailability>) => {
       const [caller, action] = args;
-      return fixture && caller.project_id === fixture.boardId
+      return fixture && caller.project_id === fixture.projectId
         ? { available: true as const } : catalogAvailability(caller, action);
     }, {
       snapshotForDiscovery: async (caller: Parameters<typeof catalogAvailability>[0]) =>
-      fixture && caller.project_id === fixture.boardId
+      fixture && caller.project_id === fixture.projectId
         ? () => ({ available: true as const }) : catalogAvailability.snapshotForDiscovery(caller),
     });
     const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({
@@ -74,7 +76,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       homeDirectory: storageHome,
       actionAvailability,
       sceneAvailability: actionAvailability,
-      projectRoutePrefix: projectId => fixture && projectId === fixture.boardId ? "" : `/projects/${encodeURIComponent(projectId)}`,
+      projectRoutePrefix: projectId => fixture && projectId === fixture.projectId ? "" : `/projects/${encodeURIComponent(projectId)}`,
       workspacesFor: (projectId) => withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
       workspaceFor: (projectId) => {
         const configuredRoot = () => {
@@ -82,7 +84,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           const canonical_path = fs.realpathSync(serverOptions.projectRoot);
           return { workspace_id: `configured:${projectId}`, canonical_path, realpath_verified: true, display_name: path.basename(canonical_path) };
         };
-        if (fixture && projectId === fixture.boardId) return configuredRoot();
+        if (fixture && projectId === fixture.projectId) return configuredRoot();
         return withCatalog({ homeDirectory: storageHome }, catalog => workspaceRefFor(catalog, projectId) ?? configuredRoot());
       },
     });
@@ -90,10 +92,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const ownsLocalHost = !serverOptions.localHost;
     const agents = ensureSystemAgentService(localHost, storageHome, withCatalog);
     const controlToken = resolveWebControlToken(serverOptions);
-    serverOptions.casebook ??= loadCasebookConfiguration(storageHome,serverOptions.casebookConfigPath,[controlToken]);
-    if ([...(serverOptions.casebook?.grants ?? []), ...(serverOptions.casebook?.catalogConnections ?? [])].some(g => g.token === controlToken || g.token.length < 32)) {
-      throw new Error('Casebook requires a separate server-only credential');
-    }
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
     const feedSchedulers = new Map<string, FeedSchedulerRuntime>();
@@ -103,7 +101,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
     const pty = { host: null as MolisWorkPtyHost | null };
     const im = createLocalImServer(storageHome, async id => {
-      if (fixture && id === fixture.boardId) return { id, title: fixture.project?.display_name ?? 'Molis Work' };
+      if (fixture && id === fixture.projectId) return { id, title: fixture.project?.display_name ?? 'Molis Work' };
       return withCatalog({homeDirectory:storageHome}, catalog => {
         try { const project=catalog.getProject(id); return {id:project.project_id,title:project.display_name}; }
         catch { return null; }
@@ -118,27 +116,29 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       return port ? [`http://127.0.0.1:${port}`, `http://localhost:${port}`, `http://[::1]:${port}`] : [];
     } });
     // The Assistant may look at and act on a project's page through Prologue (specs/archive/side-panel P5): one driver per page,
-    // found by the board its round works on; sites the person allowed or blocked are kept beside the browser profile.
+    // found by the project its round works on; sites the person allowed or blocked are kept beside the browser profile.
     const sites = new BrowserSiteDecisions(storageHome);
     const drivers = new Map<string, HostSurfaceDriver>();
     const unregisterSurfaces = registerBrowserSurfaces(localHost, {
       siteDecisions: () => sites.list(),
-      driverFor: async boardId => {
+      driverFor: async projectId => {
         // The person can turn the Assistant's use of the browser off altogether; rounds then get no browser tools.
         if (!sites.assistantEnabled || !locateBrowser()) return null;
-        const projectId = fixture && boardId === fixture.boardId ? fixture.boardId
-          : await withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().find(project => project.board_id === boardId)?.project_id ?? null);
-        if (!projectId) return null;
+        const known = fixture && projectId === fixture.projectId
+          || await withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().some(project => project.project_id === projectId));
+        if (!known) return null;
         let driver = drivers.get(projectId);
         if (!driver) drivers.set(projectId, driver = createBrowserSurfaceDriver(browserHost().page(projectId), origin => sites.blocked(origin), () => sites.assistantEnabled));
         return driver;
       },
     });
-    const projectExists = async (projectId: string) => (fixture && projectId === fixture.boardId)
+    const projectExists = async (projectId: string) => (fixture && projectId === fixture.projectId)
       || await withCatalog({ homeDirectory: storageHome }, catalog => { try { catalog.getProject(projectId); return true; } catch { return false; } });
-    const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, async () => {
+    const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {
+        // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
+        if (refuseForeignRequest(request, response)) return;
         if (request.method === "GET" && url.pathname === "/locale") {
           const requested = url.searchParams.get("lang");
           const nextLocale = isWebLocale(requested)
@@ -162,25 +162,19 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           ? capsuleLocale
           : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
         await runWithLocale(locale, async () => {
-          if (url.pathname.startsWith('/casebook/v1/')) {
-            const requestHost = new URL(`http://${request.headers.host ?? ''}`);
-            if (!['127.0.0.1','localhost','[::1]'].includes(requestHost.hostname)) { sendJson(response,403,{code:'not_authorized'}); return; }
-            if (await handleCasebookHttp(request,response,url,serverOptions.casebook,localHost,
-              pathname => resolveWebRequest(serverOptions,pathname,composition.withCatalog))) return;
-          }
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
           if (request.method === "GET" && url.pathname === "/health" && catalogAccess) {
             const ready = server.listening && Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
             sendJson(response, ready ? 200 : 503, {
               status: ready ? "ok" : "starting", process_id: process.pid,
               service_process_id: serviceProcessId(), desktop_tui: Boolean(pty.host),
-              ...(fixture ? { board_id: fixture.boardId } : { project_count: catalogAccess.projectCount }),
+              ...(fixture ? { project_id: fixture.projectId } : { project_count: catalogAccess.projectCount }),
             });
             return;
           }
           if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
-          if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog)) return;
+          if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog) || await handleProjectDeletionGatewayHttp(request, response, url, storageHome, webProjectDeletion(withCatalog, { isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }))) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
           await handleMolisWorkWebRequest(
@@ -209,11 +203,12 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       } catch (error) {
         sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
       }
-    }));
+    })));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
-    const closeServer = server.close.bind(server);
-    server.close = (callback) => { im.stop(); void browsers?.close(); return closeServer(callback); };
+    awaitWebServerShutdown(server, () => { im.stop(); void browsers?.close(); }, async () => {
+      if (ownsLocalHost) { try { await localHost.close(); } finally { await catalogAccess?.close(); } }
+    });
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
     pty.host = attachMolisWorkPtySocket(server, controlToken, {
       onData(panelId, sessionId, data) {
@@ -234,7 +229,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             if (result.completed || result.failed) webViewCache.delete(databasePath);
           })
           .catch(() => undefined);
-        void runtime.schedule.tick()
+        void withCallId(newCallId(), () => runtime.schedule.tick())
           .then((result) => {
             if (result.invoked) webViewCache.delete(databasePath);
           })
@@ -258,11 +253,11 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       }
     });
     // New material that shares a Goal with a live work: looked for every five minutes.
-    const assistantTimer = setInterval(() => runWithMolisWorkHome(storageHome, async () => { await assistant().scanNewMaterial(); })
+    const assistantTimer = setInterval(() => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => { await assistant().scanNewMaterial(); }))
       .catch(error => console.warn("[assistant] 新资料没有读到", error)), 300_000);
     assistantTimer.unref();
     // Reminders the person set in Plugins: asked about once a minute, each told once when it comes due.
-    const reminderTimer = setInterval(() => runWithMolisWorkHome(storageHome, async () => { await assistant().sweepReminders(); })
+    const reminderTimer = setInterval(() => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => { await assistant().sweepReminders(); }))
       .catch(error => console.warn("[assistant] 到期提醒没有读到", error)), 60_000);
     reminderTimer.unref();
     server.once("close", () => {
@@ -271,13 +266,10 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       im.close();
       void browsers?.close();
       unregisterSurfaces();
-      void closeExperiments(storageHome);
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
-      if (ownsLocalHost) void localHost.close();
-      if (ownsLocalHost) void catalogAccess?.close();
     });
-    if (!fixture) void catalogAccess?.warm().catch(() => undefined);
+    if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, serverOptions.deletionSweepMs);
     return server;
   }
 

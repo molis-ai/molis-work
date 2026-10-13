@@ -11,7 +11,6 @@ export interface ArtifactReferenceUiPrimitives {
 export interface ArtifactReferenceUiModel {
   readonly value: string;
   readonly label: string;
-  readonly evidenceId?: string;
   readonly primitives: ArtifactReferenceUiPrimitives;
 }
 
@@ -37,13 +36,12 @@ export const artifactReferenceUiContribution: UiContribution<ArtifactReferenceUi
     surfaces: [{ surface_id: "reference", target_slot_id: "workbench.main", format: "declarative-html" }],
     slots: [],
   },
-  render({ model: { value, label, evidenceId, primitives: p } }): string {
+  render({ model: { value, label, primitives: p } }): string {
     if (/^https?:\/\//i.test(value)) {
       return `<a class="inline-ref" href="${p.escape(value)}" target="_blank" rel="noreferrer">${p.icon("external")}<span>${p.escape(label)}</span></a>`;
     }
     if (isProjectReference(value)) {
-      const evidenceQuery = evidenceId ? `?evidence_id=${encodeURIComponent(evidenceId)}` : "";
-      return `<a class="inline-ref" href="/api/project-references/${encodeURIComponent(value)}${evidenceQuery}" data-project-reference>${p.icon("file")}<span>${p.escape(label)}</span></a>`;
+      return `<a class="inline-ref" href="/api/project-references/${encodeURIComponent(value)}" data-project-reference>${p.icon("file")}<span>${p.escape(label)}</span></a>`;
     }
     return `<button class="inline-ref" type="button" data-copy-value="${p.escape(value)}" title="${p.escape(p.text("复制引用"))}">${p.icon("copy")}<span>${p.escape(label)}</span></button>`;
   },

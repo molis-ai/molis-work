@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { inspectActionDeclarations, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { inspectActionDeclarations, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
+import type { ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 test("scene result labels belong to a finite recommendation contract", () => {
   const scene: ActionSceneDefinition = { scene_id: "example.review", version: 1, title: "Review", description: "Review the original note", trigger: "Note submitted",
@@ -36,7 +36,9 @@ function v2Manifest(): Record<string, unknown> {
       { permission: "agent:run", required: true, reason: "执行编码任务" },
     ],
     capabilities: { provides: [], consumes: ["projects.read.v1"] },
-    artifacts: {
+    artifacts: { produces: [], consumes: [] },
+    // Port values are process items: exchange data kept out of the 成果库 (artifact-positioning A2).
+    process_items: {
       produces: [{ artifact_type_id: "coding.change-set", schema_version: 1 }],
       consumes: [
         { artifact_type_id: "projects.project", schema_version: 1 },
@@ -250,122 +252,15 @@ test("ports must agree with the Artifact permissions and declarations they rely 
   }, "必须声明 artifact:read 权限");
 
   rejects((manifest) => {
-    const artifacts = manifest.artifacts as { produces: unknown[] };
-    artifacts.produces = [];
+    const processItems = manifest.process_items as { produces: unknown[] };
+    processItems.produces = [];
   }, "没有列入 artifacts.produces");
 
   rejects((manifest) => {
-    const artifacts = manifest.artifacts as { consumes: unknown[] };
-    artifacts.consumes = [];
+    const processItems = manifest.process_items as { consumes: unknown[] };
+    processItems.consumes = [];
   }, "没有列入 artifacts.consumes");
 });
-
-test("mcp_exports stay on schema 2 and cannot register switches, public names or identity fields", () => {
-  const input = v2Manifest();
-  const exports = [{
-    tool_id: "list",
-    description: "列出判断函数",
-    input_schema: { type: "object", properties: {}, required: [] },
-    effect: "read",
-    audience: "runtime",
-    scope: "home",
-  }];
-  input.mcp_exports = exports;
-  const parsed = parsePluginManifest(input);
-  assert.deepEqual(parsed.mcp_exports, exports);
-
-  const withAgentMcp = v2Manifest();
-  (withAgentMcp.agent as { mcp?: boolean }).mcp = true;
-  withAgentMcp.mcp_exports = exports;
-  const both = parsePluginManifest(withAgentMcp);
-  assert.equal(both.agent?.mcp, true);
-  assert.equal(both.mcp_exports?.length, 1);
-
-  rejects((manifest) => {
-    manifest.mcp_exports = [{
-      tool_id: "list",
-      description: "列出判断函数",
-      input_schema: { type: "object", properties: { board_id: { type: "string" } } },
-      effect: "read",
-    }];
-  }, "不能声明身份字段 board_id");
-  rejects((manifest) => {
-    manifest.mcp_exports = [{
-      tool_id: "list",
-      description: "列出判断函数",
-      input_schema: { type: "object" },
-      effect: "read",
-      enabled: true,
-    }];
-  }, "不能登记开关");
-  rejects((manifest) => {
-    manifest.mcp_exports = [{
-      tool_id: "list",
-      description: "列出判断函数",
-      input_schema: { type: "object" },
-      effect: "read",
-      name: "molis_work_v1_coding_list",
-    }];
-  }, "不能登记对外正式名");
-  rejects((manifest) => {
-    manifest.mcp_exports = [
-      { tool_id: "list", description: "a", input_schema: { type: "object" }, effect: "read" },
-      { tool_id: "list", description: "b", input_schema: { type: "object" }, effect: "read" },
-    ];
-  }, "mcp_exports 重复");
-});
-
-test("behaviors, function_scenes and judgment_subjects are inspected on schema 2", () => {
-  const input = v2Manifest();
-  input.behaviors = [{
-    behavior_id: "open",
-    title: "打开",
-    effect: "read",
-    subject_kinds: ["feed_item"],
-  }];
-  input.function_scenes = [{
-    scene_id: "home.dock",
-    title: "首页卡底",
-    subject_kinds: ["home_event"],
-  }];
-  input.judgment_subjects = [{ subject_kind: "feed_item", title: "Feed 消息" }];
-  const parsed = parsePluginManifest(input);
-  assert.equal(parsed.behaviors?.[0]?.behavior_id, "open");
-  assert.equal(parsed.function_scenes?.[0]?.scene_id, "home.dock");
-  rejects((manifest) => {
-    manifest.behaviors = [{ behavior_id: "Open", title: "打开", effect: "read", subject_kinds: ["feed_item"] }];
-  }, "behavior_id 不合法");
-});
-
-test("v1 Manifest cannot carry mcp_exports", () => {
-  const v1 = {
-    schema_version: 1,
-    host_api_version: 1,
-    plugin_id: PLUGIN_ID,
-    version: "0.1.0",
-    name: "Coding",
-    kind: "native",
-    publisher: { publisher_id: "molis", signature: "official-coding-binding" },
-    entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
-    permissions: [],
-    capabilities: { provides: [], consumes: [] },
-    artifacts: { produces: [], consumes: [] },
-    ui: { contributions: [] },
-    mcp_exports: [{
-      tool_id: "list",
-      description: "列出判断函数",
-      input_schema: { type: "object" },
-      effect: "read",
-    }],
-  };
-  assert.throws(
-    () => parsePluginManifest(v1),
-    (error: unknown) => error instanceof PluginManifestError
-      && error.code === "plugin_declaration_invalid"
-      && error.message.includes("mcp_exports"),
-  );
-});
-
 
 test("embedded plugin dependencies are explicit v2 IDs, not implicit grants or self links", () => {
   const input = v2Manifest();

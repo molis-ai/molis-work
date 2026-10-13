@@ -35,7 +35,6 @@ export const NOUL_POSITIVE_THRESHOLD = 0.5;
 
 export const FUNCTIONS_PLUGIN_ID = "io.molis.work.functions";
 export const FUNCTIONS_PROJECT_PLUGIN_ID = "functions";
-export const FUNCTIONS_CREDENTIAL_REF = "plugin:io.molis.work.functions:typesafe";
 export const FUNCTIONS_DEFAULT_MODEL = "jev-latest";
 export const FUNCTIONS_MAX_SAMPLES = 8;
 
@@ -150,6 +149,7 @@ export interface FunctionAuthoringBehavior {
   readonly hint?: string;
   readonly effect: "read" | "write";
   readonly source: "system" | "plugin" | "mcp";
+  /** The owning plugin's id (`provider.plugin_id`, else the provider id of a Host-assembled provider), never an installation id. */
   readonly plugin_id: string;
   readonly plugin_title: string;
   readonly subject_kinds: readonly string[];
@@ -213,7 +213,7 @@ export type JudgmentSubjectKind = string;
 export interface JudgmentSubject {
   readonly kind: JudgmentSubjectKind;
   readonly id: string;
-  readonly board_id?: string;
+  readonly project_id?: string;
 }
 
 export interface JudgmentRecord {
@@ -239,21 +239,7 @@ export interface JudgmentRecord {
   };
 }
 
-export interface FunctionSceneBinding {
-  readonly scene_id: string;
-  readonly function_key: string;
-  readonly board_id: string | null;
-  readonly ref: string | null;
-}
-
-export interface FunctionsSecretPort {
-  put(ref: string, plaintext: string): void;
-  get(ref: string): string | null;
-  delete(ref: string): boolean | void;
-}
-
 export interface TypeSafeEvaluateResult {
-  readonly usage?: { readonly input_tokens: number | null; readonly output_tokens: number | null };
   readonly primitive: FunctionsPrimitive;
   readonly choice: string | null;
   readonly noul: number | null;
@@ -323,12 +309,6 @@ export function visibleFeedDispositionIds(
   return offered;
 }
 
-export function sceneBehaviorIds(sceneId: string): string[] {
-  if (sceneId === INBOX_NEXT_SCENE_ID) return [INBOX_COMPOSE_BEHAVIOR_ID, INBOX_VERIFY_BEHAVIOR_ID, ...defaultInboxNextBehaviorIds(true)];
-  if (sceneId === FEED_CAPTURE_SCENE_ID) return defaultFeedCaptureBehaviorIds(true);
-  return [];
-}
-
 export function isFunctionDestinationId(value: string): boolean {
   // Registration and live compatibility belong to the scene service. Drafts
   // retain valid identities even if their original provider is currently absent.
@@ -343,36 +323,6 @@ export const FUNCTION_AUTHORING_SUBJECTS: readonly FunctionAuthoringSubject[] = 
   { subject_kind: "session", title: "Session" },
   { subject_kind: "mcp_invoke", title: "Agent" },
 ];
-
-export function suggestedAuthoringBehaviors(
-  catalog: FunctionAuthoringCatalog,
-  destinationId: string,
-  subjectKinds: readonly string[],
-  reference?: { readonly scene_version: number; readonly provider_id: string },
-): FunctionAuthoringBehavior[] {
-  const destinations = catalog.destinations.filter(row => row.destination_id === destinationId
-    && (!reference || row.scene_version === reference.scene_version && row.provider_id === reference.provider_id));
-  const dest = destinations.length === 1 ? destinations[0] : null;
-  const kinds = subjectKinds.filter(Boolean);
-  const matches = (row: FunctionAuthoringBehavior) => (
-    kinds.length === 0 || row.subject_kinds.length === 0 || row.subject_kinds.some((kind) => kinds.includes(kind))
-  );
-  if (!destinationId) {
-    return kinds.length === 0 ? [] : catalog.behaviors.filter(row => !row.destination_id && matches(row));
-  }
-  if (dest?.kind === "mcp" || destinationId === AGENT_MCP_DESTINATION_ID) {
-    return catalog.behaviors.filter(row => row.destination_id === AGENT_MCP_DESTINATION_ID && matches(row));
-  }
-  const byId = new Map(catalog.behaviors.filter(row => !row.destination_id).map(row => [row.behavior_id, row]));
-  for (const row of catalog.behaviors) if (dest && row.destination_id === dest.destination_id
-    && (!row.scene_version || row.scene_version === dest.scene_version) && (!row.provider_id || row.provider_id === dest.provider_id)) byId.set(row.behavior_id, row);
-  const rows: FunctionAuthoringBehavior[] = [];
-  for (const id of dest?.behavior_ids ?? []) {
-    const row = byId.get(id);
-    if (row && matches(row)) rows.push(row);
-  }
-  return rows;
-}
 
 export function choiceCriteriaFollowContext(
   keys: readonly string[],
@@ -398,26 +348,6 @@ export function functionOutputKeys(record: {
   return keys;
 }
 
-export function resolvedSceneBehaviors(
-  record: {
-    readonly primitive: FunctionsPrimitive;
-    readonly criteria: FunctionCriteria;
-    readonly scene_map?: FunctionSceneMap | null;
-  },
-  pool: readonly string[],
-): string[] | null {
-  const keys = functionOutputKeys(record);
-  if (keys.length === 0) return null;
-  const map = record.scene_map ?? {};
-  const resolved: string[] = [];
-  for (const key of keys) {
-    const target = map[key] || (pool.includes(key) ? key : "");
-    if (!target || !pool.includes(target)) return null;
-    resolved.push(target);
-  }
-  return resolved;
-}
-
 export function mapJudgmentChoice(
   record: {
     readonly primitive: FunctionsPrimitive;
@@ -435,22 +365,3 @@ export function mapJudgmentChoice(
   return map[result.choice] ?? result.choice;
 }
 
-export function functionFitsScene(
-  record: {
-    readonly primitive: FunctionsPrimitive;
-    readonly criteria: FunctionCriteria;
-    readonly scene_id?: string | null;
-    readonly scene_map?: FunctionSceneMap | null;
-  },
-  sceneId: string,
-  pool: readonly string[] = sceneBehaviorIds(sceneId),
-): boolean {
-  // Home compatibility requires the current registered offer directory.
-  if (sceneId === HOME_DOCK_SCENE_ID) return false;
-  if (record.scene_id === AGENT_MCP_DESTINATION_ID) return sceneId === AGENT_MCP_DESTINATION_ID;
-  if (record.scene_id && record.scene_id !== sceneId) return false;
-  if (pool.length === 0) return true;
-  const resolved = resolvedSceneBehaviors(record, pool);
-  if (!resolved) return false;
-  return true;
-}

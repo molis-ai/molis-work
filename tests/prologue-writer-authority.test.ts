@@ -102,7 +102,7 @@ for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape",
     const manifest = structuredClone(codingAgentManifest), role = manifest.roles.find(role => role.role_id === "coordinator")!;
     role.subagent_workspaces = "required"; role.execution = "read-only"; role.host_tools = ["read-file", "dispatch-subagent", "await-subagents"];
     manifest.subagents!.roles = [{ role_id: "coding-writer", version: 3, name: "独立写入", execution: decision === "command" ? "workspace-write" : "text-edit", host_tools: ["read-file", "write", ...(decision === "command" ? ["run-command"] : [])] }];
-    const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: parent, realpath_verified: true };
+    const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: parent, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "Parent" });
     const request = { ...owner, session, directory, role_id: "coordinator", task: "Delegate an isolated write.",
       subagent_workspaces: [{ workspace_id: "writer-a", directory: { canonical_path: childPath, realpath_verified: true } }] };
@@ -245,7 +245,7 @@ test("production writers role runs two isolated children concurrently with indep
   let adapter = await make();
   try {
     const host = new AgentHost({ reviews: queue }); host.register(adapter);
-    const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: parent, realpath_verified: true };
+    const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: parent, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "Two parallel changes" });
     const handle = await host.start("prologue", { ...owner, session, directory, role_id: "writers", task: "Implement the two specified assignments independently.",
       subagent_workspaces: childPaths.map((canonical_path, index) => ({ workspace_id: `writer-${index}`, directory: { canonical_path, realpath_verified: true } })) },

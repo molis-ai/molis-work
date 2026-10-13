@@ -12,7 +12,7 @@ import {
   GIT_FILE_CHANGED_EVENT,
   GIT_RESULT_SCHEMA_VERSION,
   GIT_RESULT_TYPE,
-  readWorkspaceGitCapability,
+  workspaceReadActions,
   prepareGitIndexCapability,
   readGitResultsCapability, prepareGitOperationCapability, readGitOperationsCapability,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -48,21 +48,23 @@ export const gitManifest: PluginManifest = {
   version: "1.8.0",
   name: "Git",
   kind: "app",
-  upgrade_compatibility: { compatible_from_versions: ["1.7.0", "1.6.0", "1.5.0", "1.4.0", "1.3.0"] },
   publisher: { publisher_id: "molis", signature: "official-git-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: "artifact:read", required: true, reason: "读取工作目录引用与待接受的变更" },
     { permission: "artifact:write", required: true, reason: "发布工作区改动与操作回执" },
     { permission: "storage:private", required: true, reason: "保留固定差异选择、提交信息与冲突草稿" },
+    { permission: "workspace:read", required: true, reason: "读取项目已关联工作目录的 Git 状态、摘要、差异与冲突文件" },
   ],
   capabilities: {
     provides: [],
-    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, readWorkspaceGitCapability.capability_id, prepareGitIndexCapability.capability_id, readGitResultsCapability.capability_id,
+    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, workspaceReadActions.git.capability_id, prepareGitIndexCapability.capability_id, readGitResultsCapability.capability_id,
       prepareGitOperationCapability.capability_id, readGitOperationsCapability.capability_id],
   },
   actions: GIT_ACTIONS,
-  artifacts: {
+  artifacts: { produces: [], consumes: [] },
+  // Change sets and run receipts are exchange data for Diff and Coding; they are not 成果.
+  process_items: {
     produces: [
       { artifact_type_id: DIFF_CHANGESET_TYPE, schema_version: DIFF_CHANGESET_SCHEMA_VERSION },
       { artifact_type_id: GIT_RESULT_TYPE, schema_version: GIT_RESULT_SCHEMA_VERSION },

@@ -1,4 +1,5 @@
 import type { AttentionApi, AttentionReason } from "./attention-resumption.js";
+import { defineErrorCodes } from "../platform/action-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesFeedContract = {
@@ -73,6 +74,8 @@ export interface IngestFeedItemInput {
   source_label: string;
   external_id: string;
   signal?: { signal_id: string; revision: number };
+  /** A source without Signals declares that this existing item's content changed, so it updates with its material. */
+  refresh?: boolean;
   title: string;
   summary: string;
   body?: string | null;
@@ -104,7 +107,7 @@ export interface FeedCommands {
     expectedRevision?: number,
   ): FeedItemRecord;
   restore(projectId: string, itemId: string, expectedRevision?: number): FeedItemRecord;
-  markRead(projectId: string, itemId: string, expectedItemType?: "feed" | "inbox_message"): FeedItemRecord;
+  markRead(projectId: string, itemId: string): FeedItemRecord;
   linkGoal(
     projectId: string,
     itemId: string,
@@ -143,31 +146,8 @@ export interface FeedApi {
   readonly events: FeedEvents;
 }
 
-export interface InfoflowContractMigrationReport {
-  receipt_id: string;
-  schema_version: number;
-  preflight: { feed_items: number; legacy_inbox_messages: number; inbox_entries: number };
-  postflight: {
-    feed_items: number;
-    legacy_inbox_messages: number;
-    inbox_entries: number;
-    orphan_feed_item_entries: number;
-  };
-  rollback_strategy: "sqlite_immediate_transaction";
-  applied_at: string;
-}
-
 export interface FeedModuleDependencies {
   attention: AttentionApi;
-}
-
-export interface FeedContractMigrationReceiptRecord {
-  receipt_id: string;
-  schema_version: number;
-  preflight: Record<string, number>;
-  postflight: Record<string, number>;
-  rollback_strategy: "sqlite_immediate_transaction";
-  applied_at: string;
 }
 
 export class FeedError extends Error {
@@ -184,9 +164,44 @@ export class FeedError extends Error {
   }
 }
 
-export class FeedDomainError extends Error {
-  constructor(message: string, readonly code: string) {
-    super(message);
-    this.name = "FeedDomainError";
-  }
-}
+/**
+ * Feed's own error codes, every one `feed.<reason>`. The kind is the sort of failure; the Host's edge turns it into the status
+ * (plugin SDK `actionHttpStatus`), so Feed keeps no status table of its own. They are declared here, beside the module's contract, because
+ * the Feed plugin, the Host files that sync and the RSS and YouTube integrations all refuse in Feed's name and share no other package.
+ * Every status is the one the Feed route answered for the code's old name: the missing things 404, the changed-under-you things 409,
+ * every other refusal 400.
+ */
+export const feedErrors = defineErrorCodes("feed", {
+  item_not_found: "not_found",
+  source_not_found: "not_found",
+  out_rule_not_found: "not_found",
+  /** The item, source or rule changed since the caller read it. */
+  revision_conflict: "conflict",
+  source_paused: "conflict",
+  source_use_catalog: "conflict",
+  invalid_transition: "invalid",
+  /** A route's own refusal of what the request says (a missing revision, a parameter that is no value of the route). */
+  request_invalid: "invalid",
+  out_rule_invalid: "invalid",
+  source_connection_changed: "invalid",
+  source_sync_interrupted: "invalid",
+  source_idempotency_required: "invalid",
+  source_idempotency_conflict: "invalid",
+  source_not_syncable: "invalid",
+  source_invalid_state: "invalid",
+  source_query_invalid: "invalid",
+  source_invalid_configuration: "invalid",
+  source_definition_unavailable: "invalid",
+  source_invalid_schedule: "invalid",
+  source_configuration_changed: "invalid",
+  source_changed: "invalid",
+  source_wrong_sync_kind: "invalid",
+  connector_wrong_sync_kind: "invalid",
+  connector_needs_auth: "invalid",
+  /** The provider reported a failed pull. Its own code (what a run and a source fault store, e.g. `connector_rate_limited`) is `details.error_code`. */
+  connector_failed: "invalid",
+  custom_rss_url_invalid: "invalid",
+  youtube_channel_invalid: "invalid",
+  source_use_youtube_channel: "invalid",
+  source_use_official_reddit: "invalid",
+});

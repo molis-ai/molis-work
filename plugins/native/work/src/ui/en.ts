@@ -1,5 +1,7 @@
 /** Work-owned terminal strings. Workbench composes them into its existing locale runtime. */
 export const WORK_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of the Sessions registry's project data).
+  "这个项目里的会话记录与交接": "Session records and handoffs of this project",
   "推进这个 Goal": "Advance this Goal",
   "复制命令": "Copy command",
   "命令已复制到剪贴板": "Command copied to the clipboard",
@@ -23,7 +25,7 @@ export const WORK_EN: Record<string, string> = {
   "点右上角「添加终端」，在这个 Goal 上打开常用 Runtime 或自定义命令。": "Use Add terminal in the top-right to open a common Runtime or a custom command on this Goal.",
   "请选择要打开的 TUI": "Choose a TUI to open",
   "在这个 Goal 上打开终端": "Open a terminal on this Goal",
-  "标签只属于当前 Goal。打开不会自动发送或领取。": "This tab belongs only to the current Goal. Opening it does not send a prompt or claim the work.",
+  "标签只属于当前 Goal。打开不会自动发送任何内容。": "This tab belongs only to the current Goal. Opening it does not send anything.",
   "参数": "Arguments",
   "工作目录": "Working directory",
   "继续会话 ID": "Resume session ID",
@@ -69,6 +71,7 @@ export const WORK_EN: Record<string, string> = {
   "Sessions 列表": "Sessions list",
   "没有匹配结果": "No matching results",
   "这个项目还没有 Session": "This project has no Session yet",
+  "启动一条新的工作会话，或关联已有的 Runtime 会话。": "Start a new working Session, or link an existing Runtime Session.",
   "共": "Total",
   "条": "items",
   "按需读取最近执行": "Load recent execution on demand",
@@ -251,4 +254,8 @@ export const WORK_EN: Record<string, string> = {
   "目标 Runtime 没有完成 Handoff，package 已保留。": "The target Runtime did not finish the Handoff. The package is kept.",
   "新原生 Session 已创建，Handoff 已作为第一条消息发送。": "A new native Session was created, and the Handoff was sent as the first message.",
   "新的 Molis Work 托管 Session 已创建；package 已保存为可读取内容。": "A new Molis Work-hosted Session was created. The package was saved as readable content.",
+  // plugins/native/work/src/ui/terminal.ts
+  "继续已有会话（可选）": "Continue an existing session (optional)",
+  "会话 ID": "Session ID",
+  "先填入对应 Runtime 的会话 ID，再选择上方的 Runtime。": "Enter the session ID for the matching Runtime first, then choose that Runtime above.",
 };

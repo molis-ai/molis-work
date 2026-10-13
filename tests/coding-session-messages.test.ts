@@ -61,7 +61,7 @@ test("sessions of one project write to each other: a request reaches a running r
     }
     return response("B 接着做完了。");
   });
-  const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
+  const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
   const authority = { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [root] };
   const open = async () => {
     const queue = new AgentReviewQueue();
@@ -78,7 +78,7 @@ test("sessions of one project write to each other: a request reaches a running r
     const sessionB = await adapter.createSession({ ...owner, directory, title: "调用方" });
     const sessionC = await adapter.createSession({ ...owner, directory, title: "默认值" });
     const sessionX = await adapter.createSession({ ...owner, directory, title: "自言自语" });
-    const other = await adapter.createSession({ ...owner, board_id: "another", directory, title: "隔壁" });
+    const other = await adapter.createSession({ ...owner, project_id: "another", directory, title: "隔壁" });
     Object.assign(ids, { A: sessionA.session_id, B: sessionB.session_id, C: sessionC.session_id, X: sessionX.session_id, other: other.session_id });
     const a = await host.start("prologue", { ...owner, session: sessionA, directory, role_id: "builder", task: "A_TASK 给 formatLabel 加 options 参数", session_title: "改接口" } as never, authority);
     await until("A is running", () => seen.A.length === 1);

@@ -3,7 +3,7 @@ import test from "node:test";
 import { setImmediate } from "node:timers/promises";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-const ref = { project_id: "a", board_id: "a", storage_key: "memory:a" };
+const ref = { project_id: "a", storage_key: "memory:a" };
 const gate = () => { let resolve!: () => void; const promise = new Promise<void>(r => { resolve = r; }); return { promise, resolve }; };
 const define = (id: string, scope: "home" | "project", concurrent: boolean): ActionDefinition => ({ capability_id: id, version: 1, operation: "command", action: {
   title: id, description: "Explicit owner-managed transactions", kind: "operation", scope, ...(concurrent ? { scheduling: "concurrent" as const } : {}), audiences: ["user"], permissions: ["edit"], subject_kinds: [], input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "integer" },

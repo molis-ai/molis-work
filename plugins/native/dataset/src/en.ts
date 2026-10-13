@@ -1,4 +1,6 @@
 export const DATASET_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "Dataset 数据表": "Dataset tables",
   "粘贴 CSV": "Paste CSV",
   "固定版本": "Fixed version",
   "固定版本未存完": "Fixed version not finished",
@@ -29,9 +31,9 @@ export const DATASET_EN: Record<string, string> = {
   "导出 CSV": "Export CSV",
   "导出 JSON": "Export JSON",
   "删除": "Delete",
-  "存成 Artifact": "Save as Artifact",
+  "存为成果": "Save as Artifact",
   "再存一版": "Save another version",
-  "已存成 Artifact": "Saved as an Artifact",
+  "已存为成果": "Saved as an Artifact",
   "取消": "Cancel",
   "确定": "Confirm",
   "标题": "Title",
@@ -72,7 +74,7 @@ export const DATASET_EN: Record<string, string> = {
   "上次固定版本还没存完。恢复会使用上次的固定内容，之后的修改可以再存一版。": "The last fixed version wasn't finished saving. Resuming uses that saved content; you can save another version of later changes.",
   "再存一个固定版本": "Save another fixed version",
   "存为固定版本": "Save as fixed version",
-  "第 {version} 版 · 放在这个位置的成果（Artifacts）里；继续编辑不会改变这一版": "Version {version} · kept in this location's Artifacts; further edits won't change it",
+  "第 {version} 版 · 放在这个位置的成果里；继续编辑不会改变这一版": "Version {version} · kept in this location's Artifacts; further edits won't change it",
   "{count} 行 · Excel、Numbers 可以打开": "{count} rows · opens in Excel or Numbers",
   "CSV 文件超过 2 MB，请拆分后再导入": "The CSV file is larger than 2 MB. Split it and import again.",
   "已从文件导入 {count} 行": "Imported {count} rows from the file",

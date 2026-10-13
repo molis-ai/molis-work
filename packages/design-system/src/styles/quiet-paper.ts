@@ -338,11 +338,11 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
       border-radius: 0 var(--radius-surface) var(--radius-surface) 0;
       overflow: hidden;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-document {
+    html[data-density="compact"] body[data-board-view] .goal-document {
       width: min(100%, 1120px);
       padding: 16px 24px 32px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-project { padding: 8px 8px 4px; }
+    html[data-density="compact"] body[data-board-view] .navigator-project { padding: 8px 8px 4px; }
   }
 
   @media (max-width: 760px) {

@@ -4,7 +4,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { pagesActions as actions, pagesContentActions as content, PAGES_ACTION_PERMISSIONS, openPagesStore, runPagesMcpTool } from "@molis-ai/molis-work-plugin-pages";
+import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
+import { pagesActions as actions, pagesContentActions as content, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
@@ -15,16 +16,16 @@ async function fixture(run: (f: { home: string; host: MolisWorkLocalHost; caller
   ref: ReturnType<typeof molisWorkHostProjectReference> }) => Promise<void>, completeText: HostCompleteText | null = null) {
   const home = await mkdtemp(join(tmpdir(), "pages-actions-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "legacy-board", projectId: "a" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: PAGES_ACTION_PERMISSIONS };
   const client = host.actionClient(ref);
   try {
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ board_id: ref.board_id, title: "Pages", actor_id: "owner", idempotency_key: "init" }));
+    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, title: "Pages", actor_id: "owner", idempotency_key: "init" }));
     await run({ home, host, caller, client, ref, bound: bindActionClient(client, () => caller) });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 }
 
-test("Pages auto-registers all business contracts; HTTP/workflow/legacy MCP use the same persisted operations", async () => {
+test("Pages auto-registers all business contracts; HTTP and workflow use the same persisted operations", async () => {
   await fixture(async ({ home, client, caller, bound, host, ref }) => {
     const discovered = await client.discover(caller);
     for (const action of Object.values(actions)) assert.ok(discovered.some(row => row.capability_id === action.capability_id));
@@ -35,8 +36,8 @@ test("Pages auto-registers all business contracts; HTTP/workflow/legacy MCP use 
     await assert.rejects(client.invoke({ ...caller, permissions: ["pages:read"] }, actions.create, { title: "Denied" }), { code: "actions.forbidden" });
     await assert.rejects(bound.invoke(actions.create, { project_id: "b" } as never), { code: "actions.input_invalid" });
     const received = await bound.invoke(content.receive, { payload: { title: "Workflow", body: "# Shared\nActual content" }, context: { instance_id: "workflow-1", step: 1 } });
-    const legacy = JSON.parse(await runPagesMcpTool(bound, { tool_id: "get", arguments: { id: received.item_id } }));
-    assert.match(JSON.stringify(legacy.document.body), /Actual content/);
+    const receivedDocument = await bound.invoke(actions.get, { id: received.item_id });
+    assert.match(JSON.stringify(receivedDocument.document.body), /Actual content/);
     await assert.rejects(client.invoke({ ...caller, allowed_capability_ids: [content.receive.capability_id] }, content.receive,
       { payload: { title: "Bypass", body: "Denied" }, context: { instance_id: "workflow-1", step: 2 } }), { code: "actions.forbidden" });
     const updated = (await bound.invoke(actions.update, { id: document.id, body: body("Edited"), expected_version: document.version })).document;
@@ -50,7 +51,7 @@ test("Pages auto-registers all business contracts; HTTP/workflow/legacy MCP use 
     const promoted = await bound.invoke(actions.promote, { id: document.id });
     assert.equal(promoted.document.artifact_version, 1);
     await host.withProject(ref, runtime => {
-      const artifact = runtime.coordinator.artifacts.query.getArtifactVersion("legacy-board", promoted.artifact);
+      const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(ref.project_id, promoted.artifact);
       assert.ok(artifact); assert.match(JSON.stringify(artifact), /Edited/);
     });
     await bound.invoke(actions.updateFolder, { id: folder.id, title: "Moved" });
@@ -87,6 +88,12 @@ test("extract rolls back both source and new knowledge pages when any insert fai
   });
 });
 
+test("pages.ai declares the candidate text, the command and the style, and no placeholder flag", () => {
+  const output = actions.ai.action.output_schema as { properties: Record<string, unknown>; required?: string[] };
+  assert.deepEqual(Object.keys(output.properties).sort(), ["command", "style", "text"]);
+  assert.deepEqual([...(output.required ?? [])].sort(), ["command", "text"]);
+});
+
 for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "success"] as const) {
   test(`Pages AI ${mode} returns real candidates or rejects without writing a placeholder`, async () => {
     let enter!: () => void, release!: () => void;
@@ -106,11 +113,11 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
       const pending = client.invoke({ ...caller, signal: controller.signal }, actions.ai,
         { id: document.id, command: "rewrite", text: "Source selected text", expected_version: document.version });
       if (mode === "success") {
-        assert.deepEqual(await pending, { text: "Actual candidate", stub: false, command: "rewrite", style: undefined });
+        assert.deepEqual(await pending, { text: "Actual candidate", command: "rewrite", style: undefined });
         assert.match(prompts[0]!, /Source selected text/);
-        const translated = JSON.parse(await runPagesMcpTool(bound, { tool_id: "ai", arguments: { id: document.id, command: "translate_new", text: "Original" } }));
-        assert.equal(translated.stub, false); assert.match(JSON.stringify(translated.document.body), /Actual candidate/);
-        assert.equal((await bound.invoke(actions.list, {})).documents.length, 2);
+        const translated = await bound.invoke(actions.ai, { id: document.id, command: "translate_new", text: "Original" });
+        assert.equal("stub" in translated, false, "the result no longer carries the retired placeholder flag"); assert.equal(translated.text, "Actual candidate");
+        assert.equal((await bound.invoke(actions.list, {})).documents.length, 1, "a candidate is returned, not saved as a document");
       } else {
         const rejection = assert.rejects(pending, mode === "missing" ? { code: "actions.connection_required" }
           : mode === "failure" ? /Fixture model failure/ : mode === "empty" ? /模型没有返回文字/
@@ -136,7 +143,7 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
 }
 
 test("a new document can be taken back only while unchanged: create names its undo, discard refuses once it was edited", async () => {
-  const { inspectActionDeclarations, actionEffect } = await import("@molis-ai/molis-work-contracts/platform/actions");
+  const { actionEffect } = await import("@molis-ai/molis-work-contracts/platform/actions");
   assert.deepEqual(actions.create.action.undo, { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "document.version" } });
   assert.deepEqual(inspectActionDeclarations([actions.create, actions.discard], undefined), []);
   assert.equal(actionEffect(actions.discard.action, actions.discard.capability_id), "irreversible", "an agent calling discard itself is asked each time");
@@ -152,7 +159,6 @@ test("a new document can be taken back only while unchanged: create names its un
 });
 
 test("an edit an agent made can be taken back while nothing changed since; the person's own edits keep no record", async () => {
-  const { inspectActionDeclarations } = await import("@molis-ai/molis-work-contracts/platform/actions");
   assert.deepEqual(actions.update.action.undo, { capability_id: "pages.revert", version: 1, input: { change_id: "change_id" } });
   assert.deepEqual(inspectActionDeclarations([actions.update, actions.revert], undefined), []);
   await fixture(async ({ bound, client, caller }) => {

@@ -13,6 +13,7 @@ export const GOALS_RELATION_EN: Record<string, string> = {
   "说明为什么这条关系不再成立；历史记录会保留": "Say why this relation no longer holds. The history stays.",
   "暂无关系": "No relations yet",
   "上游": "Upstream",
+  "这个 Goal 的归属与完成依赖": "Where this Goal belongs and what its completion depends on",
   "这个 Goal 开始前需要什么": "What must exist before this Goal can start",
   "下游": "Downstream",
   "哪些 Goal 等待或包含它": "Which Goals wait on it or contain it",
@@ -63,4 +64,7 @@ export const GOALS_RELATION_EN: Record<string, string> = {
   "关系已解除": "Relationship removed",
   "与「{goal}」的关系已停止生效；原方向和解除原因仍保留在完整记录中。": "The relationship with “{goal}” is no longer active. Its original direction and removal reason remain in the full record.",
   "关系解除失败，请检查解除原因后重试": "Could not remove the relationship. Check the reason and try again.",
+  // plugins/native/goals/src/relation-ui.ts
+  "当前 Goal 收尾前需要它完成": "The current Goal needs it to finish before it can close",
+  "它收尾前需要当前 Goal 完成": "It needs the current Goal to finish before it can close",
 };

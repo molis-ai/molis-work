@@ -2,11 +2,11 @@
 
 写一个插件时，先按 [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md) 走完整路径：对象与时刻 → Manifest → UI/客户端 → HTTP → 现场动作 → 判断场景 → MCP → Artifact / 事件 / ports → 按 kind 接到 Host 或 CLI。本文件是命令、MCP 登记、动作录取和打包的手册，不替代那份顺序。Host 装配见 Skill 的 `host.md`，SDK/CLI 见 `authoring.md`，接入见 `integrations.md`。
 
-Native 新工作面除 catalog / Workbench pack 外，还需 `ui-composition.ts` → `renderer.ts` → `goals-page-renderer.ts` 的实际 mount 和页面调用；否则底栏插件切换器里可见但正文为空。
+新的内置插件按仓库 `AGENTS.md` 只走 Plugin Runtime：在 `apps/local-host/src/project-plugins.ts` 加监督器条目，不再手接 `ui-composition.ts` → `renderer.ts` → `goals-page-renderer.ts`，也不再新增构建期（旧路径）条目或 `<插件>-native-plugin-http.ts`。Runtime 装配仍有两处接线：一是 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 里要有它的目录条目（Manifest、`summary`、`workbench` 次序与客户端资源），并把它的 id 加进 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED`（门禁要求每个 Runtime 装配的 id 都有目录条目）；二是主区由 Host 经 `plugin_stages` 渲染（`plugin_panels` 这条接缝存在，但现在没有生产代码填它）——Coding 以及 Files、Git、Diff、Text Stats 的舞台在 `apps/local-host/src/coding-surface.ts` 渲染，`web-goals-read.ts` 把它们填进页面视图，运行时安装的插件的舞台与插件栏条目来自 `installedPluginStages`。
 
 平台合同变了（Manifest 字段、actions / action_scenes、MCP、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
 
-内置 build 的组合声明在 `apps/workbench/src/builtin-plugins.ts`：每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。目录、Workbench UI 注册/样式/客户端和历史 MCP 适配从同一条目派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。维护旧 MCP 名称时同条目绑定 `legacyMcp` 与 Manifest 的 `mcp_exports`，不再修改 Host handler 白名单；新能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
+内置插件的共同目录是 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG`：每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；Runtime 装配的插件在同一目录里也有条目，目录会随之增长。目录、Workbench UI 注册/样式/客户端从同一条目派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
 
 ## 安装 Skill
 
@@ -27,7 +27,7 @@ Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plug
 - 交付流程与每步做完的标准：`process.md`（按模型能力伸缩：能出图就给效果图，能读图就加截图走查）。
 - 质量线（所有插件）：`ui.md#质量线所有插件`——只用 UI 目录组件、三态、一处主操作、token 配色、不重复插件名大标题。视觉统一按 [DESIGN.md](../../DESIGN.md) 的 Soft Workbench：插件画在同一张连续白色工作面里，不画自己的外框卡片、不带身份色；石墨主操作、铜色焦点与链接、字重 400/500/600；全局入口在底栏（Dock 与插件切换器），`navigator` Slot id 保留，没有全局侧栏。
 - 生成界面：首次生成先运行体验设计，输入所选方案与组件能力，输出可重组的部件草图和代表性使用场景；主线 detail 将它们落成绑定与验收后才冻结。`generated-experience.md` 管任务动线、信息层级与体验标准；`generated-ui.md` 管冻结合同后的整页呈现。UI 与评审收到宿主的交互词表：Sheet/Dialog 的 title 是入口及面板名称，submitLabel 是内部提交；行内动作先选中所点记录再执行；成功反馈会清除（包括减少动效模式）。有全文阅读路径的组合目录使用两行摘要，完整正文不裁切。界面纯修订不改变绑定或后端。
-- 能力：`capabilities.md`——统一动作服务是唯一目录；动作写清 `effect`（read / write / irreversible），带 `agent` 受众的可逆动作自动对生成插件开放，`plugin: false` 可退出。
+- 能力：`capabilities.md`——统一动作服务是唯一目录；动作写清 `effect`（read / write / irreversible），带 `agent` 受众的可逆动作自动对生成插件开放，`plugin: false` 可退出。名字像删除、其实可撤销的动作用 `withActionEffect(definition, "write")` 明写效果，`withActionEffect` 从 `@molis-ai/molis-work-plugin-sdk` 导入（导入写法放在本页而不放进 `capabilities.md`：创作台挂载那一章，改动要先按 [STUDIO-SKILL-REPLAY](STUDIO-SKILL-REPLAY.md) 用真实模型跑 `smoke`；生成代码也只能导入 `@molis/plugin-sdk`，用不到它）。
 
 生成插件从能力到安装：
 - 能力板是项目的统一动作目录。目录第二次询问时带上动作需要的权限，只列真能调用的；插件没在本项目启用的显示"未启用"。
@@ -37,14 +37,14 @@ Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plug
 - 安装授权分"它自己的数据 / 会读取 / 会替你改动"列出；不可撤销的动作不开放。
 - 安装后，生成插件的每项功能登记为统一目录里的动作：提供方是 `plugin:<插件 id>`，能力 id 是 `generated.<构建号前 8 位>.<功能 id>`，受众为用户、agent、workflow、MCP 和插件。停用或卸载时撤回，升级时换成新版本的。调用在插件自己的沙箱里运行，身份是插件本身。
 - 公开操作的事实来源是已发布 `SandboxContract.operations`，安装 Host 派生注册；合成 Runtime Manifest 负责执行容器身份，不重复保存操作表。不要修改同版本 Manifest 指纹或替换旧 provider 来实现形式上的统一。发现与调用准备会按当前依赖目录刷新 `execution.cost`，包含生成插件之间的传递依赖；本地操作为 none，声明的收费依赖为 metered，网络、缺失或循环依赖无法确认费用时为 unknown。费用变化不扩大授权，只替换相关动作的注册；普通查询目录不撤销在途执行。
-- 同一安装 owner 复用每个已发布版本的唯一执行定义，升级后回滚使用原定义；不能为绕过冲突而放宽 Runtime 的同版本校验。版本切换先核对批准覆盖发布所需权限，沙箱只持有该发布所需集合；卸载清理定义，重新安装创建新实例。
+- 同一安装 owner 复用每个已发布版本的唯一执行定义，升级后回滚使用原定义；不能为绕过冲突而放宽 Runtime 的同版本校验。版本切换先核对批准覆盖发布所需权限，沙箱只持有该发布所需集合；卸载清理定义，重新安装创建新实例（可以是别的已发布版本：保留了数据的，目标版本须声明兼容被卸载的版本，否则要人确认放弃旧数据后全新安装；停用的安装可以升级或回滚，版本换了仍停用，重启后也一样）。
 - 生成插件命名提示词按可信项目/安装上下文选择当前发布声明，再应用 Home/owner/prompt 用户覆盖；创作台实时试运行使用构建声明的正文。未知 id 在当前版本中拒绝，不能借其他项目或已安装版补全。设置页聚合多安装登记，优先展示启用安装中的最新 prompt 默认；各次执行仍保留自己的默认版本。停用/升级/卸载只更新该安装登记，用户修改在重装后继续有效。
 - 生成式动作声明 `concurrent`，由各自沙箱的有界队列串行执行；不能占住项目动作队列再反向调用平台能力。Host 通过独立的 `execution` 参数把原调用的 signal/beforeEffect 传到 route、Runner、Broker 和服务适配器。它不是 JSON 字段或 actor 名称授权；页面仍只调用声明的组件绑定。存储 CAS、嵌套 Action、DNS/密钥解析后的网络派出均须复查。排队取消不影响别人的执行，执行中取消终止该通道；结果可能已产生的调用不自动重试。任务自己的持久授权由任务 owner 重建，不能保存当前回调供下次运行。
 - 安装后的每次 operation 使用当前依赖目录的版本与执行声明，按该操作的实际依赖计算通道和超时。query 在运行时也不能调用 metered 或写入能力，避免依赖升级后页面刷新产生收费/写入。等待中提供方、版本、可用性或策略改变，原调用停止提交，新调用重新读取；不要求重启安装来刷新策略。未知费用仍是 unknown。
 - Host 服务或嵌套 Action 超时后，外部结果可能未知。可信 Host 将 unknown 保留到沙箱调用、安装 HTTP、公开 Action（`actions.outcome_unknown`）及 Schedule 恢复记录；插件 catch 错误或返回替代值不能清除该状态，也不能继续写入。worker 不能伪造这个标记；用户下一次明确调用使用独立状态，旧操作不自动重放。
 - 到点提醒（`reminders.*`）由 Schedule 在公共目录提供，按项目和安装实例隔离；到点将文字放入收件箱，不运行插件代码，也不依赖打开创作台。定时执行（`schedules.*`）同样由 Schedule 保存计划和每次执行记录，实际 operation 由当前安装的沙箱执行，结果可进收件箱。Host 在项目恢复和发现时登记执行入口，关闭 Studio 不影响安装运行；登记本身不清空队列或补跑，真正派出必须取得新的 Scheduler lease。
 - `schedules.add` 的插件/安装身份来自调用上下文，每个安装世代最多 20 个未完成计划；daily/weekly 保持固定 24 小时/7 天。尚未派出的 pending 可以等待执行入口，running 中断后的未知结果停止后续排期，不能当普通失败自动重放。输入、计划、结果与 Inbox 的事务规则属于 Schedule；Scheduler 只管排期和 lease，插件仍拥有实际业务实现。
-- 旧记录和整个 pending 队列一次性迁入 Schedule，保留任务、job、时间、输入、链接和收据；归属不明的旧任务先暂停，丢失定义的引用留作不可执行历史。管理者先通过 `schedule.tasks.list` 或页面核对，再用 `schedule.operations.recover` 明确恢复、重试或跳过未知结果。Action 拒绝过期的任务/历史 revision 与安装世代/版本，声明 `plugin: false`，新插件不能借此继承旧任务。重试可能重复外部副作用，决定及原说明保留；确认只调整计划，不在管理请求中运行插件代码。
+- 旧创作台提醒与定时执行不再导入 Schedule（用户已定旧数据不留兼容路径）。重装插件后，旧安装留下的提醒由管理者在提醒详情核对内容和当前安装，用 `schedule.reminders.recover` 明确交给当前安装并恢复原排期；定时执行里的未知结果，先通过 `schedule.tasks.list` 或页面核对，再用 `schedule.operations.recover` 明确恢复、重试或跳过。Action 拒绝过期的任务/历史 revision 与安装世代/版本，声明 `plugin: false`，新插件不能借此继承旧任务。重试可能重复外部副作用，决定及原说明保留；确认只调整计划，不在管理请求中运行插件代码。
 - `installed-plugin-host.ts` 复用原发布版本、批准记录、Manifest 指纹和 Action id，恢复已安装插件不初始化创作 Workflow。正常 Host 关闭使用 Runtime.stop 的 `preserve_enabled`，保留 startable 的 installed 状态；显式停用留下 disabled，重启不自动启用。批准或发布记录缺失会报告恢复失败，不能改用 release.permissions 自动补权；缺少批准记录时可卸载并保留数据，再重新确认安装。
 - 通用提醒的提供方是 Host 装配的 `schedule.reminders`，不要求启用可选的 Schedule 对话页面；调用仍检查真实安装身份与原能力授权。不要把可发现误当成已授权。
 - 联网（`networkDomains`）：只能 https、访问批准的确切域名、公网地址；安装前只读，写入用替身。本机代理用 fake-IP 模式时，域名会解析到 198.18.0.0/15；按用户决定，这一段放行（插件只能按批准的域名访问，不能直接写地址）。
@@ -57,7 +57,7 @@ Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plug
 
 这条路径用于开发者运行自己信任的源码，完成第一次真实的插件结果；不是官方市场安装，也不是不可信代码沙箱。当前样例是 polling Integration Plugin。它每次运行产生一个个人 Artifact 版本、读回该版本、保存私人计数，并返回 UI HTML。
 
-先构建仓库和 Plugin SDK、Contracts、Plugin Runtime、Plugin CLI、Local Host。根目录的 `pnpm build` 包含这些构建。当前工作区的 pnpm 依赖自动检查曾要求重建 node_modules，尚未执行该重建；本轮验证使用现有 TypeScript 构建产物，标准干净安装/发布链由 DV4 继续验收。
+先构建仓库：根目录的 `pnpm build` 包含 Plugin SDK、Contracts、Plugin Runtime、Plugin CLI 与 Local Host；安装与构建命令见仓库根的 `AGENTS.md`。
 
 SDK 的 0.0.0 是本地开发版本，不假设 npm 已有发行物。以下命令在仓库根目录运行，把作者项目和安装数据放在新临时目录：
 
@@ -77,6 +77,19 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 状态目录只能是新目录、空目录或已有 `.molis-work-plugin-development.json` 标记的开发目录。普通非空目录不会被用作数据库；这条命令不选择或改动用户项目 catalog。同一状态目录用于串行调试，不是多进程运行服务；强制杀进程后的安装状态恢复、后台托管与发行物安装不是本命令承诺。不要把正式项目或 Team Server 目录作为开发状态目录。
 
+## 成果类型声明
+
+写进成果库的类型要在 Manifest 的 `artifacts.produces` 声明，并满足下面几条（`specs/artifact-positioning` A1、A4b、A7；`AGENTS.md`「成果库只收人要留存、引用的固定版本」）。规则在 `packages/plugin-sdk/src/artifact-declarations.ts`，由 `parsePluginManifest` 在解析时检查，所以 `definePlugin`、命令行 `validate` 与 `create`、Runtime 的安装与升级、本地开发加载走的是同一份；不满足时一次报出全部问题（`plugin_declaration_invalid`，Runtime 安装包成 `plugin_manifest_invalid`）。以前只有内置插件被一个测试（`tests/artifact-type-gate.test.ts`）守着，别的 Manifest 可以产出没人读得了的一版。
+
+- **显示名**：每个产出类型有非空的 `title`，成果库用它给人看。
+- **预览**：每个产出类型有 `preview`，指向本 Manifest 里用 `defineArtifactPreviewAction` 定义的预览查询，并用 `bindArtifactPreview` 绑定处理器（Runtime 要求 Manifest 声明的动作都有处理器）。
+- **固定与比较**：对象可以当场固定成新一版的类型写 `pin`，指向 `defineArtifactPinAction` 定义的命令，且只对一种对象（`subject_kinds` 恰好一个）；写了 `pin` 就必须同时写 `compare`（`defineArtifactCompareAction` 的查询），成果库才能告诉人「原文已改」。
+- **继续**：能从一版新建自己的工作对象的插件写 `continue`（`defineArtifactContinueAction` 的命令）；产出的类型和只读的类型（`artifacts.consumes`）上都可以写。
+- **都在本插件里**：这些引用只认本 Manifest 的 `actions`，同时核对种类与 `operation`（预览、比较是查询，固定、继续是命令）；指向别的插件的动作、不存在的动作、种类不对的动作都被拒绝。
+- **v1 不能产出成果类型**：v1 Manifest 不能声明动作，也就没有预览，所以要进成果库就用 `schema_version: 2`。只在插件之间交换数据、不需要人留存的，声明成 `process_items`（过程项），不进成果库，也就不要名称和预览。
+
+跨插件的规则（一种类型一个 owner、一种对象至多一个固定者、哪些类型可以没有「继续」）仍只对内置插件，由 `tests/artifact-type-gate.test.ts` 守。校验的测试在 `tests/action-artifact-references.test.ts`。
+
 ## 作者 API 与公共测试入口
 
 作者从 `@molis-ai/molis-work-plugin-sdk` 导入 `definePlugin` / `definePollingIntegrationPlugin` 及公开类型，在 `start(context)` 中使用 `context.services`：
@@ -87,13 +100,37 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 这些是公开 Contract，不向作者开放 Store、SQL 或其他模块内部路径。缺权限、停用的旧上下文和未声明的类型/界面贡献都会被实际 owner 拒绝。本样例不请求网络、不自动 Team 分享；分享仍是用户明确选择的业务操作。
 
-嵌入式测试使用 `@molis-ai/molis-work-app-local-host` 的公共 `runPluginDevelopment(input, options)`：输入是已授权的源码目录、项目/用户、grants；options 注入真实 Artifact owner、UiHost、Plugin Runtime repository、私有存储工厂，以及 `actions: { registry, client, project_id }`。registry/client 必须来自同一 Host：分别使用 `host.actionRegistry(reference)` 和 `host.syncActionClient(reference)`；项目已打开后才可同步调用。独立测试可显式共享一个 ActionService，不在生产创建临时注册表兜底。它与应用命令使用同一安装/运行/卸载实现，返回 `PluginDevelopmentResult`，不要求导入仓库测试文件。数据库装配属于应用 Host，不属于 SDK 或 CLI。CLI 的 `PluginCliHost.runDevelopment` 是具名的注入接口，不是任意方法总线。
+嵌入式测试使用 `@molis-ai/molis-work-app-local-host` 的公共 `runPluginDevelopment(input, options)`：输入是已授权的源码目录、项目、grants（`PluginDevelopmentInput` 没有操作者字段）；options 注入操作者 `actor_id`（嵌入的调用方自己传：这个函数既不固定它，也不读 `input` 里的身份）、真实 Artifact owner、UiHost、Plugin Runtime repository、私有存储工厂，以及 `actions: { registry, client, project_id }`。registry/client 必须来自同一 Host：分别使用 `host.actionRegistry(reference)` 和 `host.syncActionClient(reference)`；项目已打开后才可同步调用。独立测试可显式共享一个 ActionService，不在生产创建临时注册表兜底。它与应用命令使用同一安装/运行/卸载实现，返回 `PluginDevelopmentResult`，不要求导入仓库测试文件。数据库装配属于应用 Host，不属于 SDK 或 CLI。CLI 的 `PluginCliHost.runDevelopment` 是具名的注入接口，不是任意方法总线。命令行的开发入口（`runLocalPluginDevelopment`）走的是另一扇门，Host 能力 `pluginDevelopmentCapability`：它声明 `host_only`（插件在 consumes 里列出也会被拒绝），操作者由 Host 固定为 `local-plugin-developer`，参数里带 `actor_id`、`actor_kind` 或 `audit_actor_id` 被拒绝（`actions.input_invalid`），项目必须是客户端打开的那个。
+
+## 个人 Home Runtime 与插件 SQLite
+
+数据属于个人 Home、切换项目不分开的新内置插件，在 `BUILTIN_PLUGIN_CATALOG` 的同一条目声明 `runtime: { scope: "home", create, package_name, factory_export, database? }`。`personal: true` 只是可见性，不会把现存 Form、Todo 等迁到 Runtime。本轮只由 Issue 消费 Home Runtime，现有迁移顺序不变。
+
+一个本机 Local Host 持有一个 `HomePluginHost`，并发发现共用启动 Promise。安装、授予和发行物在 `{home}/plugin-runtime/plugin-runtime.db`，复用 PluginRuntime、Supervisor 和 Action Registry；MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home provider 使用插件 ID，项目 Runtime 继续使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权是不同层次，不能相互替代。
+
+Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留页面、助理、MCP 的入口和身份。业务输入不得接收 owner、actor、install、provider 或数据库路径。Home 实例不提供项目 `artifacts`、端口、事件或假项目：`services.artifacts` 现在可缺省，项目消费者须明确要求该服务。
+
+可信目录的 `database` 声明由 `PluginDatabaseDeclaration` 描述库名、当前基线和读写权限，插件拥有 schema 与 SQL；Host 选择路径、打开连接并提供 `context.services.database`。当前只用于可信 Native 插件；它是安装生命周期服务，不是 JavaScript 沙箱，也不向外部动作暴露 SQL。每个库独占 `{home}/<store_name>/<store_name>.db`，schema 基线不符时拒绝并保留原库，不自动迁移。
+
+项目里宿主自己运行的内置插件也可以有 Home 里的库，用的是同一个 `services.database`，不是第二份服务（W3-06 D）：在 `project-plugins.ts` 启动名单的条目上写 `database`（`PluginPlatformEntry`，类型 `PluginDatabaseDeclaration`），不写进插件定义。声明记在宿主列出的那个定义对象上，所以同 `plugin_id` 的开发中或生成的插件拿不到；沙箱定义、没有 Home 的平台（`home: null`）也拿不到。库名必须在 `PERSONAL_HOME_SQLITE_STORES` 里（卸载 `--purge-user-data` 才清得到；Home 的其他一级目录因此被拒）、不是宿主自己的库（临时拒绝名单 `HOST_LIBRARY_NAMES`，等 W4-11 的 Home 库登记表）、Manifest 声明了 `storage:private` 和库的读写两个权限，同一份名单里不能有两个插件用同一个库；名单有错整份不启动、不建库。所有项目的实例指向同一个库文件，换项目数据不分开；库随插件启动打开、停止关闭，每个项目的实例各持一对连接。下面几条对两种实例都一样。目前生产名单里还没有条目声明库，Todo、Form 迁到 Runtime 时是第一批。
+
+- `database.get/all` 用 SQLite 只读连接，接受参数化查询；没有跨库、路径和连接管理入口。
+- `database.transaction(caller.beforeEffect, tx => …)` 先等待当前动作授权，再复查安装和 grant，随后执行短同步事务；异步回调拒绝并回滚。事务对象离开回调后失效。
+- 更新和删除由业务 SQL 带版本条件；取消、撤权、停用或旧实例不可提交；出错不自动重试。
+- `BoundActionClient.invoke` 的第三个控制参数仅限 Host 内部传递取消、`beforeEffect` 和带来源的 `page_context`；不会进入业务 JSON。父调用和子调用的取消信号都保留。
+- 浏览器同源 Referrer 与助理页面快照当前标为 `client_reported`，不代表屏幕内容已经核实；缺页面时为空，不从用户正文推断。
+
+公共页面 `/plugins/<短名>` 在没有项目时也能打开；项目工作台挂同一运行实例的 contribution。Manifest 路由在 `/api/plugins/<plugin_id>/` 转调公共动作，经过统一 Host / Origin / token 检查。插件页面的启用与停用是显式操作；停用跨重启保留，正常 Host 退出只释放运行实例并保留启用意图。外部 MCP 仍须逐客户端逐动作授权，安装插件不等于授权外部客户端。
+
+Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbench.side` surface。Host 用 `/plugins/<短名>?side=<view_id>` 渲染正在运行的 contribution，拒绝未声明的视图；客户端收到 `side: true`。首页及项目右上角的 Home 工具由目录声明派生，在既有侧栏打开该文档，保留主页面。侧栏按需加载，收起及切换标签不销毁文档；插件自行决定初次展示什么内容，位置和宽度仍归 Host。Home 侧栏不要求创建或授权一个假项目。
+
+新增包、SDK 类型、公开 API 与动作快照、Home 库归属及 purge 清单须同步维护。资源按插件自己的客户端包加载；新增资源需要独立预算审阅，不能抬高既有资源上限。实现与验收见 [Issue V0](../../specs/issue-home-v0/spec.md)。
 
 ## 当前项目设置
 
-跨模块读取当前项目目标目录、创建意图或补充便笺可引用 Goals 的 `goalsActions.list/create/note`。公共动作输入只有业务字段，board 与 actor 由可信调用上下文绑定；不要把内部 typed Capability 的 actor 字段复制进动作 JSON。权限分别为 `goals:read` / `goals:write`，写入重试保留原 idempotency key。Actor 的审计分类及兼容适配器保留的 `audit_actor_id` 属于可信上下文，不是业务参数，不改变客户端授权，也不授予决策权限。三项旧 MCP 名称同样依赖对应动作授权；其他 Goals 事件能力仍按其现有接口和审批合同使用，迁移状态见 Goals 包 README。
+跨模块读取当前项目目标目录、创建意图或补充便笺可引用 Goals 的 `goalsActions.list/create/note`。公共动作输入只有业务字段，项目与 actor 由可信调用上下文绑定；不要把内部 typed Capability 的 actor 字段复制进动作 JSON。权限分别为 `goals:read` / `goals:write`，写入重试保留原 idempotency key。Goals 的写入声明 `authorship: "session"`，审计作者由宿主写进 `caller.audit_actor_id`，它属于可信上下文，不是业务参数，不改变客户端授权，也不授予决策权限；外部客户端只看到被授予的动作工具。其他 Goals 事件能力仍按其现有接口和审批合同使用，见 Goals 包 README。
 
-已由当前项目 Runtime 注册的插件，HTTP 路由从 Manifest `routes` 与运行中的 `contribution.routes` 派生，挂在 `/projects/<project>/api/plugins/<plugin_id>/...`。不需要追加 Host 的插件 ID 正则名单；后续注册也不会移除先前插件的路由。路由适配器使用 `bindPluginActionRoute` 调用同一动作服务，输入和权限检查不会因 HTTP 入口而绕过。Web 写入仍须通过原控制令牌、origin 和一次性请求键检查，停用后不得靠请求或 restart 自动重新启用。
+已由当前项目 Runtime 注册的插件，HTTP 路由从 Manifest `routes` 与运行中的 `contribution.routes` 派生，挂在 `/projects/<project>/api/plugins/<plugin_id>/...`。不需要追加 Host 的插件 ID 正则名单；后续注册也不会移除先前插件的路由。路由适配器使用 SDK 的 `bindPluginActionRoute` 调用同一动作服务，输入和权限检查不会因 HTTP 入口而绕过；动作失败时路由按错误的 kind 答，响应体是 `{ error, code, details? }`（见「错误：码、kind 与状态」）。Web 写入仍须通过原控制令牌、origin 和一次性请求键检查，停用后不得靠请求或 restart 自动重新启用。
 
 原 `/restart`、`/release-quarantine`、`/upgrade` 是 Host 生命周期入口，插件业务路径需避开它们。内置插件继续遵守项目启用与关联插件规则；其他插件遵守当前项目的 Runtime 注册、授权及生命周期。新路由返回值不会按 Coding 的 report、runs 等字段擅自补充页面 HTML。此机制负责已注册实例的分发，发行物安装与启动仍走 Runtime 的原接入合同。
 
@@ -114,17 +151,17 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 }
 ```
 
-`compatible_from_versions` 表示新实现能直接使用该版本的私人数据和既有 grant。为同一版本修正文档时，也可精确声明兼容当前已安装版本；这只允许插件继续运行，不改变已保存的 Manifest 指纹，也不会产生市场升级候选。重新打开项目可以用已声明兼容的新实现恢复旧安装，但不会改写已安装版本；市场会列出更高版本的升级候选，只有用户点「升级」才提交新版本。
+`compatible_from_versions` 表示新实现能直接使用该版本的私人数据和既有 grant。为同一版本修正文档时，也可精确声明兼容当前已安装版本；这只允许插件继续运行，不改变已保存的 Manifest 指纹，也不会产生市场升级候选。重新打开项目可以用已声明兼容的新实现恢复旧安装，但不会改写已安装版本；市场会列出更高版本的升级候选，只有用户点「升级」才提交新版本。内置插件是例外（随 Host 发布，监督器条目标 `bundled`）：启动时安装记录改成这个构建的清单，版本更高、更低或同版本摘要不同都一样，保留 `install_id` 与私有数据，也不进市场候选，所以不写 `upgrade_compatibility`（[发布策略](../releases/POLICY.md)第 7 节）；本节其余关于启动不改写安装记录、市场确认升级和发行物恢复的说明，都针对不带 `bundled` 的插件。
 
-Runtime 管理的首方 Native 工厂会保存为单文件发行物，写入当前项目已有 SQLite 的 `plugin_runtime_release_artifacts` 表，身份由插件 ID、发布者签名、版本和 Manifest 指纹确定。Host 重启时，不兼容的新版候选不会顶替旧实现；Runtime 会加载已安装版本的发行物，或加载一份明确兼容该已安装版本的留存实现。兼容实现恢复时安装记录仍保持原版本。首次安装、明确兼容的新版实现首次运行，以及用户点击「升级」前都会归档对应代码；保存的是可执行代码，不属于 `storage:private`，也不会创建独立代码目录。
+Runtime 管理的首方 Native 工厂会保存为单文件发行物，写入当前项目已有 SQLite 的 `plugin_runtime_release_artifacts` 表，身份由插件 ID、发布者签名、版本和 Manifest 指纹确定。内置插件（`bundled`）启动时跟随当前构建，不从这张表恢复旧版：当前构建的发行物照旧写入，但恢复只对不带 `bundled` 的条目生效，此外只有 Schedule 提醒读这张表，按安装记录的版本与摘要取插件显示名。不带 `bundled` 的条目在 Host 重启时，不兼容的新版候选不会顶替旧实现；Runtime 会加载已安装版本的发行物，或加载一份明确兼容该已安装版本的留存实现。兼容实现恢复时安装记录仍保持原版本。首次安装、明确兼容的新版实现首次运行，以及用户点击「升级」前都会归档对应代码；保存的是可执行代码，不属于 `storage:private`，也不会创建独立代码目录。
 
-`install_id` 是稳定的数据命名空间，重装可沿用保留的数据；持久任务还必须绑定 Runtime 的 `installation_generation`。后者在确认重装时更新，重启、停用/启用和版本升级保持不变。Host 通过 `pluginInstallationGeneration(record)` 读取当前或历史兼容身份，不从任务输入接受安装世代。Schedule 提醒已经按此规则隔离，历史归属不能证明的记录保留并暂停。
+`install_id` 是稳定的数据命名空间，重装可沿用保留的数据；持久任务还必须绑定 Runtime 的 `installation_generation`。后者在确认重装时更新，重启、停用/启用和版本升级保持不变。Host 直接读安装记录的 `installation_generation`，不从任务输入接受安装世代。Schedule 提醒与定时操作都按此规则隔离：世代不符的记录保留，不自动投递或执行，等重装后确认归属。
 
 `migratable_from_versions` 表示发布者允许从列出的旧版本手动升级，但不能据此直接启动新实现。目标 `PluginDefinition` 必须实现 `validateUpgrade({ from, context })`：在切换前只读检查 `storage:private` 数据能否被目标实现处理。校验上下文只提供只读的 `get` 和必要身份，不暴露其他 Host 服务。Host 不执行数据迁移；预检通过后，目标版本按现有格式直接使用这些数据。需要转换格式的插件目前不受此协议支持。验证失败时旧安装记录、grant 与私有数据保持原样。
 
 无论升级方式，目标 Manifest 都必须保留旧安装的全部 grant 声明及必需权限；升级不会重新授权、改变签名身份或创建新私人库。常规启动不会把新 Manifest 写成已安装版本；未声明支持的来源版本可在市场显示为不可升级，不会在项目启动时被静默替换。显式升级目标必须高于当前版本。当前升级入口作用于当前项目的 Runtime 安装。
 
-Native 作者必须让实现代码变化对应到新的 Manifest 版本或 Manifest 指纹；相同的版本和指纹表示同一发行物。不要把未声明兼容关系的新版代码依赖于启动时替换旧安装。当前发行物保留用于 Runtime 管理的首方 Native 插件，包括 Coding 面板插件和 Plugin Builder 本体；仍由 Host 构建期组合的其他插件不会自动获得这条版本化恢复能力。Native Plugin 与 Host 在同一进程运行，版本归档不构成 JavaScript 沙箱。
+Native 作者必须让实现代码变化对应到新的 Manifest 版本或 Manifest 指纹；相同的版本和指纹表示同一发行物。不要把未声明兼容关系的新版代码依赖于启动时替换旧安装。发行物表现在只为 Runtime 管理的、不带 `bundled` 的 Native 插件恢复旧版；Coding 面板等内置插件启动时跟随当前构建，不靠它恢复。仍由 Host 构建期组合的其他插件没有安装记录，也不会获得这条版本化恢复能力。Native Plugin 与 Host 在同一进程运行，版本归档不构成 JavaScript 沙箱。
 
 Plugin Builder 将每次发布保存为独立版本记录。发布新版只产生候选，不会启动新版本；作者需要明确选择直接兼容，或要求升级时校验数据。库页会显示 Runtime 实际安装版本和最新发布，用户选择「升级」后才调用同一套 Runtime 校验与回滚流程。Host 重启后按安装记录恢复对应的 Builder 发布版本；不要用 Builder 的最新发布覆盖尚未确认升级的版本。
 
@@ -140,21 +177,36 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 
 无需再手写一份 MCP 管理工具。Host 会从上述合同生成查看位置、启用、停用三项动作，沿用场景的版本、提供方和生命周期，进入现有能力目录及对外授权设置。只有消费场景、没有自定义动作的插件也适用。配置权限与运行权限独立；缺少模型或执行权限时，有配置权的用户仍能停用原绑定。外部客户端须获具体管理动作的授权，不能借其他动作的同名权限执行。
 
-当前范围：Home、Inbox、Feed 的绑定与真实触发已进入共同场景；工作流交接保留原调用者并按交付键幂等。规则编辑器与 Agent 的可选能力都从动作目录派生，旧 `behaviors` 声明已从内置插件移除。以下 `mcp_exports` 仅用于维护已有兼容入口，不作为新增能力再建目录或名单的理由。
+当前范围：Home、Inbox、Feed 的绑定与真实触发已进入共同场景；工作流交接保留原调用者并按交付键幂等。规则编辑器与 Agent 的可选能力都从动作目录派生；Manifest 不再有 `behaviors`、`function_scenes`、`judgment_subjects` 或 `mcp_exports`，对外只有按客户端授权的动作工具。
+
+## 错误：码、kind 与状态
+
+一个错误是一个码、一句消息，可选一个 kind 和 details，用 `ActionError` 抛出（从 SDK 导出）。
+
+- **码**是 `<主人>.<原因>`，主人的名字开头：Todo 的是 `todo.not_found`、`todo.conflict`。`actions.` 是平台自己的，插件不能用来声明自己的码；一个码只属于一个主人，不借别人的开头。码是小写单词用点连起来，需要成组时主人后面再接一段（`goals.event.version_conflict`）。
+- **kind** 说这是哪一种失败，状态只由它推出：`invalid` 400、`forbidden` 403、`not_found` 404、`conflict` 409、`too_large` 413、`rate_limited` 429、`cancelled` 499、`internal` 500、`upstream` 502、`unavailable` 503、`timeout` 504。插件不写状态表，路由里也不要为某个码特判状态。
+- **声明**：插件用 `defineErrorCodes(prefix, { 原因: kind })` 把自己的码一次声明好，之后抛 `notesErrors.not_found("找不到这条笔记")`；需要带给调用者的数据放第二个参数 `details`，这是主人数据唯一的位置。声明时检查前缀写法合规且不是 `actions`、原因是单词、kind 是已知的，也不允许重新声明平台已有的码；哪个包可以用哪个主人名，由错误码主人表 `tooling/gates/error-owners.json` 核对：`plugins/native/<目录>/` 下的文件，主人名就是目录名（连字符变下划线，Todo 的是 `todo`），不用登记；插件的 Host 文件和模块（`apps/local-host/src/<插件>-*`、`modules/<插件>/`）在表里写明。`pnpm health:check` 数出不以所在文件主人名开头的码、不是小写点连接写法的码、`extends …Error` 的类、由错误的码或类型选出的 HTTP 状态，四项都只许减少，新文件从 0 开始（`tooling/gates/README.md`「错误模型」）。
+- **平台的码**（`actions.missing`、`actions.plugin_disabled`、`actions.scope_mismatch` 等）在合同的 `ACTION_ERROR_KINDS` 里一码一行，已经有 kind，直接 `new ActionError("actions.missing", "…")`。
+- **抛 `ActionError`，不要自己造 Error 子类**：Host 里还有按 `instanceof ActionError` 认错误的入口（MCP 的错误文本、首页的动作回答、放置面板里「原对象已删除」与「暂时读不到」的区分等；它们还没有换成按形状读，SDK 的函数已经是按形状读的），只有 `ActionError` 才被当作带码的失败。Todo 原来的 `TodoError` 不是 `ActionError`，所以它的动作失败在这些入口里被当作未知失败，换成 `todoErrors` 后才各自回答成它本来的样子（Todo 读对象的那条路径本来就抛 `ActionError`，放置面板读到「原对象已删除」与首页准备对话的回答没有变）。
+- **没有 kind 的错误**：带我们格式的码（`<主人>.<原因>`）但没人给 kind，按调用者的错误处理，400；没有码、码不是我们的格式（例如系统错误码 `ENOENT`），或根本不是 Error，按内部失败处理，500，响应体的码是 `actions.execution_failed`。调用者写错了才会遇到的情形要先给它一个自己的码（kind `invalid`），别靠 500。动作的可用性对象（`{ available: false, code, reason }`）今天也没有 kind：内核把它的码和原因抛成没有 kind 的 `ActionError`，所以主人自己的码（例如 `pages.unavailable`）答 400，平台的码（`actions.connection_required` 等）按平台表答（503）；需要别的状态时用平台的码，可用性对象带 kind 是 W3-02 G1 的事。
+- **响应体**统一是 `{ error, code, details? }`；`error` 是消息。**按 kind 答的入口包括**：Host 的 Native 插件 HTTP 分发器（`dispatchNativePluginJsonHttp`），不传 `mapError` 时让错误抛出来即可（Todo 是样例，Pages、PPT、Dataset、Form、Lingguang、Workflows 同样）；SDK 的 `bindPluginActionRoute`，Runtime 插件的路由用它兑现动作：动作抛出的错误按它自己的 kind 答，没有我们的码的错误答 500 `actions.execution_failed`，路由自己的请求映射函数拒绝了请求答 400 `actions.input_invalid`（带着映射函数的那句话）；还有 Plugin Runtime 路由器自己的拒绝，用的是动作层已有的码和句子：没有路由要的权限 403 `actions.forbidden`，本项目没有启用该插件 403 `actions.plugin_disabled`（页面外层对「这个项目没有启用这个插件」答的也是它），插件未运行 503 `actions.plugin_unavailable`，声明了路由却没有处理器 500 `actions.execution_failed`。Feed、Inbox、Schedule 要自己写 HTML、跳转或头部，在 `try` 里用 `readNativePluginJsonBody` 读请求体，出错写同一个 SDK 的 `actionErrorResponse(error)`；读不出请求体也是同样的错误：`actions.input_invalid`（400）、`actions.input_too_large`（413）；仍带 `mapError` 的入口，读不出请求体时也由它回答（多数答 400，Agent 定义入口答 500、不带码，助理入口答 500、码 `assistant.failed`）。其余入口还没换：还没迁的内置插件（Cognia、Functions、Jelly、Shelf）仍带自己的映射函数，它们在 W3-02 的后续片逐个换掉，到那时同一段话才对所有插件成立。
+- **页面和调用方按 `code` 判断**（例如 `todo.conflict` 提示重新读取），不按 HTTP 状态；`actionErrorFromResponse(status, body)` 把响应还原成同样的错误。读错误一律按形状（有 `code` 和 `message`），不用 `instanceof`：Runtime 包和创作台页面里可能有另一份 `ActionError`。
 
 ## 连续工作：对象上下文、版本前提与助理
 
 同一件工作会在底栏助理、插件页面和用户手动操作之间交替进行。插件的对象、版本和删除状态由插件自己拥有；工作与对象的关系由助理写进 Context Ledger；运行与确认归 Agent Host。插件不另存“助理做过什么”，也不复制正文。完整约定、样例与验证见 [molis-plugin-dev · continuity.md](../../skills/molis-plugin-dev/continuity.md)，要点：
 
 - 每种展示的对象提供 `defineSubjectContextAction("<plugin>.subject.read", "<kind>", …)`，返回当前正文、所有者版本 `revision`、关联 Goal、会话与 `open: { surface, id }`；不存在时抛 `<plugin>.not_found`。个人范围的对象传第五个参数 `"home"`。
-- 修改类动作只声明一种 `subject_kinds`，用 `result_subject` 指出输出里的对象标识与新版本；修改已有对象接受 `expected_version`（或 `expected_revision`）。助理修改已有对象必须带读取时的版本，否则在确认前被拒。
+- 修改类动作只声明一种 `subject_kinds`，用 `result_subject` 指出输出里的对象标识与新版本，例如 `{ id: "document.id", revision: "document.version" }`；必须写成对象，两个位置都要在本动作的 `output_schema` 里写出来，写成字符串等别的形状、写错位置、或没有输出合同，注册时就被拒绝（规则见后面“指向别的动作”一条）。修改已有对象接受 `expected_version`（或 `expected_revision`）。助理修改已有对象必须带读取时的版本，否则在确认前被拒。
+- 没写 `result_subject` 时，助理按下面的明文规则认结果对象，只对“恰好涉及一种对象”的修改动作生效（涉及多种对象或不涉及对象的动作，以及查询和导航，不记结果对象）：输出本身是带字符串 `id` 的对象，就用它；否则输出的顶层字段里恰好有一个带字符串 `id` 的对象，就用那一个（有两个或没有，则这一步没有结果对象）；版本取该对象的 `version`，没有就取 `revision`（数字或非空字符串）；输出里认不出，就看输入：输入本身带字符串 `id`，就用它，没有版本。这是兜底，平台不检查它猜得对不对；会写东西的动作最好显式写 `result_subject`。
 - 插件根元素维护 `data-assistant-context`（当前对象、版本、未保存状态与草稿、起步建议）；这只是屏幕说明，发送时才成为材料，不写记录、不授权。
 - 监听 `molis:assistant-effect` 并在没有未保存修改时重读；用户在页面上改变了助理可能展示的对象时发 `molis:assistant-surface-changed`。
 - 页面缓存的设置在本页没有未保存改动时采用已保存值，避免把别处的修改写回。
 - 要给助理发信息，发 `molis:assistant-message` 并写明用途：`background`（只作上下文）、`change`（对象变了）、`suggest`（由用户决定是否发送）、`delegate`（用户刚在页面上要求交给助理，只有真实用户操作才立即开始）、`reply`（把结果交回某项工作）。不要自称“用户已同意”。
-- 可以撤回的修改声明 `undo`：`{ capability_id, version, input: { 字段: "输出路径" } }`，指向同一提供方的撤销命令，以及它的输入在本次输出里的位置；需要数组时写 `["路径"]`。这样的修改在用户明确要求时由助理直接执行、事后可撤销，用户也可以把它设成每次确认。删除、对外发送这类撤不回的修改不要声明。样例：灵光“记下灵光”用“丢弃灵光” `{ ids: ["spark.id"] }` 撤回。
-- 用户可以在插件里设提醒（待办的提醒时间、日程的提前提醒）时，提供到期提醒查询：`defineDueRemindersAction("<插件>.reminders.window", [对象种类], "到期提醒", [读取权限])`（Home 范围、只读）。输入 `{ from, to }`，只返回 `from ≤ 到期时间 < to` 的提醒，每条带稳定的 `reminder_id`（改了时间就换新的）、`due_at`、`title`、`subject`、`project_id`（个人为 null）、`open`。插件不需要计时器：Host 每分钟来问一次，每条只提醒用户一次，并按用户的提醒规则处理。只返回用户自己要求的提醒，新条目、未读数、逾期清单都不算；用户已在插件里处理过的提醒不要返回。
-- 会启动后台任务的命令（研究、生成等）声明 `background_job`：`{ status: { capability_id, version }, id: "run.jobId", input: "id", state: "status", done: [...], failed: [...] }`——输出里任务标识的位置、同一提供方的状态查询、它接收标识的字段、状态的位置和结束状态。助理（或用户点的建议按钮）启动后，Host 经 Prologue 队列按状态查询跟进到结束，结束时提醒用户、按钮显示结果，并在下一轮告诉助理；不必自己推送。样例：炼金术士的“启动炼化”“启动研究”。
+- 动作声明里指向别的动作的地方（`undo`、`background_job.status`、片段与事项推荐的选项目标），目标必须在**同一次注册**里：同一份 Manifest 的 `actions`，或同一次 `registerProvider` 的 `definitions`；文档里说“同一提供方”，指的就是这个。注册先后不定，所以不按提供方编号跨注册去找：一个提供方拆成几次注册、又互相引用，会被拒绝，报“不在同一提供方的声明里”（Goals 按范围分两次注册，引用也都在各自的范围里，所以没有这个问题）。要用别的提供方的动作，写 `required_actions`，使用时按调用者核对。`definePlugin`、命令行 `validate`、Runtime 安装与升级、宿主注册动作时都检查（SDK 的 `inspectActionCrossReferences`）；声明本身不完整的由形状检查另外报告，不重复报。谁能用目标（受众、权限、效果）不在注册时查，使用时按调用者核对。
+- 可以撤回的修改声明 `undo`：`{ capability_id, version, input: { 字段: "输出路径" } }`，指向同一次注册里的撤销命令，以及它的输入在本次输出里的位置；需要数组时写 `["路径"]`。注册时检查：撤销命令存在、是命令、与本动作同一范围；`input` 里的每个字段都是撤销命令输入 schema 的属性，它必填的输入都要填上；每个输出路径都在本动作的 `output_schema` 里写出来了（沿属性、`anyOf`/`oneOf`/`allOf` 分支和本 schema 内的 `$ref` 找；只写 `type: "object"` 的开放对象找不到，要先把字段写出来；没有 `output_schema` 就没有位置可指）。这样的修改在用户明确要求时由助理直接执行、事后可撤销，用户也可以把它设成每次确认。删除、对外发送这类撤不回的修改不要声明。样例：灵光“记下灵光”用“丢弃灵光” `{ ids: ["spark.id"] }` 撤回。
+- 用户可以在插件里设提醒（今天只有 Todo 的提醒时间在用）时，提供到期提醒查询：`defineDueRemindersAction("<插件>.reminders.window", [对象种类], "到期提醒", [读取权限])`（Home 范围、只读）。输入 `{ from, to }`，只返回 `from ≤ 到期时间 < to` 的提醒，每条带稳定的 `reminder_id`（改了时间就换新的）、`due_at`、`title`、`subject`、`project_id`（个人为 null）、`open`。插件不需要计时器：Host 每分钟来问一次，每条只提醒用户一次，并按用户的提醒规则处理。只返回用户自己要求的提醒，新条目、未读数、逾期清单都不算；用户已在插件里处理过的提醒不要返回。辅助函数 `assertDueReminderWindow`、`withinDueReminderWindow` 和类型随 `defineDueRemindersAction` 一起从插件 SDK 导出。
+- 会启动后台任务的命令（研究、生成等）声明 `background_job`：`{ status: { capability_id, version }, id: "run.jobId", input: "id", state: "status", done: [...], failed: [...] }`——输出里任务标识的位置、同一次注册里的状态查询、它接收标识的字段、状态的位置和结束状态。注册时检查：状态查询存在、是查询、与本动作同一范围；`id` 在本动作的 `output_schema` 里，`input` 在状态查询的输入 schema 里，`state` 在状态查询的输出 schema 里。片段与事项推荐的选项同样要指向同一次注册里、同一范围的动作，事项推荐的目标还要支持选项对应的事项种类（目标没写事项种类则不限）。助理（或用户点的建议按钮）启动后，Host 经 Prologue 队列按状态查询跟进到结束，结束时提醒用户、按钮显示结果，并在下一轮告诉助理；不必自己推送。样例：炼金术士的“启动炼化”“启动研究”。
 - 修改已有对象的动作，输入里用 `<种类>_id`（或 `subject_id`、`id`）写对象标识：助理的建议按钮据此在用户手动改过该对象后自动失效。
 - 设置“助理”里的“插件接入诊断”会列出你的插件为助理提供了什么、缺什么（对象读取、结果关联、能力说明），按那里的提示补齐即可。
 - Native 插件新增路由或动作要递增 Manifest `version`，否则已安装项目仍按旧清单运行。
@@ -167,7 +219,6 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 
 - 可搜索的每种对象提供对象读取器（`defineSubjectContextAction`，不存在时抛 `<plugin>.not_found`）；
 - 声明一个搜索来源 `defineSearchEntriesAction(id, [{ kind, title, surface }], title, permissions, scope?, audiences?)`，用 `bindSearchEntriesHandler` 返回当前全部条目：`subject`、`revision`（内容一变就变）、`title`、`summary`、`updated_at`、`content`（`context` 正文经读取器进索引，`summary` 只索引标题与摘要）、`open: { surface, id }`；
-- 不能持久化的内容用 `defineSearchQueryAction` 按需查询。
 - 来源的受众不能比你原有的读取更宽：原来只给本机界面看的内容（例如剪贴板历史）单独声明一个来源，受众限为 `["user"]`，助理、工作流与 MCP 客户端就搜不到它。
 
 系统负责首次建立、按集合版本与条目版本增量更新、删除清理、失败保留与重试、停用/卸载清理、按调用者授权过滤和打开前核对。清单里声明的来源经 `inspectActionDeclarations` 校验规范合同。细则与判例见 [搜索接入](../../skills/molis-plugin-dev/search.md)，需求见 `specs/archive/system-search/spec.md`。
@@ -182,7 +233,8 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 
 - 在插件的 `src/prompts.ts` 用 `defineInstructionPrompt`（`@molis-ai/molis-work-contracts/platform/model-prompts`）声明，写明 `title`、`purpose`、`used_by`，从包入口导出 `<插件>_INSTRUCTIONS`。
 - 调用时传 `instructed(指令, 数据)`：指令只写要求，用户材料、本次参数放在数据里（数据不会被当成指令）。模型端口类型写 `InstructedPrompt` 或 `ModelPromptInput`，不收裸字符串。
-- Host 适配器经 `resolveModelPrompt` 取有效正文；内置插件在 `builtin-instructions.ts` 登记。改指令正文要升 `version`，用户已改过的会显示“默认已更新”，不会被静默覆盖。
+- Host 适配器经 `resolveModelPrompt` 取有效正文；内置插件在 `apps/workbench/src/builtin-plugins.ts` 自己的目录条目上声明 `instructions`，Host 从共同目录派生登记，`builtin-instructions.ts` 的 `BUILTIN_INSTRUCTIONS` 除目录派生的之外只列 Host 自己的 `system:*` 题面，不点名插件的指令。改指令正文要升 `version`，用户已改过的会显示“默认已更新”，不会被静默覆盖。
+- 宿主自己运行的 Runtime 插件（非沙箱执行）调模型用 `context.services.model`，不写宿主绑定文件：Manifest 声明 `model:invoke`；只在插件自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调；传 `instructed(自己的指令, 数据)`，发送用户改过的版本；发出前、返回后宿主各问一次这次调用的 `beforeEffect()`，动作返回之后再调是 `actions.expired`。没有目录条目的插件在 `PluginDefinition.instructions` 里声明自己的指令（SDK 导出 `defineInstructionPrompt`、`instructed`）；有目录条目的内置插件仍在条目上声明；目录已经为某个主人登记了角色或方法而没有指令（Schedule、助理、Issues）的，也算有条目，`PluginDefinition.instructions` 对它启动失败。一个主人的定义只在一处。限额、错误码和不做的事见 [Prologue AI 手册第 4 节](PROLOGUE-AI.md)。
 - 门禁 `tests/prompt-registration.test.ts`：没登记的指令、收裸字符串的端口、绕开登记直接调模型的 Host 模块都会失败；确需过渡的写进清单并写明原因。
 - 插件创作台生成的插件同样如此：要求在操作代码里 `export const prompts = [{ id, title, purpose, body }]` 声明，`model.generate` 传 `{ prompt: id, input }`；安装时登记、卸载时撤下（用户的修改保留）。检查 G4 会拒绝未声明的 id 和仍传 `instructions` 的调用。
 - 设置“Prompt 与 Character”底部的“开发者诊断”列出每个来源登记了什么、哪些没有生效及原因，以及仍未登记的模型调用。
@@ -199,33 +251,21 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 
 ## 对外 MCP
 
-Molis Work 对外只有一个 MCP 进程：`molis-work-mcp`。插件不要自己开 MCP 端口，也不要新开 MCP 包。新能力使用上文 SDK 的动作合同。下面仅说明存量 `mcp_exports` 的维护；动作的逐客户端、逐项目授权已接入「能力 → 对外接入」，选项从同一注册表发现，不需前端白名单。旧插件与判断工具名称也受相同动作授权约束，该页「旧版工具（全局开关）」只控制这些兼容名称是否启用。
+Molis Work 对外只有一个 MCP 进程：`molis-work-mcp`。插件的 MCP 能力就是它在 Manifest 里声明的 `actions`：每个动作在共同目录里登记一次，对外就是动作工具 `molis_work_v1_action_<动作>__v<版本>`，由用户在「能力 → 对外接入」按客户端与范围逐项授权。插件不另外登记 MCP 工具、不开自己的 MCP 端口，也不新开 MCP 包；没有按名称的开关。
 
 `agent.mcp` 是反过来的：插件里的 Agent 能不能去调外面的 MCP。不要拿它当对外贡献开关。
 
 ### 作者要做的
 
-1. 存量兼容名的 Manifest schema 2 `mcp_exports` 保留 `tool_id`（插件内唯一，`[a-z0-9][a-z0-9_-]*`）、`description`、`input_schema`（`type: "object"`）、`effect`（`read` 或 `write`）。可选 `audience`（省略 = `runtime`）、`scope`（省略 = 当前绑定项目必须启用本插件）。还须用非空 `required_actions` 列出 `{ capability_id, version, provider_id? }`；provider 省略指本插件。所有引用的动作已授权且可用，旧工具才进入调用目录。
-2. 不要写 `enabled`、不要写对外正式名、不要在 `input_schema` 里放 `board_id` / `database_path` / `web_base_url` / `actor_id` / `actor_kind` / `runtime_actor_id` / `submitted_session_id`。身份由 Host 注入。可调用能力只以 `actions` 声明；旧 `behaviors` 字段已废弃，内置插件均已移除，不要再写。
-3. 公开名由 Host 盖：`molis_work_v1_<短名>_<tool_id>`。短名是项目插件 id，不是在 Manifest 里拼出来的。
-4. Handler 只认 `{ tool_id, arguments }`。未在 Manifest 登记的 `tool_id` 即使代码里有实现也到不了。
-5. 兼容名称默认关。开关不授予动作权限，客户端另须取得每项所需动作授权；现有与新连接的下次发现和调用都读取当前状态。旧复合工具须覆盖全部参数分支，例如 Pages 翻译并新建、Jelly 自动读取版本后的写入。需要更窄的权限时直接调用对应公共动作。不要把开关做进插件自己的 `settings-page`。
-6. 个人、不绑项目也能用的方法标 `scope: "home"`。项目能力保持默认 `scope: "project"`。个人插件但内容按当前项目分区的（Pages / Forms / Dataset / PPT）不要标 home；Host 从绑定连接注入 `project_id`，schema 里不要出现它。未绑项目时这些方法不进 list/call。
-
-存量插件示例：[`plugins/native/form/src/mcp.ts`](../../plugins/native/form/src/mcp.ts)（个人插件、项目分区）。Functions 已移除插件身份，原三个公开名称由 [系统别名适配](../../apps/local-host/src/mcp-functions-tools.ts) 转到同一动作服务；不能再作为新插件模板。类型从 `@molis-ai/molis-work-plugin-sdk` 再导出。
-
-### 两种兑现方式
-
-**存量 Native（Pages / Forms / Dataset / PPT / Cognia / Jelly）**：[`apps/local-host/src/mcp-native-plugins.ts`](../../apps/local-host/src/mcp-native-plugins.ts) 仅保留历史名称的参数/结果适配处理器。它们调用同一授权 ActionClient，正式 stdio 转发到常驻 Host；不打开另一套业务 Store，不由 Manifest 计算并授予权限。新插件无需加入此表，没有历史 adapter 也不会阻止其公共动作注册。
-
-**运行时托管 app 插件**：`start()` 返回 `contribution.mcp`，`tool_id` 必须和 Manifest 一一对应。Plugin Runtime 启动时会校验，缺一条或多一条都是启动失败。生产 `tools/call` 还没有把这类插件接到 Runtime；在 Host 接上之前，不要给 Coding 等产品插件填 `mcp_exports`。
+1. 把要对外的能力写成动作（见上文 SDK 的动作合同）：输入只含业务字段，`project_id`、数据库路径、Web 地址和操作者身份都由 Host 从调用上下文注入。
+2. 个人、不绑项目也能用的动作用 `scope: "home"`；项目能力用 `scope: "project"`。
+3. 动作声明里的 `audiences` 决定谁能发现它；包含 `mcp` 才会出现在 MCP 授权列表里。声明和可发现都不等于已授权。
 
 ### 不要做的
 
-- 新开 MCP 进程、MCP 包，或在 `apps/mcp` 的 tool-catalog 里写死插件工具。
-- 在 `LocalMcpServer.callTool` 里按公开名写 `if`。
+- 新开 MCP 进程、MCP 包，或在 `apps/mcp` 的工具目录里写死插件工具。
+- 在 `LocalMcpServer.callTool` 里按名称写 `if`。
 - 复用 `agent.mcp`。
-- 把 MCP 开关和「AI 与执行工具」做成一页。
 
 Host 侧改哪里、调用链怎么走，见 [CLI 与开发 · 对外 MCP](../cli-and-development.md#对外-mcp)。协议与 Runtime Skill 仍以 [MCP 接入](../mcp.md) 为准。
 
@@ -241,7 +281,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 首页从插件的 subject offers 声明派生推荐选项。动作身份包含原查询、版本、提供方及 offer_id，插件返回真实事项对应的输入；不能用同名字符串把两个插件的处置混为一谈。未声明为规则选项的按钮仍可手动操作，不因此自动进入判断结果。
 
-新增判断消费者应声明 `action_scenes`，说明触发时机、实际输入、接受的结果和消费效果，并兑现原数据的读取与写入。系统从合同检查兼容性；不能靠加入 `function_scenes` 或 Host 白名单获得一个看似可用的用途。仅有场景名称、没有业务触发和消费，不能宣称接入完成。
+新增判断消费者应声明 `action_scenes`，说明触发时机、实际输入、接受的结果和消费效果，并兑现原数据的读取与写入。系统从合同检查兼容性；不能靠 Host 白名单获得一个看似可用的用途。仅有场景名称、没有业务触发和消费，不能宣称接入完成。
 
 例如 Feed 捕捉读取原消息，只有规则明确配置自动入箱时才消费相应结果；Home 返回推荐，执行仍由原 offers 处理器完成。导航、来源设置和账号管理是否出现在某个场景，应由实际对象和消费合同决定，不把插件所有能力都加入一个统一选项池。
 
@@ -255,6 +295,8 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 签名只证明内容和发布者身份，不代表官方审核；验证 bundle 不授权执行另一份源码目录。示例中的 local-development-binding 不具备密码学签名含义。本轮测试只使用新生成的临时密钥，没有接触用户密钥或发布 registry。
 
+用户把这样的包装进自己的 Home 目前没有路径：没有 `install` 命令，没有保存「信任哪个发布者」的地方，包也不会在沙箱里运行。方案（安装命令、签名信任、沙箱边界、市场入口）见 [第三方插件：安装方案](../system/THIRD-PARTY-PLUGINS.md)，尚未实现。
+
 ## 可复现验证
 
 构建后运行 `node --import tsx --test tests/plugin-sample.e2e.test.ts tests/plugin-package.test.ts`。前者从干净目录实际调用 CLI、安装本地 SDK tarball、运行两个独立进程并核对结果/历史版本/权限/目录边界；后者验证签名与篡改拒绝。其他 Host/Runtime 定向测试覆盖崩溃恢复、卸载失败撤权和不同签名数据隔离。整体前后端用户 E2E 仍在所有重组开发完成后单独执行。
@@ -266,6 +308,8 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 提供方在 `action.execution` 声明执行事实：`timeout_ms` 是处理器开始执行后的等待上限，`cost` 为 `none` / `metered` / `unknown`，`max_calls_per_minute` 是同一 actor、项目、安装实例滚动一分钟内的接受次数。未声明费用保持 unknown；未声明时限/频率不自动加限。Kernel 对声明的时限与频率统一执行，切换用户、Agent、Workflow、MCP 或插件入口不能重置同一身份的预算。限额是当前注册实例的本机保护，不是跨进程计费账本；重启或重新注册会重置计数。
 
 例如调用收费文字模型的能力声明 `execution: { timeout_ms: 120000, cost: "metered", max_calls_per_minute: 20 }`。声明不代替 `scheduling: "concurrent"`、权限或模型服务自己的预算。超时停止本机等待并中止传给处理器的 signal，外部副作用可能已经发生，不自动重试；每次异步等待后仍须调用 `beforeEffect()` 才能提交。同步阻塞代码无法靠 JavaScript 定时器抢占。Agent 可以使用更严格的入口时限；生成插件的 sandbox 依据共同目录选择时限和慢操作通道，费用未知不能显示成免费。老生成物只转换历史输入输出，模型和提醒执行仍走当前 ActionService。
+
+记录要算在某个 Runtime 会话名下的写入动作声明 `authorship: "session"`（Goals 的写入都是）：经 MCP 调用时宿主要求客户端给出稳定会话，否则拒绝（动作服务在派发处检查，经包装动作发起的嵌套调用同样被拒），并把 `runtime:<客户端>:<会话>` 作为审计作者传进 `caller.audit_actor_id`。没有声明的动作，客户端有会话时同样带上，没有也照常执行。
 
 生成式公开动作的费用是可能收费的声明，不是实际用量或预算。其沙箱 operation 时限从排队头开始，lane 频率按安装计数；公共 Action 时限从处理器开始、频率按调用者与安装计数。两者含义不同，不能直接复制沙箱限额到公共动作。实际依赖仍逐次受提供方的授权、时限和频率约束。
 

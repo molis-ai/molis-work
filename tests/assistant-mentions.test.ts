@@ -36,7 +36,7 @@ function reply(text = "好的。"): Response {
 test("an object picked with “@” is checked with its owner and read by it before the round; a pointer that no longer holds is refused", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "assistant-mentions-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "引用实操", actor_id: "owner" }));
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const owner = await localWebActionContext(local, reference, LOCAL_OWNER_PERMISSIONS);
   const client = local.actionClient(reference);

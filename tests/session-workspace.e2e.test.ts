@@ -14,11 +14,11 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 
 const TOKEN = "molis-work-session-workspace-e2e-token-0123456789";
 
-function addAcceptedGoal(databasePath: string, boardId: string, goalId: string, title: string): void {
+function addAcceptedGoal(databasePath: string, projectId: string, goalId: string, title: string): void {
   const store = new LocalProjectDatabase(databasePath);
   try {
     new GoalProjectApplication(store).goals.commands.createGoal(
-      boardId,
+      projectId,
       {
         goal_id: goalId,
         title,
@@ -89,7 +89,7 @@ test("Codex native journey stays project-scoped from discovery through Handoff a
   });
   catalog.close();
   const goalId = "goal-native-e2e";
-  addAcceptedGoal(project.database_path, project.board_id, goalId, "完成原生 Session 主链");
+  addAcceptedGoal(project.database_path, project.project_id, goalId, "完成原生 Session 主链");
 
   const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
   const transport: RuntimeSessionTransport = {
@@ -287,7 +287,7 @@ test("fallback journey preserves TUI content, honest capability limits, workspac
   });
   catalog.close();
   const goalId = "goal-fallback-e2e";
-  addAcceptedGoal(project.database_path, project.board_id, goalId, "完成 fallback Session 主链");
+  addAcceptedGoal(project.database_path, project.project_id, goalId, "完成 fallback Session 主链");
 
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN });
   const origin = await listen(server);

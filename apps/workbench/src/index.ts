@@ -1,11 +1,11 @@
-export { createWorkbenchDecisionCenterRenderer, type WorkbenchDecisionGroup } from "./decision-center.js";
 export { renderSideViewDocument, type SideViewDocumentInput, type SideViewModel } from "./side-view-document.js";
 export { createWorkbenchGoalsPageRenderer } from "./goals-page-renderer.js";
 export { renderWorkbenchPlanningRequest } from "./goals-planning-request.js";
 export type { WorkbenchPlanningPageOwners } from "./goals-planning-request.js";
 export type { WorkbenchGoalsPageView, WorkbenchGoalsPageOwners } from "./goals-page-renderer.js";
-export type { ArtifactImportWorkbenchRequest } from "./artifact-ui.js";
 export { ARTIFACT_EMBED_STYLES } from "./artifact-ui.js";
+export { renderHomePluginPage } from "./home-plugin-page.js";
+export { homeToolKeysScript } from "./home-plugin-navigation.js";
 export type { ArtifactBrowserUiModel } from "@molis-ai/molis-work-plugin-artifacts";
 export { isProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
 export { PROJECT_OPERATIONS_STYLES, PROJECT_OPERATIONS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-work";
@@ -18,19 +18,13 @@ export {
   buildGoalsNavigationItems,
   createGoalActionPresenter,
   createGoalStateExplainer,
-  createGoalsDecisionPresentation,
-  createGoalsDecisionResults,
-  decisionGroupCount,
-  decisionTypeCounts,
   displayedPassedCriterionIds,
-  explainGoalDecision,
   findGoalView,
   firstBlockedDescendant,
   GOAL_DISPLAY_STATUSES,
   GOAL_TREE_STATUS_ORDER,
   GOALS_PRESENTATION_STATES,
   GOALS_RELATION_LABELS,
-  goalRiskStateEffect,
   goalTreeProposalNeedsDecision,
   goalTreeReferenceLabel,
   goalTreeReferenceLabels,
@@ -43,8 +37,6 @@ export {
   PLANNING_SETTINGS_STYLES,
   resolveGoalsPageRoute,
   resolveGoalsReadRoute,
-  RISK_STATE_LABELS,
-  RISK_TREATMENT_LABELS,
   sortGoalTreeItems,
   TRASH_GOAL_STYLES,
   unsatisfiedOutgoingDependencies,
@@ -52,15 +44,12 @@ export {
   type DecisionEventKind,
   type GoalDocumentCollection,
   type GoalPresentationState,
-  type GoalsCoverageItem,
   type GoalsDecisionEvent,
-  type GoalsDecisionGroup,
   type GoalsDocumentView,
   type GoalsInputBinding,
   type GoalsPlanningPrimitives,
   type GoalsPolicyBinding,
   type GoalsPolicyItem,
-  type GoalsSafetyRisk,
 } from "@molis-ai/molis-work-plugin-goals";
 export { createWorkbenchGoalsFragmentRenderer, type GoalsFragmentRenderers } from "./goals-fragment-renderer.js";
 export {
@@ -83,11 +72,6 @@ export {
   WORK_TAB_VISIBILITY_CLIENT_SCRIPT,
 } from "./browser-assets.js";
 export { EN } from "./i18n/en.js";
-export {
-  EXECUTION_EVIDENCE_KIND_LABELS,
-  EXECUTION_EVIDENCE_RESULT_LABELS,
-} from "./human-review-renderer.js";
-
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-app-workbench",
   packagePath: "apps/workbench",
@@ -114,10 +98,10 @@ export { isProjectSettingsWorkbenchPath, projectSettingsPageFromPath, projectSet
 export { createWorkbenchProjectChooserRenderer, type ChooserArrival } from "./arrival/chooser.js";
 export { composeProjectBrief, currentBriefGoal, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "./arrival/project-brief.js";
 export type { ArrivalPrimitives, ArrivalShellPrimitives } from "./arrival/shell.js";
-export { createWorkbenchHumanReviewRenderer, type HumanReviewPrimitives } from "./human-review-renderer.js";
 export type { WebSettingsProject, WebInstallationDiagnostics, MolisWorkSettingsView } from "./settings-view.js";
 export { createWorkbenchSettingsRenderer, type SettingsRenderPrimitives } from "./settings-renderer.js";
 export type { CapabilitiesView, CapabilitySection } from "./capabilities.js";
+export type { CallRowView } from "./call-row.js";
 export { renderMcpAccess, renderMcpAccessRows, mcpAccessEntryKey, type McpAccessModel, type McpAccessEntry } from "./mcp-access.js";
 export type { MolisWorkWebView } from "./page-view.js";
 export * from "./i18n.js";
@@ -149,9 +133,10 @@ export {
   formatContext,
   renderModelSettingsDocument,
   type ModelSettingsModel,
+  type ModelTemplateChoice,
   type ModelSettingsPrimitives,
 } from "./settings-models.js";
-export { BUILTIN_PLUGIN_AGENTS } from "./plugin-catalog.js";
+export { BUILTIN_PLUGIN_AGENTS, artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration, type ArtifactContinuer } from "./plugin-catalog.js";
 
 export { pluginWorkbenchClientAsset } from "./plugin-workbench.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";

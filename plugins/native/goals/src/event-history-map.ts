@@ -1,25 +1,12 @@
 import type { GoalEventTimelineItem, GoalEventTimelinePage, GoalHistoryLane } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { ExecutionRunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
-import type { EvidenceRecord } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
-import type { ReviewObligationRecord, ReviewRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
 import { GOALS_RELATION_LABELS } from "./relation-presentation.js";
 
 export const NEW_WORK_JOURNAL_PREFIXES = ["goal.event_config.", "goal.work_event.", "goal.event_state."] as const;
 
-export type GoalHistorySource =
-  | "event_work"
-  | "legacy_run"
-  | "legacy_evidence"
-  | "legacy_review"
-  | "legacy_decision"
-  | "legacy_record";
-
-export const RUN_STATE_LABELS = { started: "进行中", completed: "已完成", blocked: "受阻", failed: "失败", abandoned: "已放弃" };
-export const EVIDENCE_RESULT_LABELS = { passed: "报告通过", failed: "报告未通过", inconclusive: "尚无定论" };
-export const EVIDENCE_LIFECYCLE_LABELS = { effective: "有效", superseded: "已替代", invalidated: "已失效", retracted: "已撤回" };
-export const EVIDENCE_KIND_LABELS = { test: "测试", measurement: "测量", artifact: "产物", inspection: "检查", attestation: "声明", human_verdict: "人工判断" };
+/** Event work, or the Goals journal's own records (creation, relations). */
+export type GoalHistorySource = "event_work" | "journal";
 
 export interface GoalHistoryIndexItem {
   item_id: string;
@@ -113,69 +100,7 @@ const JOURNAL_TYPE_LABELS: Record<string, string> = {
   "goal.accepted": "确认目标",
   "relation.added": "增加关系",
   "relation.deactivated": "停用关系",
-  "execution.run.completed": "推进结束",
-  "execution.run.started": "开始推进",
 };
-
-export function parseHistoryItemId(itemId: string): { source: GoalHistorySource; original_id: string } | null {
-  if (itemId.startsWith("legacy:run:")) return { source: "legacy_run", original_id: itemId.slice("legacy:run:".length) };
-  if (itemId.startsWith("legacy:evidence:")) return { source: "legacy_evidence", original_id: itemId.slice("legacy:evidence:".length) };
-  if (itemId.startsWith("legacy:review:")) return { source: "legacy_review", original_id: itemId.slice("legacy:review:".length) };
-  if (itemId.startsWith("legacy:journal:")) return { source: "legacy_record", original_id: itemId.slice("legacy:journal:".length) };
-  return null;
-}
-
-export function mapLegacyHistoryItems(input: {
-  runs: readonly ExecutionRunRecord[];
-  evidence: readonly EvidenceRecord[];
-  reviews: readonly ReviewRecord[];
-  obligations?: readonly ReviewObligationRecord[];
-}): GoalHistoryIndexItem[] {
-  const obligationById = new Map((input.obligations ?? []).map((item) => [item.obligation_id, item]));
-  const runs = input.runs.map((run) => ({
-    item_id: `legacy:run:${run.run_id}`,
-    source: "legacy_run" as const,
-    original_id: run.run_id,
-    event_id: null,
-    journal_seq: 0,
-    received_at: run.ended_at ?? run.started_at,
-    title: legacyRunTitle(run),
-    type_label: "推进记录",
-    lane: "result" as const,
-    actor_id: run.actor_id,
-    actor_kind: "runtime" as const,
-    status_label: RUN_STATE_LABELS[run.state],
-  }));
-  const evidence = input.evidence.map((item) => ({
-    item_id: `legacy:evidence:${item.evidence_id}`,
-    source: "legacy_evidence" as const,
-    original_id: item.evidence_id,
-    event_id: null,
-    journal_seq: 0,
-    received_at: item.captured_at,
-    title: legacyEvidenceTitle(item),
-    type_label: "完成依据",
-    lane: "result" as const,
-    actor_id: item.producer_actor_id,
-    actor_kind: "runtime" as const,
-    status_label: `${EVIDENCE_RESULT_LABELS[item.result]} · ${EVIDENCE_LIFECYCLE_LABELS[item.lifecycle_state]}`,
-  }));
-  const reviews = input.reviews.map((item) => ({
-    item_id: `legacy:review:${item.review_id}`,
-    source: "legacy_review" as const,
-    original_id: item.review_id,
-    event_id: null,
-    journal_seq: 0,
-    received_at: item.submitted_at,
-    title: `检查结论：${reviewVerdictLabel(item.verdict)}`,
-    type_label: "检查记录",
-    lane: "other" as const,
-    actor_id: item.actor_id,
-    actor_kind: reviewActorKind(item, obligationById.get(item.obligation_id)),
-    status_label: reviewVerdictLabel(item.verdict),
-  }));
-  return [...runs, ...evidence, ...reviews];
-}
 
 export function mapJournalHistoryItems(
   events: readonly GoalsDecisionEvent[],
@@ -196,8 +121,8 @@ export function mapJournalHistoryItems(
       removed: event.type === "relation.deactivated",
     } : undefined;
     return [{
-      item_id: `legacy:journal:${event.event_id}`,
-      source: "legacy_record" as const,
+      item_id: `journal:${event.event_id}`,
+      source: "journal" as const,
       original_id: event.event_id,
       event_id: null,
       journal_seq: event.seq,
@@ -215,26 +140,21 @@ export function mapJournalHistoryItems(
 
 export function relatedHistoryObjectIds(snapshot: BoardSnapshot, goalId: string): Set<string> {
   const ids = new Set<string>([goalId]);
-  for (const run of snapshot.runs) if (run.goal_id === goalId) ids.add(run.run_id);
-  for (const item of snapshot.evidence) if (item.goal_id === goalId) ids.add(item.evidence_id);
-  for (const item of snapshot.reviews) if (item.goal_id === goalId) ids.add(item.review_id);
-  for (const item of snapshot.claims) if (item.goal_id === goalId) ids.add(item.claim_id);
   for (const relation of snapshot.relations) {
     if (relation.from_goal_id === goalId || relation.to_goal_id === goalId) ids.add(relation.relation_id);
   }
-  for (const link of snapshot.goal_risks) if (link.goal_id === goalId) ids.add(link.risk_id);
   return ids;
 }
 
 export function mergeGoalHistoryItems(input: {
   work: GoalEventTimelinePage | { items: readonly GoalEventTimelineItem[]; observed_event_cursor: number };
-  legacy: readonly GoalHistoryIndexItem[];
+  journal: readonly GoalHistoryIndexItem[];
 }): GoalHistoryIndexItem[] {
   const workItems = mapWorkTimelineItems(input.work.items);
   const workIds = new Set(workItems.map((item) => item.original_id));
   const seen = new Set(workItems.map((item) => item.item_id));
   const items = [...workItems];
-  for (const item of input.legacy) {
+  for (const item of input.journal) {
     if (workIds.has(item.original_id) || seen.has(item.item_id)) continue;
     seen.add(item.item_id);
     items.push(item);
@@ -270,35 +190,7 @@ export function compareHistoryItems(left: GoalHistoryIndexItem, right: GoalHisto
   return right.item_id.localeCompare(left.item_id);
 }
 
-function reviewActorKind(review: ReviewRecord, obligation: ReviewObligationRecord | undefined): "user" | "runtime" | null {
-  if (obligation?.role === "human_approver") return "user";
-  if (obligation?.role === "self_verifier") return "runtime";
-  if (/^runtime/i.test(review.actor_id)) return "runtime";
-  return null;
-}
-
 export { SYSTEM_TYPE_LABELS, JOURNAL_TYPE_LABELS };
-
-function legacyRunTitle(run: ExecutionRunRecord): string {
-  if (run.state === "completed") return "一次推进已经结束并提交了结果";
-  if (run.state === "blocked") return run.block_reason ? `推进受阻：${run.block_reason}` : "一次推进被挡住了";
-  if (run.state === "failed") return "一次推进失败";
-  if (run.state === "started") return "一次推进正在进行";
-  return "一次推进记录";
-}
-
-function legacyEvidenceTitle(item: EvidenceRecord): string {
-  const result = item.result === "passed" ? "报告通过" : item.result === "failed" ? "报告未通过" : "依据记录";
-  return `${result} · ${item.kind}`;
-}
-
-export function reviewVerdictLabel(verdict: string): string {
-  if (verdict === "pass") return "通过";
-  if (verdict === "fail") return "未通过";
-  if (verdict === "needs_changes") return "需要修改";
-  if (verdict === "inconclusive") return "尚无定论";
-  return verdict;
-}
 
 export function mixedPageIsStable(
   pageLast: GoalHistoryIndexItem | undefined,

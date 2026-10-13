@@ -1,14 +1,15 @@
-import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoEditableField, type TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
 import type { TodoAccess, TodoStore } from "./store.js";
 import { todoCallerProject } from "./caller.js";
+import { todoErrors } from "./error.js";
 
 /** Todo's part in the system search and in object reading (the Assistant's "this todo"). */
 export const todoSearchActions = {
   // Two sources over one store: the person's own (personal and unplaced) is indexed once for the Home; a project's todos
   // are indexed with that project, so a project search finds them and no other project or the personal index holds them.
-  entries: defineSearchEntriesAction("todo.search.entries", [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "待办", ["todo:read"], "home"),
-  projectEntries: defineSearchEntriesAction("todo.search.project_entries", [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "待办", ["todo:read"], "project"),
+  entries: defineSearchEntriesAction("todo.search.entries", [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "个人待办", ["todo:read"], "home"),
+  projectEntries: defineSearchEntriesAction("todo.search.project_entries", [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "项目待办", ["todo:read"], "project"),
   subject: defineSubjectContextAction("todo.item.subject.read", TODO_SUBJECT_KIND, "待办", ["todo:read"], "home"),
 };
 
@@ -60,9 +61,9 @@ export function createTodoSearchHandlers(withStore: <T>(run: (store: TodoStore) 
       const own = caller.audience === "user" && !todoCallerProject(caller);
       let item: TodoItem;
       try { item = store.get((input as { subject_id: string }).subject_id, own ? { ...access(caller), everything: true } : access(caller)); }
-      catch { throw new ActionError("todo.not_found", "这件待办已删除，或不在当前范围内"); }
+      catch { throw todoErrors.not_found("这件待办已删除，或不在当前范围内"); }
       // Readers treat an archived object as gone from use (the shared convention); Todo itself still lists it under 已归档.
-      if (item.archived_at) throw new ActionError("todo.not_found", "这件待办已归档");
+      if (item.archived_at) throw todoErrors.not_found("这件待办已归档");
       // Todos live in the person's Home; one that belongs to a project says which (personal and unplaced leave it empty).
       return subjectContext({ subject: { kind: TODO_SUBJECT_KIND, id: item.id }, revision: String(item.revision), title: item.title,
         content: todoText(item), goal_ids: goals(item), session_id: null, open: open(item.id), project_id: item.placement === "project" ? item.project_id : null });

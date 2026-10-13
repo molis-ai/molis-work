@@ -2,25 +2,26 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AgentHost, emptyCapabilityMatrix, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentFrozenCharacter, AgentStartRequest, AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { inspectAgentDeclaration, promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 function fixture() {
   const character: AgentFrozenCharacter = { reference: { artifact_id: "character:board:profile", version: 2 }, character_id: "profile", title: "Verifier",
     instructions: "Verify results. Mark unknowns explicitly.", host_tools: ["read-file"], source: { owner_actor_id: "user", draft_revision: 3 },
-    board_id: "board", content_digest: "fixed-digest", producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "official-characters-binding" }, published_at: "2026-09-22T00:00:00Z" };
+    project_id: "board", content_digest: "fixed-digest", producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "official-characters-binding" }, published_at: "2026-09-22T00:00:00Z" };
   const authority: AgentStartAuthority = { authorizedDirectories: ["/tmp/ws"],
     manifest: { roles: [{ role_id: "reader", version: 1, name: "Reader", prompts: ["base", "reader"], host_tools: ["read-file", "search"] }],
       prompts: [{ prompt_id: "base", version: 1, layer: "base" }, { prompt_id: "reader", version: 1, layer: "role" }],
       characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader"] } },
     prompts: [{ prompt_id: "base", version: 1, layer: "base", body: "base" }, { prompt_id: "reader", version: 1, layer: "role", body: "reader" }],
     project_prompts: [{ prompt_id: "project", version: 1, body: "project" }], resolveCharacter: () => character };
-  const request: AgentStartRequest = { session: { runtime_id: "probe", session_id: "s" }, board_id: "board", plugin_id: "caller", install_id: "i", actor_id: "user",
+  const request: AgentStartRequest = { session: { runtime_id: "probe", session_id: "s" }, project_id: "board", plugin_id: "caller", install_id: "i", actor_id: "user",
     task: "Read the repository.", role_id: "reader", directory: { canonical_path: "/tmp/ws", realpath_verified: true }, character: character.reference };
   const captured: AgentStartRequest[] = []; let cancelled = 0, widen = false;
   const host = new AgentHost();
   host.register({ descriptor: { runtime_id: "probe", display_name: "Probe", provider_version: "1", supports_action_tools: true, capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported", skills: "supported" } },
-    async readSession(session) { return { session, owner: { board_id: "board", plugin_id: "caller", install_id: "i", actor_id: "user" }, title: "Read", runs: [], latest_run: null }; },
+    async readSession(session) { return { session, owner: { project_id: "board", plugin_id: "caller", install_id: "i", actor_id: "user" }, title: "Read", runs: [], latest_run: null }; },
     async start(input) {
       captured.push(input); const role = input.role!;
       return { ref: { run_id: "r", session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution, model_id: "fixture",
@@ -58,7 +59,7 @@ test("undeclared, disallowed, wrong-owner, wrong-project, wrong-version and wide
     (f: ReturnType<typeof fixture>) => { delete f.authority.manifest.characters; },
     (f: ReturnType<typeof fixture>) => { f.authority.manifest.characters!.role_ids = ["builder"]; },
     (f: ReturnType<typeof fixture>) => { f.character.source.owner_actor_id = "other"; },
-    (f: ReturnType<typeof fixture>) => { f.character.board_id = "other"; },
+    (f: ReturnType<typeof fixture>) => { f.character.project_id = "other"; },
     (f: ReturnType<typeof fixture>) => { f.character.reference = { ...f.character.reference, version: 9 }; },
     (f: ReturnType<typeof fixture>) => { f.character.host_tools = ["run-command"]; },
     (f: ReturnType<typeof fixture>) => { f.authority.resolveCharacter = () => { throw new Error("disabled"); }; },
@@ -75,11 +76,11 @@ test("Character none-tools and inherit-tools stay distinct; adapter expansion is
 });
 
 test("Character declaration cannot name undeclared roles or imply latest-version selection", () => {
-  const f = fixture(); assert.deepEqual(inspectAgentDeclaration(f.authority.manifest, []), []);
+  const f = fixture(); assert.equal(manifestProblems(declarationManifest({ agent: f.authority.manifest })), "");
   f.authority.manifest.characters!.role_ids = ["missing"];
-  assert.ok(inspectAgentDeclaration(f.authority.manifest, []).some(message => message.includes("Character")));
+  assert.match(manifestProblems(declarationManifest({ agent: f.authority.manifest })), /Character/);
   f.authority.manifest.characters = { selection: "latest" as never, scope: "project-owner", role_ids: ["reader"] };
-  assert.ok(inspectAgentDeclaration(f.authority.manifest, []).some(message => message.includes("Character")));
+  assert.match(manifestProblems(declarationManifest({ agent: f.authority.manifest })), /Character/);
 });
 
 test("a selected method cannot restore a tool removed by the Character", async () => {

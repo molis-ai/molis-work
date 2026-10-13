@@ -17,11 +17,11 @@ export async function testConfiguredModel(selection: ResolvedModelSelection) {
       resolveCredential: (ref) => ref === selection.provider.credential_ref ? selection.api_key : null,
     });
     const session = await adapter.createSession({
-      board_id: "model-settings", plugin_id: "host", install_id: "host", actor_id: "user",
+      project_id: "model-settings", plugin_id: "host", install_id: "host", actor_id: "user",
       directory: { canonical_path: directory, realpath_verified: true }, title: "模型连接测试",
     });
     const handle = await adapter.start({
-      board_id: "model-settings", install_id: "host", actor_id: "user", plugin_id: "host", session, task: "Reply with exactly MOLIS_OK.", role_id: "model-check",
+      project_id: "model-settings", install_id: "host", actor_id: "user", plugin_id: "host", session, task: "Reply with exactly MOLIS_OK.", role_id: "model-check",
       directory: { canonical_path: directory, realpath_verified: true },
       role: { role_id: "model-check", version: 1, execution: "read-only", prompts: [], host_tools: [] },
     });

@@ -10,7 +10,7 @@ function harness() {
   const queue = new AgentReviewQueue({ now: () => new Date(AT) });
   const executed: string[] = [];
   const ask = (review_id: string, session: string, document: AgentReviewDocument, kind: AgentReviewRequest["kind"] = "command") => {
-    queue.request({ review_id, run: { run_id: `run-${session}`, session_id: session }, board_id: BOARD, plugin_id: PLUGIN, kind, document, requested_at: AT, expires_at: null });
+    queue.request({ review_id, run: { run_id: `run-${session}`, session_id: session }, project_id: BOARD, plugin_id: PLUGIN, kind, document, requested_at: AT, expires_at: null });
     // The execution owner: the only path from a decision to an effect, shared by clicks and rules.
     queue.registerDecisionHandler(review_id, async input => {
       const receipt = queue.decide(input);

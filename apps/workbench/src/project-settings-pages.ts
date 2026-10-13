@@ -6,7 +6,8 @@ import type { MolisWorkWebView } from "./page-view.js";
 import { type WebProjectNavigation, type createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import { createProjectSettingsFolds, type ProjectSettingsFoldId } from "./project-settings-folds.js";
 import { createWorkbenchGoalsPlanningRenderer } from "./ui-composition.js";
-import { CONTROL_CLIENT_SCRIPT, PROJECT_RULES_CLIENT_SCRIPT, PROJECT_GUIDANCE_CLIENT_SCRIPT } from "./browser-assets.js";
+import { PROJECT_RULES_CLIENT_SCRIPT, PROJECT_GUIDANCE_CLIENT_SCRIPT } from "./browser-assets.js";
+import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./scripts/project-settings.js";
 import { MEMORY_SETTINGS_CLIENT_SCRIPT, renderMemorySettings } from "./settings-memory.js";
 
@@ -39,7 +40,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
   function renderProjectGuidanceDocument(guidance: ProjectGuidanceView): string {
     const kindMeta: Record<string, { label: string; description: string }> = {
       context: { label: L("项目背景"), description: L("项目是什么，以及长期成立的事实") },
-      requirement: { label: L("共同要求"), description: L("所有 Goal 都要满足的产品或业务要求") },
+      requirement: { label: L("共同要求"), description: L("这个项目里所有工作都要满足的产品或业务要求") },
       constraint: { label: L("硬约束"), description: L("任何推进都不能越过的边界") },
       convention: { label: L("协作约定"), description: L("命名、表达和协作方式") },
       workflow: { label: L("工作方式"), description: L("项目稳定采用的推进顺序") },
@@ -67,7 +68,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     }).join("");
     const guidanceData = JSON.stringify(guidance).replaceAll("<", "\\u003c");
     return `<section class="guidance-document" aria-labelledby="guidance-title">
-      <header class="guidance-page-header"><div><div class="settings-heading-title"><h1 id="guidance-title">${L("项目说明")}</h1>${renderHint({ id: "settings-hint-guidance", label: L("Runtime 如何使用"), text: L("只发送当前生效版本，并放在当前 Goal 和外部内容之前。修改或停用会在下一次 Prompt 中生效。") })}</div><p>${L("这是一份所有 Goal 和未来会话共享的长期说明。这里只显示已经生效的内容；你可以直接维护它，并随时查看每次改动。")}</p></div><button class="mw-btn mw-btn--primary" type="button" data-guidance-new>${icon("plus")}${L("新增说明")}</button></header>
+      <header class="guidance-page-header"><div><div class="settings-heading-title"><h1 id="guidance-title">${L("项目说明")}</h1>${renderHint({ id: "settings-hint-guidance", label: L("Runtime 如何使用"), text: L("只发送当前生效版本，放在这一轮的任务和外部内容之前。修改或停用会在下一次 Prompt 中生效。") })}</div><p>${L("这是这个项目所有工作共享的长期说明：助理、各插件里的 Agent 和外部 Runtime 在这个项目里都会收到。这里只显示已经生效的内容；你可以直接维护它，并随时查看每次改动。")}</p></div><button class="mw-btn mw-btn--primary" type="button" data-guidance-new>${icon("plus")}${L("新增说明")}</button></header>
       <div class="settings-body"><p class="project-rules-receipt" data-guidance-receipt role="status" aria-live="polite" hidden></p>
       <section class="guidance-editor" data-guidance-editor data-cover-layer hidden aria-labelledby="guidance-editor-title"><header><div><h2 id="guidance-editor-title" data-guidance-editor-title></h2><p data-guidance-editor-description></p></div></header><form data-guidance-form><input type="hidden" name="action"><input type="hidden" name="guidance_id"><div class="guidance-editor-body"><div class="guidance-editor-fields" data-guidance-editor-fields><label>${L("分类")}<select name="kind"><option value="context">${L("项目背景")}</option><option value="requirement">${L("共同要求")}</option><option value="constraint">${L("硬约束")}</option><option value="convention">${L("协作约定")}</option><option value="workflow">${L("工作方式")}</option><option value="quality_bar">${L("质量标准")}</option></select></label><label>${L("说明原文")}<textarea name="content" maxlength="4000" rows="5" placeholder="${L("写成未来 Runtime 可以直接理解和遵守的完整说明")}"></textarea></label></div><p class="guidance-editor-preview" data-guidance-editor-preview hidden></p><label>${L("为什么要做这次变更")}<textarea name="reason" rows="3" required placeholder="${L("这条原因会进入版本记录，方便以后理解当时为什么修改")}"></textarea></label></div><div class="guidance-editor-actions"><p class="guidance-editor-error" data-guidance-editor-error role="alert" hidden></p><footer><button class="mw-btn mw-btn--secondary" type="button" data-guidance-editor-close>${L("取消")}</button><button class="mw-btn mw-btn--primary" type="submit">${L("保存说明")}</button></footer></div></form></section>
       <div class="guidance-settings-list">${sections}</div>
@@ -84,7 +85,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     return createWorkbenchGoalsPlanningRenderer({
       translate: L, escapeHtml, icon, listJoin, withDesktopQuery,
       settingsContextHref,
-      renderPage: (page) => `<!doctype html>${page.documentComment ?? ""}<html lang="${htmlLang()}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${escapeHtml(page.title)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head><body class="settings-page planning-page project-preferences-page" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>${renderIconSprite()}${`<header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${navigation.includes("project-settings-navigation") ? L("项目设置") : L("全局设置")}</span><a href="${page.returnHref}" aria-label="${L("返回工作台")}">${icon("x")}</a></header>`}<main class="settings-shell">${navigation}<div class="settings-content">${page.body}</div></main><script>${clientI18nScript()}${page.requiresControl ? CONTROL_CLIENT_SCRIPT : ""}${page.clientScript}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script></body></html>`,
+      renderPage: (page) => `<!doctype html>${page.documentComment ?? ""}<html lang="${htmlLang()}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${escapeHtml(page.title)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head><body class="settings-page planning-page project-preferences-page" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>${renderIconSprite()}${`<header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${navigation.includes("project-settings-navigation") ? L("项目设置") : L("全局设置")}</span><a href="${page.returnHref}" aria-label="${L("返回工作台")}">${icon("x")}</a></header>`}<main class="settings-shell">${navigation}<div class="settings-content">${page.body}</div></main><script>${clientI18nScript()}${page.requiresControl ? UI_REQUEST_CLIENT_SCRIPT : ""}${page.clientScript}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script></body></html>`,
     });
   }
 
@@ -152,7 +153,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     <div class="settings-content" id="settings-content">${page}</div>
   </main>
   <div class="toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PROJECT_RULES_CLIENT_SCRIPT}${PLANNING_SETTINGS_CLIENT_SCRIPT}${PLANNING_ADOPTION_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PROJECT_RULES_CLIENT_SCRIPT}${PLANNING_SETTINGS_CLIENT_SCRIPT}${PLANNING_ADOPTION_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
 </body></html>`;
   }
 

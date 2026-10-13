@@ -16,7 +16,7 @@
 
 模型 variant 沿用 Jelly 的 `large-v3-v20240930_626MB`。Jelly 使用的模型、tokenizer 仍在 `{home}/jelly/models`，不会借用原 Jelly 的模型库。`capabilities <模型目录>` 只探测；没有完整模型/tokenizer时默认返回 `model_required`，不会下载。仅调用方明确提供 `allowModelDownload: true`（Jelly 上传为 `allow_model_download: true`） 才启用约 626 MB 的模型及 tokenizer 下载。
 
-Host 可传 AbortSignal 终止组件；等待子进程关闭后，在 finally 清除独立 `molis-material-*` 临时目录及音轨。上传副本、已下载模型仍保留供重试。转写回调进度只是阶段反馈，不能被当作准确剩余时间。
+Host 可传 AbortSignal 终止组件；等待子进程关闭后，在 finally 清除独立 `molis-material-*` 临时目录及音轨。已下载的模型保留供重试；上传的内容只在内存里，不落盘。转写回调进度只是阶段反馈，不能被当作准确剩余时间。
 
 ## 证据范围
 

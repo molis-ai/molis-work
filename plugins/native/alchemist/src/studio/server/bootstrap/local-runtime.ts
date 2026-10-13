@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import type { Hono } from "hono";
 import { createApp } from "../app.js";
 import type { ApiDependencies } from "../api/dependencies.js";
@@ -14,9 +14,8 @@ import { SqliteDirectionRepository } from "../db/direction-repository.js";
 import { SqliteExplorationRepository } from "../db/exploration-repository.js";
 import { SqliteIdeaRepository } from "../db/idea-repository.js";
 import { SqliteMemoryRepository } from "../db/memory-repository.js";
-import { LATEST_SCHEMA_VERSION, migrate } from "../db/migrate.js";
+import { applyStudioBaseline } from "../db/schema.js";
 import { openDatabase, type SqliteDatabase } from "../db/open-database.js";
-import { createPreMigrationBackup } from "../db/pre-migration-backup.js";
 import { SqlitePulseRepository } from "../db/pulse-repository.js";
 import { SqliteResearchRepository } from "../db/research-repository.js";
 import { SqliteSettingsRepository } from "../db/settings-repository.js";
@@ -42,6 +41,7 @@ import { createStartPulseRunService } from "../services/start-pulse-run.js";
 import { WorkspaceExportService } from "../services/workspace-export.js";
 import { GitHubSource } from "../sources/github-source.js";
 import { SafePublicHttpClient } from "../sources/http-source-client.js";
+import type { AlchemistPulseGithubPort } from "../sources/pulse-github-port.js";
 import { ToolifySource } from "../sources/toolify-source.js";
 import { WatchaSource } from "../sources/watcha-source.js";
 
@@ -55,6 +55,12 @@ export interface LocalRuntimeOptions {
   workerIntervalMs?: number;
   jobLeaseMs?: number;
   pulseSourceMode?: "live" | "fixture";
+  /**
+   * The Host's transport for the market pulse's GitHub source: it adds the bound Settings GitHub account's credential outside
+   * this package. Without it the source searches anonymously. No credential is ever read from the environment. Which account
+   * is bound is the Home's choice, read and written through `createAlchemistActionHandlers`, not through a project's studio.
+   */
+  pulseGithub?: Pick<AlchemistPulseGithubPort, "fetch">;
   localSecurity?: LocalSecurityOptions;
   /** Production Host supplies its trusted Kernel client; standalone Studio uses the same plugin operations. */
   actions?: AlchemistActionInvoker;
@@ -74,14 +80,7 @@ export interface LocalRuntime {
 export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   mkdirSync(dirname(options.databasePath), { recursive: true });
   const database = openDatabase(options.databasePath);
-  const migrationBackup = createPreMigrationBackup({
-    database,
-    databasePath: options.databasePath,
-    backupDirectory: join(dirname(options.databasePath), "backups"),
-    latestSchemaVersion: LATEST_SCHEMA_VERSION,
-    now: new Date().toISOString(),
-  });
-  migrate(database);
+  applyStudioBaseline(database, options.databasePath);
   const clock = { now: () => new Date().toISOString() };
   const idFactory = { next: (prefix: string) => `${prefix}_${randomUUID()}` };
   seedLocalIdentity(database, clock.now());
@@ -91,21 +90,6 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     generate: input => options.ai.generate({ ...input, actorId: actorId() }) };
 
   const activity = new SqliteActivityRepository(database);
-  if (migrationBackup) {
-    activity.create({
-      id: idFactory.next("activity"),
-      workspaceId: "workspace-local",
-      kind: "workspace.migration_backup_created",
-      targetKind: "workspace",
-      targetId: "workspace-local",
-      payload: {
-        filename: migrationBackup.filename,
-        fromVersion: migrationBackup.fromVersion,
-        toVersion: migrationBackup.toVersion,
-      },
-      createdAt: clock.now(),
-    });
-  }
   const calibration = new SqliteCalibrationRepository(database);
   const directions = new SqliteDirectionRepository(database);
   const conversations = new SqliteConversationRepository(database);
@@ -148,7 +132,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
       : [
           new ToolifySource(new SafePublicHttpClient(["www.toolify.ai"])),
           new WatchaSource(new SafePublicHttpClient(["watcha.cn"])),
-          new GitHubSource(new SafePublicHttpClient(["api.github.com"]), process.env.GITHUB_TOKEN),
+          new GitHubSource(new SafePublicHttpClient(["api.github.com"], options.pulseGithub ? { fetch: options.pulseGithub.fetch } : {})),
         ];
   const handlers = createJobHandlers({
       explorations,

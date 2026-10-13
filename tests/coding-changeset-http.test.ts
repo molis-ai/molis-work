@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
@@ -13,13 +13,13 @@ import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js
 test("Coding freezes original multi-edit reviews, binds feedback to exact lines and restores the same output without runtime reads", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-changeset-http-")), path = join(root, "board.db"); seedDemoBoard(path);
   const store = new LocalProjectDatabase(path), sessions = new CodingSessionStore(store.db);
-  for (const id of ["app", "foreign"]) { sessions.create({ board_id: DEMO_BOARD_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() }); sessions.setRuntimeSession(DEMO_BOARD_ID, id, id === "app" ? "sdk" : "other-sdk", new Date().toISOString()); }
+  for (const id of ["app", "foreign"]) { sessions.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() }); sessions.setRuntimeSession(DEMO_PROJECT_ID, id, id === "app" ? "sdk" : "other-sdk", new Date().toISOString()); }
   const ref = { session_id: "sdk", run_id: "r" };
   let readable = true, reads = 0;
-  const rows = [false, true].map((applied, n) => ({ request: { review_id: `review-${n}`, board_id: DEMO_BOARD_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",
+  const rows = [false, true].map((applied, n) => ({ request: { review_id: `review-${n}`, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",
     document: { kind: "text-edit", target_path: "cart.mjs", exists: true, before_text: n ? "new\r\n" : "old\r\n", after_text: n ? "latest <script>\n" : "new\r\n" } },
     receipt: { review_id: `review-${n}`, status: "approved", effect_settled: applied, effect_error: null } }));
-  const host = () => ({ store, homeDirectory: root, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
     execution: { ready: async () => {}, models: async () => [] }, capabilities: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
       // Files also refreshes project browsing settings before dispatch; count only Agent reads.
       if ([agent.readSession.capability_id, agent.readRun.capability_id, agent.readRunReviews.capability_id].includes(definition.capability_id)) reads++;
@@ -68,12 +68,12 @@ test("Coding freezes original multi-edit reviews, binds feedback to exact lines 
     readable = false; const priorReads = reads;
     assert.deepEqual((await request(prefix, 'POST')).body.reference, saved.body.reference);
     const before = await request();
-    await releaseCodingSurface(store, DEMO_BOARD_ID);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID);
     assert.deepEqual((await request()).body, before.body); assert.equal(reads, priorReads);
     assert.deepEqual((await request(catalogPath)).body, catalog.body);
     assert.equal((await request(prefix+'/feedback', 'POST', { comments })).status, 200);
     assert.equal(reads, priorReads);
     const diff = await request(`/api/plugins/io.molis.work.diff/state?artifact_id=${encodeURIComponent(saved.body.reference.artifact_id)}&version=1&change_index=1`);
     assert.equal(diff.status, 200); assert.equal(diff.body.view.rows.at(-1).text, 'latest <script>');
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

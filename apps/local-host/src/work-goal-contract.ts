@@ -8,7 +8,7 @@ export async function readWorkGoalContract(goals: BoundActionClient, goalId: str
   const event_work = currentState.owner !== null;
   const state = event_work ? currentState : null;
   return {
-    board: history.board, goal: history.goal, runs: history.runs, evidence: history.evidence, risks: history.risks, event_work,
+    board: history.board, goal: history.goal, goal_event_cursor: currentState.goal_event_cursor, event_work,
     event_facts: state ? {
       work_status: state.work_status, outcome: state.agreement.outcome, next_step: state.progress_summary?.next_step ?? null,
       pending_decisions: state.pending_decisions.map((item) => item.question), current_decisions: state.current_decisions.map((item) => item.conclusion),

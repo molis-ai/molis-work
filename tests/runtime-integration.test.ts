@@ -9,6 +9,7 @@ import {
   type RuntimeIntegrationServiceOptions,
   type SupportedRuntimeId,
 } from "@molis-ai/molis-work-app-local-host";
+import { validateMolisWorkMcpLauncher } from "@molis-ai/molis-work-app-mcp";
 import { runtimeContextHostFromEnvironment } from "../apps/desktop/launchers/mcp/server.js";
 
 interface Fixture {
@@ -91,6 +92,105 @@ async function pathMissing(filePath: string): Promise<boolean> {
     throw error;
   }
 }
+
+const closedInputLauncher = `#!/bin/sh
+exec 0<&-
+printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{},"serverInfo":{"name":"closed-input","version":"1"}}}'
+sleep 0.2
+`;
+
+const shellArgument = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
+
+async function waitForLauncherDone(path: string): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (await pathMissing(path)) {
+    if (Date.now() >= deadline) throw new Error("the owned short-lived launcher did not finish");
+    await new Promise<void>(resolve => setTimeout(resolve, 20));
+  }
+}
+
+test("CI-MCP-PIPE-01 a real closed launcher input returns false without an unhandled parent pipe error", async () => {
+  await withFixture(async fixture => {
+    await writeFile(fixture.launcher, closedInputLauncher, { mode: 0o755 });
+    assert.equal(await validateMolisWorkMcpLauncher({ runtime_id: "codex", launcher_path: fixture.launcher,
+      home_directory: fixture.home, plan_id: "closed-input" }), false);
+    // This assertion runs in the same parent after the asynchronous EPIPE was absorbed.
+    assert.equal(await readFile(join(fixture.skillSource, "SKILL.md"), "utf8"), "---\nname: goal-advance\n---\n");
+  });
+});
+
+test("CI-MCP-PIPE-01 a settled failure ignores a later initialize reply in the same real stdout chunk", async () => {
+  await withFixture(async fixture => {
+    const methods = join(fixture.directory, "stdin-methods"), done = join(fixture.directory, "launcher-done");
+    const script = join(fixture.directory, "queued-launcher.mjs");
+    await writeFile(script, `import { appendFileSync, writeFileSync } from "node:fs";
+const methods = ${JSON.stringify(methods)}, done = ${JSON.stringify(done)};
+let input = "", replied = false;
+// Only this fixture delays SIGTERM, for 250ms, so a forbidden extra write is observable before its own exit.
+process.on("SIGTERM", () => {});
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => {
+  input += chunk;
+  while (input.includes("\\n")) {
+    const at = input.indexOf("\\n"), line = input.slice(0, at); input = input.slice(at + 1);
+    appendFileSync(methods, JSON.parse(line).method + "\\n");
+    if (!replied) {
+      replied = true;
+      process.stdout.write('not-json\\n{"jsonrpc":"2.0","id":1,"result":{}}\\n');
+      setTimeout(() => { writeFileSync(done, "done"); process.exit(0); }, 250);
+    }
+  }
+});
+setTimeout(() => { writeFileSync(done, "no-initialize"); process.exit(1); }, 1500).unref();
+`);
+    await writeFile(fixture.launcher, `#!/bin/sh\nexec ${shellArgument(process.execPath)} ${shellArgument(script)}\n`, { mode: 0o755 });
+    assert.equal(await validateMolisWorkMcpLauncher({ runtime_id: "codex", launcher_path: fixture.launcher,
+      home_directory: fixture.home, plan_id: "queued-reply" }), false);
+    await waitForLauncherDone(done);
+    assert.equal(await readFile(done, "utf8"), "done");
+    assert.deepEqual((await readFile(methods, "utf8")).trim().split("\n"), ["initialize"], "after finish(false), the queued id=1 must not trigger tools/list");
+  });
+});
+
+test("CI-MCP-PIPE-02 real default validation rolls a closed pipe back to exact config, Skill and existing receipt, then reconnects", async () => {
+  await withFixture(async fixture => {
+    const config = join(fixture.userHome, ".codex", "config.toml"), skill = join(fixture.userHome, ".codex", "skills", "goal-advance");
+    const receipt = join(fixture.home, "runtime-integrations", "codex.json"), unrelated = join(fixture.userHome, ".claude.json");
+    await mkdir(join(fixture.userHome, ".codex"), { recursive: true });
+    await writeFile(config, 'model = "gpt-test"\n[mcp_servers.other]\ncommand = "other-mcp"\n');
+    await writeFile(unrelated, '{"privateNote":"KEEP-CLAUDE","mcpServers":{}}\n');
+    const server = fileURLToPath(new URL("../dist/mcp/server.js", import.meta.url));
+    const available = `#!/bin/sh\nexec ${shellArgument(process.execPath)} ${shellArgument(server)}\n`;
+    await writeFile(fixture.launcher, available, { mode: 0o755 });
+    // The production default validator is essential; service() above normally injects a successful stand-in.
+    const integration = new RuntimeIntegrationService({ homeDirectory: fixture.home,
+      userHomeDirectory: fixture.userHome, runtimeExecutables: fixture.executables });
+    const initial = await integration.prepare("codex", "connect");
+    assert.equal((await integration.confirm({ runtime_id: "codex", plan_id: initial.plan_id, decision: "confirmed" })).status, "connected");
+    const connectedConfig = await readFile(config, "utf8"), stanza = connectedConfig.indexOf("[mcp_servers.molis-work]");
+    assert.ok(stanza > 0);
+    await writeFile(config, connectedConfig.slice(0, stanza));
+    await rm(skill);
+    const beforeConfig = await readFile(config), beforeReceipt = await readFile(receipt), beforeUnrelated = await readFile(unrelated);
+    assert.equal(await pathMissing(skill), true);
+    await writeFile(fixture.launcher, closedInputLauncher, { mode: 0o755 });
+    const repair = await integration.prepare("codex", "connect");
+    assert.equal(repair.status, "ready", "the fixture's missing stanza and Skill force actual validation rather than already_connected");
+    const refused = await integration.confirm({ runtime_id: "codex", plan_id: repair.plan_id, decision: "confirmed" });
+    assert.equal(refused.status, "rolled_back");
+    assert.deepEqual(await readFile(config), beforeConfig);
+    assert.deepEqual(await readFile(receipt), beforeReceipt, "failed validation writes no new successful connection receipt");
+    assert.deepEqual(await readFile(unrelated), beforeUnrelated);
+    assert.equal(await pathMissing(skill), true, "the applied Skill link was removed again");
+    await writeFile(fixture.launcher, available, { mode: 0o755 });
+    const retry = await integration.prepare("codex", "connect");
+    assert.equal((await integration.confirm({ runtime_id: "codex", plan_id: retry.plan_id, decision: "confirmed" })).status, "connected");
+    assert.equal(await readlink(skill), fixture.skillSource);
+    assert.match(await readFile(config, "utf8"), /\[mcp_servers\.molis-work\]/);
+    assert.match(await readFile(config, "utf8"), /\[mcp_servers\.other\]\ncommand = "other-mcp"/);
+    assert.deepEqual(await readFile(unrelated), beforeUnrelated);
+  });
+});
 
 test("default integration validation uses the real MCP launcher and rolls back an exited launcher", async () => {
   await withFixture(async (fixture) => {
@@ -238,7 +338,7 @@ test("Codex connection replaces the old static project DB integration instead of
       "",
       "[mcp_servers.molis-work.env]",
       'MOLIS_WORK_DATABASE = "/old/project.db"',
-      'MOLIS_WORK_BOARD_ID = "old-board"',
+      'MOLIS_WORK_PROJECT_ID = "old-board"',
       "",
     ].join("\n"));
     const integration = service(fixture);
@@ -248,7 +348,7 @@ test("Codex connection replaces the old static project DB integration instead of
     const result = await integration.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
     assert.equal(result.status, "connected");
     const after = await readFile(config, "utf8");
-    assert.doesNotMatch(after, /MOLIS_WORK_DATABASE|MOLIS_WORK_BOARD_ID|\/old\/source|\/old\/project/);
+    assert.doesNotMatch(after, /MOLIS_WORK_DATABASE|MOLIS_WORK_PROJECT_ID|\/old\/source|\/old\/project/);
     assert.match(after, /MOLIS_WORK_RUNTIME_ID = "codex"/);
     assert.match(after, /model = "gpt-test"/);
   });

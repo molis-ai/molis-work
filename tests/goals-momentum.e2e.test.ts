@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("canvas retries graph loading, pans without bounds, drags compact nodes without changing dependencies, and restores its view", { timeout: 60_000 }, async (t) => {
@@ -15,7 +15,7 @@ test("canvas retries graph loading, pans without bounds, drags compact nodes wit
   await click("[data-board-view-tab=canvas]");
   await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas'");
   await waitFor("document.querySelector('[data-retry-goal-momentum]')?.hidden === false && !document.querySelector('[data-goal-momentum]').hasAttribute('aria-busy')");
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).runs, before.runs);
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await click("[data-retry-goal-momentum]");
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
@@ -47,7 +47,7 @@ test("canvas retries graph loading, pans without bounds, drags compact nodes wit
   await click(node + " [data-graph-open]");
   await waitFor("document.querySelector('[data-goal-node-workspace]').dataset.expandedGoal === 'INTERFACES'");
   assert.equal(await evaluate("location.pathname"), "/goals/INTERFACES");
-  const after = store.snapshot(DEMO_BOARD_ID);
+  const after = store.snapshot(DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals);
   assert.deepEqual(after.relations, before.relations);
   assert.deepEqual(after.runs, before.runs);

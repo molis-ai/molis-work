@@ -43,17 +43,23 @@ test("safe uninstall preview is read-only and confirmation preserves every user 
   try {
     const installManifest = join(item.home, "config", "installation.json");
     const before = await readFile(installManifest, "utf8");
+    // The discussion tab's database is user content (group chats and threads): like the projects, an ordinary uninstall keeps it.
+    const discussionDatabase = join(item.home, "server", "server.sqlite");
+    await mkdir(dirname(discussionDatabase), { recursive: true });
+    await writeFile(discussionDatabase, "discussion-store\n");
     const plan = await item.service.prepare();
     assert.equal(plan.status, "ready");
     assert.equal(plan.user_project_count, 1);
     assert.equal(plan.demo_project_count, 1);
     assert.equal(await readFile(installManifest, "utf8"), before);
     assert.ok(plan.preserved_paths.includes(join(item.home, "projects")));
+    assert.ok(!plan.changes.some((change) => change.target === join(item.home, "server")), "an ordinary uninstall does not remove server/");
 
     const result = await item.service.confirm({ plan_id: plan.plan_id, decision: "confirmed" });
     assert.equal(result.status, "uninstalled");
     await assert.rejects(stat(installManifest));
     assert.equal((await stat(item.userProject.database_path)).isFile(), true);
+    assert.equal((await stat(discussionDatabase)).isFile(), true);
     await assert.rejects(stat(item.demo.database_path));
     assert.ok(result.receipt_path);
     assert.equal((await stat(result.receipt_path!)).isFile(), true);
@@ -116,8 +122,13 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
       await mkdir(join(item.home, storeName), { recursive: true });
       await writeFile(join(item.home, storeName, `${storeName}.db`), "personal-store\n");
     }
+    // The discussion tab's database, with the WAL files a running host leaves beside it, is registered with the purge too.
+    const discussionDatabase = join(item.home, "server", "server.sqlite");
+    await mkdir(dirname(discussionDatabase), { recursive: true });
+    for (const file of [discussionDatabase, `${discussionDatabase}-wal`, `${discussionDatabase}-shm`]) await writeFile(file, "discussion-store\n");
     const plan = await item.service.prepare({ purge_user_data: true });
     assert.ok(plan.changes.some((change) => change.target === join(item.home, "runtime-config-backups")));
+    assert.ok(plan.changes.some((change) => change.target === join(item.home, "server")), "purge 要删讨论库 server/");
     for (const storeName of ["images", "jelly", "pages", "form", "dataset", "ppt", "lingguang", "todo", "alchemist", "functions"]) {
       assert.ok(
         plan.changes.some((change) => change.target === join(item.home, storeName)),
@@ -134,6 +145,7 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
         && error.code === "uninstall.purge_confirmation_required",
     );
     assert.equal((await stat(item.userProject.database_path)).isFile(), true);
+    assert.equal((await stat(discussionDatabase)).isFile(), true, "a refused purge keeps the discussion database");
 
     const confirmedPlan = await item.service.prepare({ purge_user_data: true });
     const result = await item.service.confirm({
@@ -145,6 +157,7 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
       },
     });
     assert.equal(result.status, "purged");
+    await assert.rejects(stat(discussionDatabase));
     await assert.rejects(stat(item.home));
     assert.equal(result.receipt_path, null);
   } finally {

@@ -428,7 +428,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此业务会话");
     }
     const session = await this.#runtime.sessions.create(input);
-    this.#sessions.set(session.ref.id, { title: input.title, workspace: input.workspace ?? "required", runs: [], owner: { board_id: input.board_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id } });
+    this.#sessions.set(session.ref.id, { title: input.title, workspace: input.workspace ?? "required", runs: [], owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id } });
     return { session_id: session.ref.id, runtime_id: PROLOGUE_RUNTIME_ID };
   }
 
@@ -523,7 +523,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if (textMaterials.length > 30 || new Set(textMaterials.map(item => item.material_id)).size !== textMaterials.length) throw new Error("材料过多或选择重复");
     textMaterials.forEach(agentTextMaterialContent);
     const imageMaterials = request.image_materials ?? [];
-    if (imageMaterials.length > 4 || new Set(imageMaterials.map(item => item.material_id)).size !== imageMaterials.length
+    if (imageMaterials.length > 6 || new Set(imageMaterials.map(item => item.material_id)).size !== imageMaterials.length
       || imageMaterials.some(item => !item || typeof item.resource?.id !== "string" || !Number.isSafeInteger(item.resource.revision) || !/^image\//.test(String(item.media_type)))) throw new Error("图片过多、重复或格式无效");
     if (imageMaterials.length && (!this.#runtime.imageAttachments || request.workspace !== "business")) throw new PrologueAdapterError("agent.capability_unavailable", "这个运行方式还不能把图片交给模型");
     if (request.budget?.max_turns !== undefined && (!Number.isSafeInteger(request.budget.max_turns) || request.budget.max_turns < 1 || request.budget.max_turns > 100)) throw new Error("执行轮次预算必须为 1–100 的整数");
@@ -580,7 +580,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ...(role.character_skill_ids === undefined ? {} : { character_skill_ids: [...role.character_skill_ids] }),
       role_id: role.role_id,
       role_version: role.version,
-      execution: role.execution,
+      execution: role.execution, ...(execution?.call_id ? { call_id: execution.call_id } : {}),
       model_id: model.model,
       ...(role.compaction ? { compaction: { prompt_id: role.compaction.prompt.prompt_id, version: role.compaction.prompt.version, above_tokens: role.compaction.above_tokens } } : {}),
       prompts: role.prompts.map((prompt) => ({
@@ -805,7 +805,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     ref: AgentCommandOutputRef,
   ): Promise<AgentCommandOutput> {
     const record = await this.#loadSession(session.session_id);
-    if (ref.run_id && !record.runs.some(run => run.run_id === ref.run_id)) throw new PrologueAdapterError("agent.run_unknown", "这轮执行不属于所选会话");
+    if (!record.runs.some(run => run.run_id === ref.run_id)) throw new PrologueAdapterError("agent.run_unknown", "这轮执行不属于所选会话");
     if (!this.#runtime.readCommandOutput) throw new PrologueAdapterError("agent.capability_unavailable", "这个 Runtime 没有接通命令回执");
     return this.#runtime.readCommandOutput(session.session_id, ref);
   }

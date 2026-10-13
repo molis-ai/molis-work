@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import type { ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
+  PluginDatabaseDeclaration,
   PluginDefinition,
   PluginManifest,
   PluginPrivateStorage,
@@ -27,8 +28,10 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 
 import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-executor.js";
+import type { PluginPlatformHome } from "./home-side.js";
 import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
+import { assertDatabaseEntries } from "./plugin-database-entries.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -45,13 +48,23 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
   readonly inTransaction?: boolean;
 };
 
+/**
+ * One entry of the Host's own start list. `database` is the library in the Home the Host gives that plugin as
+ * `services.database`; the entry names it, never the plugin (`assertDatabaseEntries` says what a list may declare).
+ */
+export interface PluginPlatformEntry extends PluginSupervisorEntry {
+  readonly database?: PluginDatabaseDeclaration;
+}
+
 export interface PluginPlatformOptions {
-  board_id: string;
+  project_id: string;
   actor_id: string;
   db: PluginPlatformDatabase;
   /** Domain journal from the same project connection; ordinary queries stay direct. */
   journal?: LocalSqliteJournal;
   artifacts: ArtifactsApplicationApi;
+  /** Exchange data plugins record for each other, kept out of the 成果库 (specs/artifact-positioning A2). */
+  processItems: ProcessItemsApplicationApi;
   ui: UiHostApi;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
@@ -60,6 +73,12 @@ export interface PluginPlatformOptions {
   capabilities?: PluginCapabilityPort;
   /** Shared system registry plus the trusted project identity for this activation. */
   actions: PluginHostExecutorOptions["actions"];
+  /**
+   * The Home this platform reaches in process, or `null` when it reaches none (a generated plugin's platform, a test without a
+   * Home). Required, so that no caller leaves it out by accident: a platform that was never told serves its plugins nothing of
+   * a Home, and nobody would notice.
+   */
+  home: PluginPlatformHome | null;
   /**
    * Opaque scope key stamped on every Plugin output in this project, so the
    * Host can tell two inputs belong to the same scope. Defaults to the board.
@@ -79,7 +98,7 @@ export interface PluginPlatform {
   closeCoordination(): Promise<void>;
   /** Built after `start`, from the Manifests that actually activated. */
   router(): PluginRouteRouter;
-  start(entries: readonly PluginSupervisorEntry[]): Promise<PluginSupervisorReport>;
+  start(entries: readonly PluginPlatformEntry[]): Promise<PluginSupervisorReport>;
   upgradeCandidates(): PluginUpgradeCandidate[];
   upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[] }): Promise<ReturnType<PluginSupervisor["state"]>>;
   rollback(pluginId: string, definition: PluginDefinition): Promise<ReturnType<PluginSupervisor["state"]>>;
@@ -87,33 +106,52 @@ export interface PluginPlatform {
 
 export function createPluginPlatform(options: PluginPlatformOptions): PluginPlatform {
   if (options.journal && options.journal.db !== options.db) throw new Error("插件 journal 必须使用当前项目连接");
+  // Tests and scripts are not type-checked, so the type alone would not make a caller say which.
+  if (options.home === undefined) throw new Error("插件平台要说明它的 Home：给出进程内的 Home，或明确给 null");
+  // A plugin that ships with the Host registers its actions under its plugin_id; every other plugin under its installation id
+  // (user decision 2026-10-10, W3-06 Q1). "Ships with the Host" is the Host's own start list saying `bundled` about a definition
+  // object, not anything a plugin declares or its record holds, so a developed or generated plugin that names a built-in
+  // plugin_id gets no more than an installation id.
+  const bundled = new WeakSet<PluginDefinition>();
+  const providerFor = (definition: PluginDefinition, installId: string) => bundled.has(definition) ? definition.manifest.plugin_id : installId;
+  // The same holds for a library in the Home: the Host's list declares it about a definition object, so another definition that
+  // carries the same plugin_id is given none.
+  const databases = new WeakMap<PluginDefinition, PluginDatabaseDeclaration>();
   const executor = new PluginHostExecutor({
-    board_id: options.board_id,
+    providerFor,
+    databaseFor: definition => databases.get(definition),
+    project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,
+    processItems: options.processItems,
     actions: options.actions,
+    home: options.home,
     ui: options.ui,
     privateStorageFor: options.privateStorageFor,
     capturePrivateData: options.capturePrivateData,
     restorePrivateData: options.restorePrivateData,
   });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(options.db), executor,
-    { actions: options.actions });
+    { actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),
     hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY],
   });
   const wiring = new PluginInputGraph({
-    boardId: options.board_id,
+    projectId: options.project_id,
     lifecycle: supervisor,
     canReadCommitted: () => options.db.inTransaction !== true,
     repository: new SqlitePluginWiringRepository(options.db),
+    // A port carries a process item it recorded, or a 成果 it pinned and selected.
     artifacts: {
-      read: (reference) => options.artifacts.query.getArtifactVersion(options.board_id, reference),
+      read: (reference) => options.processItems.query.getArtifactVersion(options.project_id, reference)
+        ?? options.artifacts.query.getArtifactVersion(options.project_id, reference),
+      // Someone can give an input port a fixed version from the 成果库, never a process item.
+      library: (reference) => options.artifacts.query.getArtifactVersion(options.project_id, reference),
     },
   });
   const events = new PluginEventBus({
-    boardId: options.board_id,
+    projectId: options.project_id,
     lifecycle: supervisor,
     repository: new SqlitePluginEventsRepository(options.db),
   });
@@ -121,7 +159,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     events,
     wiring,
     ...(options.capabilities === undefined ? {} : { capabilities: options.capabilities }),
-    scopeKey: options.scopeKey ?? options.board_id,
+    scopeKey: options.scopeKey ?? options.project_id,
   });
 
   const viewEpoch = randomUUID(), viewRevisions = new Map<string, number>();
@@ -131,11 +169,11 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   let stopArtifactRefresh: (() => void) | undefined;
   const detachActivation = supervisor.observeActivation(pluginId => {
     if (!stopArtifactRefresh && options.journal && supervisor.manifest(pluginId)?.ports?.inputs.length) {
-      stopArtifactRefresh = observePluginArtifacts(options.board_id, options.journal, wiring);
+      stopArtifactRefresh = observePluginArtifacts(options.project_id, options.journal, wiring);
     }
     wiring.revoke(pluginId);
     wiring.evaluate(pluginId);
-    void events.resume(options.board_id);
+    void events.resume(options.project_id);
   });
 
   return {
@@ -162,10 +200,21 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
     rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
     async start(entries) {
+      // The supervisor keeps one entry per plugin id and would let a later one silently replace an earlier one.
+      const listed = new Set<string>();
+      for (const { definition } of entries) {
+        if (listed.has(definition.manifest.plugin_id)) throw new Error(`插件 ${definition.manifest.plugin_id} 在同一份启动名单里出现了两次`);
+        listed.add(definition.manifest.plugin_id);
+      }
+      assertDatabaseEntries(entries, options.home);
+      for (const entry of entries) {
+        if (entry.bundled) bundled.add(entry.definition);
+        if (entry.database) databases.set(entry.definition, entry.database);
+      }
       const report = await supervisor.start(entries);
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();
-      await events.resume(options.board_id);
+      await events.resume(options.project_id);
       return report;
     },
   };

@@ -8,7 +8,6 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { inspectMethodDeclarations } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
@@ -16,6 +15,7 @@ import { agentDefinitionsFor } from "../apps/local-host/src/agent-definitions/ag
 import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
 import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
+import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 600; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 25)); }
@@ -37,9 +37,10 @@ function reply(text = "好的。"): Response {
 const PAGES_METHOD = "io.molis.work.pages/meeting-notes";
 
 test("a method a Plugin offers for business work is declared with business tools only and registered with the Host by id and version", async () => {
-  assert.deepEqual(inspectMethodDeclarations([{ skill_id: "notes", version: 1, name: "纪要", summary: "整理纪要", tools: ["read-capability"] }]), []);
-  assert.match(inspectMethodDeclarations([{ skill_id: "edit", version: 1, name: "改代码", summary: "改文件", tools: ["edit-file"] }]).join(), /只能使用业务工具/);
-  assert.match(inspectMethodDeclarations([{ skill_id: "x", version: 1, name: "无说明", summary: "", tools: ["read-capability"] }]).join(), /适用说明/);
+  const declared = (methods: unknown[]) => manifestProblems(declarationManifest({ methods }));
+  assert.equal(declared([{ skill_id: "notes", version: 1, name: "纪要", summary: "整理纪要", tools: ["read-capability"] }]), "");
+  assert.match(declared([{ skill_id: "edit", version: 1, name: "改代码", summary: "改文件", tools: ["edit-file"] }]), /只能使用业务工具/);
+  assert.match(declared([{ skill_id: "x", version: 1, name: "无说明", summary: "", tools: ["read-capability"] }]), /适用说明/);
   const home = await mkdtemp(join(tmpdir(), "assistant-methods-registry-"));
   try {
     const registry = agentDefinitionsFor(home, builtinRegistrations);
@@ -56,7 +57,7 @@ test("a method a Plugin offers for business work is declared with business tools
 test("a round lists the methods its scope can use; one the person chose goes with that round only, and a round may read one itself", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "assistant-methods-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "方法实操", actor_id: "owner" }));
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const requests: string[] = [];
   t.mock.method(globalThis, "fetch", async (url: unknown, init: RequestInit) => {

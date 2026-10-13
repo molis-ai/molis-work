@@ -1,4 +1,5 @@
-import type { BoundActionClient, ActionSceneBinding, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { ActionError, type BoundActionClient, type ActionSceneBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActions, type InboxPagesInput, type InboxStatusInput } from "./actions.js";
 import type { InboxPluginRouteHandler } from "./routes.js";
 
@@ -16,7 +17,7 @@ export interface InboxRouteHandlerPorts {
   renderWorkbench?(): string | Promise<string>;
 }
 
-/** HTTP adapts presentation and legacy parameters; validation and business work belong to actions. */
+/** HTTP adapts presentation and path parameters; validation and business work belong to actions. */
 export function createInboxRouteHandlers(options: InboxRouteHandlerPorts): Record<string, InboxPluginRouteHandler> {
   const run = async <Input, Output>(definition: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<Input, Output>, input: Input) => {
     const body = await options.actions.invoke(definition, input);
@@ -26,7 +27,7 @@ export function createInboxRouteHandlers(options: InboxRouteHandlerPorts): Recor
   return {
     "inbox.list": () => run(inboxActions.list, {}),
     "inbox.entry.status": ({ params, request }) => {
-      if (!params.entry_id) return { status: 404, body: { error: "Inbox Entry 不存在", code: "inbox_entry_not_found" } };
+      if (!params.entry_id) throw inboxErrors.entry_not_found("Inbox Entry 不存在");
       return run(inboxActions.setStatus, { ...request.body, entry_id: params.entry_id,
         expected_revision: request.body.expected_revision == null ? null : Number(request.body.expected_revision) } as InboxStatusInput);
     },
@@ -36,7 +37,7 @@ export function createInboxRouteHandlers(options: InboxRouteHandlerPorts): Recor
     "inbox.judgment.write": ({ request }) => run(inboxActions.writeJudgment, request.body as { function_key: string | null }),
     "inbox.judgment.evaluate": ({ request }) => run(inboxActions.evaluateJudgment, request.body as { entry_ids: string[] }),
     "inbox.workbench": async () => {
-      if (!options.renderWorkbench) return { status: 501, body: { error: "Inbox 工作区不可用" } };
+      if (!options.renderWorkbench) throw new ActionError("actions.service_unavailable", "Inbox 工作区不可用");
       await options.actions.invoke(inboxActions.list, {});
       return { status: 200, html: await options.renderWorkbench() };
     },

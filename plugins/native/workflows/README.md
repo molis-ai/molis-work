@@ -21,11 +21,14 @@
 - 负责：把已有插件按顺序串起来的项目流程与类型化交接。
 - 不负责：插件的内容存储、模型提供方、Feed/Inbox/Pages 的内部实现。
 - 公开入口：`@molis-ai/molis-work-plugin-workflows`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `workflows.<原因>`，状态由错误种类决定，Workflows 不自带状态表）、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 流程只决定顺序与交接，插件各自工作；没配好的衔接显示为未接上，不能走。
-  - 实例保留当时的链、进度与每段交接的内容。
+  - 实例保留当时的链、进度与每段交接的内容；判断规则拦下一次运行时，原因与判断结果记在被拦下的那一步，重新读取时仍在。
+  - 实例每次写入都让并发凭证（`updated_at`）变大，不会停在原值或倒退；带旧凭证的继续调用被拒绝。
   - 能力撤回、失权或升级使原版本不可用时，保留原引用并显示原因，不自动换成同名新能力。
   - 只有目录在交给提供方之前拒绝的调用才算没执行；其他错误按可能已执行处理。
-- 改动后必跑：`node scripts/run-tests.mjs tests/workflows-plugin.test.ts tests/workflows-action-steps.test.ts tests/workflows-handoff-idempotency.test.ts tests/workflows-step-directory.test.ts tests/workflow-content-actions.test.ts`
+  - 项目被删除时宿主按目录条目上的 `project_data`（`workflowsProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeWorkflowsProject`）调用清掉流程（含已隐藏的）与它们的运行实例；只读库文件，库不存在时不创建，重复运行没有副作用。
+- 改动后必跑：`node scripts/run-tests.mjs tests/workflows-plugin.test.ts tests/workflows-action-steps.test.ts tests/workflows-handoff-idempotency.test.ts tests/workflows-step-directory.test.ts tests/workflow-content-actions.test.ts tests/workflow-station-kinds.test.ts tests/workflows-judgment-link.test.ts tests/workflows-stop-and-token.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts`
+- 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-plugin-dev/host.md](../../../skills/molis-plugin-dev/host.md)、[specs/action-architecture/spec.md](../../../specs/action-architecture/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

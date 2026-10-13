@@ -16,7 +16,7 @@ const workspace = (id: string) => ({ workspace_id: id, canonical_path: "/test/" 
 test("Manifest gates individual settings; host scopes and projects records, rejects injected selectors", async () => {
   const home = await mkdtemp(join(tmpdir(), "project-settings-"));
   const host = new MolisWorkLocalHost({ workspacesFor: id => [{ ...workspace(id), project_ids: [id, "secret-project"], created_at: "private" }] });
-  const client = (projectId: string) => host.client(molisWorkHostProjectReference({ databasePath: join(home, projectId + ".db"), boardId: projectId, projectId }));
+  const client = (projectId: string) => host.client(molisWorkHostProjectReference({ databasePath: join(home, projectId + ".db"), projectId: projectId }));
   try {
     const a = client("a"), b = client("b");
     const none = createPluginCapabilityClient({ ...filesManifest, capabilities: { provides: [], consumes: [] } }, a);
@@ -44,23 +44,20 @@ test("Manifest gates individual settings; host scopes and projects records, reje
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("legacy browsing choice migrates once; membership remains authoritative across restart and revocation", () => {
+test("browsing choice persists; membership remains authoritative across restart and revocation", () => {
   const db = new Database(":memory:");
   try {
-    db.exec(`CREATE TABLE plugin_runtime_installs (install_id TEXT, record_json TEXT);
-      CREATE TABLE plugin_private_values (install_id TEXT, item_key TEXT, item_value TEXT);`);
-    db.prepare("INSERT INTO plugin_runtime_installs VALUES (?, ?)").run("old", JSON.stringify({ plugin_id: "io.molis.work.workspace", updated_at: "2026-01-01" }));
-    db.prepare("INSERT INTO plugin_private_values VALUES (?, ?, ?)").run("old", "selected-workspace", "two");
     const workspaces = [workspace("one"), workspace("two")];
     const preferences = new ProjectBrowsingSettings(db);
-    assert.deepEqual(preferences.read("a", workspaces), workspace("two"));
+    assert.equal(preferences.read("a", workspaces), null, "nothing is chosen for the person among two");
+    assert.deepEqual(preferences.read("a", [workspace("two")]), workspace("two"), "the one linked workspace needs no choice");
     preferences.select("a", "one", workspaces);
     assert.deepEqual(new ProjectBrowsingSettings(db).read("a", workspaces), workspace("one"));
     assert.throws(() => preferences.select("a", "foreign", workspaces), /当前项目/);
     assert.equal(preferences.read("a", [workspace("two")]), null);
     assert.equal(preferences.read("a", [{ ...workspace("one"), realpath_verified: false }]), null);
     assert.deepEqual(preferences.read("a", workspaces), workspace("one"));
-    assert.deepEqual(db.prepare("SELECT * FROM project_browsing_settings").all(), [{ board_id: "a", workspace_id: "one" }]);
+    assert.deepEqual(db.prepare("SELECT * FROM project_browsing_settings").all(), [{ project_id: "a", workspace_id: "one" }]);
   } finally { db.close(); }
 });
 

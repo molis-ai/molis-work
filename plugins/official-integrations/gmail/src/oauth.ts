@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { AUTH_ENDPOINT, TOKEN_ENDPOINT, DEFAULT_SCOPES, GMAIL_CLIENT_SECRET_REF, GMAIL_OAUTH_PENDING_REF, type GmailOAuthPorts, type GmailOAuthStart, type GmailOAuthComplete, type OAuthFetch } from "./oauth-types.js";
+import { AUTH_ENDPOINT, TOKEN_ENDPOINT, DEFAULT_SCOPES, GMAIL_CLIENT_SECRET_REF, type GmailOAuthPorts, type GmailOAuthStart, type GmailOAuthComplete, type OAuthFetch } from "./oauth-types.js";
 import type { GmailTokenRefs } from "./provider.js";
 import { createGmailOAuthConfiguration } from "./oauth-configuration.js";
 import { createGmailPendingSessions } from "./oauth-pending.js";
@@ -29,7 +29,7 @@ export function createGmailOAuth(ports: GmailOAuthPorts) {
   const configuration = createGmailOAuthConfiguration(ports);
   const { resolveGmailClientId, resolveGmailClientSecret, storeGmailOAuthClient, publicGmailCallbackUri, defaultGmailRedirectUri, assertAllowedGmailRedirectUri } = configuration;
   const pending = createGmailPendingSessions(ports, configuration);
-  const { savePending, clearPending, clearPendingByState, validatePendingGmailOAuthSession } = pending;
+  const { savePending, clearPendingByState, validatePendingGmailOAuthSession } = pending;
   const tokens = createGmailTokenLifecycle(ports, configuration);
   const { persistGmailAccessLifecycle, loadRefreshToken } = tokens;
   async function startGmailOAuthFlow(opts?: {
@@ -99,7 +99,7 @@ export function createGmailOAuth(ports: GmailOAuthPorts) {
   }
 
   /**
-   * Exchange authorization code for tokens and bind access token to SecretStore.
+   * Exchange authorization code for tokens and store them under the connection's refs.
    * Requires one fresh pending PKCE session with exact callback state.
    * Validation runs before any network call or credential write.
    */
@@ -113,14 +113,10 @@ export function createGmailOAuth(ports: GmailOAuthPorts) {
     clientId?: string;
     fetchImpl?: OAuthFetch;
     /**
-     * CONN-002 concurrency fix: resolved from the verified email BEFORE any
-     * credential write, so each account's tokens land in its own refs in one
-     * synchronous pass. Concurrent completions can never copy another
-     * account's material out of the shared legacy slot.
+     * The connection's refs, resolved from the verified email BEFORE any credential write (it may refuse
+     * another mailbox), so the tokens land in that connection's refs in one synchronous pass.
      */
-    resolveRefs?: (email: string | undefined) => GmailTokenRefs | undefined;
-    /** New Home connections keep their own refs and do not replace the old shared account. */
-    mirrorLegacy?: boolean;
+    resolveRefs: (email: string | undefined) => GmailTokenRefs;
   }): Promise<GmailOAuthComplete> {
     // Canonical gate: exact state, TTL, loopback redirect, session-bound identity.
     const exchange = validatePendingGmailOAuthSession({
@@ -185,45 +181,26 @@ export function createGmailOAuth(ports: GmailOAuthPorts) {
       /* optional */
     }
 
-    const scopedRefs = opts.resolveRefs?.(email);
+    const refs = opts.resolveRefs(email);
     persistGmailAccessLifecycle({
       accessToken: json.access_token,
       refreshToken: json.refresh_token,
       expiresIn: json.expires_in,
       nowMs: opts.nowMs,
-      refs: scopedRefs,
-      mirrorLegacy: opts.mirrorLegacy !== false,
+      refs,
     });
-    const authRef = scopedRefs?.access ?? ports.legacyAuthRef;
-    const snapshot = JSON.stringify({ clientId: exchange.clientId, clientSecret: clientSecret || "" });
-    ports.secrets().put(`${authRef}:client`, snapshot);
-    if (opts.mirrorLegacy !== false) ports.secrets().put(`${ports.legacyAuthRef}:client`, snapshot);
-    const hasRefreshToken = Boolean(
-      json.refresh_token || loadRefreshToken(scopedRefs),
-    );
+    ports.secrets().put(`${refs.access}:client`, JSON.stringify({ clientId: exchange.clientId, clientSecret: clientSecret || "" }));
+    const hasRefreshToken = Boolean(json.refresh_token || loadRefreshToken(refs));
     clearPendingByState(opts.state?.trim() || "");
-    // Legacy slot is transitional; always sweep it so stale sessions cannot linger.
-    clearPending();
 
-    return { authRef, hasRefreshToken, email };
+    return { authRef: refs.access, hasRefreshToken, email };
   }
 
-  /** Test/helper: read whether access token is bound (never returns secret). */
-  function gmailAccessBound(): boolean {
-    try {
-      return Boolean(ports.secrets().get(ports.legacyAuthRef)?.trim());
-    } catch {
-      return false;
-    }
-  }
-
+  /** Clear only this attempt. */
   function cancelGmailOAuthFlow(state: string): void {
-    // Clear only this attempt, including the compatibility slot if it matches.
-    const raw = ports.secrets().get(GMAIL_OAUTH_PENDING_REF);
-    if (raw) { try { if (JSON.parse(raw).state === state) clearPending(); } catch { /* unrelated malformed legacy state */ } }
     clearPendingByState(state);
   }
-  return { ...configuration, cancelGmailOAuthFlow, validatePendingGmailOAuthSession, resolveUsableGmailAccessToken: tokens.resolveUsableGmailAccessToken, startGmailOAuthFlow, completeGmailOAuthFlow, gmailAccessBound };
+  return { ...configuration, cancelGmailOAuthFlow, validatePendingGmailOAuthSession, resolveUsableGmailAccessToken: tokens.resolveUsableGmailAccessToken, startGmailOAuthFlow, completeGmailOAuthFlow };
 }
 
 /**

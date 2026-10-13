@@ -39,7 +39,7 @@ test("a person inserts, skips and reorders steps of a running plan; the model re
   });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.step-amend-test", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: new AgentReviewQueue(),
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "test-only" });
-  const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
+  const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
   const plan = { source: { artifact_id: "fixed-plan", version: 1 }, title: "Plan", steps: [
     { id: "step-1", title: "读取样本", acceptance: "读到 EVIDENCE" }, { id: "step-2", title: "核对结论", acceptance: "记录结果" }, { id: "step-3", title: "整理说明", acceptance: "写出总结" }] };
   const material = { material_id: "plan", source_artifact_id: plan.source.artifact_id, source_version: 1, title: plan.title, text: JSON.stringify(plan) };
@@ -109,7 +109,7 @@ test("a later round continues the same unfinished graph, keeping a person's chan
   });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.step-continue-test", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: new AgentReviewQueue(),
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "test-only" });
-  const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
+  const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
   const plan = { source: { artifact_id: "fixed-plan", version: 1 }, title: "Plan", steps: [{ id: "step-1", title: "读取样本", acceptance: "读到" }, { id: "step-2", title: "收尾", acceptance: "完成" }] };
   const material = { material_id: "plan", source_artifact_id: plan.source.artifact_id, source_version: 1, title: plan.title, text: JSON.stringify(plan) };
   const authority = { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [root] };
@@ -139,7 +139,7 @@ test("a later round continues the same unfinished graph, keeping a person's chan
     assert.equal(done.phase, "completed", JSON.stringify(done));
     assert.equal(done.frozen.continues_step_board_of, first.ref.run_id, "the continuation is part of what the round was frozen with");
     assert.equal(boards.length, 1, "both rounds worked on one graph");
-    assert.equal(done.step_board!.board_id, stopped.step_board!.board_id);
+    assert.equal(done.step_board!.project_id, stopped.step_board!.project_id);
     assert.deepEqual(done.step_board!.nodes.map(node => [node.id, node.state]), [["step-1", "succeeded"], ["user-1", "succeeded"], ["step-2", "succeeded"]]);
     assert.equal(done.step_board!.terminal, true);
     await assert.rejects(adapter.amendStepBoard!(first.ref, { kind: "skip", node: "step-2", reason: "x" }, done.step_board!.version), /新的计划轮/, "an earlier round's graph stays the record it was");

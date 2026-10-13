@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_BOARD_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
+import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
@@ -11,8 +11,8 @@ test('Dense workspace keeps many long tabs, nested panes and long Feed content i
   const {command,sessionId,evaluate,click,openGoalFrame,waitFor,navigate,origin,projectId}=b;
   const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});catalog.addProjectPlugin({project_id:projectId!,plugin_id:'feed',actor_id:'density-test'});catalog.close();
   const app=new GoalProjectApplication(b.store),ids:string[]=[];
-  for(let i=0;i<12;i++)ids.push(app.goalEvents.createIntent({board_id:DEMO_BOARD_ID,title:`工作区验收 ${i}：跨团队长期目标，保留清晰的信息层级和用户注意力`,outcome:'切换与分屏可连续使用',actor_id:'web-user',actor_kind:'user',idempotency_key:'dense-'+i}).goal.goal_id);
-  const feed=createLocalFeedApplication(b.store.db),source=createLocalFeedSourceService(b.store.db,DEMO_BOARD_ID).register({kind:'custom_rss',name:'长期观察来源：设计、工程与产品的连续记录',feed_url:'https://example.com/density.xml'}).source;
+  for(let i=0;i<12;i++)ids.push(app.goalEvents.createIntent({project_id:DEMO_PROJECT_ID,title:`工作区验收 ${i}：跨团队长期目标，保留清晰的信息层级和用户注意力`,outcome:'切换与分屏可连续使用',actor_id:'web-user',actor_kind:'user',idempotency_key:'dense-'+i}).goal.goal_id);
+  const feed=createLocalFeedApplication(b.store.db),source=createLocalFeedSourceService(b.store.db,DEMO_PROJECT_ID).register({kind:'custom_rss',name:'长期观察来源：设计、工程与产品的连续记录',feed_url:'https://example.com/density.xml'}).source;
   for(let i=0;i<80;i++)feed.ingestItem({source,externalId:'dense-'+i,title:`验收条目 ${i}：长标题在紧凑布局中仍然可以辨识，阅读时保留完整内容`,summary:'信息应留在自己的列表与阅读区。',body:Array.from({length:40},(_,n)=>`记录 ${n}：主操作和内容阅读都应当在当前分屏内完成。`).join('\n'),occurredAt:new Date(Date.now()-i*60000).toISOString(),attention:false});
   await command('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false},sessionId);
   await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 test("Project navigation preserves the fixed Goal workspace, terminal instance, and camera without writing Goal facts", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -68,8 +69,8 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), false);
   await click('[data-goal-collapse]');
   assert.equal(await evaluate("document.querySelector('[data-graph-stage]').getAttribute('style')"), camera);
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals, before.goals);
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).runs, before.runs);
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
@@ -86,8 +87,8 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   if (!browser) return;
   const { store, projectId, command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
   const app = new GoalProjectApplication(store);
-  for (const version of [1, 2]) app.artifacts.commands.registerVersion({
-    board_id: DEMO_BOARD_ID, actor_id: "fixture", artifact_id: "review-note", version,
+  for (const version of [1, 2]) app.artifacts.commands.registerVersion({ ...pinnedArtifact(version === 1 ? "Original result" : "Revised result", { kind: "item", id: "review-note" }, String(version)),
+    project_id: projectId!, actor_id: "fixture", artifact_id: "review-note", version,
     artifact_type_id: "example.note", schema_version: 1,
     producer: { plugin_id: "example.writer", plugin_version: "1.0.0", binding_signature: "fixture" },
     content: { kind: "inline", payload: { text: version === 1 ? "Original result" : "Revised result" } }, metadata: {},
@@ -130,7 +131,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   await waitFor("document.querySelector('[data-market-add=artifacts]').dataset.marketMembership === 'added' && !document.querySelector('[data-plugin-tile=artifacts]').classList.contains('is-available')");
   assert.equal(await evaluate("window.__stayedOnPage === true"), true, "adding to this project does not load the page again");
   await waitFor("document.body.dataset.desktopSurface === 'market' && !document.querySelector('[data-market-project]').disabled");
-  await evaluate("(()=>{let q=document.querySelector('[data-market-search]');q.value='Artifacts';q.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  await evaluate("(()=>{let q=document.querySelector('[data-market-search]');q.value='成果';q.dispatchEvent(new Event('input',{bubbles:true}));})()");
   assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-market-plugin]:not([hidden])')].map(x=>x.dataset.marketPlugin)"), ["artifacts"]);
   await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
   await waitFor("document.querySelector('[data-artifact-directory] .artifact-version-list')");

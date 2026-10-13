@@ -3,11 +3,10 @@ import test from "node:test";
 import { AgentHost } from "../horizontal/agent-host/src/index.js";
 import { registerAgentHostCapabilities } from "../horizontal/agent-host/src/capability-registration.js";
 import { PrologueAgentAdapter, type PrologueRuntimePort } from "../horizontal/agent-host/src/adapters/prologue.js";
-import { CliAgentAdapter } from "../horizontal/agent-host/src/adapters/cli-runtime.js";
 import { emptyCapabilityMatrix } from "../horizontal/agent-host/src/capabilities.js";
-import { agentHostCapabilities, type AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentRuntimeAdapter, type AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-const owner = { board_id: "board", plugin_id: "unknown.plugin", install_id: "install", actor_id: "actor" };
+const owner = { project_id: "project", plugin_id: "unknown.plugin", install_id: "install", actor_id: "actor" };
 const directory = { canonical_path: "/authorized", realpath_verified: true as const };
 const manifest = { roles: [{ role_id: "reader", version: 1, name: "Reader", execution: "read-only" as const, host_tools: [] }], prompts: [] };
 function deferred() { let resolve = () => {}; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
@@ -22,8 +21,8 @@ test("typed Agent validation and execution use the same snapshot when a Plugin h
   } as AgentRuntimeAdapter;
   host.register(adapter);
   registerAgentHostCapabilities({ register(definition, handler) { handlers.set(definition.capability_id, handler); return () => {}; } },
-    { agentHost: () => host, boardId: () => owner.board_id, authority: () => ({ manifest, authorizedDirectories: [directory.canonical_path] }) });
-  const invocation = { consumer: "plugin" as const, plugin: { ...owner, project_id: "project", assertActive() {}, declaration: { manifest: {} as never } },
+    { agentHost: () => host, projectId: () => owner.project_id, authority: () => ({ manifest, authorizedDirectories: [directory.canonical_path] }) });
+  const invocation = { consumer: "plugin" as const, plugin: { ...owner, assertActive() {}, declaration: { manifest: {} as never } },
     async beforeEffect() { if (++checks === 3) { session.session_id = "foreign-session"; run.session_id = "foreign-session"; run.run_id = "foreign-run"; } } };
   await handlers.get(agentHostCapabilities.controlRun.capability_id)!({}, [session, run, { kind: "cancel" }], invocation);
   assert.equal(checks, 3);
@@ -31,14 +30,31 @@ test("typed Agent validation and execution use the same snapshot when a Plugin h
   assert.deepEqual(controlled, { session_id: "own-session", run_id: "own-run" });
 });
 
-for (const kind of ["prologue", "cli"] as const) test(`${kind} rechecks Host authority after delayed model selection without dispatching or creating a run`, async () => {
+/**
+ * A Runtime that is slow before it dispatches (here: choosing its model), written against the contract alone: what the Host hands
+ * `start` is a live check of the grant, so a Runtime that asks again after its own await sees a revocation made in between.
+ */
+function slowRuntime(select: () => Promise<string>, dispatch: () => never): AgentRuntimeAdapter {
+  const session: AgentSessionRef = { runtime_id: "fixture", session_id: "own-session" };
+  return { descriptor: { runtime_id: "fixture", display_name: "Fixture", provider_version: "1", capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported" } },
+    async health() { return { ok: true, status: "ready", message: "ready" }; },
+    async createSession() { return session; },
+    async readSession(ref) { return { session: ref, owner, title: "Owned", runs: [], latest_run: null }; },
+    async start(_request, execution) { await select(); await execution?.beforeStart?.(); return dispatch(); },
+    async read() { throw new Error("Not used by this fixture"); },
+    observe() { throw new Error("Not used by this fixture"); },
+    async control() { throw new Error("Not used by this fixture"); },
+    async readCommandOutput() { throw new Error("Not used by this fixture"); },
+  };
+}
+
+for (const kind of ["prologue", "fixture"] as const) test(`${kind} rechecks Host authority after delayed model selection without dispatching or creating a run`, async () => {
   const entered = deferred(), release = deferred(); let active = true, dispatched = 0;
   const select = async () => { entered.resolve(); await release.promise; return "fixture-model"; };
   const runtime: PrologueRuntimePort = { sessions: { async create() { return { ref: { id: "session" } }; } },
     async startAgentRun(input) { dispatched++; assert.equal(typeof input.beforeStart, "function"); throw new Error("authorized dispatch sentinel"); }, async shutdown() {} };
   const adapter = kind === "prologue" ? new PrologueAgentAdapter({ runtime, async modelConfiguration() { return { protocol: "anthropic-compatible", endpoint: "https://model.example/v1/messages", model: await select(), credential_ref: "fixture" }; } })
-    : new CliAgentAdapter({ runtime_id: "cli", display_name: "CLI", command: "fixture", model: select,
-      process: { async version() { return "1"; }, spawn() { dispatched++; throw new Error("authorized dispatch sentinel"); } } });
+    : slowRuntime(select, () => { dispatched++; throw new Error("authorized dispatch sentinel"); });
   const host = new AgentHost(); host.register(adapter);
   const session = await adapter.createSession({ ...owner, directory, title: "Owned" });
   const request = { ...owner, session, directory, task: "Read supplied context", role_id: "reader" };
@@ -66,15 +82,32 @@ test("a returned typed start keeps only explicit dispatch authority and the orig
       } }; },
     } as AgentRuntimeAdapter);
     registerAgentHostCapabilities({ register(definition, handler) { handlers.set(definition.capability_id, handler); return () => {}; } },
-      { agentHost: () => host, boardId: () => owner.board_id, authority: () => ({ manifest, authorizedDirectories: [directory.canonical_path],
+      { agentHost: () => host, projectId: () => owner.project_id, authority: () => ({ manifest, authorizedDirectories: [directory.canonical_path],
         beforeStart() { assert.ok(invocationActive, "startup callback must not survive as a network callback"); },
         ...(explicit ? { beforeDispatch() { checks++; } } : {}),
       }) });
-    const invocation = { consumer: "plugin" as const, plugin: { ...owner, project_id: "project", declaration: { manifest: {} as never }, assertActive() { if (!active) throw new Error("activation revoked"); } },
+    const invocation = { consumer: "plugin" as const, plugin: { ...owner, declaration: { manifest: {} as never }, assertActive() { if (!active) throw new Error("activation revoked"); } },
       async beforeEffect() { assert.ok(invocationActive); } };
     await handlers.get(agentHostCapabilities.startRun.capability_id)!({}, ["fixture", { ...owner, directory, session, role_id: "reader", task: "Read" }], invocation);
     invocationActive = false;
     await execution!.beforeDispatch!(); assert.equal(checks, explicit ? 1 : 0);
     active = false; await assert.rejects(async () => execution!.beforeDispatch!(), /activation revoked/);
   }
+});
+
+test("a round's frozen record keeps the call number the Host gave its start, and takes none from the request", async () => {
+  const frozen: Array<Record<string, unknown>> = [];
+  const runtime: PrologueRuntimePort = { sessions: { async create() { return { ref: { id: "session" } }; } },
+    async startAgentRun(input) { frozen.push({ ...input.provenance.frozen }); throw new Error("frozen record sentinel"); }, async shutdown() {} };
+  const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://model.example/v1/messages", model: "fixture", credential_ref: "fixture" }) });
+  const host = new AgentHost(); host.register(adapter);
+  const session = await adapter.createSession({ ...owner, directory, title: "Owned" });
+  // A plugin controls the body of `agent.run.start`, so a number in it is plugin data.
+  const request = { ...owner, session, directory, task: "Read supplied context", role_id: "reader", call_id: "forged-by-the-request" };
+  const authority = { manifest, authorizedDirectories: [directory.canonical_path] };
+  const given = "6f1c2d9e-0b7a-4c55-8f0e-3a2b1c0d9e8f";
+  await assert.rejects(host.start(adapter.descriptor.runtime_id, request, { ...authority, call_id: given }), /frozen record sentinel/);
+  await assert.rejects(host.start(adapter.descriptor.runtime_id, request, authority), /frozen record sentinel/);
+  assert.equal(frozen[0]!.call_id, given);
+  assert.equal("call_id" in frozen[1]!, false, "a round started without a number has none; nothing invents one");
 });

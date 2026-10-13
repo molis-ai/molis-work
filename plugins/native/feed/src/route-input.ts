@@ -1,5 +1,4 @@
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
-import { FeedStoreError } from "./application-errors.js";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { RegisterFeedSourceInput } from "./source-ports.js";
 
 export function sourceRegistrationInput(body: Readonly<Record<string, unknown>>): RegisterFeedSourceInput | null {
@@ -17,11 +16,6 @@ export function integerRevision(value: unknown): number | null {
 }
 
 export function requireParam(value: string | undefined, message: string): string {
-  if (!value) throw new FeedStoreError("feed_item_not_found", message);
+  if (!value) throw feedErrors.item_not_found(message);
   return value;
-}
-
-export function requireProvider(value: string | undefined): "github" | "gmail" {
-  if (value === "github" || value === "gmail") return value;
-  throw new FeedDomainError("Connector 不存在", "feed_connector_unsupported");
 }

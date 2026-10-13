@@ -4,7 +4,6 @@ import {
 } from "@molis-ai/molis-work-integration-github";
 
 import { connectorFixtureAllowed } from "./connector-execution-mode.js";
-import { resolveGithubToken } from "./connector-credentials.js";
 import { createFileSecretStore } from "@molis-ai/molis-work-storage";
 import type { IntegrationProviderItem, IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
 
@@ -19,6 +18,7 @@ export function createGithubConnector(opts?: {
   return createGithubProvider({
     ...opts,
     allowFixture: opts?.allowFixture ?? connectorFixtureAllowed(),
-    resolveToken: opts?.authRef ? () => createFileSecretStore().get(opts.authRef!) : resolveGithubToken,
+    // The source's connection credential; without one there is no account to read.
+    resolveToken: () => opts?.authRef ? createFileSecretStore().get(opts.authRef) : null,
   });
 }

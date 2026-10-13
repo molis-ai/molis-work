@@ -5,13 +5,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
-import { ChromeHarness } from "./fixtures/plugin-builder-browser.js";
+import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 
 // The TaskBoard reads like the Goal list: rounds, their steps and subagents nested, each with its state, progress,
 // prerequisites, time and the Agent doing it. Rounds continuing one step graph are one task.
 test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；前置、验收、执行者和子代理都看得见", { timeout: 30000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), "coding-taskboard-"));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
@@ -24,7 +24,7 @@ test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；�
       const t0=Date.parse('2026-09-25T07:00:00Z');
       const plan={revision:2,content:{title:'让 @ 引用支持裸名字',steps:[{title:'放行裸名字',acceptance:'a'},{title:'读不到就丢弃',acceptance:'b'},{title:'跑测试',acceptance:'c'}],blockers:'',change_reason:''}};
       const nodes=[{id:'step-1',state:'succeeded',reports:[{note:'改好了',at_ms:t0+60000}]},{id:'step-2',state:'running',depends_on:['step-1'],reports:[{note:'开始',at_ms:t0+120000}]},{id:'step-3',state:'not-started',depends_on:['step-2'],reports:[]}];
-      const entry=(run_id)=>({run_id,revision:2,plan,board:{board_id:'b1',version:5,terminal:false,nodes},verdicts:{'step-1':{status:'accepted',board_version:5}}});
+      const entry=(run_id)=>({run_id,revision:2,plan,board:{project_id:'b1',version:5,terminal:false,nodes},verdicts:{'step-1':{status:'accepted',board_version:5}}});
       const frozen={role_id:'builder',model_id:'m',character:{title:'审慎的构建者'},directory:{canonical_path:'/w'}};
       api.update('s',{session:{title:'会话'},plan:{...plan,revision:3,confirmed:{artifact_id:'x',version:1}},
         runs:[{ref:{run_id:'r1'},phase:'stopped',started_at:new Date(t0).toISOString(),frozen,task:'按计划执行'},{ref:{run_id:'r2'},phase:'running',started_at:new Date(t0+90000).toISOString(),frozen,task:'继续'}],
@@ -67,7 +67,7 @@ test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；�
 // can take a step on, hand it back, record the result of their own step, or add a step for themselves.
 test("TaskBoard：每一步显示负责人（本会话/子任务/你/没人认领），可以认领、交回、标记自己那一步的结果", { timeout: 30000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), "coding-taskboard-owner-"));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
@@ -89,7 +89,7 @@ test("TaskBoard：每一步显示负责人（本会话/子任务/你/没人认�
         // The plan round has ended and a question was asked after it: its unfinished graph can still be changed.
         runs:[{ref:{run_id:'r1'},phase:'completed',started_at:new Date(t0).toISOString(),frozen:{role_id:'writers',directory:{canonical_path:'/w'}},task:'按计划执行'},
           {ref:{run_id:'r2'},phase:'completed',started_at:new Date(t0+9000).toISOString(),frozen:{role_id:'discuss'},task:'谁在做什么？'}],
-        taskboard_plans:[{run_id:'r1',revision:1,plan,board:{board_id:'b1',version:7,terminal:false,nodes},verdicts:{}}],
+        taskboard_plans:[{run_id:'r1',revision:1,plan,board:{project_id:'b1',version:7,terminal:false,nodes},verdicts:{}}],
         // The subtask started before any report, so only its hold on step-2 places it there.
         subagents:[{run_id:'r1',children:[{subagent_id:'c1',role_id:'coding-builder',role_name:'构建者',task:'改 b',state:'running',activity:[{at:new Date(t0).toISOString()}],workspace_path:'/w/writer-0'}]}]});
       board.hidden=false;api.show();
@@ -129,7 +129,7 @@ test("TaskBoard：每一步显示负责人（本会话/子任务/你/没人认�
 // controls. It draws only while its face is on show, says what to do without a session, and its rows navigate.
 test("TaskBoard 大纲：左栏用同一棵树画紧凑的行；没有会话时说明去哪里选；点一行就是导航", { timeout: 30000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), "coding-taskboard-outline-"));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
@@ -147,7 +147,7 @@ test("TaskBoard 大纲：左栏用同一棵树画紧凑的行；没有会话时�
       api.loading('s');
       api.update('s',{session:{title:'会话'},plan:{...plan,confirmed:{artifact_id:'x',version:1}},
         runs:[{ref:{run_id:'r1'},phase:'running',started_at:new Date(t0).toISOString(),frozen:{role_id:'builder',character:{title:'审慎的构建者'},directory:{canonical_path:'/w'}},task:'按计划执行'}],
-        taskboard_plans:[{run_id:'r1',revision:1,plan,board:{board_id:'b1',version:2,terminal:false,nodes},verdicts:{}}],
+        taskboard_plans:[{run_id:'r1',revision:1,plan,board:{project_id:'b1',version:2,terminal:false,nodes},verdicts:{}}],
         subagents:[{run_id:'r1',children:[{subagent_id:'c1',role_id:'coding-reviewer',role_name:'独立评审',task:'核对 b',state:'running',activity:[{at:new Date(t0+2500).toISOString()}],workspace_path:'/w'}]}]});
       const rows=[...outline.querySelectorAll('.coding-outline-row')].map(node=>({depth:Number(node.parentElement.style.getPropertyValue('--board-depth')),key:node.querySelector('.coding-board-key')?.textContent||'',
         title:node.querySelector('strong').textContent,tone:node.querySelector('.coding-outline-mark').dataset.tone,who:node.querySelector('.coding-board-avatar')?.textContent||'',controls:node.querySelectorAll('button').length}));

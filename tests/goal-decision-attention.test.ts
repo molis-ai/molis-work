@@ -17,9 +17,9 @@ function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-goal-decision-attention-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ board_id: BOARD, title: "注意力", actor_id: "user-1", idempotency_key: "init" });
+  app.initializeBoard({ project_id: BOARD, title: "注意力", actor_id: "user-1", idempotency_key: "init" });
   const root = app.goalEvents.createIntent({
-    board_id: BOARD,
+    project_id: BOARD,
     goal_id: "root",
     title: "根目标",
     outcome: "保留待判断",
@@ -33,7 +33,7 @@ function fixture() {
 
 function propose(app: GoalProjectApplication, childId: string, key: string) {
   return app.goalTreeSubmission.submitGoalTreeProposal({
-    board_id: BOARD,
+    project_id: BOARD,
     actor_id: "runtime:test:session",
     root_goal_id: "root",
     summary: `新增 ${childId}`,
@@ -52,7 +52,7 @@ function propose(app: GoalProjectApplication, childId: string, key: string) {
 
 function decide(app: GoalProjectApplication, proposalId: string, key: string) {
   return app.goalTreeDecision.decideGoalTreeProposal({
-    board_id: BOARD,
+    project_id: BOARD,
     proposal_id: proposalId,
     authority: {
       ...hostEventDecisionAuthority("web", BOARD, "web-user", key),
@@ -129,21 +129,15 @@ test("Goal pending decisions appear in Inbox and on the Goal document, not in Fe
   const data = fixture();
   try {
     propose(data.app, "child-ui", "propose-ui");
-    const view = buildMolisWorkWebView(data.store, data.app, { boardId: BOARD });
-    const decisions = renderMolisWorkWeb(view, undefined, false, true);
+    const view = buildMolisWorkWebView(data.store, data.app, { projectId: BOARD });
     const home = renderMolisWorkWeb(view);
     const goalPage = renderMolisWorkWeb(view, "root");
-    assert.match(decisions, /data-desktop-directory="root"/);
-    assert.match(decisions, /data-desktop-surface="inbox"/);
-    assert.match(decisions, /data-inbox-directory/);
-    assert.match(decisions, /data-inbox-workbench/);
-    assert.match(decisions, /data-inbox-subject-type="goal_decision"/);
-    assert.match(decisions, /data-inbox-subject-id="root"/);
-    assert.match(decisions, /Inbox · Molis Work/);
-    assert.doesNotMatch(decisions, /data-feed-entry-id="decision:/);
-    assert.doesNotMatch(decisions, /data-feed-detail="decision:/);
-    assert.doesNotMatch(decisions, /class="tui-pane"|pty-client\.js/);
-    assert.match(decisions, /打开 Goal/);
+    assert.match(home, /data-desktop-directory="root"/);
+    assert.match(home, /data-inbox-directory/);
+    assert.match(home, /data-inbox-workbench/);
+    assert.match(home, /data-inbox-subject-type="goal_decision"/);
+    assert.match(home, /data-inbox-subject-id="root"/);
+    assert.match(home, /打开 Goal/);
     assert.doesNotMatch(home, /data-feed-entry-id="decision:/);
     assert.doesNotMatch(home, /data-feed-detail="decision:/);
     assert.match(goalPage, /data-goal-decision-panel/);
@@ -159,7 +153,7 @@ test("reconcile restores Attention for a historical pending Goal that has no row
   try {
     propose(data.app, "child-history", "propose-history");
     assert.equal(goalDecisionEntries(data.feed).length, 1);
-    data.store.db.prepare("DELETE FROM inbox_entries WHERE board_id = ? AND subject_type = 'goal_decision'").run(BOARD);
+    data.store.db.prepare("DELETE FROM inbox_entries WHERE project_id = ? AND subject_type = 'goal_decision'").run(BOARD);
     assert.equal(goalDecisionEntries(data.feed).length, 0);
     data.app.goalDecisionAttention.reconcile(BOARD);
     const restored = goalDecisionEntries(data.feed);

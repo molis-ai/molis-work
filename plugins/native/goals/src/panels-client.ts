@@ -6,7 +6,7 @@ const GOALS_READER_HASH_SCRIPT = `    const eventReaderFromTargetId = (targetId)
       if (rendered === "description" || rendered === "requirements" || rendered === "planning") return rendered;
       if (targetId.startsWith("goal-description-")) return "description";
       if (targetId.startsWith("goal-requirements-") || targetId.startsWith("completion-") || targetId.startsWith("acceptance-")) return "requirements";
-      if (/^(?:goal-factor-panel|relation|risk|impact)-/.test(targetId)) return "description";
+      if (/^(?:goal-factor-panel|relation)-/.test(targetId)) return "description";
       return "";
     };
 
@@ -23,11 +23,9 @@ const GOALS_READER_HASH_SCRIPT = `    const eventReaderFromTargetId = (targetId)
       const target = document.getElementById(targetId);
       const renderedFactor = target?.closest?.("[data-goal-factor-panel]")?.dataset.goalFactorPanel;
       if (renderedFactor) return renderedFactor;
-      const factorTarget = targetId.match(/^goal-factor-panel-(relations|risks|impacts|rules)-/);
+      const factorTarget = targetId.match(/^goal-factor-panel-(relations|rules)-/);
       if (factorTarget) return factorTarget[1];
       if (targetId.startsWith("relation-")) return "relations";
-      if (targetId.startsWith("risk-")) return "risks";
-      if (targetId.startsWith("impact-")) return "impacts";
       return "";
     };
 
@@ -95,7 +93,7 @@ const GOALS_FACTOR_SELECT_SCRIPT = `    const setGoalFactor = (factorName, persi
 /** Factor deep-links and in-document workbench. */
 export const GOALS_PANELS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const { documentPane, activateFocusSection, queueSave, openEventReader } = host;
-    const goalFactorKeys = ["relations", "risks", "impacts", "rules"];
+    const goalFactorKeys = ["relations", "rules"];
 ${GOALS_READER_HASH_SCRIPT}${GOALS_FACTOR_SELECT_SCRIPT}${GOALS_FACTOR_CLICK_SCRIPT}${GOALS_FACTOR_KEYBOARD_SCRIPT}
     return { openEventReaderFromHash, eventReaderFromTargetId, eventReaderFromHash,
       setGoalFactor, goalFactorFromTargetId, goalFactorFromHash,

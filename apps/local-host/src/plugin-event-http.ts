@@ -9,9 +9,9 @@ export function isPluginEventManagementPath(pathname: string): boolean {
 
 /** Called only after the local-user control and project guards, like Runtime upgrade/restart. */
 export async function handlePluginEventHttp(request: IncomingMessage, response: ServerResponse, url: URL,
-  input: { events: PluginEventBus; boardId: string; actorId: string }): Promise<void> {
+  input: { events: PluginEventBus; projectId: string; actorId: string }): Promise<void> {
   if (url.pathname === "/api/plugins/runtime/events" && request.method === "GET") {
-    sendLocalWebJson(response, 200, { pending: input.events.recoveries(input.boardId), history: input.events.recoveryHistory(input.boardId) });
+    sendLocalWebJson(response, 200, { pending: input.events.recoveries(input.projectId), history: input.events.recoveryHistory(input.projectId) });
     return;
   }
   if (url.pathname !== "/api/plugins/runtime/events/recover" || request.method !== "POST") {
@@ -20,7 +20,7 @@ export async function handlePluginEventHttp(request: IncomingMessage, response: 
   }
   try {
     const body = await readLocalWebBody(request);
-    const resolution = input.events.recover(input.boardId, input.actorId, body as unknown as PluginEventRecoveryInput);
+    const resolution = input.events.recover(input.projectId, input.actorId, body as unknown as PluginEventRecoveryInput);
     sendLocalWebJson(response, 200, { resolution });
   } catch (error) {
     if (!(error instanceof PluginEventError)) throw error;

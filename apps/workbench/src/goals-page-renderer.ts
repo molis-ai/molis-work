@@ -7,9 +7,16 @@ import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-syst
 import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { shownProjectPlugins, sideEntries } from "./plugin-catalog.js";
+import { homeToolKeysScript, homePluginSideTabs } from "./home-plugin-navigation.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
+function projectSideTabs(enabled: readonly string[], routePrefix: string) {
+  const home = homePluginSideTabs();
+  return [...home, ...sideEntries(enabled).filter(side => !home.some(tab => tab.key === `${side.project_plugin_id}/${side.view_id}`))
+    .map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title, icon: (side.icon ?? "package") as PageIcon,
+      src: `${routePrefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` }))];
+}
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
 export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extends GoalCollectionView<TItem> {
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
@@ -32,6 +39,8 @@ export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extend
   plugin_stages?: readonly string[];
   /** Rail entries for plugins installed at run time; each has a stage in plugin_stages. */
   plugin_rail?: readonly { surface: string; label: string }[];
+  /** The Host runs in developer mode: the plugin list also offers what is otherwise kept out of it (Text Stats). */
+  developer_mode?: boolean;
   project: ProjectOperationsProject | null;
   projects: ProjectOperationsProject[];
   route_prefix: string;
@@ -81,7 +90,6 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderInboxNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
   renderScheduleNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
   renderShelfNativePluginSurface(surface: "directory" | "workbench"): string;
-  renderExperimentsContribution(): string;
   renderImagesNativePluginSurface(): string;
   renderPagesNativePluginSurface(surface: "directory" | "workbench"): string;
   renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
@@ -113,7 +121,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderExperimentsContribution, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderTodoNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderTodoNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -121,7 +129,7 @@ function renderMolisWorkRefreshFragment(
   archiveView = false,
   trashView = false,
 ): string {
-  const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, false, L);
+  const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, L);
   const { selected } = collection;
   const document = selected
     ? trashView
@@ -142,18 +150,17 @@ function renderMolisWorkWeb(
   view: TView,
   requestedGoalId?: string,
   archiveView = false,
-  decisionView = false,
   trashView = false,
   controlToken = "",
   desktopShell = false,
   cliAvailability: Record<string, boolean> = {},
   projectOperationsData?: ProjectOperationsData,
 ): string {
-  const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, decisionView, L);
+  const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, L);
   const { selected, title, collectionTitle } = collection;
   const initialFeedPreset = "feed" as const;
   const initialDesktopDirectory = "root";
-  const initialDesktopSurface = decisionView ? "inbox" : requestedGoalId || archiveView || trashView ? "goal" : "home";
+  const initialDesktopSurface = requestedGoalId || archiveView || trashView ? "goal" : "home";
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };
   const enabledPlugins = shownProjectPlugins(view.enabled_plugins ?? ["goals", "sessions", "inbox", "feed", "artifacts"], view.hidden_plugins ?? []);
@@ -172,7 +179,7 @@ function renderMolisWorkWeb(
   const pluginEnabled = (id: string) => enabledPlugins.includes(id);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
   const directoryEmpty = initialDesktopDirectory === "root";
-  const showTui = !decisionView && !archiveView && !trashView;
+  const showTui = !archiveView && !trashView;
   const renderedDocumentContent = selected
     ? trashView ? renderTrashGoalDocument(selected, true) : renderGoalDocument(selected, view, true)
     : goalsDocumentRenderer.renderEmptyGoalCollection(trashView, true);
@@ -204,7 +211,7 @@ function renderMolisWorkWeb(
         ${renderGoalDetailsAside(goalDocument, primitives)}
       </div>
     </section>
-  </div>` : `${decisionView ? "" : stageList}${goalDocument}`;
+  </div>` : `${stageList}${goalDocument}`;
   const frameStage = showTui ? `<section class="goal-frame-surface" data-goal-frame-surface aria-label="Frame" hidden>
     <header class="frame-goal-summary"><div class="frame-goal-heading"><h1 data-frame-goal-title></h1><span data-frame-goal-status></span></div><p data-frame-goal-outcome></p>    <div class="frame-goal-actions mw-toolbar"><button class="mw-btn mw-btn--secondary" type="button" data-frame-add-content>${icon("plus")}${L("添加已有内容")}</button><button class="mw-btn mw-btn--secondary" type="button" data-frame-goal-work>${icon("terminal")}${L("打开工作区")}</button><button class="mw-btn mw-btn--ghost" type="button" data-frame-goal-locate>${icon("target")}${L("在关系画布中定位")}</button></div></header>
     <div class="goal-frame-canvas" data-frame-canvas><div class="frame-empty mw-empty" data-frame-empty><strong>${L("把这项目标需要的内容放在这里")}</strong><p>${L("从目录拖入消息、会话或资料，在同一个画布上组织工作。")}</p><button type="button" class="mw-btn mw-btn--primary" data-frame-add-content>${icon("plus")}${L("添加已有内容")}</button></div>
@@ -212,7 +219,7 @@ function renderMolisWorkWeb(
     </div>
     <dialog class="frame-picker mw-dialog" data-frame-picker aria-labelledby="frame-picker-title">
       <header><h2 id="frame-picker-title">${L("添加已有内容")}</h2><button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only" data-frame-picker-close aria-label="${L("关闭")}">${icon("x")}</button></header>
-      <div class="frame-picker-tools mw-input-group"><input class="mw-input" type="search" data-frame-picker-search placeholder="${L("搜索标题或来源")}" aria-label="${L("搜索标题或来源")}" autofocus><select class="mw-select" data-frame-picker-kind aria-label="${L("内容来源")}"><option value="all">${L("全部来源")}</option><option value="feed">Feed</option><option value="inbox">Inbox</option><option value="session">${L("会话")}</option><option value="artifact">${L("交付物")}</option></select></div>
+      <div class="frame-picker-tools mw-input-group"><input class="mw-input" type="search" data-frame-picker-search placeholder="${L("搜索标题或来源")}" aria-label="${L("搜索标题或来源")}" autofocus><select class="mw-select" data-frame-picker-kind aria-label="${L("内容来源")}"><option value="all">${L("全部来源")}</option><option value="feed">Feed</option><option value="inbox">Inbox</option><option value="session">${L("会话")}</option><option value="artifact">${L("成果")}</option></select></div>
       <div class="frame-picker-list mw-scroll" data-frame-picker-list></div>
       <footer><span>${L("添加引用，原内容保持在所属来源。")}</span><button type="button" class="mw-btn mw-btn--secondary" data-frame-picker-close>${L("取消")}</button></footer>
     </dialog>
@@ -230,11 +237,11 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     lang: htmlLang(),
     title,
     head_before_title_html: controlTokenMeta(controlToken),
-    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}</script>
+    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}${homeToolKeysScript()}</script>
   <link rel="stylesheet" href="__WORKBENCH_CSS__">`,
     body_attributes: {
       class: "immersive-workbench",
-      "data-board-view": decisionView ? "decisions" : trashView ? "trash" : archiveView ? "archive" : "current",
+      "data-board-view": trashView ? "trash" : archiveView ? "archive" : "current",
       "data-route-prefix": view.route_prefix,
       "data-project-id": view.project?.project_id || "",
       "data-desktop-shell": "true",
@@ -248,10 +255,9 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       ${renderImmersiveHeader(primitives, desktopShell)}
       ${renderWorkbenchBar(primitives, {
         enabled: enabledPlugins,
-        rail: renderPluginRail(primitives, enabledPlugins, "", "", view.plugin_rail),
+        rail: renderPluginRail(primitives, enabledPlugins, "", "", view.plugin_rail, { developerMode: view.developer_mode }),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives))),
-        sideTabs: sideEntries(enabledPlugins).map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title,
-          icon: (side.icon ?? "package") as PageIcon, src: `${view.route_prefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` })),
+        sideTabs: projectSideTabs(enabledPlugins, view.route_prefix),
       })}
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
         <div class="mw-scroll directory-content-scroll">
@@ -267,7 +273,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           todo: "",
           alchemist: "",
           workflows: "",
-          experiments: "",
           pages: "",
           form: "",
           dataset: "",
@@ -292,7 +297,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderInboxNativePluginSurface(view, "workbench")}
             ${defer(renderScheduleNativePluginSurface(view, "workbench"))}
             ${defer(renderShelfNativePluginSurface("workbench"))}
-            ${defer(renderExperimentsContribution())}
             ${defer(renderImagesNativePluginSurface())}
             ${defer(renderPagesNativePluginSurface("workbench"))}
             ${defer(renderFormNativePluginSurface("workbench"))}
@@ -306,8 +310,8 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${defer(renderWorkflowsNativePluginSurface("workbench"))}
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
-            <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="Artifacts" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
-            <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives)}</section>
+            <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="成果" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
+            <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode })}</section>
             ${settingsSurfaces}
             ${(view.plugin_stages ?? []).map(defer).join("")}
           </div>

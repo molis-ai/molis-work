@@ -28,9 +28,8 @@ export const GITHUB_DEVICE_DEFAULT_SCOPE = "notifications read:user";
 export interface GithubDeviceFlowPorts {
   clientId(): string | null;
   storeClientId(value: string): void;
-  bindToken(value: string): void;
 }
-/** Provider protocol; the host supplies the authorized credential boundary. */
+/** Provider protocol; the host keeps the authorized token in a connection. */
 export function createGithubDeviceFlow(ports: GithubDeviceFlowPorts) {
   function resolveClientId(override?: string): string | null {
     if (override?.trim()) return override.trim();
@@ -95,7 +94,6 @@ export function createGithubDeviceFlow(ports: GithubDeviceFlowPorts) {
     deviceCode: string;
     clientId?: string;
     fetchImpl?: DeviceFetch;
-    bind?: boolean;
   }): Promise<DeviceCodePollResult> {
     const clientId = resolveClientId(opts.clientId);
     if (!clientId) {
@@ -124,10 +122,7 @@ export function createGithubDeviceFlow(ports: GithubDeviceFlowPorts) {
       error?: string;
       error_description?: string;
     };
-    if (json.access_token) {
-      if (opts.bind !== false) ports.bindToken(json.access_token);
-      return { status: "authorized", accessToken: json.access_token };
-    }
+    if (json.access_token) return { status: "authorized", accessToken: json.access_token };
     switch (json.error) {
       case "authorization_pending":
         return { status: "pending", message: json.error_description };

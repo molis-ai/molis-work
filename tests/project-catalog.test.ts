@@ -7,10 +7,8 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { catalogSchemaCompatibilityError, type MolisWorkProjectCatalog, MolisWorkProjectCatalogError, type RuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { insertHistoricalClaim, insertHistoricalRun } from "./historical-sql-fixture.js";
 
 async function withTemporaryDirectory<T>(run: (directory: string) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-project-catalog-"));
@@ -151,15 +149,15 @@ test("managed projects have immutable identities, duplicate names, and isolated 
       const second = await catalog.createProject({ display_name: "同名项目", actor_id: "user" });
       assert.notEqual(first.project_id, second.project_id);
       assert.notEqual(first.database_path, second.database_path);
-      assert.equal(first.board_id, first.project_id);
-      assert.equal(second.board_id, second.project_id);
+      assert.equal(first.project_id, first.project_id);
+      assert.equal(second.project_id, second.project_id);
       assert.equal(first.data_class, "user");
       assert.equal(catalog.listProjects().length, 2);
 
       const firstStore = new LocalProjectDatabase(first.database_path);
       try {
         new GoalProjectApplication(firstStore).goals.commands.createGoal(
-          first.board_id,
+          first.project_id,
           {
             goal_id: "only-first",
             title: "只在第一个项目",
@@ -184,7 +182,7 @@ test("managed projects have immutable identities, duplicate names, and isolated 
       }
       const secondStore = new LocalProjectDatabase(second.database_path);
       try {
-        assert.equal(secondStore.snapshot(second.board_id).goals.length, 0);
+        assert.equal(secondStore.snapshot(second.project_id).goals.length, 0);
       } finally {
         secondStore.close();
       }
@@ -213,7 +211,8 @@ test("demo data is classified, idempotently opened, reset, and removable without
       const created = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
       assert.equal(created.status, "created");
       assert.equal(created.project.data_class, "regenerable_demo");
-      assert.equal(created.project.board_id, DEMO_BOARD_ID);
+      assert.equal(created.project.project_id, DEMO_PROJECT_ID);
+      const demoId = created.project.project_id;
       assert.deepEqual(
         catalog.listProjectPlugins(created.project.project_id),
         ["artifacts", "coding", "feed", "goals", "inbox", "schedule", "sessions"],
@@ -224,8 +223,8 @@ test("demo data is classified, idempotently opened, reset, and removable without
 
       const demoStore = new LocalProjectDatabase(created.project.database_path);
       try {
-        const demoSnapshot = demoStore.snapshot(DEMO_BOARD_ID);
-        assert.equal(demoSnapshot.board.title, "让第一次使用 Molis Work 的人顺利完成一次目标协作");
+        const demoSnapshot = demoStore.snapshot(demoId);
+        assert.equal(demoSnapshot.board.title, "让第一次使用 Molis Work 的人在一个项目里用几个插件完成一件真实工作");
         assert.equal(
           demoSnapshot.goals.find((goal) => goal.goal_id === "V1")?.title,
           "让第一次使用的人顺利完成一轮目标协作",
@@ -234,11 +233,10 @@ test("demo data is classified, idempotently opened, reset, and removable without
           demoSnapshot.goals.find((goal) => goal.goal_id === "INTERFACES")?.title,
           "让不同 AI 对话看到同一项目进度",
         );
-        assert.equal(demoSnapshot.candidates.length, 0);
         const demoApp = new GoalProjectApplication(demoStore);
-        assert.equal(demoApp.goalEvents.isEventStateOwner(DEMO_BOARD_ID, "CORE"), true);
+        assert.equal(demoApp.goalEvents.isEventStateOwner(demoId, "CORE"), true);
         assert.match(
-          JSON.stringify(demoApp.goalEvents.listEvents(DEMO_BOARD_ID, "INTERFACES", { limit: 20 })),
+          JSON.stringify(demoApp.goalEvents.listEvents(demoId, "INTERFACES", { limit: 20 })),
           /升级前应先看到安全说明/,
         );
         assert.ok(demoSnapshot.goals.find((goal) => goal.goal_id === "AUTO-CONNECT")?.trashed_at);
@@ -249,13 +247,13 @@ test("demo data is classified, idempotently opened, reset, and removable without
           && relation.from_goal_id === "WEB-SCAN-NEST"
           && relation.to_goal_id === "WEB-SCAN-ROW",
         ));
-        const v1 = demoApp.goalEvents.readState(DEMO_BOARD_ID, "V1");
-        const decide = demoApp.goalEvents.readState(DEMO_BOARD_ID, "DECIDE");
-        const risk = demoApp.goalEvents.readState(DEMO_BOARD_ID, "RISK");
-        const dropped = demoApp.goalEvents.readState(DEMO_BOARD_ID, "DROPPED");
-        const graph = demoApp.goalEvents.readState(DEMO_BOARD_ID, "GRAPH");
-        const core = demoApp.goalEvents.readState(DEMO_BOARD_ID, "CORE");
-        const desktop = demoApp.goalEvents.readState(DEMO_BOARD_ID, "DESKTOP");
+        const v1 = demoApp.goalEvents.readState(demoId, "V1");
+        const decide = demoApp.goalEvents.readState(demoId, "DECIDE");
+        const risk = demoApp.goalEvents.readState(demoId, "RISK");
+        const dropped = demoApp.goalEvents.readState(demoId, "DROPPED");
+        const graph = demoApp.goalEvents.readState(demoId, "GRAPH");
+        const core = demoApp.goalEvents.readState(demoId, "CORE");
+        const desktop = demoApp.goalEvents.readState(demoId, "DESKTOP");
         assert.equal(core.work_status, "completed");
         assert.equal(graph.work_status, "completed");
         assert.equal(dropped.work_status, "cancelled");
@@ -265,7 +263,7 @@ test("demo data is classified, idempotently opened, reset, and removable without
         assert.ok(risk.concerns.some((concern) => concern.status === "open" && concern.blocks_closure));
         assert.equal(demoSnapshot.goals.filter((goal) => goal.trashed_at).map((goal) => goal.goal_id).join(","), "AUTO-CONNECT");
         new GoalProjectApplication(demoStore).goals.commands.createGoal(
-          DEMO_BOARD_ID,
+          demoId,
           {
             goal_id: "temporary-demo-change",
             title: "临时演示改动",
@@ -285,10 +283,10 @@ test("demo data is classified, idempotently opened, reset, and removable without
       assert.equal(reset.status, "reset");
       const resetStore = new LocalProjectDatabase(reset.project.database_path);
       try {
-        const resetSnapshot = resetStore.snapshot(DEMO_BOARD_ID);
+        const resetSnapshot = resetStore.snapshot(demoId);
         assert.equal(resetSnapshot.goals.some((goal) => goal.goal_id === "temporary-demo-change"), false);
         assert.ok(resetSnapshot.goals.find((goal) => goal.goal_id === "AUTO-CONNECT")?.trashed_at);
-        assert.equal(new GoalProjectApplication(resetStore).goalEvents.isEventStateOwner(DEMO_BOARD_ID, "CORE"), true);
+        assert.equal(new GoalProjectApplication(resetStore).goalEvents.isEventStateOwner(demoId, "CORE"), true);
       } finally {
         resetStore.close();
       }
@@ -380,7 +378,7 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
         actor_id: "runtime",
         user_confirmed: true,
       });
-      assert.equal(secondRuntime.connection?.board_id, initial.connection?.board_id);
+      assert.equal(secondRuntime.connection?.project_id, initial.connection?.project_id);
       assert.equal(secondRuntime.connection?.database_path, initial.connection?.database_path);
       assert.deepEqual(
         catalog.listRuntimeContextBindings().map((binding) => [
@@ -728,122 +726,6 @@ test("current Runtime can create and bind one new project without orphaning data
   });
 });
 
-test("existing Molis Work project catalogs migrate context-binding storage without touching project facts", async () => {
-  await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home", ".molis-work");
-    const created = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    const project = await created.createProject({ display_name: "迁移项目", actor_id: "user" });
-    created.close();
-
-    const databasePath = join(home, "projects", "catalog.db");
-    const legacy = new Database(databasePath);
-    try {
-      legacy.exec("DROP TABLE runtime_context_binding_events; DROP TABLE runtime_context_bindings;");
-      legacy.prepare("UPDATE catalog_meta SET value = '1' WHERE key = 'schema_version'").run();
-    } finally {
-      legacy.close();
-    }
-
-    const migrated = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    try {
-      assert.equal(migrated.getProject(project.project_id).database_path, project.database_path);
-      const resolution = migrated.bindRuntimeContext({
-        context: stableContext("codex", "migration-entry"),
-        project_id: project.project_id,
-        actor_id: "user",
-        user_confirmed: true,
-      });
-      assert.equal(resolution.connection?.project_id, project.project_id);
-      assert.equal(migrated.listRuntimeContextBindingEvents().length, 1);
-    } finally {
-      migrated.close();
-    }
-  });
-});
-
-test("v3 catalogs retain binding history while upgrading for unbind, deletion receipts, and suggestion rejection", async () => {
-  await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home", ".molis-work");
-    const context = stableContext("codex", "v3-history-entry");
-    const created = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    const project = await created.createProject({ display_name: "V3 历史项目", actor_id: "user" });
-    created.bindRuntimeContext({
-      context,
-      project_id: project.project_id,
-      actor_id: "runtime-codex",
-      user_confirmed: true,
-    });
-    created.close();
-
-    const databasePath = join(home, "projects", "catalog.db");
-    const legacy = new Database(databasePath);
-    try {
-      legacy.exec(`
-        ALTER TABLE runtime_context_binding_events RENAME TO runtime_context_binding_events_v4;
-        CREATE TABLE runtime_context_binding_events (
-          event_id TEXT PRIMARY KEY,
-          binding_id TEXT NOT NULL,
-          runtime_id TEXT NOT NULL,
-          stable_work_context_id TEXT NOT NULL,
-          type TEXT NOT NULL CHECK (type IN ('context.bound', 'context.rebound')),
-          previous_project_id TEXT,
-          project_id TEXT NOT NULL,
-          actor_id TEXT NOT NULL,
-          created_at TEXT NOT NULL
-        );
-        INSERT INTO runtime_context_binding_events (
-          event_id, binding_id, runtime_id, stable_work_context_id, type,
-          previous_project_id, project_id, actor_id, created_at
-        )
-        SELECT
-          event_id, binding_id, runtime_id, stable_work_context_id, type,
-          previous_project_id, project_id, actor_id, created_at
-        FROM runtime_context_binding_events_v4;
-        DROP TABLE runtime_context_binding_events_v4;
-        CREATE INDEX runtime_context_binding_events_context_idx
-          ON runtime_context_binding_events(runtime_id, stable_work_context_id, created_at, event_id);
-        DROP TABLE project_deletions;
-        DROP TABLE runtime_context_suggestion_rejections;
-        UPDATE catalog_meta SET value = '3' WHERE key = 'schema_version';
-      `);
-    } finally {
-      legacy.close();
-    }
-
-    const migrated = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    try {
-      assert.equal(migrated.resolveRuntimeContext(context).connection?.project_id, project.project_id);
-      assert.deepEqual(migrated.listRuntimeContextBindingEvents(context).map((event) => event.type), ["context.bound"]);
-      const unbound = migrated.unbindRuntimeContext({
-        context,
-        actor_id: "runtime-codex",
-        user_confirmed: true,
-      });
-      assert.equal(unbound.changed, true);
-      assert.deepEqual(
-        migrated.listRuntimeContextBindingEvents(context).map((event) => event.type),
-        ["context.bound", "context.unbound"],
-      );
-      const suggestionContext = stableContext("codex", "v3-new-session");
-      const suggested = migrated.resolveRuntimeContext(suggestionContext, [
-        { kind: "recent_project", value: project.project_id },
-      ]);
-      assert.equal(suggested.status, "suggested");
-      const rejected = migrated.rejectRuntimeContextSuggestion({
-        context: suggestionContext,
-        project_id: project.project_id,
-        actor_id: "runtime-codex",
-        user_confirmed: true,
-        suggestion_clues: [{ kind: "recent_project", value: project.project_id }],
-      });
-      assert.equal(rejected.resolution.status, "unbound");
-      assert.equal(migrated.getProject(project.project_id).board_id, project.board_id);
-    } finally {
-      migrated.close();
-    }
-  });
-});
-
 test("unbinding removes only the current Runtime entry and preserves the managed project", async () => {
   await withTemporaryDirectory(async (directory) => {
     const home = join(directory, "home", ".molis-work");
@@ -898,7 +780,7 @@ test("unbinding removes only the current Runtime entry and preserves the managed
   });
 });
 
-test("project deletion needs separate confirmation, protects active work, and records an idempotent receipt", async () => {
+test("project deletion needs separate confirmation and records an idempotent receipt", async () => {
   await withTemporaryDirectory(async (directory) => {
     const home = join(directory, "home", ".molis-work");
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
@@ -923,76 +805,6 @@ test("project deletion needs separate confirmation, protects active work, and re
         (error: unknown) =>
           error instanceof MolisWorkProjectCatalogError && error.code === "catalog.delete_confirmation_required",
       );
-
-      const store = new LocalProjectDatabase(project.database_path);
-      let runId = "";
-      try {
-        const coordinator = new GoalProjectApplication(store);
-        coordinator.goals.commands.createGoal(
-          project.board_id,
-          {
-            goal_id: "active-project-work",
-            title: "删除保护测试",
-            outcome: "删除期间不能丢失进行中的工作",
-            why: "验证项目删除门禁",
-            business_logic: "有有效 Claim 或未结束 Run 时，删除必须被拒绝。",
-            definition_state: "accepted",
-            decomposition_state: "closed_leaf",
-            acceptance_criteria: [
-              {
-                criterion_id: "active-project-work-check",
-                statement: "删除被拒绝",
-                decision_method: "automated_check",
-                pass_condition: "删除调用返回 active-work 拒绝",
-              },
-            ],
-          },
-          { actor_id: "user", idempotency_key: "create-active-project-work" },
-        );
-        insertHistoricalClaim(store.db, {
-          claim_id: "claim-active-project-work",
-          board_id: project.board_id,
-          goal_id: "active-project-work",
-          actor_id: "runtime-codex",
-          state: "active",
-          released_at: null,
-          release_reason: null,
-        });
-        insertHistoricalRun(store.db, {
-          run_id: "run-active-project-work",
-          board_id: project.board_id,
-          goal_id: "active-project-work",
-          claim_id: "claim-active-project-work",
-          actor_id: "runtime-codex",
-          state: "started",
-          ended_at: null,
-        });
-        runId = "run-active-project-work";
-      } finally {
-        store.close();
-      }
-
-      await assert.rejects(
-        () => catalog.deleteProject(deletionInput),
-        (error: unknown) =>
-          error instanceof MolisWorkProjectCatalogError && error.code === "catalog.project_active_work",
-      );
-      assert.equal(catalog.getProject(project.project_id).project_id, project.project_id);
-
-      const cleanupStore = new LocalProjectDatabase(project.database_path);
-      try {
-        new GoalProjectApplication(cleanupStore);
-        cleanupStore.db.prepare(`
-          UPDATE claims SET state = 'released', released_at = ?, release_reason = ?
-          WHERE claim_id = 'claim-active-project-work'
-        `).run("2026-09-02T00:10:00.000Z", "测试结束，允许删除");
-        cleanupStore.db.prepare(`
-          UPDATE runs SET state = 'abandoned', block_reason = ?, ended_at = ?
-          WHERE run_id = ?
-        `).run("测试结束，允许删除", "2026-09-02T00:10:00.000Z", runId);
-      } finally {
-        cleanupStore.close();
-      }
 
       const deleted = await catalog.deleteProject(deletionInput);
       assert.equal(deleted.replayed, false);

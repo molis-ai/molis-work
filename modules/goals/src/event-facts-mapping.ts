@@ -33,7 +33,7 @@ export function mapTimelineItem(records: GoalEventFactsRepository, row: StoredWo
 
 export function mapReportEvent(records: GoalEventFactsRepository, row: StoredWorkEvent): GoalReportWorkEventRecord {
   const type = row.type_id != null && row.type_version != null
-    ? records.getType(row.board_id, row.goal_id, row.type_id, row.type_version)
+    ? records.getType(row.project_id, row.goal_id, row.type_id, row.type_version)
     : null;
   return {
     ...workEventBase(row),
@@ -67,7 +67,7 @@ function mapConfigurationEvent(records: GoalEventFactsRepository, row: StoredWor
 function workEventBase(row: StoredWorkEvent) {
   return {
     event_id: row.event_id,
-    board_id: row.board_id,
+    project_id: row.project_id,
     goal_id: row.goal_id,
     title: row.title,
     actor_id: row.actor_id,

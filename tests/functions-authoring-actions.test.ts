@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { bindActionClient, type ActionCallContext, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { suggestedAuthoringBehaviors, type FunctionRecord, type TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { FunctionRecord, TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
 import { LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { functionAuthoringActions as authoring, functionContextActions, publishedFunctionAction, openFunctionsStore } from "@molis-ai/molis-work-module-functions";
@@ -77,8 +77,14 @@ test("publication checks live scene contracts and retains drafts after missing, 
     const removeSecond = register({ ...scene, version: 2, recommendation_labels: { ack: "Version two approval", later: "Version two deferral" } });
     await assert.rejects(actions.invoke(authoring.publish, { id: draft.id }), { code: "actions.scene_ambiguous" });
     const catalog = (await actions.invoke(functionContextActions.catalog, {})).catalog;
-    assert.deepEqual(suggestedAuthoringBehaviors(catalog, scene.scene_id, ["note"]), [], "old ID-only selection must not guess among versions");
-    assert.equal(suggestedAuthoringBehaviors(catalog, scene.scene_id, ["note"], { scene_version: 2, provider_id: "example.review" })[0]?.title, "Version two approval");
+    // Both versions are listed under one scene id, so a selection by id alone matches two destinations and the page (see
+    // tests/functions-plugin.test.ts) suggests nothing; a pinned version and provider match one, whose first suggestion is its own label.
+    const destinations = catalog.destinations.filter(row => row.destination_id === scene.scene_id);
+    assert.deepEqual(destinations.map(row => [row.scene_version, row.provider_id]), [[1, "example.review"], [2, "example.review"]], "old ID-only selection must not guess among versions");
+    const labelled = (version: number) => catalog.behaviors.filter(row => row.destination_id === scene.scene_id && row.scene_version === version && row.provider_id === "example.review");
+    assert.equal(destinations.find(row => row.scene_version === 2)?.behavior_ids[0], "ack");
+    assert.equal(labelled(2).find(row => row.behavior_id === "ack")?.title, "Version two approval");
+    assert.equal(labelled(1).find(row => row.behavior_id === "ack")?.title, "ack", "version one declares no label");
     const { function: pinned } = await actions.invoke(authoring.create, { primitive: "noul", name: "Pinned version" });
     await assert.rejects(actions.invoke(authoring.update, { id: pinned.id, patch: { scene_id: scene.scene_id, scene_version: 2 } }), { code: "functions.invalid" });
     await actions.invoke(authoring.update, { id: pinned.id, patch: { instructions: "Review", scene_id: scene.scene_id, scene_version: 2, scene_provider_id: "wrong-provider",
@@ -179,16 +185,16 @@ test("system rule authoring shares the real Host across HTTP and internal calls,
     await writeMcpActionGrant(home, createMcpActionGrant("runtime:codex", null, invokeView, true));
     for (const projectId of ["client-project-a", "client-project-b"]) {
       const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", {
-        projectId, boardId: projectId, databasePath: join(home, `${projectId}.sqlite`), webBaseUrl: origin,
+        projectId, databasePath: join(home, `${projectId}.sqlite`), webBaseUrl: origin,
       }, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: projectId, host_declares_stable: true } }, host);
       try {
-        const result = JSON.parse(await mcp.callTool("molis_work_v1_functions_invoke", { function_key: published[0]!.function_key, input: projectId }));
+        const result = JSON.parse(await mcp.callTool("molis_work_v1_action_functions.invoke__v1", { function_key: published[0]!.function_key, input: projectId }));
         assert.equal(result.data.choice, "yes");
       } finally { await mcp.close(); }
     }
     const history = openFunctionsStore(home);
     try {
-      assert.deepEqual(history.listJudgments().filter(row => row.subject.board_id).map(row => row.subject.board_id).sort(), ["client-project-a", "client-project-b"]);
+      assert.deepEqual(history.listJudgments().filter(row => row.subject.project_id).map(row => row.subject.project_id).sort(), ["client-project-a", "client-project-b"]);
     } finally { history.close(); }
   } finally {
     if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));

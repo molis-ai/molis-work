@@ -1,4 +1,6 @@
 export const IMAGES_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "图片生成记录和已生成的图片": "Image jobs and the pictures they made",
   "服务已保存，请先完成账号连接。": "Service saved. Connect an account to start generating.",
   "保留当前连接": "Keep the current connection",
   "连接不可用": "Connection unavailable",
@@ -79,4 +81,15 @@ export const IMAGES_EN: Record<string, string> = {
   "复制一份到你的 Shelf（个人空间），之后可以用于项目；这里的生成记录不变": "Copy it to your Shelf (personal space) to use in projects later; the generation record here stays as it is",
   "放进 Shelf 失败": "Couldn't add to Shelf",
   "这里会留下生成的图片与记录。": "Generated images and their records appear here.",
+  // plugins/native/images/src/client.ts
+  "本机无鉴权服务": "Local service without authentication",
+  "修改 API 基址或协议后，请重新选择账号连接。": "After changing the API base URL or format, choose the account connection again.",
+  "账号连接已保存；密钥在 Connectors 中管理。": "Account connection saved; the key is managed in Connectors.",
+  "密钥在 Connectors 中管理。": "The key is managed in Connectors.",
+  "删除这个生图服务？已有生成记录会保留。": "Delete this image service? Existing generation records are kept.",
+  "服务已删除。": "Service deleted.",
+  "删除这次生成记录和图片文件？": "Delete this generation record and its image files?",
+  // plugins/native/images/src/ui.ts
+  "API Key 在 Connectors 统一管理。": "API keys are managed in Connectors.",
+  "在 Connectors 管理图像 API Key": "Manage image API keys in Connectors",
 };

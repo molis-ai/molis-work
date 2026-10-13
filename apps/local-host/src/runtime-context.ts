@@ -19,7 +19,7 @@ export function runtimeContextHostFromEnvironment(
     webBaseUrl: readProductEnv("WEB_URL", environment) ?? "http://127.0.0.1:4173",
     molisWorkSessionId: signals.molis_work_session_id,
     nativeRuntimeSessionId: signals.native_runtime_session_id,
-    legacyWorkContextId: signals.legacy_work_context_id,
+    hostWorkContextId: readProductEnv("WORK_CONTEXT_ID", environment) || null,
     goalId: signals.goal_id,
     panelId: signals.surface_id,
     projectSuggestionClues: signals.project_suggestion_clues,
@@ -33,7 +33,7 @@ export function runtimeSessionHostSignalsFromEnvironment(
   const runtimeId = readProductEnv("RUNTIME_ID", environment) || null;
   if (!runtimeId) return null;
   const molisWorkSessionId = readProductEnv("SESSION_ID", environment) || null;
-  const legacyWorkContextId = readProductEnv("WORK_CONTEXT_ID", environment) || null;
+  const hostWorkContextId = readProductEnv("WORK_CONTEXT_ID", environment) || null;
   const nativeRuntimeSessionId = stableRuntimeSessionId(runtimeId, environment);
   const projectSuggestionClues: RuntimeProjectSuggestionClue[] = [];
   const workspace = environment.PWD?.trim() || currentWorkingDirectory.trim();
@@ -46,15 +46,14 @@ export function runtimeSessionHostSignalsFromEnvironment(
     runtime_id: runtimeId,
     molis_work_session_id: molisWorkSessionId,
     native_runtime_session_id: nativeRuntimeSessionId,
-    legacy_work_context_id: legacyWorkContextId,
     surface_id: readProductEnv("PANEL_ID", environment) || null,
     goal_id: readProductEnv("GOAL_ID", environment) || null,
     runtime_context: {
       runtime_id: runtimeId,
-      // Preserve legacy project-routing behavior while the Session Registry is
-      // additive. Native identity is carried separately above.
-      stable_work_context_id: legacyWorkContextId ?? nativeRuntimeSessionId,
-      host_declares_stable: legacyWorkContextId
+      // A work entry the host declared routes the Session by its own id; otherwise the native runtime session does.
+      // Native identity is carried separately above.
+      stable_work_context_id: hostWorkContextId ?? nativeRuntimeSessionId,
+      host_declares_stable: hostWorkContextId
         ? readProductEnv("WORK_CONTEXT_STABLE", environment) === "true"
         : nativeRuntimeSessionId != null,
       workspace: workspace && path.isAbsolute(workspace) ? canonicalWorkspaceContext(workspace) : null,
@@ -65,14 +64,13 @@ export function runtimeSessionHostSignalsFromEnvironment(
 
 export function sessionSignalsForHost(host: MolisWorkRuntimeContextHost): RuntimeSessionHostSignals {
   const stableId = host.runtimeContext.stable_work_context_id?.trim() || null;
-  const legacyWorkContextId = host.legacyWorkContextId?.trim()
+  const hostWorkContextId = host.hostWorkContextId?.trim()
     || (host.panelId && stableId === host.panelId ? stableId : null);
   return {
     runtime_id: host.runtimeContext.runtime_id,
     molis_work_session_id: host.molisWorkSessionId?.trim() || null,
     native_runtime_session_id: host.nativeRuntimeSessionId?.trim()
-      || (legacyWorkContextId ? null : stableId),
-    legacy_work_context_id: legacyWorkContextId,
+      || (hostWorkContextId ? null : stableId),
     surface_id: host.panelId?.trim() || null,
     goal_id: host.goalId?.trim() || null,
     runtime_context: host.runtimeContext,

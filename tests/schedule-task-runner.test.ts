@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { AgentHost, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
+import { AgentHost, emptyCapabilityMatrix, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { createHostScheduledTaskRunner } from "@molis-ai/molis-work-app-local-host";
-import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
+import type { AgentRuntimeAdapter, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 test("没有 Runtime 时到点执行说明原因", async () => {
   const runner = createHostScheduledTaskRunner({
     agentHost: new AgentHost(),
-    boardId: "board-1",
     projectId: "project-1",
     workspaceFor: async () => null,
   });
@@ -35,7 +35,7 @@ const workspace = async () => ({ canonical_path: "/tmp/schedule-project", realpa
 test("a schedule cancelled while waiting for the Home Runtime cannot create an Agent session", async () => {
   const opened: string[] = [], controller = new AbortController(), agentHost = new AgentHost();
   agentHost.register(fakeRuntime("prologue", opened));
-  const runner = createHostScheduledTaskRunner({ agentHost, boardId: "b", projectId: "p", workspaceFor: workspace,
+  const runner = createHostScheduledTaskRunner({ agentHost, projectId: "b", workspaceFor: workspace,
     ready: async () => { controller.abort(new Error("schedule paused")); } });
   await assert.rejects(runner.run({ title: "late", instructions: "wait", history: [] }, {
     signal: controller.signal, beforeEffect: () => controller.signal.throwIfAborted(),
@@ -43,7 +43,7 @@ test("a schedule cancelled while waiting for the Home Runtime cannot create an A
   assert.deepEqual(opened, []);
 });
 
-test("装了 Claude Code 也按 Prologue 跑：不按 Runtime 名字排序挑第一个", async () => {
+test("先注册了别的 Runtime 也按 Prologue 跑：不按 Runtime id 排序挑第一个", async () => {
   const opened: string[] = [];
   const agentHost = new AgentHost();
   agentHost.register(fakeRuntime("claude-code", opened));
@@ -52,7 +52,6 @@ test("装了 Claude Code 也按 Prologue 跑：不按 Runtime 名字排序挑第
     agentHost,
     // Prologue registers lazily; the runner waits for it instead of taking whatever is there now.
     ready: async () => { if (!registered) { registered = true; agentHost.register(fakeRuntime("prologue", opened)); } },
-    boardId: "board-1",
     projectId: "project-1",
     workspaceFor: workspace,
   });
@@ -60,11 +59,11 @@ test("装了 Claude Code 也按 Prologue 跑：不按 Runtime 名字排序挑第
   assert.deepEqual(opened, ["prologue"]);
 });
 
-test("只有 CLI Runtime、没有 Prologue 时不退回 CLI", async () => {
+test("只有别的 Runtime、没有 Prologue 时不退回去用它，报需要 Prologue", async () => {
   const opened: string[] = [];
   const agentHost = new AgentHost();
   agentHost.register(fakeRuntime("claude-code", opened));
-  const runner = createHostScheduledTaskRunner({ agentHost, boardId: "board-1", projectId: "project-1", workspaceFor: workspace });
+  const runner = createHostScheduledTaskRunner({ agentHost, projectId: "board-1", workspaceFor: workspace });
   await assert.rejects(() => runner.run({ title: "汇总", instructions: "看一眼", history: [] }), /需要 Prologue/);
   assert.deepEqual(opened, []);
 });
@@ -77,10 +76,31 @@ test("a scheduled run is given the memories the Host chose for it, as Agent work
   const runtime = fakeRuntime("prologue", opened);
   agentHost.register({ ...runtime, async createSession() { return { session_id: "s", runtime_id: "prologue" } as never; } });
   (agentHost as any).start = async (_id: string, _request: unknown, given: any) => { authority = given; throw new Error("stop:start"); };
-  const runner = createHostScheduledTaskRunner({ agentHost, boardId: "board-1", projectId: "project-1", workspaceFor: workspace,
+  const runner = createHostScheduledTaskRunner({ agentHost, projectId: "board-1", workspaceFor: workspace,
     memory: async (task, title) => { asked.push([task.slice(0, 10), title]); return { pinned: [{ scope: "project", owner: "project-1", memory_id: "m-1" }], budget_chars: 800, receipt_id: "r-1" }; } });
   await assert.rejects(() => runner.run({ title: "周报汇总", instructions: "汇总本周进展", history: [] }), /stop:start/);
   assert.ok(authority?.memory, "the run's authority carries the memory choice");
   assert.deepEqual(await authority.memory("汇总本周进展"), { pinned: [{ scope: "project", owner: "project-1", memory_id: "m-1" }], budget_chars: 800, receipt_id: "r-1" });
   assert.deepEqual(asked, [["汇总本周进展", "周报汇总"]]);
+});
+
+/** An Agent Host that keeps the authority each round is started with, then stops there. */
+class StartProbe extends AgentHost {
+  readonly starts: AgentStartAuthority[] = [];
+  override async start(_runtimeId: string, _request: AgentStartRequest, authority: AgentStartAuthority): Promise<never> {
+    this.starts.push(authority);
+    throw new Error("stop:start");
+  }
+}
+
+test("a scheduled round is started with the number of the tick that runs it, or one of its own when nothing opened one", async () => {
+  const agentHost = new StartProbe();
+  agentHost.register({ ...fakeRuntime("prologue", []), async createSession() { return { session_id: "s", runtime_id: "prologue" } as never; } });
+  const runner = createHostScheduledTaskRunner({ agentHost, projectId: "board-1", workspaceFor: workspace });
+  const tick = newCallId();
+  await assert.rejects(() => withCallId(tick, () => runner.run({ title: "周报", instructions: "汇总", history: [] })), /stop:start/);
+  await assert.rejects(() => runner.run({ title: "周报", instructions: "汇总", history: [] }), /stop:start/);
+  assert.equal(agentHost.starts[0]?.call_id, tick, "the round belongs to the tick that triggered it");
+  assert.match(agentHost.starts[1]?.call_id ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-/, "a round run outside any tick still has a number the Host gave");
+  assert.notEqual(agentHost.starts[1]?.call_id, tick);
 });

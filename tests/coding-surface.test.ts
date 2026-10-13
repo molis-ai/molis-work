@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
-  DEMO_BOARD_ID,
+  DEMO_PROJECT_ID,
   LocalProjectDatabase,
   codingDirectoryPanel,
   releaseCodingSurface,
@@ -31,7 +31,7 @@ function project(directory: string) {
 function ports(store: LocalProjectDatabase, goalTitle: (id: string) => string | undefined = () => undefined) {
   return {
     store,
-    boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID),
+    projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID),
     actorId: "web-user",
     goalTitle,
     escapeHtml,
@@ -44,7 +44,7 @@ test("面板来自运行中的插件，会话来自它自己的库", async () =>
   try {
     const store = project(directory);
     new CodingSessionStore(store.db).create({
-      board_id: DEMO_BOARD_ID,
+      project_id: DEMO_PROJECT_ID,
       session_id: "s1",
       title: "修好 runtime 连接提示",
       runtime_id: "claude-code",
@@ -60,7 +60,7 @@ test("面板来自运行中的插件，会话来自它自己的库", async () =>
     // Goal 标题是读时解析的，不是存在 Coding 自己表里的
     assert.match(surface!.panel, /让首次使用不再卡住/);
 
-    await releaseCodingSurface(store, DEMO_BOARD_ID);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID);
     store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -72,7 +72,7 @@ test("会话标题里的标记不会原样进页面", async () => {
   try {
     const store = project(directory);
     new CodingSessionStore(store.db).create({
-      board_id: DEMO_BOARD_ID,
+      project_id: DEMO_PROJECT_ID,
       session_id: "s1",
       title: '<img src=x onerror="alert(1)">',
       runtime_id: "claude-code",
@@ -83,7 +83,7 @@ test("会话标题里的标记不会原样进页面", async () => {
     assert.equal(surface?.panel.includes("<img src=x"), false);
     assert.match(surface!.panel, /&lt;img src=x/);
 
-    await releaseCodingSurface(store, DEMO_BOARD_ID);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID);
     store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -97,7 +97,7 @@ test("没有会话时给出插件自己的空状态，而不是一段空白", as
     const surface = await codingDirectoryPanel(ports(store));
     assert.notEqual(surface, null);
     assert.match(surface!.panel, /还没有编码会话/);
-    await releaseCodingSurface(store, DEMO_BOARD_ID);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID);
     store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -110,8 +110,8 @@ test("recovery receipt lists cross the formal HTTP surface without being rendere
   const { agentHostCapabilities } = await import("@molis-ai/molis-work-contracts/services/agent-host");
   const directory = mkdtempSync(join(tmpdir(), "coding-recovery-http-"));
   const store = project(directory), sessions = new CodingSessionStore(store.db);
-  sessions.create({ board_id: DEMO_BOARD_ID, session_id: "app", title: "中断", runtime_id: "prologue", at: "2026-09-20T00:00:00Z" });
-  sessions.setRuntimeSession(DEMO_BOARD_ID, "app", "sdk", "2026-09-20T00:00:00Z");
+  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "中断", runtime_id: "prologue", at: "2026-09-20T00:00:00Z" });
+  sessions.setRuntimeSession(DEMO_PROJECT_ID, "app", "sdk", "2026-09-20T00:00:00Z");
   const report = { session_id: "sdk", blockers: [], runs: [{ run_id: "run", version: 1, live: false, waiting: 0,
     can_close: true, blockers: [], operations: [{ effect_id: "effect", kind: "edit", summary: "cart.mjs", outcome: "not-dispatched" }] }] };
   const host = { ...ports(store), execution: { ready: async () => {}, models: async () => [] }, capabilities: {
@@ -134,6 +134,6 @@ test("recovery receipt lists cross the formal HTTP surface without being rendere
     assert.deepEqual(await response.json(), report);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
-    await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(directory, { recursive: true, force: true });
+    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(directory, { recursive: true, force: true });
   }
 });

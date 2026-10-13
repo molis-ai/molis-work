@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { SourcePort, SupplySignal } from "../../src/studio/domain/discovery/source.js";
 import { SqliteExplorationRepository } from "../../src/studio/server/db/exploration-repository.js";
-import { migrate } from "../../src/studio/server/db/migrate.js";
+import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
 import { openDatabase, type SqliteDatabase } from "../../src/studio/server/db/open-database.js";
 import { SqlitePulseRepository } from "../../src/studio/server/db/pulse-repository.js";
 import { createJobHandlers } from "../../src/studio/server/jobs/job-handlers.js";
@@ -71,7 +71,7 @@ describe("Market Pulse worker", () => {
 function setup(sources: readonly SourcePort[]) {
   temporary = createTempDatabase();
   database = openDatabase(temporary.path);
-  migrate(database);
+  applyStudioBaseline(database, ":memory:");
   seedResearchIdea(database);
   const now = "2026-07-31T10:00:00.000Z";
   let sequence = 0;

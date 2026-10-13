@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { DatasetPluginRouteTable, createDatasetRouteHandlers, datasetRouteErrorResponse,
+import { DatasetPluginRouteTable, createDatasetRouteHandlers,
   type DatasetRoutePorts, type DatasetPluginRouteRequest } from "@molis-ai/molis-work-plugin-dataset";
-import { dispatchNativePluginJsonHttp, writeNativePluginJsonResponse } from "./native-plugin-http.js";
+import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { withRewrittenPluginApi } from "./native-plugin-api.js";
 
 export async function handleDatasetNativePluginHttp(request: IncomingMessage, response: ServerResponse, url: URL,
@@ -13,7 +13,6 @@ export async function handleDatasetNativePluginHttp(request: IncomingMessage, re
   try { return await dispatchNativePluginJsonHttp(request, response, routed, {
     prefix: "/api/dataset",
     async handle(input) { return new DatasetPluginRouteTable(createDatasetRouteHandlers(await ports(input, { signal: controller.signal }))).handle(input); },
-    mapError: datasetRouteErrorResponse,
-  }); } catch (error) { writeNativePluginJsonResponse(response, datasetRouteErrorResponse(error)); return true; }
+  }); }
   finally { response.off("close", cancel); }
 }

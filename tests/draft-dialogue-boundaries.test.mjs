@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { checkDraftDialogueOwnership, checkDraftProposalOwnerSql, checkGoalTreeApplicationOwnership } from "../scripts/check-package-boundaries.mjs";
+import { checkDraftDialogueOwnership, checkGoalTreeApplicationOwnership } from "../scripts/check-package-boundaries.mjs";
 
 const read = file => readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
 for (const [method, port, file, action] of [
@@ -20,14 +20,6 @@ for (const [method, port, file, action] of [
   const typed = read("apps/local-host/src/project-capabilities.ts");
   assert.ok(typed.includes(`goalAction(runtime, goalsActions.${action},`));
   assert.equal(typed.includes(`coordinator.${port}.${method}(`), false, "typed transport cannot bypass action policy");
-});
-
-test("Draft owner guard rejects restoring cross-module proposal SQL", () => {
-  const source = read("modules/goals/src/goal-commands.ts");
-  assert.deepEqual(checkDraftProposalOwnerSql(source), []);
-  for (const sql of ["SELECT proposal_id FROM contract_proposals", "UPDATE contract_proposals SET state = 'superseded'"]) {
-    assert.match(checkDraftProposalOwnerSql(`${source}\nrepository.db.prepare(${JSON.stringify(sql)});`).join("\n"), /Governance records/);
-  }
 });
 
 test("retired draft dialogue facade and Host registrations stay removed", () => {

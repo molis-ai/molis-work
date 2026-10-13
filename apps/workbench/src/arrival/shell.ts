@@ -1,4 +1,6 @@
 import { renderCaption, renderWordmark, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { homePluginSideTabs, renderHomePluginNavigation } from "../home-plugin-navigation.js";
+import { renderSidePanel, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
 
 /**
  * The frame every arrival screen shares: a titlebar, a stage and the resident bottom bar on the desk. A screen is
@@ -63,7 +65,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
     const background = `<span class="arrival-bg"><button class="mw-btn mw-btn--ghost mw-btn--md background-tasks-button" data-slot="button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-slot="button-label">${L("后台任务")}</span></button><span data-background-tasks-count hidden>0</span></span>`;
     const theme = options.theme
       ? `<span class="arrival-theme"><button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" id="cx-theme" aria-label="${L("切换主题")}">${icon("switch")}<span data-slot="button-label">${L("切换主题")}</span></button></span>` : "";
-    const global = options.tools === false ? "" : `<span class="arrival-global">${background}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}</span>`;
+    const global = options.tools === false ? "" : `<span class="arrival-global">${renderHomePluginNavigation(path => href(desktopShell, path))}${background}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}</span>`;
     return `<nav class="arrival-tools" aria-label="${L("全局")}">${theme}${global}</nav>`;
   }
 
@@ -79,6 +81,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   }
 
   function document(options: ArrivalDocumentOptions): string {
+    const side = options.titlebar.includes("data-side-plugin-open") ? renderSidePanel(p, homePluginSideTabs(), false) : "";
     return `<!doctype html>
 <html lang="${p.htmlLang()}">
 <head>
@@ -88,16 +91,18 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   <title>${escapeHtml(options.title)}</title>
   <script>${p.themeBootstrapScript}</script>
   <link rel="stylesheet" href="/assets/molis-work-arrival.css">
+  ${side ? `<style>${SIDE_PANEL_STYLES}body.immersive-workbench.arrival-page{--desktop-titlebar-height:var(--arrival-titlebar-h)}</style>` : ""}
 </head>
 <body class="arrival-page immersive-workbench" data-arrival="${options.screen}"${options.desktopShell ? ' data-native-desktop="true"' : ""}${options.bodyAttrs ?? ""}>
   ${p.renderIconSprite()}
-  <div class="arrival" data-screen="${options.screen}">
+  <div class="arrival" data-workspace data-screen="${options.screen}">
     ${options.titlebar}
     ${options.stage}
     ${options.bar}
+    ${side}
   </div>
   ${options.after ?? ""}
-  <script>${options.scripts}</script>
+  <script>${options.scripts}${side ? SIDE_PANEL_SCRIPT : ""}</script>
 </body>
 </html>`;
   }

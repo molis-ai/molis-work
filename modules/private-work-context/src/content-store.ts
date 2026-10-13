@@ -9,6 +9,8 @@ import path from "node:path";
 
 const ALG = "aes-256-gcm" as const;
 const CONTENT_REF = /^molis-work-session\/sha256\/([0-9a-f]{64})$/u;
+/** Where a block lives under `blobs/`, as `blobPath` lays it out: the first two hex digits are the directory. */
+const BLOB_FILE = /^([0-9a-f]{2})\/([0-9a-f]{64})\.blob$/u;
 const MAX_CONTENT_BYTES = 512 * 1024;
 
 interface SealedSessionContent {
@@ -23,6 +25,10 @@ export interface SessionContentStore {
   write(content: string): { content_ref: string };
   read(contentRef: string): string;
   has(contentRef: string): boolean;
+  /** Deletes one blob (the owner calls this only for content no row names any more); a blob that is not there is not an error. */
+  remove(contentRef: string): void;
+  /** The reference of every block on disk, whether or not a row names it; a file under `blobs/` that is not a block's own is not listed. */
+  list(): string[];
 }
 
 export function createSessionContentStore(rootDirectory: string): SessionContentStore {
@@ -105,6 +111,15 @@ export function createSessionContentStore(rootDirectory: string): SessionContent
       } catch {
         return false;
       }
+    },
+    remove(contentRef) {
+      fs.rmSync(blobPath(blobsRoot, contentRef), { force: true });
+    },
+    list() {
+      return listBlobFiles(blobsRoot).flatMap((entry) => {
+        const match = BLOB_FILE.exec(entry.split(path.sep).join("/"));
+        return match && match[2]!.startsWith(match[1]!) ? [`molis-work-session/sha256/${match[2]}`] : [];
+      });
     },
   };
 }

@@ -74,31 +74,23 @@ test("malformed HTML cannot block the Host deadline; cancellation releases its w
   assert.deepEqual(await readMaterialHtml("<head><title>OK</title></head><p>Recovered</p>"), { title: "OK", text: "Recovered" });
   assert.equal(ports(), initial);
 });
-test("revoked or aborted uploads cannot leave partial copies", async () => {
+test("read, revoked and aborted uploads leave nothing in the Home", async () => {
   const home = mkdtempSync(path.join(tmpdir(), "molis-material-ref-"));
   try {
-    const original = Buffer.from("# 原始材料\n保持原件"), upload = { file_name: "old.md", data_base64: original.toString("base64") };
-    const saved = await extractJellyMaterial(home, upload);
-    const file = path.join(home, "lingguang", "imports", `${saved.source_sha256}.md`);
-    assert.deepEqual(readFileSync(file), original);
+    const upload = { file_name: "old.md", data_base64: Buffer.from("# 原始材料\n保持原件").toString("base64") };
+    assert.equal((await extractJellyMaterial(home, upload)).text, "# 原始材料\n保持原件");
+    assert.deepEqual(readdirSync(home), [], "the text is returned; the upload itself is not kept");
     const cancelled = new AbortController();
     await assert.rejects(extractJellyMaterial(home, { file_name: "cancel.md", data_base64: Buffer.from("NEW COPY").toString("base64") }, {
-      signal: cancelled.signal, beforeEffect() {
-        const staging = readdirSync(path.join(home, "lingguang")).find(name => name.startsWith("material-upload-"));
-        if (staging && existsSync(path.join(home, "lingguang", staging, "source"))) cancelled.abort();
-      },
+      signal: cancelled.signal, beforeEffect() { cancelled.abort(); },
     }), /已取消/);
-    assert.deepEqual(readdirSync(path.dirname(file)), [`${saved.source_sha256}.md`]);
     const revoked = new Error("permission revoked");
     await assert.rejects(extractJellyMaterial(home, upload, { beforeEffect() { throw revoked; } }), error => error === revoked);
-    assert.deepEqual(readFileSync(file), original);
-    assert.ok(!readdirSync(path.join(home, "lingguang")).some(name => name.startsWith("material-upload-")));
     const simultaneous = await Promise.all(Array.from({ length: 8 }, () => extractJellyMaterial(home, {
       file_name: "simultaneous.txt", data_base64: Buffer.from("same concurrent content").toString("base64"),
     })));
-    assert.ok(simultaneous.every(result => result.source_sha256 === simultaneous[0]!.source_sha256));
-    assert.equal(readdirSync(path.dirname(file)).length, 2);
-    assert.equal(readFileSync(path.join(path.dirname(file), simultaneous[0]!.source_sha256 + ".txt"), "utf8"), "same concurrent content");
+    assert.ok(simultaneous.every(result => result.text === "same concurrent content"));
+    assert.deepEqual(readdirSync(home), []);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 test("native cancellation kills the child and cleans its actual temporary input and run directory", async () => {

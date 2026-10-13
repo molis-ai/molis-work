@@ -1,6 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { isLoopbackHostname, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { L } from "./web-locale.js";
+import { withRecordedCallId } from "./call-id-response.js";
 
 /**
  * A person's own navigation to a top-level page (address bar, link, refresh, history), as the browser reports it. A page's
@@ -20,11 +22,13 @@ export function requestHeader(request: IncomingMessage, name: string): string | 
 }
 
 export function sendLocalWebJson(response: ServerResponse, status: number, value: unknown): void {
+  const answer = withRecordedCallId(status, value);
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
+    ...answer.headers,
   });
-  response.end(JSON.stringify(value));
+  response.end(JSON.stringify(answer.body));
 }
 
 export type LocalMutationState = "in_flight" | "complete";
@@ -37,21 +41,32 @@ function isEventCommandReplayPath(pathname: string): boolean {
     || /(?:^|\/)api\/goal-tree-proposals\/[^/]+\/decision$/.test(pathname);
 }
 
-function localHostname(value: string): boolean {
-  const hostname = value.toLowerCase();
-  return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "[::1]" || hostname === "::1";
+/** The `host:port` the request was addressed to when that is this machine, else null (DNS rebinding; security invariant S-02). */
+export function requestHost(request: IncomingMessage): string | null {
+  return loopbackHost(request.headers.host);
 }
 
-export function requestHost(request: IncomingMessage): string | null {
-  const value = request.headers.host?.trim();
-  if (!value) return null;
-  try {
-    const parsed = new URL(`http://${value}`);
-    return localHostname(parsed.hostname) ? parsed.host : null;
-  } catch {
-    return null;
-  }
+/**
+ * What every request of the web host meets before any route (S-02, S-21). The answer is marked as one that no other origin's frame may show
+ * (clickjacking: the pages hold the control token, and the plugin Studio's pages set no CSP of their own, so the rule is made once, here);
+ * and a request not addressed to this machine by a loopback name is refused with 403 (DNS rebinding). Returns true when it has answered.
+ */
+export function refuseForeignRequest(request: IncomingMessage, response: ServerResponse): boolean {
+  response.setHeader("x-frame-options", "SAMEORIGIN");
+  if (requestHost(request)) return false;
+  sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
+  return true;
 }
+
+/**
+ * Mutations the control token guards: the API of the host and of a project. A state-changing request anywhere else is
+ * refused rather than left to a handler that forgot to ask for the token (S-03). The IM mount (`/im/…`) is the one other
+ * place that accepts a POST: it checks Host, Origin, Fetch Metadata and its own session itself (server/src/http.ts).
+ */
+function isGuardedMutationPath(pathname: string): boolean {
+  return pathname.startsWith("/api/") || /^\/projects\/[^/]+\/api(?:\/|$)/.test(pathname);
+}
+const SELF_GUARDED_MOUNT = /^\/im(?:\/|$)/;
 
 function controlTokenMatches(expected: string, actual: string | undefined): boolean {
   if (typeof actual !== "string") return false;
@@ -73,9 +88,11 @@ export function authorizeLocalWebRequest(
     return false;
   }
   if (!request.method || ["GET", "HEAD"].includes(request.method)) return true;
-  const isApiMutation = url.pathname.startsWith("/api/")
-    || /^\/projects\/[^/]+\/api(?:\/|$)/.test(url.pathname);
-  if (!isApiMutation) return true;
+  if (!isGuardedMutationPath(url.pathname)) {
+    if (SELF_GUARDED_MOUNT.test(url.pathname)) return true;
+    sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
+    return false;
+  }
   const originValue = request.headers.origin;
   let origin: URL;
   try {
@@ -85,7 +102,7 @@ export function authorizeLocalWebRequest(
     sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
     return false;
   }
-  if (origin.protocol !== "http:" || !localHostname(origin.hostname) || origin.host !== host) {
+  if (origin.protocol !== "http:" || !isLoopbackHostname(origin.hostname) || origin.host !== host) {
     sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
     return false;
   }
@@ -112,7 +129,10 @@ export function authorizeLocalWebRequest(
     return false;
   }
   mutationKeys.set(idempotencyKey, "in_flight");
-  response.once("finish", () => {
+  let settled = false;
+  const settle = () => {
+    if (settled) return;
+    settled = true;
     if (response.statusCode >= 200 && response.statusCode < 400) {
       mutationKeys.set(idempotencyKey, "complete");
       while (mutationKeys.size > 4096) {
@@ -123,19 +143,32 @@ export function authorizeLocalWebRequest(
     } else {
       mutationKeys.delete(idempotencyKey);
     }
+  };
+  response.once("finish", settle);
+  // A client that goes away (a closed dialog, a timeout) before the answer is written never makes the response "finish", yet
+  // the handler still runs to its end. The key settles with what the handler ends the response with, not with the socket:
+  // until then it stays in flight, and the retry the page really makes is not refused for good.
+  response.once("close", () => {
+    if (settled) return;
+    if (response.writableEnded) return settle();
+    const end = response.end;
+    response.end = function (this: ServerResponse, ...args: Parameters<ServerResponse["end"]>) { const result = end.apply(this, args); settle(); return result; } as ServerResponse["end"];
   });
   return true;
 }
 
-export function readLocalWebBody(request: IncomingMessage): Promise<Record<string, unknown>> {
+export function readLocalWebBody(request: IncomingMessage, maximumBytes = 256_000): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
-    let body = "";
+    let body = "", bytes = 0, rejected = false;
     request.setEncoding("utf8");
     request.on("data", (chunk) => {
+      if (rejected) return;
+      bytes += Buffer.byteLength(chunk, "utf8");
+      if (bytes > maximumBytes) { rejected = true; body = ""; reject(new RangeError("请求内容过大")); return; }
       body += chunk;
-      if (body.length > 256_000) reject(new Error("请求内容过大"));
     });
     request.on("end", () => {
+      if (rejected) return;
       try {
         resolve(body ? (JSON.parse(body) as Record<string, unknown>) : {});
       } catch {

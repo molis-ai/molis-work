@@ -4,18 +4,18 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
-import { seedDemoBoard, DEMO_BOARD_ID } from '../apps/local-host/src/demo-seed.js';
+import { seedDemoBoard, DEMO_PROJECT_ID } from '../apps/local-host/src/demo-seed.js';
 import { scheduleServiceFor } from '../apps/local-host/src/schedule-runtime.js';
 import { createLocalFeedApplication } from '../apps/local-host/src/feed-application.js';
 import { createScheduleReminders, deliverScheduleReminder, getScheduleReminder, reminderActions, SCHEDULE_REMINDER_PROVIDER_ID } from '@molis-ai/molis-work-plugin-schedule';
-import { pluginInstallationGeneration, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
+import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { studioStorage } from '../apps/local-host/src/plugin-builder/storage.js';
-import { deliverHostReminder, hostScheduleReminders, LEGACY_REMINDER_OWNER, LEGACY_REMINDER_WAKEUP } from '../apps/local-host/src/schedule-reminders.js';
+import { deliverHostReminder, hostScheduleReminders } from '../apps/local-host/src/schedule-reminders.js';
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from '../apps/local-host/src/project-host.js';
 
 function installation(install_id = 'install-1', plugin_id = 'io.molis.work.generated.a', installed_at = '2026-01-01T00:00:00.000Z'): PluginInstanceRecord {
-  return { install_id, plugin_id, version: '1.0.0', publisher_id: 'test', publisher_signature: 'test', manifest_digest: 'test',
+  return { install_id, installation_generation: install_id + '@' + installed_at, plugin_id, version: '1.0.0', publisher_id: 'test', publisher_signature: 'test', manifest_digest: 'test',
     deployment: 'local', selected_entrypoint: './plugin.mjs', grants: ['storage:private'], execution: 'sandbox', state: 'running', recovery_count: 0,
     last_error_code: null, installed_at, updated_at: installed_at, uninstalled_at: null, retain_private_data: false };
 }
@@ -28,9 +28,9 @@ test('a plugin reminder reaches the Inbox at its time, under the plugin\'s name,
     let clock = Date.parse('2026-09-27T00:00:00Z');
     const schedule = scheduleServiceFor(store.db, () => new Date(clock));
     new SqlitePluginRuntimeRepository(store.db).save(installation());
-    const reminders = createScheduleReminders({ db: store.db, boardId: DEMO_BOARD_ID, projectId: 'p', schedule, now: () => clock,
-      describe: identity => ({ title: '论语日课', link: '/plugins/' + identity.pluginId, generation: pluginInstallationGeneration(installation()) }) });
-    const plugin = { projectId: 'p', installationId: 'install-1', pluginId: 'io.molis.work.generated.a', namespace: 'installed' as const };
+    const reminders = createScheduleReminders({ db: store.db, projectId: DEMO_PROJECT_ID, schedule, now: () => clock,
+      describe: identity => ({ title: '论语日课', link: '/plugins/' + identity.pluginId, generation: installation().installation_generation }) });
+    const plugin = { projectId: DEMO_PROJECT_ID, installationId: 'install-1', pluginId: 'io.molis.work.generated.a', namespace: 'installed' as const };
     const other = { ...plugin, installationId: 'install-2', pluginId: 'io.molis.work.generated.b' };
 
     assert.throws(() => reminders.add(plugin, { at: '2026-09-27 08:00', text: '复习' }), /带时区的时间/);
@@ -42,10 +42,10 @@ test('a plugin reminder reaches the Inbox at its time, under the plugin\'s name,
 
     clock = Date.parse('2026-09-27T00:30:00Z');
     await schedule.tick(new Date(clock));
-    const inbox = () => createLocalFeedApplication(store.db).snapshot(DEMO_BOARD_ID).feed_items.filter(item => item.source_id === 'plugin-reminders');
+    const inbox = () => createLocalFeedApplication(store.db).snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === 'plugin-reminders');
     assert.deepEqual(inbox().map(item => item.title), ['论语日课：复习《学而》第一章']);
     assert.equal(inbox()[0]!.url, '/plugins/io.molis.work.generated.a', 'the reminder opens the plugin');
-    const entries = (createLocalFeedApplication(store.db).snapshot(DEMO_BOARD_ID) as unknown as { inbox_entries: Array<{ subject_id: string; status: string }> }).inbox_entries;
+    const entries = (createLocalFeedApplication(store.db).snapshot(DEMO_PROJECT_ID) as unknown as { inbox_entries: Array<{ subject_id: string; status: string }> }).inbox_entries;
     assert.ok(entries.some(entry => entry.subject_id === inbox()[0]!.item_id && entry.status === 'open'), 'it waits in the Inbox');
     assert.deepEqual(reminders.cancel(plugin, { reminderId }), { cancelled: false }, 'a one-off reminder is gone once delivered');
 
@@ -60,9 +60,9 @@ test('a plugin reminder reaches the Inbox at its time, under the plugin\'s name,
 test('Host discovers and executes Schedule reminders without opening Studio; reopen delivers once and another Home stays isolated', async () => {
   const home = await mkdtemp(join(tmpdir(), 'schedule-reminder-host-'));
   const paths = [join(home, 'one.db'), join(home, 'two.db')]; paths.forEach(path => seedDemoBoard(path));
-  const refs = paths.map(databasePath => molisWorkHostProjectReference({ databasePath, boardId: DEMO_BOARD_ID, projectId: 'same-project' }));
+  const refs = paths.map(databasePath => molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID }));
   const hosts = [new MolisWorkLocalHost({ projectRoutePrefix: () => '' }), new MolisWorkLocalHost()];
-  const caller = { actor_id: 'plugin:io.molis.work.generated.a', project_id: 'same-project', audience: 'plugin' as const, plugin_install_id: 'install-1', permissions: [] };
+  const caller = { actor_id: 'plugin:io.molis.work.generated.a', project_id: DEMO_PROJECT_ID, audience: 'plugin' as const, plugin_install_id: 'install-1', permissions: [] };
   const at = Date.now() + 1000;
   try {
     for (let i = 0; i < hosts.length; i++) await hosts[i]!.withProject(refs[i]!, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).save(installation()));
@@ -76,57 +76,20 @@ test('Host discovers and executes Schedule reminders without opening Studio; reo
     for (let i = 0; i < hosts.length; i++) await hosts[i]!.withProject(refs[i]!, async runtime => {
       const schedule = scheduleServiceFor(runtime.store.db);
       await schedule.tick(new Date(at + 1000)); await schedule.tick(new Date(at + 1000));
-      const items = createLocalFeedApplication(runtime.store.db).snapshot(DEMO_BOARD_ID).feed_items.filter(item => item.source_id === 'plugin-reminders');
+      const items = createLocalFeedApplication(runtime.store.db).snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === 'plugin-reminders');
       assert.equal(items.length, i === 0 ? 1 : 0);
       if (i === 0) { assert.equal(items[0]!.summary, '只给第一个 Home'); assert.equal(items[0]!.url, '/plugins/io.molis.work.generated.a', 'the standalone project retains its real route'); assert.equal(getScheduleReminder(runtime.store.db, reminderId), null); }
     });
   } finally { await Promise.all(hosts.map(host => host.close())); await rm(home, { recursive: true, force: true }); }
 });
 
-test('legacy reminders migrate atomically with their original job and receipt; a reinstall cannot acquire them', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'schedule-reminder-legacy-')), path = join(home, 'project.db'); seedDemoBoard(path);
-  let store = new LocalProjectDatabase(path);
-  const clock = Date.parse('2026-09-27T00:00:00Z');
-  try {
-    const schedule = scheduleServiceFor(store.db, () => new Date(clock));
-    const repository = new SqlitePluginRuntimeRepository(store.db); repository.save(installation());
-    repository.save(installation('new-install', 'reinstalled-plugin', '2026-09-28T00:00:00Z'));
-    const storage = studioStorage(store.db, DEMO_BOARD_ID), records = [];
-    for (const [id, pluginId] of [['legacy', installation().plugin_id], ['ambiguous', 'reinstalled-plugin']]) {
-      const job = schedule.register({ plugin_id: LEGACY_REMINDER_OWNER, capability_id: LEGACY_REMINDER_WAKEUP, object_ref: DEMO_BOARD_ID + '|' + id,
-        title: '旧提醒', due_at: '2026-09-27T01:00:00.000Z', recurrence: { kind: 'interval', interval_ms: 86_400_000 } });
-      const record = { id, boardId: DEMO_BOARD_ID, pluginId, pluginTitle: '旧插件', text: '兼容提醒', link: '/old-link', jobId: job.job_id, repeat: 'daily', at: job.next_due_at };
-      storage.set('plugin-builder:reminder:' + id, JSON.stringify(record)); storage.set('plugin-builder:reminders:' + pluginId, JSON.stringify([id]));
-      records.push({ job, record });
-    }
-    store.close(); store = new LocalProjectDatabase(path);
-    const migrated = scheduleServiceFor(store.db, () => new Date(clock));
-    const migratedJob = migrated.get(records[0]!.job.job_id)!;
-    assert.deepEqual({ ...migratedJob, enabled: records[0]!.job.enabled, updated_at: records[0]!.job.updated_at }, records[0]!.job, 'pausing does not re-register the job or reset its due time or receipt');
-    assert.equal(migratedJob.enabled, false, 'legacy Runtime reused timestamps too, so an old timestamp is not proof');
-    assert.equal(getScheduleReminder(store.db, 'legacy')?.installationId, null);
-    assert.equal(getScheduleReminder(store.db, 'ambiguous')?.installationId, null);
-    assert.equal(migrated.get(records[1]!.job.job_id)?.enabled, false, 'unproven ownership preserves and pauses the old reminder');
-    assert.equal(studioStorage(store.db, DEMO_BOARD_ID).get('plugin-builder:reminder:legacy'), null);
-    const again = scheduleServiceFor(store.db, () => new Date(clock));
-    await again.tick(new Date('2026-09-27T02:00:00Z'));
-    const after = again.get(records[0]!.job.job_id)!;
-    assert.equal(after.next_due_at, '2026-09-27T01:00:00.000Z'); assert.equal(after.last_wakeup, null);
-    const receipt = after.last_wakeup;
-    assert.deepEqual(scheduleServiceFor(store.db).get(after.job_id)?.last_wakeup, receipt, 'repeated migration does not reset a receipt');
-    const items = createLocalFeedApplication(store.db).snapshot(DEMO_BOARD_ID).feed_items.filter(item => item.source_id === 'plugin-reminders');
-    assert.equal(items.length, 0, 'migration cannot deliver under an unproven installation identity');
-    assert.equal(getScheduleReminder(store.db, 'legacy')?.link, '/old-link');
-  } finally { store.close(); await rm(home, { recursive: true, force: true }); }
-});
-
 test('reminder registration, cancellation and Inbox delivery roll back on real persistence or lease failures', async () => {
   const home = await mkdtemp(join(tmpdir(), 'schedule-reminder-atomic-')), path = join(home, 'project.db'); seedDemoBoard(path);
   const store = new LocalProjectDatabase(path), clock = Date.parse('2026-09-27T00:00:00Z');
   try {
-    const schedule = scheduleServiceFor(store.db, () => new Date(clock)), identity = { projectId: 'p', installationId: 'install-1', pluginId: installation().plugin_id };
+    const schedule = scheduleServiceFor(store.db, () => new Date(clock)), identity = { projectId: DEMO_PROJECT_ID, installationId: 'install-1', pluginId: installation().plugin_id };
     new SqlitePluginRuntimeRepository(store.db).save(installation());
-    const options = { db: store.db, boardId: DEMO_BOARD_ID, projectId: 'p', schedule, now: () => clock, describe: () => ({ title: '插件', link: '/plugin', generation: pluginInstallationGeneration(installation()) }) };
+    const options = { db: store.db, projectId: DEMO_PROJECT_ID, schedule, now: () => clock, describe: () => ({ title: '插件', link: '/plugin', generation: installation().installation_generation }) };
     const reminders = createScheduleReminders(options);
     store.db.exec("CREATE TRIGGER refuse_reminder BEFORE INSERT ON schedule_plugin_reminders BEGIN SELECT RAISE(ABORT, 'disk-write-failed'); END");
     assert.throws(() => reminders.add(identity, { at: new Date(clock).toISOString(), text: 'fail' }), /disk-write-failed/);
@@ -141,10 +104,10 @@ test('reminder registration, cancellation and Inbox delivery roll back on real p
     let checks = 0;
     assert.throws(() => deliverHostReminder(store.db, input, { signal: new AbortController().signal, beforeEffect() { if (++checks === 2) throw new Error('lease-revoked'); } }), /lease-revoked/);
     assert.ok(getScheduleReminder(store.db, reminderId));
-    assert.equal(createLocalFeedApplication(store.db).snapshot(DEMO_BOARD_ID).feed_items.filter(item => item.source_id === 'plugin-reminders').length, 0, 'a late refusal rolls back Inbox and source creation');
+    assert.equal(createLocalFeedApplication(store.db).snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === 'plugin-reminders').length, 0, 'a late refusal rolls back Inbox and source creation');
     await schedule.tick(new Date(clock));
     assert.equal(getScheduleReminder(store.db, reminderId), null);
-    assert.equal(createLocalFeedApplication(store.db).snapshot(DEMO_BOARD_ID).feed_items.filter(item => item.source_id === 'plugin-reminders').length, 1);
+    assert.equal(createLocalFeedApplication(store.db).snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === 'plugin-reminders').length, 1);
     assert.equal(deliverScheduleReminder(store.db, input, { signal: new AbortController().signal, beforeEffect() {} }, { currentInstallation: () => true, deliver() { assert.fail('consumed reminder must not deliver again'); } }).detail, '提醒已取消');
   } finally { store.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -156,15 +119,15 @@ test('a reused installation id cannot cancel or deliver the previous generation\
     const repository = new SqlitePluginRuntimeRepository(store.db), original = { ...installation(), installation_generation: 'first-confirmed-install' };
     repository.save(original);
     const schedule = scheduleServiceFor(store.db, () => new Date(clock));
-    const reminders = hostScheduleReminders({ db: store.db, boardId: DEMO_BOARD_ID, projectId: 'p', schedule, now: () => clock });
-    const identity = { projectId: 'p', pluginId: original.plugin_id, installationId: original.install_id };
+    const reminders = hostScheduleReminders({ db: store.db, projectId: DEMO_PROJECT_ID, schedule, now: () => clock });
+    const identity = { projectId: DEMO_PROJECT_ID, pluginId: original.plugin_id, installationId: original.install_id };
     const input = { at: new Date(clock + 1000).toISOString(), text: 'original owner' };
     const old = reminders.add(identity, input);
     // Simulate an orphan left by a legacy uninstall: every old identity field including the timestamp is reused.
     repository.save({ ...original, installation_generation: 'confirmed-reinstall' });
     assert.deepEqual(reminders.cancel(identity, old), { cancelled: false });
     await schedule.tick(new Date(clock + 2000));
-    const inbox = () => createLocalFeedApplication(store.db).snapshot(DEMO_BOARD_ID).feed_items.filter(item => item.source_id === 'plugin-reminders');
+    const inbox = () => createLocalFeedApplication(store.db).snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === 'plugin-reminders');
     assert.equal(inbox().length, 0, 'the old installation cannot create an Inbox item under the new consent');
     assert.equal(getScheduleReminder(store.db, old.reminderId)?.installationGeneration, original.installation_generation);
     const failed = schedule.get(getScheduleReminder(store.db, old.reminderId)!.jobId)!.last_wakeup;
@@ -174,41 +137,5 @@ test('a reused installation id cannot cancel or deliver the previous generation\
     await schedule.tick(new Date(clock + 2000));
     assert.deepEqual(inbox().map(item => item.summary), ['current owner']);
     assert.equal(getScheduleReminder(store.db, fresh.reminderId), null);
-  } finally { store.close(); await rm(home, { recursive: true, force: true }); }
-});
-
-test('legacy Schedule reminders stay preserved and paused because old timestamps cannot prove either original or reinstalled ownership', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'reminder-generation-migration-')), path = join(home, 'project.db'); seedDemoBoard(path);
-  const store = new LocalProjectDatabase(path), clock = Date.parse('2026-09-27T00:00:00Z');
-  try {
-    const repository = new SqlitePluginRuntimeRepository(store.db), original = installation(), other = installation('reused-id', 'other-plugin');
-    repository.save(original); repository.save(other);
-    const schedule = scheduleServiceFor(store.db, () => new Date(clock));
-    const reminders = hostScheduleReminders({ db: store.db, boardId: DEMO_BOARD_ID, projectId: 'p', schedule, now: () => clock });
-    const records = [original, other].map(record => {
-      const { reminderId } = reminders.add({ projectId: 'p', pluginId: record.plugin_id, installationId: record.install_id }, { at: new Date(clock + 1000).toISOString(), text: record.plugin_id, repeat: 'daily' });
-      const reminder = getScheduleReminder(store.db, reminderId)!, { installationGeneration: _generation, ...legacy } = reminder;
-      store.db.prepare('UPDATE schedule_plugin_reminders SET record_json = ? WHERE id = ?').run(JSON.stringify(legacy), reminderId);
-      return { reminder, job: schedule.get(reminder.jobId)! };
-    });
-    repository.save({ ...other, installation_generation: 'new-install-same-clock' });
-    scheduleServiceFor(store.db);
-    assert.equal(getScheduleReminder(store.db, records[0]!.reminder.id)?.installationGeneration, null);
-    const preserved = schedule.get(records[0]!.job.job_id)!;
-    assert.deepEqual({ ...preserved, enabled: records[0]!.job.enabled, updated_at: records[0]!.job.updated_at }, records[0]!.job, 'pausing does not replace the job or change its fixed cadence');
-    assert.equal(preserved.enabled, false);
-    assert.equal(getScheduleReminder(store.db, records[1]!.reminder.id)?.installationGeneration, null);
-    assert.equal(schedule.get(records[1]!.job.job_id)?.enabled, false);
-    // Even a later record which looks legacy cannot silently restore previously refused authority.
-    repository.save(other); scheduleServiceFor(store.db);
-    assert.equal(getScheduleReminder(store.db, records[1]!.reminder.id)?.installationGeneration, null);
-    assert.equal(schedule.get(records[1]!.job.job_id)?.enabled, false);
-    await schedule.tick(new Date(clock + 2000));
-    const items = createLocalFeedApplication(store.db).snapshot(DEMO_BOARD_ID).feed_items.filter(item => item.source_id === 'plugin-reminders');
-    assert.equal(items.length, 0);
-    schedule.setEnabled(records[0]!.job.job_id, true);
-    await schedule.tick(new Date(clock + 2000));
-    assert.equal(getScheduleReminder(store.db, records[0]!.reminder.id)?.installationGeneration, null, 'a generic enable toggle is not installation consent');
-    assert.equal(createLocalFeedApplication(store.db).snapshot(DEMO_BOARD_ID).feed_items.filter(item => item.source_id === 'plugin-reminders').length, 0);
   } finally { store.close(); await rm(home, { recursive: true, force: true }); }
 });

@@ -37,7 +37,7 @@ test("official stdio MCP client queries, imports, edits and generates with actua
     await call(a, "pages.update", { id: document.id, title: "Updated", expected_version: document.version });
     assert.equal((await a.callTool({ name: "pages.update__v1", arguments: { id: document.id, title: "Stale", expected_version: document.version } })).isError, true);
     const result = await call(a, "pages.ai", { id: document.id, command: "summarize", text: "MCP content" });
-    assert.equal(result.text, "MCP fixture reply"); assert.equal(result.stub, false);
+    assert.equal(result.text, "MCP fixture reply"); assert.equal("stub" in result, false);
     const files = [{ name: "import.md", data: Buffer.from("# Imported\nExternal source").toString("base64") }];
     const preview = await call(a, "pages.import.preview", { files });
     const input = { files, selected_keys: preview.documents.map((page: any) => page.key), request_id: "a0000000-0000-0000-0000-000000000000" };

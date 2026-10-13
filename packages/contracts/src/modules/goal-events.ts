@@ -107,7 +107,7 @@ export type GoalEventRequirementSource =
   | { kind: "create_input" }
   | {
       kind: "imported_acceptance_criterion";
-      decision_method: string;
+      decision_method: GoalAcceptanceCriterion["decision_method"];
       pass_condition: string;
     }
   | {
@@ -147,7 +147,7 @@ export interface GoalEventExtraRequirementInput {
 }
 
 export interface ConfigureGoalEventsInput {
-  board_id: string;
+  project_id: string;
   goal_id: string;
   actor_id: string;
   actor_kind?: "user" | "runtime";
@@ -159,7 +159,7 @@ export interface ConfigureGoalEventsInput {
 }
 
 export interface GoalEventConfigView {
-  board_id: string;
+  project_id: string;
   goal_id: string;
   version: number;
   types: GoalEventTypeDefinition[];
@@ -197,7 +197,7 @@ export interface GoalEventReportProgressInput {
 }
 
 export interface ReportGoalEventsInput {
-  board_id: string;
+  project_id: string;
   goal_id: string;
   actor_id: string;
   actor_kind?: "user" | "runtime";
@@ -221,7 +221,7 @@ export interface GoalEventConfigurationPayload {
 
 export interface GoalWorkEventBase {
   event_id: string;
-  board_id: string;
+  project_id: string;
   goal_id: string;
   title: string;
   actor_id: string;
@@ -287,7 +287,7 @@ export interface PlanningMethodDefaultRequirement {
 }
 
 export interface ConfigureGoalEventsApplicationInput {
-  board_id: string;
+  project_id: string;
   goal_id: string;
   actor_id: string;
   actor_kind?: "user" | "runtime";
@@ -310,7 +310,7 @@ export interface CreateGoalIntentRequirementInput {
 }
 
 export interface CreateGoalIntentInput {
-  board_id: string;
+  project_id: string;
   title: string;
   outcome?: string;
   why?: string;
@@ -329,7 +329,7 @@ export interface CreateGoalIntentInput {
 export interface CreateGoalIntentResult {
   goal: {
     goal_id: string;
-    board_id: string;
+    project_id: string;
     title: string;
     outcome: string;
   };
@@ -357,13 +357,13 @@ export interface GoalEventWorkGap {
 }
 
 export interface GoalEventStateView {
-  board_id: string;
+  project_id: string;
   goal_id: string;
   intent: {
     title: string;
     why: string;
     business_logic: string;
-    source_kind: GoalIntentSourceKind | "migration" | null;
+    source_kind: GoalIntentSourceKind | null;
   };
   config: GoalEventConfigView;
   requirements: GoalEventRequirementStatus[];
@@ -382,7 +382,6 @@ export interface GoalEventStateView {
   applied_decisions: GoalEventWorkStateView["applied_decisions"];
   current_decisions: GoalEventWorkStateView["current_decisions"];
   closure: GoalEventWorkStateView["closure"];
-  imported_completion: GoalEventWorkStateView["imported_completion"];
   can_record: boolean;
   recorded_not_completed: boolean;
   completion_effect: boolean;
@@ -402,7 +401,7 @@ export interface GoalEventDirectoryItem {
 }
 
 export interface GoalEventDirectoryQuery {
-  board_id: string;
+  project_id: string;
   work_status?: GoalEventWorkStateView["work_status"];
   limit?: number;
   /** List pagination cursor `updated_at|goal_id`, not a journal/event cursor. */
@@ -509,33 +508,33 @@ export interface GoalEventFactsApi {
   configure(input: ConfigureGoalEventsInput): ConfigureGoalEventsResult;
   configureRequested(
     input: ConfigureGoalEventsApplicationInput,
-    resolveAdoption: (boardId: string, requested: GoalEventAdoptedPlanningRequest[]) => ResolvedPlanningEventAdoption,
+    resolveAdoption: (projectId: string, requested: GoalEventAdoptedPlanningRequest[]) => ResolvedPlanningEventAdoption,
   ): ConfigureGoalEventsResult;
   report(input: ReportGoalEventsInput): ReportGoalEventsRecordedResult;
-  readConfig(boardId: string, goalId: string): GoalEventConfigView;
-  listEvents(boardId: string, goalId: string, query?: GoalEventListQuery): GoalEventListPage;
-  listLatestEvents(boardId: string, goalId: string, query?: GoalEventHistoryQuery): GoalEventHistoryPage;
-  listLatestTimeline(boardId: string, goalId: string, query?: GoalEventHistoryQuery): GoalEventTimelinePage;
-  listLatestReports(boardId: string, goalId: string, query?: GoalEventLatestReportsQuery): GoalEventLatestReports;
-  readEvent(boardId: string, goalId: string, eventId: string): GoalWorkEventRecord;
-  readCurrentRequirements(boardId: string, goalId: string): GoalEventRequirementStatus[];
+  readConfig(projectId: string, goalId: string): GoalEventConfigView;
+  listEvents(projectId: string, goalId: string, query?: GoalEventListQuery): GoalEventListPage;
+  listLatestEvents(projectId: string, goalId: string, query?: GoalEventHistoryQuery): GoalEventHistoryPage;
+  listLatestTimeline(projectId: string, goalId: string, query?: GoalEventHistoryQuery): GoalEventTimelinePage;
+  listLatestReports(projectId: string, goalId: string, query?: GoalEventLatestReportsQuery): GoalEventLatestReports;
+  readEvent(projectId: string, goalId: string, eventId: string): GoalWorkEventRecord;
+  readCurrentRequirements(projectId: string, goalId: string): GoalEventRequirementStatus[];
   /** Persisted createIntent channel; independent of timeline pagination. Null when no intent_created fact exists. */
-  readIntentSourceKind(boardId: string, goalId: string): GoalIntentSourceKind | null;
-  readObservedEventCursor(boardId: string): number;
-  isEventStateOwner(boardId: string, goalId: string): boolean;
-  readWorkState(boardId: string, goalId: string): GoalEventWorkStateView;
+  readIntentSourceKind(projectId: string, goalId: string): GoalIntentSourceKind | null;
+  readObservedEventCursor(projectId: string): number;
+  isEventStateOwner(projectId: string, goalId: string): boolean;
+  readWorkState(projectId: string, goalId: string): GoalEventWorkStateView;
   runImmediate<T>(operation: () => T): T;
   adoptOwner(input: {
-    board_id: string;
+    project_id: string;
     goal_id: string;
     actor_id: string;
-    source: "intent" | "configuration" | "continue" | "migration";
+    source: "intent" | "configuration" | "continue";
     outcome?: string;
   }): void;
-  replayIntent(boardId: string, actorId: string, idempotencyKey: string, hash: string): CreateGoalIntentResult | null;
-  rememberIntent(boardId: string, actorId: string, idempotencyKey: string, hash: string, result: CreateGoalIntentResult, at: string): void;
+  replayIntent(projectId: string, actorId: string, idempotencyKey: string, hash: string): CreateGoalIntentResult | null;
+  rememberIntent(projectId: string, actorId: string, idempotencyKey: string, hash: string, result: CreateGoalIntentResult, at: string): void;
   recordIntentArtifacts(input: {
-    board_id: string;
+    project_id: string;
     goal_id: string;
     actor_id: string;
     actor_kind?: "user" | "runtime";
@@ -545,7 +544,7 @@ export interface GoalEventFactsApi {
   }): void;
   recordNote(input: RecordGoalNoteInput): GoalEventMutationResult;
   recordProgress(input: RecordGoalProgressSummaryInput): GoalEventProgressResult;
-  readProgressReceipt(boardId: string, goalId: string, actorId: string, key: string): GoalEventProgressResult | null;
+  readProgressReceipt(projectId: string, goalId: string, actorId: string, key: string): GoalEventProgressResult | null;
   applyConcern(input: ApplyGoalConcernInput): GoalEventConcernResult;
   requestDecision(input: RequestGoalDecisionInput): GoalEventDecisionRequestResult;
   citeDecision(input: CiteGoalDecisionInput): GoalEventDecisionResult;

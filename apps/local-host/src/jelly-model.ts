@@ -81,8 +81,8 @@ export function saveJellyModelSettings(home: string, input: JellyModelInput): Je
     opened.storage.db.transaction(() => {
       if (custom) {
         const models = [...(existing?.models ?? [])]; const entry = models.find(model => model.model_id === modelId); if (entry) entry.enabled = true; else models.push({ model_id: modelId, display_name: modelId, enabled: true });
-        opened.store.upsert({ provider_id: CUSTOM_PROVIDER_ID, display_name: "Jelly 模型", base_url: baseUrl!, api_format: format ?? existing?.api_format ?? "openai-chat-completions", enabled: true, models });
-        if (selectedConnection?.credential_ref) opened.store.selectConnection(CUSTOM_PROVIDER_ID, selectedConnection.credential_ref);
+        opened.store.upsert({ provider_id: CUSTOM_PROVIDER_ID, display_name: "Jelly 模型", base_url: baseUrl!, api_format: format ?? existing?.api_format ?? "openai-chat-completions", enabled: true, models,
+          ...(selectedConnection?.credential_ref ? { credential_ref: selectedConnection.credential_ref } : {}) });
       }
       atomicWrite(prefPath, JSON.stringify({ schema_version: 1, provider_id: providerId, model_id: modelId } satisfies PreferenceFile, null, 2) + "\n"); preferenceWritten = true;
     }).immediate();

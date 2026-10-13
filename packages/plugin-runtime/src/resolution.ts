@@ -93,7 +93,7 @@ export function resolvePluginActivation(input: PluginResolutionInput): PluginRes
     for (const output of manifest.ports?.outputs ?? []) {
       producedPortTypes.add(portTypeKey(output.artifact_type_id, output.schema_version));
     }
-    for (const produced of manifest.artifacts.produces) {
+    for (const produced of [...manifest.artifacts.produces, ...manifest.process_items?.produces ?? []]) {
       producedPortTypes.add(portTypeKey(produced.artifact_type_id, produced.schema_version));
     }
   }

@@ -96,7 +96,7 @@ export async function buildSources(directory: string, settled: string, operation
 export function promptVersions(release: AgentRelease, releases: readonly AgentRelease[]): Map<string, number> {
   const versions = new Map<string, number>();
   const ordered = [...releases].filter(item => item.version <= release.version).sort((a, b) => a.version - b.version);
-  for (const prompt of release.prompts ?? []) {
+  for (const prompt of release.prompts) {
     let since = release.version;
     for (let index = ordered.length - 1; index >= 0; index--) {
       const earlier = ordered[index]!.prompts?.find(item => item.id === prompt.id);
@@ -111,12 +111,9 @@ export function promptVersions(release: AgentRelease, releases: readonly AgentRe
 /** An installed generated plugin's prompts, registered with the Home's so the person sees and edits them. */
 export function generatedRegistration(release: AgentRelease, releases: readonly AgentRelease[], state: 'enabled' | 'disabled', pluginVersion: string): AgentDefinitionRegistration {
   const versions = promptVersions(release, releases);
-  const callsModel = release.design.contract.operations.some(operation => operation.effects.capabilities?.includes('model.generate'));
   return { owner_id: release.pluginId, source: { kind: 'plugin', plugin_id: release.pluginId, plugin_version: pluginVersion, title: release.design.title, origin: 'generated', state },
-    prompts: (release.prompts ?? []).map(prompt => ({ prompt_id: prompt.id, version: versions.get(prompt.id) ?? release.version, kind: 'instruction' as const,
-      title: prompt.title, purpose: prompt.purpose, used_by: [release.design.title], body: prompt.body })), roles: [],
-    // A release from before prompts were declared writes its model instructions in code: they run, but nobody can see or edit them.
-    ...(callsModel && !release.prompts ? { notes: ['这个版本生成于登记 Prompt 之前：调用模型的要求写在代码里，设置里看不到也改不了。在插件创作台修改后重新发布一次即可登记。'] } : {}) };
+    prompts: release.prompts.map(prompt => ({ prompt_id: prompt.id, version: versions.get(prompt.id) ?? release.version, kind: 'instruction' as const,
+      title: prompt.title, purpose: prompt.purpose, used_by: [release.design.title], body: prompt.body })), roles: [] };
 }
 
 export function registerGeneratedPrompts(home: string, registration: AgentDefinitionRegistration, scope?: string): void {

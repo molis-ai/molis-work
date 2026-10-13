@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { GoalProjectApplication, DEMO_BOARD_ID } from '@molis-ai/molis-work-app-local-host';
+import { GoalProjectApplication, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 
 for(const [width,height] of [[1024,400],[390,500]]) {
@@ -8,8 +8,8 @@ for(const [width,height] of [[1024,400],[390,500]]) {
     const b=await openGoalBrowser(t);if(!b)return;
     const {command,sessionId,origin,navigate,click,evaluate,waitFor}=b;
     const app=new GoalProjectApplication(b.store);
-    const id=app.goalEvents.createIntent({board_id:DEMO_BOARD_ID,title:'类型与要求的组合保存',outcome:'失败可继续完成',actor_id:'web-user',actor_kind:'user',idempotency_key:'partial-type'}).goal.goal_id;
-    const state=()=>app.goalEvents.readState(DEMO_BOARD_ID,id);
+    const id=app.goalEvents.createIntent({project_id:DEMO_PROJECT_ID,title:'类型与要求的组合保存',outcome:'失败可继续完成',actor_id:'web-user',actor_kind:'user',idempotency_key:'partial-type'}).goal.goal_id;
+    const state=()=>app.goalEvents.readState(DEMO_PROJECT_ID,id);
     await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false},sessionId);
     await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]},sessionId);
     await navigate(()=>command('Page.navigate',{url:origin+'/goals/'+id},sessionId));

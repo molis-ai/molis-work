@@ -73,7 +73,7 @@ const observationOf = (body: any) => [...wire(body).matchAll(/observation ([A-Za
 async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>, decisions: Array<{ scope: string; decision: "allow" | "block" }> = [], start?: string) {
   const home = await mkdtemp(join(tmpdir(), "molis-side-surface-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "board", storage_key: "memory:project" };
   const page = fakePage(decisions, start);
   const browser = { on: true };
   const requests: any[] = [];

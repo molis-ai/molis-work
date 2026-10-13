@@ -7,7 +7,7 @@ import type { IdeaCard } from "../../src/studio/domain/discovery/idea-card.js";
 import { SqliteDirectionRepository } from "../../src/studio/server/db/direction-repository.js";
 import { SqliteExplorationRepository } from "../../src/studio/server/db/exploration-repository.js";
 import { SqliteIdeaRepository } from "../../src/studio/server/db/idea-repository.js";
-import { migrate } from "../../src/studio/server/db/migrate.js";
+import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
 import { openDatabase, type SqliteDatabase } from "../../src/studio/server/db/open-database.js";
 import { createTempDatabase, type TempDatabase } from "./helpers/temp-database.js";
 
@@ -25,7 +25,7 @@ describe("SQLite Idea repository", () => {
   it("preserves Idea v1 and exact card provenance after process restart", () => {
     temporary = createTempDatabase();
     database = openDatabase(temporary.path);
-    migrate(database);
+    applyStudioBaseline(database, ":memory:");
     seedLocalIdentity(database);
 
     const directions = new SqliteDirectionRepository(database);
@@ -46,7 +46,7 @@ describe("SQLite Idea repository", () => {
 
     database.close();
     database = openDatabase(temporary.path);
-    migrate(database);
+    applyStudioBaseline(database, ":memory:");
 
     const restored = new SqliteIdeaRepository(database).getVersion("idea_assumption_killer", 1);
     expect(restored).toMatchObject({
@@ -60,7 +60,7 @@ describe("SQLite Idea repository", () => {
   it("keeps a card atomically and rejects a duplicate Idea", () => {
     temporary = createTempDatabase();
     database = openDatabase(temporary.path);
-    migrate(database);
+    applyStudioBaseline(database, ":memory:");
     seedLocalIdentity(database);
 
     new SqliteDirectionRepository(database).create(directionFixture());

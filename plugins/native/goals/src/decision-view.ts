@@ -1,5 +1,5 @@
-import type { GoalTreeProposalRecord, ContractProposalRecord, CandidateGoalRecord, RewireRecord, ReviewRecord, ReviewObligationRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import type { RiskRecord, GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsSafetyItem } from "./safety-ui-model.js";
 export interface GoalsDecisionEvent {
   seq: number;
@@ -12,16 +12,19 @@ export interface GoalsDecisionEvent {
   payload: unknown;
   at: string;
 }
+/** A closure counts as completion only when it applied; a saved report with unmet requirements did not. */
+export function isAppliedGoalCompletion(event: Pick<GoalsDecisionEvent, "type"> & { payload?: unknown }): boolean {
+  if (event.type !== "goal.event_state.closure_submitted") return false;
+  const payload = event.payload;
+  return typeof payload === "object" && payload !== null && (payload as { completion_applied?: unknown }).completion_applied === true;
+}
 export interface GoalsDecisionView<T extends GoalsSafetyItem = GoalsSafetyItem> {
   goals: T[];
   archived_goals: T[];
   events: GoalsDecisionEvent[];
   snapshot: {
-    goal_tree_proposals: GoalTreeProposalRecord[]; contract_proposals: ContractProposalRecord[];
-    candidates: CandidateGoalRecord[]; rewires: RewireRecord[];
-    risks: RiskRecord[]; relations: GoalRelationRecord[];
-    reviews: ReviewRecord[]; review_obligations: ReviewObligationRecord[];
-    runs: Array<{ run_id: string; goal_id: string }>;
+    goal_tree_proposals: GoalTreeProposalRecord[];
+    relations: GoalRelationRecord[];
   };
 }
 export interface GoalsDecisionGroup<T extends GoalsSafetyItem = GoalsSafetyItem> {

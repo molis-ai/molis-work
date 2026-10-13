@@ -42,11 +42,11 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     private readonly personalMethods: readonly PlanningMethodPack[] | (() => readonly PlanningMethodPack[]) = [],
   ) {}
 
-  validateRelationAddition(boardId: string, input: AddGoalRelationInput): Pick<PlanningGraphIssue, "code" | "message"> | null {
-    this.context.requireBoard(boardId);
+  validateRelationAddition(projectId: string, input: AddGoalRelationInput): Pick<PlanningGraphIssue, "code" | "message"> | null {
+    this.context.requireBoard(projectId);
     const projectedId = "projected:new-relation";
-    const issue = this.validateGraph(this.context.repository.listGoals(boardId),
-      this.projectRelations(this.context.repository.listRelations(boardId), [{
+    const issue = this.validateGraph(this.context.repository.listGoals(projectId),
+      this.projectRelations(this.context.repository.listRelations(projectId), [{
         action: "add", relation_id: projectedId, from_goal_id: input.from_goal_id,
         to_goal_id: input.to_goal_id, type: input.type, reason: input.reason,
       }])).find(candidate => candidate.relation_ids.includes(projectedId));
@@ -57,44 +57,44 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     return typeof this.personalMethods === "function" ? this.personalMethods() : this.personalMethods;
   }
 
-  effectiveMethods(boardId: string): PlanningMethodPack[] {
-    this.context.requireBoard(boardId);
+  effectiveMethods(projectId: string): PlanningMethodPack[] {
+    this.context.requireBoard(projectId);
     return resolvePlanningMethodPacks(
       this.readPersonalMethods(),
-      this.context.repository.listPlanningMethodPacks(boardId),
+      this.context.repository.listPlanningMethodPacks(projectId),
     );
   }
 
-  proposalGraphIssues(boardId: string, items: readonly PlanningProposalItem[]): PlanningGraphIssue[] {
-    this.context.requireBoard(boardId);
-    const goals = this.context.repository.listGoals(boardId), relations = this.context.repository.listRelations(boardId);
+  proposalGraphIssues(projectId: string, items: readonly PlanningProposalItem[]): PlanningGraphIssue[] {
+    this.context.requireBoard(projectId);
+    const goals = this.context.repository.listGoals(projectId), relations = this.context.repository.listRelations(projectId);
     const existing = new Set(validatePlanningGraph(goals, relations).map(issue => `${issue.code}:${issue.path.join("\u0000")}`));
     return validatePlanningProposalGraph(goals, relations, items)
       .filter(issue => !existing.has(`${issue.code}:${issue.path.join("\u0000")}`));
   }
 
-  wouldCreatePartOfCycle(boardId: string, fromGoalId: string, toGoalId: string): boolean {
+  wouldCreatePartOfCycle(projectId: string, fromGoalId: string, toGoalId: string): boolean {
     const projectedId = "projected:part-of-cycle-check";
-    return validatePlanningGraph(this.context.repository.listGoals(boardId), projectPlanningRelations(
-      this.context.repository.listRelations(boardId), [{ action: "add", relation_id: projectedId,
+    return validatePlanningGraph(this.context.repository.listGoals(projectId), projectPlanningRelations(
+      this.context.repository.listRelations(projectId), [{ action: "add", relation_id: projectedId,
         from_goal_id: fromGoalId, to_goal_id: toGoalId, type: "part_of" }],
     )).some(issue => issue.code === "planning.part_of_cycle" && issue.relation_ids.includes(projectedId));
   }
 
-  projectComposition(boardId: string): PlanningMethodComposition {
+  projectComposition(projectId: string): PlanningMethodComposition {
     return composePlanningMethodPacks(
-      this.effectiveMethods(boardId).filter((method) =>
+      this.effectiveMethods(projectId).filter((method) =>
         method.scope === "project" && method.enabled),
     );
   }
 
   resolveEventAdoption(
-    boardId: string,
+    projectId: string,
     requested: GoalEventAdoptedPlanningRequest[],
   ): ResolvedPlanningEventAdoption {
-    this.context.requireBoard(boardId);
+    this.context.requireBoard(projectId);
     const personal = this.readPersonalMethods();
-    const project = this.context.repository.listPlanningMethodPacks(boardId);
+    const project = this.context.repository.listPlanningMethodPacks(projectId);
     return resolvePlanningEventAdoption(
       requested,
       { effective: resolvePlanningMethodPacks(personal, project), personal, project },
@@ -106,22 +106,22 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     method: PlanningMethodPack;
     observed_event_cursor: number;
   } {
-    this.context.requireBoard(input.board_id);
+    this.context.requireBoard(input.project_id);
     if (input.user_confirmed !== true) {
       throw this.context.error(
         "planning.user_confirmation_required",
         "项目方法会改变后续 Goal 的拆分和依赖判断，必须由用户确认",
       );
     }
-    const current = this.context.repository.listPlanningMethodPacks(input.board_id)
+    const current = this.context.repository.listPlanningMethodPacks(input.project_id)
       .find((pack) => pack.method_id === input.method.method_id) ?? null;
     const at = this.context.now().toISOString();
     const method = normalizePlanningMethodPack(input.method, "project", current, at);
     return this.context.repository.immediate(() => {
-      this.context.repository.putPlanningMethodPack(input.board_id, method);
+      this.context.repository.putPlanningMethodPack(input.project_id, method);
       const cursor = this.context.repository.appendEvent({
         eventId: randomUUID(),
-        boardId: input.board_id,
+        projectId: input.project_id,
         actorId: input.actor_id,
         type: "planning.method_saved",
         objectType: "planning_method",
@@ -138,28 +138,28 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     });
   }
 
-  analyzeChange(boardId: string, changedGoalIds: readonly string[]): GoalChangeImpact {
-    this.context.requireBoard(boardId);
-    for (const goalId of changedGoalIds) this.context.requireGoal(boardId, goalId);
+  analyzeChange(projectId: string, changedGoalIds: readonly string[]): GoalChangeImpact {
+    this.context.requireBoard(projectId);
+    for (const goalId of changedGoalIds) this.context.requireGoal(projectId, goalId);
     return analyzeGoalChangeImpact(
-      this.context.repository.listGoals(boardId),
-      this.context.repository.listRelations(boardId),
+      this.context.repository.listGoals(projectId),
+      this.context.repository.listRelations(projectId),
       changedGoalIds,
-      this.currentWork(boardId),
+      this.currentWork(projectId),
     );
   }
 
-  validateBoardGraph(boardId: string): {
+  validateBoardGraph(projectId: string): {
     issues: PlanningGraphIssue[];
     observed_event_cursor: number;
   } {
-    this.context.requireBoard(boardId);
+    this.context.requireBoard(projectId);
     return {
       issues: validatePlanningGraph(
-        this.context.repository.listGoals(boardId),
-        this.context.repository.listRelations(boardId),
+        this.context.repository.listGoals(projectId),
+        this.context.repository.listRelations(projectId),
       ),
-      observed_event_cursor: this.context.repository.eventCursor(boardId),
+      observed_event_cursor: this.context.repository.eventCursor(projectId),
     };
   }
 
@@ -177,10 +177,10 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     return validatePlanningGraph(goals, relations);
   }
 
-  private currentWork(boardId: string): Map<string, PlanningWorkStatus> {
+  private currentWork(projectId: string): Map<string, PlanningWorkStatus> {
     const rows = this.context.repository.db.prepare(
-      "SELECT goal_id, work_status FROM goal_event_work_status WHERE board_id = ?",
-    ).all(boardId) as Array<{ goal_id: string; work_status: string }>;
+      "SELECT goal_id, work_status FROM goal_event_work_status WHERE project_id = ?",
+    ).all(projectId) as Array<{ goal_id: string; work_status: string }>;
     return new Map(rows.map((row) => [row.goal_id, row.work_status as PlanningWorkStatus]));
   }
 }

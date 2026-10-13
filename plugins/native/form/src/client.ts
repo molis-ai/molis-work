@@ -1,4 +1,5 @@
 /** Forms workbench client: author, preview, submit, results. */
+// Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `fixedCell`: A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name. `molis:placement-changed`: Moved or copied from the placement bar: this list changed; a form moved away is no longer here to edit.
 export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const workbench = document.querySelector("[data-form=workbench]");
@@ -56,7 +57,6 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const sameYear = date.getFullYear() === new Date().getFullYear();
     return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
   };
-  // A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name.
   const fixedCell = (record) => {
     const node = document.createElement("span");
     node.className = "mw-status mw-status--plain feed-entry-status";
@@ -193,7 +193,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     document.addEventListener("keydown", onKey, true);
     document.body.append(stage);
   };
-  const SOURCE = { preview: "试填", fill: "本机填写页", file: "答卷文件" };
+  const SOURCE = { preview: "试填", fill: "本机填写页", file: "答卷文件", agent: "助理提交", mcp: "外部工具提交", workflow: "工作流提交", plugin: "插件提交" };
   /** Each question at a glance: counts for choices and ratings (with the average), recent answers for text. */
   const renderStats = (questions, submissions) => {
     statsEl.replaceChildren();
@@ -648,8 +648,8 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
           }
           throw error;
         }
-        placed({ verb: "versioned", title: payload.form.title, object: { kind: "form", id: payload.form.id },
-          note: L("第 {version} 版题目 · 放在这个位置的成果（Artifacts）里；不含答卷", { version: payload.artifact.version }) });
+        placed({ verb: "versioned", title: payload.form.title, object: { kind: "form", id: payload.form.id }, artifact: payload.artifact,
+          note: L("第 {version} 版题目 · 放在这个位置的成果里；不含答卷", { version: payload.artifact.version }) });
         await loadList();
         if (payload.form && selected && selected.id === payload.form.id) remember(payload.form, false);
         return;
@@ -849,11 +849,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       const when = submission.submitted_at ? new Date(submission.submitted_at).toLocaleString() : "";
       head.textContent = L("答卷") + " " + (index + 1) + (when ? " · " + when : "");
       card.append(head);
-      if (!submission.questions) {
-        const legacy = document.createElement("p"); legacy.className = "form-result-legacy"; legacy.textContent = L("历史答卷未保存题目快照；名称参考当前问卷，未知题目保留原题号。"); card.append(legacy);
-      }
-      const submittedQuestions = submission.questions || questions;
-      const labels = new Map(submittedQuestions.map(question => [question.id, question.title]));
+      const labels = new Map(submission.questions.map(question => [question.id, question.title]));
       Object.entries(submission.answers || {}).forEach(([questionId, answer]) => {
         const row = document.createElement("p");
         const label = document.createElement("span");
@@ -902,13 +898,13 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     } catch (error) { showNote(error.message || L("导入失败"), true); }
     finally { setBusy(false); importInput.value = ""; }
   });
-  // Moved or copied from the placement bar: this list changed; a form moved away is no longer here to edit.
   window.addEventListener("molis:placement-changed", (event) => {
     const detail = event.detail || {};
     if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("form")) return;
     if (detail.mode === "move" && detail.from && selected && selected.id === detail.from.id) closeEditor();
     void loadList().catch((error) => showNote(error.message, true));
   });
+  document.addEventListener("molis-work:model-ready", () => void loadList().catch((error) => showNote(error.message, true)));
   window.addEventListener("beforeunload", (event) => {
     if (selected && (saveError || editRevision > savedRevision || answerDirty)) {
       event.preventDefault(); event.returnValue = "";

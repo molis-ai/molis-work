@@ -91,7 +91,7 @@ test("Runtime Feed context uses live Ledger links, deterministic selection and o
       key: `feed.goal:${id}`, type: "feed.goal", source: { ...feed, id }, target: goal, cause: "feed.link_goal",
     });
     const input = { project_id: "project-a", goal_id: "goal-a", materializer: createContextMaterializer(ledger),
-      readGoal: () => ({ goal_id: "goal-a", board_id: "project-a", current_contract_revision: 1 }),
+      readGoal: () => ({ goal_id: "goal-a", project_id: "project-a" }),
       readItem: (id: string) => items.get(id) ?? null,
       renderItem: (item: { body: string }) => item.body,
     };

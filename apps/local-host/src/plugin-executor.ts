@@ -1,27 +1,35 @@
-import type { ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
-import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
-import {
-  createPluginCapabilityClient,
-  createPluginInputsClient,
-  createPluginOutputsClient,
-  type PluginCapabilityPort,
-  type PluginEventBus,
-  type PluginInputGraph,
-} from "@molis-ai/molis-work-plugin-runtime";
-import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
-import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginCapabilityPort, PluginEventBus, PluginInputGraph } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginPlatformHome } from "./home-side.js";
+import { openHostSession, type HostSession } from "./plugin-host-services.js";
 
 export interface PluginHostExecutorOptions {
-  board_id: string;
+  project_id: string;
   actor_id: string;
   artifacts: ArtifactsApplicationApi;
+  /** Exchange data plugins record for each other, kept out of the 成果库 (specs/artifact-positioning A2). */
+  processItems: ProcessItemsApplicationApi;
   actions: { registry: import("@molis-ai/molis-work-contracts/platform/actions").ActionRegistryPort;
     client: import("@molis-ai/molis-work-contracts/platform/actions").SyncActionClient & import("@molis-ai/molis-work-contracts/platform/actions").ActionClient; project_id: string;
     /** Composition-only metadata of the whole directory (what the Plugin Builder's catalog is made from). */
     inspect?(caller: import("@molis-ai/molis-work-contracts/platform/actions").ActionCallContext): Promise<readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionView[]> };
   ui: UiHostApi;
+  /** The Home the platform reaches in process; absent or `null`: none (a developed plugin, a bare executor in a test). */
+  home?: PluginPlatformHome | null;
+  /**
+   * The library in the Home the Host's start list declared for a definition (`PluginPlatformEntry.database`), looked up by the
+   * definition object the Host listed. None for any other definition (a developed plugin that carries a built-in plugin's id,
+   * a generated one), whatever its Manifest asks for; the plugin never names a library. Needs `home`.
+   */
+  databaseFor?(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
+  /**
+   * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its
+   * plugin_id). Without it, or for a definition it does not name, the installation id. Whatever registers the Plugin's actions
+   * (the Runtime's `actions.providerId`) has to give the same answer: this is how the Plugin's own client finds them.
+   */
+  providerFor?(definition: PluginDefinition, installId: string): string;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
@@ -45,7 +53,7 @@ export interface PluginHostExecutorOptions {
 
 /** Trusted in-process Host composition, not an isolation boundary for arbitrary JavaScript. */
 export class PluginHostExecutor implements PluginExecutor {
-  private readonly sessions = new Map<string, { context: PluginStartContext; revoke(): void; dispose(): void }>();
+  private readonly sessions = new Map<string, HostSession>();
   private options: PluginHostExecutorOptions;
 
   constructor(options: PluginHostExecutorOptions) {
@@ -75,81 +83,13 @@ export class PluginHostExecutor implements PluginExecutor {
   }
 
   async start(definition: PluginDefinition, context: PluginStartContext) {
-    const ui = createPluginUiClient(this.options.ui, context, definition.manifest);
-    let active = true;
-    let disposeArtifacts = () => {};
-    const dispose = () => { active = false; disposeArtifacts(); ui.dispose(); };
+    const session = openHostSession(this.options, definition, context);
     try {
-      const manifest = definition.manifest;
-      const pluginCaller: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller = Object.freeze({
-        plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actor_id,
-        board_id: this.options.board_id, project_id: this.options.actions.project_id,
-        declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }),
-        assertActive: () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); },
-      });
-      const artifactService = createPluginArtifactClient({ api: this.options.artifacts, manifest, context, actions: this.options.actions,
-        board_id: this.options.board_id, actor_id: this.options.actor_id });
-      const artifacts = artifactService.client;
-      disposeArtifacts = artifactService.dispose;
-      const actionCaller = (): ActionCallContext => {
-        if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开");
-        return {
-          actor_id: this.options.actor_id, project_id: this.options.actions.project_id,
-          audience: "user", permissions: context.grants,
-          allowed_actions: (manifest.actions ?? []).map(action => ({ ...action, provider_id: context.install_id })),
-          validate_authority: reference => {
-            if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开");
-            const action = manifest.actions?.find(item => item.capability_id === reference.capability_id && item.version === reference.version);
-            if (!action) throw new ActionError("actions.forbidden", "插件未声明提供此动作");
-            for (const permission of action.action.permissions) context.requireGrant(permission);
-          },
-        };
-      };
-      // Each service appears only when the Manifest declared it, so the Manifest
-      // stays a complete account of what this Plugin can reach.
-      const wiring = this.options.wiring;
-      const declaresInputs = (manifest.ports?.inputs ?? []).length > 0;
-      const declaresOutputs = (manifest.ports?.outputs ?? []).length > 0;
-      const declaresEvents = (manifest.events?.publishes ?? []).length > 0;
-      const declaresCapabilities = manifest.capabilities.consumes.length > 0;
-      const wiringInput = wiring === undefined
-        ? undefined
-        : { manifest, graph: wiring, artifacts, scopeKey: this.options.scopeKey ?? null,
-            requireGrant: (permission: string) => context.requireGrant(permission),
-            latestVersion: (artifactId: string) => this.options.artifacts.query.latestArtifactVersion(this.options.board_id, artifactId)?.version ?? 0 };
-
-      const hostedContext: PluginStartContext = Object.freeze({ ...context,
-        board_id: this.options.board_id,
-        actor_id: this.options.actor_id,
-        ...(wiring === undefined ? {} : { input_group: wiring.selectedGroup(manifest.plugin_id) }),
-        services: Object.freeze({
-          ...(manifest.actions?.length ? { actions: bindActionClient(this.options.actions.client, actionCaller) } : {}),
-          storage: manifest.permissions.some(item => item.permission === "storage:private")
-            ? this.options.privateStorageFor(context, manifest) : undefined,
-          artifacts,
-          ui: ui.client,
-          ...(declaresEvents && this.options.events !== undefined
-            ? { events: this.options.events.clientFor({
-              board_id: this.options.board_id,
-              plugin_id: manifest.plugin_id,
-              install_id: context.install_id,
-            }, pluginCaller.assertActive) }
-            : {}),
-          ...(declaresInputs && wiringInput !== undefined
-            ? { inputs: createPluginInputsClient(wiringInput) }
-            : {}),
-          ...(declaresOutputs && wiringInput !== undefined
-            ? { outputs: createPluginOutputsClient(wiringInput) }
-            : {}),
-          ...(declaresCapabilities && this.options.capabilities !== undefined
-            ? { capabilities: createPluginCapabilityClient(manifest, withPluginCaller(pluginCaller, this.options.capabilities), () => active) }
-            : {}),
-        }) });
-      const contribution = await definition.start(hostedContext);
-      this.sessions.set(context.install_id, { context: hostedContext, revoke: () => { active = false; }, dispose });
+      const contribution = await definition.start(session.context);
+      this.sessions.set(context.install_id, session);
       return { contribution };
     } catch (error) {
-      dispose();
+      session.dispose();
       throw error;
     }
   }
@@ -159,7 +99,7 @@ export class PluginHostExecutor implements PluginExecutor {
     // The plugin owns its cleanup hook, so it may yield indefinitely. Revoke
     // invocation authority before waiting for it, while retaining cleanup data.
     session?.revoke();
-    this.options.events?.revoke(this.options.board_id, definition.manifest.plugin_id);
+    this.options.events?.revoke(this.options.project_id, definition.manifest.plugin_id);
     try {
       await definition.stop?.(session?.context ?? context);
     } finally {
@@ -176,31 +116,9 @@ export class PluginHostExecutor implements PluginExecutor {
       : {};
     const hostedContext: PluginUpgradeContext = Object.freeze({
       ...context,
-      board_id: this.options.board_id,
+      project_id: this.options.project_id,
       services: Object.freeze(services),
     });
     await definition.validateUpgrade({ from, context: hostedContext });
   }
-}
-
-function withPluginCaller(caller: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller, port: PluginCapabilityPort): PluginCapabilityPort {
-  return {
-    ...(port.availability ? { availability: (capability: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference,
-      options?: Pick<import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions, "consumer">) => port.availability!(capability, options) } : {}),
-    invoke(capability, input, options) {
-      caller.assertActive();
-      const bound = { ...options, consumer: "plugin" as const, plugin_caller: caller, before_effect: async () => {
-        caller.assertActive(); await options?.before_effect?.(); caller.assertActive();
-      } };
-      if (
-        capability.capability_id.startsWith("schedule.")
-        && input !== null
-        && typeof input === "object"
-        && !Array.isArray(input)
-      ) {
-        return port.invoke(capability, { ...input, plugin_id: caller.plugin_id }, bound);
-      }
-      return port.invoke(capability, input, bound);
-    },
-  };
 }

@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-FeedModule.commands.ingest 接收条目，query 提供读取，setDisposition 等命令更新处置。Attention 经注入的公开 API 协作；Feed → Goal 关联通过 Context Ledger 端口维护。正文引用与 schema 迁移收据也有独立存储入口。
+FeedModule.commands.ingest 接收条目，query 提供读取，setDisposition 等命令更新处置。Attention 经注入的公开 API 协作；Feed → Goal 关联通过 Context Ledger 端口维护。正文引用也有独立存储入口。
 
 ## 从哪里读代码
 
@@ -14,10 +14,9 @@ FeedModule.commands.ingest 接收条目，query 提供读取，setDisposition �
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | FeedModule 与迁移 |
+| [src/index.ts](src/index.ts) | FeedModule 与表结构 |
 | [src/goal-links.ts](src/goal-links.ts) | Feed/Goal 关联端口 |
 | [Storage evidence-content](../../packages/storage/src/adapters/evidence-content.ts) | 公共密文保存实现；本模块仅保留旧 API 导出别名 |
-| [src/contract-receipts.ts](src/contract-receipts.ts) | schema 迁移收据 |
 
 可对照现有调用方 [apps/local-host/src/feed-application.ts](../../apps/local-host/src/feed-application.ts) 阅读装配方式。
 
@@ -52,6 +51,7 @@ node --import tsx --test --test-concurrency=1 tests/feed-module-repositories.tes
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - `FeedModule` 是 `feed_items`、`feed_materials`、处置与 Feed 事件的唯一写入者。
+  - 别的包要读 `feed_materials` 里的正文引用，调导出的 `listFeedMaterialContentRefs`，不写 SQL（`scripts/gates/table-owners.mjs`）。
   - 不直接创建 Goal，升格经 Goals 的公开入口。
   - `linked_goal_id` 等兼容输出由 Ledger 推导，不恢复旧字段双写。
   - 外部标题、正文与链接是不可信输入，不成为指令。

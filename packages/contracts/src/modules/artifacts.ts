@@ -28,6 +28,24 @@ export interface ArtifactReference {
 
 export const ARTIFACT_SUBJECT_KIND = "artifact";
 
+/**
+ * An imported file or document in the 成果库 (specs/artifact-positioning A3): its type, and its original file as imported
+ * (bytes for any file, or the text of an older text import). The 成果库 shows it; a plugin that continues from it reads it.
+ */
+export const IMPORTED_DOCUMENT_TYPE = "io.molis.work.document";
+export interface ImportedDocumentFile { filename: string; mime: string; data_base64?: string; text?: string }
+export function importedDocumentFile(artifact: Pick<FixedVersionRecord, "artifact_type_id" | "availability" | "content_kind" | "payload"> & { title: string } | null): ImportedDocumentFile | null {
+  if (!artifact || artifact.artifact_type_id !== IMPORTED_DOCUMENT_TYPE || artifact.availability !== "available" || artifact.content_kind !== "inline") return null;
+  const payload = artifact.payload as { content?: unknown; format?: unknown; original_file?: { filename?: unknown; mime?: unknown; data_base64?: unknown } } | null;
+  const original = payload?.original_file;
+  if (original && typeof original.filename === "string" && typeof original.mime === "string" && typeof original.data_base64 === "string") {
+    return { filename: original.filename, mime: original.mime, data_base64: original.data_base64 };
+  }
+  if (typeof payload?.content !== "string") return null;
+  const text = payload.format === "text";
+  return { filename: `${artifact.title}.${text ? "txt" : "md"}`, mime: `${text ? "text/plain" : "text/markdown"}; charset=utf-8`, text: payload.content };
+}
+
 /** A subject names one immutable version, including IDs containing path or version delimiters. */
 export function artifactSubjectId(reference: ArtifactReference): string {
   if (typeof reference.artifact_id !== "string" || !reference.artifact_id.trim()
@@ -73,7 +91,7 @@ export interface ReferencedArtifactContent {
 export type ArtifactContentInput = InlineArtifactContent | ReferencedArtifactContent;
 
 export interface ArtifactIdentityRecord {
-  board_id: string;
+  project_id: string;
   artifact_id: string;
   owner_actor_id: string;
   producer_plugin_id: string;
@@ -81,8 +99,9 @@ export interface ArtifactIdentityRecord {
   created_at: string;
 }
 
-export interface ArtifactVersionRecord extends ArtifactReference {
-  board_id: string;
+/** The fields every immutable version has, in the 成果库 and in process items alike. */
+export interface FixedVersionRecord extends ArtifactReference {
+  project_id: string;
   artifact_type_id: string;
   schema_version: number;
   producer_plugin_id: string;
@@ -106,9 +125,38 @@ export interface ArtifactVersionRecord extends ArtifactReference {
   archived_by: string | null;
 }
 
-export interface RegisterArtifactVersionInput extends ArtifactReference {
-  board_id: string;
+/**
+ * Where a 成果 came from (specs/artifact-positioning A1): one of the producer's work objects pinned at a revision, or a
+ * file someone imported. The subject belongs to the producing plugin, so it names only the object's kind and id.
+ */
+export type ArtifactOrigin =
+  | { kind: "pinned"; subject: { kind: string; id: string }; revision: string }
+  | { kind: "imported"; file_name: string };
+
+/** One version in the 成果库: what people keep, cite and hand in. */
+export interface ArtifactVersionRecord extends FixedVersionRecord {
+  origin: ArtifactOrigin;
+  /** What people see in lists and links; never guessed from the payload. */
+  title: string;
+  /** The real media type of the content, e.g. `text/markdown`, `application/json`, `application/pdf`. */
+  media_type: string;
+  /** The process items this version was made from, newest first; each stays with the plugin that produced it. */
+  trace: ArtifactReference[];
+}
+
+/** Exchange data plugins hand to each other (A2): the same immutable versions, without a place in the 成果库. */
+export type ProcessItemRecord = FixedVersionRecord;
+
+/** The fields every version is written with, in either store. */
+export interface RecordFixedVersionInput extends ArtifactReference {
+  project_id: string;
+  /** Who produced this version (a person, a workflow, an Agent, an MCP client): provenance, kept as `created_by`. */
   actor_id: string;
+  /**
+   * Who the version belongs to; defaults to the producer. In a Home that names its owner (`homeOwner` of the module), every
+   * personal 成果 belongs to that person whoever produced it, so a pin or an import passes the person here.
+   */
+  owner_actor_id?: string;
   artifact_type_id: string;
   schema_version: number;
   producer: ArtifactProducerIdentity;
@@ -121,22 +169,34 @@ export interface RegisterArtifactVersionInput extends ArtifactReference {
   supersedes_version?: number | null;
 }
 
+export type RecordProcessItemInput = RecordFixedVersionInput;
+
+export interface RegisterArtifactVersionInput extends RecordFixedVersionInput {
+  origin: ArtifactOrigin;
+  title: string;
+  media_type: string;
+  trace?: ArtifactReference[];
+}
+
 export interface MarkArtifactUnavailableInput extends ArtifactReference {
-  board_id: string;
+  project_id: string;
   actor_id: string;
   reason: string;
 }
 
 export interface ArchiveArtifactVersionInput extends ArtifactReference {
-  board_id: string;
+  project_id: string;
   actor_id: string;
 }
 
-export interface ArtifactVersionResult {
-  artifact: ArtifactVersionRecord;
+export interface FixedVersionResult<R extends FixedVersionRecord = FixedVersionRecord> {
+  artifact: R;
   observed_event_cursor: number;
   replayed: boolean;
 }
+
+export type ArtifactVersionResult = FixedVersionResult<ArtifactVersionRecord>;
+export type ProcessItemResult = FixedVersionResult<ProcessItemRecord>;
 
 export interface ArtifactListQuery {
   artifact_type_id?: string;
@@ -156,25 +216,34 @@ export interface ArtifactConsumptionCompatibility {
   reason: "compatible_consumer" | "consumer_missing" | "artifact_unavailable" | "artifact_archived";
 }
 
-export interface ArtifactsQueryApi {
-  getArtifactVersion(boardId: string, reference: ArtifactReference): ArtifactVersionRecord | null;
-  listArtifactVersions(boardId: string, artifactId: string): ArtifactVersionRecord[];
-  latestArtifactVersion(boardId: string, artifactId: string): ArtifactVersionRecord | null;
-  listArtifacts(boardId: string, query?: ArtifactListQuery): ArtifactVersionRecord[];
+export interface FixedVersionQueryApi<R extends FixedVersionRecord> {
+  getArtifactVersion(projectId: string, reference: ArtifactReference): R | null;
+  listArtifactVersions(projectId: string, artifactId: string): R[];
+  latestArtifactVersion(projectId: string, artifactId: string): R | null;
+  listArtifacts(projectId: string, query?: ArtifactListQuery): R[];
   consumptionCompatibility(
-    boardId: string,
+    projectId: string,
     reference: ArtifactReference,
     supportedTypes: ArtifactConsumerType[],
   ): ArtifactConsumptionCompatibility;
 }
 
-export interface ArtifactsCommandApi {
-  registerVersion(input: RegisterArtifactVersionInput): ArtifactVersionResult;
-  markUnavailable(input: MarkArtifactUnavailableInput): ArtifactVersionResult;
-  archiveVersion(input: ArchiveArtifactVersionInput): ArtifactVersionResult;
+export interface FixedVersionCommandApi<R extends FixedVersionRecord, I extends RecordFixedVersionInput> {
+  registerVersion(input: I): FixedVersionResult<R>;
+  markUnavailable(input: MarkArtifactUnavailableInput): FixedVersionResult<R>;
+  archiveVersion(input: ArchiveArtifactVersionInput): FixedVersionResult<R>;
 }
+
+export type ArtifactsQueryApi = FixedVersionQueryApi<ArtifactVersionRecord>;
+export type ArtifactsCommandApi = FixedVersionCommandApi<ArtifactVersionRecord, RegisterArtifactVersionInput>;
 
 export interface ArtifactsApplicationApi {
   query: ArtifactsQueryApi;
   commands: ArtifactsCommandApi;
+}
+
+/** The process items store (A2): kept apart from the 成果库, written without an origin or title. */
+export interface ProcessItemsApplicationApi {
+  query: FixedVersionQueryApi<ProcessItemRecord>;
+  commands: FixedVersionCommandApi<ProcessItemRecord, RecordProcessItemInput>;
 }

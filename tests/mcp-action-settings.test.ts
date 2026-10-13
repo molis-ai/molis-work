@@ -8,7 +8,7 @@ import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { readMcpToolPreference, writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 
 test("local management discovers an unknown plugin, authorizes its exact contract and can revoke a missing provider without granting from supplied permissions", { timeout: 30_000 }, async () => {
@@ -16,7 +16,7 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "授权范围", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path, boardId: project.board_id });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   let connected = true, calls = 0;
   const id = `unknown.${randomUUID()}`;
@@ -60,14 +60,37 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
     const page = await fetch(`${origin}/capabilities/access?client=${input.client_id}&project=${input.project_id}`);
     assert.equal(page.status, 200);
     assert.match(await page.text(), /runtime:external/);
-    const external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id, boardId: project.board_id,
+    const external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id,
       databasePath: project.database_path, webBaseUrl: origin }, { homeDirectory: home,
       runtimeContext: { runtime_id: "external", stable_work_context_id: null, host_declares_stable: false } }, host);
     const reply = await external.handleMessage({ id: 1, method: "tools/call", params: {
-      name: hostActionToolName(definition), arguments: { payload: "a legitimate plugin field" },
+      name: molisWorkActionToolName(definition), arguments: { payload: "a legitimate plugin field" },
     } }) as any;
     assert.equal(reply.result.isError, false, JSON.stringify(reply));
     assert.deepEqual(reply.result.structuredContent, { result: 1 });
+    // W3-01 D: the command left a row, so its result names the operation; a refused call names it in the error text; and a number the
+    // Runtime puts in `_meta` is not taken.
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    const ranId = String(reply.result._meta?.["molis-work/callId"]);
+    assert.match(ranId, UUID);
+    const ranRow = host.callLog!.find(ranId)[0];
+    assert.deepEqual([ranRow?.capability_id, ranRow?.ok, ranRow?.operation, ranRow?.audience], [id, true, "command", "mcp"]);
+    const forged = "11111111-2222-4333-8444-555555555555";
+    const refusedReply = await external.handleMessage({ id: 2, method: "tools/call", params: { name: molisWorkActionToolName(definition), arguments: { payload: 5 },
+      _meta: { "molis-work/callId": forged, call_id: forged, callId: forged } } }) as { result: { isError: boolean; content: Array<{ text: string }>; _meta?: Record<string, unknown> } };
+    assert.equal(refusedReply.result.isError, true);
+    assert.equal(refusedReply.result._meta, undefined, "an error carries its number in its text, not in `_meta`");
+    const refusedId = /"call_id":"([0-9a-f-]{36})"/.exec(refusedReply.result.content[0].text)?.[1];
+    assert.match(String(refusedId), UUID, refusedReply.result.content[0].text);
+    assert.notEqual(refusedId, forged);
+    assert.deepEqual(host.callLog!.find(forged), []);
+    const refusedRow = host.callLog!.find(refusedId!)[0];
+    assert.deepEqual([refusedRow?.refused, refusedRow?.code, refusedRow?.capability_id], [true, "actions.input_invalid", id]);
+    // A failure before any action was reached is no call: it leaves no row, so its text names no number.
+    const unknown = await external.handleMessage({ id: 3, method: "tools/call", params: { name: "molis_work_v1_action_nobody.has.this__v1", arguments: {} } }) as
+      { result: { isError: boolean; content: Array<{ text: string }> } };
+    assert.equal(unknown.result.isError, true);
+    assert.doesNotMatch(unknown.result.content[0]!.text, /call_id/);
     await external.close();
     assert.equal((await send({ ...input, version: 8 })).status, 404);
     assert.equal((await send({ ...input, provider_id: "replacement" })).status, 404);
@@ -98,6 +121,74 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
     assert.equal((await send({ ...input, enabled: false })).status, 200);
     assert.equal(entry(await read()).can_revoke, false);
     assert.equal(calls, 1);
+  } finally {
+    if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("an action that writes through other actions is granted together with them: refused naming the missing grants, saved all or nothing when sent in one request", { timeout: 30_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "mcp-action-settings-together-")), token = "mcp-action-grant-together-control-token";
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const created = await catalog.createProject({ display_name: "一起授权", actor_id: "test" });
+  if (!catalog.listProjectPlugins(created.project_id).includes("feed")) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "feed", actor_id: "test" });
+  const projectId = created.project_id;
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
+  try {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
+    const endpoint = `${origin}/api/settings/mcp/actions`;
+    const read = async (client: string) => (await fetch(`${endpoint}?client_id=${client}&project_id=${projectId}`)).json() as Promise<{ entries: Array<{ capability_id: string; version: number; provider_id: string; status: string }>; grants: unknown[] }>;
+    const send = (value: unknown, language = "zh") => fetch(endpoint, { method: "POST", body: JSON.stringify(value), headers: {
+      origin, "content-type": "application/json", "accept-language": language, "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token } });
+    const identity = async (client: string, capability: string) => {
+      const entry = (await read(client)).entries.find(row => row.capability_id === capability);
+      assert.ok(entry, `${capability} is in the catalog`);
+      return { capability_id: entry.capability_id, version: entry.version, provider_id: entry.provider_id };
+    };
+    const grant = (client: string, action: { capability_id: string; version: number; provider_id: string }, extra: Record<string, unknown> = {}) =>
+      ({ client_id: client, project_id: projectId, ...action, enabled: true, ...extra });
+    const dependencies = ["goals.directory.read", "goals.create", "goals.inputs.confirm"];
+
+    // Alone, the promotion cannot be saved, and the refusal names the grants it needs (in the language asked for).
+    const client = "runtime:together";
+    const promote = await identity(client, "feed.items.promote");
+    const alone = await send(grant(client, promote));
+    assert.equal(alone.status, 400);
+    const refused = await alone.json() as { code: string; error: string };
+    assert.equal(refused.code, "mcp.grant_requires");
+    assert.ok(dependencies.every(id => refused.error.includes(id)), refused.error);
+    assert.match(refused.error, /还要同时授权/);
+    const english = await (await send(grant(client, promote), "en")).json() as { error: string };
+    assert.match(english.error, /^This action also needs these actions granted with it: goals\.directory\.read, goals\.create, goals\.inputs\.confirm$/);
+    assert.deepEqual((await read(client)).grants, [], "nothing was saved");
+
+    // What is already granted is not named again.
+    for (const id of dependencies.slice(1)) assert.equal((await send(grant(client, await identity(client, id)))).status, 200);
+    const partly = await (await send(grant(client, promote))).json() as { error: string };
+    assert.ok(partly.error.includes("goals.directory.read") && !partly.error.includes("goals.create") && !partly.error.includes("goals.inputs.confirm"), partly.error);
+
+    // Sent together, the dependency and the action are checked as one set and saved as one.
+    assert.equal((await send(grant(client, promote, { with: [await identity(client, "goals.directory.read")] }))).status, 200);
+    const saved = await read(client);
+    assert.equal(saved.grants.length, 4);
+    assert.equal(saved.entries.find(row => row.capability_id === "feed.items.promote")?.status, "enabled");
+
+    const other = "runtime:all-at-once";
+    const all = await Promise.all(dependencies.map(id => identity(other, id)));
+    assert.equal((await send(grant(other, await identity(other, "feed.items.promote"), { with: all }))).status, 200);
+    assert.deepEqual((await read(other)).entries.filter(row => [...dependencies, "feed.items.promote"].includes(row.capability_id)).map(row => row.status), ["enabled", "enabled", "enabled", "enabled"]);
+
+    // A dependency that is not in the catalog saves nothing, and `with` is for granting only.
+    const third = "runtime:nothing-saved";
+    const missing = await send(grant(third, await identity(third, "feed.items.promote"), { with: [...all, { capability_id: "goals.no-such-action", version: 1, provider_id: all[0]!.provider_id }] }));
+    assert.equal(missing.status, 404);
+    assert.deepEqual((await read(third)).grants, []);
+    const revoking = await send({ ...grant(third, await identity(third, "feed.items.promote"), { with: all }), enabled: false });
+    assert.equal(revoking.status, 400);
+    assert.equal(((await revoking.json()) as { code: string }).code, "mcp.grant_invalid");
+    assert.deepEqual((await read(third)).grants, []);
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });

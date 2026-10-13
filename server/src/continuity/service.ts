@@ -1,19 +1,19 @@
 import { ImError, clientId, textInput } from "../errors.js";
 import { transaction, type ServerDatabase } from "../database.js";
-import { Identity, type Role, type Session } from "../identity.js";
+import { Identity, type Member, type Role, type Session } from "../identity.js";
 import { ServerEvents } from "../events.js";
 import { ContinuityActions } from "./actions.js";
-import type { ActionFactory, ArtifactVersionRecord, BoundActions, GoalContractView, GoalEventProgressResult, GoalEventStateView, GoalProjection, ProgressCommand, ProjectScope } from "./types.js";
+import type { ActionFactory, ArtifactVersionRecord, BoundActions, GoalEventProgressResult, GoalEventStateView, GoalProjection, ProgressCommand, ProjectScope } from "./types.js";
 
 function count(value: unknown): number {
   if (!Number.isSafeInteger(value) || Number(value) < 0) throw new ImError("continuity.invalid_version", "缺少有效的目标版本");
   return Number(value);
 }
 export function progressInput(value: Record<string, unknown>, projectId: string): ProgressCommand {
-  const allowed = ["command_id","project_id","goal_id","cursor","revision","summary","next_step","next_actor"];
+  const allowed = ["command_id","project_id","goal_id","cursor","summary","next_step","next_actor"];
   if (Object.keys(value).some(k => !allowed.includes(k)) || value.project_id !== projectId) throw new ImError("continuity.invalid_input", "操作不属于此项目或包含不支持的字段");
   const optional = (v: unknown, max: number) => v === "" || v === undefined ? "" : textInput(v, "后续说明", max);
-  return {command_id:clientId(value.command_id),project_id:projectId,goal_id:textInput(value.goal_id,"目标",128),cursor:count(value.cursor),revision:count(value.revision),
+  return {command_id:clientId(value.command_id),project_id:projectId,goal_id:textInput(value.goal_id,"目标",128),cursor:count(value.cursor),
     summary:textInput(value.summary,"进展",4000),next_step:optional(value.next_step,2000),next_actor:optional(value.next_actor,100)};
 }
 
@@ -32,6 +32,24 @@ export class ContinuityService {
       if (old && old.owner_id !== ownerId) throw new ImError("continuity.owner_conflict","项目已属于另一位成员",409);
       this.db.prepare("INSERT INTO mw_projects VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,scope_json=excluded.scope_json").run(scope.id,scope.title,ownerId,JSON.stringify(scope));
       this.db.prepare("INSERT OR IGNORE INTO mw_access VALUES (?,?,'owner')").run(scope.id,ownerId);
+    });
+  }
+  /** The member a registered project belongs to, or null when it is not registered. */
+  projectOwner(projectId: string): Member | null {
+    return this.db.prepare("SELECT m.id,m.display_name FROM mw_projects p JOIN mw_members m ON m.id=p.owner_id WHERE p.id=?").get(projectId) as Member | undefined ?? null;
+  }
+  /**
+   * Closes every registered project that is not in `allowed`: its members lose access and its open invitations stop working.
+   * The records and history stay, so listing a project again restores only its owner. Returns the ids it closed.
+   */
+  closeProjectsExcept(allowed: ReadonlySet<string>): string[] {
+    return transaction(this.db, () => {
+      const closed = (this.db.prepare("SELECT id FROM mw_projects").all() as {id:string}[]).map(project => project.id).filter(id => !allowed.has(id));
+      for (const id of closed) {
+        this.db.prepare("DELETE FROM mw_access WHERE project_id=?").run(id);
+        this.db.prepare("UPDATE mw_codes SET consumed=1 WHERE project_id=? AND kind='invite'").run(id);
+      }
+      return closed;
     });
   }
   scope(projectId: string): ProjectScope {
@@ -58,11 +76,8 @@ export class ContinuityService {
     } finally { clearTimeout(timeout);this.active.delete(active); }
   }
   private async goal(bound: BoundActions, goalId: string): Promise<GoalProjection> {
-    const [state,contract] = await Promise.all([
-      this.actions.invoke<GoalEventStateView>(bound,"goals.state.read",{goal_id:goalId}),
-      this.actions.invoke<GoalContractView>(bound,"goals.contract.read",{goal_id:goalId}),
-    ]);
-    return {goal_id:goalId,title:state.intent.title,outcome:state.agreement.outcome,status:state.work_status,cursor:state.goal_event_cursor,revision:contract.goal.current_contract_revision,
+    const state = await this.actions.invoke<GoalEventStateView>(bound,"goals.state.read",{goal_id:goalId});
+    return {goal_id:goalId,title:state.intent.title,outcome:state.agreement.outcome,status:state.work_status,cursor:state.goal_event_cursor,
       can_record:state.can_record,summary:state.progress_summary?.summary ?? "",next_step:state.progress_summary?.next_step ?? "",next_actor:state.progress_summary?.next_actor ?? "",updated_at:state.progress_summary?.recorded_at ?? null};
   }
   private async artifacts(bound: BoundActions, scope: ProjectScope, team: boolean): Promise<ArtifactVersionRecord[]> {
@@ -81,7 +96,7 @@ export class ContinuityService {
       const goals = await Promise.all(scope.goal_ids.map(id => this.goal(bound,id)));
       const artifacts = await this.artifacts(bound,scope,role !== "owner"); validate();
       return {project:{id:scope.id,title:scope.title,role},goals,artifacts:artifacts.map(a => ({artifact_id:a.artifact_id,version:a.version,
-        title:typeof a.metadata.title === "string" ? a.metadata.title : a.artifact_id,
+        title:a.title,
         plugin_id:a.producer_plugin_id,availability:a.availability,
         content:a.content_kind === "inline" ? (typeof a.payload === "string" ? a.payload : JSON.stringify(a.payload,null,2)) : ""})),members:this.members(projectId)};
     });
@@ -126,7 +141,7 @@ export class ContinuityService {
         if (!result) {
           validate();
           result = await this.actions.invoke<GoalEventProgressResult>(bound,"goals.progress.record",{goal_id:input.goal_id,idempotency_key:input.command_id,
-            based_on_cursor:input.cursor,expected_goal_cursor:input.cursor,expected_contract_revision:input.revision,summary:input.summary,next_step:input.next_step,next_actor:input.next_actor});
+            based_on_cursor:input.cursor,expected_goal_cursor:input.cursor,summary:input.summary,next_step:input.next_step,next_actor:input.next_actor});
         }
         validate(); const receipt = {saved:true as const,event_id:result.event_id,replayed:replayed || result.replayed};
         transaction(this.db, () => {
@@ -152,6 +167,8 @@ export class ContinuityService {
           owner_actor_id:a.owner_actor_id,producer:{plugin_id:a.producer_plugin_id,plugin_version:a.producer_plugin_version,binding_signature:a.producer_binding_signature},
           content:a.content_kind === "inline" ? {kind:"inline",payload:a.payload} : {kind:"reference",content_ref:`unavailable://${encodeURIComponent(a.artifact_id)}/${a.version}`,digest:a.content_digest,size_bytes:a.size_bytes,available:false},
           expected_digest:a.content_digest,metadata:typeof a.metadata.title === "string" ? {title:a.metadata.title} : {},scope:a.scope,
+          // A 成果 travels with its origin, title and media type; its trace names process items that stay on the source device.
+          origin:a.origin,title:a.title,media_type:a.media_type,trace:[],
           availability:a.availability,lifecycle_state:a.lifecycle_state,supersedes_version:null,
           source_supersedes_version:a.supersedes_version})),
         dependencies:artifacts.map(a => ({plugin_id:a.producer_plugin_id,plugin_version:a.producer_plugin_version,credential_required:a.content_kind === "reference"})),

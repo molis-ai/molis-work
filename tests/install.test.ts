@@ -322,18 +322,12 @@ test("workspace source changes reject an old build before touching the installed
     const source = await fixtureSource(directory, "1.0.0");
     const workspace = join(source, "apps", "local-host");
     const launchers = join(source, "apps", "desktop", "launchers");
-    const sdk = join(workspace, "sdk");
     await mkdir(launchers, { recursive: true });
-    await mkdir(sdk, { recursive: true });
     await mkdir(join(workspace, "src"), { recursive: true });
     await mkdir(join(workspace, "dist"), { recursive: true });
     await mkdir(join(workspace, "node_modules"), { recursive: true });
     const launcherSource = join(launchers, "entry.ts");
-    const sdkSource = join(sdk, "index.ts");
-    const sdkConfig = join(source, "tsconfig.sdk.json");
     await writeFile(launcherSource, "export const root = 1;\n");
-    await writeFile(sdkSource, "export const sdk = 1;\n");
-    await writeFile(sdkConfig, "{}\n");
     await writeFile(join(source, "tsconfig.json"), "{}\n");
     await writeFile(join(source, "pnpm-workspace.yaml"), "packages:\n  - 'apps/*'\n");
     await writeFile(join(workspace, "package.json"), '{"name":"fixture-workspace","version":"1.0.0"}\n');
@@ -350,7 +344,7 @@ test("workspace source changes reject an old build before touching the installed
     await writeFile(join(workspace, "node_modules", "generated.txt"), "package manager output\n");
     assert.equal((await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source })).status, "unchanged");
 
-    for (const changedInput of [workspaceSource, launcherSource, sdkSource, sdkConfig]) {
+    for (const changedInput of [workspaceSource, launcherSource]) {
       const original = await readFile(changedInput, "utf8");
       await writeFile(changedInput, original + "\n// changed source input\n");
       await assert.rejects(installMolisWorkHome({ homeDirectory: home, sourceDirectory: source }),

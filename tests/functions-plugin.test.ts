@@ -19,25 +19,24 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { renderMolisWorkSettings, renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { renderSettingsDirectorySection } from "../apps/workbench/src/settings-directory.ts";
 import {
-  FUNCTIONS_CREDENTIAL_REF,
   INBOX_DISMISS_BEHAVIOR_ID,
   INBOX_DONE_BEHAVIOR_ID,
   INBOX_NEXT_SCENE_ID,
   SYSTEM_HOME_DOCK_FUNCTION_KEY,
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
   SYSTEM_INBOX_NEXT_FUNCTION_KEY,
-  functionFitsScene,
   choiceCriteriaFollowContext,
+  type FunctionAuthoringCatalog,
   type TypeSafeEvaluateResult,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
   FunctionsError,
   createFunctionsService,
+  functionsActions,
   hashChoiceConfig,
   hashFunctionConfig,
   openFunctionsStore,
   readChoiceAnswer,
-  type FunctionsSecretPort,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
 import { FunctionsHttpRouteTable } from "../apps/local-host/src/functions-http/routes.ts";
@@ -55,15 +54,6 @@ const primitives = {
     .replaceAll('"', "&quot;"),
   text: (value: string) => value,
 };
-
-function memorySecrets(initial: Record<string, string> = {}): FunctionsSecretPort {
-  const map = new Map(Object.entries(initial));
-  return {
-    put(ref, value) { map.set(ref, value); },
-    get(ref) { return map.get(ref) ?? null; },
-    delete(ref) { map.delete(ref); },
-  };
-}
 
 function fixtureProvider(result: { choice?: string | null; noul?: number; score?: number } = { choice: "yes" }, calls: { count: number } = { count: 0 }): TypeSafeProvider {
   return {
@@ -216,7 +206,6 @@ test("custom Choice options survive an Inbox destination and bind through a scen
       urgent: INBOX_DONE_BEHAVIOR_ID,
       later: INBOX_DISMISS_BEHAVIOR_ID,
     });
-    assert.equal(functionFitsScene(mapped, INBOX_NEXT_SCENE_ID), true);
     const noul = store.create({ primitive: "noul", name: "材料够不够" });
     assert.equal(noul.scene_id, null);
     const noulMapped = store.updateDraft(noul.id, {
@@ -235,12 +224,11 @@ test("custom Choice options survive an Inbox destination and bind through a scen
 test("preview uses the injected provider once, stores last_preview, and does not retry", async () => {
   await withHome(async (home) => {
     const calls = { count: 0 };
-    const secrets = memorySecrets();
-    secrets.put(FUNCTIONS_CREDENTIAL_REF, "sk-test");
+    const credential = () => "sk-test";
     const store = openFunctionsStore(home);
     const service = createFunctionsService({
       store,
-      secrets,
+      credential,
       provider: fixtureProvider({ choice: "yes" }, calls),
     });
     try {
@@ -270,7 +258,7 @@ test("preview without a key is a configured-state, not a TypeSafe call", async (
     const calls = { count: 0 };
     const service = createFunctionsService({
       store: openFunctionsStore(home),
-      secrets: memorySecrets(),
+      credential: () => null,
       provider: fixtureProvider({ choice: "yes" }, calls),
     });
     const created = service.createChoice({ name: "urgent" });
@@ -288,10 +276,10 @@ test("preview without a key is a configured-state, not a TypeSafe call", async (
 
 test("changing instructions invalidates the previous preview", async () => {
   await withHome(async (home) => {
-    const secrets = memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" });
+    const credential = () => "sk-test";
     const service = createFunctionsService({
       store: openFunctionsStore(home),
-      secrets,
+      credential,
       provider: fixtureProvider(),
     });
     const created = service.createChoice({ name: "route" });
@@ -310,10 +298,10 @@ test("changing instructions invalidates the previous preview", async () => {
 
 test("TYPESAFE_API_KEY wins over the stored secret and settings JSON never includes the key", async () => {
   await withHome(async (home) => {
-    const secrets = memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-stored" });
+    const credential = () => "sk-stored";
     const service = createFunctionsService({
       store: openFunctionsStore(home),
-      secrets,
+      credential,
       env: { TYPESAFE_API_KEY: "sk-env" },
     });
     const status = service.settingsStatus();
@@ -332,7 +320,7 @@ test("route table lists, previews, publishes, and maps missing functions to 404"
   await withHome(async (home) => {
     const service = createFunctionsService({
       store: openFunctionsStore(home),
-      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }),
+      credential: () => "sk-test",
       provider: fixtureProvider({ choice: null }),
     });
     const routes = new FunctionsHttpRouteTable(createFunctionsRouteHandlers({ actions: registeredFunctionActions(service) }));
@@ -385,6 +373,53 @@ test("choice options follow destination context unless keys are custom", () => {
   assert.equal(choiceCriteriaFollowContext(["inbox.done", "later"], ["inbox.done", "inbox.dismiss"]), false);
 });
 
+// The rule that decides which suggestions the page offers lives in the page script alone (it was once also a function in the contracts
+// that nothing but tests called). This runs the real script text in Node, not a pattern match, and needs no browser.
+test("the rules page suggests behaviors by the real page rule: destination, version and subject kind", () => {
+  const from = "const matchesScene = ", to = "const defaultChoiceRows = ";
+  const script = FUNCTIONS_CLIENT_FACTORY_SCRIPT;
+  assert.equal(script.split(from).length, 2, "start anchor appears exactly once");
+  assert.equal(script.split(to).length, 2, "end anchor appears exactly once");
+  const rule = script.slice(script.indexOf(from), script.indexOf(to));
+  const build = (selected: Record<string, unknown> | undefined, catalog: FunctionAuthoringCatalog) => new Function("L", "catalog", "selected", "selectedDestId",
+    rule + "\nreturn { suggestedBehaviors, destOf };")((value: string) => value, catalog, selected, () => selected?.scene_id ?? "") as {
+    suggestedBehaviors: (destinationId: string, kinds: string[]) => { behavior_id: string; title: string; action_ref?: { capability_id: string } }[];
+    destOf: (id: string) => { behavior_ids: string[] } | null;
+  };
+  const behavior = (behavior_id: string, title: string, extra: Record<string, unknown>) => ({ behavior_id, title, effect: "read" as const, source: "plugin" as const,
+    plugin_id: "example.review", plugin_title: "Review", subject_kinds: [] as string[], clickable: true, ...extra });
+  const scene = (scene_version: number) => ({ destination_id: "example.review", scene_version, provider_id: "example.review", kind: "event" as const, title: "Review", when: "Note submitted",
+    configure_at: "", effect: "", subject_kinds: ["note"], behavior_ids: ["ack", "later"] });
+  const catalog: FunctionAuthoringCatalog = {
+    subjects: [],
+    destinations: [scene(1), scene(2), { destination_id: "agent.mcp", kind: "mcp", title: "Agent", when: "", configure_at: "", effect: "", subject_kinds: [], behavior_ids: ["a.generic", "a.note", "a.feed"] }],
+    behaviors: [
+      behavior("ack", "ack", { destination_id: "example.review", scene_version: 1, provider_id: "example.review", subject_kinds: ["note"] }),
+      behavior("later", "later", { destination_id: "example.review", scene_version: 1, provider_id: "example.review", subject_kinds: ["note"] }),
+      behavior("ack", "Version two approval", { destination_id: "example.review", scene_version: 2, provider_id: "example.review", subject_kinds: ["note"] }),
+      behavior("later", "Version two deferral", { destination_id: "example.review", scene_version: 2, provider_id: "example.review", subject_kinds: ["note"] }),
+      behavior("a.generic", "Generic", { destination_id: "agent.mcp", action_ref: { capability_id: "generic.read" } }),
+      behavior("a.note", "Note", { destination_id: "agent.mcp", subject_kinds: ["note"], action_ref: { capability_id: "note.read" } }),
+      behavior("a.feed", "Feed", { destination_id: "agent.mcp", subject_kinds: ["feed_item"], action_ref: { capability_id: "feed.read" } }),
+      behavior("other-scene-symbol", "Other scene", { destination_id: "other.scene" }),
+    ],
+  };
+  // Chosen by id alone, with two versions registered: the page does not guess, it offers nothing.
+  const unpinned = build(undefined, catalog);
+  assert.deepEqual(unpinned.suggestedBehaviors("example.review", ["note"]), []);
+  assert.deepEqual(unpinned.destOf("example.review")?.behavior_ids, []);
+  // Pinned to version 2 and its provider: that version's own labels, in the destination's order.
+  const pinned = build({ scene_id: "example.review", scene_version: 2, scene_provider_id: "example.review" }, catalog);
+  assert.equal(pinned.suggestedBehaviors("example.review", ["note"])[0]?.title, "Version two approval");
+  assert.deepEqual(pinned.suggestedBehaviors("example.review", ["note"]).map(row => row.title), ["Version two approval", "Version two deferral"]);
+  // Agent: filtered by subject kind, never another scene's symbol, everything when no kind is chosen.
+  assert.deepEqual(unpinned.suggestedBehaviors("agent.mcp", ["note"]).map(row => row.action_ref?.capability_id), ["generic.read", "note.read"]);
+  assert.equal(unpinned.suggestedBehaviors("agent.mcp", []).length, 3);
+  // No destination: nothing to suggest without one; unregistered destination: nothing either.
+  assert.deepEqual(unpinned.suggestedBehaviors("", ["note"]), []);
+  assert.deepEqual(unpinned.suggestedBehaviors("unregistered.scene", []), []);
+});
+
 test("Functions client clears leftover preview text when switching records and hides Noul section chrome", () => {
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const switching = selected\?\.id !== record\.id/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions\/catalog/);
@@ -408,7 +443,7 @@ test("Functions client clears leftover preview text when switching records and h
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /subject_kinds: dest\?\.subject_kinds/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /selected = record;\s*records = records\.some/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/inbox\/judgment|\/api\/home\/dock-judgment/);
-  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /row\.board_id \? " · " \+ row\.board_id/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /row\.project_id \? " · " \+ row\.project_id/);
 });
 
 test("system judgment editor and connection settings render without plugin contributions", () => {
@@ -616,7 +651,7 @@ test("Noul preview stores probability without confidence, and publish pins the r
     const store = openFunctionsStore(home);
     const service = createFunctionsService({
       store,
-      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }),
+      credential: () => "sk-test",
       provider: fixtureProvider({ noul: 0.91 }),
     });
     const created = service.create({ primitive: "noul", name: "材料是否够" });
@@ -684,7 +719,7 @@ test("invoke uses published config once and does not overwrite last_preview", as
     const calls = { count: 0 };
     const service = createFunctionsService({
       store: openFunctionsStore(home),
-      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }),
+      credential: () => "sk-test",
       provider: fixtureProvider({ choice: "yes" }, calls),
     });
     const created = service.createChoice({ name: "急单" });
@@ -707,11 +742,11 @@ test("invoke uses published config once and does not overwrite last_preview", as
   });
 });
 
-test("HTTP invoke by key and MCP list hide drafts", async () => {
+test("HTTP invoke by key and the Functions actions hide drafts", async () => {
   await withHome(async (home) => {
     const service = createFunctionsService({
       store: openFunctionsStore(home),
-      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }),
+      credential: () => "sk-test",
       provider: fixtureProvider({ choice: "no" }),
     });
     const draft = service.createChoice({ name: "草稿" });
@@ -745,25 +780,22 @@ test("HTTP invoke by key and MCP list hide drafts", async () => {
     });
     assert.equal(invoked?.status, 200);
     assert.equal((invoked?.body as { data: { choice: string } }).data.choice, "no");
-    const { callLegacyFunctionsMcp } = await import("../apps/local-host/src/mcp-functions-tools.ts");
     const actionHost = new MolisWorkLocalHost({ homeDirectory: home, functions: {
-      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }), provider: fixtureProvider({ choice: "no" }), env: {},
+      credential: () => "sk-test", provider: fixtureProvider({ choice: "no" }), env: {},
     } });
     const actions = bindActionClient(actionHost.homeActionClient(), () => ({
       actor_id: "test-mcp", project_id: null, audience: "mcp", permissions: ["functions:invoke", "functions:manage"],
     }));
-    const listedMcp = JSON.parse(await callLegacyFunctionsMcp(actions, "molis_work_v1_functions_list", {})) as {
-      functions: Array<{ function_key: string }>;
-    };
+    const listedMcp = await actions.invoke(functionsActions.list, {}) as { functions: Array<{ function_key: string }> };
     assert.ok(listedMcp.functions.some((item) => item.function_key === live.function_key));
     assert.equal(listedMcp.functions.some((item) => item.function_key === draft.function_key), false);
     await assert.rejects(
-      () => callLegacyFunctionsMcp(actions, "molis_work_v1_functions_describe", { function_key: draft.function_key }),
+      () => actions.invoke(functionsActions.describe, { function_key: draft.function_key }),
       /函数不存在/,
     );
-    const invokedMcp = JSON.parse(await callLegacyFunctionsMcp(actions, "molis_work_v1_functions_invoke", {
+    const invokedMcp = await actions.invoke(functionsActions.invoke, {
       function_key: live.function_key, input: "MCP test",
-    })) as { status: string; data: { choice: string } };
+    }) as { status: string; data: { choice: string } };
     assert.equal(invokedMcp.status, "ok");
     assert.equal(invokedMcp.data.choice, "no");
     await actionHost.close();

@@ -25,17 +25,22 @@ export interface PluginRuntimeReleaseArtifactDatabase {
   };
 }
 
-/** Code shipped by a trusted Native factory, stored inside the project Runtime database. */
-export class SqlitePluginRuntimeReleaseArtifactRepository implements PluginRuntimeReleaseArtifactRepository {
-  constructor(private readonly db: PluginRuntimeReleaseArtifactDatabase) {
-    db.exec(`CREATE TABLE IF NOT EXISTS plugin_runtime_release_artifacts (
+/** The native release artifacts table, as one current schema; the host composes it into the project database baseline. */
+export const PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL = `
+    CREATE TABLE IF NOT EXISTS plugin_runtime_release_artifacts (
       plugin_id TEXT NOT NULL,
       publisher_signature TEXT NOT NULL,
       version TEXT NOT NULL,
       manifest_digest TEXT NOT NULL,
       artifact_json TEXT NOT NULL,
       PRIMARY KEY (plugin_id, publisher_signature, version, manifest_digest)
-    )`);
+    );
+`;
+
+/** Code shipped by a trusted Native factory, stored inside the project Runtime database. */
+export class SqlitePluginRuntimeReleaseArtifactRepository implements PluginRuntimeReleaseArtifactRepository {
+  constructor(private readonly db: PluginRuntimeReleaseArtifactDatabase) {
+    db.exec(PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL);
   }
 
   get(pluginId: string, publisherSignature: string, version: string, manifestDigest: string): PluginRuntimeReleaseArtifact | null {

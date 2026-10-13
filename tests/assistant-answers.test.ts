@@ -33,7 +33,7 @@ const write: ActionDefinition = { capability_id: "fixture.notes.write", version:
 test("an answer continues its own question; a rejection stays a rejection; a late or misplaced answer or approval starts nothing", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-answers-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "board", storage_key: "memory:project" };
   const written: string[] = [];
   local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "笔记" }, definitions: [write],
     handlers: [{ ...write, handle(_context, input) { written.push((input as { text: string }).text); return { saved: true }; } }] });

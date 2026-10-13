@@ -5,12 +5,15 @@ import test from "node:test";
 import { EditorState, TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import {
-  FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, defineSubjectOffersAction, inspectActionDeclarations, type ActionReference, type ActionView, type FragmentOfferChoice, type FragmentOffersInput,
+  FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, defineSubjectOffersAction, type ActionReference, type ActionView, type FragmentOfferChoice, type FragmentOffersInput,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
+import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
+import { assertActionInput, subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 import {
-  assertActionInput, contextualCandidates, fragmentCandidates, judgedCandidates, subjectOfferChoiceKey, judgmentQuestions, judgmentState, MAX_JUDGED_CANDIDATES, planContextualLayout, readContextualJudgment, ruleScores,
-} from "@molis-ai/molis-work-kernel";
+  contextualCandidates, DEFAULT_JUDGMENT_WORDING, fragmentCandidates, judgedCandidates, judgmentQuestions, judgmentState, MAX_JUDGED_CANDIDATES, planContextualLayout,
+  readContextualJudgment, ruleScores, type JudgmentWording,
+} from "@molis-ai/molis-work-kernel/contextual";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { createContextualJudgmentService } from "../apps/local-host/src/contextual/judgment-service.js";
 import { handleContextualHttp, recallForJudgment, surfaceKinds } from "../apps/local-host/src/contextual/contextual-http.js";
@@ -204,6 +207,97 @@ test("judgment service screens what leaves the machine and records it; recall of
   assert.ok(out.receipt.screened.includes("去掉了形似密钥的内容"));
   assert.ok(out.receipt.screened.some(item => item.startsWith("记忆")));
   assert.match(out.receipt.state_digest!, /^[0-9a-f]{16}$/);
+});
+
+// ---- the wording of the two questions (设置 › 提示词, W3-04) --------------------------------------------------------------------
+// What the judgment was asked before the wording could be edited, word for word. The default registered in 设置 › 提示词 must read as this.
+const FROZEN_OPENING = (many: boolean) => `用户在文档里${many ? "选中了几段内容" : "选中了一段内容"}，想对它做一件事。`;
+const FROZEN_FIRST = "先看内容本身是什么：观点或判断（需要检验或推敲）、事实或数据（可以作为依据）、计划或步骤（需要落地跟踪）、风险、进展、用户原话、结论、术语，或者是正在写的草稿。";
+const FROZEN_SECOND = "再结合所在位置和当前目标，从选项里选出他此刻最可能要做的一件事。不要只看选区的长短。";
+const FROZEN_SURFACE = "助手应该以什么形式参与？如果用户只是在浏览、或者动作已经很明确，选 none。";
+const FROZEN_HINTS = {
+  word: "他只选中了一个词：更可能想弄清它的意思或查证它。",
+  editing: "他没有选中文字，而是正在写这一段：更可能需要写作上的帮助（改写、接着写、换个角度看），除非这段明显是在记录计划或进展。",
+  completed: "他刚把这一步勾选为完成：更可能想记下进展，或者看接下来该推进什么。",
+  comparing: "他特意把两处内容放在一起：更可能想比较、建立联系或合并。",
+} as const;
+const frozenNext = (many: boolean, hint = "") => FROZEN_OPENING(many) + FROZEN_FIRST + hint + FROZEN_SECOND;
+const nextOf = (questions: Record<string, unknown>) => (questions.next as { instructions: string }).instructions;
+
+test("the judgment's default wording reads exactly as the questions always did; the program adds the opening and the hint around it", () => {
+  assert.equal(DEFAULT_JUDGMENT_WORDING.next, `${FROZEN_FIRST}\n\n${FROZEN_SECOND}`);
+  assert.equal(DEFAULT_JUDGMENT_WORDING.surface, FROZEN_SURFACE);
+  const candidates = fragmentCandidates(directory(), focus());
+  const one = [{ kind: "text_range" as const, role: "paragraph" as const, text: "一段" }], two = [...one, ...one];
+  const cases: Array<[string, SurfaceFocus | undefined, string]> = [
+    ["no focus", undefined, frozenNext(false)],
+    ["a range", focus(), frozenNext(false)],
+    ["a word", focus({ granularity: "word" }), frozenNext(false, FROZEN_HINTS.word)],
+    ["editing without a selection", focus({ activity: "editing" }), frozenNext(false, FROZEN_HINTS.editing)],
+    ["a step just ticked", focus({ activity: "completed" }), frozenNext(false, FROZEN_HINTS.completed)],
+    ["two things side by side", focus({ activity: "comparing", granularity: "objects", targets: two }), frozenNext(true, FROZEN_HINTS.comparing)],
+    ["several blocks", focus({ granularity: "blocks", targets: two }), frozenNext(true)],
+  ];
+  for (const [what, at, expected] of cases) {
+    const questions = judgmentQuestions(candidates, at) as { next: { type: string; instructions: string; criteria: Record<string, string> }; surface: { type: string; instructions: string; criteria: Record<string, string> } };
+    assert.equal(nextOf(questions), expected, what);
+    assert.equal(judgmentQuestions(candidates, at, DEFAULT_JUDGMENT_WORDING).next && nextOf(judgmentQuestions(candidates, at, DEFAULT_JUDGMENT_WORDING)), expected, `${what}: the default wording given explicitly`);
+    assert.equal(questions.surface.instructions, FROZEN_SURFACE, what);
+    assert.deepEqual([questions.next.type, questions.surface.type], ["choice", "choice"]);
+  }
+  const questions = judgmentQuestions(candidates, focus()) as { next: { criteria: Record<string, string> }; surface: { criteria: Record<string, string> } };
+  assert.deepEqual(Object.keys(questions.next.criteria).sort(), candidates.map(item => item.key).sort(), "the options are still the available candidates");
+  assert.deepEqual(Object.keys(questions.surface.criteria), ["none", "suggest", "options", "preview", "compare"], "the five forms of the Assistant are not part of the wording");
+});
+
+test("the wording the person left is what is asked: the hint goes at the first blank line, or last when there is none; the forms and the options stay", () => {
+  const candidates = fragmentCandidates(directory(), focus());
+  const edited: JudgmentWording = { next: "只读这段话本身。\n\n选最贴近的一项。", surface: "助手要不要出面？不确定就选 none。" };
+  const questions = judgmentQuestions(candidates, focus({ granularity: "word" }), edited) as { next: { criteria: Record<string, string> }; surface: { instructions: string; criteria: Record<string, string> } };
+  assert.equal(nextOf(questions), FROZEN_OPENING(false) + "只读这段话本身。" + FROZEN_HINTS.word + "选最贴近的一项。");
+  assert.equal(questions.surface.instructions, "助手要不要出面？不确定就选 none。");
+  assert.deepEqual(Object.keys(questions.next.criteria).sort(), candidates.map(item => item.key).sort());
+  assert.deepEqual(Object.keys(questions.surface.criteria), ["none", "suggest", "options", "preview", "compare"]);
+  // No blank line: one paragraph, and the hint follows it. Extra blank lines and trailing space do not leak in.
+  assert.equal(nextOf(judgmentQuestions(candidates, focus({ activity: "completed" }), { ...edited, next: "只看内容。\n" }) as Record<string, unknown>), FROZEN_OPENING(false) + "只看内容。" + FROZEN_HINTS.completed);
+  assert.equal(nextOf(judgmentQuestions(candidates, focus({ activity: "completed" }), { ...edited, next: "一。\n \n\n二。\n\n三。\n" }) as Record<string, unknown>), FROZEN_OPENING(false) + "一。" + FROZEN_HINTS.completed + "二。\n\n三。");
+});
+
+test("the judgment service asks with the wording the person left and reads its text only when it really asks; a changed wording is asked again", async () => {
+  const candidates = fragmentCandidates(directory(), focus());
+  let revision = "-.-", wording: JudgmentWording = DEFAULT_JUDGMENT_WORDING;
+  let revisions = 0, texts = 0;
+  const asked: Record<string, unknown>[] = [];
+  const service = createContextualJudgmentService<string>({
+    directory: async () => directory(),
+    wording: { revision: () => { revisions += 1; return revision; }, text: () => { texts += 1; return wording; } },
+    evaluate: async ({ questions }) => { asked.push(questions); return { basis: "jev", body: answer(candidates, "counter") }; },
+  });
+  const request = { pane_id: "p", focus: focus() };
+  await service.candidates(request, "me");
+  assert.deepEqual([revisions, texts], [0, 0], "the rules layout never touches the wording");
+  await service.judge(request, "me");
+  await service.judge(request, "me");
+  assert.deepEqual([asked.length, texts], [1, 1], "the second judgment of the same context is served from the cache without reading the text");
+  assert.ok(revisions >= 2, "a cache hit still checks that the wording has not changed");
+  assert.equal(nextOf(asked[0]!), frozenNext(false));
+
+  revision = "1.-";
+  wording = { ...DEFAULT_JUDGMENT_WORDING, next: "只看第一句。\n\n选一个。" };
+  const judged = await service.judge(request, "me");
+  assert.deepEqual([asked.length, texts], [2, 2], "the person changed it: asked again, and the text is read once");
+  assert.equal(nextOf(asked[1]!), FROZEN_OPENING(false) + "只看第一句。选一个。");
+  assert.equal(judged.plan.basis, "judgment");
+  await service.judge(request, "me");
+  assert.deepEqual([asked.length, texts], [2, 2], "and cached again under the new wording");
+
+  revision = "-.-";
+  wording = DEFAULT_JUDGMENT_WORDING;
+  await service.judge(request, "me");
+  assert.equal(nextOf(asked[2]!), frozenNext(false), "restoring the default asks again with the default");
+  const withoutPort = createContextualJudgmentService<string>({ directory: async () => directory(), evaluate: async ({ questions }) => { asked.push(questions); return { basis: "jev", body: answer(candidates, "counter") }; } });
+  await withoutPort.judge(request, "me");
+  assert.equal(nextOf(asked[3]!), frozenNext(false), "a service without the port asks the default");
 });
 
 // ---- Pages focus -------------------------------------------------------------------------------------------------

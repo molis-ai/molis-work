@@ -1,4 +1,4 @@
-import { ActionError, ACTION_REFERENCE_SCHEMA, type ActionDefinition, type ActionProviderRegistration, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, ACTION_REFERENCE_SCHEMA, type ActionDefinition, type ActionProviderRegistration, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_MCP_DESTINATION_ID, type FunctionRecord, FunctionSummary, FunctionDescribe, FunctionInvokeResult } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsService } from "./service.js";
 import { functionAuthoringActions, functionAuthoringHandlers } from "./authoring-actions.js";
@@ -38,6 +38,12 @@ export const functionsActions = {
     required: ["function_key", "input"], additionalProperties: false,
   }, resultSchema, true),
 } as const;
+
+/** The Functions rule a judgment reference names, if it names one; scene judgments are filed under that rule's key. */
+export function publishedFunctionKey(reference: ActionReference): string | null {
+  return reference.provider_id === "system.functions" && reference.capability_id.startsWith("functions.published.")
+    ? reference.capability_id.slice("functions.published.".length) : null;
+}
 
 export function publishedFunctionAction(record: FunctionRecord): ActionDefinition<{ content: string }, FunctionInvokeResult> {
   if (record.status !== "published" || !record.version) throw new ActionError("actions.function_unpublished", "草稿不能注册为可调用判断");

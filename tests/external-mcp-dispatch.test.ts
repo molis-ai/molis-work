@@ -8,13 +8,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
 import { createExternalMcpDirectory } from "../apps/local-host/src/external-mcp-actions.js";
 import { EXTERNAL_MCP_PERMISSION, isMcpToolCapability } from "../apps/local-host/src/mcp-tool-actions.js";
 import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 test("real Prologue HTTP dispatch rechecks persisted action grants after DNS preparation, preserves cancellation and recovers", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "external-mcp-dispatch-"));
@@ -49,15 +47,17 @@ test("real Prologue HTTP dispatch rechecks persisted action grants after DNS pre
   });
   await new Promise<void>(resolve => server.listen(0, resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-  const project = await catalog.createProject({ display_name: "MCP 最终派发", actor_id: "web-user" }); catalog.close();
+  // The grants are made the way a person makes them, through the access settings of the served Home. The calls stay in process: they pass their own
+  // signal, and this file asserts what the server does when it fires, which a gateway call (a closed connection to the server) cannot show.
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const served = await serveTestHost(t, { home, host });
+  const project = await served.createProject("MCP 最终派发");
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.mcp-dispatch", appVersion: "1.0.0" }, reviewQueue: new AgentReviewQueue(),
     storageRoot: join(home, "runtime"), modelConfiguration: async () => null, resolveCredential: () => null });
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = project.reference;
   const directory = createExternalMcpDirectory({ localHost: host, homeDirectory: home });
   try {
-    const owner = { board_id: project.board_id, plugin_id: "io.molis.work.coding" }, library = adapter.mcpLibrary!;
+    const owner = { project_id: project.project_id, plugin_id: "io.molis.work.coding" }, library = adapter.mcpLibrary!;
     const saved = await library.save(owner, { expected_version: 0, label: "写笔记", transport: "http", enabled: true, timeout_ms: 5000,
       endpoint: `http://localhost:${address.port}/mcp`, auth: { kind: "none" } });
     await library.control(owner, saved.id, "connect");
@@ -67,7 +67,7 @@ test("real Prologue HTTP dispatch rechecks persisted action grants after DNS pre
     assert.ok(view?.availability.available);
     const ref = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
     const caller: ActionCallContext = { actor_id: "client-x", project_id: project.project_id, audience: "mcp", permissions: [] };
-    const setGrant = (enabled: boolean) => writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, view, enabled));
+    const setGrant = async (enabled: boolean) => { await (enabled ? served.grant : served.revoke)(caller.actor_id, project.project_id, [view]); };
     await setGrant(true);
     let granted = await authorizeMcpActions(host, caller, home, reference);
     gateDns = true;
@@ -105,7 +105,7 @@ test("real Prologue HTTP dispatch rechecks persisted action grants after DNS pre
   } finally {
     gateDns = false; release.resolve();
     t.mock.restoreAll(); syncBuiltinESMExports();
-    directory.close(); await host.close(); await adapter.close();
+    await served.close(); directory.close(); await host.close(); await adapter.close();
     server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
     await rm(home, { recursive: true, force: true });
   }

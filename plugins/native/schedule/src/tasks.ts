@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { assertClockTime, formatClockTime } from "./calendar.js";
-import { ScheduleTaskError } from "./task-error.js";
+import { scheduleErrors } from "./error.js";
 
 type Statement = {
   all(...params: unknown[]): unknown[];
@@ -75,8 +75,8 @@ interface TurnRow {
   created_at: string;
 }
 
-export function migrateScheduleConversationTasks(db: ScheduleTaskDatabase): void {
-  db.exec(`
+/** The conversation task tables, as one current schema; the host composes them into the project database baseline. */
+export const SCHEDULE_TASKS_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS schedule_conversation_tasks (
       task_id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -106,15 +106,10 @@ export function migrateScheduleConversationTasks(db: ScheduleTaskDatabase): void
     );
     CREATE INDEX IF NOT EXISTS schedule_conversation_turns_task_idx
       ON schedule_conversation_turns(task_id, created_at);
-  `);
-  const columns = db.prepare("PRAGMA table_info(schedule_conversation_tasks)").all() as Array<{ name: string }>;
-  if (!columns.some((column) => column.name === "archived")) {
-    db.exec("ALTER TABLE schedule_conversation_tasks ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))");
-  }
-}
+`;
 
 export function scheduleConversationFingerprint(db: ScheduleTaskDatabase): string {
-  migrateScheduleConversationTasks(db);
+  db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
   const tasks = db.prepare(
     "SELECT COUNT(*) AS n, COALESCE(MAX(updated_at), '') AS updated FROM schedule_conversation_tasks",
   ).get() as { n: number; updated: string };
@@ -125,7 +120,7 @@ export function scheduleConversationFingerprint(db: ScheduleTaskDatabase): strin
 }
 
 export function listScheduleConversationTasks(db: ScheduleTaskDatabase): ScheduleConversationTaskRecord[] {
-  migrateScheduleConversationTasks(db);
+  db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
   const rows = db.prepare(
     "SELECT * FROM schedule_conversation_tasks WHERE archived = 0 ORDER BY enabled DESC, updated_at DESC",
   ).all() as TaskRow[];
@@ -136,7 +131,7 @@ export function getScheduleConversationTask(
   db: ScheduleTaskDatabase,
   taskId: string,
 ): ScheduleConversationTaskRecord | null {
-  migrateScheduleConversationTasks(db);
+  db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
   const row = db.prepare("SELECT * FROM schedule_conversation_tasks WHERE task_id = ?").get(taskId) as TaskRow | undefined;
   return row ? toRecord(db, row) : null;
 }
@@ -152,7 +147,7 @@ export function createScheduleConversationTask(
   },
   now = () => new Date(),
 ): ScheduleConversationTaskRecord {
-  migrateScheduleConversationTasks(db);
+  db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
   const title = normalizeTitle(input.title);
   const instructions = normalizeInstructions(input.instructions);
   assertClockTime(input.hour, input.minute);
@@ -194,7 +189,7 @@ export function setScheduleConversationTaskEnabled(
   now = () => new Date(),
 ): ScheduleConversationTaskRecord {
   const task = mustGet(db, taskId);
-  if (task.archived) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
+  if (task.archived) throw scheduleErrors.task_not_found("定时任务不存在");
   db.prepare("UPDATE schedule_conversation_tasks SET enabled = ?, updated_at = ? WHERE task_id = ?")
     .run(enabled ? 1 : 0, now().toISOString(), task.task_id);
   return mustGet(db, task.task_id);
@@ -207,7 +202,7 @@ export function updateScheduleConversationTask(
   now = () => new Date(),
 ): ScheduleConversationTaskRecord {
   const task = mustGet(db, taskId);
-  if (task.archived) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
+  if (task.archived) throw scheduleErrors.task_not_found("定时任务不存在");
   const title = normalizeTitle(input.title);
   const instructions = normalizeInstructions(input.instructions);
   assertClockTime(input.hour, input.minute);
@@ -219,7 +214,7 @@ export function updateScheduleConversationTask(
 
 export function archiveScheduleConversationTask(db: ScheduleTaskDatabase, taskId: string, now = () => new Date()): void {
   const task = mustGet(db, taskId);
-  if (task.archived) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
+  if (task.archived) throw scheduleErrors.task_not_found("定时任务不存在");
   db.prepare("UPDATE schedule_conversation_tasks SET archived = 1, enabled = 0, updated_at = ? WHERE task_id = ?")
     .run(now().toISOString(), taskId);
 }
@@ -250,7 +245,7 @@ export function appendScheduleConversationTurn(
   const task = mustGet(db, input.task_id);
   const clock = now().toISOString();
   const text = input.text.trim();
-  if (!text) throw new ScheduleTaskError("schedule_task_invalid", "对话内容不能为空");
+  if (!text) throw scheduleErrors.task_invalid("对话内容不能为空");
   const turnId = `scturn_${randomUUID()}`;
   const important = input.important === true ? 1 : 0;
   const unread = input.mark_unread === true ? 1 : 0;
@@ -285,7 +280,7 @@ export function toScheduleConversationTaskView(
 
 function mustGet(db: ScheduleTaskDatabase, taskId: string): ScheduleConversationTaskRecord {
   const task = getScheduleConversationTask(db, taskId);
-  if (!task) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
+  if (!task) throw scheduleErrors.task_not_found("定时任务不存在");
   return task;
 }
 
@@ -326,7 +321,7 @@ function toTurn(row: TurnRow): ScheduleConversationTurnRecord {
 function normalizeTitle(value: string): string {
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > 80) {
-    throw new ScheduleTaskError("schedule_task_invalid", "请填写 1 到 80 字的标题");
+    throw scheduleErrors.task_invalid("请填写 1 到 80 字的标题");
   }
   return trimmed;
 }
@@ -334,7 +329,7 @@ function normalizeTitle(value: string): string {
 function normalizeInstructions(value: string): string {
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > 8_000) {
-    throw new ScheduleTaskError("schedule_task_invalid", "请填写 Agent 到点要做的说明");
+    throw scheduleErrors.task_invalid("请填写 Agent 到点要做的说明");
   }
   return trimmed;
 }

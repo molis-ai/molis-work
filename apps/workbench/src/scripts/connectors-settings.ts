@@ -62,8 +62,8 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         const next = doc.querySelector('[data-connectors-settings]');
         if (!next) throw new Error(L('页面未能刷新，请重新打开服务连接。'));
         next.dataset.openConnector = id;
-        const adopted = document.adoptNode(next); box.replaceWith(adopted); bind(adopted);
-        adopted.querySelector('[data-connector-detail]:not([hidden]) h2')?.focus();
+        box.replaceWith(next); bind(next, page);
+        next.querySelector('[data-connector-detail]:not([hidden]) h2')?.focus();
       };
       const resultFor = area => area.querySelector('[data-protocol-result]');
       const connectionPath = id => '/api/settings/connectors/connections/' + encodeURIComponent(id);
@@ -197,7 +197,6 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         catch { button.textContent = L('请选中地址复制'); }
       }));
       box.querySelectorAll('[data-oauth-callback], [data-mcp-callback]').forEach(node => {
-        const service = node.dataset.accountCallback;
         let path = node.hasAttribute('data-mcp-callback') ? '/api/settings/connectors/methods/mcp/callback' : '/api/settings/connectors/methods/oauth/callback';
         // Other app credentials use the generic flow even when a preset exists.
         const url = new URL(path, location.origin); node.textContent = url.href;

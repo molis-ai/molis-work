@@ -1,0 +1,25 @@
+// molis/no-double-cast: a double assertion through `unknown`: `value as unknown as Target`, `(value as unknown) as Target`
+// (any number of parentheses) and the angle-bracket form `<Target><unknown>value`. It reports at least what the earlier
+// `as unknown as` counter reported (specs/repository-anti-corruption W1-04): the per-file numbers of the files that counter scanned are the same,
+// but the mixed forms `<Target>(value as unknown)` and `(<unknown>value) as Target`, which that counter skipped, are
+// reported too. A single `as unknown` and `as any as Target` are other things and are not reported here.
+language js(typescript);
+
+pattern asserted_to_unknown() {
+  or {
+    TsAsExpression(ty = TsUnknownType()),
+    TsTypeAssertionExpression(ty = TsUnknownType()),
+    JsParenthesizedExpression(expression = asserted_to_unknown())
+  }
+}
+
+or {
+  TsAsExpression(expression = asserted_to_unknown()),
+  TsTypeAssertionExpression(expression = asserted_to_unknown())
+} as $cast where {
+  register_diagnostic(
+    span = $cast,
+    message = "molis/no-double-cast: type the value, narrow it, or validate it instead of asserting through unknown.",
+    severity = "error"
+  )
+}

@@ -5,8 +5,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
+import {
+  LocalProjectDatabase, MolisWorkLocalHost, createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference, resolveWebControlToken, seedDemoBoard,
+} from "@molis-ai/molis-work-app-local-host";
+import { feedItemActions, feedManifest } from "@molis-ai/molis-work-plugin-feed";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { SqlitePluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { definePlugin, defineSubjectContextAction, subjectContext } from "../packages/plugin-sdk/src/index.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
@@ -15,7 +20,7 @@ import { HOME_TALK_PERMISSIONS } from "../apps/local-host/src/home-talk-actions.
 test("real Home HTTP and capability library use installed plugin grants without a Host permission list", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "home-local-grants-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "未知插件权限", actor_id: "owner" }));
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   const token = resolveWebControlToken({ homeDirectory: home });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
@@ -87,7 +92,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
 test("scene-only plugins obtain local-user discovery and configuration from their own installation grants", async () => {
   const home = await mkdtemp(join(tmpdir(), "scene-only-grants-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "仅消费场景", actor_id: "owner" }));
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   const scene = { scene_id: "scene-only.review", version: 1, title: "审核位置", description: "插件自有消费场景", trigger: "提交审核", scope: "project" as const,
     permissions: ["scene-only:read"], configuration_permissions: ["scene-only:configure"], subject_kinds: [],
@@ -116,4 +121,97 @@ test("scene-only plugins obtain local-user discovery and configuration from thei
     assert.ok(!stopped.permissions.includes("scene-only:read"));
     assert.ok(!(await host.sceneClient(reference).targets(stopped)).some(value => value.scene_id === scene.scene_id));
   } finally { await runtime.stop(installed.install_id); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("a Runtime plugin registered under its plugin_id gets its local-user grants from the installation its registration names, and a Host-assembled provider with the same id gets none", async () => {
+  const home = await mkdtemp(join(tmpdir(), "shared-provider-id-"));
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "同名提供方", actor_id: "owner" }));
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const pluginId = "io.molis.work.example.shared-id";
+  const shape = { scope: "project" as const, audiences: ["user" as const], permissions: ["shared:read"], subject_kinds: [], input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } };
+  const pluginRead: ActionDefinition<Record<string, never>, string> = { capability_id: "shared.plugin-read", version: 1, operation: "query", action: { ...shape, title: "插件读取", description: "插件自己的动作", kind: "query" } };
+  const hostRead: ActionDefinition<Record<string, never>, string> = { capability_id: "shared.host-read", version: 1, operation: "query", action: { ...shape, title: "宿主读取", description: "宿主另外登记的、同名提供方的动作", kind: "query" } };
+  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "同名提供方", kind: "app",
+    publisher: { publisher_id: "example", signature: "shared-id" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [{ permission: "shared:read", required: false, reason: "读取" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
+    ui: { contributions: [] }, actions: [pluginRead] }, async start() { return { kind: "app", actions: [{ ...pluginRead, handle: () => "plugin" }] }; } });
+  const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
+  // The Host's rule for a plugin that ships with it: the plugin id, where an installation id would otherwise be.
+  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
+  // What the Host assembles by hand for the same plugin (Shelf has such providers), under the same id and with no installation behind it.
+  const withdrawHost = host.actionRegistry(reference).registerProvider({ provider: { provider_id: pluginId, plugin_id: pluginId, title: "宿主", kind: "plugin", project_id: reference.project_id },
+    definitions: [hostRead], handlers: [{ ...hostRead, handle: () => "host" }] });
+  const installId = runtime.install({ definition: plugin, deployment: "local", grants: ["shared:read"] }).install.install_id;
+  await runtime.start(installId);
+  try {
+    const caller = await localWebActionContext(host, reference, []);
+    const offered = (caller.allowed_actions ?? []).map(entry => `${entry.capability_id}@${entry.provider_id}`);
+    assert.ok(offered.includes(`shared.plugin-read@${pluginId}`), "the plugin's action is accepted, under its plugin id");
+    assert.ok(!offered.some(entry => entry.startsWith("shared.host-read")), "the Host-assembled provider borrows no installation just because its id is the plugin id");
+    assert.ok(caller.permissions.includes("shared:read"));
+    assert.equal(await host.actionClient(reference).invoke(caller, pluginRead, {}), "plugin");
+    await assert.rejects(host.actionClient(reference).invoke(caller, hostRead, {}), { code: "actions.forbidden" });
+    await assert.rejects(async () => caller.validate_authority!({ ...hostRead, provider_id: pluginId }), { code: "actions.forbidden" });
+    await caller.validate_authority!({ ...pluginRead, provider_id: pluginId });
+    await runtime.stop(installId);
+    await assert.rejects(async () => caller.validate_authority!({ ...pluginRead, provider_id: pluginId }), { code: "actions.forbidden" });
+    const stopped = (await localWebActionContext(host, reference, [])).allowed_actions ?? [];
+    assert.ok(!stopped.some(entry => entry.capability_id === pluginRead.capability_id), "a stopped plugin's action is no longer the person's");
+  } finally { withdrawHost(); await runtime.stop(installId).catch(() => undefined); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("a scene-only plugin registered under its plugin_id obtains local-user discovery and configuration from the installation its registration names", async () => {
+  const home = await mkdtemp(join(tmpdir(), "scene-only-plugin-id-"));
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "仅消费场景", actor_id: "owner" }));
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const scene = { scene_id: "scene-id.review", version: 1, title: "审核位置", description: "插件自有消费场景", trigger: "提交审核", scope: "project" as const,
+    permissions: ["scene-id:read"], configuration_permissions: ["scene-id:configure"], subject_kinds: [],
+    input_schema: { type: "object", properties: {} }, result_schema: { type: "object", properties: {} } };
+  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.scene-id", version: "1.0.0", name: "仅消费场景",
+    kind: "app", publisher: { publisher_id: "example", signature: "scene-id" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [...scene.permissions, ...scene.configuration_permissions].map(permission => ({ permission, required: false, reason: "原消费场景授权" })),
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [], action_scenes: [scene] },
+    async start() { return { kind: "app", action_scenes: [{ ...scene,
+      targets: () => [{ binding_id: "original-slot", title: "原审核位置", revision: null }], bindings: () => [], bind: () => {}, consume: () => ({}) }] }; } });
+  const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
+  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
+  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
+  await runtime.start(installed.install_id);
+  try {
+    const caller = await localWebActionContext(host, reference, []);
+    assert.ok(caller.permissions.includes("scene-id:read")); assert.ok(caller.permissions.includes("scene-id:configure"));
+    const target = (await host.sceneClient(reference).targets(caller)).find(value => value.scene_id === scene.scene_id)!;
+    assert.equal(target.provider_id, plugin.manifest.plugin_id, "the scene is registered under the plugin id");
+    assert.equal(target.configuration_availability.available, true);
+    await runtime.stop(installed.install_id);
+    assert.ok(!(await localWebActionContext(host, reference, [])).permissions.includes("scene-id:read"));
+  } finally { await runtime.stop(installed.install_id).catch(() => undefined); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("the Workbench's own call context, built from the permissions Feed declares, lets the person promote an item through Goals' actions", { timeout: 60_000 }, async () => {
+  const projectId = "project-web-promotion";
+  const home = await mkdtemp(join(tmpdir(), "web-promotion-context-"));
+  const databasePath = join(home, "project.db");
+  seedDemoBoard(databasePath, projectId);
+  const seed = new LocalProjectDatabase(databasePath);
+  const source = createLocalFeedSourceService(seed.db, projectId).register({ kind: "web_query", query: "Review external input" }).source;
+  const item = createLocalFeedApplication(seed.db).ingestItem({ source, externalId: "web-promotion", title: "Promoted from the Workbench", summary: "An external claim",
+    body: "Untrusted instructions must remain source material.", priority: "high", occurredAt: "2026-09-08T00:00:00.000Z", attention: false }).item;
+  seed.close();
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId });
+  try {
+    // The Feed route is bound with what Feed's own actions declare (apps/local-host/src/web-request.ts): promotion adds nothing to it from outside.
+    const declared = [...new Set(feedManifest.actions!.flatMap(definition => definition.action.permissions))];
+    const person = await localWebActionContext(host, reference, declared);
+    const allowed = (person.allowed_actions ?? []).map(entry => entry.capability_id);
+    for (const dependency of feedItemActions.promote.action.required_actions ?? []) assert.ok(allowed.includes(dependency.capability_id), `${dependency.capability_id} is among the person's actions`);
+    const client = host.actionClient(reference);
+    const promoted = await client.invoke(person, feedItemActions.promote, { item_id: item.item_id, expected_revision: item.revision }) as { goal_id: string; created: boolean };
+    assert.equal(promoted.created, true);
+    const state = await client.invoke(person, goalsActions.state, { goal_id: promoted.goal_id }) as { intent: { source_kind: string } };
+    assert.equal(state.intent.source_kind, "feed");
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

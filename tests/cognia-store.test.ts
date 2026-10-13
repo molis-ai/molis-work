@@ -5,6 +5,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { DatabaseSync } from "node:sqlite";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { join } from "node:path";
 import { CogniaPluginRouteTable, openCogniaStore, linksFor, type CogniaStore, type ImportFile } from "../plugins/native/cognia/src/index.js";
 import { scanCogniaDirectory } from "../apps/local-host/src/cognia-directory.js";
@@ -95,4 +97,58 @@ test("Cognia 路由更新和删除资料后，固定版本仍可通过路由读�
   assert.equal((fixed?.body as { material: { body: string } }).material.body, "旧正文");
   await assert.rejects(call("GET", `/api/cognia/materials/${material.id}`), /不存在/);
   } finally { await host.close(); }
+}));
+
+/** The Home's Cognia database, opened beside the store's own connection. */
+function inspect<T>(home: string, run: (db: DatabaseSync) => T, readOnly = true): T {
+  const db = new DatabaseSync(homeSqlitePath(home, "cognia"), { readOnly });
+  try { return run(db); } finally { db.close(); }
+}
+
+test("a committed import keeps its receipt to replay, not the batch it imported", fixture((store, home) => {
+  const big = "# note\n" + "x".repeat(200_000);
+  const p = preview(store, [text("a.md", big), text("b.md", "# B")]);
+  const staged = inspect(home, db => (db.prepare("SELECT length(body) AS bytes FROM cognia_previews WHERE id=?").get(p.id) as { bytes: number }).bytes);
+  assert.ok(staged > 400_000, "a pending preview holds the batch twice over: the bytes and the decoded body");
+  const receipt = store.commit(p.id);
+  const row = inspect(home, db => db.prepare("SELECT body, receipt FROM cognia_previews WHERE id=?").get(p.id) as { body: string; receipt: string });
+  assert.ok(row.body.length < 5_000, `a committed preview keeps no copy of the files (${row.body.length} bytes)`);
+  assert.deepEqual(JSON.parse(row.body).files, []);
+  assert.deepEqual(JSON.parse(row.receipt), receipt);
+  assert.deepEqual(store.commit(p.id), receipt, "a repeated commit still replays its receipt");
+  assert.equal(store.download(receipt.material_ids[0]!).bytes.length, Buffer.byteLength(big), "the imported material itself is kept in full");
+  // What a committed preview still names, deleting the source or its domain still finds.
+  store.deleteSource(receipt.source_id);
+  assert.equal(inspect(home, db => (db.prepare("SELECT count(*) AS n FROM cognia_previews WHERE id=?").get(p.id) as { n: number }).n), 0);
+}));
+
+test("a draft whose adopted material was deleted is no longer saved, and can be adopted again", fixture((store, home) => {
+  const draft = store.addDraft({ id: "d1", title: "草稿", body: "整理正文", domain_id: null, references: [], mode: "synthesize", saved_id: null, created_at: new Date().toISOString() });
+  const first = store.saveDraft(draft.id);
+  assert.equal(store.drafts()[0]!.saved_id, first.id);
+  store.deleteMaterial(first.id);
+  assert.equal(store.drafts()[0]!.saved_id, null, "the list does not claim a material the store no longer has");
+  assert.equal(store.read(first.id, 1).body, "整理正文", "the fixed version stays readable");
+  const again = store.saveDraft(draft.id);
+  assert.notEqual(again.id, first.id); assert.equal(again.body, "整理正文");
+  assert.equal(store.drafts()[0]!.saved_id, again.id);
+  assert.equal(store.saveDraft(draft.id).id, again.id, "adopting a draft twice is still one material");
+  // A pointer to a material that is already gone (left by an earlier build) is replaced the same way.
+  inspect(home, db => db.prepare("UPDATE cognia_drafts SET body=? WHERE id=?").run(JSON.stringify({ ...store.drafts()[0], saved_id: "gone" }), "d1"), false);
+  assert.equal(store.saveDraft(draft.id).body, "整理正文"); assert.notEqual(store.drafts()[0]!.saved_id, "gone");
+}));
+
+test("a deleted knowledge material's fixed versions keep their sources, also when the draft is adopted again", fixture(store => {
+  const source = store.createMaterial({ title: "来源", body: "来源正文" });
+  const reference = { label: "S1", material_id: source.id, revision: 1, title: "来源", path: source.path, body: "来源正文" };
+  const draft = store.addDraft({ id: "d1", title: "知识", body: "结论 [S1]", domain_id: null, references: [reference], mode: "synthesize", saved_id: null, created_at: new Date().toISOString() });
+  const first = store.saveDraft(draft.id);
+  assert.deepEqual(store.detail(first.id, 1).references, [reference]);
+  store.deleteMaterial(first.id);
+  assert.deepEqual(store.detail(first.id, 1).references, [reference], "deleting the material does not take the sources of its fixed version");
+  assert.equal(store.drafts()[0]!.saved_id, null, "the draft still reads as unsaved");
+  const second = store.saveDraft(draft.id); store.deleteMaterial(second.id); const third = store.saveDraft(draft.id);
+  for (const id of [first.id, second.id, third.id]) assert.deepEqual(store.detail(id, 1).references, [reference], "every material the draft became keeps its sources");
+  assert.deepEqual(Object.keys(store.drafts()[0]!).sort(), [...Object.keys(draft)].sort(), "the draft shows only its own fields");
+  assert.deepEqual(store.drafts()[0]!.references, [reference]);
 }));

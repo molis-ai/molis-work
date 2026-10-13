@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { insertHistoricalClaim, insertHistoricalEvidence, insertHistoricalRun } from "./historical-sql-fixture.js";
 
 test("Goal navigation preserves history, keyboard focus, failed selection recovery and repeated selections without executing work", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t);
@@ -61,52 +60,16 @@ test("Goal navigation preserves history, keyboard focus, failed selection recove
   assert.equal(await evaluate("location.pathname"), "/goals/GRAPH");
   assert.equal(await evaluate("document.body.dataset.boardView"), "archive");
   assert.equal(await evaluate("document.querySelector('[data-goal-view]')?.dataset.goalView"), "GRAPH");
-  const after = store.snapshot(DEMO_BOARD_ID);
+  const after = store.snapshot(DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals);
   assert.deepEqual(after.relations, before.relations);
-  assert.deepEqual(after.runs, before.runs);
-  assert.deepEqual(after.claims, before.claims);
   assert.equal(after.board.active_goal_id, before.board.active_goal_id);
 });
 
-test("browsing does not set a current Goal; archive actions recover, persist on reload and retain execution history", { timeout: 60_000 }, async t => {
+test("browsing does not set a current Goal; archive actions recover, persist on reload and retain the Goal's history", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t);
   if (!browser) return;
   const { store, before, origin, sessionId, command, evaluate, waitFor, click, navigate, reloadPage } = browser;
-  insertHistoricalClaim(store.db, {
-    claim_id: "core-history-claim",
-    board_id: DEMO_BOARD_ID,
-    goal_id: "CORE",
-    actor_id: "history-runtime",
-    release_reason: "historical CORE lifecycle record",
-  });
-  insertHistoricalRun(store.db, {
-    run_id: "core-history-run",
-    board_id: DEMO_BOARD_ID,
-    goal_id: "CORE",
-    claim_id: "core-history-claim",
-    actor_id: "history-runtime",
-    state: "completed",
-    output_refs_json: JSON.stringify(["artifact://core-lifecycle-history"]),
-    ended_at: "2026-09-02T00:02:00.000Z",
-  });
-  insertHistoricalEvidence(store.db, {
-    evidence_id: "core-history-evidence",
-    board_id: DEMO_BOARD_ID,
-    goal_id: "CORE",
-    producer_actor_id: "history-runtime",
-    locator: "artifact://core-lifecycle-history",
-    kind: "artifact",
-    result: "passed",
-    run_id: "core-history-run",
-  });
-  const seeded = store.snapshot(DEMO_BOARD_ID);
-  const seededClaim = seeded.claims.find((item) => item.claim_id === "core-history-claim")!;
-  const seededRun = seeded.runs.find((item) => item.run_id === "core-history-run")!;
-  const seededEvidence = seeded.evidence.find((item) => item.evidence_id === "core-history-evidence")!;
-  assert.equal(seededClaim.goal_id, "CORE");
-  assert.equal(seededRun.goal_id, "CORE");
-  assert.equal(seededEvidence.locator, "artifact://core-lifecycle-history");
   const openWork = async () => {
     if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
     await waitFor("document.querySelector('.goal-more > summary')?.getBoundingClientRect().width > 0");
@@ -119,10 +82,10 @@ test("browsing does not set a current Goal; archive actions recover, persist on 
   await openWork();
   await click('.goal-more > summary');
   assert.equal(await evaluate("Boolean(document.querySelector('[data-set-active-goal]'))"), false);
-  assert.equal(store.snapshot(DEMO_BOARD_ID).board.active_goal_id, before.board.active_goal_id);
+  assert.equal(store.snapshot(DEMO_PROJECT_ID).board.active_goal_id, before.board.active_goal_id);
   await reloadPage();
   await waitFor("document.querySelector('[data-goal-view=WEB]')");
-  assert.equal(store.snapshot(DEMO_BOARD_ID).board.active_goal_id, before.board.active_goal_id);
+  assert.equal(store.snapshot(DEMO_PROJECT_ID).board.active_goal_id, before.board.active_goal_id);
 
   await navigate(() => command("Page.navigate", { url: origin + "/goals/CORE" }, sessionId));
   await openWork();
@@ -132,12 +95,12 @@ test("browsing does not set a current Goal; archive actions recover, persist on 
   await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/CORE/archive"] }, sessionId);
   await click('[data-goal-archive="true"]');
   await waitFor("!document.querySelector('[data-goal-archive]').disabled && document.querySelector('[data-toast]').textContent.length > 0");
-  assert.equal(store.snapshot(DEMO_BOARD_ID).goals.find(g => g.goal_id === "CORE")!.archived_at, null);
+  assert.equal(store.snapshot(DEMO_PROJECT_ID).goals.find(g => g.goal_id === "CORE")!.archived_at, null);
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await navigate(() => click('[data-goal-archive="true"]'));
   await waitFor("document.querySelector('[data-goal-archive=" + JSON.stringify("false") + "]')");
   assert.equal(await evaluate("location.pathname"), "/archive/goals/CORE");
-  assert.ok(store.snapshot(DEMO_BOARD_ID).goals.find(g => g.goal_id === "CORE")!.archived_at);
+  assert.ok(store.snapshot(DEMO_PROJECT_ID).goals.find(g => g.goal_id === "CORE")!.archived_at);
   await reloadPage();
   await waitFor("document.querySelector('[data-goal-archive=" + JSON.stringify("false") + "]')");
   await openWork();
@@ -145,25 +108,18 @@ test("browsing does not set a current Goal; archive actions recover, persist on 
   await navigate(() => click('[data-goal-archive="false"]'));
   await waitFor("document.querySelector('[data-goal-view=" + JSON.stringify("CORE") + "]')");
   assert.equal(await evaluate("location.pathname"), "/goals/CORE");
-  const after = store.snapshot(DEMO_BOARD_ID);
+  const after = store.snapshot(DEMO_PROJECT_ID);
   assert.equal(after.goals.find(g => g.goal_id === "CORE")!.archived_at, null);
   assert.equal(after.goals.find(g => g.goal_id === "CORE")!.created_at, before.goals.find(g => g.goal_id === "CORE")!.created_at);
   assert.deepEqual(after.goals.filter(g => g.goal_id !== "CORE"), before.goals.filter(g => g.goal_id !== "CORE"));
   assert.deepEqual(after.relations, before.relations);
-  assert.deepEqual(after.runs, seeded.runs);
-  assert.deepEqual(after.claims, seeded.claims);
-  assert.deepEqual(after.evidence, seeded.evidence);
-  assert.equal(after.claims.find((item) => item.claim_id === "core-history-claim")?.release_reason, "historical CORE lifecycle record");
-  assert.deepEqual(after.runs.find((item) => item.run_id === "core-history-run")?.output_refs, ["artifact://core-lifecycle-history"]);
-  assert.equal(after.evidence.find((item) => item.evidence_id === "core-history-evidence")?.locator, "artifact://core-lifecycle-history");
   assert.equal(after.board.active_goal_id, before.board.active_goal_id);
-  const historyId = await evaluate(`document.querySelector('[data-source="legacy_evidence"]')?.dataset.timelineItem || ""`) as string;
-  assert.ok(historyId, "CORE must keep the original Evidence timeline item after archive and restore");
+  const historyId = await evaluate(`document.querySelector('[data-source="journal"]')?.dataset.timelineItem || ""`) as string;
+  assert.ok(historyId, "CORE keeps its journal records in the timeline after archive and restore");
   await click(`[data-timeline-item="${historyId}"]`);
   await waitFor("document.querySelector('[data-event-sheet] .event')");
   const body = await evaluate("document.querySelector('[data-event-sheet]')?.textContent || ''") as string;
-  assert.match(body, /core-history-evidence/);
-  assert.match(body, /artifact:\/\/core-lifecycle-history/);
+  assert.match(body, /查看原始记录标识/);
 });
 
 test("Sources mutation and Feed reload preserve utility state while fresh Goal links still open Goals", { timeout: 60_000 }, async t => {

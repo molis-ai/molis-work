@@ -10,7 +10,7 @@ import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { PluginRuntime, SqlitePluginRuntimeRepository, pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
-for (const quarantined of [false, true]) test(`authorized retry restores an older Coding install (quarantined=${quarantined}) without upgrading`, async () => {
+for (const quarantined of [false, true]) test(`authorized retry restores an older Coding install (quarantined=${quarantined}) at the Host's version`, async () => {
   const root = await mkdtemp(path.join(tmpdir(), "compatible-recovery-http-"));
   const token = "compatible-recovery-fixture-control-token";
   const server = createMolisWorkWebServer({ homeDirectory: root, controlToken: token });
@@ -57,15 +57,17 @@ for (const quarantined of [false, true]) test(`authorized retry restores an olde
     const record = repository.get(installed.install_id)!;
     assert.equal(record.state, "running");
     assert.equal(record.recovery_count, quarantined ? 0 : 1);
-    assert.equal(record.version, "1.30.0");
-    assert.equal(record.manifest_digest, installed.manifest_digest);
+    // Coding ships with the Host, so the restored install comes back at the Host's version (2026-10-04) with its grants.
+    assert.equal(record.version, current.manifest.version);
+    assert.equal(record.manifest_digest, pluginManifestDigest(current.manifest));
     assert.deepEqual(record.grants, installed.grants);
     assert.equal((await request(`${base}/api/plugins/io.molis.work.coding/release-quarantine`, "POST", {})).status, 409);
     assert.equal(repository.get(installed.install_id)!.state, "running");
     const diffResponse = await request(`${base}/api/plugins/io.molis.work.diff/state`);
     assert.equal(diffResponse.status, 200, await diffResponse.text());
-    assert.equal(repository.get(diffInstall.install_id)!.version, "1.3.1");
-    assert.equal(repository.get(diffInstall.install_id)!.manifest_digest, pluginManifestDigest(legacyDiff));
+    // Diff, also shipped with the Host, moves up from its old install in the same way.
+    assert.equal(repository.get(diffInstall.install_id)!.version, currentDiff.manifest.version);
+    assert.equal(repository.get(diffInstall.install_id)!.manifest_digest, pluginManifestDigest(currentDiff.manifest));
     const html = await (await request(base)).text();
     assert.doesNotMatch(html, /请检查插件状态后重新打开/);
     assert.match(html, /data-coding/);

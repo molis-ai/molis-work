@@ -5,7 +5,7 @@ import {
 } from "@molis-ai/molis-work-integration-gmail";
 
 import { connectorFixtureAllowed } from "./connector-execution-mode.js";
-import { createFileSecretStore, readProductEnv, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { createFileSecretStore, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { apiOAuthConnectionId, resolveApiOAuthToken } from "./connector-api-oauth.js";
 import { resolveUsableGmailAccessToken } from "./gmail-oauth.js";
 import type { IntegrationProviderItem, IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -26,7 +26,7 @@ export function createGmailConnector(opts?: {
   return createGmailProvider({
     ...opts,
     allowFixture: opts?.allowFixture ?? connectorFixtureAllowed(),
-    authRef: oauthId ? undefined : opts?.authRef ?? readProductEnv("GMAIL_AUTH_REF"),
+    authRef: oauthId ? undefined : opts?.authRef,
     ...(oauthId ? { fetchImpl: async (url: string, init?: RequestInit) => {
       const response = await request(url, init);
       if (response.status !== 401) return response;
@@ -39,6 +39,6 @@ export function createGmailConnector(opts?: {
     resolveUsableToken: oauthId ? async () => {
       try { return { ok: true, accessToken: await resolveApiOAuthToken(home, oauthId) }; }
       catch { return { ok: false, status: "needs_auth", message: "请重新授权所选 Gmail 连接", action: "在 Connectors 中重新授权" }; }
-    } : resolveUsableGmailAccessToken,
+    } : async ({ tokenRefs, ...input }) => tokenRefs ? resolveUsableGmailAccessToken({ ...input, tokenRefs }) : { ok: false, status: "none" },
   });
 }

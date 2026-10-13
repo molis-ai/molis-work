@@ -34,7 +34,7 @@ export class GovernanceProposalOperationStore {
 
   recordGoalTreeDecision(input: Parameters<GovernanceRecordsApi["recordGoalTreeDecision"]>[0]): number {
     this.repository.appendEvent({
-      event_id: randomUUID(), board_id: input.board_id, actor_id: input.authority.actor_id,
+      event_id: randomUUID(), project_id: input.project_id, actor_id: input.authority.actor_id,
       type: "goal_tree_proposal.decided", object_type: "goal_tree_proposal", object_id: input.proposal_id,
       reason: "用户在当前入口明确决定了 Goal Tree 提案中的部分条目",
       payload: {
@@ -47,7 +47,7 @@ export class GovernanceProposalOperationStore {
         revision_proposal_ids: input.revision_proposal_ids, semantic_review: input.semantic_review,
       }, at: input.at,
     });
-    return this.repository.eventCursor(input.board_id);
+    return this.repository.eventCursor(input.project_id);
   }
 
   private execute<T>(operationName: "submit_goal_tree_proposal" | "check_goal_tree_proposal" | "decide_goal_tree_proposal",
@@ -55,8 +55,8 @@ export class GovernanceProposalOperationStore {
     operation: () => { value: T; at: string }): { value: T; replayed: boolean } {
     return this.repository.immediate(() => {
       const saved = this.db.prepare(`SELECT request_hash, outcome_json FROM idempotency_records
-        WHERE board_id = ? AND actor_id = ? AND operation = ? AND idempotency_key = ?`)
-        .get(input.board_id, input.actor_id, operationName, input.idempotency_key) as GovernanceRow | undefined;
+        WHERE project_id = ? AND actor_id = ? AND operation = ? AND idempotency_key = ?`)
+        .get(input.project_id, input.actor_id, operationName, input.idempotency_key) as GovernanceRow | undefined;
       if (saved) {
         if (text(saved.request_hash) !== input.request_hash) {
           throw this.error("request.idempotency_key_reused", `幂等键 ${input.idempotency_key} 已被不同请求使用`);
@@ -66,8 +66,8 @@ export class GovernanceProposalOperationStore {
       }
       const result = operation();
       this.db.prepare(`INSERT INTO idempotency_records (
-        board_id, actor_id, operation, idempotency_key, request_hash, outcome_json, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(input.board_id, input.actor_id, operationName,
+        project_id, actor_id, operation, idempotency_key, request_hash, outcome_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(input.project_id, input.actor_id, operationName,
         input.idempotency_key, input.request_hash, json(result.value), result.at);
       return { value: result.value, replayed: false };
     });
@@ -75,7 +75,7 @@ export class GovernanceProposalOperationStore {
 
   recordRevision(input: Parameters<GovernanceRecordsApi["recordGoalTreeRevision"]>[0]): number {
     this.repository.appendEvent({
-      event_id: randomUUID(), board_id: input.board_id, actor_id: input.authority.actor_id,
+      event_id: randomUUID(), project_id: input.project_id, actor_id: input.authority.actor_id,
       type: "goal_tree_proposal.revision_requested", object_type: "goal_tree_proposal", object_id: input.proposal_id,
       reason: "用户在当前对话要求修订部分 Goal Tree 条目",
       payload: {
@@ -84,39 +84,34 @@ export class GovernanceProposalOperationStore {
         message_ref: input.authority.message_ref,
       }, at: input.at,
     });
-    return this.repository.eventCursor(input.board_id);
+    return this.repository.eventCursor(input.project_id);
   }
 
   recordCheck(input: Parameters<GovernanceRecordsApi["recordGoalTreeCheck"]>[0]): number {
     const conflict = input.conflict_item_ids.length > 0;
     this.repository.appendEvent({
-      event_id: randomUUID(), board_id: input.board_id, actor_id: input.actor_id,
+      event_id: randomUUID(), project_id: input.project_id, actor_id: input.actor_id,
       type: "goal_tree_proposal.checked", object_type: "goal_tree_proposal", object_id: input.proposal_id,
-      reason: input.origin === "legacy_contract_proposal"
-        ? conflict ? "当前 Runtime 检查到历史 Contract Proposal 不能安全决定" : "当前 Runtime 检查到历史 Contract Proposal 可以安全决定"
-        : conflict ? "当前 Runtime 检查到部分 Goal Tree 提案条目不再满足当前校验或基准" : "当前 Runtime 检查到 Goal Tree 提案的各条目基准仍有效",
-      payload: {
-        ...(input.origin === "legacy_contract_proposal" ? { origin: input.origin, raw_proposal_id: input.raw_proposal_id } : {}),
-        conflict_item_ids: input.conflict_item_ids, planning_issue_codes: input.planning_issue_codes,
-      },
+      reason: conflict ? "当前 Runtime 检查到部分 Goal Tree 提案条目不再满足当前校验或基准" : "当前 Runtime 检查到 Goal Tree 提案的各条目基准仍有效",
+      payload: { conflict_item_ids: input.conflict_item_ids, planning_issue_codes: input.planning_issue_codes },
       at: input.at,
     });
-    return this.repository.eventCursor(input.board_id);
+    return this.repository.eventCursor(input.project_id);
   }
 
   recordSubmission(input: Parameters<GovernanceRecordsApi["recordGoalTreeSubmission"]>[0]): number {
     this.repository.appendEvent({
-      event_id: randomUUID(), board_id: input.board_id, actor_id: input.actor_id,
+      event_id: randomUUID(), project_id: input.project_id, actor_id: input.actor_id,
       type: input.supersedes_proposal_id ? "goal_tree_proposal.revised" : "goal_tree_proposal.submitted",
       object_type: "goal_tree_proposal", object_id: input.proposal_id,
       reason: input.supersedes_proposal_id
         ? "当前 Runtime 提交了保留历史的 Goal Tree 提案修订版本"
         : "当前 Runtime 提交了等待用户确认的统一 Goal Tree 提案",
-      payload: { root_goal_id: input.root_goal_id, discovered_in_run_id: input.discovered_in_run_id,
+      payload: { root_goal_id: input.root_goal_id,
         base_event_cursor: input.base_event_cursor, version: input.version,
         supersedes_proposal_id: input.supersedes_proposal_id, item_ids: input.item_ids },
       at: input.at,
     });
-    return this.repository.eventCursor(input.board_id);
+    return this.repository.eventCursor(input.project_id);
   }
 }

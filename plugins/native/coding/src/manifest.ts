@@ -1,6 +1,6 @@
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
-import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, readWorkspaceFileCapability, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -15,6 +15,7 @@ import { CODING_RUN_UPDATED_EVENT, CODING_FILE_CHANGED_EVENT, CODING_PREFERENCE_
 import { codingAgentManifest } from "./roles.js";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID } from "./ui.js";
 import { CODING_ACTIONS } from "./route-actions.js";
+import { codingArtifactPreview } from "./artifact-preview.js";
 
 export const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */
@@ -42,7 +43,6 @@ export const codingManifest: PluginManifest = {
   name: "Coding",
   kind: "app",
   // Both development lines (1.30–1.32 on main, 1.31–1.44 on the Coding goal branch) continue here without migration.
-  upgrade_compatibility: { compatible_from_versions: ["1.49.0", "1.48.0", "1.47.0", "1.46.0", "1.45.0", "1.44.0", "1.43.0", "1.42.0", "1.41.0", "1.40.0", "1.39.0", "1.38.0", "1.37.0", "1.36.0", "1.35.0", "1.34.0", "1.33.0", "1.32.0", "1.31.0", "1.30.0"] },
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
@@ -51,8 +51,9 @@ export const codingManifest: PluginManifest = {
     {
       permission: "artifact:write",
       required: true,
-      reason: "把变更集、报告与图作为 Artifact 发布，带来源与版本",
+      reason: "把变更集、报告与图作为成果发布，带来源与版本",
     },
+    { permission: "workspace:read", required: true, reason: "读取已关联工作目录里的目录与文本，用于任务里 @ 提到的文件与目录" },
   ],
   capabilities: {
     provides: [],
@@ -61,22 +62,21 @@ export const codingManifest: PluginManifest = {
       ...Object.values(goalContextCapabilities).map((entry) => entry.capability_id),
       ...Object.values(goalProgressCapabilities).map((entry) => entry.capability_id),
       projectsCapabilities.readWorkspace.capability_id,
-      readWorkspaceFileCapability.capability_id,
+      workspaceReadActions.file.capability_id,
       projectSettingsCapabilities.workspaces.capability_id,
       projectSettingsCapabilities.browsingWorkspace.capability_id,
       ...Object.values(writerDirectoryCapabilities).map(entry => entry.capability_id),
       ...Object.values(writerIntegrationCapabilities).map(entry => entry.capability_id),
     ],
   },
+  // The run report is the version people keep; plans, goal context, change sets and diagrams are exchange data.
   artifacts: {
-    produces: [
-      { artifact_type_id: CODING_PLAN_TYPE, schema_version: 1 },
-      { artifact_type_id: CODING_GOAL_CONTEXT_TYPE, schema_version: 1 },
-      { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
-      { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 },
-      { artifact_type_id: CODING_DIAGRAM_TYPE, schema_version: 1 },
-    ],
-    consumes: [CODING_PLAN_TYPE, CHARACTER_ARTIFACT_TYPE, SHELF_TEXT_MATERIAL_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_REPORT_TYPE, CODING_CHANGESET_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
+    produces: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: 1, title: "Coding 执行报告", preview: { capability_id: "coding.artifacts.preview", version: 1 } }],
+    consumes: [CHARACTER_ARTIFACT_TYPE, CODING_REPORT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
+  },
+  process_items: {
+    produces: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE, CODING_DIAGRAM_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
+    consumes: [CODING_PLAN_TYPE, SHELF_TEXT_MATERIAL_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
   },
   ports: {
     inputs: [
@@ -106,7 +106,7 @@ export const codingManifest: PluginManifest = {
   },
   agent: codingAgentManifest,
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
-  actions: CODING_ACTIONS,
+  actions: [...CODING_ACTIONS, codingArtifactPreview],
   routes: [
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },

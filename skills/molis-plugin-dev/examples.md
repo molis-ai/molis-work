@@ -2,7 +2,7 @@
 
 挑最近的同类抄结构，不要混抄。
 
-三件都叫「事件」，对照前先认路：判断场景（`action_scenes`）是首页/Inbox/Feed 的判断去向；插件 `events` 是 Coding 族总线；Integration 进来的是 Signal。
+三件都叫「事件」，对照前先认路：判断场景（`action_scenes`）是首页/Inbox/Feed 的判断去向；插件 `events` 是 Plugin Runtime 启动的插件之间的总线（Coding 族、Characters、Shelf 与已安装插件）；Integration 进来的是 Signal。
 
 ## Feed：外来消息的去向
 
@@ -62,7 +62,7 @@
 
 ## Text stats：最小完整 app
 
-人盯着绑来的一份文本快照。`kind: "app"`，`slot: "stage"`，一个必选输入口，无存储、无事件、无输出口，也不声明搜索来源（没有自己拥有的内容）。消费绑定 Artifact 若比这还重，平台就过重了。新端口消费者从这里抄声明形状。产品里还没有连线页，这个口在跑着的产品里不会自己接上。
+人盯着绑来的一份文本快照。`kind: "app"`，一个 `navigator` 入口加一个 `stage` 视图，一个必选输入口，无存储、无事件、无输出口，也不声明搜索来源（没有自己拥有的内容）。消费绑定 Artifact 若比这还重，平台就过重了。新端口消费者从这里抄声明形状。默认连线把它接到 Files 的 `before` 快照（`workspace-plugin-bindings.ts`）；新插件照抄它的声明不会进那份默认名单。
 
 ## Diff / Files / Git
 
@@ -73,7 +73,7 @@
 
 ## Coding：Runtime 托管的 app
 
-`kind: "app"`。Artifact 输出口、事件、`agent` 角色、commands（写清 `input_kinds`）。`start()` 必须兑现 views。还没有可绑定的上游 Artifact 类型，所以 `ports.inputs` 为空；Goal 上下文走 Goals Capability。不要抄它的 agent 块到普通内容插件。生产 `tools/call` 未接 Runtime，不要填 `mcp_exports`。搜索来源 `coding.search.entries` 经路由兑现（`/search/entries`）；Runtime 插件加动作要升版本并写 `upgrade_compatibility`（Characters 用 `bindOwnerPluginAction`，同理）。
+`kind: "app"`。有 Artifact 输出口；6 个可选输入口（Shelf 材料、Files 快照与选区、Git 变更与结果），默认连线见 `workspace-plugin-bindings.ts`；还有事件、`agent` 角色和 commands（写清 `input_kinds`）。`start()` 必须兑现 views。Goal 上下文与进展走 Goals Capability（`goals.context.list.v1`、`goals.context.read.v1`、`goals.progress.record.v1`、`goals.progress.receipt.v1`）。不要把它的 agent 块抄到普通内容插件。对外调用只走动作的 `audiences` 与授权，不另声明。搜索来源 `coding.search.entries` 经路由兑现（`/search/entries`）；Runtime 里的内置插件加动作要升版本，随宿主升级，不写 `upgrade_compatibility`（Characters 用 `bindOwnerPluginAction`，同理）。
 
 ## GitHub / Gmail 等接入
 

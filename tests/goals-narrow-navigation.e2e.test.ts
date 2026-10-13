@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const SNAPSHOT = `(() => {
@@ -141,7 +141,7 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
   const app = new GoalProjectApplication(store);
   const beforeCursor = await evaluate<number>("Number(document.querySelector('[data-goal-event-document]')?.dataset.goalEventCursor || 0)");
   const note = app.goalEvents.recordNote({
-    board_id: DEMO_BOARD_ID,
+    project_id: DEMO_PROJECT_ID,
     goal_id: "CORE",
     actor_id: "web-user",
     actor_kind: "user",
@@ -159,11 +159,11 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
   assert.equal(state.hasMobileSwitch, false);
   assert.equal(await evaluate("Boolean(document.querySelector('[data-goal-work-mode=\"terminal\"]'))"), true);
 
-  const after = store.snapshot(DEMO_BOARD_ID);
+  const after = store.snapshot(DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals);
   assert.deepEqual(after.relations, before.relations);
   assert.deepEqual(after.runs, before.runs);
-  assert.ok(app.goalEvents.readState(DEMO_BOARD_ID, "CORE").goal_event_cursor > beforeCursor);
+  assert.ok(app.goalEvents.readState(DEMO_PROJECT_ID, "CORE").goal_event_cursor > beforeCursor);
 });
 
 test("narrow list, graph return and desktop side-by-side keep usable geometry", { timeout: 60_000 }, async (t) => {
@@ -230,7 +230,7 @@ test("narrow list, graph return and desktop side-by-side keep usable geometry", 
   assert.equal(state.hit, "graph");
   assert.equal(state.hasMobileSwitch, false);
 
-  const after = store.snapshot(DEMO_BOARD_ID);
+  const after = store.snapshot(DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals);
   assert.deepEqual(after.relations, before.relations);
   assert.deepEqual(after.runs, before.runs);

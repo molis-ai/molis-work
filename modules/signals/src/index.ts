@@ -41,8 +41,8 @@ export class SignalsError extends Error {
   }
 }
 
-export function migrateSignals(db: SignalsSqliteDatabase): void {
-  db.exec(`
+/** The signal tables, as one current schema; the host composes them into the project database baseline. */
+export const SIGNALS_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS signals (
       project_id TEXT NOT NULL,
       signal_id TEXT NOT NULL,
@@ -91,8 +91,7 @@ export function migrateSignals(db: SignalsSqliteDatabase): void {
     );
     CREATE INDEX IF NOT EXISTS signal_events_project_source_idx
       ON signal_events(project_id, source_id, at, event_id);
-  `);
-}
+`;
 
 export class SignalsModule implements SignalsApi {
   readonly query = {
@@ -112,7 +111,7 @@ export class SignalsModule implements SignalsApi {
     private readonly db: SignalsSqliteDatabase,
     private readonly now: () => Date = () => new Date(),
   ) {
-    migrateSignals(db);
+    db.exec(SIGNALS_SCHEMA_SQL);
   }
 
   private get(projectId: string, signalId: string): SignalRecord {

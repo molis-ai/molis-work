@@ -21,14 +21,13 @@ Native Goals 通过 `GoalsModule.events` 创建意图、保存普通笔记、配
 | [src/planning](src/planning) | 规划与方法库 |
 | [src/event-facts.ts](src/event-facts.ts) | Goal 局部事件配置、上报与读取 |
 | [src/event-state.ts](src/event-state.ts) | 当前约定、状态、决定效果与收尾 |
-| [src/event-workflow-migration.ts](src/event-workflow-migration.ts) | 既有 Goal 一次升级到事件状态，保留原始历史 |
 | [src/planning/event-adoption.ts](src/planning/event-adoption.ts) | 规划来源版本解析、等价合并与 Goal 局部要求实例化 |
 
 可对照现有调用方 [apps/local-host/src/goal-project-application.ts](../../apps/local-host/src/goal-project-application.ts) 阅读装配方式。
 
 ## 接入与边界
 
-所有当前工作入口采用事件状态；旧 Claim/Run 完成协议已退役。历史策略、风险、覆盖和版本仍可查询，一次升级保留原始来源及完成记录。用户决定由 Governance 保存，实际 Session 与终端由 Host 管理。关系图合法性、当前约定版本、具体变化授权和事务仍由正式应用入口检查，页面和 MCP 只呈现其结果。
+所有当前工作入口采用事件状态；旧 Claim/Run 完成协议已退役。项目规则及其历史、上级约定覆盖可查询；风险与 Contract 修订已删除，库只认当前 schema。用户决定由 Governance 保存，实际 Session 与终端由 Host 管理。关系图合法性、当前约定版本、具体变化授权和事务仍由正式应用入口检查，页面和 MCP 只呈现其结果。
 
 由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。
 
@@ -51,17 +50,18 @@ node --import tsx --test --test-concurrency=1 tests/goals-command-module.test.ts
 
 ## 开发要求
 
-- 负责：Goal 约定、关系图、政策、风险、生命周期、项目指导与规划事实。
-- 不负责：Claim/Run、Evidence、Review/Decision、跨模块来源。
+- 负责：Goal 约定与要求、工作事件与关注项、关系图、项目规则、生命周期、项目指导与规划事实。
+- 不负责：用户决定（归 Governance）、真实 Session 与终端（归 Work 与 Runtime Host）、跨模块来源。
 - 公开入口：`@molis-ai/molis-work-module-goals`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/goals`。
 - 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - `events` 是当前工作状态与完成效果的唯一写入者。
   - 实质承诺变化须引用对具体变化的有效授权，不能靠改类型绑定或自填操作者绕过；版本缺失或过期在副作用前拒绝。
   - 完成只经显式收尾：普通支持不自动完成，无关笔记不重开已完成的 Goal。
+  - 项目规则「完成前必须你点头」进入完成检查：打开时，完成前要有这一轮、这份约定的可信用户结论（点头）；点「完成」的人是用户，本身不算，管理入口把收尾记成本机这个人也不算。点头有两种：某条要求上已接受且仍然成立的结论，和针对 `complete` 的最近一条决定（要是授权）。两种按同一个办法判断，看写下结论的那份决定：它是在这一轮工作里做出的（Goal 被继续或重新打开之后，更早的授权和接受都不再放行），并且它记下的整份约定的承诺（授权 `complete` 和接受要求的决定都记整份：结果说明、每条要求的原文、是否需要用户验收、绑定的事件类型）和现在的约定逐字相同（有一处变了就不放行，不论谁改；改了又改回，逐字相同就又放行）。要求上的结论是否还在，仍是要求自己的规则：要求被改写、退休、结果说明被改写（每条要求的结论都过期）、结论之后被拒绝，结论就没了，改回原文也不恢复。授权按决定的效果判断，不按范围里写的动作：范围里写了 `complete`、效果只有接受要求的决定是接受，不是授权。被别的原因挡住的收尾和成立的收尾都不会用掉点头，同一轮同一份约定里可以再收尾。带「需要用户验收」的要求本身不受影响（结论还成立就算已验收），项目规则另外要点头，授权不能代替那条要求自己的验收。`tests/goal-events-state.test.ts` 守着这条，管理入口那一面在 `tests/goal-management-identity.test.ts`（`specs/goal-closure-identity`）。
   - 关系图合法性、授权与事务在正式入口检查，页面和 MCP 只呈现结果。
-  - 历史升级保留原始来源与完成记录；读取已存历史的结果合同接受历史取值。
-- 改动后必跑：`node scripts/run-tests.mjs tests/goals-command-module.test.ts tests/goal-events.test.ts tests/goals-query-facts.test.ts tests/goals-storage-migration.test.ts tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs`
+  - 结果合同只认现行取值；存量数据由维护改成现行形状，读取不兜底历史取值。
+- 改动后必跑：`node scripts/run-tests.mjs tests/goals-command-module.test.ts tests/goal-events.test.ts tests/goal-events-state.test.ts tests/goals-query-facts.test.ts tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs`
 - 相关手册：[docs/modules/goals.md](../../docs/modules/goals.md)、[PRODUCT.md](../../PRODUCT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

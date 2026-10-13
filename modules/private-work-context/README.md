@@ -16,14 +16,14 @@
 | --- | --- |
 | [src/session-registry.ts](src/session-registry.ts) | Registry 与资源生命周期 |
 | [src/content-store.ts](src/content-store.ts) | 加密内容引用 |
-| [src/session-migration.ts](src/session-migration.ts) | 历史会话迁移 |
+| [src/session-surfaces.ts](src/session-surfaces.ts) | 终端面板与 Runtime 绑定写入时记下的会话 |
 | [src/project-binding-commands.ts](src/project-binding-commands.ts) | 项目绑定命令 |
 
 可对照现有调用方 [apps/local-host/src/session-registry.ts](../../apps/local-host/src/session-registry.ts) 阅读装配方式。
 
 ## 接入与边界
 
-Session 不是 Execution Run；私人的恢复包不会自动发布为 Artifact 或 Team 内容。历史未知 Project/Goal revision 保持未知。环境变量解析和 Runtime 进程启动由 Host 完成。
+私人的恢复包不会自动发布为 Artifact 或 Team 内容。历史未知 Project/Goal revision 保持未知。环境变量解析和 Runtime 进程启动由 Host 完成。
 
 由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。
 
@@ -36,10 +36,10 @@ pnpm --filter @molis-ai/molis-work-module-private-work-context typecheck
 pnpm --filter @molis-ai/molis-work-module-private-work-context build
 ```
 
-已有行为示例与回归：[private-work-context-module.test.ts](../../tests/private-work-context-module.test.ts)、[session-ledger-migration.test.ts](../../tests/session-ledger-migration.test.ts)。完成上述构建后运行：
+已有行为示例与回归：[private-work-context-module.test.ts](../../tests/private-work-context-module.test.ts)、[session-associations-atomic.test.ts](../../tests/session-associations-atomic.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/private-work-context-module.test.ts tests/session-ledger-migration.test.ts
+node --import tsx --test --test-concurrency=1 tests/private-work-context-module.test.ts tests/session-associations-atomic.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
@@ -53,8 +53,9 @@ node --import tsx --test --test-concurrency=1 tests/private-work-context-module.
 - 不变量：
   - 默认只在本机；私人恢复包不自动发布为 Artifact 或 Team 内容，共享必须由用户显式发布。
   - 关系事实只存在 Context Ledger，不另建关系表；打开时必须提供 `createLedger` 并复用事务连接。
-  - 旧面板与绑定的迁移幂等，保留原回执。
-- 改动后必跑：`node scripts/run-tests.mjs tests/private-work-context-module.test.ts tests/session-handoff.test.ts tests/session-directory.test.ts tests/session-content-privacy.test.ts`
+  - 终端面板与 Runtime 绑定在写入时记下会话（读取时不再搬运）；面板的绑定与面板共用一个会话。
+  - 项目被删除时，Home 里属于这个项目的 Session 记录由本模块自己清：`sessionsProjectData` 是它的声明（标签与 `purgeSessionsProject`，宿主与 Functions 的声明一起列出）。Session 靠 Ledger 边 `work.project` 属于项目，由 Ledger 的查询找出；清除先在一个事务里经 Ledger 取消这些 Session 与交接包的关联边（Ledger 只追加，已取消的边留在历史里，只有 id、没有内容），删这些 Session 的事件、交接、消息请求，提交；再在第二个写事务里把内容块目录里所有没有行引用的块删掉（扫全部块，不只是这个项目的行引用过的；文件删除不在第一个事务里，提交失败不会留下指着已删内容的行；某一块删除失败、两个事务之间进程中断、或第二个事务拿不到写锁时，行已删、清除报错，留下的块没有行引用它，重试时这个项目的行已不在，第二个事务照样扫描全部块，所以会把它收走；某一块删不掉不拦住其余的块）；任何一张带 `content_ref` 列的表都算引用它的块，新增这样的表不需要另改清除；本模块不对 Ledger 的表写 SQL；只读已存在的库文件，不创建，版本不符照常拒绝，重复运行没有副作用。别的项目的 Session 和移到别处的 Session 不动。事件正文在写入锁里存（`SessionEventRepository.append` 用 IMMEDIATE 事务，和交接、消息一样）：内容按文本寻址、可被多行共用，清除在写锁里核对并删掉没有行引用的块，所以不会删掉另一个进程正要引用的块。示例项目的「重建」不调用这一步（Session 跟着保留的面板与 Runtime 绑定留下）。
+- 改动后必跑：`node scripts/run-tests.mjs tests/private-work-context-module.test.ts tests/session-handoff.test.ts tests/session-directory.test.ts tests/session-content-privacy.test.ts tests/project-deletion-owners.test.ts`
 - 相关手册：[docs/modules/private-work-context.md](../../docs/modules/private-work-context.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

@@ -49,7 +49,8 @@ export class SessionHandoffService {
         source_session_id: source.session_id,
         source_project_id: input.project_id,
         source_goal_id: input.goal_contract.goal.goal_id,
-        source_goal_version: input.goal_contract.goal.current_contract_revision,
+        // A Goal with no events yet has no version to pin.
+        source_goal_version: input.goal_contract.goal_event_cursor || null,
         target_runtime_id: input.target_runtime_id,
         target_project_id: input.project_id,
         target_workspace_id: input.target_workspace_id,
@@ -135,7 +136,7 @@ export class SessionHandoffService {
     if (!source.current_goal_id) {
       throw new MolisWorkSessionError("session.invalid_input", "请先为来源 Session 选择当前 Goal");
     }
-    if (source.current_goal_id !== contract.goal.goal_id || contract.goal.board_id !== contract.board.board_id) {
+    if (source.current_goal_id !== contract.goal.goal_id || contract.goal.project_id !== contract.board.project_id) {
       throw new MolisWorkSessionError("session.invalid_input", "来源 Session 的当前 Goal 已变化，请重新打开 Handoff");
     }
     return source;

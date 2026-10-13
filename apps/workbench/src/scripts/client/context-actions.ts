@@ -123,8 +123,11 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
         // Read again: a plugin still loading the item (a reload) names it while the surfaces are read, and its naming stands.
         const own = read(surface);
         if (!entry || !surface.isConnected || namedItself(own)) return;
+        // The open tab's name, so the Assistant shows 「正在看：需求说明」 rather than the item's address.
+        const tab = [...document.querySelectorAll(".tab-item[data-item-id]")].find((node) => node.dataset.itemId === itemId);
+        const title = tab ? tab.getAttribute("title") || "" : "";
         surface.setAttribute("data-assistant-context", JSON.stringify({ ...(own || {}), plugin_id: (own && own.plugin_id) || entry.plugin_id,
-          object: { kind: entry.kind, id: itemId }, named_by: "workbench" }));
+          object: { kind: entry.kind, id: itemId, ...(title ? { title } : {}) }, named_by: "workbench" }));
       }, 250);
     }, true);
   })();
@@ -473,23 +476,16 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
   };
   // The card carries the exact action and its complete input; the Assistant checks it against what it may use in that
   // work and runs it only when the person clicks. The person's click here places it (POST /api/assistant/cards) and the
-  // panel opens on that work. Where the route is missing, the same card goes as a page message (a plain suggestion).
+  // panel opens on that work.
   const suggestCard = async (focus, candidate, offer) => {
     const material = { title: L("选中的内容") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) };
     const summary = offer.summary || candidate.hint;
-    const message_id = requestId();
     const source = { surface: focus.plugin_id, title: focus.object.title || "" };
     const card = { title: candidate.title, summary, reference: offer.action, input: offer.input,
       ...(offer.editable ? { editable: offer.editable } : {}), ...(offer.missing ? { missing: offer.missing } : {}),
       source_object: focus.object, materials: [material] };
-    try {
-      const placed = await post("/api/assistant/cards", { message_id, source, card });
-      openAssistant({ work_id: placed.work_id });
-    } catch (error) {
-      if (!(error && (error.status === 404 || error.status === 405))) throw error;
-      window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
-        message_id, purpose: "suggest", source, object: focus.object, text: candidate.title + "：" + summary, materials: [material], card } }));
-    }
+    const placed = await post("/api/assistant/cards", { message_id: requestId(), source, card });
+    openAssistant({ work_id: placed.work_id });
   };
   // The split pane's page did not take the choice: same as here, a card, else the words and the material.
   const unhandled = (contextId, key, detail) => {

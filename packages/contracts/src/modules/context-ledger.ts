@@ -26,7 +26,7 @@ export interface ObjectRef {
   /** The owner's own revision when it is not a counter (an opaque token). Compared exactly, never interpreted. */
   revision?: string;
   scope: ContextScope;
-  /** Object namespace, distinct from privacy scope. null preserves unknown legacy provenance. */
+  /** Object namespace, distinct from privacy scope; absent for objects outside any project (Sessions, Home-level). */
   project_id?: string | null;
   object_type?: string;
 }

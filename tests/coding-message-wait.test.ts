@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentWait } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -16,16 +16,16 @@ test("a round that ends parked on an answer or a background command waits as the
   const root = mkdtempSync(join(tmpdir(), "coding-message-wait-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = new CodingSessionStore(store.db), at = new Date().toISOString();
-  sessions.create({ board_id: DEMO_BOARD_ID, session_id: "a", title: "改接口", runtime_id: "prologue", at });
-  sessions.setRuntimeSession(DEMO_BOARD_ID, "a", "sdk-a", at);
-  sessions.create({ board_id: DEMO_BOARD_ID, session_id: "b", title: "调用方", runtime_id: "prologue", at });
-  sessions.setRuntimeSession(DEMO_BOARD_ID, "b", "sdk-b", at);
+  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "a", title: "改接口", runtime_id: "prologue", at });
+  sessions.setRuntimeSession(DEMO_PROJECT_ID, "a", "sdk-a", at);
+  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "b", title: "调用方", runtime_id: "prologue", at });
+  sessions.setRuntimeSession(DEMO_PROJECT_ID, "b", "sdk-b", at);
   // The SDK's waits, as the Host serves them. B's model parks in each round it runs: on a request, or a command.
   const waits: AgentWait[] = [], parks: Array<Partial<AgentWait> | undefined> = [];
   const starts: any[] = [], cancels: string[] = [], resumed: string[] = [], cancelledWaits: string[] = [];
   const wait = (id: string, on: AgentWait["on"], waiting_on: string, reason: string): AgentWait => ({ wait_id: id, session_id: "sdk-b", by: "agent", state: "waiting", reason, waiting_on, on, created_at_ms: Date.now(), expires_at_ms: Date.now() + 60_000 });
   const fire = (id: string, fired: AgentWait["fired"]) => { const one = waits.find(item => item.wait_id === id)!; one.state = "fired"; one.fired = fired; };
-  const host = () => ({ store, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
@@ -78,7 +78,7 @@ test("a round that ends parked on an answer or a background command waits as the
     // B's round asks A and parks on the answer: B waits, and nothing else can be sent meanwhile.
     parks.push({ wait_id: "w1", on: [{ kind: "envelope", envelope: "m1" }], waiting_on: "会话「改接口」的答复", reason: "the answer to envelope m1: 改完告诉我" });
     assert.equal((await call("/sessions/b/runs", send("在调用方用新参数"))).status, 200);
-    await until("B waits", () => sessions.get(DEMO_BOARD_ID, "b").state === "queued");
+    await until("B waits", () => sessions.get(DEMO_PROJECT_ID, "b").state === "queued");
     const read = await call("/sessions/b");
     assert.equal(read.status, 200, JSON.stringify(read.body));
     assert.deepEqual([read.body.session.queued.waiting_for, read.body.session.queued.after_title], ["reply", "会话「改接口」的答复"]);
@@ -93,18 +93,18 @@ test("a round that ends parked on an answer or a background command waits as the
     assert.match(starts[1].task, /请接着完成原来的任务：在调用方用新参数/);
     await until("the wait is taken up", () => resumed.includes("w1"));
     // Woken a second time, it still goes on with the person's task, not the text it was woken with before.
-    await until("B waits again", () => sessions.get(DEMO_BOARD_ID, "b").state === "queued");
+    await until("B waits again", () => sessions.get(DEMO_PROJECT_ID, "b").state === "queued");
     fire("w2", { kind: "command", target: "bg-0", outcome: "succeeded", text: "npm test: succeeded (exit 0)", at_ms: Date.now() });
     await until("B wakes again", () => starts.length === 3);
     assert.match(starts[2].task, /请接着完成原来的任务：在调用方用新参数$/);
     assert.doesNotMatch(starts[2].task, /the answer to envelope m1/);
     assert.match(starts[2].task, /结束了（成功），结束于 /);
-    await until("B's woken round ends", () => sessions.get(DEMO_BOARD_ID, "b").state === "done");
+    await until("B's woken round ends", () => sessions.get(DEMO_PROJECT_ID, "b").state === "done");
     // Parked on a background command, then the service restarts: still waiting; the command's end wakes B once.
     parks.push({ wait_id: "w3", on: [{ kind: "command", task: "bg-1", until: "exit" }], waiting_on: "后台命令 npm test结束", reason: "等完整测试跑完" });
     assert.equal((await call("/sessions/b/runs", send("跑完整测试再修"))).status, 200);
-    await until("B waits on the command", () => sessions.get(DEMO_BOARD_ID, "b").state === "queued");
-    await releaseCodingSurface(store, DEMO_BOARD_ID);
+    await until("B waits on the command", () => sessions.get(DEMO_PROJECT_ID, "b").state === "queued");
+    await releaseCodingSurface(store, DEMO_PROJECT_ID);
     const after = await call("/state");
     assert.equal(after.status, 200, JSON.stringify(after.body));
     assert.deepEqual([after.body.sessions.find((session: any) => session.session_id === "b").queued.waiting_for], ["command"]);
@@ -115,11 +115,11 @@ test("a round that ends parked on an answer or a background command waits as the
     assert.match(starts[4].task, /请接着完成原来的任务：跑完整测试再修/);
     await new Promise(resolve => setTimeout(resolve, 500));
     assert.equal(starts.length, 5, "woken once");
-    await until("B's woken round ends", () => sessions.get(DEMO_BOARD_ID, "b").state === "done");
+    await until("B's woken round ends", () => sessions.get(DEMO_PROJECT_ID, "b").state === "done");
     // A withdrawn request does not start a round on its own: the person decides.
     parks.push({ wait_id: "w5", on: [{ kind: "envelope", envelope: "m5" }], waiting_on: "会话「改接口」的答复", reason: "the answer to envelope m5" });
     assert.equal((await call("/sessions/b/runs", send("第三件事"))).status, 200);
-    await until("B waits a third time", () => sessions.get(DEMO_BOARD_ID, "b").state === "queued");
+    await until("B waits a third time", () => sessions.get(DEMO_PROJECT_ID, "b").state === "queued");
     fire("w5", { kind: "envelope", target: "m5", outcome: "withdrawn", text: "expired", at_ms: Date.now() });
     for (const deadline = Date.now() + 5_000; !(await call("/sessions/b")).body.session.queued?.note;) {
       if (Date.now() > deadline) throw new Error("no note for the person"); await new Promise(resolve => setTimeout(resolve, 50));
@@ -130,7 +130,7 @@ test("a round that ends parked on an answer or a background command waits as the
     const cancelled = await call("/sessions/b/queued", { action: "cancel" });
     assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
     assert.deepEqual([cancels, cancelledWaits], [["m5"], ["w5"]]);
-    assert.equal(sessions.get(DEMO_BOARD_ID, "b").state, "done");
+    assert.equal(sessions.get(DEMO_PROJECT_ID, "b").state, "done");
     // Priority: the others are told to make way, by the names the person knows; the mark shows in the directory.
     const marked = await call("/sessions/b/priority", { on: true });
     assert.equal(marked.status, 200, JSON.stringify(marked.body));
@@ -140,18 +140,18 @@ test("a round that ends parked on an answer or a background command waits as the
     // Started now instead: the person's start takes the wait up.
     parks.push({ wait_id: "w6", on: [{ kind: "command", task: "bg-2", until: "exit" }], waiting_on: "后台命令 npm run build结束", reason: "等构建" });
     assert.equal((await call("/sessions/b/runs", send("第四件事"))).status, 200);
-    await until("B waits a fourth time", () => sessions.get(DEMO_BOARD_ID, "b").state === "queued");
+    await until("B waits a fourth time", () => sessions.get(DEMO_PROJECT_ID, "b").state === "queued");
     const now = await call("/sessions/b/queued", { action: "start" });
     assert.equal(now.status, 200, JSON.stringify(now.body));
     assert.match(starts[7].task, /你决定不再等后台命令 npm run build结束，直接接着做/);
     assert.ok(resumed.includes("w6"));
     // The session asked failed its round without answering: B wakes on its own and is told to check for itself.
-    await until("B's started round ends", () => sessions.get(DEMO_BOARD_ID, "b").state === "done");
+    await until("B's started round ends", () => sessions.get(DEMO_PROJECT_ID, "b").state === "done");
     parks.push({ wait_id: "w7", on: [{ kind: "envelope", envelope: "m7" }], waiting_on: "会话「改接口」的答复", reason: "the answer to envelope m7" });
     assert.equal((await call("/sessions/b/runs", send("第五件事"))).status, 200);
-    await until("B waits a fifth time", () => sessions.get(DEMO_BOARD_ID, "b").state === "queued");
+    await until("B waits a fifth time", () => sessions.get(DEMO_PROJECT_ID, "b").state === "queued");
     fire("w7", { kind: "envelope", target: "m7", outcome: "failed", text: "收信的会话那一轮失败了，没有答复", at_ms: Date.now() });
     await until("B wakes when the other round failed", () => starts.length === 10);
     assert.match(starts[9].task, /会话「改接口」的答复不会来了：收信的会话那一轮失败了，没有答复。先读一下相关文件，确认对方做到了哪里/);
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

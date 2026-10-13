@@ -16,10 +16,10 @@ const item = (id: string): GoalsContextItem => ({
     definition_state: "draft", decomposition_state: "abstract", decomposition_review: null,
     outcome: "", why: "", business_logic: "", in_scope: [], out_of_scope: [], constraints: [], required_inputs: [], promised_outputs: [],
     acceptance_criteria: [] },
-  status: "execution_pending", display_status: "continue", passed_criteria: [], relations: [], input_bindings: [], coverage: [],
+  status: "execution_pending", display_status: "continue", relations: [], input_bindings: [],
 });
 const relation = (id: string, type: GoalRelationRecord["type"], from: string, to: string): GoalRelationRecord => ({
-  relation_id: id, board_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: 'Reason "<x>',
+  relation_id: id, project_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: 'Reason "<x>',
   created_by: "user", created_at: "2026-09-05", deactivated_at: null });
 const view = (goals: GoalsContextItem[], relations: GoalRelationRecord[] = []): GoalsContextView =>
   ({ goals, archived_goals: [], trashed_goals: [], snapshot: { relations } });
@@ -31,9 +31,10 @@ test("HumanReview summary keeps statements and pass conditions without becoming 
     { goal_id: "criteria", criterion_id: "c1", statement: 'Measured "<x>', decision_method: "measurement", pass_condition: "At least 90", target: { value: 90 }, required_evidence: ["report", "check"] },
     { goal_id: "criteria", criterion_id: "c2", statement: "Object target", decision_method: "inspection", pass_condition: "Verified", target: { min: 1, max: 3 }, required_evidence: [] },
   ];
-  value.passed_criteria = ["c1"];
   const summary = renderer.renderAcceptanceSummary(value);
-  assert.equal((summary.match(/check-box is-checked/g) ?? []).length, 1);
+  assert.equal((summary.match(/check-box is-checked/g) ?? []).length, 0, "an open Goal has met none of its criteria yet");
+  value.goal.fulfillment_state = "satisfied";
+  assert.equal((renderer.renderAcceptanceSummary(value).match(/check-box is-checked/g) ?? []).length, 2, "a satisfied Goal has met all of them");
   assert.match(summary, /Measured &quot;&lt;x&gt;/);
   assert.match(summary, /达到下面的结果就算通过：At least 90/);
   assert.doesNotMatch(summary, /criterion_id|decision_method|required_evidence|report、check/);

@@ -69,10 +69,10 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     }
     // Each round that ran a plan or dispatched subagents; newest first. Rounds that continued one step graph are one
     // task: the graph shows once, under its latest round, with every round that worked on it named on that row.
-    const rounds=[],boardOf=(run)=>plans.find(item=>item.run_id===run.ref.run_id&&item.board)?.board.board_id,spans=new Map();
+    const rounds=[],boardOf=(run)=>plans.find(item=>item.run_id===run.ref.run_id&&item.board)?.board.project_id,spans=new Map();
     runs.forEach((run,index)=>{const id=boardOf(run);if(id)spans.set(id,[...(spans.get(id)||[]),index]);});
     runs.forEach((run,index)=>{
-      const id=run.ref.run_id,entry=plans.find(item=>item.run_id===id&&item.board),span=entry?spans.get(entry.board.board_id):[index];
+      const id=run.ref.run_id,entry=plans.find(item=>item.run_id===id&&item.board),span=entry?spans.get(entry.board.project_id):[index];
       if(span.at(-1)!==index)return;
       const groupsHere=span.map(at=>subagents.find(item=>item.run_id===runs[at].ref.run_id)).filter(Boolean),group=groupsHere.find(item=>item.error),children=groupsHere.flatMap(item=>item.children.map(child=>({child,run_id:item.run_id})));
       if(!entry&&!children.length&&!plans.some(item=>item.run_id===id))return;

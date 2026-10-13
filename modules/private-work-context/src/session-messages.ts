@@ -13,21 +13,6 @@ export class SessionMessageRepository implements SessionMessageApi {
     private readonly content: SessionContentStore, private readonly sessions: { get(id: string): WorkSessionRecord },
     private readonly events: SessionEventRepository) {}
 
-  migrate(): void {
-    this.db.transaction(() => {
-      this.db.exec(`CREATE TABLE IF NOT EXISTS session_messages (
-        request_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, project_id TEXT NOT NULL,
-        idempotency_key TEXT NOT NULL, session_id TEXT NOT NULL REFERENCES sessions(session_id),
-        target_json TEXT NOT NULL, content_ref TEXT NOT NULL,
-        state TEXT NOT NULL CHECK (state IN ('pending','uncertain','failed','accepted')),
-        attempt_count INTEGER NOT NULL DEFAULT 0, native_turn_id TEXT, error_code TEXT,
-        created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-        UNIQUE(actor_id, project_id, idempotency_key)
-      );`);
-      this.db.prepare("UPDATE session_meta SET value = '6' WHERE key = 'schema_version'").run();
-    }).immediate();
-  }
-
   prepare(input: PrepareSessionMessage): SessionMessageRecord {
     return this.db.transaction(() => {
       requiredText(input.actor_id, "消息缺少调用者"); requiredText(input.project_id, "消息缺少项目");

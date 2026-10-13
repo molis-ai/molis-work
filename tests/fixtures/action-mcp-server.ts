@@ -28,7 +28,7 @@ const plugin = definePlugin({ manifest: {
   permissions: [{ permission: "notes:write", required: true, reason: "Save notes" }], capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [write.definition, read.definition],
 }, async start() { return { kind: "app", actions: [write.handler, read.handler] }; } });
-const reference = { project_id: project, board_id: project, storage_key: database };
+const reference = { project_id: project, storage_key: database };
 const host = new LocalHost({ runtimeFactory: { open: () => db, close: value => value.close() } });
 const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { actions: { registry: host.actionRegistry(reference), project_id: project } });
 const installed = runtime.install({ definition: plugin, deployment: "local", grants: ["notes:write"] }).install;

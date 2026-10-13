@@ -2,7 +2,6 @@ import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/ac
 import type { ActionFactory, BoundActions } from "./types.js";
 export const CONTINUITY_ACTIONS = [
   {capability_id:"goals.state.read",version:1,provider_id:"io.molis.work.goals"},
-  {capability_id:"goals.contract.read",version:1,provider_id:"io.molis.work.goals"},
   {capability_id:"goals.progress.record",version:1,provider_id:"io.molis.work.goals"},
   {capability_id:"goals.progress.receipt",version:1,provider_id:"io.molis.work.goals"},
   {capability_id:"artifacts.read",version:1,provider_id:"io.molis.work.artifacts"},

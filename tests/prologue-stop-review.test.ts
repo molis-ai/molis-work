@@ -33,7 +33,7 @@ test('packed SDK: stop withdraws waiting reviews and never surfaces one asked fo
   const adapter=await createPrologueNodeAdapter({app:{appId:'molis.stop-review.test',appVersion:'1.0.0'},storageRoot:join(root,'sdk'),reviewQueue:queue,
     modelConfiguration:async()=>({protocol:'anthropic-compatible',endpoint:'https://1.1.1.1/v1/messages',model:'fixture',credential_ref:'test'}),resolveCredential:()=> 'test-only'});
   try{
-    const owner={board_id:'board',plugin_id:'io.molis.work.coding',install_id:'installed',actor_id:'user'},directory={canonical_path:project,realpath_verified:true};
+    const owner={project_id:'board',plugin_id:'io.molis.work.coding',install_id:'installed',actor_id:'user'},directory={canonical_path:project,realpath_verified:true};
     const role={role_id:'writer',version:1,execution:'text-edit' as const,prompts:[],host_tools:['read-file','write']};
     const session=await adapter.createSession({...owner,directory,title:'stop'});
 

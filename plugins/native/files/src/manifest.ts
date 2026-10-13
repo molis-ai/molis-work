@@ -13,7 +13,7 @@ import {
   FILE_TEXT_SELECTION_SCHEMA_VERSION,
   FILE_TEXT_SELECTION_TYPE,
   GIT_FILE_CHANGED_EVENT,
-  readWorkspaceFileCapability,
+  workspaceReadActions,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { FILES_UI_CONTRIBUTION_ID } from "./ui.js";
 
@@ -47,20 +47,22 @@ export const filesManifest: PluginManifest = {
   version: "1.5.0",
   name: "Files",
   kind: "app",
-  upgrade_compatibility: { compatible_from_versions: ["1.4.0", "1.3.0", "1.2.0", "1.1.0"] },
   publisher: { publisher_id: "molis", signature: "official-files-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: "artifact:read", required: true, reason: "读取绑定的工作目录引用" },
     { permission: "artifact:write", required: true, reason: "发布文件集合、文本快照与选区" },
     { permission: "storage:private", required: true, reason: "记住上次读到哪个文件及快照所属工作区" },
+    { permission: "workspace:read", required: true, reason: "读取项目已关联工作目录里的目录与文本，用于浏览、预览和固定快照" },
   ],
   capabilities: {
     provides: [],
-    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, readWorkspaceFileCapability.capability_id],
+    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, workspaceReadActions.file.capability_id],
   },
   actions: FILES_ACTIONS,
-  artifacts: {
+  artifacts: { produces: [], consumes: [] },
+  // Snapshots, collections and selections are handed to other plugins through ports; they are not 成果.
+  process_items: {
     produces: [
       { artifact_type_id: FILES_COLLECTION_TYPE, schema_version: FILES_COLLECTION_SCHEMA_VERSION },
       { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION },

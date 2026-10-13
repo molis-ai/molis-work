@@ -11,7 +11,7 @@ const renderer = createWorkbenchGoalsRelationRenderer({ translate: L, escapeHtml
 const item = (id: string, title = id): GoalsRelationItem => ({ goal: { goal_id: id, title, archived_at: null, priority: 1, created_at: "2026-09-05" },
   status: "execution_pending", display_status: "continue", relations: [], events: [] });
 const relation = (id: string, type: GoalRelationRecord["type"], from: string, to: string): GoalRelationRecord => ({
-  relation_id: id, board_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: 'Keep "direction" <safe>',
+  relation_id: id, project_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: 'Keep "direction" <safe>',
   created_by: "user", created_at: "2026-09-05", deactivated_at: null });
 
 test("relation contribution preserves all nine types, direction, target ordering, and separate Decision history", () => {
@@ -23,6 +23,9 @@ test("relation contribution preserves all nine types, direction, target ordering
   const view = { goals: [current, later, target], archived_goals: [] };
   const html = renderer.renderRelations(current, view, true, '<aside data-decision-history="owner">Decision history</aside>');
   assert.match(html, /data-current-goal-name="Current &quot;&lt;goal&gt;"/);
+  // Relation changes proposed by tools wait in the Inbox: the note links there as a plugin surface, not to a page of its own.
+  assert.match(html, /<a href="\/" data-work-surface-link="inbox">Inbox<\/a>/);
+  assert.doesNotMatch(html, /href="\/decisions"/);
   assert.match(html, /value="target" data-goal-name="Target"/);
   assert.ok(html.indexOf('value="target" data-goal-name') < html.indexOf('value="later" data-goal-name'));
   assert.match(html, /name="direction" required/);

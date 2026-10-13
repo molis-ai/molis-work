@@ -4,7 +4,6 @@ import type { GoalsTreeItem, GoalsTreeView } from "./tree-ui-model.js";
 export interface GoalsContextItem extends GoalsTreeItem {
   goal: GoalsTreeItem["goal"] & Pick<GoalRecord, "outcome" | "why" | "business_logic" | "priority" | "definition_state" | "decomposition_state" | "in_scope" | "out_of_scope" | "constraints" | "required_inputs" | "promised_outputs" | "acceptance_criteria" | "decomposition_review">;
   input_bindings: Array<Pick<GoalInputBindingRecord, "input_name" | "source_ref" | "state" | "reason" | "snapshot_digest">>;
-  coverage: Array<{ requirement_id: string; statement: string; disposition: string; blocking: boolean; reason: string | null; revisit_condition: string | null }>;
 }
 export type GoalsContextView = GoalsTreeView<GoalsContextItem>;
 export interface GoalsContextUiPrimitives {

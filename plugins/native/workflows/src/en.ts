@@ -1,4 +1,6 @@
 export const WORKFLOWS_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "工作流程及其运行记录": "Workflows and their runs",
   "正文仅显示节选。": "Showing an excerpt.",
   "动作已返回": "Action returned",
   "服务已返回": "Service responded",
@@ -115,6 +117,8 @@ export const WORKFLOWS_EN: Record<string, string> = {
   "标题规则": "Title rule",
   "正文规则": "Body rule",
   "要整理成什么": "What to organise it into",
+  // The {…} words are the placeholders the workflow engine fills in; they stay as typed in both languages.
+  "{标题}": "{标题}",
   "例如：来源：{来源}\n链接：{链接}\n\n{正文}": "e.g. Source: {来源}\nLink: {链接}\n\n{正文}",
   "例如：整理成一页说明，分成背景、要点和待确认的问题，保留原文链接。": "e.g. A one-page brief with background, key points and open questions; keep the original link.",
   "还没写交接规则": "no handoff rule yet",
@@ -126,6 +130,7 @@ export const WORKFLOWS_EN: Record<string, string> = {
   "人看完这一步，自己决定交不交、交什么过去。": "A person reviews this step and decides whether and what to hand over.",
   "工作流程交接": "Workflow handoff",
   "其余 {count} 个插件暂不能串进流程": "{count} other plugins can't join a workflow yet",
+  "{plugins} 只能作为第一站": "{plugins} can only be the first station",
   "Inbox · 工作流程": "Inbox · Workflow",
   "工作流程交过来": "Handed over by a workflow",
   "{plugin} · 第 {n} 站": "{plugin} · station {n}",

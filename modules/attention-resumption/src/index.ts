@@ -10,7 +10,6 @@ import type {
   AttentionSubjectResolver,
   AttentionSubjectType,
   CreateAttentionEntryInput,
-  LegacyAttentionEntryInput,
 } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 
 export const packageDescriptor = {
@@ -36,7 +35,8 @@ export interface AttentionSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-export interface AttentionLegacyEvent {
+/** The project journal's record of an entry change; the journal keeps its own event names. */
+export interface AttentionJournalEvent {
   project_id: string;
   entry_id: string;
   type: string;
@@ -47,7 +47,7 @@ export interface AttentionLegacyEvent {
 
 export interface AttentionModuleOptions {
   now?: () => Date;
-  eventSink?: (event: AttentionLegacyEvent) => void;
+  eventSink?: (event: AttentionJournalEvent) => void;
 }
 
 export const ATTENTION_STATUS_TRANSITIONS: Readonly<
@@ -62,7 +62,7 @@ export const ATTENTION_STATUS_TRANSITIONS: Readonly<
 export { AttentionError } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 
 const INBOX_ENTRIES_COLUMNS = `
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
       subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
       subject_id TEXT NOT NULL,
@@ -73,27 +73,17 @@ const INBOX_ENTRIES_COLUMNS = `
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       completed_at TEXT,
-      PRIMARY KEY (board_id, entry_id),
-      UNIQUE (board_id, subject_type, subject_id, reason)
+      PRIMARY KEY (project_id, entry_id),
+      UNIQUE (project_id, subject_type, subject_id, reason)
 `;
 
-function inboxEntriesTableSql(tableName: string, ifNotExists: boolean): string {
-  return `CREATE TABLE ${ifNotExists ? "IF NOT EXISTS " : ""}${tableName} (${INBOX_ENTRIES_COLUMNS});`;
-}
-
-function inboxEntriesIndexesSql(): string {
-  return `
-    CREATE INDEX IF NOT EXISTS inbox_entries_board_status_idx
-      ON inbox_entries(board_id, status, updated_at DESC, entry_id);
-    CREATE INDEX IF NOT EXISTS inbox_entries_board_subject_idx
-      ON inbox_entries(board_id, subject_type, subject_id);
-  `;
-}
-
-export function migrateAttention(db: AttentionSqliteDatabase): void {
-  db.exec(`
-    ${inboxEntriesTableSql("inbox_entries", true)}
-    ${inboxEntriesIndexesSql()}
+/** The Inbox tables, as one current schema; the host composes them into the project database baseline. */
+export const ATTENTION_SCHEMA_SQL = `
+    CREATE TABLE IF NOT EXISTS inbox_entries (${INBOX_ENTRIES_COLUMNS});
+    CREATE INDEX IF NOT EXISTS inbox_entries_project_status_idx
+      ON inbox_entries(project_id, status, updated_at DESC, entry_id);
+    CREATE INDEX IF NOT EXISTS inbox_entries_project_subject_idx
+      ON inbox_entries(project_id, subject_type, subject_id);
 
     CREATE TABLE IF NOT EXISTS attention_events (
       event_id TEXT PRIMARY KEY,
@@ -106,30 +96,7 @@ export function migrateAttention(db: AttentionSqliteDatabase): void {
     );
     CREATE INDEX IF NOT EXISTS attention_events_project_entry_idx
       ON attention_events(project_id, entry_id, at, event_id);
-  `);
-  rebuildInboxEntriesReasonCheck(db);
-}
-
-function rebuildInboxEntriesReasonCheck(db: AttentionSqliteDatabase): void {
-  const row = db.prepare(
-    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'inbox_entries'",
-  ).get() as { sql?: string } | undefined;
-  if (!row?.sql || row.sql.includes("artifact_out_failed")) return;
-  db.exec(`
-    ${inboxEntriesTableSql("inbox_entries__reason_v2", false)}
-    INSERT INTO inbox_entries__reason_v2 (
-      board_id, entry_id, subject_type, subject_id, reason, status,
-      detail_json, revision, created_at, updated_at, completed_at
-    )
-    SELECT
-      board_id, entry_id, subject_type, subject_id, reason, status,
-      detail_json, revision, created_at, updated_at, completed_at
-    FROM inbox_entries;
-    DROP TABLE inbox_entries;
-    ALTER TABLE inbox_entries__reason_v2 RENAME TO inbox_entries;
-    ${inboxEntriesIndexesSql()}
-  `);
-}
+`;
 
 export class AttentionModule implements AttentionApi {
   readonly query = {
@@ -175,29 +142,23 @@ export class AttentionModule implements AttentionApi {
     list: (projectId: string, entryId?: string) => this.listEvents(projectId, entryId),
   };
 
-  readonly migrations = {
-    countEntries: () => this.countEntries(),
-    importLegacy: (entry: LegacyAttentionEntryInput) => this.importLegacy(entry),
-    listFeedItemReferences: () => this.listFeedItemReferences(),
-  };
-
   constructor(
     private readonly db: AttentionSqliteDatabase,
     private readonly subjects: AttentionSubjectResolver,
     private readonly options: AttentionModuleOptions = {},
   ) {
-    migrateAttention(db);
+    db.exec(ATTENTION_SCHEMA_SQL);
   }
 
   private list(projectId: string): AttentionEntryRecord[] {
     return (this.db.prepare(
-      "SELECT * FROM inbox_entries WHERE board_id = ? ORDER BY updated_at DESC, entry_id",
+      "SELECT * FROM inbox_entries WHERE project_id = ? ORDER BY updated_at DESC, entry_id",
     ).all(projectId) as Row[]).map(mapAttentionEntry);
   }
 
   private get(projectId: string, entryId: string): AttentionEntryRecord {
     const row = this.db.prepare(
-      "SELECT * FROM inbox_entries WHERE board_id = ? AND entry_id = ?",
+      "SELECT * FROM inbox_entries WHERE project_id = ? AND entry_id = ?",
     ).get(projectId, entryId) as Row | undefined;
     if (!row) throw new AttentionError("attention_entry_not_found", "找不到这个 Inbox Entry");
     return mapAttentionEntry(row);
@@ -210,7 +171,7 @@ export class AttentionModule implements AttentionApi {
   ): AttentionEntryRecord | null {
     const row = this.db.prepare(`
       SELECT * FROM inbox_entries
-      WHERE board_id = ? AND subject_type = ? AND subject_id = ?
+      WHERE project_id = ? AND subject_type = ? AND subject_id = ?
         AND status IN ('open', 'in_progress')
       ORDER BY CASE reason WHEN 'manual' THEN 0 ELSE 1 END, updated_at DESC, entry_id
       LIMIT 1
@@ -225,7 +186,7 @@ export class AttentionModule implements AttentionApi {
   ): AttentionEntryRecord[] {
     return (this.db.prepare(`
       SELECT * FROM inbox_entries
-      WHERE board_id = ? AND subject_type = ? AND subject_id = ?
+      WHERE project_id = ? AND subject_type = ? AND subject_id = ?
       ORDER BY updated_at DESC, entry_id
     `).all(projectId, subjectType, subjectId) as Row[]).map(mapAttentionEntry);
   }
@@ -238,7 +199,7 @@ export class AttentionModule implements AttentionApi {
     }
     const existing = this.db.prepare(`
       SELECT * FROM inbox_entries
-      WHERE board_id = ? AND subject_type = ? AND subject_id = ? AND reason = ?
+      WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND reason = ?
     `).get(input.project_id, input.subject_type, input.subject_id, input.reason) as Row | undefined;
     if (existing) return { entry: mapAttentionEntry(existing), created: false };
     const at = input.at ?? this.now().toISOString();
@@ -258,7 +219,7 @@ export class AttentionModule implements AttentionApi {
     assertShape(entry);
     this.db.prepare(`
       INSERT INTO inbox_entries (
-        board_id, entry_id, subject_type, subject_id, reason, status,
+        project_id, entry_id, subject_type, subject_id, reason, status,
         detail_json, revision, created_at, updated_at, completed_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -296,7 +257,7 @@ export class AttentionModule implements AttentionApi {
       this.db.prepare(`
         UPDATE inbox_entries
         SET status = ?, revision = revision + 1, updated_at = ?, completed_at = ?
-        WHERE board_id = ? AND entry_id = ?
+        WHERE project_id = ? AND entry_id = ?
       `).run(status, at, completedAt, projectId, entryId);
       const updated = this.get(projectId, entryId);
       this.appendEvent(updated, `inbox_entry.${status}`, at, `Inbox Entry 已标记为 ${status}`);
@@ -309,7 +270,7 @@ export class AttentionModule implements AttentionApi {
     if (entries.length === 0) return 0;
     const at = this.now().toISOString();
     this.db.prepare(
-      "DELETE FROM inbox_entries WHERE board_id = ? AND subject_type = ? AND subject_id = ?",
+      "DELETE FROM inbox_entries WHERE project_id = ? AND subject_type = ? AND subject_id = ?",
     ).run(projectId, subjectType, subjectId);
     for (const entry of entries) this.appendEvent(entry, "inbox_entry.deleted", at, "Inbox 引用已删除");
     return entries.length;
@@ -325,50 +286,6 @@ export class AttentionModule implements AttentionApi {
           WHERE project_id = ? AND entry_id = ? ORDER BY at, event_id
         `).all(projectId, entryId);
     return (rows as Row[]).map(mapAttentionEvent);
-  }
-
-  private countEntries(): number {
-    return Number((this.db.prepare(
-      "SELECT COUNT(*) AS count FROM inbox_entries",
-    ).get() as { count?: number } | undefined)?.count ?? 0);
-  }
-
-  private importLegacy(entry: LegacyAttentionEntryInput): AttentionEntryRecord {
-    assertShape(entry);
-    this.db.prepare(`
-      INSERT OR IGNORE INTO inbox_entries (
-        board_id, entry_id, subject_type, subject_id, reason, status,
-        detail_json, revision, created_at, updated_at, completed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      entry.project_id,
-      entry.entry_id,
-      entry.subject_type,
-      entry.subject_id,
-      entry.reason,
-      entry.status,
-      JSON.stringify(entry.detail),
-      entry.revision,
-      entry.created_at,
-      entry.updated_at,
-      entry.completed_at,
-    );
-    return this.findForSubject(
-      entry.project_id,
-      entry.subject_type,
-      entry.subject_id,
-    ).find((candidate) => candidate.reason === entry.reason)!;
-  }
-
-  private listFeedItemReferences(): Array<{ project_id: string; subject_id: string }> {
-    return (this.db.prepare(`
-      SELECT board_id, subject_id FROM inbox_entries
-      WHERE subject_type = 'feed_item'
-      ORDER BY board_id, subject_id
-    `).all() as Array<{ board_id: string; subject_id: string }>).map((row) => ({
-      project_id: row.board_id,
-      subject_id: row.subject_id,
-    }));
   }
 
   private appendEvent(
@@ -462,7 +379,7 @@ function referenceMessage(subjectType: AttentionSubjectType): string {
 
 function mapAttentionEntry(row: Row): AttentionEntryRecord {
   const entry: AttentionEntryRecord = {
-    project_id: text(row.board_id),
+    project_id: text(row.project_id),
     entry_id: text(row.entry_id),
     subject_type: text(row.subject_type) as AttentionSubjectType,
     subject_id: text(row.subject_id),

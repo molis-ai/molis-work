@@ -10,27 +10,27 @@
 
 **不负责：** 不拥有 Goal/Artifact/Feed/Session 内容，不跨 Store Join，不因存在 edge 自动授予内容权限。
 
-**当前来源与 Goal：** Coordinator relation/impact/provenance、Feed link、Session association；由 AR2 迁移。
+**当前来源与 Goal：** Feed link、Session association、Goal 输入来源与 Runtime 工作入口绑定；由 AR2 迁入。
 
 ## 当前实现（AR2 迁移已验收）
 
 `ContextLedgerApi` 已提供关系查询、逐次 revision 历史、写入和撤销。`modules/context-ledger` 独占 `context_edges`；Feed 通过注入的 API 读写自己的 Goal 关联，仍负责 disposition、Attention 与业务事件。Root 只组合同一个本地数据库事务资源，不让 Feed 读取 Ledger 的表。
 
-旧 `feed_items.linked_goal_id` 在 Feed 初始化时同事务迁移并清空，只作为旧 schema 的暂留列，不再参与读取或写入关联。对外 Feed 返回的同名字段从 Ledger 派生。旧引用指向缺失 Goal 时保留引用，不制造 Goal、不猜测历史版本。新 Artifact 引用必须携带精确版本。
+Feed 表不再有 `linked_goal_id` 列；对外 Feed 返回的同名字段从 Ledger 派生。旧引用指向缺失 Goal 时保留引用，不制造 Goal、不猜测历史版本。新 Artifact 引用必须携带精确版本。
 
 Scope 是授权端口验证的逻辑分区；目前 Feed 只在本地 personal Project 分区使用，不隐式发布到 Team。关系可见不意味着有权读取目标内容；materializer 通过目标 owner Query 获取内容，owner 可以独立拒绝。
 
-Session/Project/workspace 关联也已通过同库 Ledger API 迁移，旧 link ID、actor、时间与未知历史 namespace 均保留；本地应用层组装两个 Module，不引入 Module 实现之间的依赖。ObjectRef 的 Project namespace 与对象类型区分不同 Project 的同名对象及 workspace；它们不同于隐私 scope。
+Session/Project/workspace 关联也通过同库 Ledger API 保存；本地应用层组装两个 Module，不引入 Module 实现之间的依赖。ObjectRef 的 Project namespace 与对象类型区分不同 Project 的同名对象及 workspace；它们不同于隐私 scope。
 
-Goal 输入确认中的可解析 Feed 来源已迁为 `goal.input` 边，Goals 只保存 edge key、确认状态和摘要，公开读取再还原 locator；原始来源不随 Feed 当前关联变更而改变。URL 与不可解析 locator 保留，不凭空转换成 Artifact。迁移和新写入与 Goals 共用原子事务。
+Goal 输入确认中的可解析 Feed 来源保存为 `goal.input` 边，Goals 只保存 edge key、确认状态和摘要，公开读取再还原 locator；原始来源不随 Feed 当前关联变更而改变。URL 与不可解析 locator 保留，不凭空转换成 Artifact。写入与 Goals 共用原子事务。
 
 `ContextMaterializationApi.rebuild` 已用于 Runtime advance-prompt 的 Feed 上下文：从 Goal incoming `feed.goal` 边取引用，经 owner Query 获取内容，Native Feed 选择原来排序下的 Item 并格式化、脱敏。Ledger 不拥有其正文。遍历支持缺失/拒绝/暂不可用/版本过期状态，循环去重、范围拒绝和对象数预算；失败不会留一份可被误用的部分缓存，下次调用从 owner 重新读取。返回值只是临时 projection，长期结果仍必须进 Artifact。
 
 Handoff 的来源 Goal 与目标 Project / workspace 已迁入 Ledger；新 prepare 记录实际 Goal revision，历史版本不猜测。加密正文、来源/目标 Session、发送与重试状态仍是 Work 内部事实；持久化私人恢复包不等于自动发布 Artifact（总 spec §20.11 / §20.13）。
 
-Runtime 工作入口到 Project 的当前绑定已迁为 `work.binding_project`，Catalog v10 删除旧 endpoint 列；Work 保留绑定身份、确认/解除事件、setup 幂等与拒绝建议。Project 删除通过 Work API 撤销该 Project 的当前边，不触及其他 Project，也不抹去历史边和原决定记录。
+Runtime 工作入口到 Project 的当前绑定保存为 `work.binding_project` 边，目录库不再有旧 endpoint 列；Work 保留绑定身份、确认/解除事件、setup 幂等与拒绝建议。Project 删除通过 Work API 撤销该 Project 的当前边，不触及其他 Project，也不抹去历史边和原决定记录。
 
-资源 Impact 的声明与历史归 Goals，占用冲突归 Execution；它们不是可解析对象关系。事实/假设、Contract/native 提案的来源规则与旧提案展示归 Governance。Coordinator 已退出这些规则，通过公开接口组合；来源 locator 和待确认历史不伪造为已确认 ContextEdge。
+事实/假设与 Goal Tree 提案的来源规则归 Governance，通过公开接口组合；来源 locator 和待确认记录不伪造为已确认 ContextEdge。
 
 系统助理的工作关系（2026-09-28，`feature/system-assistant`）：助理作为语义所有者，在自己的 Home 级数据库事务资源里用 `createContextLedger` 写关系边，分区 `personal/assistant`。`ObjectRef` 新增命名空间 `assistant`（工作，`object_type: "work"`）与 `plugins`（插件拥有的对象，`object_type` 为对象种类，`project_id` 为所在项目），以及可选的不透明 `revision`（所有者版本不是计数时使用，按原样比较）。关系类型 `assistant.work.origin` / `material` / `result` / `session`；再次产出同一对象的新版本是同一条边的新 revision。对象内容与当前版本始终经所有者的对象上下文读取取得，边只保存引用与当时版本；用户手动修改由版本比较得知，不另记流水。约定见 [molis-plugin-dev · continuity.md](../../skills/molis-plugin-dev/continuity.md)。
 

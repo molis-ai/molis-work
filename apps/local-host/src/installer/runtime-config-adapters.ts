@@ -144,7 +144,7 @@ export function inspectCodexConfig(contents: string | null, desired: DesiredConn
   }
   const familyBody = family.text.replace(/^\s*\[[^\]\r\n]+\]\s*(?:#.*)?$/gm, "");
   if (/MOLIS_WORK_|(?:command|args)\s*=.*molis-work/i.test(familyBody)) {
-    return { state: "legacy", summary: "旧版 Molis Work MCP 配置", entryFingerprint: digest(normalizeBlock(family.text)) };
+    return { state: "outdated", summary: "需要更新的 Molis Work MCP 配置", entryFingerprint: digest(normalizeBlock(family.text)) };
   }
   return { state: "conflict", summary: "同名 MCP entry 不属于 Molis Work", entryFingerprint: digest(normalizeBlock(family.text)) };
 }
@@ -184,7 +184,7 @@ export function inspectClaudeConfig(contents: string | null, desired: DesiredCon
     return { state: "current", summary: "当前 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(expected)) };
   }
   if (/molis-work|MOLIS_WORK_/i.test(canonicalJson(entry))) {
-    return { state: "legacy", summary: "旧版 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(entry)) };
+    return { state: "outdated", summary: "需要更新的 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(entry)) };
   }
   return { state: "conflict", summary: "同名 MCP entry 不属于 Molis Work", entryFingerprint: digest(canonicalJson(entry)) };
 }
@@ -229,7 +229,7 @@ export function inspectOpenCodeConfig(contents: string | null, desired: DesiredC
     return { state: "current", summary: "当前 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(expected)) };
   }
   if (/molis-work|MOLIS_WORK_/i.test(canonicalJson(entry))) {
-    return { state: "legacy", summary: "旧版 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(entry)) };
+    return { state: "outdated", summary: "需要更新的 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(entry)) };
   }
   return { state: "conflict", summary: "同名 MCP entry 不属于 Molis Work", entryFingerprint: digest(canonicalJson(entry)) };
 }
@@ -276,7 +276,7 @@ export function inspectPiConfig(contents: string | null, desired: DesiredConnect
     return { state: "current", summary: "当前 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(expected)) };
   }
   if (/molis-work|MOLIS_WORK_/i.test(canonicalJson(entry))) {
-    return { state: "legacy", summary: "旧版 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(entry)) };
+    return { state: "outdated", summary: "需要更新的 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(entry)) };
   }
   return { state: "conflict", summary: "同名 MCP entry 不属于 Molis Work", entryFingerprint: digest(canonicalJson(entry)) };
 }

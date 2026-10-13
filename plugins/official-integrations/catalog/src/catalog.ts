@@ -298,7 +298,7 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("feishu", "飞书", "chat", "消息、文档与日历。", "Feed 读取会话列表；Artifact 导入文档", {
+  spec("feishu", "飞书", "chat", "消息、文档与日历。", "Feed 读取会话列表；成果导入文档", {
     token_label: "飞书应用凭证",
     token_placeholder: "cli_…:app_secret",
     auth_help: "企业自建应用，格式 app_id:app_secret。导入正文需文档只读权限，并将文档共享给应用；知识库链接还需知识库读取权限。Feed 拉会话另需 im 权限。",
@@ -334,7 +334,7 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("lark", "Lark", "chat", "国际版 Lark 的消息与文档。", "Feed 拉会话；Artifact 导入文档", {
+  spec("lark", "Lark", "chat", "国际版 Lark 的消息与文档。", "Feed 拉会话；成果导入文档", {
     token_label: "Lark 应用凭证",
     token_placeholder: "cli_…:app_secret",
     auth_help: "Lark 国际版自建应用，格式 app_id:app_secret，与飞书凭据分开保存。导入正文需文档只读权限及文档共享，知识库链接还需知识库读取权限。Feed 拉会话另需 im 权限。",

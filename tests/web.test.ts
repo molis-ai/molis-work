@@ -4,14 +4,15 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { Script } from "node:vm";
+import { locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { type MolisWorkProjectCatalog, normalizeRuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
@@ -68,16 +69,6 @@ type GoalTreeBrowserLayout = {
   parentRestoredProgressDisplay: string;
 };
 
-type DecisionDeepLinkBrowserState = {
-  selectedEntryId: string | null;
-  targetDetailHidden: boolean | null;
-  formVisible: boolean;
-  submitVisible: boolean;
-  formFocused: boolean;
-  mobileView: string | null;
-  searchValue: string | null;
-};
-
 type DesktopWorkTabBrowserLayout = {
   initial: { railLeft: number; railRight: number; tabLeft: number; tabRight: number; scrollLeft: number; scrollWidth: number; tabCount: number };
   resized: { railLeft: number; railRight: number; tabLeft: number; tabRight: number; scrollLeft: number; scrollWidth: number; tabCount: number };
@@ -87,13 +78,7 @@ let cachedGoalTreeBrowserLayout: Promise<GoalTreeBrowserLayout | null> | undefin
 
 function readGoalTreeBrowserLayout(): Promise<GoalTreeBrowserLayout | null> {
   if (cachedGoalTreeBrowserLayout !== undefined) return cachedGoalTreeBrowserLayout;
-  const browser = [
-    process.env.MOLIS_WORK_TEST_CHROME,
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-  ].find((candidate): candidate is string => Boolean(candidate && existsSync(candidate)));
+  const browser = locateTestChrome();
   if (!browser) {
     cachedGoalTreeBrowserLayout = Promise.resolve(null);
     return cachedGoalTreeBrowserLayout;
@@ -183,6 +168,8 @@ function readGoalTreeBrowserLayout(): Promise<GoalTreeBrowserLayout | null> {
   cachedGoalTreeBrowserLayout = new Promise((resolve, reject) => {
     const child = spawn(browser, [
       "--headless=new",
+      "--lang=zh-CN",
+      "--accept-lang=zh-CN",
       "--disable-gpu",
       "--no-sandbox",
       "--disable-dev-shm-usage",
@@ -223,157 +210,10 @@ function readGoalTreeBrowserLayout(): Promise<GoalTreeBrowserLayout | null> {
   return cachedGoalTreeBrowserLayout;
 }
 
-function readDecisionDeepLinkBrowserState(
-  html: string,
-  goalId: string,
-  options: { width?: number; scenario?: "initial" | "after_feed_switch" | "restored_mobile_tree" } = {},
-): Promise<DecisionDeepLinkBrowserState | null> {
-  const browser = [
-    process.env.MOLIS_WORK_TEST_CHROME,
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-  ].find((candidate): candidate is string => Boolean(candidate && existsSync(candidate)));
-  if (!browser) return Promise.resolve(null);
-
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-decision-deep-link-"));
-  const profilePath = join(directory, "chrome-profile");
-  const htmlPath = join(directory, "decisions.html");
-  mkdirSync(profilePath);
-  const scenario = options.scenario ?? "initial";
-  const browserHtml = html.replace(
-    '<script src="/assets/molis-work-workbench.js"></script>',
-    `<script>
-      if (${JSON.stringify(scenario)} === "restored_mobile_tree") {
-        const state = JSON.parse(document.querySelector("#molis-work-data").textContent);
-        const storageKey = "molis-work-ui:" + (state.project?.project_id || state.snapshot.board.board_id) + ":inbox";
-        sessionStorage.setItem(storageKey, JSON.stringify({
-          mobileView: "tree",
-          workSurface: "inbox",
-          directory: "inbox",
-          navigationVersion: 2,
-        }));
-      }
-      globalThis.__gb24InboxWorkbenchHtml = [...document.querySelectorAll("[data-feed-detail]")]
-        .map((detail) => detail.outerHTML).join("");
-      globalThis.__gb24Fetch = globalThis.fetch.bind(globalThis);
-      globalThis.fetch = (input, init) => {
-        const url = new URL(String(input), location.href);
-        if (url.pathname.endsWith("/api/feed/workbench")) {
-          return Promise.resolve(new Response(
-            globalThis.__gb24InboxWorkbenchHtml,
-            { status: 200, headers: { "content-type": "text/html" } },
-          ));
-        }
-        return globalThis.__gb24Fetch(input, init);
-      };
-    </script><script>${WORKBENCH_CLIENT_SCRIPT}</script><script>
-      (async () => {
-        const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 50));
-        await nextFrame();
-        await nextFrame();
-        if (${JSON.stringify(scenario)} === "after_feed_switch") {
-          document.querySelector('[data-work-surface-open="feed"][data-feed-preset="feed"]')?.click();
-          await nextFrame();
-          await nextFrame();
-          const search = document.querySelector("[data-feed-search]");
-          if (search) {
-            search.value = "__hide_every_decision__";
-            search.dispatchEvent(new Event("input", { bubbles: true }));
-          }
-          location.hash = ${JSON.stringify(`#decision-goal-${goalId}`)};
-        }
-        await nextFrame();
-        await nextFrame();
-        await nextFrame();
-        const targetEntryId = ${JSON.stringify(`decision:${goalId}`)};
-        const rows = [...document.querySelectorAll("[data-feed-entry-id]")];
-        const selectedRow = rows.find((row) => row.classList.contains("is-selected"));
-        const targetDetail = [...document.querySelectorAll("[data-feed-detail]")]
-          .find((detail) => detail.dataset.feedDetail === targetEntryId);
-        const form = targetDetail?.querySelector(
-          "[data-human-review-form], [data-goal-tree-decision-form], [data-contract-decision-form], [data-candidate-decision-form], [data-rewire-decision-form], [data-risk-state-form]",
-        );
-        const submit = form?.querySelector('button[type="submit"]');
-        const pane = document.querySelector("[data-document-pane]");
-        const paneRect = pane?.getBoundingClientRect();
-        const formRect = form?.getBoundingClientRect();
-        const submitRect = submit?.getBoundingClientRect();
-        const result = {
-          selectedEntryId: selectedRow?.dataset.feedEntryId ?? null,
-          targetDetailHidden: targetDetail ? targetDetail.hidden : null,
-          formVisible: Boolean(paneRect && formRect && formRect.top >= paneRect.top - 1 && formRect.top < paneRect.bottom),
-          submitVisible: Boolean(paneRect && submitRect && submitRect.top >= paneRect.top - 1 && submitRect.bottom <= paneRect.bottom + 1),
-          formFocused: document.activeElement === form,
-          mobileView: document.querySelector("[data-workspace]")?.dataset.mobileView ?? null,
-          searchValue: document.querySelector("[data-feed-search]")?.value ?? null,
-        };
-        document.title = "RESULT:" + btoa(unescape(encodeURIComponent(JSON.stringify(result))));
-      })();
-    </script>`,
-  );
-  writeFileSync(
-    htmlPath,
-    browserHtml,
-  );
-  return new Promise((resolve, reject) => {
-    const child = spawn(browser, [
-      "--headless=new",
-      "--disable-gpu",
-      "--no-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-background-mode",
-      "--disable-background-networking",
-      "--disable-component-update",
-      "--disable-default-apps",
-      "--disable-extensions",
-      "--no-default-browser-check",
-      "--no-first-run",
-      `--user-data-dir=${profilePath}`,
-      `--window-size=${options.width ?? 1280},800`,
-      "--virtual-time-budget=3000",
-      "--dump-dom",
-      `file://${htmlPath}${scenario === "after_feed_switch" ? "" : `#decision-goal-${encodeURIComponent(goalId)}`}`,
-    ], { stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => child.kill("SIGTERM"), 15_000);
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      stdout += chunk;
-      if (/<title>RESULT:[^<]+<\/title>/.test(stdout)) child.kill("SIGTERM");
-    });
-    child.stderr.on("data", (chunk: string) => { stderr += chunk; });
-    child.on("error", reject);
-    child.on("close", () => {
-      clearTimeout(timer);
-      rmSync(directory, { recursive: true, force: true });
-      if (!stdout) {
-        reject(new Error(`${stderr}\nBrowser decision deep-link DOM is empty`));
-        return;
-      }
-      const encoded = stdout.match(/<title>RESULT:([^<]+)<\/title>/)?.[1];
-      if (!encoded) {
-        reject(new Error(`${stderr}\nBrowser decision deep-link result missing from DOM:\n${stdout.slice(0, 500)}`));
-        return;
-      }
-      resolve(JSON.parse(Buffer.from(encoded, "base64").toString("utf8")) as DecisionDeepLinkBrowserState);
-    });
-  });
-}
-
 function readDesktopWorkTabBrowserLayout(
   openTabs: string[],
 ): Promise<DesktopWorkTabBrowserLayout | null> {
-  const browser = [
-    process.env.MOLIS_WORK_TEST_CHROME,
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-  ].find((candidate): candidate is string => Boolean(candidate && existsSync(candidate)));
+  const browser = locateTestChrome();
   if (!browser) return Promise.resolve(null);
 
   const directory = mkdtempSync(join(tmpdir(), "molis-work-work-tabs-layout-"));
@@ -430,6 +270,8 @@ function readDesktopWorkTabBrowserLayout(
   return new Promise((resolve, reject) => {
     const child = spawn(browser, [
       "--headless=new",
+      "--lang=zh-CN",
+      "--accept-lang=zh-CN",
       "--disable-gpu",
       "--no-sandbox",
       "--disable-dev-shm-usage",
@@ -585,7 +427,7 @@ test("Web health identifies the process serving the response", async () => {
 test("Web View cache follows canonical Board events instead of SQLite file lifecycle", async () => {
   const { databasePath } = webFixture();
   const cache = new Map() as Parameters<typeof cachedMolisWorkWebView>[0];
-  const options = { databasePath, boardId: DEMO_BOARD_ID, demo: true };
+  const options = { databasePath, projectId: DEMO_PROJECT_ID, demo: true };
 
   const firstStore = new LocalProjectDatabase(databasePath);
   const first = await cachedMolisWorkWebView(
@@ -604,7 +446,7 @@ test("Web View cache follows canonical Board events instead of SQLite file lifec
     assert.deepEqual(unchanged.feed, first.feed, "plugin views are freshly authorized without changing original data");
 
     coordinator.goals.commands.createGoal(
-      DEMO_BOARD_ID,
+      DEMO_PROJECT_ID,
       {
         goal_id: "CACHE-EVENT",
         title: "通过事件使 Web View 失效",
@@ -708,10 +550,10 @@ function webRuntimeIntegrationFixture(homeDirectory: string) {
   };
 }
 
-function boardSnapshot(databasePath: string, boardId: string) {
+function boardSnapshot(databasePath: string, projectId: string) {
   const store = new LocalProjectDatabase(databasePath);
   try {
-    return store.snapshot(boardId);
+    return store.snapshot(projectId);
   } finally {
     store.close();
   }
@@ -827,7 +669,7 @@ test("Goal Tree disambiguates Goals that share the same compact Runtime referenc
   assert.equal(new Set(labels.values()).size, labels.size, "rendered Goal references must be unique");
 });
 
-test("completed Goal presentation closes criteria without inventing Evidence", () => {
+test("Goal presentation closes criteria from the Goal result alone", () => {
   const item = {
     status: "satisfied",
     goal: {
@@ -837,16 +679,12 @@ test("completed Goal presentation closes criteria without inventing Evidence", (
         { criterion_id: "ROOT-C2" },
       ],
     },
-    passed_criteria: [],
   } as unknown as Parameters<typeof displayedPassedCriterionIds>[0];
 
   assert.deepEqual(displayedPassedCriterionIds(item), ["ROOT-C1", "ROOT-C2"]);
-  assert.deepEqual(item.passed_criteria, [], "presentation must not fabricate canonical Evidence facts");
-
   item.status = "execution_pending";
   item.goal.fulfillment_state = "unmet";
-  item.passed_criteria = ["ROOT-C1", "UNKNOWN"];
-  assert.deepEqual(displayedPassedCriterionIds(item), ["ROOT-C1"]);
+  assert.deepEqual(displayedPassedCriterionIds(item), []);
 });
 
 test("Web health identifies the process serving the response", async () => {
@@ -1018,7 +856,7 @@ test("Web onboarding creates one real Project, root Draft Goal, and optional Wor
     const project = catalog.getProject(projectId);
     const store = new LocalProjectDatabase(project.database_path);
     try {
-      const goals = store.snapshot(project.board_id).goals;
+      const goals = store.snapshot(project.project_id).goals;
       assert.equal(goals.length, 1);
       assert.equal(goals[0]?.goal_id, goalId);
       assert.equal(goals[0]?.definition_state, "draft");
@@ -1150,14 +988,14 @@ test("Web explains incomplete product decomposition and shows who owns each prod
   const coordinator = new GoalProjectApplication(store);
   try {
     coordinator.initializeBoard({
-      board_id: "web-decomposition-board",
+      project_id: "web-decomposition-board",
       title: "Product Decomposition",
       actor_id: "web-user",
       idempotency_key: "web-decomposition-init",
     });
     assert.throws(
       () => coordinator.goalTreeSubmission.submitGoalTreeProposal({
-        board_id: "web-decomposition-board",
+        project_id: "web-decomposition-board",
         actor_id: "runtime-game-planner",
         root_goal_id: "web-footballnia",
         summary: "旧固定拆分/万能提案已退役，不能再从新结构入口落地。",
@@ -1173,7 +1011,7 @@ test("Web explains incomplete product decomposition and shows who owns each prod
         idempotency_key: "web-decomposition-propose",
       }),
       (error: unknown) => error instanceof Error && (
-        (error as { code?: string }).code === "goal_tree_proposal.kind_retired"
+        (error as { code?: string }).code === "goal_tree_proposal.kind_invalid"
         || String(error).includes("只能是 goal")
       ),
     );
@@ -1188,7 +1026,7 @@ test("Web normal Tree excludes trashed Goals while the coordinator retains their
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   coordinator.goals.commands.createGoal(
-    DEMO_BOARD_ID,
+    DEMO_PROJECT_ID,
     {
       goal_id: "TRASHED-WEB",
       title: "不会出现在普通 Tree 的 Goal",
@@ -1209,19 +1047,19 @@ test("Web normal Tree excludes trashed Goals while the coordinator retains their
     { actor_id: "test-user", idempotency_key: "create-trashed-web" },
   );
   coordinator.goals.lifecycle.setTrashed(
-    DEMO_BOARD_ID,
+    DEMO_PROJECT_ID,
     { goal_id: "TRASHED-WEB", trashed: true, reason: "验证正常 Web 读取过滤" },
     { actor_id: "test-user", idempotency_key: "trash-web-goal" },
   );
   const view = buildMolisWorkWebView(store, coordinator, {
     databasePath,
-    boardId: DEMO_BOARD_ID,
+    projectId: DEMO_PROJECT_ID,
     demo: true,
   });
   assert.equal(view.goals.some((item) => item.goal.goal_id === "TRASHED-WEB"), false);
   assert.equal(view.archived_goals.some((item) => item.goal.goal_id === "TRASHED-WEB"), false);
   assert.equal(view.trashed_goals.some((item) => item.goal.goal_id === "TRASHED-WEB"), true);
-  assert.equal(store.snapshot(DEMO_BOARD_ID).goals.find((goal) => goal.goal_id === "TRASHED-WEB")?.trashed_at == null, false);
-  assert.deepEqual(coordinator.listTrashedGoals(DEMO_BOARD_ID).map((goal) => goal.goal_id), ["AUTO-CONNECT", "TRASHED-WEB"]);
+  assert.equal(store.snapshot(DEMO_PROJECT_ID).goals.find((goal) => goal.goal_id === "TRASHED-WEB")?.trashed_at == null, false);
+  assert.deepEqual(coordinator.listTrashedGoals(DEMO_PROJECT_ID).map((goal) => goal.goal_id), ["AUTO-CONNECT", "TRASHED-WEB"]);
   store.close();
 });

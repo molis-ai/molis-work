@@ -250,7 +250,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const materialsReady = journey.phase==='failed' && journey.needs_model && picked().some(s=>s.references?.length);
     if (materialsReady) {
       return {kind:'onboard', view:'materials', step:'整理',
-        left:question(L('资料已经准备好'), L('给它一个项目名字，就可以开始阅读和创作。摘要可以连接文字模型后再整理。')) + errorLine(error) + note(L('连接文字模型后，可以回来继续整理出摘要和待办。'), 'info') + '<p class="ob-quiet">' + linkBtn({variant:'link', size:'sm', label:L('连接文字模型'), href:route('/settings/models'), blank:true}) + ' ' + btn({variant:'ghost', size:'sm', label:L('已连接，继续整理'), attrs:{'data-action':'retry'}}) + '</p>',
+        left:question(L('资料已经准备好'), L('给它一个项目名字，就可以开始阅读和创作。摘要可以连接文字模型后再整理。')) + errorLine(error) + note(config.model ? L('文字模型已连接，可以继续整理出摘要和待办。') : L('连接文字模型后，可以回来继续整理出摘要和待办。'), config.model ? 'check' : 'info') + '<p class="ob-quiet">' + (config.model ? '' : linkBtn({variant:'link', size:'sm', label:L('连接文字模型'), href:route('/settings/models'), blank:true}) + ' ') + btn({variant:config.model ? 'secondary' : 'ghost', size:'sm', label:L(config.model ? '继续整理' : '已连接，继续整理'), attrs:{'data-action':'retry'}}) + '</p>',
         right:stageHead(L('读入的材料'), '') + receipts(),
         bar:{start:exitButton() + stepsBar('整理'), center:barStatus({glyph:'check', title:L('资料已经准备好'), caption:L('原文暂存在本机')}), end:secondary('调整来源','restart') + primary('保存资料，开始工作','materials-only')}};
     }
@@ -297,7 +297,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function briefPreview(name, summary, nextHtml, kicker) {
     // The same sentence the chooser will show once the project exists: the first paragraph that says something (a heading is a title), as plain words.
     const first = String(summary || '').split(/\n\s*\n/).map(p => p.split('\n').filter(line => !/^\s*#{1,6}\s/.test(line)).join(' ').replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/\s*\[S\d+\]/g,'').replace(/\x60([^\x60]+)\x60/g,'$1').replace(/\s+/g,' ').trim()).find(Boolean) || '';
-    return '<div class="ob-preview" aria-label="' + esc(L('新项目的样子')) + '"><article class="mw-brief" data-slot="brief"><p class="mw-brief__kicker">' + status(L('未设目标'),'quiet','status-todo') + '<span>' + esc(kicker) + '</span></p><h1 class="mw-brief__title ob-project-name">' + esc(name) + '</h1>'
+    return '<div class="ob-preview" aria-label="' + esc(L('新项目的样子')) + '"><article class="mw-brief" data-slot="brief"><p class="mw-brief__kicker"><span>' + esc(kicker) + '</span></p><h1 class="mw-brief__title ob-project-name">' + esc(name) + '</h1>'
       + (first ? '<p class="mw-brief__desc">' + esc(first.length > 240 ? first.slice(0, 239) + '…' : first) + '</p>' : '<p class="mw-brief__desc is-missing">' + glyph('info') + '<span>' + L('还没有项目描述。进入项目后，在项目设置里补一句它要做什么。') + '</span></p>')
       + '<section class="mw-brief__focus is-empty"><div><h2>' + L('还没有目标') + '</h2><p>' + L('进入项目后写下第一个目标，也可以先让助理起草。') + '</p></div></section>'
       + '<div class="mw-brief__cols"><section class="mw-brief__sec"><h2>' + L(nextHtml.title) + '</h2>' + nextHtml.body + '</section></div></article></div>';
@@ -324,7 +324,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       bar:{start:exitButton() + stepsBar('开始'), center:barStatus({spin:saving, glyph:'folder', title:L(saving?'正在保存项目与资料':'项目内容已经确认'), caption:L('请稍候')}), end:primary(saving?'正在保存…':'继续保存项目','adopt',{disabled:busy||saving})}};
   }
   function blankForm() {
-    const preview = briefPreview(blankName.trim() || L('新项目'), '', {title:'接下来', body:'<p class="mw-brief__quiet">' + L('目标定下来之后，要推进的事会出现在这里。') + '</p>'}, L('刚刚') + ' · ' + L(materialsOnly ? '带入已读取的资料' : '空白项目'));
+    const preview = briefPreview(blankName.trim() || L('新项目'), '', {title:'接下来', body:'<p class="mw-brief__quiet">' + L('各插件有要推进或等你确认的事时，会出现在这里。') + '</p>'}, L('刚刚') + ' · ' + L(materialsOnly ? '带入已读取的资料' : '空白项目'));
     const left = question(L('给新项目一个名字'), L(materialsOnly?'已导入的资料会带入项目，摘要可以稍后整理。':'先建一个空间，资料和下一步可以慢慢补充。'))
       + '<form id="cx-blank-form" class="ob-name"><label class="ob-label" for="cx-blank-name">' + L('项目名称') + '</label><input class="mw-input ob-name__input" id="cx-blank-name" maxlength="120" required autocomplete="off" data-plain-field placeholder="' + esc(L('例如：秋季内容计划')) + '" value="' + esc(blankName) + '"><p class="cx-error ob-error" role="alert">' + esc(error) + '</p></form>'
       + (materialsOnly ? '' : '<p class="ob-quiet">' + L('还没想好是什么项目？') + ' ' + btn({variant:'link', size:'sm', label:L('先在个人空间开始'), attrs:{'data-action':'personal', disabled:busy}}) + '</p>');
@@ -638,6 +638,13 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   // Any key or click ends the opening's typing early; Enter (or the button) goes on.
   document.addEventListener('keydown', e => { if (introStep === 'opening' && e.key !== 'Enter' && e.key !== 'Tab') endOpeningTyping(); });
   app.addEventListener('click', e => { if (introStep === 'opening' && !e.target.closest('button')) endOpeningTyping(); });
+
+  /* ───────── A model connected in another tab (the settings link opens one): read it again, redraw what shows it ───────── */
+  let otherTabs = null;
+  try { otherTabs = new BroadcastChannel('molis-work:model-ready'); } catch (unavailable) { otherTabs = null; }
+  if (otherTabs) otherTabs.onmessage = () => {
+    api('/api/onboarding/context').then(latest => { config = latest; if (lastView === 'preview' || lastView === 'materials') render(); }).catch(() => undefined);
+  };
 
   /* ───────── Start ───────── */
   (async()=>{try{

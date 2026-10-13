@@ -5,6 +5,7 @@ import { ManagedProjectFiles } from "./managed-project-files.js";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID, PERSONAL_SPACE_TITLE } from "./personal-space.js";
 import { BUILTIN_PLUGIN_REGISTRY } from "@molis-ai/molis-work-app-workbench";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
+import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
 import { exists } from "./project-file-paths.js";
 import { type CreateMolisWorkProjectInput } from "./project-catalog-contract.js";
@@ -13,9 +14,7 @@ import { type MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
 export type { CreateMolisWorkProjectInput } from "./project-catalog-contract.js";
 export type { ManageMolisWorkDemoProjectInput } from "./project-catalog-contract.js";
 export type { MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
-import { initializeCatalog } from "./catalog-migrations.js";
-import { assertOwnedCatalog } from "./catalog-migrations.js";
-import { migrateCatalog } from "./catalog-migrations.js";
+import { assertCurrentCatalog, assertOwnedCatalog, initializeCatalog } from "./catalog-schema.js";
 import { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
 export { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
 export { catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
@@ -23,8 +22,7 @@ export { type MolisWorkProjectCatalogErrorDetails } from "./project-catalog-cont
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { resolveConfiguredHome } from "./product-home.js";
-import { LocalCatalogMetadata, LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
-import { CATALOG_SCHEMA_VERSION, catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
+import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { PersonalPlanningMethods } from "@molis-ai/molis-work-module-goals";
@@ -63,7 +61,8 @@ import type {
 import {
   RuntimeContextBindingRepository, RuntimeProjectResolution, RuntimeProjectBindingCommands, createRuntimeProjectSetup, createRuntimeProjectBindingValidation,
 } from "@molis-ai/molis-work-module-private-work-context";
-import { DEMO_BOARD_ID, seedDemoBoard } from "./demo-seed.js";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "./demo-seed.js";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 
 
@@ -155,7 +154,7 @@ export class MolisWorkProjectCatalog {
   readonly projectsDirectory: string;
   readonly databasePath: string;
   private readonly projectFiles: ManagedProjectFiles;
-  private readonly projectDeletion: ManagedProjectDeletion;
+  readonly projectDeletion: ManagedProjectDeletion;
   private readonly demoProjects: DemoProjectLifecycle;
   private readonly projects: ProjectsModule;
   private readonly workContexts: RuntimeContextBindingRepository;
@@ -176,10 +175,8 @@ export class MolisWorkProjectCatalog {
     const db = storage.db;
     this.commit = createCatalogCommit(db, () => this.assertCurrentSchema());
     this.personalPlanningMethods = new PersonalPlanningMethods(db);
-    this.models = new ModelProviderStore({ db, initializeSchema: false, secrets: {
-      put: (ref, value) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().put(ref, value)),
+    this.models = new ModelProviderStore({ db, secrets: {
       get: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().get(ref)),
-      delete: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().delete(ref)),
     } });
     this.homeDirectory = homeDirectory;
     this.projectsDirectory = path.join(homeDirectory, "projects");
@@ -205,15 +202,15 @@ export class MolisWorkProjectCatalog {
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.workContexts.removeProjectFacts(projectId, actorId, at),
       removePanels: projectId => this.desktopPanels.deleteForProject(projectId),
-    }, contextBindingValidation, this.commit);
+    }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory));
     this.demoProjects = new DemoProjectLifecycle(
       this.projects,
       this.homeDirectory,
       this.projectsDirectory,
-      { boardId: DEMO_BOARD_ID, seed: seedDemoBoard },
+      { projectId: DEMO_PROJECT_ID, seed: seedDemoBoard },
       this.projectDeletion,
       contextBindingValidation,
-      this.commit,
+      this.commit, projectDeletedHooksFor(homeDirectory),
     );
     this.desktopPanels = platform.createPanels(db, {
       errorFactory: (code, message) => new MolisWorkProjectCatalogError(code, message),
@@ -253,33 +250,26 @@ export class MolisWorkProjectCatalog {
     try {
       if (existed) {
         assertOwnedCatalog(storage, databasePath);
-        const version = new LocalCatalogMetadata(db).version();
-        const compatibilityError = catalogSchemaCompatibilityError(version);
-        if (compatibilityError) throw compatibilityError;
-        if (version === CATALOG_SCHEMA_VERSION) {
-          const ledger = createContextLedger(db, {
-            initializeSchema: false,
-            authorize: (access) => access.scope.kind === "personal" && access.scope.id === "private-work-context",
-          });
-          return new MolisWorkProjectCatalog(storage, homeDirectory, ledger, platform);
-        }
-      }
-      const catalog = db.transaction(() => {
-        // The async existence check can predate another connection's initialization or migration.
-        // Re-read under the write transaction, and never initialize over an unknown nonempty database.
-        const initialized = existed || Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1").get());
-        const metadata = new LocalCatalogMetadata(db);
-        if (initialized) {
-          assertOwnedCatalog(storage, databasePath);
-          const compatibilityError = catalogSchemaCompatibilityError(metadata.version());
-          if (compatibilityError) throw compatibilityError;
-        }
+        assertCurrentCatalog(storage, databasePath);
         const ledger = createContextLedger(db, {
-          initializeSchema: !initialized || metadata.version() !== CATALOG_SCHEMA_VERSION,
+          initializeSchema: false,
           authorize: (access) => access.scope.kind === "personal" && access.scope.id === "private-work-context",
         });
-        if (initialized) migrateCatalog(storage, databasePath, ledger, platform.createPanelSchema);
-        else initializeCatalog(storage, platform.createPanelSchema);
+        return new MolisWorkProjectCatalog(storage, homeDirectory, ledger, platform);
+      }
+      const catalog = db.transaction(() => {
+        // The async existence check can predate another connection's initialization.
+        // Re-read under the write transaction, and never initialize over an unknown nonempty database.
+        const initialized = existed || Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1").get());
+        if (initialized) {
+          assertOwnedCatalog(storage, databasePath);
+          assertCurrentCatalog(storage, databasePath);
+        }
+        const ledger = createContextLedger(db, {
+          initializeSchema: !initialized,
+          authorize: (access) => access.scope.kind === "personal" && access.scope.id === "private-work-context",
+        });
+        if (!initialized) initializeCatalog(storage, platform.createPanelSchema);
         return new MolisWorkProjectCatalog(storage, homeDirectory, ledger, platform);
       }).immediate();
       return catalog;
@@ -296,12 +286,7 @@ export class MolisWorkProjectCatalog {
   /** A retained connection must not outlive the owner/schema it was opened for. */
   assertCurrentSchema(): void {
     assertOwnedCatalog(this.storage, this.databasePath);
-    const version = new LocalCatalogMetadata(this.storage.db).version();
-    const error = catalogSchemaCompatibilityError(version);
-    if (error) throw error;
-    if (version !== CATALOG_SCHEMA_VERSION) {
-      throw new MolisWorkProjectCatalogError("catalog.unsupported_schema", "项目目录版本已变化，请重新打开服务后按原规则迁移");
-    }
+    assertCurrentCatalog(this.storage, this.databasePath);
   }
 
   listProjects(): MolisWorkProjectRecord[] {
@@ -417,7 +402,7 @@ export class MolisWorkProjectCatalog {
   }
   async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> { return this.projectFiles.createProject(input); }
   /** The personal space exists once it is first used; creating it again returns the same one. */
-  async ensurePersonalSpace(actorId = "web-user"): Promise<MolisWorkProjectRecord> {
+  async ensurePersonalSpace(actorId = LOCAL_PERSON_ACTOR_ID): Promise<MolisWorkProjectRecord> {
     const existing = this.listProjects().find(isPersonalSpace);
     if (existing) return existing;
     try {

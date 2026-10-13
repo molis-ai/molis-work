@@ -1,4 +1,5 @@
 import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { scheduleFailure } from "./error.js";
 import type { ReminderIdentity, ReminderInput } from "./reminders.js";
 
 /** Host-composed common reminder service, independent of enabling the Schedule conversation UI. */
@@ -29,7 +30,7 @@ export function createReminderActionHandlers(projectId: string, ports: ReminderA
     return { projectId, pluginId: context.actor_id.slice("plugin:".length), installationId: context.plugin_install_id };
   };
   return [
-    { ...reminderActions.add, handle: async (context, input) => { await context.beforeEffect(); return ports.add(identity(context), input as ReminderInput); } },
-    { ...reminderActions.cancel, handle: async (context, input) => { await context.beforeEffect(); return ports.cancel(identity(context), input as { reminderId: string }); } },
+    { ...reminderActions.add, handle: async (context, input) => { await context.beforeEffect(); try { return ports.add(identity(context), input as ReminderInput); } catch (error) { throw scheduleFailure(error); } } },
+    { ...reminderActions.cancel, handle: async (context, input) => { await context.beforeEffect(); try { return ports.cancel(identity(context), input as { reminderId: string }); } catch (error) { throw scheduleFailure(error); } } },
   ];
 }

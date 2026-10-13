@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
-import { DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const OUT = "/tmp/molis-work-grok/04-ui";
@@ -12,7 +12,7 @@ test("capture isolated production Goal event document screenshots", { timeout: 9
   const { store, origin, sessionId, command, evaluate, waitFor, click, navigate } = browser;
   const app = new GoalProjectApplication(store);
   const created = app.goalEvents.createIntent({
-    board_id: DEMO_BOARD_ID,
+    project_id: DEMO_PROJECT_ID,
     title: "隔离演示：内部试用截图",
     outcome: "截图标明这是隔离演示数据",
     actor_id: "web-user",
@@ -20,7 +20,7 @@ test("capture isolated production Goal event document screenshots", { timeout: 9
     idempotency_key: "capture-intent",
   });
   app.goalEvents.configure({
-    board_id: DEMO_BOARD_ID,
+    project_id: DEMO_PROJECT_ID,
     goal_id: created.goal.goal_id,
     actor_id: "web-user",
     actor_kind: "user",
@@ -36,7 +36,7 @@ test("capture isolated production Goal event document screenshots", { timeout: 9
     }],
   });
   app.goalEvents.report({
-    board_id: DEMO_BOARD_ID,
+    project_id: DEMO_PROJECT_ID,
     goal_id: created.goal.goal_id,
     actor_id: "web-user",
     actor_kind: "user",

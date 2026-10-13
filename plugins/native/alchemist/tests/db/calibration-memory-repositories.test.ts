@@ -6,7 +6,7 @@ import type { PlaybookRule, TasteRule } from "../../src/studio/domain/memory/rul
 import { SqliteActivityRepository } from "../../src/studio/server/db/activity-repository.js";
 import { SqliteCalibrationRepository } from "../../src/studio/server/db/calibration-repository.js";
 import { SqliteMemoryRepository } from "../../src/studio/server/db/memory-repository.js";
-import { migrate } from "../../src/studio/server/db/migrate.js";
+import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
 import { openDatabase, type SqliteDatabase } from "../../src/studio/server/db/open-database.js";
 import { seedResearchIdea } from "./helpers/seed-research-idea.js";
 import { createTempDatabase, type TempDatabase } from "./helpers/temp-database.js";
@@ -161,7 +161,7 @@ describe("calibration and Memory repositories", () => {
 function setup(): void {
   temporary = createTempDatabase();
   database = openDatabase(temporary.path);
-  migrate(database);
+  applyStudioBaseline(database, ":memory:");
   seedResearchIdea(database);
 }
 

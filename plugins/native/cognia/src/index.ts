@@ -4,7 +4,6 @@ export * from "./content.js";
 export * from "./store.js";
 export * from "./ai.js";
 export * from "./routes.js";
-export * from "./mcp.js";
 export * from "./ui.js";
 export * from "./styles.js";
 export * from "./client.js";

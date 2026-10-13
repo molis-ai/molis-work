@@ -7,7 +7,7 @@ import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-c
 import { SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTIONS, SHELF_RUNTIME_ACTIONS, shelfActions as a } from "@molis-ai/molis-work-plugin-shelf";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 
 test("the personal Shelf is a Home action provider; clipboard, settings and local paths stay with the local user", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "shelf-actions-"));
@@ -59,18 +59,21 @@ test("the personal Shelf is a Home action provider; clipboard, settings and loca
     assert.equal(read.result.structuredContent.text, "会议纪要：周五前定稿");
 
     // Without a configured model the automatic action refuses before creating a job.
-    await assert.rejects(bound.invoke(a.runJob, { recipe: "summarize", item_id: item.item_id }), (error: { code?: string }) => (error.code ?? "").startsWith("shelf."));
+    await assert.rejects(bound.invoke(a.generate, { recipe: "summarize", item_id: item.item_id }), (error: { code?: string }) => (error.code ?? "").startsWith("shelf."));
     await bound.invoke(a.hide, { item_id: item.item_id });
     assert.ok(!(await bound.invoke(a.list, {})).materials.some(row => row.item_id === item.item_id));
 
     // In a project, the Host adds the save-as-material pair and the Runtime instance redeems its own declared actions.
     const database = join(home, "project.sqlite");
     seedDemoBoard(database);
-    const project = molisWorkHostProjectReference({ databasePath: database, boardId: DEMO_BOARD_ID, projectId: DEMO_BOARD_ID });
-    const owner: ActionCallContext = { actor_id: "web-user", project_id: DEMO_BOARD_ID, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private", "shelf:read"] };
+    const project = molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID });
+    const owner: ActionCallContext = { actor_id: "web-user", project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private", "shelf:read"] };
     const scoped = (await host.actionClient(project).discover(owner)).filter(row => row.provider.plugin_id === "io.molis.work.shelf" && row.action.scope === "project");
-    assert.deepEqual(scoped.filter(row => row.provider.provider_id === "io.molis.work.shelf").map(row => row.capability_id).sort(), SHELF_PROJECT_ACTIONS.map(row => row.capability_id).sort());
-    const runtime = scoped.filter(row => row.provider.provider_id !== "io.molis.work.shelf");
+    // The Host-assembled providers and the Runtime instance of the Shelf register under the same provider id, the plugin id (user decision
+    // 2026-10-10, W3-06 Q1); only the Runtime's registration names an installation.
+    assert.deepEqual(scoped.filter(row => row.provider.plugin_install_id === undefined).map(row => row.capability_id).sort(), SHELF_PROJECT_ACTIONS.map(row => row.capability_id).sort());
+    const runtime = scoped.filter(row => row.provider.plugin_install_id !== undefined);
+    assert.ok(runtime.every(row => row.provider.provider_id === "io.molis.work.shelf"));
     assert.deepEqual(runtime.map(row => row.capability_id).sort(), SHELF_RUNTIME_ACTIONS.map(row => row.capability_id).sort());
     assert.ok(runtime.every(row => row.availability.available));
     assert.deepEqual(await host.actionClient(project).invoke(owner, runtime.find(row => row.capability_id === "shelf.material-output.read")!, {}), { reference: null });

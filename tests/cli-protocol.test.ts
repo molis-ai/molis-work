@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { cliFlagValue, cliGoalUrl, readCliJsonPayload } from "@molis-ai/molis-work-app-cli";
-import { createMolisWorkLocalHost, molisWorkHostProjectReference, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference, MolisWorkLocalHost, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { currentCallId } from "@molis-ai/molis-work-kernel";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
-import type { LegacyV3ImportInput } from "@molis-ai/molis-work-plugin-goals";
 
 async function captureCli(operation: () => Promise<number>): Promise<string[]> {
   const lines: string[] = [];
@@ -47,7 +48,8 @@ test("CLI help and failed input retain storage side effects, error order and inj
   const host = createMolisWorkLocalHost({ onRuntimeOpen: () => { opens += 1; } });
   try {
     const help = await captureCli(() => runV1Cli(["--help", "--db", databasePath, "--json", "{"], { localHost: host }));
-    assert.match(help.join("\n"), /The SQLite database defaults to \.molis-work\/molis-work\.db/);
+    assert.match(help.join("\n"), /--db PATH is required[^\n]*There is no default path/);
+    assert.doesNotMatch(help.join("\n"), /\.molis-work\/molis-work\.db/, "no default database path is advertised");
     assert.equal(existsSync(dirname(databasePath)), false);
     await assert.rejects(runV1Cli(["snapshot", "--db", databasePath, "--json", "{"], { localHost: host }), {
       message: `Molis Work 数据库不存在: ${databasePath}`,
@@ -58,75 +60,74 @@ test("CLI help and failed input retain storage side effects, error order and inj
     assert.equal(existsSync(databasePath), false);
     assert.equal(opens, 0, "failed input must not open a runtime");
 
-    const input = { board_id: "cli-input-board", title: "从文件初始化", actor_id: "user", idempotency_key: "init" };
+    const input = { project_id: "cli-input-board", title: "从文件初始化", actor_id: "user", idempotency_key: "init" };
     const file = join(directory, "payload.json");
     writeFileSync(file, JSON.stringify(input));
     const output = await captureCli(() => runV1Cli(["init", "--db", databasePath, "--file", file], { localHost: host }));
     assert.match(output[0]!, /\n  "/, "JSON output remains indented");
-    const reference = molisWorkHostProjectReference({ databasePath, boardId: input.board_id });
-    const snapshot = await host.client(reference).invoke(snapshotBoardCapability, { board_id: input.board_id });
+    const reference = molisWorkHostProjectReference({ databasePath, projectId: input.project_id });
+    const snapshot = await host.client(reference).invoke(snapshotBoardCapability, { project_id: input.project_id });
     assert.equal(snapshot.board.title, "从文件初始化");
-    await assert.rejects(runV1Cli(["unknown", "--db", databasePath, "--board-id", input.board_id], { localHost: host }), {
+    await assert.rejects(runV1Cli(["unknown", "--db", databasePath, "--project-id", input.project_id], { localHost: host }), {
       message: "未知 V1 operation: unknown",
     });
     assert.equal(host.status().state, "running");
     assert.equal(opens, 1);
-    assert.deepEqual(await host.client(reference).invoke(snapshotBoardCapability, { board_id: input.board_id }), snapshot);
+    assert.deepEqual(await host.client(reference).invoke(snapshotBoardCapability, { project_id: input.project_id }), snapshot);
   } finally {
     await host.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("CLI V3 import and MCP share the Host, preserve mapped facts, and reject overwrite without changing history", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-cli-import-"));
-  const databasePath = join(directory, "nested", "project.db");
-  const boardId = "import-board";
-  const legacy: LegacyV3ImportInput = {
-    schema_version: "3.0", goal_id: "legacy-root", meta: { title: "旧项目", source: { seed: "source" } },
-    root_goal: { constraints: ["保留功能"] },
-    goals: [
-      { id: "root", parent: null, one_liner: "总目标", covers: ["功能"], inputs: ["旧输入"], outputs: ["结果"] },
-      { id: "child", parent: "root", one_liner: "子目标", covers: [], inputs: [], outputs: ["明细"] },
-    ],
-    coverage_ledger: [{ id: "requirement", requirement: "保留数据", status: "now", owner_goal: "child" }],
-  };
+test("CLI has no default database: a command without --db fails before it creates or opens anything in the working directory", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-cli-no-default-"));
   let opens = 0;
   const host = createMolisWorkLocalHost({ onRuntimeOpen: () => { opens += 1; } });
-  const mcp = new MolisWorkServer("management", null, null, host);
-  const reference = molisWorkHostProjectReference({ databasePath, boardId });
+  const previous = process.cwd();
+  process.chdir(directory);
   try {
-    const output = await captureCli(() => runV1Cli([
-      "import-v3", "--db", databasePath, "--board-id", boardId, "--actor", "user", "--key", "import",
-      "--json", JSON.stringify(legacy),
-    ], { localHost: host }));
-    const report = JSON.parse(output[0]!);
-    assert.deepEqual(report.goal_id_map, { root: "import-board:v3:root", child: "import-board:v3:child" });
-    const snapshot = await host.client(reference).invoke(snapshotBoardCapability, { board_id: boardId });
-    assert.equal(snapshot.board.title, "旧项目");
-    const root = snapshot.goals.find((goal) => goal.goal_id === "import-board:v3:root")!;
-    assert.equal(root.title, "总目标");
-    assert.deepEqual(root.required_inputs, ["旧输入"]);
-    assert.deepEqual(root.promised_outputs, ["结果"]);
-    assert.deepEqual(root.constraints, ["保留功能"]);
-    assert.ok(snapshot.goals.every((goal) => goal.definition_state === "draft"));
-    assert.ok(snapshot.relations.some((relation) => relation.from_goal_id === "import-board:v3:child"
-      && relation.to_goal_id === "import-board:v3:root" && relation.type === "part_of"));
-    await assert.rejects(mcp.callTool("molis_work_v1_import_v3", {
-      database_path: databasePath, board_id: boardId,
-      payload: { legacy, actor_id: "user", idempotency_key: "import" },
-    }), { message: `目标 Board 已存在，不会覆盖: ${boardId}` });
-    assert.deepEqual(await host.client(reference).invoke(snapshotBoardCapability, { board_id: boardId }), snapshot);
-    assert.equal(opens, 1);
-    await host.close();
-    const restarted = createMolisWorkLocalHost();
-    try {
-      assert.deepEqual(await restarted.client(reference).invoke(snapshotBoardCapability, { board_id: boardId }), snapshot);
-    } finally {
-      await restarted.close();
+    // `init` is the command that would have created the default path; a flag with no value or a blank one names nothing either,
+    // and neither does a --db followed by another flag (the flag must not be taken for the database file).
+    const flagAfter = ["--json", JSON.stringify({ project_id: "p" })];
+    for (const args of [["init"], ["init", "--db"], ["init", "--db", ""], ["snapshot", "--db", "  "], ["active-goal"], ["init", "--db", ...flagAfter], ["snapshot", "--db", "--file", "payload.json"]]) {
+      await assert.rejects(runV1Cli(args, { localHost: host }), { message: /需要 --db PATH/ }, args.join(" "));
     }
+    assert.deepEqual(readdirSync(directory), [], "nothing is created relative to the working directory");
+    assert.equal(opens, 0);
   } finally {
-    await mcp.close();
+    process.chdir(previous);
+    await host.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+/** A Host that notes the call number in force each time a Goals action is called on the client the CLI was given. */
+class NumberedHost extends MolisWorkLocalHost {
+  readonly seen: Array<{ capability_id: string; id: string | undefined }> = [];
+  override actionClient(reference: LocalHostProjectReference, preparePlugins = true): ActionClient {
+    const real = super.actionClient(reference, preparePlugins);
+    return { ...real, invoke: (caller, action, input) => { this.seen.push({ capability_id: action.capability_id, id: currentCallId() }); return real.invoke(caller, action, input); } };
+  }
+}
+
+test("one CLI command is one operation: everything it calls shares a call number, and the next command has its own", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-cli-call-id-"));
+  const databasePath = join(directory, "project.db");
+  const host = new NumberedHost();
+  try {
+    const input = { project_id: "cli-call-id", title: "编号", actor_id: "user", idempotency_key: "init" };
+    await captureCli(() => runV1Cli(["init", "--db", databasePath, "--json", JSON.stringify(input)], { localHost: host }));
+    const init = host.seen.filter(entry => entry.capability_id.startsWith("goals.")).splice(0);
+    host.seen.length = 0;
+    await captureCli(() => runV1Cli(["snapshot", "--db", databasePath, "--json", JSON.stringify({ project_id: input.project_id })], { localHost: host }));
+    const snapshot = host.seen.filter(entry => entry.capability_id.startsWith("goals."));
+    assert.deepEqual(init.map(entry => entry.capability_id), ["goals.board.initialize"], "init is one Goals action");
+    assert.deepEqual(snapshot.map(entry => entry.capability_id), ["goals.snapshot.read"]);
+    assert.ok(init[0]!.id, "the command opened an operation");
+    assert.ok(snapshot[0]!.id && snapshot[0]!.id !== init[0]!.id, "the next command is another operation");
+    assert.equal(currentCallId(), undefined, "the number ends with the command");
+  } finally {
     await host.close();
     rmSync(directory, { recursive: true, force: true });
   }

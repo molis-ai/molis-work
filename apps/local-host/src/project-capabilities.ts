@@ -1,33 +1,24 @@
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
-import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { goalsActions, GOALS_PLUGIN_ID, readGoalResumeFacts, readGoalContractCapability } from "@molis-ai/molis-work-plugin-goals";
-import { registerCasebookCapabilities } from './casebook/integration.js';
-import { importV3Capability, projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCapability, snapshotBoardCapability,
-  goalsEntryCapabilities, goalEntryCompositionCapabilities,
-  goalTreeCapabilities,
-  readProjectGuidanceCapability, setActiveGoalCapability,
-  createGoalIntentCapability, listGoalDirectoryCapability, readGoalEventStateCapability, configureGoalEventsCapability,
-  reportGoalEventsCapability, listGoalEventsCapability, listLatestGoalEventsCapability,
-  listLatestGoalTimelineCapability, readGoalEventCapability,
-  recordGoalProgressCapability, applyGoalConcernCapability, requestGoalDecisionCapability,
-  citeGoalDecisionCapability, recordGoalUserDecisionCapability, setGoalEventAgreementCapability,
-  submitGoalEventClosureCapability, resumeGoalEventWorkCapability,
-  recordGoalNoteCapability } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, GOALS_PLUGIN_ID, managementEventDecisionAuthority, managementTreeAuthority, type GoalEventDecideEntryInput } from "@molis-ai/molis-work-plugin-goals";
+import { initializeBoardCapability, snapshotBoardCapability, goalTreeCapabilities, readProjectGuidanceCapability, setActiveGoalCapability,
+  createGoalIntentCapability, recordGoalUserDecisionCapability } from "@molis-ai/molis-work-plugin-goals";
 import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { projectsCapabilities, projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
+import { goalContextCapabilities, goalProgressCapabilities, type GoalProgressActor } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { readWorkspaceFileCapability, readWorkspaceGitCapability, workspaceReadActions, type WorkspaceFileQuery, type WorkspaceGitQuery, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { workspaceReadActions, type WorkspaceFileQuery, type WorkspaceGitQuery, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { readConflictFile, readGitSummary, readPullRequestSupport } from "./git-operations.js";
 import { readWorkspaceGit } from "./workspace-git.js";
 import { readWorkspaceFile } from "./workspace-files.js";
 import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { runPluginDevelopment } from "./plugin-development.js";
+import { PLUGIN_DEVELOPMENT_ACTOR_ID, runPluginDevelopment } from "./plugin-development.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { registerHostScheduleCapabilities } from "./schedule-runtime.js";
+import { refusePayloadIdentity } from "./goals-actions.js";
 
 export interface ProjectCapabilityPorts {
   /** Resolves the workspace a project is bound to. See `MolisWorkLocalHostOptions`. */
@@ -35,17 +26,62 @@ export interface ProjectCapabilityPorts {
   workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
 }
 
+/**
+ * Who a Goal progress call acts as. A plugin acts as the actor its own call context carries (the person whose page it serves)
+ * and cannot name another; the arguments hold no identity for it. A Host-direct receipt lookup (the CLI, MCP and tests) still
+ * names the actor it reads for. Recording is different: no caller names its actor (see the record handler).
+ */
+function progressActor(named: GoalProgressActor, invocation: HostCapabilityInvocation): { actor_id: string; actor_kind?: "user" | "runtime" } {
+  if (invocation.consumer !== "plugin") {
+    if (!named.actor_id) throw new ActionError("actions.unauthenticated", "缺少调用者身份");
+    return { actor_id: named.actor_id, actor_kind: named.actor_kind };
+  }
+  if (!invocation.plugin) throw new ActionError("actions.forbidden", "插件调用缺少调用上下文，不能记录目标进展");
+  if (named.actor_id !== undefined || named.actor_kind !== undefined) throw new ActionError("actions.input_invalid", "插件的调用者身份来自调用上下文，参数里不能带 actor_id 或 actor_kind");
+  return { actor_id: invocation.plugin.actor_id, actor_kind: "user" };
+}
+
+function managementIdentity(runtime: MolisWorkProjectRuntime, key: string) {
+  return {
+    actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" as const, user_action: { source: "management" as const,
+      conversation_ref: `management:${runtime.project_id}`, message_ref: `management:${key}` },
+  };
+}
+
+function managementPayload<Input extends { project_id: string }>(
+  runtime: MolisWorkProjectRuntime, input: Input, alsoRefused: readonly string[] = [],
+): Omit<Input, "project_id"> {
+  if (input.project_id !== runtime.project_id) throw new ActionError("actions.scope_mismatch", "目标请求不属于当前项目");
+  refusePayloadIdentity(input, alsoRefused);
+  const { project_id: _board, ...payload } = input;
+  return payload;
+}
+
+/**
+ * The event decision is the person's too, and the management door treats it like the structure decision: the Host builds who
+ * decides (the person on this machine, origin management) and refuses an identity in the arguments, in the authority too. The
+ * authority the caller sends only points at the conversation the decision came from.
+ */
+function managementEventDecision(runtime: MolisWorkProjectRuntime, input: GoalEventDecideEntryInput) {
+  const { authority: evidence, ...payload } = managementPayload(runtime, input);
+  const authority = managementEventDecisionAuthority(runtime.project_id, input.idempotency_key, evidence);
+  const { actor_id, actor_kind } = managementIdentity(runtime, input.idempotency_key);
+  return { payload, writer: { actor_id, actor_kind,
+    user_action: { source: "management" as const, conversation_ref: authority.conversation_ref, message_ref: authority.message_ref } } };
+}
+
 export function registerProjectCapabilities(
   host: LocalHost<MolisWorkProjectRuntime>,
   ports: ProjectCapabilityPorts = {},
 ): void {
-  registerCasebookCapabilities(host);
   const { workspaceFor } = ports;
-  // These typed clients already belong to trusted Host composition. The bridge
-  // preserves their audit identity and narrows execution to this exact action.
+  // goalAction uses only the identity this registration supplies. Management writes (structure submit and check, the tree
+  // and event decisions, the active goal, initialize, create) stamp the person on this machine and refuse actor_id or actor_kind in the
+  // arguments. What stays here has a caller in the product (the CLI, the management MCP, the first-run setup, Agent Host's
+  // guidance read, Coding); the rest of Goals is reached through its actions.
   const goalAction = <Input, Output>(runtime: MolisWorkProjectRuntime, definition: ActionDefinition<Input, Output>,
     input: Input, identity: { actor_id: string; actor_kind?: "user" | "runtime"; audit_actor_id?: string; runtime_session_id?: string; user_action?: ActionCallContext["user_action"] }, invocation: HostCapabilityInvocation) => {
-    const reference = { project_id: runtime.project_id, board_id: runtime.board_id, storage_key: runtime.store.path };
+    const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
     return bindActionClient(host.actionClient(reference), () => ({ actor_id: identity.actor_id, actor_kind: identity.actor_kind ?? null,
       audit_actor_id: identity.audit_actor_id, runtime_session_id: identity.runtime_session_id,
       ...(identity.user_action ? { user_action: identity.user_action } : {}),
@@ -54,16 +90,19 @@ export function registerProjectCapabilities(
       validate_authority: () => invocation.beforeEffect(),
     })).invoke({ ...definition, provider_id: GOALS_PLUGIN_ID }, Object.fromEntries(Object.entries(input as object).filter(([, value]) => value !== undefined)) as Input);
   };
-  const checkGoalBoard = (runtime: MolisWorkProjectRuntime, boardId: string) => {
-    if (boardId !== runtime.board_id) throw new ActionError("actions.scope_mismatch", "目标请求不属于当前项目");
+  const requireRuntimeProject = (runtime: MolisWorkProjectRuntime, projectId: string) => {
+    if (projectId !== runtime.project_id) throw new ActionError("actions.scope_mismatch", "目标请求不属于当前项目");
   };
   host.register(goalProgressCapabilities.record, (runtime, input, invocation) => {
-    const { actor_id, actor_kind, ...payload } = input;
-    return goalAction(runtime, goalsActions.progress, payload, { actor_id, actor_kind }, invocation);
+    // A plugin acts as the actor its own call context carries; every other caller is the management door and acts as the person
+    // on this machine. Neither names an actor in the arguments.
+    const writer = invocation.consumer === "plugin" ? progressActor({}, invocation) : managementIdentity(runtime, input.idempotency_key);
+    refusePayloadIdentity(input);
+    return goalAction(runtime, goalsActions.progress, input, writer, invocation);
   });
   host.register(goalProgressCapabilities.receipt, (runtime, input, invocation) => {
     const { actor_id, ...payload } = input;
-    return goalAction(runtime, goalsActions.progressReceipt, payload, { actor_id }, invocation);
+    return goalAction(runtime, goalsActions.progressReceipt, payload, progressActor({ actor_id }, invocation), invocation);
   });
   host.register(goalContextCapabilities.list, (runtime, input, invocation) => goalAction(runtime, goalsActions.list,
     { limit: 100, ...(input.after_cursor ? { after_cursor: input.after_cursor } : {}) }, { actor_id: "local-host" }, invocation));
@@ -87,14 +126,14 @@ export function registerProjectCapabilities(
     if (!(await current()).some(item => item.workspace_id === query.workspace_id && item.realpath_verified && item.canonical_path === accepted?.canonical_path)) return { outcome: "denied", message: "工作区授权已变化，请重新读取" };
     return result;
   };
-  const readFile = async (runtime: MolisWorkProjectRuntime, query: WorkspaceFileQuery) => {
+  const readFile = async (runtime: MolisWorkProjectRuntime, query: WorkspaceFileQuery, invocation: HostCapabilityInvocation) => {
+    // A whole file (an image, a PDF) is for the preview of a plugin the Host runs: told by the Host-confirmed plugin identity (`consumer`), not by audience.
+    if (query.kind === "bytes" && invocation.consumer !== "plugin") throw new ActionError("actions.forbidden", "整份文件只供宿主运行的插件预览，请读取目录或文本");
     const selected = ports.workspacesFor ? await ports.workspacesFor(runtime.project_id) : [await workspaceFor!(runtime.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
     return readWorkspaceFile(query, selected);
   };
   if (ports.workspacesFor || workspaceFor) {
-    // Plugins that consume the Host capabilities keep them; everyone else reads through the same handlers as directory actions.
-    host.register(readWorkspaceGitCapability, readGit);
-    host.register(readWorkspaceFileCapability, readFile);
+    // One id per read, for every caller: the Files, Git and Coding plugins call these two actions as the plugin audience.
     host.register(workspaceReadActions.git, readGit);
     host.register(workspaceReadActions.file, readFile);
   }
@@ -103,13 +142,13 @@ export function registerProjectCapabilities(
     host.register(projectsCapabilities.listWorkspaces, list);
     host.register(projectSettingsCapabilities.workspaces, list);
     host.register(projectSettingsCapabilities.browsingWorkspace, async (runtime) => {
-      return new ProjectBrowsingSettings(runtime.store.db).read(runtime.board_id, await list(runtime));
+      return new ProjectBrowsingSettings(runtime.store.db).read(runtime.project_id, await list(runtime));
     });
     host.register(projectSettingsCapabilities.selectBrowsingWorkspace, async (runtime, [workspaceId], invocation) => {
       const workspaces = await list(runtime);
       if (!workspaces.some(item => item.workspace_id === workspaceId && item.realpath_verified)) throw new ActionError("projects.workspace_unavailable", "请选择当前项目已关联且可用的工作目录");
       await invocation.beforeEffect?.();
-      return new ProjectBrowsingSettings(runtime.store.db).select(runtime.board_id, workspaceId, workspaces);
+      return new ProjectBrowsingSettings(runtime.store.db).select(runtime.project_id, workspaceId, workspaces);
     });
   }
   if (workspaceFor !== undefined) {
@@ -122,193 +161,63 @@ export function registerProjectCapabilities(
     });
   }
   host.register(pluginDevelopmentCapability, async (runtime, input) => {
-    runtime.coordinator.initializeBoard({ board_id: input.board_id, title: "Plugin Development",
-      actor_id: input.actor_id, idempotency_key: "plugin-development-board" });
+    // The development run is the Host's own door: it acts as the actor the Host fixes, in the project the client opened.
+    requireRuntimeProject(runtime, input.project_id);
+    refusePayloadIdentity(input, ["audit_actor_id"]);
+    runtime.coordinator.initializeBoard({ project_id: runtime.project_id, title: "Plugin Development",
+      actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID, idempotency_key: "plugin-development-board" });
     const privateStorage = new SqlitePluginPrivateStorage(runtime.store.db);
-    const reference = { project_id: runtime.project_id, board_id: runtime.board_id, storage_key: runtime.store.path };
-    return runPluginDevelopment(input, { board_id: input.board_id, actor_id: input.actor_id,
+    const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
+    return runPluginDevelopment(input, { project_id: runtime.project_id, actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID,
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: runtime.project_id },
-      artifacts: runtime.coordinator.artifacts, ui: new UiHost(),
+      artifacts: runtime.coordinator.artifacts, processItems: runtime.coordinator.processItems, ui: new UiHost(),
       repository: new SqlitePluginRuntimeRepository(runtime.store.db),
       privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
   });
-  host.register(goalsEntryCapabilities.commands.addProjectGuidance, (runtime, [input], invocation) => {
-    const { board_id, actor_id, ...payload } = input; checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.guidanceAdd, payload, { actor_id }, invocation);
-  });
-  host.register(goalsEntryCapabilities.commands.updateProjectGuidance, (runtime, [input], invocation) => {
-    const { board_id, actor_id, ...payload } = input; checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.guidanceUpdate, payload, { actor_id }, invocation);
-  });
-  host.register(goalsEntryCapabilities.planning.saveProjectMethod, (runtime, [input], invocation) => {
-    const { board_id, actor_id, ...payload } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.planningSave, payload, { actor_id }, invocation);
-  });
-  host.register(goalsEntryCapabilities.planning.analyzeChange, (runtime, [boardId, changedGoalIds], invocation) => {
-    checkGoalBoard(runtime, boardId);
-    return goalAction(runtime, goalsActions.planningImpact, { changed_goal_ids: [...changedGoalIds] }, { actor_id: "local-host" }, invocation);
-  });
-  host.register(goalsEntryCapabilities.planning.validateBoardGraph, (runtime, [boardId], invocation) => {
-    checkGoalBoard(runtime, boardId);
-    return goalAction(runtime, goalsActions.planningGraph, {}, { actor_id: "local-host" }, invocation);
-  });
-  host.register(goalEntryCompositionCapabilities.setTrashedWithWorkState, async (runtime, [boardId, input, write], invocation) => {
-    checkGoalBoard(runtime, boardId);
-    const result = await goalAction(runtime, goalsActions.trash, { ...input, user_confirmed: true, idempotency_key: write.idempotency_key }, write, invocation);
-    return { result, work_state: { goal_id: result.goal.goal_id, status: result.status === "trashed" || result.goal.trashed_at ? "trashed" : "open" } };
-  });
-  host.register(goalEntryCompositionCapabilities.readPlanningComposition, (runtime, [boardId], invocation) => {
-    checkGoalBoard(runtime, boardId);
-    return goalAction(runtime, goalsActions.planningRead, {}, { actor_id: "local-host" }, invocation);
-  });
-  host.register(goalTreeCapabilities.submitGoalTreeProposal, (runtime, [input], invocation) => {
-    const { board_id, actor_id, submitted_session_id, ...payload } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.treeSubmit, payload, { actor_id, runtime_session_id: submitted_session_id }, invocation);
-  });
-  host.register(goalTreeCapabilities.listGoalTreeProposals, (runtime, [{ board_id, ...query }], invocation) => {
-    checkGoalBoard(runtime, board_id);
+  // The management door has no Runtime Session: a `submitted_session_id` in the arguments is an identity claim and is refused with the actor.
+  host.register(goalTreeCapabilities.submitGoalTreeProposal, (runtime, [input], invocation) =>
+    goalAction(runtime, goalsActions.treeSubmit, managementPayload(runtime, input, ["submitted_session_id"]), managementIdentity(runtime, input.idempotency_key), invocation));
+  host.register(goalTreeCapabilities.listGoalTreeProposals, (runtime, [{ project_id, ...query }], invocation) => {
+    requireRuntimeProject(runtime, project_id);
     return goalAction(runtime, goalsActions.treeRead, query, { actor_id: "local-host" }, invocation);
   });
-  host.register(goalTreeCapabilities.checkGoalTreeProposal, (runtime, [{ board_id, actor_id, ...input }], invocation) => {
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.treeCheck, input, { actor_id }, invocation);
-  });
-  host.register(goalTreeCapabilities.decideGoalTreeProposal, (runtime, [{ board_id, authority, runtime_actor_id, ...input }], invocation) => {
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.treeDecide, input, { actor_id: authority.actor_id, actor_kind: authority.actor_kind,
-      audit_actor_id: runtime_actor_id ?? undefined, user_action: { source: authority.authority_source,
-        conversation_ref: authority.conversation_ref, message_ref: authority.message_ref,
-        whole_confirmation_prompted: authority.whole_confirmation_prompted, prompted_subject_id: authority.prompted_proposal_id } }, invocation);
+  host.register(goalTreeCapabilities.checkGoalTreeProposal, (runtime, [input], invocation) =>
+    goalAction(runtime, goalsActions.treeCheck, managementPayload(runtime, input), managementIdentity(runtime, input.idempotency_key), invocation));
+  // The decision is the person's, taken at the management door: the Host builds who decides (the person on this machine, origin
+  // management) and refuses an identity in the arguments, in the authority too. No Runtime relays a decision at this door. The
+  // authority the caller sends only points at the conversation the decision came from.
+  host.register(goalTreeCapabilities.decideGoalTreeProposal, (runtime, [input], invocation) => {
+    const { authority: evidence, ...payload } = managementPayload(runtime, input, ["audit_actor_id", "runtime_actor_id"]);
+    const authority = managementTreeAuthority(runtime.project_id, input.idempotency_key, evidence);
+    const { actor_id, actor_kind } = managementIdentity(runtime, input.idempotency_key);
+    return goalAction(runtime, goalsActions.treeDecide, payload, { actor_id, actor_kind, user_action: { source: "management",
+      conversation_ref: authority.conversation_ref, message_ref: authority.message_ref,
+      whole_confirmation_prompted: authority.whole_confirmation_prompted, prompted_subject_id: authority.prompted_proposal_id } }, invocation);
   });
   host.register(readProjectGuidanceCapability, (runtime, input, invocation) => {
-    checkGoalBoard(runtime, input.board_id);
+    requireRuntimeProject(runtime, input.project_id);
     return goalAction(runtime, goalsActions.guidanceRead, {}, { actor_id: "local-host" }, invocation);
   });
   host.register(setActiveGoalCapability, (runtime, input, invocation) => {
-    checkGoalBoard(runtime, input.board_id);
-    return goalAction(runtime, goalsActions.active, { ...input.goal, idempotency_key: input.write.idempotency_key }, input.write, invocation);
+    requireRuntimeProject(runtime, input.project_id);
+    refusePayloadIdentity(input.write);
+    return goalAction(runtime, goalsActions.active, { ...input.goal, idempotency_key: input.write.idempotency_key }, managementIdentity(runtime, input.write.idempotency_key), invocation);
   });
-  const managementIdentity = (runtime: MolisWorkProjectRuntime, actorId: string, key: string) => ({
-    actor_id: actorId, actor_kind: "user" as const, user_action: { source: "management" as const,
-      conversation_ref: `management:${runtime.board_id}`, message_ref: `management:${key}` },
-  });
-  host.register(initializeBoardCapability, (runtime, { board_id, actor_id, ...input }, invocation) => {
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.initialize, input, managementIdentity(runtime, actor_id, input.idempotency_key), invocation);
+  host.register(initializeBoardCapability, (runtime, { project_id, ...input }, invocation) => {
+    requireRuntimeProject(runtime, project_id);
+    return goalAction(runtime, goalsActions.initialize, input, managementIdentity(runtime, input.idempotency_key), invocation);
   });
   host.register(snapshotBoardCapability, (runtime, input, invocation) => {
-    checkGoalBoard(runtime, input.board_id);
+    requireRuntimeProject(runtime, input.project_id);
     return goalAction(runtime, goalsActions.snapshot, {}, { actor_id: "local-host" }, invocation);
   });
-  host.register(readGoalContractCapability, (runtime, input, invocation) => {
-    checkGoalBoard(runtime, input.board_id);
-    return goalAction(runtime, goalsActions.contract, { goal_id: input.goal_id }, { actor_id: "local-host" }, invocation);
-  });
-  host.register(importV3Capability, (runtime, { target_board_id, actor_id, ...input }, invocation) => {
-    checkGoalBoard(runtime, target_board_id);
-    return goalAction(runtime, goalsActions.importV3, input, managementIdentity(runtime, actor_id, input.idempotency_key), invocation);
-  });
-  host.register(projectResumeFactsCapability, async (runtime, input, invocation) => {
-    checkGoalBoard(runtime, input.board_id);
-    return readGoalResumeFacts({ invoke: (definition, query) => goalAction(runtime, definition, query, { actor_id: "local-host" }, invocation) }, input.focus_goal_ids);
-  });
-  host.register(trashedGoalsCapability, (runtime, input, invocation) => {
-    checkGoalBoard(runtime, input.board_id);
-    return goalAction(runtime, goalsActions.trashed, {}, { actor_id: "local-host" }, invocation);
-  });
   host.register(createGoalIntentCapability, (runtime, input, invocation) => {
-    const { board_id, actor_id, actor_kind, ...payload } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.create, { ...payload, source_kind: payload.source_kind ?? "web" }, { actor_id, actor_kind }, invocation);
-  });
-  host.register(listGoalDirectoryCapability, (runtime, input, invocation) => {
-    const { board_id, ...query } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.list, query, { actor_id: "local-host" }, invocation);
-  });
-  host.register(readGoalEventStateCapability, (runtime, input, invocation) => {
-    const { board_id, ...query } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.state, query, { actor_id: "local-host" }, invocation);
-  });
-  host.register(configureGoalEventsCapability, (runtime, input, invocation) => {
-    const { board_id, actor_id, actor_kind, ...payload } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.configure, payload, { actor_id, actor_kind }, invocation);
-  });
-  host.register(reportGoalEventsCapability, (runtime, input, invocation) => {
-    const { board_id, actor_id, actor_kind, ...payload } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.report, payload, { actor_id, actor_kind }, invocation);
-  });
-  host.register(listGoalEventsCapability, (runtime, input, invocation) => {
-    const { board_id, ...query } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.events, query, { actor_id: "local-host" }, invocation);
-  });
-  host.register(listLatestGoalEventsCapability, (runtime, input, invocation) => {
-    const { board_id, ...query } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.latestEvents, query, { actor_id: "local-host" }, invocation);
-  });
-  host.register(listLatestGoalTimelineCapability, (runtime, input, invocation) => {
-    const { board_id, ...query } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.timeline, query, { actor_id: "local-host" }, invocation);
-  });
-  host.register(readGoalEventCapability, (runtime, input, invocation) => {
-    const { board_id, ...query } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.event, query, { actor_id: "local-host" }, invocation);
-  });
-  host.register(recordGoalProgressCapability, (runtime, input, invocation) => {
-    const { board_id, actor_id, actor_kind, ...payload } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.progress, payload, { actor_id, actor_kind }, invocation);
-  });
-  host.register(applyGoalConcernCapability, (runtime, input, invocation) => {
-    const { board_id, actor_id, actor_kind, ...payload } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.concern, payload, { actor_id, actor_kind }, invocation);
-  });
-  host.register(requestGoalDecisionCapability, (runtime, input, invocation) => {
-    const { board_id, actor_id, actor_kind, ...payload } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.requestDecision, payload, { actor_id, actor_kind }, invocation);
-  });
-  host.register(citeGoalDecisionCapability, (runtime, input, invocation) => {
-    const { board_id, actor_id, actor_kind, ...payload } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.citeDecision, payload, { actor_id, actor_kind }, invocation);
+    const payload = managementPayload(runtime, input);
+    return goalAction(runtime, goalsActions.create, { ...payload, source_kind: payload.source_kind ?? "web" }, managementIdentity(runtime, input.idempotency_key), invocation);
   });
   host.register(recordGoalUserDecisionCapability, (runtime, input, invocation) => {
-    const { board_id, authority, ...payload } = input;
-    checkGoalBoard(runtime, board_id);
-    if (!authority) throw new ActionError("event_decision.untrusted_actor", "用户决定需要受保护入口提供出处");
-    return goalAction(runtime, goalsActions.decide, payload, { actor_id: authority.actor_id, actor_kind: authority.actor_kind,
-      user_action: { source: authority.authority_source, conversation_ref: authority.conversation_ref, message_ref: authority.message_ref } }, invocation);
-  });
-  host.register(setGoalEventAgreementCapability, (runtime, input, invocation) => {
-    const { board_id, actor_id, actor_kind, ...payload } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.agree, payload, { actor_id, actor_kind }, invocation);
-  });
-  host.register(submitGoalEventClosureCapability, (runtime, input, invocation) => {
-    const { board_id, actor_id, actor_kind, ...payload } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.close, payload, { actor_id, actor_kind }, invocation);
-  });
-  host.register(resumeGoalEventWorkCapability, (runtime, input, invocation) => {
-    const { board_id, actor_id, actor_kind, ...payload } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.resume, payload, { actor_id, actor_kind }, invocation);
-  });
-  host.register(recordGoalNoteCapability, (runtime, input, invocation) => {
-    const { board_id, actor_id, actor_kind, ...payload } = input;
-    checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.note, payload, { actor_id, actor_kind }, invocation);
+    const { payload, writer } = managementEventDecision(runtime, input);
+    return goalAction(runtime, goalsActions.decide, payload, writer, invocation);
   });
   registerHostScheduleCapabilities(host, (runtime) => runtime.store.db);
 }

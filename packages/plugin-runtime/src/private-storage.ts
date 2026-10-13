@@ -17,15 +17,20 @@ export class PluginPrivateStorageError extends Error {
   }
 }
 
-/** Host-owned private data repository. Never expose this object or its database to Plugin code. */
-export class SqlitePluginPrivateStorage {
-  constructor(private readonly db: PluginPrivateStorageDatabase) {
-    db.exec(`CREATE TABLE IF NOT EXISTS plugin_private_values (
+/** The plugin private values table, as one current schema; the host composes it into the project database baseline. */
+export const PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL = `
+    CREATE TABLE IF NOT EXISTS plugin_private_values (
       install_id TEXT NOT NULL,
       item_key TEXT NOT NULL,
       item_value TEXT NOT NULL,
       PRIMARY KEY (install_id, item_key)
-    )`);
+    );
+`;
+
+/** Host-owned private data repository. Never expose this object or its database to Plugin code. */
+export class SqlitePluginPrivateStorage {
+  constructor(private readonly db: PluginPrivateStorageDatabase) {
+    db.exec(PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL);
   }
 
   forPlugin(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage {

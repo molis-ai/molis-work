@@ -46,7 +46,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const notes = new Map<string, { text: string; version: number }>();
   let next = 0;
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "project", storage_key: "memory:project" };
   const bump = (id: string, text: string, expected?: number) => {
     const current = notes.get(id);
     if (!current) throw new ActionError("notes.not_found", "没有这条笔记");
@@ -261,7 +261,8 @@ test("an object the person moved to another project is named where it went, not 
 });
 
 test("a subject reader may live in the Home, and one declared with the schema before `open` is still accepted", async () => {
-  const { inspectActionDeclarations, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN } = await import("@molis-ai/molis-work-contracts/platform/actions");
+  const { SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN } = await import("@molis-ai/molis-work-contracts/platform/actions");
+  const { inspectActionDeclarations } = await import("@molis-ai/molis-work-plugin-sdk");
   const home = defineSubjectContextAction("fixture.calendar.subject.read", "calendar_item", "日历事项", ["calendar:read"], "home");
   assert.equal(home.action.scope, "home");
   assert.deepEqual(inspectActionDeclarations([home], undefined), []);

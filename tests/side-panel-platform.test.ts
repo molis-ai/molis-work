@@ -11,8 +11,8 @@ import { SqlitePluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-wo
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { UiViewRegistry } from "@molis-ai/molis-work-ui-host";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
-import { inspectActionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
-import { browserSiteDeclarations, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { browserSiteDeclarations } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { inspectActionDeclarations, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -100,7 +100,7 @@ test("real Host: the file tab lists and previews plugin files through the action
   const home = await mkdtemp(join(tmpdir(), "side-panel-files-"));
   const [a] = await withCatalog({ homeDirectory: home }, async catalog => [await catalog.createProject({ display_name: "侧栏项目", actor_id: "owner" })]);
   await withCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: a.project_id, plugin_id: "pages", actor_id: "owner" }));
-  const ref = molisWorkHostProjectReference({ databasePath: a.database_path, boardId: a.board_id, projectId: a.project_id });
+  const ref = molisWorkHostProjectReference({ databasePath: a.database_path, projectId: a.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const token = resolveWebControlToken({ homeDirectory: home });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
@@ -226,8 +226,11 @@ test("a workspace file is read whole for a preview (plugins only), still inside 
     assert.deepEqual(await readWorkspaceFile({ workspace_id: "w1", path: ["docs", "large.pdf"], kind: "bytes" }, workspaces),
       { outcome: "too-large", bytes: WORKSPACE_BYTES_LIMIT + 1, limit: WORKSPACE_BYTES_LIMIT });
     assert.equal((await readWorkspaceFile({ workspace_id: "w1", path: ["..", "outside.png"], kind: "bytes" }, workspaces).catch(() => ({ outcome: "refused" }))).outcome !== "bytes", true);
-    // People, Agents and MCP clients read folders and text only: the public action does not offer whole files.
+    // The one read action names the whole-file mode, and says in its text who may use it: a plugin the Host runs, by its Manifest.
+    // The Host refuses it to the person, the Agent, workflows, MCP clients and generated plugins (tests/workspace-read-one-id.test.ts
+    // runs those refusals).
     const kind = (workspaceReadActions.file.action.input_schema as { properties: { kind: { enum: string[] } } }).properties.kind.enum;
-    assert.deepEqual(kind, ["directory", "text"]);
+    assert.deepEqual(kind, ["directory", "text", "bytes"]);
+    assert.match(workspaceReadActions.file.action.description, /bytes.*宿主运行的.*capabilities\.consumes.*插件.*生成的沙箱插件.*拒绝/u);
   } finally { await rm(root, { recursive: true, force: true }); }
 });

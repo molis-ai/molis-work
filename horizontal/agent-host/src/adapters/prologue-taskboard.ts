@@ -344,7 +344,7 @@ function summary(runtime: Runtime, board: SdkBoard, plan: AgentExecutionPlan, se
 function shape(runtime: Runtime, board: SdkBoard, plan: AgentExecutionPlan, session: string, alive?: (session: string) => boolean): AgentStepBoard {
   const missing = plan.steps.find(step => !board.nodes.some(node => node.id === step.id));
   if (missing || board.nodes.some(node => !plan.steps.some(step => step.id === node.id) && !node.id.startsWith("user-"))) throw new Error("原步骤图与确认计划不一致");
-  return { board_id: board.ref.id, version: board.version, terminal: board.terminal,
+  return { project_id: board.ref.id, version: board.version, terminal: board.terminal,
     nodes: executionOrder(board, plan).map(node => ({ id: node.id, state: node.state,
       reports: node.reports.map(report => { const by = reportBy(runtime, report, session);
         return { note: reportNote(runtime, report, session), at_ms: report.atMs, ...(by ? { by } : {}), ...(report.handover ? { handover: true as const } : {}) }; }),

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { DEMO_BOARD_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
+import { DEMO_PROJECT_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
@@ -10,8 +10,8 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     const b = await openGoalBrowser(t); if (!b) return;
     const { command, sessionId, navigate, evaluate, click, waitFor, origin } = b;
     const app = new GoalProjectApplication(b.store);
-    const goalId = app.goalEvents.createIntent({ board_id: DEMO_BOARD_ID, title: '低窗口里的目标编辑', outcome: '表单保存取消清楚可达', actor_id: 'web-user', actor_kind: 'user', idempotency_key: 'viewport' }).goal.goal_id;
-    const read = () => app.goalEvents.readState(DEMO_BOARD_ID, goalId);
+    const goalId = app.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, title: '低窗口里的目标编辑', outcome: '表单保存取消清楚可达', actor_id: 'web-user', actor_kind: 'user', idempotency_key: 'viewport' }).goal.goal_id;
+    const read = () => app.goalEvents.readState(DEMO_PROJECT_ID, goalId);
     const form = '[data-event-form=concern]';
     const field = (name: string) => `${form} [name=${name}]`;
     const fill = async (name: string, value: string) => evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(field(name))});e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);

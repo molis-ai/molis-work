@@ -105,69 +105,6 @@ fn embedded_runtime_upgrade_available(resource_dir: &Path, home: &Path) -> bool 
     embedded_version_is_upgrade(&embedded_version, installed_version.as_ref())
 }
 
-#[cfg(test)]
-mod embedded_runtime_version_tests {
-    use super::{embedded_version_is_upgrade, sync_managed_web_service_after_upgrade, Version};
-    use std::{
-        fs,
-        os::unix::fs::PermissionsExt,
-        path::PathBuf,
-        process,
-        time::{SystemTime, UNIX_EPOCH},
-    };
-
-    #[test]
-    fn only_missing_or_newer_embedded_runtimes_install() {
-        let old = Version::parse("0.1.4").unwrap();
-        let current = Version::parse("0.1.5").unwrap();
-        let newer = Version::parse("0.1.6").unwrap();
-
-        assert!(embedded_version_is_upgrade(&current, None));
-        assert!(embedded_version_is_upgrade(&newer, Some(&current)));
-        assert!(!embedded_version_is_upgrade(&current, Some(&current)));
-        assert!(!embedded_version_is_upgrade(&old, Some(&current)));
-    }
-
-    #[test]
-    fn embedded_runtime_upgrade_repairs_the_owned_service_configuration() {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let home = std::env::temp_dir().join(format!(
-            "molis-work-desktop-service-refresh-{}-{nonce}",
-            process::id(),
-        ));
-        let bin = home.join("bin");
-        let cli = bin.join("molis-work");
-        let receipt = home.join("called.txt");
-        fs::create_dir_all(&bin).unwrap();
-        fs::write(
-            &cli,
-            format!(
-                "#!/bin/sh\nprintf '%s\\n' \"$*\" > '{}'\n",
-                receipt.display()
-            ),
-        )
-        .unwrap();
-        let mut permissions = fs::metadata(&cli).unwrap().permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(&cli, permissions).unwrap();
-
-        let refreshed = sync_managed_web_service_after_upgrade(&home);
-
-        assert!(refreshed);
-        assert_eq!(
-            fs::read_to_string(&receipt).unwrap().trim(),
-            format!(
-                "service install --home {} --confirm",
-                PathBuf::from(&home).display()
-            ),
-        );
-        fs::remove_dir_all(home).unwrap();
-    }
-}
-
 fn install_embedded_molis_work(resource_dir: &Path, home: &Path) -> Result<(), String> {
     let (source, node) = embedded_molis_work_source(resource_dir).ok_or_else(|| {
         "Molis Work App 不含可用的 Runtime payload，请重新下载安装包。".to_string()
@@ -340,4 +277,67 @@ pub(crate) fn ensure_molis_work_web(
     }
     stop_owned_web_service(service_state);
     Err("Molis Work Web 已启动，但 127.0.0.1:4173 尚未就绪".into())
+}
+
+#[cfg(test)]
+mod embedded_runtime_version_tests {
+    use super::{embedded_version_is_upgrade, sync_managed_web_service_after_upgrade, Version};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        path::PathBuf,
+        process,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    #[test]
+    fn only_missing_or_newer_embedded_runtimes_install() {
+        let old = Version::parse("0.1.4").unwrap();
+        let current = Version::parse("0.1.5").unwrap();
+        let newer = Version::parse("0.1.6").unwrap();
+
+        assert!(embedded_version_is_upgrade(&current, None));
+        assert!(embedded_version_is_upgrade(&newer, Some(&current)));
+        assert!(!embedded_version_is_upgrade(&current, Some(&current)));
+        assert!(!embedded_version_is_upgrade(&old, Some(&current)));
+    }
+
+    #[test]
+    fn embedded_runtime_upgrade_repairs_the_owned_service_configuration() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let home = std::env::temp_dir().join(format!(
+            "molis-work-desktop-service-refresh-{}-{nonce}",
+            process::id(),
+        ));
+        let bin = home.join("bin");
+        let cli = bin.join("molis-work");
+        let receipt = home.join("called.txt");
+        fs::create_dir_all(&bin).unwrap();
+        fs::write(
+            &cli,
+            format!(
+                "#!/bin/sh\nprintf '%s\\n' \"$*\" > '{}'\n",
+                receipt.display()
+            ),
+        )
+        .unwrap();
+        let mut permissions = fs::metadata(&cli).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&cli, permissions).unwrap();
+
+        let refreshed = sync_managed_web_service_after_upgrade(&home);
+
+        assert!(refreshed);
+        assert_eq!(
+            fs::read_to_string(&receipt).unwrap().trim(),
+            format!(
+                "service install --home {} --confirm",
+                PathBuf::from(&home).display()
+            ),
+        );
+        fs::remove_dir_all(home).unwrap();
+    }
 }

@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it } from "vitest";
-import { migrate } from "../../src/studio/server/db/migrate.js";
+import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
 import { openDatabase, type SqliteDatabase } from "../../src/studio/server/db/open-database.js";
 import { SqlitePulseRepository } from "../../src/studio/server/db/pulse-repository.js";
 import { seedResearchIdea } from "./helpers/seed-research-idea.js";
@@ -197,7 +197,7 @@ describe("SQLite Pulse repository", () => {
 function setup(): SqlitePulseRepository {
   temporary = createTempDatabase();
   database = openDatabase(temporary.path);
-  migrate(database);
+  applyStudioBaseline(database, ":memory:");
   seedResearchIdea(database);
   const repository = new SqlitePulseRepository(database);
   repository.ensureDefaultSourceSettings("2026-07-31T10:00:00.000Z");

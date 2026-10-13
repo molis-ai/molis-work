@@ -9,9 +9,7 @@ import {
   FEED_CAPTURE_SCENE_ID,
   FEED_OPEN_BEHAVIOR_ID,
   FEED_PROMOTE_BEHAVIOR_ID,
-  FEED_REAUTH_BEHAVIOR_ID,
   FEED_SAVE_BEHAVIOR_ID,
-  HOME_ASK_BEHAVIOR_ID,
   HOME_CONTINUE_BEHAVIOR_ID,
   HOME_DOCK_SCENE_ID,
   HOME_TALK_BEHAVIOR_ID,
@@ -23,34 +21,28 @@ import {
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
   SYSTEM_INBOX_NEXT_FUNCTION_KEY,
   filterSuggestedBehaviorIds,
-  functionFitsScene,
   mapJudgmentChoice,
   defaultInboxNextBehaviorIds,
   defaultFeedCaptureBehaviorIds,
-  suggestedAuthoringBehaviors,
   visibleFeedDispositionIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
-import { mcpPublicToolName } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   FunctionsError,
   createFunctionsService,
   openFunctionsStore,
+  publishedFunctionAction,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import { liveHostFunctionAuthoringCatalog } from "../apps/local-host/src/behavior-catalog.ts";
-import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineSubjectOffersAction, type ActionProvider, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectHomeEvents } from "../apps/workbench/src/home-flow.ts";
-import { assertContributionMatchesManifest, PluginContributionError } from "@molis-ai/molis-work-plugin-runtime";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
-const LIST = mcpPublicToolName("functions", "list");
-const DESCRIBE = mcpPublicToolName("functions", "describe");
-const INVOKE = mcpPublicToolName("functions", "invoke");
 
 function memorySecrets(initial: Record<string, string> = {}) {
   const map = new Map(Object.entries(initial));
@@ -166,7 +158,7 @@ test("historical judgments retain original object, project and scene scope", asy
     const store = openFunctionsStore(home);
     try {
       const write = (scene: string, project: string, result: string) => store.recordJudgment({ function_key: "old-rule", function_version: 1,
-        subject: { kind: "inbox_entry", id: "same-object", board_id: project }, scene_id: scene, outcome: "ok", suggested_behavior_ids: [result], error_code: null });
+        subject: { kind: "inbox_entry", id: "same-object", project_id: project }, scene_id: scene, outcome: "ok", suggested_behavior_ids: [result], error_code: null });
       const inbox = write(INBOX_NEXT_SCENE_ID, "first", INBOX_DONE_BEHAVIOR_ID);
       const home = write(HOME_DOCK_SCENE_ID, "first", HOME_CONTINUE_BEHAVIOR_ID);
       const foreign = write(INBOX_NEXT_SCENE_ID, "other", INBOX_DISMISS_BEHAVIOR_ID);
@@ -227,6 +219,46 @@ test("authoring derives exact Agent capabilities from the supplied directory wit
   assert.equal(liveHostFunctionAuthoringCatalog([catalogAction("unknown.notes", 1, "replacement")]).behaviors[0]?.behavior_id === catalog.behaviors[0]?.behavior_id, false);
 });
 
+test("authoring names the owning plugin by its plugin id, never by the installation that registered it", () => {
+  // A plugin that is not bundled registers under `plugin-install-<hash>`; `plugin_id` is what says which plugin that is.
+  const notes: ActionProvider = { provider_id: "plugin-install-abc", plugin_id: "io.example.notes", kind: "plugin", title: "Notes" };
+  const consumer: ActionProvider = { provider_id: "plugin-install-def", plugin_id: "io.example.consumer", kind: "plugin", title: "Consumer" };
+  const host: ActionProvider = { provider_id: "home-host", kind: "system", title: "Home" };
+  const read: ActionView = { ...catalogAction("notes.read"), provider: notes };
+  const finishAction = { ...read.action, kind: "operation" as const, audiences: ["user" as const], subject_kinds: ["note"] };
+  const finish: ActionView = { ...read, capability_id: "notes.finish", operation: "command", action: finishAction };
+  const offerDefinition = defineSubjectOffersAction("notes.offers", ["note"], "Offer next steps", [],
+    [{ offer_id: "notes.finish", title: "Finish note", action: { capability_id: "notes.finish", version: 1 } }]);
+  const offers: ActionView = { capability_id: offerDefinition.capability_id, version: offerDefinition.version, operation: "query", provider: notes,
+    availability: { available: true }, action: { ...offerDefinition.action, audiences: ["user"] } };
+  const system: ActionView = catalogAction("system.read", 1, "system-host");
+  const scene = (provider: ActionProvider, definition: Partial<ActionSceneView["definition"]>): ActionSceneView => ({
+    configuration_availability: { available: true }, availability: { available: true }, compatible: true, provider,
+    definition: { scene_id: "example.scene", version: 1, title: "Scene", description: "Picks a next step", trigger: "when it fires", scope: "project", subject_kinds: ["note"],
+      permissions: [], input_schema: { type: "object" }, result_schema: { type: "object" }, result_type: "molis.behavior-recommendation.v1", ...definition },
+  });
+  const offered = scene(host, { scene_id: "example.offered", recommendation_source: "subject-offers" });
+  const finite = scene(consumer, { scene_id: "example.finite", result_schema: { type: "object", properties: { suggested_behavior_ids: { type: "array", items: { enum: ["example.one"] } } } } });
+  const catalog = liveHostFunctionAuthoringCatalog([read, finish, offers, system], [offered, finite]);
+  const behavior = (match: (row: (typeof catalog.behaviors)[number]) => boolean) => catalog.behaviors.find(match)!;
+
+  const agentRead = behavior(row => row.action_ref?.capability_id === "notes.read");
+  assert.equal(agentRead.plugin_id, "io.example.notes", "an Agent action names its plugin, not the installation behind plugin-install-abc");
+  assert.equal(agentRead.action_ref?.provider_id, "plugin-install-abc", "the pinned action reference keeps the registration it will be invoked on");
+  assert.equal(behavior(row => row.action_ref?.capability_id === "system.read").plugin_id, "system-host", "a provider without a plugin id is named by its provider id");
+
+  const offer = behavior(row => row.destination_id === "example.offered");
+  assert.equal(offer.title, "Finish note");
+  assert.equal(offer.plugin_id, "io.example.notes", "a subject offer names the plugin that offers it, not the scene's provider or the installation");
+  assert.equal(offer.provider_id, "home-host", "the scene's provider id still says who owns the consumer scene");
+  assert.equal(offer.effect, "write");
+
+  const fixed = behavior(row => row.behavior_id === "example.one");
+  assert.equal(fixed.plugin_id, "io.example.consumer", "a scene's finite recommendation names the consuming plugin");
+  assert.equal(fixed.provider_id, "plugin-install-def", "the scene registration stays in provider_id");
+  assert.ok(catalog.behaviors.every(row => !/^plugin-install-/.test(row.plugin_id)), "no installation id is presented as a plugin id");
+});
+
 test("Home preserves declared navigation and bound suggestions without inventing actions", () => {
   const now = new Date(2026, 8, 19, 13, 20);
   const open = { kind: "item" as const, surface: "notes", id: "note-1", title: "笔记", label: "打开笔记" };
@@ -260,96 +292,7 @@ test("built-in function keys exist in the Module store", async () => {
   });
 });
 
-test("functionFitsScene keeps every Choice option inside the scene pool", () => {
-  const homeDock = {
-    primitive: "choice" as const,
-    criteria: [
-      { key: HOME_CONTINUE_BEHAVIOR_ID, description: "接着做" },
-      { key: INBOX_DONE_BEHAVIOR_ID, description: "做完了" },
-      { key: FEED_REAUTH_BEHAVIOR_ID, description: "重新授权" },
-      { key: HOME_ASK_BEHAVIOR_ID, description: "问问" },
-    ],
-  };
-  const admit = {
-    primitive: "choice" as const,
-    criteria: [
-      { key: INBOX_ADMIT_BEHAVIOR_ID, description: "进 Inbox" },
-      { key: FEED_OPEN_BEHAVIOR_ID, description: "留在 Feed" },
-    ],
-  };
-  const next = {
-    primitive: "choice" as const,
-    criteria: [
-      { key: INBOX_DONE_BEHAVIOR_ID, description: "已处理" },
-      { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" },
-    ],
-  };
-  assert.equal(functionFitsScene(homeDock, HOME_DOCK_SCENE_ID), false, "legacy static helpers cannot establish Home compatibility");
-  assert.equal(functionFitsScene(homeDock, INBOX_NEXT_SCENE_ID), false);
-  assert.equal(functionFitsScene(homeDock, FEED_CAPTURE_SCENE_ID), false);
-  assert.equal(functionFitsScene(admit, FEED_CAPTURE_SCENE_ID), true);
-  assert.equal(functionFitsScene(admit, INBOX_NEXT_SCENE_ID), false);
-  assert.equal(functionFitsScene(admit, HOME_DOCK_SCENE_ID), false);
-  assert.equal(functionFitsScene(next, INBOX_NEXT_SCENE_ID), true);
-  assert.equal(functionFitsScene(next, HOME_DOCK_SCENE_ID), false);
-  assert.equal(functionFitsScene(next, FEED_CAPTURE_SCENE_ID), false);
-  const continueDismiss = {
-    primitive: "choice" as const,
-    criteria: [
-      { key: HOME_CONTINUE_BEHAVIOR_ID, description: "接着做" },
-      { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" },
-    ],
-  };
-  assert.equal(functionFitsScene(continueDismiss, HOME_DOCK_SCENE_ID), false);
-  assert.equal(functionFitsScene(continueDismiss, INBOX_NEXT_SCENE_ID), false);
-  assert.equal(functionFitsScene({ primitive: "noul", criteria: { true_description: "是", false_description: "否" } }, HOME_DOCK_SCENE_ID), false);
-  assert.equal(functionFitsScene(admit, "unknown.scene"), true);
-  assert.equal(functionFitsScene({ ...admit, scene_id: FEED_CAPTURE_SCENE_ID }, INBOX_NEXT_SCENE_ID), false);
-  assert.equal(functionFitsScene({
-    primitive: "choice" as const,
-    criteria: [
-      { key: "molis_work_v1_form_create", description: "建问卷" },
-      { key: "molis_work_v1_functions_invoke", description: "调判断" },
-    ],
-    scene_id: "agent.mcp",
-  }, INBOX_NEXT_SCENE_ID), false);
-  assert.equal(functionFitsScene({
-    primitive: "choice" as const,
-    criteria: [
-      { key: "molis_work_v1_form_create", description: "建问卷" },
-      { key: "molis_work_v1_functions_invoke", description: "调判断" },
-    ],
-    scene_id: "agent.mcp",
-  }, "agent.mcp"), true);
-  assert.equal(functionFitsScene({
-    primitive: "choice" as const,
-    criteria: [
-      { key: "urgent", description: "急" },
-      { key: "later", description: "不急" },
-    ],
-    scene_id: INBOX_NEXT_SCENE_ID,
-  }, INBOX_NEXT_SCENE_ID), false);
-  assert.equal(functionFitsScene({
-    primitive: "choice" as const,
-    criteria: [
-      { key: "urgent", description: "急" },
-      { key: "later", description: "不急" },
-    ],
-    scene_id: INBOX_NEXT_SCENE_ID,
-    scene_map: {
-      urgent: INBOX_DONE_BEHAVIOR_ID,
-      later: INBOX_DISMISS_BEHAVIOR_ID,
-    },
-  }, INBOX_NEXT_SCENE_ID), true);
-  assert.equal(functionFitsScene({
-    primitive: "noul" as const,
-    criteria: { true_description: "够", false_description: "不够" },
-    scene_id: INBOX_NEXT_SCENE_ID,
-    scene_map: {
-      true: INBOX_DONE_BEHAVIOR_ID,
-      false: INBOX_DISMISS_BEHAVIOR_ID,
-    },
-  }, INBOX_NEXT_SCENE_ID), true);
+test("a judgment's choice follows the rule's scene map", () => {
   assert.equal(mapJudgmentChoice({
     primitive: "choice",
     criteria: [
@@ -365,20 +308,10 @@ test("functionFitsScene keeps every Choice option inside the scene pool", () => 
   }, { noul: 0.8 }), INBOX_DONE_BEHAVIOR_ID);
 });
 
-test("bindScene rejects a published function whose options miss the scene pool", async () => {
+test("the built-in Home rule is seeded for the Home scene and Inbox entries", async () => {
   await withHome(async (home) => {
     const store = openFunctionsStore(home);
-    const service = createFunctionsService({
-      store,
-      secrets: memorySecrets(),
-    });
     try {
-      assert.throws(
-        () => service.bindScene(INBOX_NEXT_SCENE_ID, SYSTEM_INBOX_ADMIT_FUNCTION_KEY, "board"),
-        (error: unknown) => error instanceof FunctionsError && error.code === "functions.scene_mismatch",
-      );
-      const bound = service.bindScene(INBOX_NEXT_SCENE_ID, SYSTEM_INBOX_NEXT_FUNCTION_KEY, "board");
-      assert.equal(bound.function_key, SYSTEM_INBOX_NEXT_FUNCTION_KEY);
       assert.equal(store.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.scene_id, HOME_DOCK_SCENE_ID);
       assert.deepEqual(store.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.subject_kinds, ["inbox_entry"]);
     } finally {
@@ -387,7 +320,7 @@ test("bindScene rejects a published function whose options miss the scene pool",
   });
 });
 
-test("agent.mcp functions cannot bind to a site scene", async () => {
+test("agent.mcp functions are plain judgments, never a site scene's recommendation", async () => {
   await withHome(async (home) => {
     const store = openFunctionsStore(home);
     const service = createFunctionsService({
@@ -408,11 +341,8 @@ test("agent.mcp functions cannot bind to a site scene", async () => {
         subject_kinds: ["mcp_invoke"],
       });
       await service.preview(created.id, "样例");
-      service.publish(created.id);
-      assert.throws(
-        () => service.bindScene(INBOX_NEXT_SCENE_ID, "pick_tool", "board"),
-        (error: unknown) => error instanceof FunctionsError && error.code === "functions.scene_mismatch",
-      );
+      const published = service.publish(created.id);
+      assert.equal(publishedFunctionAction(published).action.output_type, "molis.judgment.v1");
     } finally {
       store.close();
     }
@@ -425,10 +355,15 @@ test("Agent suggestions respect subject contracts and exclude other scenes", () 
   const feed = { ...catalogAction("feed.read"), action: { ...generic.action, subject_kinds: ["feed_item"] } };
   const base = liveHostFunctionAuthoringCatalog([generic, note, feed]);
   const catalog = { ...base, behaviors: [...base.behaviors, { ...base.behaviors[0]!, behavior_id: "other-scene-symbol", destination_id: "other.scene", action_ref: undefined }] };
-  assert.deepEqual(suggestedAuthoringBehaviors(catalog, "agent.mcp", ["note"]).map(row => row.action_ref?.capability_id), ["generic.read", "note.read"]);
-  assert.equal(suggestedAuthoringBehaviors(catalog, "agent.mcp", []).length, 3);
-  assert.deepEqual(suggestedAuthoringBehaviors(catalog, "", ["note"]), []);
-  assert.deepEqual(suggestedAuthoringBehaviors(catalog, "unregistered.scene", []), []);
+  // The page filters these rows by the chosen subject kinds (tests/functions-plugin.test.ts runs that rule); the catalog carries each
+  // suggestion with its own subject kinds, hangs only Agent capabilities under agent.mcp, and keeps another scene's symbol out.
+  const agent = catalog.behaviors.filter(row => row.destination_id === "agent.mcp");
+  assert.deepEqual(agent.map(row => [row.action_ref?.capability_id, row.subject_kinds]), [["generic.read", []], ["note.read", ["note"]], ["feed.read", ["feed_item"]]]);
+  assert.deepEqual(catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids, agent.map(row => row.behavior_id));
+  assert.equal(catalog.behaviors.find(row => row.behavior_id === "other-scene-symbol")?.destination_id, "other.scene");
+  assert.ok(!agent.some(row => row.behavior_id === "other-scene-symbol"));
+  assert.deepEqual(catalog.behaviors.filter(row => !row.destination_id), [], "no scene-less suggestion exists to offer without a destination");
+  assert.equal(catalog.destinations.some(row => row.destination_id === "unregistered.scene"), false);
 });
 
 test("Feed and Inbox declare scenes without naming the Functions plugin implementation", () => {
@@ -441,7 +376,6 @@ test("Feed and Inbox declare scenes without naming the Functions plugin implemen
     assert.ok(feedManifest.actions?.some((row) => row.capability_id === capability));
   }
   assert.equal(inboxManifest.action_scenes?.[0]?.scene_id, "inbox.next");
-  assert.equal(inboxManifest.function_scenes, undefined);
   assert.equal(inboxManifest.plugin_id.includes("functions"), false);
 });
 
@@ -580,41 +514,6 @@ test("home dock HTTP binds a published function at the scene without executing w
   });
   assert.equal(unbound.status, 200);
   assert.equal((await unbound.json() as { function_key: string | null }).function_key, null);
-});
-
-test("undeclared behavior handlers are refused", () => {
-  assert.throws(
-    () => assertContributionMatchesManifest(feedManifest, {
-      kind: "app",
-      views: [],
-      behaviors: [{ behavior_id: "invented", handle: () => undefined }],
-    }),
-    (error: unknown) => error instanceof PluginContributionError && error.message.includes("invented"),
-  );
-});
-
-test("app plugins must redeem declared behavior handlers", () => {
-  const manifest = {
-    ...feedManifest,
-    kind: "app" as const,
-    plugin_id: "io.molis.work.demo-dock",
-    actions: [],
-    action_scenes: [],
-    ui: { contributions: [], views: [] },
-    behaviors: [{ behavior_id: "pin", title: "挂到 Goal", effect: "write" as const, subject_kinds: ["inbox_entry"] }],
-    mcp_exports: [],
-    routes: [],
-    function_scenes: [],
-  };
-  assert.throws(
-    () => assertContributionMatchesManifest(manifest, { kind: "app", views: [] }),
-    (error: unknown) => error instanceof PluginContributionError && String(error.message).includes("pin"),
-  );
-  assertContributionMatchesManifest(manifest, {
-    kind: "app",
-    views: [],
-    behaviors: [{ behavior_id: "pin", handle: () => undefined }],
-  });
 });
 
 test("FunctionsError still surfaces from the Module", () => {

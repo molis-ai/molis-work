@@ -12,7 +12,10 @@ interface PanelSpawnSpec {
 interface WorkPanelHost {
   panels: DesktopPanelApi;
   preferredWorkspacePath(projectId: string): string | null;
+  /** Reads each panel's Session id. */
   sessionIds(panelIds: readonly string[]): Promise<Map<string, string>>;
+  /** A panel write records its Session at once; returns each panel's Session id. */
+  recordSessions(panels: readonly DesktopPanelRecord[]): Promise<Map<string, string>>;
   spawn(panel: DesktopPanelRecord, sessionId: string | null): PanelSpawnSpec;
 }
 
@@ -33,7 +36,7 @@ export interface WorkPanelHttpContext {
   launchSpec(input: { runtime_kind: string; command?: string; args?: string[]; resume_session_id?: string | null }): {
     runtime_kind: string; command: string; args: string[]; title: string;
   };
-  advancePrompt(input: { goal_id: string; title: string; source_context?: string; project_guidance_prefix?: string; onboarding?: boolean; event_work?: boolean; current_facts?: string }): string;
+  advancePrompt(input: { goal_id: string; title: string; source_context?: string; project_guidance_prefix?: string; onboarding?: boolean; current_facts?: string }): string;
   kill(panelId: string): void;
   classifyError(error: unknown): number | null;
 }
@@ -79,7 +82,6 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
             source_context: sourceContext,
             project_guidance_prefix: await context.projectGuidance(),
             onboarding: url.searchParams.get("onboarding") === "1",
-            event_work: contract.event_work === true,
             current_facts: contract.event_facts,
           }),
         });
@@ -140,11 +142,8 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
           actor_id: "desktop-user",
           user_confirmed: true,
         });
-        const sessionIds = await host.sessionIds([panel.panel_id]);
-        respond(200, {
-          panel,
-          spawn: host.spawn(panel, sessionIds.get(panel.panel_id) ?? null),
-        });
+        const sessionIds = await host.recordSessions([panel]);
+        respond(200, { panel, spawn: host.spawn(panel, sessionIds.get(panel.panel_id) ?? null) });
         return true;
       }
       if (method === "DELETE" && panelMatch) {
@@ -155,6 +154,7 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
           return true;
         }
         host.panels.close(panelId, "desktop-user");
+        await host.recordSessions([{ ...panel, status: "exited" }]);
         context.kill(panelId);
         respond(200, { closed: true, panel_id: panelId });
         return true;
@@ -166,7 +166,9 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
           respond(404, { error: "找不到这个终端面板" });
           return true;
         }
-        respond(200, { panel: host.panels.markExited(panelId) });
+        const exited = host.panels.markExited(panelId);
+        await host.recordSessions([exited]);
+        respond(200, { panel: exited });
         return true;
       }
       if (method === "POST" && reopenMatch) {
@@ -184,11 +186,8 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
           return true;
         }
         const opened = host.panels.markOpen(panelId);
-        const sessionIds = await host.sessionIds([opened.panel_id]);
-        respond(200, {
-          panel: opened,
-          spawn: host.spawn(opened, sessionIds.get(opened.panel_id) ?? null),
-        });
+        const sessionIds = await host.recordSessions([opened]);
+        respond(200, { panel: opened, spawn: host.spawn(opened, sessionIds.get(opened.panel_id) ?? null) });
         return true;
       }
       return false;

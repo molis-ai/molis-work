@@ -4,17 +4,15 @@ import { expect, it } from "vitest";
 import { marketLensCompatibilityKey } from "../../src/studio/domain/research/lens.js";
 import { SqliteExplorationRepository } from "../../src/studio/server/db/exploration-repository.js";
 import { SqliteIdeaRepository } from "../../src/studio/server/db/idea-repository.js";
-import { migrate } from "../../src/studio/server/db/migrate.js";
+import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
 import { openDatabase } from "../../src/studio/server/db/open-database.js";
 import { SqliteResearchRepository } from "../../src/studio/server/db/research-repository.js";
 import { createJobHandlers } from "../../src/studio/server/jobs/job-handlers.js";
 import { LocalWorker } from "../../src/studio/server/jobs/local-worker.js";
 import { SqliteJobRunner } from "../../src/studio/server/jobs/sqlite-job-runner.js";
 import { FixtureAiRuntimeAdapter } from "../../src/studio/server/runtime/fixture-ai-runtime.js";
-import {
-  FixtureResearchRuntimeAdapter,
-  type LensExecutionCheckpoint,
-} from "../../src/studio/server/runtime/fixture-research-runtime.js";
+import type { LensExecutionCheckpoint } from "../../src/studio/server/runtime/research-runtime-port.js";
+import { FixtureResearchRuntimeAdapter } from "../fixtures/fixture-research-runtime.js";
 import { createStartLensRunService } from "../../src/studio/server/services/start-lens-run.js";
 import { seedResearchIdea } from "../db/helpers/seed-research-idea.js";
 import { createTempDatabase } from "../db/helpers/temp-database.js";
@@ -23,7 +21,7 @@ it("resumes a Lens from its last safe evidence checkpoint after process restart"
   const temporary = createTempDatabase();
   let database = openDatabase(temporary.path);
   try {
-    migrate(database);
+    applyStudioBaseline(database, ":memory:");
     seedResearchIdea(database);
     const clock = new MutableClock("2026-07-31T10:00:00.000Z");
     let sequence = 0;
@@ -68,7 +66,7 @@ it("resumes a Lens from its last safe evidence checkpoint after process restart"
     database.close();
     clock.set("2026-07-31T10:00:02.000Z");
     database = openDatabase(temporary.path);
-    migrate(database);
+    applyStudioBaseline(database, ":memory:");
     research = new SqliteResearchRepository(database);
     const after = new SqliteJobRunner(database, {
       workerId: "worker-after",

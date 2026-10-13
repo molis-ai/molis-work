@@ -36,7 +36,7 @@ export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN = { type: "object", prop
  * person's own Home (a calendar, personal notes), so personal work can read them back too.
  */
 export function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope: "project" | "home" = "project"): ActionDefinition<{ subject_id: string }, ActionSubjectContext> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { title, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
+  return { capability_id: capabilityId, version: 1, operation: "query", action: { title: `读取${/^[A-Za-z]/.test(title) ? " " : ""}${title}${/[A-Za-z]$/.test(title) ? " " : ""}的正文与关联`, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
     kind: "query", scope, scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: [kind],
     input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE, input_schema: SUBJECT_CONTEXT_INPUT_SCHEMA, output_schema: SUBJECT_CONTEXT_OUTPUT_SCHEMA } };
 }
@@ -45,7 +45,14 @@ export function subjectContext(input: Omit<ActionSubjectContext, "truncated"> & 
     goal_ids: [...new Set(input.goal_ids)] };
 }
 
-/** The object a completed command created or changed, and its new revision, when the action says or shows it. */
+/**
+ * The object a completed command created or changed, and its new revision, when the action says or shows it.
+ * Only an action that is neither a query nor a navigation and names exactly one subject kind has one. Declared, `result_subject` names where the id (and revision) are in
+ * the output. Undeclared, the rule is: the output itself when it has a string `id`, else its only top-level field that is an object
+ * with a string `id`; the revision is that object's `version`, else its `revision`. When the output shows no such object, the input
+ * decides: an input that has a string `id` names the object, with no revision. Nothing checks that this reads the right object, so
+ * an action that writes should declare `result_subject` (docs/platform/PLUGIN-DEVELOPMENT.md).
+ */
 export function actionResultSubject(action: Pick<ActionDefinition["action"], "kind" | "subject_kinds" | "result_subject">, input: unknown, output: unknown):
   { subject: ActionSubject; revision: string | null } | null {
   if (action.kind === "query" || action.kind === "navigation" || action.subject_kinds.length !== 1) return null;

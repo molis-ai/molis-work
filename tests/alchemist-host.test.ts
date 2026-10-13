@@ -21,6 +21,7 @@ import { createAlchemistSearchPort } from "../apps/local-host/src/alchemist-sear
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
 import { createAnySearchTransport } from "../apps/local-host/src/anysearch-transport.js";
+import { ADDRESSES_NEVER_PUBLIC, ADDRESSES_PUBLIC } from "./fixtures/public-address-policy.js";
 import { authorizeLocalWebRequest, type LocalMutationState } from "../apps/local-host/src/web-http.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ensureSystemAgentService } from "../apps/local-host/src/system-agent-service.js";
@@ -47,8 +48,8 @@ test("studio HTTP keeps project isolation, authorized writes, persisted cards, e
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
     const project = /^\/projects\/([^/]+)/.exec(url.pathname)?.[1] ?? "a";
     url.pathname = url.pathname.replace(/^\/projects\/[^/]+/, "");
-    const ref = molisWorkHostProjectReference({ databasePath: join(home, `${project}.sqlite`), boardId: project, projectId: project });
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ board_id: project, title: "HTTP Alchemist", actor_id: "http-user", idempotency_key: "alchemist-http-init" }));
+    const ref = molisWorkHostProjectReference({ databasePath: join(home, `${project}.sqlite`), projectId: project });
+    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: project, title: "HTTP Alchemist", actor_id: "http-user", idempotency_key: "alchemist-http-init" }));
     await handleAlchemistNativePluginHttp(request, response, url, { projectId: project, routePrefix: `/projects/${project}`,
       actions: { invoke: async (definition, input, signal) => await host.actionClient(ref).invoke({ actor_id: "http-user", project_id: project, audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS, signal }, definition, input) as never } });
   });
@@ -69,6 +70,10 @@ test("studio HTTP keeps project isolation, authorized writes, persisted cards, e
     assert.equal(page.status, 404);
     assert.equal((await fetch(`${origin}/projects/a/api/alchemist/studio/assets/app.js`)).status, 404);
     const mismatch = await fetch(`${origin}/projects/a/api/alchemist/studio?project_id=b`); assert.equal(mismatch.status, 400);
+    // A body that is not JSON is a coded error of the platform (W3-02-A); on origin/main this edge answered 400 with its own `alchemist.request_failed`.
+    const notJson = await fetch(`${origin}/projects/a/api/alchemist/studio/api/v1/directions`, { method: "POST", body: "{not json",
+      headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID() } });
+    assert.deepEqual([notJson.status, (await notJson.json() as { code: string }).code], [400, "actions.input_invalid"]);
     const created = await request("a", "/directions", { description: "让创始人用访谈原句复核自己的产品假设" });
     assert.equal(created.status, 201, JSON.stringify(created.body)); const directionId = created.body.direction.id;
     const started = await request("a", `/directions/${directionId}/explorations`, {});
@@ -104,8 +109,7 @@ async function configuredAi(t: test.TestContext, endpoint = "http://127.0.0.1:1"
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "model-api", displayName: "Alchemist test", token: "explicit-test-secret" }));
   withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", endpoint));
-  catalog.models.upsert({ provider_id: "fixture", display_name: "显式测试 Provider", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "model", enabled: true }] });
-  catalog.models.selectConnection("fixture", connection.credential_ref!);
+  catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "显式测试 Provider", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "model", enabled: true }] });
   const host = new MolisWorkLocalHost({ homeDirectory: home }); ensureSystemAgentService(host, home);
   t.after(async () => {
     await host.close(); catalog.close(); resetSecretStoreCache();
@@ -189,7 +193,6 @@ test("Alchemist search initializes its own persistent SEL storage and returns ac
     createIfAbsent(ref, value) { if (secrets.has(ref)) return false; secrets.set(ref, value); return true; },
     deleteIfPresent: ref => secrets.delete(ref),
     backend: () => ({ kind: "aes-gcm-file", label: "explicit test memory", masterKeyExternal: false, formatVersion: 2 }),
-    migrateIfNeeded: () => ({ migrated: 0, remainingLegacy: 0, backend: "aes-gcm-file" }),
   };
   const calls: string[] = [];
   let addresses = [{ address: "1.1.1.1", family: 4 }], peer = "1.1.1.1";
@@ -327,6 +330,28 @@ test("Alchemist search abort before TLS completion sends no body and shutdown wa
   } finally {
     releaseClose.resolve(); await transport.shutdown!(); t.mock.restoreAll(); syncBuiltinESMExports();
   }
+});
+
+// Security invariant S-10 (docs/system/SECURITY-INVARIANTS.md): the same table every address policy is held to.
+test("the AnySearch transport opens no connection to an address of the shared table that is not public, alone or among public answers", { timeout: 30_000 }, async t => {
+  let requests = 0, answers: Array<{ address: string; family: number }> = [];
+  t.mock.method(dns, "lookup", async () => answers);
+  t.mock.method(https, "request", () => { requests++; throw new Error("no connection may be opened"); });
+  syncBuiltinESMExports();
+  const transport = createAnySearchTransport();
+  const call = { appId: "molis-work", binding: { providerId: "anysearch", providerVersion: "mcp-v1_1", bindingRevision: 1,
+    transportProfileId: "anysearch-mcp-v1", transportProfileFingerprint: "sha256:explicit-test-binding" },
+    request: { providerId: "anysearch", operation: "search" as const, body: { query: "public evidence" } }, signal: new AbortController().signal };
+  const family = (address: string) => address.includes(":") ? 6 : 4;
+  try {
+    for (const address of ADDRESSES_NEVER_PUBLIC) {
+      answers = [{ address, family: family(address) }];
+      await assert.rejects(transport.execute(call), /provider_unavailable/, address);
+      answers = [{ address: ADDRESSES_PUBLIC[0]!, family: 4 }, { address, family: family(address) }];
+      await assert.rejects(transport.execute(call), /provider_unavailable/, `${address} among a public answer`);
+    }
+    assert.equal(requests, 0);
+  } finally { await transport.shutdown!(); t.mock.restoreAll(); syncBuiltinESMExports(); }
 });
 
 function cancellableInput(signal: AbortSignal) {

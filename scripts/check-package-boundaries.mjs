@@ -7,12 +7,12 @@ import {
   evaluateImportBoundary,
   extractImportSpecifiers,
   findDependencyCycles,
+  unusedLayerExceptions,
 } from "@molis-ai/molis-work-test-kit";
 
 import { checkWorkspacePackages, WORKSPACE_PACKAGES } from "./workspace-packages.mjs";
 
 const SOURCE_EXTENSIONS = new Set([".cjs", ".js", ".jsx", ".mjs", ".ts", ".tsx"]);
-const LEGACY_HUGE_FILE_LINE_LIMIT = 1_000;
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -71,10 +71,11 @@ function formatViolation(violation) {
 
 function checkSourceImports(repositoryRoot, packages) {
   const errors = [];
+  const edges = new Set();
   let sourceFileCount = 0;
   let importCount = 0;
 
-  const productDirectories = ["apps/desktop/launchers", "apps/local-host/sdk"];
+  const productDirectories = ["apps/desktop/launchers"];
   const productManifest = readJson(path.join(repositoryRoot, "package.json"));
   const product = {
     name: productManifest.name, path: ".", root: repositoryRoot, kind: "app",
@@ -102,6 +103,7 @@ function checkSourceImports(repositoryRoot, packages) {
           if (relativeOwner && relativeOwner.name !== importer.name) target = relativeOwner;
           relativeCrossOwner = !isWithin(resolvedTarget, importer.root);
         }
+        if (target && target.path !== importer.path) edges.add(`${importer.path} -> ${target.path}`);
 
         for (const violation of evaluateImportBoundary({
           importer,
@@ -116,11 +118,12 @@ function checkSourceImports(repositoryRoot, packages) {
     }
   }
 
-  return { errors, importCount, sourceFileCount };
+  return { errors, edges, importCount, sourceFileCount };
 }
 
 function checkDependencyGraph(packages) {
   const errors = [];
+  const edges = new Set();
   const packageNames = new Set(packages.map((item) => item.name));
   const graph = new Map();
 
@@ -129,6 +132,7 @@ function checkDependencyGraph(packages) {
     graph.set(importer.name, workspaceDependencies);
     for (const dependency of importer.declaredDependencies) {
       const target = packages.find((item) => item.name === dependency);
+      if (target) edges.add(`${importer.path} -> ${target.path}`);
       for (const violation of evaluateImportBoundary({
         importer,
         target,
@@ -146,53 +150,21 @@ function checkDependencyGraph(packages) {
   for (const cycle of findDependencyCycles(graph)) {
     errors.push(`[workspace-dependency-cycle] ${cycle.join(" -> ")}`);
   }
-  return { errors, edgeCount: [...graph.values()].reduce((total, edges) => total + edges.length, 0) };
+  return { errors, edges, edgeCount: [...graph.values()].reduce((total, targets) => total + targets.length, 0) };
 }
 
-function checkCompatibilityAllowlist(repositoryRoot) {
-  const errors = [];
-  const allowlistPath = path.join(repositoryRoot, "tooling/boundaries/compatibility-allowlist.json");
-  if (!fs.existsSync(allowlistPath)) {
-    return { errors: ["missing tooling/boundaries/compatibility-allowlist.json"], entryCount: 0, hugeFileCount: 0 };
-  }
+/**
+ * APP_IMPORT_ALLOWLIST and PLUGIN_MODULE_IMPORT_ALLOWLIST (packages/test-kit/src/boundaries.ts) only ever shrink: an entry that
+ * no import and no manifest dependency uses any more has to leave the list, or the edge could come back without a decision.
+ */
+function checkLayerExceptionsInUse(...observed) {
+  return unusedLayerExceptions(observed.flatMap((edges) => [...edges])).map((edge) =>
+    `[layer-exception-unused] "${edge}" is allowed in packages/test-kit/src/boundaries.ts but no import or declared dependency has that edge; remove it from the list and from the pinned list in packages/test-kit/tests/boundaries.test.mjs`);
+}
 
-  const allowlist = readJson(allowlistPath);
-  const entries = Array.isArray(allowlist.entries) ? allowlist.entries : [];
-  const listedPaths = new Set();
-  for (const entry of entries) {
-    if (typeof entry.path !== "string" || entry.path.includes("*") || path.isAbsolute(entry.path)) {
-      errors.push("compatibility allowlist entries require one explicit repository-relative path");
-      continue;
-    }
-    if (listedPaths.has(entry.path)) errors.push(`compatibility allowlist duplicates ${entry.path}`);
-    listedPaths.add(entry.path);
-    if (!fs.existsSync(path.join(repositoryRoot, entry.path))) errors.push(`compatibility allowlist path does not exist: ${entry.path}`);
-    if (typeof entry.removalOwner !== "string" || entry.removalOwner.length === 0) {
-      errors.push(`${entry.path}: missing removalOwner`);
-    }
-    if (!Array.isArray(entry.migrationGoals) || entry.migrationGoals.length === 0) {
-      errors.push(`${entry.path}: missing migrationGoals`);
-    }
-    if (typeof entry.removalCondition !== "string" || entry.removalCondition.length === 0) {
-      errors.push(`${entry.path}: missing removalCondition`);
-    }
-  }
-
-  const legacySources = filesUnder(path.join(repositoryRoot, "src"), (filePath) =>
-    SOURCE_EXTENSIONS.has(path.extname(filePath)),
-  );
-  let hugeFileCount = 0;
-  for (const filePath of legacySources) {
-    const lineCount = fs.readFileSync(filePath, "utf8").split(/\r?\n/u).length;
-    if (lineCount <= LEGACY_HUGE_FILE_LINE_LIMIT) continue;
-    hugeFileCount += 1;
-    const relativePath = path.relative(repositoryRoot, filePath);
-    if (!listedPaths.has(relativePath)) {
-      errors.push(`${relativePath}: ${lineCount} lines requires an explicit compatibility allowlist entry`);
-    }
-  }
-
-  return { errors, entryCount: entries.length, hugeFileCount };
+/** The old root `src/` left the product (PACKAGE-BOUNDARIES.md); nothing may bring it back. */
+function checkNoRootSource(repositoryRoot) {
+  return fs.existsSync(path.join(repositoryRoot, "src")) ? ["root src/ is retired; put code in a workspace package"] : [];
 }
 
 function checkMigratedFeedOwnership(repositoryRoot) {
@@ -217,8 +189,6 @@ function checkMigratedFeedOwnership(repositoryRoot) {
     "plugins/native/feed/src/application.ts",
     "plugins/native/feed/src/source-service.ts",
     "plugins/native/feed/src/source-sync.ts",
-    "plugins/native/feed/src/connector-service.ts",
-    "plugins/native/feed/src/connector-source-registration.ts",
     "plugins/native/feed/src/connector-sync.ts",
     "plugins/native/feed/src/source-scheduler.ts",
     "apps/local-host/src/web-request.ts",
@@ -375,7 +345,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const coordinatorPath = "apps/local-host/src/goal-project-application.ts";
   const coordinator = read(coordinatorPath);
-  errors.push(...checkDraftProposalOwnerSql(read("modules/goals/src/goal-commands.ts")));
   if (!coordinator.includes('from "@molis-ai/molis-work-module-goals"')) {
     errors.push(`${coordinatorPath}: Goal application composition must use the Goals Module public entrypoint`);
   }
@@ -421,8 +390,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "modules/goals/src/guidance-commands.ts",
     "modules/goals/src/lifecycle-archive.ts",
     "modules/goals/src/lifecycle-commands.ts",
-    "modules/goals/src/lifecycle-ports.ts",
-    "modules/goals/src/migrations.ts",
     "modules/goals/src/planning/engine.ts",
     "modules/goals/src/planning/goal-graph.ts",
     "modules/goals/src/planning/method-catalog.ts",
@@ -431,8 +398,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "modules/goals/src/repository.ts",
     "packages/contracts/src/modules/goals.ts",
     "plugins/native/goals/src/goal-query-application.ts",
-    "tooling/migrations/audit-goal-lifecycle.mjs",
-    "tooling/migrations/README.md",
   ];
   for (const relativePath of [
     "modules/goals/src/risk-commands.ts",
@@ -507,7 +472,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   if (coordinator.includes("  decideContractProposal(")) {
     errors.push(`${coordinatorPath}: retired decideContractProposal facade must stay deleted`);
   }
-  for (const match of coordinator.matchAll(/UPDATE goals SET[\s\S]{0,500}?(?:archived_at|trashed_at|validity_state|fulfillment_state|current_contract_revision)/giu)) {
+  for (const match of coordinator.matchAll(/UPDATE goals SET[\s\S]{0,500}?(?:archived_at|trashed_at|validity_state|fulfillment_state)/giu)) {
     errors.push(`${coordinatorPath}: Goal lifecycle state writes must use GoalsModule.lifecycle (${match[0].split(/\r?\n/u)[0]})`);
   }
   const reconciliationPath = "plugins/native/goals/src/lifecycle-application.ts";
@@ -522,37 +487,8 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     errors.push(`${coordinatorPath}: retired lifecycle reconciliation construction must stay deleted`);
   }
 
-  const storePath = "apps/local-host/sdk/sdk-store.ts";
-  const store = read(storePath);
-  for (const method of [
-    "migrateGoalArchive",
-    "migrateGoalTrash",
-    "migrateLifecycleState",
-    "migrateActiveGoalLifecycle",
-    "migrateContractCoverageAndRiskResolution",
-  ]) {
-    if (store.includes(`private ${method}(`)) {
-      errors.push(`${storePath}: legacy ${method} implementation must not coexist with Goals migrations`);
-    }
-  }
-  for (const migration of [
-    "migrateGoalArchiveSchema",
-    "migrateGoalTrashSchema",
-    "migrateGoalLifecycleState",
-    "migrateActiveGoalLifecycle",
-    "migrateGoalContractCoverageSchema",
-    "migratePlanningMethodPacksSchema",
-  ]) {
-    if (!read("apps/local-host/src/project-migrations.ts").includes(migration) || !read("apps/local-host/src/project-database.ts").includes("migrateLocalProjectDatabase")) {
-      errors.push(`${storePath}: startup migration must call public ${migration}`);
-    }
-  }
-
-  if (store.includes("private migratePlanningMethodPacks(")) {
-    errors.push(`${storePath}: legacy Planning migration must not coexist with Goals migrations`);
-  }
-  if (/\b(?:SELECT|INSERT INTO|UPDATE|DELETE FROM)\s+planning_method_packs\b/iu.test(store)) {
-    errors.push(`${storePath}: Planning method persistence must use GoalsRepository`);
+  if (!read("apps/local-host/src/project-database-schema.ts").includes("GOALS_SCHEMA_SQL") || !read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE")) {
+    errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must compose the public Goals schema");
   }
 
   for (const relativePath of [
@@ -592,20 +528,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     errors.push(`${coordinatorPath}: retired availability query path must stay deleted`);
   }
 
-  const storeQuerySlices = [
-    ["getGoal", "listGoals", "new GoalsRepository"],
-    ["listGoals", "listTrashedGoals", "this.goalsQuery.listGoals"],
-    ["listTrashedGoals", "listPlanningMethodPacks", "this.goalsQuery.listTrashedGoals"],
-    ["activePolicyRows", "activePolicyRowsForBoard", "listActivePolicyBindings"],
-  ];
-  for (const [method, nextMethod, expectedCall] of storeQuerySlices) {
-    const start = store.indexOf(`  ${method}(`);
-    const end = store.indexOf(`  ${nextMethod}(`, start + method.length + 3);
-    if (start < 0 || end < 0 || !store.slice(start, end).includes(expectedCall)) {
-      errors.push(`${storePath}: ${method} must delegate Goal reads through the Goals public owner`);
-    }
-  }
-
   const queryTest = read("tests/goals-query-module.test.ts");
   if (
     !queryTest.includes('from "@molis-ai/molis-work-module-goals"')
@@ -630,10 +552,11 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   ) {
     errors.push(`${goalReadApplicationPath}: compatibility composition must not own Goal persistence or bypass Goals Query`);
   }
-  for (const relativePath of ["apps/local-host/sdk/sdk-store.ts", "plugins/native/goals/src/board-v3-import.ts"]) {
-    errors.push(...checkGoalStorageOwnership(read(relativePath)).map(error => `${relativePath}: ${error}`));
-  }
   errors.push(...checkGoalReadOwnerSql(read("apps/local-host/src/feed-application.ts")).map(error => `apps/local-host/src/feed-application.ts: ${error}`));
+  errors.push(...checkGoalsTypedHostCallers(["apps", "horizontal", "modules", "packages", "plugins"]
+    .flatMap(directory => filesUnder(path.join(repositoryRoot, directory), file => /\.(?:ts|tsx|mts)$/u.test(file) && !/[\\/](?:tests?|__tests__)[\\/]/u.test(file)))
+    .map(file => ({ path: path.relative(repositoryRoot, file).split(path.sep).join("/"), source: fs.readFileSync(file, "utf8") }))
+    .filter(({ source }) => /createGoalIntentCapability|readProjectGuidanceCapability/u.test(source))));
   errors.push(...checkGoalQueryCapabilityAdapters(read("apps/local-host/src/project-capabilities.ts"))
     .map(error => `apps/local-host/src/project-capabilities.ts: ${error}`));
   for (const relativePath of ["apps/local-host/src/web-request.ts", "apps/mcp/src/tool-dispatch.ts", "apps/cli/src/command-dispatch.ts"]) {
@@ -648,12 +571,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       if (!source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal read caller is missing goalQueries public usage`);
     } else {
       if (source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal reads must not bypass the Host Client`);
-      if (source.includes("client.invoke(readGoalContractCapability,")) {
-        errors.push(`${relativePath}: Goal Contract reads must use the shared Action client`);
-      }
-      if (relativePath === "apps/cli/src/command-dispatch.ts" && !source.includes("client.invoke(snapshotBoardCapability,")) {
-        errors.push(`${relativePath}: remaining CLI Goal reads must invoke the current public snapshot capability`);
-      }
     }
   }
   errors.push(...checkGoalReadOwnerSql(coordinator).map(error => `${coordinatorPath}: ${error}`));
@@ -669,13 +586,11 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${relativePath}: App composition must not own Goal business implementations`);
     }
   }
+  errors.push(...checkGoalTransportCallers({
+    cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
+    mcp: read("apps/mcp/src/tool-dispatch.ts"),
+  }));
   for (const app of ["mcp", "cli"]) {
-    const relativePath = `apps/${app}/src/${app === "mcp" ? "tool" : "command"}-dispatch.ts`;
-    const caller = read(relativePath);
-    if (!caller.includes("LocalHostProjectClient") || !caller.includes("client.withScope(")
-      || caller.includes(".withProject(") || caller.includes("coordinator.goals")) {
-      errors.push(`${relativePath}: Goal transport must use the scoped Host Client`);
-    }
     if (fs.existsSync(path.join(repositoryRoot, `apps/${app}/src/goal-commands.ts`))) {
       errors.push(`apps/${app}/src/goal-commands.ts: retired duplicate Goal command handler must stay removed`);
     }
@@ -709,7 +624,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "apps/mcp/src/tool-dispatch.ts",
     "apps/cli/src/command-dispatch.ts",
     "apps/local-host/src/demo-seed.ts",
-    "plugins/native/goals/src/board-v3-import.ts",
     "apps/local-host/src/feed-native-plugin-http.ts",
     "plugins/native/feed/src/goal-promotion.ts",
   ]) {
@@ -726,8 +640,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${path.relative(repositoryRoot, relativePath)}: ${lineCount} lines exceeds the migrated owner limit; split by responsibility`);
     }
     if (
-      path.basename(relativePath) !== "migrations.ts"
-      && /\b(?:FROM|INTO|UPDATE|DELETE FROM)\s+(claims|runs|review_obligations)\b/iu.test(source)
+      /\b(?:FROM|INTO|UPDATE|DELETE FROM)\s+(claims|runs|review_obligations)\b/iu.test(source)
     ) {
       errors.push(`${path.relative(repositoryRoot, relativePath)}: lifecycle code must use explicit cross-owner ports`);
     }
@@ -742,7 +655,6 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
     "packages/contracts/src/modules/governance-collaboration.ts",
     "modules/governance-collaboration/src/index.ts",
     "modules/governance-collaboration/src/schema.ts",
-    "modules/governance-collaboration/src/migrations.ts",
     "modules/governance-collaboration/src/repository.ts",
     "modules/governance-collaboration/src/record-store.ts",
     "modules/governance-collaboration/src/goal-tree-records.ts",
@@ -805,28 +717,10 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
     `\\b(?:CREATE TABLE IF NOT EXISTS|FROM|INTO|UPDATE|DELETE FROM)\\s+(?:${governanceTables})\\b`,
     "giu",
   );
-  for (const relativePath of [coordinatorPath, "apps/local-host/sdk/sdk-store.ts"]) {
+  for (const relativePath of [coordinatorPath]) {
     const source = read(relativePath);
     for (const match of source.matchAll(directGovernanceSql)) {
       errors.push(`${relativePath}: direct Governance SQL must use the owning Module public entrypoint (${match[0]})`);
-    }
-  }
-
-  const legacyTypes = read("apps/local-host/sdk/sdk-types.ts");
-  for (const typeName of [
-    "ReviewObligationRecord",
-    "ReviewRecord",
-    "ContractProposalRecord",
-    "CandidateGoalRecord",
-    "RewireRecord",
-    "GoalTreeProposalRecord",
-  ]) {
-    const typeAlias = new RegExp(
-      `export type ${typeName}\\s*=\\s*[\\s\\S]{0,160}governance-collaboration`,
-      "u",
-    );
-    if (!typeAlias.test(legacyTypes)) {
-      errors.push(`apps/local-host/sdk/sdk-types.ts: ${typeName} must remain a public Governance Contract alias`);
     }
   }
 
@@ -954,9 +848,7 @@ function checkExecutionValidationOwnership(repositoryRoot) {
       errors.push(`${appPath}: retired ${factory} public adapter must stay deleted`);
     }
     if (
-      app.includes("@molis-ai/molis-work-module-execution")
-      || app.includes("@molis-ai/molis-work-module-evidence-verification")
-      || app.includes("@molis-ai/molis-work-module-governance-collaboration")
+      app.includes("@molis-ai/molis-work-module-governance-collaboration")
       || /\b(?:SELECT|INSERT INTO|UPDATE|DELETE FROM)\b/iu.test(app)
       || /\b(?:SqliteMolisWorkStore|MolisWorkCoordinator)\b/u.test(app)
     ) {
@@ -1025,8 +917,11 @@ function checkArtifactsOwnership(repositoryRoot) {
 
   const repository = read("modules/artifacts/src/repository.ts");
   for (const required of [
-    "CREATE TABLE IF NOT EXISTS artifacts",
-    "CREATE TABLE IF NOT EXISTS artifact_versions",
+    // One engine, two stores: the 成果库 and the process items plugins hand to each other (artifact-positioning A2).
+    "export const ARTIFACT_TABLES",
+    "export const PROCESS_ITEM_TABLES",
+    "CREATE TABLE IF NOT EXISTS ${t.identities}",
+    "CREATE TABLE IF NOT EXISTS ${t.versions}",
     "PRIMARY KEY (artifact_id, version)",
     "producer_binding_signature",
     "content_digest",
@@ -1036,7 +931,8 @@ function checkArtifactsOwnership(repositoryRoot) {
     }
   }
 
-  const service = read("modules/artifacts/src/service.ts");
+  // The lifecycle rules live in the service and in the registration it checks a version with (service.ts, registration.ts).
+  const service = read("modules/artifacts/src/service.ts") + read("modules/artifacts/src/registration.ts");
   for (const required of [
     "artifact.version_not_increasing",
     "artifact.version_conflict",
@@ -1046,7 +942,7 @@ function checkArtifactsOwnership(repositoryRoot) {
     '"consumer_missing"',
   ]) {
     if (!service.includes(required)) {
-      errors.push(`modules/artifacts/src/service.ts: Artifact lifecycle is missing ${required}`);
+      errors.push(`modules/artifacts/src/{service,registration}.ts: Artifact lifecycle is missing ${required}`);
     }
   }
   if (/plugins\/(?:native|official-integrations)\//u.test(service + repository)) {
@@ -1082,17 +978,16 @@ function checkArtifactsOwnership(repositoryRoot) {
     errors.push(`${pluginPath}: Native Plugin entrypoint must not own Artifact facts or construct its Repository`);
   }
 
-  const store = read("apps/local-host/sdk/sdk-store.ts");
   const coordinator = read("apps/local-host/src/goal-project-application.ts");
-  const projectMigrations = read("apps/local-host/src/project-migrations.ts");
-  if (!read("apps/local-host/src/project-database.ts").includes("migrateLocalProjectDatabase") || !projectMigrations.includes("ARTIFACTS_SCHEMA_SQL") || !projectMigrations.includes("migrateArtifactsSchema")) {
-    errors.push("apps/local-host/sdk/sdk-store.ts: root storage must compose the Artifact owner schema and migration");
+  const projectSchema = read("apps/local-host/src/project-database-schema.ts");
+  if (!read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE") || !projectSchema.includes("ARTIFACTS_SCHEMA_SQL") || !projectSchema.includes("PROCESS_ITEMS_SCHEMA_SQL")) {
+    errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must compose the Artifact owner schema");
   }
   if (!coordinator.includes("ArtifactsModule") || !coordinator.includes("readonly artifacts: ArtifactsApplicationApi")) {
     errors.push("apps/local-host/src/goal-project-application.ts: compatibility composition must expose the public Artifacts API");
   }
   const directArtifactSql = /\b(?:CREATE TABLE(?: IF NOT EXISTS)?|FROM|INTO|UPDATE|DELETE FROM)\s+(artifacts|artifact_versions)\b/giu;
-  for (const relativePath of ["apps/local-host/src/goal-project-application.ts", "apps/local-host/sdk/sdk-store.ts", "apps/local-host/sdk/sdk-types.ts"]) {
+  for (const relativePath of ["apps/local-host/src/goal-project-application.ts"]) {
     const source = read(relativePath);
     for (const match of source.matchAll(directArtifactSql)) {
       errors.push(`${relativePath}: direct ${match[1]} SQL must stay inside modules/artifacts`);
@@ -1109,7 +1004,6 @@ function checkArtifactsOwnership(repositoryRoot) {
     "artifact.team_share_not_authorized",
     "consumer_missing",
     "artifact_unavailable",
-    "migrateArtifactsSchema",
   ]) {
     if (!test.includes(required)) {
       errors.push(`${testPath}: missing AR1 coverage for ${required}`);
@@ -1139,7 +1033,7 @@ function checkPrivateWorkContextOwnership(repositoryRoot) {
     "modules/private-work-context/src/context-bindings.ts",
     "modules/private-work-context/src/session-events.ts",
     "modules/private-work-context/src/session-handoffs.ts",
-    "modules/private-work-context/src/session-migration.ts",
+    "modules/private-work-context/src/session-surfaces.ts",
     "modules/private-work-context/src/session-records.ts",
     "modules/private-work-context/src/session-registry.ts",
     "modules/private-work-context/src/session-schema.ts",
@@ -1255,7 +1149,6 @@ function checkRuntimeHostOwnership(repositoryRoot) {
   for (const forbidden of [
     "MolisWorkSessionRegistry",
     "@molis-ai/molis-work-module-private-work-context",
-    "@molis-ai/molis-work-module-execution",
     "better-sqlite3",
     "SqliteMolisWorkStore",
     "src/web/server",
@@ -1293,7 +1186,6 @@ function checkRuntimeHostOwnership(repositoryRoot) {
 export function checkGoalQueryCapabilityAdapters(source) {
   const file = ts.createSourceFile("project-capabilities.ts", source, ts.ScriptTarget.Latest, true);
   const expected = new Map([
-    ["readGoalContractCapability", "contract"],
     ["snapshotBoardCapability", "snapshot"],
   ]);
   const registrations = new Map();
@@ -1326,23 +1218,157 @@ export function checkGoalQueryCapabilityAdapters(source) {
   return errors;
 }
 
+/**
+ * The typed first-run and guidance entries of Goals have no Host caller left: the first-run Goal and the project guidance read call
+ * Goals' own actions (`bindGoalsWebActions`, `readProjectGuidance`). Only the Goals package that defines them, the Host's project
+ * capabilities that still register them and the entry that re-exports them may name them, until the bridges are removed.
+ * `files` are `{ path, source }` pairs of production code; a comment or a string is not a caller.
+ */
+export function checkGoalsTypedHostCallers(files) {
+  const typed = new Set(["createGoalIntentCapability", "readProjectGuidanceCapability"]);
+  const allowed = new Set(["apps/local-host/src/project-capabilities.ts", "apps/local-host/src/index.ts"]);
+  const errors = [];
+  for (const { path: relativePath, source } of files) {
+    if (relativePath.startsWith("plugins/native/goals/") || allowed.has(relativePath)) continue;
+    const file = ts.createSourceFile(relativePath, source, ts.ScriptTarget.Latest, true);
+    const named = new Set();
+    const visit = node => {
+      if (ts.isIdentifier(node) && typed.has(node.text)) named.add(node.text);
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
+    for (const name of named) errors.push(`${relativePath}: ${name} is a typed entry nothing in the Host calls; call Goals' action (bindGoalsWebActions, readProjectGuidance)`);
+  }
+  return errors;
+}
+
+const GOALS_PACKAGE = "@molis-ai/molis-work-plugin-goals";
+/** The modules the CLI dispatcher may reach: the action contract, Goals' `goalsActions` and its own protocol file. */
+const CLI_DISPATCHER_MODULES = new Set(["@molis-ai/molis-work-contracts/platform/actions", GOALS_PACKAGE, "./protocol.js"]);
+/** The ways the Host opens a project or reaches Goals; the dispatcher is handed the management port and holds none of them. */
+const HOST_CLIENT_NAMES = new Set(["LocalHostProjectClient", "actionClient", "client", "withProject", "withScope", "coordinator"]);
+
+/**
+ * Every module a file reaches, whatever the syntax: import and `export … from` declarations, `import x = require()`, `import()` and
+ * `require()` calls, import types. `specifier` is undefined when it is not a string literal (the gate cannot read where it goes).
+ */
+function moduleReferences(file) {
+  const found = [];
+  const add = (node, kind, literal) => found.push({ node, kind, specifier: literal && ts.isStringLiteralLike(literal) ? literal.text : undefined });
+  const visit = node => {
+    if (ts.isImportDeclaration(node)) add(node, "import", node.moduleSpecifier);
+    else if (ts.isExportDeclaration(node) && node.moduleSpecifier) add(node, "re-export", node.moduleSpecifier);
+    else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) add(node, "require()", node.moduleReference.expression);
+    else if (ts.isImportTypeNode(node)) add(node, "import type", ts.isLiteralTypeNode(node.argument) ? node.argument.literal : undefined);
+    else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) add(node, "import()", node.arguments[0]);
+    else if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "require") add(node, "require()", node.arguments[0]);
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return found;
+}
+
+/** What of the Goals package a reference holds other than `{ goalsActions }`; empty when it is just that. */
+function goalsBindingsOtherThanActions(node, kind) {
+  if (kind !== "import") return [`a ${kind} of the whole package`];
+  const clause = node.importClause;
+  if (!clause) return ["a bare import (the CLI imports { goalsActions })"];
+  const names = [];
+  if (clause.name) names.push(`default import ${clause.name.text}`);
+  const bindings = clause.namedBindings;
+  if (bindings && ts.isNamespaceImport(bindings)) names.push(`* as ${bindings.name.text}`);
+  if (bindings && ts.isNamedImports(bindings)) {
+    for (const element of bindings.elements) if ((element.propertyName ?? element.name).text !== "goalsActions") names.push((element.propertyName ?? element.name).text);
+  }
+  return names;
+}
+
+/**
+ * The transport entries reach Goals through the platform, not through a Host client of their own. `cli`: the dispatcher is handed the
+ * management port the Host builds (`CliManagementActions`), reaches only the action contract, `goalsActions` and its protocol file,
+ * holds no Host client under any spelling and reads the snapshot through Goals' own action; `cli-project.ts` builds that port with
+ * `bindGoalsManagementActions(<host>.actionClient(reference, false), reference)`, over the client that does not prepare the project's
+ * plugins and the very reference the command is bound to, and hands the dispatcher what it returned. `mcp`: the management MCP still
+ * uses the scoped Host client, until it moves to the same port. Each part is the source text of the file it names; a comment or a
+ * string is not a caller.
+ */
+export function checkGoalTransportCallers({ cli, mcp }) {
+  const errors = [];
+  const dispatcherPath = "apps/cli/src/command-dispatch.ts", projectPath = "apps/local-host/src/cli-project.ts", toolPath = "apps/mcp/src/tool-dispatch.ts";
+  const dispatcher = ts.createSourceFile(dispatcherPath, cli.dispatcher, ts.ScriptTarget.Latest, true);
+  for (const { node, kind, specifier } of moduleReferences(dispatcher)) {
+    if (specifier === undefined) {
+      errors.push(`${dispatcherPath}: a ${kind} of a module the gate cannot read (not a string literal); the CLI dispatcher reaches only the action contract, goalsActions and its protocol file`);
+    } else if (!CLI_DISPATCHER_MODULES.has(specifier)) {
+      errors.push(`${dispatcherPath}: imports ${specifier} (${kind}); the CLI dispatcher reaches only the action contract, Goals' goalsActions and its protocol file`);
+    } else if (specifier === GOALS_PACKAGE) {
+      for (const held of goalsBindingsOtherThanActions(node, kind)) errors.push(`${dispatcherPath}: ${held} is not a Goals action; the CLI calls goalsActions through the management port`);
+    }
+  }
+  const names = new Set(), held = new Set();
+  let snapshot = false;
+  const visit = node => {
+    if (ts.isIdentifier(node)) {
+      names.add(node.text);
+      if (HOST_CLIENT_NAMES.has(node.text)) held.add(node.text);
+    }
+    if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_CLIENT_NAMES.has(node.argumentExpression.text)) held.add(node.argumentExpression.text);
+    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "goalsActions" && node.name.text === "snapshot") snapshot = true;
+    ts.forEachChild(node, visit);
+  };
+  visit(dispatcher);
+  if (!names.has("CliManagementActions")) errors.push(`${dispatcherPath}: the CLI dispatcher must take the management port the Host builds (CliManagementActions)`);
+  for (const name of held) {
+    errors.push(`${dispatcherPath}: ${name} is how the Host opens a project or reaches Goals; the CLI calls Goals' actions through the management port and holds no Host client (LocalHostProjectClient, client, withProject, withScope, actionClient, coordinator.goals)`);
+  }
+  if (!snapshot) errors.push(`${dispatcherPath}: the CLI snapshot must be read through goalsActions.snapshot`);
+
+  const project = ts.createSourceFile(projectPath, cli.project, ts.ScriptTarget.Latest, true);
+  const factory = "bindGoalsManagementActions";
+  const imported = moduleReferences(project).some(({ node, kind, specifier }) => kind === "import" && specifier === "./goals-actions.js"
+    && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)
+    && node.importClause.namedBindings.elements.some(element => element.name.text === factory && !element.propertyName));
+  const calls = [], dispatches = [], reached = new Set();
+  const find = node => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      if (node.expression.text === factory) calls.push(node);
+      if (node.expression.text === "dispatchCliProjectCommand") dispatches.push(node);
+    }
+    if (ts.isPropertyAccessExpression(node) && ["client", "withProject", "withScope", "goalQueries"].includes(node.name.text)) reached.add(node.name.text);
+    ts.forEachChild(node, find);
+  };
+  find(project);
+  const textOf = node => node?.getText(project);
+  const opened = call => call && ts.isCallExpression(call) && ts.isPropertyAccessExpression(call.expression) && call.expression.name.text === "actionClient"
+    && call.arguments.length === 2 && textOf(call.arguments[0]) === "reference" && call.arguments[1].kind === ts.SyntaxKind.FalseKeyword;
+  const call = calls.length === 1 ? calls[0] : undefined;
+  if (!imported || !call || call.arguments.length !== 2 || !opened(call.arguments[0]) || textOf(call.arguments[1]) !== "reference") {
+    errors.push(`${projectPath}: the CLI's management port must be bindGoalsManagementActions(<host>.actionClient(reference, false), reference), imported from ./goals-actions.js: the Host builds it, over the client that does not prepare the project's plugins and the reference the command is bound to`);
+  } else {
+    const declaration = ts.isVariableDeclaration(call.parent) && ts.isIdentifier(call.parent.name) ? call.parent.name.text : undefined;
+    if (!declaration || dispatches.length !== 1 || textOf(dispatches[0].arguments[0]) !== declaration) {
+      errors.push(`${projectPath}: the dispatcher must be handed the management port bindGoalsManagementActions returned, not another object`);
+    }
+  }
+  for (const name of reached) errors.push(`${projectPath}: .${name} is a Host client of the project; a CLI command's Goals calls all go through the management port`);
+  if (!mcp.includes("LocalHostProjectClient") || !mcp.includes("client.withScope(")
+    || mcp.includes(".withProject(") || mcp.includes("coordinator.goals")) {
+    errors.push(`${toolPath}: Goal transport must use the scoped Host Client`);
+  }
+  return errors;
+}
+
 export function checkGoalReadOwnerSql(source) {
-  return /\b(?:FROM|JOIN|UPDATE|INTO)\s+["`\[]?(?:goals|goal_relations|goal_risks|risks|policy_bindings|goal_contract_revisions|project_guidance_entries|project_guidance_revisions|planning_method_packs|coverage_items|coverage_contract_revisions|acceptance_criteria|goal_trash_records|goal_trash_relation_records)\b/iu.test(source)
+  return /\b(?:FROM|JOIN|UPDATE|INTO)\s+["`\[]?(?:goals|goal_relations|policy_bindings|project_guidance_entries|project_guidance_revisions|planning_method_packs|acceptance_criteria|goal_trash_records|goal_trash_relation_records)\b/iu.test(source)
     ? ["Goal-owned fact SQL must remain behind the public Goals Query/Command API"] : [];
 }
 
 export function checkGoalStorageOwnership(source) {
-  const tables = "(?:goals|goal_relations|goal_risks|risks|policy_bindings|goal_contract_revisions|project_guidance_entries|project_guidance_revisions|planning_method_packs|coverage_items|coverage_contract_revisions|acceptance_criteria|goal_trash_records|goal_trash_relation_records|input_bindings|impact_bindings)";
+  const tables = "(?:goals|goal_relations|policy_bindings|project_guidance_entries|project_guidance_revisions|planning_method_packs|acceptance_criteria|goal_trash_records|goal_trash_relation_records|input_bindings)";
   const ddl = new RegExp(`\\b(?:CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?|ALTER\\s+TABLE\\s+|DROP\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?)["\x60\\[]?${tables}\\b`, "iu");
   const index = new RegExp(`\\bCREATE\\s+(?:UNIQUE\\s+)?INDEX\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?\\S+\\s+ON\\s+["\x60\\[]?${tables}\\b`, "iu");
   return [...checkGoalReadOwnerSql(source), ...(ddl.test(source) || index.test(source)
     ? ["Goal schema and migration SQL must remain in the Goals owner; Host only composes public migrations"] : [])];
-}
-
-export function checkDraftProposalOwnerSql(goalCommands) {
-  return /\b(?:FROM|INTO|UPDATE)\s+contract_proposals\b/iu.test(goalCommands)
-    ? ["modules/goals/src/goal-commands.ts: Draft proposal supersession must call Governance records, not its table"]
-    : [];
 }
 
 export function checkDraftDialogueOwnership(coordinator, host) {
@@ -1413,7 +1439,7 @@ export function checkPackageBoundaries(repositoryRoot) {
   const packages = packageInfos(repositoryRoot);
   const sourceImports = checkSourceImports(repositoryRoot, packages);
   const dependencyGraph = checkDependencyGraph(packages);
-  const compatibility = checkCompatibilityAllowlist(repositoryRoot);
+  const rootSource = checkNoRootSource(repositoryRoot);
   const migratedFeedOwnership = checkMigratedFeedOwnership(repositoryRoot);
   const migratedIntegrationOwnership = checkMigratedIntegrationOwnership(repositoryRoot);
   const migratedFeedUiOwnership = checkMigratedFeedUiOwnership(repositoryRoot);
@@ -1469,7 +1495,8 @@ export function checkPackageBoundaries(repositoryRoot) {
     ...inventory.errors.map((message) => `[workspace-inventory] ${message}`),
     ...sourceImports.errors,
     ...dependencyGraph.errors,
-    ...compatibility.errors.map((message) => `[legacy-compatibility] ${message}`),
+    ...checkLayerExceptionsInUse(sourceImports.edges, dependencyGraph.edges),
+    ...rootSource.map((message) => `[root-source] ${message}`),
     ...migratedFeedOwnership.errors.map((message) => `[feed-owner] ${message}`),
     ...migratedIntegrationOwnership.errors.map((message) => `[integration-owner] ${message}`),
     ...migratedFeedUiOwnership.errors.map((message) => `[feed-ui-owner] ${message}`),
@@ -1488,8 +1515,6 @@ export function checkPackageBoundaries(repositoryRoot) {
     importCount: sourceImports.importCount,
     dependencyEdgeCount: dependencyGraph.edgeCount,
     contractSubpaths: inventory.contractSubpaths,
-    compatibilityAllowlistEntries: compatibility.entryCount,
-    legacyHugeFiles: compatibility.hugeFileCount,
     errors,
   };
 }

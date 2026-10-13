@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { buildLensCompatibilityKey, marketLensCompatibilityKey } from "../../src/studio/domain/research/lens.js";
-import { migrate } from "../../src/studio/server/db/migrate.js";
+import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
 import { openDatabase, type SqliteDatabase } from "../../src/studio/server/db/open-database.js";
 import { SqliteResearchRepository } from "../../src/studio/server/db/research-repository.js";
 import { seedResearchIdea } from "./helpers/seed-research-idea.js";
@@ -118,7 +118,7 @@ describe("SQLite Research repository", () => {
 function setup(): SqliteResearchRepository {
   temporary = createTempDatabase();
   database = openDatabase(temporary.path);
-  migrate(database);
+  applyStudioBaseline(database, ":memory:");
   seedResearchIdea(database);
   return new SqliteResearchRepository(database);
 }

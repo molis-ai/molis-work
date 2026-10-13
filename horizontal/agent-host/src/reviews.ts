@@ -35,7 +35,7 @@ function standingKey(request: AgentReviewRequest): string | null {
   const document = request.document;
   if (request.kind !== "command" || document.kind !== "command" || !request.run || document.escalate !== false) return null;
   // Running a command and leaving it running in the background are different approvals.
-  return JSON.stringify([request.board_id, request.plugin_id, request.run.session_id, document.command, document.args,
+  return JSON.stringify([request.project_id, request.plugin_id, request.run.session_id, document.command, document.args,
     document.cwd, document.workspace_path ?? null, document.env_allowlist ?? null, document.timeout_ms, document.background === true, document.outlives_run === true]);
 }
 
@@ -67,7 +67,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   readonly #settlements = new Set<(request: AgentReviewRequest, receipt: AgentReviewReceipt) => void>();
   readonly #listeners = new Set<(request: AgentReviewRequest) => void>();
   readonly #deciders = new Map<string, (input: AgentReviewDecisionInput) => Promise<AgentReviewReceipt>>();
-  readonly #refreshers = new Set<(boardId: string) => Promise<void>>();
+  readonly #refreshers = new Set<(projectId: string) => Promise<void>>();
   readonly #recoverers = new Map<string, RecoveryHandler>();
   readonly #now: () => Date;
 
@@ -76,13 +76,13 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   }
 
   /** Query execution owners before presenting receipts; this never dispatches work. */
-  registerRefresh(handler: (boardId: string) => Promise<void>): () => void {
+  registerRefresh(handler: (projectId: string) => Promise<void>): () => void {
     this.#refreshers.add(handler);
     return () => { this.#refreshers.delete(handler); };
   }
 
-  async refresh(boardId: string): Promise<void> {
-    await Promise.all([...this.#refreshers].map(handler => handler(boardId)));
+  async refresh(projectId: string): Promise<void> {
+    await Promise.all([...this.#refreshers].map(handler => handler(projectId)));
   }
 
   /** Only a Host caller supplies current facts; Plugins receive no recovery capability. */
@@ -202,9 +202,9 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     row.receipt = { ...row.receipt, status: "cancelled", decided_at: this.#now().toISOString(), note: reason };
   }
 
-  list(boardId: string, status?: AgentReviewStatus): AgentReviewRequest[] {
+  list(projectId: string, status?: AgentReviewStatus): AgentReviewRequest[] {
     return [...this.#rows.values()]
-      .filter((row) => row.request.board_id === boardId
+      .filter((row) => row.request.project_id === projectId
         && (status === undefined || this.#status(row) === status))
       .map((row) => structuredClone(row.request))
       .sort((left, right) => left.requested_at.localeCompare(right.requested_at));

@@ -1,4 +1,5 @@
 import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
+import { createWorkbenchLocale } from '@molis-ai/molis-work-app-workbench';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createServer, type Server } from 'node:http';
@@ -6,10 +7,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { ChromeHarness } from './fixtures/plugin-builder-browser.js';
+import { openStudioChrome } from './fixtures/plugin-builder-browser.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
+import { STUDIO_HARNESS_PATH, studioHarnessPage } from '../scripts/agent-studio-harness.mjs';
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
-import { seedDemoBoard, DEMO_BOARD_ID } from '../apps/local-host/src/demo-seed.js';
+import { seedDemoBoard, DEMO_PROJECT_ID } from '../apps/local-host/src/demo-seed.js';
 import { handleAgentStudioHttp, installedPluginStages, releaseAgentStudio } from '../apps/local-host/src/plugin-builder/agent-surface.js';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/src/installed-plugin-host.js';
 import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } from '../apps/local-host/src/web-http.js';
@@ -20,18 +22,20 @@ import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } f
  */
 test('studio: a request becomes a working, published plugin that the person can use', { timeout: 180_000, skip: process.platform !== 'darwin' }, async t => {
   const home = await mkdtemp(join(tmpdir(), 'molis-studio-e2e-'));
-  const browser = await ChromeHarness.start(join(home, 'chrome'));
+  const browser = await openStudioChrome(join(home, 'chrome'));
   if (!browser) { await rm(home, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0); let modelDelay = 0;
-  const options = { store, boardId: DEMO_BOARD_ID, homeDirectory: home, ...fixture,
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, ...fixture,
     generate: async (pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => { await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
   let liveSubscriptions = 0, subscriptions = 0;
   const server: Server = createServer((request, response) => {
     if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }
     const url = new URL(request.url ?? '/', 'http://localhost') /* as the product server does: no port in the base */;
     if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
+    // The studio as the workbench mounts it in its stage (scripts/agent-studio-harness.mts): it has no page of its own.
+    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); response.end(studioHarnessPage(token)); return; }
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
     void handleAgentStudioHttp(request, response, url, options, token).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); });
   });
@@ -41,10 +45,12 @@ test('studio: a request becomes a working, published plugin that the person can 
     const page = await browser.page();
     await page.viewport(1440, 900);
     await page.command('Page.enable');
-    // The studio is a frame document of the workbench; opened without the frame marker it sends the person to the workbench.
-    const directStudio = await fetch(origin + '/plugin-builder/studio', { redirect: 'manual' });
-    assert.equal(directStudio.status, 302); assert.equal(directStudio.headers.get('location'), '/?openPlugin=plugin-builder'); await directStudio.text();
-    await page.command('Page.navigate', { url: origin + '/plugin-builder/studio?frame=workbench' });
+    // The studio is drawn in the workbench's stage (specs/artifact-positioning S4): it has no page of its own, framed or not.
+    for (const address of ['/plugin-builder/studio', '/plugin-builder/studio?frame=workbench']) {
+      const direct = await fetch(origin + address, { redirect: 'manual' });
+      assert.equal(direct.status, 404, address); await direct.text();
+    }
+    await page.command('Page.navigate', { url: origin + STUDIO_HARNESS_PATH });
     await page.wait(`[...document.querySelectorAll('[data-as-model] option')].some(o=>o.value.startsWith('fixture'))`);
     // The models and the canvas load separately; wait for the canvas's own empty state instead of reading it at once.
     await page.wait(`/这里会出现你的插件/.test(document.querySelector('[data-as-empty]')?.innerText || '')`);
@@ -184,7 +190,9 @@ test('studio: a request becomes a working, published plugin that the person can 
     await installedPage.wait(`globalThis.__molisPluginReady===true&&!!document.querySelector('[data-pc-open="editor"]')&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
 
     // The standalone page reads the same preview data through the same renderer.
-    const buildId = await page.evaluate<string>(`new URLSearchParams(location.search).get('build')`);
+    // The open plugin is the one chosen in the studio's own picker (in the workbench the address does not name it).
+    const buildId = await page.evaluate<string>(`document.querySelector('[data-as-builds]').value`);
+    assert.match(buildId, /^[a-f0-9-]{36}$/);
     const standalone = await browser.page();
     await standalone.command('Page.enable');
     const directPreview = await fetch(origin + '/plugin-builder/studio/preview/' + buildId, { redirect: 'manual' });
@@ -193,7 +201,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     await standalone.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('间隔复习比集中复习记得更久')`);
 
     const installedOwner = await ensureInstalledPlugins(options);
-    await releaseAgentStudio(store, DEMO_BOARD_ID);
+    await releaseAgentStudio(store, DEMO_PROJECT_ID);
     await installedPage.command('Page.reload');
     await installedPage.wait(`document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
     assert.equal(await ensureInstalledPlugins(options), installedOwner, 'closing authoring does not close or recreate installed execution');
@@ -201,6 +209,20 @@ test('studio: a request becomes a working, published plugin that the person can 
     await installedPage.command('Page.close'); await standalone.command('Page.close'); await page.command('Page.bringToFront');
     await page.command('Page.reload');
     await page.wait(`document.querySelector('[data-as-uninstall]')`);
+
+    // A switched-off install takes the next version without being switched on, and is switched on when the person says so.
+    const lifecycle = (action: string, version: number) => page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)},{build}=await(await fetch('/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:${JSON.stringify(action)},revision:build.revision,version:${version},grants:{consent:true}})});if(!r.ok)throw Error(await r.text())})()`);
+    await lifecycle('disable', 1);
+    await page.command('Page.reload');
+    await page.wait(`document.querySelector('[data-as-upgrade]')`);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-upgrade]').innerText`), /仍保持停用/, 'the upgrade button says the plugin stays off');
+    await page.click('[data-as-upgrade]');
+    await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('已安装 v2')||document.querySelector('[role=alert]')`);
+    assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText ?? ''`), '', 'upgrading a disabled install reports no problem');
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-feed]').innerText`), /已安装 v2[\s\S]*disabled/, 'and it is still disabled');
+    await page.click('[data-as-install-enable]');
+    await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('已安装 v2')&&!document.querySelector('[data-as-install-enable]')`);
+    await lifecycle('rollback', 1);
 
     // Uninstall keeps the data when asked to; the plugin page then no longer serves it.
     await page.click('[data-as-uninstall]');
@@ -210,6 +232,31 @@ test('studio: a request becomes a working, published plugin that the person can 
     assert.deepEqual(await installedPluginStages(options), [], 'an uninstalled plugin leaves the workbench');
     const gone = await fetch(origin + pluginHref);
     assert.notEqual(gone.status, 200, 'an uninstalled plugin page is not served');
+
+    // The uninstall kept v1's data and only v2 is left to install: it does not say it can read that data, so the person is asked.
+    const shelf = JSON.parse(installedOwner.storage.get('plugin-builder:agent-built:v1')!) as { releases: Array<{ version: number }> };
+    installedOwner.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ ...shelf, releases: shelf.releases.filter(release => release.version === 2) }));
+    await page.command('Page.reload');
+    await page.wait(`document.querySelector('[data-as-install]')`);
+    await page.click('[data-as-install]');
+    await page.wait(`document.querySelector('.as-dialog button[value=ok]')`);
+    await page.click('.as-dialog button[value=ok]');
+    await page.wait(`document.querySelector('.as-dialog button[value=discard]')`);
+    assert.match(await page.evaluate<string>(`document.querySelector('.as-dialog').innerText`), /读不了/, 'the dialog says the old data cannot be used');
+    await page.click('.as-dialog button[value=cancel]');
+    await page.wait(`!document.querySelector('.as-dialog')`);
+    assert.deepEqual(await installedPluginStages(options), [], 'cancelling installs nothing');
+    await page.click('[data-as-install]');
+    await page.wait(`document.querySelector('.as-dialog button[value=ok]')`);
+    await page.click('.as-dialog button[value=ok]');
+    await page.wait(`document.querySelector('.as-dialog button[value=discard]')`);
+    await page.click('.as-dialog button[value=discard]');
+    await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('已安装 v2')||document.querySelector('[role=alert]')`);
+    assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText ?? ''`), '', 'dropping the old data lets the install through');
+    await page.click('[data-as-uninstall]');
+    await page.wait(`document.querySelector('.as-dialog button[value=drop]')`);
+    await page.click('.as-dialog button[value=drop]');
+    await page.wait(`document.querySelector('[data-as-install]')`);
 
     // Narrow screens keep the whole journey without horizontal page scrolling.
     await page.viewport(390, 844, true);
@@ -235,7 +282,114 @@ test('studio: a request becomes a working, published plugin that the person can 
     throw error;
   } finally {
     await browser.close();
-    await releaseAgentStudio(store, DEMO_BOARD_ID); await releaseInstalledPlugins(store, DEMO_BOARD_ID);
+    await releaseAgentStudio(store, DEMO_PROJECT_ID); await releaseInstalledPlugins(store, DEMO_PROJECT_ID);
+    server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve())); store.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+/**
+ * The studio drawn in the English interface, in a real browser: the stage, the phase, the status line, the feed, the empty
+ * state, the spec board and the badge the stylesheet draws on a part are all English. What the person and the stand-in
+ * models write (the brief, the proposals) is data and stays as it was written.
+ */
+test('studio in English: its controls, labels, phases and boards are English', { timeout: 120_000, skip: process.platform !== 'darwin' }, async t => {
+  const home = await mkdtemp(join(tmpdir(), 'molis-studio-english-'));
+  const browser = await openStudioChrome(join(home, 'chrome'));
+  if (!browser) { await rm(home, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
+  const databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
+  const fixture = agentStudioFixture(0);
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, ...fixture };
+  const locale = createWorkbenchLocale(() => 'en');
+  const server: Server = createServer((request, response) => {
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
+    if (url.pathname === STUDIO_HARNESS_PATH) {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      response.end(studioHarnessPage(token, { lang: 'en', translate: locale.L, clientScript: locale.clientI18nScript() })); return;
+    }
+    if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
+    void handleAgentStudioHttp(request, response, url, options, token).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
+  // Every visible word of the studio's own controls: the text outside what is data (the brief, the proposals, the capability
+  // directory's titles, the model list, the step labels the host wrote that a pointer repeats), and the attributes that are read aloud.
+  const DATA = 'select,[class*="mw-select-picker"],.as-plugin,[data-as-title],[data-as-model-note],.as-pointer em,.as-frame span,.as-brief p,.as-candidates,.as-card,.as-agents,.as-steps,.as-recent,.as-cap,.as-cap-row';
+  const chrome = `(()=>{const HAN=/\\p{Script=Han}/u,shell=document.querySelector('.as-shell'),found=[];
+    for(const el of shell.querySelectorAll('*')){if(el.closest('${DATA},[hidden]'))continue;for(const a of ['aria-label','title','placeholder'])if(HAN.test(el.getAttribute(a)||''))found.push(a+'='+el.getAttribute(a));}
+    const walker=document.createTreeWalker(shell,NodeFilter.SHOW_TEXT);for(let n;n=walker.nextNode();){if(n.parentElement.closest('${DATA},[hidden]'))continue;if(HAN.test(n.textContent))found.push('text:'+n.textContent.trim()+' <'+n.parentElement.tagName+'.'+n.parentElement.className+'>');}
+    return found;})()`;
+  try {
+    const page = await browser.page();
+    await page.viewport(1440, 900);
+    await page.command('Page.enable');
+    await page.command('Page.navigate', { url: origin + STUDIO_HARNESS_PATH });
+    await page.wait(`[...document.querySelectorAll('[data-as-model] option')].some(o=>o.value.startsWith('fixture'))`);
+    await page.wait(`/Your plugin will appear here/.test(document.querySelector('[data-as-empty]')?.innerText || '')`);
+    assert.equal(await page.evaluate<string>(`document.documentElement.lang`), 'en');
+    assert.deepEqual(await page.evaluate<string[]>(chrome), [], 'nothing the studio writes on its first screen is Chinese');
+    assert.match(await page.evaluate<string>(`document.querySelector('.as-feed').innerText`), /Let's build your idea together[\s\S]*Reading notes[\s\S]*Daily review[\s\S]*Group sign-up sheet/u);
+    assert.equal(await page.evaluate<string>(`document.querySelector('[data-as-builds] option').textContent`), 'No plugins yet');
+    assert.equal(await page.evaluate<string>(`document.querySelector('[data-as-title]').textContent`), 'New plugin');
+    assert.equal(await page.evaluate<string>(`document.querySelector('.as-send').getAttribute('aria-label')`), 'Send');
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-input]').placeholder`), /^Describe the plugin you want/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-model-note]').textContent`), /^Choose the model used for building · Jev (configured|not configured \(the UI Agent's design is used first\))$/u);
+
+    // The brief goes to the stand-in designer as the person typed it.
+    await page.evaluate(`(()=>{const s=document.querySelector('[data-as-model]');s.value=[...s.options].find(o=>o.value.startsWith('fixture')).value;s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await page.wait(`document.querySelector('[data-as-model-note]').textContent.startsWith('Lead designer and Code Agent: ')`);
+    await page.fill('[data-as-input]', '做一个随手记笔记的插件：写下一句话就能保存，最新的在最上面');
+    await page.click('.as-send');
+    await page.wait(`document.querySelectorAll('[data-as-candidate]').length===2`);
+
+    // The proposals are data; around them everything the studio says is English.
+    assert.equal(await page.evaluate<string>(`document.querySelector('[data-as-phase]').textContent`), 'Comparing proposals');
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-status]').innerText`), /Waiting for you to choose a proposal/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('.as-feed').innerText`), /Proposals: 2 · pick one to preview on the right/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-choose]').textContent`), /^Use this proposal and start building$/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('.as-candidate .as-meta').innerText`), /Features: \d+[\s\S]*UI parts: \d+[\s\S]*Pages: \d+/u);
+    assert.match(await page.evaluate<string>(`getComputedStyle(document.querySelector('[data-component-id="notes"]'),'::before').content`), /Not connected yet/, 'a part still to be wired says so in English');
+
+    // A request that fails shows the server's message in English when the dictionary has it: as a whole, or its opening sentence
+    // followed by the detail as the host wrote it; any other message is shown as written. (The fetch is answered here; the
+    // messages themselves are the ones the routes throw, checked against the source in tests/studio-english.test.ts.)
+    await page.evaluate(`(()=>{const real=window.fetch;window.__fail=null;window.fetch=(input,init)=>window.__fail&&init?.method==='POST'&&/\\/action$/.test(String(input))?Promise.resolve(new Response(JSON.stringify({error:window.__fail}),{status:400,headers:{'content-type':'application/json'}})):real(input,init);})()`);
+    for (const [error, shown] of [
+      ['草稿已改变，请刷新', 'The draft has changed. Refresh and try again.'],
+      ['发布前请先修好调用模型的写法：src/plugin.ts:12 model.generate names no prompt', 'Fix how the plugin calls the model before publishing: src/plugin.ts:12 model.generate names no prompt'],
+      ['一句宿主还没有英文的话：细节', '一句宿主还没有英文的话：细节'],
+    ] as const) {
+      await page.evaluate(`window.__fail=${JSON.stringify(error)}`);
+      await page.click('[data-as-choose]');
+      await page.wait(`document.querySelector('.as-error p')?.textContent===${JSON.stringify(shown)}`);
+    }
+    await page.evaluate(`window.__fail=null`);
+
+    // Once a proposal is chosen the design arrives and the spec board and the capability board open.
+    await page.click('[data-as-choose]');
+    await page.wait(`document.querySelector('[data-as-board]:not([hidden]) .as-board-label')`);
+    await page.wait(`['Building','Ready to try'].includes(document.querySelector('[data-as-phase]').textContent)`);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-feed] summary').textContent`), /^Collaboration log · steps done: \d+$/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('.as-board-label').innerText`), /^Spec board\s+Placed \d+\/\d+ · in use \d+\/\d+$/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('.as-board-cap').innerText`), /^Capability board\s+Connected \d+\/\d+ · catalog \d+$/u);
+    assert.deepEqual(await page.evaluate<string[]>(`[...document.querySelectorAll('.as-board .as-part:not(.as-cap)')].map(b=>b.textContent+'|'+b.getAttribute('aria-label')).filter(x=>/\\p{Script=Han}/u.test(x))`), [], 'the spec board names its components in English');
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-board] [data-kind]').getAttribute('aria-label')`), /^[A-Z][\w ]+ [A-Z][\w ]+: [A-Z]/u, 'name, catalog name: description');
+    assert.deepEqual(await page.evaluate<string[]>(chrome), [], 'and so is the rest of the stage');
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-model-note]').textContent`), /^Lead designer and Code Agent: .+ · Jev (configured|not configured \(the UI Agent's design is used first\))$/u);
+    assert.deepEqual(await page.evaluate<string[]>(`[...new Set([...document.querySelectorAll('.as-plugin .pc-inspect')].map(b=>b.textContent))]`), ['Inspect part'], 'the button that points the studio at a part of the plugin');
+
+    // The catalog panel and a tip carry the catalog's words in English.
+    await page.click('[data-as-catalog="components"]');
+    await page.wait(`document.querySelector('[data-as-catalog-panel]:not([hidden]) h4')`);
+    assert.deepEqual(await page.evaluate<string[]>(`[...document.querySelectorAll('[data-as-catalog-panel] h4 span:first-child, [data-as-catalog-panel] .as-catalog-note')].map(x=>x.textContent).filter(x=>/\\p{Script=Han}/u.test(x))`), []);
+    assert.deepEqual(await page.evaluate<string[]>(`[...document.querySelectorAll('[data-as-catalog-panel] .as-part')].map(b=>b.textContent+'|'+b.getAttribute('aria-label')).filter(x=>/\\p{Script=Han}/u.test(x))`), [], 'every catalog component, used or not');
+    assert.deepEqual(await page.evaluate<string[]>(`(()=>{const out=[];for(const b of document.querySelectorAll('[data-as-catalog-panel] .as-part')){b.dispatchEvent(new PointerEvent('pointerover',{bubbles:true}));const tip=document.querySelector('[data-as-tip]');if(/\\p{Script=Han}/u.test(tip.innerText))out.push(tip.innerText);}return out;})()`), [], 'and its tip');
+  } finally {
+    await browser.close();
+    await releaseAgentStudio(store, DEMO_PROJECT_ID);
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve())); store.close();
     await rm(home, { recursive: true, force: true });

@@ -17,8 +17,8 @@ const BOARD = "board-a";
 
 function open(path: string) {
   const db = new DatabaseSync(path);
-  db.exec("CREATE TABLE IF NOT EXISTS boards (board_id TEXT PRIMARY KEY)");
-  db.prepare("INSERT OR IGNORE INTO boards (board_id) VALUES (?)").run(BOARD);
+  db.exec("CREATE TABLE IF NOT EXISTS boards (project_id TEXT PRIMARY KEY)");
+  db.prepare("INSERT OR IGNORE INTO boards (project_id) VALUES (?)").run(BOARD);
   return db;
 }
 
@@ -29,7 +29,7 @@ test("会话落库并在真正重开数据库之后完整保留", async () => {
     const first = open(path);
     const store = new CodingSessionStore(first);
     store.create({
-      board_id: BOARD,
+      project_id: BOARD,
       session_id: "s1",
       title: "修好 runtime 连接提示",
       runtime_id: "prologue",
@@ -58,7 +58,7 @@ test("关联 Goal 可加可撤，撤掉之后会话还在", async () => {
   try {
     const db = open(join(directory, "project.db"));
     const store = new CodingSessionStore(db);
-    store.create({ board_id: BOARD, session_id: "s1", title: "无目标", runtime_id: "cli", at: "2026-09-19T14:00:00Z" });
+    store.create({ project_id: BOARD, session_id: "s1", title: "无目标", runtime_id: "cli", at: "2026-09-19T14:00:00Z" });
     assert.equal(store.get(BOARD, "s1").goal_id, null);
     assert.equal(store.setGoal(BOARD, "s1", "g9", "2026-09-19T14:10:00Z").goal_id, "g9");
     assert.equal(store.setGoal(BOARD, "s1", null, "2026-09-19T14:20:00Z").goal_id, null);
@@ -74,7 +74,7 @@ test("同一个会话 id 不会被悄悄覆盖", async () => {
   try {
     const db = open(join(directory, "project.db"));
     const store = new CodingSessionStore(db);
-    const input = { board_id: BOARD, session_id: "s1", title: "第一次", runtime_id: "cli", at: "2026-09-19T14:00:00Z" };
+    const input = { project_id: BOARD, session_id: "s1", title: "第一次", runtime_id: "cli", at: "2026-09-19T14:00:00Z" };
     store.create(input);
     assert.throws(() => store.create({ ...input, title: "第二次" }),
       (error: unknown) => error instanceof CodingStoreError && error.code === "coding.session_duplicate");
@@ -90,7 +90,7 @@ test("归档会话从活动目录移出，直接读取仍保留原执行引用",
   try {
     const db = open(join(directory, "project.db"));
     const store = new CodingSessionStore(db);
-    store.create({ board_id: BOARD, session_id: "s1", title: "旧会话", runtime_id: "prologue", at: "2026-09-19T14:00:00Z" });
+    store.create({ project_id: BOARD, session_id: "s1", title: "旧会话", runtime_id: "prologue", at: "2026-09-19T14:00:00Z" });
     store.setRuntimeSession(BOARD, "s1", "runtime-s1", "2026-09-19T15:00:00Z");
     assert.equal(store.archive(BOARD, "s1", "2026-09-19T16:00:00Z").archived, true);
     assert.equal(store.list(BOARD).length, 0);
@@ -105,8 +105,8 @@ test("Goal 标题在读的时候解析；解析不到就退回 id，会话不会
   try {
     const db = open(join(directory, "project.db"));
     const store = new CodingSessionStore(db);
-    store.create({ board_id: BOARD, session_id: "s1", title: "有目标", runtime_id: "cli", goal_id: "g1", at: "2026-09-19T14:00:00Z" });
-    store.create({ board_id: BOARD, session_id: "s2", title: "目标没了", runtime_id: "cli", goal_id: "gone", at: "2026-09-19T13:00:00Z" });
+    store.create({ project_id: BOARD, session_id: "s1", title: "有目标", runtime_id: "cli", goal_id: "g1", at: "2026-09-19T14:00:00Z" });
+    store.create({ project_id: BOARD, session_id: "s2", title: "目标没了", runtime_id: "cli", goal_id: "gone", at: "2026-09-19T13:00:00Z" });
 
     const entries = toDirectoryEntries(store.list(BOARD), (goalId) =>
       goalId === "g1" ? "让首次使用不再卡住" : undefined);

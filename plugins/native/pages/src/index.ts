@@ -10,22 +10,25 @@ export const packageDescriptor = {
 
 export { PAGES_UI_CONTRIBUTION_ID, pagesUiContribution, pagesUiDescriptor, renderPagesWorkbench } from "./ui.js";
 export type { PagesUiModel, PagesUiPrimitives, PagesUiSurface } from "./ui.js";
-export { PAGES_STYLES } from "./styles.js";
+import { PAGES_STYLES as PAGES_BASE_STYLES } from "./styles.js";
+import { PAGES_IMPORT_STYLES } from "./import-client.js";
+/** Pages' stylesheet: the workbench, and its own import dialog (restored 2026-10-03 at the user's request). */
+export const PAGES_STYLES = PAGES_BASE_STYLES + PAGES_IMPORT_STYLES;
 export { PAGES_EN } from "./en.js";
 export { PAGES_INSTRUCTIONS, PAGES_WRITING_ASSISTANT, PAGES_GENERATE_FROM_MATERIALS } from "./prompts.js";
 export { PAGES_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { PAGES_NATIVE_PLUGIN_ROUTES, PagesPluginRouteTable } from "./routes.js";
 export type { PagesPluginRouteHandler, PagesPluginRouteRequest, PagesPluginRouteResponse } from "./routes.js";
-export { createPagesRouteHandlers, pagesRouteErrorResponse } from "./route-handlers.js";
+export { createPagesRouteHandlers } from "./route-handlers.js";
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesManifest } from "./manifest.js";
 export { pagesMethods } from "./methods.js";
-export { PAGES_MCP_EXPORTS, runPagesMcpTool } from "./mcp.js";
-export { openPagesStore, PagesStore } from "./store.js";
+export { openPagesStore, PagesStore, PAGES_STORE_BASELINE } from "./store.js";
+export { purgePagesProject, pagesProjectData } from "./project-data.js";
 export type { PagesImportDocumentsInput } from "./store.js";
 export { generatePagesFromMaterials } from "./generate.js";
 export { preparePagesImport } from "./import-files.js";
 export type { PagesImportFile, PreparedPagesImportDocument, PreparedPagesImport } from "./import-files.js";
-export { PagesError } from "./error.js";
+export { pagesErrors } from "./error.js";
 export { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
 export { PAGES_TEMPLATES, pagesTemplateById, pagesTemplateSummaries } from "./templates.js";
 export { emptyDoc, nodeFromUnknown, pagesSchema, safePagesColumnShare, safePagesColumnWidth } from "./schema.js";
@@ -155,11 +158,12 @@ export {
   unwrapColumns,
 } from "./commands.js";
 export { extractFromPagesBody } from "./extract.js";
-export { PAGES_AI_COMMANDS, runPagesAi } from "./ai.js";
+export { PAGES_AI_COMMANDS } from "./ai.js";
+export { runPagesAi } from "./ai-run.js";
 export type { PagesRoutePorts } from "./route-handlers.js";
-export type { PagesPublishArtifactPort, PagesReadArtifactPort } from "./promote.js";
+export type { PagesLineHeadPort, PagesPublishArtifactPort, PagesReadArtifactPort } from "./promote.js";
 
 export { pagesContentActions, createPagesContentHandlers } from "./content-actions.js";
 
-export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, createPagesActionHandlers } from "./actions.js";
+export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND, PAGES_READABLE_FILE, createPagesActionHandlers } from "./actions.js";
 export type { PagesActionPorts } from "./actions.js";

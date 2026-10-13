@@ -5,62 +5,68 @@ import { mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readWorkspaceFileCapability, workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { openTestHome } from "./fixtures/test-home.js";
 
-test("project folders are readable through directory actions by the person and by exactly granted clients, while plugins keep their own capability", { timeout: 60_000 }, async () => {
+test("project folders are readable through one action id by the person and by exactly granted clients", { timeout: 60_000 }, async t => {
   const root = await realpath(await mkdtemp(join(tmpdir(), "workspace-read-actions-")));
-  const home = join(root, "home"), folder = join(root, "repository");
-  await mkdir(join(folder, "docs"), { recursive: true }); await mkdir(home, { recursive: true });
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const folder = join(root, "repository");
+  await mkdir(join(folder, "docs"), { recursive: true });
   await writeFile(join(folder, "docs", "plan.md"), "# 发布计划\n先修导出。\n");
   await writeFile(join(root, "outside.txt"), "不属于工作目录");
   execFileSync("git", ["init", "-q", "-b", "main"], { cwd: folder });
   const workspace = { workspace_id: "workspace-read", canonical_path: folder, realpath_verified: true, display_name: "repository" };
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspacesFor: async () => [workspace] });
-  const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-read", boardId: "board-read" });
-  const user: ActionCallContext = { actor_id: "web-user", project_id: "project-read", audience: "user", permissions: ["workspace:read"] };
+  // The folder reads are the Host's own, so no installed plugin makes them unavailable; this policy switches them off to try a grant the Host refuses.
+  let reading = true;
+  const home = await openTestHome(t, { host: { workspacesFor: async () => [workspace], actionAvailability: (_caller, action) => reading || action.capability_id !== workspaceReadActions.file.capability_id
+    ? { available: true } : { available: false, code: "fixture.reads_offline", reason: "文件读取暂不可用" } } });
+  const { host } = home;
+  const project = await home.createProject("读取");
+  const reference = project.reference;
+  const user: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["workspace:read"] };
   const client = host.actionClient(reference);
-  try {
-    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ board_id: "board-read", title: "读取", actor_id: "web-user", idempotency_key: "init" }));
-    const directory = await client.discover(user);
-    const file = directory.find(row => row.capability_id === workspaceReadActions.file.capability_id)!;
-    const git = directory.find(row => row.capability_id === workspaceReadActions.git.capability_id)!;
-    assert.ok(file && git, "both reads are in the project directory");
-    assert.ok(file.action.audiences.includes("mcp") && file.action.audiences.includes("agent"));
-    assert.ok(!directory.some(row => row.capability_id === readWorkspaceFileCapability.capability_id), "the plugin-facing capability stays out of the directory");
+  const directory = await client.discover(user);
+  const file = directory.find(row => row.capability_id === workspaceReadActions.file.capability_id)!;
+  const git = directory.find(row => row.capability_id === workspaceReadActions.git.capability_id)!;
+  assert.ok(file && git, "both reads are in the project directory");
+  assert.ok(file.action.audiences.includes("mcp") && file.action.audiences.includes("agent"));
+  // One id per read: the directory holds each exactly once, and the retired plugin-facing ids are registered nowhere.
+  assert.equal(directory.filter(row => row.capability_id === file.capability_id).length, 1);
+  assert.equal(directory.filter(row => row.capability_id === git.capability_id).length, 1);
+  const registered = host.status().capabilities.map(row => row.capability_id);
+  for (const retired of ["projects.workspace.file.read.v1", "projects.workspace.git.read.v1"]) assert.ok(!registered.includes(retired), `${retired} is retired`);
 
-    const listed = await client.invoke(user, file, { workspace_id: workspace.workspace_id, path: ["docs"], kind: "directory" }) as { outcome: string; entries: Array<{ name: string }> };
-    assert.equal(listed.outcome, "directory"); assert.deepEqual(listed.entries.map(entry => entry.name), ["plan.md"]);
-    const text = await client.invoke(user, file, { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" }) as { outcome: string; text: string };
-    assert.equal(text.outcome, "text"); assert.match(text.text, /先修导出/);
-    await assert.rejects(client.invoke(user, file, { workspace_id: workspace.workspace_id, path: ["..", "outside.txt"], kind: "text" }), /无效/, "a path outside the folder is refused, never read");
-    const other = await client.invoke(user, file, { workspace_id: "another-folder", path: ["docs", "plan.md"], kind: "text" }) as { outcome: string };
-    assert.notEqual(other.outcome, "text", "a folder of another project is never read");
-    const summary = await client.invoke(user, git, { workspace_id: workspace.workspace_id, kind: "summary" }) as { outcome: string; branch: string | null };
-    assert.equal(summary.outcome, "summary"); assert.equal(summary.branch, "main");
-    await assert.rejects(client.invoke({ ...user, permissions: [] }, file, { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" }));
+  const listed = await client.invoke(user, file, { workspace_id: workspace.workspace_id, path: ["docs"], kind: "directory" }) as { outcome: string; entries: Array<{ name: string }> };
+  assert.equal(listed.outcome, "directory"); assert.deepEqual(listed.entries.map(entry => entry.name), ["plan.md"]);
+  const text = await client.invoke(user, file, { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" }) as { outcome: string; text: string };
+  assert.equal(text.outcome, "text"); assert.match(text.text, /先修导出/);
+  await assert.rejects(client.invoke(user, file, { workspace_id: workspace.workspace_id, path: ["..", "outside.txt"], kind: "text" }), /无效/, "a path outside the folder is refused, never read");
+  const other = await client.invoke(user, file, { workspace_id: "another-folder", path: ["docs", "plan.md"], kind: "text" }) as { outcome: string };
+  assert.notEqual(other.outcome, "text", "a folder of another project is never read");
+  const summary = await client.invoke(user, git, { workspace_id: workspace.workspace_id, kind: "summary" }) as { outcome: string; branch: string | null };
+  assert.equal(summary.outcome, "summary"); assert.equal(summary.branch, "main");
+  await assert.rejects(client.invoke({ ...user, permissions: [] }, file, { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" }));
 
-    // An external client reads nothing until it is granted exactly this read.
-    const mcpCaller: ActionCallContext = { actor_id: "client-reader", project_id: "project-read", audience: "mcp", permissions: [] };
-    const denied = await authorizeMcpActions(host, mcpCaller, home, reference);
-    await assert.rejects(denied.service.invoke(denied.context, { capability_id: file.capability_id, version: file.version, provider_id: file.provider.provider_id },
-      { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" }));
-    await writeMcpActionGrant(home, createMcpActionGrant(mcpCaller.actor_id, "project-read", file, true));
-    const granted = await authorizeMcpActions(host, mcpCaller, home, reference);
-    const read = await granted.service.invoke(granted.context, { capability_id: file.capability_id, version: file.version, provider_id: file.provider.provider_id },
-      { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" }) as { text: string };
-    assert.match(read.text, /发布计划/);
-    await assert.rejects(granted.service.invoke(granted.context, { capability_id: git.capability_id, version: git.version, provider_id: git.provider.provider_id },
-      { workspace_id: workspace.workspace_id, kind: "summary" }), "a grant for file reads does not open Git");
+  // An external client reads nothing until it is granted exactly this read.
+  const reader = await home.mcp("client-reader", project.project_id);
+  const fileRef = { capability_id: file.capability_id, version: file.version, provider_id: file.provider.provider_id };
+  const gitRef = { capability_id: git.capability_id, version: git.version, provider_id: git.provider.provider_id };
+  const plan = { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" };
+  await assert.rejects(reader.client.invoke(reader.caller, fileRef, plan), { code: "mcp.action_revoked" });
+  // The grant goes through the access settings, which check what the client could really use: a read the Host reports unavailable is refused, and nothing is saved.
+  reading = false;
+  await assert.rejects(home.grant("client-reader", project.project_id, [file]), { status: 400, code: "fixture.reads_offline" });
+  assert.deepEqual((await readMcpActionAccess(home.web, { clientId: "client-reader", projectId: project.project_id })).grants, [], "a refused grant leaves no record");
+  await assert.rejects(reader.client.invoke(reader.caller, fileRef, plan), { code: "mcp.action_revoked" });
+  reading = true;
+  await home.grant("client-reader", project.project_id, [file]);
+  const read = await reader.client.invoke(reader.caller, fileRef, plan) as { text: string };
+  assert.match(read.text, /发布计划/);
+  await assert.rejects(reader.client.invoke(reader.caller, gitRef, { workspace_id: workspace.workspace_id, kind: "summary" }), { code: "mcp.action_revoked" }, "a grant for file reads does not open Git");
 
-    // Plugins keep calling the Host capability through their own client, unchanged.
-    const viaPlugin = await host.client(reference).invoke(readWorkspaceFileCapability, { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" });
-    assert.equal(viaPlugin.outcome, "text");
-  } finally {
-    await host.close();
-    await rm(root, { recursive: true, force: true });
-  }
+  // The Host's own typed client has no second door to the same read.
+  await assert.rejects(host.client(reference).invoke({ capability_id: "projects.workspace.file.read.v1", version: 1, operation: "query" },
+    { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" }), { code: "kernel.capability_missing" });
 });

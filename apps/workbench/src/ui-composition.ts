@@ -1,8 +1,6 @@
 import { COGNIA_UI_CONTRIBUTION_ID, type CogniaUiModel } from "@molis-ai/molis-work-plugin-cognia";
 import { IMAGES_UI_CONTRIBUTION_ID, type ImagesUiModel } from "@molis-ai/molis-work-plugin-images";
 import { JELLY_UI_CONTRIBUTION_ID, type JellyUiModel, type JellyUiSurface } from "@molis-ai/molis-work-plugin-jelly";
-import { EXPERIMENTS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-experiments";
-import { THEME_BOOTSTRAP_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import type {
   UiRenderRequest,
   UiSlotDescriptor,
@@ -74,9 +72,8 @@ import {
 import { WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
-import { createArtifactWorkbenchRenderer, type ArtifactImportWorkbenchRequest } from "./artifact-ui.js";
+import { createArtifactWorkbenchRenderer } from "./artifact-ui.js";
 import { createGoalsContextWorkbenchRenderer } from "./goals-context-ui.js";
-import { createGoalsDecisionResultsWorkbenchRenderer } from "./goals-decision-results-ui.js";
 import { createGoalsDialogsWorkbenchRenderer } from "./goals-dialogs-ui.js";
 import { createGoalsDocumentWorkbenchRenderer } from "./goals-document-ui.js";
 import { createGoalsFactorsWorkbenchRenderer } from "./goals-factors-ui.js";
@@ -85,13 +82,12 @@ import { createGoalsPlanningWorkbenchRenderer } from "./goals-planning-ui.js";
 import { createGoalsPolicyWorkbenchRenderer } from "./goals-policy-ui.js";
 import { createGoalsProposalWorkbenchRenderer } from "./goals-proposal-ui.js";
 import { createGoalsRelationWorkbenchRenderer } from "./goals-relation-ui.js";
-import { createGoalsSafetyWorkbenchRenderer } from "./goals-safety-ui.js";
 import { createGoalsStatusWorkbenchRenderer } from "./goals-status-ui.js";
 import { createGoalsTreeWorkbenchRenderer } from "./goals-tree-ui.js";
 import { createWorkSessionRenderer } from "./work-ui.js";
 
 export { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
-import { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
+import { WORKBENCH_UI_SLOTS } from "./document-shell.js";
 
 
 const INBOX_SURFACE_SLOTS: Readonly<Record<InboxUiSurface, UiSlotDescriptor>> = {
@@ -174,13 +170,11 @@ export function createWorkbenchUiHost(packs: readonly BuiltinPluginWorkbenchPack
 
 const workbenchUiHost = createWorkbenchUiHost();
 
-export const createWorkbenchGoalsDecisionResultsRenderer = createGoalsDecisionResultsWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
 
 export const createWorkbenchGoalsProposalRenderer = createGoalsProposalWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
 
 export const createWorkbenchGoalsPolicyRenderer = createGoalsPolicyWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
 
-export const createWorkbenchGoalsSafetyRenderer = createGoalsSafetyWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
 
 export const createWorkbenchGoalsRelationRenderer = createGoalsRelationWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
 
@@ -200,15 +194,15 @@ export const createWorkbenchGoalsFactorsRenderer = createGoalsFactorsWorkbenchRe
 
 export const createWorkbenchGoalsDialogsRenderer = createGoalsDialogsWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.overlay);
 
-export const artifactWorkbench = createArtifactWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS, renderWorkbenchDocument);
+export const artifactWorkbench = createArtifactWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS);
 
 export function createArtifactReferenceRenderer(primitives: ArtifactReferenceUiPrimitives) {
-  return (value: string, label = value, evidenceId?: string): string => workbenchUiHost.mount({
+  return (value: string, label = value): string => workbenchUiHost.mount({
     slot: WORKBENCH_UI_SLOTS.main,
     contribution: {
       contribution_id: ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID,
       surface: "reference",
-      model: { value, label, evidenceId, primitives },
+      model: { value, label, primitives },
     },
   }).html;
 }
@@ -412,17 +406,6 @@ export function listWorkbenchUiContributions() {
   return workbenchUiHost.list();
 }
 
-export function renderArtifactImportPage(
-  request: Omit<ArtifactImportWorkbenchRequest, "headHtml" | "iconSpriteHtml"> & { nativeDesktopBootstrapScript: string },
-): string {
-  return artifactWorkbench.importPage({
-    ...request,
-    headHtml: `<script>${THEME_BOOTSTRAP_SCRIPT}${request.nativeDesktopBootstrapScript}</script><link rel="stylesheet" href="/assets/molis-work-workbench.css">`,
-    iconSpriteHtml: renderIconSprite(),
-  });
-}
-
-export function renderExperimentsContribution(): string { return workbenchUiHost.mount({slot:WORKBENCH_UI_SLOTS.main,contribution:{contribution_id:EXPERIMENTS_UI_CONTRIBUTION_ID,surface:"workbench",model:{}}}).html; }
 
 export function renderImagesContribution(model: ImagesUiModel): string {
   return workbenchUiHost.mount({ slot: WORKBENCH_UI_SLOTS.main, contribution: { contribution_id: IMAGES_UI_CONTRIBUTION_ID, surface: "workbench", model } }).html;

@@ -36,10 +36,10 @@ pnpm --filter @molis-ai/molis-work-module-context-ledger typecheck
 pnpm --filter @molis-ai/molis-work-module-context-ledger build
 ```
 
-已有行为示例与回归：[context-ledger.test.ts](../../tests/context-ledger.test.ts)、[handoff-ledger-migration.test.ts](../../tests/handoff-ledger-migration.test.ts)。完成上述构建后运行：
+已有行为示例与回归：[context-ledger.test.ts](../../tests/context-ledger.test.ts)、[handoff-ledger.test.ts](../../tests/handoff-ledger.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/context-ledger.test.ts tests/handoff-ledger-migration.test.ts
+node --import tsx --test --test-concurrency=1 tests/context-ledger.test.ts tests/handoff-ledger.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
@@ -56,7 +56,7 @@ node --import tsx --test --test-concurrency=1 tests/context-ledger.test.ts tests
   - 只存引用边，不复制正文、不跨 Store Join。
   - 存在一条边不等于授予内容权限；物化经目标 owner 的查询，owner 可以拒绝。
   - 新 Artifact 引用必须带精确版本；旧引用指向缺失的 Goal 时保留引用，不制造、不猜测。
-- 改动后必跑：`node scripts/run-tests.mjs tests/context-ledger.test.ts tests/context-materialization.test.ts tests/context-owner-isolation.test.ts tests/handoff-ledger-migration.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/context-ledger.test.ts tests/context-materialization.test.ts tests/context-owner-isolation.test.ts tests/handoff-ledger.test.ts`
 - 相关手册：[docs/modules/context-ledger.md](../../docs/modules/context-ledger.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

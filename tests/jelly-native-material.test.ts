@@ -16,8 +16,8 @@ test("uploaded UTF8 and HTML become traceable text without evaluating scripts", 
     const text = await extractJellyMaterial(directory, upload("用户笔记.md", "# 真实想法\n保留中文。")); assert.equal(text.text, "# 真实想法\n保留中文。"); assert.equal(text.coverage.status, "sufficient");
     const html = await extractJellyMaterial(directory, upload("网页.html", "<html><style>SECRET STYLE</style><script>SECRET SCRIPT</script><h1>标题</h1><p>A &amp; B &#x4E2D;&#25991;</p></html>"));
     assert.match(html.text, /标题/); assert.match(html.text, /A & B 中文/); assert.doesNotMatch(html.text, /SECRET/); assert.equal(html.coverage.status, "partial");
-    assert.ok(readdirSync(path.join(directory, "lingguang", "imports")).every(file => /^[\da-f]{64}\.(md|html)$/.test(file)));
-    await extractJellyMaterial(directory, upload("副本.md", "# 真实想法\n保留中文。")); assert.equal(readdirSync(path.join(directory, "lingguang", "imports")).length, 2);
+    // Reading keeps no spark, so nothing of the upload stays in the Home: no raw copy that no one would read or clean up.
+    assert.deepEqual(readdirSync(directory), []);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 test("path names, invalid base64, empty, unsupported and non-UTF8 inputs fail", async () => {
@@ -26,19 +26,25 @@ test("path names, invalid base64, empty, unsupported and non-UTF8 inputs fail", 
     for (const input of [upload("../private.txt", "safe"), upload("C:\\private.txt", "safe"), upload("program.exe", "binary"), upload("empty.txt", ""), { file_name: "bad.txt", data_base64: "%%%" }, upload("binary.txt", Buffer.from([0xFF, 0xFE]))]) await assert.rejects(extractJellyMaterial(directory, input), JellyMaterialError);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
-test("missing native helper and unsupported host return explicit unavailable errors, preserving uploaded copy", async () => {
+test("missing native helper and unsupported host return explicit unavailable errors and leave no copy of the upload", async () => {
   const directory = home();
   try {
     const input = upload("document.pdf", "%PDF-1.4\n");
     await assert.rejects(extractJellyMaterial(directory, input, { platform: "linux" }), (error: unknown) => error instanceof JellyMaterialError && error.status === 503);
     await assert.rejects(extractJellyMaterial(directory, input, { platform: "darwin", helperPath: path.join(directory, "missing") }), (error: unknown) => error instanceof JellyMaterialError && error.code === "jelly.material.native_unavailable");
-    assert.equal(readdirSync(path.join(directory, "lingguang", "imports")).length, 1);
+    assert.deepEqual(readdirSync(directory), []);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
-test("imports symlink cannot redirect uploaded data outside the private directory", async () => {
+test("a symlinked model cache cannot redirect the Home's writes outside the private directory", async () => {
   const directory = home(); const outside = home();
-  try { mkdirSync(path.join(directory, "lingguang")); symlinkSync(outside, path.join(directory, "lingguang", "imports")); await assert.rejects(extractJellyMaterial(directory, upload("test.txt", "data")), JellyMaterialError); assert.deepEqual(readdirSync(outside), []); }
-  finally { rmSync(directory, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); }
+  try {
+    mkdirSync(path.join(directory, "lingguang")); symlinkSync(outside, path.join(directory, "lingguang", "models"));
+    await assert.rejects(extractJellyMaterial(directory, upload("sample.wav", Buffer.from("RIFF"))), (error: unknown) => error instanceof JellyMaterialError && error.code === "jelly.material.unsafe_storage");
+    assert.deepEqual(readdirSync(outside), []);
+    // A symlink where an upload copy used to go is simply never touched: the text is read from memory.
+    symlinkSync(outside, path.join(directory, "lingguang", "imports"));
+    assert.equal((await extractJellyMaterial(directory, upload("test.txt", "data"))).text, "data"); assert.deepEqual(readdirSync(outside), []);
+  } finally { rmSync(directory, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); }
 });
 test("real macOS helper extracts image OCR, PDF text and image-only PDF pages", { skip: process.platform !== "darwin" || !existsSync(helper) }, async () => {
   const directory = home();

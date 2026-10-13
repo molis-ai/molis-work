@@ -8,6 +8,7 @@ import { feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
 import { type MolisWorkProjectCatalog, MolisWorkProjectCatalogError } from "./project-catalog.js";
 import { MolisWorkV1Error } from "./goal-project-application.js";
 import { desktopPanelSessionIds } from "./web-session.js";
+import { recordDesktopPanelSessions } from "./panel-sessions.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { L } from "./web-locale.js";
@@ -68,6 +69,7 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
         panels: catalog.desktopPanels,
         preferredWorkspacePath: (id) => catalog.preferredWorkspacePath(id),
         sessionIds: (ids) => desktopPanelSessionIds(catalog, ids),
+        recordSessions: (panels) => recordDesktopPanelSessions(catalog.homeDirectory, panels),
         spawn: (panel, sessionId) => desktopPanelSpawn(catalog, panel, webUrl, sessionId),
       })),
       readGoal: async (goalId) => {

@@ -4,6 +4,7 @@ import { ActionError, FRAGMENT_ANY_OBJECT, bindObjectCopyHandler, bindObjectMove
 import { LINGGUANG_BODY_LIMIT, type LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type { LingguangConversationState, LingguangStore } from "./store.js";
 import { createLingguangSearchHandlers, lingguangSearchActions, revisionOf } from "./search.js";
+import { lingguangErrors } from "./error.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1 };
@@ -47,11 +48,12 @@ export const lingguangActions = {
   get: define<{ id: string }, { spark: LingguangSpark }>("get", "读取灵光", "读取当前项目的一条灵光，包括已丢弃记录", "query", object({ id }), object({ spark }), read),
   // Noting a spark is taken back by discarding it (kept as a discarded record, not erased): the Assistant may note one
   // when asked without a confirmation, and the person can undo it.
-  create: undoable(define<{ title?: string; body?: string; request_id?: string }, { spark: LingguangSpark }>("create", "记下灵光", "在当前项目保存一条灵光；带同一 request_id 重试时返回第一次保存的那条", "command",
+  create: undoable(define<{ title?: string; body?: string; request_id?: string }, { spark: LingguangSpark }>("create", "记下灵光", "在当前项目保存一条灵光；带同一 request_id 重试同样的内容时返回第一次保存的那条，同一 request_id 换了内容会被拒绝", "command",
     object({ ...fields, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ spark }), write), { capability_id: "lingguang.discard", version: 1, input: { ids: ["spark.id"] } }),
   update: define<{ id: string; title?: string; body?: string; expected_updated_at?: string }, { spark: LingguangSpark }>("update", "修改灵光", "修改当前项目灵光；提供读取时的 updated_at 可防止覆盖其他编辑", "command",
     object({ id, ...fields, expected_updated_at: text }, ["id"]), object({ spark }), write),
-  discard: define<{ ids: string[] }, { ok: true }>("discard", "丢弃灵光", "全部对象校验通过后将所选灵光移出列表，保留原数据", "command", object({ ids }), object({ ok: { const: true } }), write),
+  discard: define<{ ids: string[]; expected_updated_at?: Record<string, string> }, { ok: true }>("discard", "丢弃灵光", "全部对象校验通过后将所选灵光移出列表，保留原数据；按灵光 id 提供读取时的 updated_at 可防止丢掉别处刚写了字的那条，其中任何一条已变化则整批不丢",
+    "command", object({ ids, expected_updated_at: { type: "object", additionalProperties: text } }, ["ids"]), object({ ok: { const: true } }), write),
   openConversation: define<{ spark_ids: string[] }, LingguangConversationState>("conversation.open", "打开灵光对话", "为所选灵光打开或恢复原有对话与历史，不调用模型", "command", object({ spark_ids: ids }), conversationState, [...read, ...write]),
   getConversation: define<{ id: string }, LingguangConversationState>("conversation.get", "读取灵光对话", "读取当前项目的一场对话、关联灵光和历史消息", "query", object({ id }), conversationState, read),
   message: define<{ id: string; body: string }, LingguangConversationState>("conversation.message", "继续灵光对话", "结合所选灵光和历史生成回复；需要文字模型，失败保留原会话且不生成占位回复", "command",
@@ -85,7 +87,7 @@ export interface LingguangActionPorts {
   /** Reading files and public pages, where this machine can. */
   readFile?(input: MaterialUpload, caller: ActionExecutionContext): Promise<LingguangHostMaterial>;
   readSource?(input: MaterialSource, caller: ActionExecutionContext): Promise<LingguangHostMaterial>;
-  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
+  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
   modelAvailability(): ActionAvailability;
 }
 
@@ -113,19 +115,19 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
     bind(lingguangActions.readSource, async (input, caller) => keptMaterial(await ports.readSource!(input, caller)), () => reading(ports.readSource)),
     bind(lingguangActions.create, (input, caller) => ports.withStore(store => ({ spark: store.create({ ...input, project_id: project(caller) }) }))),
     bind(lingguangActions.update, (input, caller) => ports.withStore(store => ({ spark: store.update(input.id, input, project(caller)) }))),
-    bind(lingguangActions.discard, (input, caller) => ports.withStore(store => { store.discard(input.ids, project(caller)); return { ok: true }; })),
+    bind(lingguangActions.discard, (input, caller) => ports.withStore(store => { store.discard(input.ids, project(caller), input.expected_updated_at); return { ok: true }; })),
     bind(lingguangActions.openConversation, (input, caller) => ports.withStore(store => store.openConversation(input.spark_ids, project(caller)))),
     bind(lingguangActions.getConversation, (input, caller) => ports.withStore(store => store.conversation(input.id, project(caller)))),
     bind(lingguangActions.message, async (input, caller) => {
       const projectId = project(caller);
       const snapshot = ports.withStore(store => store.conversation(input.id, projectId));
-      if (snapshot.sparks.some(spark => spark.status !== "inbox")) throw new ActionError("lingguang.invalid", "关联灵光已丢弃，不能继续这场对话");
+      if (snapshot.sparks.some(spark => spark.status !== "inbox")) throw lingguangErrors.invalid("关联灵光已丢弃，不能继续这场对话");
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置文字模型，再继续对话");
       const prompt = conversationPrompt(snapshot, input.body);
       caller.signal?.throwIfAborted();
-      const reply = (await ports.completeText(prompt, { signal: caller.signal })).trim();
+      const reply = (await ports.completeText(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect })).trim();
       caller.signal?.throwIfAborted();
-      if (!reply) throw new ActionError("lingguang.empty_reply", "模型没有返回正文，输入已保留，可重试");
+      if (!reply) throw lingguangErrors.empty_reply("模型没有返回正文，输入已保留，可重试");
       await caller.beforeEffect();
       return ports.withStore(store => store.addReply(input.id, input.body, reply, projectId, snapshot));
     }, () => ports.modelAvailability()),
@@ -149,6 +151,6 @@ function conversationPrompt(state: LingguangConversationState, body: string): In
   const material = { sparks: state.sparks.map(({ title, body }) => ({ title, body: body.length > SPARK_IN_PROMPT ? body.slice(0, SPARK_IN_PROMPT) + "\n（以下省略）" : body })),
     history: state.messages.filter(message => message.role !== "stub").map(({ role, body }) => ({ role, body })), message: body };
   const data = JSON.stringify(material);
-  if (data.length > 180_000) throw new ActionError("lingguang.context_too_large", "这场对话的材料过长，请减少所选灵光后开启对话");
+  if (data.length > 180_000) throw lingguangErrors.context_too_large("这场对话的材料过长，请减少所选灵光后开启对话");
   return instructed(LINGGUANG_CONVERSATION, data);
 }

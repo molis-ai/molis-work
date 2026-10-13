@@ -5,23 +5,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, configureGoalEventsCapability, reportGoalEventsCapability, recordGoalProgressCapability,
-  applyGoalConcernCapability, requestGoalDecisionCapability, citeGoalDecisionCapability, setGoalEventAgreementCapability,
-  submitGoalEventClosureCapability, resumeGoalEventWorkCapability, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { managementCaller, managementGoals } from "./goal-management-caller.js";
 
 test("Goals work actions keep atomic reports, original receipts, user authority, and completion rules", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-command-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Commands", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let denied: string | undefined;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, view) => view.capability_id === denied
     ? { available: false, code: "actions.plugin_disabled", reason: "操作停用" } : { available: true } });
-  const actor_id = "runtime:commands:session", actor_kind = "runtime" as const, board_id = project.board_id, goal_id = "COMMAND-GOAL";
+  const actor_id = "runtime:commands:session", actor_kind = "runtime" as const, project_id = project.project_id, goal_id = "COMMAND-GOAL";
   const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:commands", audit_actor_id: actor_id,
     actor_kind, audience: "agent", project_id: project.project_id, permissions: ["goals:read", "goals:write"] }));
-  const typed = host.client(ref);
+  const typed = host.client(ref), management = managementGoals(host.actionClient(ref), project_id);
   const state = () => actions.invoke(goalsActions.state, { goal_id });
   try {
     await actions.invoke(goalsActions.create, { goal_id, title: "实际工作闭环", outcome: "保留用户验收", idempotency_key: "create",
@@ -29,7 +28,7 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
     const configure = { goal_id, expected_version: 0, idempotency_key: "config", types: [{ type_id: "work", version: 1, name: "交付",
       purpose: "保留事实", fields: [{ field_id: "body", name: "正文", purpose: "原文", format: "longtext" as const, required: true }] }],
       requirement_bindings: [{ type_id: "work", requirement_id: "human" }] };
-    const oldConfig = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.configure({ ...configure, board_id, actor_id, actor_kind }));
+    const oldConfig = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.configure({ ...configure, project_id, actor_id, actor_kind }));
     assert.deepEqual(await actions.invoke(goalsActions.configure, configure), { ...JSON.parse(JSON.stringify(oldConfig)), replayed: true });
     await assert.rejects(actions.invoke(goalsActions.configure, { ...configure, idempotency_key: "stale-config" }), /版本/);
     const report = { goal_id, idempotency_key: "report", events: [{ type_id: "work", type_version: 1, title: "实际正文",
@@ -38,15 +37,25 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
     await assert.rejects(actions.invoke(goalsActions.report, { ...report, idempotency_key: "bad-batch",
       events: [...report.events, { ...report.events[0]!, type_id: "missing" }] }));
     assert.equal((await state()).goal_event_cursor, before, "an invalid batch must not partially save its first fact");
-    const recorded = await typed.invoke(reportGoalEventsCapability, { ...report, board_id, actor_id, actor_kind });
-    assert.equal(recorded.events.length, 1); assert.equal(recorded.events[0]?.actor_id, actor_id);
+    const recorded = await management.invoke(goalsActions.report, report);
+    assert.equal(recorded.events.length, 1); assert.equal(recorded.events[0]?.actor_id, LOCAL_PERSON_ACTOR_ID);
+    assert.equal(recorded.events[0]?.actor_kind, "user");
     assert.equal(recorded.events[0]?.payload.body, "旧回执和原文保留");
     assert.equal(recorded.completion_effect, false);
-    assert.deepEqual(await actions.invoke(goalsActions.report, report), { ...JSON.parse(JSON.stringify(recorded)), replayed: true });
-    const progress = { goal_id, based_on_cursor: recorded.goal_event_cursor, summary: "等待用户验收", idempotency_key: "progress" };
-    const progressed = await typed.invoke(goalProgressCapabilities.record, { ...progress, actor_id, actor_kind });
+    assert.equal((await management.invoke(goalsActions.report, report)).replayed, true);
+    await assert.rejects(management.invoke(goalsActions.report, { ...report, actor_id, actor_kind } as never), { code: "actions.input_invalid" });
+    const runtimeReport = { ...report, idempotency_key: "runtime-report" };
+    const runtimeRecorded = await actions.invoke(goalsActions.report, runtimeReport);
+    assert.equal(runtimeRecorded.events[0]?.actor_id, actor_id);
+    assert.deepEqual(await actions.invoke(goalsActions.report, runtimeReport), { ...JSON.parse(JSON.stringify(runtimeRecorded)), replayed: true });
+    const progress = { goal_id, based_on_cursor: runtimeRecorded.goal_event_cursor, summary: "等待用户验收", idempotency_key: "progress" };
+    const progressed = await actions.invoke(goalsActions.progress, progress);
     assert.equal(progressed.progress_summary.actor_id, actor_id);
     assert.deepEqual(await actions.invoke(goalsActions.progress, progress), { ...progressed, replayed: true });
+    const typedProgress = { ...progress, idempotency_key: "typed-progress" };
+    const typedProgressed = await typed.invoke(goalProgressCapabilities.record, typedProgress);
+    assert.equal(typedProgressed.progress_summary.actor_id, LOCAL_PERSON_ACTOR_ID);
+    assert.equal((await typed.invoke(goalProgressCapabilities.record, typedProgress)).replayed, true);
     const receiptQuery = { goal_id, idempotency_key: progress.idempotency_key };
     const receipt = { ...progressed, replayed: true };
     assert.deepEqual(await actions.invoke(goalsActions.progressReceipt, receiptQuery), receipt);
@@ -70,8 +79,8 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
     await assert.rejects(actions.invoke(goalsActions.citeDecision, { goal_id, decision_id: "fabricated", idempotency_key: "fake" }));
     const incomplete = await actions.invoke(goalsActions.close, { goal_id, kind: "complete", reason: "申请收尾", idempotency_key: "blocked", ...versions });
     assert.equal(incomplete.completion_applied, false); assert.ok(incomplete.unmet_reasons.length > 0);
-    const decision = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.recordTrustedDecision({ board_id, goal_id,
-      authority: hostEventDecisionAuthority("web", board_id, "real-user", "accept"), idempotency_key: "accept", request_id: asked.decision_request.request_id,
+    const decision = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.recordTrustedDecision({ project_id, goal_id,
+      authority: hostEventDecisionAuthority("web", project_id, "real-user", "accept"), idempotency_key: "accept", request_id: asked.decision_request.request_id,
       selected_option_id: "yes", conclusion: "接受交付", effects: [{ kind: "accept_requirements" }], scope: { requirement_ids: ["human"] } }));
     const cited = await actions.invoke(goalsActions.citeDecision, { goal_id, idempotency_key: "cite", decision_id: decision.decision.decision_id, scope: { requirement_ids: ["human"] } });
     assert.equal(cited.decision.actor_id, "real-user", "citing preserves the original decision maker");
@@ -87,26 +96,23 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
       new_requirements: [{ requirement_id: "extra", statement: "补充说明" }] });
     assert.equal(agreed.agreement.version, now.agreement.version + 1);
     const beforeDenied = (await state()).goal_event_cursor;
-    await assert.rejects(typed.invoke(configureGoalEventsCapability, { ...configure, board_id: "foreign", actor_id }), { code: "actions.scope_mismatch" });
-    for (const [capability, action] of [
-      [configureGoalEventsCapability, goalsActions.configure], [reportGoalEventsCapability, goalsActions.report],
-      [recordGoalProgressCapability, goalsActions.progress], [applyGoalConcernCapability, goalsActions.concern],
-      [requestGoalDecisionCapability, goalsActions.requestDecision], [citeGoalDecisionCapability, goalsActions.citeDecision],
-      [setGoalEventAgreementCapability, goalsActions.agree], [submitGoalEventClosureCapability, goalsActions.close],
-      [resumeGoalEventWorkCapability, goalsActions.resume],
+    await assert.rejects(host.actionClient(ref).invoke(managementCaller("foreign", configure.idempotency_key), goalsActions.configure, configure), { code: "actions.scope_mismatch" });
+    for (const action of [
+      goalsActions.configure, goalsActions.report, goalsActions.progress, goalsActions.concern, goalsActions.requestDecision,
+      goalsActions.citeDecision, goalsActions.agree, goalsActions.close, goalsActions.resume,
     ] as const) {
       denied = action.capability_id;
-      await assert.rejects(typed.invoke<unknown, unknown>(capability, { goal_id, board_id, actor_id, actor_kind, idempotency_key: "denied" } as never), { code: "actions.plugin_disabled" });
+      await assert.rejects(management.invoke<unknown, unknown>(action as never, { goal_id, idempotency_key: "denied" } as never), { code: "actions.plugin_disabled" });
     }
     denied = goalsActions.progress.capability_id;
-    await assert.rejects(typed.invoke(goalProgressCapabilities.record, { ...progress, actor_id, actor_kind }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(goalProgressCapabilities.record, { ...progress, idempotency_key: "denied-progress" }), { code: "actions.plugin_disabled" });
     denied = goalsActions.progressReceipt.capability_id;
     await assert.rejects(typed.invoke(goalProgressCapabilities.receipt, { ...receiptQuery, actor_id }), { code: "actions.plugin_disabled" });
     assert.equal((await state()).goal_event_cursor, beforeDenied);
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     try {
-      const replay = await restarted.client(ref).invoke(reportGoalEventsCapability, { ...report, board_id, actor_id, actor_kind });
+      const replay = await managementGoals(restarted.actionClient(ref), project_id).invoke(goalsActions.report, report);
       assert.equal(replay.replayed, true); assert.equal(replay.events[0]?.event_id, recorded.events[0]?.event_id);
       assert.equal(replay.goal_event_cursor, beforeDenied, "retry after restart must not append another report");
       assert.deepEqual(await restarted.client(ref).invoke(goalProgressCapabilities.receipt, { ...receiptQuery, actor_id }), receipt);

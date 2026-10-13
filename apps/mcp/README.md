@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-根 apps/desktop/launchers/mcp/server.ts 处理进程入口；Host 管理项目连接和调用身份。本包通过 handleMcpMessage、工具目录及 dispatchMcpProjectTool 把请求交给 Host Client，再组合返回值。Runtime 事件工具是 `molis_work_v1_goal_intent_create`、`molis_work_v1_goal_state`、`molis_work_v1_event_configure`、`molis_work_v1_event_report`、`molis_work_v1_event_list`、`molis_work_v1_event_read`、`molis_work_v1_event_progress`、`molis_work_v1_event_concern`、`molis_work_v1_event_decision_request`、`molis_work_v1_event_cite_decision`、`molis_work_v1_event_agree`、`molis_work_v1_event_close`、`molis_work_v1_event_resume`。`molis_work_v1_event_decide` 只接受 Host Web/管理入口，不属于 Runtime audience。Runtime 身份由 Host 写入，工具参数不能自填用户或批准。上报返回记录成功，不表示正式完成；显式收尾才可能让 `completion_applied` 为 true。未转交 `legacy_claim_run` Goal 仍暴露 `select_goal` / `claim_renew` / `run_*` / `evidence_*` / `review_submit`。
+根 apps/desktop/launchers/mcp/server.ts 处理进程入口；Host 管理项目连接和调用身份。本包提供 MCP 协议（handleMcpMessage）、平台工具目录（连接工具与受信管理入口的工具）、连接工具与管理工具的分发，以及把动作目录里每个动作变成 MCP 工具的适配（`createActionMcpPorts`；名称 `molis_work_v1_action_<动作>__v<版本>` 由 `molisWorkActionToolName` 给出，产品代码里前缀只在这里出现）。Goals 与各插件的能力都经动作工具对外。
 
 ## 从哪里读代码
 
@@ -15,7 +15,7 @@
 | 文件 | 用途 |
 | --- | --- |
 | [src/protocol.ts](src/protocol.ts) | handleMcpMessage：协议处理 |
-| [src/tool-catalog.ts](src/tool-catalog.ts) | 平台工具目录（连接 / Goals / 事件）。插件工具不在这里写死 |
+| [src/tool-catalog.ts](src/tool-catalog.ts) | 平台工具目录：7 个连接工具与受信管理入口的 initialize、event_decide、goal_tree_decide。插件与 Goals 能力都是动作工具，不在这里写死 |
 | [src/tool-dispatch.ts](src/tool-dispatch.ts) | 项目工具分发 |
 | [src/launcher-validation.ts](src/launcher-validation.ts) | 启动器验证 |
 
@@ -23,7 +23,7 @@
 
 ## 接入与边界
 
-Session 身份来自 Host 上下文，不能把模型提交的参数直接当作身份。工具 schema 与响应适配属于这里；Goal 事件事实和完成效果属于 Goals，可信用户决定属于 Governance，UI 不另算完成。插件对外方法由 Manifest `mcp_exports` 登记、由 Local Host 合成，不进本包静态目录。作者与 Host 改法见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
+Session 身份来自 Host 上下文，不能把模型提交的参数直接当作身份。工具 schema 与响应适配属于这里；Goal 事件事实和完成效果属于 Goals，可信用户决定属于 Governance，UI 不另算完成。插件的对外能力就是它声明的动作，由 Local Host 按授权列入目录，不进本包静态目录。作者与 Host 改法见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。其他运行依赖见 [package.json](package.json)。
 
@@ -51,11 +51,13 @@ node --import tsx --test --test-concurrency=1 tests/host-entry-consistency.test.
 - 公开入口：`@molis-ai/molis-work-app-mcp`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。方向：apps → 组合根 → 公开合同（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - Runtime 与 Session 身份由 Host 写入，工具参数不能自填用户、批准或身份。
-  - 插件对外方法由 Manifest `mcp_exports` 登记、Local Host 合成，不进本包的静态目录，也不按公开名写 `if`。
+  - Runtime 与 Session 身份由 Host 写入，工具参数不能自填用户、批准或身份。连接工具（绑定、解绑、拒绝建议、新建并绑定、删项目）也不收 `actor_id`：操作者是 Host 记下的 MCP 客户端与 Runtime 会话（`ports.actorFor`），参数里带身份字段被 `mcp.unexpected_field` 拒绝，什么也不写；删项目交给 Host 的删除服务（`ports.deleteProject`），本包不自己开项目目录删。
+  - 受信管理入口的 `goal_tree_decide` 同样不收身份：schema 里没有 `actor_id`、`actor_kind`、`audit_actor_id`、`runtime_actor_id`，`authority` 只指向对话出处，带 `actor_id`、`actor_kind`、`authority_source` 被宿主拒绝；决定记本机这个人，没有 Runtime 转交。`event_decide` 同样由宿主造出身份（本机这个人，出处 management），转发给宿主的 `recordGoalUserDecisionCapability` 时不带 `authority`；该能力的 `authority` 只收对话出处，带身份被拒绝（`goals.event_decision_authority_invalid`）。
+  - 平台工具只有连接工具与受信管理入口的工具；其余能力都是动作工具，不进本包的静态目录，也不按名称写 `if`。
   - 生产启动器走常驻服务通道，不回退到本地 typed Host。
+  - Host 的 Runtime 安装验证只运行自己的 launcher 子进程；stdin 管道失败或退出经现有失败收口，收口后的 stdout（含同一 chunk 的后续消息）不再发送请求。管道监听保留到该子进程关闭，10 秒验证限额不变；失败由现有安装服务恢复配置、Skill 和既存 receipt，再次正常 launcher 可重新接入。
   - 说明或恢复目录不可读时返回真实连接并把对应内容置 null、附错误字段；不伪报空项目、不自动重新绑定。
-- 改动后必跑：`node scripts/run-tests.mjs tests/mcp-protocol.test.ts tests/mcp-action-grants.test.ts tests/mcp-action-settings.test.ts tests/action-mcp.test.ts tests/mcp-goal-events.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/mcp-protocol.test.ts tests/mcp-action-grants.test.ts tests/mcp-action-settings.test.ts tests/action-mcp.test.ts tests/mcp-goal-events.test.ts tests/mcp-connection-identity.test.ts tests/runtime-skill-flow.test.ts tests/management-door-identity.test.ts`；安装验证改动另跑：`node scripts/run-tests.mjs tests/runtime-integration.test.ts`。
 - 相关手册：[docs/mcp.md](../../docs/mcp.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

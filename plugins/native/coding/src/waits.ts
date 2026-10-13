@@ -3,13 +3,14 @@
  * what the page shows and what the next round is told. They touch no storage: the caller passes what was saved.
  */
 import type { AgentWait } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export const OPEN_WAIT = ["waiting", "fired"];
 
 /** An "app" wait carries the round the person sent and the project work item it waits as. */
 export const appData = (wait: AgentWait) => {
   const data = (wait.data ?? {}) as { app?: { body?: Record<string, unknown>; actor_id?: string } | null; work_id?: string };
-  return { body: data.app?.body ?? {}, actor: data.app?.actor_id ?? "web-user", work_id: data.work_id };
+  return { body: data.app?.body ?? {}, actor: data.app?.actor_id ?? LOCAL_PERSON_ACTOR_ID, work_id: data.work_id };
 };
 export const waitingFor = (wait: AgentWait) => wait.by === "app" ? "work" : wait.on.some(one => one.kind === "envelope") ? "reply" : "command";
 /** What the page shows about a parked session; `note` is what was kept when the wait was held for the person. */

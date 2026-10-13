@@ -20,8 +20,9 @@
 - 会改数据的动作写清 `effect`；不希望被自动化调用的写 `plugin: false`，或不给 `agent`。
 - 输入输出 schema 写完整：生成插件、Agent、MCP 都按它调用和校验，缺字段就等于没法被别人用。
 - 可信身份（actor、项目、安装）从上下文来，不从输入里读。
+- 写入要算在某个 Runtime 会话名下的，声明 `authorship: "session"`：经 MCP 调用必须带稳定会话，作者从 `caller.audit_actor_id` 读。
 - 处理器里等模型或外部服务的，声明 `scheduling: "concurrent"`，并在返回后 `await caller.beforeEffect()`、按读取时的版本提交。
-- 结果回显已存历史的，schema 接受历史上出现过的取值（读取兼容），新写入仍按严格合同校验。结果不合合同时，查询报 `actions.output_invalid`；写动作此时已提交，报 `actions.output_invalid_after_effect`，调用方刷新而不重试。
+- 结果合同读写都按严格合同校验，只认现行取值；存量数据由维护改成现行形状，schema 里不留历史取值。结果不合合同时，查询报 `actions.output_invalid`；写动作此时已提交，报 `actions.output_invalid_after_effect`，调用方刷新而不重试。
 
 ## 生成插件用能力时
 

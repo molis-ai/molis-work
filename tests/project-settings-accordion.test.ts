@@ -59,7 +59,7 @@ test("workbench project gear links to the standalone settings path", () => {
   const html = renderMolisWorkWeb({
     snapshot: {
       board: {
-        board_id: "board-1",
+        project_id: "board-1",
         title: "工作台",
         active_goal_id: null,
         created_at: "2026-01-01T00:00:00.000Z",
@@ -68,18 +68,6 @@ test("workbench project gear links to the standalone settings path", () => {
       cursor: 0,
       goals: [],
       relations: [],
-      impacts: [],
-      risks: [],
-      claims: [],
-      runs: [],
-      evidence: [],
-      review_obligations: [],
-      reviews: [],
-      candidates: [],
-      contract_proposals: [],
-      rewires: [],
-      clarification_sessions: [],
-      clarification_turns: [],
       goal_tree_proposals: [],
       planning_method_packs: [],
     },
@@ -92,7 +80,6 @@ test("workbench project gear links to the standalone settings path", () => {
     archived_goals: [],
     trashed_goals: [],
     counts: {},
-    coverage: [],
     input_bindings: [],
     policy_bindings: [],
     events: [],
@@ -101,7 +88,6 @@ test("workbench project gear links to the standalone settings path", () => {
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      contract_migrations: [],
       out_rules: [],
     },
   } as MolisWorkWebView);

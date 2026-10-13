@@ -2,8 +2,10 @@ import { chmodSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-/** Home directories that hold a personal `{name}/{name}.db`. Uninstall --purge must cover these. */
+/** Home directories that hold user data in SQLite (a personal `{name}/{name}.db`, `server/server.sqlite`, ...). Uninstall --purge must cover these. */
 export const PERSONAL_HOME_SQLITE_STORES = [
+  "issues",
+  "plugin-runtime",
   "images",
   "pages",
   "form",
@@ -20,6 +22,7 @@ export const PERSONAL_HOME_SQLITE_STORES = [
   "context-onboarding",
   "search",
   "memory",
+  "server",
 ] as const;
 
 export type PersonalHomeSqliteStore = (typeof PERSONAL_HOME_SQLITE_STORES)[number];
@@ -41,14 +44,8 @@ export function openHomeSqliteDatabase(homeDirectory: string, storeName: string)
   return db;
 }
 
-export function ensureSqliteColumn(
-  db: DatabaseSync,
-  table: string,
-  column: string,
-  definition: string,
-): void {
-  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
-  if (!columns.some((item) => item.name === column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-  }
+
+/** A second connection for query services. SQLite itself rejects writes and does not create missing files. */
+export function openReadOnlyHomeSqlite(homeDirectory: string, storeName: string): DatabaseSync {
+  return new DatabaseSync(homeSqlitePath(homeDirectory, storeName), { readOnly: true });
 }

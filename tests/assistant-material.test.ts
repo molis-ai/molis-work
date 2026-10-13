@@ -12,7 +12,7 @@ import { AssistantService } from "../apps/local-host/src/assistant/assistant-ser
  */
 test("new material that shares a Goal with a live work raises one merged notice; unrelated, repeated, its own and old items raise nothing", async () => {
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "project", storage_key: "memory:project" };
   const goals = new Map([["g-q4", "Q4 计划"], ["g-other", "别的目标"]]);
   const notes = new Map([["n1", ["g-q4"]]]);
   const feed: Array<HomeEvent & { goal_ids: string[] }> = [];

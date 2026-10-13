@@ -4,7 +4,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
-import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Goal document tabs retry lazy loading, restore selection, and keep the current event document", { timeout: 60_000 }, async (t) => {
@@ -24,7 +24,7 @@ test("Goal document tabs retry lazy loading, restore selection, and keep the cur
   await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/V1/event-state*"] }, sessionId);
   await evaluate(`document.querySelector(".goal-more").open = true; document.querySelector('.goal-more [data-event-reader="planning"]').click();`);
   await waitFor(dom("[data-event-reader-root]") + " && !" + dom("[data-event-reader-root]") + ".hasAttribute('hidden')");
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals, before.goals);
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await click("[data-event-back]");
   // Back closes the reader layer and returns focus to what opened it (the Goal's 更多 menu), not to a separate sheet.
@@ -47,10 +47,9 @@ test("Goal document tabs retry lazy loading, restore selection, and keep the cur
   await waitFor(dom("[data-event-reader-root]") + " && !" + dom("[data-event-reader-root]") + ".hasAttribute('hidden')");
   assert.equal(await evaluate("document.documentElement.scrollWidth > innerWidth"), false);
   await capture("mobile");
-  const after = store.snapshot(DEMO_BOARD_ID);
+  const after = store.snapshot(DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals);
   assert.deepEqual(after.relations, before.relations);
-  assert.deepEqual(after.runs, before.runs);
 });
 
 test("late completed document response never replaces the newer selected Goal", { timeout: 60_000 }, async t => {
@@ -87,9 +86,8 @@ test("late completed document response never replaces the newer selected Goal", 
   assert.equal(await evaluate("document.querySelector('[data-goal-view]').dataset.goalView"), "V1");
   assert.equal(await evaluate("document.querySelector('.tree-node.is-selected').dataset.selectGoal"), "V1");
   assert.equal(await evaluate("location.pathname"), "/goals/V1");
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).relations, before.relations);
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals, before.goals);
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).relations, before.relations);
 });
 
 test("public document clients isolate requests and keep Host callbacks, failure recovery and both pane layouts", { timeout: 60_000 }, async t => {
@@ -180,8 +178,8 @@ test("public document clients isolate requests and keep Host callbacks, failure 
   assert.deepEqual(result.calls, ["b:before:initial-b", "b:after:V1", "a:before:initial-a", "a:after:CORE", "a:before:CORE", "a:after:RELEASE"]);
   assert.deepEqual(result.errors, ["无法读取这条 Goal 正文"]);
   assert.deepEqual(result.caches, Array(5).fill("no-store"));
-  const after = store.snapshot(DEMO_BOARD_ID);
-  for (const key of ["goals", "relations", "risks", "claims", "runs", "evidence"] as const) assert.deepEqual(after[key], before[key]);
+  const after = store.snapshot(DEMO_PROJECT_ID);
+  for (const key of ["goals", "relations"] as const) assert.deepEqual(after[key], before[key]);
 });
 
 test("switching Goals while a document is loading still keeps the later selection after the old response arrives", { timeout: 60_000 }, async t => {
@@ -216,6 +214,6 @@ test("switching Goals while a document is loading still keeps the later selectio
   await waitFor("document.querySelector('.tree-node[data-select-goal=\"V1\"]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'V1'");
   await evaluate("__releaseDocumentResponse(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   assert.equal(await evaluate("document.querySelector('[data-goal-event-document]').dataset.goalView"), "V1");
-  const after = store.snapshot(DEMO_BOARD_ID);
-  for (const key of ["goals", "relations", "risks", "claims", "runs", "evidence"] as const) assert.deepEqual(after[key], before[key]);
+  const after = store.snapshot(DEMO_PROJECT_ID);
+  for (const key of ["goals", "relations"] as const) assert.deepEqual(after[key], before[key]);
 });

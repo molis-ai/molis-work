@@ -11,16 +11,17 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
 import { actionUsageActions, type ActionUsagesResult } from "../apps/local-host/src/action-usage-actions.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
-test("where a capability is used comes from each owner of saved references: workflow steps, Character scopes and client grants", { timeout: 120_000 }, async () => {
+test("where a capability is used comes from each owner of saved references: workflow steps, Character scopes and client grants", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "action-usages-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "使用位置", actor_id: "web-user" });
   catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  // The Home is served so that the client's grant is saved the way a person saves it; this file keeps its own host (it needs `src` imports of the usage action).
+  const served = await serveTestHost(t, { home, host });
+  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const owner: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user",
     permissions: [...new Set(["artifact:read", "artifact:write", ...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS])] };
   const client = host.actionClient(ref), actions = bindActionClient(client, () => owner);
@@ -37,7 +38,7 @@ test("where a capability is used comes from each owner of saved references: work
       links: [{ kind: "function", title_template: "", body_template: "{正文}", instructions: "" }] } });
     const { draft } = await actions.invoke(c.create, {});
     await actions.invoke(c.update, { id: draft.character_id, expected_revision: draft.revision, title: "收尾员", instructions: "只做收尾", host_tools: null, action_tools: [target] });
-    await writeMcpActionGrant(home, createMcpActionGrant("client-x", project.project_id, status, true));
+    await served.grant("client-x", project.project_id, [status]);
 
     const { usages, issues } = await usagesOf();
     assert.deepEqual(issues, []);
@@ -65,6 +66,7 @@ test("where a capability is used comes from each owner of saved references: work
     await actions.invoke(w.delete, { id: workflow.workflow_id });
     assert.deepEqual((await usagesOf()).usages.map(usage => usage.reporter).sort(), [byReporter["Characters"]!.reporter, grant.reporter].sort());
   } finally {
+    await served.close();
     await host.close();
     await rm(home, { recursive: true, force: true });
   }

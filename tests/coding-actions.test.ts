@@ -4,7 +4,7 @@ import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { CODING_ACTIONS, codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
+import { codingManifest, codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 
@@ -15,13 +15,14 @@ test("Coding's business surface is redeemed by the project Runtime, owner-bound,
   catalog.close();
   const workspace = { workspace_id: "fixture", canonical_path: await realpath(home), realpath_verified: true as const, display_name: "fixture" };
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: async () => workspace, workspacesFor: async () => [workspace] });
-  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const owner: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"] };
   const client = host.actionClient(ref);
   const find = (id: string) => codingRouteActions[id]!.definition;
   try {
     const directory = (await client.discover(owner)).filter(row => row.provider.plugin_id === "io.molis.work.coding");
-    assert.deepEqual(directory.map(row => row.capability_id).sort(), CODING_ACTIONS.map(row => row.capability_id).sort());
+    // Its route actions plus the preview of its run reports (artifact-positioning A4): exactly what the Manifest declares.
+    assert.deepEqual(directory.map(row => row.capability_id).sort(), codingManifest.actions!.map(row => row.capability_id).sort());
 
     const created = await client.invoke(owner, find("coding.create-session"), { title: "修复登录" }) as { session: { session_id: string; title: string } };
     assert.equal(created.session.title, "修复登录");

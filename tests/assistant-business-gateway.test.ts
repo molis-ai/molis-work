@@ -5,12 +5,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import type { ActionView, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantError, AssistantService, presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
-import { actionKey, assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
-import { gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/src/adapters/prologue-action-gateway.js";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { managementGoals } from "./goal-management-caller.js";
+import { watchSettlements } from "./fixtures/settlements.js";
+import { AssistantStore, type StoredWork } from "../apps/local-host/dist/assistant/assistant-store.js";
+import { AssistantError, AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { actionKey, assistantAuthority, assistantProjectPrompts } from "../apps/local-host/dist/assistant/assistant-authority.js";
+import { gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/dist/adapters/prologue-action-gateway.js";
+import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -43,11 +49,13 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const notes = new DatabaseSync(":memory:");
   notes.exec("CREATE TABLE notes (body TEXT NOT NULL, project TEXT NOT NULL, actor TEXT NOT NULL, audit TEXT)");
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "project", storage_key: "memory:project" };
   const seen: unknown[] = [];
+  /** The call number each action handler was given, in the order the tools ran. */
+  const calls: Array<string | undefined> = [];
   const unregister = local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, definitions: [write, count],
-    handlers: [{ ...write, handle(context, input) { seen.push(input); notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, context.audit_actor_id ?? null); return { saved: true }; } },
-      { ...count, handle() { return Number(notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n); } }] });
+    handlers: [{ ...write, handle(context, input) { seen.push(input); calls.push(context.call_id); notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, context.audit_actor_id ?? null); return { saved: true }; } },
+      { ...count, handle(context) { calls.push(context.call_id); return Number(notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n); } }] });
   const requests: any[] = [];
   let turn = 0;
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
@@ -67,7 +75,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user", options.now);
-  return { service, store, host, adapter, queue, notes, seen, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, store, host, adapter, queue, notes, seen, calls, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a project work finds, reads and — after the person approves the exact input — changes through the gateway, with no directory", { timeout: 60_000 }, async t => {
@@ -97,6 +105,45 @@ test("a project work finds, reads and — after the person approves the exact in
     const verbs = done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`);
     assert.deepEqual(verbs, ["lookup:completed", "read:completed", "change:completed"]);
     assert.equal(done.rounds[0]!.activity[2]!.target, "Notes · Save a note");
+  } finally { await f.close(); }
+});
+
+test("every tool call of an Assistant round has the number of the request that sent the message, and the run's frozen record keeps it", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "find-capabilities", input: { query: "Notes" } }),
+    () => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } }),
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "numbered" } } }),
+    () => reply(undefined, "Saved."),
+  ]);
+  try {
+    const page = newCallId();
+    const sent = await withCallId(page, () => f.service.send({ text: "Save a numbered note", request_id: "req-00000401" }, { project_ref: f.project }));
+    const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    // The person decides later, in a request of its own: the tool call that follows still belongs to the round.
+    await withCallId(newCallId(), () => f.service.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" }));
+    await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.equal(f.calls.length, 2, "the round read, then changed");
+    assert.deepEqual(f.calls, [page, page]);
+    const work = f.store.get("web-user", sent.work.work_id);
+    assert.equal((await f.adapter.read({ session_id: work.session_id!, run_id: sent.run_id! })).frozen.call_id, page);
+  } finally { await f.close(); }
+});
+
+test("a round the Assistant starts outside any request has a number of its own, and its tools share it", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "find-capabilities", input: { query: "Notes" } }),
+    () => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } }),
+    () => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } }),
+    () => reply(undefined, "Counted twice."),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "Count the notes twice", request_id: "req-00000402" }, { project_ref: f.project });
+    await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.equal(f.calls.length, 2);
+    assert.match(f.calls[0] ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-/, "a number the Host gave");
+    assert.equal(f.calls[1], f.calls[0]);
+    const work = f.store.get("web-user", sent.work.work_id);
+    assert.equal((await f.adapter.read({ session_id: work.session_id!, run_id: sent.run_id! })).frozen.call_id, f.calls[0]);
   } finally { await f.close(); }
 });
 
@@ -174,21 +221,20 @@ test("activity and review read in the person's terms", () => {
 });
 
 test("business roles are declared narrowly and the Host keeps directories, MCP and per-action tools out of them", { timeout: 30_000 }, async t => {
-  const { inspectAgentDeclaration } = await import("@molis-ai/molis-work-contracts/platform/plugin-agent");
   const role = { role_id: "helper", version: 1, name: "Helper", workspace: "business" as const, execution: "operate" as const, prompts: ["base"], host_tools: ["ask-user"] };
-  const declare = (roles: unknown[]) => inspectAgentDeclaration({ prompts: [{ prompt_id: "base", version: 1 }], roles } as never);
-  assert.deepEqual(declare([role]), []);
-  assert.ok(declare([{ ...role, host_tools: ["read-file"] }]).some(problem => /业务角色/.test(problem)), "a file tool is not a business tool");
-  assert.ok(declare([{ ...role, workspace: undefined }]).some(problem => /operate/.test(problem)), "operate belongs to business roles only");
-  assert.ok(declare([{ ...role, execution: "workspace-write" }]).some(problem => /业务角色/.test(problem)));
+  const declare = (roles: unknown[]) => manifestProblems(declarationManifest({ agent: { prompts: [{ prompt_id: "base", version: 1 }], roles } }));
+  assert.equal(declare([role]), "");
+  assert.match(declare([{ ...role, host_tools: ["read-file"] }]), /业务角色/, "a file tool is not a business tool");
+  assert.match(declare([{ ...role, workspace: undefined }]), /operate/, "operate belongs to business roles only");
+  assert.match(declare([{ ...role, execution: "workspace-write" }]), /业务角色/);
   const f = await fixture(t, []);
   try {
     const sent = await f.service.send({ text: "hello", request_id: "req-00000006" }, { project_ref: f.project });
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "first round");
     const [work] = await f.service.list();
     const session = { session_id: work!.session_id!, runtime_id: "prologue" };
-    const base = { board_id: "board", plugin_id: "io.molis.work.assistant", install_id: "system", actor_id: "web-user", session, role_id: "assistant", workspace: "business" as const, task: "x" };
-    const { ASSISTANT_AGENT, ASSISTANT_PROMPTS } = await import("../apps/local-host/src/assistant/assistant-agent.js");
+    const base = { project_id: "project", plugin_id: "io.molis.work.assistant", install_id: "system", actor_id: "web-user", session, role_id: "assistant", workspace: "business" as const, task: "x" };
+    const { ASSISTANT_AGENT, ASSISTANT_PROMPTS } = await import("../apps/local-host/dist/assistant/assistant-agent.js");
     const authority = { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: ["/tmp"], actions: async () => ({ discover: async () => [], invoke: async () => null }) };
     for (const extra of [{ directory: { canonical_path: "/tmp", realpath_verified: true } }, { mcp_tools: [{ server: "s", tool: "t", version: "1" }] },
       { action_gateway: true, action_tools: [{ capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes" }] }]) {
@@ -415,9 +461,11 @@ test("background work a round or a card starts is followed through the plugin's 
   let state = "running";
   const start: ActionDefinition = { capability_id: "fixture.jobs.start", version: 1, operation: "command", action: { title: "Start research", description: "Start a research run in the background", kind: "operation", scope: "project",
     audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { topic: { type: "string", title: "主题" } }, required: ["topic"], additionalProperties: false },
+    output_schema: { type: "object", properties: { run: { type: "object", properties: { jobId: { type: "string" } } } } },
     background_job: { status: { capability_id: "fixture.jobs.status", version: 1 }, id: "run.jobId", input: "id", state: "status", done: ["completed"], failed: ["failed"] } } };
   const status: ActionDefinition = { capability_id: "fixture.jobs.status", version: 1, operation: "query", action: { title: "Job status", description: "Read a research run's status", kind: "query", scope: "project",
-    audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false } } };
+    audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false },
+    output_schema: { type: "object", properties: { status: { type: "string" } } } } };
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "市场" } } }),
     () => reply(undefined, "已开始研究，后台进行中。"),
@@ -459,6 +507,41 @@ test("background work a round or a card starts is followed through the plugin's 
     await f.service.checkJob(cardJob.key);
     const after = (await f.service.read(sent.work.work_id)).cards.find(card => card.card_id === ran.card_id)!;
     assert.deepEqual([after.status, after.outcome], ["failed", "后台没有完成（failed）"]);
+  } finally { await f.close(); }
+});
+
+test("running a card whose action starts a background job follows that job once, as the card's own: one entry, one notice", { timeout: 60_000 }, async t => {
+  let state = "running";
+  const start: ActionDefinition = { capability_id: "fixture.jobs.start", version: 1, operation: "command", action: { title: "Start research", description: "Start a research run in the background", kind: "operation", scope: "project",
+    audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { topic: { type: "string", title: "主题" } }, required: ["topic"], additionalProperties: false },
+    output_schema: { type: "object", properties: { run: { type: "object", properties: { jobId: { type: "string" } } } } },
+    background_job: { status: { capability_id: "fixture.jobs.status", version: 1 }, id: "run.jobId", input: "id", state: "status", done: ["completed"], failed: ["failed"] } } };
+  const status: ActionDefinition = { capability_id: "fixture.jobs.status", version: 1, operation: "query", action: { title: "Job status", description: "Read a research run's status", kind: "query", scope: "project",
+    audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false },
+    output_schema: { type: "object", properties: { status: { type: "string" } } } } };
+  const f = await fixture(t, [
+    () => reply({ name: "suggest-action", input: { title: "研究一次", summary: "开一轮研究", capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "成本" } } }),
+    () => reply(undefined, "给了一个按钮。"),
+  ]);
+  let next = 0;
+  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.jobs", kind: "plugin", title: "Research" }, definitions: [start, status],
+    handlers: [{ ...start, handle: () => ({ run: { jobId: `job-${++next}` } }) }, { ...status, handle: () => ({ status: state }) }] });
+  (f.service as any).ports.scopeActions = async () => ({ discover: () => f.local.actionClient(f.project).discover({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }),
+    invoke: (action: any, input: unknown) => f.local.actionClient(f.project).invoke({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }, action, input) });
+  try {
+    const sent = await f.service.send({ text: "给我一个研究按钮", request_id: "req-00000037" }, { project_ref: f.project });
+    const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
+    const ran = await f.service.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
+    assert.deepEqual([ran.status, ran.outcome, next], ["running", "已开始，后台进行中", 1]);
+    // One start, one followed job: it belongs to the card, and the work lists it once.
+    const jobs = f.store.jobs("web-user", sent.work.work_id);
+    assert.deepEqual(jobs.map(job => [job.job_id, job.card_id ?? null]), [["job-1", ran.card_id]]);
+    assert.equal((await f.service.read(sent.work.work_id)).jobs!.length, 1);
+    state = "completed";
+    for (const job of f.store.jobs("web-user", sent.work.work_id)) await f.service.checkJob(job.key);
+    assert.equal(f.service.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
+    const after = (await f.service.read(sent.work.work_id)).cards.find(card => card.card_id === ran.card_id)!;
+    assert.deepEqual([after.status, after.outcome], ["done", "后台已完成（completed）"]);
   } finally { await f.close(); }
 });
 
@@ -870,4 +953,30 @@ test("a review names common fields in words even when the plugin gave them no ti
   const fields = readableInput({ type: "object", properties: { markdown: { type: "string", description: "正文的 Markdown 写法（标题、列表、表格、引用、代码块都可以），由 Pages 转换成文档" }, folder_id: { type: "string" } } },
     { markdown: "# 周报", folder_id: "f1" });
   assert.deepEqual(fields.map(field => field.label), ["正文", "文件夹"]);
+});
+
+test("the project layer of a project work is the project's guidance, read through the Goals action without starting the project's plugins", async () => {
+  const home = await mkdtemp(join(tmpdir(), "assistant-guidance-"));
+  let removed = false;
+  const host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>
+    removed && action.capability_id.startsWith("goals.") ? { available: false, code: "actions.plugin_disabled", reason: "Goals 已从这个项目移除" } : { available: true } });
+  const project_ref = molisWorkHostProjectReference({ databasePath: join(home, "project.db"), projectId: "assistant-guided" });
+  const work = { work_id: "work", project_ref } as StoredWork;
+  try {
+    const management = managementGoals(host.actionClient(project_ref, false), "assistant-guided");
+    await management.invoke(goalsActions.initialize, { title: "说明", idempotency_key: "init" });
+    await management.invoke(goalsActions.guidanceAdd, { kind: "constraint", content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
+    const settled = watchSettlements(host);
+
+    const [layer] = await assistantProjectPrompts(host, work);
+    assert.equal(layer?.prompt_id, "project-guidance"); assert.match(layer!.body, /保留源文件/);
+    assert.deepEqual(settled.map(row => [row.capability_id, row.path, row.actor_id, row.ok]), [["goals.guidance.read", undefined, "web-user", true]], "one Goals action, no typed capability");
+    const providers = new Set((await host.actionClient(project_ref, false).discover({ actor_id: "web-user", actor_kind: "user", audience: "user", project_id: "assistant-guided", permissions: ["goals:read"] })).map(view => view.provider.provider_id));
+    assert.deepEqual(["io.molis.work.coding", "io.molis.work.shelf", "io.molis.work.characters"].filter(plugin => providers.has(plugin)), [], "reading the guidance started no Runtime plugin");
+
+    settled.length = 0; removed = true;
+    assert.deepEqual(await assistantProjectPrompts(host, work), [], "without Goals the work has no project layer");
+    assert.deepEqual(settled.map(row => [row.capability_id, row.path, row.ok, row.code]), [["goals.guidance.read", undefined, false, "actions.plugin_disabled"]]);
+    assert.deepEqual(await assistantProjectPrompts(host, { work_id: "personal" } as StoredWork), [], "personal work has no project");
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

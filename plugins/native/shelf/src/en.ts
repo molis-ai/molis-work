@@ -339,4 +339,6 @@ export const SHELF_EN: Record<string, string> = {
   "用于本项目": "Use in this project",
   "项目首页会列出它，你在项目里能打开最新内容；它仍只在你的 Shelf 里": "The project home lists it and opens the latest content; it stays only in your Shelf",
   "复制一份不会再变的原文到项目材料，项目里的 Coding 和助理能读取；之后改 Shelf 不影响这一份": "Copy the original, unchanging, into project materials where Coding and assistants in the project can read it; later Shelf changes won't affect it",
+  // plugins/native/shelf/src/settings-client.ts
+  "设置已保存，重新打开设置可查看最新内容。": "Settings saved. Reopen settings to see the latest.",
 };

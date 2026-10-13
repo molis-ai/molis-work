@@ -1,5 +1,5 @@
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { CATALOG_SCHEMA_VERSION, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -7,10 +7,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import Database from "better-sqlite3";
-import { MolisWorkCoordinator, SqliteMolisWorkStore } from "../apps/local-host/sdk/index.js";
 import { MolisWorkServer, runtimeContextHostFromEnvironment } from "../apps/desktop/launchers/mcp/server.js";
 
 import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -59,21 +59,20 @@ describe("mcp server", () => {
       "molis_work_v1_evidence_submit", "molis_work_v1_evidence_correct", "molis_work_v1_review_submit",
       "molis_work_v1_revalidate", "molis_work_v1_rework_request", "molis_work_v1_complete",
       "molis_work_v1_contract_propose", "molis_work_v1_candidate_submit", "molis_work_v1_dependency_propose",
-      "molis_work_v1_create_goal",
+      "molis_work_v1_create_goal", "molis_work_v1_goal_intent_create", "molis_work_v1_goal_list", "molis_work_v1_goal_state",
+      "molis_work_v1_event_note", "molis_work_v1_event_report", "molis_work_v1_goal_trash", "molis_work_v1_goal_restore",
+      "molis_work_v1_planning_methods", "molis_work_v1_functions_list", "molis_work_v1_functions_describe", "molis_work_v1_functions_invoke",
     ];
     for (const name of retired) assert.ok(!names.includes(name), name);
     for (const name of [
       "molis_work_v1_project_delete", "molis_work_v1_context_resolve",
     ]) assert.ok(names.includes(name), name);
-    for (const alias of ["list", "describe", "invoke"]) {
-      assert.equal(names.includes(`molis_work_v1_functions_${alias}`), false, "without a Home service, compatibility aliases are not executable");
-    }
-    for (const alias of ["molis_work_v1_goal_tree_propose", "molis_work_v1_goal_tree_read", "molis_work_v1_goal_tree_check", "molis_work_v1_active_goal", "molis_work_v1_goal_trash", "molis_work_v1_goal_restore", "molis_work_v1_goal_trash_list", "molis_work_v1_goal_intent_create", "molis_work_v1_goal_list", "molis_work_v1_event_note", "molis_work_v1_goal_state", "molis_work_v1_event_list", "molis_work_v1_event_read", "molis_work_v1_event_configure", "molis_work_v1_event_report", "molis_work_v1_event_progress", "molis_work_v1_event_concern", "molis_work_v1_event_decision_request", "molis_work_v1_event_cite_decision", "molis_work_v1_event_agree", "molis_work_v1_event_close", "molis_work_v1_event_resume"]) {
-      assert.equal(names.includes(alias), false, "Goals aliases require a bound project and explicit action grants");
+    for (const action of ["molis_work_v1_action_goals.tree.submit__v1", "molis_work_v1_action_goals.tree.read__v1", "molis_work_v1_action_goals.tree.check__v1", "molis_work_v1_action_goals.active.set__v1", "molis_work_v1_action_goals.trash.set__v1", "molis_work_v1_action_goals.trash.list__v1", "molis_work_v1_action_goals.create__v1", "molis_work_v1_action_goals.list__v1", "molis_work_v1_action_goals.note__v1", "molis_work_v1_action_goals.state.read__v1", "molis_work_v1_action_goals.events.list__v1", "molis_work_v1_action_goals.events.read__v1", "molis_work_v1_action_goals.events.configure__v1", "molis_work_v1_action_goals.events.report__v1", "molis_work_v1_action_goals.progress.record__v1", "molis_work_v1_action_goals.concerns.apply__v1", "molis_work_v1_action_goals.decisions.request__v1", "molis_work_v1_action_goals.decisions.cite__v1", "molis_work_v1_action_goals.agreement.set__v1", "molis_work_v1_action_goals.closure.submit__v1", "molis_work_v1_action_goals.work.resume__v1"]) {
+      assert.equal(names.includes(action), false, "Goals action tools require a bound project and explicit action grants");
     }
     assert.ok(!names.some((name) => !name.startsWith("molis_work_v1_")));
     assert.ok(listedTools.every((tool) => !("database_path" in (tool.inputSchema.properties ?? {}))));
-    assert.ok(listedTools.every((tool) => !("board_id" in (tool.inputSchema.properties ?? {})) || tool.name.startsWith("molis_work_v1_context_") || tool.name === "molis_work_v1_project_delete"));
+    assert.ok(listedTools.every((tool) => !("project_id" in (tool.inputSchema.properties ?? {})) || tool.name.startsWith("molis_work_v1_context_") || tool.name === "molis_work_v1_project_delete"));
   });
 
   it("returns structured reader-too-old diagnostics without exposing the catalog path", async () => {
@@ -123,14 +122,14 @@ describe("mcp server", () => {
   it("does not restore the removed static Runtime DB connection from environment", () => {
     const keys = [
       "MOLIS_WORK_DATABASE",
-      "MOLIS_WORK_BOARD_ID",
+      "MOLIS_WORK_PROJECT_ID",
       "MOLIS_WORK_WEB_URL",
       "MOLIS_WORK_RUNTIME_ID",
     ] as const;
     const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
     try {
       process.env.MOLIS_WORK_DATABASE = "/tmp/legacy-molis-work.db";
-      process.env.MOLIS_WORK_BOARD_ID = "legacy-board";
+      process.env.MOLIS_WORK_PROJECT_ID = "legacy-board";
       process.env.MOLIS_WORK_WEB_URL = "http://127.0.0.1:4173";
       delete process.env.MOLIS_WORK_RUNTIME_ID;
       const runtime = new MolisWorkServer("runtime");
@@ -145,6 +144,80 @@ describe("mcp server", () => {
     }
   });
 
+  it("a management call that names no database fails instead of using a path under the working directory", async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-no-default-"));
+    const previousCwd = process.cwd();
+    const previousDatabase = process.env.MOLIS_WORK_DATABASE;
+    delete process.env.MOLIS_WORK_DATABASE;
+    process.chdir(directory);
+    const management = new MolisWorkServer("management");
+    try {
+      // `initialize` is the call that would have created the default path.
+      for (const named of [{}, { database_path: "" }, { database_path: "  " }, { database_path: 5 }]) {
+        await assert.rejects(
+          () => management.callTool("molis_work_v1_initialize", { project_id: "no-default", title: "无默认库", idempotency_key: "k", ...named }),
+          (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.path_required",
+          JSON.stringify(named),
+        );
+      }
+      assert.deepEqual(fs.readdirSync(directory), [], "nothing is created relative to the working directory");
+      // The environment variable is an explicit path, so it is honoured: the call now reaches the missing file.
+      const named = path.join(directory, "named", "project.db");
+      process.env.MOLIS_WORK_DATABASE = named;
+      await assert.rejects(
+        () => management.callTool("molis_work_v1_goal_tree_decide", { project_id: "no-default" }),
+        (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.not_found" && error.message.includes(named),
+      );
+      assert.deepEqual(fs.readdirSync(directory), []);
+    } finally {
+      process.chdir(previousCwd);
+      if (previousDatabase === undefined) delete process.env.MOLIS_WORK_DATABASE; else process.env.MOLIS_WORK_DATABASE = previousDatabase;
+      await management.close();
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("a management call takes its database from database_path before MOLIS_WORK_DATABASE", async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-argument-over-environment-"));
+    const previousDatabase = process.env.MOLIS_WORK_DATABASE;
+    const fromEnvironment = path.join(directory, "from-environment.db");
+    const fromArgument = path.join(directory, "from-argument.db");
+    process.env.MOLIS_WORK_DATABASE = fromEnvironment;
+    const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
+    const management = new MolisWorkServer("management", null, null, host);
+    try {
+      const created = JSON.parse(await management.callTool("molis_work_v1_initialize",
+        { database_path: fromArgument, project_id: "project/argument-first", title: "参数优先", idempotency_key: "argument-first" })) as { project_id: string; replayed: boolean };
+      assert.deepEqual([created.project_id, created.replayed], ["project/argument-first", false]);
+      assert.equal(fs.existsSync(fromArgument), true, "the named database was created");
+      assert.equal(fs.existsSync(fromEnvironment), false, "the environment variable's path was left alone");
+    } finally {
+      if (previousDatabase === undefined) delete process.env.MOLIS_WORK_DATABASE; else process.env.MOLIS_WORK_DATABASE = previousDatabase;
+      await management.close();
+      await host.close();
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("a management call that names no project_id runs as database:<path>, and a later name for the same database conflicts with it", async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-database-project-"));
+    const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
+    const management = new MolisWorkServer("management", null, null, host);
+    try {
+      const project = await withMolisWorkProjectCatalog({ homeDirectory: directory }, catalog => catalog.createProject({ display_name: "没有项目号", actor_id: "user" }));
+      // goal_tree_decide reads no project_id of its own: only the scope the call runs in is in play.
+      await assert.rejects(() => management.callTool("molis_work_v1_goal_tree_decide", { database_path: project.database_path }),
+        { code: "actions.scope_mismatch" });
+      await assert.rejects(() => management.callTool("molis_work_v1_goal_tree_decide", { database_path: project.database_path, project_id: project.project_id }),
+        (error: unknown) => (error as { code?: string }).code === "host.project_identity_conflict"
+          && (error as Error).message.includes(`database:${path.resolve(project.database_path)}`));
+    } finally {
+      await management.close();
+      await host.close();
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("keeps Molis Work Session, native Runtime Session, surface, Goal and legacy work context separate", () => {
     const host = runtimeContextHostFromEnvironment({
       MOLIS_WORK_RUNTIME_ID: "codex",
@@ -152,7 +225,7 @@ describe("mcp server", () => {
       CODEX_THREAD_ID: "thread-native",
       MOLIS_WORK_PANEL_ID: "panel-surface",
       MOLIS_WORK_GOAL_ID: "goal-current",
-      MOLIS_WORK_WORK_CONTEXT_ID: "legacy-work-context",
+      MOLIS_WORK_WORK_CONTEXT_ID: "host-work-context",
       MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
       PWD: "/tmp/molis-work-session-identities",
     }, "/tmp/molis-work-session-identities");
@@ -161,8 +234,8 @@ describe("mcp server", () => {
     assert.equal(host.nativeRuntimeSessionId, "thread-native");
     assert.equal(host.panelId, "panel-surface");
     assert.equal(host.goalId, "goal-current");
-    assert.equal(host.legacyWorkContextId, "legacy-work-context");
-    assert.equal(host.runtimeContext.stable_work_context_id, "legacy-work-context");
+    assert.equal(host.hostWorkContextId, "host-work-context");
+    assert.equal(host.runtimeContext.stable_work_context_id, "host-work-context");
   });
 
   it("unknown method", async () => {
@@ -240,22 +313,19 @@ describe("mcp server", () => {
 
       const bound = await call(runtime, "molis_work_v1_context_bind", {
         project_id: removable.project_id,
-        actor_id: "runtime-codex",
         user_confirmed: true,
       });
       assert.equal(bound.result.isError, false, bound.result.content[0]?.text);
-      assert.equal(readConnection()?.boardId, removable.board_id);
+      assert.equal(readConnection()?.projectId, removable.project_id);
 
       const deniedUnbind = await call(runtime, "molis_work_v1_context_unbind", {
-        actor_id: "runtime-codex",
         user_confirmed: false,
       });
       assert.equal(deniedUnbind.result.isError, true);
       assert.match(deniedUnbind.result.content[0]?.text ?? "", /明确要求解除绑定/);
-      assert.equal(readConnection()?.boardId, removable.board_id);
+      assert.equal(readConnection()?.projectId, removable.project_id);
 
       const unbound = await call(runtime, "molis_work_v1_context_unbind", {
-        actor_id: "runtime-codex",
         user_confirmed: true,
       });
       assert.equal(unbound.result.isError, false, unbound.result.content[0]?.text);
@@ -270,15 +340,13 @@ describe("mcp server", () => {
 
       const rebound = await call(runtime, "molis_work_v1_context_bind", {
         project_id: removable.project_id,
-        actor_id: "runtime-codex",
         user_confirmed: true,
       });
       assert.equal(rebound.result.isError, false, rebound.result.content[0]?.text);
-      assert.equal(readConnection()?.boardId, removable.board_id);
+      assert.equal(readConnection()?.projectId, removable.project_id);
 
       const deniedDelete = await call(runtime, "molis_work_v1_project_delete", {
         project_id: removable.project_id,
-        actor_id: "runtime-codex",
         delete_confirmed: false,
         idempotency_key: "mcp-delete-current-project",
       });
@@ -288,7 +356,6 @@ describe("mcp server", () => {
 
       const deleted = await call(runtime, "molis_work_v1_project_delete", {
         project_id: removable.project_id,
-        actor_id: "runtime-codex",
         delete_confirmed: true,
         idempotency_key: "mcp-delete-current-project",
       });
@@ -306,7 +373,6 @@ describe("mcp server", () => {
 
       const replay = await call(runtime, "molis_work_v1_project_delete", {
         project_id: removable.project_id,
-        actor_id: "runtime-codex",
         delete_confirmed: true,
         idempotency_key: "mcp-delete-current-project",
       });
@@ -357,7 +423,6 @@ describe("mcp server", () => {
       assert.equal(unbound.result.isError, false, unbound.result.content[0]?.text);
       const defaultBound = await call(runtime, "molis_work_v1_context_bind", {
         project_id: first.project_id,
-        actor_id: "runtime-codex",
         user_confirmed: true,
       });
       assert.equal(defaultBound.result.isError, false, defaultBound.result.content[0]?.text);
@@ -377,7 +442,6 @@ describe("mcp server", () => {
 
       const explicitDefault = await call(restarted, "molis_work_v1_context_bind", {
         project_id: first.project_id,
-        actor_id: "runtime-codex",
         user_confirmed: true,
         binding_scope: "workspace_default",
       });
@@ -399,7 +463,6 @@ describe("mcp server", () => {
       const sessionB = { threadId: "codex-thread-b" };
       const override = await call(afterDefaultRestart, "molis_work_v1_context_bind", {
         project_id: second.project_id,
-        actor_id: "runtime-codex",
         user_confirmed: true,
         binding_scope: "session",
       }, sessionA);

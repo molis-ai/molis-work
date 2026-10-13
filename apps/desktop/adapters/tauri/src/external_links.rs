@@ -62,6 +62,8 @@ mod tests {
         ] {
             assert!(validated_external_url(url).is_err(), "accepted {url}");
         }
-        assert!(validated_external_url(&format!("https://example.com/{}", "x".repeat(4096))).is_err());
+        assert!(
+            validated_external_url(&format!("https://example.com/{}", "x".repeat(4096))).is_err()
+        );
     }
 }

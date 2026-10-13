@@ -5,7 +5,6 @@ import { join } from "node:path";
 import test from "node:test";
 import { createCatalogProvider, catalogWhoami, readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { bindConnectorToken, bindFeishuCli, clearGmailOAuthForManualToken, connectorCredentialStatus, resolveConnectorToken, unbindConnectorToken } from "../apps/local-host/src/connector-credentials.ts";
 import { feishuCliFetch, feishuCliStatus } from "../apps/local-host/src/feishu-cli.ts";
 import { completeNotionOAuth, resolveUsableNotionToken, startNotionOAuth } from "../apps/local-host/src/notion-oauth.ts";
 import { HOST_CONNECTOR_DIRECTORY } from "../apps/local-host/src/connector-directory.ts";
@@ -30,8 +29,10 @@ async function isolated<T>(run: (directory: string) => Promise<T>): Promise<T> {
   }
 }
 
-test("Notion OAuth rejects wrong state, exchanges code, refreshes on demand, and yields to manual token", async () => isolated(async () => {
-  const started = startNotionOAuth({ origin: "http://127.0.0.1:8787", clientId: "client-id", clientSecret: "client-secret" });
+const NOTION_CONNECTION = "11111111-1111-4111-8111-111111111111";
+
+test("Notion OAuth rejects wrong state, exchanges code into its connection, and refreshes on demand", async () => isolated(async () => {
+  const started = startNotionOAuth({ origin: "http://127.0.0.1:8787", clientId: "client-id", clientSecret: "client-secret", connectionId: NOTION_CONNECTION });
   const auth = new URL(started.authorizationUrl);
   assert.equal(auth.origin, "https://api.notion.com");
   assert.equal(auth.searchParams.get("redirect_uri"), "http://localhost:8787/api/settings/connectors/notion/oauth/callback");
@@ -49,15 +50,11 @@ test("Notion OAuth rejects wrong state, exchanges code, refreshes on demand, and
   };
   await assert.rejects(() => completeNotionOAuth({ code: "code-1", state: "wrong", callbackUrl, fetchImpl }), /状态不匹配/);
   assert.equal(exchanges, 0);
-  await completeNotionOAuth({ code: "code-1", state, callbackUrl, fetchImpl });
-  assert.equal(await resolveUsableNotionToken(), "access-1");
-  assert.equal(await resolveUsableNotionToken(true, fetchImpl), "access-2");
-  assert.equal(createFileSecretStore().get("connector:notion:refresh"), "refresh-2");
-  bindConnectorToken("notion", "ntn_manual_123456");
-  assert.equal(resolveConnectorToken("notion"), "ntn_manual_123456");
-  assert.equal(createFileSecretStore().get("connector:notion:refresh"), null);
-  unbindConnectorToken("notion");
-  assert.equal(connectorCredentialStatus("notion").bound, false);
+  assert.equal((await completeNotionOAuth({ code: "code-1", state, callbackUrl, fetchImpl })).connectionId, NOTION_CONNECTION);
+  assert.equal(await resolveUsableNotionToken(NOTION_CONNECTION), "access-1");
+  assert.equal(await resolveUsableNotionToken(NOTION_CONNECTION, true, fetchImpl), "access-2");
+  assert.equal(createFileSecretStore().get(`connector-connection:${NOTION_CONNECTION}:refresh`), "refresh-2");
+  assert.equal(createFileSecretStore().get("connector:notion:token"), null, "tokens live only under the connection");
 }));
 
 test("concurrent Notion refreshes share a request only within the same Home", async () => isolated(async directory => {
@@ -66,7 +63,7 @@ test("concurrent Notion refreshes share a request only within the same Home", as
     const store = createFileSecretStore();
     store.put("connector:notion:client_id", "fixture-client");
     store.put("connector:notion:client_secret", "fixture-secret");
-    store.put("connector:notion:refresh", `refresh-${index}`);
+    store.put(`connector-connection:${NOTION_CONNECTION}:refresh`, `refresh-${index}`);
   });
   let release!: () => void;
   const waiting = new Promise<void>(resolve => { release = resolve; });
@@ -77,13 +74,13 @@ test("concurrent Notion refreshes share a request only within the same Home", as
     await waiting;
     return Response.json({ access_token: `access-for-${token}`, refresh_token: `rotated-${token}`, workspace_id: token, workspace_name: token, bot_id: token });
   };
-  const pending = homes.flatMap(home => [0, 1].map(() => runWithMolisWorkHome(home, () => resolveUsableNotionToken(true, fetchImpl))));
+  const pending = homes.flatMap(home => [0, 1].map(() => runWithMolisWorkHome(home, () => resolveUsableNotionToken(NOTION_CONNECTION, true, fetchImpl))));
   release();
   assert.deepEqual(await Promise.all(pending), ["access-for-refresh-0", "access-for-refresh-0", "access-for-refresh-1", "access-for-refresh-1"]);
   assert.deepEqual(requests.sort(), ["refresh-0", "refresh-1"]);
   for (const [index, home] of homes.entries()) runWithMolisWorkHome(home, () => {
-    assert.equal(createFileSecretStore().get("connector:notion:refresh"), `rotated-refresh-${index}`);
-    assert.equal(createFileSecretStore().get("connector:notion:token"), `access-for-refresh-${index}`);
+    assert.equal(createFileSecretStore().get(`connector-connection:${NOTION_CONNECTION}:refresh`), `rotated-refresh-${index}`);
+    assert.equal(createFileSecretStore().get(`connector-connection:${NOTION_CONNECTION}:access`), `access-for-refresh-${index}`);
   });
 }));
 
@@ -110,22 +107,6 @@ test("Notion feed refreshes after an API 401 and retries with the new token", as
   assert.deepEqual(seen, ["Bearer stale-token", "Bearer fresh-token", "Bearer fresh-token"]);
 });
 
-test("Gmail OAuth token persistence keeps refresh; choosing manual token clears its refresh session", async () => isolated(async () => {
-  const store = createFileSecretStore();
-  store.put("connector:gmail:refresh", "refresh-current");
-  store.put("connector:gmail:token_expires_at", "2026-10-01T00:00:00Z");
-  const state = "samplePendingState1234567890";
-  store.put("connector:gmail:oauth:pending:index", JSON.stringify([{ state, createdAt: new Date().toISOString() }]));
-  store.put(`connector:gmail:oauth:pending:${state}`, "pending");
-  bindConnectorToken("gmail", "ya29_oauth_access_token");
-  assert.equal(store.get("connector:gmail:refresh"), "refresh-current");
-  bindConnectorToken("gmail", "ya29_manual_access_token");
-  clearGmailOAuthForManualToken();
-  assert.equal(resolveConnectorToken("gmail"), "ya29_manual_access_token");
-  assert.equal(store.get("connector:gmail:refresh"), null);
-  assert.equal(store.get(`connector:gmail:oauth:pending:${state}`), null);
-}));
-
 test("Feishu CLI mode reads identity and document without copying its user token", async () => isolated(async (directory) => {
   const executable = join(directory, "fake-lark-cli");
   await writeFile(executable, `#!/usr/bin/env node
@@ -141,9 +122,6 @@ else if (args[0] === "api" && args[1] === "GET") {
   await chmod(executable, 0o755);
   process.env.MOLIS_WORK_FEISHU_CLI_PATH = executable;
   assert.equal(feishuCliStatus().authorized, true);
-  bindFeishuCli();
-  assert.equal(resolveConnectorToken("feishu"), "lark-cli");
-  assert.equal(createFileSecretStore().get("connector:feishu:token"), null);
   const whoami = await catalogWhoami({ connectorId: "feishu", token: "lark-cli", fetchImpl: feishuCliFetch });
   assert.deepEqual(whoami, { ok: true, login: "Ada" });
   const provider = createCatalogProvider({ connectorId: "feishu", token: "lark-cli", fetchImpl: feishuCliFetch });
@@ -155,9 +133,7 @@ else if (args[0] === "api" && args[1] === "GET") {
   const denied = await feishuCliFetch("https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node?token=abcdefghij");
   assert.equal(denied.status, 401);
   await assert.rejects(() => feishuCliFetch("https://open.feishu.cn/open-apis/im/v1/messages", { method: "POST" }), /只读接口/);
-  bindConnectorToken("feishu", "cli_app:app-secret-123");
-  assert.equal(createFileSecretStore().get("connector:feishu:auth_mode"), null);
-  assert.equal(resolveConnectorToken("feishu"), "cli_app:app-secret-123");
+  assert.equal(createFileSecretStore().get("connector:feishu:token"), null, "the CLI's user token is never copied");
 }));
 
 test("settings show the available method choices for Gmail, Notion, and Feishu", () => {
@@ -167,7 +143,7 @@ test("settings show the available method choices for Gmail, Notion, and Feishu",
     { connector_id: "feishu", title: "飞书", auth_kind: "feishu", group_id: "chat" },
   ] as const;
   const html = renderConnectorsSettings({ connectors: cards.map((card) => ({
-    ...card, method_options: HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === card.connector_id)!.method_options, availability: "live" as const, summary: card.title, account_state: "disconnected" as const,
+    ...card, method_options: HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === card.connector_id)!.method_options, availability: "live" as const, summary: card.title,
   })) }, { L: (value) => value, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
   for (const marker of ["data-protocol-start=\"oauth\"", "data-connector-token=\"gmail\"", "data-connector-token=\"notion\"", "data-cli-login", 'data-connector-auth="feishu" data-credential-separator=":"']) assert.ok(html.includes(marker), marker);
   assert.match(html, /data-credential-part type="text"[^>]*placeholder="cli_…"/);

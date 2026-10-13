@@ -2,7 +2,7 @@ import { toFeedPublicError } from "./application-errors.js";
 import type { FeedSourceRecord } from "./projection.js";
 import type { FeedSourceService } from "./source-service.js";
 import type { FeedSourceSyncResult } from "./source-ports.js";
-import { createFeedSourceSyncGuard, type FeedSourceSyncAuthority } from "./source-sync-guard.js";
+import { createFeedSourceSyncGuard, type FeedSourceSyncAuthority, type FeedSourceSyncGuard } from "./source-sync-guard.js";
 import { stableId } from "./source-input.js";
 
 export interface FeedSourceSchedulerResult {
@@ -20,7 +20,7 @@ export type FeedSourceSchedulerDispatch = (
 
 export class FeedSourceScheduler {
   constructor(
-    readonly boardId: string,
+    readonly projectId: string,
     private readonly createService: () => Pick<FeedSourceService, "dueSources" | "advanceSchedule" | "feed">,
     private readonly dispatch: FeedSourceSchedulerDispatch,
     private readonly now: () => Date = () => new Date(),
@@ -46,7 +46,7 @@ export class FeedSourceScheduler {
       this.inFlight.add(source.source_id);
       const plannedAt = schedule.next_pull_at;
       const key = stableId("scheduled", `${source.source_id}\u0000${plannedAt}`);
-      let beforeEffect = createFeedSourceSyncGuard(service.feed, source, authority);
+      let beforeEffect: FeedSourceSyncGuard = createFeedSourceSyncGuard(service.feed, source, authority);
       try {
         try {
           await beforeEffect();
@@ -57,6 +57,10 @@ export class FeedSourceScheduler {
           result.completed += 1;
         } catch (error) {
           result.failed += 1;
+          // The sync records its own interrupted run on the source after its last check, so the guard pinned to the
+          // pre-pull revision would read that write as someone else's edit and the slot would never be spent.
+          // A guard that already refused stays refused: authority and the person's edits are never bookkept past.
+          if (!beforeEffect.refused) beforeEffect = createFeedSourceSyncGuard(service.feed, source, authority, { afterOwnFailure: true });
           await beforeEffect();
           await this.recordActionableFault(source, error, at);
         }
@@ -83,7 +87,7 @@ export class FeedSourceScheduler {
     }
     const feed = this.createService().feed;
     const stored = feed.createInboxEntry({
-      boardId: this.boardId,
+      projectId: this.projectId,
       subjectType: "source_fault",
       subjectId: source.source_id,
       reason: "source_fault",
@@ -97,7 +101,7 @@ export class FeedSourceScheduler {
       at: at.toISOString(),
     });
     if (stored.entry.status === "done" || stored.entry.status === "dismissed") {
-      feed.setInboxEntryStatus(this.boardId, stored.entry.entry_id, "open", stored.entry.revision);
+      feed.setInboxEntryStatus(this.projectId, stored.entry.entry_id, "open", stored.entry.revision);
     }
     await feed.flushPendingJudgments();
   }

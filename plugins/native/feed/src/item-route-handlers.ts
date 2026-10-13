@@ -1,8 +1,9 @@
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { feedQueryActions } from "./query-actions.js";
 import { integerRevision, requireParam } from "./route-input.js";
 import type { FeedPluginRouteHandler } from "./routes.js";
 import type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
-import { feedItemActions } from "./item-actions.js";
+import { feedItemActions, promoteOffered } from "./item-actions.js";
 
 export function createFeedItemRouteHandlers(options: FeedRouteHandlerPorts): Record<string, FeedPluginRouteHandler> {
   const changed = () => options.changed();
@@ -15,11 +16,14 @@ export function createFeedItemRouteHandlers(options: FeedRouteHandlerPorts): Rec
         && entry.subject_id === itemId
         && (entry.status === "open" || entry.status === "in_progress"),
       );
+      // The button follows the action behind it, as the offers do: where Goals cannot be written through, the reader does not show it.
+      const promoteAvailable = promoteOffered(await options.actions.discover());
       return {
         status: 200,
         html: options.renderDetail(item, {
           entryId: itemId,
           inboxActive,
+          promoteAvailable,
           inboxEntry: null,
           surface: request.query.get("surface") === "frame-block" ? "frame-block" : undefined,
         }),
@@ -35,7 +39,7 @@ export function createFeedItemRouteHandlers(options: FeedRouteHandlerPorts): Rec
         return { status: 200, body: result };
       }
       const revision = integerRevision(request.body.expected_revision);
-      if (revision == null) return { status: 400, body: { error: "请刷新 Item 后再操作" } };
+      if (revision == null) throw feedErrors.request_invalid("请刷新 Item 后再操作");
       const at = { item_id: itemId, expected_revision: revision };
       if (action === "promote" || action === "start") {
         const result = await options.actions.invoke(feedItemActions.promote, { ...at, ...(action === "start" ? { start_processing: true } : {}) });

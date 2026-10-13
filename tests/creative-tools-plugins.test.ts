@@ -72,7 +72,7 @@ function emptyView(): MolisWorkWebView {
   return {
     snapshot: {
       board: {
-        board_id: "board-creative-tools",
+        project_id: "board-creative-tools",
         title: "创作工具",
         active_goal_id: null,
         created_at: "2026-09-21T00:00:00.000Z",
@@ -81,18 +81,6 @@ function emptyView(): MolisWorkWebView {
       cursor: 0,
       goals: [],
       relations: [],
-      impacts: [],
-      risks: [],
-      claims: [],
-      runs: [],
-      evidence: [],
-      review_obligations: [],
-      reviews: [],
-      candidates: [],
-      contract_proposals: [],
-      rewires: [],
-      clarification_sessions: [],
-      clarification_turns: [],
       goal_tree_proposals: [],
       planning_method_packs: [],
     },
@@ -105,7 +93,6 @@ function emptyView(): MolisWorkWebView {
     archived_goals: [],
     trashed_goals: [],
     counts: {},
-    coverage: [],
     input_bindings: [],
     policy_bindings: [],
     events: [],
@@ -114,7 +101,6 @@ function emptyView(): MolisWorkWebView {
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      contract_migrations: [],
       out_rules: [],
     },
   } as MolisWorkWebView;

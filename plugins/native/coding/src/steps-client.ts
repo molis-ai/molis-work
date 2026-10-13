@@ -27,7 +27,7 @@ export const CODING_STEPS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       if(node.owner)detail.append(el('p','负责：'+(node.owner.kind==='person'?'你':node.owner.label)));
       const reports=el('ol','');for(const report of node.reports)reports.append(el('li',(report.by?report.by+'：':'')+report.note));detail.append(reports);
       if(!node.reports.length)detail.append(el('p','尚无模型步骤回报。'));
-      if(verdict){detail.append(el('p',verdict.status==='accepted'?'用户已验收通过':'用户要求返工'),el('p',verdict.notes));if(verdict.board_id!==entry.board.board_id||verdict.board_version!==entry.board.version)detail.append(el('p','这条评价对应较早回报，请重新核对当前版本。'));}
+      if(verdict){detail.append(el('p',verdict.status==='accepted'?'用户已验收通过':'用户要求返工'),el('p',verdict.notes));if(verdict.project_id!==entry.board.project_id||verdict.board_version!==entry.board.version)detail.append(el('p','这条评价对应较早回报，请重新核对当前版本。'));}
       else detail.append(el('p','用户尚未评价。'));
       if(!notes.value && verdict?.notes)notes.value=verdict.notes;
       const run=data.runs.find(run=>run.ref.run_id===runId);message.textContent=['completed','failed','stopped','cancelled'].includes(run.phase)?'原执行已经结束；步骤回报保留原状态，请分别核对。':'本轮仍在执行，结束后可以评价；可重新读取最新回报。';
@@ -37,7 +37,7 @@ export const CODING_STEPS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const save=async(action)=>{
     if(busy||!node||!entry?.board)return;const at=ticket,id=owner;busy=true;update();remember();message.textContent='正在保存评价…';
     try{await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/steps/'+encodeURIComponent(stepId),'POST',{
-      action,notes:notes.value,expected_revision:verdict?.revision||0,board_id:entry.board.board_id,board_version:entry.board.version});
+      action,notes:notes.value,expected_revision:verdict?.revision||0,project_id:entry.board.project_id,board_version:entry.board.version});
       if(at!==ticket)return;try{sessionStorage.removeItem(key());}catch{}await read();if(id===current())await refresh();
       if(at===ticket)message.textContent=action==='accepted'?'已保存用户验收；原模型回报保持。':'返工说明已保存；可据此调整下一版计划。';
     }catch(error){if(!lifetime.alive)return;if(at===ticket)message.textContent=error.message;}

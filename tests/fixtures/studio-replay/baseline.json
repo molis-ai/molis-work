@@ -1,0 +1,1790 @@
+{
+  "format": "studio-replay-baseline/1",
+  "skill": {
+    "stages": {
+      "design": {
+        "version": 130576285,
+        "chars": 16144
+      },
+      "experience": {
+        "version": 158992762,
+        "chars": 3598
+      },
+      "ui": {
+        "version": 177002631,
+        "chars": 5155
+      },
+      "review": {
+        "version": 158992762,
+        "chars": 3598
+      },
+      "code": {
+        "version": 115312214,
+        "chars": 8928
+      }
+    },
+    "prompts": {
+      "experience": "experience/1.2.0",
+      "review": "ui-review/2.0.0",
+      "ui": "ui/1.4.0",
+      "designer": "designer/3.7.0",
+      "implement": "implement/3.0.0",
+      "repair": "repair/3.0.0",
+      "revise": "revise/3.0.0",
+      "acceptance": "acceptance/2.0.0"
+    }
+  },
+  "entries": {
+    "detail-00d43b4dcd39": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "1f5ff5a4fca7eade"
+    },
+    "detail-02678009a40c": {
+      "pass": false,
+      "reason": "操作 x 第 # 个示例的期望结果缺少 x：要么写全输出的必填字段，要么改用 \"includes\" 只检查其中几个字段",
+      "digest": "ac7cb207523c3c9d"
+    },
+    "detail-0377ff070011": {
+      "pass": false,
+      "reason": "验收「…」第 # 步：没有组件 结果（组件有 x、x、x）",
+      "digest": "b5a68d556f2bcf61"
+    },
+    "detail-07363f5abe24": {
+      "pass": true,
+      "digest": "a3c6177e580e9b0d"
+    },
+    "detail-0756c3501ed1": {
+      "pass": true,
+      "digest": "f28a54e7830dbbdc"
+    },
+    "detail-0dfa9919851f": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：内容零件需要读取操作",
+      "digest": "1b52ee7de7c4fc95"
+    },
+    "detail-10223cf33f6d": {
+      "pass": true,
+      "digest": "a410d2c5235a6d36"
+    },
+    "detail-1158d3e297c4": {
+      "pass": true,
+      "digest": "5333789e2da34b08"
+    },
+    "detail-13c716630b1f": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：缺少必需输入的绑定：x（x 要求 x；按钮只带选中记录的字段，要用户给值就用表单，或把它改成可选）",
+      "digest": "05dc0c4ac4134d3b"
+    },
+    "detail-167ea370510f": {
+      "pass": true,
+      "digest": "c86d1b8c5b8befda"
+    },
+    "detail-17b77be395c4": {
+      "pass": true,
+      "digest": "46c1dbdb913f201a"
+    },
+    "detail-17bd1532cbe5": {
+      "pass": true,
+      "digest": "1d6cc28e45c824c7"
+    },
+    "detail-183f9cce6632": {
+      "pass": true,
+      "digest": "5dde1ed1590ef84f"
+    },
+    "detail-18bd68506cdb": {
+      "pass": true,
+      "digest": "25d784c913c6a077"
+    },
+    "detail-18ec7b29ab37": {
+      "pass": true,
+      "digest": "5e888bf459fc8663"
+    },
+    "detail-1a2d545377c4": {
+      "pass": true,
+      "digest": "fcdad3059cb687d9"
+    },
+    "detail-1cfb298e69ad": {
+      "pass": false,
+      "reason": "组件 x 的 x 取自 x，但 x 列出的记录里没有 x：把 x 加进 x 的 output，或者改成由用户填写",
+      "digest": "d79608b85fb5b517"
+    },
+    "detail-1d21063bd9c9": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON；请重试此阶段",
+      "digest": "01af197d63acc69e"
+    },
+    "detail-20bfc3f412af": {
+      "pass": false,
+      "reason": "细化方案：操作 x 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）",
+      "digest": "9d45ec61f0c340e8"
+    },
+    "detail-2154be7b2be4": {
+      "pass": true,
+      "digest": "48b7fd2e9e4def5e"
+    },
+    "detail-21a203db266c": {
+      "pass": false,
+      "reason": "验收「…」第 # 步：组件 x 没有可填写的字段 x（它的字段是 summary）。按条件筛选列表时，在 x 的 read 里写 {\"x\":",
+      "digest": "f18169c8239755fe"
+    },
+    "detail-2317f2646b99": {
+      "pass": true,
+      "digest": "43a55671a6cbde91"
+    },
+    "detail-24553ec3ad3a": {
+      "pass": false,
+      "reason": "组件 x：read 绑定了不存在的操作 x",
+      "digest": "32ea5207d19ae022"
+    },
+    "detail-24ae55c2543e": {
+      "pass": true,
+      "digest": "9fd777d6269097be"
+    },
+    "detail-254d162375d2": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "690518bba9b0654c"
+    },
+    "detail-26339fe4c503": {
+      "pass": true,
+      "digest": "f2939309fa241c62"
+    },
+    "detail-2811c60939e4": {
+      "pass": false,
+      "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 read 绑定了不存在的操作 x；（#）操作 x 没有任何组件使用；删掉它，或给它一个组件",
+      "digest": "91bcbf2b91fffffb"
+    },
+    "detail-284e713750c3": {
+      "pass": true,
+      "digest": "ef3ef36fd9d6dee7"
+    },
+    "detail-2941a9ba3603": {
+      "pass": false,
+      "reason": "操作 x 的 x：无法识别的类型「…」，可用 x / x / x / x / x / x / x / x|x 枚举 / 类型[]",
+      "digest": "ee428c3732114363"
+    },
+    "detail-2acd984f2693": {
+      "pass": true,
+      "digest": "e2a378490b518cbc"
+    },
+    "detail-2af268685f56": {
+      "pass": true,
+      "digest": "ba81dc0b602cc2d2"
+    },
+    "detail-2d72d9c41a4f": {
+      "pass": true,
+      "digest": "eb167ec214f4f5f3"
+    },
+    "detail-3042c78c89ff": {
+      "pass": true,
+      "digest": "f7e4842e607a5b5f"
+    },
+    "detail-327be8f4ac93": {
+      "pass": false,
+      "reason": "细化方案：缺少 x",
+      "digest": "9d67e37700ed6da5"
+    },
+    "detail-3680fc6bba5d": {
+      "pass": false,
+      "reason": "细化方案：操作 x 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）",
+      "digest": "0a5cec3a06a190c7"
+    },
+    "detail-3705c1180070": {
+      "pass": true,
+      "digest": "76ed4661b02160d1"
+    },
+    "detail-38251ff23969": {
+      "pass": true,
+      "digest": "92de6d6f7e892a18"
+    },
+    "detail-3965c044a5e1": {
+      "pass": true,
+      "digest": "3e1a3a4ec55c798f"
+    },
+    "detail-3d27e98ced3d": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：缺少必需输入的绑定：x（x 要求 x；按钮只带选中记录的字段，要用户给值就用表单，或把它改成可选）",
+      "digest": "286f6e9037b53c75"
+    },
+    "detail-3e8f7d308cac": {
+      "pass": true,
+      "digest": "e9cf412566e2ba6b"
+    },
+    "detail-3f6233d6210a": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：内容零件需要读取操作",
+      "digest": "bc0302c925182aac"
+    },
+    "detail-40c15a8f00c7": {
+      "pass": false,
+      "reason": "操作 x 的示例输入缺少必填字段 x：可以不填的字段写成 \"x?\"（例如筛选条件），否则在示例里给出它",
+      "digest": "5c65b32c3e705ab4"
+    },
+    "detail-4256d5d7e378": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "24520f1d7cf54a51"
+    },
+    "detail-4279b400c95f": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "e034720f19a82381"
+    },
+    "detail-4384e7dce2cd": {
+      "pass": true,
+      "digest": "28dc93e6ea1614cf"
+    },
+    "detail-4393bf20199c": {
+      "pass": false,
+      "reason": "验收「…」第 # 步：没有组件 x（组件有 x、x）",
+      "digest": "e1f3734e62a295b6"
+    },
+    "detail-45384ffdcb48": {
+      "pass": false,
+      "reason": "操作 x 和平台能力同名：插件自己的操作用自己的前缀（例如 x），要用这个能力就在调用它的操作的 x 里写 \"x\"",
+      "digest": "0fde671724171353"
+    },
+    "detail-4838b1f17434": {
+      "pass": true,
+      "digest": "ec64221ce34dacf4"
+    },
+    "detail-48a76c30fa28": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "c49691fb74561986"
+    },
+    "detail-4d62e96c49d6": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：内容零件需要读取操作",
+      "digest": "7e8a74a162f97668"
+    },
+    "detail-4d8608837109": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "130e1e4d66c1b5fe"
+    },
+    "detail-4dffbc1abf92": {
+      "pass": false,
+      "reason": "验收「…」第 # 步：组件 x 没有可填写的字段 x（它的字段是 x）。按条件筛选列表时，在 x 的 read 里写 {\"x\": 查询, \"",
+      "digest": "42dc8de977fed418"
+    },
+    "detail-4e1e4096a8ae": {
+      "pass": false,
+      "reason": "验收「…」第 # 步：组件 x 没有可填写的字段 x（它的字段是 summary）。按条件筛选列表时，在 x 的 read 里写 {\"x\":",
+      "digest": "7ec602a2ab9e21e5"
+    },
+    "detail-5143ed436f71": {
+      "pass": true,
+      "digest": "3202e0ad239d0f0c"
+    },
+    "detail-53223feae969": {
+      "pass": true,
+      "digest": "4a83650dca3e1779"
+    },
+    "detail-53655c84aa7c": {
+      "pass": false,
+      "reason": "细化方案：操作 x、x 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）",
+      "digest": "b7fd9f0566379fab"
+    },
+    "detail-571fc8fada9c": {
+      "pass": true,
+      "digest": "bf7134d4f759ef9b"
+    },
+    "detail-5729bac5fa0c": {
+      "pass": true,
+      "digest": "5e989166f51be29a"
+    },
+    "detail-57d0d1311918": {
+      "pass": true,
+      "digest": "d3d63ada46b47ae0"
+    },
+    "detail-5a7c703725e6": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "e03e09b0f4f74638"
+    },
+    "detail-5a96172294e5": {
+      "pass": false,
+      "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 submit 绑定了不存在的操作 x；（#）操作 x 没有任何组件使用；删掉它，或给它一个",
+      "digest": "7ddb7b8b13690c2a"
+    },
+    "detail-5a987b2783b5": {
+      "pass": true,
+      "digest": "6cd8813f34369eed"
+    },
+    "detail-5b6f18bb0e38": {
+      "pass": true,
+      "digest": "82c8174d38828f28"
+    },
+    "detail-5dce666b443d": {
+      "pass": true,
+      "digest": "cb08a4d19b34f36b"
+    },
+    "detail-5e795a66e434": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：缺少必需输入的绑定：x（x 要求 x；按钮只带选中记录的字段，要用户给值就用表单，或把它改成可选）",
+      "digest": "819a9153d913a13f"
+    },
+    "detail-5eb9f702b575": {
+      "pass": true,
+      "digest": "d7596168a65ea6d3"
+    },
+    "detail-61dcf20c6a76": {
+      "pass": true,
+      "digest": "8ccb6ecd86f05fac"
+    },
+    "detail-63a09c894398": {
+      "pass": true,
+      "digest": "9d660f774106afc2"
+    },
+    "detail-6492083696a7": {
+      "pass": true,
+      "digest": "e0921001f4b57448"
+    },
+    "detail-64de27002543": {
+      "pass": true,
+      "digest": "a2e260477ee86b8a"
+    },
+    "detail-660d62026022": {
+      "pass": false,
+      "reason": "操作 x：查询（query）不能写入存储或发布事件；会改数据的操作用 command",
+      "digest": "65136dd425648d5d"
+    },
+    "detail-666e07ba89d6": {
+      "pass": true,
+      "digest": "f7b9be924fd578f9"
+    },
+    "detail-66b3d0b1b636": {
+      "pass": false,
+      "reason": "操作 x 的示例输入缺少必填字段 x：可以不填的字段写成 \"x?\"（例如筛选条件），否则在示例里给出它",
+      "digest": "8497403b387953d1"
+    },
+    "detail-67fca7b85d41": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "d43889d442cb9e2a"
+    },
+    "detail-6a7fcdbe3f2a": {
+      "pass": false,
+      "reason": "验收「…」第 # 步：组件 x 没有提交操作，不能 submit",
+      "digest": "d41807127a02f607"
+    },
+    "detail-6c0646b25a18": {
+      "pass": true,
+      "digest": "6ee524f1d4a5b3ec"
+    },
+    "detail-6ee613164fbd": {
+      "pass": false,
+      "reason": "操作 x 的 x：无法识别的类型「…」，可用 x / x / x / x / x / x / x / x|x 枚举 / 类型[]",
+      "digest": "c126a973293ad347"
+    },
+    "detail-72c5a8addaa0": {
+      "pass": false,
+      "reason": "组件 x 的 x 取自 x，但 x 列出的记录里没有 x：把 x 加进 x 的 output，或者改成由用户填写",
+      "digest": "ceebfb19a97dec81"
+    },
+    "detail-73497ba42877": {
+      "pass": true,
+      "digest": "98793eb84a3ab235"
+    },
+    "detail-73a1923f9ee7": {
+      "pass": true,
+      "digest": "254140e68cd3a208"
+    },
+    "detail-7614a2a6751c": {
+      "pass": true,
+      "digest": "3b5aca99944a4f0b"
+    },
+    "detail-76fa00f73768": {
+      "pass": false,
+      "reason": "浏览器用例需要具体操作与断言",
+      "digest": "1780a0ee899c3d8a"
+    },
+    "detail-78a00c8cdb82": {
+      "pass": true,
+      "digest": "5821abb978ef9174"
+    },
+    "detail-7bf1499d50f3": {
+      "pass": true,
+      "digest": "3c9f081a6a6e401d"
+    },
+    "detail-7c1b0a69ed98": {
+      "pass": false,
+      "reason": "操作 x 的 x：枚举写成 x|x|x，例如 \"餐饮|交通|购物|其他\"",
+      "digest": "b4744070445e327d"
+    },
+    "detail-7cdbcfec3992": {
+      "pass": true,
+      "digest": "c81beac7831a2b67"
+    },
+    "detail-81f78e1bbd8a": {
+      "pass": true,
+      "digest": "05640101838df2a3"
+    },
+    "detail-823d81212221": {
+      "pass": false,
+      "reason": "操作 x 的 x：无法识别的类型「…」，可用 x / x / x / x / x / x / x / x|x 枚举 / 类型[]",
+      "digest": "0d3c9217a06db718"
+    },
+    "detail-827a344a680f": {
+      "pass": false,
+      "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 submit 绑定了不存在的操作 x；（#）操作 x 没有任何组件使用；删掉它，或给它一个",
+      "digest": "d0c3b3e616882e15"
+    },
+    "detail-84971f9ea035": {
+      "pass": true,
+      "digest": "354ca4b75b57e12c"
+    },
+    "detail-86300ee1a250": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "941c98962b874648"
+    },
+    "detail-88903adc74b1": {
+      "pass": true,
+      "digest": "21c81e660a1e7a9f"
+    },
+    "detail-88ea75bfc908": {
+      "pass": true,
+      "digest": "4a847caaa87a3118"
+    },
+    "detail-8a2e4f8febaf": {
+      "pass": true,
+      "digest": "4204e2a4d410364e"
+    },
+    "detail-8a3efafa5aa6": {
+      "pass": true,
+      "digest": "066d902173b53981"
+    },
+    "detail-8ae08f6a7733": {
+      "pass": true,
+      "digest": "546a47e3857a9a92"
+    },
+    "detail-8b38ae34bcca": {
+      "pass": true,
+      "digest": "4780b822b9f22711"
+    },
+    "detail-8d4168ceaa3f": {
+      "pass": true,
+      "digest": "f60aec5ac0cac10c"
+    },
+    "detail-8e3c9c1cb871": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
+      "digest": "88340b0ba0dd0dc4"
+    },
+    "detail-8e59e6959a92": {
+      "pass": true,
+      "digest": "ef198225c169126f"
+    },
+    "detail-94a4660ef511": {
+      "pass": false,
+      "reason": "操作 x 和平台能力同名：插件自己的操作用自己的前缀（例如 x），要用这个能力就在调用它的操作的 x 里写 \"x\"",
+      "digest": "5d5f935909111cd8"
+    },
+    "detail-976b84be5052": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "20819d6f72642d81"
+    },
+    "detail-97d40236fc2b": {
+      "pass": true,
+      "digest": "f7b9be924fd578f9"
+    },
+    "detail-9a0350226dbb": {
+      "pass": false,
+      "reason": "验收「…」第 # 步：组件 x 没有可填写的字段 summary（它的字段是 x）。按条件筛选列表时，在 x 的 read 里写 {\"x\":",
+      "digest": "0c354366d0bd3f09"
+    },
+    "detail-9c33020bce65": {
+      "pass": false,
+      "reason": "验收「…」第 # 步：没有组件 结果（组件有 x、x、x）",
+      "digest": "5df360c3e3f83369"
+    },
+    "detail-9f9f1101af12": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
+      "digest": "97bd8cd6d9157787"
+    },
+    "detail-a0fffacac7cc": {
+      "pass": false,
+      "reason": "组件 x：read 绑定了不存在的操作 x",
+      "digest": "77f33c99470f3c8b"
+    },
+    "detail-a512f71953ad": {
+      "pass": true,
+      "digest": "b29241f8b92623bc"
+    },
+    "detail-a6ccfdf29c35": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "1da0809125a840f2"
+    },
+    "detail-a79125d11426": {
+      "pass": false,
+      "reason": "浏览器用例需要具体操作与断言",
+      "digest": "a5acc58f412ed047"
+    },
+    "detail-a7a2ec93c8f5": {
+      "pass": false,
+      "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 read 绑定了不存在的操作 x；（#）组件 x 的 submit 绑定了不存在的操作 x",
+      "digest": "f055bbeb425db5c0"
+    },
+    "detail-a8d1680188de": {
+      "pass": false,
+      "reason": "细化方案：操作 x 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）",
+      "digest": "e177f6ac4d16e523"
+    },
+    "detail-ad5b59c4e1fd": {
+      "pass": true,
+      "digest": "cbbe8af5bbd1aea0"
+    },
+    "detail-af3f96a8e08f": {
+      "pass": true,
+      "digest": "2d442ebdef35e354"
+    },
+    "detail-af415f160b82": {
+      "pass": false,
+      "reason": "验收「…」第 # 步：组件 x 没有可填写的字段 x（它的字段是 x）。按条件筛选列表时，在 x 的 read 里写 {\"x\": 查询, \"",
+      "digest": "faed2659238277de"
+    },
+    "detail-afa20ceea635": {
+      "pass": false,
+      "reason": "组件 x 的 x 取自 x，但 x 列出的记录里没有 x：把 x 加进 x 的 output，或者改成由用户填写",
+      "digest": "6f530aebf5548072"
+    },
+    "detail-b0bf9fca19b6": {
+      "pass": false,
+      "reason": "组件 x 的 x 取自 x，但 x 列出的记录里没有 x：把 x 加进 x 的 output，或者改成由用户填写",
+      "digest": "0ddcbc27bddf8347"
+    },
+    "detail-b2724efcce57": {
+      "pass": false,
+      "reason": "浏览器用例需要具体操作与断言",
+      "digest": "3f88314641053206"
+    },
+    "detail-b5ad63a1b964": {
+      "pass": false,
+      "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 submit 绑定了不存在的操作 x；（#）操作 x 没有任何组件使用；删掉它，或给它一个",
+      "digest": "e9ccc2d0090d95af"
+    },
+    "detail-b9b6789dd4e4": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "063e9c0d4f630413"
+    },
+    "detail-books-filter-bar": {
+      "pass": true,
+      "digest": "877df61acded187e"
+    },
+    "detail-broken-references": {
+      "pass": false,
+      "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 read 绑定了不存在的操作 x；（#）组件 x 的 submit 绑定了不存在的操作 x",
+      "digest": "e313a9ee164629e2"
+    },
+    "detail-c099c52d8b17": {
+      "pass": true,
+      "digest": "5fdd27d54da79418"
+    },
+    "detail-c0f0b574b641": {
+      "pass": true,
+      "digest": "2ce06f4297681d26"
+    },
+    "detail-c15c87c4813b": {
+      "pass": true,
+      "digest": "72ac52dd7682b703"
+    },
+    "detail-c2e10e3233d4": {
+      "pass": true,
+      "digest": "9612ffe24e7da6a3"
+    },
+    "detail-c5530bd10d97": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：缺少必需输入的绑定：x（x 要求 x；按钮只带选中记录的字段，要用户给值就用表单，或把它改成可选）",
+      "digest": "1f4a781af5c28ad2"
+    },
+    "detail-ca6dd9432340": {
+      "pass": true,
+      "digest": "1df19fadeb3c5323"
+    },
+    "detail-cc9416d64cdc": {
+      "pass": true,
+      "digest": "6f9c7a72eee93cf6"
+    },
+    "detail-d01435ec80f3": {
+      "pass": true,
+      "digest": "0d05c87118f7c0b4"
+    },
+    "detail-d0d4222f3ef6": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
+      "digest": "44b3d5c24792ae3d"
+    },
+    "detail-d13bb3c07355": {
+      "pass": true,
+      "digest": "2c873f53d7a8122e"
+    },
+    "detail-d149cdaddb22": {
+      "pass": true,
+      "digest": "d6f2aaf8720c27b7"
+    },
+    "detail-d2bb0a478ebd": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
+      "digest": "b865c098e337bf13"
+    },
+    "detail-d2bb5379f7b3": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
+      "digest": "97bd8cd6d9157787"
+    },
+    "detail-d3207b5814d1": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
+      "digest": "1024ef90c9f25560"
+    },
+    "detail-d387a4aca26f": {
+      "pass": true,
+      "digest": "9cf0bbaffc153459"
+    },
+    "detail-d4a02a9dc9a8": {
+      "pass": false,
+      "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 submit 绑定了不存在的操作 x；（#）操作 x 没有任何组件使用；删掉它，或给它一个",
+      "digest": "94f7e983752062dd"
+    },
+    "detail-d64a113d50ac": {
+      "pass": false,
+      "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 submit 绑定了不存在的操作 x；（#）操作 x 没有任何组件使用；删掉它，或给它一个",
+      "digest": "43de91aa821672a5"
+    },
+    "detail-d76feea4099d": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "f5513bcf12e9da13"
+    },
+    "detail-d887750ee9cf": {
+      "pass": true,
+      "digest": "e998839a30970aef"
+    },
+    "detail-d8db206c9059": {
+      "pass": true,
+      "digest": "ab79cc1ef8e85af0"
+    },
+    "detail-da706b96af86": {
+      "pass": false,
+      "reason": "操作 x 的 x：无法识别的类型「…」，可用 x / x / x / x / x / x / x / x|x 枚举 / 类型[]",
+      "digest": "7e1a761cace176ad"
+    },
+    "detail-da7957d18760": {
+      "pass": true,
+      "digest": "40ea1231a97d19c2"
+    },
+    "detail-da8c5ca6b05e": {
+      "pass": true,
+      "digest": "715b668a3acbae0e"
+    },
+    "detail-dba27941da5f": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：常量「…」不是 x 的 x 能接受的值（只能是 未读/在读/已读）；要按当前记录推算（例如切到下一个状态），就让这个",
+      "digest": "222122f8c944f883"
+    },
+    "detail-dee502cc09c0": {
+      "pass": true,
+      "digest": "7923da930779942c"
+    },
+    "detail-def8532fdac3": {
+      "pass": true,
+      "digest": "47fa6944ce7d7467"
+    },
+    "detail-e0941450cf22": {
+      "pass": true,
+      "digest": "1f928bf29bd67bd1"
+    },
+    "detail-e09b06792c77": {
+      "pass": true,
+      "digest": "e1c63e924514db1d"
+    },
+    "detail-e13efcab2676": {
+      "pass": true,
+      "digest": "979570a981e2e02c"
+    },
+    "detail-e180ad904730": {
+      "pass": true,
+      "digest": "1698a6a9ed917804"
+    },
+    "detail-e38885fa2e03": {
+      "pass": true,
+      "digest": "78596cebc5359d8a"
+    },
+    "detail-e63afed4b6ff": {
+      "pass": true,
+      "digest": "65fe71a33304db6f"
+    },
+    "detail-e6d568e2e024": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：缺少必需输入的绑定：x（x 要求 x；按钮只带选中记录的字段，要用户给值就用表单，或把它改成可选）",
+      "digest": "61c5c96dd80a1d32"
+    },
+    "detail-e74ca9e188a2": {
+      "pass": false,
+      "reason": "细化方案：操作 x 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）",
+      "digest": "0dd504a104f290f3"
+    },
+    "detail-e86ce38623bf": {
+      "pass": true,
+      "digest": "c63babbbc2be4c0c"
+    },
+    "detail-e9059ea9b40e": {
+      "pass": false,
+      "reason": "组件 x 的 x 取自 x，但 x 的命令结果里没有 x：把 x 加进 x 的 output，或者改成由用户填写",
+      "digest": "8ee6e98ddf12cfb1"
+    },
+    "detail-ea970b2bb10c": {
+      "pass": false,
+      "reason": "验收：至少写一条从空数据开始、能在界面上走通的验收（acceptance）",
+      "digest": "53f02267d5fa3bab"
+    },
+    "detail-ee8c105407f2": {
+      "pass": false,
+      "reason": "细化方案：操作 x、x 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）",
+      "digest": "21c6e54077629261"
+    },
+    "detail-eeb4f6dff561": {
+      "pass": false,
+      "reason": "操作 x 的 x：无法识别的类型「…」，可用 x / x / x / x / x / x / x / x|x 枚举 / 类型[]",
+      "digest": "7ec67c905a3a5f37"
+    },
+    "detail-ef6bfded7b7c": {
+      "pass": true,
+      "digest": "3b3d20d1a6982aa4"
+    },
+    "detail-eff0307246ed": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：缺少必需输入的绑定：x（x 要求 x；按钮只带选中记录的字段，要用户给值就用表单，或把它改成可选）",
+      "digest": "31e12e1174c72179"
+    },
+    "detail-empty-store-example": {
+      "pass": false,
+      "reason": "操作 x 第 # 个示例：查询示例在空存储上运行，output/includes 不能期望已有记录；空列表写 output: []，需要已有",
+      "digest": "ee07ad780f0856e6"
+    },
+    "detail-expenses-filter-submit": {
+      "pass": true,
+      "digest": "1b00f260e8cd5136"
+    },
+    "detail-f0d670c396af": {
+      "pass": true,
+      "digest": "4353477554825c7c"
+    },
+    "detail-f219cfc53c17": {
+      "pass": true,
+      "digest": "fc24e007f702bdaa"
+    },
+    "detail-f32a76a0f8d7": {
+      "pass": true,
+      "digest": "b43e7034bb6bfabe"
+    },
+    "detail-f491f39db5ea": {
+      "pass": false,
+      "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 submit 绑定了不存在的操作 x；（#）操作 x 没有任何组件使用；删掉它，或给它一个",
+      "digest": "d0abeb7884647999"
+    },
+    "detail-f4f0e7501e35": {
+      "pass": true,
+      "digest": "0181947ccc0f45b0"
+    },
+    "detail-f5cde5e0836e": {
+      "pass": true,
+      "digest": "d56273a1afe43d9d"
+    },
+    "detail-f7455828f3f2": {
+      "pass": true,
+      "digest": "cdc535123626967f"
+    },
+    "detail-f76cff695c36": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：输出字段路径无效",
+      "digest": "f4094551ad4f1fc1"
+    },
+    "detail-f8464f9b4533": {
+      "pass": true,
+      "digest": "4ef60d7ad6bb6982"
+    },
+    "detail-f8b57d8b4968": {
+      "pass": false,
+      "reason": "功能合同不成立：$.x: x x x",
+      "digest": "a496dcf74e736306"
+    },
+    "detail-fa6661810722": {
+      "pass": false,
+      "reason": "操作 x 第 # 个示例的 x 是「…」，不在 未读/在读/已读 之内；所有操作和示例要用同一组取值",
+      "digest": "a2a668c7cda5b109"
+    },
+    "detail-fa6e91a8cee3": {
+      "pass": true,
+      "digest": "a0500772c48dfd49"
+    },
+    "detail-fe0e04b91160": {
+      "pass": true,
+      "digest": "de00c386408d83fd"
+    },
+    "detail-fe49360b8c29": {
+      "pass": true,
+      "digest": "5d83cbc5db58082b"
+    },
+    "detail-ff32a576eeb6": {
+      "pass": false,
+      "reason": "细化方案：操作 x 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）",
+      "digest": "16cd518b9a392093"
+    },
+    "detail-metered-capability-in-query": {
+      "pass": false,
+      "reason": "操作 x：查询（query）不能调用收费能力：打开页面就会自动调用、产生费用；请放进 command，由按钮触发，回答存下来再由 query",
+      "digest": "14cae9a574a0541b"
+    },
+    "detail-model-ask-then-add": {
+      "pass": true,
+      "digest": "1b6146c996c88b2d"
+    },
+    "detail-notes-plain": {
+      "pass": true,
+      "digest": "25820eb8fd844a5d"
+    },
+    "detail-notes-root-closed-early": {
+      "pass": true,
+      "digest": "4ef307e7947265f0"
+    },
+    "detail-notes-think-and-fence": {
+      "pass": true,
+      "digest": "4ab5a0be76c4e6cf"
+    },
+    "detail-notes-truncated": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "078395cb31678e14"
+    },
+    "detail-order-text-not-typed": {
+      "pass": false,
+      "reason": "浏览器用例需要具体操作与断言",
+      "digest": "2e2b40fcfaf4e17a"
+    },
+    "minimax-notes-v1#1": {
+      "pass": true,
+      "digest": "31356a638b9fb586"
+    },
+    "minimax-notes-v1#2": {
+      "pass": false,
+      "reason": "初次要给 #–# 个在页面结构或关键行为上有实质差异的方案（candidates）",
+      "digest": "97859d30a641d9b7"
+    },
+    "minimax-notes-v1#3": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "9bdcb3ab74c128ff"
+    },
+    "prompt-example": {
+      "pass": true,
+      "live": true
+    },
+    "propose-07aacf9e0e49": {
+      "pass": true,
+      "digest": "cf7d9b287a2b69e2"
+    },
+    "propose-087e09588466": {
+      "pass": true,
+      "digest": "71de9114c13483c1"
+    },
+    "propose-08a5b881e228": {
+      "pass": true,
+      "digest": "942a898202e4d639"
+    },
+    "propose-0c311640238d": {
+      "pass": false,
+      "reason": "初次要给 #–# 个在页面结构或关键行为上有实质差异的方案（candidates）",
+      "digest": "561e52a31b92a330"
+    },
+    "propose-0c4808b18d63": {
+      "pass": true,
+      "digest": "4faba4a3b07feb2c"
+    },
+    "propose-0c926edc9368": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "1bea1f5072451335"
+    },
+    "propose-0dbc8abc142d": {
+      "pass": true,
+      "digest": "4e42e6766b04ed3b"
+    },
+    "propose-11c27ca49195": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "34a13801fd022888"
+    },
+    "propose-14a14acca2a6": {
+      "pass": true,
+      "digest": "8eebc2ad9e4769a1"
+    },
+    "propose-16a2d5ec6b77": {
+      "pass": true,
+      "digest": "92f70177f3de79e5"
+    },
+    "propose-1b56b1d708fc": {
+      "pass": true,
+      "digest": "de162af73b3fdad3"
+    },
+    "propose-1c54ec84f2bf": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "2e63018bf088307d"
+    },
+    "propose-1cfa48055914": {
+      "pass": false,
+      "reason": "操作 x 的 x：无法识别的类型「…」，可用 x / x / x / x / x / x / x / x|x 枚举 / 类型[]",
+      "digest": "6be193f883a9052f"
+    },
+    "propose-1ed1853a2a6f": {
+      "pass": true,
+      "digest": "137d4e14a2c6170f"
+    },
+    "propose-1f3cd9107b4b": {
+      "pass": true,
+      "digest": "ef366556dcc34965"
+    },
+    "propose-2113f0f77169": {
+      "pass": true,
+      "digest": "189a91ad03456d64"
+    },
+    "propose-24601d15b6d0": {
+      "pass": true,
+      "digest": "cc8f85a97c6972f2"
+    },
+    "propose-2592bafd8eb2": {
+      "pass": true,
+      "digest": "601731755c46bbc5"
+    },
+    "propose-268b6da88463": {
+      "pass": false,
+      "reason": "初次要给 #–# 个在页面结构或关键行为上有实质差异的方案（candidates）",
+      "digest": "4ba4129beb477172"
+    },
+    "propose-28c76acda631": {
+      "pass": true,
+      "digest": "9b73cb41285a6e53"
+    },
+    "propose-28ff5781cd94": {
+      "pass": true,
+      "digest": "de30318dcfbdf9e1"
+    },
+    "propose-2b25a3fad77b": {
+      "pass": true,
+      "digest": "a328f901ceb803b3"
+    },
+    "propose-2c8a165522a5": {
+      "pass": true,
+      "digest": "c349b10e673545f9"
+    },
+    "propose-2e1079e6016c": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "eb846c3f266768b8"
+    },
+    "propose-2f922a898247": {
+      "pass": true,
+      "digest": "b0d6569239bf3d46"
+    },
+    "propose-312a77b60002": {
+      "pass": true,
+      "digest": "ef9451c87d6e67ef"
+    },
+    "propose-33569b9bfd7d": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "6aa15a5284bc9715"
+    },
+    "propose-3562a30dae5b": {
+      "pass": true,
+      "digest": "b528f84e6e6c2ac6"
+    },
+    "propose-38d914e79d7b": {
+      "pass": true,
+      "digest": "82171fbf5df4366c"
+    },
+    "propose-3b7f0266db14": {
+      "pass": true,
+      "digest": "b16f30cee9971082"
+    },
+    "propose-3df0e449a356": {
+      "pass": true,
+      "digest": "bfbe2778ce5b3843"
+    },
+    "propose-3e560cbf58a2": {
+      "pass": true,
+      "digest": "fb8ae0579f9217fa"
+    },
+    "propose-3efac7f94f9b": {
+      "pass": false,
+      "reason": "页面 x：每页至少一个组件",
+      "digest": "53131fa54fff6783"
+    },
+    "propose-40c2649fdc75": {
+      "pass": true,
+      "digest": "8b5f9c55a1bb4ec5"
+    },
+    "propose-43e792e7e21f": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "c79e172d75713f94"
+    },
+    "propose-457ac698f4d6": {
+      "pass": true,
+      "digest": "d57b11be92a1aaf5"
+    },
+    "propose-49636475b078": {
+      "pass": true,
+      "digest": "649ef1cac63a0ed6"
+    },
+    "propose-49d713f3715b": {
+      "pass": true,
+      "digest": "a4401d11260080e6"
+    },
+    "propose-4a15207974bf": {
+      "pass": true,
+      "digest": "8653d561dae4986d"
+    },
+    "propose-4c04dcddff83": {
+      "pass": true,
+      "digest": "c7f12aedfc8ee586"
+    },
+    "propose-525cab4eb5b4": {
+      "pass": false,
+      "reason": "页面 x：每页至少一个组件",
+      "digest": "5db401763278572a"
+    },
+    "propose-531ebb538db7": {
+      "pass": false,
+      "reason": "操作 x 的 x：字段名「…」必须是英文字母开头的字母、数字或下划线",
+      "digest": "5aa7675b11a4b639"
+    },
+    "propose-5345888760c1": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "02344513702e584b"
+    },
+    "propose-53a7bf165344": {
+      "pass": true,
+      "digest": "ad898c0bdce2a105"
+    },
+    "propose-580ec2391eac": {
+      "pass": true,
+      "digest": "fcab6d2bdb9555ec"
+    },
+    "propose-59607d2a59a4": {
+      "pass": false,
+      "reason": "操作 x 的 x：无法识别的类型「…」，可用 x / x / x / x / x / x / x / x|x 枚举 / 类型[]",
+      "digest": "2b94ff161db78367"
+    },
+    "propose-598f26f48d9e": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "98d558c1a214e67f"
+    },
+    "propose-5c19a276944c": {
+      "pass": false,
+      "reason": "页面 x：每页至少一个组件",
+      "digest": "c7b49c7eb031f4e5"
+    },
+    "propose-5ccc9531a922": {
+      "pass": false,
+      "reason": "组件 x：缺少标识",
+      "digest": "827db1f4b0be4678"
+    },
+    "propose-5ef511f70c95": {
+      "pass": true,
+      "digest": "30a762c0ba447bb5"
+    },
+    "propose-5f04bd8ad7a4": {
+      "pass": true,
+      "digest": "103ebb85050063e1"
+    },
+    "propose-63c5d9414ad1": {
+      "pass": false,
+      "reason": "初次要给 #–# 个在页面结构或关键行为上有实质差异的方案（candidates）",
+      "digest": "5ead42ca59de1b4f"
+    },
+    "propose-6596934ef3c2": {
+      "pass": true,
+      "digest": "9cec100154a5bc35"
+    },
+    "propose-6717753d8cc7": {
+      "pass": true,
+      "digest": "18cb9e168b4980f8"
+    },
+    "propose-6b54ae3c6561": {
+      "pass": true,
+      "digest": "b66d3d36f8047da7"
+    },
+    "propose-6f1c4cf97bf7": {
+      "pass": true,
+      "digest": "505afc49e8e805ec"
+    },
+    "propose-704e0758735a": {
+      "pass": true,
+      "digest": "983f5b5e5cc2ee37"
+    },
+    "propose-713db050619d": {
+      "pass": true,
+      "digest": "2d7238c527b0ff92"
+    },
+    "propose-723ffa025bb3": {
+      "pass": true,
+      "digest": "1acee8fa24b90954"
+    },
+    "propose-7257bfe84018": {
+      "pass": true,
+      "digest": "94d357ab25a533df"
+    },
+    "propose-73369e8a0fcc": {
+      "pass": true,
+      "digest": "505afc49e8e805ec"
+    },
+    "propose-73eb6441f59c": {
+      "pass": false,
+      "reason": "组件 x：submit 绑定了不存在的操作 x",
+      "digest": "484e84812c8bf922"
+    },
+    "propose-750d80e4d069": {
+      "pass": false,
+      "reason": "初次要给 #–# 个在页面结构或关键行为上有实质差异的方案（candidates）",
+      "digest": "bebee7a1b8379516"
+    },
+    "propose-7541ef589ba3": {
+      "pass": true,
+      "digest": "08d9b40e9bedd260"
+    },
+    "propose-7d73e8f6f6b8": {
+      "pass": true,
+      "digest": "da0e3bf370bf0235"
+    },
+    "propose-81981a7ff60f": {
+      "pass": false,
+      "reason": "操作 x 的 x：无法识别的类型「…」，可用 x / x / x / x / x / x / x / x|x 枚举 / 类型[]",
+      "digest": "d3038f1406935501"
+    },
+    "propose-81afb5054ba2": {
+      "pass": true,
+      "digest": "f1e1a0c7f1b13d4a"
+    },
+    "propose-83321d97263c": {
+      "pass": true,
+      "digest": "67a7778cc51ddf56"
+    },
+    "propose-8452d4bd590b": {
+      "pass": true,
+      "digest": "f12a5d2f38907c1a"
+    },
+    "propose-877b27ec89c2": {
+      "pass": true,
+      "digest": "24873a81bbdec755"
+    },
+    "propose-88555ada1f37": {
+      "pass": true,
+      "digest": "1f28eb8f710f0986"
+    },
+    "propose-8861373544b0": {
+      "pass": true,
+      "digest": "fd29549f5ddf3b61"
+    },
+    "propose-89c452079f83": {
+      "pass": false,
+      "reason": "已经澄清过一次，这次必须直接给出方案，把仍不确定的地方写成假设放进 summary",
+      "digest": "7aa1784117aeb1c5"
+    },
+    "propose-8a2f204b75c4": {
+      "pass": true,
+      "digest": "fae2f62df91bb553"
+    },
+    "propose-8b6f2876f08e": {
+      "pass": false,
+      "reason": "方案 #：缺少标题",
+      "digest": "3e4a43b8e0f5c2b2"
+    },
+    "propose-8ebbfe7ca5bb": {
+      "pass": true,
+      "digest": "f91e914de1b05b71"
+    },
+    "propose-8fdda87e7130": {
+      "pass": true,
+      "digest": "c0e6aed65e04f051"
+    },
+    "propose-90237892c960": {
+      "pass": true,
+      "digest": "00a14fc52c713824"
+    },
+    "propose-9231a2db3cb6": {
+      "pass": true,
+      "digest": "c5bd987cc4c72e77"
+    },
+    "propose-95191178aa5f": {
+      "pass": true,
+      "digest": "c2843bfdf4c52451"
+    },
+    "propose-95207aace28e": {
+      "pass": true,
+      "digest": "cb548d34076e3dc8"
+    },
+    "propose-95878863e7e8": {
+      "pass": false,
+      "reason": "操作 x 的 output[].x：无法识别的类型「…」，可用 x / x / x / x / x / x / x / x|x 枚举 / 类",
+      "digest": "f61ad8494a3d5b0e"
+    },
+    "propose-95ee4ed5171d": {
+      "pass": true,
+      "digest": "22b50e57d29b4a99"
+    },
+    "propose-9731d141733e": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "15e7ac3a1a7bc328"
+    },
+    "propose-98f29ce17d3d": {
+      "pass": false,
+      "reason": "操作 x 的 x：字段名「…」必须是英文字母开头的字母、数字或下划线",
+      "digest": "d95419ebe30825af"
+    },
+    "propose-9a0b55f0879e": {
+      "pass": false,
+      "reason": "操作 x 的 x：无法识别的类型「…」，可用 x / x / x / x / x / x / x / x|x 枚举 / 类型[]",
+      "digest": "16f544effed7e873"
+    },
+    "propose-9a9648943278": {
+      "pass": true,
+      "digest": "8cb22564a0bf0150"
+    },
+    "propose-9ad92ba1bc27": {
+      "pass": true,
+      "digest": "38ce28b9df9f132e"
+    },
+    "propose-9c5fce11aa99": {
+      "pass": true,
+      "digest": "0bab4661a51e5e56"
+    },
+    "propose-9f204cd8a145": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "fc51fef5196224c3"
+    },
+    "propose-9f4a8bafbb69": {
+      "pass": true,
+      "digest": "e3bbf5a66041f060"
+    },
+    "propose-a08157c6bab1": {
+      "pass": true,
+      "digest": "b836480018f40430"
+    },
+    "propose-a28fb4fdf91e": {
+      "pass": true,
+      "digest": "cf5be823f5d97918"
+    },
+    "propose-a3bdcde51e75": {
+      "pass": true,
+      "digest": "4641e6d7e6521c89"
+    },
+    "propose-a5a1bd540542": {
+      "pass": true,
+      "digest": "e929d67441bd7d6c"
+    },
+    "propose-a61afe1dd686": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "6a537066100001d4"
+    },
+    "propose-a64d23eca8f7": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "4c3399f7107c9076"
+    },
+    "propose-a94df14abddb": {
+      "pass": true,
+      "digest": "7e45090cea008c78"
+    },
+    "propose-aa4a36feed81": {
+      "pass": true,
+      "digest": "8e6b6de9283cc4ef"
+    },
+    "propose-aa8d87c6663d": {
+      "pass": true,
+      "digest": "792078267a6dc862"
+    },
+    "propose-ab0eb22e9437": {
+      "pass": true,
+      "digest": "c8e38f33a6f695de"
+    },
+    "propose-ae8917e491e0": {
+      "pass": true,
+      "digest": "53e5ca95678370cf"
+    },
+    "propose-aeefc3e474a1": {
+      "pass": true,
+      "digest": "dbe2df27fa57f8a2"
+    },
+    "propose-b1a41abddc8b": {
+      "pass": true,
+      "digest": "adbb28940f8b09cc"
+    },
+    "propose-b7d4474da1d1": {
+      "pass": true,
+      "digest": "eb21bed05530702f"
+    },
+    "propose-b82434aaeaec": {
+      "pass": true,
+      "digest": "555c0e378875288b"
+    },
+    "propose-ba5ae863d5c7": {
+      "pass": true,
+      "digest": "ded14a12904e5c06"
+    },
+    "propose-be3cbf7e7eba": {
+      "pass": true,
+      "digest": "8fa6e9dabf91ed1e"
+    },
+    "propose-c5d1418960c3": {
+      "pass": true,
+      "digest": "ba02d474ccfe3dc2"
+    },
+    "propose-c64c72407fb2": {
+      "pass": true,
+      "digest": "ba01881b5d432a0c"
+    },
+    "propose-c6732439bb4c": {
+      "pass": true,
+      "digest": "512b087ff7bda10d"
+    },
+    "propose-c7194c0a240d": {
+      "pass": true,
+      "digest": "15bc16b77467c4e0"
+    },
+    "propose-ca4f89bf51da": {
+      "pass": true,
+      "digest": "b6e539d8bb29addc"
+    },
+    "propose-cc0d0d6fa76f": {
+      "pass": true,
+      "digest": "8e738825c922f24c"
+    },
+    "propose-cc4a0d28dd84": {
+      "pass": true,
+      "digest": "bd62807a4dae0f4f"
+    },
+    "propose-ccc3ececd986": {
+      "pass": true,
+      "digest": "6c11d6c6cad4213b"
+    },
+    "propose-cdb4ace7d125": {
+      "pass": true,
+      "digest": "be2ed34cc336eb4f"
+    },
+    "propose-cf95be3f12fc": {
+      "pass": true,
+      "digest": "e2a2499ff9da26a3"
+    },
+    "propose-cfda4af04e50": {
+      "pass": true,
+      "digest": "de2fd0b66949d2c9"
+    },
+    "propose-cfe1cc015a7f": {
+      "pass": true,
+      "digest": "e9830a3756520676"
+    },
+    "propose-d24c3e521cea": {
+      "pass": true,
+      "digest": "566c8e3c584f0a61"
+    },
+    "propose-d2a4e911090d": {
+      "pass": true,
+      "digest": "b6789176fdaaf516"
+    },
+    "propose-d2e5b56742b9": {
+      "pass": false,
+      "reason": "界面：x 写成数组，每页列出它的组件 parts",
+      "digest": "5127b251f66f67ee"
+    },
+    "propose-d4dcdee22d73": {
+      "pass": true,
+      "digest": "cd0964c524ce186c"
+    },
+    "propose-d65c723c3171": {
+      "pass": true,
+      "digest": "da0079ea03054be3"
+    },
+    "propose-daa5c4c4c1aa": {
+      "pass": true,
+      "digest": "e583dc798574c616"
+    },
+    "propose-de4ab9b602bc": {
+      "pass": true,
+      "digest": "2b97022bc169b40f"
+    },
+    "propose-e22bb4a860fa": {
+      "pass": true,
+      "digest": "a03026504f55a17c"
+    },
+    "propose-e233c912fc24": {
+      "pass": true,
+      "digest": "96ebf1a97de853b1"
+    },
+    "propose-e3d518e8e800": {
+      "pass": true,
+      "digest": "ea345f25e3a944d3"
+    },
+    "propose-e452b0dceb78": {
+      "pass": true,
+      "digest": "8f386f5d81f8d85c"
+    },
+    "propose-e61e3faf5782": {
+      "pass": false,
+      "reason": "方案 x：操作标识重复",
+      "digest": "c55b78a6ac73fe0c"
+    },
+    "propose-e6518fb71e8b": {
+      "pass": true,
+      "digest": "c3e9b6c47eecdc10"
+    },
+    "propose-e7b1f6dfd307": {
+      "pass": true,
+      "digest": "534fe4c3b3aceb93"
+    },
+    "propose-eb98bfe3baa4": {
+      "pass": false,
+      "reason": "操作 x 的 x：字段名「…」必须是英文字母开头的字母、数字或下划线",
+      "digest": "27b1cc9b9d164b9d"
+    },
+    "propose-ed808427dddc": {
+      "pass": true,
+      "digest": "729eca75d04eb770"
+    },
+    "propose-f8eb9fa751d2": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "b3ff5e0d1b32e14c"
+    },
+    "propose-f9238721d2c3": {
+      "pass": false,
+      "reason": "初次要给 #–# 个在页面结构或关键行为上有实质差异的方案（candidates）",
+      "digest": "4ea98d1ebfe5baa4"
+    },
+    "propose-fa30143f2490": {
+      "pass": true,
+      "digest": "8f8de2d2aa0bd360"
+    },
+    "propose-fe9e4e40faaf": {
+      "pass": true,
+      "digest": "816e4702a56dd7c2"
+    },
+    "propose-one-candidate": {
+      "pass": false,
+      "reason": "初次要给 #–# 个在页面结构或关键行为上有实质差异的方案（candidates）",
+      "digest": "6cf5c148b301bf9a"
+    },
+    "propose-questions-first-round": {
+      "pass": true,
+      "digest": "a556a1d60bee10c6"
+    },
+    "propose-questions-second-round": {
+      "pass": false,
+      "reason": "已经澄清过一次，这次必须直接给出方案，把仍不确定的地方写成假设放进 summary",
+      "digest": "bfd292d1a35e3ac0"
+    },
+    "propose-two-candidates": {
+      "pass": true,
+      "digest": "ca909e339ee53ce0"
+    },
+    "revise-067c38490bd5": {
+      "pass": true,
+      "digest": "a9e592145901bac2"
+    },
+    "revise-0766eb759f1c": {
+      "pass": true,
+      "digest": "0ae9224b4e69ac76"
+    },
+    "revise-08a4803f440a": {
+      "pass": true,
+      "digest": "596c74c97c6c54e3"
+    },
+    "revise-0cec7f2c80d4": {
+      "pass": true,
+      "digest": "bfe5c0435bb05ffe"
+    },
+    "revise-0dd067eec0be": {
+      "pass": false,
+      "reason": "操作 x 的 output：数组类型写成只含一个元素类型的数组，例如 [{ \"x\": \"x\" }]",
+      "digest": "c7d62157b5e405e5"
+    },
+    "revise-0e3fc3ffabc7": {
+      "pass": true,
+      "digest": "320866ddc63e2535"
+    },
+    "revise-1193e8be6258": {
+      "pass": true,
+      "digest": "ec026adc32242edd"
+    },
+    "revise-15fba20b0a1f": {
+      "pass": true,
+      "digest": "c6c93e01c0e6ce91"
+    },
+    "revise-16223a69e16e": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
+      "digest": "4b90328eec76f8c7"
+    },
+    "revise-1cbb532c6494": {
+      "pass": true,
+      "digest": "bc0cd4cf3c05435c"
+    },
+    "revise-1ddf4b51cef1": {
+      "pass": true,
+      "digest": "fe730281044e9321"
+    },
+    "revise-2530ee0eb49d": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "cb51946ea49d7ad6"
+    },
+    "revise-2aa5678e5abd": {
+      "pass": false,
+      "reason": "操作 x 第 # 个示例的期望结果缺少 x：要么写全输出的必填字段，要么改用 \"includes\" 只检查其中几个字段",
+      "digest": "e28a95273618c128"
+    },
+    "revise-2f767f44020d": {
+      "pass": false,
+      "reason": "操作 x 第 # 个示例的期望结果缺少 x：要么写全输出的必填字段，要么改用 \"includes\" 只检查其中几个字段",
+      "digest": "46c0fec35c24c0ac"
+    },
+    "revise-3548d199da6a": {
+      "pass": false,
+      "reason": "操作 x 和平台能力同名：插件自己的操作用自己的前缀（例如 x），要用这个能力就在调用它的操作的 x 里写 \"x\"",
+      "digest": "2b45100d52966cd0"
+    },
+    "revise-3bde2170d08e": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
+      "digest": "7a145ab34ccf09bc"
+    },
+    "revise-3c1626e9758a": {
+      "pass": true,
+      "digest": "18a6a7c3ff897f01"
+    },
+    "revise-3d3821a099a0": {
+      "pass": true,
+      "digest": "6f5675df88c6f4b8"
+    },
+    "revise-4b96e383df4d": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
+      "digest": "da502790c0146f0f"
+    },
+    "revise-5448e8d7c4bd": {
+      "pass": false,
+      "reason": "细化方案：操作 x 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）",
+      "digest": "a6a484741db177a5"
+    },
+    "revise-56eb5ea41bfc": {
+      "pass": false,
+      "reason": "操作 x 第 # 个示例的期望结果缺少 x：要么写全输出的必填字段，要么改用 \"includes\" 只检查其中几个字段",
+      "digest": "677c003ca730631b"
+    },
+    "revise-584868533d47": {
+      "pass": true,
+      "digest": "ba1b7fcefe493c4c"
+    },
+    "revise-59a33822c3d9": {
+      "pass": true,
+      "digest": "bc8a87376db69d56"
+    },
+    "revise-5e5808501d35": {
+      "pass": false,
+      "reason": "组件 x 的 x 取自 x，但 x 的命令结果里没有 x：把 x 加进 x 的 output，或者改成由用户填写",
+      "digest": "6b625a69cf1573c5"
+    },
+    "revise-624589edfe51": {
+      "pass": true,
+      "digest": "ff5c31b236076079"
+    },
+    "revise-639d118ef9a7": {
+      "pass": true,
+      "digest": "1fc475d9c3922737"
+    },
+    "revise-68404b6d3115": {
+      "pass": false,
+      "reason": "项目能力目录中没有：x",
+      "digest": "08a4088045010a95"
+    },
+    "revise-7206cf980b4a": {
+      "pass": true,
+      "digest": "164c516d80e3e563"
+    },
+    "revise-722506bc71db": {
+      "pass": false,
+      "reason": "组件 x 的 x 取自 x，但 x 的命令结果里没有 x：把 x 加进 x 的 output，或者改成由用户填写",
+      "digest": "3995af458c128da8"
+    },
+    "revise-764e37b708f3": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：输出字段路径无效",
+      "digest": "5a1863d8abf40410"
+    },
+    "revise-7a1fa264923d": {
+      "pass": true,
+      "digest": "10bd231efee22d59"
+    },
+    "revise-7cca7683c8e4": {
+      "pass": true,
+      "digest": "07ed082a7671cc2c"
+    },
+    "revise-7dc8e177cd27": {
+      "pass": false,
+      "reason": "操作 x 和平台能力同名：插件自己的操作用自己的前缀（例如 x），要用这个能力就在调用它的操作的 x 里写 \"x\"",
+      "digest": "eb21d65705e023a5"
+    },
+    "revise-80c61acd8e52": {
+      "pass": true,
+      "digest": "e76c447028417f66"
+    },
+    "revise-840a0af3df53": {
+      "pass": true,
+      "digest": "c01d1698aa8fff20"
+    },
+    "revise-88b6dca9e757": {
+      "pass": true,
+      "digest": "49bf7ba61ddd6573"
+    },
+    "revise-91521dfdd91a": {
+      "pass": true,
+      "digest": "589cbb80a463ce80"
+    },
+    "revise-935377969644": {
+      "pass": true,
+      "digest": "bd88ec4c07dedaa0"
+    },
+    "revise-98656b597d4e": {
+      "pass": true,
+      "digest": "a62da9caa0564ee5"
+    },
+    "revise-9a8f05ed26b2": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：常量「…」不是 x 的 x 能接受的值（只能是 未读/在读/已读）；要按当前记录推算（例如切到下一个状态），就让这个",
+      "digest": "d02b47ccafca827d"
+    },
+    "revise-9f08c2778470": {
+      "pass": true,
+      "digest": "63a3164ae6614a9d"
+    },
+    "revise-a1cd59eb0489": {
+      "pass": true,
+      "digest": "68ecd2b8373d435d"
+    },
+    "revise-a4ec60ad3d5f": {
+      "pass": false,
+      "reason": "操作 x：每个操作至少写一个示例 {\"input\":…, \"output\":…}",
+      "digest": "91adcd6951a9916b"
+    },
+    "revise-a71b9e8dd90b": {
+      "pass": true,
+      "digest": "d96f238b289654b3"
+    },
+    "revise-a7e0c78693e2": {
+      "pass": true,
+      "digest": "4a89823ff288e713"
+    },
+    "revise-aaed38ba66ec": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：常量「…」不是 x 的 x 能接受的值（只能是 未读/在读/已读）；要按当前记录推算（例如切到下一个状态），就让这个",
+      "digest": "d6b4c4da0d92abaa"
+    },
+    "revise-b58d28aee90d": {
+      "pass": true,
+      "digest": "0f7c6f0e637bd781"
+    },
+    "revise-c108c828124e": {
+      "pass": true,
+      "digest": "21fec06c4b3a7cc6"
+    },
+    "revise-c13acd589649": {
+      "pass": true,
+      "digest": "8c0520abc03916f5"
+    },
+    "revise-c13da9dc2c70": {
+      "pass": true,
+      "digest": "d377e20ce7b57e59"
+    },
+    "revise-c2c5e5ed7ba0": {
+      "pass": true,
+      "digest": "b72b67fce5140d00"
+    },
+    "revise-c7bcb93b57cd": {
+      "pass": true,
+      "digest": "190c45abcddda4ce"
+    },
+    "revise-cb87c8dce58e": {
+      "pass": true,
+      "digest": "827f72bf74ad4da0"
+    },
+    "revise-cf1797a19f51": {
+      "pass": true,
+      "digest": "29611c5b4b2cbe56"
+    },
+    "revise-d04ccbbfeb05": {
+      "pass": true,
+      "digest": "2a90e449e2e896e7"
+    },
+    "revise-d352f9880ded": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：输出字段路径无效",
+      "digest": "bdc2d7b3097e8e58"
+    },
+    "revise-d9503a2f5451": {
+      "pass": true,
+      "digest": "92fce0f146bb9738"
+    },
+    "revise-dab55409dd39": {
+      "pass": false,
+      "reason": "界面合同无效：组件 x：常量「…」不是 x 的 x 能接受的值；要按当前记录推算（例如切到下一个状态），就让这个操作只收 x，在代码里算",
+      "digest": "d504cb77f1e88bbf"
+    },
+    "revise-df3fee532bcc": {
+      "pass": true,
+      "digest": "0e5a7eeae98cb37e"
+    },
+    "revise-e1ba912c5938": {
+      "pass": true,
+      "digest": "e4544658f00c9d97"
+    },
+    "revise-edd1437ee26e": {
+      "pass": true,
+      "digest": "dc3dfb023aa436dc"
+    },
+    "revise-f84394f0c719": {
+      "pass": true,
+      "digest": "91670cd797163757"
+    },
+    "revise-f9713bfa8629": {
+      "pass": true,
+      "digest": "378e28d5177e0640"
+    },
+    "revise-fc1482cf9616": {
+      "pass": false,
+      "reason": "操作 x 和平台能力同名：插件自己的操作用自己的前缀（例如 x），要用这个能力就在调用它的操作的 x 里写 \"x\"",
+      "digest": "10df843da9dd658a"
+    },
+    "revise-notes-with-rework": {
+      "pass": true,
+      "digest": "67c538fa0aeb2d60"
+    },
+    "revise-rework-unknown-operation": {
+      "pass": false,
+      "reason": "rework 引用了不存在的操作：x",
+      "digest": "bec264504f2f2cac"
+    }
+  }
+}

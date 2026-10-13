@@ -1,9 +1,7 @@
 export const GMAIL_CLIENT_ID_REF = "connector:gmail:client_id";
 export const GMAIL_CLIENT_SECRET_REF = "connector:gmail:client_secret";
-export const GMAIL_REFRESH_REF = "connector:gmail:refresh";
-/** Private ISO expiry for the bound access token — not a credential value. */
-export const GMAIL_TOKEN_EXPIRES_AT_REF = "connector:gmail:token_expires_at";
-export const GMAIL_OAUTH_PENDING_REF = "connector:gmail:oauth:pending";
+/** Each authorization attempt keeps its PKCE session under `${prefix}:${state}`. */
+export const GMAIL_OAUTH_PENDING_PREFIX = "connector:gmail:oauth:pending";
 
 /** Pending PKCE sessions expire after this many milliseconds (10 minutes). */
 export const GMAIL_OAUTH_PENDING_TTL_MS = 10 * 60 * 1000;
@@ -103,7 +101,4 @@ export interface GmailOAuthPorts {
     MOLIS_WORK_GMAIL_CLIENT_ID?: string;
     MOLIS_WORK_GMAIL_CLIENT_SECRET?: string;
   };
-  legacyAuthRef: string;
-  resolveLegacyToken(): string | null;
-  bindLegacyToken(value: string): void;
 }

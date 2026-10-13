@@ -80,6 +80,9 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         const submit = form.querySelector("button[type=submit]");
         const error = dialog.querySelector("[data-project-delete-error]");
         const cancel = dialog.querySelector("[data-project-delete-cancel]");
+        const names = dialog.querySelector("[data-project-delete-scope] span");
+        const loadNames = () => fetch("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete-scope").then((response) => response.json())
+          .then((result) => { names.textContent = result.owners.map((owner) => owner.label).join("；"); }).catch(() => null);
         let busy = false;
         let cleanupPending = false;
         let deletionKey = null;
@@ -90,6 +93,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
             error.hidden = true;
           }
           dialog.showModal();
+          loadNames();
         });
         cancel.addEventListener("click", () => { if (!busy) dialog.close(); });
         dialog.addEventListener("cancel", (event) => { if (busy) event.preventDefault(); });

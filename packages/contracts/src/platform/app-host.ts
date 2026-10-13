@@ -1,4 +1,5 @@
 import type { ContractDescriptor } from "./package.js";
+import type { ActionCallOrigin } from "./actions.js";
 export * from "./runtime-project-host.js";
 
 /** Async boundary for an existing, finite method API; does not add or dispatch operation names. */
@@ -75,7 +76,7 @@ export interface HostCapabilityDescriptor {
   capability_id: string;
   version: number;
   operation: HostCapabilityOperation;
-  /** Legacy adapter for authenticated Host composition only; a plugin's consumes declaration cannot grant access. */
+  /** Authenticated Host composition only; a plugin's consumes declaration cannot grant access. */
   readonly host_only?: boolean;
   /**
    * The call touches no project state (a model draft written in a directory of its own, say): it runs beside the
@@ -109,7 +110,6 @@ export type HostCapabilityOutput<Capability> = Capability extends HostCapability
 /** Opaque local storage locator. It is never a Project business identity. */
 export interface LocalHostProjectReference {
   project_id: string;
-  board_id: string;
   storage_key: string;
 }
 
@@ -129,7 +129,6 @@ export interface HostPluginCaller {
   readonly plugin_id: string;
   readonly install_id: string;
   readonly actor_id: string;
-  readonly board_id: string;
   readonly project_id: string;
   readonly declaration: Pick<import("./plugin.js").PluginDefinition, "manifest" | "agent_prompts" | "agent_skills">;
   /** Installation lifetime, also usable by the original Agent after this typed call ends. */
@@ -146,7 +145,7 @@ export interface HostCapabilityCallOptions {
   /** SDK-enforced restriction, not caller authority; plugins cannot remove it through invocation options. */
   consumer?: "plugin";
 }
-export interface HostCapabilityInvocation {
+export interface HostCapabilityInvocation extends ActionCallOrigin {
   readonly signal?: AbortSignal;
   readonly plugin?: HostPluginCaller;
   readonly consumer?: "plugin";

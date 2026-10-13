@@ -134,7 +134,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     const headline = $('.mw-dir-row__headline', row);
     $('.mw-dir-row__count', headline)?.remove();
     $('.mw-dir-row__status', headline)?.remove();
-    if (summary.goals_total) { const count = document.createElement('span'); count.className = 'mw-dir-row__count'; count.textContent = summary.goals_done + '/' + summary.goals_total; headline.append(count); }
+    if (summary.goals_total) { const count = document.createElement('span'); count.className = 'mw-dir-row__count'; count.textContent = summary.goals_done + '/' + summary.goals_total; count.title = L('{done} / {total} 个目标完成', { done: summary.goals_done, total: summary.goals_total }); headline.append(count); }
     if (summary.waiting) {
       const status = document.createElement('span');
       status.className = 'mw-status mw-status--attention mw-status--plain mw-dir-row__status'; status.dataset.slot = 'status';

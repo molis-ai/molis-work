@@ -1,13 +1,10 @@
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess } from "node:child_process";
-import { once } from "node:events";
-import { existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { WebSocket } from "ws";
+import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 
 import { MICRO_INTERACTION_CLIENT_SCRIPT } from "../packages/design-system/src/styles/micro-interactions.ts";
 import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/functions/client.ts";
@@ -79,7 +76,9 @@ window.fetch = async (url, init) => {
   return new Response(JSON.stringify(result.body), { status: result.status, headers: { "content-type": "application/json" } });
 };
 try {
-  (${embed(FUNCTIONS_CLIENT_FACTORY_SCRIPT)})({ translate: (value) => value, feedApi: null });
+  // The same host the standalone rules page gives it (functions/bootstrap.ts): its own document and address.
+  (${embed(FUNCTIONS_CLIENT_FACTORY_SCRIPT)})({ translate: (value) => value, feedApi: null, root: document,
+    page: { address: () => new URL(location.href), replace: (next) => history.replaceState(null, "", next) } });
   window.__booted = true;
 } catch (error) {
   window.__bootError = String(error && error.stack || error);
@@ -148,8 +147,7 @@ window.__shortcutDisabled = () => {
 }
 
 test("failed function saves keep the typed fields and shortcut submit uses the focused type", { timeout: 60_000 }, async (t) => {
-  const chrome = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"]
-    .find((path) => existsSync(path));
+  const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for the Functions draft retention check"); return; }
   const directory = await mkdtemp(join(tmpdir(), "molis-functions-draft-"));
   const html = pageHtml();
@@ -161,55 +159,15 @@ test("failed function saves keep the typed fields and shortcut submit uses the f
   const address = server.address();
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}/`;
-  let child: ChildProcess | undefined;
-  let socket: WebSocket | undefined;
+  let harness: ChromeHarness | undefined;
   t.after(async () => {
-    socket?.close();
-    if (child && child.exitCode === null && child.signalCode === null) {
-      const closed = once(child, "close");
-      child.kill("SIGTERM");
-      await closed;
-    }
+    await harness?.close();
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     await rm(directory, { recursive: true, force: true });
   });
-  child = spawn(chrome, ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
-    "--remote-debugging-port=0", `--user-data-dir=${join(directory, "chrome")}`, "about:blank"],
-  { stdio: ["ignore", "ignore", "pipe"] });
-  const debuggerUrl = await new Promise<string>((resolve, reject) => {
-    let stderr = "";
-    const timer = setTimeout(() => reject(new Error("Chrome debugger did not start")), 8_000);
-    child!.stderr!.on("data", (chunk) => {
-      stderr += String(chunk);
-      const url = stderr.match(/DevTools listening on (ws:\/\/\S+)/)?.[1];
-      if (url) { clearTimeout(timer); resolve(url); }
-    });
-    child!.once("exit", () => { clearTimeout(timer); reject(new Error(stderr.slice(-500))); });
-  });
-  socket = new WebSocket(debuggerUrl);
-  await once(socket, "open");
-  let nextId = 0;
-  const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>();
-  socket.on("message", (raw) => {
-    const response = JSON.parse(String(raw));
-    const entry = pending.get(response.id);
-    if (!entry) return;
-    pending.delete(response.id);
-    if (response.error) entry.reject(new Error(JSON.stringify(response.error)));
-    else entry.resolve(response.result);
-  });
-  const command = (method: string, params: Record<string, unknown> = {}, sessionId?: string) => new Promise<any>((resolve, reject) => {
-    const id = ++nextId;
-    const timer = setTimeout(() => {
-      pending.delete(id);
-      reject(new Error("CDP timeout: " + method));
-    }, 8_000);
-    pending.set(id, {
-      resolve: (value) => { clearTimeout(timer); resolve(value); },
-      reject: (error) => { clearTimeout(timer); reject(error); },
-    });
-    socket!.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
-  });
+  const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 8_000 });
+  harness = browser;
+  const command = (method: string, params: Record<string, unknown> = {}, sessionId?: string) => browser.command<any>(method, params, sessionId);
   const { targetId } = await command("Target.createTarget", { url: origin });
   const { sessionId } = await command("Target.attachToTarget", { targetId, flatten: true });
   const evaluate = async <T>(expression: string): Promise<T> => {

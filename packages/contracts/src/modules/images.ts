@@ -21,8 +21,7 @@ export interface ImageConnectionInput {
   api_format: ImageApiFormat;
   base_url: string;
   model: string;
-  /** Write-only. Omission or empty keeps the existing credential. */
-  api_key?: string;
+  /** The service connection holding the key; keys are managed in Connectors. */
   auth_connection_id?: string;
 }
 export interface ImageGenerateInput {

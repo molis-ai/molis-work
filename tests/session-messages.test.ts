@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_BOARD_ID, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { SessionMessageService, workActions, WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
 import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
@@ -14,7 +14,7 @@ const deferred = <T>() => { let resolve!: (value: T) => void; const promise = ne
 test("Session message actions deduplicate concurrent callers, keep private scope, and persist the actual receipt before revocation", { timeout: 45_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "session-message-actions-"));
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, boardId: DEMO_BOARD_ID, projectId: "message-project" });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const started = deferred<void>(), response = deferred<unknown>();
   const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
   let revoked = false;
@@ -98,24 +98,6 @@ test("only definite rejections are retried; unknown delivery survives restart an
       assert.equal(other.messages.get(staged.request_id).state, "accepted");
     } finally { other.close(); }
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
-});
-
-test("v5 Session storage upgrades without replacing sessions, encrypted history or associations", async () => {
-  const home = await mkdtemp(join(tmpdir(), "session-message-migration-"));
-  let registry = await openWorkSessionRegistry({ homeDirectory: home });
-  const session = registry.createSession({ runtime_id: "codex", project_id: "project", current_goal_id: "goal", native_runtime_session_id: "thread", actor_id: "owner", user_confirmed: true });
-  registry.appendEvent({ session_id: session.session_id, source: "molis_work", source_id: "old-event", kind: "user_message", content: "retained history" });
-  const databasePath = registry.databasePath; registry.close();
-  const db = new Database(databasePath); db.exec("DROP TABLE session_messages; UPDATE session_meta SET value = '5' WHERE key = 'schema_version'"); db.close();
-  try {
-    registry = await openWorkSessionRegistry({ homeDirectory: home });
-    assert.equal(registry.get(session.session_id).current_goal_id, "goal");
-    assert.equal(registry.events(session.session_id)[0]!.content, "retained history");
-    const request = registry.messages.prepare({ session_id: session.session_id, actor_id: "owner", project_id: "project", expected_goal_id: "goal", idempotency_key: "new", text: "new message" });
-    assert.equal(request.state, "pending"); assert.equal(registry.eventCount(session.session_id), 1);
-    const service = new SessionMessageService(registry, registry.messages, { capabilities: () => ({ create: "unsupported", list: "unsupported", discover: "unsupported", read: "unsupported", resume: "unsupported", events: "unsupported", handoff: "unsupported", message: "unsupported" }), invoke: async () => { throw new Error("must not invoke"); } });
-    await assert.rejects(service.send({ session_id: session.session_id, actor_id: "owner", project_id: "project", expected_goal_id: "goal", idempotency_key: "new", text: "new message" }, async () => undefined), { code: "session.message_unavailable" });
-  } finally { registry.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("receipt commit failure rolls back its timeline event and leaves an uncertain request that cannot be replayed", async () => {

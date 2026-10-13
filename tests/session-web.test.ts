@@ -22,7 +22,7 @@ test("plugin rail lists enabled plugins; directory sections stay in the second c
   const view = {
     snapshot: {
       board: {
-        board_id: "board-root-directory",
+        project_id: "board-root-directory",
         title: "根目录一致性",
         active_goal_id: null,
         created_at: "2026-08-31T00:00:00.000Z",
@@ -31,18 +31,6 @@ test("plugin rail lists enabled plugins; directory sections stay in the second c
       cursor: 0,
       goals: [],
       relations: [],
-      impacts: [],
-      risks: [],
-      claims: [],
-      runs: [],
-      evidence: [],
-      review_obligations: [],
-      reviews: [],
-      candidates: [],
-      contract_proposals: [],
-      rewires: [],
-      clarification_sessions: [],
-      clarification_turns: [],
       goal_tree_proposals: [],
       planning_method_packs: [],
     },
@@ -55,7 +43,6 @@ test("plugin rail lists enabled plugins; directory sections stay in the second c
     archived_goals: [],
     trashed_goals: [],
     counts: {},
-    coverage: [],
     input_bindings: [],
     policy_bindings: [],
     events: [],
@@ -64,7 +51,6 @@ test("plugin rail lists enabled plugins; directory sections stay in the second c
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      contract_migrations: [],
       out_rules: [],
     },
   } as MolisWorkWebView;
@@ -96,6 +82,8 @@ test("project operation renderer uses real records or an honest empty state with
   assert.doesNotMatch(rendered.rootItems, /工作目录|data-directory-open="workspaces"/);
   assert.doesNotMatch(rendered.rootItems, /<em>\d+<\/em>/);
   assert.match(html, /这个项目还没有 Session/);
+  // The empty list is the shared block: the mark, what is missing, what a Session is for, and the create action (E-6).
+  assert.match(html, /<div class="mw-empty" data-operation-empty="sessions"><span class="mw-empty__mark"><svg[^>]*><use href="#icon-terminal"><\/use><\/svg><\/span><strong>这个项目还没有 Session<\/strong><p>启动一条新的工作会话，或关联已有的 Runtime 会话。<\/p><button class="mw-btn mw-btn--secondary" type="button" data-open-session-add>/);
   assert.doesNotMatch(html, /从这里启动新工作|创建或显式关联后/);
   assert.doesNotMatch(html, /data-directory-panel="workspaces"|data-work-surface="workspaces"/);
   assert.match(html, /data-session-add-dialog[\s\S]*新建 Session/);

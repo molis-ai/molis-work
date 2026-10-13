@@ -3,11 +3,12 @@ import test from "node:test";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
-import { bindActionClient, bindOwnerPluginAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 const definition = { capability_id: "unfamiliar.backend", version: 1, operation: "query" as const };
-const reference = (id: string) => ({ project_id: id, board_id: id, storage_key: `memory:${id}` });
+const reference = (id: string) => ({ project_id: id, storage_key: `memory:${id}` });
 
 test("plugin capability cancellation reaches its Host invocation and blocks a late write", async () => {
   const host = new LocalHost({ runtimeFactory: { open: () => ({ saved: 0 }), close: () => {} } });
@@ -44,7 +45,7 @@ test("removing a dependency during a real nested Host call blocks the caller's s
   const started = new Promise<void>(resolve => { entered = resolve; });
   const waiting = new Promise<void>(resolve => { release = resolve; });
   const remove = host.register(definition, async () => { entered(); await waiting; return 3; });
-  host.actionRegistry(project).registerProvider({ provider: { provider_id: context.install_id, title: "Fixture", kind: "plugin" }, definitions: [action],
+  host.actionRegistry(project).registerProvider({ provider: { provider_id: context.install_id, plugin_install_id: context.install_id, title: "Fixture", kind: "plugin" }, definitions: [action],
     handlers: [bindOwnerPluginAction(context, action, async (_input, beforeWrite) => {
       await capabilities.invoke(definition, {}); await beforeWrite(); return ++writes;
     }, [definition])] });
@@ -73,7 +74,7 @@ test("a plugin query does not discover every action on each read; a command stil
   const shape = { scope: "project" as const, audiences: ["user" as const], permissions: [], subject_kinds: [], input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "number" } };
   const read: ActionDefinition<Record<string, never>, number> = { capability_id: "example.read", version: 1, operation: "query", action: { title: "Read", description: "Read a value", kind: "query", ...shape } };
   const save: ActionDefinition<Record<string, never>, number> = { capability_id: "example.save", version: 1, operation: "command", action: { title: "Save", description: "Write a value", kind: "operation", ...shape } };
-  host.actionRegistry(project).registerProvider({ provider: { provider_id: context.install_id, title: "Fixture", kind: "plugin" }, definitions: [read, save],
+  host.actionRegistry(project).registerProvider({ provider: { provider_id: context.install_id, plugin_install_id: context.install_id, title: "Fixture", kind: "plugin" }, definitions: [read, save],
     handlers: [bindOwnerPluginAction(context, read, () => 7), bindOwnerPluginAction(context, save, () => 8)] });
   try {
     for (let i = 0; i < 3; i++) assert.equal(await actions.invoke(read, {}), 7);

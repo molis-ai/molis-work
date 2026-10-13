@@ -5,7 +5,8 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import type { DiffView } from "./comparison.js";
-import { alignSplitRows, type TextDiffRow } from "./text-diff.js";
+import type { TextDiffRow } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { alignSplitRows } from "@molis-ai/molis-work-plugin-sdk";
 
 export const DIFF_UI_CONTRIBUTION_ID = "io.molis.work.native.diff.ui.v1";
 
@@ -72,11 +73,14 @@ export function renderDiff(model: DiffUiModel): string {
     ? ""
     : `<ul class="diff-notices">${notices.map((text) => `<li>${escape(text)}</li>`).join("")}</ul>`;
   if (view.phase !== "ready" || view.rows.length === 0) {
-    const recovery = view.recovery === undefined
-      ? ""
-      : `<span class="diff-recovery">${escape(view.recovery)}</span>`;
-    return `<section class="diff" data-phase="${escape(view.phase)}" data-group="${escape(view.group ?? "none")}">`
-      + `${header}${noticeHtml}<p class="diff-empty">${escape(view.message)}${recovery}</p></section>`;
+    // The shared empty block: the plugin's glyph, what is missing, and what to do about it. With nothing before it the block
+    // is the page's whole content, so the stage centres it like any plugin's empty list.
+    const state = `data-phase="${escape(view.phase)}" data-group="${escape(view.group ?? "none")}"`;
+    const empty = (attributes: string) => `<div class="mw-empty"${attributes}><span class="mw-empty__mark">${model.primitives.icon("git-compare")}</span><strong>${escape(view.message)}</strong>`
+      + `${view.recovery === undefined ? "" : `<p>${escape(view.recovery)}</p>`}</div>`;
+    return header === "" && noticeHtml === ""
+      ? empty(` ${state}`)
+      : `<section class="diff" ${state}>${header}${noticeHtml}${empty("")}</section>`;
   }
   const body = view.mode === "split" ? renderSplit(view.rows, model) : renderUnified(view.rows, model);
   return `<section class="diff" data-phase="ready" data-group="${escape(view.group ?? "none")}" data-mode="${escape(view.mode)}"`

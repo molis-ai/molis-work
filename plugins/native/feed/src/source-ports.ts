@@ -8,6 +8,8 @@ export type IntelligenceCollectResult = Readonly<Pick<SearchIntentExactResultV1,
 export interface PublicFeedRuntime {
   intelligenceCollect: { executeExact(request: IntelligenceCollectRequest, options?: { signal?: AbortSignal }): Promise<IntelligenceCollectResult> };
   content: { has(contentRef: string): boolean };
+  /** The evidence bodies this runtime has written so far, including those of a pull that never reached a result. */
+  writtenContentRefs?(): readonly string[];
   publicFeedReceipt?(): RssFetchReceipt | null;
   shutdown(): Promise<void>;
 }
@@ -29,17 +31,16 @@ export interface FeedSyncExecution {
 }
 export interface FeedSourcePorts {
   /** Host-wide lease shared by every service instance for the same database/source. */
-  acquireSync?(boardId: string, sourceId: string): () => void;
+  acquireSync?(projectId: string, sourceId: string): () => void;
   syncRepository?(source: FeedSourceRecord, input: FeedSourceSyncInput): Promise<FeedSourceSyncResult>;
   feed: FeedApplication;
   providers: FeedSourceProviders;
   createRuntime(source: FeedSourceRecord): PublicFeedRuntime;
   transaction<T>(operation: () => T): T;
-  appendEvent(boardId: string, sourceId: string, type: string, reason: string, payload?: Record<string, unknown>): void;
+  appendEvent(projectId: string, sourceId: string, type: string, reason: string, payload?: Record<string, unknown>): void;
   resolveConnection?(serviceId: string, connectionId: string): {
     credentialRef: string | null;
     accountLabel: string | null;
-    refreshRef?: string;
     tokenRefs?: { access: string; refresh: string; expiresAt: string };
   };
 }

@@ -3,12 +3,11 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryBackendPort } from "@molis-ai/molis-work-service-memory";
 import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
 import { memoryHostFor } from "../apps/local-host/src/memory/memory-host.js";
-import { ASSISTANT_STORE_NAME, AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/src/local-owner-permissions.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
 
@@ -31,11 +30,15 @@ test("memory is one system.memory provider in the shared directory: the person m
   assert.deepEqual(agentViews, ["memory.list", "memory.recall", "memory.write"], "agents see reading and the gated write, never management");
 
   const asPerson = bindActionClient(client, () => person), asAgent = bindActionClient(client, () => agent);
-  // An agent keeps something only with the person's words; it is the local person's personal memory.
+  // An agent must bring a quote of the person's words, but the Host holds none of the person's messages for it to be checked against: what an agent writes is a suggestion, never "you said".
   await assert.rejects(asAgent.invoke(memoryActions.write, { scope: "personal", text: "喜欢简短" }), /原话/);
-  const kept = await asAgent.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表", said: "以后回答都用要点列表" });
-  assert.equal(kept.outcome, "written");
-  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items.map(item => [item.text, item.source]), [["回答用要点列表", "said"]]);
+  const suggested = await asAgent.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表", said: "回答用要点列表" });
+  assert.deepEqual([suggested.outcome, suggested.memory, suggested.candidate?.text, suggested.candidate?.basis], ["candidate", null, "回答用要点列表", "inferred"]);
+  assert.match(suggested.reason, /没有保存/);
+  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items, [], "nothing was recorded as the person's words");
+  // It becomes a memory when the person accepts it: the local person's personal memory, as accepted.
+  const kept = await asPerson.invoke(memoryActions.accept, { candidate_id: suggested.candidate!.candidate_id });
+  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items.map(item => [item.text, item.source]), [["回答用要点列表", "accepted"]]);
   // The person's page recalls as the interface consumer; an agent as Agent work.
   const recalled = await asAgent.invoke(memoryActions.recall, { query: "总结一下", used_for: "Coding 工作" });
   assert.deepEqual(recalled.items.map(item => item.text), ["回答用要点列表"]);
@@ -61,24 +64,28 @@ test("memory is one system.memory provider in the shared directory: the person m
   assert.equal(signal.state, "counted");
 });
 
-test("the Assistant's first-version tables in <Home>/assistant move into the platform once when the memory host starts", { timeout: 60_000 }, async t => {
-  const home = await mkdtemp(join(tmpdir(), "molis-memory-migration-"));
-  const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME);
-  const legacy = new AssistantStore(db);
-  legacy.setMemoryPrefs("web-user", { form: true, use_personal: false, use_project: true, learn_personal: true, learn_project: false });
-  legacy.setMemoryDisabled("web-user", "memory-legacy-1", true);
-  legacy.saveMemoryCandidate("web-user", { candidate_id: "candidate-legacy-1", work_id: "work-1", work_title: "周报", scope: "personal", text: "周报用要点", why: "两次", applies: "写周报时",
-    state: "pending", created_at: new Date().toISOString() });
-  db.close();
+test("memory.recall cancelled while it waits for the store settles nothing: no receipts, nothing shown as 最近用于", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-memory-recall-cancel-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const asPerson = bindActionClient(host.homeActionClient(), () => person);
-  const prefs = await asPerson.invoke(memoryActions.prefs, { scope: "personal" });
-  assert.equal(prefs.prefs.consumers.assistant, false, "use_personal off moved to 助理 can use personal memories: off");
-  assert.equal(prefs.prefs.learn_from_work, true);
-  const { candidates } = await asPerson.invoke(memoryActions.candidates, {});
-  // Moved into Prologue's persistent candidate box (a new id there), with what explains it kept by the Host.
-  assert.deepEqual(candidates.map(item => [item.text, item.why, item.applies.task, item.work?.title]), [["周报用要点", "两次", "写周报时", "周报"]]);
-  assert.notEqual(candidates[0]!.candidate_id, "candidate-legacy-1");
-  assert.deepEqual(memoryHostFor(host)!.service.assistantPrefs("web-user"), { form: true, use_personal: false, use_project: true, learn_personal: true, learn_project: false });
+  const service = memoryHostFor(host)!.service;
+  const client = host.homeActionClient();
+  const asAgent = bindActionClient(client, () => agent), asPerson = bindActionClient(client, () => person);
+  await asPerson.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表" });
+  const recallRef = { capability_id: memoryActions.recall.capability_id, version: 1, provider_id: MEMORY_PROVIDER_ID };
+
+  // The call is stopped while it is reading the store: the read finishes, the call's own effect check refuses, and no receipt is written.
+  const controller = new AbortController();
+  // The store the service reads through is the one place a test can stop a call mid-read; `ports` is private, so it is reached by name and checked.
+  const backend: MemoryBackendPort = service["ports"].backend;
+  assert.equal(typeof backend.list, "function", "the service keeps its store as ports.backend");
+  const list = backend.list.bind(backend);
+  backend.list = async (...args) => { controller.abort(); return list(...args); };
+  try { await assert.rejects(client.invoke({ ...agent, signal: controller.signal }, recallRef, { query: "总结一下" })); }
+  finally { backend.list = list; }
+  assert.deepEqual(service.uses({}), [], "a stopped recall leaves no 最近用于");
+
+  // Not stopped: the receipt is written as before.
+  const recalled = await asAgent.invoke(memoryActions.recall, { query: "总结一下" });
+  assert.deepEqual(service.uses({ receipt_id: recalled.receipt_id }).map(use => use.state), ["used"]);
 });

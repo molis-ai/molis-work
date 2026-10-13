@@ -12,9 +12,7 @@ import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS, openLingguangStore } fr
 import { pagesActions, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { cogniaActions, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { projectActionAvailability } from "../apps/local-host/src/project-action-availability.js";
+import { LocalHost, MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 
 const permissions = [...FORM_ACTION_PERMISSIONS, ...DATASET_ACTION_PERMISSIONS, ...LINGGUANG_ACTION_PERMISSIONS, ...PAGES_ACTION_PERMISSIONS, ...COGNIA_ACTION_PERMISSIONS];
 const caller: ActionCallContext = { actor_id: "owner", audience: "user", project_id: "a", permissions };
@@ -75,7 +73,7 @@ test("typed Action handlers retain the Host Runtime and share the same live effe
   const entered = gate(), release = gate(); let enabled = true;
   const host = new LocalHost({ runtimeFactory: { open: () => ({ writes: 0 }), close: () => {} }, actionAvailability: () =>
     enabled ? { available: true } : { available: false, code: "fixture.disabled", reason: "Disabled" } });
-  const reference = { project_id: "a", board_id: "a", storage_key: "memory:effect" };
+  const reference = { project_id: "a", storage_key: "memory:effect" };
   host.register(definition, async (runtime, _, invocation) => { entered.resolve(); await release.promise; await invocation.beforeEffect(); return ++runtime.writes; });
   try {
     const pending = host.client(reference).invoke(definition, {}), rejected = assert.rejects(pending, errorCode("fixture.disabled"));
@@ -117,7 +115,7 @@ for (const kind of ["form", "dataset", "lingguang", "pages", "cognia"] as const)
     const home = await mkdtemp(join(tmpdir(), `${kind}-effect-`)), entered = gate(), release = gate(); let enabled = true, allowed = true;
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: async () => { entered.resolve(); await release.promise; return output[kind]; },
       actionAvailability: () => enabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "Disabled" } });
-    const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "a", projectId: "a" });
+    const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
     const client = kind === "cognia" ? host.homeActionClient() : host.actionClient(reference);
     const context: ActionCallContext = { ...caller, project_id: kind === "cognia" ? null : "a", validate_authority: () => {
       if (!allowed) throw new ActionError("actions.revoked", "Revoked");
@@ -161,7 +159,7 @@ test("effect guard rechecks the actual Catalog installation after an asynchronou
   const entered = gate(), release = gate();
   const host = new LocalHost({ runtimeFactory: { open: () => ({ writes: 0 }), close: () => {} },
     actionAvailability: projectActionAvailability(async (_, run) => run(catalog), home) });
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const action = { ...definition, action_provider: { provider_id: "io.molis.work.goals", plugin_id: "io.molis.work.goals", kind: "plugin" as const, title: "Goals", project_id: project.project_id } };
   host.register(action, async (runtime, _input, invocation) => { entered.resolve(); await release.promise; await invocation.beforeEffect(); return ++runtime.writes; });
   const context: ActionCallContext = { ...caller, project_id: project.project_id }, client = host.actionClient(reference);

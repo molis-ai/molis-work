@@ -22,21 +22,21 @@ const arg = (name: string) => { const index = process.argv.indexOf(name); return
 const home = arg("--home"), projectId = arg("--project"), out = arg("--out");
 if (!home || !projectId || !out) throw new Error("需要 --home（隔离 Home）、--project 与 --out");
 const homeDirectory = path.resolve(home);
-const boardId = arg("--board") ?? "molis-work-v1-demo";
+const projectId = arg("--board") ?? "molis-work-v1-demo";
 // The judgment runs on the named Home's TypeSafe connection; the key stays in this process's memory, never printed.
 const jevFrom = arg("--jev-from");
 if (jevFrom) {
-  const key = typeSafeCredential(path.resolve(jevFrom), "functions");
+  const key = typeSafeCredential(path.resolve(jevFrom));
   if (!key) throw new Error("--jev-from 指定的 Home 没有可用的 TypeSafe 连接");
   process.env.TYPESAFE_API_KEY = key;
 }
 
 const host = new MolisWorkLocalHost({ homeDirectory, actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, homeDirectory) });
 try {
-  const reference = molisWorkHostProjectReference({ databasePath: path.join(homeDirectory, "projects", projectId, "molis-work.db"), boardId, projectId });
+  const reference = molisWorkHostProjectReference({ databasePath: path.join(homeDirectory, "projects", projectId, "molis-work.db"), projectId });
   const caller = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
   const actions = bindActionClient(host.actionClient(reference), () => caller);
-  const entries = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db).listInboxEntries(boardId))
+  const entries = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db).listInboxEntries(projectId))
     .then(rows => rows.filter(entry => entry.status === "open").sort((a, b) => a.entry_id.localeCompare(b.entry_id)));
   const subjects = entries.map(entry => ({ kind: "inbox_entry", id: entry.entry_id }));
   const prepared = [];

@@ -14,6 +14,7 @@ import { completeMolisWorkOnboarding } from "./onboarding.js";
 import { descriptionFromSummary, setProjectDescription } from "./project-arrival.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface ContextOnboardingPorts {
   withCatalog: LocalWebCatalogRunner;
@@ -226,9 +227,9 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   const job = Promise.resolve().then(async () => {
     try {
       await ports.withCatalog({ homeDirectory: home }, async catalog => {
-        await catalog.createProject({ display_name: journey.adoption!.title, actor_id: "web-user", project_id: journey.project_id });
-        catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: "pages", actor_id: "web-user" });
-        catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: "artifacts", actor_id: "web-user" });
+        await catalog.createProject({ display_name: journey.adoption!.title, actor_id: LOCAL_PERSON_ACTOR_ID, project_id: journey.project_id });
+        catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: "pages", actor_id: LOCAL_PERSON_ACTOR_ID });
+        catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: "artifacts", actor_id: LOCAL_PERSON_ACTOR_ID });
       });
       // The chooser introduces the new project in the words the person accepted (a blank start has none). Safe to repeat.
       if (!journey.adoption!.blank) setProjectDescription(home, journey.project_id, descriptionFromSummary(journey.adoption!.body));

@@ -181,7 +181,7 @@ export class GoalTreeProposalNormalizer {
   } {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       throw this.errorFactory(
-        "goal_tree_proposal.kind_retired",
+        "goal_tree_proposal.kind_invalid",
         `第 ${itemIndex + 1} 个条目只能是 goal（create）或 relation（part_of/depends_on 的 create/deactivate）`,
       );
     }
@@ -189,7 +189,7 @@ export class GoalTreeProposalNormalizer {
     this.rejectUnknownKeys(raw, GOAL_TREE_ITEM_KEYS, "goal_tree_proposal.payload_unknown", `第 ${itemIndex + 1} 个条目`);
     if (raw.kind !== "goal" && raw.kind !== "relation") {
       throw this.errorFactory(
-        "goal_tree_proposal.kind_retired",
+        "goal_tree_proposal.kind_invalid",
         `第 ${itemIndex + 1} 个条目只能是 goal（create）或 relation（part_of/depends_on 的 create/deactivate）`,
       );
     }
@@ -470,7 +470,7 @@ export class GoalTreeProposalNormalizer {
       if (issues.length) {
         throw this.errorFactory(issues[0]!.code, issues.map(issue => `${issue.path}: ${issue.message}`).join("\n"), {
           path: issues[0]!.path, issues,
-          recovery: "修正列出的字段后重试 molis_work_v1_goal_tree_propose；失败调用不会创建提案，无需切换接口。",
+          recovery: "修正列出的字段后重试 goals.tree.submit；失败调用不会创建提案，无需切换接口。",
         });
       }
       return {

@@ -67,9 +67,9 @@ export function createInboxSceneHandler(ports: InboxScenePorts): ActionSceneHand
 }
 
 /** An automatic trigger has the same caller and scope as its host-owned event source. */
-export function createInboxJudgmentTrigger(options: { scenes: ActionSceneClient; context(): ActionCallContext; boardId: string }) {
-  return async (entry: { board_id: string; entry_id: string }, explicitCaller?: ActionCallContext): Promise<void> => {
-    if (entry.board_id !== options.boardId) throw new ActionError("actions.scope_mismatch", "入箱事件不属于当前项目");
+export function createInboxJudgmentTrigger(options: { scenes: ActionSceneClient; context(): ActionCallContext; projectId: string }) {
+  return async (entry: { project_id: string; entry_id: string }, explicitCaller?: ActionCallContext): Promise<void> => {
+    if (entry.project_id !== options.projectId) throw new ActionError("actions.scope_mismatch", "入箱事件不属于当前项目");
     const caller = explicitCaller ?? options.context();
     const usage = (await options.scenes.usages(caller)).find(binding => binding.scene_id === inboxNextScene.scene_id
       && binding.scene_version === inboxNextScene.version && binding.binding_id === inboxSceneBindingId(caller.project_id!));

@@ -4,20 +4,20 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { withMolisWorkProjectCatalog as withCatalog } from "../apps/desktop/src/project-catalog.js";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { createDesktopWebHost } from "../apps/desktop/src/web-host.js";
+import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
 const createMolisWorkWebServer=createDesktopWebHost({ptyClientFilePath:()=>""});
 import { configureMemberActions } from "../apps/server/src/admin-grants.js";
 import { gatewayFactory } from "../apps/server/src/gateway.js";
-import { CONTINUITY_ACTIONS } from "../server/src/continuity/actions.js";
+import { CONTINUITY_ACTIONS } from "@molis-ai/molis-work-server";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 
 test("local administrator grants through the protected owner API and gateway keeps member actors separate",{timeout:120000},async()=>{
   const home=await mkdtemp(join(tmpdir(),'continuity-gateway-'));
   const project=await withCatalog({homeDirectory:home},c=>c.createProject({display_name:'Shared gateway',actor_id:'user'}));
   const host=new MolisWorkLocalHost({homeDirectory:home,completeText:null});
-  const ref=molisWorkHostProjectReference({projectId:project.project_id,boardId:project.board_id,databasePath:project.database_path});
+  const ref=molisWorkHostProjectReference({projectId: project.project_id,databasePath:project.database_path});
   const local=host.actionClient(ref),owner={actor_id:'owner',project_id:project.project_id,audience:'user' as const,permissions:['goals:read','goals:write']};
   await local.invoke(owner,goalsActions.create,{goal_id:'gateway-goal',title:'跨进程记录',idempotency_key:'seed'});
   const web=createMolisWorkWebServer({homeDirectory:home,localHost:host});
@@ -45,4 +45,13 @@ test("local administrator grants through the protected owner API and gateway kee
     await configureMemberActions({...admin,memberId:'member-a',role:'revoked'});
     await assert.rejects(first.client.invoke(first.caller,action('goals.progress.record'),{...input,idempotency_key:randomUUID()}));
   } finally {await new Promise<void>(resolve=>{web.closeAllConnections();web.close(()=>resolve());});await host.close();await rm(home,{recursive:true,force:true});}
+});
+
+// Security invariant S-09 (docs/system/SECURITY-INVARIANTS.md): the administrator command talks to a numeric loopback origin only,
+// and says no before it reads the control token file.
+test("the administrator command refuses everything but a numeric loopback origin before reading the token file", async () => {
+  for (const hostUrl of ["https://127.0.0.1:4173", "http://localhost:4173", "http://evil.example:4173", "http://127.0.0.1:4173/path", "http://127.0.0.1:4173/?x=1", "http://127.0.0.1:4173/#x",
+    "http://user:pass@127.0.0.1:4173", "http://0.0.0.0:4173", "http://[::ffff:127.0.0.1]:4173"]) {
+    await assert.rejects(configureMemberActions({ hostUrl, controlTokenFile: "/nonexistent/web-control-token", memberId: "m", projectId: "p", role: "viewer" }), /numeric loopback HTTP origin/, hostUrl);
+  }
 });

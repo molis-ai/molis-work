@@ -1,6 +1,6 @@
 # 保持数据与行为的性能修复方案
 
-> 归档（2026-10-02）：判定为**部分实现**。六项开销修复随 [#150](https://github.com/molis-ai/molis-work/pull/150) 合入 main（b5f6ddec）；合入后全量回归见 [合入后审查 §6.1](../../post-merge-review/spec.md#61-修复合入后的最终回归2026-10-02)，其中 #150 引入的 Shelf 终端回归，修复见该节。完整视觉走查与原生窗口输入验收没有做。剩余事项已移到统一待办清单：BL-109。
+> 归档（2026-10-02）：判定为**部分实现**。六项开销修复随 [#150](https://github.com/molis-ai/molis-work/pull/150) 合入 main（b5f6ddec）；合入后全量回归见 [合入后审查 §6.1](../post-merge-review/spec.md#61-修复合入后的最终回归2026-10-02)，其中 #150 引入的 Shelf 终端回归，修复见该节。完整视觉走查与原生窗口输入验收没有做。剩余事项已移到统一待办清单：BL-109。
 
 状态：五项复查缺陷、首次目录初始化竞态及 PR 验证追加发现的热状态采样问题已修正，Cognia 按需加载断言已同步，已提交 [PR #150](https://github.com/molis-ai/molis-work/pull/150)。合入 main `597d15d2` 并追加修正后，整体构建、依赖边界、定向 25 项、Agent/Prologue 必跑集合及真实浏览器 5 项通过。全量非 E2E、完整视觉走查和原生窗口输入验收尚未完成，原始卡死现场仍未复现，整体“内部完整”门槛继续单列。本文件是唯一需求书；改动位于隔离工作树，未替换真实应用或 Home，未发布。依据起始仓库 `62cbc14d` 与 性能审计报告（`/Users/yijunwang/code/goalboard/docs/reviews/performance-audit-2026-10-01.md`）。
 

@@ -4,7 +4,7 @@ import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mcpWebUrl } from "./goal-presentation.js";
 import { buildMcpResumeView, type McpResumeFacts } from "./resume-view.js";
-import type { McpPresentationErrorFactory } from "./query-presentation.js";
+import type { McpPresentationErrorFactory } from "./goal-presentation.js";
 
 type ProjectConnection = NonNullable<MolisWorkRuntimeContextResolution["connection"]>;
 
@@ -12,7 +12,8 @@ export interface McpContextPresentationPorts {
   connection: RuntimeProjectConnectionState;
   readGuidance(connection: ProjectConnection): Promise<ProjectGuidanceView>;
   readResumeFacts(connection: ProjectConnection, focusGoalIds: readonly string[]): Promise<McpResumeFacts>;
-  readSession(host: MolisWorkRuntimeContextHost, reconcileLegacy: boolean): Promise<RuntimeSessionReadResult>;
+  /** `boundProjectId`: the Runtime was just bound to this project; its binding's Session is written before the read. */
+  readSession(host: MolisWorkRuntimeContextHost, boundProjectId: string | null): Promise<RuntimeSessionReadResult>;
   createError: McpPresentationErrorFactory;
   contextSignal?(): AbortSignal;
 }
@@ -22,19 +23,19 @@ export function createMcpContextPresenter(ports: McpContextPresentationPorts) {
   return async function presentResolution(
     resolution: MolisWorkRuntimeContextResolution,
     host: MolisWorkRuntimeContextHost,
-    reconcileLegacy: boolean = false,
+    bound: boolean = false,
   ): Promise<string> {
     const contextSignal = ports.contextSignal?.();
     const webBaseUrl = host.webBaseUrl ?? "http://127.0.0.1:4173";
     const projectUrl = resolution.connection
       ? mcpWebUrl(`/projects/${encodeURIComponent(resolution.connection.project_id)}`, webBaseUrl, ports.createError)
       : null;
+    // Action results carry IDs only; a Runtime fills `{goal_id}` here instead of composing a URL itself.
     const connection = resolution.connection
-      ? { ...resolution.connection, web_base_url: webBaseUrl, project_url: projectUrl }
+      ? { ...resolution.connection, web_base_url: webBaseUrl, project_url: projectUrl, goal_url_template: `${projectUrl}/goals/{goal_id}` }
       : null;
     ports.connection.accept(connection ? {
-      projectId: connection.project_id, databasePath: connection.database_path,
-      boardId: connection.board_id, webBaseUrl,
+      projectId: connection.project_id, databasePath: connection.database_path, webBaseUrl,
     } : null, host.runtimeContext);
     const accepted = ports.connection.connection;
     const checkContext = () => {
@@ -45,14 +46,14 @@ export function createMcpContextPresenter(ports: McpContextPresentationPorts) {
     const guidance = connection ? await readOptional(() => ports.readGuidance(connection)) : { value: null };
     checkContext();
     const projectGuidance = guidance.value;
-    const { sessionRegistry, sessionGoalId } = await ports.readSession(host, reconcileLegacy);
+    const { sessionRegistry, sessionGoalId } = await ports.readSession(host, bound ? connection?.project_id ?? null : null);
     checkContext();
     const hostFocus = host.goalId?.trim() || null;
     const sessionFocus = sessionGoalId?.trim() || null;
     const facts = connection ? await readOptional(() => ports.readResumeFacts(connection, uniqueFocusGoalIds(hostFocus, sessionFocus))) : { value: null };
     checkContext();
     const resume = connection ? facts.value ? buildMcpResumeView(facts.value, hostFocus, sessionFocus) : null
-      : { focus: null, next_goals: [], auto_claimed: false };
+      : { focus: null, next_goals: [] };
     return JSON.stringify({
       ...resolution, connection, session_registry: sessionRegistry, project_guidance: projectGuidance,
       runtime_prompt_prefix: projectGuidance?.runtime_prompt_prefix ?? null, resume,

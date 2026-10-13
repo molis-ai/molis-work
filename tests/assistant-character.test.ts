@@ -30,13 +30,13 @@ function reply(text = "好的。"): Response {
 }
 
 const EDITOR: AgentFrozenCharacter = { character_id: "editor", title: "严格的编辑", instructions: "你是严格的编辑：每次回答先列出三处可改进的地方。", host_tools: null,
-  source: { owner_actor_id: "web-user", draft_revision: 2 }, reference: { artifact_id: "character:board:editor", version: 2 }, board_id: "board",
+  source: { owner_actor_id: "web-user", draft_revision: 2 }, reference: { artifact_id: "character:project:editor", version: 2 }, project_id: "project",
   content_digest: "digest-2", producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.4.0", binding_signature: "sig" }, published_at: "2026-09-28T00:00:00.000Z" };
 
 async function fixture(t: import("node:test").TestContext) {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-character-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "project", storage_key: "memory:project" };
   const requests: any[] = [];
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     requests.push(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array)));
@@ -132,11 +132,11 @@ function toolReply(name: string, input: unknown): Response {
 test("with no role chosen, the Assistant hands a part to a professional role by id: the sub-task runs as exactly that role; a role not on offer is refused, never swapped", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-role-delegation-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "project", storage_key: "memory:project" };
   const parentRequests: any[] = [], childRequests: any[] = [];
   let step = 0;
   const script: Array<(body: any) => Response> = [
-    body => { assert.match(JSON.stringify(body.messages), /可委托的专业角色[\s\S]*严格的编辑」 v2（id：character:board:editor）/); return toolReply("delegate-work", { title: "润色开头", brief: "把这句周报开头改得更精炼。", acceptance: "给出一版改写", character: "character:board:editor" }); },
+    body => { assert.match(JSON.stringify(body.messages), /可委托的专业角色[\s\S]*严格的编辑」 v2（id：character:project:editor）/); return toolReply("delegate-work", { title: "润色开头", brief: "把这句周报开头改得更精炼。", acceptance: "给出一版改写", character: "character:project:editor" }); },
     () => toolReply("delegate-work", { title: "法务审阅", brief: "审一下。", acceptance: "有结论", character: "法务专员" }),
     body => { assert.match(JSON.stringify(body.messages), /没有叫「法务专员」的专业角色/); return reply("一部分交给了严格的编辑；没有法务角色，法务那部分没有委托。"); },
   ];

@@ -4,15 +4,15 @@ import {
   PLACEMENT_PROVIDER_ID, placementActions, placementGoalActions, type PlacedObject, type PlacementConvertRequest, type PlacementCreateRequest, type PlacementSpaceView,
 } from "@molis-ai/molis-work-contracts/services/placement";
 import { PlacementService, PLACEMENT_LEDGER_ACCESS } from "@molis-ai/molis-work-service-placement";
-import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { CONTEXT_LEDGER_SCHEMA, createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { L } from "./web-locale.js";
 
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
 /** The one catalog record a partition needs to be opened. */
-export interface PlacementProjectRecord { project_id: string; display_name: string; database_path: string; board_id: string }
+export interface PlacementProjectRecord { project_id: string; display_name: string; database_path: string }
 
 export interface PlacementHostPorts {
   homeDirectory: string;
@@ -54,10 +54,15 @@ function ledgerDatabase(db: DatabaseSync): ContextLedgerDatabase {
  * every object is read back from its owner in its own partition with the local person's authority, and the service
  * reaches plugins only through the shared directory. Nothing about any plugin is known here.
  */
+/** The placement store's one current schema (repository-anti-corruption §4.1): the context ledger's tables and the titles last seen. */
+export const PLACEMENT_BASELINE: SqliteBaseline = { version: 1, schema: `${CONTEXT_LEDGER_SCHEMA}
+  CREATE TABLE placement_titles (kind TEXT NOT NULL, id TEXT NOT NULL, title TEXT NOT NULL, seen_at TEXT NOT NULL, PRIMARY KEY (kind, id));
+` };
+
 export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   const db = openHomeSqliteDatabase(ports.homeDirectory, "placement");
-  db.exec("CREATE TABLE IF NOT EXISTS placement_titles (kind TEXT NOT NULL, id TEXT NOT NULL, title TEXT NOT NULL, seen_at TEXT NOT NULL, PRIMARY KEY (kind, id))");
-  const ledger = createContextLedger(ledgerDatabase(db), {
+  try { applySqliteBaseline(db, homeSqlitePath(ports.homeDirectory, "placement"), PLACEMENT_BASELINE); } catch (error) { db.close(); throw error; }
+  const ledger = createContextLedger(ledgerDatabase(db), { initializeSchema: false,
     authorize: access => access.actor_id === PLACEMENT_LEDGER_ACCESS.actor_id && access.scope.kind === "personal" && access.scope.id === PLACEMENT_LEDGER_ACCESS.scope.id,
   });
   const record = async (projectId: string): Promise<PlacementProjectRecord> => {

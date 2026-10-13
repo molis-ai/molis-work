@@ -1,6 +1,7 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { WORKFLOWS_AI_HANDOFF } from "./prompts.js";
 import type { ActionResultPresentation, WorkflowContentBinding, WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
+import { workflowsErrors } from "./error.js";
 export type { WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 /** Workflows: pure data rules. No storage, no network, no plugin internals. */
 
@@ -100,6 +101,13 @@ export interface WorkflowVerdict {
 
 export type WorkflowStepStatus = "pending" | "current" | "done";
 
+/** Why a judgment held this step's content back. The step keeps it, so the run reads the same after a reload. */
+export interface WorkflowHold {
+  readonly at: string;
+  readonly reason: string;
+  readonly verdict?: WorkflowVerdict;
+}
+
 export interface WorkflowStep {
   readonly station_id: string;
   readonly plugin: string;
@@ -108,6 +116,8 @@ export interface WorkflowStep {
   readonly arrived_at: string | null;
   /** Filled once this step has been handed to the next one. */
   readonly handoff: WorkflowHandoff | null;
+  /** A judgment held this step's content back and the run stopped here; the run's `stopped` is read from it. */
+  readonly held?: WorkflowHold;
   /** Saved before delivery: a retry after a crash or a lost race re-sends exactly this, instead of asking the model again. */
   /** attempted_at: an action step was called and its result never confirmed; attempt_error: what that call said when it failed after starting. */
   readonly pending?: WorkflowHandoff & { readonly key: string; readonly attempted_at?: string; readonly attempt_error?: string };
@@ -120,6 +130,33 @@ export interface WorkflowStep {
 
 export function handoffKey(instance: Pick<WorkflowInstance, "instance_id">, from: number): string {
   return `${instance.instance_id}:${from}`;
+}
+
+/**
+ * The concurrency token (`updated_at`) a write leaves behind: `at` when it is later than the token the change was
+ * computed from, otherwise one millisecond after it. A save inside the same millisecond as the last one, or one stamped
+ * with an earlier time, would leave the token as it was and let a call that read the old state through.
+ */
+export function nextUpdatedAt(previous: string, at: string = new Date().toISOString()): string {
+  const before = Date.parse(previous);
+  if (!Number.isFinite(before) || Date.parse(at) > before) return at;
+  return new Date(before + 1).toISOString();
+}
+
+/** The reason a run stopped when a judgment held its content back: the held step has it, whoever reads the run. */
+export function stoppedOf(status: WorkflowInstanceStatus, steps: readonly WorkflowStep[]): WorkflowInstance["stopped"] {
+  if (status !== "stopped") return undefined;
+  const from = steps.findIndex(step => step.held);
+  const held = steps[from]?.held;
+  return held ? { at: held.at, from, reason: held.reason, ...(held.verdict ? { verdict: held.verdict } : {}) } : undefined;
+}
+
+/** A judgment held step `from`'s content back: the run stops at that step and keeps why. */
+export function holdInstance(instance: WorkflowInstance, from: number, held: WorkflowHold): WorkflowInstance {
+  if (instance.status !== "active") throw workflowsErrors.invalid("这一次已经结束");
+  if (from !== instance.current) throw workflowsErrors.conflict("这一步已经交过了，请刷新后再看");
+  const steps = instance.steps.map((step, index) => index === from ? { ...step, held } : step);
+  return { ...instance, status: "stopped", steps, stopped: stoppedOf("stopped", steps), updated_at: held.at };
 }
 
 export type WorkflowInstanceStatus = "active" | "done" | "stopped";
@@ -135,22 +172,13 @@ export interface WorkflowInstance {
   /** The chain as it was when this instance started; later edits to the workflow do not rewrite history. */
   readonly chain: WorkflowChain;
   readonly steps: readonly WorkflowStep[];
-  /** Why a run stopped before its last station, when a judgment held the content back. */
+  /** Why a run stopped before its last station, when a judgment held the content back. Read from the held step, never stored apart from it. */
   readonly stopped?: { readonly at: string; readonly from: number; readonly reason: string; readonly verdict?: WorkflowVerdict };
   readonly created_at: string;
   readonly updated_at: string;
 }
 
 export const WORKFLOW_TEMPLATE_FIELDS = ["标题", "正文", "来源", "链接", "日期"] as const;
-
-export class WorkflowError extends Error {
-  readonly code: string;
-  constructor(code: string, message: string) {
-    super(message);
-    this.name = "WorkflowError";
-    this.code = code;
-  }
-}
 
 export function manualLink(): WorkflowLink {
   return { kind: "manual", title_template: "", body_template: "", instructions: "" };
@@ -183,30 +211,30 @@ export function parseChain(value: unknown): WorkflowChain {
   const stations = Array.isArray(input.stations) ? input.stations.map(parseStation) : [];
   const rawLinks = Array.isArray(input.links) ? input.links : [];
   const links = stations.slice(1).map((_, index) => parseLink(rawLinks[index]));
-  if (stations.length > 12) throw new WorkflowError("workflows.invalid", "一条流程最多 12 站");
+  if (stations.length > 12) throw workflowsErrors.invalid("一条流程最多 12 站");
   return { stations, links };
 }
 
 function parseStation(value: unknown): WorkflowStation {
   const raw = (value && typeof value === "object" ? value : {}) as { station_id?: unknown; plugin?: unknown; content?: unknown; action?: unknown };
   const plugin = typeof raw.plugin === "string" ? raw.plugin.trim() : "";
-  if (!/^[a-z][a-z0-9-]{1,40}$/.test(plugin)) throw new WorkflowError("workflows.invalid", "站点插件无效");
+  if (!/^[a-z][a-z0-9-]{1,40}$/.test(plugin)) throw workflowsErrors.invalid("站点插件无效");
   const stationId = typeof raw.station_id === "string" && /^[a-zA-Z0-9-]{8,64}$/.test(raw.station_id)
     ? raw.station_id : crypto.randomUUID();
   if (raw.action !== undefined) {
-    if (plugin !== "action" || raw.content !== undefined) throw new WorkflowError("workflows.invalid", "动作步骤只能引用一个动作");
+    if (plugin !== "action" || raw.content !== undefined) throw workflowsErrors.invalid("动作步骤只能引用一个动作");
     return { station_id: stationId, plugin, action: parseActionStep(raw.action) };
   }
   if (raw.content !== undefined) {
     const content = raw.content as WorkflowContentBinding;
     if (!content || typeof content.provider_id !== "string" || !content.provider_id.trim()
       || !content.actions || typeof content.actions !== "object" || Array.isArray(content.actions)) {
-      throw new WorkflowError("workflows.invalid", "站点能力引用无效");
+      throw workflowsErrors.invalid("站点能力引用无效");
     }
     for (const [role, ref] of Object.entries(content.actions)) {
       if (!["list", "read", "receive", "create"].includes(role) || !ref || typeof ref.capability_id !== "string"
         || !ref.capability_id.trim() || !Number.isInteger(ref.version) || ref.version < 1) {
-        throw new WorkflowError("workflows.invalid", "站点能力版本无效");
+        throw workflowsErrors.invalid("站点能力版本无效");
       }
     }
     return { station_id: stationId, plugin, content };
@@ -218,21 +246,21 @@ function parseActionStep(value: unknown): WorkflowActionStep {
   const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
   const ref = (raw.ref && typeof raw.ref === "object" ? raw.ref : {}) as Record<string, unknown>;
   if (typeof ref.capability_id !== "string" || !/^[a-z0-9][a-z0-9_.-]{0,160}$/i.test(ref.capability_id) || !Number.isInteger(ref.version) || Number(ref.version) < 1
-    || typeof ref.provider_id !== "string" || !ref.provider_id.trim() || ref.provider_id.length > 300) throw new WorkflowError("workflows.invalid", "动作步骤引用无效");
+    || typeof ref.provider_id !== "string" || !ref.provider_id.trim() || ref.provider_id.length > 300) throw workflowsErrors.invalid("动作步骤引用无效");
   const mappingRaw = (raw.mapping && typeof raw.mapping === "object" && !Array.isArray(raw.mapping) ? raw.mapping : {}) as Record<string, unknown>;
   const entries = Object.entries(mappingRaw);
-  if (entries.length > 40) throw new WorkflowError("workflows.invalid", "动作步骤的字段过多");
+  if (entries.length > 40) throw workflowsErrors.invalid("动作步骤的字段过多");
   const mapping: Record<string, WorkflowFieldSource> = {};
   for (const [name, source] of entries) {
-    if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name) || !source || typeof source !== "object") throw new WorkflowError("workflows.invalid", "字段映射无效");
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name) || !source || typeof source !== "object") throw workflowsErrors.invalid("字段映射无效");
     const entry = source as Record<string, unknown>;
     if ("from" in entry) {
-      if (!WORKFLOW_PAYLOAD_FIELDS.includes(entry.from as WorkflowPayloadField)) throw new WorkflowError("workflows.invalid", `字段 ${name} 的来源无效`);
+      if (!WORKFLOW_PAYLOAD_FIELDS.includes(entry.from as WorkflowPayloadField)) throw workflowsErrors.invalid(`字段 ${name} 的来源无效`);
       mapping[name] = { from: entry.from as WorkflowPayloadField };
     } else if ("value" in entry && ["string", "number", "boolean"].includes(typeof entry.value)) {
-      if (typeof entry.value === "string" && entry.value.length > 8000) throw new WorkflowError("workflows.invalid", `字段 ${name} 的固定值过长`);
+      if (typeof entry.value === "string" && entry.value.length > 8000) throw workflowsErrors.invalid(`字段 ${name} 的固定值过长`);
       mapping[name] = { value: entry.value as string | number | boolean };
-    } else throw new WorkflowError("workflows.invalid", `字段 ${name} 的映射无效`);
+    } else throw workflowsErrors.invalid(`字段 ${name} 的映射无效`);
   }
   return { ref: { capability_id: ref.capability_id, version: Number(ref.version), provider_id: ref.provider_id },
     title: typeof raw.title === "string" && raw.title.trim() ? raw.title.trim().slice(0, 200) : ref.capability_id,
@@ -261,7 +289,7 @@ function parseJudgmentRef(value: unknown): WorkflowLink["judgment"] | undefined 
   const raw = value as Record<string, unknown>;
   if (typeof raw.capability_id !== "string" || !/^functions\.published\.[a-z0-9][a-z0-9_.-]{0,120}$/.test(raw.capability_id)
     || !Number.isInteger(raw.version) || Number(raw.version) < 1 || typeof raw.provider_id !== "string" || !raw.provider_id.trim()) {
-    throw new WorkflowError("workflows.invalid", "判断规则引用无效");
+    throw workflowsErrors.invalid("判断规则引用无效");
   }
   return { capability_id: raw.capability_id, version: Number(raw.version), provider_id: raw.provider_id,
     ...(typeof raw.title === "string" ? { title: raw.title.slice(0, 200) } : {}) };
@@ -384,7 +412,7 @@ export function withPendingLinks(instance: WorkflowInstance, workflow: WorkflowC
   return changed ? { ...instance, chain: { stations: instance.chain.stations, links } } : instance;
 }
 
-/** Record one handoff and move the work to the next station. */
+/** Record one handoff and move the work to the next station. `at` is when the work arrives there; the handoff keeps its own time. */
 export function advanceInstance(
   instance: WorkflowInstance,
   from: number,
@@ -393,9 +421,9 @@ export function advanceInstance(
   at: string,
   arrival: { readonly payload?: WorkflowPayload; readonly result?: unknown; readonly result_presentation?: ActionResultPresentation; readonly result_truncated?: true } = {},
 ): WorkflowInstance {
-  if (instance.status !== "active") throw new WorkflowError("workflows.invalid", "这一次已经结束");
-  if (from !== instance.current) throw new WorkflowError("workflows.conflict", "这一步已经交过了，请刷新后再看");
-  if (from >= instance.steps.length - 1) throw new WorkflowError("workflows.invalid", "已经是最后一站");
+  if (instance.status !== "active") throw workflowsErrors.invalid("这一次已经结束");
+  if (from !== instance.current) throw workflowsErrors.conflict("这一步已经交过了，请刷新后再看");
+  if (from >= instance.steps.length - 1) throw workflowsErrors.invalid("已经是最后一站");
   const next = from + 1;
   const steps = instance.steps.map((step, index): WorkflowStep => {
     if (index === from) { const { pending: _pending, ...rest } = step; return { ...rest, status: "done", handoff }; }

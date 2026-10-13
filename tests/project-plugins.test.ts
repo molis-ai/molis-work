@@ -96,27 +96,6 @@ test("Adding Feed also enables Inbox, Inbox can be added alone, and repeats stay
   } finally { db.close(); }
 });
 
-test("Catalog migration preserves all old project entries and keeps newly created project defaults after reopen", async t => {
-  const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-plugin-migration-"));
-  t.after(() => rm(homeDirectory, { recursive: true, force: true }));
-  const old = await openMolisWorkProjectCatalog({ homeDirectory });
-  const project = await old.createProject({ display_name: "已有项目", actor_id: "test" });
-  old.close();
-  const db = new Database(join(homeDirectory, "projects/catalog.db"));
-  db.exec("DROP TABLE project_plugins; UPDATE catalog_meta SET value = '10' WHERE key = 'schema_version'"); db.close();
-  const migrated = await openMolisWorkProjectCatalog({ homeDirectory });
-  assert.deepEqual(migrated.listProjectPlugins(project.project_id), ["artifacts", "feed", "goals", "inbox", "sessions"]);
-  const created = await migrated.createProject({ display_name: "新项目", actor_id: "test" });
-  assert.deepEqual(migrated.listProjectPlugins(created.project_id), ["goals"]);
-  migrated.close();
-  const reopened = await openMolisWorkProjectCatalog({ homeDirectory });
-  try {
-    assert.deepEqual(reopened.listProjectPlugins(project.project_id), ["artifacts", "feed", "goals", "inbox", "sessions"]);
-    assert.deepEqual(reopened.listProjectPlugins(created.project_id), ["goals"]);
-    assert.equal(reopened.getProject(project.project_id).display_name, "已有项目");
-  } finally { reopened.close(); }
-});
-
 test("Removing a project plugin leaves companions, removing a dependency takes dependents, and a personal plugin can be hidden then restored", async t => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-plugin-remove-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });

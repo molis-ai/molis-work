@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -16,6 +16,7 @@ import {
   snapshotBoardCapability,
 } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 
 test("Local Host discovers one runtime and serializes typed capabilities", async () => {
@@ -47,7 +48,7 @@ test("Local Host discovers one runtime and serializes typed capabilities", async
     return runtime.value;
   });
 
-  const reference = { project_id: "project-1", board_id: "project-1", storage_key: "memory:project-1" };
+  const reference = { project_id: "project-1", storage_key: "memory:project-1" };
   const first = host.client(reference);
   const second = host.client(reference);
   assert.deepEqual(await Promise.all([
@@ -90,7 +91,7 @@ test("a held wait runs beside the project's queue: a later read or command is no
   host.register(wait, async () => { await held; return "changed"; });
   host.register(read, runtime => runtime.value);
   host.register(bump, runtime => ++runtime.value);
-  const client = host.client({ project_id: "p", board_id: "p", storage_key: "memory:p" });
+  const client = host.client({ project_id: "p", storage_key: "memory:p" });
   const following = client.invoke(wait, undefined);
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(await client.invoke(bump, undefined), 1, "a command sent while a wait is held runs at once");
@@ -112,7 +113,7 @@ test("a capability registered as concurrent (a model draft) runs beside the queu
   host.register(draft, async () => { await held; return "draft"; });
   host.register(slow, async () => { await held; return "slow"; });
   host.register(bump, runtime => ++runtime.value);
-  const client = host.client({ project_id: "p", board_id: "p", storage_key: "memory:p" });
+  const client = host.client({ project_id: "p", storage_key: "memory:p" });
   const drafting = client.invoke(draft, undefined);
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(await client.invoke(bump, undefined), 1, "a command sent while a draft is being written runs at once");
@@ -134,7 +135,7 @@ test("a capability call copies only the descriptor it needs: the registry grows 
   for (let index = 0; index < 200; index++) host.register({ capability_id: `test.other.${index}`, version: 1, operation: "query" } as HostCapabilityDefinition<void, number>, () => index);
   const read = { capability_id: "test.read", version: 1, operation: "query" } as HostCapabilityDefinition<void, number>;
   const dispose = host.register(read, runtime => runtime.value);
-  const client = host.client({ project_id: "p", board_id: "p", storage_key: "memory:p" });
+  const client = host.client({ project_id: "p", storage_key: "memory:p" });
   assert.equal(await client.invoke(read, undefined), 0);
   const clone = t.mock.method(globalThis, "structuredClone");
   assert.equal(await client.invoke(read, undefined), 0);
@@ -157,9 +158,9 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     instanceId: "shared-entry-host",
     onRuntimeOpen: () => { openCount += 1; },
   });
-  const boardId = "shared-host-board";
+  const projectId = "shared-host-board";
   const intent = {
-    board_id: boardId,
+    project_id: projectId,
     goal_id: "shared-entry-goal",
     title: "共享 Host Goal",
     outcome: "三个入口看到同一个结果",
@@ -168,7 +169,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     source_kind: "runtime" as const,
     idempotency_key: "shared-goal-command",
   };
-  const mcp = new MolisWorkServer("management", { databasePath, boardId, webBaseUrl: "http://127.0.0.1:4173" }, {
+  const mcp = new MolisWorkServer("management", { databasePath, projectId, webBaseUrl: "http://127.0.0.1:4173" }, {
     homeDirectory: directory, runtimeContext: { runtime_id: "shared", stable_work_context_id: "session", host_declares_stable: true },
   }, host);
   try {
@@ -176,7 +177,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
       "init",
       "--db", databasePath,
       "--json", JSON.stringify({
-        board_id: boardId,
+        project_id: projectId,
         title: "Shared Host",
         actor_id: "cli-user",
         idempotency_key: "shared-host-init",
@@ -187,27 +188,33 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
       /未知 V1 operation: create-goal/,
     );
 
-    const reference = molisWorkHostProjectReference({ databasePath, boardId });
-    await grantGoalsMcp(host, directory, { project_id: reference.project_id, board_id: boardId, database_path: databasePath }, "runtime:shared");
-    const { board_id, actor_id, actor_kind, source_kind, ...businessInput } = intent;
-    const mcpCreated = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", businessInput)) as {
+    const reference = molisWorkHostProjectReference({ databasePath, projectId });
+    await grantGoalsMcp(host, directory, { project_id: projectId, database_path: databasePath }, "runtime:shared");
+    const { project_id, actor_id, actor_kind, source_kind, ...businessInput } = intent;
+    const mcpCreated = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", businessInput)) as {
       goal: { goal_id: string }; observed_event_cursor: number; replayed: boolean };
-    const workbenchCreated = await host.client(reference).invoke(createGoalIntentCapability, intent);
+    const mcpReplay = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", businessInput)) as {
+      goal: { goal_id: string }; replayed: boolean };
     assert.equal(mcpCreated.goal.goal_id, "shared-entry-goal");
-    assert.equal(workbenchCreated.replayed, true);
-    assert.deepEqual(workbenchCreated.goal, mcpCreated.goal, "Workbench Host Client must see the same Goal fact");
-    assert.equal(workbenchCreated.observed_event_cursor, mcpCreated.observed_event_cursor);
+    assert.equal(mcpReplay.replayed, true);
+    assert.deepEqual(mcpReplay.goal, mcpCreated.goal, "the runtime action replays its own Goal");
+    const workbenchCreated = await host.client(reference).invoke(createGoalIntentCapability, {
+      project_id: projectId, goal_id: "workbench-entry-goal", title: "工作台入口 Goal",
+      outcome: "管理入口记本机这个人", idempotency_key: "workbench-goal-command",
+    });
+    assert.equal(workbenchCreated.replayed, false);
+    assert.equal(workbenchCreated.goal.goal_id, "workbench-entry-goal");
     assert.equal(openCount, 1, "all three entries must share one Store/Coordinator runtime");
     const snapshot = await captureCli(() => runV1Cli([
-      "snapshot", "--db", databasePath, "--json", JSON.stringify({ board_id: boardId }),
+      "snapshot", "--db", databasePath, "--json", JSON.stringify({ project_id: projectId }),
     ], { localHost: host }));
-    assert.deepEqual((snapshot.goals as { goal_id: string }[]).map((goal) => goal.goal_id), ["shared-entry-goal"]);
+    assert.deepEqual((snapshot.goals as { goal_id: string }[]).map((goal) => goal.goal_id).sort(), ["shared-entry-goal", "workbench-entry-goal"]);
 
     await host.close();
     const restarted = createMolisWorkLocalHost({ instanceId: "restarted-entry-host" });
     try {
-      const restored = await restarted.client(reference).invoke(snapshotBoardCapability, { board_id: boardId });
-      assert.deepEqual(restored.goals.map((goal) => goal.goal_id), ["shared-entry-goal"]);
+      const restored = await restarted.client(reference).invoke(snapshotBoardCapability, { project_id: projectId });
+      assert.deepEqual(restored.goals.map((goal) => goal.goal_id).sort(), ["shared-entry-goal", "workbench-entry-goal"]);
     } finally {
       await restarted.close();
     }
@@ -231,4 +238,20 @@ test("legacy entrypoints no longer construct independent business stores", async
   const composition = await readFile(new URL("../apps/local-host/src/project-host.ts", import.meta.url), "utf8");
   assert.match(composition, /new LocalProjectDatabase\(/u);
   assert.match(composition, /new GoalProjectApplication\(/u);
+});
+
+test("a page asked of a database that does not exist names the database the CLI must be given to create it", async t => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-missing-database-"));
+  const databasePath = join(directory, "absent", "project.db");
+  const server = createMolisWorkWebServer({ databasePath, projectId: "absent", homeDirectory: directory, controlToken: "missing-database-control-token-0123456789" });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); rmSync(directory, { recursive: true, force: true }); });
+  const response = await fetch(`http://127.0.0.1:${address.port}/goals`);
+  assert.equal(response.status, 404);
+  // `molis-work v1 init` has no default database, so the hint carries the --db it needs.
+  const text = await response.text();
+  assert.ok(text.includes(`molis-work v1 init --db ${databasePath}`), text);
+  assert.equal(existsSync(databasePath), false, "asking for a page does not create the database");
 });

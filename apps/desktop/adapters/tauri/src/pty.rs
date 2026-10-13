@@ -3,10 +3,14 @@ use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(test)]
+use std::time::Instant;
 use tauri::{Emitter, Manager, State};
 
 struct PtySession {
@@ -279,6 +283,7 @@ pub(crate) fn pty_kill(state: State<PtyState>, panel_id: String) -> Result<(), S
     Ok(())
 }
 
+#[cfg(test)]
 pub(crate) fn pty_collect_output(
     command: &str,
     args: &[&str],

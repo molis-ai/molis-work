@@ -3,6 +3,7 @@ import { PROJECT_PLUGIN_COMPANIONS } from "@molis-ai/molis-work-contracts/module
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
 export { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
 
@@ -213,9 +214,10 @@ export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | 
   return entryFor(projectPluginId)?.manifest;
 }
 
-export function pluginMarketCards(): readonly PluginMarketCard[] {
+/** What a person can pick from. Plugins marked `developer` (Text Stats) appear only when the Host is in developer mode. */
+export function pluginMarketCards(options: { readonly developerMode?: boolean } = {}): readonly PluginMarketCard[] {
   return BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
-    if (!entry.summary) return [];
+    if (!entry.summary || (entry.developer && !options.developerMode)) return [];
     // A plugin whose page lives only in settings (角色) is part of the settings, not something a project adds or
     // removes: it stays out of the market (decision 2026-10-01, specs/post-merge-review §9).
     const views = entry.manifest.ui?.views ?? [];
@@ -278,3 +280,48 @@ export const BUILTIN_PLUGIN_AGENTS: ReadonlyMap<string, {
     return [[entry.manifest.plugin_id, { manifest: agent, prompts, skills }] as const];
   }),
 );
+
+/** A visible 成果 type as its owner declares it (specs/artifact-positioning A4). */
+export interface ArtifactTypeDeclaration {
+  readonly title: string;
+  readonly plugin_id: string;
+  readonly plugin_title: string;
+  /** The owner's surface in the workbench, where its work objects open. */
+  readonly surface: string;
+  readonly preview: ActionDefinition | null;
+  /** The owner's action that pins one of its work objects on the spot (A5), when the type has one. */
+  readonly pin: ActionDefinition | null;
+  /** The owner's action that says whether a version still matches its work object (A4b). */
+  readonly compare: ActionDefinition | null;
+}
+
+/** A plugin that can start new work from a 成果 type (「从这一版继续」, A4b), whether it owns the type or only reads it. */
+export interface ArtifactContinuer { readonly plugin_id: string; readonly plugin_title: string; readonly action: ActionDefinition }
+
+/** For each 成果 type, the built-in plugins that declare they can continue from it. */
+export function artifactContinuers(): ReadonlyMap<string, readonly ArtifactContinuer[]> {
+  const continuers = new Map<string, ArtifactContinuer[]>();
+  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const type of [...entry.manifest.artifacts.produces, ...entry.manifest.artifacts.consumes]) {
+    const declared = type.continue, action = declared ? entry.manifest.actions?.find(item => item.capability_id === declared.capability_id && item.version === declared.version) : undefined;
+    if (action) continuers.set(type.artifact_type_id, [...continuers.get(type.artifact_type_id) ?? [], { plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name, action }]);
+  }
+  return continuers;
+}
+
+/** The plugins that can say which of their objects link to a 成果 version (「被谁引用」, artifact-positioning 五.1). */
+export function artifactReferrerActions(): readonly ArtifactContinuer[] {
+  return BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.actions ?? []).filter(action => isArtifactReferrersAction(action.action))
+    .map(action => ({ plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name, action })));
+}
+
+/** Each declared 成果 type: display name, preview and pin actions and owner, from the built-in Manifests. */
+export function artifactTypeDeclarations(): ReadonlyMap<string, ArtifactTypeDeclaration> {
+  const declarations = new Map<string, ArtifactTypeDeclaration>();
+  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const type of entry.manifest.artifacts.produces) {
+    if (!type.title) continue;
+    const action = (declared?: { capability_id: string; version: number }) => declared ? entry.manifest.actions?.find(item => item.capability_id === declared.capability_id && item.version === declared.version) ?? null : null;
+    declarations.set(type.artifact_type_id, { title: type.title, plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name,
+      surface: entry.project_plugin_id, preview: action(type.preview), pin: action(type.pin), compare: action(type.compare) });
+  }
+  return declarations;
+}

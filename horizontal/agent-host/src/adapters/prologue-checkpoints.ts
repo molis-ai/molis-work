@@ -12,7 +12,7 @@ export interface PrologueRewindIntent {
   requested_at: string;
 }
 interface CheckpointIndex {
-  owner: { board_id: string; plugin_id: string };
+  owner: { project_id: string; plugin_id: string };
   attempts: Array<{ frozen: { directory?: AgentWorkingDirectory }; run_id?: string }>;
   rewinds?: PrologueRewindIntent[];
   review_decisions?: Record<string, Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note">>;
@@ -118,13 +118,13 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
     restoring.set(sessionId, work);
     return work;
   };
-  const detach = queue.registerRefresh(async boardId => {
-    if (settledBoards.has(boardId)) return;
+  const detach = queue.registerRefresh(async projectId => {
+    if (settledBoards.has(projectId)) return;
     const report = await runtime.effects.readRecovery();
     if (report.unavailable.length) throw new Error("执行账暂不可读");
     const sessions = new Set(report.effects.flatMap(effect => effect.proposal.origin?.session ? [effect.proposal.origin.session] : []));
-    for (const id of sessions) if ((await ports.readIndex(id))?.owner.board_id === boardId) await restore(id);
-    settledBoards.add(boardId);
+    for (const id of sessions) if ((await ports.readIndex(id))?.owner.project_id === projectId) await restore(id);
+    settledBoards.add(projectId);
   });
   const capability: AgentCheckpointsCapability & { restore: typeof restore; close(): Promise<void>; context(sessionId: string): Promise<string> } = {
     busy: session => active.has(session.session_id) || uncertain.has(session.session_id),
@@ -132,7 +132,7 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
     async context(sessionId) {
       await restore(sessionId);
       const index = await requireIndex(sessionId);
-      const operations = queue.list(index.owner.board_id).filter(item => item.operation?.session_id === sessionId && item.kind === "rewind")
+      const operations = queue.list(index.owner.project_id).filter(item => item.operation?.session_id === sessionId && item.kind === "rewind")
         .map(item => ({ operation_id: item.operation!.operation_id, at: item.requested_at, document: item.document,
           receipt: queue.receipt(item.review_id) }));
       if (!operations.length) return "";
@@ -157,7 +157,7 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
         ? [[attempt.frozen.directory.canonical_path, attempt.frozen.directory] as const] : []));
       // A checkpoint already rewound to says so, from the Host's own receipts, rather than looking untouched.
       const rewound = new Map<string, string>();
-      for (const item of queue.list(index.owner.board_id)) {
+      for (const item of queue.list(index.owner.project_id)) {
         if (item.kind !== "rewind" || item.operation?.session_id !== session.session_id) continue;
         const receipt = queue.receipt(item.review_id);
         if (!receipt?.effect_settled) continue;

@@ -10,7 +10,7 @@ import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/
 export interface SurfaceSiteDecision { readonly scope: string; readonly decision: "allow" | "block"; readonly at: string }
 
 export interface BrowserSurfaceProvider {
-  driverFor(boardId: string): Promise<HostSurfaceDriver | null>;
+  driverFor(projectId: string): Promise<HostSurfaceDriver | null>;
   siteDecisions(): readonly SurfaceSiteDecision[];
 }
 

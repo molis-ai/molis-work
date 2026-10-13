@@ -5,7 +5,7 @@ import test from "node:test";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "../packages/plugin-sdk/src/index.js";
 import { sceneConfigurationActions, ActionError, bindActionClient, type ActionDefinition, type ActionSceneDefinition, type ActionSceneBinding, type ActionSceneHandlerBinding, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DEMO_BOARD_ID, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/src/functions-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
@@ -24,7 +24,7 @@ test("unknown registered scenes can be authored in the real editor, retain missi
   const browser = await openGoalBrowser(t, "seeded", undefined, null, undefined, functions); if (!browser) return;
   const { localHost, store, projectId, homeDirectory, command, sessionId, evaluate, waitFor, click, navigate, reloadPage, origin } = browser;
   assert.ok(localHost); assert.ok(projectId);
-  const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, boardId: DEMO_BOARD_ID, projectId });
+  const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
   const sceneId = `Notes.Review:${randomUUID()}`;
   const caller: ActionCallContext = { actor_id: "web-user", project_id: projectId, audience: "user", permissions: ["notes:read", "notes:write", "functions:invoke"] };
   store.db.exec("CREATE TABLE fixture_review_notes (id TEXT PRIMARY KEY, content TEXT NOT NULL, state TEXT NOT NULL); CREATE TABLE fixture_review_bindings (id TEXT PRIMARY KEY, value TEXT NOT NULL, revision TEXT NOT NULL)");

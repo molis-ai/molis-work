@@ -1,4 +1,4 @@
-import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import type {
   DatasetColumn,
@@ -9,7 +9,7 @@ import type {
   DatasetRowInput,
   DatasetVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/dataset";
-import { DatasetError } from "./error.js";
+import { datasetErrors } from "./error.js";
 import type { DatasetPublicationIntent, DatasetPublicationSnapshot } from "./promote.js";
 
 interface DatasetRowDb {
@@ -47,9 +47,9 @@ export class DatasetStore {
 
   get(id: string, projectId?: string): DatasetRecord {
     const row = this.db.prepare("SELECT * FROM datasets WHERE id = ?").get(id) as DatasetRowDb | undefined;
-    if (!row) throw new DatasetError("dataset.not_found", "找不到这张表");
+    if (!row) throw datasetErrors.not_found("找不到这张表");
     if (projectId && row.project_id !== normalizeProjectId(projectId)) {
-      throw new DatasetError("dataset.not_found", "找不到这张表");
+      throw datasetErrors.not_found("找不到这张表");
     }
     return fromRow(row);
   }
@@ -104,11 +104,11 @@ export class DatasetStore {
     const target = normalizeProjectId(to);
     return this.transaction(() => {
       const current = this.get(id, from);
-      if (current.publication_pending) throw new DatasetError("dataset.publication_pending", "上次固定版本还没存完，请先在原位置恢复，再移动");
+      if (current.publication_pending) throw datasetErrors.publication_pending("上次固定版本还没存完，请先在原位置恢复，再移动");
       // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
       const result = this.db.prepare("UPDATE datasets SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?")
         .run(target, id, current.version);
-      if (result.changes !== 1) throw new DatasetError("dataset.conflict", "数据表刚被修改，请重新读取后再移动");
+      if (result.changes !== 1) throw datasetErrors.conflict("数据表刚被修改，请重新读取后再移动");
       return this.get(id, target);
     });
   }
@@ -126,7 +126,7 @@ export class DatasetStore {
   receiveCsv(projectId: string, requestId: string, title: string, csv: string): DatasetRecord {
     return this.once(normalizeProjectId(projectId), "receive:" + requestId, () => {
       const parsed = parseCsv(csv);
-      if (parsed.columns.length === 0) throw new DatasetError("dataset.invalid", "收到的内容不是带表头的 CSV");
+      if (parsed.columns.length === 0) throw datasetErrors.invalid("收到的内容不是带表头的 CSV");
       const created = this.create({ title: title.slice(0, 80) || "未命名数据表", project_id: projectId });
       return this.update(created.id, { columns: parsed.columns, rows: parsed.rows, expected_version: created.version }, projectId);
     });
@@ -145,7 +145,7 @@ export class DatasetStore {
   delete(id: string, projectId?: string, expectedVersion?: number): void {
     this.transaction(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
-      if (current.publication_pending) throw new DatasetError("dataset.publication_pending", "请先恢复上次发布，再删除数据表");
+      if (current.publication_pending) throw datasetErrors.publication_pending("请先恢复上次发布，再删除数据表");
       this.db.prepare("DELETE FROM dataset_versions WHERE dataset_id = ?").run(id);
       this.db.prepare("DELETE FROM datasets WHERE id = ?").run(id);
     });
@@ -154,7 +154,7 @@ export class DatasetStore {
   generateColumn(id: string, prompt: string, projectId?: string, expectedVersion?: number): DatasetRecord {
     const current = this.get(id, projectId);
     const name = prompt.trim() || `列 ${current.columns.length + 1}`;
-    if (name.length > 80) throw new DatasetError("dataset.invalid", "列名须为 1 到 80 个字");
+    if (name.length > 80) throw datasetErrors.invalid("列名须为 1 到 80 个字");
     const column: DatasetColumn = {
       id: crypto.randomUUID(),
       name,
@@ -166,7 +166,7 @@ export class DatasetStore {
 
   importCsv(id: string, csv: string, projectId?: string, expectedVersion?: number): DatasetRecord {
     const parsed = parseCsv(csv);
-    if (parsed.columns.length === 0) throw new DatasetError("dataset.invalid", "CSV 至少要有表头");
+    if (parsed.columns.length === 0) throw datasetErrors.invalid("CSV 至少要有表头");
     return this.update(id, { columns: parsed.columns, rows: parsed.rows, expected_version: expectedVersion }, projectId);
   }
 
@@ -205,7 +205,7 @@ export class DatasetStore {
   rollback(id: string, versionId: string, projectId?: string, expectedVersion?: number): DatasetRecord {
     const versions = this.listVersions(id, projectId);
     const target = versions.find((item) => item.id === versionId);
-    if (!target) throw new DatasetError("dataset.not_found", "找不到这个版本");
+    if (!target) throw datasetErrors.not_found("找不到这个版本");
     return this.update(id, {
       title: target.snapshot.title,
       description: target.snapshot.description,
@@ -215,16 +215,16 @@ export class DatasetStore {
     }, projectId);
   }
 
-  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: DatasetPublicationSnapshot): DatasetPublicationIntent {
+  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: DatasetPublicationSnapshot, version?: number): DatasetPublicationIntent {
     return this.transaction(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
       const pending = this.publicationIntent(id);
       if (pending) {
-        if (pending.actor_id !== actorId) throw new DatasetError("dataset.publication_owner", "请由上次发布的发起者恢复，原快照已保留");
+        if (pending.actor_id !== actorId) throw datasetErrors.publication_owner("请由上次发布的发起者恢复，原快照已保留");
         return pending;
       }
       const intent: DatasetPublicationIntent = { content: existing ?? { title: current.title, description: current.description, columns: current.columns, rows: current.rows },
-        version: current.artifact_version + 1, source_version: current.version, actor_id: actorId };
+        version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };
       this.db.prepare("UPDATE datasets SET publication_pending_json = ? WHERE id = ?").run(JSON.stringify(intent), id);
       return intent;
     });
@@ -234,7 +234,7 @@ export class DatasetStore {
     return this.transaction(() => {
       const current = this.get(id, projectId);
       if (current.artifact_id === artifact.artifact_id && current.artifact_version >= intent.version) return current;
-      if (JSON.stringify(this.publicationIntent(id)) !== JSON.stringify(intent)) throw new DatasetError("dataset.publication_conflict", "发布记录已改变，请重新读取数据表");
+      if (JSON.stringify(this.publicationIntent(id)) !== JSON.stringify(intent)) throw datasetErrors.publication_conflict("发布记录已改变，请重新读取数据表");
       this.db.prepare("UPDATE datasets SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = version + 1, publication_pending_json = NULL WHERE id = ?")
         .run(artifact.artifact_id, artifact.version, new Date().toISOString(), id);
       return this.get(id, projectId);
@@ -246,7 +246,7 @@ export class DatasetStore {
     return row.publication_pending_json ? JSON.parse(row.publication_pending_json) as DatasetPublicationIntent : null;
   }
   private assertVersion(current: DatasetRecord, expectedVersion?: number): void {
-    if (expectedVersion !== undefined && expectedVersion !== current.version) throw new DatasetError("dataset.conflict", "数据表已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
+    if (expectedVersion !== undefined && expectedVersion !== current.version) throw datasetErrors.conflict("数据表已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
   }
   private transaction<T>(run: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");
@@ -272,40 +272,42 @@ export class DatasetStore {
       JSON.stringify(record.columns), JSON.stringify(record.rows),
       record.updated_at, record.version, record.id, record.version - 1,
     );
-    if (result.changes !== 1) throw new DatasetError("dataset.conflict", "数据表已改变，请重新读取后保存");
+    if (result.changes !== 1) throw datasetErrors.conflict("数据表已改变，请重新读取后保存");
   }
 }
 
+/**
+ * The dataset store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
+ * must already be at its version. Columns keep the order existing stores have them in.
+ */
+export const DATASET_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE datasets (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    status TEXT NOT NULL,
+    columns_json TEXT NOT NULL,
+    rows_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    project_id TEXT NOT NULL DEFAULT '',
+    artifact_id TEXT NOT NULL DEFAULT '',
+    artifact_version INTEGER NOT NULL DEFAULT 0,
+    publication_pending_json TEXT
+  );
+  CREATE TABLE dataset_versions (
+    id TEXT PRIMARY KEY,
+    dataset_id TEXT NOT NULL,
+    note TEXT NOT NULL,
+    snapshot_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
+` };
+
 export function openDatasetStore(homeDirectory: string): DatasetStore {
-  const db = openHomeSqliteDatabase(homeDirectory, "dataset");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS datasets (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL DEFAULT '',
-      title TEXT NOT NULL,
-      description TEXT NOT NULL,
-      status TEXT NOT NULL,
-      columns_json TEXT NOT NULL,
-      rows_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      version INTEGER NOT NULL,
-      artifact_id TEXT NOT NULL DEFAULT '',
-      artifact_version INTEGER NOT NULL DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS dataset_versions (
-      id TEXT PRIMARY KEY,
-      dataset_id TEXT NOT NULL,
-      note TEXT NOT NULL,
-      snapshot_json TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-  `);
-  ensureSqliteColumn(db, "datasets", "project_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "datasets", "artifact_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "datasets", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
-  ensureSqliteColumn(db, "datasets", "publication_pending_json", "TEXT");
-  db.exec("CREATE TABLE IF NOT EXISTS dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id))");
+  const db = openBaselineHomeSqlite(homeDirectory, "dataset", DATASET_STORE_BASELINE);
   return new DatasetStore(db);
 }
 
@@ -372,11 +374,11 @@ function csvRecords(text: string): string[][] {
     else if (char === "\n" || char === "\r") { if (char === "\r" && text[i + 1] === "\n") i++; endRow(); }
     else if (char === '"' && cell === "" && !closed) { quoted = true; started = true; }
     else {
-      if (closed || char === '"') throw new DatasetError("dataset.invalid", "CSV 引号格式无效");
+      if (closed || char === '"') throw datasetErrors.invalid("CSV 引号格式无效");
       cell += char; started = true;
     }
   }
-  if (quoted) throw new DatasetError("dataset.invalid", "CSV 引号未闭合");
+  if (quoted) throw datasetErrors.invalid("CSV 引号未闭合");
   endRow();
   return records;
 }
@@ -402,25 +404,25 @@ function fromRow(row: DatasetRowDb): DatasetRecord {
 
 function normalizeProjectId(value: string): string {
   const id = value.trim();
-  if (!id) throw new DatasetError("dataset.invalid", "缺少项目");
-  if (id.length > 80) throw new DatasetError("dataset.invalid", "项目标识过长");
+  if (!id) throw datasetErrors.invalid("缺少项目");
+  if (id.length > 80) throw datasetErrors.invalid("项目标识过长");
   return id;
 }
 
 function normalizeTitle(value: string): string {
   const title = value.trim() || "未命名数据表";
-  if (title.length > 80) throw new DatasetError("dataset.invalid", "标题须为 1 到 80 个字");
+  if (title.length > 80) throw datasetErrors.invalid("标题须为 1 到 80 个字");
   return title;
 }
 
 function normalizeDescription(value: string): string {
-  if (value.length > 2000) throw new DatasetError("dataset.invalid", "说明须为 0 到 2000 个字");
+  if (value.length > 2000) throw datasetErrors.invalid("说明须为 0 到 2000 个字");
   return value;
 }
 
 function normalizeColumns(value: readonly DatasetColumnInput[]): DatasetColumn[] {
-  if (!Array.isArray(value)) throw new DatasetError("dataset.invalid", "列须是列表");
-  if (value.length > 40) throw new DatasetError("dataset.invalid", "最多 40 列");
+  if (!Array.isArray(value)) throw datasetErrors.invalid("列须是列表");
+  if (value.length > 40) throw datasetErrors.invalid("最多 40 列");
   return value.map((column, index) => ({
     id: column.id || crypto.randomUUID(),
     name: String(column.name ?? "").trim() || `列 ${index + 1}`,
@@ -430,8 +432,8 @@ function normalizeColumns(value: readonly DatasetColumnInput[]): DatasetColumn[]
 }
 
 function normalizeRows(rows: readonly DatasetRowInput[], columns: readonly DatasetColumn[]): DatasetRow[] {
-  if (!Array.isArray(rows)) throw new DatasetError("dataset.invalid", "行须是列表");
-  if (rows.length > 2000) throw new DatasetError("dataset.invalid", "最多 2000 行");
+  if (!Array.isArray(rows)) throw datasetErrors.invalid("行须是列表");
+  if (rows.length > 2000) throw datasetErrors.invalid("最多 2000 行");
   return rows.map((row) => ({
     id: row.id || crypto.randomUUID(),
     cells: Object.fromEntries(columns.map((column) => [column.id, String(row.cells?.[column.id] ?? "")])),

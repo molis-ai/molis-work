@@ -16,7 +16,7 @@ import { handleLingguangNativePluginHttp } from "../apps/local-host/src/lingguan
 async function fixture(t: { after(fn: () => Promise<void>): void }) {
   const home = await mkdtemp(join(tmpdir(), "lingguang-material-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "a", projectId: "a" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS };
   const client = host.actionClient(ref);
   const server: Server = createServer((request, response) => {
@@ -40,11 +40,13 @@ test("reading a file streams its progress and text; nothing is kept until the pe
   assert.equal(events[0]!.type, "progress");
   assert.deepEqual(events.at(-1), { type: "result", result: { text: "验证素材来源与笔记之间的联系。", file_name: "检查.txt" } });
   assert.deepEqual((await f.bound.invoke(actions.list, {})).sparks, [], "reading keeps no spark");
-  // The uploaded copy is kept with 灵光, not with Jelly.
-  assert.equal(readdirSync(join(f.home, "lingguang", "imports")).length, 1);
+  // Nothing of the upload is kept: no raw copy under 灵光 (or Jelly) that no one reads and nothing cleans up.
+  assert.deepEqual(readdirSync(join(f.home, "lingguang")).filter(name => !name.startsWith("lingguang.db")), []);
   assert.equal(existsSync(join(f.home, "jelly", "imports")), false);
   const refused = (await lines(await post(f.base, "/api/lingguang/material?stream=1", { file_name: "bad.exe", data_base64: "AA==" }))).at(-1)!;
-  assert.equal(refused.type, "error"); assert.equal(refused.status, 415); assert.match(refused.code, /unsupported/);
+  // W3-02-D: the error event is written by the SDK from the failure's kind. The reader's own 415 has no kind (415 misdescribes who failed): a request the person
+  // can change is 400, and its code stays. The file reader's classes get their kinds with the Jelly slice (W3-02-F).
+  assert.equal(refused.type, "error"); assert.equal(refused.status, 400); assert.match(refused.code, /unsupported/);
   // Without streaming the same action answers as plain JSON; a reading route is not mistaken for a spark id.
   const plain = await post(f.base, "/api/lingguang/material", { file_name: "短.md", data_base64: Buffer.from("# 标题\n正文").toString("base64") });
   assert.equal(plain.status, 200); assert.match((await plain.json() as { text: string }).text, /正文/);

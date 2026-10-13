@@ -4,8 +4,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DEMO_BOARD_ID, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { FeedPluginRouteTable, createFeedRouteHandlers, feedItemActions, feedRouteErrorResponse, type FeedRouteHandlerPorts } from "@molis-ai/molis-work-plugin-feed";
+import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { FeedPluginRouteTable, createFeedRouteHandlers, feedItemActions, type FeedRouteHandlerPorts } from "@molis-ai/molis-work-plugin-feed";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
@@ -17,15 +18,15 @@ const PROJECT = "project-feed-items";
 test("Feed item commands are directory actions: Home prepares and runs them, stale revisions are refused, and the old route forwards", { timeout: 120_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "feed-item-actions-"));
   const dbPath = join(home, "project.db");
-  seedDemoBoard(dbPath);
+  seedDemoBoard(dbPath, PROJECT);
   const seed = new LocalProjectDatabase(dbPath);
-  const source = createLocalFeedSourceService(seed.db, DEMO_BOARD_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
+  const source = createLocalFeedSourceService(seed.db, PROJECT).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
   const feedApp = createLocalFeedApplication(seed.db);
   const ingest = (externalId: string, title: string) => feedApp.ingestItem({ source, externalId, title, summary: title, body: title + " 的正文", occurredAt: new Date().toISOString(), attention: false }).item;
   const first = ingest("one", "客户反馈导出失败"), second = ingest("two", "周报已生成"), third = ingest("three", "需要跟进的合同");
   seed.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const reference = molisWorkHostProjectReference({ databasePath: dbPath, boardId: DEMO_BOARD_ID, projectId: PROJECT });
+  const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS] };
   const client = host.actionClient(reference);
   const actions = bindActionClient(client, () => caller);
@@ -49,7 +50,7 @@ test("Feed item commands are directory actions: Home prepares and runs them, sta
 
     // An offer prepared before the change is not replayed against the newer item.
     await assert.rejects(run(first.item_id, offered.offers.find(offer => offer.title === "忽略")!), { code: "actions.offer_changed" });
-    await assert.rejects(actions.invoke(feedItemActions.disposition, { item_id: first.item_id, disposition: "archived", expected_revision: first.revision }), { code: "feed_revision_conflict" });
+    await assert.rejects(actions.invoke(feedItemActions.disposition, { item_id: first.item_id, disposition: "archived", expected_revision: first.revision }), { code: "feed.revision_conflict" });
 
     await run(first.item_id, after.offers.find(offer => offer.title === "加入 Inbox")!);
     const { entries } = await actions.invoke(inboxActions.list, {});
@@ -67,16 +68,16 @@ test("Feed item commands are directory actions: Home prepares and runs them, sta
 
     // The Workbench route translates its URL into the same action and keeps its answers.
     let changes = 0;
-    const table = new FeedPluginRouteTable(createFeedRouteHandlers({ actions, boardId: DEMO_BOARD_ID, routePrefix: "/projects/p", changed: () => { changes++; } } as unknown as FeedRouteHandlerPorts));
+    const table = new FeedPluginRouteTable(createFeedRouteHandlers({ actions, projectId: PROJECT, routePrefix: "/projects/p", changed: () => { changes++; } } as unknown as FeedRouteHandlerPorts));
     const archived = await table.handle({ method: "POST", pathname: `/api/feed/items/${third.item_id}/archive`, query: new URLSearchParams(), body: { expected_revision: third.revision } });
     assert.equal(archived?.status, 200);
     assert.equal((archived?.body as { item: { disposition: string } }).item.disposition, "archived");
     assert.equal(changes, 1);
     assert.deepEqual((await prepare(third.item_id)).offers.map(offer => offer.title), ["恢复到 Feed"]);
-    const stale = await table.handle({ method: "POST", pathname: `/api/feed/items/${third.item_id}/save`, query: new URLSearchParams(), body: { expected_revision: third.revision } }).catch(feedRouteErrorResponse);
-    assert.equal(stale?.status, 409);
-    const missing = await table.handle({ method: "POST", pathname: `/api/feed/items/nope/save`, query: new URLSearchParams(), body: { expected_revision: 1 } }).catch(feedRouteErrorResponse);
-    assert.equal(missing?.status, 404);
+    const stale = await table.handle({ method: "POST", pathname: `/api/feed/items/${third.item_id}/save`, query: new URLSearchParams(), body: { expected_revision: third.revision } }).catch(actionErrorResponse);
+    assert.deepEqual([stale?.status, (stale?.body as { code: string }).code], [409, "feed.revision_conflict"]);
+    const missing = await table.handle({ method: "POST", pathname: `/api/feed/items/nope/save`, query: new URLSearchParams(), body: { expected_revision: 1 } }).catch(actionErrorResponse);
+    assert.deepEqual([missing?.status, (missing?.body as { code: string }).code], [404, "feed.item_not_found"]);
     const goal = await table.handle({ method: "POST", pathname: `/api/feed/items/${first.item_id}/promote`, query: new URLSearchParams(),
       body: { expected_revision: (await prepare(first.item_id)).offers.map(offer => offer.input as { expected_revision: number })[0]!.expected_revision } });
     const body = goal?.body as { goal_id: string; goal_path: string; created: boolean };

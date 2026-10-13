@@ -1,4 +1,4 @@
-import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentDraftTextResult, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { HISTORY_DIGEST_MARKER, HISTORY_DIGEST_TASK_HEAD, originalTask } from "./continuation.js";
 
 /**
@@ -101,6 +101,27 @@ export function summaryDigest(runs: readonly AgentRunView[], summary: string, ta
     `- 最近一轮：\n${round(runs.at(-1)!, runs.length, true)}`,
   ].join("\n");
   return [head, text, facts].join("\n\n") + HISTORY_DIGEST_TASK_HEAD + task;
+}
+
+export interface HistoryDigest { text: string; source: "model" | "records"; usage?: { input: number; output: number }; problem?: string }
+
+/**
+ * The digest a round carries: the model's summary, or the Host's own record-based one when the model cannot write it.
+ * The model answers beside the project's queue, perhaps minutes later. `beforeWrite` runs once it has, however it answered
+ * (a summary, or a failure such as the timeout) and before anything is recorded: a call withdrawn meanwhile (cancelled,
+ * revoked, stopped) ends there instead of falling back to the record-based digest and going on to start the round.
+ */
+export async function writeHistoryDigest(runs: readonly AgentRunView[], task: string, draft: (material: string) => Promise<AgentDraftTextResult>,
+  beforeWrite: () => Promise<void>, recordUsage: (usage: { input: number; output: number }) => void): Promise<HistoryDigest> {
+  const fromRecords = (error: unknown): HistoryDigest => ({ text: codingHistoryDigest(runs, task), source: "records", problem: error instanceof Error ? error.message : "模型没有写出摘要" });
+  let answer: AgentDraftTextResult | undefined, failure: unknown;
+  try { answer = await draft(historySummaryMaterial(runs)); } catch (error) { failure = error; }
+  await beforeWrite();
+  if (!answer) return fromRecords(failure);
+  try {
+    if (answer.usage) recordUsage(answer.usage);
+    return { text: summaryDigest(runs, answer.text, task), source: "model", ...(answer.usage ? { usage: answer.usage } : {}) };
+  } catch (error) { return fromRecords(error); }
 }
 
 /** Whether a round's digest was written by the model (it says so in its opening line). */

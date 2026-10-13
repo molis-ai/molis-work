@@ -1,9 +1,5 @@
 /** Goal-owned browser behavior, mounted by Workbench at the existing event/initialization position. */
 const GOALS_SELECT_SCRIPT = `    const selectGoal = async (goalId, updateHistory = true) => {
-      if (decisionView) {
-        navigateToGoal(goalId);
-        return;
-      }
       const currentView = documentPane.querySelector("[data-goal-view]");
       if (goalId === getSelected() && currentView?.dataset.goalView === goalId) {
         setWorkspaceMode("focus", false);
@@ -33,14 +29,6 @@ const GOALS_SELECT_SCRIPT = `    const selectGoal = async (goalId, updateHistory
 
 `;
 
-const GOALS_SELECT_CLICK_SCRIPT = `      const goalLink = target.closest("[data-select-goal]");
-      if (goalLink) {
-        selectGoal(goalLink.dataset.selectGoal);
-        return true;
-      }
-      return false;
-`;
-
 const GOALS_HISTORY_SCRIPT = `    const handleGoalPopState = (event) => {
       const pathname = localPathname();
       const match = pathname.match(
@@ -67,14 +55,12 @@ const GOALS_HISTORY_SCRIPT = `    const handleGoalPopState = (event) => {
 /** Bind Goal navigation without owning the shared Workbench selection or listeners. */
 export const GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT = `(host) => {
     const {
-      decisionView, trashView, archiveView, documentPane, getSelected,
+      trashView, archiveView, documentPane, getSelected,
       navigateToGoal, applySelection, loadGoalDocument,
       goalPageUrl, setWorkspaceMode, saveUiState, localPathname,
       openEventReaderFromHash, goalFactorFromHash,
       setGoalFactor, revealDeepLinkFromId,
     } = host;
 ${GOALS_SELECT_SCRIPT}${GOALS_HISTORY_SCRIPT}
-    const handleGoalSelectClick = (target) => {
-${GOALS_SELECT_CLICK_SCRIPT}    };
-    return { selectGoal, handleGoalSelectClick, handleGoalPopState, handleGoalHashChange };
+    return { selectGoal, handleGoalPopState, handleGoalHashChange };
   }`;

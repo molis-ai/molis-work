@@ -20,10 +20,7 @@ export * from "./operation-management.js";
 
 export * from "./ui.js";
 export * from "./routes.js";
-export {
-  createScheduleRouteHandlers,
-  scheduleRouteErrorResponse,
-} from "./route-handlers.js";
+export { createScheduleRouteHandlers } from "./route-handlers.js";
 export type { ScheduleRouteHandlerPorts } from "./route-handlers.js";
 export { createScheduleActionPorts } from "./service.js";
 export {
@@ -33,6 +30,7 @@ export {
   scheduleActions,
   type ScheduleActionPorts,
   type ScheduleTaskInput,
+  type ScheduleTaskReadiness,
 } from "./actions.js";
 export { SCHEDULE_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { SCHEDULE_EN } from "./en.js";
@@ -49,13 +47,13 @@ export {
   parseClockTime,
   formatClockTime,
 } from "./calendar.js";
-export { ScheduleTaskError } from "./task-error.js";
+export { scheduleErrors } from "./error.js";
 export {
   parseScheduledAgentReply,
   composeScheduledTaskPrompt,
 } from "./reply.js";
 export {
-  migrateScheduleConversationTasks,
+  SCHEDULE_TASKS_SCHEMA_SQL,
   scheduleConversationFingerprint,
   listScheduleConversationTasks,
   getScheduleConversationTask,

@@ -202,7 +202,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     background: transparent;
     font-size: 11px;
   }
-  html[data-density="compact"] body[data-desktop-shell="true"][data-board-view]:not([data-board-view="decisions"]):where(:not(.immersive-workbench)) .desktop-goal-directory .directory-row-state > .goal-status {
+  html[data-density="compact"] body[data-desktop-shell="true"][data-board-view]:where(:not(.immersive-workbench)) .desktop-goal-directory .directory-row-state > .goal-status {
     min-height: 0;
     padding: 0;
     border: 0;

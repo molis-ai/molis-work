@@ -36,6 +36,17 @@ export interface EvidenceContentStore {
     missing: number;
     keyAvailable: boolean;
   };
+  /** Removes a body, including its recovery copy. Returns whether a file went; a body that is not there is not an error. */
+  delete(contentRef: string): boolean;
+  /**
+   * Deletes the candidate bodies that nothing refers to. This store cannot see who holds a reference (Feed materials,
+   * search records, in any project of the Home), so the caller counts and answers `isReferenced`; a referenced
+   * candidate, and a reference that is not a body of this store, are left alone.
+   */
+  collect(input: {
+    candidates: Iterable<string>;
+    isReferenced(contentRef: string): boolean;
+  }): { deleted: string[]; kept: string[] };
 }
 
 export function createEvidenceContentStore(options: {
@@ -75,6 +86,25 @@ export function createEvidenceContentStore(options: {
     const opened = openSealed(fs.readFileSync(target), contentRef, key);
     if (opened == null) throw new Error("feed evidence content failed integrity validation");
     return opened;
+  };
+
+  const remove = (contentRef: string): boolean => {
+    let removed = false;
+    for (const base of [root, recoveryRoot]) {
+      const target = blobPath(base, contentRef);
+      try {
+        fs.unlinkSync(target);
+        removed = true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+      try {
+        fs.rmdirSync(path.dirname(target));
+      } catch {
+        // The shard directory still holds other bodies, or is already gone.
+      }
+    }
+    return removed;
   };
 
   return {
@@ -123,6 +153,17 @@ export function createEvidenceContentStore(options: {
       } catch {
         return false;
       }
+    },
+    delete: remove,
+    collect({ candidates, isReferenced }) {
+      const deleted: string[] = [];
+      const kept: string[] = [];
+      for (const contentRef of new Set(candidates)) {
+        if (!CONTENT_REF.test(contentRef)) continue;
+        if (isReferenced(contentRef)) kept.push(contentRef);
+        else if (remove(contentRef)) deleted.push(contentRef);
+      }
+      return { deleted, kept };
     },
     inspect(contentRefs) {
       const refs = [...new Set(contentRefs)];

@@ -20,7 +20,7 @@ async function fixture(t: test.TestContext) {
   t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
   const actions = new ActionService();
   let authorized = true, permitted = true, dispatches = 0, clock = 0;
-  const entry: InboxActionEntry = { entry_id: "entry", board_id: "board", project_id: "project", subject_type: "feed_item", subject_id: "item",
+  const entry: InboxActionEntry = { entry_id: "entry", project_id: "board", subject_type: "feed_item", subject_id: "item",
     reason: "manual", status: "open", revision: 1, detail: {}, created_at: "2026-09-26T00:00:00Z", updated_at: "2026-09-26T00:00:00Z", completed_at: null };
   const material: PagesInputSnapshot = { entry_id: "entry", item_id: "item", revision: 3, title: "原观察", body: "仅为作者自述，效果尚未复现。",
     url: "https://example.com/observation", source_label: "来源", captured_at: "initial", provenance: [{ scope: "summary" }] };

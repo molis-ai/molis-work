@@ -9,23 +9,26 @@ import { LocalProjectDatabase, GoalProjectApplication, releaseCodingSurface } fr
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 test("Shelf explicitly receives a genuine fixed Coding report, preserves edited copies on retry and keeps provenance through project material publication", async t => {
   const home = mkdtempSync(join(tmpdir(), "shelf-results-"));
   const catalogStore=await openMolisWorkProjectCatalog({homeDirectory:home});
   const project=await catalogStore.createProject({display_name:'成果回流验证',actor_id:'web-user'});
   catalogStore.addProjectPlugin({project_id:project.project_id,plugin_id:'coding',actor_id:'web-user'});catalogStore.close();
-  const databasePath=project.database_path,boardId=project.board_id,prefix='/projects/'+project.project_id;
+  const databasePath=project.database_path,projectId=project.project_id,prefix='/projects/'+project.project_id;
   const store = new LocalProjectDatabase(databasePath), app = new GoalProjectApplication(store);
-  new CodingSessionStore(store.db).create({ board_id: boardId, session_id: "app", title: "下一轮", runtime_id: "prologue", at: new Date().toISOString() });
+  new CodingSessionStore(store.db).create({ project_id: projectId, session_id: "app", title: "下一轮", runtime_id: "prologue", at: new Date().toISOString() });
   const token = 'shelf-result-test-control-token-123456789';
   let server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address=server.address(); assert.ok(address && typeof address!=='string'); let origin=`http://127.0.0.1:${address.port}`;
-  t.after(async()=>{ await new Promise<void>(resolve=>server.close(()=>resolve())); await releaseCodingSurface(store,boardId); store.close(); rmSync(home,{recursive:true,force:true}); });
+  t.after(async()=>{ await new Promise<void>(resolve=>server.close(()=>resolve())); await releaseCodingSurface(store,projectId); store.close(); rmSync(home,{recursive:true,force:true}); });
   const request=async(path:string,body?:unknown,authorized=true)=>{const response=await fetch(origin+prefix+path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{origin,'content-type':'application/json','x-molis-work-idempotency-key':randomUUID(),...(authorized?{'x-molis-work-control-token':token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});return {status:response.status,body:await response.json()};};
+  // A request the artifact and output services refuse is the caller's mistake: 400, and the body names the owner's code (the route answers by kind, not by message).
+  const refused=(response:{status:number;body:{code?:string}},code:string)=>assert.deepEqual([response.status,response.body.code],[400,code],JSON.stringify(response.body));
   const reference={artifact_id:'coding-report:session-original:run-original',version:1};
-  const input={board_id:boardId,actor_id:'web-user',...reference,artifact_type_id:'coding.report.v1',schema_version:1,
+  const input={...pinnedArtifact('已固定的原报告'),project_id:projectId,actor_id:'web-user',...reference,artifact_type_id:'coding.report.v1',schema_version:1,
     producer:{plugin_id:'io.molis.work.coding',plugin_version:'1.20.0',binding_signature:'official-coding-binding'},
     content:{kind:'inline' as const,payload:{title:'已固定的原报告',run_id:'run-original',source:{session_id:'session-original'},body_markdown:'## 完整原文\r\n含 ``` 与 <script>，不重新请求模型。\n最后一行🌲'}}};
   const original=app.artifacts.commands.registerVersion(input).artifact;
@@ -37,7 +40,7 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   assert.equal(shelf.snapshot().materials.length,before,'reading candidates does not admit copies');
   const confirmation={reference,expected_fingerprint:preview.body.fingerprint,text:'forged body',source:{artifact_id:'forged'}};
   assert.equal((await request(path,confirmation,false)).status,403);
-  assert.equal((await request(path,{...confirmation,expected_fingerprint:'stale'})).status,400);
+  refused(await request(path,{...confirmation,expected_fingerprint:'stale'}),'shelf.conflict');
   const received=await request(path,confirmation); assert.equal(received.status,200,JSON.stringify(received.body));
   const item=received.body.item; assert.deepEqual(item.artifact_source.reference,reference);
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),preview.body.text);
@@ -49,7 +52,7 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   const material=await request(materialPath); assert.equal(material.status,200);
   assert.deepEqual(material.body.payload.source.artifact.reference,reference);
   const published=await request(materialPath,{expected_fingerprint:material.body.fingerprint}); assert.equal(published.status,200);
-  const saved=app.artifacts.query.getArtifactVersion(boardId,published.body.reference)!;
+  const saved=app.processItems.query.getArtifactVersion(projectId,published.body.reference)!; // project materials are process items (A2)
   assert.equal((saved.payload as any).text,'只改 Shelf 副本，来源保持。'); assert.deepEqual((saved.payload as any).source.artifact.reference,reference);
   const materials=await request('/api/plugins/io.molis.work.coding/sessions/app/materials'); assert.equal(materials.status,200,JSON.stringify(materials.body)); assert.equal(materials.body.materials[0].text,'只改 Shelf 副本，来源保持。');
   const restarted=openShelfStore(home,{disabled:true}); assert.deepEqual(restarted.readFile(item.item_id).item.artifact_source,item.artifact_source);
@@ -60,24 +63,24 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   const nextAddress=server.address();assert.ok(nextAddress && typeof nextAddress!=='string');origin=`http://127.0.0.1:${nextAddress.port}`;
   assert.equal((await request(path,confirmation)).body.item.item_id,item.item_id,'host restart does not duplicate the import');
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),'只改 Shelf 副本，来源保持。');
-  assert.deepEqual(app.artifacts.query.getArtifactVersion(boardId,reference),original);
+  assert.deepEqual(app.artifacts.query.getArtifactVersion(projectId,reference),original);
   app.artifacts.commands.registerVersion({...input,artifact_id:'coding-report:forged:run-original'});
   app.artifacts.commands.registerVersion({...input,version:2});
   assert.equal((await request(base+'/project-results')).body.results.length,1);
-  assert.equal((await request(path+'?artifact_id='+encodeURIComponent(reference.artifact_id)+'&version=2')).status,400);
-  assert.equal((await request(path+'?artifact_id=unknown&version=1')).status,400);
-  app.initializeBoard({board_id:'foreign',title:'Other',actor_id:'web-user',idempotency_key:'other'});
-  const foreign={...input,board_id:'foreign',artifact_id:'coding-report:foreign:run-original',content:{kind:'inline' as const,payload:{...input.content.payload,source:{session_id:'foreign'}}}};
+  refused(await request(path+'?artifact_id='+encodeURIComponent(reference.artifact_id)+'&version=2'),'coding.shelf_material_invalid');
+  refused(await request(path+'?artifact_id=unknown&version=1'),'shelf.unavailable');
+  app.initializeBoard({project_id:'foreign',title:'Other',actor_id:'web-user',idempotency_key:'other'});
+  const foreign={...input,project_id:'foreign',artifact_id:'coding-report:foreign:run-original',content:{kind:'inline' as const,payload:{...input.content.payload,source:{session_id:'foreign'}}}};
   app.artifacts.commands.registerVersion(foreign);
-  assert.equal((await request(path+'?artifact_id='+encodeURIComponent(foreign.artifact_id)+'&version=1')).status,400);
+  refused(await request(path+'?artifact_id='+encodeURIComponent(foreign.artifact_id)+'&version=1'),'shelf.unavailable');
   const unavailable={...input,artifact_id:'coding-report:unavailable:run-original',content:{kind:'inline' as const,payload:{...input.content.payload,source:{session_id:'unavailable'}}}};
   app.artifacts.commands.registerVersion(unavailable);
   const priorUnavailable=await request(path+'?artifact_id='+encodeURIComponent(unavailable.artifact_id)+'&version=1');assert.equal(priorUnavailable.status,200);
-  app.artifacts.commands.markUnavailable({board_id:boardId,actor_id:'web-user',artifact_id:unavailable.artifact_id,version:1,reason:'原正文失效'});
-  assert.equal((await request(path,{reference:{artifact_id:unavailable.artifact_id,version:1},expected_fingerprint:priorUnavailable.body.fingerprint})).status,400);
+  app.artifacts.commands.markUnavailable({project_id:projectId,actor_id:'web-user',artifact_id:unavailable.artifact_id,version:1,reason:'原正文失效'});
+  refused(await request(path,{reference:{artifact_id:unavailable.artifact_id,version:1},expected_fingerprint:priorUnavailable.body.fingerprint}),'shelf.invalid');
   assert.equal(shelf.snapshot().materials.length,before+1);
-  app.artifacts.commands.archiveVersion({board_id:boardId,actor_id:'web-user',...reference});
-  assert.equal((await read()).status,400); assert.equal((await request(path,confirmation)).status,400);
+  app.artifacts.commands.archiveVersion({project_id:projectId,actor_id:'web-user',...reference});
+  refused(await read(),'shelf.invalid'); refused(await request(path,confirmation),'shelf.invalid');
   assert.equal((await request(base+'/project-results')).body.results.length,0);
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),'只改 Shelf 副本，来源保持。','source archival does not rewrite the independent copy');
 });

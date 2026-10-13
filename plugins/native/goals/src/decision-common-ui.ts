@@ -1,11 +1,6 @@
-export type DecisionEventKind = "review" | "contract" | "candidate" | "rewire" | "risk" | "goalTree";
+export type DecisionEventKind = "goalTree";
 
 const HANDLED_DECISION_EVENT_TYPES: Record<DecisionEventKind, ReadonlySet<string>> = {
-  review: new Set(["review.submitted"]),
-  contract: new Set(["contract_proposal.approved", "contract_proposal.rejected"]),
-  candidate: new Set(["candidate.approved", "candidate.rejected"]),
-  rewire: new Set(["rewire.applied", "rewire.rejected"]),
-  risk: new Set(["risk.open", "risk.triggered", "risk.resolved", "risk.accepted", "risk.expired"]),
   goalTree: new Set(["goal_tree_proposal.decided"]),
 };
 
@@ -16,12 +11,6 @@ export interface GoalsDecisionPresentationPrimitives {
 
 /** Shared decision explanations and markup, with host-owned translation and escaping. */
 export function createGoalsDecisionPresentation({ translate: L, escapeHtml }: GoalsDecisionPresentationPrimitives) {
-function renderDecisionGoalLink(item: { goal: { goal_id: string; title: string; archived_at: string | null } } | null): string {
-  if (!item) return `<span class="decision-owner-link"><strong>${L("整个项目的事项")}</strong><small>${L("没有只属于某一条 Goal")}</small></span>`;
-  const base = item.goal.archived_at ? "/archive/goals/" : "/goals/";
-  return `<a class="decision-owner-link" href="${base}${encodeURIComponent(item.goal.goal_id)}"><strong>${escapeHtml(item.goal.title)}</strong><small>${L("返回这条 Goal 查看完整信息")}</small></a>`;
-}
-
 function renderNewDecisionBadge(
   createdAt: string,
   view: { events: Array<{ object_id: string; type: string; at: string }> },
@@ -88,5 +77,5 @@ function proposedGoalNextStage(goal: Record<string, unknown>): string {
   return L("随后进入“待执行”，但仍要由 Runtime 领取后才会开始。");
 }
 
-  return { renderDecisionGoalLink, renderNewDecisionBadge, renderDecisionGuidance, renderDecisionScenario, proposedGoalNextStage };
+  return { renderNewDecisionBadge, renderDecisionGuidance, renderDecisionScenario, proposedGoalNextStage };
 }

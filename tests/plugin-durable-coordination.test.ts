@@ -68,7 +68,7 @@ function baseManifest(pluginId: string): PluginManifest {
 function artifactRecord(reference: ArtifactReference): ArtifactVersionRecord {
   return {
     ...reference,
-    board_id: BOARD,
+    project_id: BOARD,
     artifact_type_id: PROJECT_TYPE,
     schema_version: 1,
     producer_plugin_id: PROJECTS,
@@ -103,12 +103,12 @@ function process(file: string, options: {
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db));
   const supervisor = new PluginSupervisor(runtime);
   const bus = new PluginEventBus({
-    boardId: BOARD,
+    projectId: BOARD,
     lifecycle: supervisor,
     repository: new SqlitePluginEventsRepository(db),
   });
   const graph = new PluginInputGraph({
-    boardId: BOARD,
+    projectId: BOARD,
     lifecycle: supervisor,
     repository: new SqlitePluginWiringRepository(db),
     artifacts: { read: (reference) => artifactRecord(reference) },
@@ -119,7 +119,9 @@ function process(file: string, options: {
       ...baseManifest(PROJECTS),
       // Ports imply these declarations; the Manifest validator refuses a Plugin without them.
       permissions: [{ permission: "artifact:write", required: true, reason: "发布当前项目" }],
-      artifacts: { produces: [{ artifact_type_id: PROJECT_TYPE, schema_version: 1 }], consumes: [] },
+      // Port values are process items: exchange data kept out of the 成果库 (artifact-positioning A2).
+      artifacts: { produces: [], consumes: [] },
+      process_items: { produces: [{ artifact_type_id: PROJECT_TYPE, schema_version: 1 }], consumes: [] },
       ports: {
         inputs: [],
         outputs: [{ port: "project", artifact_type_id: PROJECT_TYPE, schema_version: 1 }],
@@ -144,7 +146,8 @@ function process(file: string, options: {
     manifest: {
       ...baseManifest(CODING),
       permissions: [{ permission: "artifact:read", required: true, reason: "读取当前项目" }],
-      artifacts: { produces: [], consumes: [{ artifact_type_id: PROJECT_TYPE, schema_version: 1 }] },
+      artifacts: { produces: [], consumes: [] },
+      process_items: { produces: [], consumes: [{ artifact_type_id: PROJECT_TYPE, schema_version: 1 }] },
       ports: {
         inputs: [{ port: "project", artifact_type_id: PROJECT_TYPE, schema_version: 1 }],
         outputs: [],
@@ -182,7 +185,7 @@ function process(file: string, options: {
       const installId = supervisor.state(PROJECTS)?.install_id;
       assert.ok(installId);
       return bus.publish(
-        { board_id: BOARD, plugin_id: PROJECTS, install_id: installId },
+        { project_id: BOARD, plugin_id: PROJECTS, install_id: installId },
         { event_type_id: `${PROJECTS}.switched`, type_version: 1, payload },
       );
     },
@@ -198,7 +201,7 @@ test("events and wiring survive a host restart on the same database", async () =
     const first = process(file, { codingStarts: false, onEvent: (event) => received.push(event.payload) });
     await first.start();
     first.graph.bind({
-      board_id: BOARD,
+      project_id: BOARD,
       target_plugin_id: CODING,
       target_port: "project",
       source_plugin_id: PROJECTS,
@@ -259,4 +262,29 @@ test("events and wiring survive a host restart on the same database", async () =
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+// One source per input port in the durable store too (artifact-positioning, 2026-10-04): a fixed 成果 version and another
+// plugin's output replace each other, survive reopening, and go with the plugin that is removed.
+test("a port's fixed version and plugin source replace each other durably and leave with the plugin", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-wiring-fixed-"));
+  const path = join(directory, "wiring.sqlite");
+  try {
+    let db = new Database(path);
+    let repository = new SqlitePluginWiringRepository(db);
+    const fixed = { project_id: "b", target_plugin_id: "consumer", target_port: "report", artifact_id: "report", version: 3, actor_id: "web-user", created_at: "2026-10-04T00:00:00.000Z" };
+    const plugin = { project_id: "b", target_plugin_id: "consumer", target_port: "report", source_plugin_id: "producer", source_port: "report",
+      origin: "default" as const, created_at: "2026-10-04T00:00:00.000Z", updated_at: "2026-10-04T00:00:00.000Z" };
+    repository.saveBinding(plugin);
+    repository.saveArtifactBinding(fixed);
+    assert.equal(repository.getBinding("b", "consumer", "report"), null);
+    db.close(); db = new Database(path); repository = new SqlitePluginWiringRepository(db);
+    assert.deepEqual(repository.getArtifactBinding("b", "consumer", "report"), fixed);
+    repository.saveBinding(plugin);
+    assert.equal(repository.getArtifactBinding("b", "consumer", "report"), null);
+    repository.saveArtifactBinding(fixed);
+    repository.deleteBindingsForPlugin("b", "consumer");
+    assert.deepEqual([repository.getArtifactBinding("b", "consumer", "report"), repository.getBinding("b", "consumer", "report")], [null, null]);
+    db.close();
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });

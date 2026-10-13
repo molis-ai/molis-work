@@ -29,9 +29,9 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ board_id: BOARD, title: "HTTP 事件", actor_id: "user-1", idempotency_key: "init" });
+  app.initializeBoard({ project_id: BOARD, title: "HTTP 事件", actor_id: "user-1", idempotency_key: "init" });
   const created = app.goalEvents.createIntent({
-    board_id: BOARD, title: "空白互动故事", outcome: "一段可玩片段", actor_id: "web-user",
+    project_id: BOARD, title: "空白互动故事", outcome: "一段可玩片段", actor_id: "web-user",
     actor_kind: "user", idempotency_key: "intent-1",
   });
   const goalId = created.goal.goal_id;
@@ -39,7 +39,7 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
   assert.equal(blank.config.adopted_planning.length, 0);
   assert.equal(blank.config.types.length, 0);
   app.goalEvents.configure({
-    board_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
+    project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
     expected_version: 0, idempotency_key: "cfg-1",
     types: [{
       type_id: "scene", version: 1, name: "故事交付", purpose: "可体验片段", semantic_family: "delivery",
@@ -48,14 +48,14 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
   });
   const afterCfg = app.goalEvents.readState(BOARD, goalId);
   app.goalEvents.setAgreement({
-    board_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
+    project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
     idempotency_key: "agree-1",
     expected_config_version: afterCfg.config.version,
     expected_agreement_version: afterCfg.agreement.version,
     new_requirements: [{ requirement_id: "playable", statement: "能从开始走到结束", bound_type_id: "scene" }],
   });
   app.goalEvents.report({
-    board_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "rep-1",
+    project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "rep-1",
     events: [{
       type_id: "scene", type_version: 1, title: "开场已经能走进去",
       fields: { piece: "玩家可以从门口走进第一段。" },
@@ -63,12 +63,12 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
     }],
   });
   const opened = app.goalEvents.applyConcern({
-    board_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "concern-1",
+    project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "concern-1",
     action: "open", title: "重启还没验", statement: "退出后再进会丢进度", blocks_closure: true,
     scope: { requirement_ids: ["playable"] },
   });
   const requested = app.goalEvents.requestDecision({
-    board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "ask-1",
+    project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "ask-1",
     question: "是否接受当前可玩范围？",
     options: [
       { option_id: "yes", label: "接受", impact: "可以继续收尾" },
@@ -78,7 +78,7 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
     scope: { requirement_ids: ["playable"], concern_ids: [opened.concern.concern_id] },
   });
   const decided = app.goalEvents.recordTrustedDecision({
-    board_id: BOARD, goal_id: goalId, idempotency_key: "dec-1",
+    project_id: BOARD, goal_id: goalId, idempotency_key: "dec-1",
     authority: hostEventDecisionAuthority("web", BOARD, "web-user", "dec-1"),
     request_id: requested.decision_request.request_id,
     selected_option_id: "yes",
@@ -87,18 +87,18 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
     scope: { requirement_ids: ["playable"], concern_ids: [opened.concern.concern_id] },
   });
   app.goalEvents.applyConcern({
-    board_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "concern-2",
+    project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "concern-2",
     action: "accept", concern_id: opened.concern.concern_id, reason: "本轮接受重启缺口",
     cited_decision_id: decided.decision.decision_id,
   });
   const closed = app.goalEvents.submitClosure({
-    board_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "close-1",
+    project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "close-1",
     kind: "complete", result: "开场可玩", reason: "当前范围已试用",
     expected_config_version: 1, expected_agreement_version: app.goalEvents.readState(BOARD, goalId).agreement.version,
   });
   assert.equal(closed.recorded, true);
 
-  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   try {
     const stateRes = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-state`);
@@ -148,12 +148,12 @@ test("HTTP event-close rejects unknown kind without recording an event", async (
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ board_id: BOARD, title: "kind", actor_id: "user-1", idempotency_key: "init-kind" });
+  app.initializeBoard({ project_id: BOARD, title: "kind", actor_id: "user-1", idempotency_key: "init-kind" });
   const created = app.goalEvents.createIntent({
-    board_id: BOARD, title: "无效收尾", outcome: "不能默认为完成",
+    project_id: BOARD, title: "无效收尾", outcome: "不能默认为完成",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-kind",
   });
-  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   try {
     const before = app.goalEvents.readState(BOARD, created.goal.goal_id);
@@ -196,13 +196,13 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ board_id: BOARD, title: "HTTP 写入", actor_id: "user-1", idempotency_key: "init-write" });
+  app.initializeBoard({ project_id: BOARD, title: "HTTP 写入", actor_id: "user-1", idempotency_key: "init-write" });
   const created = app.goalEvents.createIntent({
-    board_id: BOARD, title: "HTTP 写入目标", outcome: "经 HTTP 保存后再读回",
+    project_id: BOARD, title: "HTTP 写入目标", outcome: "经 HTTP 保存后再读回",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-write",
   });
   const goalId = created.goal.goal_id;
-  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   const headers = {
     "content-type": "application/json",
@@ -302,13 +302,13 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ board_id: BOARD, title: "cursor", actor_id: "user-1", idempotency_key: "init-cursor" });
+  app.initializeBoard({ project_id: BOARD, title: "cursor", actor_id: "user-1", idempotency_key: "init-cursor" });
   const created = app.goalEvents.createIntent({
-    board_id: BOARD, title: "空白进展", outcome: "第一次摘要",
+    project_id: BOARD, title: "空白进展", outcome: "第一次摘要",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-cursor",
   });
   const goalId = created.goal.goal_id;
-  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
@@ -322,7 +322,7 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
     assert.equal(progress.status, 200, await progress.clone().text());
     assert.equal(app.goalEvents.readState(BOARD, goalId).progress_summary?.summary, "空白目标第一次记录进展");
     app.goalEvents.configure({
-      board_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
+      project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
       expected_version: 0, idempotency_key: "special-fields",
       types: [{
         type_id: "special", version: 1, name: "合法字段", purpose: "原文",
@@ -363,14 +363,14 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
     assert.equal((saved?.payload as { verdict?: string }).verdict, "原文 verdict");
     const readyCfg = app.goalEvents.readState(BOARD, goalId);
     app.goalEvents.setAgreement({
-      board_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
+      project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
       idempotency_key: "need-for-close",
       expected_config_version: readyCfg.config.version,
       expected_agreement_version: readyCfg.agreement.version,
       new_requirements: [{ requirement_id: "closed-result", statement: "结果已交付", bound_type_id: "special" }],
     });
     app.goalEvents.report({
-      board_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "support-close",
+      project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "support-close",
       events: [{
         type_id: "special", type_version: 1, title: "交付完成",
         fields: { requirement_id: "a", verdict: "b", title: "c" },
@@ -379,7 +379,7 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
     });
     const ready = app.goalEvents.readState(BOARD, goalId);
     const closed = app.goalEvents.submitClosure({
-      board_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "do-complete",
+      project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "do-complete",
       kind: "complete", result: "明确结果已交付", reason: "测试显式重开",
       expected_config_version: ready.config.version, expected_agreement_version: ready.agreement.version,
     });
@@ -438,9 +438,9 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ board_id: BOARD, title: "draft-owner", actor_id: "user-1", idempotency_key: "init-draft-http" });
+  app.initializeBoard({ project_id: BOARD, title: "draft-owner", actor_id: "user-1", idempotency_key: "init-draft-http" });
   const created = app.goalEvents.createIntent({
-    board_id: BOARD, title: "事件目标", outcome: "原事件约定",
+    project_id: BOARD, title: "事件目标", outcome: "原事件约定",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-draft-http",
   });
   app.goals.commands.createGoal(BOARD, {
@@ -448,7 +448,7 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
     business_logic: "旧编辑", definition_state: "draft", decomposition_state: "abstract",
     acceptance_criteria: [],
   }, { actor_id: "web-user", idempotency_key: "legacy-http-create" });
-  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
@@ -503,7 +503,7 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ board_id: BOARD, title: "definition-read", actor_id: "user-1", idempotency_key: "init-definition-http" });
+  app.initializeBoard({ project_id: BOARD, title: "definition-read", actor_id: "user-1", idempotency_key: "init-definition-http" });
   const goal = {
     goal_id: "legacy-definition-http",
     title: "保留原目标的输入输出",
@@ -528,7 +528,7 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
   };
   app.goals.commands.createGoal(BOARD, goal, { actor_id: "definition-fixture", idempotency_key: "legacy-definition-http-create", reason: "隔离验收原字段读取" });
   const before = store.snapshot(BOARD);
-  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   try {
     const page = await (await fetch(`${origin}/goals/${encodeURIComponent(goal.goal_id)}`)).text();
@@ -572,13 +572,13 @@ test("HTTP event-agree rejects unknown fields and omitted agreement version with
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ board_id: BOARD, title: "agree", actor_id: "user-1", idempotency_key: "init-agree" });
+  app.initializeBoard({ project_id: BOARD, title: "agree", actor_id: "user-1", idempotency_key: "init-agree" });
   const created = app.goalEvents.createIntent({
-    board_id: BOARD, title: "约定未知字段", outcome: "原结果",
+    project_id: BOARD, title: "约定未知字段", outcome: "原结果",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-agree-http",
   });
   const goalId = created.goal.goal_id;
-  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
@@ -619,14 +619,14 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ board_id: BOARD, title: "http-expire", actor_id: "user-1", idempotency_key: "init-expire" });
+  app.initializeBoard({ project_id: BOARD, title: "http-expire", actor_id: "user-1", idempotency_key: "init-expire" });
   const created = app.goalEvents.createIntent({
-    board_id: BOARD, title: "真实购买", outcome: "用户可以完成真实购买",
+    project_id: BOARD, title: "真实购买", outcome: "用户可以完成真实购买",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-expire",
   });
   const goalId = created.goal.goal_id;
   app.goalEvents.configure({
-    board_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
+    project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
     expected_version: 0, idempotency_key: "cfg-expire",
     types: [{
       type_id: "delivery", version: 1, name: "交付", purpose: "当前实际交付内容",
@@ -638,7 +638,7 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     return { expected_config_version: state.config.version, expected_agreement_version: state.agreement.version };
   };
   app.goalEvents.setAgreement({
-    board_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
+    project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
     idempotency_key: "agree-expire", ...versions(),
     new_requirements: [
       { requirement_id: "r-one", statement: "真实完成购买", bound_type_id: "delivery" },
@@ -646,7 +646,7 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     ],
   });
   app.goalEvents.report({
-    board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "rep-expire",
+    project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "rep-expire",
     events: [{
       type_id: "delivery", type_version: 1, title: "真实核对结果",
       fields: { result: "隔离验收记录" },
@@ -657,12 +657,12 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     }],
   });
   const closed = app.goalEvents.submitClosure({
-    board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
+    project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
     idempotency_key: "close-expire", kind: "complete", reason: "核对当前要求后明确收尾", result: "可操作的购买体验",
     ...versions(),
   });
   assert.equal(closed.completion_applied, true);
-  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
@@ -682,7 +682,7 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     assert.equal(changed.closure?.closure_id, beforeChange.closure?.closure_id);
     assert.equal(changed.closure?.superseded, true);
     const incomplete = app.goalEvents.submitClosure({
-      board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "close-after-replace", kind: "complete", reason: "核对当前要求后明确收尾", result: "可操作的购买体验",
       ...versions(),
     });
@@ -690,7 +690,7 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     assert.equal(incomplete.completion_applied, false);
 
     const staleRequest = app.goalEvents.requestDecision({
-      board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "ask-http-stale",
       question: "取消原来的真实购买要求",
       options: [
@@ -710,7 +710,7 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     assert.match(freshPage, /退休要求/);
     assert.match(freshPage, /真实完成购买/);
     app.goalEvents.setAgreement({
-      board_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
+      project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
       idempotency_key: "http-revise-before-approve", ...versions(),
       revise_requirements: [{ requirement_id: "r-one", statement: "真实购买并处理退货" }],
     });
@@ -748,16 +748,16 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ board_id: BOARD, title: "HTTP 创建", actor_id: "user-1", idempotency_key: "init-create" });
+  app.initializeBoard({ project_id: BOARD, title: "HTTP 创建", actor_id: "user-1", idempotency_key: "init-create" });
   const parent = app.goalEvents.createIntent({
-    board_id: BOARD, title: "购买体验", outcome: "用户完成购买",
+    project_id: BOARD, title: "购买体验", outcome: "用户完成购买",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "http-parent", source_kind: "web",
   });
   const dependency = app.goalEvents.createIntent({
-    board_id: BOARD, title: "实际付款", outcome: "付款完成",
+    project_id: BOARD, title: "实际付款", outcome: "付款完成",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "http-dependency", source_kind: "web",
   });
-  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   try {
     const createdResponse = await fetch(`${origin}/api/goals`, {
@@ -787,7 +787,7 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
     for (const field of ["definition_state", "decomposition_state", "fulfillment_state"]) {
       assert.equal(Object.hasOwn(created.goal, field), false);
     }
-    const finalCursor = Number(store.db.prepare("SELECT MAX(seq) AS n FROM events WHERE board_id=?").get(BOARD)?.n);
+    const finalCursor = Number(store.db.prepare("SELECT MAX(seq) AS n FROM events WHERE project_id=?").get(BOARD)?.n);
     assert.equal(created.observed_event_cursor, finalCursor);
     const replayResponse = await fetch(`${origin}/api/goals`, {
       method: "POST",
@@ -897,7 +897,7 @@ test("onboarding initialize receipt has no retired aliases and persists onboardi
     const project = catalog.getProject(initialized.project.project_id);
     store = new LocalProjectDatabase(project.database_path);
     const app = new GoalProjectApplication(store);
-    assert.equal(app.goalEvents.readState(project.board_id, initialized.goal_id).intent.source_kind, "onboarding");
+    assert.equal(app.goalEvents.readState(project.project_id, initialized.goal_id).intent.source_kind, "onboarding");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store?.close();
@@ -911,7 +911,7 @@ test("HTTP goal-tree decisions replay the original result with a stable business
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ board_id: BOARD, title: "HTTP 树决定", actor_id: "user-1", idempotency_key: "init-tree-http" });
+  app.initializeBoard({ project_id: BOARD, title: "HTTP 树决定", actor_id: "user-1", idempotency_key: "init-tree-http" });
   const treeItem = (id: string) => ({
     item_id: `item-${id}`,
     kind: "goal" as const,
@@ -922,7 +922,7 @@ test("HTTP goal-tree decisions replay the original result with a stable business
     confidence: 0.9,
   });
   const whole = app.goalTreeSubmission.submitGoalTreeProposal({
-    board_id: BOARD,
+    project_id: BOARD,
     actor_id: "runtime:test:session",
     submitted_session_id: "session",
     summary: "整组确认",
@@ -930,14 +930,14 @@ test("HTTP goal-tree decisions replay the original result with a stable business
     idempotency_key: "http-tree-whole-propose",
   });
   const partial = app.goalTreeSubmission.submitGoalTreeProposal({
-    board_id: BOARD,
+    project_id: BOARD,
     actor_id: "runtime:test:session",
     submitted_session_id: "session",
     summary: "部分确认",
     items: [treeItem("HTTP-TREE-PART-A"), treeItem("HTTP-TREE-PART-B")],
     idempotency_key: "http-tree-part-propose",
   });
-  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
@@ -1013,13 +1013,13 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ board_id: BOARD, title: "关系冲突退回", actor_id: "user-1", idempotency_key: "init-rel-conflict" });
+  app.initializeBoard({ project_id: BOARD, title: "关系冲突退回", actor_id: "user-1", idempotency_key: "init-rel-conflict" });
   const parent = app.goalEvents.createIntent({
-    board_id: BOARD, title: "购买体验", outcome: "用户完成购买",
+    project_id: BOARD, title: "购买体验", outcome: "用户完成购买",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "rel-conflict-parent", source_kind: "web",
   });
   const child = app.goalEvents.createIntent({
-    board_id: BOARD, title: "付款结果", outcome: "付款完成",
+    project_id: BOARD, title: "付款结果", outcome: "付款完成",
     parent_goal_id: parent.goal.goal_id,
     actor_id: "web-user", actor_kind: "user", idempotency_key: "rel-conflict-child", source_kind: "web",
   });
@@ -1031,7 +1031,7 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
   );
   assert.ok(relation);
   const submitted = app.goalTreeSubmission.submitGoalTreeProposal({
-    board_id: BOARD,
+    project_id: BOARD,
     actor_id: "runtime:test:session",
     submitted_session_id: "session",
     summary: "解除已经变化的父子关系",
@@ -1058,13 +1058,13 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
     reason: "提案外已经解除这条关系",
   }, { actor_id: "user-1", idempotency_key: "rel-conflict-outside-deactivate" });
   const checked = app.goalTreeCheck.checkGoalTreeProposal({
-    board_id: BOARD,
+    project_id: BOARD,
     proposal_id: submitted.proposal.proposal_id,
     actor_id: "runtime:test:session",
     idempotency_key: "rel-conflict-check",
   });
   assert.deepEqual(checked.conflict_item_ids, ["item-rel-deactivate"]);
-  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
@@ -1091,7 +1091,7 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
     assert.equal(emptyReject.status, 400, await emptyReject.clone().text());
     assert.match((await emptyReject.json() as { error: string }).error, /理由|修改意见/);
     const afterEmpty = app.goalTree.listGoalTreeProposals({
-      board_id: BOARD, proposal_id: submitted.proposal.proposal_id, include_legacy: false,
+      project_id: BOARD, proposal_id: submitted.proposal.proposal_id, include_legacy: false,
     }).proposals[0];
     assert.equal(afterEmpty?.items[0]?.decision, null);
     const rewritten = "用户改写后的退回：关系已经在提案外解除，请按当前 Goal Tree 重提。";
@@ -1110,7 +1110,7 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
     assert.equal(rejectedBody.replayed, false);
     assert.deepEqual(rejectedBody.rejected_item_ids, ["item-rel-deactivate"]);
     const stored = app.goalTree.listGoalTreeProposals({
-      board_id: BOARD, proposal_id: submitted.proposal.proposal_id, include_legacy: false,
+      project_id: BOARD, proposal_id: submitted.proposal.proposal_id, include_legacy: false,
     }).proposals[0];
     assert.equal(stored?.items[0]?.decision?.reason, rewritten);
     const replay = await fetch(`${origin}${path}`, {
@@ -1123,7 +1123,7 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
     assert.equal(replayBody.replayed, true);
     assert.deepEqual(replayBody.rejected_item_ids, ["item-rel-deactivate"]);
     const replayedStored = app.goalTree.listGoalTreeProposals({
-      board_id: BOARD, proposal_id: submitted.proposal.proposal_id, include_legacy: false,
+      project_id: BOARD, proposal_id: submitted.proposal.proposal_id, include_legacy: false,
     }).proposals[0];
     assert.equal(replayedStored?.items[0]?.decision?.reason, rewritten);
   } finally {

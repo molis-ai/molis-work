@@ -17,7 +17,7 @@ async function fixture(run: (f: { home: string; host: MolisWorkLocalHost; caller
   ref: ReturnType<typeof molisWorkHostProjectReference> }) => Promise<void>, completeText: HostCompleteText | null = null) {
   const home = await mkdtemp(join(tmpdir(), "lingguang-actions-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "a", projectId: "a" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS };
   const client = host.actionClient(ref);
   try { await run({ home, host, caller, client, ref, bound: bindActionClient(client, () => caller) }); }
@@ -51,6 +51,21 @@ test("all Lingguang business actions register before UI, enforce identity and sh
     assert.deepEqual((await bound.invoke(actions.list, {})).sparks.map(row => row.id), [spark.id]);
     await host.closeProject(ref);
     assert.deepEqual((await bound.invoke(actions.get, { id: spark.id })).spark, edited, "reopening Runtime retains original data");
+  });
+});
+
+test("lingguang.discard with the updated_at of the copy that was read keeps a spark another caller has since written to", async () => {
+  await fixture(async ({ bound, client, caller }) => {
+    const { spark } = await bound.invoke(actions.create, {});
+    await bound.invoke(actions.update, { id: spark.id, body: "The Assistant noted this meanwhile", expected_updated_at: spark.updated_at });
+    await assert.rejects(bound.invoke(actions.discard, { ids: [spark.id], expected_updated_at: { [spark.id]: spark.updated_at } }), { code: "lingguang.conflict" });
+    assert.equal((await bound.invoke(actions.get, { id: spark.id })).spark.status, "inbox", "refused: the spark and its words stay");
+    const current = (await bound.invoke(actions.get, { id: spark.id })).spark;
+    await bound.invoke(actions.discard, { ids: [spark.id], expected_updated_at: { [spark.id]: current.updated_at } });
+    assert.deepEqual((await bound.invoke(actions.list, {})).sparks, [], "the copy that is current goes");
+    // The input says what it is: a map of id to updated_at, strings only, and only for the sparks named in ids.
+    await assert.rejects(client.invoke(caller, actions.discard, { ids: [spark.id], expected_updated_at: { [spark.id]: 5 } } as never), { code: "actions.input_invalid" });
+    await assert.rejects(client.invoke(caller, actions.discard, { ids: [spark.id], expected_updated_at: "now" } as never), { code: "actions.input_invalid" });
   });
 });
 
@@ -142,20 +157,24 @@ test("real HTTP canonical and legacy URLs share Host actions and reject project 
     };
     const path = `/projects/${project.project_id}/api/plugins/lingguang`;
     const { spark } = await http(path, { title: "Canonical", body: "Same data" });
-    assert.equal((await http(`/api/plugins/lingguang?project_id=${project.project_id}`)).sparks[0].id, spark.id);
-    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const bound = bindActionClient(host.actionClient(ref), () => ({ actor_id: "owner", project_id: project.project_id, audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS }));
     assert.equal((await bound.invoke(actions.get, { id: spark.id })).spark.body, "Same data");
     await http(`${path}?project_id=other`, { title: "Denied" }, 403);
     await http(path, { project_id: "other", title: "Denied" }, 403);
-    await http(`/api/plugins/lingguang?project_id=${project.project_id}`, { project_id: "other", title: "Denied" }, 403);
-    await http("/api/plugins/lingguang", { title: "Unbound" }, 400);
-    const invalid = await fetch(origin + "/api/plugins/lingguang?project_id=does-not-exist");
-    assert.notEqual(invalid.status, 200);
+    // Only the project's own URL reaches 灵光; there is no unscoped one that picks a project from the request.
+    assert.notEqual((await fetch(origin + `/api/plugins/lingguang?project_id=${project.project_id}`)).status, 200);
     const state = await http(`${path}/conversations`, { spark_ids: [spark.id] });
-    await http(`${path}/conversations/${state.conversation.id}/messages`, { body: "No model" }, 400);
+    // W3-02-D: no model is `actions.connection_required`, whose kind (unavailable) is 503 at every plugin; 灵光 answered 400 through its own mapper.
+    await http(`${path}/conversations/${state.conversation.id}/messages`, { body: "No model" }, 503);
     assert.equal((await bound.invoke(actions.getConversation, { id: state.conversation.id })).messages.length, 0);
     assert.equal((await bound.invoke(actions.list, {})).sparks.length, 1);
+    // The page's own discard: the copy it read is named, and a spark written to since is refused (409) and stays.
+    const blank = (await http(path, {})).spark;
+    await bound.invoke(actions.update, { id: blank.id, body: "Written elsewhere", expected_updated_at: blank.updated_at });
+    const refused = await http(`${path}/discard`, { ids: [blank.id], expected_updated_at: { [blank.id]: blank.updated_at } }, 409);
+    assert.equal(refused.code, "lingguang.conflict");
+    assert.equal((await bound.invoke(actions.get, { id: blank.id })).spark.status, "inbox");
   } finally {
     if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
     catalog.close(); await host.close(); await rm(home, { recursive: true, force: true });

@@ -10,7 +10,6 @@ import {
   BUILTIN_PLANNING_METHOD_PACKS,
   GoalsModule,
   composePlanningMethodPacks,
-  hydratePlanningMethodPack,
   loadBuiltinPlanningMethodPacks,
   normalizePlanningMethodPack,
   resolvePlanningMethodPacks,
@@ -289,30 +288,6 @@ test("software planning establishes project and module SSOTs before parallel imp
   assert.ok(software.failure_modes.some((mode) => /UI、API、数据库/.test(mode)));
 });
 
-test("legacy method packs receive current dependency guidance without a data migration", () => {
-  const software = BUILTIN_PLANNING_METHOD_PACKS.find((pack) => pack.method_id === "domain-software-development")!;
-  const legacy = {
-    ...software,
-    scope: "project" as const,
-    version: 1,
-    steps: ["确定用户行为和系统边界", "实现功能"],
-    dependency_rules: [{
-      rule_id: "legacy-contract",
-      statement: "消费者实现依赖提供者契约。",
-      direction_hint: "consumer depends_on provider contract",
-    }],
-    instructions: undefined,
-  } as unknown as typeof software;
-
-  const hydrated = hydratePlanningMethodPack(legacy);
-  assert.equal(hydrated.steps, legacy.steps);
-  assert.match(hydrated.instructions, /项目级 SSOT/);
-  assert.match(hydrated.instructions, /横向共享能力/);
-  assert.match(hydrated.instructions, /模块实现/);
-  assert.match(hydrated.instructions, /consumer depends_on provider contract/);
-  assert.match(hydrated.instructions, /召回相应主题的方法/);
-});
-
 test("project planning composition keeps method paths separate and merges their checks", () => {
   const workType = BUILTIN_PLANNING_METHOD_PACKS.find((pack) => pack.method_id === "work-build-change")!;
   const software = BUILTIN_PLANNING_METHOD_PACKS.find((pack) => pack.method_id === "domain-software-development")!;
@@ -358,10 +333,10 @@ test("project and personal methods persist without a second Goal truth model", a
   const root = mkdtempSync(path.join(os.tmpdir(), "molis-work-planning-"));
   const store = new LocalProjectDatabase(path.join(root, "board.db"));
   const coordinator = new GoalProjectApplication(store, () => new Date("2026-08-22T03:00:00.000Z"));
-  coordinator.initializeBoard({ board_id: "board-1", title: "规划测试", actor_id: "user", idempotency_key: "init" });
+  coordinator.initializeBoard({ project_id: "board-1", title: "规划测试", actor_id: "user", idempotency_key: "init" });
   assert.throws(
     () => coordinator.goals.planning.saveProjectMethod({
-      board_id: "board-1",
+      project_id: "board-1",
       method: customMethod("domain-unconfirmed-research"),
       actor_id: "runtime",
       user_confirmed: false,
@@ -369,7 +344,7 @@ test("project and personal methods persist without a second Goal truth model", a
     /必须由用户确认/,
   );
   const saved = coordinator.goals.planning.saveProjectMethod({
-    board_id: "board-1",
+    project_id: "board-1",
     method: customMethod("domain-customer-research"),
     actor_id: "user",
     user_confirmed: true,
@@ -415,7 +390,7 @@ test("personal method owner preserves versions and timestamps across reopen and 
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("personal method reads do not create a Home or migrate v8 catalogs; normal open upgrades them", async () => {
+test("personal method reads do not create a Home or touch an older catalog, and opening refuses it unchanged", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "molis-work-personal-upgrade-"));
   try {
     const missingHome = path.join(root, "missing");
@@ -433,10 +408,12 @@ test("personal method reads do not create a Home or migrate v8 catalogs; normal 
       assert.deepEqual(unchanged.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get(), { value: "8" });
       assert.equal(unchanged.prepare("SELECT name FROM sqlite_master WHERE name = 'personal_planning_method_packs'").get(), undefined);
     } finally { unchanged.close(); }
-    const upgraded = await openMolisWorkProjectCatalog({ homeDirectory: root });
-    try { upgraded.personalPlanningMethods.save(customMethod("domain-after-upgrade"), "2026-09-01T01:00:00.000Z"); }
-    finally { upgraded.close(); }
-    assert.equal(readPersonalPlanningMethodPacks(root)[0]?.method_id, "domain-after-upgrade");
+    await assert.rejects(openMolisWorkProjectCatalog({ homeDirectory: root }), { code: "catalog.unsupported_schema" });
+    const refused = new Database(databasePath, { readonly: true });
+    try {
+      assert.deepEqual(refused.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get(), { value: "8" });
+      assert.equal(refused.prepare("SELECT name FROM sqlite_master WHERE name = 'personal_planning_method_packs'").get(), undefined);
+    } finally { refused.close(); }
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -446,7 +423,7 @@ test("Goals public Planning API owns method versions, graph checks, and change i
   try {
     const clock = () => new Date("2026-08-22T05:00:00.000Z");
     new GoalProjectApplication(store, clock).initializeBoard({
-      board_id: "board-module-planning",
+      project_id: "board-module-planning",
       title: "Planning Module",
       actor_id: "user",
       idempotency_key: "init-module-planning",
@@ -461,13 +438,13 @@ test("Goals public Planning API owns method versions, graph checks, and change i
     }, { now: clock });
 
     const first = goals.planning.saveProjectMethod({
-      board_id: "board-module-planning",
+      project_id: "board-module-planning",
       method: customMethod("domain-module-planning"),
       actor_id: "user",
       user_confirmed: true,
     });
     const second = goals.planning.saveProjectMethod({
-      board_id: "board-module-planning",
+      project_id: "board-module-planning",
       method: { ...customMethod("domain-module-planning"), summary: "第二版研究方法。" },
       actor_id: "user",
       user_confirmed: true,

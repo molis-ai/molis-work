@@ -9,7 +9,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 VERSION="$(node -p "require('$REPO_ROOT/package.json').version")"
-node "$SCRIPT_DIR/verify-release-versions.mjs"
+node "$REPO_ROOT/scripts/verify-release-versions.mjs"
 
 case "$(uname -m)" in
   arm64) RELEASE_ARCH="arm64" ;;

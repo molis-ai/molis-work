@@ -1,4 +1,4 @@
-import { renderSwitch, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { renderChoice, renderSwitch, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import type {
   ModelApiFormat,
   ModelProviderHealth,
@@ -21,15 +21,34 @@ import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/ser
  */
 
 export interface ModelSettingsPrimitives {
-  L(text: string): string;
+  L(text: string, values?: Record<string, string | number>): string;
   escape(value: unknown): string;
   icon(name: MolisWorkIcon): string;
+}
+
+/**
+ * One provider choice the Host offers, as the page draws it. The Host owns the catalog (names, addresses, model names);
+ * the page is told the name to show and what the template fills in, so it can say what is still missing, and never sees
+ * an address.
+ */
+export interface ModelTemplateChoice {
+  readonly template_id: string;
+  /** The Chinese wording is the key the page translates; a brand name with no Chinese is the same in every language. */
+  readonly display_name: string;
+  /** Whether choosing it fills the Base URL; the blank forms for a request shape do not. */
+  readonly fills_base_url: boolean;
+  /** Whether choosing it fills a model ID the provider keeps stable. */
+  readonly fills_model: boolean;
 }
 
 export interface ModelSettingsModel {
   readonly providers: readonly ModelProviderRecord[];
   readonly health: readonly ModelProviderHealth[];
+  /** The one-click choices the Host offers, in the order shown. */
+  readonly templates: readonly ModelTemplateChoice[];
   readonly draft_provider?: ModelProviderRecord;
+  /** The provider template the draft started from, shown as chosen. Null for a blank form. */
+  readonly draft_template_id?: string | null;
   /** Which provider the detail pane shows. Null when nothing is configured yet. */
   readonly selected_provider_id: string | null;
   readonly connections?: readonly ConnectorConnectionView[];
@@ -76,7 +95,7 @@ export function renderModelSettingsDocument(model: ModelSettingsModel): string {
     <p role="status" aria-live="polite" data-model-status></p>
     <div class="model-settings-panes">
       ${renderProviderList(model, selected?.provider_id ?? null)}
-      ${selected === undefined ? renderEmptyDetail(p) : renderProviderDetail(selected, model)}
+      ${selected === undefined ? renderEmptyDetail(model) : renderProviderDetail(selected, model, selected === model.draft_provider)}
     </div>
   </section>`;
 }
@@ -103,13 +122,23 @@ function renderProviderList(model: ModelSettingsModel, selectedId: string | null
   </nav>`;
 }
 
-function renderEmptyDetail(p: ModelSettingsPrimitives): string {
+function renderEmptyDetail(model: ModelSettingsModel): string {
+  const { primitives: p } = model;
   return `<div class="model-provider-detail mw-empty" data-model-detail-empty>
-    ${p.icon("package")}<p>${p.L("还没有配置供应商")}</p>
+    <span class="mw-empty__mark">${p.icon("package")}</span><strong>${p.L("还没有配置供应商")}</strong>
+    <p>${p.L("选一个常用供应商，替你填好地址和格式，再填上 API Key 就能用。不在列表里的，选最后两个通用格式。")}</p>
+    ${renderTemplateChoices(model.templates, p, null)}
   </div>`;
 }
 
-function renderProviderDetail(provider: ModelProviderRecord, model: ModelSettingsModel): string {
+/** One click per common provider; the form it opens is the same one a hand-made provider uses. */
+function renderTemplateChoices(templates: readonly ModelTemplateChoice[], p: ModelSettingsPrimitives, chosen: string | null): string {
+  return `<div class="mw-choice-group" role="group" aria-label="${p.L("常用供应商")}">${templates.map((template) => renderChoice({
+    label: p.L(template.display_name), selected: template.template_id === chosen, attrs: { "data-model-template": template.template_id },
+  })).join("")}</div>`;
+}
+
+function renderProviderDetail(provider: ModelProviderRecord, model: ModelSettingsModel, draft: boolean): string {
   const { primitives: p } = model;
   const health = model.health.find((entry) => entry.provider_id === provider.provider_id);
   const hasCredential = health?.credential_status === "present" || health?.status === "ready";
@@ -122,6 +151,7 @@ function renderProviderDetail(provider: ModelProviderRecord, model: ModelSetting
       <button type="button" class="mw-btn" data-model-provider-remove="${p.escape(provider.provider_id)}">${p.icon("trash")}${p.L("移除供应商")}</button>
     </header>
 
+    ${draft ? renderDraftTemplates(model, p) : ""}
     <div class="model-field"><label for="model-provider-name">${p.L("名称")}</label>
       <input class="mw-input" id="model-provider-name" data-model-name value="${p.escape(provider.display_name)}" maxlength="120"></div>
     <div class="model-field">
@@ -149,8 +179,22 @@ function renderProviderDetail(provider: ModelProviderRecord, model: ModelSetting
       ${renderThinkingField(provider, p)}
     </details>
     <div data-model-delete-confirm hidden><p>${p.L("移除这个供应商及其密钥？后续任务将无法再选择它，历史记录会保留。")}</p><button class="mw-btn" type="button" data-model-delete-cancel>${p.L("取消")}</button><button class="mw-btn" type="button" data-model-delete>${p.L("确认移除")}</button></div>
-    <footer class="model-settings-actions"><button class="mw-btn" type="button" data-model-discard>${p.L("撤销未保存修改")}</button><button class="mw-btn mw-btn--primary" type="button" data-model-save>${p.L("保存配置")}</button><span>${p.L("保存后用于后续执行；文字生成期间更改模型或连接，需重新生成。")}</span></footer>
+    <footer class="model-settings-actions"><button class="mw-btn" type="button" data-model-discard>${p.L("撤销未保存修改")}</button><button class="mw-btn mw-btn--primary" type="button" data-model-save>${p.L("保存配置")}</button><span>${p.L("保存后用于后续执行；文字生成期间更改模型或连接，需重新生成。")} ${p.L("改了地址、格式、密钥或模型再保存时，会先检查一次连接；没通过就不保存。")}</span></footer>
   </div>`;
+}
+
+/** A new provider starts from a template or from nothing; what the template cannot know is named, not guessed. */
+function renderDraftTemplates(model: ModelSettingsModel, p: ModelSettingsPrimitives): string {
+  const template = model.templates.find((choice) => choice.template_id === model.draft_template_id) ?? null;
+  const name = template === null ? "" : p.escape(p.L(template.display_name));
+  const note = template === null ? "" : !template.fills_base_url ? p.L("{name} 的格式已经选好，还差 Base URL、API Key 和模型 ID。", { name })
+    : !template.fills_model ? p.L("{name} 的地址和格式已经填好，还差 API Key 和模型 ID。", { name })
+    : p.L("{name} 的地址、格式和模型已经填好，还差 API Key。", { name });
+  return `<section class="model-section" aria-label="${p.L("常用供应商")}">
+      <h3>${p.L("从常用供应商开始")}</h3>
+      ${renderTemplateChoices(model.templates, p, template?.template_id ?? null)}
+      ${note === "" ? "" : `<p class="model-field-note">${note}</p>`}
+    </section>`;
 }
 
 /**

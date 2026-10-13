@@ -2,7 +2,8 @@ import type { ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-wor
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE, parseCodingChangeSet, type TextDiff } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { compareSnapshots, compareChangeSet, compareRunChangeSet, emptyDiff, type DiffView } from "./comparison.js";
-import { compareTexts } from "./text-diff.js";
+import { compareTexts } from "@molis-ai/molis-work-plugin-sdk";
+import { diffErrors } from "./errors.js";
 
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: "object", properties, required, additionalProperties: false });
 const text = { type: "string" }, version = { type: "integer", minimum: 1 }, count = { type: "integer", minimum: 0 }, boolean = { type: "boolean" };
@@ -39,13 +40,13 @@ export function diffActionHandlers(context: PluginStartContext): ActionHandlerBi
 function readState(context: PluginStartContext, input: DiffStateInput): DiffView {
   if (input.reference) {
     try {
-      const record = context.services?.artifacts.read(input.reference);
+      const record = context.services?.artifacts?.read(input.reference);
       if (!record || ![DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE].includes(record.artifact_type_id) || record.schema_version !== 1
-        || record.availability !== "available" || record.lifecycle_state !== "active") throw new Error("固定差异不可用");
+        || record.availability !== "available" || record.lifecycle_state !== "active") throw diffErrors.invalid("固定差异不可用");
       if (record.artifact_type_id === CODING_CHANGESET_TYPE) return compareRunChangeSet({ content: parseCodingChangeSet(record.payload),
         source_plugin_id: record.producer_plugin_id, content_version: record.version }, undefined, input.change_index ?? 0);
       return compareChangeSet({ content: record.payload, source_plugin_id: record.producer_plugin_id, content_version: record.version });
-    } catch { throw new Error("固定差异不可用，请重新选择原变更"); }
+    } catch { throw diffErrors.invalid("固定差异不可用，请重新选择原变更"); }
   }
   const inputs = context.services?.inputs;
   if (inputs?.selectedGroup() === "change-set") {
@@ -53,14 +54,14 @@ function readState(context: PluginStartContext, input: DiffStateInput): DiffView
       const record = inputs.read("changeset");
       if (!record || record.availability !== "available") return emptyDiff("change-set");
       return compareRunChangeSet({ content: parseCodingChangeSet(record.payload), source_plugin_id: record.producer_plugin_id, content_version: record.version });
-    } catch { throw new Error("Coding 固定变更当前不可读，请保留原会话后重试"); }
+    } catch { throw diffErrors.invalid("Coding 固定变更当前不可读，请保留原会话后重试"); }
   }
   if (inputs?.selectedGroup() === "git-change-set") {
     try {
       const record = inputs.read("git-changeset");
       if (!record || record.availability !== "available" || record.lifecycle_state !== "active") return emptyDiff("git-change-set");
       return compareChangeSet({ content: record.payload, source_plugin_id: record.producer_plugin_id, content_version: record.version });
-    } catch { throw new Error("Git 固定变更当前不可读，请重新选择原变更"); }
+    } catch { throw diffErrors.invalid("Git 固定变更当前不可读，请重新选择原变更"); }
   }
   if (inputs?.selectedGroup() !== "snapshots") return emptyDiff("snapshots", "请选择两份文件快照进行对比");
   const records = [inputs.read("before"), inputs.read("after")];

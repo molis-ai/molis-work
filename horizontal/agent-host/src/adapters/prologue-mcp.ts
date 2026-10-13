@@ -3,6 +3,7 @@ import { createPrologueError, redactMcpError, type ExactRef, type Runtime, type 
 import { realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import type { AgentMcpSourceRef, AgentMcpLibrary, AgentMcpServerInput, AgentMcpServerView, AgentMcpToolDescriptor, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 export type HostMcpConnection = string | { credentialRef?: string; revision: string } | null;
 const KIND = "molis-mcp";
@@ -11,7 +12,7 @@ export const mcpConnectionId = (ref: AgentMcpSourceRef) => ref.configuration_ver
 interface Saved extends Omit<AgentMcpServerInput, "auth" | "expected_version">, AgentSkillOwner {
   id: string; credential_ref?: ExactRef<"credential">; auth_connection_id?: string; removed?: boolean;
 }
-const sameOwner = (a: AgentSkillOwner, b: AgentSkillOwner) => a.board_id === b.board_id && a.plugin_id === b.plugin_id;
+const sameOwner = (a: AgentSkillOwner, b: AgentSkillOwner) => a.project_id === b.project_id && a.plugin_id === b.plugin_id;
 function text(value: unknown, label: string, max = 4096) {
   if (typeof value !== "string" || !value.trim() || value.length > max || /[\x00\r\n]/.test(value)) throw new Error(`${label}格式无效`);
   return value.trim();
@@ -19,7 +20,7 @@ function text(value: unknown, label: string, max = 4096) {
 function endpoint(value: unknown) {
   const url = new URL(text(value, "MCP 地址"));
   if (url.username || url.password || url.hash || [...url.searchParams.keys()].some(key => /^(auth|authorization|password|secret|token|access_token|refresh_token|api[_-]?key)$/i.test(key))) throw new Error("地址不能包含凭据；请使用独立认证字段");
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))) throw new Error("外部 MCP 使用 HTTPS；HTTP 仅用于本机回环地址");
+  if (url.protocol !== "https:" && !isLoopbackHttpUrl(url)) throw new Error("外部 MCP 使用 HTTPS；HTTP 仅用于本机回环地址");
   return url.toString();
 }
 

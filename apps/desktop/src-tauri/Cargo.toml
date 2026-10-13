@@ -3,7 +3,7 @@ name = "molis-work-desktop"
 version = "0.2.0"
 description = "Molis Work macOS App: WebView plus local TUI PTY"
 edition = "2021"
-rust-version = "1.77"
+rust-version = "1.82"
 
 [[bin]]
 name = "molis-work-desktop"

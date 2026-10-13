@@ -1,6 +1,8 @@
-import { prepareLocalProjectStorage } from "./project-storage.js";
+import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
+import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
-import { dispatchCliProjectCommand, DEFAULT_CLI_DATABASE, cliFlagValue as value,
+import { bindGoalsManagementActions } from "./goals-actions.js";
+import { dispatchCliProjectCommand, cliFlagValue as value,
   readCliJsonPayload as payload, printV1Help } from "@molis-ai/molis-work-app-cli";
 
 export interface V1CliOptions {
@@ -13,10 +15,11 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
     printV1Help();
     return 0;
   }
-  const storage = prepareLocalProjectStorage(
-    value(args, "--db") ?? DEFAULT_CLI_DATABASE,
-    operation === "init" || operation === "import-v3" ? "create" : "existing",
-  );
+  // A flag right after a valueless --db would be read as its value and name a database after the flag (`--json`).
+  const flagValue = value(args, "--db");
+  const location = flagValue?.startsWith("--") ? undefined : namedDatabasePath(flagValue);
+  if (!location) throw new Error("Molis Work 命令需要 --db PATH 指明项目数据库；没有默认路径，不会按当前目录猜一个。");
+  const storage = prepareLocalProjectStorage(location, operation === "init" ? "create" : "existing");
   const { databasePath } = storage;
   if (storage.status === "missing") {
     throw new Error(`Molis Work 数据库不存在: ${databasePath}`);
@@ -26,11 +29,13 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   const ownsLocalHost = !options.localHost;
   const reference = molisWorkHostProjectReference({
     databasePath,
-    boardId: String(input.board_id ?? value(args, "--board-id") ?? `database:${databasePath}`),
+    projectId: String(input.project_id ?? value(args, "--project-id") ?? `database:${databasePath}`),
   });
-  const client = localHost.client(reference);
+  // A command calls Goals' actions as the person on this machine; Goals is registered when the project opens, so no plugin is prepared first.
+  const actions = bindGoalsManagementActions(localHost.actionClient(reference, false), reference);
   try {
-    return await dispatchCliProjectCommand(client, args, input);
+    // One command is one operation: everything it calls shares a call number.
+    return await withCallId(newCallId(), () => dispatchCliProjectCommand(actions, args, input));
   } finally {
     if (ownsLocalHost) await localHost.close();
   }

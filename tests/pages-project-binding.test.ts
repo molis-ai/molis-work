@@ -80,7 +80,7 @@ test("Host 路由里的项目与 query/body 不一致时，发布在写入前失
       const database = new LocalProjectDatabase(project.database_path);
       try {
         const artifacts = new GoalProjectApplication(database).artifacts.query;
-        assert.equal(artifacts.getArtifactVersion(project.board_id, { artifact_id: `pages-${page.id}`, version: 1 }), null);
+        assert.equal(artifacts.getArtifactVersion(project.project_id, { artifact_id: `pages-${page.id}`, version: 1 }), null);
       } finally {
         database.close();
       }
@@ -102,7 +102,7 @@ test("Host 路由里的项目与 query/body 不一致时，发布在写入前失
     assert.equal(published.artifact.version, 2);
     const database = new LocalProjectDatabase(first.database_path);
     try {
-      const found = new GoalProjectApplication(database).artifacts.query.getArtifactVersion(first.board_id, {
+      const found = new GoalProjectApplication(database).artifacts.query.getArtifactVersion(first.project_id, {
         artifact_id: published.artifact.artifact_id,
         version: 2,
       });
@@ -124,7 +124,7 @@ test("合法旧库映射按目录项目发布到原来的 board，不会把 boar
   try {
     const coordinator = new GoalProjectApplication(database);
     coordinator.initializeBoard({
-      board_id: "legacy-board",
+      project_id: "legacy-board",
       title: "旧库",
       actor_id: "test",
       idempotency_key: "pages-legacy-board",
@@ -154,7 +154,7 @@ test("合法旧库映射按目录项目发布到原来的 board，不会把 boar
     assert.equal(promoted?.status, 200);
     const artifact = (promoted?.body as { artifact: { artifact_id: string; version: number } }).artifact;
     assert.equal(artifact.version, 1);
-    assert.equal(coordinator.artifacts.query.getArtifactVersion("legacy-board", artifact)?.board_id ?? "legacy-board", "legacy-board");
+    assert.equal(coordinator.artifacts.query.getArtifactVersion("legacy-board", artifact)?.project_id ?? "legacy-board", "legacy-board");
     assert.ok(coordinator.artifacts.query.getArtifactVersion("legacy-board", artifact));
     const again = await routes.handle({
       method: "POST",

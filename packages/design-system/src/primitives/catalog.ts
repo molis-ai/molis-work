@@ -1,4 +1,4 @@
-import { renderPluginPresentationExample } from '../plugin-presentation-example.js';
+import { renderCatalogExamples } from '../catalog-examples.js';
 import { icon, ICON_LIBRARY, PLUGIN_ICON, STATUS_ICON } from "../icons.js";
 import { renderProjectMonogram } from "../monogram.js";
 import {
@@ -208,7 +208,7 @@ function craftSection(): string {
 
 /** The icon inventory: which glyph each plugin and each state uses, and the four sizes. */
 function iconInventorySection(): string {
-  const PLUGIN_NAMES: Record<string, string> = { home: "项目首页", goals: "Goals", sessions: "Sessions", inbox: "Inbox", feed: "Feed", schedule: "Schedule", workflows: "工作流程", pages: "Pages", form: "Forms", dataset: "Dataset", ppt: "PPT", artifacts: "Artifacts", images: "图片", jelly: "Jelly", cognia: "Cognia", shelf: "Shelf", lingguang: "灵光", coding: "Coding", characters: "Characters", experiments: "实验", alchemist: "炼金术士", "plugin-builder": "插件创作", market: "插件市场", files: "Files", git: "Git", diff: "Diff", "text-stats": "Text stats" };
+  const PLUGIN_NAMES: Record<string, string> = { home: "项目首页", goals: "Goals", sessions: "Sessions", inbox: "Inbox", feed: "Feed", schedule: "Schedule", workflows: "工作流程", pages: "Pages", form: "Forms", dataset: "Dataset", ppt: "PPT", artifacts: "Artifacts", images: "图片", jelly: "Jelly", cognia: "Cognia", shelf: "Shelf", lingguang: "灵光", coding: "Coding", characters: "Characters", alchemist: "炼金术士", "plugin-builder": "插件创作", market: "插件市场", files: "Files", git: "Git", diff: "Diff", "text-stats": "Text stats" };
   const plugins = Object.entries(PLUGIN_ICON).map(([id, glyph]) => `<li>${icon(glyph)}<span><strong>${PLUGIN_NAMES[id] ?? id}</strong><code>${glyph}</code></span></li>`).join("");
   const STATE_NAMES: Record<string, [string, string]> = { todo: ["待开始", "idle"], progress: ["进行中", "progress"], waiting: ["等待", "idle"], "needs-you": ["需要你", "attention"], blocked: ["受阻", "blocked"], done: ["完成", "done"], cancelled: ["取消", "idle"] };
   const states = Object.entries(STATUS_ICON).map(([id, glyph]) => `<li><span class="mw-status mw-status--${STATE_NAMES[id]?.[1] ?? "idle"} mw-status--plain">${icon(glyph)}<span>${STATE_NAMES[id]?.[0] ?? id}</span></span><code>${glyph}</code></li>`).join("");
@@ -658,7 +658,7 @@ export function renderPrimitiveCatalog(): string {
     ${arrivalSection()}
     ${choiceSection}
     ${composeSection}
-    ${section("plugin-composition", "插件页面组合", renderPluginPresentationExample())}
+    ${renderCatalogExamples(section)}
     ${section("button", "Button", `<div class="mw-catalog__specimens">
       ${specimen("主操作", `${primary}${secondary}${ghost}`)}
       ${specimen("破坏性", `${danger}${dangerOutline}`)}

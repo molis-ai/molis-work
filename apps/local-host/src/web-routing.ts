@@ -1,3 +1,4 @@
+import type { ServerResponse } from "node:http";
 import type { MolisWorkProjectRecord } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { projectNavigation } from "./web-project-presentation.js";
@@ -7,7 +8,7 @@ export function fixtureWebBoardOptions(options: WebServerOptions): ResolvedWebBo
   if (!options.databasePath) return null;
   return {
     databasePath: options.databasePath,
-    boardId: options.boardId ?? "default",
+    projectId: options.projectId ?? "default",
     demo: options.demo,
     projectRoot: options.projectRoot,
     project: null,
@@ -70,7 +71,7 @@ export async function resolveWebRequest(
       pathname: match[2] || "/",
       options: {
         databasePath: project.database_path,
-        boardId: project.board_id,
+        projectId: project.project_id,
         projectRoot: serverOptions.projectRoot,
         project: projectNavigation(project),
         projects,
@@ -80,4 +81,21 @@ export async function resolveWebRequest(
       },
     };
   });
+}
+
+/** Preserve project and item context when opening the system rules page. */
+export function redirectFunctionsPage(method: string | undefined, response: ServerResponse, url: URL, resolved: ResolvedWebRequest): boolean {
+  if (method === "GET" && resolved.kind !== "project_not_found"
+    && (resolved.kind === "board" ? resolved.pathname === "/" : url.pathname === "/")
+    && (url.searchParams.get("openPlugin") === "functions" || url.searchParams.get("panePlugin") === "functions")) {
+    const next = new URL("/capabilities/rules", url.origin);
+    if (resolved.kind === "board" && resolved.options.project) next.searchParams.set("project", resolved.options.project.project_id);
+    const rule = url.searchParams.get("openItem") ?? url.searchParams.get("paneItem");
+    if (rule) next.searchParams.set("rule", rule);
+    if (url.searchParams.get("desktop") === "1") next.searchParams.set("desktop", "1");
+    response.writeHead(302, { location: next.pathname + next.search, "cache-control": "no-store" });
+    response.end();
+    return true;
+  }
+  return false;
 }

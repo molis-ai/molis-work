@@ -1,25 +1,5 @@
 /** AP3 Workbench client segment: events-secondary. */
-export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
-      }
-      if (target.closest("[data-feed-gmail-oauth-start]")) {
-        const button = target.closest("[data-feed-gmail-oauth-start]");
-        const clientId = feedSourcesDialog?.querySelector("[data-feed-gmail-client-id]")?.value || "";
-        const clientSecret = feedSourcesDialog?.querySelector("[data-feed-gmail-client-secret]")?.value || "";
-        button.disabled = true;
-        try {
-          const result = await feedApi("/api/feed/connectors/gmail/oauth/start", "POST", {
-            client_id: clientId,
-            client_secret: clientSecret,
-            redirect_uri: location.origin + route("/api/feed/connectors/gmail/oauth/callback"),
-          });
-          location.assign(result.authorizationUrl);
-        } catch (error) {
-          setFeedSourceFeedback(error.message || L("Gmail 授权启动失败"), true);
-          button.disabled = false;
-        }
-        return;
-      }
-      const feedTaskToggle = target.closest("[data-feed-task-toggle]");
+export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = target.closest("[data-feed-task-toggle]");
       if (feedTaskToggle) {
         tabWorkspace?.openPlugin("feed");
         const taskId = feedTaskToggle.dataset.feedTaskToggle || "all";
@@ -80,7 +60,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         return;
       }
       const feedEntry = target.closest("[data-feed-entry-id]");
-      if (feedEntry && !target.closest("[data-feed-action], [data-prototype-feed-action]")) {
+      if (feedEntry && !target.closest("[data-feed-action]")) {
         const stageDirectory = Boolean(document.querySelector("[data-feed-stage-directory]"));
         selectFeedItem(feedEntry.dataset.feedEntryId, !stageDirectory, true, false);
         if (!stageDirectory && !frameContainer?.isFrameTabActive()) {
@@ -190,8 +170,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
             expected_revision: expectedRevision,
           });
           saveUiState();
-          if (decisionView) await refreshBoard(true);
-          else await refreshInboxStage();
+          await refreshInboxStage();
         } catch (error) {
           if (status) {
             status.classList.remove("is-done");
@@ -300,7 +279,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
           }
         }
         const available = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === surface);
-        if (surface === "goal" && (decisionView || !available)) {
+        if (surface === "goal" && !available) {
           saveUiState();
           restoreLastGoal(true);
           return;
@@ -318,7 +297,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         if (pluginId && pluginId !== "home" && pluginId !== "market" && nextDirectory !== "root") setDirectoryCollapsed?.(false, false);
         if (!openDirectorySurface(surface, undefined, undefined, event)) setDesktopWorkSurface(surface, true, true);
         if (surface === "feed" && surfaceOpen.dataset.pluginId === "feed" && !surfaceOpen.dataset.feedSource) setFeedTask("all");
-        if (surface === "home" && !decisionView && !collectionView && localPathname() !== "/") {
+        if (surface === "home" && !collectionView && localPathname() !== "/") {
           history.pushState({ workSurface: "home" }, "", route("/"));
         }
         if (surface === "feed" && selectedFeedItem) selectFeedItem(selectedFeedItem, false, true, false);

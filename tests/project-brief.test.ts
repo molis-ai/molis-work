@@ -138,8 +138,8 @@ test("a project with no description or goals says what is missing instead of inv
   assert.match(html, /还没有项目描述/);
   assert.match(html, /还没有目标/);
   assert.match(html, /data-text="帮我为这个项目起草几个目标"/);
-  assert.match(html, /未设目标/);
-  assert.match(html, /目标定下来之后，要推进的事会出现在这里。/);
+  assert.doesNotMatch(html, /未设目标|目标进行中|目标已完成/, "a project with no goals claims no state of its own");
+  assert.match(html, /各插件有要推进或等你确认的事时，会出现在这里。/);
   assert.match(html, /还没有动静。/);
   assert.doesNotMatch(html, /工作目录/);
 });

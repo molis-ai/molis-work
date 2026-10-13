@@ -4,11 +4,13 @@ import { pluginComponentChoices, resolvePluginComponentCall } from '@molis-ai/mo
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuilderAgentRequest, BuilderAgentRecord, BuilderSkill } from '@molis-ai/molis-work-contracts/services/agent-host';
 import type { BuildManifest, BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
+import type { InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import { AgentBuilderStore } from './agent-store.js';
 import { BUILDER_PROMPTS, type BuilderPromptName } from './agent-prompts.js';
+import { BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT } from './choice-prompts.js';
 import { capabilityCandidates, focusCatalog, usedCapabilities, withinBudget, type CatalogEntry } from './agent-catalog.js';
 import { contractEffects, validateAgentDesign } from './agent-validation.js';
-import { parseModelJson } from './validation.js';
+import { parseModelJson } from './model-json.js';
 import { expandDesign, normalizeProposal } from './agent-authoring.js';
 import { presentationTask, presentationReviewTask, acceptPresentation } from './agent-presentation.js';
 import { proposalSketch, experienceTask, acceptExperience } from './agent-experience.js';
@@ -34,6 +36,11 @@ export interface AgentBuilderPorts {
    * version names which, so a run's record says whether it used the person's text.
    */
   prompt?(name: BuilderPromptName, shipped: { version: string; text: string }): { version: string; text: string };
+  /**
+   * The text a registered instruction (the two questions put to Jev, `choice-prompts.ts`) runs with now: the person's edit from
+   * 设置 › 提示词, or its default. Absent, the workflow asks with the default.
+   */
+  instruction?(prompt: InstructionPrompt): string;
   /** The capability catalog new designs are made against. */
   catalogVersion?: string;
   /** Plugins a design uses that this project has not enabled, and enabling them. */
@@ -56,12 +63,14 @@ export interface AgentBuilderPorts {
   browserAcceptance(build: AgentBuild, signal: AbortSignal): Promise<NonNullable<AgentBuild['browserResult']>>;
   /** Shared source modules already in the build (src/*.ts other than the operation files and the entry). */
   sources?(build: AgentBuild): Promise<string[]>;
-  publish(build: AgentBuild, manifest: BuildManifest, bundlePath: string, version: number): Promise<{ directory: string; bundlePath: string; packagePath: string; prompts?: PluginPrompt[] }>;
+  publish(build: AgentBuild, manifest: BuildManifest, bundlePath: string, version: number): Promise<{ directory: string; bundlePath: string; packagePath: string; prompts: PluginPrompt[] }>;
   installations(): Promise<unknown[]>;
   lifecycle(action: 'install' | 'upgrade' | 'rollback' | 'disable' | 'enable' | 'uninstall', release: AgentRelease, grants?: unknown): Promise<void>;
 }
 const snapshot = (build: AgentBuild): AgentBuildSnapshot => ({ design: build.design, nodes: build.nodes, connected: build.connected, ...(build.directory ? { directory: build.directory } : {}), ...(build.designSource ? { designSource: build.designSource } : {}), checks: build.checks, browserResult: build.browserResult, visualResult: build.visualResult });
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+/** One of the two questions put to Jev as it runs now: the person's edit from the host, or the registered default. */
+const instructionText = (ports: AgentBuilderPorts, prompt: InstructionPrompt): string => ports.instruction?.(prompt) ?? prompt.body;
 const PENDING_CASE = '前置用例失败，尚未执行';
 /** Nodes follow the design's part order however they were placed: parts kept from the previous design are placed before new ones. */
 export function inDesignOrder<T extends { id: string }>(design: { parts: readonly { id: string }[] } | null | undefined, nodes: readonly T[]): T[] {
@@ -305,7 +314,7 @@ export class AgentBuilderWorkflow {
         let selection: NonNullable<AgentBuildStep['selection']> = { source: 'rule', candidates: candidates.map(entry => entry.id), choice: capability }, note = '';
         if (jev) {
           try {
-            const answer = await this.ports.choose!({ key: 'builder-' + randomUUID(), instructions: '只从合法候选中选最适合这项功能的一个能力；同样合适时选已经启用的、主线设计原本选的。',
+            const answer = await this.ports.choose!({ key: 'builder-' + randomUUID(), instructions: instructionText(this.ports, BUILDER_CHOOSE_CAPABILITY),
               state: JSON.stringify({ title: picked.title, journey: picked.journey, operation: { id: operation.id, description: purpose, kind: operation.kind } }),
               candidates: candidates.map(entry => ({ key: entry.id, description: title(entry) + '（' + (entry.source ?? '平台') + '）：' + entry.description })) });
             signal.throwIfAborted(); this.current(id, token);
@@ -495,7 +504,7 @@ export class AgentBuilderWorkflow {
       let selection: NonNullable<AgentBuildStep['selection']> = { source: preference ? 'design' : 'rule', candidates: choices.map(choice => choice.kind), choice: preference ?? choices[0]!.kind };
       if (choices.length > 1 && this.ports.choose && this.ports.selectionAvailable?.()) {
         try {
-          const answer = await this.ports.choose({ key: 'builder-' + randomUUID(), instructions: '结合整页布局与相邻部件，从合法候选中选择组件。优先保留界面设计的偏好，不破坏主次与交互，不改变属性或合同。', state: JSON.stringify({ title: design.title, journey: design.journey, pages: design.contract.pages, presentation: design.presentation, neighbors: design.parts.filter(item => item.pageId === part.pageId), preference, part }), candidates: choices.map(choice => ({ key: choice.kind, description: choice.description })) });
+          const answer = await this.ports.choose({ key: 'builder-' + randomUUID(), instructions: instructionText(this.ports, BUILDER_CHOOSE_COMPONENT), state: JSON.stringify({ title: design.title, journey: design.journey, pages: design.contract.pages, presentation: design.presentation, neighbors: design.parts.filter(item => item.pageId === part.pageId), preference, part }), candidates: choices.map(choice => ({ key: choice.kind, description: choice.description })) });
           signal.throwIfAborted(); this.current(id, token);
           if (!answer.choice || !choices.some(choice => choice.kind === answer.choice)) throw new Error('Jev 没有返回合法组件');
           selection = { source: 'jev', candidates: choices.map(choice => choice.kind), choice: answer.choice, model: answer.model, elapsedMs: answer.elapsedMs, confidence: answer.confidence };

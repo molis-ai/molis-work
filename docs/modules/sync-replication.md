@@ -8,4 +8,4 @@
 
 **不负责：** 不实现 ACK、Cursor、Replay、CAS 或 Blob 传输，这些属于 Exchange；不直接写 Goals/Artifacts Store；不自动同步 Plugin 私有草稿或缓存。
 
-**当前状态：** 无完整实现。F2 创建 `contract-only` package；真正同步功能需要未来独立 Spec。
+**当前状态：** 无实现，也没有包（占位包已删除）；真正同步功能需要未来独立 Spec。

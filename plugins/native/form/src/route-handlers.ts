@@ -1,6 +1,6 @@
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { formActions } from "./actions.js";
-import type { FormPluginRouteContext, FormPluginRouteHandler, FormPluginRouteResponse } from "./routes.js";
+import type { FormPluginRouteContext, FormPluginRouteHandler } from "./routes.js";
 
 export interface FormRoutePorts {
   readonly actions: BoundActionClient;
@@ -36,12 +36,4 @@ export function createFormRouteHandlers(ports: FormRoutePorts): Record<string, F
     "form.csv": call(formActions.csv, ({ params }) => ({ id: params.id })),
     "form.fillpage": call(formActions.fillPage, ({ params }) => ({ id: params.id })),
   };
-}
-
-export function formRouteErrorResponse(error: unknown): FormPluginRouteResponse {
-  const code = error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : "";
-  const message = error instanceof Error ? error.message : "问卷请求失败";
-  const status = code === "form.not_found" ? 404 : ["form.unavailable", "form.conflict", "form.closed", "form.request_conflict", "form.publication_pending", "form.publication_conflict"].includes(code) ? 409
-    : ["actions.forbidden", "actions.scope_mismatch", "form.publication_owner"].includes(code) ? 403 : 400;
-  return { status, body: { error: message, ...(code ? { code } : {}) } };
 }

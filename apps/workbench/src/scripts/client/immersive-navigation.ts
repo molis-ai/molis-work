@@ -19,7 +19,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   ];
   const frame = document.querySelector("[data-goal-node-workspace]");
   const workMain = document.querySelector("[data-goal-work-main]");
-  const modesScope = getState().project?.project_id || getState().snapshot.board.board_id;
+  const modesScope = getState().project?.project_id || getState().snapshot.board.project_id;
   const modesKey = "molis-work-goal-work-modes:" + modesScope;
   let modes = {};
   try { modes = JSON.parse(localStorage.getItem(modesKey) || "{}"); } catch {}

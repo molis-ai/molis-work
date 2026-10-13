@@ -15,7 +15,7 @@ test("system capability pages derive unknown capabilities, bindings, lifecycle a
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "能力范围", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions: { env: {} } });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: "capabilities-ui-test-control-token" });
   let enabled = true, calls = 0;
@@ -35,8 +35,8 @@ test("system capability pages derive unknown capabilities, bindings, lifecycle a
       scene_version: inboxNextScene.version, project_id: project.project_id, function: definition, enabled: true, title: "实际入箱绑定" });
     const store = openFunctionsStore(home);
     try {
-      for (const [key, board] of [["global-record", undefined], ["selected-record", project.board_id], ["other-record", "other-project"]] as const) {
-        store.recordJudgment({ function_key: key, function_version: 1, subject: { kind: "mcp_invoke", id: key, ...(board ? { board_id: board } : {}) },
+      for (const [key, board] of [["global-record", undefined], ["selected-record", project.project_id], ["other-record", "other-project"]] as const) {
+        store.recordJudgment({ function_key: key, function_version: 1, subject: { kind: "mcp_invoke", id: key, ...(board ? { project_id: board } : {}) },
           scene_id: null, outcome: "ok", suggested_behavior_ids: [], error_code: null });
       }
     } finally { store.close(); }
@@ -70,6 +70,13 @@ test("system capability pages derive unknown capabilities, bindings, lifecycle a
     assert.equal((await fetch(`${base}/capabilities/library?project=missing`)).status, 404, "unknown scope must not silently show Home");
     enabled = false;
     assert.match(await read(selected), /测试服务已断开/);
+    // A call turned away because the service is disconnected is in the call history, marked as not run (not as failed), with its error code and not the reason.
+    await assert.rejects(host.actionClient(reference).invoke(caller, definition, {}));
+    const turnedAway = await read(`/capabilities/history?project=${project.project_id}`);
+    assert.match(turnedAway, /<span class="is-unavailable">未执行<\/span>/);
+    assert.match(turnedAway, /<p>错误码：test\.disconnected<\/p>/);
+    assert.doesNotMatch(turnedAway, /测试服务已断开|未执行的原因/, "the reason the provider gave is not stored, so it is not shown");
+    assert.doesNotMatch(turnedAway, /<span class="is-unavailable">失败<\/span>/);
     enabled = true;
     assert.doesNotMatch(await read(selected), /测试服务已断开/);
     stop();

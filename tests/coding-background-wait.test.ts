@@ -60,7 +60,7 @@ test("a round leaves a long command running in the background and parks on it: n
     };
     return script[who]!(turn);
   });
-  const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
+  const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
   const authority = { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [root] };
   const reviews: any[] = [];
   const open = async () => {

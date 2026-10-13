@@ -124,6 +124,7 @@ function definitionFor(
 }
 
 function defaultProviderFor(source: FeedSourceRecord): IntegrationProviderPort {
+  // Every account source reads through its own connection; a source without one has no account to read.
   if (source.sync_kind === "github") return createGithubConnector({ allowFixture: false,
     ...(source.config.connection_id && source.credential_ref ? { authRef: source.credential_ref } : {}),
   });
@@ -132,18 +133,14 @@ function defaultProviderFor(source: FeedSourceRecord): IntegrationProviderPort {
     return createGmailConnector({
       allowFixture: false,
       scope: normalizeGmailScope(source.config.scope),
-      ...(isGmailTokenRefs(tokenRefs) ? { tokenRefs } : {}),
+      ...(source.config.connection_id && isGmailTokenRefs(tokenRefs) ? { tokenRefs } : {}),
       ...(source.config.connection_id && source.credential_ref && !isGmailTokenRefs(tokenRefs)
         ? { authRef: source.credential_ref } : {}),
     });
   }
   if (source.sync_kind === "connector") {
     return createCatalogConnector({ connectorId: source.kind,
-      ...(source.config.connection_id && source.credential_ref ? {
-        credentialRef: source.credential_ref,
-        ...(typeof source.config.refresh_ref === "string" ? { refreshRef: source.config.refresh_ref } : {}),
-      } : {}),
-    });
+      ...(typeof source.config.connection_id === "string" ? { connectionId: source.config.connection_id } : {}) });
   }
   throw new Error(`unsupported_official_integration:${source.sync_kind}`);
 }

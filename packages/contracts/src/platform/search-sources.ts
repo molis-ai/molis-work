@@ -7,8 +7,6 @@ import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js"
  */
 export const SEARCH_ENTRIES_INPUT_TYPE = "molis.search.entries.window.v1";
 export const SEARCH_ENTRIES_OUTPUT_TYPE = "molis.search.entries.page.v1";
-export const SEARCH_QUERY_INPUT_TYPE = "molis.search.query.request.v1";
-export const SEARCH_QUERY_OUTPUT_TYPE = "molis.search.query.hits.v1";
 export const SEARCH_ENTRIES_PAGE_LIMIT = 500;
 
 /** Where the person opens an object: the Workbench plugin surface and the object's id inside it. */
@@ -40,18 +38,6 @@ export interface SearchEntriesPage {
   collection_revision: string;
 }
 
-/** Optional: content that must not be persisted is searched by its owner at query time. */
-export interface SearchQueryInput { query: string; limit: number }
-export interface SearchQueryHit {
-  subject: ActionSubject;
-  revision: string;
-  title: string;
-  snippet: string;
-  updated_at: string | null;
-  open: SearchOpenTarget | null;
-}
-export interface SearchQueryResult { hits: SearchQueryHit[] }
-
 const token = { type: "string", minLength: 1, maxLength: 64, pattern: "^[a-zA-Z0-9_-]+$" };
 const id = { type: "string", minLength: 1 };
 const text = (maxLength: number) => ({ type: "string", maxLength });
@@ -64,11 +50,6 @@ export const SEARCH_ENTRY_SCHEMA = { type: "object", properties: { subject: ACTI
   updated_at: nullableText, content: { enum: ["context", "summary"] }, open }, required: ["subject", "revision", "title", "summary", "updated_at", "content", "open"], additionalProperties: false };
 export const SEARCH_ENTRIES_OUTPUT_SCHEMA = { type: "object", properties: { entries: { type: "array", maxItems: SEARCH_ENTRIES_PAGE_LIMIT, items: SEARCH_ENTRY_SCHEMA },
   next_cursor: nullableText, collection_revision: { ...id, maxLength: 200 } }, required: ["entries", "next_cursor", "collection_revision"], additionalProperties: false };
-export const SEARCH_QUERY_INPUT_SCHEMA = { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 200 }, limit: { type: "integer", minimum: 1, maximum: 50 } },
-  required: ["query", "limit"], additionalProperties: false };
-export const SEARCH_QUERY_HIT_SCHEMA = { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, revision: { ...id, maxLength: 200 }, title: text(1000), snippet: text(1000),
-  updated_at: nullableText, open }, required: ["subject", "revision", "title", "snippet", "updated_at", "open"], additionalProperties: false };
-export const SEARCH_QUERY_OUTPUT_SCHEMA = { type: "object", properties: { hits: { type: "array", maxItems: 50, items: SEARCH_QUERY_HIT_SCHEMA } }, required: ["hits"], additionalProperties: false };
 
 /**
  * Who may list a source unless the owner narrows it. A source never reaches further than the owner's own reads:
@@ -85,23 +66,13 @@ const metadata = (kinds: readonly SearchSourceKind[], title: string, permissions
 /** One declaration per source: which kinds it lists and where they open. Discovery confers no authority. */
 export function defineSearchEntriesAction(capabilityId: string, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[],
   scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = SEARCH_SOURCE_AUDIENCES): ActionDefinition<SearchEntriesInput, SearchEntriesPage> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences),
+  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, `列出可搜索的${/^[A-Za-z]/.test(title) ? " " : ""}${title}`, permissions, scope, audiences),
     description: `按版本分页列出${title}的全部可搜索条目，供系统搜索建立与更新索引；不修改数据。`,
     input_type: SEARCH_ENTRIES_INPUT_TYPE, output_type: SEARCH_ENTRIES_OUTPUT_TYPE, input_schema: SEARCH_ENTRIES_INPUT_SCHEMA, output_schema: SEARCH_ENTRIES_OUTPUT_SCHEMA } };
 }
 
-export function defineSearchQueryAction(capabilityId: string, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[],
-  scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = SEARCH_SOURCE_AUDIENCES): ActionDefinition<SearchQueryInput, SearchQueryResult> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences),
-    description: `在${title}的原数据中按需搜索；结果不写入系统索引。`,
-    input_type: SEARCH_QUERY_INPUT_TYPE, output_type: SEARCH_QUERY_OUTPUT_TYPE, input_schema: SEARCH_QUERY_INPUT_SCHEMA, output_schema: SEARCH_QUERY_OUTPUT_SCHEMA } };
-}
-
 export function isSearchEntriesSource(action: { input_type?: string; output_type?: string }): boolean {
   return action.input_type === SEARCH_ENTRIES_INPUT_TYPE && action.output_type === SEARCH_ENTRIES_OUTPUT_TYPE;
-}
-export function isSearchQuerySource(action: { input_type?: string; output_type?: string }): boolean {
-  return action.input_type === SEARCH_QUERY_INPUT_TYPE && action.output_type === SEARCH_QUERY_OUTPUT_TYPE;
 }
 
 /** Text a plain-text index may hold: control characters removed, whitespace folded, bounded. */
@@ -151,29 +122,4 @@ export function bindSearchEntriesHandler(definition: ActionDefinition<SearchEntr
   availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding {
   return { capability_id: definition.capability_id, version: definition.version, ...(availability ? { availability } : {}),
     handle: async (caller, input) => searchEntriesPage(await list(caller), input as SearchEntriesInput) };
-}
-
-/** Manifest-level check shared by inspectActionDeclarations. Returns problems, never throws. */
-export function searchSourceDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[] {
-  const problems: string[] = [];
-  const entries = isSearchEntriesSource(action as { input_type?: string; output_type?: string });
-  const query = isSearchQuerySource(action as { input_type?: string; output_type?: string });
-  const mentions = [SEARCH_ENTRIES_INPUT_TYPE, SEARCH_ENTRIES_OUTPUT_TYPE, SEARCH_QUERY_INPUT_TYPE, SEARCH_QUERY_OUTPUT_TYPE]
-    .some(type => action.input_type === type || action.output_type === type);
-  if (!mentions && action.search_source === undefined) return problems;
-  const kinds = (action.search_source as { kinds?: unknown } | undefined)?.kinds;
-  const subjectKinds = Array.isArray(action.subject_kinds) ? action.subject_kinds as unknown[] : [];
-  const kindsValid = Array.isArray(kinds) && kinds.length > 0 && kinds.every(entry => !!entry && typeof entry === "object"
-    && typeof (entry as SearchSourceKind).kind === "string" && subjectKinds.includes((entry as SearchSourceKind).kind)
-    && typeof (entry as SearchSourceKind).title === "string" && (entry as SearchSourceKind).title.trim().length > 0
-    && typeof (entry as SearchSourceKind).surface === "string" && /^[a-zA-Z0-9_-]{1,64}$/u.test((entry as SearchSourceKind).surface))
-    && new Set(kinds.map(entry => (entry as SearchSourceKind).kind)).size === kinds.length && kinds.length === subjectKinds.length;
-  const schemas = entries ? [SEARCH_ENTRIES_INPUT_SCHEMA, SEARCH_ENTRIES_OUTPUT_SCHEMA] : query ? [SEARCH_QUERY_INPUT_SCHEMA, SEARCH_QUERY_OUTPUT_SCHEMA] : null;
-  // The index is built as the local person; a source closed to `user` could never be indexed.
-  const openToUser = Array.isArray(action.audiences) && (action.audiences as unknown[]).includes("user");
-  if (!schemas || operation !== "query" || action.kind !== "query" || !["home", "project"].includes(String(action.scope)) || !kindsValid || !openToUser
-    || canonical(action.input_schema) !== canonical(schemas[0]) || canonical(action.output_schema) !== canonical(schemas[1])) {
-    problems.push(`能力 ${key} 没有兑现搜索来源协议 v1：需要规范输入输出、查询类型、对本机用户开放与对应对象种类的打开位置`);
-  }
-  return problems;
 }

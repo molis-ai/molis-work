@@ -28,7 +28,7 @@ test("packed Node adapter sends frozen material as data, keeps task unchanged an
   let adapter: Awaited<ReturnType<typeof make>> | undefined;
   try {
     adapter = await make();
-    const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "u" };
+    const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "u" };
     const directory = { canonical_path: root, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "固定材料" });
     const material = { material_id: "file-before@1", title: "fixture / cart.mjs", source_artifact_id: "file-before", source_version: 1,

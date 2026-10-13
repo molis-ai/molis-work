@@ -6,7 +6,7 @@ import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
 import { PLUGIN_MEMBERSHIP_FACTORY_SCRIPT } from "./plugin-membership.js";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { NAVIGATION_PRESENTATION_SCRIPT, DOCK_SCRIPT } from "./navigation-presentation.js";
-import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
+import { GLOBAL_SEARCH_FACTORY_SCRIPT, SEARCH_ITEM_TAB_SURFACES } from "./global-search.js";
 import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "./background-tasks.js";
 import { PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT } from "./plugin-notifications.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
@@ -68,7 +68,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
     (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ translate: L, route, projectId: state.project?.project_id });
     // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3).
-    (${SIDE_FILES_FACTORY_SCRIPT})({ translate: L, route, openRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id) });
+    // A surface that opens its items as tabs (the 成果库 opens a version) gets the item; the rest choose the record in their list.
+    (${SIDE_FILES_FACTORY_SCRIPT})({ translate: L, route, openRecord: (plugin, id, title) => ${JSON.stringify([...SEARCH_ITEM_TAB_SURFACES])}.includes(plugin) ? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id) });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
       translate: L,
       route, headers: () => molisWorkControlHeaders(), projectId: state.project?.project_id || document.body.dataset.projectId || "",
@@ -118,8 +119,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
     ${CODING_SETTINGS_CLIENT_SCRIPT}
     (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(),
-      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
-      project: { id: state.project?.project_id || state.snapshot.board.board_id, title: state.project?.display_name || state.snapshot.board.title || "" },
+      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
+      project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || state.snapshot.board.title || "" },
     });
     (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders(),
       openSearch: (query) => globalSearchPalette?.open(document.activeElement, query) });
@@ -143,11 +144,12 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       noteCover: (kind, place) => tabWorkspace?.noteCover?.(kind, place),
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
       hideDirectory: () => immersiveNavigation?.hideDirectory(),
+      showToast,
       projectId: state.project?.project_id || "",
     });
     bindGoalCreateEvents();
     addEventListener("popstate", (event) => {
-      if (localPathname() === "/" && !decisionView && !collectionView) {
+      if (localPathname() === "/" && !collectionView) {
         setDesktopDirectory("root", false, false);
         if (!openWorkbenchSurface("home")) setDesktopWorkSurface("home");
       } else handleGoalPopState(event);
@@ -198,10 +200,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       scheduleGoalGraphLayout();
     });
 
-    if (decisionView && location.hash.startsWith("#decision-goal-")) {
-      const goalId = decodeURIComponent(location.hash.slice("#decision-goal-".length));
-      if (goalId) location.replace(route("/goals/" + encodeURIComponent(goalId)));
-    }
     setTreeWidth(treePane.getBoundingClientRect().width, false);
     if (tuiPane) setTuiWidth(tuiPane.getBoundingClientRect().width, false);
     let restoredUi = false;
@@ -209,7 +207,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     try {
       const stored = JSON.parse(
         sessionStorage.getItem(storageKey) ||
-        (!decisionView && !collectionView ? sessionStorage.getItem(goalUiStorageKey) : null) ||
+        (!collectionView ? sessionStorage.getItem(goalUiStorageKey) : null) ||
         "null",
       );
       if (stored) {
@@ -254,7 +252,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       if (settingsKind === "project-settings") void settingsDirectory?.loadProjectSection?.(section || settingsDirectory?.getProjectActive?.() || "general", fetchPath);
       else void settingsDirectory?.loadSection?.(section || settingsDirectory?.getActive?.() || "appearance", fetchPath);
     }
-    if (!tabWorkspace && !directGoalRequested && !restoredNavigation && !decisionView && !collectionView) {
+    if (!tabWorkspace && !directGoalRequested && !restoredNavigation && !collectionView) {
       goalWorkspaceMode = "graph";
       setDesktopDirectory("root", false, false);
       setDesktopWorkSurface("home", false, false);
@@ -323,7 +321,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     tabWorkspace?.apply();
     if (directGoalRequested && selected && !restoredNavigation && tabWorkspace) {
       tabWorkspace.openItem("goals", selected);
-    } else if (tabWorkspace && !directGoalRequested && !decisionView && !collectionView) {
+    } else if (tabWorkspace && !directGoalRequested && !collectionView) {
       const navigationType = performance.getEntriesByType("navigation")[0]?.type;
       if (navigationType !== "reload" && navigationType !== "back_forward" && !tabWorkspace.isEmbedded?.()) tabWorkspace.landAtProjectRoot();
     }
@@ -341,6 +339,12 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     openRequestedFeedRule();
     // An address the project does not have opens here (the server sends it with ?missing=): say so, then forget it.
+    // A plugin the studio just installed opens once its entry is on the page (?openSurface=app-…), then the address forgets it.
+    const askedSurface = new URLSearchParams(location.search).get("openSurface");
+    if (askedSurface && /^app-[a-f0-9-]{36}$/.test(askedSurface)) {
+      const cleaned = new URL(location.href); cleaned.searchParams.delete("openSurface"); history.replaceState(history.state, "", cleaned);
+      setTimeout(() => [...document.querySelectorAll("[data-work-surface-open]")].find((el) => el.dataset.workSurfaceOpen === askedSurface)?.click(), 0);
+    }
     const missingPage = new URLSearchParams(location.search).get("missing");
     if (missingPage) {
       showToast(L("找不到这个页面：{path}").replace("{path}", missingPage), true);

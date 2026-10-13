@@ -24,9 +24,13 @@ pub const HOTKEY_CAPTURE: u32 = 2;
 pub const HOTKEY_FILES: u32 = 3;
 
 pub const NO_BROWSER: &str = "没读到当前页。把 Safari、Chrome 或 Edge 放到最前面，再抓一次。";
-pub const NO_BROWSER_HOTKEY: &str = "没读到当前页。把 Safari、Chrome 或 Edge 放到最前面，再按 ⌃⌥W。";
-pub const NEED_ACCESSIBILITY: &str = "第一次抓页需要授权。点「去授权」，允许辅助功能后再点「再试」。";
-pub const NEED_ACCESSIBILITY_RETRY: &str = "需要辅助功能才能读当前页地址。点「去授权」，允许后再点「再试」。";
+#[cfg(test)]
+pub const NO_BROWSER_HOTKEY: &str =
+    "没读到当前页。把 Safari、Chrome 或 Edge 放到最前面，再按 ⌃⌥W。";
+pub const NEED_ACCESSIBILITY: &str =
+    "第一次抓页需要授权。点「去授权」，允许辅助功能后再点「再试」。";
+pub const NEED_ACCESSIBILITY_RETRY: &str =
+    "需要辅助功能才能读当前页地址。点「去授权」，允许后再点「再试」。";
 pub const FILES_SELF: &str = "到 Finder 或编辑器里选中文件再按。";
 pub const FILES_NEED_AX: &str = "加入选中文件需要辅助功能。";
 pub const FILES_NEED_FINDER: &str = "加入 Finder 里选中的文件需要允许控制 Finder。";
@@ -406,6 +410,7 @@ pub fn capture_failure(
     }
 }
 
+#[cfg(test)]
 pub fn occupied_message(label: &str) -> String {
     format!("{label} 已被占用，这次没注册上。")
 }
@@ -779,8 +784,7 @@ fn attr(tag: &str, name: &str) -> Option<String> {
     }
     let quote = bytes[start];
     if quote == b'"' || quote == b'\'' {
-        let end = tag[start + 1..]
-            .as_bytes()
+        let end = tag.as_bytes()[start + 1..]
             .iter()
             .position(|&ch| ch == quote)?
             + start
@@ -915,22 +919,10 @@ mod tests {
 
     #[test]
     fn toggle_hides_only_when_shelf_is_already_front() {
-        assert_eq!(
-            toggle_action(true, true, true),
-            ToggleAction::HideMain
-        );
-        assert_eq!(
-            toggle_action(true, false, true),
-            ToggleAction::ShowShelf
-        );
-        assert_eq!(
-            toggle_action(false, false, true),
-            ToggleAction::ShowShelf
-        );
-        assert_eq!(
-            toggle_action(true, true, false),
-            ToggleAction::ShowShelf
-        );
+        assert_eq!(toggle_action(true, true, true), ToggleAction::HideMain);
+        assert_eq!(toggle_action(true, false, true), ToggleAction::ShowShelf);
+        assert_eq!(toggle_action(false, false, true), ToggleAction::ShowShelf);
+        assert_eq!(toggle_action(true, true, false), ToggleAction::ShowShelf);
     }
 
     #[test]
@@ -969,9 +961,7 @@ mod tests {
             Err(FrontFileFailure::NeedAccessibility)
         );
         assert_eq!(decide_front(FrontFileKind::Other, true, true), Ok(()));
-        assert!(FrontFileFailure::Browser
-            .message("⌃⌥W")
-            .contains("⌃⌥W"));
+        assert!(FrontFileFailure::Browser.message("⌃⌥W").contains("⌃⌥W"));
     }
 
     #[test]
@@ -1042,10 +1032,7 @@ mod tests {
 
     #[test]
     fn occupied_copy_does_not_pretend_the_chord_registered() {
-        assert_eq!(
-            occupied_message("⌃⌥D"),
-            "⌃⌥D 已被占用，这次没注册上。"
-        );
+        assert_eq!(occupied_message("⌃⌥D"), "⌃⌥D 已被占用，这次没注册上。");
     }
 
     #[test]

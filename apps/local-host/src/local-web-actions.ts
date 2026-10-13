@@ -1,4 +1,4 @@
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -6,16 +6,21 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 /** Only the authenticated local-user transport uses this adapter; it is not an Agent/MCP grant resolver. */
 export async function localWebActionContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
   builtinPermissions: readonly string[]): Promise<ActionCallContext> {
-  const base: ActionCallContext = { actor_id: "web-user", project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions };
+  const base: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions };
   // Inspection activates the actual project providers. Metadata alone never supplies a grant.
   const catalog = await host.inspectActions(base, reference);
   const installed = reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list()) : [];
   const grants = new Map(installed.filter(row => row.state === "running").map(row => [row.install_id, row]));
+  for (const record of host.homePlugins?.installations() ?? []) if (record.state === "running") grants.set(record.install_id, record);
+  // The installation a provider's grants come from is the one its registration names, not whatever its provider id looks like:
+  // a plugin that ships with the Host registers under its plugin_id, and its Host-assembled providers share that id.
+  const installOf = (provider: ActionProvider) => provider.plugin_install_id === undefined ? undefined : grants.get(provider.plugin_install_id);
   const builtin = (permissions: readonly string[]) => permissions.every(permission => builtinPermissions.includes(permission));
   const accepted = catalog.filter(view => {
     if (builtin(view.action.permissions)) return true;
-    const install = grants.get(view.provider.provider_id);
-    return !!reference && view.provider.project_id === reference.project_id && view.provider.kind === "plugin"
+    const install = installOf(view.provider);
+    const scopeMatches = view.provider.project_id ? view.provider.project_id === reference?.project_id : view.action.scope === "home";
+    return scopeMatches && view.provider.kind === "plugin"
       && !!install && install.plugin_id === view.provider.plugin_id
       && view.action.permissions.every(permission => install.grants.includes(permission));
   });
@@ -24,7 +29,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   const candidates = [...new Set([...builtinPermissions, ...[...grants.values()].flatMap(row => row.grants)])];
   const scenes = reference ? await host.sceneClient(reference).discoverScenes({ ...base, permissions: candidates }) : [];
   const scenePermissions = scenes.flatMap(view => {
-    const install = grants.get(view.provider.provider_id);
+    const install = installOf(view.provider);
     if (!reference || view.provider.kind !== "plugin" || view.provider.project_id !== reference.project_id
       || !install || install.plugin_id !== view.provider.plugin_id) return [];
     return [...view.definition.permissions, ...view.definition.configuration_permissions ?? []].filter(permission => install.grants.includes(permission));
@@ -38,8 +43,12 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
       if (original && builtin(original.action.permissions)) return;
       // Re-read the original grant owner directly, rather than rediscovering every provider on each nested call.
       // The common dispatcher separately checks current definitions, source lifetime and action availability.
-      const install = original && reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).get(original.provider.provider_id)) : null;
+      const installId = original?.provider.plugin_install_id;
+      const install = installId && original?.provider.project_id && reference
+        ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).get(installId))
+        : installId ? host.homePlugins?.installations().find(record => record.install_id === installId) : null;
       if (!original || !install || install.state !== "running" || install.plugin_id !== original.provider.plugin_id
+        || install.installation_generation !== installOf(original.provider)?.installation_generation
         || !original.action.permissions.every(permission => install.grants.includes(permission))) {
         throw new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态");
       }

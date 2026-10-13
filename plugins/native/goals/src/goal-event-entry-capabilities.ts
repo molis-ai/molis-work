@@ -1,191 +1,48 @@
-import type {
-  HostCapabilityDefinition,
-  LocalHostProjectClient,
-} from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { GoalEventApplication } from "./goal-event-application.js";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { GoalEventTrustedAuthority, RecordGoalUserDecisionInput } from "@molis-ai/molis-work-contracts/modules/goals";
+import { hostEventDecisionAuthority, type GoalEventApplication } from "./goal-event-application.js";
+import { evidenceText, managementEvidence } from "./management-evidence.js";
 
+/** Management writes take no caller identity. The host records the person on this machine. */
+type WithoutActor<T> = Omit<T, "actor_id" | "actor_kind">;
+
+/**
+ * The two typed event entries that still have a caller in the product: the first-run setup that creates the first Goal
+ * (`web-onboarding`) and the management MCP's recorded decision. Every other event read and write of Goals is a registered
+ * action (`goalsActions`); a test that needs to write as the person on this machine calls that action as a management caller.
+ */
 export interface GoalEventEntryApi {
   createIntent: GoalEventApplication["createIntent"];
-  listGoals: GoalEventApplication["listGoals"];
-  readState: GoalEventApplication["readState"];
-  configure: GoalEventApplication["configure"];
-  report: GoalEventApplication["report"];
-  listEvents: GoalEventApplication["listEvents"];
-  listLatestEvents: GoalEventApplication["listLatestEvents"];
-  listLatestTimeline: GoalEventApplication["listLatestTimeline"];
-  readEvent: GoalEventApplication["readEvent"];
-  recordProgress: GoalEventApplication["recordProgress"];
-  applyConcern: GoalEventApplication["applyConcern"];
-  requestDecision: GoalEventApplication["requestDecision"];
-  citeDecision: GoalEventApplication["citeDecision"];
   recordTrustedDecision: GoalEventApplication["recordTrustedDecision"];
-  setAgreement: GoalEventApplication["setAgreement"];
-  submitClosure: GoalEventApplication["submitClosure"];
-  resumeWork: GoalEventApplication["resumeWork"];
-  recordNote: GoalEventApplication["recordNote"];
 }
 
+// Both writes are management entries, so each is `host_only`: the person on this machine is recorded as the writer, and a plugin
+// that lists one under capabilities.consumes is refused (`actions.host_only`) instead of being recorded as that person. A plugin
+// writes through a registered action, which takes its identity from the call context. tests/goal-management-identity.test.ts
+// fails when a typed event write is exported without the flag.
 export const createGoalIntentCapability = {
   capability_id: "io.molis.work.goals.events.create-intent",
   version: 1,
   operation: "command",
+  host_only: true,
 } as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["createIntent"]>[0],
+  WithoutActor<Parameters<GoalEventEntryApi["createIntent"]>[0]>,
   ReturnType<GoalEventEntryApi["createIntent"]>
 >;
 
-export const listGoalDirectoryCapability = {
-  capability_id: "io.molis.work.goals.events.list-goals",
-  version: 1,
-  operation: "query",
-} as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["listGoals"]>[0],
-  ReturnType<GoalEventEntryApi["listGoals"]>
->;
+/**
+ * The conversation a management decision came from. It does not say who decides or through which entry: the Host builds the
+ * authority (the person on this machine, origin management) and refuses an `actor_id`, `actor_kind` or `authority_source` carried
+ * here (`managementEventDecisionAuthority`). Without it the decision points at the management entry itself.
+ */
+export type GoalEventDecideEvidence = Partial<Pick<GoalEventTrustedAuthority, "conversation_ref" | "message_ref">>;
 
-export const readGoalEventStateCapability = {
-  capability_id: "io.molis.work.goals.events.read-state",
-  version: 1,
-  operation: "query",
-} as HostCapabilityDefinition<{ board_id: string; goal_id: string }, ReturnType<GoalEventEntryApi["readState"]>>;
-
-export const configureGoalEventsCapability = {
-  capability_id: "io.molis.work.goals.events.configure",
-  version: 1,
-  operation: "command",
-} as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["configure"]>[0],
-  ReturnType<GoalEventEntryApi["configure"]>
->;
-
-export const reportGoalEventsCapability = {
-  capability_id: "io.molis.work.goals.events.report",
-  version: 1,
-  operation: "command",
-} as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["report"]>[0],
-  ReturnType<GoalEventEntryApi["report"]>
->;
-
-export const listGoalEventsCapability = {
-  capability_id: "io.molis.work.goals.events.list",
-  version: 1,
-  operation: "query",
-} as HostCapabilityDefinition<{
-  board_id: string;
-  goal_id: string;
-  after_cursor?: number;
-  limit?: number;
-}, ReturnType<GoalEventEntryApi["listEvents"]>>;
-
-export const listLatestGoalEventsCapability = {
-  capability_id: "io.molis.work.goals.events.list-latest",
-  version: 1,
-  operation: "query",
-} as HostCapabilityDefinition<{
-  board_id: string;
-  goal_id: string;
-  before_cursor?: number;
-  limit?: number;
-}, ReturnType<GoalEventEntryApi["listLatestEvents"]>>;
-
-export const listLatestGoalTimelineCapability = {
-  capability_id: "io.molis.work.goals.events.timeline",
-  version: 1,
-  operation: "query",
-} as HostCapabilityDefinition<{
-  board_id: string;
-  goal_id: string;
-  before_cursor?: number;
-  limit?: number;
-}, ReturnType<GoalEventEntryApi["listLatestTimeline"]>>;
-
-export const readGoalEventCapability = {
-  capability_id: "io.molis.work.goals.events.read",
-  version: 1,
-  operation: "query",
-} as HostCapabilityDefinition<{
-  board_id: string;
-  goal_id: string;
-  event_id: string;
-}, ReturnType<GoalEventEntryApi["readEvent"]>>;
-
-export function createGoalEventEntryClient(client: LocalHostProjectClient) {
-  return {
-    createIntent: (input: Parameters<GoalEventEntryApi["createIntent"]>[0]) =>
-      client.invoke(createGoalIntentCapability, input),
-    listGoals: (input: Parameters<GoalEventEntryApi["listGoals"]>[0]) =>
-      client.invoke(listGoalDirectoryCapability, input),
-    readState: (boardId: string, goalId: string) =>
-      client.invoke(readGoalEventStateCapability, { board_id: boardId, goal_id: goalId }),
-    configure: (input: Parameters<GoalEventEntryApi["configure"]>[0]) =>
-      client.invoke(configureGoalEventsCapability, input),
-    report: (input: Parameters<GoalEventEntryApi["report"]>[0]) =>
-      client.invoke(reportGoalEventsCapability, input),
-    listEvents: (boardId: string, goalId: string, query?: { after_cursor?: number; limit?: number }) =>
-      client.invoke(listGoalEventsCapability, { board_id: boardId, goal_id: goalId, ...query }),
-    listLatestEvents: (boardId: string, goalId: string, query?: { before_cursor?: number; limit?: number }) =>
-      client.invoke(listLatestGoalEventsCapability, { board_id: boardId, goal_id: goalId, ...query }),
-    listLatestTimeline: (boardId: string, goalId: string, query?: { before_cursor?: number; limit?: number }) =>
-      client.invoke(listLatestGoalTimelineCapability, { board_id: boardId, goal_id: goalId, ...query }),
-    readEvent: (boardId: string, goalId: string, eventId: string) =>
-      client.invoke(readGoalEventCapability, { board_id: boardId, goal_id: goalId, event_id: eventId }),
-    recordProgress: (input: Parameters<GoalEventEntryApi["recordProgress"]>[0]) =>
-      client.invoke(recordGoalProgressCapability, input),
-    applyConcern: (input: Parameters<GoalEventEntryApi["applyConcern"]>[0]) =>
-      client.invoke(applyGoalConcernCapability, input),
-    requestDecision: (input: Parameters<GoalEventEntryApi["requestDecision"]>[0]) =>
-      client.invoke(requestGoalDecisionCapability, input),
-    citeDecision: (input: Parameters<GoalEventEntryApi["citeDecision"]>[0]) =>
-      client.invoke(citeGoalDecisionCapability, input),
-    recordTrustedDecision: (input: Parameters<GoalEventEntryApi["recordTrustedDecision"]>[0]) =>
-      client.invoke(recordGoalUserDecisionCapability, input),
-    setAgreement: (input: Parameters<GoalEventEntryApi["setAgreement"]>[0]) =>
-      client.invoke(setGoalEventAgreementCapability, input),
-    submitClosure: (input: Parameters<GoalEventEntryApi["submitClosure"]>[0]) =>
-      client.invoke(submitGoalEventClosureCapability, input),
-    resumeWork: (input: Parameters<GoalEventEntryApi["resumeWork"]>[0]) =>
-      client.invoke(resumeGoalEventWorkCapability, input),
-    recordNote: (input: Parameters<GoalEventEntryApi["recordNote"]>[0]) =>
-      client.invoke(recordGoalNoteCapability, input),
-  };
-}
-
-export const recordGoalProgressCapability = {
-  capability_id: "io.molis.work.goals.events.progress",
-  version: 1,
-  operation: "command",
-} as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["recordProgress"]>[0],
-  ReturnType<GoalEventEntryApi["recordProgress"]>
->;
-
-export const applyGoalConcernCapability = {
-  capability_id: "io.molis.work.goals.events.concern",
-  version: 1,
-  operation: "command",
-} as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["applyConcern"]>[0],
-  ReturnType<GoalEventEntryApi["applyConcern"]>
->;
-
-export const requestGoalDecisionCapability = {
-  capability_id: "io.molis.work.goals.events.decision-request",
-  version: 1,
-  operation: "command",
-} as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["requestDecision"]>[0],
-  ReturnType<GoalEventEntryApi["requestDecision"]>
->;
-
-export const citeGoalDecisionCapability = {
-  capability_id: "io.molis.work.goals.events.cite-decision",
-  version: 1,
-  operation: "command",
-} as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["citeDecision"]>[0],
-  ReturnType<GoalEventEntryApi["citeDecision"]>
->;
+/**
+ * What the Host entry takes to record the person's decision. It names no one, the structure decision's way: the domain method
+ * (`recordTrustedDecision`) takes a full `authority`, and here that is only evidence.
+ */
+export type GoalEventDecideEntryInput = Omit<RecordGoalUserDecisionInput, "authority"> & { authority?: GoalEventDecideEvidence };
 
 export const recordGoalUserDecisionCapability = {
   capability_id: "io.molis.work.goals.events.decide",
@@ -193,42 +50,19 @@ export const recordGoalUserDecisionCapability = {
   operation: "command",
   host_only: true,
 } as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["recordTrustedDecision"]>[0],
+  GoalEventDecideEntryInput,
   ReturnType<GoalEventEntryApi["recordTrustedDecision"]>
 >;
 
-export const setGoalEventAgreementCapability = {
-  capability_id: "io.molis.work.goals.events.agree",
-  version: 1,
-  operation: "command",
-} as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["setAgreement"]>[0],
-  ReturnType<GoalEventEntryApi["setAgreement"]>
->;
-
-export const submitGoalEventClosureCapability = {
-  capability_id: "io.molis.work.goals.events.close",
-  version: 1,
-  operation: "command",
-} as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["submitClosure"]>[0],
-  ReturnType<GoalEventEntryApi["submitClosure"]>
->;
-
-export const resumeGoalEventWorkCapability = {
-  capability_id: "io.molis.work.goals.events.resume",
-  version: 1,
-  operation: "command",
-} as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["resumeWork"]>[0],
-  ReturnType<GoalEventEntryApi["resumeWork"]>
->;
-
-export const recordGoalNoteCapability = {
-  capability_id: "io.molis.work.goals.events.note",
-  version: 1,
-  operation: "command",
-} as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["recordNote"]>[0],
-  ReturnType<GoalEventEntryApi["recordNote"]>
->;
+/**
+ * The Host builds the authority of an event decision taken at a management entry (the typed Host client and the management
+ * MCP), the way `managementTreeAuthority` does for a structure decision: the person on this machine, origin management. The
+ * caller may point at the conversation the decision came from; who decides is refused when the caller names it
+ * (repository-anti-corruption §9.5 #6). The defaults are the references this entry has always recorded.
+ */
+export function managementEventDecisionAuthority(projectId: string, idempotencyKey: string, evidence?: unknown): GoalEventTrustedAuthority {
+  const given = managementEvidence(evidence, "goals.event_decision_authority_invalid");
+  const fixed = hostEventDecisionAuthority("management", projectId, LOCAL_PERSON_ACTOR_ID, idempotencyKey);
+  return { ...fixed, conversation_ref: evidenceText(given.conversation_ref) ?? fixed.conversation_ref,
+    message_ref: evidenceText(given.message_ref) ?? fixed.message_ref };
+}

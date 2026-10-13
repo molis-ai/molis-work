@@ -3,6 +3,9 @@ import type { PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/pla
 import { loadDevelopmentPlugin, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-executor.js";
 
+/** Who the development run acts as: the Host fixes it for this door, so a caller's arguments never name it. */
+export const PLUGIN_DEVELOPMENT_ACTOR_ID = "local-plugin-developer";
+
 /** Public developer fixture, with the same real owner ports used by the application Host. */
 export async function runPluginDevelopment(input: PluginDevelopmentInput, options: PluginHostExecutorOptions & {
   repository: PluginRuntimeRepository;
@@ -25,9 +28,10 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
     const rendered_ui = options.ui.list().filter(value => value.plugin_id === definition.manifest.plugin_id)
       .flatMap(value => (value.surfaces ?? []).map(surface => ({ contribution_id: value.contribution_id,
         surface: surface.surface_id, html: options.ui.render({ contribution_id: value.contribution_id, surface: surface.surface_id, model: null }) })));
-    result = { health, poll, rendered_ui, artifacts: options.artifacts.query.listArtifacts(options.board_id)
+    // A personal 成果 belongs to the Home's person, so the run's own versions are told apart by who produced them, not by owner.
+    result = { health, poll, rendered_ui, artifacts: options.artifacts.query.listArtifacts(options.project_id)
       .filter(value => value.producer_plugin_id === definition.manifest.plugin_id
-        && value.producer_binding_signature === definition.manifest.publisher.signature && value.owner_actor_id === options.actor_id) };
+        && value.producer_binding_signature === definition.manifest.publisher.signature && value.created_by === options.actor_id) };
   } finally {
     await runtime.uninstall(id, { retain_private_data: true });
   }

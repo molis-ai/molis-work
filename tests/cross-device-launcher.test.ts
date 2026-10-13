@@ -5,7 +5,7 @@ import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { openServerDatabase, Identity } from '../server/src/index.js';
+import { openServerDatabase, Identity, ServerEvents, ContinuityService } from '@molis-ai/molis-work-server';
 
 const launcher=new URL('../apps/server/dist/main.js',import.meta.url).pathname;
 function launch(args:string[]){
@@ -53,7 +53,7 @@ test('compiled standalone launcher starts headless, restores a real Catalog proj
     for(const cookie of [ownerCookie,memberCookie]){
       assert.deepEqual((await (await fetch(origin+'/continuity/api/session',{headers:{cookie}})).json()).projects,[]);
       for(const suffix of ['', '/assets','/events'])assert.equal((await fetch(origin+'/continuity/api/projects/'+scope.id+suffix,{headers:{cookie}})).status,403);
-      assert.equal((await post('/projects/'+scope.id+'/progress',{command_id:randomUUID(),project_id:scope.id,goal_id:'old-goal',cursor:1,revision:1,summary:'must not write',next_step:'',next_actor:''},cookie)).status,403);
+      assert.equal((await post('/projects/'+scope.id+'/progress',{command_id:randomUUID(),project_id:scope.id,goal_id:'old-goal',cursor:1,summary:'must not write',next_step:'',next_actor:''},cookie)).status,403);
     }
     assert.equal((await post('/connect',{code:unusedCode,display_name:'Old invitation',device_label:'Denied'})).status,401);
     server.child.kill('SIGTERM');assert.equal(await server.exited,0,server.errors());server=undefined;
@@ -63,15 +63,51 @@ test('compiled standalone launcher starts headless, restores a real Catalog proj
     server.child.kill('SIGTERM');assert.equal(await server.exited,0,server.errors());server=undefined;
     const bundle={format:'molis-work-assets',version:1,source_project_id:'headless-source',title:'Headless import',goals:[],notes:[],dependencies:[],artifacts:[{
       artifact_id:'headless-artifact',version:1,artifact_type_id:'io.test.document',schema_version:1,owner_actor_id:'source-owner',
-      producer:{plugin_id:'io.test.writer',plugin_version:'1.0.0',binding_signature:'original'},content:{kind:'inline',payload:{content:'CLI restored body'}},metadata:{title:'CLI artifact'},scope:'team_project',availability:'available',lifecycle_state:'active',supersedes_version:null,source_supersedes_version:null,
+      producer:{plugin_id:'io.test.writer',plugin_version:'1.0.0',binding_signature:'original'},content:{kind:'inline',payload:{content:'CLI restored body'}},metadata:{title:'CLI artifact'},scope:'team_project',availability:'available',lifecycle_state:'active',
+      origin:{kind:'pinned',subject:{kind:'document',id:'headless-artifact'},revision:'1'},title:'CLI artifact',media_type:'application/json',supersedes_version:null,source_supersedes_version:null,
     }]};
     const bundleFile=join(directory,'bundle.json');await writeFile(bundleFile,JSON.stringify(bundle));
     const destination=join(directory,'new-home');
     const restored=await command(['restore','--bundle',bundleFile,'--destination',destination]);assert.equal(restored.restored,1);assert.match(restored.project_id,/^project-onboarding-/);assert.ok(restored.warnings.some((warning:string)=>warning.includes('io.test.writer@1.0.0')));
     const read=await command(['read-assets','--destination',destination,'--project','headless-source']);
-    assert.equal(read.artifacts[0].board_id,restored.board_id);assert.equal(read.artifacts[0].payload.content,'CLI restored body');
+    assert.equal(read.artifacts[0].project_id,restored.project_id);assert.equal(read.artifacts[0].payload.content,'CLI restored body');
   } finally {
     if(server){server.child.kill('SIGKILL');await server.exited;}
     await rm(directory,{recursive:true,force:true});
   }
+});
+
+// The server database is read and written only through the server package's own objects (the host's IM mount and this launcher
+// used to run SQL on mw_* themselves; scripts/gates/table-owners.mjs now refuses that).
+test('the server package answers owner, role, member and closing questions itself, and the launcher lists members through it',{timeout:120000},async()=>{
+  const directory=await mkdtemp(join(tmpdir(),'continuity-owner-api-'));
+  const storage=openServerDatabase(join(directory,'server'));
+  try {
+    const identity=new Identity(storage.db),events=new ServerEvents(storage.db);
+    const continuity=new ContinuityService(storage.db,identity,events,()=>{throw new Error('no host actions in this test');});
+    const owner=identity.createMember('Owner'),member=identity.createMember('Member'),stranger=identity.createMember('Stranger');
+    const scope=(id:string)=>({id,title:'Project '+id,goal_ids:[],artifacts:[]});
+    assert.equal(continuity.projectOwner('kept'),null,'a project that is not registered has no owner');
+    continuity.registerProject(scope('kept'),owner.id);continuity.registerProject(scope('closed'),owner.id);
+    assert.deepEqual(continuity.projectOwner('kept'),owner);
+    assert.equal(identity.hasMember(owner.id),true);assert.equal(identity.hasMember('nobody'),false);
+    assert.equal(identity.roleOf('kept',owner.id),'owner');assert.equal(identity.roleOf('kept',member.id),null);
+    const invitation=identity.code('invite',owner.id,{projectId:'closed',role:'editor'}).code;
+    const request={headers:{}} as never,response={setHeader(){}} as never;
+    const joined=identity.connect({code:invitation,display_name:'Member',device_label:'phone'},request,response,false);
+    assert.equal(identity.roleOf('closed',joined.member_id!),'editor');
+    const before=identity.memberAccess();
+    assert.ok(before.some(row=>row.id===stranger.id&&row.project_id===null&&row.role===null),'a member with no project appears once, with no project');
+    assert.ok(before.some(row=>row.id===owner.id&&row.project_id==='kept'&&row.role==='owner'));
+    const open=identity.code('invite',owner.id,{projectId:'closed',role:'viewer'}).code;
+    assert.deepEqual(continuity.closeProjectsExcept(new Set(['kept'])),['closed']);
+    assert.equal(identity.roleOf('closed',owner.id),null,'the owner loses access to a closed project too');
+    assert.equal(identity.roleOf('closed',joined.member_id!),null);
+    assert.equal(identity.roleOf('kept',owner.id),'owner','a project that stays keeps its access');
+    assert.throws(()=>identity.connect({code:open,display_name:'Late',device_label:'phone'},request,response,false),/代码已使用或过期/);
+    assert.deepEqual(continuity.closeProjectsExcept(new Set(['kept'])),['closed'],'closing is repeatable: the record stays, only the access is gone');
+    assert.equal(continuity.projectOwner('closed')?.id,owner.id,'history stays');
+    const listed=await command(['members','--state',join(directory,'server')]);
+    assert.deepEqual(listed,JSON.parse(JSON.stringify(identity.memberAccess())));
+  } finally {storage.close();await rm(directory,{recursive:true,force:true});}
 });

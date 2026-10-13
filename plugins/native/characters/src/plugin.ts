@@ -6,8 +6,10 @@ import { charactersSettingsUiContribution, charactersUiContribution } from "./ui
 import type { CharactersImportPorts } from "./imports.js";
 import { characterBrowserPreview, characterSnapshotPreview, characterFilePreview } from "./import-preview.js";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, bindOwnerPluginAction, referencesAction, searchEntriesPage, subjectContext, type ActionDefinition, type ActionUsage, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, referencesAction, searchEntriesPage, subjectContext, type ActionDefinition, type ActionUsage, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { charactersActions, type CharacterLaunchInput } from "./actions.js";
+import { charactersArtifactPreviewHandler } from "./artifact-preview.js";
 
 export interface CharactersPluginPorts {
   imports?: CharactersImportPorts;
@@ -18,19 +20,25 @@ export interface CharactersPluginPorts {
   publish(id: string, revision: number, publisher: (content: CharacterContent) => Pick<ArtifactVersionResult, "artifact" | "replayed">): Pick<ArtifactVersionResult, "artifact" | "replayed">;
 }
 
+/** A published character is a pinned revision of its draft (artifact-positioning A1). */
+function characterPublication(content: CharacterContent) {
+  return { origin: { kind: "pinned" as const, subject: { kind: "character", id: content.character_id }, revision: String(content.source.draft_revision) },
+    title: content.title.trim() || content.character_id, media_type: "application/json" };
+}
+
 export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefinition {
   return { manifest: charactersManifest, async start(context) {
     for (const permission of charactersManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
-    const boardId = context.board_id, artifacts = context.services?.artifacts;
-    if (!boardId || !artifacts) throw new Error("角色的项目发布入口尚未装配");
+    const projectId = context.project_id, artifacts = context.services?.artifacts;
+    if (!projectId || !artifacts) throw new Error("角色的项目发布入口尚未装配");
     const publications = (): ArtifactVersionRecord[] => ports.references().flatMap(ref => {
       const record = artifacts.read(ref);
-      if (!record || record.board_id !== boardId || record.owner_actor_id !== ports.actorId
+      if (!record || !("origin" in record) || record.project_id !== projectId || record.owner_actor_id !== ports.actorId
         || record.producer_plugin_id !== CHARACTER_PLUGIN_ID || record.producer_binding_signature !== CHARACTER_PUBLISHER_SIGNATURE
         || record.artifact_type_id !== CHARACTER_ARTIFACT_TYPE || record.schema_version !== 1) return [];
       // An invalid owned publication is an error, not permission to overwrite its identity/version.
       const content = parseCharacterContent(record.payload);
-      if (content.source.owner_actor_id !== ports.actorId || record.artifact_id !== `character:${boardId}:${content.character_id}`) throw new Error("角色发布的来源或身份不一致");
+      if (content.source.owner_actor_id !== ports.actorId || record.artifact_id !== `character:${projectId}:${content.character_id}`) throw new Error("角色发布的来源或身份不一致");
       return [record];
     });
     const body = (request: PluginRouteRequest): Record<string, unknown> => {
@@ -63,7 +71,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       return { content, reference: { artifact_id: record.artifact_id, version: record.version } };
     };
     const a = charactersActions;
-    const handlers = [
+    const handlers = [charactersArtifactPreviewHandler,
       // System search lists the person's own drafts; the reader returns the same current text.
       bindOwnerPluginAction(context, a.searchEntries, input => searchEntriesPage(ports.drafts.list().filter(draft => draft.state !== "tombstoned").map(draft => ({
         subject: { kind: "character", id: draft.character_id }, revision: String(draft.revision), title: draft.title || "未命名角色", summary: "",
@@ -93,7 +101,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
         await validateActions(draft.action_tools);
         await beforeWrite();
         const result = ports.publish(input.id, input.expected_revision, content => {
-          const artifact_id = `character:${boardId}:${content.character_id}`;
+          const artifact_id = `character:${projectId}:${content.character_id}`;
           const existing = publications().filter(record => record.artifact_id === artifact_id).sort((a, b) => b.version - a.version);
           const same = existing.find(record => record.lifecycle_state === "active" && record.availability === "available"
             && JSON.stringify(parseCharacterContent(record.payload)) === JSON.stringify(content));
@@ -102,7 +110,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
           const previous = existing[0];
           const version = (previous?.version ?? 0) + 1;
           return artifacts.publish({ artifact_id, version, artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1,
-            content: { kind: "inline", payload: content as unknown as ArtifactJsonValue },
+            content: { kind: "inline", payload: content as unknown as ArtifactJsonValue }, ...characterPublication(content),
             ...(previous ? { supersedes_version: previous.version } : {}),
           });
         });

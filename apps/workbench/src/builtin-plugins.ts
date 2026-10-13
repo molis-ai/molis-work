@@ -1,11 +1,12 @@
 import { CODING_WORKBENCH_SETUP_SCRIPT } from "./scripts/client/coding-setup.js";
-import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, runCogniaMcpTool } from "@molis-ai/molis-work-plugin-cognia";
-import { builderManifest, builderPrompts, builderUiContribution, BUILDER_STYLES, BUILDER_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
-import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-images";
-import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, runJellyMcpTool } from "@molis-ai/molis-work-plugin-jelly";
-import { experimentsManifest, EXPERIMENTS_CLIENT_FACTORY_SCRIPT, EXPERIMENTS_STYLES, experimentsUiContribution } from "@molis-ai/molis-work-plugin-experiments";
-import { type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
-import { type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution } from "@molis-ai/molis-work-plugin-cognia";
+import { BUILDER_CHOICE_INSTRUCTIONS, builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
+import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
+import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT, imagesProjectData } from "@molis-ai/molis-work-plugin-images";
+import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution } from "@molis-ai/molis-work-plugin-jelly";
+import { type ProjectDataDeclaration, type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
+import { type PluginManifest, type PluginDefinition, type PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { issuesManifest, issuesMethods, issuesUiContribution, createIssuesPlugin, ISSUES_DATABASE, ISSUES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-issues";
 import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest, artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
 import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
 import { DIFF_PROJECT_PLUGIN_ID, diffManifest } from "@molis-ai/molis-work-plugin-diff";
@@ -14,27 +15,37 @@ import { GIT_PROJECT_PLUGIN_ID, gitManifest } from "@molis-ai/molis-work-plugin-
 import { TEXT_STATS_PROJECT_PLUGIN_ID, textStatsManifest } from "@molis-ai/molis-work-plugin-text-stats";
 import { type AgentPromptText, type AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { FEED_PROJECT_PLUGIN_ID, feedManifest, feedUiContribution, FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";
-import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goalsDecisionResultsUiContribution, goalsDialogsUiContribution, goalsDocumentUiContribution, goalsFactorsUiContribution, goalsMomentumUiContribution, goalsPlanningUiContribution, goalsPolicyUiContribution, goalsProposalUiContribution, goalsRelationUiContribution, goalsSafetyUiContribution, goalsSettingsUiContribution, goalsStatusUiContribution, goalsTreeUiContribution } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goalsDecisionResultsUiContribution, goalsDialogsUiContribution, goalsDocumentUiContribution, goalsFactorsUiContribution, goalsMomentumUiContribution, goalsPlanningUiContribution, goalsPolicyUiContribution, goalsProposalUiContribution, goalsRelationUiContribution, goalsSettingsUiContribution, goalsStatusUiContribution, goalsTreeUiContribution } from "@molis-ai/molis-work-plugin-goals";
 import { INBOX_PROJECT_PLUGIN_ID, inboxManifest, inboxUiContribution } from "@molis-ai/molis-work-plugin-inbox";
 import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_STYLES, scheduleUiContribution } from "@molis-ai/molis-work-plugin-schedule";
 import { SHELF_INSTRUCTIONS, SHELF_PROJECT_PLUGIN_ID, shelfManifest, SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT, SHELF_STYLES, shelfSettingsUiContribution, shelfUiContribution } from "@molis-ai/molis-work-plugin-shelf";
 import { CHARACTERS_PROJECT_PLUGIN_ID, charactersManifest, charactersSettingsUiContribution, CHARACTERS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-characters";
-import { PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, pagesMethods, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, runPagesMcpTool } from "@molis-ai/molis-work-plugin-pages";
-import { FORM_INSTRUCTIONS, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution, runFormMcpTool } from "@molis-ai/molis-work-plugin-form";
-import { DATASET_INSTRUCTIONS, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution, runDatasetMcpTool } from "@molis-ai/molis-work-plugin-dataset";
-import { PPT_INSTRUCTIONS, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution, runPptMcpTool } from "@molis-ai/molis-work-plugin-ppt";
-import { LINGGUANG_INSTRUCTIONS, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution } from "@molis-ai/molis-work-plugin-lingguang";
-import { TODO_INSTRUCTIONS, TODO_PROJECT_PLUGIN_ID, todoManifest, todoMethods, todoPrompts, TODO_CLIENT_FACTORY_SCRIPT, TODO_STYLES, todoUiContribution } from "@molis-ai/molis-work-plugin-todo";
+import { PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, pagesMethods, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, pagesProjectData } from "@molis-ai/molis-work-plugin-pages";
+import { FORM_INSTRUCTIONS, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution, formProjectData } from "@molis-ai/molis-work-plugin-form";
+import { DATASET_INSTRUCTIONS, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution, datasetProjectData } from "@molis-ai/molis-work-plugin-dataset";
+import { PPT_INSTRUCTIONS, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution, pptProjectData } from "@molis-ai/molis-work-plugin-ppt";
+import { LINGGUANG_INSTRUCTIONS, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution, lingguangProjectData } from "@molis-ai/molis-work-plugin-lingguang";
+import { TODO_INSTRUCTIONS, TODO_PROJECT_PLUGIN_ID, todoManifest, todoMethods, todoPrompts, TODO_CLIENT_FACTORY_SCRIPT, TODO_STYLES, todoUiContribution, todoProjectData } from "@molis-ai/molis-work-plugin-todo";
 import { ALCHEMIST_PROJECT_PLUGIN_ID, ALCHEMIST_INSTRUCTIONS, alchemistManifest, ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, alchemistUiContribution } from "@molis-ai/molis-work-plugin-alchemist";
-import { WORKFLOWS_INSTRUCTIONS, WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution } from "@molis-ai/molis-work-plugin-workflows";
+import { WORKFLOWS_INSTRUCTIONS, WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution, workflowsProjectData } from "@molis-ai/molis-work-plugin-workflows";
 import { WORK_PROJECT_PLUGIN_ID, workManifest, workTerminalUiContribution, workUiContribution } from "@molis-ai/molis-work-plugin-work";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginMcpHandleRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
 export interface PluginSearchRow { readonly selector: string; readonly idDataset: string }
+
+/**
+ * Comments that fill whole lines (`// …` and `/* … *\/`) and the indentation in front of every line of a plugin's client script
+ * are notes and layout for the people who read its source; the page does not run them. An entry that lists its script through
+ * this is sent without them (the page asset budget only shrinks, and these are the bytes that are provably dead). A block comment
+ * is taken only when nothing else shares its lines; indentation inside a multi-line string or template would be content, so a
+ * script that has one cannot use this. tests/plugin-client-served.test.ts holds the result to the same program as the source.
+ */
+const served = (script: string): string => script
+  .replace(/^[ \t]*(?:\/\/[^\n]*|\/\*(?:(?!\*\/)[\s\S])*\*\/[ \t]*)\n/gm, "")
+  .replace(/^[ \t]+/gm, "");
+
 export interface BuiltinPluginWorkbench {
   /** Asset cascade/initialization order, independent of navigation order in the Manifest. */
   readonly order: number;
@@ -52,6 +63,13 @@ export interface BuiltinPluginEntry {
   readonly project_plugin_id: ProjectPluginId;
   readonly manifest: PluginManifest;
   readonly personal?: boolean;
+  /** Kept out of the plugin list (switcher and market) unless the Host is in developer mode; still installable and enabled where already added. */
+  readonly developer?: boolean;
+  /** Explicit Runtime activation; personal visibility alone never migrates an existing plugin. */
+  readonly runtime?: { readonly scope: "home"; readonly create: () => PluginDefinition; readonly database?: PluginDatabaseDeclaration;
+    readonly package_name: string; readonly factory_export: string;
+    /** The chord (`Mod+Shift+<letter>`) that summons this Home tool's side view from anywhere; global keys are the Host's to give. */
+    readonly keys?: string };
   readonly summary?: string;
   /** Fixed model-call instructions, exported by this plugin and registered by the Host. */
   readonly instructions?: readonly InstructionPrompt[];
@@ -59,12 +77,22 @@ export interface BuiltinPluginEntry {
   /** Bodies of the Manifest's `methods` (offered to other Agents for business work); the package ships them. */
   readonly methods?: readonly AgentSkillDefinition[];
   readonly workbench?: BuiltinPluginWorkbench;
-  /** Historical MCP spellings only; new public functions use Manifest.actions. No Host I/O or credentials. */
-  readonly legacyMcp?: (actions: BoundActionClient, request: PluginMcpHandleRequest) => Promise<string>;
+  /**
+   * What this plugin keeps in the Home for a project, and how to clear it. The Host runs it when a project is deleted
+   * (the owner's id in the receipt is `project_plugin_id`) and lists its label in the confirmation; absent when the
+   * plugin keeps nothing outside the project's own directory.
+   */
+  readonly project_data?: ProjectDataDeclaration;
 }
 
-/** Shared build composition for catalog, UI resources and optional legacy MCP adapters. */
+/** Shared build composition for catalog and UI resources. */
 export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
+  {
+    project_plugin_id: "issues", manifest: issuesManifest, methods: issuesMethods, personal: true, summary: "记录、查看和整理自己的问题。",
+    runtime: { scope: "home", create: createIssuesPlugin, database: ISSUES_DATABASE, package_name: "@molis-ai/molis-work-plugin-issues", factory_export: "createIssuesPlugin", keys: "Mod+Shift+I" },
+    workbench: { order: 5, contributions: [issuesUiContribution], clientFactory: ISSUES_CLIENT_FACTORY_SCRIPT,
+      searchRow: { selector: "[data-issue-id]", idDataset: "issueId" } },
+  },
   {
     project_plugin_id: COGNIA_PROJECT_PLUGIN_ID,
     manifest: cogniaManifest,
@@ -78,24 +106,25 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       clientFactory: COGNIA_CLIENT_FACTORY_SCRIPT,
       searchRow: { selector: "[data-cognia-id]", idDataset: "cogniaId" },
     },
-    legacyMcp: runCogniaMcpTool,
   },
   {
     project_plugin_id: "plugin-builder",
     manifest: builderManifest,
+    instructions: BUILDER_CHOICE_INSTRUCTIONS,
     personal: true,
     summary: "用自然语言设计、构建并使用自己的插件。",
-    agent: { prompts: builderPrompts },
     workbench: {
       order: 1,
       contributions: [builderUiContribution],
-      stylesheet: BUILDER_STYLES,
-      clientFactory: BUILDER_CLIENT_FACTORY_SCRIPT,
+      // The studio is drawn in the plugin's stage; generated plugin parts in its canvas use the plugin components.
+      stylesheet: AGENT_STUDIO_STYLES + PLUGIN_COMPONENT_STYLES,
+      clientFactory: AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT,
     },
   },
   {
     project_plugin_id: IMAGES_PROJECT_PLUGIN_ID,
     manifest: imagesManifest,
+    project_data: imagesProjectData,
     personal: true,
     summary: "连接生图服务，按描述生成图片。",
     workbench: {
@@ -119,20 +148,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       clientFactory: JELLY_CLIENT_FACTORY_SCRIPT,
       searchRow: { selector: "[data-jelly-id]", idDataset: "jellyId" },
     },
-    legacyMcp: runJellyMcpTool,
-  },
-  {
-    project_plugin_id: "experiments",
-    manifest: experimentsManifest,
-    personal: true,
-    summary: "同一任务，比较各模型的判断与成本。",
-    workbench: {
-      order: 4,
-      contributions: [experimentsUiContribution],
-      stylesheet: EXPERIMENTS_STYLES,
-      clientFactory: EXPERIMENTS_CLIENT_FACTORY_SCRIPT,
-      searchRow: { selector: "[data-exp-open]", idDataset: "expOpen" },
-    },
   },
   {
     project_plugin_id: GOALS_PROJECT_PLUGIN_ID,
@@ -144,7 +159,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       goalsPolicyUiContribution,
       goalsProposalUiContribution,
       goalsDecisionResultsUiContribution,
-      goalsSafetyUiContribution,
       goalsRelationUiContribution,
       goalsTreeUiContribution,
       goalsMomentumUiContribution,
@@ -185,7 +199,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       order: 7,
       contributions: [scheduleUiContribution],
       stylesheet: SCHEDULE_STYLES,
-      clientFactory: SCHEDULE_CLIENT_FACTORY_SCRIPT,
+      clientFactory: served(SCHEDULE_CLIENT_FACTORY_SCRIPT),
       searchRow: { selector: "[data-schedule-row][data-schedule-task-id]", idDataset: "scheduleTaskId" },
     },
   },
@@ -216,6 +230,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: LINGGUANG_PROJECT_PLUGIN_ID,
     manifest: lingguangManifest,
+    project_data: lingguangProjectData,
     instructions: LINGGUANG_INSTRUCTIONS,
     personal: true,
     summary: "先记下想法，再决定留下或丢掉。",
@@ -223,13 +238,14 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       order: 13,
       contributions: [lingguangUiContribution],
       stylesheet: LINGGUANG_STYLES,
-      clientFactory: LINGGUANG_CLIENT_FACTORY_SCRIPT,
+      clientFactory: served(LINGGUANG_CLIENT_FACTORY_SCRIPT),
       searchRow: { selector: "[data-lingguang-id]", idDataset: "lingguangId" },
     },
   },
   {
     project_plugin_id: TODO_PROJECT_PLUGIN_ID,
     manifest: todoManifest,
+    project_data: todoProjectData,
     instructions: TODO_INSTRUCTIONS,
     personal: true,
     summary: "记下要做的事，分清今天、在等谁。",
@@ -258,6 +274,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: PAGES_PROJECT_PLUGIN_ID,
     manifest: pagesManifest,
+    project_data: pagesProjectData,
     instructions: PAGES_INSTRUCTIONS,
     methods: pagesMethods,
     personal: true,
@@ -266,15 +283,15 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       order: 9,
       contributions: [pagesUiContribution],
       stylesheet: PAGES_STYLES,
-      clientFactory: PAGES_CLIENT_FACTORY_SCRIPT,
+      clientFactory: served(PAGES_CLIENT_FACTORY_SCRIPT),
       clientAssets: ["/assets/molis-work-pages-editor.js"],
       searchRow: { selector: "button.feed-stage-entry[data-page-id]", idDataset: "pageId" },
     },
-    legacyMcp: runPagesMcpTool,
   },
   {
     project_plugin_id: FORM_PROJECT_PLUGIN_ID,
     manifest: formManifest,
+    project_data: formProjectData,
     instructions: FORM_INSTRUCTIONS,
     personal: true,
     summary: "建问卷，收答卷，看逐题汇总。",
@@ -285,11 +302,11 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       clientFactory: FORM_CLIENT_FACTORY_SCRIPT,
       searchRow: { selector: "[data-form-id]", idDataset: "formId" },
     },
-    legacyMcp: runFormMcpTool,
   },
   {
     project_plugin_id: DATASET_PROJECT_PLUGIN_ID,
     manifest: datasetManifest,
+    project_data: datasetProjectData,
     instructions: DATASET_INSTRUCTIONS,
     personal: true,
     summary: "做表格，导入 CSV，可回到旧版。",
@@ -300,11 +317,11 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       clientFactory: DATASET_CLIENT_FACTORY_SCRIPT,
       searchRow: { selector: "[data-dataset-id]", idDataset: "datasetId" },
     },
-    legacyMcp: runDatasetMcpTool,
   },
   {
     project_plugin_id: PPT_PROJECT_PLUGIN_ID,
     manifest: pptManifest,
+    project_data: pptProjectData,
     instructions: PPT_INSTRUCTIONS,
     personal: true,
     summary: "写大纲，放映或导出 PowerPoint。",
@@ -315,7 +332,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       clientFactory: PPT_CLIENT_FACTORY_SCRIPT,
       searchRow: { selector: "[data-ppt-id]", idDataset: "pptId" },
     },
-    legacyMcp: runPptMcpTool,
   },
   {
     project_plugin_id: ALCHEMIST_PROJECT_PLUGIN_ID,
@@ -334,6 +350,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: WORKFLOWS_PROJECT_PLUGIN_ID,
     manifest: workflowsManifest,
+    project_data: workflowsProjectData,
     instructions: WORKFLOWS_INSTRUCTIONS,
     personal: true,
     summary: "把插件串成流程，一步步做完。",
@@ -386,7 +403,8 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID,
     manifest: textStatsManifest,
+    developer: true,
     workbench: { order: 24, contributions: [], clientFactory: CODING_WORKBENCH_SETUP_SCRIPT },
-    summary: "查看材料与成果的文本统计。",
+    summary: "统计文件快照的字数、字节与行数。",
   },
 ];

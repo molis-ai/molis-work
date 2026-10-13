@@ -243,7 +243,6 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* One Codex-style desktop titlebar co
     body[data-desktop-shell="true"] .feed-destination-strip { grid-template-columns: minmax(0, 1fr); }
     body[data-desktop-shell="true"] .feed-destination-strip small { grid-column: 1; }
     body[data-desktop-shell="true"] .inbox-attention-context dl > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
-    body[data-desktop-shell="true"] .prototype-honesty-note { font-size: 11px; }
   }
 
   @media (prefers-reduced-motion: reduce) {

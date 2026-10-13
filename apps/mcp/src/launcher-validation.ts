@@ -35,11 +35,15 @@ export async function validateMolisWorkMcpLauncher(context: McpLauncherValidatio
     const timer = setTimeout(() => finish(false), MCP_VALIDATION_TIMEOUT_MS);
     child.on("error", () => finish(false));
     child.on("exit", () => finish(false));
+    // CI-MCP-PIPE-01: a launcher can close its input before replying; pipe errors are asynchronous and outlive a pending write.
+    child.stdin.on("error", () => finish(false));
     child.stdout.on("data", (chunk: Buffer) => {
+      if (settled) return;
       buffer += chunk.toString("utf8");
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
       for (const line of lines.filter(Boolean)) {
+        if (settled) break;
         try {
           const message = JSON.parse(line) as { id?: number; result?: { tools?: unknown[] } };
           if (message.id === 1) {

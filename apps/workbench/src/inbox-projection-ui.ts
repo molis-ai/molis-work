@@ -21,7 +21,6 @@ export function createWorkbenchInboxProjectionRenderer(primitives: {
   function buildInboxNativePluginModel(view: MolisWorkWebView): InboxUiModel {
     const records = view.feed.inbox_entries.map((entry) => ({
       ...entry,
-      project_id: entry.board_id,
       suggested_behavior_ids: entry.suggested_behavior_ids ?? [],
     }));
     return {

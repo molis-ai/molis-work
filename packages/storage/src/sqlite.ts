@@ -33,16 +33,16 @@ export class LocalSqliteJournal {
     return this.db.transaction(fn).immediate();
   }
 
-  eventCursor(boardId: string, objectType?: string): number {
+  eventCursor(projectId: string, objectType?: string): number {
     const row = objectType === undefined
-      ? this.db.prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE board_id = ?").get(boardId) as Row
-      : this.db.prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE board_id = ? AND object_type = ?")
-        .get(boardId, objectType) as Row;
+      ? this.db.prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE project_id = ?").get(projectId) as Row
+      : this.db.prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE project_id = ? AND object_type = ?")
+        .get(projectId, objectType) as Row;
     return number(row.cursor);
   }
 
-  readEventsDescending(boardId: string) {
-    return (this.db.prepare("SELECT * FROM events WHERE board_id = ? ORDER BY seq DESC").all(boardId) as Row[]).map(row => ({
+  readEventsDescending(projectId: string) {
+    return (this.db.prepare("SELECT * FROM events WHERE project_id = ? ORDER BY seq DESC").all(projectId) as Row[]).map(row => ({
       seq: number(row.seq), event_id: text(row.event_id), actor_id: text(row.actor_id),
       type: text(row.type), object_type: text(row.object_type), object_id: text(row.object_id),
       reason: text(row.reason), payload: parseJson<unknown>(row.payload_json, null), at: text(row.at),
@@ -51,7 +51,7 @@ export class LocalSqliteJournal {
 
   appendEvent(input: {
     eventId: string;
-    boardId: string;
+    projectId: string;
     actorId: string;
     type: string;
     objectType: string;
@@ -63,12 +63,12 @@ export class LocalSqliteJournal {
     const result = this.db
       .prepare(`
         INSERT INTO events (
-          event_id, board_id, actor_id, type, object_type, object_id, reason, payload_json, at
+          event_id, project_id, actor_id, type, object_type, object_id, reason, payload_json, at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         input.eventId,
-        input.boardId,
+        input.projectId,
         input.actorId,
         input.type,
         input.objectType,
@@ -81,7 +81,7 @@ export class LocalSqliteJournal {
   }
 
   getIdempotency(
-    boardId: string,
+    projectId: string,
     actorId: string,
     operation: string,
     key: string,
@@ -89,9 +89,9 @@ export class LocalSqliteJournal {
     const row = this.db
       .prepare(`
         SELECT request_hash, outcome_json FROM idempotency_records
-        WHERE board_id = ? AND actor_id = ? AND operation = ? AND idempotency_key = ?
+        WHERE project_id = ? AND actor_id = ? AND operation = ? AND idempotency_key = ?
       `)
-      .get(boardId, actorId, operation, key) as Row | undefined;
+      .get(projectId, actorId, operation, key) as Row | undefined;
     if (!row) return null;
     return {
       request_hash: text(row.request_hash),
@@ -100,7 +100,7 @@ export class LocalSqliteJournal {
   }
 
   putIdempotency(input: {
-    boardId: string;
+    projectId: string;
     actorId: string;
     operation: string;
     key: string;
@@ -111,11 +111,11 @@ export class LocalSqliteJournal {
     this.db
       .prepare(`
         INSERT INTO idempotency_records (
-          board_id, actor_id, operation, idempotency_key, request_hash, outcome_json, created_at
+          project_id, actor_id, operation, idempotency_key, request_hash, outcome_json, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
-        input.boardId,
+        input.projectId,
         input.actorId,
         input.operation,
         input.key,
@@ -128,20 +128,20 @@ export class LocalSqliteJournal {
 
 export const LOCAL_JOURNAL_SCHEMA_SQL = `
         CREATE TABLE idempotency_records (
-          board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+          project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
           actor_id TEXT NOT NULL,
           operation TEXT NOT NULL,
           idempotency_key TEXT NOT NULL,
           request_hash TEXT NOT NULL,
           outcome_json TEXT NOT NULL,
           created_at TEXT NOT NULL,
-          PRIMARY KEY (board_id, actor_id, operation, idempotency_key)
+          PRIMARY KEY (project_id, actor_id, operation, idempotency_key)
         );
 
         CREATE TABLE events (
           seq INTEGER PRIMARY KEY AUTOINCREMENT,
           event_id TEXT NOT NULL UNIQUE,
-          board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+          project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
           actor_id TEXT NOT NULL,
           type TEXT NOT NULL,
           object_type TEXT NOT NULL,
@@ -150,7 +150,7 @@ export const LOCAL_JOURNAL_SCHEMA_SQL = `
           payload_json TEXT NOT NULL,
           at TEXT NOT NULL
         );
-        CREATE INDEX events_board_idx ON events(board_id, seq);
+        CREATE INDEX events_project_idx ON events(project_id, seq);
 `;
 
 export class LocalSqliteStorage extends LocalSqliteJournal {

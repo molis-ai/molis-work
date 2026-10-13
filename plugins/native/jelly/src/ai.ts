@@ -67,7 +67,7 @@ async function complete(ports: JellyAiPorts, prompt: InstructedPrompt): Promise<
 export async function runJellyAi(state: JellyWorkspace, input: JellyAiInput, ports: JellyAiPorts): Promise<{ plan: JellyPlan; method: "model" | "manual" }> {
   if (!["note", "text"].includes(input.source_type)) throw new JellyError("jelly.invalid", "请选择原文");
   const text = sourceText(state, input);
-  const sourceHash = jellySourceHash(state, input.source_type, input.source_id ?? null, input.text ?? "");
+  const sourceHash = jellySourceHash(state, input.source_type, input.source_id ?? null, text);
   if (input.kind !== "decompose") throw new JellyError("jelly.invalid", "未知的整理操作");
   if (!text.trim() || text.length > 80_000) throw new JellyError("jelly.invalid", "需要一段不超过 8 万字的原文");
   let entries: unknown[]; let questions: string[] = [];

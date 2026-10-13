@@ -3,6 +3,7 @@ import type http from "node:http";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
+import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { BROWSER_SOCKET_PATH, type BrowserClientMessage, type BrowserServerMessage } from "@molis-ai/molis-work-contracts/services/browser";
 import type { BrowserHost, BrowserListener, BrowserPage } from "./browser-host.js";
 
@@ -14,14 +15,6 @@ export interface BrowserSocketOptions {
   readonly projectExists: (projectId: string) => boolean | Promise<boolean>;
   /** The person started using the page while the assistant drove it (spec D09): the assistant pauses first. */
   readonly onTakeover?: (page: BrowserPage) => void | Promise<void>;
-}
-
-const local = (hostname: string) => hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1" || hostname === "[::1]";
-
-function requestHost(request: IncomingMessage): string | null {
-  const value = request.headers.host?.trim();
-  if (!value) return null;
-  try { const parsed = new URL(`http://${value}`); return local(parsed.hostname) ? parsed.host : null; } catch { return null; }
 }
 
 function tokenMatches(expected: string, actual: unknown): boolean {
@@ -38,7 +31,7 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
     let pathname = "";
     try { pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname; } catch { return; }
     if (pathname !== BROWSER_SOCKET_PATH) return;
-    const httpHost = requestHost(request);
+    const httpHost = loopbackHost(request.headers.host);
     const origin = request.headers.origin;
     let sameHost = !!httpHost;
     if (sameHost && typeof origin === "string") {

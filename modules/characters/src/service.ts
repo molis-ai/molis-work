@@ -96,7 +96,7 @@ export class CharactersService implements CharactersQuery, CharactersCommand {
         source: { owner_actor_id: current.owner_actor_id, draft_revision: current.revision } }); }
       catch (error) { throw new CharacterError("character.invalid", (error as Error).message); }
       const result = publisher(content);
-      if (result && typeof result === "object" && "then" in result) throw new CharacterError("character.invalid", "角色发布必须同步保存固定 Artifact");
+      if (result && typeof result === "object" && "then" in result) throw new CharacterError("character.invalid", "角色发布必须同步保存固定成果");
       return result as T;
     });
   }

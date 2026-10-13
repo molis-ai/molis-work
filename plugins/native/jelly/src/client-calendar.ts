@@ -1,4 +1,5 @@
 /** Calendar and item editor share the workspace command queue with notes. */
+// Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `item dialog context`: While an existing item is open, it is what this page shows: the workbench knows the record is open, and the Assistant reads that item. Closing the dialog gives the page back what it showed before.
 export const JELLY_CALENDAR_CLIENT_SCRIPT = String.raw`
   let editingItem=null;
   let itemOptions={kind:'task',category_id:'uncategorized',priority:'none',weekdays:[],scope:'onlyThis'};
@@ -80,8 +81,6 @@ export const JELLY_CALENDAR_CLIENT_SCRIPT = String.raw`
     $('[data-jelly-item-error]').hidden=true;paintItemChoices();renderItemRelations();
     $$('[data-jelly-item-copy]').forEach((node)=>node.remove());if(item)$('[data-jelly-item-form] footer > div').insertAdjacentHTML('beforeend',btn('复制事项','data-jelly-item-copy','copy'));
     $('[data-jelly-item-dialog]').showModal();itemField('title').focus();if(!item)itemField('title').select();
-    // While an existing item is open, it is what this page shows: the workbench knows the record is open, and the Assistant
-    // reads that item. Closing the dialog gives the page back what it showed before.
     if(item){if(!itemContextBefore)itemContextBefore={value:root.getAttribute('data-assistant-context')};root.setAttribute('data-assistant-context',JSON.stringify({plugin_id:'io.molis.work.jelly',surface_title:'Jelly',object:{kind:'jelly_item',id:item.series_id||item.id,version:String(item.updated_at||''),title:item.title||''}}));}
   };
   let itemContextBefore=null;

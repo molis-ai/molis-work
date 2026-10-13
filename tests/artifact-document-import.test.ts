@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_BOARD_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import {
   DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument,
   type ArtifactDocumentImportPorts, type ImportedArtifactDocument,
@@ -28,7 +29,7 @@ async function fixture(t: test.TestContext) {
     if (server?.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   };
   const start = async () => {
-    server = createMolisWorkWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: directory, controlToken });
+    server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address();
     assert.ok(address && typeof address === "object");
@@ -55,14 +56,16 @@ async function fixture(t: test.TestContext) {
 
 test("document file HTTP import registers, previews, exports, reuses and survives restart", async t => {
   const { store, coordinator, post, get, origin, restart } = await fixture(t);
-  const before = store.snapshot(DEMO_BOARD_ID);
-  const page = await get("/artifacts/import");
-  assert.equal(page.status, 200);
-  const form = await page.text();
-  assert.match(form, /data-artifact-import-form/);
+  const before = store.snapshot(DEMO_PROJECT_ID);
+  // The 成果库's one import entry is a dialog in its directory (artifact-positioning A3); there is no import page.
+  const directory = await (await get("/artifacts")).text();
+  assert.match(directory, /data-artifact-import-open/);
+  assert.match(directory, /<dialog[^>]*data-artifact-import-dialog/);
   for (const source of ["notion", "feishu", "lark", "google-docs", "file"]) {
-    assert.ok(form.includes(`value="${source}"`), source);
+    assert.ok(directory.includes(`value="${source}"`), source);
   }
+  const oldPage = await get("/artifacts/import");
+  assert.doesNotMatch(await oldPage.text(), /data-artifact-import-form/);
   const file = { source: "file", filename: "导入验收.md", content: markdown };
   const response = await post(file, "first-file-import");
   assert.equal(response.status, 201);
@@ -70,7 +73,7 @@ test("document file HTTP import registers, previews, exports, reuses and survive
   assert.equal(imported.version, 1);
   assert.equal(imported.reused, false);
   assert.deepEqual(imported.warnings, []);
-  const artifact = coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, imported);
+  const artifact = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, imported);
   assert.ok(artifact);
   assert.equal(artifact.artifact_type_id, DOCUMENT_ARTIFACT_TYPE);
   assert.equal(artifact.scope, "personal");
@@ -85,8 +88,9 @@ test("document file HTTP import registers, previews, exports, reuses and survive
   assert.equal(detail.status, 200);
   const html = await detail.text();
   assert.match(html, /<h1>导入验收<\/h1>/);
-  assert.match(html, /artifact-document-body/);
-  assert.match(html, /保留中文正文和 \*\*Markdown\*\*/);
+  // The imported file's owner previews it (artifact-positioning A4): Markdown rendered read-only.
+  assert.match(html, /data-artifact-business-preview/);
+  assert.match(html, /保留中文正文和 <strong>Markdown<\/strong>/);
   assert.match(html, /&lt;script&gt;importAttack\(\)&lt;\/script&gt;/);
   assert.doesNotMatch(html, /<script>importAttack\(\)<\/script>/);
   assert.match(html, /原文后续修改不会自动同步/);
@@ -102,7 +106,7 @@ test("document file HTTP import registers, previews, exports, reuses and survive
   const duplicate = await post(file);
   assert.equal(duplicate.status, 200);
   assert.deepEqual(await duplicate.json(), { ...imported, reused: true });
-  assert.equal(coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID).length, 1);
+  assert.equal(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 1);
 
   await restart();
   const restored = await get(`/api${imported.url}/export`);
@@ -112,7 +116,7 @@ test("document file HTTP import registers, previews, exports, reuses and survive
   const importedAgain = await post(file);
   assert.equal(importedAgain.status, 200);
   assert.deepEqual(await importedAgain.json(), { ...imported, reused: true });
-  const after = store.snapshot(DEMO_BOARD_ID);
+  const after = store.snapshot(DEMO_PROJECT_ID);
   for (const field of ["goals", "evidence", "runs", "reviews"] as const) assert.deepEqual(after[field], before[field]);
 });
 
@@ -123,7 +127,7 @@ test("HTML import extracts readable content, preserves its source and never exec
   assert.equal(response.status, 201);
   const imported = await response.json() as { artifact_id: string; version: number; url: string; warnings: string[] };
   assert.ok(imported.warnings.length > 0);
-  const artifact = coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, imported)!;
+  const artifact = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, imported)!;
   const payload = artifact.payload as Record<string, unknown>;
   assert.equal(payload.original_html, original);
   assert.equal(payload.title, "导出的文档");
@@ -141,8 +145,8 @@ test("HTML import extracts readable content, preserves its source and never exec
 for (const stop of ["cancel", "revoke"] as const) test(`HTML import ${stop} after real parsing leaves no Artifact and a fresh call recovers`, async t => {
   const { coordinator } = await fixture(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
   const input = { source: "file", filename: "page.html", content: "<head><title>Page</title></head><p>Original body</p>" };
-  const ports = { boardId: DEMO_BOARD_ID, actorId: "fixture-owner", routePrefix: "/projects/current", artifacts: coordinator.artifacts };
-  const previous = coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID);
+  const ports = { projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: "/projects/current", artifacts: coordinator.artifacts };
+  const previous = coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const pending = importLocalArtifactDocument(input, { ...ports, signal: controller.signal, beforeSave: async () => {
     entered.resolve(); await release.promise;
     if (stop === "revoke") throw new Error("revoked after parsing");
@@ -152,9 +156,9 @@ for (const stop of ["cancel", "revoke"] as const) test(`HTML import ${stop} afte
     await entered.promise;
     if (stop === "cancel") controller.abort();
     release.resolve(); await rejected;
-    assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID), previous);
+    assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID), previous);
     const saved = await importLocalArtifactDocument(input, ports);
-    const record = coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, saved)!;
+    const record = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, saved)!;
     assert.equal((record.payload as Record<string, unknown>).original_html, input.content);
     assert.equal((record.payload as Record<string, unknown>).content, "Original body");
   } finally { release.resolve(); }
@@ -162,12 +166,14 @@ for (const stop of ["cancel", "revoke"] as const) test(`HTML import ${stop} afte
 
 test("invalid, empty, oversized and unauthorized imports leave Artifact records unchanged and can recover", async t => {
   const { coordinator, post, rawPost, headers } = await fixture(t);
-  const before = coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID);
+  const before = coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const cases: Array<{ body: unknown; status: number; code: string }> = [
     { body: { source: "unsupported" }, status: 400, code: "document.source_invalid" },
     { body: { source: "file", filename: "empty.md", content: " \n\t" }, status: 422, code: "document.empty" },
     { body: { source: "file", filename: "binary.txt", content: "\u0000binary" }, status: 415, code: "document.binary" },
-    { body: { source: "file", filename: "report.pdf", content: "PDF" }, status: 415, code: "document.file_unsupported" },
+    // Any file is accepted (artifact-positioning A3), but one that is not text must come with its original bytes.
+    { body: { source: "file", filename: "report.pdf", content: "PDF" }, status: 400, code: "document.original_invalid" },
+    { body: { source: "file", filename: "report.pdf", original_file: { filename: "report.pdf", mime: "application/pdf", data_base64: "not base64!" } }, status: 413, code: "document.original_invalid" },
     { body: { source: "file", filename: "../report.md", content: "body" }, status: 400, code: "document.filename_invalid" },
     { body: { source: "file", filename: "body.md", content: 42 }, status: 400, code: "document.content_invalid" },
     // This passes a character-count limit but exceeds the actual UTF-8 byte limit.
@@ -177,7 +183,7 @@ test("invalid, empty, oversized and unauthorized imports leave Artifact records 
     const response = await post(example.body);
     assert.equal(response.status, example.status, example.code);
     assert.equal((await response.json() as { code: string }).code, example.code);
-    assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID), before);
+    assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID), before);
   }
   for (const body of ["{broken", "null", "[]", Buffer.from([0xff, 0xfe])]) {
     const response = await rawPost(body, headers());
@@ -203,33 +209,33 @@ test("invalid, empty, oversized and unauthorized imports leave Artifact records 
   const missingKey = await rawPost(validBody, noKey);
   assert.equal(missingKey.status, 400);
   await missingKey.text();
-  assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID), before);
+  assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID), before);
   const failed = await post({ ...file, content: "" }, "failed-import-retry");
   assert.equal(failed.status, 422);
   await failed.text();
   const recovered = await post(file, "failed-import-retry");
   assert.equal(recovered.status, 201, "a failed attempt must release its mutation key for a corrected retry");
   await recovered.text();
-  assert.equal(coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID).length, before.length + 1);
+  assert.equal(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, before.length + 1);
 });
 
 test("external document snapshots preserve exact old versions and isolate the same source by project", async t => {
   const { coordinator, get } = await fixture(t);
-  coordinator.initializeBoard({ board_id: "other-project", title: "Other project", actor_id: "fixture-owner", idempotency_key: "create-other-project" });
+  coordinator.initializeBoard({ project_id: "other-project", title: "Other project", actor_id: "fixture-owner", idempotency_key: "create-other-project" });
   let document: ImportedArtifactDocument = {
     source: "notion", source_id: "a1b2c3-source", source_url: "https://www.notion.so/a1b2c3-source",
     title: "来源文档", content: "第一次读取的正文", format: "markdown", warnings: [],
   };
   const observed: Array<{ source: string; url: string }> = [];
   const ports: ArtifactDocumentImportPorts = {
-    boardId: DEMO_BOARD_ID, actorId: "fixture-owner", routePrefix: "/projects/current", artifacts: coordinator.artifacts,
+    projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: "/projects/current", artifacts: coordinator.artifacts,
     readExternal: async input => { observed.push(input); return { ...document, warnings: [...document.warnings] }; },
     readHtml: () => { throw new Error("external imports must not read HTML files"); },
     now: () => "2026-09-22T00:00:00.000Z",
   };
   const input = { source: "notion", url: document.source_url };
   const first = await importArtifactDocument(input, ports);
-  const original = coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, first)!;
+  const original = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first)!;
   assert.ok(first.url.startsWith("/projects/current/artifacts/"));
   assert.deepEqual(observed, [input]);
   assert.equal((original.metadata as Record<string, unknown>).source_url, document.source_url);
@@ -238,8 +244,8 @@ test("external document snapshots preserve exact old versions and isolate the sa
   document = { ...document, source_url: "https://www.notion.so/renamed-page-a1b2c3-source?share=copy" };
   const alias = await importArtifactDocument({ ...input, url: document.source_url }, ports);
   assert.deepEqual(alias, { ...first, reused: true }, "a different URL for the same source and content must reuse the saved snapshot");
-  assert.equal(coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID).length, 1);
-  assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, first), original, "alias imports must preserve the original version and provenance");
+  assert.equal(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 1);
+  assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first), original, "alias imports must preserve the original version and provenance");
   const originalPath = `/artifacts/${encodeURIComponent(first.artifact_id)}/versions/${first.version}`;
   assert.match(await (await get(originalPath)).text(), /href="https:\/\/www\.notion\.so\/a1b2c3-source"[^>]*>打开来源文档<\/a>/);
   document = { ...document, content: "第二次读取的正文", title: "来源文档更新" };
@@ -247,21 +253,21 @@ test("external document snapshots preserve exact old versions and isolate the sa
   assert.equal(second.artifact_id, first.artifact_id);
   assert.equal(second.version, 2);
   assert.equal(second.reused, false);
-  assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, first), original);
-  const latest = coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, second)!;
+  assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first), original);
+  const latest = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, second)!;
   assert.equal((latest.payload as Record<string, unknown>).content, "第二次读取的正文");
   assert.equal(latest.supersedes_version, 1);
 
-  const other = await importArtifactDocument(input, { ...ports, boardId: "other-project", routePrefix: "/projects/other" });
+  const other = await importArtifactDocument(input, { ...ports, projectId: "other-project", routePrefix: "/projects/other" });
   assert.notEqual(other.artifact_id, first.artifact_id);
   assert.equal(other.version, 1);
   assert.ok(other.url.startsWith("/projects/other/artifacts/"));
-  assert.equal(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, other), null);
+  assert.equal(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, other), null);
   assert.equal(coordinator.artifacts.query.getArtifactVersion("other-project", first), null);
-  const beforeFailure = coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID);
+  const beforeFailure = coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const permissionDenied = new Error("fixture provider denied permission");
   await assert.rejects(importArtifactDocument(input, { ...ports, readExternal: async () => { throw permissionDenied; } }), error => error === permissionDenied);
-  assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID), beforeFailure);
+  assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID), beforeFailure);
 
   // Stored metadata may come from an older producer; both display surfaces must
   // treat it as data even when the current external adapters validate their URLs.
@@ -286,14 +292,14 @@ test("different local files with the same filename never overwrite the earlier s
   const firstResponse = await post({ source: "file", filename, content: "第一个文件正文" });
   assert.equal(firstResponse.status, 201);
   const first = await firstResponse.json() as { artifact_id: string; version: number; url: string };
-  const original = coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, first);
+  const original = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first);
   const secondResponse = await post({ source: "file", filename, content: "第二个文件正文" });
   assert.equal(secondResponse.status, 201);
   const second = await secondResponse.json() as { artifact_id: string; version: number; url: string };
   assert.notEqual(first.artifact_id, second.artifact_id);
   assert.equal(first.version, 1);
   assert.equal(second.version, 1);
-  assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, first), original);
+  assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first), original);
   const firstHtml = await (await get(first.url)).text();
   assert.match(firstHtml, /第一个文件正文/);
   assert.doesNotMatch(firstHtml, /第二个文件正文/);
@@ -353,8 +359,8 @@ test("catalog project HTTP imports keep independent snapshots and all read paths
     assert.ok(html.includes(`href="${prefix}/api/artifacts/${result.artifact_id}/versions/1/export"`));
     const exported = await fetch(`${origin}${prefix}/api/artifacts/${result.artifact_id}/versions/1/export`);
     assert.equal(exported.status, 200);
-    const artifact = await exported.json() as { board_id: string; artifact_id: string; payload: { content: string } };
-    assert.equal(artifact.board_id, project.board_id);
+    const artifact = await exported.json() as { project_id: string; artifact_id: string; payload: { content: string } };
+    assert.equal(artifact.project_id, project.project_id);
     assert.equal(artifact.artifact_id, result.artifact_id);
     assert.equal(artifact.payload.content, content);
     imported.push({ ...result, prefix });
@@ -372,4 +378,44 @@ test("catalog project HTTP imports keep independent snapshots and all read paths
     const { prefix: _prefix, ...result } = own;
     assert.deepEqual(await response.json(), { ...result, reused: true });
   }
+});
+
+test("any file imports as a 成果 with its original bytes and real media type; a text version continues in Pages", async t => {
+  // specs/artifact-positioning A3: one import entry for any file; Pages starts documents from a version, not its own import.
+  const { coordinator, post, get, origin, headers } = await fixture(t);
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+  const imageResponse = await post({ source: "file", filename: "封面.png", original_file: { filename: "封面.png", mime: "image/png", data_base64: png.toString("base64") } });
+  assert.equal(imageResponse.status, 201);
+  const image = await imageResponse.json() as { artifact_id: string; version: number };
+  const record = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, image)!;
+  assert.equal(record.media_type, "image/png");
+  assert.equal(record.title, "封面");
+  assert.deepEqual(record.origin, { kind: "imported", file_name: "封面.png" });
+  const file = await fetch(`${origin}/api/artifacts/${encodeURIComponent(image.artifact_id)}/versions/1/file`, { headers: { "accept-language": "zh" } });
+  assert.equal(file.status, 200);
+  assert.equal(file.headers.get("content-type"), "image/png");
+  assert.match(file.headers.get("content-disposition") ?? "", /^inline;/);
+  assert.deepEqual(Buffer.from(await file.arrayBuffer()), png);
+  const detail = await (await get(`/artifacts/${encodeURIComponent(image.artifact_id)}/versions/1`)).text();
+  assert.match(detail, /<img class="file-preview-image"[^>]*src="data:image\/png;base64,/);
+  assert.match(detail, /下载原文件/);
+  assert.doesNotMatch(detail, /data-artifact-continue/, "Pages cannot start a document from an image");
+
+  const textResponse = await post({ source: "file", filename: "接着写.md", content: "# 接着写\n\n从这一版继续。" });
+  const text = await textResponse.json() as { artifact_id: string; version: number };
+  const textDetail = await (await get(`/artifacts/${encodeURIComponent(text.artifact_id)}/versions/1`)).text();
+  assert.match(textDetail, /data-artifact-continue="io\.molis\.work\.pages"[^>]*>在 Pages 继续</);
+  const download = await fetch(`${origin}/api/artifacts/${encodeURIComponent(text.artifact_id)}/versions/1/file`);
+  assert.match(download.headers.get("content-disposition") ?? "", /^attachment;/);
+  assert.equal(await download.text(), "# 接着写\n\n从这一版继续。");
+  // 「从这一版继续」 (A4b): the plugin the person chose starts a new object; Pages reads the file the way it imports files.
+  const continued = await fetch(origin + "/api/artifacts/continue", { method: "POST", headers: headers(), body: JSON.stringify({ reference: text, plugin_id: "io.molis.work.pages" }) });
+  assert.equal(continued.status, 201, await continued.clone().text());
+  const result = await continued.json() as { open: { surface: string; id: string; title: string } };
+  assert.deepEqual([result.open.surface, result.open.title], ["pages", "接着写"]);
+  const pages = (await (await fetch(`${origin}/api/pages`)).json() as { documents: Array<{ id: string; title: string }> }).documents;
+  assert.deepEqual(pages.filter(document => document.title === "接着写").map(document => document.id), [result.open.id], "exactly one document, the one that opens");
+  const refused = await fetch(origin + "/api/artifacts/continue", { method: "POST", headers: headers(), body: JSON.stringify({ reference: image, plugin_id: "io.molis.work.pages" }) });
+  assert.equal(refused.status, 400);
+  await refused.text();
 });

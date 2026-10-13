@@ -48,7 +48,8 @@ fn pin_inset(ns_window: &NSWindow) {
     let Some(close) = ns_window.standardWindowButton(NSWindowButton::CloseButton) else {
         return;
     };
-    let Some(miniaturize) = ns_window.standardWindowButton(NSWindowButton::MiniaturizeButton) else {
+    let Some(miniaturize) = ns_window.standardWindowButton(NSWindowButton::MiniaturizeButton)
+    else {
         return;
     };
     let zoom = ns_window.standardWindowButton(NSWindowButton::ZoomButton);

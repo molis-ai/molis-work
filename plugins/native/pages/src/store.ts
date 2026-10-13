@@ -1,10 +1,11 @@
 import { extractFromPagesBody, unpublishedKnowledgePages } from "./extract.js";
-import { ensureSqliteColumn, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { realpathSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesFolder, PagesRecord, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
-import { PagesError } from "./error.js";
+import { pagesErrors } from "./error.js";
 import { pagesTemplateById } from "./templates.js";
 import type { PagesPublicationIntent, PagesPublicationSnapshot } from "./promote.js";
 
@@ -62,44 +63,6 @@ export class PagesStore {
     this.db.close();
   }
 
-  hasProjectData(projectId: string): boolean {
-    return ["pages", "folders", "page_generations", "page_imports"].some(table => Boolean(this.db.prepare(`SELECT 1 FROM ${table} WHERE project_id = ? LIMIT 1`).get(projectId)));
-  }
-
-  /** Host must prove the old partition belongs uniquely to this project before calling. */
-  migrateProjectScope(previous: string, projectId: string): void {
-    if (previous === projectId) return;
-    normalizeProjectId(previous); normalizeProjectId(projectId);
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
-      const generations = this.generations(previous);
-      if (generations.some(record => record.status === "running" && Date.now() - Date.parse(record.updated_at) < 180_000)) throw new PagesError("pages.legacy_running", "旧文稿仍在生成，请完成后重新打开");
-      for (const table of ["page_generations", "page_imports"]) {
-        const collision = this.db.prepare(`SELECT 1 FROM ${table} a JOIN ${table} b ON a.request_id = b.request_id WHERE a.project_id = ? AND b.project_id = ? LIMIT 1`).get(previous, projectId);
-        if (collision) throw new PagesError("pages.legacy_conflict", "旧文稿请求与当前项目冲突，原数据已保留，请先修复关联");
-      }
-      for (const page of this.list(previous)) {
-        const rewrite = (node: unknown): unknown => {
-          if (Array.isArray(node)) return node.map(rewrite);
-          if (!node || typeof node !== "object") return node;
-          const record = node as Record<string, unknown>;
-          return Object.fromEntries(Object.entries(record).map(([key, value]) => [key,
-            key === "href" && typeof value === "string" && value.startsWith(`/projects/${encodeURIComponent(previous)}/?inbox_entry=`)
-              ? `/projects/${encodeURIComponent(projectId)}/` + value.slice(`/projects/${encodeURIComponent(previous)}/`.length) : rewrite(value)]));
-        };
-        this.db.prepare("UPDATE pages SET project_id = ?, body_json = ?, version = version + 1 WHERE id = ?").run(projectId, JSON.stringify(rewrite(page.body)), page.id);
-      }
-      this.db.prepare("UPDATE folders SET project_id = ? WHERE project_id = ?").run(projectId, previous);
-      this.db.prepare("UPDATE page_imports SET project_id = ? WHERE project_id = ?").run(projectId, previous);
-      for (const record of generations) {
-        const next = { ...record, project_id: projectId, ...(record.status === "running" ? { status: "failed" as const, error: "上次生成已中断，材料已保留，请重试" } : {}) };
-        this.saveGeneration(next);
-      }
-      this.db.prepare("DELETE FROM page_generations WHERE project_id = ?").run(previous);
-      this.db.exec("COMMIT");
-    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
-  }
-
   generation(projectId: string, requestId: string): PagesGenerationRecord | null {
     const row = this.db.prepare("SELECT record_json FROM page_generations WHERE project_id = ? AND request_id = ?")
       .get(projectId, requestId) as { record_json: string } | undefined;
@@ -115,11 +78,11 @@ export class PagesStore {
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const prior = this.generation(record.project_id, record.request_id);
-      if (prior?.request_hash && prior.request_hash !== record.request_hash) throw new PagesError("pages.invalid", "同一个请求的材料或要求已改变，请重新生成");
+      if (prior?.request_hash && prior.request_hash !== record.request_hash) throw pagesErrors.invalid("同一个请求的材料或要求已改变，请重新生成");
       if (prior?.status === "completed") { this.db.exec("COMMIT"); return prior; }
       // A fresh running record keeps its lease, unless this process started that attempt and it has already ended.
       if (prior?.status === "running" && Date.now() - Date.parse(prior.updated_at) < 180_000
-        && this.attempts.get(attemptKey(prior)) !== false) throw new PagesError("pages.unavailable", "这份文稿仍在生成，请稍后查看结果");
+        && this.attempts.get(attemptKey(prior)) !== false) throw pagesErrors.unavailable("这份文稿仍在生成，请稍后查看结果");
       const next = { ...(prior ?? record), status: "running" as const, error: null, updated_at: new Date(Math.max(Date.now(), prior ? Date.parse(prior.updated_at) + 1 : 0)).toISOString() };
       this.saveGeneration(next);
       this.db.exec("COMMIT");
@@ -137,7 +100,7 @@ export class PagesStore {
         const document = this.get(prior.document_id, record.project_id);
         this.db.exec("COMMIT"); return document;
       }
-      if (!prior || prior.status !== "running" || prior.updated_at !== record.updated_at) throw new PagesError("pages.unavailable", "此请求已由另一次处理接续，请查看最新结果");
+      if (!prior || prior.status !== "running" || prior.updated_at !== record.updated_at) throw pagesErrors.unavailable("此请求已由另一次处理接续，请查看最新结果");
       const document = this.create({ project_id: record.project_id, title: record.title, body });
       this.saveGeneration({ ...record, status: "completed", document_id: document.id, error: null, updated_at: new Date().toISOString() });
       this.db.exec("COMMIT");
@@ -176,9 +139,9 @@ export class PagesStore {
 
   get(id: string, projectId?: string): PagesRecord {
     const row = this.db.prepare("SELECT * FROM pages WHERE id = ?").get(id) as PagesRow | undefined;
-    if (!row) throw new PagesError("pages.not_found", "找不到这篇文档");
+    if (!row) throw pagesErrors.not_found("找不到这篇文档");
     if (projectId && row.project_id !== normalizeProjectId(projectId)) {
-      throw new PagesError("pages.not_found", "找不到这篇文档");
+      throw pagesErrors.not_found("找不到这篇文档");
     }
     return fromPageRow(row);
   }
@@ -194,7 +157,7 @@ export class PagesStore {
   }): PagesRecord {
     const now = new Date().toISOString();
     const template = input.template_id ? pagesTemplateById(input.template_id) : undefined;
-    if (input.template_id && !template) throw new PagesError("pages.invalid", "找不到这份模板");
+    if (input.template_id && !template) throw pagesErrors.invalid("找不到这份模板");
     const project_id = normalizeProjectId(input.project_id);
     const folder_id = normalizeFolderId(input.folder_id, this, project_id);
     const rawBody = input.body ?? template?.body ?? { type: "doc", content: [...(EMPTY_PAGES_BODY.content ?? [])] };
@@ -225,21 +188,21 @@ export class PagesStore {
   /** Create a selected batch once; a retry returns current records without overwriting edits. */
   importDocuments(input: PagesImportDocumentsInput): PagesRecord[] {
     const project_id = normalizeProjectId(input.project_id);
-    if (!input.documents.length || input.documents.length > 100) throw new PagesError("pages.invalid", "请选择 1 到 100 篇文档");
+    if (!input.documents.length || input.documents.length > 100) throw pagesErrors.invalid("请选择 1 到 100 篇文档");
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const prior = this.db.prepare("SELECT request_hash, document_ids_json FROM page_imports WHERE project_id = ? AND request_id = ?")
         .get(project_id, input.request_id) as { request_hash: string; document_ids_json: string } | undefined;
       if (prior) {
         if (prior.request_hash !== input.request_hash) {
-          throw new PagesError("pages.unavailable", "这次导入的文件、选择或文件夹已改变，请重新预览后导入");
+          throw pagesErrors.unavailable("这次导入的文件、选择或文件夹已改变，请重新预览后导入");
         }
         const ids = JSON.parse(prior.document_ids_json) as string[];
         const documents = ids.map((id) => {
           try { return this.get(id, project_id); }
           catch (error) {
-            if (error instanceof PagesError && error.code === "pages.not_found") {
-              throw new PagesError("pages.unavailable", "这批导入已完成，但部分文档已删除；不会重新创建");
+            if (error instanceof ActionError && error.code === "pages.not_found") {
+              throw pagesErrors.unavailable("这批导入已完成，但部分文档已删除；不会重新创建");
             }
             throw error;
           }
@@ -275,7 +238,7 @@ export class PagesStore {
     expected_version?: number;
   }, projectId?: string): PagesRecord {
     const current = this.get(id, projectId);
-    if (patch.expected_version !== undefined && patch.expected_version !== current.version) throw new PagesError("pages.conflict", "文档已被其他窗口修改，请重新读取后保存");
+    if (patch.expected_version !== undefined && patch.expected_version !== current.version) throw pagesErrors.conflict("文档已被其他窗口修改，请重新读取后保存");
     const next: PagesRecord = {
       ...current,
       title: patch.title !== undefined ? normalizeTitle(patch.title) : current.title,
@@ -297,24 +260,24 @@ export class PagesStore {
       next.goal_id, next.artifact_id, next.artifact_version,
       next.updated_at, next.version, id, current.version,
     );
-    if (result.changes !== 1) throw new PagesError("pages.conflict", "文档已被其他窗口修改，请重新读取后保存");
+    if (result.changes !== 1) throw pagesErrors.conflict("文档已被其他窗口修改，请重新读取后保存");
     return next;
   }
 
-  beginPublication(id: string, projectId: string, actorId: string, goalId?: string, expectedVersion?: number, existing?: PagesPublicationSnapshot): PagesPublicationIntent {
+  beginPublication(id: string, projectId: string, actorId: string, goalId?: string, expectedVersion?: number, existing?: PagesPublicationSnapshot, version?: number): PagesPublicationIntent {
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const current = this.get(id, projectId);
       const pending = this.publicationIntent(id);
-      if (expectedVersion !== undefined && current.version !== expectedVersion) throw new PagesError("pages.conflict", "文档已改变，请重新读取后保存成果");
+      if (expectedVersion !== undefined && current.version !== expectedVersion) throw pagesErrors.conflict("文档已改变，请重新读取后保存成果");
       if (pending) {
-        if (pending.actor_id !== actorId) throw new PagesError("pages.publication_owner", "请由上次保存的发起者恢复发布，原快照已保留");
-        if (goalId !== undefined && goalId !== pending.goal_id) throw new PagesError("pages.publication_pending", "请先恢复上次保存的成果，再关联新的 Goal");
+        if (pending.actor_id !== actorId) throw pagesErrors.publication_owner("请由上次保存的发起者恢复发布，原快照已保留");
+        if (goalId !== undefined && goalId !== pending.goal_id) throw pagesErrors.publication_pending("请先恢复上次保存的成果，再关联新的 Goal");
         this.db.exec("COMMIT"); return pending;
       }
       const intent: PagesPublicationIntent = { title: existing?.title ?? current.title, body: existing?.body ?? current.body,
         goal_id: existing?.goal_id ?? normalizeGoalId(goalId ?? current.goal_id), original_goal_id: existing?.goal_id ?? current.goal_id,
-        version: current.artifact_version + 1, source_version: current.version, actor_id: actorId };
+        version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };
       this.db.prepare("UPDATE pages SET publication_pending_json = ? WHERE id = ?").run(JSON.stringify(intent), id);
       this.db.exec("COMMIT"); return intent;
     } catch (error) { this.db.exec("ROLLBACK"); throw error; }
@@ -328,7 +291,7 @@ export class PagesStore {
         this.db.exec("COMMIT"); return current;
       }
       const pending = this.publicationIntent(id);
-      if (!pending || JSON.stringify(pending) !== JSON.stringify(intent)) throw new PagesError("pages.publication_conflict", "保存记录已改变，请重新读取文稿");
+      if (!pending || JSON.stringify(pending) !== JSON.stringify(intent)) throw pagesErrors.publication_conflict("保存记录已改变，请重新读取文稿");
       this.update(id, { artifact_id: artifact.artifact_id, artifact_version: artifact.version,
         ...(current.goal_id === intent.original_goal_id ? { goal_id: intent.goal_id } : {}), expected_version: current.version }, projectId);
       this.db.prepare("UPDATE pages SET publication_pending_json = NULL WHERE id = ?").run(id);
@@ -352,11 +315,11 @@ export class PagesStore {
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const current = this.get(id, from);
-      if (current.publication_pending) throw new PagesError("pages.publication_pending", "上次成果保存还没完成，请先在原位置继续保存，再移动");
+      if (current.publication_pending) throw pagesErrors.publication_pending("上次成果保存还没完成，请先在原位置继续保存，再移动");
       // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
       const result = this.db.prepare("UPDATE pages SET project_id = ?, folder_id = '', goal_id = '', artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?")
         .run(target, id, current.version);
-      if (result.changes !== 1) throw new PagesError("pages.conflict", "文档刚被修改，请重新读取后再移动");
+      if (result.changes !== 1) throw pagesErrors.conflict("文档刚被修改，请重新读取后再移动");
       const moved = this.get(id, target);
       this.db.exec("COMMIT");
       return moved;
@@ -388,9 +351,9 @@ export class PagesStore {
   /** Take one kept edit back: the document returns to what it was before, only if no one changed it since. */
   revertChange(changeId: string, projectId?: string): PagesRecord {
     const row = this.db.prepare("SELECT page_id, to_version, before_json FROM page_changes WHERE change_id = ?").get(changeId) as { page_id: string; to_version: number; before_json: string } | undefined;
-    if (!row) throw new PagesError("pages.not_found", "这次修改已经撤销过，或记录已过期（保留 14 天）");
+    if (!row) throw pagesErrors.not_found("这次修改已经撤销过，或记录已过期（保留 14 天）");
     const current = this.get(row.page_id, projectId);
-    if (current.version !== row.to_version) throw new PagesError("pages.conflict", `《${current.title || "未命名"}》在这次修改之后又改过（现在是第 ${current.version} 版），没有撤销；需要时请在 Pages 里自己改回`);
+    if (current.version !== row.to_version) throw pagesErrors.conflict(`《${current.title || "未命名"}》在这次修改之后又改过（现在是第 ${current.version} 版），没有撤销；需要时请在 Pages 里自己改回`);
     const before = JSON.parse(row.before_json) as Pick<PagesRecord, "title" | "body" | "folder_id" | "starred" | "goal_id">;
     const restored = this.update(row.page_id, { ...before, expected_version: current.version }, projectId);
     this.db.prepare("DELETE FROM page_changes WHERE change_id = ?").run(changeId);
@@ -400,9 +363,9 @@ export class PagesStore {
   /** Take back a document just created: removed only while it is still the version it was created at, so no later edit is lost. */
   discard(id: string, expectedVersion: number, projectId?: string): void {
     const current = this.get(id, projectId);
-    if (current.version !== expectedVersion) throw new PagesError("pages.conflict", `《${current.title || "未命名"}》在新建之后改过（现在是第 ${current.version} 版），没有撤销；需要时请在 Pages 里自己删除`);
+    if (current.version !== expectedVersion) throw pagesErrors.conflict(`《${current.title || "未命名"}》在新建之后改过（现在是第 ${current.version} 版），没有撤销；需要时请在 Pages 里自己删除`);
     const result = this.db.prepare("DELETE FROM pages WHERE id = ? AND version = ?").run(id, expectedVersion);
-    if (result.changes !== 1) throw new PagesError("pages.conflict", "文档刚被修改，没有撤销");
+    if (result.changes !== 1) throw pagesErrors.conflict("文档刚被修改，没有撤销");
   }
 
   extract(id: string, projectId: string): { document: PagesRecord; cards: number; created: PagesRecord[] } {
@@ -435,9 +398,9 @@ export class PagesStore {
 
   getFolder(id: string, projectId?: string): PagesFolder {
     const row = this.db.prepare("SELECT * FROM folders WHERE id = ?").get(id) as FolderRow | undefined;
-    if (!row) throw new PagesError("pages.not_found", "找不到这个文件夹");
+    if (!row) throw pagesErrors.not_found("找不到这个文件夹");
     if (projectId && row.project_id !== normalizeProjectId(projectId)) {
-      throw new PagesError("pages.not_found", "找不到这个文件夹");
+      throw pagesErrors.not_found("找不到这个文件夹");
     }
     return fromFolderRow(row);
   }
@@ -464,41 +427,41 @@ export class PagesStore {
   }
 }
 
+/**
+ * The Pages store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
+ * must already be at its version. Columns keep the order existing stores have them in.
+ */
+export const PAGES_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE pages (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL,
+    body_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    folder_id TEXT NOT NULL DEFAULT '',
+    starred INTEGER NOT NULL DEFAULT 0,
+    goal_id TEXT NOT NULL DEFAULT '',
+    artifact_id TEXT NOT NULL DEFAULT '',
+    artifact_version INTEGER NOT NULL DEFAULT 0,
+    publication_pending_json TEXT
+  );
+  CREATE TABLE folders (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE page_generations (project_id TEXT NOT NULL, request_id TEXT NOT NULL, updated_at TEXT NOT NULL, record_json TEXT NOT NULL, PRIMARY KEY(project_id, request_id));
+  -- What an edit by an agent or a workflow replaced, kept a while so the person can take that edit back (single use).
+  CREATE TABLE page_changes (change_id TEXT PRIMARY KEY, page_id TEXT NOT NULL, to_version INTEGER NOT NULL, before_json TEXT NOT NULL, created_at TEXT NOT NULL);
+  CREATE TABLE page_imports (project_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, document_ids_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(project_id, request_id));
+` };
+
 export function openPagesStore(homeDirectory: string): PagesStore {
-  const db = openHomeSqliteDatabase(homeDirectory, "pages");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS pages (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL DEFAULT '',
-      title TEXT NOT NULL,
-      body_json TEXT NOT NULL,
-      folder_id TEXT NOT NULL DEFAULT '',
-      starred INTEGER NOT NULL DEFAULT 0,
-      goal_id TEXT NOT NULL DEFAULT '',
-      artifact_id TEXT NOT NULL DEFAULT '',
-      artifact_version INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      version INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS folders (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL DEFAULT '',
-      title TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-  ensureSqliteColumn(db, "pages", "folder_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "pages", "starred", "INTEGER NOT NULL DEFAULT 0");
-  ensureSqliteColumn(db, "pages", "goal_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "pages", "artifact_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "pages", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
-  ensureSqliteColumn(db, "pages", "publication_pending_json", "TEXT");
-  db.exec("CREATE TABLE IF NOT EXISTS page_generations (project_id TEXT NOT NULL, request_id TEXT NOT NULL, updated_at TEXT NOT NULL, record_json TEXT NOT NULL, PRIMARY KEY(project_id, request_id))");
-  // What an edit by an agent or a workflow replaced, kept a while so the person can take that edit back (single use).
-  db.exec("CREATE TABLE IF NOT EXISTS page_changes (change_id TEXT PRIMARY KEY, page_id TEXT NOT NULL, to_version INTEGER NOT NULL, before_json TEXT NOT NULL, created_at TEXT NOT NULL)");
-  db.exec("CREATE TABLE IF NOT EXISTS page_imports (project_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, document_ids_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(project_id, request_id))");
+  const db = openBaselineHomeSqlite(homeDirectory, "pages", PAGES_STORE_BASELINE);
   const database = realpathSync(homeSqlitePath(homeDirectory, "pages"));
   let attempts = attemptsByDatabase.get(database);
   if (!attempts) attemptsByDatabase.set(database, attempts = new Map());
@@ -536,34 +499,34 @@ function fromFolderRow(row: FolderRow): PagesFolder {
 
 function normalizeProjectId(value: string): string {
   const id = value.trim();
-  if (!id) throw new PagesError("pages.invalid", "缺少项目");
-  if (id.length > 80) throw new PagesError("pages.invalid", "项目标识过长");
+  if (!id) throw pagesErrors.invalid("缺少项目");
+  if (id.length > 80) throw pagesErrors.invalid("项目标识过长");
   return id;
 }
 
 function normalizeTitle(value: string): string {
   const title = value.trim() || "未命名文档";
-  if (title.length > 80) throw new PagesError("pages.invalid", "标题须为 1 到 80 个字");
+  if (title.length > 80) throw pagesErrors.invalid("标题须为 1 到 80 个字");
   return title;
 }
 
 function normalizeFolderTitle(value: string): string {
   const title = value.trim() || "未命名文件夹";
-  if (title.length > 40) throw new PagesError("pages.invalid", "文件夹名须为 1 到 40 个字");
+  if (title.length > 40) throw pagesErrors.invalid("文件夹名须为 1 到 40 个字");
   return title;
 }
 
 function normalizeGoalId(value: string | undefined): string {
   if (value === undefined || value === null) return "";
-  if (typeof value !== "string") throw new PagesError("pages.invalid", "Goal 须为文字");
+  if (typeof value !== "string") throw pagesErrors.invalid("Goal 须为文字");
   const id = value.trim();
-  if (id.length > 80) throw new PagesError("pages.invalid", "Goal 标识过长");
+  if (id.length > 80) throw pagesErrors.invalid("Goal 标识过长");
   return id;
 }
 
 function normalizeFolderId(value: string | undefined, store: PagesStore, projectId: string): string {
   if (value === undefined || value === null) return "";
-  if (typeof value !== "string") throw new PagesError("pages.invalid", "文件夹须为文字");
+  if (typeof value !== "string") throw pagesErrors.invalid("文件夹须为文字");
   const id = value.trim();
   if (!id) return "";
   store.getFolder(id, projectId);

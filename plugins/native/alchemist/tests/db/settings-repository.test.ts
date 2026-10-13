@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it } from "vitest";
-import { migrate } from "../../src/studio/server/db/migrate.js";
+import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
 import { openDatabase, type SqliteDatabase } from "../../src/studio/server/db/open-database.js";
 import { SqliteSettingsRepository } from "../../src/studio/server/db/settings-repository.js";
 import { seedResearchIdea } from "./helpers/seed-research-idea.js";
@@ -21,7 +21,7 @@ describe("SQLite runtime settings", () => {
   it("stores host model selection and budgets without provider credentials", () => {
     temporary = createTempDatabase();
     database = openDatabase(temporary.path);
-    migrate(database);
+    applyStudioBaseline(database, ":memory:");
     seedResearchIdea(database);
     const repository = new SqliteSettingsRepository(database);
     const defaults = repository.ensureDefaults("workspace-local", "2026-07-31T10:00:00.000Z");

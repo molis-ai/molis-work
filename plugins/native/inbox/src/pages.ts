@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { ActionError, type ActionCallContext, type ActionExecutionContext, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PAGES_PLUGIN_ID, type PagesGenerationRecord, type PagesInputSnapshot, type PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { InboxPagesInput, InboxPagesMaterialRef } from "./actions.js";
@@ -42,13 +43,13 @@ export function createInboxPagesHandlers(ports: InboxPagesPorts) {
     generatePages: async (input: InboxPagesInput, caller: ActionExecutionContext) => {
       const entryIds = [...new Set(input.entry_ids)].sort();
       const instructions = input.instructions.trim(), title = input.title.trim();
-      if (!instructions || !title) throw new ActionError("pages.invalid", "请填写标题和处理要求");
+      if (!instructions || !title) throw inboxErrors.invalid("请填写标题和处理要求");
       const expected = input.expected_materials;
       if (expected && (expected.length !== entryIds.length || new Set(expected.map(ref => ref.entry_id)).size !== entryIds.length
-        || expected.some(ref => !entryIds.includes(ref.entry_id)))) throw new ActionError("pages.invalid", "固定材料与所选事项不一致");
+        || expected.some(ref => !entryIds.includes(ref.entry_id)))) throw inboxErrors.invalid("固定材料与所选事项不一致");
       const request_hash = inboxPagesRequestHash(input);
       const existing = await ports.generation(input.request_id, caller);
-      if (existing && existing.request_hash !== request_hash) throw new ActionError("pages.invalid", "材料或要求已改变，请重新生成");
+      if (existing && existing.request_hash !== request_hash) throw inboxErrors.invalid("材料或要求已改变，请重新生成");
       if (existing?.status === "completed" && existing.document_id) return { document: await ports.readDocument(existing.document_id, caller),
         replayed: true, request_id: input.request_id, entry_ids: entryIds };
       const matches = (materials: readonly PagesInputSnapshot[]) => {

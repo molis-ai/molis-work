@@ -1,4 +1,28 @@
-/** Lingguang workbench client: capture, list, edit, discard, contextual conversation. */
+/**
+ * Lingguang workbench client: capture, list, edit, discard, contextual conversation.
+ *
+ * Leaving a blank spark (W2-18 decision 6): `fresh` holds the sparks 「记下」 made blank, with the title the Host gave them. When the
+ * person leaves one (back to the list, another spark, another new one) it is read once more from the Host, and if that copy still
+ * has no body and the given title or none, it is thrown away with lingguang.discard, without asking. The discard names the
+ * updated_at of the copy that decided (expected_updated_at, the guard lingguang.update has), and the Host refuses a spark that
+ * has changed since: words that arrived from elsewhere between the read and the discard keep it. A spark that went into a
+ * brainstorm is in use and stays. A failed read, a refused or a failed discard changes nothing.
+ *
+ * Leaving also means the surface going away. When the workbench hides this page (another plugin, Home, Settings) the open blank
+ * spark is saved, the editor closed and the spark taken back the same way, so what comes back is the list. When the page itself
+ * is going away (reload, window closed) there is no time to read the Host's copy: the copy this page last saw decides (its
+ * updated_at is the one the discard names, so the Host refuses if the spark changed after that), and the call is sent with
+ * keepalive. Once it is decided to throw the spark away the editor is closed too: the workbench keeps the open
+ * record of a plugin's page to reopen after a reload and forgets it when the page reports it is back at its list (data-expanded
+ * false), and a record it still held would be asked for by id 1.5 s after the reload and answered 「这条灵光已丢掉或不存在」. A spark
+ * that stays (words on the screen or in the saved copy) keeps its editor and its record. A tab or window that is only hidden is
+ * not leaving. The scope's cleanups run in the same order when the page goes away; `alive` tells the two apart, so the call is
+ * made once.
+ *
+ * The workbench's own ways back to the list (its Back button, ⌘[, the mouse back button, the plugin's name on the tab strip) say
+ * "no item" with a select-item event and then fold the page without asking it to close the editor (leaveOnFold): once the fold is
+ * done, the blank spark is left like any other. An event with no item that is not followed by a fold leaves it open.
+ */
 export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const workbench = document.querySelector("[data-lingguang=workbench]");
@@ -70,11 +94,13 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const headers = () => typeof molisWorkControlHeaders === "function"
     ? molisWorkControlHeaders()
     : { "content-type": "application/json" };
-  const request = async (method, path, body) => {
+  const api = "/api/plugins/lingguang";
+  const request = async (method, path, body, keepalive) => {
     const response = await fetch(host.route(path), {
       method,
       headers: headers(),
       body: body === undefined || method === "GET" ? undefined : JSON.stringify(body),
+      keepalive,
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || L("灵光请求失败"));
@@ -183,7 +209,33 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     const preview = row.querySelector("[data-lingguang-snippet]");
     if (preview) preview.textContent = previewOf(record);
   };
+  const fresh = new Map();
+  const dropBlank = async (id, unloading) => {
+    const given = fresh.get(id);
+    if (given === undefined) return;
+    fresh.delete(id);
+    try {
+      const { spark } = unloading ? { spark: records.find((item) => item.id === id) } : await request("GET", api + "/" + encodeURIComponent(id));
+      if ((spark.body || "").trim() || (spark.title.trim() && spark.title !== given)) return;
+      if (unloading) closeWorkspace();
+      await request("POST", api + "/discard", { ids: [id], expected_updated_at: { [id]: spark.updated_at } }, unloading);
+      records = records.filter((item) => item.id !== id);
+      renderList();
+    } catch { /* stays as it was */ }
+  };
+  const leaveBlank = async (unloading) => {
+    const id = selected?.id;
+    if (!id || !fresh.has(id) || bodyInput.value.trim() || (titleInput.value.trim() && titleInput.value !== fresh.get(id))) return;
+    if (!unloading) {
+      await save();
+      if (selected?.id !== id) return;
+      closeWorkspace();
+    }
+    await dropBlank(id, unloading);
+  };
+  const leaveOnFold = () => queueMicrotask(() => { if (workbench.getAttribute("data-expanded") === "false") void leaveBlank().catch(() => {}); });
   const fillEditor = (record) => {
+    const left = selected && selected.id !== record.id ? selected.id : "";
     selected = record;
     conversation = null;
     workbench.setAttribute("data-expanded", "true");
@@ -195,6 +247,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     bodyInput.value = record.body || "";
     syncTodo();
     markSelected(record.id);
+    void dropBlank(left);
   };
   const closeWorkspace = () => {
     clearTimeout(saveTimer);
@@ -303,7 +356,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       const current = records.find((item) => item.id === record.id) || record;
       if (current.title === title && current.body === body) return current;
       if (selected?.id === record.id) showSave('保存中…');
-      const payload = await request("POST", "/api/plugins/lingguang/" + encodeURIComponent(record.id), {
+      const payload = await request("POST", api + "/" + encodeURIComponent(record.id), {
         title, body, expected_updated_at: current.updated_at,
       });
       remember(payload.spark);
@@ -332,7 +385,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const loadList = async () => {
     const seq = ++listSeq;
     loadingFor = wantedId;
-    const payload = await request("GET", "/api/plugins/lingguang").finally(() => { if (seq === listSeq) loadingFor = null; });
+    const payload = await request("GET", api).finally(() => { if (seq === listSeq) loadingFor = null; });
     if (seq !== listSeq) return;
     records = payload.sparks || [];
     selectedIds = new Set([...selectedIds].filter((id) => records.some((item) => item.id === id)));
@@ -357,7 +410,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!ids.length) return;
     const many = ids.length > 1;
     if (!await ask(many ? L("丢掉这几条？它们会离开灵光池。") : L("丢掉这条？它会离开灵光池。"), L("丢掉"))) return;
-    await request("POST", "/api/plugins/lingguang/discard", { ids });
+    await request("POST", api + "/discard", { ids });
     await loadList();
   };
   let shownMessages = [];
@@ -419,7 +472,8 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     const ids = selectedIds.size ? [...selectedIds] : (selected ? [selected.id] : []);
     if (!ids.length) throw new Error(L("先选至少一条"));
     await save();
-    const payload = await request("POST", "/api/plugins/lingguang/conversations", { spark_ids: ids });
+    ids.forEach((id) => fresh.delete(id));
+    const payload = await request("POST", api + "/conversations", { spark_ids: ids });
     conversation = payload.conversation;
     workbench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
@@ -453,7 +507,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   /** A reading becomes one spark, its origin and anything it could not read said in it. */
   const keepReading = async (reading, fallbackTitle, origin) => {
     const body = [reading.text, origin, reading.partial && reading.issues && reading.issues.length ? L("说明：") + reading.issues.join("；") : ""].filter(Boolean).join("\\n\\n");
-    const payload = await request("POST", "/api/plugins/lingguang", { title: (reading.title || fallbackTitle).slice(0, 80), body });
+    const payload = await request("POST", api, { title: (reading.title || fallbackTitle).slice(0, 80), body });
     selectedIds = new Set([payload.spark.id]);
     await loadList();
     fillEditor(payload.spark);
@@ -469,7 +523,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       const bytes = new Uint8Array(await file.arrayBuffer());
       let binary = "";
       for (let start = 0; start < bytes.length; start += 32768) binary += String.fromCharCode(...bytes.subarray(start, start + 32768));
-      const reading = await readMaterial("/api/plugins/lingguang/material", { file_name: file.name, data_base64: btoa(binary) });
+      const reading = await readMaterial(api + "/material", { file_name: file.name, data_base64: btoa(binary) });
       if (reading) await keepReading(reading, file.name.replace(/\\.[^.]+$/, ""), L("文件：") + file.name);
     })().catch((error) => showNote(error.message, true));
   });
@@ -478,7 +532,8 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-lingguang-save-retry]")) { await save(); return; }
       if (event.target.closest("[data-lingguang-capture]")) {
         await save();
-        const payload = await request("POST", "/api/plugins/lingguang", {});
+        const payload = await request("POST", api, {});
+        fresh.set(payload.spark.id, payload.spark.title);
         selectedIds = new Set([payload.spark.id]);
         await loadList();
         fillEditor(payload.spark);
@@ -502,7 +557,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
         await save();
         const url = await askLink();
         if (!url) return;
-        const reading = await readMaterial("/api/plugins/lingguang/source", { url });
+        const reading = await readMaterial(api + "/source", { url });
         if (reading) await keepReading(reading, url, L("来源：") + url);
         return;
       }
@@ -542,7 +597,9 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-lingguang-back]")) {
         await save();
+        const left = selected?.id;
         closeWorkspace();
+        await dropBlank(left);
         await loadList();
         return;
       }
@@ -581,7 +638,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (submit) submit.disabled = true;
     showNote("", false);
     try {
-      const payload = await request("POST", "/api/plugins/lingguang/conversations/" + encodeURIComponent(conversationId) + "/messages", { body });
+      const payload = await request("POST", api + "/conversations/" + encodeURIComponent(conversationId) + "/messages", { body });
       if (conversation?.id !== conversationId) return;
       conversation = payload.conversation;
       renderContext(payload.sparks || []);
@@ -618,7 +675,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     // The plugin shown without an item (the workbench also says so while a page loads): nothing new to open, and a
     // spark asked for by link that is still loading is not cancelled by it.
     const itemId = event.detail?.itemId || null;
-    if (!itemId) return;
+    if (!itemId) { leaveOnFold(); return; }
     wantedId = itemId;
     wantedByLink = true;
     if (records.some((item) => item.id === wantedId)) void openWanted().catch((error) => showNote(error.message, true));
@@ -639,6 +696,9 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     retry.addEventListener("click", () => { retry.disabled = true; void loadList().then(() => box.remove(), (next) => { retry.disabled = false; box.querySelector("p").textContent = next?.message || L("请稍后重试"); }); });
     rowsEl.replaceChildren(box);
   };
+  const lifetime = host.mountPluginClient?.(workbench);
+  lifetime?.whenVisible(() => () => { if (lifetime.alive && !document.hidden) void leaveBlank().catch(() => {}); });
+  lifetime?.own(() => { void leaveBlank(true); });
   void loadList().catch((error) => { listFailed(error); throw error; }).then(openWanted).catch((error) => showNote(error.message, true));
 }
 `;

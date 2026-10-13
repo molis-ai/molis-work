@@ -24,13 +24,22 @@ pnpm desktop:start:macos    # 启动已安装 App
 
 ## 安装边界
 
-开发者分发 npm 安装包时，先在仓库执行 `pnpm package:npm`，产物在 `release/npm/`。消费者在自己的目录运行 `npm install /absolute/adeptify-molis-work-版本.tgz`，然后使用 `npx --no-install molis-work --help` 或 `npx --no-install molis-work install`。npm 路径要求已有 Node 24+，会正常安装当前平台的原生依赖；不要使用 `--ignore-scripts`。它不依赖源码仓库，也不要求单独发布私有 workspace 子包。安装 npm 包本身不会启动服务或连接 Runtime；`molis-work install` 才写入下面说明的 Home。
+开发者分发 npm 安装包时，先在仓库执行 `pnpm package:npm`，产物在 `release/npm/`。消费者在自己的目录运行 `npm install /absolute/adeptify-molis-work-版本.tgz`，然后使用 `npx --no-install molis-work --help` 或 `npx --no-install molis-work install`。npm 路径要求已有 Node 24+，会正常安装当前平台的原生依赖；不要使用 `--ignore-scripts`。飞书/Lark MCP 连接器的包 `@larksuiteoapi/lark-mcp` 在归档里是固定版本的注册表依赖，由 `npm install` 从注册表取，随之有两件已知的事，用户 2026-10-10 决定接受并如实写明（见本节末尾的小节）。它不依赖源码仓库，也不要求单独发布私有 workspace 子包。安装 npm 包本身不会启动服务或连接 Runtime；`molis-work install` 才写入下面说明的 Home。
 
 `molis-work install` 只维护 `~/.molis-work`：版本化程序与共享 Skill、MCP/Web/CLI 启动入口、项目 DB 根目录、日志和安装清单。它不会创建或启动项目，不会写入用户项目，也不会修改任何 Runtime 的用户级配置。之后若要把 MCP 入口注册到某个 Runtime，必须走用户确认的 Runtime 集成流程。
 
 从仓库本地安装请使用 `pnpm install:local`；这个唯一入口会先重新构建，再安装当前内容。直接对带 `src/` 的仓库执行 `molis-work install --source ...` 时，安装器会核对构建指纹，源码与 `dist` 不一致就停止，不会悄悄复制旧构建。release 同时记录内容摘要：版本相同但程序或 Skill 内容变化时会原子刷新，内容完全相同才返回“已经是最新状态”；刷新失败会恢复上一份 release，项目数据不参与替换。
 
-项目使用不可变的 `project_id` 区分，显示名称可以改名或重名；每个项目都有自己的 `molis-work.db`。`projects/catalog.db` 保存项目身份、DB 位置、可选 Session 绑定、workspace 与多个项目的历史关联、用户显式设置的唯一默认项目，以及删除收据；不复制 Goal 事实，也不依赖 Git。普通项目选择不会自动成为目录默认项，新 Session 会拿到历史候选并询问；只有用户单独设置默认后才会自动恢复。解绑关联不删除项目；删除项目及其 DB 必须单独确认，并会拒绝仍有有效 Claim 或未结束 Run 的项目。
+项目使用不可变的 `project_id` 区分，显示名称可以改名或重名；每个项目都有自己的 `molis-work.db`。`projects/catalog.db` 保存项目身份、DB 位置、可选 Session 绑定、workspace 与多个项目的历史关联，以及删除收据；不复制 Goal 事实，也不依赖 Git。目录不保存默认项目，每个新 Session 都会拿到历史候选并询问。解绑关联不删除项目；删除项目及其 DB 必须单独确认。
+
+### npm 路径上的飞书/Lark 连接器：两件已知并接受的事
+
+用户 2026-10-10 的决定：接受这两件事，写进安装说明和发布前检查，npm 路径照旧。归档的 `package.json` 不写 `overrides`，也不把 `@larksuiteoapi/lark-mcp` 的依赖树放进 `bundledDependencies`（决定记录见 [spec.md](../specs/repository-anti-corruption/spec.md) §1，来龙去脉见 [依赖与 SDK 方案](../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §3.5）。这两件事只在这条 npm 归档路径上存在。
+
+- **`basic-ftp` 的高危公告没有修，但只在一种配置下才会走到。** 连接器的包经 `proxy-agent`、`pac-proxy-agent`、`get-uri` 带进 `basic-ftp`，`npm install` 装出来的是 5.x（现在是 5.3.1），带公告 GHSA-c475-qrg2-pj4r（`Client.list()` 的解析器耗时随输入呈二次方增长，6.2.1 起修复）。仓库的 `pnpm-workspace.yaml` 把它覆盖到 6.2.1，但 npm 不读这个文件，也不认被装进来的依赖里写的 `overrides`，所以 6.2.1 只在仓库检出、从它复制出去的 Home release 与桌面安装包里，npm 归档里没有。这个 FTP 客户端只有在代理被配置成指向 FTP 上的 PAC 文件（代理环境变量 `HTTPS_PROXY` 一类写成 `pac+ftp://…`）时才会用到；连接器自己不设置这种代理，它只把你已经设置的代理变量传给子进程。没有这种配置，就走不到这个缺陷。
+- **`keytar` 在 Home 之外留下一项钥匙串和一个数据目录。** `keytar` 是 `lark-mcp` 的普通（不是可选）依赖，也是原生模块：`npm install` 时它运行自己的安装脚本（先下载预编译文件，默认来自 GitHub 发布页；下载不到再用 node-gyp 编译，需要编译工具链），两步都失败则整个 `npm install` 失败，即使你不用飞书/Lark 连接器。按该包 0.5.1 的代码（没有在构建出 `keytar` 的机器上实测），装好之后连接器每启动一次这个 MCP 子进程，该包都会读系统凭据库里服务名 `lark-mcp`、账户名 `encryption-key` 的一项（macOS 是登录钥匙串），没有就生成一个加密密钥写进去，并建出它的数据目录（macOS 是 `~/Library/Application Support/lark-mcp-nodejs`，其他系统在各自的用户数据目录下）。这是该包自己的行为，与是否保存登录无关；Molis Work 用环境变量传令牌，不会往那个目录写令牌文件。这些读写都在 Molis Work 的 Home 之外，不受 `MOLIS_WORK_HOME` 约束，也不联网，所以删除 Home 不会带走它们。仓库检出里 `keytar` 不构建（`pnpm-workspace.yaml` 的 `allowBuilds`），该包加载它失败后自己接住，不碰钥匙串；从仓库复制出去的 Home release 与桌面安装包带的是同一份未构建的依赖。
+
+另有一处不是这条路径独有、也不属于用户这次决定的那两件事：`lark-mcp` 包一加载就会建自己的日志目录（macOS 是 `~/Library/Logs/lark-mcp-nodejs/`，其他系统在各自的用户日志目录下），把告警和错误追加进 `lark-mcp-<日期>.log`，包自己只留最近 7 天的文件（按该包 0.5.1 的代码）。仓库检出、Home release、桌面安装包和 npm 归档都一样，与 `keytar` 有没有构建无关，连接器起的子进程环境里有 `HOME`，写的就是你真实的用户目录。这个目录同样在 Home 之外，不受 `MOLIS_WORK_HOME` 约束，删除 Home 或卸载都不会带走它。Home 之外的状态清单见 [HOME-DATA.md](system/HOME-DATA.md) 第 8 节。
 
 ## 更新已有安装
 
@@ -61,11 +70,11 @@ pnpm install:local
 
 本体升级不会静默改写 Runtime 配置或 Skill 链接。只要这次 Release 改过 MCP 或 `skills/goal-advance`，还必须打开 Molis Work 的“设置 → AI 与执行工具”：已由 Molis Work 管理但仍指向旧 Release 的 Runtime 会显示“需要修复”，先预览，再由用户确认修复。只有该页回到“已接入”、Skill 链接指向安装清单中的当前 Release，才可以对依赖 Runtime 协议的修复报告“已安装”。Core、App 和 Web service 版本一致不能代替这一步；未知同名配置或 Skill 仍保持冲突，不得覆盖。
 
-更新 MCP 或 Skill 后还要新开 Runtime Session，因为已经运行的 Session 不会重新加载工具。若要让内置 demo 使用新版示范内容，再单独执行 `molis-work demo reset --confirm`；它会清除 demo 内的改动，但不会影响用户项目。
+更新 MCP 或 Skill 后还要新开 Runtime Session，因为已经运行的 Session 不会重新加载工具。若要让内置 demo 使用新版示范内容，再单独执行 `molis-work demo reset --confirm`；它会清除 demo 内的改动，但不会影响用户项目。命令行不运行 Agent 执行服务和搜索服务，demo 在记忆与搜索索引里的数据由运行中的 Molis Work 保管，这条命令清不了它们，会在输出里说出来；要连它们一起清，在 Molis Work 里打开示例项目的设置，点「重建 demo」。
 
 ### 发布后的最终产物验收
 
-发布者只有逐层完成下面的核对，才能把消费者可见修复标成“已安装”：
+发布前的完整检查清单（版本规则、各库版本表、真实 Home 的备份与维护）见 [releases/CHECKLIST.md](releases/CHECKLIST.md)。发布者只有逐层完成下面的核对，才能把消费者可见修复标成“已安装”：
 
 1. Git tag、Release 资产和校验和来自同一提交；App 内嵌 Runtime 与 `~/.molis-work` 安装清单版本一致。
 2. 常驻服务按 `status` 返回的动作恢复为 `running`，并确认 LaunchAgent、监听端口和 `/health` 属于同一实例。
@@ -86,7 +95,7 @@ pnpm install:local
 "$HOME/.molis-work/bin/molis-work" demo remove --confirm
 ```
 
-这份项目在 catalog 中明确标记为 `regenerable_demo`，与 `user` 用户数据分开。重复创建会打开已有 demo；重建会清除 demo 内的改动；删除和普通卸载都只清理可再生 demo，不会碰用户项目。仓库开发和截图也可以继续使用 `examples/seed-demo.mts`，它调用的是同一套分类和重建逻辑。
+这份项目在 catalog 中明确标记为 `regenerable_demo`，与 `user` 用户数据分开。重复创建会打开已有 demo；重建会清除 demo 内的改动；删除和普通卸载都只清理可再生 demo，不会碰用户项目。`demo remove --confirm` 在 Molis Work 正在运行时交给它来删：示例项目里的终端还开着就拒绝，先关掉终端再运行（常驻服务不在 `http://127.0.0.1:4173` 时，用环境变量 `MOLIS_WORK_WEB_URL` 指定它的地址）；Molis Work 没有运行时，命令自己删。仓库开发和截图也可以继续使用 `examples/seed-demo.mts`，它调用的是同一套分类和重建逻辑。
 
 ## 启动 Web：常驻或临时
 
@@ -98,7 +107,7 @@ Runtime 会先只读检查 `molis-work service status`，不会替用户猜运�
 
 用户一开始已经明确说“临时打开”时，这句话就是前台启动授权，Runtime 说明生命周期后直接执行。用户明确要求“启用登录常驻”时，这句话就是首次安装授权，Runtime 说明 LaunchAgent 影响后直接执行。旧配置需要修复是另一种配置变更，仍要说明将重写和重启哪些受管配置并取得修复授权；未知同名服务或端口冲突不会被覆盖、接管或停止。服务命令只有在页面健康可访问且属于本次受管实例后才报告成功。升级期间若受管旧进程的 health 响应还没有 PID 字段，只有 ownership receipt/plist 均有效、LaunchAgent PID 与 4173 的唯一监听 PID 精确相同时才兼容判为当前实例；PID 不同或无法证明时仍报告冲突。
 
-“用 Molis Work 继续项目”“推进这个 Goal”“连接或打开一个项目/Goal”仍只走 Runtime 的 Goal 工作流，不会启动 Web。Web 不是项目连接、澄清、执行或复核的前置条件；用户接受一次可视化建议后，如果服务尚未配置，也仍使用上面同一轮临时/常驻选择。
+“用 Molis Work 继续项目”“推进这个 Goal”“连接或打开一个项目/Goal”仍只走 Runtime 的 Goal 工作流，不会启动 Web。Web 不是连接项目或推进 Goal 的前置条件；用户接受一次可视化建议后，如果服务尚未配置，也仍使用上面同一轮临时/常驻选择。
 
 如果只想当前终端临时使用，可以直接说：
 
@@ -152,10 +161,10 @@ Runtime 会先只读检查 `molis-work service status`，不会替用户猜运�
 
 `molis-work install` 只完成 Molis Work 本体安装，默认输出安装位置、CLI/MCP/Web 启动器和安全边界；自动化可以使用 `molis-work install --json`。安装不会顺带创建项目、关联 Session、启动服务或修改 Runtime 配置。
 
-安装后的 Runtime 接入由同一领域服务完成。当前 adapter 会只读探测 Codex 和 Claude Code，并先生成包含配置路径、Molis Work MCP entry、Skill 链接、备份位置和重启说明的预览；只有用户对当前 Runtime 和当前 plan 明确确认后才会写入。MCP 与 Skill 作为一个事务验证，失败会恢复原配置字节和原 Skill 状态。移除时只撤销 Molis Work ownership receipt 记录且仍未被用户改写的内容。未知同名配置或 Skill 会显示冲突，不会被覆盖。
+安装后的 Runtime 接入由同一领域服务完成。当前 adapter 会只读探测 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build，并先生成包含配置路径、Molis Work MCP entry、Skill 链接、备份位置和重启说明的预览；只有用户对当前 Runtime 和当前 plan 明确确认后才会写入。MCP 与 Skill 作为一个事务验证，失败会恢复原配置字节和原 Skill 状态。移除时只撤销 Molis Work ownership receipt 记录且仍未被用户改写的内容。未知同名配置或 Skill 会显示冲突，不会被覆盖。
 
-接入确认完成后，**必须新开 Codex / Claude Code Session**才会生效：Runtime 只在 Session 启动时读取 MCP 与 Skill 清单，当前对话不会动态出现刚写入的工具。新 Session 可直接复制「继续用 Molis Work」续接；Molis Work 会展示当前目录以前使用过的项目并请你确认。若希望以后自动进入某个项目，需要另外明确把它设为目录默认。接入预览界面会逐条展示改动内容和这段续接说明。
+接入确认完成后，**必须新开 Codex / Claude Code Session**才会生效：Runtime 只在 Session 启动时读取 MCP 与 Skill 清单，当前对话不会动态出现刚写入的工具。新 Session 可直接复制「继续用 Molis Work」续接；Molis Work 会展示当前目录以前使用过的项目并请你确认；目录不保存默认项目，每个新 Session 都要确认。接入预览界面会逐条展示改动内容和这段续接说明。
 
-项目创建和当前 Session 关联是独立操作：用户在当前 Runtime 调用统一 Skill 后，Skill 使用 `context-list-projects`、`context-bind` 或 `context-create-and-bind`，并且只在用户明确选择后写入 Molis Work 自己的数据目录。Web 可创建、改名和打开项目，也可管理已经确认过的 Session 与 workspace 关联；网页中的项目选择本身不会改变 Runtime 连接，新 Session 默认仍要先询问，除非用户明确设置了目录默认项目。
+项目创建和当前 Session 关联是独立操作：用户在当前 Runtime 调用统一 Skill 后，Skill 使用 `context-list-projects`、`context-bind` 或 `context-create-and-bind`，并且只在用户明确选择后写入 Molis Work 自己的数据目录。Web 可创建、改名和打开项目，也可管理已经确认过的 Session 与 workspace 关联；网页中的项目选择本身不会改变 Runtime 连接，新 Session 仍要先确认项目。
 
-Web 只监听 loopback 地址。控制令牌保存在 Molis Work home 的 `config/web-control-token`，并写入本机页面；所有 Web API 写请求还必须通过同源 Origin、控制令牌和一次性操作键校验。非本机 Host、第三方页面盲发、缺少凭据或重复请求都会在进入项目 catalog、Runtime 配置服务或 Goal Coordinator 前被拒绝。这个浏览器门禁不替代各领域流程原有的用户确认和幂等规则。
+Web 只监听 loopback 地址。控制令牌保存在 Molis Work home 的 `config/web-control-token`，并写入本机页面；所有 Web API 写请求还必须通过同源 Origin、控制令牌和一次性操作键校验。非本机 Host、第三方页面盲发、缺少凭据或重复请求都会在进入项目 catalog、Runtime 配置服务或各插件动作前被拒绝。这个浏览器门禁不替代各领域流程原有的用户确认和幂等规则。

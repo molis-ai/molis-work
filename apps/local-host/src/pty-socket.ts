@@ -3,6 +3,7 @@ import type { IncomingMessage } from "node:http";
 import type http from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
+import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { MolisWorkPtyHost, type PtySpawnRequest } from "@molis-ai/molis-work-service-runtime-host";
 
 type ClientMessage =
@@ -17,23 +18,9 @@ export interface MolisWorkPtySocketHandlers {
   onExit?: (panelId: string, sessionId: string, exit: { exitCode: number; signal: number }) => void;
 }
 
-function localHostname(hostname: string): boolean {
-  return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1";
-}
-
-function requestHost(request: IncomingMessage): string | null {
-  const value = request.headers.host?.trim();
-  if (!value) return null;
-  try {
-    const parsed = new URL(`http://${value}`);
-    return localHostname(parsed.hostname) ? parsed.host : null;
-  } catch {
-    return null;
-  }
-}
-
-function tokenMatches(expected: string, actual: string | null | undefined): boolean {
-  if (!actual) return false;
+function tokenMatches(expected: string, actual: unknown): boolean {
+  // The message is JSON from the page: anything but a string (a number, an object Buffer.from would accept) is a failed login.
+  if (typeof actual !== "string" || !actual) return false;
   const expectedBytes = Buffer.from(expected);
   const actualBytes = Buffer.from(actual);
   return expectedBytes.length === actualBytes.length && timingSafeEqual(expectedBytes, actualBytes);
@@ -111,7 +98,7 @@ export function attachMolisWorkPtySocket(
       return;
     }
     if (pathname !== "/pty") return;
-    const httpHost = requestHost(request);
+    const httpHost = loopbackHost(request.headers.host);
     if (!httpHost) {
       rejectUpgrade(socket);
       return;

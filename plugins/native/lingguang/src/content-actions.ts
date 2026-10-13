@@ -1,7 +1,7 @@
 import { bindActionClient, bindWorkflowContentHandlers, defineWorkflowContentActions, workflowDeliveryKey, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { lingguangActions } from "./actions.js";
 
-export const lingguangContentActions = defineWorkflowContentActions({ id: "lingguang", title: "灵光", icon: "idea", create: true,
+export const lingguangContentActions = defineWorkflowContentActions({ id: "lingguang", title: "灵光", icon: "idea", create: true, subject_kind: "lingguang_spark",
   read_permissions: ["lingguang:read"], write_permissions: ["lingguang:write"] });
 
 /** The content protocol translates to the same business actions as HTTP and MCP. */

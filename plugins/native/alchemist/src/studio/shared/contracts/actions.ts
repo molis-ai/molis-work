@@ -71,6 +71,7 @@ const decisionWorkspace = object({ ideaId: id, ideaVersion: version, currentVers
   materials: object({ market_space: decisionMaterial, build_cost: decisionMaterial }), decision: decisionSummary.optional() });
 const activity = object({ id, workspaceId: id, kind: text, targetKind: text, targetId: id, payload: z.record(text, z.unknown()), createdAt: text });
 const sourceId = pulseSourceParamsSchema.shape.sourceId;
+const pulseGithubAccount = object({ connectionId: id, displayName: text, accountLabel: text.nullable(), state: z.enum(["connected", "disconnected", "reauth_required"]) });
 const pulseSource = object({ sourceId, label: text, enabled: z.boolean(), homepageUrl: text, capability: text, limitation: text, updatedAt: text });
 const pulseRun = object({ id, workspaceId: id, status: runStatusSchema, stage: lensRunSchema.shape.stage, sourceIds: z.array(sourceId), runtimeLabel: text, jobId: id,
   errorCode: text.optional(), createdAt: text, updatedAt: text });
@@ -86,12 +87,24 @@ const supplySignal = object({ id, sourceId, title: text, url: text, summary: tex
 const followedJob = (id: string) => ({ status: { capability_id: "alchemist.runs.events", version: 1 }, id, input: "id", state: "status",
   done: ["completed", "partial"], failed: ["failed", "cancelled", "interrupted"] });
 
+/**
+ * Choosing which account's credential a source uses is the person's alone, like the other plugins' connection pickers, and it is the
+ * Home's: one binding in the connection registry that every project's market pulse reads. So these actions are declared at Home scope
+ * with permissions of their own (like Images' `connections.*`), and the Host serves them without opening any project's studio.
+ */
+const homeChoices = new Set(["pulse.github", "pulse.github.configure"]);
+
+/** The permission an action declares when it runs a model. The plugin gates exactly the actions that carry it, for every caller but the person's own page. */
+export const ALCHEMIST_GENERATE_PERMISSION = "alchemist:generate";
+
 function operation<I extends z.ZodType, O extends z.ZodType>(name: string, title: string, description: string, kind: "query" | "command", input: I, output: O,
   extraPermissions: readonly string[] = [], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent", job?: ReturnType<typeof followedJob>) {
+  const home = homeChoices.has(name);
+  const permissions = home ? [kind === "query" ? "alchemist:connections:read" : "alchemist:connections:write"] : ["alchemist:read", ...(kind === "command" ? ["alchemist:write"] : [])];
   const definition: ActionDefinition<z.input<I>, z.output<O>> = {
     capability_id: `alchemist.${name}`, version: 1, operation: kind,
-    action: { title, description, ...(execution ? { execution } : {}), kind: kind === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
-      subject_kinds: ["alchemist"], permissions: ["alchemist:read", ...(kind === "command" ? ["alchemist:write"] : []), ...extraPermissions],
+    action: { title, description, ...(execution ? { execution } : {}), kind: kind === "query" ? "query" : "operation", scope: home ? "home" : "project", audiences: home ? ["user"] : ["user", "workflow", "agent", "mcp"],
+      subject_kinds: ["alchemist"], permissions: [...permissions, ...extraPermissions],
       input_schema: z.toJSONSchema(input, { target: "draft-7", io: "input" }),
       // Studio results are objects, including card/message unions; MCP can return the same shape without an envelope.
       output_schema: { ...z.toJSONSchema(output, { target: "draft-7" }), type: "object" },
@@ -106,7 +119,7 @@ export const alchemistOperations = {
   /** System search: this project's directions and Ideas by title and core problem; the index keeps only these summaries. */
   searchEntries: {
     definition: defineSearchEntriesAction("alchemist.search.entries", [{ kind: "alchemist-direction", title: "探索方向", surface: "alchemist" },
-      { kind: "alchemist-idea", title: "Idea", surface: "alchemist" }], "炼金术士", ["alchemist:read"]),
+      { kind: "alchemist-idea", title: "Idea", surface: "alchemist" }], "探索方向与 Idea", ["alchemist:read"]),
     input: z.object({ cursor: z.string().nullable(), limit: z.number().int().min(1).max(500) }).strict(),
     output: z.object({ entries: z.array(z.object({ subject: z.object({ kind: z.string(), id: z.string() }) }).passthrough()), next_cursor: z.string().nullable(), collection_revision: z.string() }),
   },
@@ -129,8 +142,8 @@ export const alchemistOperations = {
     output: object({ subject: object({ kind: z.literal("alchemist-playbook"), id }), revision: id, title: text, content: text, truncated: z.boolean(), goal_ids: strings, session_id: z.null() }),
   },
   reuseCandidates: operation("reuse.candidates", "寻找可沿用成果与方法", "读取当前授权范围内固定版本成果与适用方法；查询不运行模型，不代表已采用", "query", reuseCandidateInputSchema, reuseCandidatesSchema),
-  reuseAssess: operation("reuse.assess", "检查复用适用性", "通过 Prologue 判断给定候选的适用、失效与重核条件，不自动采用", "command", reuseAssessInputSchema, reuseAssessmentSchema, ["alchemist:generate"], { cost: "metered" }, "concurrent"),
-  reusePublish: operation("reuse.publish", "保存研究固定版本", "将研究与证据幂等登记为当前项目私有 Artifact，不公开发布", "command", object({ reportId: id }), object({ reference: reuseReferenceSchema })),
+  reuseAssess: operation("reuse.assess", "检查复用适用性", "通过 Prologue 判断给定候选的适用、失效与重核条件，不自动采用", "command", reuseAssessInputSchema, reuseAssessmentSchema, [ALCHEMIST_GENERATE_PERMISSION], { cost: "metered" }, "concurrent"),
+  reusePublish: operation("reuse.publish", "保存研究固定版本", "将研究与证据幂等登记为当前项目私有成果，不公开发布", "command", object({ reportId: id }), object({ reference: reuseReferenceSchema })),
   reuseReceipt: operation("reuse.receipt", "读取实际复用记录", "区分已选择、已实际消费和关系补写状态，返回固定方法及成果版本", "query", object({ planId: id }), object({ receipt: reuseReceiptSchema.nullable() })),
   reuseReconcile: operation("reuse.reconcile", "补写复用关系", "仅补写已实际消费的 Context Ledger 关系，不重复模型调用", "command", object({ planId: id }), object({ receipt: reuseReceiptSchema.nullable() })),
   reuseFeedback: operation("reuse.feedback", "记录复用效果", "如实记录解释、准备、修正和结果，不推算节省比例", "command", reuseFeedbackSchema, object({ receipt: reuseReceiptSchema })),
@@ -138,14 +151,14 @@ export const alchemistOperations = {
   conversationList: operation("conversation.list", "读取炼金术士讨论", "读取当前项目的讨论消息、关联对象及实际回复状态", "query", empty, object({ messages: z.array(conversationMessage) })),
   conversationSend: operation("conversation.send", "与炼金术士讨论", "保存消息，使用所选对象、历史与启用的 Taste 生成回复；不可用或失败时保留消息并明确状态", "command",
     createConversationMessageSchema.extend({ context: conversationContext }), z.union([object({ message: conversationMessage, assistantMessage: conversationMessage }),
-      object({ message: conversationMessage, assistant: object({ state: z.literal("runtime_unavailable"), message: text }) })]), ["alchemist:generate"], { cost: "metered" }, "concurrent"),
+      object({ message: conversationMessage, assistant: object({ state: z.literal("runtime_unavailable"), message: text }) })]), [ALCHEMIST_GENERATE_PERMISSION], { cost: "metered" }, "concurrent"),
   decisionsList: operation("decisions.list", "读取决策列表", "读取待决策 Idea、历史决定和实际活动记录", "query", empty,
     object({ cases: z.array(decisionWorkspace.extend({ status: z.enum(["pending", "decided", "old_version"]), nextPanel: z.enum(["market", "cost", "decision"]), nextAction: text })),
       log: z.array(decision.extend({ title: text, destination: text })), activities: z.array(activity) })),
   decisionGet: operation("decisions.workspace", "读取 Idea 决策依据", "检查指定版本的两类研究是否完整、兼容，以及已有决定", "query", ideaIdentity, decisionWorkspace),
   decisionCreate: operation("decisions.create", "记录正式决定", "仅在当前 Idea 版本研究材料齐全时记录 Build、Hold 或 Drop；保留理由和报告引用", "command",
     createDecisionRequestSchema.extend({ id, version }), object({ decision })),
-  annotationsList: operation("annotations.list", "读取报告注释", "按对象和固定版本读取注释", "query", listAnnotationsQuerySchema.extend({ revision: version }), object({ annotations: z.array(annotation) })),
+  annotationsList: operation("annotations.list", "读取报告注释", "读取某个对象在指定固定版本上的注释，含各条注释引用的原文和处理状态；只读，不修改数据", "query", listAnnotationsQuerySchema.extend({ revision: version }), object({ annotations: z.array(annotation) })),
   annotationCreate: operation("annotations.create", "添加报告注释", "保存所选正文原文与单独评论；验证目标版本仍存在", "command", createAnnotationSchema, object({ annotation })),
   annotationResolve: operation("annotations.resolve", "解决报告注释", "将未解决注释标为已解决，保留原始引用和评论", "command", identity, object({ annotation })),
   memoryGet: operation("memory.read", "读取 Taste 与研究方法", "读取长期偏好、研究方法及实际应用的计划和运行引用", "query", empty,
@@ -161,7 +174,11 @@ export const alchemistOperations = {
   pulseReports: operation("pulse.reports", "读取市场脉搏", "读取来源信号、报告、机会与最近运行状态，保留覆盖缺口", "query", empty,
     object({ latestRun: pulseRun.optional(), reports: z.array(object({ report: pulseReport, opportunities: z.array(opportunity), signals: z.array(supplySignal) })) })),
   pulseSources: operation("pulse.sources", "读取市场来源", "读取来源启用状态、能力和局限", "query", empty, object({ sources: z.array(pulseSource) })),
-  pulseSourceUpdate: operation("pulse.sources.configure", "设置市场来源", "启用或停用已有市场来源", "command", object({ sourceId, enabled: z.boolean() }), object({ source: pulseSource })),
+  pulseGithub: operation("pulse.github", "读取市场脉搏的 GitHub 账号", "读取可选的 GitHub 账号连接和当前选中的那一个；只返回连接信息，不返回令牌", "query", empty,
+    object({ accounts: z.array(pulseGithubAccount), selectedConnectionId: id.nullable() })),
+  pulseGithubSelect: operation("pulse.github.configure", "选择市场脉搏的 GitHub 账号", "选择 GitHub 来源使用「设置 › 服务连接」里的哪个账号；null 表示匿名访问。令牌留在宿主，不交给炼金术士", "command",
+    object({ connectionId: id.nullable() }), object({ selectedConnectionId: id.nullable() })),
+  pulseSourceUpdate: operation("pulse.sources.configure", "设置市场来源", "启用或停用一个已有的市场来源（来源 id 见「读取市场来源」）；只改开关，不新增来源、不删除已采集的信号，下次运行市场脉搏时生效。运行市场脉搏至少需要一个启用的来源", "command", object({ sourceId, enabled: z.boolean() }), object({ source: pulseSource })),
   pulseStart: operation("pulse.start", "运行市场脉搏", "从已启用来源抓取真实信号并生成报告，返回后台任务", "command", startPulseRunRequestSchema, object({ run: pulseRun }), ["alchemist:collect"], { cost: "metered" }),
   opportunitySave: operation("opportunities.save", "暂存市场机会", "将新机会加入稍后查看，并返回真实位置", "command", identity,
     object({ opportunity, destination: object({ surface: z.literal("pulse"), collection: z.literal("saved_for_later") }) })),
@@ -174,13 +191,13 @@ export const alchemistOperations = {
   directionUpdate: operation("directions.update", "编辑探索方向", "修改已有方向，保留已生成的卡片和 Idea", "command", createDirectionInputSchema.extend({ id }), object({ direction: directionSchema })),
   directionStatus: operation("directions.status", "归档或恢复方向", "归档后保留历史，并停止从该方向启动新炼化", "command", object({ id, status: z.enum(["active", "archived"]) }), object({ direction: directionSchema })),
   explorationStart: operation("explorations.start", "启动炼化", "将方向加入后台生成任务；reuseExisting 为 true 时返回最近一次炼化", "command", object({ id, reuseExisting: z.boolean().optional() }),
-    object({ runId: id, jobId: id.optional(), reused: z.boolean().optional() }), ["alchemist:generate"], { cost: "metered" }, undefined, followedJob("jobId")),
+    object({ runId: id, jobId: id.optional(), reused: z.boolean().optional() }), [ALCHEMIST_GENERATE_PERMISSION], { cost: "metered" }, undefined, followedJob("jobId")),
   explorationGet: operation("explorations.get", "读取炼化", "读取真实运行状态、候选卡与来源方向", "query", identity, object({ direction: directionSchema, exploration: explorationSchema })),
   cardGet: operation("cards.get", "读取候选卡", "读取卡片正文；已保留的卡片返回对应 Idea 和版本", "query", identity,
     z.discriminatedUnion("kind", [object({ kind: z.literal("candidate"), model: candidateModel }), object({ kind: z.literal("idea_redirect"), ideaId: id, version })])),
   cardKeep: operation("cards.keep", "保留候选卡", "形成正式 Idea 初始版本；重复保留返回已有 Idea 引用的冲突", "command", identity, object({ idea: ideaSchema, version: ideaVersionSchema, card: cardSchema })),
-  cardDiscard: operation("cards.discard", "丢弃候选卡", "将候选牌标为丢弃，可恢复", "command", identity, object({ card: cardSchema })),
-  cardRestore: operation("cards.restore", "恢复候选卡", "恢复已丢弃的候选牌", "command", identity, object({ card: cardSchema })),
+  cardDiscard: operation("cards.discard", "丢弃候选卡", "把一张候选想法牌标为已弃牌；只改这张牌的状态，不删除内容，之后可用「恢复候选卡」找回。已保留成 Idea 的牌不能丢弃", "command", identity, object({ card: cardSchema })),
+  cardRestore: operation("cards.restore", "恢复候选卡", "把一张已弃牌恢复为候选；只改这张牌的状态。这张牌当前必须是已弃牌", "command", identity, object({ card: cardSchema })),
   ideaGet: operation("ideas.version", "读取 Idea 版本", "读取固定版本正文、来源及当前版本号", "query", ideaIdentity, object({ idea: ideaSchema, version: ideaVersionSchema, model: ideaModel })),
   models: operation("runtime.models", "可用研究模型", "读取 Host 配置提供的模型，不返回凭据", "query", empty, object({ models: z.array(runtimeModelSchema) })),
   researchGet: operation("research.workspace", "读取研究工作区", "读取 Idea 指定版本的市场和成本研究、计划、报告及证据", "query", ideaIdentity,
@@ -188,7 +205,7 @@ export const alchemistOperations = {
   researchPlan: operation("research.plan", "创建研究计划", "设置研究模型和调用次数上限；仅创建计划，不执行研究", "command",
     researchPlanRequestSchema.safeExtend({ id, lens: z.enum(["market_space", "build_cost"]), reuse: reuseSelectionSchema.optional() }), object({ plan: researchPlanSchema })),
   researchStart: operation("research.start", "启动研究", "执行已确认的研究计划并返回后台任务引用", "command",
-    object({ id, lens: z.enum(["market_space", "build_cost"]), planId: id }), object({ run: lensRunSchema }), ["alchemist:generate"], { cost: "metered" }, undefined, followedJob("run.jobId")),
+    object({ id, lens: z.enum(["market_space", "build_cost"]), planId: id }), object({ run: lensRunSchema }), [ALCHEMIST_GENERATE_PERMISSION], { cost: "metered" }, undefined, followedJob("run.jobId")),
   runCancel: operation("research.cancel", "取消研究", "按研究 run.jobId 取消市场或成本研究；不接受 run.id，也不取消探索或脉搏任务", "command", identity, object({ run: lensRunSchema })),
   runEvents: operation("runs.events", "读取任务事件", "按 jobId（不是研究 run.id）读取 after 游标后的事件；重复查询不会取消任务", "query",
     object({ id, after: z.number().int().nonnegative().optional() }), object({ jobId: id, status: runStatusSchema, cursor: z.number().int().nonnegative(),
@@ -201,6 +218,8 @@ export const alchemistOperations = {
 };
 
 export type AlchemistOperationName = keyof typeof alchemistOperations;
+/** The operations that are the Home's (see `homeChoices`): the Host serves them from its own ports, not through a project's studio. */
+export type AlchemistHomeOperationName = "pulseGithub" | "pulseGithubSelect";
 export type AlchemistOperationInput<K extends AlchemistOperationName> = z.output<(typeof alchemistOperations)[K]["input"]>;
 export const alchemistActions = Object.fromEntries(Object.entries(alchemistOperations).map(([key, operation]) => [key, operation.definition])) as {
   [K in AlchemistOperationName]: (typeof alchemistOperations)[K]["definition"]

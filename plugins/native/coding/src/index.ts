@@ -7,7 +7,7 @@ export { commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 export { planTask } from "./plans.js";
 export { mentionedPaths, attachMentions, workspaceFileIndex, symbolsIn, symbolBlock } from "./mentions.js";
 export { codingHistoryDigest, historySummaryMaterial, summaryDigest, nextHistoryMode, digestTask, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_RATIO, MODEL_DIGEST_HEAD } from "./history-digest.js";
-export { CodingCooperationStore, MAX_DELEGATION_HOPS, DELEGATION_STATE_LABEL, type CodingDelegation, type CodingDelivery, type DelegationState } from "./cooperation.js";
+export { MAX_DELEGATION_HOPS, DELEGATION_STATE_LABEL, type DelegationState } from "./cooperation.js";
 export { codingRunForDisplay, codingRunSummary, codingSessionUsage, summaryCache, summariesFingerprint, SESSION_WINDOW, SESSION_PAGE, type CodingRunSummary, type CodingSessionUsage } from "./session-window.js";
 
 export const packageDescriptor = {
@@ -97,8 +97,11 @@ export {
 export {
   CodingSessionStore,
   CodingStoreError,
-  migrateCodingSessions,
+  CODING_ACTIVE_STATES,
+  CODING_SCHEMA_SQL,
+  listCodingBackgroundSessions,
   toDirectoryEntries,
+  type CodingBackgroundSession,
   type CodingSessionRecord,
   type CodingSqliteDatabase,
   type CreateCodingSessionInput,

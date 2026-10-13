@@ -1,4 +1,4 @@
-export const CATALOG_SCHEMA_VERSION = 19;
+export const CATALOG_SCHEMA_VERSION = 22;
 export const CATALOG_OWNER = "molis-work-project-catalog-v1";
 
 export function isOwnedCatalogOwner(owner: string | null | undefined): boolean {
@@ -20,10 +20,10 @@ export class MolisWorkProjectCatalogError extends Error {
       | "catalog.reader_too_old"
       | "catalog.invalid_name"
       | "catalog.project_not_found"
-      | "catalog.legacy_invalid"
+      | "catalog.database_invalid"
       | "catalog.project_storage_invalid"
-      | "catalog.project_active_work"
       | "catalog.delete_confirmation_required"
+      | "catalog.project_terminal_live"
       | "catalog.deletion_idempotency_conflict"
       | "catalog.demo_confirmation_required"
       | "catalog.demo_not_found"
@@ -94,4 +94,9 @@ export interface ManageMolisWorkDemoProjectInput {
 export interface MolisWorkDemoProjectResult {
   status: "created" | "existing" | "reset";
   project: MolisWorkProjectRecord;
+  /**
+   * A rebuild only: the owners of project data whose service is another process's for good, so this process left the old
+   * demo's data with them (a CLI has no Agent runtime or search index; the running Molis Work clears them when it rebuilds).
+   */
+  owners_left?: string[];
 }

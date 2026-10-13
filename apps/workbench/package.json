@@ -51,12 +51,13 @@
     "@molis-ai/molis-work-plugin-text-stats": "workspace:*",
     "@molis-ai/molis-work-plugin-work": "workspace:*",
     "@molis-ai/molis-work-ui-host": "workspace:*",
-    "@molis-ai/molis-work-plugin-experiments": "workspace:*",
     "@molis-ai/molis-work-plugin-images": "workspace:*",
     "@molis-ai/molis-work-plugin-jelly": "workspace:*",
     "@molis-ai/molis-work-plugin-builder": "workspace:*",
     "@molis-ai/molis-work-plugin-cognia": "workspace:*",
-    "@molis-ai/molis-work-im-ui": "workspace:*"
+    "@molis-ai/molis-work-im-ui": "workspace:*",
+    "@molis-ai/molis-work-plugin-issues": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "molis-work": {
     "path": "apps/workbench",

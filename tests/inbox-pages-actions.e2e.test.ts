@@ -16,12 +16,12 @@ for (const width of [1440, 390]) {
       return "本次观察来自研究摘要，全文仍待核对。[材料 1]";
     });
     if (!browser) return;
-    const { store, command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, projectId, homeDirectory } = browser;
-    const boardId = store.goalsQuery.listBoardIds()[0]!;
+    const { store, command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, homeDirectory } = browser;
+    const projectId = browser.projectId!;
     const feed = createLocalFeedApplication(store.db);
-    const source = createLocalFeedSourceService(store.db, boardId).register({ kind: "research_library", repository: "fixture/observations", research_source: "summary" }).source;
+    const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "research_library", repository: "fixture/observations", research_source: "summary" }).source;
     const item = feed.ingestItem({ source, externalId: "pages-ui-material", title: "产品研究摘要", summary: "仅阅读研究摘要，尚未核对全文", occurredAt: new Date().toISOString(), attention: false }).item;
-    const entry = feed.ensureInboxEntryForFeedItem(boardId, item.item_id, "manual").entry;
+    const entry = feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual").entry;
     await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
     const openInbox = async () => {
@@ -53,7 +53,7 @@ for (const width of [1440, 390]) {
       assert.equal(calls, 2);
       const record = pages.generation(projectId!, failed.request_id)!;
       assert.equal(record.status, "completed"); assert.equal(pages.list(projectId!).length, 1);
-      assert.equal(feed.getInboxEntry(boardId, entry.entry_id).status, "open");
+      assert.equal(feed.getInboxEntry(projectId, entry.entry_id).status, "open");
       await evaluate(`(() => { const title = document.querySelector('[data-pages-title]'); title.value = '人工补充后的研究草稿'; title.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
       await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
       assert.equal(pages.get(record.document_id!, projectId!).title, "人工补充后的研究草稿");

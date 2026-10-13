@@ -1,0 +1,1505 @@
+{
+  "format": "studio-replay-corpus/1",
+  "entries": [
+    {
+      "id": "detail-notes-plain",
+      "mode": "detail",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "base": {
+        "id": "board",
+        "title": "笔记板",
+        "description": "记下想法并随时回看",
+        "rationale": "最短的录入与浏览路径",
+        "journey": [
+          "写一条笔记",
+          "在列表里看到它"
+        ]
+      },
+      "answerJson": {
+        "summary": "细化完成",
+        "design": {
+          "title": "笔记板",
+          "description": "记下想法并随时回看",
+          "journey": [
+            "写一条笔记",
+            "在列表里看到它"
+          ],
+          "operations": [
+            {
+              "id": "notes.list",
+              "kind": "query",
+              "description": "列出笔记",
+              "input": {},
+              "output": [
+                {
+                  "id": "string",
+                  "text": "string"
+                }
+              ],
+              "effects": {
+                "storage": [
+                  "read"
+                ]
+              },
+              "examples": [
+                {
+                  "input": {},
+                  "output": []
+                }
+              ]
+            },
+            {
+              "id": "notes.add",
+              "kind": "command",
+              "description": "添加笔记",
+              "input": {
+                "text": "string(1..200) 笔记"
+              },
+              "output": {
+                "id": "string"
+              },
+              "effects": {
+                "storage": [
+                  "write"
+                ]
+              },
+              "examples": [
+                {
+                  "input": {
+                    "text": "第一条"
+                  },
+                  "includes": {}
+                }
+              ]
+            }
+          ],
+          "pages": [
+            {
+              "id": "home",
+              "title": "笔记板",
+              "parts": [
+                {
+                  "id": "title",
+                  "intent": "heading",
+                  "purpose": "说明插件",
+                  "props": {
+                    "title": "笔记板"
+                  }
+                },
+                {
+                  "id": "editor",
+                  "intent": "input",
+                  "purpose": "写一条笔记",
+                  "props": {
+                    "submitLabel": "添加"
+                  },
+                  "submit": "notes.add"
+                },
+                {
+                  "id": "notes",
+                  "intent": "collection",
+                  "purpose": "浏览笔记",
+                  "props": {
+                    "idField": "id",
+                    "titleField": "text"
+                  },
+                  "read": "notes.list"
+                }
+              ]
+            }
+          ],
+          "acceptance": [
+            {
+              "id": "add-note",
+              "description": "添加后能在列表里看到",
+              "steps": [
+                "fill editor.text = hello",
+                "submit editor",
+                "expect notes hello"
+              ]
+            }
+          ]
+        }
+      },
+      "note": "a complete, valid detail answer: two operations, three parts, one acceptance case"
+    },
+    {
+      "id": "detail-notes-think-and-fence",
+      "mode": "detail",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "base": {
+        "id": "board",
+        "title": "笔记板",
+        "description": "记下想法并随时回看",
+        "rationale": "最短的录入与浏览路径",
+        "journey": [
+          "写一条笔记",
+          "在列表里看到它"
+        ]
+      },
+      "answer": "<think>先想想用户要什么</think>\n```json\n{\"summary\":\"细化完成\",\"design\":{\"title\":\"笔记板\",\"description\":\"记下想法并随时回看\",\"journey\":[\"写一条笔记\",\"在列表里看到它\"],\"operations\":[{\"id\":\"notes.list\",\"kind\":\"query\",\"description\":\"列出笔记\",\"input\":{},\"output\":[{\"id\":\"string\",\"text\":\"string\"}],\"effects\":{\"storage\":[\"read\"]},\"examples\":[{\"input\":{},\"output\":[]}]},{\"id\":\"notes.add\",\"kind\":\"command\",\"description\":\"添加笔记\",\"input\":{\"text\":\"string(1..200) 笔记\"},\"output\":{\"id\":\"string\"},\"effects\":{\"storage\":[\"write\"]},\"examples\":[{\"input\":{\"text\":\"第一条\"},\"includes\":{}}]}],\"pages\":[{\"id\":\"home\",\"title\":\"笔记板\",\"parts\":[{\"id\":\"title\",\"intent\":\"heading\",\"purpose\":\"说明插件\",\"props\":{\"title\":\"笔记板\"}},{\"id\":\"editor\",\"intent\":\"input\",\"purpose\":\"写一条笔记\",\"props\":{\"submitLabel\":\"添加\"},\"submit\":\"notes.add\"},{\"id\":\"notes\",\"intent\":\"collection\",\"purpose\":\"浏览笔记\",\"props\":{\"idField\":\"id\",\"titleField\":\"text\"},\"read\":\"notes.list\"}]}],\"acceptance\":[{\"id\":\"add-note\",\"description\":\"添加后能在列表里看到\",\"steps\":[\"fill editor.text = hello\",\"submit editor\",\"expect notes hello\"]}]}}\n```",
+      "note": "reasoning block and a Markdown fence around valid JSON are dropped by the host"
+    },
+    {
+      "id": "detail-notes-root-closed-early",
+      "mode": "detail",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "base": {
+        "id": "board",
+        "title": "笔记板",
+        "description": "记下想法并随时回看",
+        "rationale": "最短的录入与浏览路径",
+        "journey": [
+          "写一条笔记",
+          "在列表里看到它"
+        ]
+      },
+      "answer": "{\"summary\":\"细化完成\",\"design\":{\"title\":\"笔记板\",\"description\":\"记下想法并随时回看\",\"journey\":[\"写一条笔记\",\"在列表里看到它\"],\"operations\":[{\"id\":\"notes.list\",\"kind\":\"query\",\"description\":\"列出笔记\",\"input\":{},\"output\":[{\"id\":\"string\",\"text\":\"string\"}],\"effects\":{\"storage\":[\"read\"]},\"examples\":[{\"input\":{},\"output\":[]}]},{\"id\":\"notes.add\",\"kind\":\"command\",\"description\":\"添加笔记\",\"input\":{\"text\":\"string(1..200) 笔记\"},\"output\":{\"id\":\"string\"},\"effects\":{\"storage\":[\"write\"]},\"examples\":[{\"input\":{\"text\":\"第一条\"},\"includes\":{}}]}],\"pages\":[{\"id\":\"home\",\"title\":\"笔记板\",\"parts\":[{\"id\":\"title\",\"intent\":\"heading\",\"purpose\":\"说明插件\",\"props\":{\"title\":\"笔记板\"}},{\"id\":\"editor\",\"intent\":\"input\",\"purpose\":\"写一条笔记\",\"props\":{\"submitLabel\":\"添加\"},\"submit\":\"notes.add\"},{\"id\":\"notes\",\"intent\":\"collection\",\"purpose\":\"浏览笔记\",\"props\":{\"idField\":\"id\",\"titleField\":\"text\"},\"read\":\"notes.list\"}]}],\"acceptance\":[{\"id\":\"add-note\",\"description\":\"添加后能在列表里看到\",\"steps\":[\"fill editor.text = hello\",\"submit editor\",\"expect notes hello\"]}]},\"rework\":[]}",
+      "note": "the root object closed one brace early and went on with more keys; read as one object"
+    },
+    {
+      "id": "detail-notes-truncated",
+      "mode": "detail",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "base": {
+        "id": "board",
+        "title": "笔记板",
+        "description": "记下想法并随时回看",
+        "rationale": "最短的录入与浏览路径",
+        "journey": [
+          "写一条笔记",
+          "在列表里看到它"
+        ]
+      },
+      "answer": "{\"summary\":\"细化完成\",\"design\":{\"title\":\"笔记板\",\"description\":\"记下想法并随时回看\",\"journey\":[\"写一条笔记\",\"在列表里看到它\"],\"operations\":[{\"id\":\"notes.list\",\"kind\":\"query\",\"description\":\"列出笔记\",\"input\":{},\"output\":[{\"id\":\"string\",\"text\":\"string\"}],\"effects\":{\"storage\":[\"read\"]},\"examples\":[{\"input\":{},\"output\":[]}]},{\"id\":\"notes.add\",\"kind\":\"command\",\"description\":\"添加笔记\",\"input\":{\"text\":\"string(1..200) 笔记\"},\"output\":{\"id\":\"string\"},\"effects\":{\"storage\":[\"write\"]},\"examples\":[{\"input\":{\"text\":\"第一条\"},\"includes\":{}}]}],\"pages\":[{\"id\":\"home\",\"title\":\"笔记板\",\"parts\":[{\"id\":\"title\",\"intent\":\"heading\",\"purpose\":\"说明插件\",\"props\":{\"title\":\"笔记板\"}},{\"id\":\"editor\",\"intent\":\"input\",\"purpose\":\"写一条笔记\",\"props\":{\"submit",
+      "expectFailure": "不是完整 JSON",
+      "note": "an answer cut off by the output limit is not guessed at"
+    },
+    {
+      "id": "detail-broken-references",
+      "mode": "detail",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "base": {
+        "id": "inbox",
+        "title": "收件箱摘要",
+        "description": "给待处理事项记备注",
+        "rationale": "就地记录",
+        "journey": [
+          "看事项",
+          "记备注"
+        ]
+      },
+      "answerJson": {
+        "summary": "s",
+        "design": {
+          "operations": [
+            {
+              "id": "inbox_entries.list",
+              "kind": "query",
+              "description": "列出待处理事项",
+              "input": {},
+              "output": [
+                {
+                  "id": "string",
+                  "title": "string"
+                }
+              ],
+              "effects": {
+                "storage": [
+                  "read"
+                ]
+              },
+              "examples": [
+                {
+                  "input": {},
+                  "output": []
+                }
+              ]
+            },
+            {
+              "id": "notes.add",
+              "kind": "command",
+              "description": "记一句备注",
+              "input": {
+                "entry_id": "string",
+                "note": "string"
+              },
+              "output": {
+                "id": "string"
+              },
+              "effects": {
+                "storage": [
+                  "write"
+                ]
+              },
+              "examples": [
+                {
+                  "input": {
+                    "entry_id": "e1",
+                    "note": "先看"
+                  },
+                  "includes": {}
+                }
+              ]
+            },
+            {
+              "id": "notes.list",
+              "kind": "query",
+              "description": "列出备注",
+              "input": {},
+              "output": [
+                {
+                  "id": "string",
+                  "note": "string"
+                }
+              ],
+              "effects": {
+                "storage": [
+                  "read"
+                ]
+              },
+              "examples": [
+                {
+                  "input": {},
+                  "output": []
+                }
+              ]
+            }
+          ],
+          "pages": [
+            {
+              "id": "home",
+              "title": "收件箱摘要",
+              "parts": [
+                {
+                  "id": "editor",
+                  "intent": "input",
+                  "purpose": "记备注",
+                  "submit": "notes.add"
+                },
+                {
+                  "id": "entries",
+                  "intent": "collection",
+                  "purpose": "待处理事项",
+                  "read": "entries.list"
+                },
+                {
+                  "id": "remove",
+                  "intent": "action",
+                  "purpose": "删除备注",
+                  "submit": {
+                    "op": "notes.remove",
+                    "input": {
+                      "id": "selection:entries.id"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "acceptance": [
+            {
+              "id": "add",
+              "description": "记下后能看到",
+              "steps": [
+                "fill editor.note = 先看",
+                "submit editor",
+                "expect entries 先看"
+              ]
+            }
+          ]
+        }
+      },
+      "expectFailure": "有 3 处要一起改",
+      "note": "three reference problems go back together, not one per round"
+    },
+    {
+      "id": "detail-empty-store-example",
+      "mode": "detail",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "base": {
+        "id": "board",
+        "title": "笔记板",
+        "description": "记下想法并随时回看",
+        "rationale": "最短的录入与浏览路径",
+        "journey": [
+          "写一条笔记",
+          "在列表里看到它"
+        ]
+      },
+      "answerJson": {
+        "operations": [
+          {
+            "id": "notes.list",
+            "kind": "query",
+            "input": {},
+            "output": [
+              {
+                "id": "string"
+              }
+            ],
+            "effects": {
+              "storage": [
+                "read"
+              ]
+            },
+            "examples": [
+              {
+                "input": {},
+                "output": [
+                  {
+                    "id": "n1"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "pages": [
+          {
+            "id": "home",
+            "parts": [
+              {
+                "id": "notes",
+                "intent": "collection",
+                "purpose": "p",
+                "read": "notes.list"
+              }
+            ]
+          }
+        ],
+        "acceptance": [
+          {
+            "id": "a",
+            "steps": [
+              "expect notes x"
+            ]
+          }
+        ]
+      },
+      "expectFailure": "空存储",
+      "note": "an example that cannot pass on an empty store is refused before any code is written"
+    },
+    {
+      "id": "detail-order-text-not-typed",
+      "mode": "detail",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "base": {
+        "id": "board",
+        "title": "笔记板",
+        "description": "记下想法并随时回看",
+        "rationale": "最短的录入与浏览路径",
+        "journey": [
+          "写一条笔记",
+          "在列表里看到它"
+        ]
+      },
+      "answerJson": {
+        "summary": "细化完成",
+        "design": {
+          "title": "笔记板",
+          "description": "记下想法并随时回看",
+          "journey": [
+            "写一条笔记",
+            "在列表里看到它"
+          ],
+          "operations": [
+            {
+              "id": "notes.list",
+              "kind": "query",
+              "description": "列出笔记",
+              "input": {},
+              "output": [
+                {
+                  "id": "string",
+                  "text": "string"
+                }
+              ],
+              "effects": {
+                "storage": [
+                  "read"
+                ]
+              },
+              "examples": [
+                {
+                  "input": {},
+                  "output": []
+                }
+              ]
+            },
+            {
+              "id": "notes.add",
+              "kind": "command",
+              "description": "添加笔记",
+              "input": {
+                "text": "string(1..200) 笔记"
+              },
+              "output": {
+                "id": "string"
+              },
+              "effects": {
+                "storage": [
+                  "write"
+                ]
+              },
+              "examples": [
+                {
+                  "input": {
+                    "text": "第一条"
+                  },
+                  "includes": {}
+                }
+              ]
+            }
+          ],
+          "pages": [
+            {
+              "id": "home",
+              "title": "笔记板",
+              "parts": [
+                {
+                  "id": "title",
+                  "intent": "heading",
+                  "purpose": "说明插件",
+                  "props": {
+                    "title": "笔记板"
+                  }
+                },
+                {
+                  "id": "editor",
+                  "intent": "input",
+                  "purpose": "写一条笔记",
+                  "props": {
+                    "submitLabel": "添加"
+                  },
+                  "submit": "notes.add"
+                },
+                {
+                  "id": "notes",
+                  "intent": "collection",
+                  "purpose": "浏览笔记",
+                  "props": {
+                    "idField": "id",
+                    "titleField": "text"
+                  },
+                  "read": "notes.list"
+                }
+              ]
+            }
+          ],
+          "acceptance": [
+            {
+              "id": "add-note",
+              "description": "最新的在最上面",
+              "steps": [
+                "fill editor.text = hello",
+                "submit editor",
+                "expect notes 新的一条 before 旧的一条"
+              ]
+            }
+          ]
+        }
+      },
+      "expectFailure": "浏览器用例需要具体操作与断言",
+      "note": "an order check on text the case never typed is dropped by the host, which leaves the case with nothing to check"
+    },
+    {
+      "id": "detail-metered-capability-in-query",
+      "mode": "detail",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [
+        {
+          "id": "model.generate",
+          "execution": {
+            "timeout_ms": 120000,
+            "cost": "metered",
+            "max_calls_per_minute": 20
+          }
+        }
+      ],
+      "resources": [],
+      "base": {
+        "id": "recall",
+        "title": "概念自测",
+        "description": "让模型出题，自己回答并保存",
+        "rationale": "主动回忆",
+        "journey": [
+          "输入概念",
+          "看到问题",
+          "写下回答"
+        ]
+      },
+      "answerJson": {
+        "operations": [
+          {
+            "id": "concepts.ask",
+            "kind": "query",
+            "input": {
+              "concept": "string"
+            },
+            "output": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ],
+            "effects": {
+              "capabilities": [
+                "model.generate"
+              ]
+            },
+            "examples": [
+              {
+                "input": {
+                  "concept": "x"
+                },
+                "outputIncludes": []
+              }
+            ]
+          }
+        ],
+        "pages": [
+          {
+            "id": "home",
+            "parts": [
+              {
+                "id": "questions",
+                "intent": "collection",
+                "purpose": "问题",
+                "props": {
+                  "idField": "id",
+                  "titleField": "question"
+                },
+                "read": {
+                  "op": "concepts.ask",
+                  "input": {
+                    "concept": "form"
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "acceptance": [
+          {
+            "id": "a",
+            "steps": [
+              "fill questions.concept = 间隔重复",
+              "expect questions 示例"
+            ]
+          }
+        ]
+      },
+      "expectFailure": "不能调用收费能力",
+      "note": "a metered capability may not run from a page-load query"
+    },
+    {
+      "id": "detail-model-ask-then-add",
+      "mode": "detail",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [
+        {
+          "id": "model.generate",
+          "execution": {
+            "timeout_ms": 120000,
+            "cost": "metered",
+            "max_calls_per_minute": 20
+          }
+        }
+      ],
+      "resources": [],
+      "base": {
+        "id": "recall",
+        "title": "概念自测",
+        "description": "让模型出题，自己回答并保存",
+        "rationale": "主动回忆",
+        "journey": [
+          "输入概念",
+          "看到问题",
+          "写下回答"
+        ]
+      },
+      "answerJson": {
+        "operations": [
+          {
+            "id": "concepts.ask",
+            "kind": "command",
+            "input": {
+              "concept": "string(1..200) 概念"
+            },
+            "output": {
+              "concept": "string",
+              "question": "string"
+            },
+            "effects": {
+              "capabilities": [
+                "model.generate"
+              ]
+            },
+            "examples": [
+              {
+                "input": {
+                  "concept": "x"
+                },
+                "includes": {}
+              }
+            ]
+          },
+          {
+            "id": "concepts.add",
+            "kind": "command",
+            "input": {
+              "concept": "string",
+              "question": "string",
+              "answer": "string(1..2000) 我的回答"
+            },
+            "output": {
+              "id": "string"
+            },
+            "effects": {
+              "storage": [
+                "read",
+                "write"
+              ]
+            },
+            "examples": [
+              {
+                "input": {
+                  "concept": "x",
+                  "question": "q",
+                  "answer": "a"
+                },
+                "includes": {}
+              }
+            ]
+          }
+        ],
+        "pages": [
+          {
+            "id": "home",
+            "parts": [
+              {
+                "id": "asker",
+                "intent": "input",
+                "purpose": "出题",
+                "submit": {
+                  "op": "concepts.ask",
+                  "show": "question"
+                }
+              },
+              {
+                "id": "answer",
+                "intent": "input",
+                "purpose": "回答",
+                "submit": {
+                  "op": "concepts.add",
+                  "input": {
+                    "concept": "prefill:asker.concept",
+                    "question": "prefill:asker.question"
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "acceptance": [
+          {
+            "id": "a",
+            "steps": [
+              "fill asker = 间隔重复",
+              "submit asker",
+              "expect answer 包含 ［模型替身］",
+              "fill answer.answer = 我想是因为提取",
+              "submit answer"
+            ]
+          }
+        ]
+      },
+      "note": "a command that calls the model and a form prefilled from its result"
+    },
+    {
+      "id": "detail-books-filter-bar",
+      "mode": "detail",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "base": {
+        "id": "shelf",
+        "title": "书单",
+        "description": "记录读过和想读的书",
+        "rationale": "按状态筛选最常用",
+        "journey": [
+          "加一本书",
+          "按状态看书单"
+        ]
+      },
+      "answerJson": {
+        "operations": [
+          {
+            "id": "books.list",
+            "kind": "query",
+            "input": {
+              "status?": "未读|在读|已读 状态（不填则全部）"
+            },
+            "output": [
+              {
+                "id": "string",
+                "title": "string",
+                "status": "string"
+              }
+            ],
+            "effects": {
+              "storage": [
+                "read"
+              ]
+            },
+            "examples": [
+              {
+                "input": {},
+                "output": []
+              }
+            ]
+          },
+          {
+            "id": "books.add",
+            "kind": "command",
+            "input": {
+              "title": "string(1..100) 书名",
+              "status": "未读|在读|已读"
+            },
+            "output": {
+              "id": "string"
+            },
+            "effects": {
+              "storage": [
+                "read",
+                "write"
+              ]
+            },
+            "examples": [
+              {
+                "input": {
+                  "title": "x",
+                  "status": "未读"
+                },
+                "includes": {}
+              }
+            ]
+          }
+        ],
+        "pages": [
+          {
+            "id": "home",
+            "parts": [
+              {
+                "id": "editor",
+                "intent": "input",
+                "purpose": "录入",
+                "submit": "books.add"
+              },
+              {
+                "id": "filter",
+                "intent": "schedule",
+                "purpose": "按状态筛选",
+                "read": {
+                  "op": "books.list",
+                  "input": {
+                    "status": "form"
+                  }
+                }
+              },
+              {
+                "id": "books",
+                "intent": "collection",
+                "purpose": "书单",
+                "props": {
+                  "idField": "id",
+                  "titleField": "title"
+                },
+                "read": "books.list"
+              }
+            ]
+          }
+        ],
+        "acceptance": [
+          {
+            "id": "filter",
+            "steps": [
+              "fill editor.title = 黑客与画家",
+              "fill editor.status = 在读",
+              "submit editor",
+              "fill filter.status = 未读",
+              "expect-not books 黑客与画家"
+            ]
+          }
+        ]
+      },
+      "note": "a separate filter part beside a list becomes the list's filter bar"
+    },
+    {
+      "id": "detail-expenses-filter-submit",
+      "mode": "detail",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "base": {
+        "id": "ledger",
+        "title": "收支",
+        "description": "逐笔记账并按类别筛选",
+        "rationale": "明细最直观",
+        "journey": [
+          "记一笔",
+          "按类别看"
+        ]
+      },
+      "answerJson": {
+        "operations": [
+          {
+            "id": "expenses.list",
+            "kind": "query",
+            "input": {
+              "category?": "餐饮|交通"
+            },
+            "output": [
+              {
+                "id": "string",
+                "note": "string"
+              }
+            ],
+            "effects": {
+              "storage": [
+                "read"
+              ]
+            },
+            "examples": [
+              {
+                "input": {},
+                "output": []
+              }
+            ]
+          },
+          {
+            "id": "expenses.add",
+            "kind": "command",
+            "input": {
+              "note": "string",
+              "category": "餐饮|交通"
+            },
+            "output": {
+              "id": "string"
+            },
+            "effects": {
+              "storage": [
+                "read",
+                "write"
+              ]
+            },
+            "examples": [
+              {
+                "input": {
+                  "note": "x",
+                  "category": "餐饮"
+                },
+                "includes": {}
+              }
+            ]
+          }
+        ],
+        "pages": [
+          {
+            "id": "home",
+            "parts": [
+              {
+                "id": "filter",
+                "intent": "input",
+                "purpose": "筛选",
+                "submit": "expenses.list"
+              },
+              {
+                "id": "editor",
+                "intent": "input",
+                "purpose": "记一笔",
+                "submit": "expenses.add"
+              },
+              {
+                "id": "list",
+                "intent": "collection",
+                "purpose": "明细",
+                "props": {
+                  "idField": "id",
+                  "titleField": "note"
+                },
+                "read": "expenses.list"
+              }
+            ]
+          }
+        ],
+        "acceptance": [
+          {
+            "id": "filter",
+            "steps": [
+              "fill editor.note = 公交",
+              "fill editor.category = 交通",
+              "submit editor",
+              "fill filter.category = 餐饮",
+              "submit filter",
+              "expect-not list 公交"
+            ]
+          }
+        ]
+      },
+      "note": "a form that submits the query a list reads becomes that list's filter bar"
+    },
+    {
+      "id": "revise-notes-with-rework",
+      "mode": "revise",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "base": {
+        "id": "board",
+        "title": "笔记板",
+        "description": "记下想法并随时回看",
+        "rationale": "最短的录入与浏览路径",
+        "journey": [
+          "写一条笔记",
+          "在列表里看到它"
+        ]
+      },
+      "answerJson": {
+        "summary": "加一个可选标签字段",
+        "design": {
+          "title": "笔记板",
+          "description": "记下想法并随时回看",
+          "journey": [
+            "写一条笔记",
+            "在列表里看到它"
+          ],
+          "operations": [
+            {
+              "id": "notes.list",
+              "kind": "query",
+              "description": "列出笔记",
+              "input": {},
+              "output": [
+                {
+                  "id": "string",
+                  "text": "string"
+                }
+              ],
+              "effects": {
+                "storage": [
+                  "read"
+                ]
+              },
+              "examples": [
+                {
+                  "input": {},
+                  "output": []
+                }
+              ]
+            },
+            {
+              "id": "notes.add",
+              "kind": "command",
+              "description": "添加笔记",
+              "input": {
+                "text": "string(1..200) 笔记",
+                "tag?": "string(1..20) 标签"
+              },
+              "output": {
+                "id": "string"
+              },
+              "effects": {
+                "storage": [
+                  "write"
+                ]
+              },
+              "examples": [
+                {
+                  "input": {
+                    "text": "第一条"
+                  },
+                  "includes": {}
+                }
+              ]
+            }
+          ],
+          "pages": [
+            {
+              "id": "home",
+              "title": "笔记板",
+              "parts": [
+                {
+                  "id": "title",
+                  "intent": "heading",
+                  "purpose": "说明插件",
+                  "props": {
+                    "title": "笔记板"
+                  }
+                },
+                {
+                  "id": "editor",
+                  "intent": "input",
+                  "purpose": "写一条笔记",
+                  "props": {
+                    "submitLabel": "添加"
+                  },
+                  "submit": "notes.add"
+                },
+                {
+                  "id": "notes",
+                  "intent": "collection",
+                  "purpose": "浏览笔记",
+                  "props": {
+                    "idField": "id",
+                    "titleField": "text"
+                  },
+                  "read": "notes.list"
+                }
+              ]
+            }
+          ],
+          "acceptance": [
+            {
+              "id": "add-note",
+              "description": "添加后能在列表里看到",
+              "steps": [
+                "fill editor.text = hello",
+                "submit editor",
+                "expect notes hello"
+              ]
+            }
+          ]
+        },
+        "rework": [
+          {
+            "op": "notes.add",
+            "why": "保存时一并保存可选的标签"
+          }
+        ]
+      },
+      "note": "a revision that lists the operation whose code must change"
+    },
+    {
+      "id": "revise-rework-unknown-operation",
+      "mode": "revise",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "base": {
+        "id": "board",
+        "title": "笔记板",
+        "description": "记下想法并随时回看",
+        "rationale": "最短的录入与浏览路径",
+        "journey": [
+          "写一条笔记",
+          "在列表里看到它"
+        ]
+      },
+      "answerJson": {
+        "summary": "加一个可选标签字段",
+        "design": {
+          "title": "笔记板",
+          "description": "记下想法并随时回看",
+          "journey": [
+            "写一条笔记",
+            "在列表里看到它"
+          ],
+          "operations": [
+            {
+              "id": "notes.list",
+              "kind": "query",
+              "description": "列出笔记",
+              "input": {},
+              "output": [
+                {
+                  "id": "string",
+                  "text": "string"
+                }
+              ],
+              "effects": {
+                "storage": [
+                  "read"
+                ]
+              },
+              "examples": [
+                {
+                  "input": {},
+                  "output": []
+                }
+              ]
+            },
+            {
+              "id": "notes.add",
+              "kind": "command",
+              "description": "添加笔记",
+              "input": {
+                "text": "string(1..200) 笔记",
+                "tag?": "string(1..20) 标签"
+              },
+              "output": {
+                "id": "string"
+              },
+              "effects": {
+                "storage": [
+                  "write"
+                ]
+              },
+              "examples": [
+                {
+                  "input": {
+                    "text": "第一条"
+                  },
+                  "includes": {}
+                }
+              ]
+            }
+          ],
+          "pages": [
+            {
+              "id": "home",
+              "title": "笔记板",
+              "parts": [
+                {
+                  "id": "title",
+                  "intent": "heading",
+                  "purpose": "说明插件",
+                  "props": {
+                    "title": "笔记板"
+                  }
+                },
+                {
+                  "id": "editor",
+                  "intent": "input",
+                  "purpose": "写一条笔记",
+                  "props": {
+                    "submitLabel": "添加"
+                  },
+                  "submit": "notes.add"
+                },
+                {
+                  "id": "notes",
+                  "intent": "collection",
+                  "purpose": "浏览笔记",
+                  "props": {
+                    "idField": "id",
+                    "titleField": "text"
+                  },
+                  "read": "notes.list"
+                }
+              ]
+            }
+          ],
+          "acceptance": [
+            {
+              "id": "add-note",
+              "description": "添加后能在列表里看到",
+              "steps": [
+                "fill editor.text = hello",
+                "submit editor",
+                "expect notes hello"
+              ]
+            }
+          ]
+        },
+        "rework": [
+          {
+            "op": "notes.archive",
+            "why": "归档"
+          }
+        ]
+      },
+      "expectFailure": "rework 引用了不存在的操作",
+      "note": "rework must name an operation the design has"
+    },
+    {
+      "id": "propose-two-candidates",
+      "mode": "propose",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "clarificationAllowed": true,
+      "answerJson": {
+        "summary": "两种录入方式",
+        "candidates": [
+          {
+            "id": "quick",
+            "title": "快记",
+            "description": "记下想法并随时回看",
+            "rationale": "最短的录入与浏览路径",
+            "journey": [
+              "写一条笔记",
+              "在列表里看到它"
+            ],
+            "operations": [
+              {
+                "id": "notes.list",
+                "kind": "query",
+                "description": "列出笔记",
+                "input": {},
+                "output": [
+                  {
+                    "id": "string",
+                    "text": "string"
+                  }
+                ]
+              },
+              {
+                "id": "notes.add",
+                "kind": "command",
+                "description": "添加笔记",
+                "input": {
+                  "text": "string(1..200) 笔记"
+                },
+                "output": {
+                  "id": "string"
+                }
+              }
+            ],
+            "pages": [
+              {
+                "id": "home",
+                "title": "快记",
+                "parts": [
+                  {
+                    "id": "title",
+                    "intent": "heading",
+                    "purpose": "说明插件"
+                  },
+                  {
+                    "id": "editor",
+                    "intent": "input",
+                    "purpose": "写一条笔记",
+                    "uses": "notes.add"
+                  },
+                  {
+                    "id": "notes",
+                    "intent": "collection",
+                    "purpose": "浏览笔记",
+                    "uses": "notes.list"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "board",
+            "title": "笔记板",
+            "description": "记下想法并随时回看",
+            "rationale": "最短的录入与浏览路径",
+            "journey": [
+              "写一条笔记",
+              "在列表里看到它"
+            ],
+            "operations": [
+              {
+                "id": "notes.list",
+                "kind": "query",
+                "description": "列出笔记",
+                "input": {},
+                "output": [
+                  {
+                    "id": "string",
+                    "text": "string"
+                  }
+                ]
+              },
+              {
+                "id": "notes.add",
+                "kind": "command",
+                "description": "添加笔记",
+                "input": {
+                  "text": "string(1..200) 笔记"
+                },
+                "output": {
+                  "id": "string"
+                }
+              }
+            ],
+            "pages": [
+              {
+                "id": "home",
+                "title": "笔记板",
+                "parts": [
+                  {
+                    "id": "title",
+                    "intent": "heading",
+                    "purpose": "说明插件"
+                  },
+                  {
+                    "id": "editor",
+                    "intent": "input",
+                    "purpose": "写一条笔记",
+                    "uses": "notes.add"
+                  },
+                  {
+                    "id": "notes",
+                    "intent": "collection",
+                    "purpose": "浏览笔记",
+                    "uses": "notes.list"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "note": "two valid proposals"
+    },
+    {
+      "id": "propose-one-candidate",
+      "mode": "propose",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "clarificationAllowed": true,
+      "answerJson": {
+        "summary": "s",
+        "candidates": [
+          {
+            "id": "only",
+            "title": "唯一",
+            "description": "记下想法并随时回看",
+            "rationale": "最短的录入与浏览路径",
+            "journey": [
+              "写一条笔记",
+              "在列表里看到它"
+            ],
+            "operations": [
+              {
+                "id": "notes.list",
+                "kind": "query",
+                "description": "列出笔记",
+                "input": {},
+                "output": [
+                  {
+                    "id": "string",
+                    "text": "string"
+                  }
+                ]
+              },
+              {
+                "id": "notes.add",
+                "kind": "command",
+                "description": "添加笔记",
+                "input": {
+                  "text": "string(1..200) 笔记"
+                },
+                "output": {
+                  "id": "string"
+                }
+              }
+            ],
+            "pages": [
+              {
+                "id": "home",
+                "title": "唯一",
+                "parts": [
+                  {
+                    "id": "title",
+                    "intent": "heading",
+                    "purpose": "说明插件"
+                  },
+                  {
+                    "id": "editor",
+                    "intent": "input",
+                    "purpose": "写一条笔记",
+                    "uses": "notes.add"
+                  },
+                  {
+                    "id": "notes",
+                    "intent": "collection",
+                    "purpose": "浏览笔记",
+                    "uses": "notes.list"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "expectFailure": "2–3 个",
+      "note": "a first answer needs two or three proposals"
+    },
+    {
+      "id": "propose-questions-first-round",
+      "mode": "propose",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "clarificationAllowed": true,
+      "answerJson": {
+        "questions": [
+          "是只给自己用，还是要分享？"
+        ],
+        "summary": "需求有两种理解"
+      },
+      "note": "a clarifying question is a valid first answer"
+    },
+    {
+      "id": "propose-questions-second-round",
+      "mode": "propose",
+      "origin": "synthetic",
+      "source": "hand-written for this corpus; shapes taken from tests/agent-built-plugins-authoring.test.ts and tests/agent-built-plugins-workflow.test.ts",
+      "attempt": 0,
+      "capabilities": [],
+      "resources": [],
+      "clarificationAllowed": false,
+      "answerJson": {
+        "questions": [
+          "还想问一个问题？"
+        ],
+        "summary": "s"
+      },
+      "expectFailure": "已经澄清过一次",
+      "note": "once the person has answered, the designer must propose"
+    }
+  ]
+}

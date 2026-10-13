@@ -1,4 +1,14 @@
-/** AP3 Workbench client segment: bootstrap. */
+/**
+ * AP3 Workbench client segment: bootstrap.
+ *
+ * Notes on the script below. They are kept here rather than inside it because the script is served as it stands: a
+ * comment inside it is bytes the browser downloads and never runs.
+ *
+ * - `feedDirectory … feedSourceProgress`: Feed's pages and its source directory are wired from these variables. The
+ *   pages are in the page whether or not the project has Feed (they fill when it does) and the source directory only
+ *   while it does, so they are found again when Feed comes or goes (adoptFeed); what was bound to a container stays
+ *   bound, its contents are what change.
+ */
 export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let state = JSON.parse(document.querySelector("#molis-work-data").textContent);
     const workspace = document.querySelector("[data-workspace]");
@@ -15,9 +25,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const desktopDirectoryPanels = [...document.querySelectorAll("[data-directory-panel]")];
     const desktopWorkSurfaces = [...document.querySelectorAll("[data-work-surface]")];
     const projectMenus = [...document.querySelectorAll("[data-project-menu]")];
-    // Feed's pages and its source directory are wired from these. The pages are in the page whether or not the project has Feed
-    // (they fill when it does) and the source directory only while it does, so they are found again when Feed comes or goes
-    // (adoptFeed); what was bound to a container stays bound, its contents are what change.
     let feedDirectory, feedWorkbench, feedList, feedSearch, feedFilterTrigger, feedFilterPanel, feedFilterBadge, feedFilterSummary, feedFilterReset,
       feedSourceFilter, feedTypeFilter, feedTimeFilter, feedStatusFilter, feedSort, feedResultCount, feedEmpty, feedDetailEmpty,
       sourceDirectory, sourceWorkbench, sourceList, sourceSearch, sourceResultCount, sourceEmpty, feedSourcesDialog, feedSourceError, feedSourceProgress;
@@ -52,7 +59,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     findFeedNodes();
     const mobileTreeTab = document.querySelector('[data-mobile-target="tree"]');
     const mobileDocumentTab = document.querySelector('[data-mobile-target="document"]');
-    const mobileDirectoryTab = document.querySelector("[data-mobile-directory-root]");
     const defaultMobileTreeLabel = mobileTreeTab?.textContent || L("目标");
     const defaultMobileDocumentLabel = mobileDocumentTab?.textContent || L("聚焦");
     const dialog = document.querySelector("[data-create-dialog]");
@@ -60,7 +66,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const toast = document.querySelector("[data-toast]");
     const archiveView = document.body.dataset.boardView === "archive";
     const trashView = document.body.dataset.boardView === "trash";
-    const decisionView = document.body.dataset.boardView === "decisions";
     const collectionView = archiveView || trashView;
     const documentCollection = trashView ? "trash" : archiveView ? "archive" : "current";
     const routePrefix = document.body.dataset.routePrefix || "";
@@ -127,22 +132,15 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const localPathname = () => routePrefix && location.pathname.startsWith(routePrefix)
       ? location.pathname.slice(routePrefix.length) || "/"
       : location.pathname;
-    const decisionFeedEntryFromHash = () => {
-      const prefix = "#decision-goal-";
-      if (!decisionView || !location.hash.startsWith(prefix)) return "";
-      return "decision:" + decodeURIComponent(location.hash.slice(prefix.length));
-    };
     const visibleGoals = (source = state) => trashView ? source.trashed_goals : archiveView ? source.archived_goals : source.goals;
-    const goalUiStorageKey = "molis-work-ui:" + (state.project?.project_id || state.snapshot.board.board_id);
+    const goalUiStorageKey = "molis-work-ui:" + (state.project?.project_id || state.snapshot.board.project_id);
     const currentGoalUiStorageKey = goalUiStorageKey + ":current";
-    const storageKey = decisionView
-      ? goalUiStorageKey + ":inbox"
-      : trashView
-        ? goalUiStorageKey + ":trash"
-        : archiveView
-          ? goalUiStorageKey + ":archive"
-          : currentGoalUiStorageKey;
-    const goalMoveReceiptKey = "molis-work-goal-move-receipt:" + (state.project?.project_id || state.snapshot.board.board_id);
+    const storageKey = trashView
+      ? goalUiStorageKey + ":trash"
+      : archiveView
+        ? goalUiStorageKey + ":archive"
+        : currentGoalUiStorageKey;
+    const goalMoveReceiptKey = "molis-work-goal-move-receipt:" + (state.project?.project_id || state.snapshot.board.project_id);
     const desktopNavigationStateVersion = 4;
     let immersiveNavigation = null;
     let frameContainer = null;
@@ -151,7 +149,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let pluginWorkbench = null;
     let globalSearchPalette = null;
     let desktopDirectoryOrigin = null;
-    let activeDesktopSurface = document.body.dataset.desktopSurface || (decisionView ? "inbox" : "goal");
+    let activeDesktopSurface = document.body.dataset.desktopSurface || "goal";
     let activeFeedPreset = feedDirectory?.dataset.feedPreset || "feed";
     let selectedFeedItem = feedList?.querySelector("[data-feed-entry-id].is-selected")?.dataset.feedEntryId || "";
     let selectedSource = sourceList?.querySelector("[data-source-entry-id].is-selected")?.dataset.sourceEntryId || "";
@@ -174,11 +172,9 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     };
     let desktopSurfaceScroll = {};
     let goalWorkspaceMode = "graph";
-    let selected = decisionView ? "" : document.querySelector("[data-goal-view]:not([hidden])")?.dataset.goalView || (collectionView ? "" : state.active_goal_id) || "";
-    if (!decisionView) {
-      const initialHistoryState = history.state && typeof history.state === "object" ? history.state : {};
-      history.replaceState({ ...initialHistoryState, goalId: selected }, "", location.href);
-    }
+    let selected = document.querySelector("[data-goal-view]:not([hidden])")?.dataset.goalView || (collectionView ? "" : state.active_goal_id) || "";
+    const initialHistoryState = history.state && typeof history.state === "object" ? history.state : {};
+    history.replaceState({ ...initialHistoryState, goalId: selected }, "", location.href);
     let toastTimer;
     let syncing = false;
     let deferredClients = null;
@@ -192,7 +188,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     };
     let resizeStartX = 0;
     let resizeStartWidth = 0;
-    let quickRecordRequest = null;
     let feedWorkbenchRequest = null;
     let feedDetailRequest = null;
     let searchBusyUntil = 0;

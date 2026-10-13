@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -67,7 +68,8 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   };
   await exportClick('pptx');await idle();
   const pptxDeadline=Date.now()+4000;let pptx:Buffer|null=null;
-  while(!pptx){try{pptx=await readFile(join(downloads,'季度回顾.pptx'));}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
+  // Chrome creates the file before it writes it: a download is there once it has bytes and no partial file is left.
+  while(!pptx){try{pptx=await readFile(join(downloads,'季度回顾.pptx'));if(!pptx.length||existsSync(join(downloads,'季度回顾.pptx.crdownload')))pptx=null;}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
     if(!pptx){if(Date.now()>pptxDeadline)throw new Error('PPT PowerPoint download missing');await new Promise(resolve=>setTimeout(resolve,50));}}
   assert.equal(pptx.subarray(0,2).toString('latin1'),'PK','a PowerPoint file is a zip package');
   assert.ok(pptx.includes(Buffer.from('ppt/slides/slide1.xml')),'it carries slide parts');

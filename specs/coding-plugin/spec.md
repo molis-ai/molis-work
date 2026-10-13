@@ -679,7 +679,7 @@
 **1. 派出子任务的标识在审查前就校验（SDK，f4420813）**
 - 原来：模型给出 `写 README/第二份` 这类派出标识，要等你批准、SDK 落盘时才以 `STORAGE_KEY_INVALID` 失败，批准白给。
 - 现在：SDK 的工具参数检查在进入审查之前就校验声明了 `idempotencyKey` 的系统工具，格式为 1–48 个字母、数字、点、短横或下划线，首字符为字母或数字。坏标识当场以 `TOOL_ARGUMENTS_INVALID` 退回，模型换一个再派，不产生审查项；工具说明写明格式。
-- vendored 包换成 `prologue-sdk-0.0.0-rc.1-dispatch-key.tgz`（累计补丁 `dispatch-key.patch`），500 个 dist 文件与源码构建逐字节相同。
+- vendored 包换成 `prologue-sdk-0.0.0-rc.1-dispatch-key.tgz`（累计补丁 `dispatch-key.patch`，2026-10-08 起只留记录，见 vendor/prologue-sdk/patch-history.json），500 个 dist 文件与源码构建逐字节相同。
 - 测试：SDK 新增 1 项定向。全量中 5 项 live 测试在满载并行时失败，单独重跑 5 个文件全部通过（58 + 11 项）。
 
 **2. 协调者自己跑命令：不拦**（你定）。不改代码；每条命令仍经宿主审查。
@@ -1169,7 +1169,7 @@
 
 方案与拍板见 [`benchmark.md`](benchmark.md) 末两节。这一期做"每一步都有负责人、看得出谁在做"和"任务图摘要"。
 
-**SDK（vendored `prologue-sdk-0.0.0-rc.1-claims.tgz`，累计补丁 [`claims.patch`](../../vendor/prologue-sdk/claims.patch)）**
+**SDK（vendored `prologue-sdk-0.0.0-rc.1-claims.tgz`，累计补丁 `claims.patch`；2026-10-08 起树里只留补丁的大小、SHA-256、git blob 与来源，见 [vendor/prologue-sdk/patch-history.json](../../vendor/prologue-sdk/patch-history.json)）**
 
 - 任务图的负责人从"只能是角色"扩成三种：角色、会话（包括子任务自己的会话）、人。
   - 只有负责人能报告这一步；报别人名下的步骤明确失败，错误里写着现在归谁。
@@ -1342,7 +1342,7 @@
 - 信封记下答复的是哪一封（`inReplyTo`，必须存在）、发信方是否在等答复（`awaitReply`）和发出时间。
 - 投递箱可以存下、重启后读回、订阅变化、按收发方列出。
 - `session-send` 工具新增 `inReplyTo` 和 `wait`。带 `wait` 时，回执让模型说清在等什么，然后结束这一轮。
-- 新测试 `delivery-durable.test.ts` 通过，原有 65 项投递测试通过。SDK 这一期**没有**重跑全量。重新打包，SHA-256 `905e3d04…`（见 vendor/prologue-sdk/README.md）。
+- 新测试 `delivery-durable.test.ts` 通过，原有 65 项投递测试通过。SDK 这一期**没有**重跑全量。重新打包，SHA-256 `905e3d04…`（当时记在 vendor/prologue-sdk/README.md 里，后来被更新的包取代，README 不再逐包记录；`git show fcb0f599:vendor/prologue-sdk/README.md` 里有全文）。
 
 **宿主**
 
@@ -1441,7 +1441,7 @@
 - 唤醒后自动继续；
 - 这一项作为第四期，原第四期顺延为第五期。
 
-**SDK**（claims.patch 累计补丁；包的 SHA-256 见 vendor/prologue-sdk/README.md）
+**SDK**（claims.patch 累计补丁；包的 SHA-256 见 vendor/prologue-sdk/patch-history.json）
 
 - `runtime.background`：后台命令登记到发起它的会话。
   - 记录跑没跑完、退出码、起止时间，并落盘。
@@ -2115,7 +2115,7 @@ Git 子进程清除继承的仓库重定向，禁用 fsmonitor、untrackedCache 
 
 - 复用 Files 的 before / after / selection 输出，为 Coding 声明三个可选输入，沿用默认绑定图；不新建材料库或执行账。Shelf 材料与 Goal 往返仍是后续必须完成的范围，不用本块代替完整材料能力。
 - 私有会话存储只保留下一轮的精确引用。开始时重新检查来源可用性；归档、不可读、跨项目/用户、错误类型或正文过大都在创建执行前拒绝。移除无效选择后可继续，不悄悄替换为最新版，也不截断内容。
-- Node 适配器把来源元数据和原文发布为 Prologue 文本资源，通过 `agent.mount.textResources` 作为必需参考数据注入；原文保留换行、Unicode 与 BOM。来源头与正文合计不超过 SDK 的 20,000 UTF-16 字符，每轮最多 30 份。材料不进入角色提示、不授予工具权限。未接通材料消费的 CLI 运行时显式拒绝携带材料。
+- Node 适配器把来源元数据和原文发布为 Prologue 文本资源，通过 `agent.mount.textResources` 作为必需参考数据注入；原文保留换行、Unicode 与 BOM。来源头与正文合计不超过 SDK 的 20,000 UTF-16 字符，每轮最多 30 份。材料不进入角色提示、不授予工具权限。未接通材料消费的 CLI 运行时显式拒绝携带材料（该 CLI 运行时已于 2026-10 删除，见 [plugin-platform-v2](../plugin-platform-v2/spec.md) D5）。
 - FrozenStart 和固定报告保留来源 ID、版本与显示名称；旧记录缺少名称时仍可读取。运行中的补充要求保持本轮材料，改选只用于下一轮。开始时接受的固定材料按执行时版本保留，后续归档阻止新轮次消费，不改写历史。
 - **产品实操**：正式 UI、MiniMax-M3，会话「固定材料 · 旧版读取与重启」 `a1240271-dafc-4115-8c0b-59a6530fb68a`、Run `4-8279j`。通过材料弹窗选择 cart.mjs 对比前 v1（201 字符），模型实际引用旧函数并指出没有 quantity 校验，明确未读取磁盘；本轮没有工具活动。输入 1755、输出 185、缓存读取 128，缓存写入与费用未知。之后在 Files 重新固定已有校验的正文，生成 before v2（382 字符）；选择器同时显示 v2 候选和仍勾选的 v1，未自动替换。通过页面保存固定执行报告 v1，报告记录文件名、材料 ID 与版本。重启最终构建后，会话/材料选择/候选公开投影与重启前完全一致，页面上的已选 v1 和固定报告可重新打开。证据 `c10-materials-{session,choices}-{before,after}-restart.json`。随后明确取消 v1、改选 v2；发送前右栏仍显示历史 v1，第二轮开始后才显示 v2。MiniMax 准确引用新增的 `!Number.isInteger(item.quantity) || item.quantity < 0`，区分前一轮无校验、本轮有校验；本轮仍无工具调用，输入 2075、输出 243、缓存读取 128。重新打开第一轮固定报告仍是 v1，未被新选择或新执行改写（`c10-materials-{session,report-v1}-after-reselection.json`）。
 - **工程验证**：11 项聚焦检查通过，覆盖真实默认图和 Files HTTP 发布、精确旧版本、跨项目/用户拒绝、正文超限/归档、新轮次前重新读取、浏览器伪造正文无效、无材料路径、SDK 实际组装的模型请求、来源持久化和报告。SDK 请求断言验证换行、Unicode/BOM 保留且材料位于不可信参考数据层，无角色指令或权限增加。build、boundary、workspace:typecheck 通过；首轮全量 1476 项中新增 1 处旧 Manifest「无材料输入」断言失败，已改为验证三个可选输入均有兼容 Files 生产者，复跑通过。最终全量 1476 项：1414 通过、57 个与恢复后基线同名失败、5 跳过，零新增失败，并非全绿（`c10-materials-final-regression.json` / `molis-materials-all-final.log`）。恢复后基线与原始失败日志保留；77 张已跟踪测试 PNG 已恢复运行前字节。构建摘要重新计算一致，4198 服务已重启到该构建。
@@ -2125,7 +2125,7 @@ Git 子进程清除继承的仓库重定向，禁用 fsmonitor、untrackedCache 
 
 已接通的场景：在 Coding「文件」面选择已授权的仓库，读取真实分支、已暂存/未暂存/冲突列表，点击文件在右栏查看固定差异；已暂存比较 HEAD 与暂存区，未暂存比较暂存区与磁盘。沿用 Git 输出 Artifact、Diff 比较和共享结果栏，未新建版本库或审批系统。
 
-- 宿主通过 `projects.workspace.git.read.v1` 执行 Git，读前读后核对项目授权与仓库根；子目录授权不能扩大成父仓库读取。使用参数数组与 literal pathspec，保留 Unicode、BOM 和 CRLF；检测二进制、256 KiB 超限、冲突、符号链接、未初始化/无提交/游离 HEAD、读取期间变更并明确反馈。禁止继承 Git 路径覆盖、状态写回 index、fsmonitor 和 clean/process 过滤器执行；本块没有 Git 写操作。
+- 宿主通过动作 `projects.workspace.git.inspect` 执行 Git（原来的 typed `projects.workspace.git.read.v1` 已在 2026-10-09 删除，W2-09），读前读后核对项目授权与仓库根；子目录授权不能扩大成父仓库读取。使用参数数组与 literal pathspec，保留 Unicode、BOM 和 CRLF；检测二进制、256 KiB 超限、冲突、符号链接、未初始化/无提交/游离 HEAD、读取期间变更并明确反馈。禁止继承 Git 路径覆盖、状态写回 index、fsmonitor 和 clean/process 过滤器执行；本块没有 Git 写操作。
 - 插件读取真实仓库后才报告 ready，不再以“绑定目录”冒充仓库状态。默认图增加 Git.changeset → Diff.git_changeset；Files 快照组继续独立。固定差异发布版本、来源指纹和最后查看引用持久保存；切换或刷新后旧版本不会被磁盘变化改写，较迟响应不能覆盖新选择。
 - **产品实操**：正式 4198 页面选择独立 `git-review-fixture` 仓库；已暂存 cart.mjs 展示 quantity 校验，未暂存 cart.mjs 只展示后续说明注释，两个范围没有混淆。重启后通过「上次查看的固定差异」重新打开 v2；公开 Git 状态与 Diff 固定版本投影和重启前一致，证据 `c10-git-{state,diff}-{before,after}-restart.json`。深浅主题检查后恢复深色；修正了外层 header 规则挤压 Diff 标题的问题。夹具准备通过命令完成，仅用于代表 Git 状态，不能据此宣称产品 Git 写操作或 MiniMax Git 操作已验证。
 - **工程验证（初次接通）**：44 项聚焦检查通过，覆盖真实 Git 仓库与正式 HTTP、权限/路径拒绝、状态层次、精确内容、固定 Artifact 跨重启、项目隔离，以及读取不改 index/不执行仓库辅助命令。build、boundary、workspace:typecheck 通过；全量 1479 项：1417 通过、57 个基线同名失败、5 跳过，零新增失败，并非全绿（`c10-git-final-regression.json` / `molis-git-all5.log`）。77 张测试 PNG 已恢复运行前字节。
@@ -2601,7 +2601,7 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 
 ### C9 MCP 配置、真实工具调用与审查一致性
 
-- **已接入口**：全局设置 → Coding → MCP 服务，配置 stdio 或 HTTP，编辑、启停、连接/断开、取消正在连接的请求、移除配置；会话输入区「选择 MCP 工具」选择精确版本，正式发送到 Prologue/MiniMax。移除配置保留执行历史。没有选择 MCP 的普通任务路径不变；SDK 将外部工具标为 mutate-external，所以本轮须选「执行」，阅读/评审方式不能借 MCP 扩权。CLI 运行时尚未接 MCP；Prologue 的短/长资料路径已在后续块接通，仍因大目录验证、恢复等未完成项申报 partial。
+- **已接入口**：全局设置 → Coding → MCP 服务，配置 stdio 或 HTTP，编辑、启停、连接/断开、取消正在连接的请求、移除配置；会话输入区「选择 MCP 工具」选择精确版本，正式发送到 Prologue/MiniMax。移除配置保留执行历史。没有选择 MCP 的普通任务路径不变；SDK 将外部工具标为 mutate-external，所以本轮须选「执行」，阅读/评审方式不能借 MCP 扩权。CLI 运行时尚未接 MCP（该运行时已于 2026-10 删除，见 [plugin-platform-v2](../plugin-platform-v2/spec.md) D5）；Prologue 的短/长资料路径已在后续块接通，仍因大目录验证、恢复等未完成项申报 partial。
 - **归属与复用**：Coding 声明能力并提供路由/UI；Agent Host 从当前项目/插件授权解析所有者，验证 stdio 工作区与本轮执行权限；Prologue Node 适配层复用 SDK MCP registry、transport、tool snapshot、Credential 和 Store。MCP 配置与候选列表不含认证明文，会话只固定引用。HTTP 外部地址只用 HTTPS，本机回环可用 HTTP，URL 内嵌凭据拒绝；stdio 不传任意环境变量。
 - **配置与工具版本分别固定**：配置使用 Store expectedVersion；选择与本轮记录含配置版本、工具 shape fingerprint 和宿主解析的服务名称。不同配置版本使用不同 SDK 连接身份，编辑会先关闭旧连接；同名/同参数形状不能掩盖地址或启动参数变化。旧选择保留为不可用，必须显式重新选择；旧执行记录没有配置版本的，显示「未记录」，不补造历史。
 - **审查事实**：参数来自 SDK 实际提案 subject.input，绑定原 session/run 与本轮工具；批准前不派出。批准决定、执行成功/失败/未知、拒绝和撤回分别显示，不能把批准写成完成。SDK 幂等语义仍为 none，连接失败与未知外部结果不自动重跑。
@@ -2701,10 +2701,10 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
 | C0 | UI 与交互设计定稿 | **已完成**：`design.md` §14、`ui/` 四张稿 |
-| C1 | Capability 地基：Projects 工作区只读、Agent Host 命令回执（Goals 复用已注册的 16 个） | **基础实现存在，产品闭环见 §0**：`projects.workspace.read.v1`、`agent.command-output.v1`；`tests/coding-capabilities.test.ts` 3 项、`tests/agent-host.test.ts` 15 项 |
+| C1 | Capability 地基：Projects 工作区只读、Agent Host 命令回执（当时写的「Goals 复用已注册的 16 个」事件能力没有生产调用方，已于 2026-10-09 W2-08 删除；Coding 走 Goals 仍保留的四个 typed 入口：读目录与上下文 `goals.context.list.v1`、`goals.context.read.v1`，写进展 `goals.progress.record.v1`，查回执 `goals.progress.receipt.v1`，都在 Manifest `capabilities.consumes` 里声明消费，W3-07 把它们改成 Goals 动作；Goals 向插件开放的便笺动作 `goals.note` Coding 现在没有调用） | **基础实现存在，产品闭环见 §0**：`projects.workspace.read.v1`、`agent.command-output.v1`；`tests/coding-capabilities.test.ts` 3 项、`tests/agent-host.test.ts` 15 项 |
 | C2 | Artifact 类型：ChangeSet / Report / Diagram | **基础实现存在，产品闭环见 §0**：`plugins/native/coding/src/artifacts.ts`；图是结构不是 SVG，见下；`tests/coding-artifacts.test.ts` 5 项 |
 | C3 | 插件本体：Manifest + 三段 UI | **基础实现存在，产品闭环见 §0**：包、Manifest、投影层、目录栏与工作台渲染、会话落库（真实 SQLite 重开验证）。`coding-projection` 5 项、`coding-ui` 5 项、`coding-store` 4 项 |
-| C4 | 宿主审查面 | **已接进产品装配**：`composeAgentHost` 在 `web-server` 里被调用，CLI 运行时已注册，插件经 Capability 真的够得到（`tests/agent-host-composition.test.ts` 5 项）。会话里的审查摘要卡已做（含「卡片上不能有任何按钮」这条硬断言）。**审查队列已经走 HTTP**：`/api/agent/reviews` 读、`/api/agent/reviews/decide` 决定，复用既有的本地控制护栏（同源 + 控制令牌 + 一次性键），重放返回 409。宿主渲染器现已挂入 Coding 结果区，正式页面已有 MiniMax 单处补丁审查实操；拒绝/冲突/恢复见 §0 当前验证。`agent-review-surface` 7 项、`coding-review-card` 5 项、`agent-review-http` 4 项 |
+| C4 | 宿主审查面 | **已接进产品装配**：`composeAgentHost` 在 `web-server` 里被调用，CLI 运行时已注册（当时的记录；该运行时已于 2026-10 删除，见 [plugin-platform-v2](../plugin-platform-v2/spec.md) D5），插件经 Capability 真的够得到（`tests/agent-host-composition.test.ts` 5 项）。会话里的审查摘要卡已做（含「卡片上不能有任何按钮」这条硬断言）。**审查队列已经走 HTTP**：`/api/agent/reviews` 读、`/api/agent/reviews/decide` 决定，复用既有的本地控制护栏（同源 + 控制令牌 + 一次性键），重放返回 409。宿主渲染器现已挂入 Coding 结果区，正式页面已有 MiniMax 单处补丁审查实操；拒绝/冲突/恢复见 §0 当前验证。`agent-review-surface` 7 项、`coding-review-card` 5 项、`agent-review-http` 4 项 |
 | C5 | 审批桥挂到 Prologue + 真实模型验证 | **文件审批已接通，失败路径与恢复验证中**：桥挂上之后 `text-edit` 才申报支持（`command` 不跟着变，见下）。两种 API 格式已对着真实 MiniMax 验证通过，见 C6。`tests/prologue-approval-attachment.test.ts` 5 项 |
 | C6 | 模型供应商管理（设置页 + 两种 API 格式） | **基础实现存在，产品闭环见 §0**：契约、设置页、落库（目录库 schema 17）、到 `modelConfiguration()` 的映射，以及**跨密钥库的凭据交接**。`model-providers` 9 项、`model-provider-store` 7 项、`prologue-credential-bridge` 6 项 |
 | C9 | 对齐 FlyLeaf 的全部能力 | **基础实现存在，产品闭环见 §0**：方法/MCP 选择、检查点、子代理与验收、恢复投影、工作区事件、并行写入（含真实 git 工作树）、报告与用量视图、贴底行为。`coding-selection` 8、`coding-delegation` 8、`coding-recovery` 7、`coding-events` 8、`coding-writers` 9、`git-worktrees` 5、`coding-reading` 6、`coding-report-usage` 4 |
@@ -2779,7 +2779,7 @@ Anthropic 那条不会。** 正文里混进推理过程，用户读到的就不�
 是两个问题**。CLI 流现在保留命令回执（输出按 16 KiB 截断并如实标记，失败的输出进 stderr，
 退出码保持 `null` 因为 CLI 只说成功失败），`readCommandOutput` 真的读得到。
 
-回执投影按 `command.receipts` 判断可用性，而不是按 `command`。CLI adapter 可读取已有回执，不能因此声称其正式产品入口已全部接通。
+回执投影按 `command.receipts` 判断可用性，而不是按 `command`。CLI adapter 可读取已有回执，不能因此声称其正式产品入口已全部接通（该 adapter 已于 2026-10 删除，见 [plugin-platform-v2](../plugin-platform-v2/spec.md) D5）。
 当前 Coding 正式会话使用 Prologue，右栏可按轮次展开 SDK 持久命令回执。CLI 的 `command` 依然不支持，因为执行审批仍归它自己的权限模型。
 
 ### C7：`app` 现在是真的

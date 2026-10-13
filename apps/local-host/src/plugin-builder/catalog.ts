@@ -1,7 +1,8 @@
 /**
  * The capability catalog generated plugins draw from: the project's unified action service, nothing else. The studio's
  * model capability is registered into that same service as a platform provider; Schedule owns reminders. What
- * other plugins offer to agents reaches plugins too unless it cannot be undone (see `actionReachesAudience`).
+ * other plugins offer to agents reaches plugins too unless it cannot be undone (see `actionReachesAudience`) or needs
+ * another action (a plugin calls one approved action at a time).
  *
  * This layer adds stand-ins for checks and trials and consent text; execution policy belongs to each provider.
  */
@@ -13,7 +14,7 @@ import { MODEL_STAND_IN_PREFIX, studioCapability } from '@molis-ai/molis-work-pl
 import { isMcpToolCapability } from '../mcp-tool-actions.js';
 import { latestCapability, type ModelGenerateInput, type CapabilityImplementations } from './capabilities.js';
 
-/** Designs made against this catalog call real actions with their real schemas; older designs keep the studio's own list. */
+/** The catalog version a design records: designs call real actions with their real schemas. */
 export const CATALOG_VERSION = 'actions/1';
 export const PLATFORM_PROVIDER_ID = 'plugin-platform';
 /** The project's action service; `inspect` is the host's metadata-only directory (it prepares the project's plugins first). */
@@ -70,7 +71,10 @@ export async function capabilityCatalog(actions: ProjectActions, actorId: string
     // Enabling its plugin is the person's choice and the studio asks for it. Any other refusal (an action that only
     // answers its own installation, say) stands: the board does not offer what would fail when called.
     const code = view.availability.available === false ? view.availability.code : undefined, disabled = code === 'actions.plugin_disabled';
-    const refused = code !== undefined && !disabled, isOffered = reachable && !refused;
+    const refused = code !== undefined && !disabled;
+    // A plugin calls one approved action at a time and the kernel checks an action's required actions against that same
+    // caller, so a capability that needs another action would be refused whenever the plugin called it.
+    const dependent = (view.action.required_actions?.length ?? 0) > 0, isOffered = reachable && !refused && !dependent;
     // MCP tools are registered under whoever holds their configuration (the Coding plugin, or 服务连接 as a system
     // provider); on the board they are MCP.
     const source = view.provider.kind === 'mcp' || isMcpToolCapability(view.capability_id) ? { kind: 'mcp' as const, title: view.provider.title }
@@ -79,7 +83,7 @@ export async function capabilityCatalog(actions: ProjectActions, actorId: string
     return { id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, title: view.action.title, description: view.action.description,
       consent: platform && known ? known.consent : (effect === 'read' ? '读取：' : '写入：') + view.action.title + '（' + view.provider.title + '）',
       effect, input: view.action.input_schema, ...(view.action.output_schema ? { output: view.action.output_schema } : {}), permissions: view.action.permissions,
-      source, offered: isOffered, ...(isOffered ? {} : { reason: effect === 'irreversible' ? '不能撤销，不开放给插件' : refused ? '只对它自己的使用方开放' : '提供方没有开放给插件' }),
+      source, offered: isOffered, ...(isOffered ? {} : { reason: effect === 'irreversible' ? '不能撤销，不开放给插件' : refused ? '只对它自己的使用方开放' : dependent ? '依赖其他能力，插件一次只能调用一项，暂不开放' : '提供方没有开放给插件' }),
       installed: !disabled,
       execution: { ...view.action.execution, cost: view.action.execution?.cost ?? 'unknown' } };
   };

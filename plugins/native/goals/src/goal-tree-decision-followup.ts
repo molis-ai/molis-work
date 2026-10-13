@@ -14,10 +14,10 @@ export class GoalTreeDecisionFollowup {
     query: GoalTreeQueryApplication; inputs: GoalTreeInputReader;
     errorFactory: (code: string, message: string) => Error;
   }) {}
-  goalTreeSemanticReview(boardId: string, changedGoalIds: string[]): GoalTreeSemanticReview | null {
+  goalTreeSemanticReview(projectId: string, changedGoalIds: string[]): GoalTreeSemanticReview | null {
     const changed = [...new Set(changedGoalIds)].sort();
     if (changed.length === 0) return null;
-    const impact = this.ports.goals.planning.analyzeChange(boardId, changed);
+    const impact = this.ports.goals.planning.analyzeChange(projectId, changed);
     const required = impact.affected_ancestors.length > 0 ||
       impact.affected_dependents.length > 0 ||
       impact.adjacent_dependencies.length > 0;
@@ -26,13 +26,13 @@ export class GoalTreeDecisionFollowup {
       structural_validation: "passed",
       status: required ? "required" : "not_required",
       next_action: required ? "review_affected_subgraph" : "continue",
-      review_tool: "molis_work_v1_planning_analyze_change",
+      review_action: { capability_id: "goals.planning.impact", version: 1 },
       canonical_changes_require_new_user_confirmation: true,
     };
   }
 
   createGoalTreeProposalRevision(
-    boardId: string,
+    projectId: string,
     proposal: GoalTreeProposalRecord,
     revisions: Array<NormalizedGoalTreeProposalDecision & { revised_item: NormalizedGoalTreeProposalItem }>,
     authority: GoalTreeProposalDecisionAuthority,
@@ -63,15 +63,14 @@ export class GoalTreeDecisionFollowup {
     const summary = `用户要求修订 v${proposal.version}：${revisions.map((item) => item.reason).join("；")}`;
     this.ports.governance.records.insertGoalTreeProposal({
       proposal_id: proposalId,
-      board_id: boardId,
+      project_id: projectId,
       root_goal_id: proposal.root_goal_id,
       submitted_by: runtimeActorId ?? authority.actor_id,
-      discovered_in_run_id: proposal.discovered_in_run_id,
       submitted_session_id: proposal.submitted_session_id,
       state: "pending",
       version,
       supersedes_proposal_id: proposal.proposal_id,
-      base_event_cursor: this.ports.governance.query.eventCursor(boardId),
+      base_event_cursor: this.ports.governance.query.eventCursor(projectId),
       summary,
       narrative: proposal.narrative,
       created_at: at,
@@ -79,11 +78,11 @@ export class GoalTreeDecisionFollowup {
     });
     for (const [index, revision] of revisions.entries()) {
       const item = revision.revised_item;
-      const baselineVersions = item.affected_objects.map((object) => this.ports.query.baselines.objectVersion(boardId, object, item));
+      const baselineVersions = item.affected_objects.map((object) => this.ports.query.baselines.objectVersion(projectId, object));
       this.ports.governance.records.insertGoalTreeProposalItem({
         item_id: item.item_id,
         proposal_id: proposalId,
-        board_id: boardId,
+        project_id: projectId,
         ordinal: index + 1,
         kind: item.kind,
         operation: item.operation,
@@ -102,9 +101,9 @@ export class GoalTreeDecisionFollowup {
       });
     }
     this.ports.governance.records.recordGoalTreeRevision({
-      board_id: boardId, proposal_id: proposalId, authority, supersedes_proposal_id: proposal.proposal_id,
+      project_id: projectId, proposal_id: proposalId, authority, supersedes_proposal_id: proposal.proposal_id,
       supersedes_item_ids: revisions.map(item => item.item_id), at,
     });
-    return this.ports.query.readNative(boardId, proposalId);
+    return this.ports.query.readNative(projectId, proposalId);
   }
 }

@@ -10,31 +10,22 @@ export function buildSessionHandoffPackage(input: {
   timeline: readonly SessionTimelineEvent[];
 }): string {
   const { goal, event_work: eventWork, event_facts: eventFacts } = input.goal_contract;
-  const historicalRuns = input.goal_contract.runs
-    .map((run) => `${run.run_id} · ${run.state} · ${run.role} · ${run.actor_id} · ${run.started_at}`);
-  const historicalEvidence = input.goal_contract.evidence
-    .map((item) => `${item.result} · ${item.kind}: ${item.locator}`);
-  const outputRefs = input.goal_contract.runs
-    .flatMap((run) => run.output_refs)
-    .filter((item, index, items) => item && items.indexOf(item) === index);
-  const historicalRisks = input.goal_contract.risks
-    .map((risk) => `${risk.description}；状态：${risk.state}；处理：${risk.treatment_plan}`);
   const timeline = minimalSessionContext(input.timeline);
   const resumeRequired = eventFacts?.resume_required === true;
   const currentStatus = eventFacts?.work_status
     ?? (goal.trashed_at ? "trashed" : goal.archived_at ? "archived" : "open");
   const nextStep = resumeRequired
-    ? "已结束的 Goal 需要显式继续：调用 molis_work_v1_event_resume 并说明原因，不能按普通差距自动恢复。"
+    ? "已结束的 Goal 需要显式继续：调用 goals.work.resume 并说明原因，不能按普通差距自动恢复。"
     : eventFacts?.next_step || "按当前约定继续记录。";
   const eventSection = eventWork && eventFacts
     ? [
         "## 当前事件工作",
         "",
-        `- 协议：事件记录，不要领取角色或开始 Run`,
+        `- 协议：事件记录，把进展、决定和结果写回同一个 Goal`,
         `- 工作状态：${eventFacts.work_status}`,
         `- 当前约定：${eventFacts.outcome || "无"}`,
         `- 下一步：${nextStep}`,
-        `- 继续边界：${resumeRequired ? "必须显式继续，调用 molis_work_v1_event_resume 并说明原因" : "可按当前约定继续"}`,
+        `- 继续边界：${resumeRequired ? "必须显式继续，调用 goals.work.resume 并说明原因" : "可按当前约定继续"}`,
         ...(eventFacts.closure_reason ? [`- 收尾原因：${eventFacts.closure_reason}`] : []),
         `- 摘要是否过时：${eventFacts.stale_summary ? "是" : "否"}`,
         "",
@@ -83,10 +74,6 @@ export function buildSessionHandoffPackage(input: {
     "",
     ...(historicalAcceptance.length > 0 ? historicalAcceptance : ["- 无"]),
     "",
-    listSection("历史 Run", historicalRuns),
-    listSection("历史 Evidence", historicalEvidence),
-    listSection("产物与输出引用", outputRefs),
-    listSection("历史 Risk", historicalRisks),
     "## 最近 Session 上下文",
     "",
     ...(timeline.length > 0
@@ -100,9 +87,9 @@ export function buildSessionHandoffPackage(input: {
     "## 继续执行",
     "",
     resumeRequired
-      ? "这条 Goal 已经完成或取消。继续前必须显式继续：调用 molis_work_v1_event_resume 并说明原因。不要当作普通未完成工作继续，也不要领取角色或开始 Run。"
+      ? "这条 Goal 已经完成或取消。继续前必须显式继续：调用 goals.work.resume 并说明原因。不要当作普通未完成工作继续。"
       : eventWork
-        ? "先读取当前 goal_state，再从当前约定、要求和待决定继续。已决定的内容不要再问。不要领取角色或开始 Run。重要事实写回同一个 Goal。"
+        ? "先读取当前 goal_state，再从当前约定、要求和待决定继续。已决定的内容不要再问。重要事实写回同一个 Goal。"
         : "先核对当前仓库与 Molis Work 状态，再按当前 Goal 事实继续。重要决定仍写回同一个 Goal；不要创建第二套 Goal 状态。",
   ];
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();

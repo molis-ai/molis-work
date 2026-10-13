@@ -26,13 +26,7 @@ export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
     const humanDecisionError = (message, fallback) => String(message || fallback)
       .replaceAll("Contract Proposal", "目标说明")
       .replaceAll("Contract", "目标说明")
-      .replaceAll("Candidate Goal", "新发现的工作")
-      .replaceAll("Candidate", "新发现的工作")
       .replaceAll("Goal Spine", "Goal Tree")
-      .replaceAll("Rewire", "Goal 关系调整")
-      .replaceAll("Review", "结果确认")
-      .replaceAll("Risk", "风险")
-      .replaceAll("Impact", "影响范围")
       .replaceAll("Policy", "工作规则")
       .replaceAll("Runtime", "执行工具");
 

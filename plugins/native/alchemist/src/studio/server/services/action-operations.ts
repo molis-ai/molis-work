@@ -1,6 +1,7 @@
-import { ActionError, searchEntriesPage, searchText, type SearchEntry, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, searchEntriesPage, searchText, type SearchEntry, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ApiDependencies } from "../api/dependencies.js";
-import { alchemistOperations, type AlchemistOperationInput, type AlchemistOperationName } from "../../shared/contracts/actions.js";
+import { ALCHEMIST_GENERATE_PERMISSION, alchemistOperations, type AlchemistHomeOperationName, type AlchemistOperationInput, type AlchemistOperationName } from "../../shared/contracts/actions.js";
+import type { AlchemistPulseGithubPort } from "../sources/pulse-github-port.js";
 import { deriveDirectionTitle } from "../../shared/contracts/direction.js";
 import { IdeaActionError } from "./idea-card-actions.js";
 import { ResearchPlanError } from "./create-research-plan.js";
@@ -17,7 +18,8 @@ export interface AlchemistActionInvoker {
   invoke<I, O>(definition: ActionDefinition<I, O>, input: I, signal?: AbortSignal): Promise<O>;
 }
 
-type Implementations = { [K in AlchemistOperationName]: (input: AlchemistOperationInput<K>, signal?: AbortSignal) => unknown | Promise<unknown> };
+/** What a project's studio implements: every operation but the Home's, which the Host serves from its own ports (`createAlchemistActionHandlers`). */
+type Implementations = { [K in Exclude<AlchemistOperationName, AlchemistHomeOperationName>]: (input: AlchemistOperationInput<K>, signal?: AbortSignal) => unknown | Promise<unknown> };
 
 /** Business implementation stays beside the original repositories and services, without HTTP request emulation. */
 function implementations(d: ApiDependencies): Implementations {
@@ -143,7 +145,8 @@ function businessError(error: unknown): never {
 
 export function createAlchemistOperationExecutor(dependencies: ApiDependencies): AlchemistActionInvoker {
   const handlers = implementations(dependencies);
-  const byId = new Map(Object.entries(alchemistOperations).map(([name, operation]) => [operation.definition.capability_id, { name: name as AlchemistOperationName, ...operation }]));
+  const byId = new Map(Object.entries(alchemistOperations).filter(([, operation]) => operation.definition.action.scope !== "home")
+    .map(([name, operation]) => [operation.definition.capability_id, { name: name as Exclude<AlchemistOperationName, AlchemistHomeOperationName>, ...operation }]));
   return {
     async invoke<I, O>(definition: ActionDefinition<I, O>, input: I, signal?: AbortSignal): Promise<O> {
       signal?.throwIfAborted();
@@ -172,12 +175,49 @@ const workspaceProblems: Record<string, string> = {
   IDEA_NOT_FOUND: "没有找到这个 Idea。", TASTE_RULE_NOT_FOUND: "没有找到这条 Taste。", PLAYBOOK_RULE_NOT_FOUND: "没有找到这条校准规则。", PULSE_SOURCE_NOT_FOUND: "没有找到这个市场来源。",
 };
 
-/** Host resolves the project runtime from trusted caller context; discovery never opens the database. */
-export function createAlchemistActionHandlers(resolve: (caller: ActionCallContext) => AlchemistActionInvoker | Promise<AlchemistActionInvoker>): ActionHandlerBinding[] {
-  return Object.values(alchemistOperations).map(({ definition }) => ({ capability_id: definition.capability_id, version: definition.version,
-    async handle(caller, input) {
-      if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目。");
-      return (await resolve(caller)).invoke(definition as ActionDefinition, input, caller.signal);
+/** What the Host lends the actions beyond the project's studio. */
+export interface AlchemistActionPorts {
+  /** The project's studio for the caller, resolved from trusted caller context; discovery never opens the database. */
+  resolve(caller: ActionCallContext): AlchemistActionInvoker | Promise<AlchemistActionInvoker>;
+  /**
+   * Whether a model can run now, for a caller who is not the person at the page. The plugin binds it to the actions that declare
+   * `ALCHEMIST_GENERATE_PERMISSION`, and the person's own page is never held back by it: a message sent without a model is still saved, and a
+   * stopped exploration or research run is still recorded, so the card tells the person how to go on. Absent: the actions are not judged.
+   */
+  modelAvailability?(): ActionAvailability;
+  /** The Home's GitHub account choice for the market pulse, read and written without a project. Absent: no account can be chosen. */
+  pulseGithub?: Pick<AlchemistPulseGithubPort, "read" | "select">;
+}
+
+/** The Home's operations: one binding for every project, served without opening a studio. */
+function homeImplementations(ports: AlchemistActionPorts): { [K in AlchemistHomeOperationName]: (input: AlchemistOperationInput<K>) => unknown } {
+  return {
+    pulseGithub: () => ports.pulseGithub?.read() ?? { accounts: [], selectedConnectionId: null },
+    pulseGithubSelect: input => {
+      if (!ports.pulseGithub) throw new AlchemistOperationError("PULSE_GITHUB_UNAVAILABLE", "这里不能选择 GitHub 账号。");
+      ports.pulseGithub.select(input.connectionId);
+      return { selectedConnectionId: ports.pulseGithub.read().selectedConnectionId };
     },
-  }));
+  };
+}
+
+export function createAlchemistActionHandlers(ports: AlchemistActionPorts): ActionHandlerBinding[] {
+  const home = homeImplementations(ports) as Record<string, ((input: unknown) => unknown) | undefined>;
+  const modelAvailability = ports.modelAvailability?.bind(ports);
+  return Object.entries(alchemistOperations).map(([name, { definition }]): ActionHandlerBinding => {
+    const base = { capability_id: definition.capability_id, version: definition.version };
+    if (definition.action.scope === "home") {
+      const run = home[name];
+      if (!run) throw new Error(`The Home operation ${definition.capability_id} has no implementation.`);
+      return { ...base, async handle(_caller, input) { return run(input); } };
+    }
+    const handler: ActionHandlerBinding = { ...base,
+      async handle(caller, input) {
+        if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目。");
+        return (await ports.resolve(caller)).invoke(definition as ActionDefinition, input, caller.signal);
+      },
+    };
+    return modelAvailability && definition.action.permissions.includes(ALCHEMIST_GENERATE_PERMISSION)
+      ? { ...handler, availability: caller => caller.audience === "user" ? { available: true } : modelAvailability() } : handler;
+  });
 }

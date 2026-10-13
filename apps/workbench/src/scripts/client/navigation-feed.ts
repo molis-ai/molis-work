@@ -265,10 +265,9 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       queueSave();
     };
 
-    const showPrototypeStatus = (control, message) => {
-      const detail = control.closest("[data-source-detail], [data-prototype-feed-detail]");
-      const status = control.closest("[data-source-detail-panel]")?.querySelector("[data-source-action-status], [data-prototype-config-status], [data-prototype-schedule-status], [data-prototype-action-status]") ||
-        detail?.querySelector("[data-source-action-status], [data-prototype-config-status], [data-prototype-schedule-status], [data-prototype-action-status]");
+    const showSourceStatus = (control, message) => {
+      const status = control.closest("[data-source-detail-panel]")?.querySelector("[data-source-action-status]") ||
+        control.closest("[data-source-detail]")?.querySelector("[data-source-action-status]");
       if (!status) return;
       status.textContent = message;
       status.hidden = false;
@@ -348,7 +347,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       const configSave = feedSourcesDialog.querySelector("[data-feed-config-submit]");
       configSave.hidden = stage !== "config" || feedConfigView === "rules";
       configSave.dataset.sourceId = value;
-      configSave.disabled = feedSourcesDialog.querySelector('[data-feed-task-config="' + CSS.escape(value) + '"]')?.dataset.prototype === "true";
+      configSave.disabled = false;
 
       const headings = { research_library: "共享研究库", custom_rss: "RSS / Atom", rss: "目录订阅", web_query: "网页搜索", youtube_channel: "YouTube", github: "GitHub", gmail: "Gmail" };
       const title = stage === "config" ? (feedConfigView === "rules" ? "捕捉规则" : "来源设置") : setup ? headings[value] : "添加来源";
@@ -462,8 +461,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
           const template = document.createElement("template");
           template.innerHTML = (await response.text()).trim();
           if (requestedPreset !== activeFeedPreset) return false;
-          feedWorkbench.querySelectorAll(".feed-detail--decision, .feed-detail--result")
-            .forEach((detail) => detail.remove());
           for (const detail of [...template.content.querySelectorAll("[data-feed-detail]")]) {
             feedWorkbench.insertBefore(detail, feedDetailEmpty);
           }
@@ -717,8 +714,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         if (feedDetailEmpty) feedDetailEmpty.hidden = true;
       } else if (selectedRow.dataset.feedEntryPersisted === "true") {
         void loadFeedItemDetail(selectedRow, itemId);
-      } else if (selectedRow.dataset.feedEntryPrototype === "true") {
-        if (feedDetailEmpty) feedDetailEmpty.hidden = true;
       } else {
         setFeedDetailPlaceholder(L("无法读取这条 Item"), L("刷新页面后再试。"), true);
       }

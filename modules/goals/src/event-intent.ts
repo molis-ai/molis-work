@@ -16,23 +16,23 @@ export class GoalEventIntent {
     private readonly actorKind: (kind: "user" | "runtime" | undefined) => "user" | "runtime" | null,
   ) {}
 
-  replay(boardId: string, actorId: string, idempotencyKey: string, hash: string): CreateGoalIntentResult | null {
-    return this.context.replay(boardId, actorId, "create_goal_intent", idempotencyKey, hash);
+  replay(projectId: string, actorId: string, idempotencyKey: string, hash: string): CreateGoalIntentResult | null {
+    return this.context.replay(projectId, actorId, "create_goal_intent", idempotencyKey, hash);
   }
 
   remember(
-    boardId: string,
+    projectId: string,
     actorId: string,
     idempotencyKey: string,
     hash: string,
     result: CreateGoalIntentResult,
     at: string,
   ): void {
-    this.context.remember(boardId, actorId, "create_goal_intent", idempotencyKey, hash, result, at);
+    this.context.remember(projectId, actorId, "create_goal_intent", idempotencyKey, hash, result, at);
   }
 
   recordArtifacts(input: {
-    board_id: string;
+    project_id: string;
     goal_id: string;
     actor_id: string;
     actor_kind?: "user" | "runtime";
@@ -40,9 +40,9 @@ export class GoalEventIntent {
     outcome?: string;
     requirements?: CreateGoalIntentRequirementInput[];
   }): void {
-    const goal = this.context.requireGoal(input.board_id, input.goal_id);
+    const goal = this.context.requireGoal(input.project_id, input.goal_id);
     this.state.adoptOwner({
-      board_id: input.board_id,
+      project_id: input.project_id,
       goal_id: input.goal_id,
       actor_id: input.actor_id,
       source: "intent",
@@ -53,7 +53,7 @@ export class GoalEventIntent {
       const requirementId = requirement.requirement_id?.trim() || `req-${randomUUID()}`;
       this.records.insertRequirement({
         requirement_id: requirementId,
-        board_id: input.board_id,
+        project_id: input.project_id,
         goal_id: input.goal_id,
         statement: requirement.statement.trim(),
         created_in_config_version: 0,

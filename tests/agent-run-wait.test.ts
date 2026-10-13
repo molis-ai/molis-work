@@ -12,7 +12,7 @@ test("following a live round: answers at once when behind, gathers quick deltas,
     descriptor: { runtime_id: "live", display_name: "live", provider_version: "1", capabilities },
     async health() { return { ok: true, status: "ready", message: "就绪" }; },
     async createSession() { return session; },
-    async readSession() { return { session, owner: { board_id: "b", plugin_id: "p", install_id: "i" }, title: "t", runs: [run], latest_run: null }; },
+    async readSession() { return { session, owner: { project_id: "b", plugin_id: "p", install_id: "i", actor_id: "user" }, title: "t", runs: [run], latest_run: null }; },
     async start() { throw new Error("unused"); }, async read() { return view; }, async control() {},
     observe(_ref, listener) { listeners.add(listener); listener(view); return () => listeners.delete(listener); },
     async readCommandOutput() { throw new Error("unused"); },
@@ -20,8 +20,8 @@ test("following a live round: answers at once when behind, gathers quick deltas,
   const host = new AgentHost(); host.register(adapter);
   const handlers = new Map<string, Function>();
   registerAgentHostCapabilities({ register: (definition, handler) => { handlers.set(definition.capability_id, handler); return () => {}; } },
-    { agentHost: () => host, boardId: () => "b", authority: () => ({ manifest: { roles: [], prompts: [] }, authorizedDirectories: [] }) });
-  const wait = (since: string | null, timeout: number) => handlers.get(agentHostCapabilities.waitRun.capability_id)!({ board_id: "b" }, [session, run, since, timeout]);
+    { agentHost: () => host, projectId: () => "b", authority: () => ({ manifest: { roles: [], prompts: [] }, authorizedDirectories: [] }) });
+  const wait = (since: string | null, timeout: number) => handlers.get(agentHostCapabilities.waitRun.capability_id)!({ project_id: "b" }, [session, run, since, timeout]);
   const publish = (text: string) => { view = { ...view, turns: [{ ...view.turns[0]!, text }] }; for (const listener of listeners) listener(view); };
 
   const first = await wait(null, 5_000);

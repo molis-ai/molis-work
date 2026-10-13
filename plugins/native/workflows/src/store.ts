@@ -1,15 +1,17 @@
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
-  WorkflowError,
   type Workflow,
   type WorkflowChain,
   type WorkflowInstance,
   type WorkflowInstanceStatus,
   type WorkflowItemRef,
   type WorkflowStep,
+  nextUpdatedAt,
   startInstanceSteps,
+  stoppedOf,
 } from "./model.js";
+import { workflowsErrors } from "./error.js";
 
 interface WorkflowRow {
   workflow_id: string;
@@ -62,7 +64,7 @@ export class WorkflowsStore {
 
   get(workflowId: string, projectId: string): Workflow {
     const row = this.db.prepare("SELECT * FROM workflows WHERE workflow_id = ? AND deleted = 0").get(workflowId) as unknown as WorkflowRow | undefined;
-    if (!row || row.project_id !== projectId) throw new WorkflowError("workflows.not_found", "找不到这条流程");
+    if (!row || row.project_id !== projectId) throw workflowsErrors.not_found("找不到这条流程");
     return fromWorkflowRow(row);
   }
 
@@ -87,7 +89,7 @@ export class WorkflowsStore {
   /** Every edit is saved at once; `revision` stops two windows from overwriting each other silently. */
   update(workflowId: string, projectId: string, patch: { title?: string; chain?: WorkflowChain; revision: number }): Workflow {
     const current = this.get(workflowId, projectId);
-    if (patch.revision !== current.revision) throw new WorkflowError("workflows.conflict", "这条流程在别处改过了，已载入最新的样子");
+    if (patch.revision !== current.revision) throw workflowsErrors.conflict("这条流程在别处改过了，已载入最新的样子");
     const next: Workflow = {
       ...current,
       title: patch.title === undefined ? current.title : normalizeTitle(patch.title),
@@ -117,7 +119,7 @@ export class WorkflowsStore {
 
   instance(instanceId: string, projectId: string): WorkflowInstance {
     const row = this.db.prepare("SELECT * FROM instances WHERE instance_id = ?").get(instanceId) as unknown as InstanceRow | undefined;
-    if (!row || row.project_id !== projectId) throw new WorkflowError("workflows.not_found", "找不到这一次");
+    if (!row || row.project_id !== projectId) throw workflowsErrors.not_found("找不到这一次");
     return fromInstanceRow(row);
   }
 
@@ -143,13 +145,20 @@ export class WorkflowsStore {
     return instance;
   }
 
-  /** Writes only when the stored instance is still the one the change was computed from. */
+  /**
+   * Writes only when the stored instance is still the one the change was computed from. `updated_at` is that
+   * comparison, so every write leaves a later one than it started from (`nextUpdatedAt`), and what comes back is what a
+   * reload gives: the stop reason is read from the held step, not taken from `next.stopped`.
+   */
   saveInstance(previous: WorkflowInstance, next: WorkflowInstance): WorkflowInstance {
+    const updatedAt = nextUpdatedAt(previous.updated_at, next.updated_at);
     const result = this.db.prepare(
       "UPDATE instances SET title = ?, status = ?, current = ?, chain_json = ?, steps_json = ?, updated_at = ? WHERE instance_id = ? AND updated_at = ?",
-    ).run(next.title, next.status, next.current, JSON.stringify(next.chain), JSON.stringify(next.steps), next.updated_at, next.instance_id, previous.updated_at);
-    if (Number(result.changes) !== 1) throw new WorkflowError("workflows.conflict", "这一次刚被推进过，请刷新后再看");
-    return next;
+    ).run(next.title, next.status, next.current, JSON.stringify(next.chain), JSON.stringify(next.steps), updatedAt, next.instance_id, previous.updated_at);
+    if (Number(result.changes) !== 1) throw workflowsErrors.conflict("这一次刚被推进过，请刷新后再看");
+    const { stopped: _derived, ...saved } = next;
+    const stopped = stoppedOf(next.status, next.steps);
+    return { ...saved, updated_at: updatedAt, ...(stopped ? { stopped } : {}) };
   }
 
   stopInstance(instanceId: string, projectId: string): WorkflowInstance {
@@ -159,35 +168,42 @@ export class WorkflowsStore {
   }
 }
 
+/**
+ * The workflow store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing
+ * ones must already be at its version.
+ */
+export const WORKFLOWS_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE workflows (
+    workflow_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    chain_json TEXT NOT NULL,
+    revision INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX workflows_project ON workflows (project_id, deleted, updated_at);
+  CREATE TABLE instances (
+    instance_id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    status TEXT NOT NULL,
+    current INTEGER NOT NULL,
+    chain_json TEXT NOT NULL,
+    steps_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX instances_workflow ON instances (workflow_id, created_at);
+
+` };
+
 export function openWorkflowsStore(homeDirectory: string): WorkflowsStore {
   const db = openHomeSqliteDatabase(homeDirectory, "workflows");
-  db.exec(`
-    PRAGMA journal_mode = WAL;
-    CREATE TABLE IF NOT EXISTS workflows (
-      workflow_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      chain_json TEXT NOT NULL,
-      revision INTEGER NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      deleted INTEGER NOT NULL DEFAULT 0
-    );
-    CREATE INDEX IF NOT EXISTS workflows_project ON workflows (project_id, deleted, updated_at);
-    CREATE TABLE IF NOT EXISTS instances (
-      instance_id TEXT PRIMARY KEY,
-      workflow_id TEXT NOT NULL,
-      project_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      status TEXT NOT NULL,
-      current INTEGER NOT NULL,
-      chain_json TEXT NOT NULL,
-      steps_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS instances_workflow ON instances (workflow_id, created_at);
-  `);
+  db.exec("PRAGMA journal_mode = WAL;");
+  applySqliteBaseline(db, homeSqlitePath(homeDirectory, "workflows"), WORKFLOWS_STORE_BASELINE);
   return new WorkflowsStore(db);
 }
 
@@ -215,15 +231,19 @@ function fromWorkflowRow(row: WorkflowRow): Workflow {
 }
 
 function fromInstanceRow(row: InstanceRow): WorkflowInstance {
+  const status = (["active", "done", "stopped"].includes(row.status) ? row.status : "active") as WorkflowInstanceStatus;
+  const steps = JSON.parse(row.steps_json) as WorkflowStep[];
+  const stopped = stoppedOf(status, steps);
   return {
     instance_id: row.instance_id,
     workflow_id: row.workflow_id,
     project_id: row.project_id,
     title: row.title,
-    status: (["active", "done", "stopped"].includes(row.status) ? row.status : "active") as WorkflowInstanceStatus,
+    status,
     current: row.current,
     chain: JSON.parse(row.chain_json) as WorkflowChain,
-    steps: JSON.parse(row.steps_json) as WorkflowStep[],
+    steps,
+    ...(stopped ? { stopped } : {}),
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

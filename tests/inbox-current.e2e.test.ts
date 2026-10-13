@@ -15,13 +15,12 @@ test("Inbox shows and runs an installed plugin judgment, then withdraws advice w
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   const { store, localHost, projectId, homeDirectory, command, sessionId, navigate, evaluate, waitFor, click, origin } = browser;
   assert.ok(localHost); assert.ok(projectId);
-  const boardId = store.goalsQuery.listBoardIds()[0]!;
-  const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, boardId, projectId });
+  const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
   await localHost.withProject(reference, () => undefined);
   const feed = createLocalFeedApplication(store.db);
-  const source = createLocalFeedSourceService(store.db, boardId).register({ kind: "research_library", repository: "fixture/inbox", research_source: "current" }).source;
+  const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "research_library", repository: "fixture/inbox", research_source: "current" }).source;
   const item = feed.ingestItem({ source, externalId: "inbox-current", title: "等待核对的研究", summary: "待核对", body: "研究原文需要人工确认", occurredAt: new Date().toISOString(), attention: false }).item;
-  const entry = feed.ensureInboxEntryForFeedItem(boardId, item.item_id, "manual").entry;
+  const entry = feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual").entry;
   const definition: ActionDefinition = { capability_id: "fixture.inbox." + randomUUID(), version: 1, operation: "command", action: {
     title: "插件判断：核对研究", description: "检查原材料", kind: "judgment", scope: "project", audiences: ["user", "workflow", "mcp"], permissions: ["fixture:inbox"], subject_kinds: ["inbox_entry"],
     input_schema: inboxNextScene.input_schema, output_schema: inboxNextScene.result_schema, output_type: inboxNextScene.result_type } };
@@ -51,12 +50,14 @@ test("Inbox shows and runs an installed plugin judgment, then withdraws advice w
     assert.match(await evaluate<string>("document.querySelector('.inbox-next-config').innerText"), /插件判断：核对研究/);
     assert.equal(await evaluate("document.querySelector('.inbox-next-config [data-inbox-evaluate]').disabled"), false);
     await click('.inbox-next-config [data-inbox-evaluate]');
-    await waitFor("document.querySelector('[data-inbox-evaluate-status]')?.textContent.includes('已更新')");
+    // The click runs the judgment and then re-renders the whole Inbox stage in the Host: about two seconds of one thread on a quiet machine
+    // (a board refresh that lands in the same window adds about four), so the default four seconds is no budget when the machine is busy.
+    await waitFor("document.querySelector('[data-inbox-evaluate-status]')?.textContent.includes('已更新')", 15_000);
     assert.ok(inputs.some(input => input.includes("研究原文需要人工确认")));
     const history = withFunctionsService(homeDirectory, service => service.listJudgments().filter(record => record.scene_id === inboxNextScene.scene_id && record.subject.id === entry.entry_id));
     assert.equal(history.length, 1); assert.ok(history[0]!.scene_provenance);
     assert.ok(await evaluate("Array.from(document.querySelectorAll('.inbox-next-suggestion')).some(node => node.textContent.includes('先核查'))"));
-    assert.equal(feed.getInboxEntry(boardId, entry.entry_id).status, "open");
+    assert.equal(feed.getInboxEntry(projectId, entry.entry_id).status, "open");
     await runtime.stop(installed.install_id);
     await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await open();

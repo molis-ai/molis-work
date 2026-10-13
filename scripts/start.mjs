@@ -27,7 +27,7 @@ const WALK_SKIP = new Set(["node_modules", "dist", "target", "coverage"]);
 // README、Start.sh、tests 等仓库文件的变化不需要重建，不该触发询问。
 const BUILD_INPUT_TREES = ["apps", "packages", "modules", "horizontal", "plugins", "tooling"];
 const SOURCE_TREE_NAMES = new Set(["src", "launchers"]);
-const ROOT_BUILD_INPUTS = ["package.json", "pnpm-lock.yaml", "tsconfig.json", "tsconfig.sdk.json", "pnpm-workspace.yaml"];
+const ROOT_BUILD_INPUTS = ["package.json", "pnpm-lock.yaml", "tsconfig.json", "pnpm-workspace.yaml"];
 
 // ---------- 基础工具 ----------
 

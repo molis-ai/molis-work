@@ -1,17 +1,17 @@
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { randomUUID } from "node:crypto";
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { createHash, randomUUID } from "node:crypto";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import type {
   ArtifactJsonValue,
   ArtifactVersionRecord,
   ArtifactVersionResult,
   RegisterArtifactVersionInput,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { FeedStoreError } from "./application-errors.js";
 import type { FeedItemRecord, FeedOutRuleMatch, FeedOutRuleRecord } from "./projection.js";
 
-export const FEED_CAPTURE_ARTIFACT_TYPE_ID = "io.molis.work.feed.capture";
-export const FEED_CAPTURE_SCHEMA_VERSION = 1;
+import { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+export { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
 export const FEED_ARTIFACT_PRODUCER = {
   plugin_id: "io.molis.work.native.feed",
   plugin_version: "0.0.0",
@@ -29,48 +29,37 @@ export interface FeedPluginSqliteDatabase {
 
 export interface FeedArtifactProducer {
   registerVersion(input: RegisterArtifactVersionInput): ArtifactVersionResult;
-  latestVersion(boardId: string, artifactId: string): ArtifactVersionRecord | null;
+  latestVersion(projectId: string, artifactId: string): ArtifactVersionRecord | null;
 }
 
 export interface FeedOutRuleWrite {
   name: string;
   match: FeedOutRuleMatch;
   enabled?: boolean;
-  function_key?: string | null;
   judgment?: ActionReference | null;
   admission?: "suggest" | "inbox";
 }
 
 type Row = Record<string, unknown>;
 
-export function migrateFeedOutRules(db: FeedPluginSqliteDatabase): void {
-  db.exec(`
+/** The out rules table, as one current schema; the host composes it into the project database baseline. */
+export const FEED_OUT_RULES_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_out_rules (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       rule_id TEXT NOT NULL,
       name TEXT NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 1,
       match_json TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, rule_id)
+      admission TEXT NOT NULL,
+      judgment_json TEXT,
+      revision TEXT NOT NULL,
+      PRIMARY KEY (project_id, rule_id)
     );
-    CREATE INDEX IF NOT EXISTS feed_out_rules_board_enabled_idx
-      ON feed_out_rules(board_id, enabled, created_at, rule_id);
-  `);
-  const columns = db.prepare("PRAGMA table_info(feed_out_rules)").all() as Array<{ name: string }>;
-  if (!columns.some((column) => column.name === "function_key")) {
-    db.exec("ALTER TABLE feed_out_rules ADD COLUMN function_key TEXT");
-  }
-  if (!columns.some((column) => column.name === "admission")) {
-    db.exec("ALTER TABLE feed_out_rules ADD COLUMN admission TEXT NOT NULL DEFAULT 'suggest'");
-  }
-  if (!columns.some(column => column.name === "judgment_json")) db.exec("ALTER TABLE feed_out_rules ADD COLUMN judgment_json TEXT");
-  if (!columns.some(column => column.name === "revision")) db.exec("ALTER TABLE feed_out_rules ADD COLUMN revision TEXT");
-  for (const row of db.prepare("SELECT board_id, rule_id FROM feed_out_rules WHERE revision IS NULL").all() as Row[]) {
-    db.prepare("UPDATE feed_out_rules SET revision = ? WHERE board_id = ? AND rule_id = ? AND revision IS NULL").run(randomUUID(), row.board_id, row.rule_id);
-  }
-}
+    CREATE INDEX IF NOT EXISTS feed_out_rules_project_enabled_idx
+      ON feed_out_rules(project_id, enabled, created_at, rule_id);
+`;
 
 export function feedCaptureArtifactId(itemId: string, ruleId: string): string {
   return `feed-capture:${itemId}:${ruleId}`;
@@ -78,32 +67,31 @@ export function feedCaptureArtifactId(itemId: string, ruleId: string): string {
 
 export class FeedOutRuleStore {
   constructor(private readonly db: FeedPluginSqliteDatabase) {
-    migrateFeedOutRules(db);
+    db.exec(FEED_OUT_RULES_SCHEMA_SQL);
   }
 
-  list(boardId: string): FeedOutRuleRecord[] {
+  list(projectId: string): FeedOutRuleRecord[] {
     return (this.db.prepare(
-      "SELECT * FROM feed_out_rules WHERE board_id = ? ORDER BY created_at, rule_id",
-    ).all(boardId) as Row[]).map(mapOutRule);
+      "SELECT * FROM feed_out_rules WHERE project_id = ? ORDER BY created_at, rule_id",
+    ).all(projectId) as Row[]).map(mapOutRule);
   }
 
-  get(boardId: string, ruleId: string): FeedOutRuleRecord {
+  get(projectId: string, ruleId: string): FeedOutRuleRecord {
     const row = this.db.prepare(
-      "SELECT * FROM feed_out_rules WHERE board_id = ? AND rule_id = ?",
-    ).get(boardId, ruleId) as Row | undefined;
-    if (!row) throw new FeedStoreError("feed_out_rule_not_found", "找不到这条捕捉规则");
+      "SELECT * FROM feed_out_rules WHERE project_id = ? AND rule_id = ?",
+    ).get(projectId, ruleId) as Row | undefined;
+    if (!row) throw feedErrors.out_rule_not_found("找不到这条捕捉规则");
     return mapOutRule(row);
   }
 
-  prepareCreate(boardId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
+  prepareCreate(projectId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
     const at = new Date().toISOString();
     const record: FeedOutRuleRecord = {
-      board_id: boardId,
+      project_id: projectId,
       rule_id: `feedoutrule-${randomUUID()}`,
       name: normalizeName(input.name),
       enabled: input.enabled !== false,
       match: normalizeMatch(input.match),
-      function_key: normalizeFunctionKey(input.function_key),
       judgment: input.judgment ?? null,
       revision: randomUUID(),
       admission: normalizeAdmission(input.admission),
@@ -114,39 +102,36 @@ export class FeedOutRuleStore {
   }
 
   saveCreate(record: FeedOutRuleRecord): FeedOutRuleRecord {
-    record = { ...record, function_key: compatibleFunctionKey(record.judgment, record.function_key) };
     this.db.prepare(`
       INSERT INTO feed_out_rules (
-        board_id, rule_id, name, enabled, match_json, function_key, created_at, updated_at, admission, judgment_json, revision
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        project_id, rule_id, name, enabled, match_json, created_at, updated_at, admission, judgment_json, revision
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      record.board_id,
+      record.project_id,
       record.rule_id,
       record.name,
       record.enabled ? 1 : 0,
       JSON.stringify(record.match),
-      record.function_key,
       record.created_at,
       record.updated_at,
       record.admission,
-      JSON.stringify(record.judgment),
+      record.judgment ? JSON.stringify(record.judgment) : null,
       record.revision,
     );
     return record;
   }
 
-  create(boardId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
-    return this.saveCreate(this.prepareCreate(boardId, input));
+  create(projectId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
+    return this.saveCreate(this.prepareCreate(projectId, input));
   }
 
-  prepareUpdate(boardId: string, ruleId: string, patch: Partial<FeedOutRuleWrite>): FeedOutRuleRecord {
-    const current = this.get(boardId, ruleId);
+  prepareUpdate(projectId: string, ruleId: string, patch: Partial<FeedOutRuleWrite>): FeedOutRuleRecord {
+    const current = this.get(projectId, ruleId);
     const next: FeedOutRuleRecord = {
       ...current,
       name: patch.name != null ? normalizeName(patch.name) : current.name,
       enabled: patch.enabled != null ? patch.enabled : current.enabled,
       match: patch.match != null ? normalizeMatch({ ...current.match, ...patch.match }) : current.match,
-      function_key: patch.function_key !== undefined ? normalizeFunctionKey(patch.function_key) : current.function_key,
       admission: patch.admission !== undefined ? normalizeAdmission(patch.admission) : current.admission,
       judgment: patch.judgment !== undefined ? patch.judgment : current.judgment,
       revision: randomUUID(),
@@ -156,32 +141,30 @@ export class FeedOutRuleStore {
   }
 
   saveUpdate(next: FeedOutRuleRecord, expectedRevision?: string): FeedOutRuleRecord {
-    next = { ...next, function_key: compatibleFunctionKey(next.judgment, next.function_key) };
     const result = this.db.prepare(`
       UPDATE feed_out_rules
-      SET name = ?, enabled = ?, match_json = ?, function_key = ?, updated_at = ?, admission = ?, judgment_json = ?, revision = ?
-      WHERE board_id = ? AND rule_id = ? AND (? IS NULL OR revision = ?)
+      SET name = ?, enabled = ?, match_json = ?, updated_at = ?, admission = ?, judgment_json = ?, revision = ?
+      WHERE project_id = ? AND rule_id = ? AND (? IS NULL OR revision = ?)
     `).run(
       next.name,
       next.enabled ? 1 : 0,
       JSON.stringify(next.match),
-      next.function_key,
       next.updated_at,
       next.admission,
-      next.judgment === undefined ? null : JSON.stringify(next.judgment),
+      next.judgment ? JSON.stringify(next.judgment) : null,
       next.revision,
-      next.board_id,
+      next.project_id,
       next.rule_id,
       expectedRevision ?? null,
       expectedRevision ?? null,
     );
-    if (!result.changes) throw new FeedStoreError("feed_revision_conflict", "规则已变化，请刷新后再保存");
+    if (!result.changes) throw feedErrors.revision_conflict("规则已变化，请刷新后再保存");
     return next;
   }
 
-  delete(boardId: string, ruleId: string): FeedOutRuleRecord {
-    const current = this.get(boardId, ruleId);
-    this.db.prepare("DELETE FROM feed_out_rules WHERE board_id = ? AND rule_id = ?").run(boardId, ruleId);
+  delete(projectId: string, ruleId: string): FeedOutRuleRecord {
+    const current = this.get(projectId, ruleId);
+    this.db.prepare("DELETE FROM feed_out_rules WHERE project_id = ? AND rule_id = ?").run(projectId, ruleId);
     return current;
   }
 }
@@ -222,13 +205,13 @@ export function registerFeedCaptureVersion(
   artifacts: FeedArtifactProducer,
   item: FeedItemRecord,
   rule: FeedOutRuleRecord,
-  actorId = "web-user",
+  actorId = LOCAL_PERSON_ACTOR_ID,
 ): ArtifactVersionResult {
   const artifactId = feedCaptureArtifactId(item.item_id, rule.rule_id);
   const payload = feedCapturePayload(item);
-  const latest = artifacts.latestVersion(item.board_id, artifactId);
+  const latest = artifacts.latestVersion(item.project_id, artifactId);
   const input = (version: number, supersedes: number | null): RegisterArtifactVersionInput => ({
-    board_id: item.board_id,
+    project_id: item.project_id,
     artifact_id: artifactId,
     version,
     actor_id: actorId,
@@ -240,6 +223,10 @@ export function registerFeedCaptureVersion(
       feed_item_id: item.item_id,
       rule_id: rule.rule_id,
     },
+    // The message as captured (artifact-positioning A1): its revision is the captured content, so the same envelope
+    // re-ingested replays the same version and an edited item is captured as a new one.
+    origin: { kind: "pinned", subject: { kind: "feed_item", id: item.item_id }, revision: createHash("sha256").update(JSON.stringify(payload)).digest("hex").slice(0, 16) },
+    title: item.title.trim() || "Feed 捕获", media_type: "application/json",
     ...(supersedes != null ? { supersedes_version: supersedes } : {}),
   });
   try {
@@ -254,7 +241,6 @@ export function parseFeedOutRuleWrite(body: Readonly<Record<string, unknown>>): 
   return {
     ...(typeof body.name === "string" ? { name: body.name } : { name: "" }),
     enabled: typeof body.enabled === "boolean" ? body.enabled : undefined,
-    ...(typeof body.function_key === "string" || body.function_key === null ? { function_key: body.function_key } : {}),
     ...("judgment" in body ? { judgment: body.judgment as ActionReference | null } : {}),
     admission: normalizeAdmission(body.admission),
     match: {
@@ -271,7 +257,6 @@ export function parseFeedOutRulePatch(body: Readonly<Record<string, unknown>>): 
   if ("admission" in body) patch.admission = normalizeAdmission(body.admission);
   if (typeof body.name === "string") patch.name = body.name;
   if (typeof body.enabled === "boolean") patch.enabled = body.enabled;
-  if (typeof body.function_key === "string" || body.function_key === null) patch.function_key = body.function_key;
   const match: FeedOutRuleMatch = {};
   let hasMatch = false;
   if (typeof body.contains === "string") {
@@ -290,28 +275,16 @@ export function parseFeedOutRulePatch(body: Readonly<Record<string, unknown>>): 
   return patch;
 }
 
-/** The legacy display key is derived once an exact reference exists; only unresolved old rows own a bare key. */
-function compatibleFunctionKey(reference: ActionReference | null | undefined, legacy: string | null): string | null {
-  if (!reference) return legacy;
-  return reference.provider_id === "system.functions" && reference.capability_id.startsWith("functions.published.")
-    ? reference.capability_id.slice("functions.published.".length) : null;
-}
-
-function normalizeFunctionKey(value: string | null | undefined): string | null {
-  const key = value?.trim() ?? "";
-  return key || null;
-}
-
 function normalizeAdmission(value: unknown): "suggest" | "inbox" {
   if (value === undefined || value === "suggest") return "suggest";
   if (value === "inbox") return "inbox";
-  throw new FeedDomainError("请选择仅建议或自动加入 Inbox", "feed_out_rule_invalid");
+  throw feedErrors.out_rule_invalid("请选择仅建议或自动加入 Inbox");
 }
 
 function normalizeName(value: string): string {
   const name = value.trim();
   if (name.length < 1 || name.length > 80) {
-    throw new FeedDomainError("规则名称需要 1–80 个字", "feed_out_rule_invalid");
+    throw feedErrors.out_rule_invalid("规则名称需要 1–80 个字");
   }
   return name;
 }
@@ -321,10 +294,10 @@ function normalizeMatch(match: FeedOutRuleMatch): FeedOutRuleMatch {
   const sourceId = match.source_id?.trim() ?? "";
   const sourceKind = match.source_kind?.trim() ?? "";
   if (!contains && !sourceId && !sourceKind) {
-    throw new FeedDomainError("请填写包含关键字，或选择来源过滤", "feed_out_rule_invalid");
+    throw feedErrors.out_rule_invalid("请填写包含关键字，或选择来源过滤");
   }
   if (contains.length > 200) {
-    throw new FeedDomainError("包含关键字不能超过 200 个字", "feed_out_rule_invalid");
+    throw feedErrors.out_rule_invalid("包含关键字不能超过 200 个字");
   }
   return {
     ...(contains ? { contains } : {}),
@@ -335,13 +308,12 @@ function normalizeMatch(match: FeedOutRuleMatch): FeedOutRuleMatch {
 
 function mapOutRule(row: Row): FeedOutRuleRecord {
   return {
-    board_id: String(row.board_id ?? ""),
+    project_id: String(row.project_id ?? ""),
     rule_id: String(row.rule_id ?? ""),
     name: String(row.name ?? ""),
     enabled: Number(row.enabled) === 1,
     match: parseMatch(row.match_json),
-    function_key: typeof row.function_key === "string" && row.function_key.trim() ? row.function_key.trim() : null,
-    ...(row.judgment_json == null ? {} : { judgment: JSON.parse(String(row.judgment_json)) as ActionReference | null }),
+    judgment: row.judgment_json == null ? null : JSON.parse(String(row.judgment_json)) as ActionReference,
     revision: String(row.revision),
     admission: row.admission === "inbox" ? "inbox" : "suggest",
     created_at: String(row.created_at ?? ""),

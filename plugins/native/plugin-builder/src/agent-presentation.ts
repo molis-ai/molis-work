@@ -1,6 +1,6 @@
 import { PLUGIN_PRESENTATION_GUIDE, PLUGIN_COMPONENT_PROP_KEYS, pluginComponentChoices, validatePluginComponentPlans, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentBuild, AgentDesign } from './agent-model.js';
-import { parseModelJson } from './validation.js';
+import { parseModelJson } from './model-json.js';
 
 const independentReader = (parts: AgentDesign['parts'], source: string) => parts.find(part => part.id !== source && part.props.textField
   && Object.values(part.read?.input ?? {}).some(input => input.source === 'selection' && input.componentId === source));

@@ -16,7 +16,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   if (!tabsEl || !shell || !surfaceEl || !canvasEl || !worldEl) return noop;
   const toRoute = typeof route === "function" ? route : (pathname) => pathname;
   const storageKey = () => "molis-work-frame-container:" + (getProjectId() || "board");
-  const kindLabel = (kind) => ({ session: L("会话"), feed: "Feed", inbox: "Inbox", artifact: L("交付物") }[kind] || kind);
+  const kindLabel = (kind) => ({ session: L("会话"), feed: "Feed", inbox: "Inbox", artifact: L("成果") }[kind] || kind);
   let openFrames = [];
   let activeTab = LIST_TAB;
   let lastBoardView = LIST_TAB;

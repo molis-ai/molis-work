@@ -34,7 +34,7 @@ for (const mode of ["output", "total", "turns", "duration"] as const) test(`real
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.budget-test", appVersion: "1.0.0" }, storageRoot: join(home, "runtime"),
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   try {
-    const owner = { board_id: "board", plugin_id: "fixture", install_id: "install", actor_id: "owner", directory: { canonical_path: home, realpath_verified: true } };
+    const owner = { project_id: "board", plugin_id: "fixture", install_id: "install", actor_id: "owner", directory: { canonical_path: home, realpath_verified: true } };
     const session = await adapter.createSession({ ...owner, title: "Budget" });
     const budget: AgentRunBudget = mode === "duration" ? { max_duration_ms: 100 } : mode === "total" ? { max_total_tokens: 1, max_turns: 5 } : mode === "turns" ? { max_turns: 1 } : { max_output_tokens: 7, max_turns: 1 };
     const started = Date.now();

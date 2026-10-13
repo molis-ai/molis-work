@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { JellyCommand, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import { emptyJellyWorkspace, applyJellyCalendarCommand, validateJellyWorkspace } from "./calendar.js";
 import { applyJellyContentCommand, jellyHash, validateJellyContent } from "./content.js";
@@ -82,14 +82,22 @@ export class JellyStore {
     this.db.prepare("DELETE FROM jelly_previews WHERE token = ?").run(command.confirmation_token);
   }
 }
+/**
+ * The Jelly store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
+ * must already be at its version.
+ */
+export const JELLY_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE jelly_workspace (singleton INTEGER PRIMARY KEY CHECK(singleton = 1), revision INTEGER NOT NULL, body TEXT NOT NULL, checksum TEXT NOT NULL);
+  CREATE TABLE jelly_note_versions (id TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+  CREATE TABLE jelly_history (id INTEGER PRIMARY KEY AUTOINCREMENT, command TEXT NOT NULL, before_body TEXT NOT NULL, after_body TEXT NOT NULL, before_checksum TEXT NOT NULL, after_checksum TEXT NOT NULL, undone INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE jelly_previews (token TEXT PRIMARY KEY, type TEXT NOT NULL, fingerprint TEXT NOT NULL, revision INTEGER NOT NULL, expires_at INTEGER NOT NULL);
+` };
+
 export function openJellyStore(home: string): JellyStore {
   const db = openHomeSqliteDatabase(home, "jelly");
   try {
-    db.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;
-      CREATE TABLE IF NOT EXISTS jelly_workspace (singleton INTEGER PRIMARY KEY CHECK(singleton = 1), revision INTEGER NOT NULL, body TEXT NOT NULL, checksum TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS jelly_note_versions (id TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS jelly_history (id INTEGER PRIMARY KEY AUTOINCREMENT, command TEXT NOT NULL, before_body TEXT NOT NULL, after_body TEXT NOT NULL, before_checksum TEXT NOT NULL, after_checksum TEXT NOT NULL, undone INTEGER NOT NULL DEFAULT 0);
-      CREATE TABLE IF NOT EXISTS jelly_previews (token TEXT PRIMARY KEY, type TEXT NOT NULL, fingerprint TEXT NOT NULL, revision INTEGER NOT NULL, expires_at INTEGER NOT NULL);`);
+    db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
+    applySqliteBaseline(db, homeSqlitePath(home, "jelly"), JELLY_STORE_BASELINE);
     const existing = db.prepare("SELECT singleton FROM jelly_workspace WHERE singleton = 1").get();
     jellyAssert(existing || Number(db.prepare("SELECT count(*) AS count FROM jelly_history").get()?.count ?? 0) === 0, "Jelly 工作区记录缺失，历史数据已保留，未创建空白覆盖。", "jelly.corrupt", 500);
     const initial = emptyJellyWorkspace(), body = JSON.stringify(initial); db.prepare("INSERT OR IGNORE INTO jelly_workspace (singleton, revision, body, checksum) VALUES (1, 0, ?, ?)").run(body, jellyHash(body));

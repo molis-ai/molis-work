@@ -65,4 +65,9 @@ export const JELLY_EN: Record<string, string> = {
   "助理刚改过 Jelly；你还有没保存的修改，保存时会提示冲突，不会覆盖。": "The Assistant just changed Jelly. Your unsaved edits are kept; saving will show the conflict instead of overwriting.", "这条内容已不存在": "This content no longer exists",
   "正在拆解…": "Breaking it down…", "关闭此窗口会停止拆解，原文不会改动。": "Closing this window stops the breakdown; the original stays as it is.",
   "拆解失败": "Breakdown failed", "拆解没有返回结果": "The breakdown returned nothing", "拆解已取消，原文不会改动": "Breakdown canceled; the original stays as it is", "配置后即可拆成任务。按原文逐行拆分无需模型。": "Configure a model to break text into tasks. Splitting line by line needs no model.",
+  // plugins/native/jelly/src/client-model.ts
+  "拆成任务时，原文会发送给所选模型。保存设置不会发送内容。": "When you break text into tasks, the original text is sent to the model you chose. Saving the settings sends nothing.",
+  "还没有可用模型。": "No models available yet.",
+  // plugins/native/jelly/src/ui.ts
+  "拆解模型": "Breakdown model",
 };

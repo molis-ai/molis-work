@@ -1,3 +1,4 @@
+import { defineErrorCodes } from "../platform/action-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesAttentionResumptionContract = {
@@ -90,20 +91,10 @@ export interface AttentionEvents {
   list(projectId: string, entryId?: string): AttentionEvent[];
 }
 
-export interface LegacyAttentionEntryInput extends AttentionEntryRecord {}
-
-/** Narrow migration surface used only while old inbox_message rows are reconciled. */
-export interface AttentionMigrationApi {
-  countEntries(): number;
-  importLegacy(entry: LegacyAttentionEntryInput): AttentionEntryRecord;
-  listFeedItemReferences(): Array<{ project_id: string; subject_id: string }>;
-}
-
 export interface AttentionApi {
   readonly query: AttentionQuery;
   readonly commands: AttentionCommands;
   readonly events: AttentionEvents;
-  readonly migrations: AttentionMigrationApi;
 }
 
 export class AttentionError extends Error {
@@ -119,3 +110,13 @@ export class AttentionError extends Error {
     this.name = "AttentionError";
   }
 }
+
+/**
+ * Inbox's own error codes, every one `inbox.<reason>`. The Inbox entries are this module's facts, but the Feed plugin (which composes the module)
+ * and the Inbox plugin (which lists and closes them) both refuse in the Inbox's name and share no other package, so the declaration is here.
+ * Statuses are the ones the Inbox route answered for the codes' old names (`inbox_entry_not_found`, and the Pages code `pages.invalid` Inbox borrowed).
+ */
+export const inboxErrors = defineErrorCodes("inbox", {
+  entry_not_found: "not_found",
+  invalid: "invalid",
+});

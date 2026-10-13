@@ -1,0 +1,2469 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Molis Work 将来的功能规划与团队会议分工盘">
+  <title>将来的功能规划 | Molis Work</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef1f4;
+      --surface: #f9fafb;
+      --surface-strong: #fdfdfc;
+      --surface-muted: #e6eaee;
+      --text: #17202a;
+      --text-soft: #52606d;
+      --text-faint: #788592;
+      --line: #cbd3da;
+      --line-strong: #aeb8c1;
+      --accent: #c84f2f;
+      --accent-strong: #a83b20;
+      --accent-soft: #f5ddd5;
+      --button-bg: #b84224;
+      --button-bg-hover: #973018;
+      --button-text: #fff8f5;
+      --shadow: 0 18px 50px rgba(31, 43, 55, 0.10);
+      --radius: 14px;
+      --radius-control: 9px;
+      --max-width: 1480px;
+      --focus: 0 0 0 3px rgba(200, 79, 47, 0.25);
+    }
+
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #10161c;
+      --surface: #171e25;
+      --surface-strong: #1d252d;
+      --surface-muted: #242e37;
+      --text: #edf1f4;
+      --text-soft: #b3bdc7;
+      --text-faint: #87939f;
+      --line: #34414c;
+      --line-strong: #50606e;
+      --accent: #e06d4b;
+      --accent-strong: #f1815f;
+      --accent-soft: #42271f;
+      --button-bg: #e06d4b;
+      --button-bg-hover: #f1815f;
+      --button-text: #16120f;
+      --shadow: 0 22px 60px rgba(0, 0, 0, 0.26);
+      --focus: 0 0 0 3px rgba(224, 109, 75, 0.3);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background:
+        linear-gradient(90deg, transparent 0, transparent calc(100% - 1px), rgba(110, 124, 136, 0.05) 100%),
+        var(--bg);
+      background-size: 48px 48px;
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.55;
+      text-rendering: optimizeLegibility;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button,
+    select {
+      cursor: pointer;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 100;
+      transform: translateY(-160%);
+      padding: 10px 14px;
+      border-radius: var(--radius-control);
+      background: var(--text);
+      color: var(--surface-strong);
+      font-weight: 700;
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: blur(16px);
+    }
+
+    .topbar-inner {
+      max-width: var(--max-width);
+      min-height: 68px;
+      margin: 0 auto;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      white-space: nowrap;
+    }
+
+    .brand strong {
+      font-size: 15px;
+      letter-spacing: -0.02em;
+    }
+
+    .brand span {
+      color: var(--text-faint);
+      font-size: 12px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .nav-links a {
+      padding: 8px 10px;
+      border-radius: var(--radius-control);
+      color: var(--text-soft);
+      font-size: 13px;
+      font-weight: 650;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .nav-links a:hover,
+    .nav-links a:focus-visible {
+      background: var(--surface-muted);
+      color: var(--text);
+      outline: none;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .button {
+      min-height: 40px;
+      padding: 8px 13px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-control);
+      background: var(--surface-strong);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 720;
+      line-height: 1;
+      white-space: nowrap;
+      transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease;
+    }
+
+    .button:hover {
+      border-color: var(--text-faint);
+      background: var(--surface-muted);
+    }
+
+    .button:active {
+      transform: translateY(1px);
+    }
+
+    .button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    summary:focus-visible {
+      outline: none;
+      box-shadow: var(--focus);
+    }
+
+    .button-primary {
+      border-color: var(--button-bg);
+      background: var(--button-bg);
+      color: var(--button-text);
+    }
+
+    .button-primary:hover {
+      border-color: var(--button-bg-hover);
+      background: var(--button-bg-hover);
+    }
+
+    .button-quiet {
+      border-color: transparent;
+      background: transparent;
+      color: var(--text-soft);
+    }
+
+    .page {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 24px 96px;
+    }
+
+    .hero {
+      min-height: min(700px, calc(100dvh - 68px));
+      padding: 72px 0 56px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
+      align-items: end;
+      gap: 64px;
+    }
+
+    .hero-copy {
+      max-width: 820px;
+    }
+
+    .kicker {
+      margin: 0 0 20px;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 760px;
+      margin-bottom: 24px;
+      font-size: clamp(46px, 6vw, 88px);
+      font-weight: 820;
+      letter-spacing: -0.065em;
+      line-height: 0.98;
+    }
+
+    .hero-copy > p:not(.kicker) {
+      max-width: 660px;
+      margin-bottom: 30px;
+      color: var(--text-soft);
+      font-size: clamp(17px, 2vw, 21px);
+      line-height: 1.6;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .brief-panel {
+      align-self: stretch;
+      padding: 30px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 34px;
+    }
+
+    .brief-panel h2 {
+      margin-bottom: 8px;
+      font-size: 20px;
+      letter-spacing: -0.025em;
+    }
+
+    .brief-panel > div > p {
+      margin-bottom: 0;
+      color: var(--text-soft);
+      font-size: 14px;
+    }
+
+    .brief-metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .metric {
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 28px;
+      letter-spacing: -0.045em;
+    }
+
+    .metric span {
+      color: var(--text-faint);
+      font-size: 12px;
+    }
+
+    .save-state {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      color: var(--text-faint);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .intro-opening {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .product-thesis,
+    .speaker-card,
+    .journey,
+    .capability-pair,
+    .scenario {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .product-thesis,
+    .speaker-card {
+      padding: 30px;
+    }
+
+    .product-thesis {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 34px;
+      background:
+        linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 72%, transparent), transparent 58%),
+        var(--surface);
+    }
+
+    .product-thesis h3 {
+      max-width: 650px;
+      margin-bottom: 18px;
+      font-size: clamp(28px, 3.4vw, 46px);
+      letter-spacing: -0.045em;
+      line-height: 1.08;
+    }
+
+    .product-thesis > div > p {
+      max-width: 720px;
+      margin-bottom: 0;
+      color: var(--text-soft);
+      font-size: 17px;
+    }
+
+    .product-principles {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .product-principle {
+      padding-top: 14px;
+      border-top: 1px solid var(--line-strong);
+    }
+
+    .product-principle strong {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .product-principle span {
+      color: var(--text-soft);
+      font-size: 12px;
+    }
+
+    .speaker-card {
+      border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+      background: var(--surface-strong);
+      box-shadow: var(--shadow);
+    }
+
+    .speaker-card h3 {
+      margin-bottom: 16px;
+      font-size: 20px;
+      letter-spacing: -0.025em;
+    }
+
+    .speaker-card p {
+      margin-bottom: 14px;
+      color: var(--text-soft);
+      font-size: 14px;
+    }
+
+    .speaker-card p:last-child {
+      margin-bottom: 0;
+    }
+
+    .speaker-card strong {
+      color: var(--accent-strong);
+    }
+
+    .intro-subsection {
+      margin-top: 46px;
+    }
+
+    .intro-subsection-heading {
+      max-width: 760px;
+      margin-bottom: 22px;
+    }
+
+    .intro-subsection-heading h3 {
+      margin-bottom: 8px;
+      font-size: 24px;
+      letter-spacing: -0.03em;
+    }
+
+    .intro-subsection-heading p {
+      margin-bottom: 0;
+      color: var(--text-soft);
+      font-size: 14px;
+    }
+
+    .journey {
+      padding: 28px;
+      overflow: hidden;
+    }
+
+    .journey-track {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 0;
+    }
+
+    .journey-stage {
+      position: relative;
+      min-width: 0;
+      padding: 24px 18px 0 0;
+      border-top: 3px solid var(--line-strong);
+    }
+
+    .journey-stage:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      top: -16px;
+      right: 8px;
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      background: var(--surface);
+      color: var(--accent);
+      text-align: center;
+      line-height: 25px;
+      font-weight: 900;
+    }
+
+    .journey-stage strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .journey-stage span {
+      display: block;
+      color: var(--text-soft);
+      font-size: 12px;
+    }
+
+    .journey-stage code {
+      display: block;
+      margin-top: 10px;
+      color: var(--accent-strong);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .journey-foundation {
+      margin-top: 24px;
+      padding: 14px 16px;
+      border-left: 3px solid var(--accent);
+      background: var(--surface-muted);
+      color: var(--text-soft);
+      font-size: 13px;
+    }
+
+    .journey-foundation strong {
+      color: var(--text);
+    }
+
+    .capability-map {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .capability-pair {
+      grid-column: span 6;
+      padding: 24px;
+    }
+
+    .capability-pair:nth-child(1),
+    .capability-pair:nth-child(4) {
+      grid-column: span 7;
+    }
+
+    .capability-pair:nth-child(2),
+    .capability-pair:nth-child(3) {
+      grid-column: span 5;
+    }
+
+    .capability-pair:nth-child(5) {
+      grid-column: span 12;
+    }
+
+    .capability-pair > h4 {
+      margin: 0 0 18px;
+      color: var(--text-faint);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .capability-items {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 22px;
+    }
+
+    .capability-item h5 {
+      margin: 0 0 6px;
+      font-size: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .capability-item p {
+      margin-bottom: 0;
+      color: var(--text-soft);
+      font-size: 13px;
+    }
+
+    .scenario-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .scenario {
+      padding: 24px;
+      display: grid;
+      grid-template-columns: minmax(120px, 0.36fr) minmax(0, 1fr);
+      gap: 20px;
+    }
+
+    .scenario h4 {
+      margin: 0;
+      font-size: 17px;
+      letter-spacing: -0.02em;
+    }
+
+    .scenario p {
+      margin-bottom: 10px;
+      color: var(--text-soft);
+      font-size: 13px;
+    }
+
+    .scenario p:last-child {
+      margin-bottom: 0;
+    }
+
+    .scenario strong {
+      color: var(--text);
+    }
+
+    .section {
+      padding: 72px 0;
+      border-top: 1px solid var(--line);
+      scroll-margin-top: 86px;
+    }
+
+    .section-heading {
+      max-width: 760px;
+      margin-bottom: 34px;
+    }
+
+    .section-heading h2 {
+      margin-bottom: 12px;
+      font-size: clamp(30px, 4vw, 50px);
+      letter-spacing: -0.045em;
+      line-height: 1.05;
+    }
+
+    .section-heading p {
+      margin-bottom: 0;
+      color: var(--text-soft);
+      font-size: 16px;
+    }
+
+    .meeting-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 22px;
+    }
+
+    .panel {
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .panel-title {
+      margin-bottom: 20px;
+      font-size: 18px;
+      letter-spacing: -0.025em;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .field-wide {
+      grid-column: 1 / -1;
+    }
+
+    .field label {
+      color: var(--text-soft);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-control);
+      background: var(--surface-strong);
+      color: var(--text);
+      padding: 9px 11px;
+    }
+
+    textarea {
+      min-height: 92px;
+      resize: vertical;
+      line-height: 1.55;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: var(--text-faint);
+      opacity: 1;
+    }
+
+    .agenda {
+      display: grid;
+      gap: 3px;
+    }
+
+    .agenda-row {
+      display: grid;
+      grid-template-columns: 70px minmax(0, 1fr);
+      gap: 16px;
+      padding: 13px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .agenda-row:last-child {
+      border-bottom: 0;
+    }
+
+    .agenda-row strong {
+      color: var(--accent);
+      font-size: 13px;
+    }
+
+    .agenda-row span {
+      color: var(--text-soft);
+      font-size: 14px;
+    }
+
+    .toolbar {
+      position: sticky;
+      top: 82px;
+      z-index: 20;
+      margin-bottom: 24px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      backdrop-filter: blur(14px);
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) 180px 180px auto;
+      gap: 10px;
+      box-shadow: 0 10px 30px rgba(31, 43, 55, 0.07);
+    }
+
+    .toolbar .button {
+      align-self: end;
+    }
+
+    .compact-field {
+      display: grid;
+      gap: 5px;
+    }
+
+    .compact-field label {
+      color: var(--text-faint);
+      font-size: 11px;
+      font-weight: 750;
+    }
+
+    .module-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .module-card {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      overflow: hidden;
+      transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+    }
+
+    .module-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--line-strong);
+      box-shadow: 0 14px 34px rgba(31, 43, 55, 0.08);
+    }
+
+    .module-main {
+      padding: 24px;
+    }
+
+    .module-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .module-head h3 {
+      margin-bottom: 4px;
+      font-size: 23px;
+      letter-spacing: -0.035em;
+      line-height: 1.15;
+    }
+
+    .module-group {
+      color: var(--text-faint);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .priority {
+      flex: 0 0 auto;
+      min-width: 42px;
+      padding: 5px 8px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-control);
+      color: var(--text-soft);
+      font-size: 11px;
+      font-weight: 850;
+      text-align: center;
+    }
+
+    .priority-p0 {
+      border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+    }
+
+    .module-purpose {
+      min-height: 52px;
+      margin-bottom: 20px;
+      color: var(--text-soft);
+      font-size: 14px;
+    }
+
+    .module-facts {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr);
+      gap: 10px 16px;
+      margin: 0;
+      padding: 16px 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+
+    .module-facts dt {
+      color: var(--text-faint);
+      font-weight: 700;
+    }
+
+    .module-facts dd {
+      margin: 0;
+      color: var(--text-soft);
+    }
+
+    details {
+      margin-top: 16px;
+    }
+
+    summary {
+      width: fit-content;
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    .scope-list {
+      margin: 13px 0 0;
+      padding-left: 20px;
+      columns: 2;
+      column-gap: 28px;
+      color: var(--text-soft);
+      font-size: 13px;
+    }
+
+    .scope-list li {
+      margin-bottom: 7px;
+      break-inside: avoid;
+    }
+
+    .assignment {
+      padding: 20px 24px 24px;
+      border-top: 1px solid var(--line);
+      background: color-mix(in srgb, var(--surface-muted) 58%, transparent);
+    }
+
+    .assignment-title {
+      margin-bottom: 14px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .assignment-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 13px;
+    }
+
+    .empty-state {
+      grid-column: 1 / -1;
+      padding: 48px 24px;
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius);
+      color: var(--text-soft);
+      text-align: center;
+    }
+
+    .flow-stack {
+      display: grid;
+      gap: 18px;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: 210px minmax(0, 1fr) 250px;
+      gap: 24px;
+      align-items: center;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .flow h3 {
+      margin-bottom: 7px;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+    }
+
+    .flow-label p {
+      margin-bottom: 0;
+      color: var(--text-faint);
+      font-size: 12px;
+    }
+
+    .flow-steps {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .flow-step {
+      padding: 7px 9px;
+      border-radius: var(--radius-control);
+      background: var(--surface-muted);
+      color: var(--text-soft);
+      font-size: 12px;
+      font-weight: 680;
+    }
+
+    .flow-arrow {
+      color: var(--accent);
+      font-weight: 900;
+    }
+
+    .flow-result {
+      padding-left: 20px;
+      border-left: 3px solid var(--accent);
+      color: var(--text-soft);
+      font-size: 13px;
+    }
+
+    .summary-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 900px;
+    }
+
+    th,
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 13px;
+    }
+
+    th {
+      background: var(--surface-muted);
+      color: var(--text-soft);
+      font-size: 11px;
+      font-weight: 820;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    td strong {
+      font-size: 13px;
+    }
+
+    .muted {
+      color: var(--text-faint);
+    }
+
+    .decision-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .decision {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .decision h3 {
+      margin-bottom: 7px;
+      font-size: 17px;
+      letter-spacing: -0.02em;
+    }
+
+    .decision > p {
+      min-height: 42px;
+      margin-bottom: 18px;
+      color: var(--text-soft);
+      font-size: 13px;
+    }
+
+    .decision-fields {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 132px;
+      gap: 12px;
+    }
+
+    .decision-fields .field:first-child {
+      grid-column: 1 / -1;
+    }
+
+    .closing-grid {
+      display: grid;
+      grid-template-columns: 0.78fr 1.22fr;
+      gap: 22px;
+    }
+
+    .coverage {
+      display: grid;
+      gap: 18px;
+    }
+
+    .coverage strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 34px;
+      letter-spacing: -0.05em;
+    }
+
+    .coverage span {
+      color: var(--text-soft);
+      font-size: 13px;
+    }
+
+    .notes-area {
+      min-height: 220px;
+    }
+
+    .footer {
+      padding: 32px 0 0;
+      border-top: 1px solid var(--line);
+      color: var(--text-faint);
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 60;
+      max-width: min(360px, calc(100vw - 40px));
+      padding: 12px 16px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-control);
+      background: var(--text);
+      color: var(--surface-strong);
+      box-shadow: var(--shadow);
+      font-size: 13px;
+      font-weight: 700;
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .mobile-menu {
+      display: none;
+    }
+
+    .noscript {
+      margin: 20px auto;
+      max-width: 760px;
+      padding: 16px;
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      background: var(--accent-soft);
+      color: var(--text);
+    }
+
+    @media (max-width: 1100px) {
+      .nav-links {
+        display: none;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+        gap: 36px;
+      }
+
+      .brief-panel {
+        min-height: 300px;
+      }
+
+      .journey-track {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        row-gap: 28px;
+      }
+
+      .journey-stage:nth-child(3)::after {
+        display: none;
+      }
+
+      .flow {
+        grid-template-columns: 170px minmax(0, 1fr);
+      }
+
+      .flow-result {
+        grid-column: 2;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .topbar-inner {
+        padding: 10px 16px;
+      }
+
+      .brand span,
+      .topbar-actions .button-quiet {
+        display: none;
+      }
+
+      .page {
+        padding: 0 16px 72px;
+      }
+
+      .hero {
+        min-height: auto;
+        padding: 52px 0 44px;
+      }
+
+      h1 {
+        font-size: clamp(44px, 13vw, 68px);
+      }
+
+      .meeting-grid,
+      .module-grid,
+      .decision-grid,
+      .closing-grid,
+      .intro-opening,
+      .scenario-list {
+        grid-template-columns: 1fr;
+      }
+
+      .capability-pair,
+      .capability-pair:nth-child(1),
+      .capability-pair:nth-child(2),
+      .capability-pair:nth-child(3),
+      .capability-pair:nth-child(4),
+      .capability-pair:nth-child(5) {
+        grid-column: span 12;
+      }
+
+      .toolbar {
+        position: static;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .toolbar .compact-field:first-child {
+        grid-column: 1 / -1;
+      }
+
+      .flow {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-result {
+        grid-column: 1;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .topbar-actions .button:not(.button-primary) {
+        display: none;
+      }
+
+      .topbar-actions .button-primary {
+        min-height: 36px;
+        padding-inline: 10px;
+      }
+
+      .hero-actions {
+        display: grid;
+      }
+
+      .brief-panel {
+        padding: 22px;
+      }
+
+      .product-thesis,
+      .speaker-card,
+      .journey,
+      .capability-pair,
+      .scenario {
+        padding: 20px;
+      }
+
+      .product-principles,
+      .capability-items,
+      .scenario {
+        grid-template-columns: 1fr;
+      }
+
+      .journey-track {
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
+
+      .journey-stage {
+        padding: 15px 0 15px 24px;
+        border-top: 0;
+        border-left: 3px solid var(--line-strong);
+      }
+
+      .journey-stage:not(:last-child)::after {
+        display: block;
+        top: auto;
+        right: auto;
+        bottom: -14px;
+        left: -15px;
+        transform: rotate(90deg);
+      }
+
+      .field-grid,
+      .assignment-grid,
+      .decision-fields,
+      .toolbar {
+        grid-template-columns: 1fr;
+      }
+
+      .field-wide,
+      .toolbar .compact-field:first-child,
+      .decision-fields .field:first-child {
+        grid-column: 1;
+      }
+
+      .scope-list {
+        columns: 1;
+      }
+
+      .module-facts {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+
+      .module-facts dd + dt {
+        margin-top: 8px;
+      }
+
+      .footer {
+        flex-direction: column;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
+
+    @media print {
+      :root,
+      html[data-theme="dark"] {
+        color-scheme: light;
+        --bg: #ffffff;
+        --surface: #ffffff;
+        --surface-strong: #ffffff;
+        --surface-muted: #f0f2f4;
+        --text: #111820;
+        --text-soft: #3d4852;
+        --text-faint: #5e6973;
+        --line: #c6ccd2;
+        --line-strong: #9ea7af;
+        --accent: #a83b20;
+        --accent-strong: #842c17;
+        --accent-soft: #f6e8e3;
+        --shadow: none;
+      }
+
+      body {
+        background: #fff;
+        font-size: 10pt;
+      }
+
+      .topbar,
+      .hero-actions,
+      .toolbar,
+      .button,
+      .toast,
+      .save-state {
+        display: none !important;
+      }
+
+      .page {
+        max-width: none;
+        padding: 0;
+      }
+
+      .hero {
+        min-height: auto;
+        padding: 20px 0 28px;
+        grid-template-columns: 1fr 0.6fr;
+        gap: 28px;
+      }
+
+      h1 {
+        font-size: 40pt;
+      }
+
+      .section {
+        padding: 28px 0;
+      }
+
+      .module-grid {
+        display: block;
+      }
+
+      .module-card,
+      .flow,
+      .decision,
+      .panel,
+      .product-thesis,
+      .speaker-card,
+      .journey,
+      .capability-pair,
+      .scenario {
+        break-inside: avoid;
+        margin-bottom: 12px;
+        box-shadow: none;
+      }
+
+      .module-card:hover {
+        transform: none;
+      }
+
+      details[open] .scope-list,
+      details .scope-list {
+        display: block;
+      }
+
+      details summary {
+        display: none;
+      }
+
+      input,
+      select,
+      textarea {
+        border-color: #aeb6be;
+        background: #fff;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <noscript>
+    <div class="noscript">这个会议盘需要启用 JavaScript，才能保存分工、筛选功能域和导出会议纪要。</div>
+  </noscript>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <strong>Molis Work</strong>
+        <span>将来的功能规划</span>
+      </div>
+      <nav class="nav-links" aria-label="页面导航">
+        <a href="#introduction">功能介绍</a>
+        <a href="#meeting">会议设置</a>
+        <a href="#domains">功能地图</a>
+        <a href="#flows">真实闭环</a>
+        <a href="#assignments">分工总览</a>
+        <a href="#decisions">待定问题</a>
+      </nav>
+      <div class="topbar-actions">
+        <button class="button button-quiet" id="themeButton" type="button">切到深色</button>
+        <button class="button button-primary" id="exportButton" type="button">导出纪要</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="page" id="main">
+    <section class="hero" aria-labelledby="pageTitle">
+      <div class="hero-copy">
+        <p class="kicker">团队功能分工盘</p>
+        <h1 id="pageTitle">把未来变成可认领的研发结果</h1>
+        <p>先讲清 Molis Work 要解决的问题和完整功能，再确认范围、负责人、依赖和第一条真实闭环。</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#introduction">先介绍功能</a>
+          <a class="button" href="#meeting">进入分工</a>
+          <button class="button" id="printButton" type="button">打印或导出 PDF</button>
+          <button class="button" id="copyButton" type="button">复制会议摘要</button>
+        </div>
+      </div>
+
+      <aside class="brief-panel" aria-label="规划盘摘要">
+        <div>
+          <h2>这次会议要留下什么</h2>
+          <p>每个本期功能域有一位主负责人、一项可验收结果、一组真实依赖，以及一条汇合闭环。</p>
+        </div>
+        <div class="brief-metrics">
+          <div class="metric">
+            <strong>14</strong>
+            <span>一级功能域</span>
+          </div>
+          <div class="metric">
+            <strong>4</strong>
+            <span>端到端闭环</span>
+          </div>
+          <div class="metric">
+            <strong id="ownerMetric">0</strong>
+            <span>已确认负责人</span>
+          </div>
+          <div class="metric">
+            <strong id="commitmentMetric">0</strong>
+            <span>已确认本期结果</span>
+          </div>
+        </div>
+        <div class="save-state" id="saveState" aria-live="polite">尚未产生本地修改</div>
+      </aside>
+    </section>
+
+    <section class="section" id="introduction" aria-labelledby="introductionTitle">
+      <div class="section-heading">
+        <h2 id="introductionTitle">先讲清楚，Molis Work 到底在做什么</h2>
+        <p>它不是把消息堆进任务列表，而是让一个结果从出现、执行到验收，始终有上下文、责任和证据。</p>
+      </div>
+
+      <div class="intro-opening">
+        <article class="product-thesis">
+          <div>
+            <h3>从一条信息，到一个被验证的结果</h3>
+            <p>Molis Work 把外部信息、个人行动、团队 Goal、人和 Agent 的执行、交付物与验收连接成一条可继续的工作主线。用户知道现在该处理什么，团队知道结果是否真的完成。</p>
+          </div>
+          <div class="product-principles" aria-label="Molis Work 三项产品原则">
+            <div class="product-principle">
+              <strong>信息不自动变任务</strong>
+              <span>外部内容先进入 Feed，由用户决定忽略、保存还是行动。</span>
+            </div>
+            <div class="product-principle">
+              <strong>小事不必成为 Goal</strong>
+              <span>轻量事务保留为 Action，需要持续投入和验收时再升格。</span>
+            </div>
+            <div class="product-principle">
+              <strong>结果必须可以证明</strong>
+              <span>执行带回 Artifact 和 Evidence，经过 Review 才进入共同真相。</span>
+            </div>
+          </div>
+        </article>
+
+        <aside class="speaker-card" aria-labelledby="speakerTitle">
+          <h3 id="speakerTitle">3 分钟讲解稿</h3>
+          <p><strong>先讲问题：</strong>今天的信息散在邮件、消息、网页和本地工具里，任务被建立后又常常失去来源、执行过程和验收证据。</p>
+          <p><strong>再讲方法：</strong>Molis Work 先把内容作为 Signal 放入 Feed。用户可以忽略、建立轻量 Action、关联已有 Goal，或者创建新的个人 Goal。</p>
+          <p><strong>接着讲协作：</strong>个人工作需要进入团队时，通过 Promotion 提交为 Team Goal。成员或 Agent 认领后执行，必要时交接，产出 Artifact 和 Evidence。</p>
+          <p><strong>最后讲结果：</strong>Review 判断验收条件是否成立。身份、权限、同步和恢复贯穿全程，让工作跨设备、跨成员和跨会话继续，而不是重新开始。</p>
+        </aside>
+      </div>
+
+      <div class="intro-subsection">
+        <div class="intro-subsection-heading">
+          <h3>一条连续的工作主线</h3>
+          <p>对象不会被悄悄改成另一种类型。每一步都创建清楚的关系，保留来源和决定。</p>
+        </div>
+        <div class="journey" aria-label="Molis Work 完整功能流程">
+          <div class="journey-track">
+            <div class="journey-stage">
+              <strong>接收信息</strong>
+              <span>连接邮件、IM、RSS、网页、本地文件和应用。</span>
+              <code>Source → Signal → Feed</code>
+            </div>
+            <div class="journey-stage">
+              <strong>判断是否行动</strong>
+              <span>忽略、保存、建立 Action，或关联已有 Goal。</span>
+              <code>FeedEntry → Action</code>
+            </div>
+            <div class="journey-stage">
+              <strong>定义结果</strong>
+              <span>建立可澄清、拆解和验收的个人 Goal。</span>
+              <code>Goal + Criterion</code>
+            </div>
+            <div class="journey-stage">
+              <strong>进入团队</strong>
+              <span>披露必要信息，提交提议，接受后成为 Team Goal。</span>
+              <code>Promotion → Team Goal</code>
+            </div>
+            <div class="journey-stage">
+              <strong>认领并执行</strong>
+              <span>成员或 Agent Claim、Run、Handoff，保留真实状态。</span>
+              <code>Claim → Run → Handoff</code>
+            </div>
+            <div class="journey-stage">
+              <strong>交付与验收</strong>
+              <span>结果、证据和决定可复核，完成后仍可追溯。</span>
+              <code>Artifact → Evidence → Review</code>
+            </div>
+          </div>
+          <div class="journey-foundation"><strong>贯穿全程：</strong>Identity &amp; Space 管理个人、团队与权限边界；Sync &amp; Replication 保证 Server、Desktop 和离线副本最终收敛；Attention &amp; Resumption 告诉用户下一步从哪里继续。</div>
+        </div>
+      </div>
+
+      <div class="intro-subsection">
+        <div class="intro-subsection-heading">
+          <h3>十类能力，组成同一个 Molis Work</h3>
+          <p>这些是功能边界和团队分工边界，不是十个孤立产品。界面可以组合，数据写入仍回到各自负责的模块。</p>
+        </div>
+        <div class="capability-map">
+          <article class="capability-pair">
+            <h4>人、团队与数据边界</h4>
+            <div class="capability-items">
+              <div class="capability-item"><h5>Identity &amp; Space</h5><p>账号、个人空间、团队空间、成员关系、角色和授权。</p></div>
+              <div class="capability-item"><h5>Sync &amp; Replication</h5><p>增量同步、游标、确认、冲突处理、离线副本和重连恢复。</p></div>
+            </div>
+          </article>
+          <article class="capability-pair">
+            <h4>信息接入与处理</h4>
+            <div class="capability-items">
+              <div class="capability-item"><h5>Source &amp; Connector</h5><p>连接外部来源，管理安装、凭据、订阅、同步和回写。</p></div>
+              <div class="capability-item"><h5>Signal &amp; Feed</h5><p>规范化、去重、路由信息，并记录每个人的阅读与处理状态。</p></div>
+            </div>
+          </article>
+          <article class="capability-pair">
+            <h4>个人轻量工作</h4>
+            <div class="capability-items">
+              <div class="capability-item"><h5>Personal Action</h5><p>承载不需要完整 Goal Contract 的小事、提醒和临时行动。</p></div>
+              <div class="capability-item"><h5>Attention &amp; Resumption</h5><p>聚合该关注的 Feed、Action、Goal 和 Run，并保存恢复入口。</p></div>
+            </div>
+          </article>
+          <article class="capability-pair">
+            <h4>Goal 与真实执行</h4>
+            <div class="capability-items">
+              <div class="capability-item"><h5>Goal Core</h5><p>管理 Goal Contract、验收条件、关系图、风险、策略和拆解提议。</p></div>
+              <div class="capability-item"><h5>Work &amp; Execution</h5><p>管理认领、运行、取消、重试、超时、并发和执行状态。</p></div>
+            </div>
+          </article>
+          <article class="capability-pair">
+            <h4>团队协作与共同真相</h4>
+            <div class="capability-items">
+              <div class="capability-item"><h5>Evidence &amp; Artifact</h5><p>保存可版本化交付物、证据、纠正记录和完成条件的验证结果。</p></div>
+              <div class="capability-item"><h5>Collaboration</h5><p>管理 Promotion、Proposal、Review、Decision、Handoff 和共享上下文。</p></div>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div class="intro-subsection">
+        <div class="intro-subsection-heading">
+          <h3>用户会在四种真实时刻感受到它</h3>
+          <p>介绍功能时从场景进入，比逐个念模块更容易让团队理解为什么要做。</p>
+        </div>
+        <div class="scenario-list">
+          <article class="scenario">
+            <h4>个人恢复工作</h4>
+            <div>
+              <p><strong>此刻：</strong>昨天被打断，今天不知道先继续哪一件事。</p>
+              <p><strong>Molis Work：</strong>把 Feed、Action、Goal 和 Run 汇入个人注意力队列，回到上次上下文和下一步。</p>
+            </div>
+          </article>
+          <article class="scenario">
+            <h4>外部信息变行动</h4>
+            <div>
+              <p><strong>此刻：</strong>邮件、RSS 或消息里出现值得处理的内容。</p>
+              <p><strong>Molis Work：</strong>先去重进入 Feed，再由用户决定忽略、建立 Action、关联 Goal 或创建新 Goal。</p>
+            </div>
+          </article>
+          <article class="scenario">
+            <h4>个人工作进入团队</h4>
+            <div>
+              <p><strong>此刻：</strong>一项私人探索变成值得团队投入的结果。</p>
+              <p><strong>Molis Work：</strong>只披露必要内容，通过 Promotion、Review 和 Handoff 形成可协作的 Team Goal。</p>
+            </div>
+          </article>
+          <article class="scenario">
+            <h4>Agent 交付可验收结果</h4>
+            <div>
+              <p><strong>此刻：</strong>Agent 可以执行，但团队不知道做了什么、是否可信。</p>
+              <p><strong>Molis Work：</strong>Agent 围绕 Goal Claim 和 Run，回传 Artifact 与 Evidence，由人或规则完成 Review。</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="meeting" aria-labelledby="meetingTitle">
+      <div class="section-heading">
+        <h2 id="meetingTitle">先锁定会议目标</h2>
+        <p>先决定这次会要推进哪条闭环，再进入功能认领，避免把所有未来功能都塞进同一期。</p>
+      </div>
+
+      <div class="meeting-grid">
+        <div class="panel">
+          <h3 class="panel-title">会议信息</h3>
+          <div class="field-grid">
+            <div class="field">
+              <label for="meetingDate">会议日期</label>
+              <input id="meetingDate" type="date" data-meeting-field="date">
+            </div>
+            <div class="field">
+              <label for="facilitator">主持人</label>
+              <input id="facilitator" type="text" placeholder="填写主持人" data-meeting-field="facilitator">
+            </div>
+            <div class="field field-wide">
+              <label for="participants">参会人</label>
+              <input id="participants" type="text" placeholder="用逗号分隔姓名" data-meeting-field="participants">
+            </div>
+            <div class="field field-wide">
+              <label for="meetingObjective">本次唯一目标</label>
+              <textarea id="meetingObjective" data-meeting-field="objective">确认首批功能范围、负责人、依赖和第一条真实闭环</textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3 class="panel-title">建议会议节奏</h3>
+          <div class="agenda">
+            <div class="agenda-row"><strong>10 分钟</strong><span>用真实场景介绍 Molis Work 的功能和边界</span></div>
+            <div class="agenda-row"><strong>10 分钟</strong><span>选择本期要打通的真实闭环</span></div>
+            <div class="agenda-row"><strong>15 分钟</strong><span>确认 P0 范围和明确不做的内容</span></div>
+            <div class="agenda-row"><strong>20 分钟</strong><span>逐项确认主负责人和协作人</span></div>
+            <div class="agenda-row"><strong>15 分钟</strong><span>核对依赖、并行条件和汇合点</span></div>
+            <div class="agenda-row"><strong>10 分钟</strong><span>处理阻塞整个团队的待定问题</span></div>
+            <div class="agenda-row"><strong>5 分钟</strong><span>复述本期结果、下一步和验收方式</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="domains" aria-labelledby="domainsTitle">
+      <div class="section-heading">
+        <h2 id="domainsTitle">功能地图与现场认领</h2>
+        <p>每张卡只要求确认粗粒度结果。具体 Work Item 和技术方案在负责人认领后继续拆。</p>
+      </div>
+
+      <div class="toolbar" aria-label="功能域筛选">
+        <div class="compact-field">
+          <label for="searchInput">搜索功能或交付</label>
+          <input id="searchInput" type="search" placeholder="例如：同步、Slack、Review">
+        </div>
+        <div class="compact-field">
+          <label for="priorityFilter">优先级</label>
+          <select id="priorityFilter">
+            <option value="all">全部优先级</option>
+            <option value="P0">P0</option>
+            <option value="P1">P1</option>
+            <option value="P2">P2</option>
+          </select>
+        </div>
+        <div class="compact-field">
+          <label for="phaseFilter">建议阶段</label>
+          <select id="phaseFilter">
+            <option value="all">全部阶段</option>
+            <option value="可部署基础">可部署基础</option>
+            <option value="个人闭环">个人闭环</option>
+            <option value="团队闭环">团队闭环</option>
+            <option value="内部完整">内部完整</option>
+            <option value="Team Beta">Team Beta</option>
+          </select>
+        </div>
+        <button class="button" id="clearFiltersButton" type="button">清除筛选</button>
+      </div>
+
+      <div class="module-grid" id="moduleGrid" aria-live="polite"></div>
+    </section>
+
+    <section class="section" id="flows" aria-labelledby="flowsTitle">
+      <div class="section-heading">
+        <h2 id="flowsTitle">所有分工最终汇合到真实闭环</h2>
+        <p>模块实现可以并行，完成判断必须回到用户能够连续走通的端到端结果。</p>
+      </div>
+
+      <div class="flow-stack">
+        <article class="flow">
+          <div class="flow-label">
+            <h3>可部署基础</h3>
+            <p>第一套持续运行的云端环境</p>
+          </div>
+          <div class="flow-steps" aria-label="可部署基础步骤">
+            <span class="flow-step">部署</span><span class="flow-arrow">→</span>
+            <span class="flow-step">账号</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Team Space</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Goal API</span><span class="flow-arrow">→</span>
+            <span class="flow-step">设备连接</span>
+          </div>
+          <div class="flow-result">新环境可以部署、登录、创建空间和保存一个真实 Goal，重启后状态仍然存在。</div>
+        </article>
+
+        <article class="flow">
+          <div class="flow-label">
+            <h3>个人真实闭环</h3>
+            <p>验证 Feed、同步和本地执行</p>
+          </div>
+          <div class="flow-steps" aria-label="个人真实闭环步骤">
+            <span class="flow-step">Server RSS</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Personal Feed</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Desktop</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Personal Goal</span><span class="flow-arrow">→</span>
+            <span class="flow-step">本地 Run</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Evidence</span>
+          </div>
+          <div class="flow-result">用户从一条真实外部信息创建 Goal，本地执行后把结果和证据可靠带回。</div>
+        </article>
+
+        <article class="flow">
+          <div class="flow-label">
+            <h3>团队协作闭环</h3>
+            <p>验证私人工作进入团队真相</p>
+          </div>
+          <div class="flow-steps" aria-label="团队协作闭环步骤">
+            <span class="flow-step">Team Goal</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Work Context</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Private Task Context</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Run</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Disclosure Bundle</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Proposal</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Review</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Decision</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Materialization</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Canonical Context</span>
+          </div>
+          <div class="flow-result">两名真实成员完成私有执行、选择性披露和复核；未披露过程不会进入团队空间，重复接受或重启只落地一次。</div>
+        </article>
+
+        <article class="flow">
+          <div class="flow-label">
+            <h3>消息协作闭环</h3>
+            <p>验证消息入口和结果回写</p>
+          </div>
+          <div class="flow-steps" aria-label="消息协作闭环步骤">
+            <span class="flow-step">Slack 或飞书</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Action / Goal</span><span class="flow-arrow">→</span>
+            <span class="flow-step">审批</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Agent Run</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Review</span><span class="flow-arrow">→</span>
+            <span class="flow-step">原线程结果</span>
+          </div>
+          <div class="flow-result">重复消息不重复创建任务，越权操作被拒绝，外部平台故障后可以恢复。</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="assignments" aria-labelledby="assignmentsTitle">
+      <div class="section-heading">
+        <h2 id="assignmentsTitle">分工总览</h2>
+        <p>这里自动汇总上方功能卡中的填写结果，适合会议结束前逐行复述。</p>
+      </div>
+      <div class="summary-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">功能域</th>
+              <th scope="col">优先级</th>
+              <th scope="col">主负责人</th>
+              <th scope="col">协作人</th>
+              <th scope="col">本期结果</th>
+              <th scope="col">目标阶段</th>
+              <th scope="col">状态</th>
+            </tr>
+          </thead>
+          <tbody id="assignmentTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" id="decisions" aria-labelledby="decisionsTitle">
+      <div class="section-heading">
+        <h2 id="decisionsTitle">需要现场处理的决定</h2>
+        <p>只处理会改变共同边界或阻塞多人工作的决定。模块内部实现细节由负责人继续推进。</p>
+      </div>
+      <div class="decision-grid" id="decisionGrid"></div>
+    </section>
+
+    <section class="section" id="closing" aria-labelledby="closingTitle">
+      <div class="section-heading">
+        <h2 id="closingTitle">收口和会议纪要</h2>
+        <p>负责人、结果和待定问题都有归属后，再结束会议。</p>
+      </div>
+
+      <div class="closing-grid">
+        <div class="panel coverage" aria-label="分工覆盖">
+          <div>
+            <strong id="ownerCoverage">0 / 14</strong>
+            <span>功能域已有主负责人</span>
+          </div>
+          <div>
+            <strong id="commitmentCoverage">0 / 14</strong>
+            <span>功能域已有本期结果</span>
+          </div>
+          <div>
+            <strong id="decisionCoverage">0 / 8</strong>
+            <span>关键决定已有结论或责任人</span>
+          </div>
+          <button class="button button-primary" id="exportButtonBottom" type="button">导出完整纪要</button>
+          <button class="button" id="resetButton" type="button">重置本地填写</button>
+        </div>
+
+        <div class="panel">
+          <div class="field">
+            <label for="meetingNotes">会议补充记录</label>
+            <textarea class="notes-area" id="meetingNotes" placeholder="记录未进入正式规划的讨论、风险、行动项和下次会议入口"></textarea>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span>规划正文：docs/archive/future-feature-planning.md　功能来源：docs/archive/goalboard-product-family-and-module-architecture.md</span>
+      <span>本页填写仅保存在当前浏览器，导出后再同步给团队。</span>
+    </footer>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const modules = [
+      {
+        id: "cloud",
+        title: "云平台与部署",
+        group: "运行基础",
+        priority: "P0",
+        phase: "可部署基础",
+        purpose: "让 Molis Work Server 可以持续部署、稳定运行、恢复和被诊断。",
+        dependencies: "无业务依赖，可最先开始",
+        parallel: "可以与账号、Goal API 和 Web 使用最小 Contract 并行",
+        scope: ["开发、测试、生产环境", "域名、HTTPS、配置和 Secret", "PostgreSQL 与对象存储", "后台任务和 Worker", "CI/CD、迁移、灰度和回滚", "日志、指标、Trace 和告警", "备份恢复和灾难演练", "成本、额度和限流"]
+      },
+      {
+        id: "identity",
+        title: "账号、团队与权限",
+        group: "运行基础",
+        priority: "P0",
+        phase: "可部署基础",
+        purpose: "定义谁能进入 Molis Work、看到哪些内容、执行哪些操作。",
+        dependencies: "消费云平台的数据库、Secret 和部署能力",
+        parallel: "其他功能可以使用固定 Actor 和权限 Fixture 并行",
+        scope: ["注册、登录和 Session", "Personal Space 和 Team Space", "邀请、成员、角色和权限", "设备登录与撤销", "个人与团队内容边界", "OAuth/OIDC", "权限审计", "账号导出和删除"]
+      },
+      {
+        id: "goal",
+        title: "Goal 核心与协作",
+        group: "工作主链",
+        priority: "P0",
+        phase: "个人闭环",
+        purpose: "保存团队真正要实现的结果，以及执行、复核和完成的共同状态。",
+        dependencies: "账号权限、持久化和最小事件能力",
+        parallel: "Relay、消息和 Web 可针对 Goal Command Fixture 开发",
+        scope: ["Goal Contract 和 Goal Tree", "依赖、风险和验收标准", "Personal Goal 和 Team Goal", "Claim、分工和 Run", "Goal Evidence、Review 和 Decision", "Goal 变更和完成 Proposal", "Handoff 和接续", "Activity 和变更历史"]
+      },
+      {
+        id: "private-context",
+        title: "私有工作上下文与选择性发布",
+        group: "团队上下文",
+        priority: "P0",
+        phase: "团队闭环",
+        purpose: "让个人和 Agent 保留完整私人过程，只把负责人明确选择的结果、证据或工作记录带入团队。",
+        dependencies: "账号权限、Task/Run/Artifact 引用和 Proposal Review Contract",
+        parallel: "可先用两名 Actor、真实权限 Fixture 和密封内容快照完成垂直原型",
+        scope: ["Goal / Action / Handoff 锚定", "团队可见 Work Context 投影", "负责人私有 Task Context", "不可变 Task Input Snapshot", "有时效 Execution Scope", "Prompt、草稿和失败尝试默认私有", "三档 Disclosure Bundle", "不建立第二套 Task 真相"]
+      },
+      {
+        id: "feed",
+        title: "Feed、Inbox 与 Action",
+        group: "工作主链",
+        priority: "P0",
+        phase: "个人闭环",
+        purpose: "把外部信息变成用户可以阅读、处理、关联和升格的工作入口。",
+        dependencies: "消费 Connector 观察结果和 Goal 关联接口",
+        parallel: "可以先用 RSS Fixture 和 Fake Goal API 完成真实 UI",
+        scope: ["统一内容表示", "内容级去重和来源追踪", "个人与团队 Feed 路由", "未读、收藏、忽略和归档", "轻量 Action 和提醒", "关联已有 Goal", "创建 Personal 或 Team Goal", "摘要、筛选和 Digest 输入"]
+      },
+      {
+        id: "relay",
+        title: "Relay 与 Agent 执行",
+        group: "工作主链",
+        priority: "P0",
+        phase: "个人闭环",
+        purpose: "连接外部来源和 Agent Runtime，把 Goal 可靠执行并回传结果。",
+        dependencies: "后台任务、凭据、Goal Command 和 Artifact 接口",
+        parallel: "Connector 与 Engine 可分别开发，共用回执和故障语义",
+        scope: ["复制和整理现有 Relay 代码", "Gmail、GitHub、RSS、Web Query", "Connector 授权和同步", "Codex、Claude Code、ForkLight", "Context Pack", "执行观察、暂停、恢复和取消", "补充输入和外部写入审批", "超时核对与防重复执行"]
+      },
+      {
+        id: "messaging",
+        title: "消息面接入",
+        group: "协作入口",
+        priority: "P1",
+        phase: "团队闭环",
+        purpose: "让团队从 Slack、飞书等消息线程发起、审批和继续 Goal。",
+        dependencies: "账号身份绑定、Feed/Goal Command 和通知能力",
+        parallel: "可以先用 Provider Fixture 和 Fake Command API 开发",
+        scope: ["Slack 和飞书安装", "Webhook、Socket 或长连接", "验签、防重放和限流", "身份、Channel 和 Thread 关联", "Mention、命令和消息菜单", "审批和补充信息卡片", "状态与结果回原线程", "编辑、删除、撤销和故障恢复"]
+      },
+      {
+        id: "sync",
+        title: "Desktop 与云同步",
+        group: "运行基础",
+        priority: "P0",
+        phase: "个人闭环",
+        purpose: "让允许复制的本地工作、云端状态和多设备在断网与重连后仍保持一致。",
+        dependencies: "设备身份、对象 Revision 和服务端变更日志",
+        parallel: "Desktop 可针对固定变更流 Fixture 提前开发",
+        scope: ["设备注册、配对和撤销", "Goal、Feed、Artifact 本地副本", "增量同步、游标和 ACK", "断网恢复", "多设备和版本冲突", "本地文件、终端和 Runtime", "选择性同步私有上下文", "SQLite 升级和 Desktop 回滚"]
+      },
+      {
+        id: "context-ledger",
+        title: "共享上下文账本与落地恢复",
+        group: "运行基础",
+        priority: "P0",
+        phase: "团队闭环",
+        purpose: "让一次团队决定跨 Goal、Artifact 和关系可靠落地，并在重启、冲突或未知结果后恢复。",
+        dependencies: "账号权限、各领域 Command/Revision、持久化事件和 Receipt",
+        parallel: "可用 Goal、Artifact 与 Relation 的固定 Contract 和故障注入先证明恢复语义",
+        scope: ["中立对象索引", "Relation 与 Project Event Journal", "Revision 和 Idempotency", "Correlation 与 Authority", "ProjectDecision 与 effect 分离", "Materialization Operation / Step", "pending、failed 和 uncertain", "重启续跑与防重复 Canonical 结果"]
+      },
+      {
+        id: "web",
+        title: "Web 产品体验",
+        group: "产品表面",
+        priority: "P0",
+        phase: "个人闭环",
+        purpose: "让用户可以理解和操作 Molis Work 的个人、团队和管理工作区。",
+        dependencies: "消费各功能域的查询和命令接口",
+        parallel: "使用真实数据 Fixture 开发，不等待全部后端实现",
+        scope: ["首次使用和空间创建", "Personal 和 Team Workspace", "Goal Graph 和详情", "Feed、Inbox 和 Action", "Private Task Context 与披露预览", "Review 与 Decision / Effect 状态", "Artifact lineage 和 Activity", "异常恢复、响应式和无障碍"]
+      },
+      {
+        id: "ai",
+        title: "AI 规划与智能整理",
+        group: "智能体验",
+        priority: "P1",
+        phase: "内部完整",
+        purpose: "让 AI 消费项目真实上下文，产生可检查的规划、执行和复核建议。",
+        dependencies: "Goal、Feed、Artifact、Decision 和 Run 的稳定查询",
+        parallel: "Prompt 与评测集可以先用脱敏真实样本准备",
+        scope: ["模糊想法转 Goal Draft", "范围、验收、风险和依赖建议", "拆解和执行顺序", "需求影响分析", "Feed 分类和升格建议", "执行 Context Pack", "Review Suggestion", "失败解释和 Resume Snapshot"]
+      },
+      {
+        id: "attention",
+        title: "Attention 与工作接续",
+        group: "个人体验",
+        priority: "P1",
+        phase: "内部完整",
+        purpose: "帮助用户决定现在做什么，并从中断位置低成本恢复。",
+        dependencies: "消费 Goal、Feed、Action、Run 和 Decision 状态",
+        parallel: "信息架构和排序解释可基于真实快照先行",
+        scope: ["Today 和 Focus", "多项目注意力队列", "Ready、Blocked、等待决定和等待他人", "中断和稍后继续", "上次状态与下一步", "长期无进展提醒", "快速记录", "移动端确认"]
+      },
+      {
+        id: "knowledge",
+        title: "Artifact、知识与搜索",
+        group: "项目记忆",
+        priority: "P0",
+        phase: "团队闭环",
+        purpose: "让产出、证据和决定成为可追溯、可复用、可检索的项目记忆。",
+        dependencies: "对象存储、权限、Goal/Run 关系和内容索引",
+        parallel: "Artifact 元数据和搜索 Projection 可以分开实现",
+        scope: ["稳定 Artifact 身份和不可变版本", "唯一 Canonical head", "Signal、Goal、Task、Run、Proposal、Reviewer、Decision lineage", "Draft / locked / canonical / superseded", "元数据与内容权限分离", "外部 Publish / Apply 单独记录", "P1 全文搜索和关联材料", "P1 导出与过期提示"]
+      },
+      {
+        id: "automation",
+        title: "自动化、通知与 Digest",
+        group: "持续运行",
+        priority: "P1",
+        phase: "内部完整",
+        purpose: "让系统持续处理变化，并把需要人介入的内容可靠送达。",
+        dependencies: "后台任务、事件、用户偏好和消息/邮件投递",
+        parallel: "规则引擎与各 Delivery Adapter 可以分别开发",
+        scope: ["Connector 定时同步", "事件触发规则", "Web、Desktop、邮件和 IM 通知", "quiet hours 和订阅", "每日与每周 Digest", "失败 Inbox、暂停和重试", "外部写入人工审批", "预算、频率和权限限制"]
+      },
+      {
+        id: "onboarding",
+        title: "首次使用、迁移与导入",
+        group: "完整体验",
+        priority: "P0",
+        phase: "内部完整",
+        purpose: "让新用户和现有本地用户顺利进入云端 Molis Work，并能失败回滚。",
+        dependencies: "账号、空间、同步、Runtime 和 Connector 主链",
+        parallel: "迁移清单、数据映射和首次使用原型可提前准备",
+        scope: ["创建个人空间或加入团队", "本地 SQLite 迁移", "本地保留和云端同步选择", "Desktop 和 Runtime 接入", "Connector 接入", "邀请团队成员", "第一个真实 Goal", "导入预览、回滚、离开团队和卸载"]
+      },
+      {
+        id: "admin",
+        title: "管理、商业化与支持",
+        group: "规模运营",
+        priority: "P2",
+        phase: "Team Beta",
+        purpose: "让 Molis Work 可以被运营、计量、收费、诊断和持续支持。",
+        dependencies: "账号、审计、用量事件、云成本和管理查询",
+        parallel: "用量事件 Contract 应提前定义，完整计费可以后置",
+        scope: ["团队管理员后台", "成员、权限和 Connector 使用情况", "存储、Agent、消息和 AI 用量", "套餐、试用、账单和支付", "超额降级", "服务状态和故障通知", "脱敏诊断包", "功能开关、灰度、埋点和反馈"]
+      }
+    ];
+
+    const decisions = [
+      { id: "staffing", title: "第一批研发配置", prompt: "确认人数、能力分布，以及哪些功能域由同一人暂时合并。" },
+      { id: "cloud-target", title: "首个云端环境", prompt: "选择首个部署目标、数据库、对象存储和环境边界。" },
+      { id: "personal-authority", title: "Personal Goal 云端策略", prompt: "确认第一版是本地权威、云端权威，还是用户逐个开启同步。" },
+      { id: "first-connector", title: "第一条 Connector 闭环", prompt: "在 RSS、Gmail、GitHub 中选择最先用于真实验收的一条。" },
+      { id: "first-message", title: "第一条消息闭环", prompt: "在 Slack、飞书中选择最先完成双向真实链路的平台。" },
+      { id: "first-runtime", title: "第一条 Agent 执行闭环", prompt: "选择首个 Runtime，并明确提交、观察、补充输入和回传边界。" },
+      { id: "migration", title: "本地数据迁移边界", prompt: "确认哪些 SQLite 数据迁移、哪些只留本地、失败如何回滚。" },
+      { id: "private-context", title: "私人 Task Context 首版边界", prompt: "确认它与现有 Session / Work Record 的关系、默认存放位置和允许同步的范围。" },
+      { id: "materialization", title: "首条跨领域落地", prompt: "确认第一条 Materialization 同时更新哪些 Artifact、Goal 和 Relation，以及失败后的恢复语义。" },
+      { id: "billing", title: "Team Beta 前的额度与付费", prompt: "确认是否只做用量计量，还是同时引入套餐和支付。" }
+    ];
+
+    const STORAGE_KEY = "molis-work.futureFeaturePlanning.v1";
+    const defaultState = {
+      meeting: {
+        date: "2026-08-29",
+        facilitator: "",
+        participants: "",
+        objective: "确认首批功能范围、负责人、依赖和第一条真实闭环"
+      },
+      assignments: {},
+      decisions: {},
+      notes: "",
+      theme: "system"
+    };
+
+    function cloneDefaultState() {
+      return JSON.parse(JSON.stringify(defaultState));
+    }
+
+    function loadState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) return cloneDefaultState();
+        const parsed = JSON.parse(saved);
+        return {
+          ...cloneDefaultState(),
+          ...parsed,
+          meeting: { ...defaultState.meeting, ...(parsed.meeting || {}) },
+          assignments: parsed.assignments || {},
+          decisions: parsed.decisions || {}
+        };
+      } catch {
+        return cloneDefaultState();
+      }
+    }
+
+    let state = loadState();
+    let saveTimer;
+    let toastTimer;
+
+    function assignmentFor(id) {
+      return {
+        owner: "",
+        partners: "",
+        commitment: "",
+        target: "",
+        status: "未分配",
+        ...(state.assignments[id] || {})
+      };
+    }
+
+    function decisionFor(id) {
+      return {
+        resolution: "",
+        owner: "",
+        status: "待讨论",
+        ...(state.decisions[id] || {})
+      };
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function markdownCell(value) {
+      return String(value || "").replaceAll("|", "\\|").replaceAll("\n", " ").trim() || "待确认";
+    }
+
+    function scheduleSave() {
+      window.clearTimeout(saveTimer);
+      const saveState = document.getElementById("saveState");
+      saveState.textContent = "正在保存本地修改";
+      saveTimer = window.setTimeout(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        const time = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date());
+        saveState.textContent = "已保存到当前设备 " + time;
+      }, 180);
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => toast.classList.remove("show"), 2200);
+    }
+
+    function targetOptions(selected) {
+      const options = ["", "可部署基础", "个人闭环", "团队闭环", "内部完整", "Team Beta", "Later"];
+      return options.map((option) => {
+        const label = option || "待确认";
+        return '<option value="' + escapeHtml(option) + '"' + (option === selected ? " selected" : "") + ">" + escapeHtml(label) + "</option>";
+      }).join("");
+    }
+
+    function statusOptions(selected) {
+      const options = ["未分配", "讨论中", "已认领", "进行中", "受阻", "暂不做"];
+      return options.map((option) => '<option value="' + option + '"' + (option === selected ? " selected" : "") + ">" + option + "</option>").join("");
+    }
+
+    function renderModules() {
+      const query = document.getElementById("searchInput").value.trim().toLowerCase();
+      const priority = document.getElementById("priorityFilter").value;
+      const phase = document.getElementById("phaseFilter").value;
+      const visible = modules.filter((module) => {
+        const haystack = [module.title, module.group, module.purpose, module.dependencies, module.parallel, ...module.scope].join(" ").toLowerCase();
+        return (!query || haystack.includes(query)) &&
+          (priority === "all" || module.priority === priority) &&
+          (phase === "all" || module.phase === phase);
+      });
+
+      const grid = document.getElementById("moduleGrid");
+      if (!visible.length) {
+        grid.innerHTML = '<div class="empty-state"><strong>没有匹配的功能域</strong><br>清除筛选或更换关键词后再试。</div>';
+        return;
+      }
+
+      grid.innerHTML = visible.map((module) => {
+        const assignment = assignmentFor(module.id);
+        const scope = module.scope.map((item) => "<li>" + escapeHtml(item) + "</li>").join("");
+        return `
+          <article class="module-card" data-module-id="${module.id}">
+            <div class="module-main">
+              <div class="module-head">
+                <div>
+                  <h3>${escapeHtml(module.title)}</h3>
+                  <div class="module-group">${escapeHtml(module.group)}，建议进入 ${escapeHtml(module.phase)}</div>
+                </div>
+                <span class="priority ${module.priority === "P0" ? "priority-p0" : ""}">${module.priority}</span>
+              </div>
+              <p class="module-purpose">${escapeHtml(module.purpose)}</p>
+              <dl class="module-facts">
+                <dt>真实依赖</dt>
+                <dd>${escapeHtml(module.dependencies)}</dd>
+                <dt>并行条件</dt>
+                <dd>${escapeHtml(module.parallel)}</dd>
+              </dl>
+              <details>
+                <summary>查看粗略工作范围</summary>
+                <ul class="scope-list">${scope}</ul>
+              </details>
+            </div>
+            <div class="assignment">
+              <div class="assignment-title">本次会议填写</div>
+              <div class="assignment-grid">
+                <div class="field">
+                  <label for="${module.id}-owner">主负责人</label>
+                  <input id="${module.id}-owner" type="text" value="${escapeHtml(assignment.owner)}" placeholder="唯一负责人" data-module="${module.id}" data-field="owner">
+                </div>
+                <div class="field">
+                  <label for="${module.id}-partners">协作人</label>
+                  <input id="${module.id}-partners" type="text" value="${escapeHtml(assignment.partners)}" placeholder="可填写多人" data-module="${module.id}" data-field="partners">
+                </div>
+                <div class="field field-wide">
+                  <label for="${module.id}-commitment">本期可验收结果</label>
+                  <textarea id="${module.id}-commitment" placeholder="用一句话写清本期交付结果" data-module="${module.id}" data-field="commitment">${escapeHtml(assignment.commitment)}</textarea>
+                </div>
+                <div class="field">
+                  <label for="${module.id}-target">目标阶段</label>
+                  <select id="${module.id}-target" data-module="${module.id}" data-field="target">${targetOptions(assignment.target)}</select>
+                </div>
+                <div class="field">
+                  <label for="${module.id}-status">当前状态</label>
+                  <select id="${module.id}-status" data-module="${module.id}" data-field="status">${statusOptions(assignment.status)}</select>
+                </div>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderAssignmentTable() {
+      const body = document.getElementById("assignmentTableBody");
+      body.innerHTML = modules.map((module) => {
+        const assignment = assignmentFor(module.id);
+        return `
+          <tr>
+            <td><strong>${escapeHtml(module.title)}</strong><br><span class="muted">${escapeHtml(module.group)}</span></td>
+            <td>${module.priority}</td>
+            <td>${escapeHtml(assignment.owner || "待确认")}</td>
+            <td>${escapeHtml(assignment.partners || "待确认")}</td>
+            <td>${escapeHtml(assignment.commitment || "待确认")}</td>
+            <td>${escapeHtml(assignment.target || "待确认")}</td>
+            <td>${escapeHtml(assignment.status)}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function renderDecisions() {
+      const grid = document.getElementById("decisionGrid");
+      grid.innerHTML = decisions.map((decision) => {
+        const current = decisionFor(decision.id);
+        return `
+          <article class="decision">
+            <h3>${escapeHtml(decision.title)}</h3>
+            <p>${escapeHtml(decision.prompt)}</p>
+            <div class="decision-fields">
+              <div class="field">
+                <label for="decision-${decision.id}-resolution">会议结论</label>
+                <textarea id="decision-${decision.id}-resolution" placeholder="填写结论，未决定时写清需要什么证据" data-decision="${decision.id}" data-decision-field="resolution">${escapeHtml(current.resolution)}</textarea>
+              </div>
+              <div class="field">
+                <label for="decision-${decision.id}-owner">责任人</label>
+                <input id="decision-${decision.id}-owner" type="text" value="${escapeHtml(current.owner)}" placeholder="姓名" data-decision="${decision.id}" data-decision-field="owner">
+              </div>
+              <div class="field">
+                <label for="decision-${decision.id}-status">状态</label>
+                <select id="decision-${decision.id}-status" data-decision="${decision.id}" data-decision-field="status">
+                  <option value="待讨论"${current.status === "待讨论" ? " selected" : ""}>待讨论</option>
+                  <option value="需要补证据"${current.status === "需要补证据" ? " selected" : ""}>需要补证据</option>
+                  <option value="已确认"${current.status === "已确认" ? " selected" : ""}>已确认</option>
+                  <option value="Later"${current.status === "Later" ? " selected" : ""}>Later</option>
+                </select>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function updateCoverage() {
+      const owners = modules.filter((module) => assignmentFor(module.id).owner.trim()).length;
+      const commitments = modules.filter((module) => assignmentFor(module.id).commitment.trim()).length;
+      const decided = decisions.filter((decision) => {
+        const current = decisionFor(decision.id);
+        return current.status === "已确认" || (current.owner.trim() && current.resolution.trim());
+      }).length;
+      document.getElementById("ownerMetric").textContent = String(owners);
+      document.getElementById("commitmentMetric").textContent = String(commitments);
+      document.getElementById("ownerCoverage").textContent = owners + " / " + modules.length;
+      document.getElementById("commitmentCoverage").textContent = commitments + " / " + modules.length;
+      document.getElementById("decisionCoverage").textContent = decided + " / " + decisions.length;
+    }
+
+    function hydrateMeeting() {
+      document.querySelectorAll("[data-meeting-field]").forEach((element) => {
+        element.value = state.meeting[element.dataset.meetingField] || "";
+      });
+      document.getElementById("meetingNotes").value = state.notes || "";
+    }
+
+    function setTheme(theme) {
+      const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const resolved = theme === "system" ? (systemDark ? "dark" : "light") : theme;
+      document.documentElement.dataset.theme = resolved;
+      document.getElementById("themeButton").textContent = resolved === "dark" ? "切到浅色" : "切到深色";
+    }
+
+    function exportMarkdown() {
+      const lines = [
+        "# Molis Work 将来的功能规划会议纪要",
+        "",
+        "- 日期：" + markdownCell(state.meeting.date),
+        "- 主持人：" + markdownCell(state.meeting.facilitator),
+        "- 参会人：" + markdownCell(state.meeting.participants),
+        "- 本次目标：" + markdownCell(state.meeting.objective),
+        "",
+        "## 功能分工",
+        "",
+        "| 功能域 | 优先级 | 主负责人 | 协作人 | 本期结果 | 目标阶段 | 状态 |",
+        "| --- | --- | --- | --- | --- | --- | --- |"
+      ];
+
+      modules.forEach((module) => {
+        const assignment = assignmentFor(module.id);
+        lines.push("| " + [
+          module.title,
+          module.priority,
+          markdownCell(assignment.owner),
+          markdownCell(assignment.partners),
+          markdownCell(assignment.commitment),
+          markdownCell(assignment.target),
+          markdownCell(assignment.status)
+        ].join(" | ") + " |");
+      });
+
+      lines.push("", "## 关键决定", "");
+      decisions.forEach((decision) => {
+        const current = decisionFor(decision.id);
+        lines.push("### " + decision.title, "", "- 状态：" + markdownCell(current.status), "- 责任人：" + markdownCell(current.owner), "- 结论：" + markdownCell(current.resolution), "");
+      });
+
+      lines.push("## 补充记录", "", state.notes.trim() || "无", "", "## 下一步检查", "", "- [ ] 每个本期功能域有唯一主负责人", "- [ ] 每项本期结果可以独立验收", "- [ ] 真实依赖和并行条件已经确认", "- [ ] 每项工作汇合到一条端到端闭环", "- [ ] 未确认问题有责任人和下一次决策条件", "");
+      return lines.join("\n");
+    }
+
+    function downloadText(filename, content) {
+      const blob = new Blob(["\ufeff", content], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function copySummary() {
+      const content = exportMarkdown();
+      try {
+        await navigator.clipboard.writeText(content);
+      } catch {
+        const area = document.createElement("textarea");
+        area.value = content;
+        area.style.position = "fixed";
+        area.style.opacity = "0";
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand("copy");
+        area.remove();
+      }
+      showToast("会议摘要已复制");
+    }
+
+    function bindEvents() {
+      document.getElementById("moduleGrid").addEventListener("input", (event) => {
+        const target = event.target;
+        const moduleId = target.dataset.module;
+        const field = target.dataset.field;
+        if (!moduleId || !field) return;
+        state.assignments[moduleId] = { ...assignmentFor(moduleId), [field]: target.value };
+        renderAssignmentTable();
+        updateCoverage();
+        scheduleSave();
+      });
+
+      document.getElementById("moduleGrid").addEventListener("change", (event) => {
+        const target = event.target;
+        const moduleId = target.dataset.module;
+        const field = target.dataset.field;
+        if (!moduleId || !field) return;
+        state.assignments[moduleId] = { ...assignmentFor(moduleId), [field]: target.value };
+        renderAssignmentTable();
+        updateCoverage();
+        scheduleSave();
+      });
+
+      document.getElementById("decisionGrid").addEventListener("input", (event) => {
+        const target = event.target;
+        const decisionId = target.dataset.decision;
+        const field = target.dataset.decisionField;
+        if (!decisionId || !field) return;
+        state.decisions[decisionId] = { ...decisionFor(decisionId), [field]: target.value };
+        updateCoverage();
+        scheduleSave();
+      });
+
+      document.getElementById("decisionGrid").addEventListener("change", (event) => {
+        const target = event.target;
+        const decisionId = target.dataset.decision;
+        const field = target.dataset.decisionField;
+        if (!decisionId || !field) return;
+        state.decisions[decisionId] = { ...decisionFor(decisionId), [field]: target.value };
+        updateCoverage();
+        scheduleSave();
+      });
+
+      document.querySelectorAll("[data-meeting-field]").forEach((element) => {
+        element.addEventListener("input", () => {
+          state.meeting[element.dataset.meetingField] = element.value;
+          scheduleSave();
+        });
+      });
+
+      document.getElementById("meetingNotes").addEventListener("input", (event) => {
+        state.notes = event.target.value;
+        scheduleSave();
+      });
+
+      ["searchInput", "priorityFilter", "phaseFilter"].forEach((id) => {
+        document.getElementById(id).addEventListener(id === "searchInput" ? "input" : "change", renderModules);
+      });
+
+      document.getElementById("clearFiltersButton").addEventListener("click", () => {
+        document.getElementById("searchInput").value = "";
+        document.getElementById("priorityFilter").value = "all";
+        document.getElementById("phaseFilter").value = "all";
+        renderModules();
+        showToast("筛选已清除");
+      });
+
+      document.getElementById("themeButton").addEventListener("click", () => {
+        const current = document.documentElement.dataset.theme;
+        state.theme = current === "dark" ? "light" : "dark";
+        setTheme(state.theme);
+        scheduleSave();
+      });
+
+      document.getElementById("printButton").addEventListener("click", () => window.print());
+      document.getElementById("copyButton").addEventListener("click", copySummary);
+
+      const runExport = () => {
+        const date = state.meeting.date || new Date().toISOString().slice(0, 10);
+        downloadText("molis-work-将来的功能规划-会议纪要-" + date + ".md", exportMarkdown());
+        showToast("会议纪要已导出");
+      };
+
+      document.getElementById("exportButton").addEventListener("click", runExport);
+      document.getElementById("exportButtonBottom").addEventListener("click", runExport);
+
+      document.getElementById("resetButton").addEventListener("click", () => {
+        const confirmed = window.confirm("确认清除当前浏览器中填写的负责人、结论和会议记录吗？已导出的文件不会受影响。");
+        if (!confirmed) return;
+        localStorage.removeItem(STORAGE_KEY);
+        state = cloneDefaultState();
+        location.reload();
+      });
+
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+        if (state.theme === "system") setTheme("system");
+      });
+    }
+
+    setTheme(state.theme);
+    hydrateMeeting();
+    renderModules();
+    renderAssignmentTable();
+    renderDecisions();
+    updateCoverage();
+    bindEvents();
+  </script>
+</body>
+</html>

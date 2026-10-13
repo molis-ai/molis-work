@@ -4,7 +4,7 @@
 
 **技术状态：** process/connection handle、invocation handle、stream cursor、buffer、provider health 和资源租约。
 
-**不拥有：** Claim、Run、Goal、Session、workspace、conversation lineage 或 Artifact。Execution/Private Work Context 收到 Receipt 后才更新正式业务状态。
+**不拥有：** Goal、Session、workspace、conversation lineage 或 Artifact。Private Work Context 收到 Receipt 后才更新正式业务状态。
 
 **Adapter：** Local process、Terminal/PTy、Codex app-server、Remote Agent 等实现就近放在 `horizontal/runtime-host/adapters/`，不建立顶层 adapters package。
 
@@ -18,7 +18,7 @@
 
 ## 公开调用规则
 
-调用者只依赖 `@molis-ai/molis-work-service-runtime-host` 或 `@molis-ai/molis-work-contracts/services/runtime-host`。禁止导入 `horizontal/runtime-host/src/**`，也禁止 Runtime Host 导入 Session Registry、Execution Store 或 Web Server。
+调用者只依赖 `@molis-ai/molis-work-service-runtime-host` 或 `@molis-ai/molis-work-contracts/services/runtime-host`。禁止导入 `horizontal/runtime-host/src/**`，也禁止 Runtime Host 导入 Session Registry 或 Web Server。
 
 **迁移 Goal：** WK2 已迁 Runtime router、Codex transport/Adapter 和 PTY server host；WK3 继续迁 Work UI 与产品编排。PTY browser client 属于 Work Plugin 的 UI transport，不在 WK2 假装迁完。
 

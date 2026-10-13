@@ -25,7 +25,7 @@ export interface ShelfAiPorts {
 
 /** Provenance of an explicitly imported personal copy, never an execution authority. */
 export interface ShelfArtifactSource {
-  board_id: string;
+  project_id: string;
   project_path: string;
   reference: ArtifactReference;
   producer_plugin_id: string;
@@ -57,7 +57,7 @@ export function parseShelfTextMaterial(value: unknown): ShelfTextMaterial {
     || (item.source.job_id !== null && typeof item.source.job_id !== "string")) throw new Error("Shelf 固定材料格式无效");
   if (item.source.artifact) {
     const source = item.source.artifact;
-    if (typeof source.board_id !== "string" || !source.board_id || typeof source.project_path !== "string"
+    if (typeof source.project_id !== "string" || !source.project_id || typeof source.project_path !== "string"
       || typeof source.producer_plugin_id !== "string" || typeof source.content_hash !== "string" || !/^[a-f0-9]{64}$/.test(source.content_hash)
       || typeof source.reference?.artifact_id !== "string" || !source.reference.artifact_id || !Number.isSafeInteger(source.reference.version) || source.reference.version < 1) throw new Error("Shelf 材料来源格式无效");
   }

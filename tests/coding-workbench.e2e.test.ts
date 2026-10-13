@@ -74,11 +74,24 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await click(`${files} [data-files-reload]`);
   await waitFor(`!document.querySelector('${files} [data-files-text]').hidden && document.querySelector('${files} [data-files-text]').value.startsWith('second')`);
+  // Diff and Text Stats are laid out as plugin stages (E-14): the heading drawn by the stage, the page's actions at its right,
+  // one centred column at most 960px wide, and the content inside it, not from the window's edge.
+  const stage = (id: string) => evaluate<{ heading: string; actions: string[]; inset: number; column: number; contentLeft: number }>(`(() => {
+    const shell = document.querySelector('[data-companion="${id}"]'), list = shell.querySelector(':scope > .plugin-stage-list'), chrome = list.querySelector(':scope > .plugin-stage-chrome');
+    const style = getComputedStyle(list), inset = parseFloat(style.paddingLeft), box = list.getBoundingClientRect();
+    return { heading: getComputedStyle(chrome, '::before').content, actions: [...chrome.querySelectorAll(':scope > button')].map(button => button.textContent.trim()),
+      inset, column: list.clientWidth - inset - parseFloat(style.paddingRight), contentLeft: shell.querySelector('[data-companion-content]').getBoundingClientRect().left - box.left }; })()`);
   await open("diff");
   await waitFor("document.querySelector('[data-companion=" + '"diff"' + "] [data-phase=ready]')");
+  const diffStage = await stage("diff");
+  assert.match(diffStage.heading, /Diff/); assert.deepEqual(diffStage.actions, ["刷新", "打开 Files"]);
+  assert.ok(diffStage.inset >= 32 && diffStage.column <= 960 && diffStage.contentLeft >= 32, JSON.stringify(diffStage));
   await capture("diff-desktop");
   await open("text-stats");
   await waitFor("document.querySelector('[data-companion=" + '"text-stats"' + "] [data-phase=ready]')");
+  const statsStage = await stage("text-stats");
+  assert.match(statsStage.heading, /Text Stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开 Files"]);
+  assert.ok(statsStage.inset >= 32 && statsStage.column <= 960 && statsStage.contentLeft >= 32, JSON.stringify(statsStage));
   await capture("stats-desktop");
   await writeFile(join(workspace, "note.txt"), "staged\n中文🙂\n");
   git("add", "note.txt");

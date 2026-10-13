@@ -7,6 +7,7 @@ import test from "node:test";
 
 import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, pluginMarketCards, pluginWorkbenchClientAsset, railEntries } from "@molis-ai/molis-work-app-workbench";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { PERSONAL_HOME_SQLITE_STORES } from "@molis-ai/molis-work-storage";
 import {
   TODO_ACTION_PERMISSIONS,
@@ -16,25 +17,23 @@ import {
   TodoPluginRouteTable,
   createTodoRouteHandlers,
   todoManifest,
-  todoRouteErrorResponse,
 } from "@molis-ai/molis-work-plugin-todo";
-import { inspectMethodDeclarations } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { rewriteNativePluginApiPath } from "../apps/local-host/src/native-plugin-api.js";
 import { renderMolisWorkWeb, renderMolisWorkWorkbenchClientScript, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
+import { manifestProblems } from "./fixtures/declaration-manifest.js";
 
 const PROJECT = "project-todo";
 
 function view(): MolisWorkWebView {
-  const board = { board_id: "board-todo", title: "待办", active_goal_id: null, created_at: "2026-09-28T00:00:00.000Z", updated_at: "2026-09-28T00:00:00.000Z" };
+  const board = { project_id: "board-todo", title: "待办", active_goal_id: null, created_at: "2026-09-28T00:00:00.000Z", updated_at: "2026-09-28T00:00:00.000Z" };
   return {
-    snapshot: { board, cursor: 0, goals: [], relations: [], impacts: [], risks: [], claims: [], runs: [], evidence: [], review_obligations: [], reviews: [], candidates: [],
-      contract_proposals: [], rewires: [], clarification_sessions: [], clarification_turns: [], goal_tree_proposals: [], planning_method_packs: [] },
+    snapshot: { board, cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [] },
     project: { project_id: PROJECT, display_name: "待办" },
     projects: [{ project_id: PROJECT, display_name: "待办" }],
     route_prefix: `/projects/${PROJECT}`,
-    demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {}, coverage: [], input_bindings: [], policy_bindings: [], events: [],
-    feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], contract_migrations: [], out_rules: [] },
+    demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {}, input_bindings: [], policy_bindings: [], events: [],
+    feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
   } as unknown as MolisWorkWebView;
 }
 
@@ -65,7 +64,7 @@ test("the workbench mounts the Todo stage, and the client script still parses wi
   assert.doesNotThrow(() => new Function(script));
   assert.doesNotThrow(() => new Function("return " + TODO_CLIENT_FACTORY_SCRIPT));
   // The page's script only knows Todo is there; Todo's own client loads when its surface opens (#150).
-  assert.match(script, /\{"id":"todo","assets":\[\]\}/);
+  assert.match(script, /\["todo"\]/);
   const client = pluginWorkbenchClientAsset("todo");
   assert.ok(client, "Todo's client is served on its own");
   assert.doesNotThrow(() => new Function(client));
@@ -90,12 +89,12 @@ test("HTTP routes map to the same actions; fixed paths are not read as ids; a pr
   await withHost(async (home, host) => {
     const personal = new TodoPluginRouteTable(createTodoRouteHandlers({ actions: bindActionClient(host.homeActionClient(),
       () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: TODO_ACTION_PERMISSIONS })) }));
-    const reference = molisWorkHostProjectReference({ projectId: PROJECT, boardId: PROJECT, databasePath: join(home, "project.sqlite") });
+    const reference = molisWorkHostProjectReference({ projectId: PROJECT, databasePath: join(home, "project.sqlite") });
     const inProject = new TodoPluginRouteTable(createTodoRouteHandlers({ actions: bindActionClient(host.actionClient(reference),
       () => ({ actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: TODO_ACTION_PERMISSIONS })) }));
     const call = async (table: TodoPluginRouteTable, method: "GET" | "POST", pathname: string, body: Record<string, unknown> = {}, query = new URLSearchParams()) => {
       try { return (await table.handle({ method, pathname, query, body }))!; }
-      catch (error) { return todoRouteErrorResponse(error); }
+      catch (error) { return actionErrorResponse(error); }
     };
     const mine = (await call(personal, "POST", "/api/todo", { title: "个人的事", planned_date: "2026-09-28" })).body as { item: { id: string; placement: string } };
     assert.equal(mine.item.placement, "personal");
@@ -140,5 +139,5 @@ test("待办整理师 and both organizing methods are registered with the Host, 
   ]);
   assert.match(todo[0]!.methods![1]!.body, /状态不擅改/u);
   assert.match(todo[0]!.methods![0]!.body, /todo\.organize\.extract/u);
-  assert.deepEqual(inspectMethodDeclarations(todoManifest.methods), []);
+  assert.equal(manifestProblems(todoManifest), "");
 });

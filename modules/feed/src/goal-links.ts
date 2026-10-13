@@ -27,10 +27,10 @@ export class FeedGoalLinks {
     }).map((edge) => edge.source.id);
   }
 
-  set(projectId: string, itemId: string, goalId: string, at: string, migration = false): void {
+  set(projectId: string, itemId: string, goalId: string, at: string): void {
     this.ledger.commands.put(access(projectId), {
       key: this.key(itemId), type: "feed.goal", source: ref(projectId, "feed", itemId),
-      target: ref(projectId, "goals", goalId), cause: migration ? "feed.legacy_goal_link" : "feed.link_goal", recorded_at: at,
+      target: ref(projectId, "goals", goalId), cause: "feed.link_goal", recorded_at: at,
     });
   }
 

@@ -1,4 +1,11 @@
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineArtifactPreviewAction } from "@molis-ai/molis-work-plugin-sdk";
+
+/** The 成果 type the sample pins, and the name and preview action every pinned type must declare (specs/artifact-positioning A1/A7). */
+export const SAMPLE_ARTIFACT_TYPE_ID = "io.molis.work.example.note";
+export function sampleArtifactType(pluginId: string): { artifact_type_id: string; schema_version: number; title: string; preview: { capability_id: string; version: number } } {
+  return { artifact_type_id: SAMPLE_ARTIFACT_TYPE_ID, schema_version: 1, title: "Sample result", preview: { capability_id: `${pluginId}.results.preview`, version: 1 } };
+}
 
 /** Serialized once into the generated manifest; handlers read these same definitions. */
 export function samplePluginActions(pluginId: string): ActionDefinition[] {
@@ -11,6 +18,7 @@ export function samplePluginActions(pluginId: string): ActionDefinition[] {
       permissions, subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema, ...(result_view ? { result_view } : {}),
     },
   });
+  const preview = defineArtifactPreviewAction(`${pluginId}.results.preview`, "sample result", ["artifact:read"]);
   return [
     define("health", "Sample health", "Read the sample connector's health without accessing private results.", [], {
       type: "object", properties: { ok: { type: "boolean" }, status: { enum: ["connected"] }, message: { type: "string" } }, required: ["ok", "status", "message"], additionalProperties: false,
@@ -20,11 +28,12 @@ export function samplePluginActions(pluginId: string): ActionDefinition[] {
     }),
     define("results.publish", "Save my sample result", "Publish the next personal Artifact version and update the original private counter.",
       ["storage:private", "artifact:read", "artifact:write"], result, true, false, { summary: "Sample result saved", title_pointer: "/payload/title" }),
+    { ...preview, action: { ...preview.action, title: "Preview a sample result", description: "Show one saved version of a sample result as readable text; changes nothing." } },
   ];
 }
 
 /** Uses only the packed public SDK, never repository implementation paths. */
-export const samplePluginSource = `import { definePlugin, defineAction, definePollingIntegrationPlugin, bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
+export const samplePluginSource = `import { definePlugin, defineAction, definePollingIntegrationPlugin, bindOwnerPluginAction, bindArtifactPreview } from "@molis-ai/molis-work-plugin-sdk";
 import manifest from "./manifest.json" with { type: "json" };
 
 export default definePlugin({
@@ -35,7 +44,7 @@ export default definePlugin({
     const storage = services.storage;
     const artifactId = context.install_id + ":sample-result";
     const definition = name => manifest.actions.find(action => action.capability_id === manifest.plugin_id + "." + name);
-    const healthAction = definition("health"), readAction = definition("results.read"), publishAction = definition("results.publish");
+    const healthAction = definition("health"), readAction = definition("results.read"), publishAction = definition("results.publish"), previewAction = definition("results.preview");
     function savedCount() {
       const value = storage.get("saved-count");
       const count = value === null ? 0 : Number(value);
@@ -52,6 +61,9 @@ export default definePlugin({
       services.artifacts.publish({
         artifact_id: artifactId, version, artifact_type_id: "io.molis.work.example.note", schema_version: 1,
         content: { kind: "inline", payload: { title: "Local sample result", sequence: version } },
+        // A 成果 says what it pins, what it is called and what its content is.
+        origin: { kind: "pinned", subject: { kind: "counter", id: "sample" }, revision: String(version) },
+        title: "Local sample result", media_type: "application/json",
       });
       // Publish first: if interrupted before this write, the same version/content can replay safely.
       storage.set("saved-count", String(version));
@@ -83,6 +95,10 @@ export default definePlugin({
       defineAction(healthAction, () => provider.health()).handler,
       bindOwnerPluginAction(context, readAction, () => { const count = savedCount(); return { count, latest: count ? resultAt(count) : null }; }),
       bindOwnerPluginAction(context, publishAction, () => publishResult()),
+      // The owner's half of the preview the 成果库 and the side panel show: this plugin's own type, as text.
+      bindArtifactPreview(previewAction, "io.molis.work.example.note", artifact => ({
+        media_type: "text/markdown", text: "# " + artifact.payload.title + "\\n\\nResult " + artifact.payload.sequence + "\\n",
+      })),
     ] };
   },
 });

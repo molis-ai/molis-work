@@ -15,7 +15,7 @@ export interface CapsuleRendererPorts {
 
 export function createCapsuleWorkbench(ports: CapsuleRendererPorts) {
   const { L, htmlLang, clientI18nScript } = ports.locale;
-  const { newestRun, activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem } = createCapsuleItemProjection(L);
+  const { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem } = createCapsuleItemProjection(L);
   function buildCapsuleSnapshot(
     view: MolisWorkWebView,
     directory: { goal_id: string }[],
@@ -24,10 +24,7 @@ export function createCapsuleWorkbench(ports: CapsuleRendererPorts) {
   ): CapsuleSnapshot {
     if (!view.project) throw new Error("工作胶囊必须从具体项目读取状态");
     const active = activeGoalViews(view);
-    const runningCount = active.filter((item) => {
-      const run = newestRun(item);
-      return run !== null;
-    }).length;
+    const runningCount = active.length;
     const canonicalFocus = view.snapshot.board.active_goal_id;
     const assigned = new Set<string>();
     const items: CapsuleGoalItem[] = [];
@@ -135,7 +132,6 @@ export function createCapsuleWorkbench(ports: CapsuleRendererPorts) {
         action_path: projectPath(view),
         status_since: null,
         why: L("当前没有正在执行或可以立即开始的目标"),
-        just_completed: L("还没有新的完成记录"),
         current: L("当前没有正在执行的工作"),
         blocker: L("可能仍有前置事项、风险或目标说明需要处理"),
         next: L("打开 Molis Work 查看哪些条件还没有满足"),

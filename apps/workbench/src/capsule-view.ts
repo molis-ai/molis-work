@@ -20,7 +20,6 @@ export interface CapsuleState {
   action_path: string;
   status_since: string | null;
   why: string;
-  just_completed: string;
   current: string;
   blocker: string;
   next: string;
@@ -47,14 +46,12 @@ export interface CapsuleGoalItem {
   status_label: string;
   status_since: string | null;
   why: string;
-  just_completed: string | null;
   current: string;
   blocker: string | null;
   next_step: string;
   next: string;
   action_label: string;
   action_path: string;
-  has_active_run: boolean;
 }
 
 export interface CapsuleTab {

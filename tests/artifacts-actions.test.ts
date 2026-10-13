@@ -9,15 +9,15 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, artifactsActions as a, type ArtifactImportResult } from "@molis-ai/molis-work-plugin-artifacts";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { withConnectorConnections, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { projectActionAvailability } from "../apps/local-host/src/project-action-availability.js";
-import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { artifactActionProvider } from "../apps/local-host/src/artifact-actions.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
-test("Artifacts share real records through Host and production MCP, preserving fixed versions, authority and restart", { timeout: 120_000 }, async () => {
+test("Artifacts share real records through Host and production MCP, preserving fixed versions, authority and restart", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "artifacts-actions-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Artifact actions", actor_id: "owner" });
@@ -25,14 +25,16 @@ test("Artifacts share real records through Host and production MCP, preserving f
   const policy = projectActionAvailability(async (_options, run) => run(catalog), home);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: policy,
     workspaceFor: async () => ({ workspace_id: "fixture", canonical_path: await realpath(home), realpath_verified: true }) });
-  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  // The Home is served so that the MCP client's grants are saved the way a person saves them; this file keeps its own host (it needs `src` imports of the provider).
+  const served = await serveTestHost(t, { home, host });
+  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   const clients: Client[] = [];
   const connect = async (identity: string) => {
     const sdk = new Client({ name: "untrusted-name", version: "1" }); clients.push(sdk);
     await sdk.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
-      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, identity, project.database_path, project.board_id], stderr: "pipe" }));
+      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, identity, project.database_path], stderr: "pipe" }));
     return sdk;
   };
   try {
@@ -59,13 +61,11 @@ test("Artifacts share real records through Host and production MCP, preserving f
     await host.closeProject(ref);
     assert.deepEqual((await bound.invoke(a.read, { reference: { artifact_id: first.artifact_id, version: 1 } })).selected, record);
 
-    for (const definition of [a.importFile, a.read, a.browser, a.export]) {
-      await writeMcpActionGrant(home, createMcpActionGrant("runtime:writer", project.project_id,
-        directory.find(row => row.capability_id === definition.capability_id)!, true));
-    }
+    const view = (definition: { capability_id: string }) => directory.find(row => row.capability_id === definition.capability_id)!;
+    await served.grant("runtime:writer", project.project_id, [a.importFile, a.read, a.browser, a.export].map(view));
     const sdk = await connect("writer");
-    assert.ok((await sdk.listTools()).tools.some(tool => tool.name === hostActionToolName(a.importFile)));
-    const result = await sdk.callTool({ name: hostActionToolName(a.importFile), arguments: { ...input, content: "MCP 原文" },
+    assert.ok((await sdk.listTools()).tools.some(tool => tool.name === molisWorkActionToolName(a.importFile)));
+    const result = await sdk.callTool({ name: molisWorkActionToolName(a.importFile), arguments: { ...input, content: "MCP 原文" },
       _meta: { actor_id: "forged", project_id: "other" } });
     assert.equal(result.isError, false, JSON.stringify(result));
     const saved = result.structuredContent as unknown as ArtifactImportResult;
@@ -73,13 +73,12 @@ test("Artifacts share real records through Host and production MCP, preserving f
     const mcpRecord = (await bound.invoke(a.read, { reference: exact })).selected!;
     assert.equal(mcpRecord.created_by, "runtime:writer");
     assert.equal((mcpRecord.payload as { content: string }).content, "MCP 原文");
-    const read = await sdk.callTool({ name: hostActionToolName(a.read), arguments: { reference: exact } });
+    const read = await sdk.callTool({ name: molisWorkActionToolName(a.read), arguments: { reference: exact } });
     assert.deepEqual((read.structuredContent as any).selected, mcpRecord);
     const stranger = await connect("stranger");
-    assert.equal((await stranger.callTool({ name: hostActionToolName(a.read), arguments: { reference: exact } })).isError, true);
-    const grant = createMcpActionGrant("runtime:writer", project.project_id, directory.find(row => row.capability_id === a.importFile.capability_id)!, false);
-    await writeMcpActionGrant(home, grant);
-    assert.equal((await sdk.callTool({ name: hostActionToolName(a.importFile), arguments: { ...input, content: "撤权后不能保存" } })).isError, true);
+    assert.equal((await stranger.callTool({ name: molisWorkActionToolName(a.read), arguments: { reference: exact } })).isError, true);
+    await served.revoke("runtime:writer", project.project_id, [view(a.importFile)]);
+    assert.equal((await sdk.callTool({ name: molisWorkActionToolName(a.importFile), arguments: { ...input, content: "撤权后不能保存" } })).isError, true);
     assert.equal((await bound.invoke(a.browser, {})).versions.length, 2);
     catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" });
     assert.equal((await client.discover(caller)).find(row => row.capability_id === a.read.capability_id)!.availability.available, false);
@@ -87,7 +86,7 @@ test("Artifacts share real records through Host and production MCP, preserving f
     catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" });
     assert.deepEqual((await bound.invoke(a.read, { reference: exact })).selected, mcpRecord);
   } finally {
-    await Promise.all(clients.map(value => value.close())); await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
+    await Promise.all(clients.map(value => value.close())); await served.close(); await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
   }
 });
 
@@ -98,15 +97,15 @@ test("external Artifact import checks live authority and plugin state after fetc
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   process.env.MOLIS_WORK_ENCRYPTION_KEY = Buffer.alloc(32, 19).toString("base64");
   resetSecretStoreCache();
-  runWithMolisWorkHome(home, () => createFileSecretStore().put("connector:google-drive:token", "fixture-only-token"));
+  withConnectorConnections(home, store => store.createToken({ serviceId: "google-drive", displayName: "Google Drive", token: "fixture-only-token" }));
   let enabled = true;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
     actionAvailability: () => enabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "已停用" } });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "board", projectId: "project" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "project", audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), originalFetch = globalThis.fetch;
   try {
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ board_id: "board", title: "Imports", actor_id: "owner", idempotency_key: "init" }));
+    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: "project", title: "Imports", actor_id: "owner", idempotency_key: "init" }));
     for (const mode of ["revoked", "disabled", "cancelled", "success"] as const) {
       let enter!: () => void, release!: () => void, allowed = true;
       const entered = new Promise<void>(resolve => { enter = resolve; });
@@ -143,10 +142,10 @@ test("external Artifact import checks live authority and plugin state after fetc
 for (const stop of ["withdraw", "cancel"] as const) test(`Artifact imports stay concurrent and ${stop} before commit cannot save a late document`, { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "artifact-import-execution-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "board", projectId: "project" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project" });
   try {
     await host.withProject(ref, async runtime => {
-      runtime.coordinator.initializeBoard({ board_id: "board", title: "Imports", actor_id: "owner", idempotency_key: "init" });
+      runtime.coordinator.initializeBoard({ project_id: "project", title: "Imports", actor_id: "owner", idempotency_key: "init" });
       const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
       const service = new ActionService(undefined, { beforeEffect: async caller => {
         if (caller.actor_id === "slow") { entered.resolve(); await release.promise; }
@@ -165,9 +164,9 @@ for (const stop of ["withdraw", "cancel"] as const) test(`Artifact imports stay 
         assert.ok(result, "a waiting import must not occupy the project's serial write queue");
         if (stop === "withdraw") dispose(); else controller.abort();
         release.resolve(); await rejected;
-        const rows = runtime.coordinator.artifacts.query.listArtifacts("board");
+        const rows = runtime.coordinator.artifacts.query.listArtifacts("project");
         assert.equal(rows.length, 1); assert.equal(rows[0]!.artifact_id, result.artifact_id);
-        assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion("board", result)!.payload as Record<string, unknown>).content, "Fast document");
+        assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion("project", result)!.payload as Record<string, unknown>).content, "Fast document");
       } finally {
         clearTimeout(timer); controller.abort(); release.resolve();
         await Promise.allSettled([pending, rejected, ...(fast ? [fast] : [])]); dispose();

@@ -89,11 +89,10 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
       const contains = mode === "keyword" ? value("data-feed-out-rule-contains") : "";
       const selectedJudgment = mode === "existing" ? value("data-feed-out-rule-function-key") : "";
       const judgment = selectedJudgment ? JSON.parse(selectedJudgment) : null;
-      const functionKey = "";
       if (mode === "keyword" && !contains) throw new Error(L("填写一个关键词，再预览匹配结果。"));
       if (mode === "natural" && !instructions) throw new Error(L("先描述你想捕捉什么消息。"));
       if (mode === "existing" && !judgment) throw new Error(L("请选择一条已发布规则。"));
-      return { mode, instructions, contains, functionKey, judgment, name: value("data-feed-out-rule-name") || contains || instructions.slice(0, 40), admission: value("data-feed-out-rule-admission") || "suggest" };
+      return { mode, instructions, contains, judgment, name: value("data-feed-out-rule-name") || contains || instructions.slice(0, 40), admission: value("data-feed-out-rule-admission") || "suggest" };
     };
     const ensureFeedFunctionDraft = async (section, rule) => {
       const state = feedRuleState(section);
@@ -191,10 +190,10 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
             const content = JSON.stringify({ name: rule.name, instructions: rule.instructions });
             if (!state.function || state.previewContent !== content) throw new Error(L("请先用当前描述预览，再保存并启用。"));
             if (state.function.status !== "published") state.function = (await feedApi("/api/functions/" + encodeURIComponent(state.function.id) + "/publish", "POST", { updated_at: state.function.updated_at })).function;
-            rule.functionKey = state.function.function_key;
+            rule.judgment = { capability_id: "functions.published." + state.function.function_key, version: state.function.version, provider_id: "system.functions" };
             rememberFeedRule(section);
           }
-          await feedApi("/api/feed/out-rules", "POST", { name: rule.name || L("来源捕捉规则"), contains: rule.contains, source_id: section.dataset.feedOutRules, admission: rule.admission, ...(rule.judgment ? { judgment: rule.judgment } : { function_key: rule.functionKey || null }) });
+          await feedApi("/api/feed/out-rules", "POST", { name: rule.name || L("来源捕捉规则"), contains: rule.contains, source_id: section.dataset.feedOutRules, admission: rule.admission, judgment: rule.judgment });
           feedRuleDrafts.delete(feedRuleKey(section));
           try { sessionStorage.removeItem(feedRuleKey(section)); } catch {}
           section.querySelectorAll("[data-feed-rule-composer] input, [data-feed-rule-composer] textarea").forEach(field => field.value = "");

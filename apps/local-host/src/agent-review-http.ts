@@ -17,7 +17,7 @@ import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
  */
 
 export interface AgentReviewHttpPorts {
-  boardId: string;
+  projectId: string;
   agentHost: AgentHost;
   /** Who the decision is recorded against. */
   actorId: string;
@@ -35,10 +35,10 @@ export async function handleAgentReviewHttp(
   ports: AgentReviewHttpPorts,
 ): Promise<boolean> {
   if ((request.method === "GET" || request.method === "POST") && url.pathname === "/api/agent/reviews/recovery") {
-    await ports.agentHost.reviews.refresh(ports.boardId);
+    await ports.agentHost.reviews.refresh(ports.projectId);
     const body = request.method === "POST" ? await readLocalWebBody(request) : {};
     const reviewId = request.method === "POST" ? body.review_id : url.searchParams.get("review_id");
-    if (typeof reviewId !== "string" || ports.agentHost.reviews.get(reviewId)?.board_id !== ports.boardId) {
+    if (typeof reviewId !== "string" || ports.agentHost.reviews.get(reviewId)?.project_id !== ports.projectId) {
       sendLocalWebJson(response, 404, { error: "找不到此项目的原操作" }); return true;
     }
     if (!ports.observeGitIndex) { sendLocalWebJson(response, 409, { error: "当前暂存区核对尚未接通" }); return true; }
@@ -53,7 +53,7 @@ export async function handleAgentReviewHttp(
     return true;
   }
   if (request.method === "GET" && url.pathname === "/api/agent/reviews") {
-    await ports.agentHost.reviews.refresh(ports.boardId);
+    await ports.agentHost.reviews.refresh(ports.projectId);
     const requested = url.searchParams.get("status");
     const status = STATUSES.find((entry) => entry === requested);
     const runIds = url.searchParams.getAll("run_id");
@@ -66,7 +66,7 @@ export async function handleAgentReviewHttp(
       sendLocalWebJson(response, 400, { error: "审查记录数量必须为 1–1000" });
       return true;
     }
-    const matched = ports.agentHost.reviews.list(ports.boardId, status)
+    const matched = ports.agentHost.reviews.list(ports.projectId, status)
       .filter(review => runIds.length === 0 && !sessionId && !workspaceId && !runSessionId || review.run && runIds.includes(review.run.run_id)
         || runSessionId && review.run?.session_id === runSessionId
         || sessionId && review.operation?.session_id === sessionId || workspaceId && review.operation?.workspace_id === workspaceId)
@@ -91,7 +91,7 @@ export async function handleAgentReviewHttp(
   }
 
   if (request.method === "POST" && url.pathname === "/api/agent/reviews/decide") {
-    await ports.agentHost.reviews.refresh(ports.boardId);
+    await ports.agentHost.reviews.refresh(ports.projectId);
     const body = await readLocalWebBody(request);
     const reviewId = typeof body.review_id === "string" ? body.review_id : "";
     const decision = body.decision === "approve" || body.decision === "reject"
@@ -107,7 +107,7 @@ export async function handleAgentReviewHttp(
     if (body.remember !== undefined && body.remember !== "session") {
       sendLocalWebJson(response, 400, { error: "remember 只能是 session" }); return true;
     }
-    if (ports.agentHost.reviews.get(reviewId)?.board_id !== ports.boardId) {
+    if (ports.agentHost.reviews.get(reviewId)?.project_id !== ports.projectId) {
       sendLocalWebJson(response, 404, { error: "找不到这条待审操作" });
       return true;
     }

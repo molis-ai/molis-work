@@ -24,7 +24,7 @@ function row(overrides: Partial<AgentReviewRow> = {}): AgentReviewRow {
     request: {
       review_id: "r1",
       run: { run_id: "run-1", session_id: "s-1" },
-      board_id: "board-a",
+      project_id: "board-a",
       plugin_id: "io.molis.work.coding",
       kind: "text-edit",
       document: {

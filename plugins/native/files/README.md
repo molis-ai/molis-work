@@ -1,12 +1,12 @@
 # @molis-ai/molis-work-plugin-files
 
-Browses the bound workspace, reads one file at a time, and publishes what it
-captured: a collection description, `before`/`after` text snapshots, and the
+Browses the bound workspace, reads one file at a time, and records what it
+captured as process items: a collection description, `before`/`after` text snapshots, and the
 text the user selected.
 
 Files never reads a directory itself. The Host lists and reads; this Plugin
-turns those results into a tree, a preview and the Artifacts other Plugins bind
-to. Every interesting case — a directory that failed to list, one that was
+turns those results into a tree, a preview and the process items other Plugins
+bind to. Every interesting case — a directory that failed to list, one that was
 truncated, a file that is binary, too large, missing or unreadable — is its own
 state with its own sentence, so the user can tell which problem they have.
 
@@ -20,7 +20,7 @@ and capture into the existing `before`, `after` and `selection` outputs. The
 Host rechecks project membership on every read, rejects symlinks and traversal,
 and bounds a directory to 1000 entries and a UTF-8 file to 256 KiB. Reading
 position survives restart. Switching workspaces invalidates current outputs
-while keeping historical Artifacts. The Workbench mounts the Files directory
+while keeping historical process items. The Workbench mounts the Files directory
 and reader through public exports; default bindings feed snapshot Diff and
 Text Stats. Generic command availability, standalone plugin entry, Coding
 material consumption and automatic refresh remain incomplete.
@@ -36,7 +36,7 @@ Directory candidates and browsing preferences come from the [current-project set
 - 负责：工作目录树与阅读器，发布有界的文本快照与选区。
 - 不负责：读目录本身（由 Host 提供）、文件系统授权、比较渲染。
 - 公开入口：`@molis-ai/molis-work-plugin-files`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 插件自己不读目录，只经 Host 能力。
   - 快照有界并带版本，下游按 Artifact 类型消费，不指定生产者。

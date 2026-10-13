@@ -1,6 +1,7 @@
 import { defineActionUsagesAction, defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { CharacterDraft, CharacterState } from "@molis-ai/molis-work-contracts/modules/characters";
+import { charactersArtifactPreview } from "./artifact-preview.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1, maxLength: 200 };
@@ -24,11 +25,13 @@ export interface CharacterUpdateInput { id: string; expected_revision: number; t
 export type CharacterLaunchInput = { reference: ArtifactReference; workspace_id: string; task: string; request_id: string };
 
 export const charactersActions = {
+  /** A published character as the 成果库 and side panel show it (artifact-positioning A4). */
+  artifactPreview: charactersArtifactPreview,
   list: define<Record<string, never>, { drafts: unknown[]; publications: unknown[] }>("list", "角色列表", "读取本人的角色草稿和本项目已发布的固定版本",
     "query", object({}), object({ drafts: { type: "array" }, publications: { type: "array" } }), ["artifact:read"]),
   actions: define<Record<string, never>, { actions: unknown[] }>("actions.catalog", "角色可选能力", "读取可交给内置 Agent 的授权能力目录，用于角色的能力范围",
     "query", object({}), object({ actions: { type: "array" } }), ["artifact:read"]),
-  create: define<Record<string, never>, { draft: CharacterDraft }>("create", "新建角色", "新建一份本人的角色草稿", "command", object({}), object({ draft }), []),
+  create: define<Record<string, never>, { draft: CharacterDraft }>("create", "新建角色", "新建一份标题为「新角色」、做事方式为空的角色草稿并返回它；只创建，不发布。填写内容用「修改角色草稿」，固定成项目里的版本用「发布角色」", "command", object({}), object({ draft }), []),
   update: define<CharacterUpdateInput, { draft: CharacterDraft }>("update", "修改角色草稿", "按读取时的修订号保存标题、做事方式与工具范围；过期修改被拒绝",
     "command", object({ id, expected_revision: revision, title: text, instructions: text, host_tools: { anyOf: [{ type: "array", items: text }, { type: "null" }] },
       action_tools: { anyOf: [{ type: "array", items: exact }, { type: "null" }] } }, ["id", "expected_revision"]), object({ draft }), []),

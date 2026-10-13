@@ -6,7 +6,7 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import type { ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
 import { BUILTIN_PROJECT_PLUGIN_REGISTRY } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ProjectsModule, createProjectsSchema, migrateProjectOpenPluginSchema } from "@molis-ai/molis-work-module-projects";
+import { ProjectsModule, createProjectsSchema } from "@molis-ai/molis-work-module-projects";
 
 function openProjects(directory: string, plugins?: ProjectPluginRegistry) {
   const db = new Database(join(directory, "catalog.db"));
@@ -84,50 +84,6 @@ test("enabling a Plugin still pulls in the companions it cannot appear without",
       actor_id: "tester",
     });
     assert.deepEqual(enabled.sort(), ["feed", "goals", "inbox"]);
-    db.close();
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
-
-test("the migration lifts the closed plugin-id constraint and keeps existing rows", () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-registry-migration-"));
-  try {
-    const db = new Database(join(directory, "catalog.db"));
-    // Rebuild the pre-migration shape: a closed CHECK that refuses anything new.
-    db.exec(`
-      CREATE TABLE projects (project_id TEXT PRIMARY KEY);
-      INSERT INTO projects (project_id) VALUES ('project-1');
-      CREATE TABLE project_plugins (
-        project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
-        plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'task', 'sessions', 'inbox', 'feed', 'artifacts')),
-        added_at TEXT NOT NULL,
-        PRIMARY KEY (project_id, plugin_id)
-      );
-      INSERT INTO project_plugins VALUES ('project-1', 'goals', '2026-01-01T00:00:00.000Z');
-      INSERT INTO project_plugins VALUES ('project-1', 'feed', '2026-01-02T00:00:00.000Z');
-    `);
-    assert.throws(
-      () => db.prepare("INSERT INTO project_plugins VALUES (?, ?, ?)").run("project-1", "coding", "now"),
-      /CHECK constraint failed/u,
-      "迁移前应当被 CHECK 拒绝",
-    );
-
-    migrateProjectOpenPluginSchema(db);
-
-    assert.deepEqual(
-      db.prepare("SELECT plugin_id, added_at FROM project_plugins ORDER BY plugin_id").all(),
-      [
-        { plugin_id: "feed", added_at: "2026-01-02T00:00:00.000Z" },
-        { plugin_id: "goals", added_at: "2026-01-01T00:00:00.000Z" },
-      ],
-      "已有启用状态必须原样保留",
-    );
-    db.prepare("INSERT INTO project_plugins VALUES (?, ?, ?)").run("project-1", "coding", "now");
-    assert.equal(
-      db.prepare("SELECT COUNT(*) AS total FROM project_plugins WHERE plugin_id = 'coding'").get().total,
-      1,
-    );
     db.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });

@@ -1,4 +1,4 @@
-import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
+import { createPrologueError, DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabel, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionClient, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -20,9 +20,14 @@ const describe = (view: ActionView, direct = false) => {
     use: effect === "read" ? GATEWAY_TOOLS.read : direct ? GATEWAY_TOOLS.direct : GATEWAY_TOOLS.change, description: view.action.description.slice(0, 600), input_schema: view.action.input_schema };
 };
 
-/** The person's memory tools; each refuses when the round was not given memory. */
+/** A memory tool is offered where the round was given memory, and remember, forget and suggest-memory only where it was given that one. */
+const memoryToolOffered = (name: string, memory: AgentActionClient["memory"]): boolean => !(Object.values(MEMORY_TOOLS) as string[]).includes(name)
+  || (!!memory && (name !== MEMORY_TOOLS.remember || !!memory.remember) && (name !== MEMORY_TOOLS.forget || !!memory.forget) && (name !== MEMORY_TOOLS.propose || !!memory.propose));
+
+/** The person's memory tools; each refuses when the round was not given memory, or not that tool. */
 function memoryExecutors(given: AgentActionClient["memory"], guarded: (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>) => ToolRunner): Record<string, ToolRunner> {
   const available = () => { if (!given) throw new ActionError("actions.forbidden", "Forming memories is switched off here; tell the person you did not keep it."); return given; };
+  const without = (tool: string): never => { throw new ActionError("actions.forbidden", `This work has no ${tool} tool (a work handed to you by another work cannot keep or forget memories); tell the person or the work that handed it to you that nothing was kept or forgotten.`); };
   const text = (value: unknown, field: string, max: number) => { if (typeof value !== "string" || !value.trim() || value.length > max) throw new ActionError("actions.reference_invalid", `"${field}" must be 1–${max} characters.`); return value.trim(); };
   return {
     [MEMORY_TOOLS.remember]: guarded(async args => {
@@ -30,11 +35,12 @@ function memoryExecutors(given: AgentActionClient["memory"], guarded: (run: (arg
       if (!scope) throw new ActionError("actions.reference_invalid", "\"scope\" must be personal, project or character.");
       const kind = args.kind === undefined ? undefined : ["preference", "convention", "fact", "experience"].includes(String(args.kind)) ? args.kind as "preference" | "convention" | "fact" | "experience" : null;
       if (kind === null) throw new ActionError("actions.reference_invalid", "\"kind\" must be preference, convention, fact or experience.");
-      return JSON.stringify(await available().remember({ text: text(args.text, "text", 400), scope, said: text(args.said, "said", 400),
+      const remember = available().remember ?? without(MEMORY_TOOLS.remember);
+      return JSON.stringify(await remember({ text: text(args.text, "text", 400), scope, said: text(args.said, "said", 400),
         ...(kind ? { kind } : {}), ...(args.replaces !== undefined ? { replaces: text(args.replaces, "replaces", 200) } : {}) }));
     }),
     [MEMORY_TOOLS.list]: guarded(async () => JSON.stringify({ memories: await available().list() })),
-    [MEMORY_TOOLS.forget]: guarded(async args => JSON.stringify(await available().forget(text(args.memory_id, "memory_id", 200)))),
+    [MEMORY_TOOLS.forget]: guarded(async args => { const forget = available().forget ?? without(MEMORY_TOOLS.forget); return JSON.stringify(await forget(text(args.memory_id, "memory_id", 200))); }),
     [MEMORY_TOOLS.propose]: guarded(async args => {
       const scope = args.scope === "project" ? "project" : args.scope === "personal" ? "personal" : null;
       if (!scope) throw new ActionError("actions.reference_invalid", "\"scope\" must be personal or project.");
@@ -70,6 +76,18 @@ function parseCapability(args: Record<string, unknown>): CapabilityArgs {
   const nested = input !== null && typeof input === "object" && !Array.isArray(input);
   return { capability_id: args.capability_id, version: args.version as number, provider_id: args.provider_id,
     input: input === undefined ? (Object.keys(beside).length ? beside : undefined) : nested && Object.keys(beside).length ? { ...beside, ...input as Record<string, unknown> } : input };
+}
+
+/** Invalid arguments need the same current contract for a suggestion as for a dispatched capability. */
+function inputSchemaError(error: unknown, schema: ActionView["action"]["input_schema"]): never {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = (error as { code?: string })?.code;
+  if (code === "actions.input_invalid" || /输入不符合能力合同|input schema|does not match/i.test(message)) {
+    // Unknown Host exceptions are clipped to 240 characters by the SDK. Use its declared argument error so the
+    // current contract survives into the next model turn; carry no user values or arbitrary exception text.
+    throw createPrologueError("TOOL_ARGUMENTS_INVALID", `输入不符合能力合同。The input must be a JSON value matching this schema: ${JSON.stringify(schema).slice(0, 2000)}. For object schemas, put every required capability field inside input, not in the button title or summary. Correct the arguments before calling again; do not repeat the same invalid input.`);
+  }
+  throw error;
 }
 
 /**
@@ -125,12 +143,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       if (write && (local.signal.aborted || code === "actions.output_invalid_after_effect")) {
         throw new ActionError("actions.outcome_unknown", `"${view.provider.title} · ${view.action.title}" was sent but did not finish (${local.signal.aborted ? "it ran out of time or was stopped" : "its result was invalid"}); it may or may not have taken effect. Do not submit it again: first read the object back with ${GATEWAY_TOOLS.read} and tell the person what actually happened.`);
       }
-      // A contract mismatch is corrected in one step when the model sees the shape it must send.
-      const message = error instanceof Error ? error.message : String(error);
-      if (/输入不符合能力合同|input schema|does not match/i.test(message)) {
-        throw new ActionError((error as { code?: string }).code ?? "actions.input_invalid", `${message}. The input must be a JSON value matching this schema: ${JSON.stringify(schema).slice(0, 2000)}`);
-      }
-      throw error;
+      inputSchemaError(error, schema);
     } finally { clearTimeout(deadline); signal.removeEventListener("abort", follow); }
   };
   const executors: Record<string, ToolRunner> = {
@@ -161,10 +174,12 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       const editable = Array.isArray(args.editable) ? args.editable.filter((item): item is string => typeof item === "string").slice(0, 20) : undefined;
       const missing = Array.isArray(args.missing) ? args.missing.flatMap(item => item && typeof item === "object" && typeof (item as { field?: unknown }).field === "string" && typeof (item as { question?: unknown }).question === "string"
         ? [{ field: (item as { field: string }).field, question: (item as { question: string }).question.slice(0, 300) }] : []).slice(0, 10) : undefined;
-      const recorded = await gateway.client.offer!({ title: text(args.title, "title", 40), summary: text(args.summary, "summary", 600),
-        reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input: normalizedInput(view, parsed.input),
-        ...(editable?.length ? { editable } : {}), ...(missing?.length ? { missing } : {}) });
-      return JSON.stringify({ offered: recorded.offer_id, note: "Shown to the person as a button; nothing has run. Do not call change-capability for the same thing unless they ask you to." });
+      try {
+        const recorded = await gateway.client.offer!({ title: text(args.title, "title", 40), summary: text(args.summary, "summary", 600),
+          reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input: normalizedInput(view, parsed.input),
+          ...(editable?.length ? { editable } : {}), ...(missing?.length ? { missing } : {}) });
+        return JSON.stringify({ offered: recorded.offer_id, note: "Shown to the person as a button; nothing has run. Do not call change-capability for the same thing unless they ask you to." });
+      } catch (error) { inputSchemaError(error, view.action.input_schema); }
     }),
     ...delegationExecutors(gateway.client.delegate, guarded),
     ...memoryExecutors(gateway.client.memory, guarded),
@@ -186,7 +201,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   };
   const capability = { type: "object", properties: {
     capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
-    input: { description: "The capability's input as a JSON value (an object, not a string of JSON), shaped exactly by the input_schema find-capabilities returned; {} when that schema declares no properties." },
+    input: { type: ["object", "array", "string", "number", "boolean", "null"], description: "The capability's input as a JSON value (an object, not a string of JSON), shaped exactly by the input_schema find-capabilities returned; {} when that schema declares no properties." },
   }, required: ["capability_id", "version", "provider_id"] };
   const tool = (name: string, description: string, parameters: Record<string, unknown>, effectKind: "safe-read" | "mutate-external") => ({ executor: name,
     registration: { name, version: "1", description, parameters, effectKind, gate: "broker" as const, timeoutMs, idempotency: "none" as const } });
@@ -194,7 +209,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     title: { type: "string", description: "The button's words, verb first, at most 40 characters, e.g. \"加入计划（3 项）\"." },
     summary: { type: "string", description: "What clicking does in the person's words: which object, which key values, dates with their day and time zone." },
     capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
-    input: { description: "The prepared input as a JSON value matching the capability's input_schema." },
+    input: { type: ["object", "array", "string", "number", "boolean", "null"], description: "The full prepared JSON value matching input_schema from find-capabilities. For an object schema, put every required capability field INSIDE this object, including any field named title; the button title and summary do not supply business fields. Never send an empty string in place of an object." },
     editable: { type: "array", items: { type: "string" }, description: "Top-level input fields the person may adjust before running it." },
     missing: { type: "array", items: { type: "object", properties: { field: { type: "string" }, question: { type: "string" } }, required: ["field", "question"] }, description: "Required fields you could not fill, each with the question to ask." },
   }, required: ["title", "summary", "capability_id", "version", "provider_id", "input"] };
@@ -225,15 +240,15 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   tools.push(
     tool(MEMORY_TOOLS.remember, "Keep something the person explicitly asked you to remember for later work (\"以后…\", \"记住…\", \"下次别…\"): a preference, a convention, a fact about their work. Never store something only because it happened once, and never credentials or secrets. scope: personal (all their work) or project (only this project). When it corrects something already kept, pass that memory's id as replaces (the old version stays in its history). Tell them in your reply what you kept and where it applies; if the result says it was not kept, say so instead.",
       { type: "object", additionalProperties: false, required: ["text", "scope", "said"], properties: {
-        text: { type: "string", description: "What to remember, one short self-contained sentence in the person's language." },
+        text: { type: "string", description: "What to remember. To be recorded as the person's own words it must be the whole of one message they wrote to you in this work, copied exactly: no word, number, address or mark added, dropped or moved, not one sentence out of several, not words from two messages, no project name put in (only letter case, full-/half-width forms, spaces, the style of quotation marks and one full stop at the very end may differ). Anything else (a tidier sentence, a shortening, a summary) is not recorded as theirs: it is only suggested, and waits for them to accept." },
         scope: { type: "string", enum: ["personal", "project", "character"], description: "personal: all their work; project: only this project's work; character: only work the Character carrying this round does (only when one does)." },
-        said: { type: "string", description: "The person's own words asking you to remember it." },
+        said: { type: "string", description: "The person's own message the text rests on (the same one, copied exactly). It is only a pointer: the text is checked against the message the Host saved, never against this, and what is recorded as theirs is that saved message." },
         kind: { type: "string", enum: ["preference", "convention", "fact", "experience"], description: "preference: how they like things done; convention: a project's agreed way; fact: background about their work; experience: a lesson from how work went. Default: preference (personal) or convention (project)." },
         replaces: { type: "string", description: "The id (from list-memories) of an earlier memory this one corrects." },
       } }, "safe-read"),
     tool(MEMORY_TOOLS.list, "List what you keep for the person here (personal and this project's), with ids and where each came from. Use it when they ask what you remember, or before forgetting something.",
       { type: "object", additionalProperties: false, properties: {} }, "safe-read"),
-    tool(MEMORY_TOOLS.forget, "Delete one remembered item for good when the person asks you to forget it or it is no longer true (find its id with list-memories). A newer explicit request replaces an older one: forget the old one.",
+    tool(MEMORY_TOOLS.forget, "Switch off one remembered item when the person asks you to forget it or it is no longer true (find its id with list-memories). It is no longer used anywhere, but it is not deleted: it stays in their memory settings, where they can switch it back on or delete it for good. Say it was switched off, not deleted. A newer explicit request corrects an older one with remember and replaces, not with this.",
       { type: "object", additionalProperties: false, required: ["memory_id"], properties: { memory_id: { type: "string" } } }, "safe-read"),
     tool(MEMORY_TOOLS.propose, "Suggest keeping something the person did NOT ask you to remember: a preference they showed more than once, a project convention, or a lesson from how this work went (a method that worked, why something failed). It only becomes a suggestion the person accepts or declines; until then nothing is kept. Never for a one-off choice, something they skipped once, or secrets. Say in your reply that you suggested it and it needs their approval.",
       { type: "object", additionalProperties: false, required: ["text", "scope", "why", "applies"], properties: {
@@ -247,8 +262,8 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   // what a round may call is its own list of names (and a tool outside it refuses in its executor anyway).
   const all = tools.map(one => one.registration.name);
   const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (name !== GATEWAY_TOOLS.direct || (gateway.operate && gateway.client.direct)) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate)
-    && (!(Object.values(MEMORY_TOOLS) as string[]).includes(name) || gateway.client.memory) && (name !== MEMORY_TOOLS.propose || gateway.client.memory?.propose));
-  const pack: ScenarioPack = { id: PACK_ID, version: "2.4.1", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
+    && memoryToolOffered(name, gateway.client.memory));
+  const pack: ScenarioPack = { id: PACK_ID, version: "2.4.8", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
   return { pack, executors, names, known };

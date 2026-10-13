@@ -60,7 +60,7 @@ export const SIDE_PANEL_EN: Record<string, string> = {
   "加载更多": "Load more",
   "没有符合条件的文件": "No matching files",
   "这些插件里还没有文件": "These plugins have no files yet",
-  "这个项目里还没有提供文件的插件。Files、Pages、Artifacts 等插件启用后，它们的文件会出现在这里。": "No plugin in this project offers files yet. Once plugins such as Files, Pages or Artifacts are on, their files appear here.",
+  "这个项目里还没有提供文件的插件。Files、Pages、成果等插件启用后，它们的文件会出现在这里。": "No plugin in this project offers files yet. Once plugins such as Files, Pages or Artifacts are on, their files appear here.",
   "只显示了开头一部分。完整内容请在插件中打开。": "Only the beginning is shown. Open it in its plugin for the full content.",
   "这种文件（{type}）不能在侧栏里预览，可以在插件中打开。": "This kind of file ({type}) cannot be previewed here. You can open it in its plugin.",
   "正在读取…": "Reading…",

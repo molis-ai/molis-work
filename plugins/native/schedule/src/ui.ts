@@ -7,8 +7,7 @@ import type {
 import type { ScheduleConversationTaskView } from "./tasks.js";
 import type { ScheduleJobView } from "./reminder-management.js";
 import type { ScheduledOperationView } from "./operation-management.js";
-import type { ScheduledOperationOccurrence } from "./operations.js";
-import { renderOperationRow, renderOperationDetail, renderOrphanedOperations, renderOperationRecoveryDialog } from "./operation-ui.js";
+import { renderOperationRow, renderOperationDetail, renderOperationRecoveryDialog } from "./operation-ui.js";
 
 export const SCHEDULE_UI_CONTRIBUTION_ID = "io.molis.work.native.schedule.ui.v1";
 
@@ -26,7 +25,6 @@ export interface ScheduleUiModel {
   readonly jobs: readonly ScheduleJobView[];
   readonly tasks: readonly ScheduleConversationTaskView[];
   readonly operations?: readonly ScheduledOperationView[];
-  readonly orphaned_occurrences?: readonly ScheduledOperationOccurrence[];
   readonly primitives: ScheduleUiPrimitives;
 }
 
@@ -66,10 +64,10 @@ export function renderScheduleWorkbench(model: ScheduleUiModel): string {
   const jobFold = jobs.length + operations.length === 0
     ? ""
     : `<details class="goal-collection-fold" open><summary><span class="goal-collection-caret">${p.icon("chevron-right")}</span><strong>${p.text("其他插件的闹钟")}</strong><small>${jobs.length + operations.length}</small></summary>${jobRows}</details>`;
-  const empty = model.tasks.length === 0 && jobs.length === 0 && operations.length === 0 && !model.orphaned_occurrences?.length;
+  const empty = model.tasks.length === 0 && jobs.length === 0 && operations.length === 0;
   const listBody = empty
     ? `<div class="mw-empty" data-schedule-empty><span class="mw-empty__mark">${p.icon("timer")}</span><h1>${p.text("还没有定时任务")}</h1><p>${p.text("新建一条之后，到点会在它自己的对话里跑一轮只读 Agent。其他插件登记的闹钟也会出现在这里。")}</p></div>`
-    : `${taskRows}${jobFold}${renderOrphanedOperations(model.orphaned_occurrences ?? [], p)}`;
+    : `${taskRows}${jobFold}`;
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="schedule" data-work-surface-label="Schedule" hidden data-schedule-workbench data-schedule-stage-shell data-expanded="false">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-schedule-list>
       <header class="plugin-stage-chrome schedule-stage-chrome">
@@ -83,13 +81,13 @@ export function renderScheduleWorkbench(model: ScheduleUiModel): string {
       ${operations.map(run => renderOperationDetail(run, p)).join("")}
       <div class="feed-detail-empty mw-empty" data-schedule-detail-empty>${p.icon("timer")}<h1>${p.text("选择一条定时任务")}</h1></div>
     </div>
-    ${renderCreateDialog(p)}
+    ${renderCreateDialog(model.route_prefix, p)}
     ${renderReminderRecoveryDialog(p)}
     ${renderOperationRecoveryDialog(p)}
   </section>`;
 }
 
-function renderCreateDialog(p: ScheduleUiPrimitives): string {
+function renderCreateDialog(routePrefix: string, p: ScheduleUiPrimitives): string {
   return `<dialog class="mw-dialog mw-dialog--form" data-schedule-create-dialog aria-labelledby="schedule-create-title">
     <form class="mw-form mw-dialog__shell" data-schedule-create-form>
       <header class="mw-form__header"><div><h2 id="schedule-create-title" data-schedule-form-title>${p.text("新建定时任务")}</h2><p>${p.text("到点后会在这条任务自己的对话里跑一轮，不会进现有 Coding 会话。")}</p></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-schedule-create-close aria-label="${p.text("关闭")}">${p.icon("x")}</button></header>
@@ -98,6 +96,8 @@ function renderCreateDialog(p: ScheduleUiPrimitives): string {
         <label class="mw-field"><span class="mw-field__label">${p.text("说明")}</span><textarea class="mw-textarea" name="instructions" rows="6" required maxlength="8000" placeholder="${p.text("到点后 Agent 会读这段说明，然后在这条对话里回复。")}"></textarea><small class="mw-field__hint">${p.text("默认只读。要改文件会进现有审核队列。")}</small></label>
         <label class="mw-field"><span class="mw-field__label">${p.text("每天")}</span><input class="mw-input" name="time" type="time" required value="09:00"><small class="mw-field__hint">${p.text("按这台电脑的本地时间。本地服务没开时闹钟不响。")}</small></label>
         <label class="mw-check-row"><input class="mw-check" type="checkbox" name="notify_important" checked><span>${p.text("重要更新时在列表标出来")}</span></label>
+        <div class="mw-alert mw-alert--warning" data-schedule-hint="model" role="status" hidden><span>${p.text("还没有配置文字模型：到点时 Agent 跑不起来。仍可以创建，稍后再配置。")} <a href="/settings/models" style="white-space:nowrap">${p.text("打开模型设置")}</a></span></div>
+        <div class="mw-alert mw-alert--warning" data-schedule-hint="workspace" role="status" hidden><span>${p.text("这个项目还没有绑定工作区：到点时只读 Agent 无法启动。仍可以创建，稍后再绑定。")} <a href="${p.escape(routePrefix)}/settings/workspaces" style="white-space:nowrap">${p.text("打开工作目录设置")}</a></span></div>
         <p class="form-error" data-schedule-create-error role="alert" hidden></p>
       </div>
       <footer class="mw-form__footer">

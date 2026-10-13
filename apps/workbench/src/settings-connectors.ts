@@ -20,6 +20,8 @@ interface ConnectorsSettingsPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: "link" | "mail" | "back" | "tree"): string;
+  /** Where the docs page that lists every outbound network class is read, in the interface language; no link without it. */
+  networkDocHref?: string;
 }
 
 function renderConnectorMark(connectorId: string, escapeHtml: ConnectorsSettingsPrimitives["escapeHtml"]): string {
@@ -101,7 +103,7 @@ function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly 
     if (active.some(row => row.auth_method === "oauth" || row.auth_method === "token")) {
       if (card.connector_id === "model-api") instructions.push({ text: "在模型设置中选择此连接，再选择模型并检查可用性。", label: "打开模型设置", href: "/settings/models" });
       else if (card.connector_id === "image-api") instructions.push({ text: "在项目 Images 中选择此连接，配置图像服务并尝试生成。", label: "选择项目，打开 Images", href: "/", plugin: "images" });
-      else if (card.connector_id === "typesafe") instructions.push({ text: "在 Functions 或 Experiments 中选择此账号。", label: "查看 Functions", href: "/capabilities/library" });
+      else if (card.connector_id === "typesafe") instructions.push({ text: "在 Functions 中选择此账号。", label: "查看 Functions", href: "/capabilities/library" });
       else if (card.feed_available) instructions.push({ text: "在项目 Feed 中添加来源并选择已连接的 API 账号与内容范围。", label: "选择项目，添加来源", href: "/", plugin: "feed" });
       else if (card.connector_id !== "mcp-bearer") instructions.push({ text: "可以在上方检查账号授权。此 API 连接暂不提供 Feed 同步。" });
     }
@@ -152,8 +154,10 @@ export function renderConnectorsSettings(
       <div class="settings-connectors-grid">${groupCards.map((card) => renderCardButton(card, primitives, 0)).join("")}</div>
     </section>`;
   }).join("");
+  // Under the heading, like the MCP page's link to the external-tools page: a footnote below the whole catalog is rarely seen.
+  const networkDoc = primitives.networkDocHref ? `<p data-network-doc>${L("Molis Work 自己联网的去处（模型、搜索、订阅源、依赖下载等）逐类写在这一页：")}<a href="${escapeHtml(primitives.networkDocHref)}" target="_blank" rel="noopener noreferrer">${L("Molis Work 会联网去哪里")}</a></p>` : "";
   return `<section class="settings-document" aria-labelledby="settings-title" data-connectors-settings>
-    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("服务连接")}</h1></div><p>${L("连接你常用的应用，把工作内容和工具带进 Molis。")}</p></header>
+    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("服务连接")}</h1></div><p>${L("连接你常用的应用，把工作内容和工具带进 Molis。")}</p>${networkDoc}</header>
     <div class="settings-body">
       <p class="settings-form-error" data-connectors-error role="alert" hidden></p>
       <div data-connectors-list>

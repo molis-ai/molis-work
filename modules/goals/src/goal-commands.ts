@@ -19,7 +19,7 @@ export interface GoalRelationGraphIssue {
 }
 
 export interface GoalsCommandLifecycleHooks {
-  validateRelationGraph?(boardId: string, input: AddGoalRelationInput): GoalRelationGraphIssue | null;
+  validateRelationGraph?(projectId: string, input: AddGoalRelationInput): GoalRelationGraphIssue | null;
 }
 
 export class GoalCommands {
@@ -29,16 +29,16 @@ export class GoalCommands {
   ) {}
 
   createGoal(
-    boardId: string,
+    projectId: string,
     input: CreateGoalInput,
     write: GoalsActorWrite,
   ): { goal: GoalRecord; replayed: boolean; observed_event_cursor: number } {
     this.validateGoalInput(input);
-    const hash = requestHash({ board_id: boardId, goal: input });
+    const hash = requestHash({ project_id: projectId, goal: input });
     const repository = this.context.repository;
     return repository.immediate(() => {
       const replay = this.context.replay<{ goal: GoalRecord; observed_event_cursor: number }>(
-        boardId,
+        projectId,
         write.actor_id,
         "create_goal",
         write.idempotency_key,
@@ -46,7 +46,7 @@ export class GoalCommands {
       );
       if (replay) return { ...replay, replayed: true };
 
-      this.context.requireBoard(boardId);
+      this.context.requireBoard(projectId);
       const goalId = input.goal_id?.trim() || `goal-${randomUUID()}`;
       if (repository.getGoal(goalId)) {
         throw this.context.error("goal.exists", `Goal 已存在: ${goalId}`);
@@ -55,12 +55,12 @@ export class GoalCommands {
       const definitionState = input.definition_state ?? "draft";
       const decompositionState = input.decomposition_state ?? "abstract";
       insertInitialGoalContract(this.context, {
-        board_id: boardId, goal_id: goalId, goal: input, actor_id: write.actor_id, at,
+        project_id: projectId, goal_id: goalId, goal: input, actor_id: write.actor_id, at,
         source_proposal_id: null, revision_reason: "创建 Goal Contract revision 1",
       });
       const cursor = repository.appendEvent({
         eventId: randomUUID(),
-        boardId,
+        projectId,
         actorId: write.actor_id,
         type: "goal.created",
         objectType: "goal",
@@ -73,7 +73,7 @@ export class GoalCommands {
       if (!goal) throw new Error("Goal 写入后无法读取");
       const outcome = { goal, observed_event_cursor: cursor };
       this.context.remember(
-        boardId,
+        projectId,
         write.actor_id,
         "create_goal",
         write.idempotency_key,
@@ -86,28 +86,28 @@ export class GoalCommands {
   }
 
   addRelation(
-    boardId: string,
+    projectId: string,
     input: AddGoalRelationInput,
     write: GoalsActorWrite,
   ): { relation_id: string; replayed: boolean; observed_event_cursor: number } {
-    const hash = requestHash({ board_id: boardId, ...input });
+    const hash = requestHash({ project_id: projectId, ...input });
     const repository = this.context.repository;
     return repository.immediate(() => {
       const replay = this.context.replay<{ relation_id: string; observed_event_cursor: number }>(
-        boardId,
+        projectId,
         write.actor_id,
         "add_relation",
         write.idempotency_key,
         hash,
       );
       if (replay) return { ...replay, replayed: true };
-      this.context.requireNonTrashedGoal(boardId, input.from_goal_id);
-      this.context.requireNonTrashedGoal(boardId, input.to_goal_id);
+      this.context.requireNonTrashedGoal(projectId, input.from_goal_id);
+      this.context.requireNonTrashedGoal(projectId, input.to_goal_id);
       if (input.from_goal_id === input.to_goal_id) {
         throw this.context.error("relation.self_reference", "Goal 不能关联到自身");
       }
       if ((input.state ?? "active") === "active" && ["part_of", "depends_on"].includes(input.type)) {
-        const issue = this.lifecycle.validateRelationGraph?.(boardId, input);
+        const issue = this.lifecycle.validateRelationGraph?.(projectId, input);
         if (issue) throw this.context.error(issue.code, issue.message);
       }
       const relationReason = input.reason.trim();
@@ -116,10 +116,10 @@ export class GoalCommands {
       }
       const alreadyActive = repository.db.prepare(`
         SELECT relation_id FROM goal_relations
-        WHERE board_id = ? AND from_goal_id = ? AND to_goal_id = ?
+        WHERE project_id = ? AND from_goal_id = ? AND to_goal_id = ?
           AND type = ? AND state = ? LIMIT 1
       `).get(
-        boardId,
+        projectId,
         input.from_goal_id,
         input.to_goal_id,
         input.type,
@@ -135,12 +135,12 @@ export class GoalCommands {
       const at = this.context.now().toISOString();
       repository.db.prepare(`
         INSERT INTO goal_relations (
-          relation_id, board_id, from_goal_id, to_goal_id, type, state,
+          relation_id, project_id, from_goal_id, to_goal_id, type, state,
           reason, created_by, created_at, deactivated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
       `).run(
         relationId,
-        boardId,
+        projectId,
         input.from_goal_id,
         input.to_goal_id,
         input.type,
@@ -151,7 +151,7 @@ export class GoalCommands {
       );
       const cursor = repository.appendEvent({
         eventId: randomUUID(),
-        boardId,
+        projectId,
         actorId: write.actor_id,
         type: "relation.added",
         objectType: "relation",
@@ -162,7 +162,7 @@ export class GoalCommands {
       });
       const outcome = { relation_id: relationId, observed_event_cursor: cursor };
       this.context.remember(
-        boardId,
+        projectId,
         write.actor_id,
         "add_relation",
         write.idempotency_key,
@@ -175,7 +175,7 @@ export class GoalCommands {
   }
 
   deactivateRelation(
-    boardId: string,
+    projectId: string,
     input: { relation_id: string; reason: string },
     write: GoalsActorWrite,
   ): { relation: GoalRelationRecord; replayed: boolean; observed_event_cursor: number } {
@@ -186,16 +186,16 @@ export class GoalCommands {
         "解除关系时必须说明原因",
       );
     }
-    const hash = requestHash({ board_id: boardId, relation_id: input.relation_id, reason: reasonText });
+    const hash = requestHash({ project_id: projectId, relation_id: input.relation_id, reason: reasonText });
     const repository = this.context.repository;
     return repository.immediate(() => {
       const replay = this.context.replay<{
         relation: GoalRelationRecord;
         observed_event_cursor: number;
-      }>(boardId, write.actor_id, "deactivate_relation", write.idempotency_key, hash);
+      }>(projectId, write.actor_id, "deactivate_relation", write.idempotency_key, hash);
       if (replay) return { ...replay, replayed: true };
-      this.context.requireBoard(boardId);
-      const relation = repository.getRelation(boardId, input.relation_id);
+      this.context.requireBoard(projectId);
+      const relation = repository.getRelation(projectId, input.relation_id);
       if (!relation) {
         throw this.context.error("relation.not_found", `找不到关系: ${input.relation_id}`);
       }
@@ -208,7 +208,7 @@ export class GoalCommands {
       `).run(at, input.relation_id);
       const cursor = repository.appendEvent({
         eventId: randomUUID(),
-        boardId,
+        projectId,
         actorId: write.actor_id,
         type: "relation.deactivated",
         objectType: "relation",
@@ -221,11 +221,11 @@ export class GoalCommands {
         },
         at,
       });
-      const updated = repository.getRelation(boardId, input.relation_id);
+      const updated = repository.getRelation(projectId, input.relation_id);
       if (!updated) throw new Error("关系停用后无法读取");
       const outcome = { relation: updated, observed_event_cursor: cursor };
       this.context.remember(
-        boardId,
+        projectId,
         write.actor_id,
         "deactivate_relation",
         write.idempotency_key,

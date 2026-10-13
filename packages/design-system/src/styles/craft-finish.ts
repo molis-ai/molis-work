@@ -1,4 +1,5 @@
 import { MW_PLUGINS } from "../palette.js";
+import { TOUCH_TARGET_STYLES } from "./touch-targets.js";
 
 /** Soft Workbench finish: the last layer of every Molis Work page (module name kept from the craft pass).
  *
@@ -34,7 +35,7 @@ const STAGE_OPEN = `${STAGE_SHELL}[data-expanded="true"]`;
 const SESSIONS_LIST = "body.immersive-workbench .session-stage-shell:not([data-expanded=\"true\"])";
 
 /** Dialogs that open in the middle of the viewport. Edge sheets travel in from their edge instead. */
-const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialog.runtime-plan-dialog, dialog.inbox-compose-dialog, dialog.pb-publish-dialog, dialog.pb-record-editor):not(.mw-sheet)";
+const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialog.runtime-plan-dialog, dialog.inbox-compose-dialog):not(.mw-sheet)";
 
 /** Popovers and menus that drop from the control that opened them. */
 const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu, .tab-menu, .assistant-composer)";
@@ -44,7 +45,7 @@ function viewChipTints(): string {
 }
 
 const CRAFT_BASE_STYLES = `
-  /* ─── Tokens ───────────────────────────────────────────────────────────── */
+  /* ─── Tokens ─── */
   :root,
   ${PAGES} {
     --r-tag: 6px; --r-row: 10px; --r-control: 8px; --r-card: 12px; --r-sheet: 14px; --r-dialog: 16px; --r-composer: 15px;
@@ -78,7 +79,7 @@ const CRAFT_BASE_STYLES = `
   :where(${PAGES}) ::placeholder { color: var(--faint); opacity: 1; }
   :where(${PAGES}) :is(input, textarea):-webkit-autofill { -webkit-text-fill-color: var(--ink); box-shadow: inset 0 0 0 40px var(--paper); }
 
-  /* ─── Desk and sheet ───────────────────────────────────────────────────── */
+  /* ─── Desk and sheet ─── */
   ${WORKBENCH} .immersive-workspace { background: var(--desk); }
   ${SHELL} .immersive-titlebar { background: var(--desk); box-shadow: none; }
   ${SHELL} .plugin-stack { background: var(--desk); border-right: 0; }
@@ -144,6 +145,7 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} .tab-view-chip:active:not([aria-current="page"]) { transform: scale(.97); }
   ${PAGES} .tab-view-chip + .tab-view-divider { flex: none; width: 1px; height: 14px; margin: 0 4px 0 4px; background: var(--line-strong); align-self: center; }
   ${WORKBENCH} .tab-pane > .tab-strip .tab-view-chip { height: 24px; }
+  @media (max-width: 760px), (pointer: coarse) { ${WORKBENCH} :is(.tab-strip, .tab-pane > .tab-strip) .tab-view-chip { height: 44px; } }
   ${viewChipTints()}
 
   /* ─── Plugin rail: this project — where the work lives and its plugins; the account at the foot ── */
@@ -262,7 +264,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .plugin-rail { overflow: visible; }
   }
 
-  /* ─── Bottom bar: the Dock, the resident Assistant, the project ────────────── */
+  /* ─── Bottom bar: the Dock, the resident Assistant, the project ─── */
   /* No global sidebar: the work spans the window and the resident bar under it holds the way around.
      Controls sit straight on the desk; only the composer and the current Dock item are raised. */
   ${SHELL} { --dock-h: 76px; --dock-btn: 38px; --composer-h: 50px; }
@@ -453,7 +455,10 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-tile > .plugin-rail-item:is([aria-current], :hover) { background: transparent; }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-item[data-rail-zone] { padding-right: var(--tile-yield, 72px); }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-ops { position: absolute; top: 0; right: 6px; bottom: 0; display: flex; align-items: center; gap: 4px; pointer-events: none; }
+  /* The two buttons are the floor's size (--control-h: 32px, 28px compact; 44px on touch, in touch-targets.ts), and the row gives up their room. */
+  .plugin-picker-popover { --ops-btn: var(--control-h, 32px); --tile-yield: calc(var(--ops-btn) * 2 + 16px); }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-ops > .mw-btn {
+    width: var(--ops-btn); min-width: var(--ops-btn); min-height: var(--ops-btn);
     opacity: 0; transform: translateX(8px) scale(.92);
     transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint);
   }
@@ -519,7 +524,7 @@ const CRAFT_BASE_STYLES = `
   }
   html ${SHELL} .workbench-bar .plugin-picker-head .plugin-picker-search { flex: 1 1 200px; width: auto; min-width: 0; margin: 0; }
   html ${SHELL} .workbench-bar .plugin-picker-extend { flex: 0 1 auto; display: flex; gap: 6px; min-width: 0; }
-  html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 auto; justify-content: flex-start; gap: 8px; height: 34px; min-height: 34px; padding: 0 12px; border-radius: 9px; font-size: 13px; white-space: nowrap; }
+  html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 auto; justify-content: flex-start; gap: 8px; height: var(--menu-row, 34px); min-height: var(--menu-row, 34px); padding: 0 12px; border-radius: 9px; font-size: 13px; white-space: nowrap; }
   html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn svg { width: 15px; height: 15px; color: var(--ink-soft); }
   html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn[aria-current] { background: var(--nav-active); box-shadow: inset 0 0 0 1px var(--line-strong); }
   html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn[aria-current] svg { color: var(--ink); }
@@ -998,9 +1003,6 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-questionnaire legend { padding: 0; margin-bottom: 4px; font-weight: 500; }
   ${ASSIST} .assistant-fields { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 12px; }
   ${ASSIST} .assistant-fields dt { color: var(--muted); }
-  ${ASSIST} .assistant-diff { margin: 0; max-height: 280px; overflow: auto; padding: 8px 8px; border-radius: 6px; background: var(--wash); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
-  ${ASSIST} .assistant-diff .is-added { color: var(--hue-green-fill); }
-  ${ASSIST} .assistant-diff .is-removed { color: var(--danger); }
   ${ASSIST} .assistant-fields dd { margin: 0; max-height: 200px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
   ${ASSIST} .assistant-problem { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 12px; border-radius: 10px; background: var(--wash); }
   ${ASSIST} .assistant-problem p { margin: 0; }
@@ -1018,7 +1020,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-target[data-mode="work"] .assistant-target-main { color: var(--ink); padding-right: 4px; }
   ${ASSIST} .assistant-target-main:hover { color: var(--ink); }
   ${ASSIST} :is(.assistant-target-main, .assistant-target-clear):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-target-clear { display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; margin-right: 4px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+  ${ASSIST} .assistant-target-clear { display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
   ${ASSIST} .assistant-target-clear[hidden] { display: none; }
   ${ASSIST} .assistant-target-clear:hover { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} .assistant-target-clear svg { width: 12px; height: 12px; }
@@ -1124,7 +1126,7 @@ const CRAFT_BASE_STYLES = `
   }
   ${ASSIST} .context-actions-menu button:hover { background: var(--nav-hover); }
   ${ASSIST} .context-actions-menu button small { font-size: 11px; color: var(--faint); }
-  ${ASSIST} .context-actions-menu button[disabled] { color: var(--faint); cursor: not-allowed; }
+  ${ASSIST} .context-actions-menu button[disabled] { flex-direction: column; align-items: flex-start; gap: 2px; color: var(--faint); cursor: not-allowed; }
   ${ASSIST} .context-actions-menu hr { margin: 6px 4px; border: 0; border-top: 1px solid var(--line); }
   ${ASSIST} .context-actions-basis { display: inline-flex; flex: none; align-items: center; gap: 4px; height: 28px; padding: 0 6px 0 4px; color: var(--faint); font-size: 11px; white-space: nowrap; }
   ${ASSIST} .context-actions-basis::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
@@ -1165,7 +1167,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-notices { left: auto; right: 0; gap: 8px; }
   ${ASSIST} .assistant-notice { display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 8px; background: var(--nav-hover); }
   ${ASSIST} .assistant-notice-text { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
-  ${ASSIST} .assistant-notices-held > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 4px 2px; }
+  ${ASSIST} .assistant-notices-held > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 7px 2px; }
   ${ASSIST} .assistant-notices-held > .assistant-notice { margin-top: 6px; }
   ${ASSIST} .assistant-popover-title { margin: 0 0 4px; padding: 0 8px; font-size: 11px; color: var(--faint); }
   ${ASSIST} .assistant-material { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 7px; }
@@ -1178,7 +1180,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-material-thumb { width: 28px; height: 28px; border-radius: 4px; object-fit: cover; background: var(--nav-hover); }
   ${ASSIST} .assistant-composer[data-dropping] { outline: 2px dashed var(--accent, var(--ink)); outline-offset: 2px; }
   ${ASSIST} .assistant-material-origin { font-size: 11px; color: var(--faint); white-space: nowrap; }
-  ${ASSIST} .assistant-material-remove { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+  ${ASSIST} .assistant-material-remove { width: var(--control-h, 32px); height: var(--control-h, 32px); padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
   ${ASSIST} .assistant-material-remove:hover { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} .assistant-starter { width: 100%; padding: 8px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer; }
   ${ASSIST} .assistant-starter:hover { background: var(--nav-hover); color: var(--ink); }
@@ -1257,7 +1259,7 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .navigator-project-menu-popover { padding: 8px; border-radius: 14px; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover > span { padding: 4px 12px 4px; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item, .navigator-personal > .personal-account) {
-    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; height: 34px; min-height: 34px;
+    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; height: var(--menu-row, 34px); min-height: var(--menu-row, 34px);
     margin: 0; padding: 0 12px; border: 0; border-radius: 8px; box-shadow: none; background: transparent;
     color: var(--ink); font: inherit; font-size: 13px; font-weight: 400; line-height: 1; text-align: left; text-decoration: none;
   }
@@ -1304,7 +1306,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 40px; min-width: 40px; }
     /* While typing the input takes the column; focusing a chip keeps that chip on screen. */
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention) { display: none; }
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus):not([data-measuring]) :is(.assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention) { display: none; }
   }
   /* A crowded composer at any width takes the same steps, as far as the island measures it needs (data-fit): the chips
      present — a work, its materials, what needs a look, who does it — would otherwise leave the input no room at all. */
@@ -1319,31 +1321,28 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) .assistant-target { min-width: 56px; }
     ${SHELL} .bar-composer[data-fit="narrow"] .assistant-target { max-width: 96px; }
   }
-  /* A phone: two rows at the foot — the Assistant line first, then the Dock and the project. A plugin's own list
-     opens in a drawer from a button just left of the project, only when that plugin has one. */
+  /* A phone: two rows at the foot, the Assistant line first, then the Dock and the project (a plugin's own list opens
+     in a drawer from the button left of the project). */
   @media (max-width: 600px) {
-    ${SHELL} { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; --dock-h: 116px; --dock-btn: 40px; --composer-h: 50px; }
+    ${SHELL} { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; --dock-h: 116px; --composer-h: 50px; }
     ${SHELL} .immersive-workspace,
     ${SHELL} .immersive-workspace.is-directory-collapsed,
     ${SHELL} .immersive-workspace.is-plugin-directory-empty { grid-template-rows: auto 0 0 minmax(0, 1fr) auto; }
     ${SHELL} .workbench-bar {
-      z-index: 45; grid-row: 5; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 58px 50px; gap: 0 8px;
-      padding: 4px 12px max(8px, env(safe-area-inset-bottom));
+      z-index: 45; grid-row: 5; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 58px 50px; gap: 0 4px;
+      padding: 4px 8px max(8px, env(safe-area-inset-bottom));
     }
     ${SHELL} .bar-center { grid-column: 1 / -1; grid-row: 1; align-self: center; }
     ${SHELL} .bar-start { grid-column: 1; grid-row: 2; }
     html ${SHELL} .workbench-bar .bar-end { grid-column: 2; grid-row: 2; justify-self: end; }
-    /* 4px between the row's 40px targets, so the widest state (a plugin with a directory) still fits 390px. */
-    ${SHELL} .dock-pins { gap: 4px; margin-left: 8px; }
-    ${SHELL} .dock-pins::before { left: -5px; }
-    ${SHELL} .dock-pin.is-fixed { margin-right: 4px; }
-    ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { right: -4px; }
-    html ${SHELL} .workbench-bar :is(.bar-start, .bar-end) { gap: 4px; }
-    ${SHELL} .bar-composer .assistant-composer-input { font-size: 16px; }
+    ${SHELL} .dock-pins { gap: 0; margin-left: 0; }
+    ${SHELL} .dock-pins::before { left: -1px; }
+    ${SHELL} .dock-pin.is-fixed { margin-right: 0; }
+    ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { right: -1px; }
+    html ${SHELL} .workbench-bar :is(.bar-start, .bar-end, .bar-residents) { gap: 0; }
     ${SHELL} .plugin-picker-trigger { max-width: 132px; }
     html ${SHELL} .immersive-workspace > .tree-pane,
     html ${SHELL} .immersive-sidebar-scrim:not([hidden]) { bottom: var(--dock-h); }
-    html ${SHELL} .workbench-bar .bar-end .navigator-project-primary { gap: 4px; }
     html ${SHELL} .immersive-workspace:not(.is-plugin-directory-empty) .workbench-bar .bar-end .immersive-show-directory,
     html ${SHELL} .is-directory-drawer-open .workbench-bar .bar-end .navigator-directory-toggle {
       display: inline-grid !important; place-items: center; order: -1; width: var(--dock-btn); min-width: var(--dock-btn); height: var(--dock-btn); min-height: var(--dock-btn); padding: 0; border: 0; border-radius: 11px;
@@ -1357,13 +1356,12 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items { grid-template-columns: minmax(0, 1fr); }
     html ${SHELL} .workbench-bar .plugin-picker-head .plugin-picker-search { flex-basis: 100%; height: 44px; }
     html ${SHELL} .workbench-bar .plugin-picker-extend { flex: 1 1 100%; }
-    html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 0; justify-content: center; height: 44px; min-height: 44px; }
+    html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 0; justify-content: center; }
     ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px); width: auto; height: min(70dvh, 560px); }
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
     /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
-    ${ASSIST} .assistant-target { max-width: 30%; }
-    ${SHELL} .bar-start .plugin-picker { max-width: none; padding-right: 4px; }
+    ${SHELL} .bar-start .plugin-picker { max-width: none; padding-right: 0; }
     ${SHELL} .bar-start .plugin-picker-trigger { padding: 0 8px; }
     /* On a phone the Dock beside it already shows where you are: the switcher is the door to all plugins. */
     ${SHELL} .bar-start .plugin-picker-current, ${SHELL} .bar-start .plugin-picker-trigger > svg:last-child { display: none; }
@@ -1375,16 +1373,14 @@ const CRAFT_BASE_STYLES = `
     ${ASSIST} .assistant-tabs { flex: 1 1 auto; }
     ${ASSIST} .assistant-tab[data-current] { flex: 1 1 auto; width: auto; }
     /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
-    ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 64px; min-width: 64px; }
-    ${ASSIST} .assistant-executor { flex: 0 1 auto; min-width: 28px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+    ${ASSIST} .assistant-executor { flex: 0 1 auto; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
     ${ASSIST} .assistant-executor > svg { display: none; }
-    /* One chooser beside the input: the Character appears while the panel is open (to choose) or once chosen (then it
-       replaces the executor, which a Character implies); search steps aside while the panel is open. */
+    /* One chooser beside the input: the Character shows while the panel is open or once chosen, and then replaces the executor. */
     ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
     ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
     /* Only while typing: focusing the switcher or a chip must keep it on screen. */
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention) { display: none; }
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus):not([data-measuring]) :is(.assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention) { display: none; }
   }
 
   /* Prompt 与 Character settings: grouped by source, each prompt expandable to edit, the default beside the person's version. */
@@ -1473,7 +1469,7 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .tree-resizer::after { transition: opacity var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint); }
   ${SHELL} .tree-resizer:is(:hover, :focus-visible, .is-dragging, [data-dragging])::after { background: var(--focus); opacity: .7; }
 
-  /* ─── Controls ─────────────────────────────────────────────────────────── */
+  /* ─── Controls ─── */
   ${PAGES} .mw-btn {
     transition:
       background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint),
@@ -1530,7 +1526,7 @@ const CRAFT_BASE_STYLES = `
   /* Disclosure chevrons turn on the same curve everywhere. */
   ${PAGES} :is(.mw-disclosure, details > summary) > svg:is(:first-child, :last-child) { transition: transform var(--dur-move) var(--ease-quint); }
 
-  /* ─── Overlays ─────────────────────────────────────────────────────────── */
+  /* ─── Overlays ─── */
   ${PAGES} ${CENTRED_DIALOG}[open] { animation: craft-dialog-in 250ms var(--ease-quint); }
   ${PAGES} ${CENTRED_DIALOG}[open]::backdrop { animation: craft-fade-in 250ms var(--ease-quint); }
   /* Creating a Goal is writing: two borderless lines; focus draws a pen line under the one you are on. */
@@ -1601,7 +1597,7 @@ const CRAFT_BASE_STYLES = `
 
   /* ─── Plugin stage: an empty plugin is a calm centred invitation, not a note in the corner ── */
   ${WORKBENCH} .plugin-stage-list > .mw-empty,
-  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child {
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child, ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) {
     display: grid; justify-items: center; align-content: center; gap: 0; box-sizing: border-box;
     width: 100%; max-width: 440px; min-height: calc(100% - 24px); margin: 0 auto; padding: 48px 24px 64px; text-align: center;
   }
@@ -1631,15 +1627,15 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} .mw-empty--error > strong { margin: 0 0 4px; font-size: 15px; font-weight: var(--weight-title, 600); color: var(--ink); }
   ${PAGES} .mw-empty--error > p { margin: 0 0 16px; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
   ${WORKBENCH} .plugin-stage-list > .mw-empty > :is(strong, h1, h2),
-  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(strong, h1, h2) { margin: 0 0 8px; font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; color: var(--ink); }
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(strong, h1, h2), ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > strong { margin: 0 0 8px; font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; color: var(--ink); }
   ${WORKBENCH} .plugin-stage-list > .mw-empty > p,
-  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > p { margin: 0; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.75; }
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > p, ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > p { margin: 0; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.75; }
   ${WORKBENCH} .plugin-stage-list > .mw-empty > :is(.mw-btn, .mw-empty__actions),
-  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(.mw-btn, .mw-empty__actions) { margin: 24px 0 0; justify-content: center; }
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(.mw-btn, .mw-empty__actions), ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > .mw-btn { margin: 24px 0 0; justify-content: center; }
   ${WORKBENCH} .plugin-stage-list .mw-empty__actions { gap: 8px; }
 
-  /* ─── Lists and rows ───────────────────────────────────────────────────── */
-  ${WORKBENCH} :is(.tree-entry, .feed-stage-entry, .plugin-stage-list .mw-dir-row, .home-erow, .inbox-stage-row, .session-stage-row) {
+  /* ─── Lists and rows ─── */
+  ${WORKBENCH} :is(.tree-entry, .feed-stage-entry, .plugin-stage-list .mw-dir-row, .home-erow, .session-stage-row) {
     transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint);
   }
   ${WORKBENCH} .plugin-stage-list :is(.mw-dir-row, .tree-node):active:not(:disabled) { background: var(--nav-press); }
@@ -1655,9 +1651,9 @@ const CRAFT_BASE_STYLES = `
   @keyframes craft-landed { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
 
   /* Progress bars fill instead of appearing full. */
-  ${WORKBENCH} :is(.goal-progress-bar, .tree-progress, .mw-progress) > :is(i, span, .mw-progress__bar) { transition: transform 420ms var(--ease-quint); }
+  ${WORKBENCH} :is(.tree-progress, .mw-progress) > :is(i, span) { transition: transform 420ms var(--ease-quint); }
 
-  /* ─── Goal canvas ──────────────────────────────────────────────────────── */
+  /* ─── Goal canvas ─── */
   /* The canvas is plain paper: nodes and their links are the only marks on it. */
   ${WORKBENCH} :is(.goal-canvas-viewport, .goal-frame-canvas) { background-color: var(--paper); background-image: none; }
   ${WORKBENCH} .momentum-map.graph-stage { background: var(--paper); }
@@ -1693,7 +1689,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .immersive-workspace:has(.is-editing-goal) > .workbench-bar { display: none; }
   }
 
-  /* ─── Board ────────────────────────────────────────────────────────────── */
+  /* ─── Board ─── */
   ${WORKBENCH} [data-kanban-card] {
     border-radius: 10px; box-shadow: none; border-color: var(--line);
     transition: border-color var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint);
@@ -1701,13 +1697,13 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} [data-kanban-card]:hover { border-color: var(--line-strong); }
   ${WORKBENCH} [data-kanban-card]:is(.is-selected, [aria-current="true"], [aria-selected="true"]) { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
 
-  /* ─── Goal work area ───────────────────────────────────────────────────── */
+  /* ─── Goal work area ─── */
   ${WORKBENCH} .goal-node-toolbar .goal-node-back { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
   ${WORKBENCH} .goal-details-aside { background: var(--paper); box-shadow: inset 1px 0 0 var(--line); }
   ${WORKBENCH} .goal-details-toggle svg { transition: transform var(--dur-move) var(--ease-quint); }
-  ${WORKBENCH} .tui-empty, ${WORKBENCH} .goal-tui-empty { border-radius: var(--r-card); }
+  ${WORKBENCH} .tui-empty { border-radius: var(--r-card); }
 
-  /* ─── Arrival ──────────────────────────────────────────────────────────── */
+  /* ─── Arrival ─── */
   /* A surface rises a few pixels as it appears. Surfaces restart this whenever they are shown. */
   ${WORKBENCH} .tab-pane-body > [data-work-surface]:not([hidden]),
   ${WORKBENCH} .tab-workspace-exclusive > :not([hidden]) {
@@ -1730,7 +1726,7 @@ const CRAFT_BASE_STYLES = `
   @keyframes craft-rail-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
   @keyframes craft-sheet-open { from { opacity: 0; transform: translateY(10px) scale(.994); } to { opacity: 1; transform: none; } }
 
-  /* ─── Home ─────────────────────────────────────────────────────────────── */
+  /* ─── Home ─── */
   /* The page owns its layout in project-home.ts; this layer adds only the arrival cascade and the press tone. */
   ${WORKBENCH} .immersive-home .home-erow:active { background: var(--nav-press); }
   /* Arrival plays once per surface (\`is-arriving\`, set on its first reveal); showing Home again does not replay it. */
@@ -1837,7 +1833,7 @@ const CRAFT_BASE_STYLES = `
     ${STAGE_LIST} .feed-stage-entry { height: auto; min-height: 48px; grid-template-rows: auto; }
   }
 
-  /* ─── Plugin market ────────────────────────────────────────────────────── */
+  /* ─── Plugin market ─── */
   ${WORKBENCH} .plugin-market-body .mw-card {
     border-color: var(--line); box-shadow: none; border-radius: var(--r-card);
     transition: border-color var(--dur-hover) var(--ease-quint);
@@ -1854,19 +1850,16 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(-n+12) { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
   ${[...Array(12).keys()].map((index) => `${WORKBENCH} .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(${index + 1}) { animation-delay: ${index * 24}ms; }`).join("\n  ")}
 
-  /* ─── Settings documents ───────────────────────────────────────────────── */
-  ${PAGES} :is(.settings-card, .settings-group, .project-settings-card) { border-radius: var(--r-card); }
-
-  /* ─── Drag and drop ────────────────────────────────────────────────────── */
+  /* ─── Drag and drop ─── */
   ${PAGES} [draggable="true"] { -webkit-user-drag: element; }
   ${PAGES} [data-craft-drag-source] { opacity: .45; transition: opacity 130ms var(--ease-quint); }
-  body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas], .tab-strip, [data-drop-target], .shelf-drop, .workflow-gap) {
+  body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas], .tab-strip, [data-drop-target], .shelf-drop) {
     transition: box-shadow var(--dur-move) var(--ease-quint), background-color var(--dur-move) var(--ease-quint);
   }
   body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas]) { background-color: color-mix(in srgb, var(--focus) 4%, var(--paper)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 18%, transparent); }
   body[data-craft-dragging] :is([data-drop-target], .tab-strip):hover { background-color: color-mix(in srgb, var(--focus) 6%, transparent); }
 
-  /* ─── A Goal that just finished ────────────────────────────────────────── */
+  /* ─── A Goal that just finished ─── */
   .craft-burst { position: fixed; z-index: 2147482000; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
   .craft-burst i {
     position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 2px; background: var(--c, var(--celebrate-a));
@@ -1888,7 +1881,7 @@ const CRAFT_BASE_STYLES = `
   @keyframes craft-done { 0% { transform: scale(.8); } 45% { transform: scale(1.12); } 100% { transform: none; } }
   @keyframes craft-done-mark { 0% { transform: rotate(-30deg) scale(.4); } 60% { transform: rotate(8deg) scale(1.2); } 100% { transform: none; } }
 
-  /* ─── Catalog specimens for this layer ─────────────────────────────────── */
+  /* ─── Catalog specimens for this layer ─── */
   .mw-catalog .mw-craft-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
   .mw-catalog .mw-craft-lift, .mw-catalog .mw-craft-radius {
     display: grid; gap: 4px; align-content: end; width: 132px; height: 84px; padding: 12px 12px; background: var(--paper); border-radius: var(--r-card);
@@ -1955,7 +1948,7 @@ const CRAFT_BASE_STYLES = `
   .mw-catalog .mw-motion-pages > section { padding: 16px; border-radius: 12px; background: var(--surface-soft); font-size: 13px; }
   .mw-catalog .mw-motion-pages > section:not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint) both; }
 
-  /* ─── Reduced motion: nothing here moves ───────────────────────────────── */
+  /* ─── Reduced motion: nothing here moves ─── */
   @media (prefers-reduced-motion: reduce) {
     /* State still changes and focus still moves; only the movement goes. Transitions stop too, not just animations:
        a 0s duration (not 1ms) so a new size or position is there the moment the state changes. */
@@ -1982,7 +1975,7 @@ const STILL_RESET = `
   html[data-craft-still] *, html[data-craft-still] *::before, html[data-craft-still] *::after { transition-duration: 0s !important; transition-delay: 0s !important; }
 `;
 
-export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + STILL_RESET;
+export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + TOUCH_TARGET_STYLES + STILL_RESET;
 
 /** Behaviour for the craft layer. Everything here is presentation: it never writes Goal state,
  * never moves focus and never cancels another handler. Without it the pages look the same, only

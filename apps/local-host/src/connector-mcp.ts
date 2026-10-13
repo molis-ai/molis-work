@@ -10,10 +10,14 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { auth, UnauthorizedError, type OAuthClientProvider, type OAuthDiscoveryState } from "@modelcontextprotocol/sdk/client/auth.js";
 import { StreamableHTTPClientTransport, StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StdioClientTransport, type StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { larkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
+import { isLoopbackHttpOrigin, isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { PRODUCT_VERSION } from "./product-version.js";
 
 export interface McpServerConfiguration {
   endpoint: string;
@@ -102,7 +106,7 @@ interface McpToolRequestOptions extends McpRequestOptions {
 function callbackOrigin(raw: string): string {
   let url: URL;
   try { url = new URL(raw); } catch { throw new McpConnectionError("configuration", "本机回调地址无效"); }
-  if (url.protocol !== "http:" || !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
+  if (!isLoopbackHttpOrigin(url)) {
     throw new McpConnectionError("configuration", "授权回调必须使用本机 HTTP 地址");
   }
   return url.origin;
@@ -113,9 +117,38 @@ function safeError(error: unknown): McpConnectionError | ActionError {
   return new McpConnectionError("provider", "MCP 连接失败，请检查服务地址、账号权限和 OAuth 应用配置后重试");
 }
 
+interface ConnectorMcpHostOptions {
+  testServers?: Readonly<Record<string, McpServerConfiguration>>;
+  now?: () => number;
+  /** Tests only: builds the transport for a local stdio server (Feishu/Lark), so a test sees exactly what the Host starts it with. */
+  stdioTransport?: (parameters: StdioServerParameters) => Transport;
+}
+
+/**
+ * Runs `run` against the Feishu/Lark MCP server, started as a child process for this use alone: the Host builds its launch
+ * (pinned package, only the variables it needs, an empty working directory of its own), and closes the child and removes
+ * that directory when the use ends, however it ends.
+ */
+async function runLarkMcpChild<T>(credentials: LarkMcpLaunchInput, use: Pick<ConnectorMcpHostOptions, "stdioTransport"> & { checkActive?: () => void; signal?: AbortSignal },
+  run: (client: Client) => Promise<T>): Promise<{ result: T }> {
+  const launch = larkMcpLaunch(credentials);
+  const client = new Client({ name: "molis-work", version: PRODUCT_VERSION }, { capabilities: {} });
+  const abort = () => { void client.close().catch(() => {}); };
+  try {
+    const parameters: StdioServerParameters = { command: launch.command, args: launch.args, env: launch.env, cwd: launch.cwd, stderr: "pipe" };
+    const transport = use.stdioTransport ? use.stdioTransport(parameters) : new StdioClientTransport(parameters);
+    use.signal?.addEventListener("abort", abort, { once: true });
+    await client.connect(transport, { timeout: 60_000, signal: use.signal });
+    use.checkActive?.();
+    const result = await run(client);
+    use.checkActive?.(); use.signal?.throwIfAborted();
+    return { result };
+  } finally { use.signal?.removeEventListener("abort", abort); await client.close().catch(() => {}); launch.cleanup(); }
+}
+
 /** Test-only endpoint injection keeps production HTTP input behind the official allowlist. */
-export function createConnectorMcpHost(options: { testServers?: Readonly<Record<string, McpServerConfiguration>>; now?: () => number } = {}) {
-  if (options.testServers && process.env.NODE_ENV !== "test") throw new Error("MCP test endpoints require NODE_ENV=test");
+export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
+  if ((options.testServers || options.stdioTransport) && process.env.NODE_ENV !== "test") throw new Error("MCP test endpoints require NODE_ENV=test");
   const servers = options.testServers ?? MCP_SERVERS;
   const now = options.now ?? Date.now;
   const queues = new Map<string, Promise<unknown>>();
@@ -133,7 +166,7 @@ export function createConnectorMcpHost(options: { testServers?: Readonly<Record<
     const expected = new URL(server.endpoint);
     const endpoint = new URL(requested || server.endpoint);
     if ((server.endpointPattern ? !server.endpointPattern.test(endpoint.href) : endpoint.href !== expected.href) || endpoint.username || endpoint.password || endpoint.hash) throw new McpConnectionError("configuration", "MCP 地址必须匹配所选服务的官方地址；租户 ID 和 server name 需替换成实际值");
-    const local = endpoint.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname);
+    const local = isLoopbackHttpUrl(endpoint);
     if (endpoint.protocol !== "https:" && !(local && (options.testServers || serviceId === "figma"))) throw new McpConnectionError("configuration", "远程 MCP 必须使用 HTTPS");
     return endpoint.href;
   }
@@ -210,16 +243,8 @@ export function createConnectorMcpHost(options: { testServers?: Readonly<Record<
     if (servers[config.serviceId]?.stdio) {
       const info = session.oauth.clientInformation() as OAuthClientInformationMixed | undefined;
       if (!info?.client_id || !info.client_secret) throw new McpConnectionError("configuration", "飞书 / Lark MCP 需要 App ID 与 App Secret");
-      const token = session.secrets.get("access");
-      const environment = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined));
-      const transport = new StdioClientTransport({ command: "npx", args: ["-y", "@larksuiteoapi/lark-mcp", "mcp"], stderr: "pipe",
-        env: { ...environment, APP_ID: info.client_id, APP_SECRET: info.client_secret, LARK_DOMAIN: new URL(config.endpoint).origin,
-          LARK_TOKEN_MODE: token ? "user_access_token" : "tenant_access_token", ...(token ? { USER_ACCESS_TOKEN: token } : {}) } });
-      const client = new Client({ name: "molis-work", version: "0.2.0" }, { capabilities: {} });
-      const abort = () => { void client.close().catch(() => {}); };
-      signal?.addEventListener("abort", abort, { once: true });
-      try { await client.connect(transport, { timeout: 60_000, signal }); session.checkActive?.(); const result = await run(client); session.checkActive?.(); signal?.throwIfAborted(); return { result }; }
-      finally { signal?.removeEventListener("abort", abort); await client.close().catch(() => {}); }
+      return runLarkMcpChild({ appId: info.client_id, appSecret: info.client_secret, domain: new URL(config.endpoint).origin, userAccessToken: session.secrets.get("access") },
+        { stdioTransport: options.stdioTransport, checkActive: session.checkActive, signal }, run);
     }
     const expires = Number(session.secrets.get("expires"));
     // Some official servers also expose anonymous tools. A user asking to link
@@ -233,7 +258,7 @@ export function createConnectorMcpHost(options: { testServers?: Readonly<Record<
     const headers = token ? { Authorization: `${servers[config.serviceId]?.tokenScheme ?? "Bearer"} ${token}` } : undefined;
     const transportOptions = { authProvider: config.mode === "oauth" ? session.oauth : undefined, requestInit: headers ? { headers } : undefined, fetch: session.fetch };
     const connect = async (kind: "http" | "sse") => {
-      const client = new Client({ name: "molis-work", version: "0.2.0" }, { capabilities: {} });
+      const client = new Client({ name: "molis-work", version: PRODUCT_VERSION }, { capabilities: {} });
       const transport = kind === "http" ? new StreamableHTTPClientTransport(new URL(config.endpoint), transportOptions) : new SSEClientTransport(new URL(config.endpoint), transportOptions);
       const abort = () => { void client.close().catch(() => {}); };
       signal?.addEventListener("abort", abort, { once: true });

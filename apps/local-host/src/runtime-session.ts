@@ -1,4 +1,4 @@
-import { findSessionForHostSignals, type MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import { findSessionForHostSignals } from "@molis-ai/molis-work-module-private-work-context";
 import type { RuntimeGoalSessionActivity, RuntimeSessionReadResult } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { openWorkSessionRegistry } from "./session-registry.js";
 import { sessionSignalsForHost, type MolisWorkRuntimeContextHost } from "./runtime-context.js";
@@ -7,16 +7,8 @@ import { sessionSignalsForHost, type MolisWorkRuntimeContextHost } from "./runti
 export class RuntimeSessionHost {
   private failure: string | null = null;
 
-  constructor(private readonly reconcileLegacy: (homeDirectory: string | undefined, registry: MolisWorkSessionRegistry) => Promise<void>) {}
-
   recordFailure(error: unknown): void {
     this.failure = error instanceof Error ? error.message : String(error);
-  }
-
-  async reconcile(homeDirectory?: string): Promise<void> {
-    const registry = await openWorkSessionRegistry({ homeDirectory });
-    try { await this.reconcileLegacy(homeDirectory, registry); }
-    finally { registry.close(); }
   }
 
   async record(activity: RuntimeGoalSessionActivity, host: MolisWorkRuntimeContextHost, projectId: string | undefined): Promise<void> {
@@ -42,7 +34,8 @@ export class RuntimeSessionHost {
     }
   }
 
-  async read(host: MolisWorkRuntimeContextHost, reconcileLegacy: boolean = false): Promise<RuntimeSessionReadResult> {
+  /** `boundProjectId`: the Runtime was just bound to this project, so its binding's Session is written first. */
+  async read(host: MolisWorkRuntimeContextHost, boundProjectId: string | null = null): Promise<RuntimeSessionReadResult> {
     if (this.failure) return {
       sessionRegistry: { status: "unavailable" as const, message: this.failure, session: null },
       sessionGoalId: null,
@@ -50,7 +43,10 @@ export class RuntimeSessionHost {
     try {
       const registry = await openWorkSessionRegistry({ homeDirectory: host.homeDirectory });
       try {
-        if (reconcileLegacy) await this.reconcileLegacy(host.homeDirectory, registry);
+        const stableId = host.runtimeContext.stable_work_context_id?.trim();
+        if (boundProjectId && stableId) registry.recordBindingSession({ runtime_id: host.runtimeContext.runtime_id,
+          stable_work_context_id: stableId, project_id: boundProjectId, bound_by: `runtime:${host.runtimeContext.runtime_id}` },
+          host.panelId?.trim() || null);
         const session = findSessionForHostSignals(registry, sessionSignalsForHost(host));
         return {
           sessionGoalId: session?.current_goal_id ?? null,

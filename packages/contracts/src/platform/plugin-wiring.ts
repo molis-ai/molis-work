@@ -3,7 +3,8 @@ import type {
   ArtifactMetadata,
   ArtifactReference,
   ArtifactVersionRecord,
-  ArtifactVersionResult,
+  ProcessItemRecord,
+  ProcessItemResult,
 } from "../modules/artifacts.js";
 import type { ContractDescriptor } from "./package.js";
 
@@ -20,6 +21,7 @@ export type PluginWiringErrorCode =
   | "port_type_mismatch"
   | "port_unknown"
   | "port_binding_invalid"
+  | "port_artifact_invalid"
   | "input_group_invalid"
   | "input_group_unknown";
 
@@ -65,7 +67,7 @@ export interface PluginPortsDeclaration {
 export type PluginPortBindingOrigin = "user" | "default" | "unique";
 
 export interface PluginPortBindingRecord {
-  board_id: string;
+  project_id: string;
   target_plugin_id: string;
   target_port: string;
   source_plugin_id: string;
@@ -76,7 +78,7 @@ export interface PluginPortBindingRecord {
 }
 
 export interface PluginPortBindingInput {
-  board_id: string;
+  project_id: string;
   target_plugin_id: string;
   target_port: string;
   source_plugin_id: string;
@@ -85,8 +87,25 @@ export interface PluginPortBindingInput {
   actor_id: string;
 }
 
+/**
+ * A fixed 成果 version bound to an input port in place of another plugin's output (artifact-positioning, 2026-10-04):
+ * the consumer reads exactly that version until someone changes the port. Only 成果库 versions, never process items.
+ */
+export interface PluginPortArtifactBindingRecord {
+  project_id: string;
+  target_plugin_id: string;
+  target_port: string;
+  artifact_id: string;
+  version: number;
+  actor_id: string;
+  created_at: string;
+}
+
+export type PluginPortArtifactBindingInput = Pick<PluginPortArtifactBindingRecord,
+  "target_plugin_id" | "target_port" | "artifact_id" | "version" | "actor_id">;
+
 export interface PluginInputGroupSelectionRecord {
-  board_id: string;
+  project_id: string;
   plugin_id: string;
   group_id: string;
   updated_at: string;
@@ -97,7 +116,7 @@ export interface PluginInputGroupSelectionRecord {
  * history: publishing advances it and invalidating withdraws it.
  */
 export interface PluginPortOutputRecord {
-  board_id: string;
+  project_id: string;
   plugin_id: string;
   port: string;
   artifact_id: string | null;
@@ -137,6 +156,8 @@ export interface PluginInputPortView {
   state: PluginInputPortState;
   origin?: PluginPortBindingOrigin;
   source?: { source_plugin_id: string; source_port: string };
+  /** The fixed 成果 version bound to this port, when that is its source instead of another plugin's output. */
+  artifact?: { artifact_id: string; version: number };
   reason?: string;
   candidates: PluginInputSourceCandidate[];
 }
@@ -152,7 +173,7 @@ export interface PluginWiringPluginView {
 }
 
 export interface PluginWiringView {
-  board_id: string;
+  project_id: string;
   plugins: PluginWiringPluginView[];
 }
 
@@ -180,7 +201,7 @@ export interface PluginUpstreamUnavailableReason {
  * discovers sources itself and never sees a half-applied change.
  */
 export interface PluginUpstreamReadyInputs {
-  readonly [port: string]: ArtifactVersionRecord;
+  readonly [port: string]: ArtifactVersionRecord | ProcessItemRecord;
 }
 
 /** Input notifications refresh projections; they are not durable business commands. */
@@ -193,7 +214,7 @@ export interface PluginInputDeliveryContext {
 export interface PluginInputsClient {
   status(): PluginInputStatus;
   /** The fixed version currently bound to this port, or null when not ready. */
-  read(port: string): ArtifactVersionRecord | null;
+  read(port: string): ArtifactVersionRecord | ProcessItemRecord | null;
   reference(port: string): ArtifactReference | null;
   /** Selected input group at activation. Undefined means no group was chosen. */
   selectedGroup(): string | undefined;
@@ -207,7 +228,8 @@ export interface PluginOutputPublishInput {
 }
 
 export interface PluginOutputsClient {
-  publish(input: PluginOutputPublishInput): ArtifactVersionResult;
+  /** Records a process item on the port (artifact-positioning A2); a 成果 reaches a port by `select`. */
+  publish(input: PluginOutputPublishInput): ProcessItemResult;
   /** Expose an existing, owned fixed version without copying its content. */
   select(input: { port: string; reference: ArtifactReference; expected_reference: ArtifactReference | null }): ArtifactReference;
   /** Current output selection; null when absent or withdrawn. */
@@ -216,26 +238,30 @@ export interface PluginOutputsClient {
   invalidate(port: string, safe_reason: string): void;
   /** Keep a published reference readable after the producing session ends. */
   retain(reference: ArtifactReference): void;
-  read(reference: ArtifactReference): ArtifactVersionRecord | null;
+  read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
 }
 
 export interface PluginWiringRepository {
-  listBindings(boardId: string, targetPluginId?: string): PluginPortBindingRecord[];
+  listBindings(projectId: string, targetPluginId?: string): PluginPortBindingRecord[];
   getBinding(
-    boardId: string,
+    projectId: string,
     targetPluginId: string,
     targetPort: string,
   ): PluginPortBindingRecord | null;
+  /** A port has one source: saving a plugin binding drops a fixed-version binding on the same port, and the reverse. */
   saveBinding(record: PluginPortBindingRecord): void;
-  deleteBinding(boardId: string, targetPluginId: string, targetPort: string): void;
-  deleteBindingsForPlugin(boardId: string, pluginId: string): void;
-  getInputGroup(boardId: string, pluginId: string): PluginInputGroupSelectionRecord | null;
+  getArtifactBinding(projectId: string, targetPluginId: string, targetPort: string): PluginPortArtifactBindingRecord | null;
+  saveArtifactBinding(record: PluginPortArtifactBindingRecord): void;
+  /** Removes the port's source of either kind. */
+  deleteBinding(projectId: string, targetPluginId: string, targetPort: string): void;
+  deleteBindingsForPlugin(projectId: string, pluginId: string): void;
+  getInputGroup(projectId: string, pluginId: string): PluginInputGroupSelectionRecord | null;
   saveInputGroup(record: PluginInputGroupSelectionRecord): void;
-  listInputGroups(boardId: string): PluginInputGroupSelectionRecord[];
-  getOutput(boardId: string, pluginId: string, port: string): PluginPortOutputRecord | null;
-  listOutputs(boardId: string): PluginPortOutputRecord[];
+  listInputGroups(projectId: string): PluginInputGroupSelectionRecord[];
+  getOutput(projectId: string, pluginId: string, port: string): PluginPortOutputRecord | null;
+  listOutputs(projectId: string): PluginPortOutputRecord[];
   saveOutput(record: PluginPortOutputRecord): void;
-  deleteOutputsForPlugin(boardId: string, pluginId: string): void;
+  deleteOutputsForPlugin(projectId: string, pluginId: string): void;
 }
 
 /**
@@ -250,6 +276,7 @@ export interface PluginWiringRepository {
 export interface PluginWiringApi {
   view(): PluginWiringView;
   bind(input: PluginPortBindingInput): PluginPortBindingRecord;
+  bindArtifact(input: PluginPortArtifactBindingInput): PluginPortArtifactBindingRecord;
   unbind(targetPluginId: string, targetPort: string): void;
   selectInputGroup(pluginId: string, groupId: string): PluginInputGroupSelectionRecord;
   status(pluginId: string): PluginInputStatus;
@@ -278,74 +305,4 @@ export function requiredPorts(
   }
   if (groups.length > 0) return [];
   return ports.inputs.filter((input) => input.optional !== true).map((input) => input.port);
-}
-
-/** Validate one Plugin's port and group declarations. Returns every problem. */
-export function inspectPortDeclarations(ports: PluginPortsDeclaration | undefined): string[] {
-  if (!ports) return [];
-  const problems: string[] = [];
-  const inputs = new Set<string>();
-  for (const input of ports.inputs ?? []) {
-    if (!isValidPortName(input.port)) {
-      problems.push("输入端口名不合法");
-      continue;
-    }
-    if (inputs.has(input.port)) {
-      problems.push(`输入端口重复：${input.port}`);
-      continue;
-    }
-    if (typeof input.artifact_type_id !== "string" || input.artifact_type_id.trim() === "") {
-      problems.push(`输入端口 ${input.port} 缺少 Artifact 类型`);
-      continue;
-    }
-    if (!Number.isSafeInteger(input.schema_version) || input.schema_version < 1) {
-      problems.push(`输入端口 ${input.port} 的 schema_version 无效`);
-      continue;
-    }
-    inputs.add(input.port);
-  }
-
-  const outputs = new Set<string>();
-  for (const output of ports.outputs ?? []) {
-    if (!isValidPortName(output.port)) {
-      problems.push("输出端口名不合法");
-      continue;
-    }
-    if (outputs.has(output.port)) {
-      problems.push(`输出端口重复：${output.port}`);
-      continue;
-    }
-    if (typeof output.artifact_type_id !== "string" || output.artifact_type_id.trim() === "") {
-      problems.push(`输出端口 ${output.port} 缺少 Artifact 类型`);
-      continue;
-    }
-    if (!Number.isSafeInteger(output.schema_version) || output.schema_version < 1) {
-      problems.push(`输出端口 ${output.port} 的 schema_version 无效`);
-      continue;
-    }
-    outputs.add(output.port);
-  }
-
-  const groups = new Set<string>();
-  for (const group of ports.input_groups ?? []) {
-    if (typeof group.group_id !== "string" || group.group_id.trim() === "") {
-      problems.push("输入组缺少 ID");
-      continue;
-    }
-    if (groups.has(group.group_id)) {
-      problems.push(`输入组重复：${group.group_id}`);
-      continue;
-    }
-    groups.add(group.group_id);
-    if (!Array.isArray(group.ports) || group.ports.length === 0) {
-      problems.push(`输入组 ${group.group_id} 必须至少包含一个端口`);
-      continue;
-    }
-    for (const port of group.ports) {
-      if (!inputs.has(port)) {
-        problems.push(`输入组 ${group.group_id} 引用了未声明的输入端口 ${port}`);
-      }
-    }
-  }
-  return problems;
 }

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-module-goals";
 import { createPersonalPlanningActionHandlers, PERSONAL_PLANNING_ACTIONS } from "@molis-ai/molis-work-plugin-goals";
-import { ActionError, bindActionClient, type ActionRegistryPort, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionRegistryPort, type ActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
@@ -26,6 +26,6 @@ export class PersonalPlanningActions {
 
 /** Only bound after the local HTTP channel has passed origin/control-token checks. */
 export function bindPersonalPlanningWebActions(client: ActionClient) {
-  return bindActionClient(client, () => ({ actor_id: "web-user", actor_kind: "user", project_id: null, audience: "user",
+  return bindActionClient(client, () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", project_id: null, audience: "user",
     permissions: ["goals:read", "goals:write"], user_action: { source: "web", conversation_ref: "web:personal-planning", message_ref: `web:${randomUUID()}` } }));
 }

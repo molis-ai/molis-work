@@ -8,16 +8,37 @@ import {
   composeScheduledTaskPrompt,
   parseScheduledAgentReply,
   type ScheduledTaskRunner,
+  type ScheduleTaskReadiness,
 } from "@molis-ai/molis-work-plugin-schedule";
+import { currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
+import { configuredModelChoices } from "./configured-models.js";
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const POLL_MS = 400;
+
+/**
+ * What a due task needs, asked ahead of time so the create dialog can say what is missing: a configured text model, and a
+ * verified workspace bound to the project. The workspace is the runner's own check (the same source, the same verified path).
+ * The model is a stand-in: the runner checks that the Prologue runtime is registered and leaves the model to Prologue when the
+ * run starts, so this reads the model catalog's metadata (never a credential) to say whether a text model is set up, which is
+ * what the runner's own error asks the person to do. It is advice, not a guarantee. Creating a task never waits on it.
+ */
+export async function scheduledTaskReadiness(options: {
+  homeDirectory?: string;
+  projectId: string;
+  workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
+}): Promise<ScheduleTaskReadiness> {
+  const workspace = await options.workspaceFor?.(options.projectId);
+  return {
+    model: options.homeDirectory !== undefined && configuredModelChoices(options.homeDirectory).length > 0,
+    workspace: workspace?.realpath_verified === true,
+  };
+}
 
 export function createHostScheduledTaskRunner(options: {
   agentHost: AgentHost;
   /** Settles once the Home's Prologue adapter is registered; it registers lazily. */
   ready?: () => Promise<void>;
-  boardId: string;
   projectId: string;
   workspaceFor(projectId: string): ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
   /** The memories the Host chooses for one scheduled run (Agent work in this project); none when not given. */
@@ -28,8 +49,8 @@ export function createHostScheduledTaskRunner(options: {
       control?.beforeEffect();
       await options.ready?.();
       control?.beforeEffect();
-      // Scheduled work runs on Prologue, the Home's model path. An installed CLI Runtime
-      // is never picked just because its id sorts first.
+      // Scheduled work runs on Prologue, the Home's model path. No other registered Runtime
+      // is picked just because its id sorts first.
       if (!options.agentHost.descriptors().some((descriptor) => descriptor.runtime_id === PROLOGUE_RUNTIME_ID)) {
         throw new Error("还没有可用的 Agent Runtime：到点执行需要 Prologue，请先配置文字模型");
       }
@@ -40,7 +61,9 @@ export function createHostScheduledTaskRunner(options: {
       }
       const declared = BUILTIN_PLUGIN_AGENTS.get(SCHEDULE_PLUGIN_ID);
       if (!declared) throw new Error("Schedule 没有声明可运行的 Agent");
+      // The tick that runs this task is the operation (Schedule opens its scope); outside one, the round has a number of its own.
       const authority: AgentStartAuthority = {
+        call_id: currentCallId() ?? newCallId(),
         manifest: declared.manifest,
         authorizedDirectories: [workspace.canonical_path],
         prompts: declared.prompts,
@@ -54,7 +77,7 @@ export function createHostScheduledTaskRunner(options: {
         realpath_verified: true as const,
       };
       const session = await adapter.createSession({
-        board_id: options.boardId,
+        project_id: options.projectId,
         plugin_id: SCHEDULE_PLUGIN_ID,
         install_id: SCHEDULE_PLUGIN_ID,
         actor_id: "schedule",
@@ -64,7 +87,7 @@ export function createHostScheduledTaskRunner(options: {
       control?.beforeEffect();
       const handle = await options.agentHost.start(runtimeId, {
         session,
-        board_id: options.boardId,
+        project_id: options.projectId,
         plugin_id: SCHEDULE_PLUGIN_ID,
         install_id: SCHEDULE_PLUGIN_ID,
         actor_id: "schedule",

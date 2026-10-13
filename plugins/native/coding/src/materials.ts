@@ -1,6 +1,8 @@
+import { codingArtifacts } from "./artifacts.js";
 import { SHELF_TEXT_MATERIAL_TYPE, parseShelfTextMaterial } from "@molis-ai/molis-work-contracts/modules/shelf";
-import type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { compareTexts, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, parseChangeSet, parseGitResult, parseFileSnapshot, parseFileTextSelection, selectionCitationLabel } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import type { ArtifactReference, FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, parseChangeSet, parseGitResult, parseFileSnapshot, parseFileTextSelection, selectionCitationLabel } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { compareTexts } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentTextMaterialContent, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_PLAN_TYPE } from "./artifacts.js";
@@ -43,14 +45,14 @@ export function savedMaterials(context: PluginStartContext, sessionId: string): 
   const value = context.services?.storage?.get(`materials:${sessionId}`);
   return typeof value === "string" ? materialSelection(JSON.parse(value)) : [];
 }
-function materialFrom(record: ArtifactVersionRecord | null, sessionTitle?: SessionTitle): AgentTextMaterial {
+function materialFrom(record: FixedVersionRecord | null, sessionTitle?: SessionTitle): AgentTextMaterial {
   if (!record || record.availability !== "available" || record.lifecycle_state !== "active") throw new Error("材料已归档或不可读，请移除或重新选择");
   if (record.schema_version !== 1 || record.content_kind !== "inline") throw new Error("材料没有可读取的固定正文");
   let title: string, text: string;
   if (record.artifact_type_id === SHELF_TEXT_MATERIAL_TYPE) {
     if (record.producer_plugin_id !== "io.molis.work.shelf" || record.producer_binding_signature !== "official-shelf-binding") throw new Error("Shelf 材料来源不一致");
     const snapshot = parseShelfTextMaterial(record.payload);
-    if (record.artifact_id !== "shelf-material:" + record.board_id + ":" + snapshot.source.item_id) throw new Error("Shelf 材料身份不一致");
+    if (record.artifact_id !== "shelf-material:" + record.project_id + ":" + snapshot.source.item_id) throw new Error("Shelf 材料身份不一致");
     title = `Shelf / ${snapshot.title}`;
     text = snapshot.text;
   } else if (record.artifact_type_id === DIFF_CHANGESET_TYPE) {
@@ -98,7 +100,7 @@ function materialFrom(record: ArtifactVersionRecord | null, sessionTitle?: Sessi
   return material;
 }
 function readMaterial(context: PluginStartContext, reference: ArtifactReference, sessionTitle?: SessionTitle): AgentTextMaterial {
-  try { return materialFrom(context.services!.artifacts.read(reference), sessionTitle); }
+  try { return materialFrom(codingArtifacts(context).read(reference), sessionTitle); }
   catch (error) {
     if ((error as { code?: string }).code === "plugin_artifact_incompatible") throw new Error("材料已归档、不可用或类型不兼容，请移除后重新选择");
     throw error;

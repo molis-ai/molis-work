@@ -12,19 +12,19 @@
 
 接口：`POST /api/pages/import/preview` 接收 `project_id` 和 `files: [{name, data}]`（base64）；`POST /api/pages/import` 增加 `selected_keys`、`folder_id`、稳定的 UUID `request_id`。Host 对外沿用 `/api/plugins/pages/...` 路由。预览不写入，提交重新解析并验证，转换只在本机进行。
 
-不改 Goal 树。Promote 经 Host 发出个人 Artifact。已登记对外 MCP（`mcp_exports`），默认关；Host 从绑定项目注入分区，作者步骤见 [Plugin 开发 · 对外 MCP](../../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
+不改 Goal 树。Promote 经 Host 发出个人 Artifact。对外能力就是它声明的动作，经「能力 → 对外接入」授权后才出现在 MCP；Host 从绑定项目注入分区。
 
 - Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
 
-动作服务迁移：插件自己的 `actions.ts` 声明并实现 18 项公开业务能力（文档、文件夹、模板、文件导入、已解析材料保存、生成及历史、写作、提取、发布）。Manifest 注册这些能力和四项内容交接合同；Host 组合原 Store、模型和 Artifact owner，HTTP 不再自行打开文档库。工作流内容处理器调用同一业务动作并保留调用者身份与权限。旧八个 MCP 名称从动作合同派生并薄转发；旧 list 组合模板查询，旧 translate_new 组合候选生成和新建文档，保留原响应语义。
+动作服务迁移：插件自己的 `actions.ts` 声明并实现 20 项公开业务能力（文档、文件夹、模板、文件导入、已解析材料保存、生成及历史、写作、提取、发布），加上 12 项标准能力（主体读取、片段、系统搜索、文件条目与内容、成果库的预览/固定/比较/继续/被引用、放置的移动与复制），共 32 项。Manifest 注册这些能力和四项内容交接合同；Host 组合原 Store、模型和 Artifact owner，HTTP 不再自行打开文档库。工作流内容处理器调用同一业务动作并保留调用者身份与权限。MCP 只经授权的动作工具。
 
 内部与 MCP 的项目来自可信调用上下文；HTTP 的项目由 Host 绑定，query/body 中声明不同项目会拒绝。`pages.update` 接受 `expected_version`，编辑器自动使用服务器版本，冲突保留草稿并阻止离开。提取任务/知识页和删除文件夹各自在原 SQLite 库事务内完成。原表、文档 ID、导入请求和历史均保留。
 
-Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读写文稿；项目上下文采纳通过 `pages.documents.import` 保存来源与摘要。`request_id` 与 `request_hash` 表示调用方已确认的稳定意图，保留旧值以支持历史重试，不用它们证明权限或来源。旧 board 分区仅在原项目目录证明唯一归属时，事务迁移到 canonical project_id；保留文档和请求 ID、快照、编辑与引用，冲突或仍在生成则保留原数据并明确拒绝。
+Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读写文稿；项目上下文采纳通过 `pages.documents.import` 保存来源与摘要。`request_id` 与 `request_hash` 表示调用方已确认的稳定意图，保留旧值以支持历史重试，不用它们证明权限或来源。文档按 canonical project_id 分区；库只认当前 schema 基线（`PAGES_STORE_BASELINE`）。
 
-`pages.promote` 在原 `pages` 行保存未完成发布快照后才调用 Artifact owner；失败后继续原快照和版本。已存成 Artifact、尚未回写文稿关联时，重试读取并核对原 Artifact，恢复关联而不重复发布。旧版中断记录没有快照时也从原 Artifact 恢复。完成关联与清除快照在同一文稿事务提交，保留后续正文和 Goal 编辑；其他发起者不能冒充原 owner 恢复。
+`pages.promote` 在原 `pages` 行保存未完成发布快照后才调用 Artifact owner；失败后继续原快照和版本。已存成 Artifact、尚未回写文稿关联时，重试读取并核对原 Artifact，恢复关联而不重复发布。旧版中断记录没有快照时，只在成果库里恰有一个文稿没记过、又没写明来源修订号的版本时，才从原 Artifact 恢复。文稿移走又移回时记录重新从 0 数固定版本，而项目成果库仍留着之前的各版：下一次固定接着成果库里已有的最高版号（`nextPinnedVersion`），不把旧版当作中断记录交回。完成关联与清除快照在同一文稿事务提交，保留后续正文和 Goal 编辑；固定下来的版本归本机的人，不论谁（人、工作流、Agent、MCP 客户端）固定的，生产者记在 `created_by`，下一次固定不会因为上一版是别人固定的而被拒绝；未完成的发布意图仍只由发起它的行为者恢复，其他行为者不能代为完成。
 
 列表和编辑器从 `publication_pending` 显示“继续保存上次成果”，恢复成功明确说明当前编辑仍保留。客户端传 `expected_version`，过期请求不会再创建一版；旧客户端不传版本时继续保留每次明确调用新增版本的语义。返回 `recovered` 表示恢复上次成果。此迁移只新增可空列，不搬移原数据；降级前应完成未结束的发布，旧版代码无法识别新快照，不能安全地继续这些请求。
 
@@ -35,13 +35,17 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 - 负责：文档目录、ProseMirror 编辑器、导入、按材料生成与发布。
 - 不负责：Goal 与 Artifact 事实、模型提供方、托管文档服务、ZIP/DOCX 系统解析。
 - 公开入口：`@molis-ai/molis-work-plugin-pages`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `pages.<原因>`，状态由错误种类决定，Pages 不自带状态表）、`@molis-ai/molis-work-storage`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - HTTP 的项目由 Host 绑定，query 或 body 声明不同项目会拒绝；`pages.update` 带 `expected_version`，冲突保留草稿。
   - 生成按请求保存材料快照；缺模型明确拒绝，不生成占位文稿。
-  - 被取消或撤权的生成不写任何记录，本进程可以立即接手重试；其他进程的尝试仍守租约。
+  - 被取消或撤权的生成不写任何业务记录（调用记录里的“未执行”诊断行除外），本进程可以立即接手重试；其他进程的尝试仍守租约。
   - Host 注入 prepareImport；ZIP/DOCX/编码解析归 Host worker，Pages 的 preparePagesImport 只接受公共 MaterialDocumentBatch 并转换为编辑器正文。解析等待不占项目串行队列，返回后复查授权/取消。
   - 导入预览不写入；批量写入一个事务，同一请求重试不覆盖编辑、不重复创建。
   - 编辑器单独打成浏览器脚本，不进工作台 factory 字符串。
-- 改动后必跑：`node scripts/run-tests.mjs tests/pages-actions.test.ts tests/pages-cross-module.test.ts tests/pages-generation-lease.test.ts tests/pages-conversion.test.ts tests/action-before-effect.test.ts`
+  - 「新建文档」仍立刻建一条，但离开时内容为空就收回（W2-18 决定 6，2026-10-09）：只对本页刚建的空白文档（不含模板、AI 结果、已有的空文档），离开 = 返回列表（本页的「返回」，也包括工作台自己的返回方式：标题栏的后退键、⌘[、Alt+←、鼠标后退键和标签栏上本插件的名字；它们对本页说「没有条目」并把页面收起来，本页等收起完成后再收回，没有收起时不动）、打开另一篇（也包括导入后在导入框里按「打开」，导入的文档成为当前这篇）、再新建一篇、工作台把本页藏起来（切到别的插件、回 Home、进设置），以及页面本身走掉（刷新、关窗口）；标题没动（或为空）且正文只有空段落才算空，一个分隔线、图片、表格都算内容，还有一次保存没发出去时不动它；经既有的 `pages.discard`（`POST /api/pages/:id/discard`，新建的撤销：只在文档还是那个版本时删），版本是本页自己保存标题和正文所到的那一个（`fresh` 里记着，只随这两样保存往前走）；新建后又加了星标、移进文件夹、关联了 Goal、存了一版成果，或期间在别处改过（列表重新读取与助理的改动只更新本页看到的那份，不动这个版本），Host 拒绝、文档保留，哪怕编辑器里看着还是空的；被拒或没连上都不提示。已知的两处局限：刷新或关窗口时那一次 `keepalive` 要等 Host 收到才生效，刷新后极短的时间里列表可能还看得到这条空文档（不会再自动打开它）；指向已收回的空白文档的条目标签或放置链接，打开时显示 Host 返回的既有「文档不存在」错误（切换标签页让本页被藏起来时也会收回），要用户来定，本页没有单独处理。工作台历史里的那一步不再留下记录（用户 2026-10-10 定，`specs/repository-anti-corruption/spec.md` §1）：「新建文档」→「返回」之后按工作台的后退键，会回到指向这篇已收回文档的那一步（历史记的是 `plugin:pages|<id>`；从这篇空白文档直接用工作台的后退键回到列表时本页同样收回它，随后按「前进」也到这一步），约 1.5 秒后工作台按 id 去开它，页面显示一次同一句「找不到这篇文档」；`jumpToRecord` 的安静重开（后退、前进、刷新）里，`showsIt` 只在页面展开（`data-expanded` 不是 false）时才把工作台自己补写的 `named_by: "workbench"` 当作插件在显示它（`apps/workbench/src/scripts/client/tab-workspace.ts`、`context-actions.ts`；链接、放置「打开」、全局搜索这几条非安静的路径不变，仍把它当作在显示，因为有的插件，如 Todo 的批次整理，把内容开在列表页里），页面还停在列表，所以约 8 秒的安静计时到了，记录里仍是它在找的那一条就忘掉它（`molis-work-plugin-records:<项目>`；这段时间里人打开了别的条目，那一条的记录留着），再前进、再后退或刷新，页面都停在列表，刷新后没有那句话（`tests/plugin-small-ux.e2e.test.ts`）；那一句只出现在后退的那一次，留到再打开别的条目或刷新，没有新的页面事件去清它。删除一篇文档后按后退键同理。关掉编辑器时（`closeEditor`，经 `syncEditorChrome`）本页同时更新 `data-assistant-context`，不再把已关掉的文档（含刚收回的）当作当前对象：助理、放置条和工作台判断「这条记录开着没有」都读这个属性（`tests/pages-blank-discard.test.ts`、`tests/plugin-small-ux.e2e.test.ts`）；不更新时，已收回的文档会一直被当作助理手里的对象，后退键回到那一步也不会得到任何反应。工作台藏起本页时同时关掉编辑器，回来看到的是列表；页面走掉时这次调用带 `keepalive`，编辑器也同时关掉：工作台把插件页里打开的那条记录记在本机（`molis-work-plugin-records:<项目>`），好在刷新后重开，页面报告回到了列表（`data-expanded` 为 false）它才忘掉；不关的话，刷新后约 1.5 秒工作台会按 id 去开已收回的文档，Host 答「找不到」，页面就显示「找不到这篇文档」。没有收回的：屏幕上有字或有一次保存没发出去时不关编辑器、记录留着，刷新后照旧重开；收回被拒时编辑器已经关了、记录已忘，刷新后是列表，文档还在。只是浏览器标签或窗口被藏起来（`document.hidden`）不算离开。逻辑在 `src/blank-client.ts`，生命周期用 Host 注入的 `mountPluginClient`。
+  - `src/client.ts` 是登记过的巨大单元，行数不许增加；浏览器脚本发出去时去掉整行 `//` 注释、独占行的 `/* */` 注释和行首缩进（`apps/workbench/src/builtin-plugins.ts` 的 `served`，`tests/plugin-client-served.test.ts` 证明发出去的是同一段程序）。
+  - 项目被删除时宿主按目录条目上的 `project_data`（`pagesProjectData`，`src/project-data.ts`：确认框里的标签与 `purgePagesProject`）调用清掉文稿与文件夹，连同生成与导入回执和还能撤回的修改；只读库文件，库不存在时不创建，重复运行没有副作用。
+- 改动后必跑：`node scripts/run-tests.mjs tests/pages-actions.test.ts tests/pages-cross-module.test.ts tests/pages-generation-lease.test.ts tests/pages-conversion.test.ts tests/action-before-effect.test.ts tests/pages-publication.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/pages-blank-discard.test.ts tests/pages-draft-race.test.ts tests/plugin-client-served.test.ts tests/document-plugins-error-model.test.ts`
+- 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/plugin-small-ux.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

@@ -17,7 +17,7 @@ const WORKSPACE_MANIFESTS = [
 
 export async function computeBuildSourceDigest(packageRoot: string): Promise<string> {
   const inputs: string[] = [...BUILD_INPUTS];
-  for (const file of ["src", "apps/desktop/launchers", "apps/local-host/sdk", "tsconfig.sdk.json", "pnpm-workspace.yaml", "pnpm-lock.yaml", "tsconfig.base.json", "tsconfig.package.json", "scripts"]) {
+  for (const file of ["src", "apps/desktop/launchers", "pnpm-workspace.yaml", "pnpm-lock.yaml", "tsconfig.base.json", "tsconfig.package.json", "scripts"]) {
     if (await exists(path.join(packageRoot, file))) inputs.push(file);
   }
   for await (const manifest of fs.glob(WORKSPACE_MANIFESTS, { cwd: packageRoot })) {

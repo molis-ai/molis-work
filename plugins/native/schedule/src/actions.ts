@@ -1,10 +1,10 @@
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { parseClockTime } from "./calendar.js";
+import { scheduleFailure } from "./error.js";
 import type { ScheduleConversationTaskView } from "./tasks.js";
 import type { RecoverScheduleReminderInput, ScheduleJobView } from "./reminder-management.js";
 import type { RecoverScheduledOperationInput, ScheduledOperationView } from "./operation-management.js";
-import type { ScheduledOperationOccurrence } from "./operations.js";
 import { createScheduleSearchHandlers, scheduleSearchActions } from "./search.js";
 
 const text = { type: "string" };
@@ -20,11 +20,11 @@ const reminder = object({ text, plugin_id: id, plugin_title: text, needs_confirm
 // Jobs belong to other plugins' wakeups; their recurrence and last result stay owned by the scheduler service.
 const job = { type: "object", properties: { job_id: id, plugin_id: id, capability_id: id, object_ref: text, title: text, next_due_at: text, enabled: { type: "boolean" },
   created_at: text, updated_at: text, reminder }, required: ["job_id", "plugin_id", "capability_id", "object_ref", "title", "next_due_at", "enabled"] };
-const occurrence = object({ boardId: id, operationId: id, dueAt: text, state: { enum: ["pending", "running", "succeeded", "failed", "unknown", "skipped"] },
+const occurrence = object({ projectId: id, operationId: id, dueAt: text, state: { enum: ["pending", "running", "succeeded", "failed", "unknown", "skipped"] },
   detail: nullableText, startedAt: nullableText, finishedAt: nullableText,
   decisions: { type: "array", items: object({ decision: { enum: ["retry", "skip"] }, at: text, previousDetail: nullableText }) } },
-  ["boardId", "operationId", "dueAt", "state", "detail", "startedAt", "finishedAt"]);
-const operationView = object({ id, boardId: id, pluginId: id, installationId: nullableText, installationGeneration: nullableText, pluginTitle: text,
+  ["projectId", "operationId", "dueAt", "state", "detail", "startedAt", "finishedAt"]);
+const operationView = object({ id, projectId: id, pluginId: id, installationId: nullableText, installationGeneration: nullableText, pluginTitle: text,
   operationId: id, operationTitle: text, input: {}, inbox: { type: "boolean" }, link: text, jobId: id, jobOwner: id, repeat: { enum: ["none", "daily", "weekly"] }, at: text,
   state: { enum: ["enabled", "paused", "needs_confirmation", "needs_review", "completed"] }, detail: nullableText, revision: id,
   job: { anyOf: [{ type: "null" }, job] }, installation: { anyOf: [{ type: "null" }, object({ installationId: id, generation: id, title: text, version: text, publisher: text,
@@ -45,10 +45,15 @@ function define<I, O>(name: string, title: string, description: string, operatio
 }
 
 export interface ScheduleTaskInput { title: string; instructions: string; time: string; notify_important?: boolean }
+/** What a due task still needs from the Host: a configured text model, and a verified workspace bound to the project. */
+export interface ScheduleTaskReadiness { model: boolean; workspace: boolean }
 export const scheduleActions = {
-  list: define<Record<string, never>, { jobs: ScheduleJobView[]; tasks: ScheduleConversationTaskView[]; operations: ScheduledOperationView[]; orphaned_occurrences: ScheduledOperationOccurrence[] }>("tasks.list", "定时任务列表",
+  list: define<Record<string, never>, { jobs: ScheduleJobView[]; tasks: ScheduleConversationTaskView[]; operations: ScheduledOperationView[] }>("tasks.list", "定时任务列表",
     "读取当前项目的每日对话任务与其他插件登记的闹钟；已归档任务不在列表中", "query", object({}),
-    object({ jobs: { type: "array", items: job }, tasks: { type: "array", items: task }, operations: { type: "array", items: operationView }, orphaned_occurrences: { type: "array", items: occurrence } }), read),
+    object({ jobs: { type: "array", items: job }, tasks: { type: "array", items: task }, operations: { type: "array", items: operationView } }), read),
+  readiness: define<Record<string, never>, ScheduleTaskReadiness>("tasks.readiness", "定时任务就绪情况",
+    "读取对话任务到点执行需要的条件：已配置的文字模型、项目绑定的工作区；缺任何一项都仍可创建任务，到点时才会叫醒失败", "query", object({}),
+    object({ model: { type: "boolean" }, workspace: { type: "boolean" } }), read),
   createTask: define<ScheduleTaskInput, { task: ScheduleConversationTaskView }>("tasks.create", "新建定时任务",
     "新建每天定时运行的对话任务并登记下一次唤醒；到点后由项目 Agent 按说明执行", "command",
     object(fields, ["title", "instructions", "time"]), object({ task }), write),
@@ -82,9 +87,10 @@ export interface ScheduleActionPorts {
   setEnabled(jobId: string, enabled: boolean): ScheduleJobRecord;
   recoverReminder(input: RecoverScheduleReminderInput): ScheduleJobView;
   listOperations?(): ScheduledOperationView[];
-  orphanedOccurrences?(): ScheduledOperationOccurrence[];
   recoverOperation?(input: RecoverScheduledOperationInput): ScheduledOperationView;
   listTasks(): readonly ScheduleConversationTaskView[];
+  /** Whether the Host can run a due task right now; a Host that cannot say leaves it out. */
+  readiness?(): ScheduleTaskReadiness | Promise<ScheduleTaskReadiness>;
   createTask(input: { title: string; instructions: string; hour: number; minute: number; notify_important: boolean }): ScheduleConversationTaskView;
   updateTask(taskId: string, input: { title: string; instructions: string; hour: number; minute: number; notify_important: boolean }): ScheduleConversationTaskView;
   archiveTask(taskId: string): void;
@@ -98,11 +104,16 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
   };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
-    handle: (caller, input) => { project(caller); return handle(input as I, caller); },
+    // The scheduler service's refusals leave Schedule as Schedule's own declared failures.
+    handle: async (caller, input) => { try { project(caller); return await handle(input as I, caller); } catch (error) { throw scheduleFailure(error); } },
   });
   const editable = (input: ScheduleTaskInput) => ({ title: input.title, instructions: input.instructions, ...parseClockTime(input.time), notify_important: input.notify_important !== false });
   return [
-    bind(scheduleActions.list, () => ({ jobs: [...ports.listJobs()], tasks: [...ports.listTasks()], operations: ports.listOperations?.() ?? [], orphaned_occurrences: ports.orphanedOccurrences?.() ?? [] })),
+    bind(scheduleActions.list, () => ({ jobs: [...ports.listJobs()], tasks: [...ports.listTasks()], operations: ports.listOperations?.() ?? [] })),
+    bind(scheduleActions.readiness, () => {
+      if (!ports.readiness) throw new ActionError("actions.unredeemed", "当前宿主未提供定时任务就绪检查");
+      return ports.readiness();
+    }),
     bind(scheduleActions.createTask, input => ({ task: ports.createTask(editable(input)) })),
     bind(scheduleActions.updateTask, input => ({ task: ports.updateTask(input.task_id, editable(input)) })),
     bind(scheduleActions.archiveTask, input => { ports.archiveTask(input.task_id); return { archived: true as const }; }),

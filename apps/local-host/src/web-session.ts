@@ -5,9 +5,9 @@ import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-wor
 import { buildWorkSessionView, workActions, type ProjectOperationsData } from "@molis-ai/molis-work-plugin-work";
 import { type MolisWorkProjectCatalog, type MolisWorkWorkspaceDirectoryRecord, normalizeRuntimeWorkContext } from "./project-catalog.js";
 import { openWorkSessionRegistry } from "./session-registry.js";
-import { reconcileLegacySessionCatalog } from "./session-migration.js";
 
 
+/** Each panel's Session id; panels write their Sessions when they are written, so this only reads. */
 export async function desktopPanelSessionIds(
   catalog: MolisWorkProjectCatalog,
   panelIds: readonly string[],
@@ -16,7 +16,6 @@ export async function desktopPanelSessionIds(
   if (panelIds.length === 0) return result;
   const registry = await openWorkSessionRegistry({ homeDirectory: catalog.homeDirectory });
   try {
-    reconcileLegacySessionCatalog(catalog, registry);
     for (const panelId of panelIds) {
       const sessionId = registry.findBySurface(panelId)?.session_id;
       if (sessionId) result.set(panelId, sessionId);

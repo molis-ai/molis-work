@@ -276,28 +276,3 @@ test("project main group uses live project access; tags, quotes, search and read
     assert.deepEqual(f.db.pragma('foreign_key_check'),[]);
   } finally {await f.close();}
 });
-
-test('existing Thread identifiers and shared replies survive nullable-source migration', async () => {
-  const {createImSchema}=await import('../server/src/im/schema.js');
-  const db=new Database(':memory:');
-  try {
-    db.pragma('foreign_keys = ON');
-    db.exec(`CREATE TABLE mw_members(id TEXT PRIMARY KEY); CREATE TABLE mw_sessions(id TEXT PRIMARY KEY);
-      CREATE TABLE mw_projects(id TEXT PRIMARY KEY); INSERT INTO mw_members VALUES ('a');
-      CREATE TABLE im_rooms(id TEXT PRIMARY KEY,title TEXT,owner_id TEXT,invite_token TEXT,created_at TEXT,updated_at TEXT);
-      CREATE TABLE im_threads(id TEXT PRIMARY KEY,room_id TEXT REFERENCES im_rooms(id),title TEXT,source_message_id TEXT NOT NULL REFERENCES im_messages(id),created_by TEXT,created_at TEXT,updated_at TEXT);
-      CREATE TABLE im_messages(sequence INTEGER PRIMARY KEY,id TEXT UNIQUE,room_id TEXT,thread_id TEXT REFERENCES im_threads(id),author_id TEXT,body TEXT,shared_message_id TEXT REFERENCES im_messages(id),created_at TEXT);
-      INSERT INTO im_rooms VALUES ('r','Old room','a','old-invite','now','now');
-      INSERT INTO im_messages VALUES (1,'source','r',NULL,'a','Original',NULL,'now');
-      INSERT INTO im_threads VALUES ('t','r','Old thread','source','a','now','now');
-      INSERT INTO im_messages VALUES (2,'reply','r','t','a','Reply',NULL,'now');
-      INSERT INTO im_messages VALUES (3,'share','r',NULL,'a','','reply','now');`);
-    createImSchema(db);createImSchema(db);
-    assert.equal(db.prepare('SELECT thread_id FROM im_messages WHERE id=?').get('reply').thread_id,'t');
-    assert.equal(db.prepare('SELECT source_message_id FROM im_threads WHERE id=?').get('t').source_message_id,'source');
-    assert.equal(db.prepare('SELECT shared_message_id FROM im_messages WHERE id=?').get('share').shared_message_id,'reply');
-    assert.equal(db.prepare('SELECT project_id FROM im_rooms').get().project_id,null);
-    assert.deepEqual(db.pragma('foreign_key_check'),[]);
-    assert.equal(db.pragma('foreign_keys',{simple:true}),1);
-  } finally {db.close();}
-});

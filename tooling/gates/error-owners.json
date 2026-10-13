@@ -1,0 +1,373 @@
+{
+  "note": "Whose error is this (scripts/gates/error-owners.mjs, spec repository-anti-corruption W3-02-B; user decision 2026-10-10: every error code starts with its owner's name). The count of codes that do not start with the owner's name of the file that raises them is errorCodeOwner in tooling/gates/baseline.json: it may only fall. Every file under plugins/native/<dir>/ belongs to the owner <dir> (hyphens become underscores) without an entry here; the entries below add the modules and Host files that serve a plugin and the owners that are not plugins. A path is a directory (ends with /), a glob in one path segment, or one file; the most specific path wins. The table only gets stricter: a file that has an owner keeps it (scripts/gates/error-owners.mjs), so a wrong assignment is corrected in a reviewed change to the gate.",
+  "platform": {
+    "prefixes": [
+      "actions",
+      "placement",
+      "search",
+      "files"
+    ],
+    "reason": "actions.* is the platform's own family; placement.same_location, search.entry_duplicate, files.entry_duplicate and files.too_large are the protocol codes the contracts' helpers raise. Every one of them has a row in ACTION_ERROR_KINDS and may be raised by anyone."
+  },
+  "owners": {
+    "agent": {
+      "paths": [
+        "horizontal/agent-host/",
+        "apps/local-host/src/prologue-inference-host.ts"
+      ],
+      "reason": "The Agent Host, the only package that talks to Prologue, and the Host file that serves its inference: agent.* (the inference.* codes are renamed to agent.*, spec W3-02 R4c)."
+    },
+    "agent_definitions": {
+      "paths": [
+        "apps/local-host/src/agent-definitions/"
+      ],
+      "reason": "The Host's registry of Agent definitions and its HTTP edge: its codes already start with agent_definitions."
+    },
+    "alchemist": {
+      "paths": [
+        "apps/local-host/src/alchemist-*"
+      ],
+      "reason": "The Alchemist plugin and the Host files that serve it; its UPPER_CASE codes become alchemist.* (spec W3-02 J5)."
+    },
+    "artifacts": {
+      "paths": [
+        "modules/artifacts/",
+        "apps/local-host/src/artifact-*",
+        "apps/local-host/src/creative-artifacts.ts"
+      ],
+      "reason": "The artifact ledger, the Artifacts plugin and the Host files that pin, import and read versions; artifact.* and document.* become artifacts.* (spec W3-02 R4b)."
+    },
+    "assets": {
+      "paths": [
+        "apps/server/src/assets.ts"
+      ],
+      "reason": "Exporting and restoring a work-assets bundle: assets.* is its own feature, raised through ImError."
+    },
+    "assistant": {
+      "paths": [
+        "apps/local-host/src/assistant/"
+      ],
+      "reason": "The Assistant service, its store, authority and HTTP edge: one fact owner, its codes already start with assistant."
+    },
+    "attention": {
+      "paths": [
+        "modules/attention-resumption/"
+      ],
+      "reason": "The attention and resumption module: its attention_* codes become attention.*."
+    },
+    "browser": {
+      "paths": [
+        "apps/local-host/src/browser/"
+      ],
+      "reason": "The in-app browser host (CDP, surfaces, the page driver). Its page.* codes are renamed to browser.* (spec W3-02 R5)."
+    },
+    "catalog": {
+      "paths": [
+        "modules/projects/",
+        "apps/local-host/src/project-catalog*.ts",
+        "apps/local-host/src/catalog-schema.ts",
+        "apps/local-host/src/managed-project-*",
+        "apps/local-host/src/demo-project-lifecycle.ts",
+        "apps/local-host/src/project-database.ts",
+        "apps/local-host/src/project-deletion-*",
+        "apps/local-host/src/project-file-paths.ts",
+        "apps/desktop/src/panels.ts"
+      ],
+      "reason": "The project catalog: creating, binding, recovering and deleting projects and their panels (MolisWorkProjectCatalogError folds into the catalog.* codes, spec W3-02 G2)."
+    },
+    "catalog_integration": {
+      "paths": [
+        "plugins/official-integrations/catalog/"
+      ],
+      "reason": "The catalog official integration (a Runtime plugin): its own name apart from the Host's project catalog."
+    },
+    "characters": {
+      "paths": [
+        "modules/characters/",
+        "apps/local-host/src/character-*",
+        "apps/local-host/src/characters-host.ts"
+      ],
+      "reason": "The Characters module, plugin and the Host files that import and run them; character.* becomes characters.* (spec W3-02 R4c)."
+    },
+    "coding": {
+      "paths": [
+        "apps/local-host/src/coding-*"
+      ],
+      "reason": "The Coding plugin's Host side (surface, background tasks, shelf material); its codes start with coding."
+    },
+    "cognia": {
+      "paths": [
+        "apps/local-host/src/cognia-*"
+      ],
+      "reason": "The Cognia plugin and the Host files that serve it; its codes start with cognia."
+    },
+    "connector": {
+      "paths": [
+        "horizontal/connector-host/",
+        "apps/local-host/src/connector*",
+        "apps/local-host/src/web-connector*",
+        "apps/local-host/src/host-connector-methods.ts"
+      ],
+      "reason": "Connector connections, drivers, OAuth and the connector settings routes (ConnectorHostError, ConnectorConnectionError, McpConnectionError): one owner, whose bare-word and connector_* codes become connector.*."
+    },
+    "context_ledger": {
+      "paths": [
+        "modules/context-ledger/"
+      ],
+      "reason": "The context ledger module; its context.* codes become context_ledger.* so context stays one word with one owner."
+    },
+    "contextual": {
+      "paths": [
+        "apps/local-host/src/contextual/"
+      ],
+      "reason": "Contextual ranking's Host side (service, judgment, HTTP edge); its codes already start with contextual."
+    },
+    "dataset": {
+      "paths": [
+        "apps/local-host/src/dataset-*"
+      ],
+      "reason": "The Dataset plugin and the Host files that serve it; its codes already start with dataset."
+    },
+    "feed": {
+      "paths": [
+        "modules/feed/",
+        "packages/contracts/src/modules/feed.ts",
+        "apps/local-host/src/feed-*",
+        "apps/local-host/src/research-library-source.ts"
+      ],
+      "reason": "The Feed module, plugin and the Host files that sync and promote; the feed_* snake codes become feed.* (spec W3-02 E)."
+    },
+    "form": {
+      "paths": [
+        "apps/local-host/src/form-*"
+      ],
+      "reason": "The Form plugin and the Host files that serve it; its codes already start with form."
+    },
+    "functions": {
+      "paths": [
+        "modules/functions/",
+        "apps/local-host/src/functions-*",
+        "apps/local-host/src/functions-http/",
+        "packages/contracts/src/modules/functions.ts"
+      ],
+      "reason": "The Functions module and the Host files that serve it (functions-host, functions-http): functions.*"
+    },
+    "git": {
+      "paths": [
+        "apps/local-host/src/git-*"
+      ],
+      "reason": "The Git plugin's Host side (worktrees, status, operations); its codes already start with git."
+    },
+    "goals": {
+      "paths": [
+        "modules/goals/",
+        "modules/governance-collaboration/",
+        "apps/local-host/src/goal-*",
+        "apps/local-host/src/goals-actions.ts",
+        "apps/local-host/src/web-goals-read.ts"
+      ],
+      "reason": "Goals is the plugin plus its module, the governance module that records tree proposals and event decisions, and the Host files that serve them; every Goals code is goals.<family>.<reason>."
+    },
+    "host": {
+      "paths": [
+        "apps/local-host/src/"
+      ],
+      "reason": "Everything in the Host that is not one plugin's or one area's: the composition root, the HTTP edges, the action gateway, the Home dock and project hosting. Its own codes start with host (host.request_refused)."
+    },
+    "im": {
+      "paths": [
+        "server/"
+      ],
+      "reason": "The IM server package and its identity and continuity services (ImError): its im, identity, continuity and server prefixes become im.* (spec W3-02 R6; stored codes wait for the maintenance)."
+    },
+    "images": {
+      "paths": [
+        "apps/local-host/src/images-*"
+      ],
+      "reason": "The Images plugin and the Host files that serve it; its codes already start with images."
+    },
+    "inbox": {
+      "paths": [
+        "apps/local-host/src/inbox-*",
+        "packages/contracts/src/modules/attention-resumption.ts"
+      ],
+      "reason": "The Inbox plugin and the Host files that serve it; the Pages codes it borrowed became inbox.* (spec W3-02 E). The contracts file of the attention module holds the Inbox's declaration (inboxErrors), because the Feed plugin raises the missing entry and the Inbox plugin the invalid request and the two share no other package."
+    },
+    "installer": {
+      "paths": [
+        "apps/local-host/src/installer/"
+      ],
+      "reason": "The installer, uninstaller, web service and Runtime integration code: one area whose single-use prefixes (source, home, release, runtime, uninstall, service) become installer.* (spec W3-02 R5)."
+    },
+    "jelly": {
+      "paths": [
+        "apps/local-host/src/jelly-*"
+      ],
+      "reason": "The Jelly plugin and the Host files that read its sources and material; its codes already start with jelly."
+    },
+    "kernel": {
+      "paths": [
+        "packages/kernel/"
+      ],
+      "reason": "The action kernel: kernel.* for its own failures (the runtime-identity code mcp.runtime_identity_missing becomes kernel.runtime_identity_missing)."
+    },
+    "lingguang": {
+      "paths": [
+        "apps/local-host/src/lingguang-*"
+      ],
+      "reason": "The Lingguang plugin and the Host files that serve it; its codes already start with lingguang."
+    },
+    "listener": {
+      "paths": [
+        "horizontal/listener-host/",
+        "packages/contracts/src/services/listener-host.ts"
+      ],
+      "reason": "The listener host: its listener_* codes become listener.*."
+    },
+    "material": {
+      "paths": [
+        "apps/local-host/src/material-*"
+      ],
+      "reason": "Text extraction from documents and web pages (MaterialExtractionError): the Host's material files raise material.* codes."
+    },
+    "mcp": {
+      "paths": [
+        "apps/mcp/",
+        "apps/local-host/src/mcp-*",
+        "apps/local-host/src/web-mcp-*",
+        "apps/local-host/src/external-mcp-actions.ts"
+      ],
+      "reason": "The MCP server for Runtimes, its tool dispatch, grants and settings: the transport-level codes (mcp.unexpected_field, mcp.authority_denied) are the MCP owner's. Goals tools in apps/mcp raise MCP codes too."
+    },
+    "memory": {
+      "paths": [
+        "horizontal/memory/",
+        "apps/local-host/src/memory/"
+      ],
+      "reason": "The memory horizontal and the Host side that serves it: one fact owner, its codes already start with memory."
+    },
+    "model_provider": {
+      "paths": [
+        "apps/local-host/src/model-provider-*"
+      ],
+      "reason": "The model provider settings store; its codes (model-provider.*) become model_provider.*."
+    },
+    "pages": {
+      "paths": [
+        "apps/local-host/src/pages-*"
+      ],
+      "reason": "The Pages plugin and the Host files that import and publish documents; its codes already start with pages."
+    },
+    "placement": {
+      "paths": [
+        "horizontal/placement/",
+        "apps/local-host/src/placement-*"
+      ],
+      "reason": "The placement horizontal and its Host actions and HTTP edge; placement.same_location is also a platform protocol code."
+    },
+    "plugin": {
+      "paths": [
+        "packages/plugin-runtime/",
+        "packages/plugin-sdk/",
+        "tooling/plugin-cli/",
+        "apps/local-host/src/installed-plugin-*",
+        "packages/contracts/src/platform/plugin-events.ts",
+        "packages/contracts/src/platform/plugin-wiring.ts"
+      ],
+      "reason": "The Plugin Runtime, the plugin SDK's manifest and definition checks, the plugin CLI and the Host's installed-plugin files: their plugin_* codes become plugin.* (spec W3-02 J1)."
+    },
+    "plugin_builder": {
+      "paths": [
+        "apps/local-host/src/plugin-builder/",
+        "apps/local-host/src/plugin-builder-surface.ts"
+      ],
+      "reason": "The plugin builder (Studio) plugin and its Host side."
+    },
+    "ppt": {
+      "paths": [
+        "apps/local-host/src/ppt-*"
+      ],
+      "reason": "The PPT plugin and the Host files that serve it; its codes already start with ppt."
+    },
+    "runtime_host": {
+      "paths": [
+        "horizontal/runtime-host/"
+      ],
+      "reason": "The Runtime host adapters (Codex app server transport): runtime_host.*"
+    },
+    "sandbox": {
+      "paths": [
+        "packages/plugin-sandbox/"
+      ],
+      "reason": "The plugin sandbox (SandboxError): its UPPER_CASE codes become sandbox.* (spec W3-02 J6)."
+    },
+    "schedule": {
+      "paths": [
+        "apps/local-host/src/schedule-*"
+      ],
+      "reason": "The Schedule plugin and the Host files that serve it (tasks, reminders, runner); its schedule_task_* snake codes become schedule.* (spec W3-02 E)."
+    },
+    "scheduler": {
+      "paths": [
+        "horizontal/scheduler/",
+        "packages/contracts/src/services/scheduler.ts"
+      ],
+      "reason": "The scheduler horizontal (ScheduleError): its schedule_job_* codes become scheduler.*; the Schedule plugin's own codes are schedule.*."
+    },
+    "search": {
+      "paths": [
+        "horizontal/search/",
+        "apps/local-host/src/search-*"
+      ],
+      "reason": "The search horizontal and its Host actions and HTTP edge; search.entry_duplicate is also a platform protocol code."
+    },
+    "shelf": {
+      "paths": [
+        "modules/shelf/",
+        "apps/local-host/src/shelf-*"
+      ],
+      "reason": "The Shelf module, plugin and its Host AI file; its codes already start with shelf."
+    },
+    "signals": {
+      "paths": [
+        "modules/signals/"
+      ],
+      "reason": "The signals module: its signal_* codes become signals.*."
+    },
+    "sources": {
+      "paths": [
+        "modules/sources/",
+        "packages/contracts/src/modules/sources.ts"
+      ],
+      "reason": "The sources module (SourcesError): its source_* codes become sources.*."
+    },
+    "todo": {
+      "paths": [
+        "apps/local-host/src/todo-*"
+      ],
+      "reason": "The Todo plugin and its Host actions file; its codes already start with todo."
+    },
+    "ui_host": {
+      "paths": [
+        "packages/ui-host/"
+      ],
+      "reason": "The UI host (contributions, the shared request helper): ui_host.* (spec W3-10 names its codes ui_host.*)."
+    },
+    "work": {
+      "paths": [
+        "modules/private-work-context/",
+        "packages/contracts/src/modules/private-work-context.ts",
+        "packages/contracts/src/modules/workspace-artifacts.ts",
+        "apps/local-host/src/work-*"
+      ],
+      "reason": "The Work plugin owns sessions, handoffs, workspaces and their private context; the session, sessions, handoff, context and workspace prefixes become work.* (spec W3-02 R4a)."
+    },
+    "workflows": {
+      "paths": [
+        "apps/local-host/src/workflow-*",
+        "apps/local-host/src/workflows-*"
+      ],
+      "reason": "The Workflows plugin and the Host files that serve it; its codes already start with workflows."
+    }
+  }
+}

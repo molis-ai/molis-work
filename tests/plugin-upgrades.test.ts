@@ -1,21 +1,32 @@
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
 import type { IntegrationProviderPort, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   MemoryPluginRuntimeRepository,
   PluginRuntime,
   PluginSupervisor,
   SqlitePluginRuntimeRepository,
+  pluginManifestDigest,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import { CODING_PLUGIN_ID, createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
-import { DEMO_BOARD_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/src/coding-surface.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+/** A real ServerResponse whose `writeHead` and `end` record the status and body instead of writing to a socket. */
+function recordedResponse(): { response: ServerResponse; recorded: { statusCode: number; body: string } } {
+  const recorded = { statusCode: 0, body: "" };
+  const response = new ServerResponse(new IncomingMessage(new Socket()));
+  response.writeHead = (status: number) => { recorded.statusCode = status; return response; };
+  response.end = (body?: unknown) => { recorded.body = String(body); return response; };
+  return { response, recorded };
+}
 
 const provider: IntegrationProviderPort = {
   type: "upgrade-fixture",
@@ -123,7 +134,7 @@ test("a same-version Manifest change is usable only with an exact compatibility 
   assert.equal(deniedRuntime.get(installed.install.install_id).manifest_digest, installed.install.manifest_digest);
 });
 
-test("project market update API reports the installed and target versions without changing the install", async () => {
+test("a bundled plugin's older install moves up when the project starts, so the market has no update pending for it", async () => {
   const directory = mkdtempSync(join(tmpdir(), "plugin-market-upgrade-"));
   const databasePath = join(directory, "project.db");
   seedDemoBoard(databasePath);
@@ -142,7 +153,7 @@ test("project market update API reports the installed and target versions withou
     });
     const ports = {
       store,
-      boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID),
+      projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID),
       actorId: "market-test",
       goalTitle: () => undefined,
       escapeHtml: String,
@@ -150,30 +161,67 @@ test("project market update API reports the installed and target versions withou
       workspaces: [],
     };
     const request = { method: "GET" } as IncomingMessage;
-    const response = {
-      statusCode: 0,
-      body: "",
-      writeHead(status: number) { this.statusCode = status; return this; },
-      end(body: string) { this.body = body; },
-    } as unknown as ServerResponse & { statusCode: number; body: string };
+    const { response, recorded } = recordedResponse();
     const handled = await handleCodingPluginHttp(request, response, new URL("http://localhost/api/plugins/runtime/updates"), ports);
     assert.equal(handled, true);
-    assert.equal(response.statusCode, 200);
-    const updates = JSON.parse(response.body).updates as Array<{ plugin_id: string; installed_version: string; target_version: string; mode: string; can_upgrade: boolean; project_plugin_id: string }>;
-    const candidate = updates.find(item => item.plugin_id === CODING_PLUGIN_ID);
-    assert.deepEqual(candidate, {
-      plugin_id: CODING_PLUGIN_ID,
-      install_id: oldInstall.install.install_id,
-      installed_version: "0.9.0",
-      target_version: currentDefinition.manifest.version,
-      mode: "unsupported",
-      can_upgrade: false,
-      project_plugin_id: "coding",
-    });
-    assert.equal(new PluginRuntime(new SqlitePluginRuntimeRepository(store.db)).get(oldInstall.install.install_id).version, "0.9.0");
+    assert.equal(recorded.statusCode, 200);
+    const updates = JSON.parse(recorded.body).updates as Array<{ plugin_id: string; installed_version: string; target_version: string; mode: string; can_upgrade: boolean; project_plugin_id: string }>;
+    // Coding ships with the Host (2026-10-04): its 0.9.0 install moved up to the Host's version when the project started.
+    assert.equal(updates.find(item => item.plugin_id === CODING_PLUGIN_ID), undefined);
+    assert.equal(new PluginRuntime(new SqlitePluginRuntimeRepository(store.db)).get(oldInstall.install.install_id).version, currentDefinition.manifest.version);
   } finally {
-    await releaseCodingSurface(store, DEMO_BOARD_ID);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID);
     store.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+// docs/releases/POLICY.md section 7 (decision A, 2026-10-08): the Host's build wins in every direction. The records below are what a
+// development Home can hold after the built-in Manifest versions were reset or a Manifest changed under the same version, and no
+// stored release exists for them, so before this rule the plugin did not start (`plugin_release_artifact_missing`).
+for (const shape of ["above the build's version", "at the build's version with another Manifest"] as const) {
+  test(`a bundled plugin's install ${shape} is moved to the build when the project starts: same install, no market update, no stored release needed`, async () => {
+    const directory = mkdtempSync(join(tmpdir(), "plugin-bundled-follow-"));
+    const databasePath = join(directory, "project.db");
+    seedDemoBoard(databasePath);
+    const store = new LocalProjectDatabase(databasePath);
+    try {
+      const currentDefinition = createCodingPlugin();
+      const earlierDefinition: PluginDefinition = {
+        ...currentDefinition,
+        manifest: shape === "above the build's version"
+          ? { ...currentDefinition.manifest, version: "99.0.0", upgrade_compatibility: undefined }
+          : { ...currentDefinition.manifest, name: "An earlier build of the same version", upgrade_compatibility: undefined },
+      };
+      assert.notEqual(pluginManifestDigest(earlierDefinition.manifest), pluginManifestDigest(currentDefinition.manifest));
+      const earlier = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db)).install({
+        definition: earlierDefinition,
+        deployment: "local",
+        grants: currentDefinition.manifest.permissions.filter(item => item.required).map(item => item.permission),
+      }).install;
+      const ports = {
+        store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "follow-test",
+        goalTitle: () => undefined, escapeHtml: String, translate: String, workspaces: [],
+      };
+      const { response, recorded } = recordedResponse();
+      const handled = await handleCodingPluginHttp({ method: "GET" } as IncomingMessage, response,
+        new URL("http://localhost/api/plugins/runtime/updates"), ports);
+      assert.equal(handled, true);
+      assert.equal(recorded.statusCode, 200);
+      const updates = JSON.parse(recorded.body).updates as Array<{ plugin_id: string }>;
+      assert.equal(updates.find(item => item.plugin_id === CODING_PLUGIN_ID), undefined, "the market has nothing to confirm for a bundled plugin");
+
+      const installs = new SqlitePluginRuntimeRepository(store.db).list().filter(item => item.plugin_id === CODING_PLUGIN_ID);
+      assert.deepEqual(installs.map(item => item.install_id), [earlier.install_id], "the same install, so its private data stays attached");
+      const record = installs[0]!;
+      assert.equal(record.state, "running", "the plugin starts on the Host's build");
+      assert.equal(record.version, currentDefinition.manifest.version);
+      assert.equal(record.manifest_digest, pluginManifestDigest(currentDefinition.manifest), "the record equals the build, which docs/releases/CHECKLIST.md 4.5 checks");
+      assert.equal(record.installation_generation, earlier.installation_generation, "still the same installation");
+    } finally {
+      await releaseCodingSurface(store, DEMO_PROJECT_ID);
+      store.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}

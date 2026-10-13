@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -16,11 +16,11 @@ test("however many pages poll the Coding directory at once, one read runs and at
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = new CodingSessionStore(store.db);
   for (const id of ["a", "b", "c"]) {
-    sessions.create({ board_id: DEMO_BOARD_ID, session_id: id, title: `会话 ${id}`, runtime_id: "prologue", at: new Date().toISOString() });
-    sessions.setRuntimeSession(DEMO_BOARD_ID, id, `sdk-${id}`, new Date().toISOString());
+    sessions.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: `会话 ${id}`, runtime_id: "prologue", at: new Date().toISOString() });
+    sessions.setRuntimeSession(DEMO_PROJECT_ID, id, `sdk-${id}`, new Date().toISOString());
   }
   let reads = 0, inFlight = 0, most = 0; const batches: string[][] = [];
-  const host = () => ({ store, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, _args: Input): Promise<Output> {
@@ -62,7 +62,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
     assert.equal(byId.a.state, "waiting-approval");
     // Who holds the open plan steps travels with the row, and is kept for lists that read the store directly.
     assert.deepEqual(byId.a.steps, { mine: 1, subtasks: 1, unowned: 0 });
-    assert.deepEqual(sessions.stepsOf(DEMO_BOARD_ID, "a"), { mine: 1, subtasks: 1, unowned: 0 });
+    assert.deepEqual(sessions.stepsOf(DEMO_PROJECT_ID, "a"), { mine: 1, subtasks: 1, unowned: 0 });
     assert.equal(byId.b.steps, undefined);
     assert.equal(byId.b.state, "idle"); assert.equal(byId.b.checkpoint_busy, true);
     assert.equal(byId.c.state, "reconcile-required", "an unreadable session is never shown as safe to continue");
@@ -75,5 +75,5 @@ test("however many pages poll the Coding directory at once, one read runs and at
     // A request after the others have been answered starts a fresh read.
     await state();
     assert.equal(reads, 3);
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

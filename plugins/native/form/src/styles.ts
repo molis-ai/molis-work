@@ -107,7 +107,6 @@ export const FORM_STYLES = `
   }
   .form-result p span:first-child { color: var(--muted); }
   .form-result p span:last-child { color: var(--ink); overflow-wrap: anywhere; }
-  .form-result p.form-result-legacy { display: block; color: var(--muted); line-height: 1.5; }
   .form-export-panel { max-width: 36rem; }
   .form-export-panel summary { cursor: pointer; font-size: 12px; color: var(--muted); }
   .form-note { margin: 0 24px 16px; max-width: 40rem; font-size: 12px; color: var(--muted); }

@@ -13,14 +13,14 @@ if(command === "authorize") {
   if(!values.state || !values.member || !values.project || !values["control-token-file"])throw Error("authorize requires --state, --member, --project and --control-token-file");
   const storage=openServerDatabase(resolve(values.state));
   try {
-    const access=storage.db.prepare("SELECT role FROM mw_access WHERE project_id=? AND member_id=?").get(values.project,values.member) as {role:"owner"|"editor"|"viewer"}|undefined;
-    if(!values.revoke && !access)throw Error("Member has no access to this project");
-    console.log(JSON.stringify(await configureMemberActions({hostUrl:values["host-url"] ?? "http://127.0.0.1:4173",controlTokenFile:resolve(values["control-token-file"]),memberId:values.member,projectId:values.project,role:values.revoke?"revoked":access!.role}),null,2));
+    const role=new Identity(storage.db).roleOf(values.project,values.member);
+    if(!values.revoke && !role)throw Error("Member has no access to this project");
+    console.log(JSON.stringify(await configureMemberActions({hostUrl:values["host-url"] ?? "http://127.0.0.1:4173",controlTokenFile:resolve(values["control-token-file"]),memberId:values.member,projectId:values.project,role:values.revoke?"revoked":role!}),null,2));
   } finally {storage.close();}
 } else if(command === "members") {
   if(!values.state)throw Error("members requires --state");
   const storage=openServerDatabase(resolve(values.state));
-  try{console.log(JSON.stringify(storage.db.prepare("SELECT m.id,m.display_name,a.project_id,a.role FROM mw_members m LEFT JOIN mw_access a ON a.member_id=m.id").all(),null,2));}finally{storage.close();}
+  try{console.log(JSON.stringify(new Identity(storage.db).memberAccess(),null,2));}finally{storage.close();}
 } else if(command === "restore") {
   if(!values.bundle || !values.destination)throw Error("restore requires --bundle and --destination");
   console.log(JSON.stringify(await restoreWorkAssets(JSON.parse(await readFile(resolve(values.bundle),"utf8")),resolve(values.destination)),null,2));
@@ -33,7 +33,7 @@ if(command === "authorize") {
   const storage=openServerDatabase(state),identity=new Identity(storage.db),events=new ServerEvents(storage.db);
   const continuity=new ContinuityService(storage.db,identity,events,gatewayFactory({url:values["host-url"] ?? "http://127.0.0.1:4173",homeDirectory:resolve(values["host-home"])}));
   const ownerFile=join(state,"owner.json");let owner:{id:string;display_name:string};
-  try{owner=JSON.parse(await readFile(ownerFile,"utf8"));if(!storage.db.prepare("SELECT 1 FROM mw_members WHERE id=?").get(owner.id))throw Error("owner record does not match server database");}
+  try{owner=JSON.parse(await readFile(ownerFile,"utf8"));if(!identity.hasMember(owner.id))throw Error("owner record does not match server database");}
   catch(error){if(!(error && typeof error === "object" && "code" in error && error.code === "ENOENT"))throw error;owner=identity.createMember(values.name ?? "我");await writeFile(ownerFile,JSON.stringify(owner),{mode:0o600,flag:"wx"});}
   const config:unknown=JSON.parse(await readFile(resolve(values.config),"utf8"));
   if(!config || typeof config!=="object" || !("projects" in config) || !Array.isArray(config.projects))throw Error("config.projects must list explicitly selected project/goal/artifact references");
@@ -43,11 +43,7 @@ if(command === "authorize") {
     for(const project of configuredProjects){continuity.registerProject(project as ProjectScope,owner.id);allowed.add((project as ProjectScope).id);}
     // Configuration is the current transport allowlist, not an append-only registry.
     // Keep receipts/history, but removed projects cannot be reached through old devices or invitations.
-    const previous=storage.db.prepare("SELECT id FROM mw_projects").all() as {id:string}[];
-    for(const project of previous)if(!allowed.has(project.id)){
-      storage.db.prepare("DELETE FROM mw_access WHERE project_id=?").run(project.id);
-      storage.db.prepare("UPDATE mw_codes SET consumed=1 WHERE project_id=? AND kind='invite'").run(project.id);
-    }
+    continuity.closeProjectsExcept(allowed);
   });
   const bootstrap=identity.code("bootstrap",owner.id);await writeFile(join(state,"connect.json"),JSON.stringify(bootstrap,null,2),{mode:0o600});
   const tls=values.cert && values.key ? {cert:await readFile(resolve(values.cert),"utf8"),key:await readFile(resolve(values.key),"utf8")} : undefined;

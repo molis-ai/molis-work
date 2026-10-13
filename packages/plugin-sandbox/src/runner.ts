@@ -1,10 +1,11 @@
+import { AsyncResource } from 'node:async_hooks';
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { constants, promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { createExecutionLifetime } from '@molis-ai/molis-work-kernel';
+import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
 import type { SandboxEffects, SandboxHostMessage, SandboxIdentity, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxWorkerMessage } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { SandboxBroker, type SandboxServices } from './broker.js';
 import { BoundedQueue, RateBudget } from './queue.js';
@@ -77,7 +78,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
   const broker = new SandboxBroker(identity, grants, options.services, limits);
   const shutdownControl = new AbortController();
   let stopped: SandboxError | undefined, ready = false, buffer = Buffer.alloc(0), stderrBytes = 0;
-  let active: { id: string; operation: SandboxOperationContract; serviceTimeoutMs: number; outcome: { uncertain?: SandboxError }; controller: AbortController; beforeEffect(): Promise<void>; resolve: (v: SandboxJson) => void; reject: (e: unknown) => void; pendingSdk: Set<string> } | undefined;
+  let active: { id: string; operation: SandboxOperationContract; serviceTimeoutMs: number; outcome: { uncertain?: SandboxError }; controller: AbortController; beforeEffect(): Promise<void>; reenter<T>(run: () => T): T; resolve: (v: SandboxJson) => void; reject: (e: unknown) => void; pendingSdk: Set<string> } | undefined;
   let readyResolve: () => void, readyReject: (e: unknown) => void;
   const started = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
   let exitResolve: () => void;
@@ -116,7 +117,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
       if (message.callId !== current.id || current.pendingSdk.has(message.id) || !Array.isArray(message.args) || typeof message.method !== 'string') throw new SandboxError('PROTOCOL_ERROR', 'Invalid SDK request');
       if (current.pendingSdk.size >= limits.sdkQueue) throw new SandboxError('QUEUE_FULL', 'Too many outstanding SDK requests');
       current.pendingSdk.add(message.id);
-      broker.invoke(current.operation, current.controller.signal, message.method, message.args, current.beforeEffect, current.serviceTimeoutMs).then(
+      current.reenter(() => broker.invoke(current.operation, current.controller.signal, message.method, message.args, current.beforeEffect, current.serviceTimeoutMs)).then(
         result => { if (active === current && !stopped) send({ type: 'sdk-result', id: message.id, value: result }); },
         error => {
           if (error instanceof SandboxError && error.outcome === 'unknown') current.outcome.uncertain ??= error;
@@ -181,7 +182,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
         for (const value of [operationTimeoutMs, serviceTimeoutMs]) {
           if (!Number.isSafeInteger(value) || value <= 0 || value > 2_147_483_647) throw new SandboxError('INVALID_LIMIT', 'Call deadlines must be positive timer-safe integers');
         }
-        calls.consume(); const snapshot = structuredClone(input);
+        calls.consume(); const snapshot = structuredClone(input), reenter = AsyncResource.bind(<T>(run: () => T): T => run());
         const lifetime = createExecutionLifetime({ signal: control?.signal ? AbortSignal.any([control.signal, shutdownControl.signal]) : shutdownControl.signal });
         const queued = queue.submit(async () => {
           lifetime.assertActive();
@@ -197,7 +198,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
             const result = await execution.wait(new Promise<SandboxJson>((resolve, reject) => {
               if (stopped) { reject(stopped); return; }
               const id = randomUUID(), controller = new AbortController();
-              active = { id, operation, serviceTimeoutMs, outcome, controller, beforeEffect, resolve, reject, pendingSdk: new Set() };
+              active = { id, operation, serviceTimeoutMs, outcome, controller, beforeEffect, reenter, resolve, reject, pendingSdk: new Set() };
               try { send({ type: 'call', id, operationId, input: snapshot }); } catch (error) { shutdown(error instanceof SandboxError ? error : new SandboxError('CHANNEL_ERROR', 'Failed to start operation')); }
             }));
             await execution.wait(beforeEffect());

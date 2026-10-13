@@ -1,35 +1,30 @@
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess } from "node:child_process";
-import { once } from "node:events";
-import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Socket } from "node:net";
 import type { TestContext } from "node:test";
-import { WebSocket } from "ws";
-import { DEMO_BOARD_ID, seedDemoBoard, MolisWorkLocalHost, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
-import { projectActionAvailability } from "../../apps/local-host/dist/project-action-availability.js";
+import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
+import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { DEMO_PROJECT_ID, seedDemoBoard, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
-import Database from "better-sqlite3";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
 
+/** The control token every Goals browser fixture serves with; e2e files that call the server by hand use this one (`controlToken` in the return). */
+const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
-export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed = seedDemoBoard, completion?: HostCompleteText | null,
+export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void = seedDemoBoard, completion?: HostCompleteText | null,
   runtimeSessionTransport?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["runtimeSessionTransport"],
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"]) {
-  const chrome = [process.env.MOLIS_WORK_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"]
-    .find((path): path is string => Boolean(path && existsSync(path)));
+  const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Goals UI E2E"); return null; }
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goals-browser-"));
   let store: LocalProjectDatabase | undefined;
   let localHost: MolisWorkLocalHost | undefined;
-  let child: ChildProcess | undefined;
-  let socket: WebSocket | undefined;
+  let harness: ChromeHarness | undefined;
   let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
   const connections = new Set<Socket>();
   t.after(async () => {
@@ -43,19 +38,9 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       } catch (error) { failures.push(error); }
       finally { clearTimeout(timer); }
     };
-    socket?.terminate();
-    await cleanup("Chrome exit", async () => {
-      if (!child || child.exitCode !== null || child.signalCode !== null) return;
-      // Chrome helpers can inherit stderr after the main browser exits. Waiting for
-      // `close` then blocks server cleanup even though the debugger is already gone.
-      const exited = once(child, "exit");
-      child.kill("SIGTERM");
-      const force = setTimeout(() => child?.kill("SIGKILL"), 1_000);
-      try { await exited; }
-      finally { clearTimeout(force); }
-    });
-    // Also release the pipe when Chrome had already exited or exit itself timed out.
-    child?.stderr?.destroy();
+    // The harness waits for Chrome's `exit` (never `close`: helpers can inherit stderr), forces it after a second
+    // and releases the pipe.
+    await cleanup("Chrome exit", async () => { await harness?.close(); });
     await cleanup("HTTP server", async () => {
       if (!server?.listening) return;
       const closed = new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()));
@@ -66,14 +51,14 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     });
     await cleanup("Local Host", async () => { await localHost?.close(); });
     await cleanup("project database", async () => { store?.close(); });
-    await cleanup("temporary Home", () => rm(directory, { recursive: true, force: true }));
+    // BROWSER-CLEAN-01: retry only this fixture's temporary Home; the 5s bound and final AggregateError still apply.
+    await cleanup("temporary Home", () => rm(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }));
     if (failures.length) throw new AggregateError(failures, "Browser fixture cleanup failed");
   });
   let databasePath = join(directory, "fixture.db");
   let projectId: string | null = null;
   if (catalogMode === true || catalogMode === "seeded" || catalogMode === "user") {
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
-    let catalogDatabasePath: string | undefined;
     try {
       if (catalogMode === "seeded" || catalogMode === "user") {
         const project = await catalog.createProject({ display_name: "目录交互验证", actor_id: "browser-test" });
@@ -84,86 +69,41 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
         }
         databasePath = project.database_path;
         projectId = project.project_id;
-        catalogDatabasePath = catalog.databasePath;
       } else {
         const project = (await catalog.ensureDemoProject({ actor_id: "browser-test", user_confirmed: true })).project;
         databasePath = project.database_path;
         projectId = project.project_id;
       }
     } finally { catalog.close(); }
-    if ((catalogMode === "seeded" || catalogMode === "user") && catalogDatabasePath && projectId) {
+    // A created project's database is replaced by the seed, under the project's own id.
+    if ((catalogMode === "seeded" || catalogMode === "user") && projectId) {
       await rm(databasePath, { force: true });
       await rm(`${databasePath}-wal`, { force: true });
       await rm(`${databasePath}-shm`, { force: true });
-      seed(databasePath);
-      const catalogDb = new Database(catalogDatabasePath);
-      let projectDb: LocalProjectDatabase | undefined;
-      try {
-        projectDb = new LocalProjectDatabase(databasePath);
-        const boardId = projectDb.goalsQuery.listBoardIds()[0];
-        if (boardId) catalogDb.prepare("UPDATE projects SET board_id = ? WHERE project_id = ?").run(boardId, projectId);
-      } finally {
-        projectDb?.close();
-        catalogDb.close();
-      }
+      seed(databasePath, projectId);
     }
   } else seed(databasePath);
   store = new LocalProjectDatabase(databasePath);
   localHost = completion === undefined && !runtimeSessionTransport && !functions ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, runtimeSessionTransport, functions,
     ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
-  server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, boardId: DEMO_BOARD_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
-    controlToken: "goals-risk-test-control-token-0123456789" });
+  server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
+    controlToken: CONTROL_TOKEN });
   server.on("connection", connection => {
     connections.add(connection);
     connection.once("close", () => connections.delete(connection));
   });
-  child = spawn(chrome, ["--headless=new", "--disable-gpu", "--disable-background-networking",
-    "--disable-component-update", "--disable-extensions", "--disable-background-timer-throttling",
-    "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows", "--no-first-run", "--no-default-browser-check",
-    "--remote-debugging-port=0", `--user-data-dir=${join(directory, "chrome-profile")}`, "about:blank"],
-  { stdio: ["ignore", "ignore", "pipe"] });
-  const debuggerUrl = await new Promise<string>((resolve, reject) => {
-    let stderr = "";
-    const timer = setTimeout(() => reject(new Error("Chrome debugger did not start")), 8_000);
-    child!.once("error", (error) => { clearTimeout(timer); reject(error); });
-    child!.stderr!.on("data", (chunk) => {
-      stderr += String(chunk);
-      const url = stderr.match(/DevTools listening on (ws:\/\/\S+)/)?.[1];
-      if (url) { clearTimeout(timer); resolve(url); }
-    });
-    child!.once("exit", () => { clearTimeout(timer); reject(new Error(`Chrome exited before debugger start: ${stderr.slice(-700)}`)); });
-  });
-  socket = new WebSocket(debuggerUrl);
-  await once(socket, "open");
-  let nextId = 0;
-  let pageLoaded: (() => void) | undefined;
-  const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
-  socket.on("message", (raw) => {
-    const response = JSON.parse(String(raw));
-    // Hidden plugin frames and optional external assets must not block interaction with an initialized page.
-    // Feature tests below still wait for the state they operate on (loaded rows, saved results, etc.).
-    if (response.method === "Page.domContentEventFired") pageLoaded?.();
-    const entry = pending.get(response.id);
-    if (!entry) return;
-    clearTimeout(entry.timer);
-    pending.delete(response.id);
-    if (response.error) entry.reject(new Error(JSON.stringify(response.error)));
-    else entry.resolve(response.result);
-  });
-  t.after(() => { for (const entry of pending.values()) clearTimeout(entry.timer); });
-  function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : 5_000): Promise<T> {
-    const id = ++nextId;
-    return new Promise((resolve, reject) => {
-      pending.set(id, { resolve: (value) => resolve(value as T), reject, timer: setTimeout(() => { pending.delete(id); reject(new Error(`CDP timeout: ${method}${typeof params.expression === "string" ? " · " + params.expression.slice(0, 320) : ""}`)); }, timeoutMs) });
-      socket!.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
-    });
+  const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 5_000 });
+  harness = browser;
+  /** A page load may take far longer than any other command. */
+  function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : undefined): Promise<T> {
+    return browser.command<T>(method, params, sessionId, timeoutMs);
   }
   await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   await (await fetch(origin + "/health")).text();
-  const before = store.snapshot(DEMO_BOARD_ID);
+  const before = store.snapshot(projectId ?? DEMO_PROJECT_ID);
   const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await command("Target.activateTarget", { targetId });
@@ -242,9 +182,12 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   async function navigate(action: () => Promise<unknown>) {
     const timeoutError = new Error("Navigation did not finish");
     let timer: ReturnType<typeof setTimeout>;
+    let stopListening = () => {};
+    // Hidden plugin frames and optional external assets must not block interaction with an initialized page.
+    // Feature tests below still wait for the state they operate on (loaded rows, saved results, etc.).
     const loaded = new Promise<void>((resolve, reject) => {
       timer = setTimeout(() => reject(timeoutError), 30_000);
-      pageLoaded = () => resolve();
+      stopListening = browser.on("Page.domContentEventFired", () => resolve());
     });
     try {
       await Promise.all([loaded, action()]);
@@ -259,7 +202,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       throw error;
     } finally {
       clearTimeout(timer!);
-      pageLoaded = undefined;
+      stopListening();
     }
   }
   const reloadPage = () => navigate(() => command("Page.reload", { ignoreCache: true }, sessionId));
@@ -288,5 +231,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     await waitFor(`(() => { const surface = document.querySelector('[data-work-surface=${JSON.stringify(id)}]');
       return Boolean(surface) && !surface.hasAttribute('data-deferred-surface') && surface.dataset.uiClientState !== 'loading'; })()`, timeoutMs);
   }
-  return { store, localHost, databasePath, origin, before, sessionId, command, evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
+  /** The person's side of the Host's local HTTP interface, for settings the page does not need to show (grants, projects). */
+  const web = new LocalHostHttpClient({ origin, controlToken: CONTROL_TOKEN });
+  return { store, localHost, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
 }

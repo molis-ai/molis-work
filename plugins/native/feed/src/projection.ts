@@ -1,10 +1,10 @@
 import { redactFeedContextSecrets } from "./context.js";
 import type { FeedUiPreset } from "./ui.js";
-import type { FeedItemRecord as CanonicalFeedItem, FeedMaterialRecord as CanonicalFeedMaterial, FeedContractMigrationReceiptRecord } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { FeedItemRecord as CanonicalFeedItem, FeedMaterialRecord as CanonicalFeedMaterial } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { SourceRecord, SourceSchedule, SourceSyncKind, SourceStatus } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { AttentionEntryRecord, AttentionReason, AttentionStatus, AttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
-export type { FeedItemDisposition, FeedContractMigrationReceiptRecord } from "@molis-ai/molis-work-contracts/modules/feed";
+export type { FeedItemDisposition } from "@molis-ai/molis-work-contracts/modules/feed";
 export type { SourceHistoryDecision } from "@molis-ai/molis-work-contracts/modules/sources";
 
 /** Existing local read projection. These are owner-derived views, never a second store. */
@@ -16,28 +16,23 @@ export type FeedSourceRunPhase = ListenerRunRecord["phase"];
 export type InboxEntrySubjectType = AttentionSubjectType;
 export type InboxEntryReason = AttentionReason;
 export type InboxEntryStatus = AttentionStatus;
-export interface FeedSourceRecord extends Omit<SourceRecord, "project_id" | "connection_ref"> {
-  board_id: string;
+export interface FeedSourceRecord extends Omit<SourceRecord, "connection_ref"> {
   item_count: number;
   cursor: unknown;
   credential_ref: string | null;
 }
-export interface FeedSourceRunRecord extends Omit<ListenerRunRecord, "project_id" | "connector_receipt"> {
-  board_id: string;
+export interface FeedSourceRunRecord extends Omit<ListenerRunRecord, "connector_receipt"> {
   receipt: Record<string, unknown> | null;
 }
-export interface InboxEntryRecord extends Omit<AttentionEntryRecord, "project_id"> {
-  board_id: string;
+export interface InboxEntryRecord extends AttentionEntryRecord {
   next_judgment?: import("@molis-ai/molis-work-contracts/modules/functions").JudgmentRecord | null;
   suggested_behavior_ids?: readonly string[];
 }
-export interface FeedMaterialRecord extends Omit<CanonicalFeedMaterial, "project_id"> {
-  board_id: string;
+export interface FeedMaterialRecord extends CanonicalFeedMaterial {
   /** Decrypted only for local detail/TUI display; never stored in SQLite. */
   content?: string | null;
 }
-export interface FeedItemRecord extends Omit<CanonicalFeedItem, "project_id" | "signal_id" | "signal_revision" | "materials"> {
-  board_id: string;
+export interface FeedItemRecord extends Omit<CanonicalFeedItem, "signal_id" | "signal_revision" | "materials"> {
   item_type: FeedItemType;
   materials: FeedMaterialRecord[];
   suggested_behavior_ids?: readonly string[];
@@ -50,16 +45,15 @@ export interface FeedOutRuleMatch {
 }
 
 export interface FeedOutRuleRecord {
-  board_id: string;
+  project_id: string;
   rule_id: string;
   name: string;
   enabled: boolean;
   match: FeedOutRuleMatch;
-  function_key: string | null;
-  /** undefined only for a pre-migration row; null preserves an unresolved legacy key. */
-  judgment?: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference | null;
-  revision?: string;
-  admission?: "suggest" | "inbox";
+  /** The judgment that decides what a matched item becomes; null keeps the rule a plain keyword or source filter. */
+  judgment: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference | null;
+  revision: string;
+  admission: "suggest" | "inbox";
   created_at: string;
   updated_at: string;
 }
@@ -71,7 +65,6 @@ export interface FeedSnapshot {
   /** Canonical attention state; entries reference facts or internal objects and never copy message bodies. */
   inbox_entries: InboxEntryRecord[];
   runs: FeedSourceRunRecord[];
-  contract_migrations: FeedContractMigrationReceiptRecord[];
   out_rules: FeedOutRuleRecord[];
 }
 

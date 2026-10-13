@@ -1,7 +1,4 @@
-export { createCliGoalTreeHandlers } from "./goal-tree-commands.js";
-
 export {
-  DEFAULT_CLI_DATABASE,
   cliFlagValue,
   readCliJsonPayload,
   printCliJson,
@@ -23,5 +20,6 @@ export const packageDescriptor = {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { dispatchCliProjectCommand } from "./command-dispatch.js";
+export type { CliManagementActions } from "./command-dispatch.js";
 export { dispatchCli } from "./dispatch.js";
 export type { CliCommandPorts } from "./dispatch.js";

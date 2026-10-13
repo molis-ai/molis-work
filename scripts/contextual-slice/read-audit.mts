@@ -23,7 +23,7 @@ const project = await withCatalog({ homeDirectory: home }, async catalog => {
   for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) { try { catalog.addProjectPlugin({ project_id: demo.project_id, plugin_id, actor_id: "owner" }); } catch { /* already added */ } }
   return demo;
 });
-const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
 const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
 const projectCaller: ActionCallContext = await localWebActionContext(host, ref, LOCAL_OWNER_PERMISSIONS);
 const homeCaller: ActionCallContext = await localWebActionContext(host, undefined, LOCAL_OWNER_PERMISSIONS);

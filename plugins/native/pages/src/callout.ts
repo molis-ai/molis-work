@@ -18,15 +18,7 @@ export const PAGES_CALLOUT_ICONS = [
 
 const ICON_IDS = new Set<string>(PAGES_CALLOUT_ICONS.map((item) => item.id));
 
-/** Tones written before callouts used the shared palette; they must keep rendering the same. */
-const LEGACY_TONES: Record<string, string> = {
-  info: "cyan",
-  warn: "orange",
-  success: "green",
-  plain: "gray",
-};
-
-/** The mark a legacy tone used to imply, kept as the default when no icon was chosen. */
+/** The mark four hues imply when no icon was chosen. */
 const TONE_ICON: Record<string, string> = {
   cyan: "info",
   orange: "alert",
@@ -34,10 +26,9 @@ const TONE_ICON: Record<string, string> = {
   gray: "idea",
 };
 
-/** Resolve a callout tone to a palette hue, folding the four legacy names in. */
+/** Resolve a callout tone to a palette hue; anything else is the default cyan. */
 export function safePagesCalloutTone(value: unknown): string {
-  const raw = String(value ?? "").trim().toLowerCase();
-  return safePagesTone(LEGACY_TONES[raw] ?? raw) || "cyan";
+  return safePagesTone(String(value ?? "").trim().toLowerCase()) || "cyan";
 }
 
 /** Allowlist for an explicitly chosen icon; "" means "let the tone decide". */

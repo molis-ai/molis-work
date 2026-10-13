@@ -45,7 +45,12 @@ export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
  * one overflow button instead of running under the Assistant. Centre: the resident Assistant with the plugin
  * switcher in front of it — one plugin, or one per pane when the work area is split. Right: Shelf and 灵光, the
  * side panel (discussion, browser and files, beside the work), then the project with its menu. Every button opens
- * its plugin through the switcher's own entry, so navigation has one path. Choices here are per-viewer conveniences. */
+ * its plugin through the switcher's own entry, so navigation has one path. Choices here are per-viewer conveniences.
+ *
+ * What the Dock folds (`fit`): the pins leave from the end until the "+N" button fits with them, and 项目首页 never
+ * folds (specs/craft-finish, round four). When even 项目首页 and "+N" do not fit (a phone's second row under 356px with
+ * a directory button), the "+N" button goes too: the switcher lists every plugin, the kept ones included, so nothing is
+ * lost. */
 export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   if (document.body.hasAttribute('data-pane-embedded') || (window.parent !== window && new URLSearchParams(location.search).has('workbenchPane'))) return;
   const dock = document.querySelector('[data-dock]');
@@ -183,12 +188,12 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     more.remove();
     if (pins.scrollWidth <= pins.clientWidth + 1) { setOverflow(false); paintCurrent(); return; }
     pins.append(more);
-    // 项目首页 never folds away; the rest leave from the end until the overflow button fits too.
-    for (let index = all.length - 1; index > 0 && pins.scrollWidth > pins.clientWidth + 1; index -= 1) all[index].hidden = true;
+    for (let index = all.length; --index > 0 && pins.scrollWidth > pins.clientWidth + 1;) all[index].hidden = true;
+    if (pins.scrollWidth > pins.clientWidth + 1) more.remove();
     const count = all.filter((pin) => pin.hidden).length;
     more.textContent = '+' + count;
     more.title = L('更多常驻插件'); more.setAttribute('aria-label', L('更多常驻插件') + ' ' + count);
-    if (overflow && !overflow.hidden) setOverflow(true);
+    if (overflow && !overflow.hidden) setOverflow(more.isConnected);
     paintCurrent();
   };
   // The Dock keeps the buttons it has: one that is kept stays where it is, a new one lands, one that goes lets go.
@@ -202,7 +207,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
       if (!railItem(id)) continue;
       next.push(have.get(id) || makePin(id, id === 'home', dockPainted));
     }
-    for (const [id, pin] of have) if (!next.includes(pin)) {
+    for (const [, pin] of have) if (!next.includes(pin)) {
       pin.classList.add('is-leaving'); pin.setAttribute('aria-hidden', 'true'); pin.tabIndex = -1;
       setTimeout(() => pin.remove(), 260);
     }
@@ -276,8 +281,9 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     markKept(row, on);
     paintDock();
   });
-  // The bar's width is the window's; watching it (not the Dock itself) keeps folding from feeding back into itself.
-  if (pins && 'ResizeObserver' in window) new ResizeObserver(() => fit()).observe(dock);
+  // The bar's width is the window's; watching it (not the Dock itself) keeps folding from feeding back into itself. The right
+  // group too: a directory button joins it after the first fit.
+  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(() => fit()); for (const node of [dock, dock.querySelector('.bar-end')]) if (node) watcher.observe(node); }
 
   const searchKey = dock.querySelector('.plugin-picker-search kbd');
   if (searchKey && !/Mac|iPhone|iPad/.test(navigator.platform)) searchKey.textContent = 'Ctrl K';
@@ -293,7 +299,6 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     if (!target) return;
     const toggle = target.closest('[data-dock-toggle]');
     if (toggle) { const id = toggle.dataset.dockToggle; setWindow(id, document.body.dataset.sideOpen !== 'true', true); return; }
-    if (target.closest('[data-assistant-panel-close]')) { setPanel(false); return; }
     if (target.closest('[data-plugin-picker-toggle]')) { setPicker(pickerPopover?.hidden !== false); return; }
     if (target.closest('[data-dock-more]')) { setOverflow(overflow?.hidden !== false); return; }
     const pin = target.closest('[data-dock-pin], [data-bar-resident]');

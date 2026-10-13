@@ -40,7 +40,6 @@ export const diffManifest: PluginManifest = {
   version: "1.4.0",
   name: "Diff",
   kind: "app",
-  upgrade_compatibility: { compatible_from_versions: ["1.3.0", "1.3.1"] },
   publisher: { publisher_id: "molis", signature: "official-diff-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
@@ -48,7 +47,8 @@ export const diffManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   actions: DIFF_ACTIONS,
-  artifacts: {
+  artifacts: { produces: [], consumes: [] },
+  process_items: {
     produces: [],
     consumes: [
       { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION },

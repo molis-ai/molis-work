@@ -1,3 +1,4 @@
+import { codingArtifacts } from "./artifacts.js";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { CONTINUATION_MARKER, originalTask, requestText } from "./continuation.js";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -85,10 +86,10 @@ export function planReference(sessionId: string, revision: number): ArtifactRefe
   return { artifact_id: `coding-plan:${sessionId}:${revision}`, version: 1 };
 }
 export function confirmedPlan(context: PluginStartContext, sessionId: string, revision: number) {
-  const reference = planReference(sessionId, revision), record = context.services!.artifacts.read(reference);
+  const reference = planReference(sessionId, revision), record = codingArtifacts(context).read(reference);
   if (!record || record.artifact_type_id !== CODING_PLAN_TYPE || record.schema_version !== 1
     || record.producer_plugin_id !== context.plugin_id || record.producer_binding_signature !== "official-coding-binding"
-    || record.board_id !== context.board_id || record.content_kind !== "inline" || record.availability !== "available"
+    || record.project_id !== context.project_id || record.content_kind !== "inline" || record.availability !== "available"
     || record.lifecycle_state !== "active") throw new Error("确认计划不可读，请重新查看原计划");
   const plan = record.payload as unknown as CodingPlanDraft;
   if (plan?.revision !== revision || plan.source?.session_id !== sessionId || !plan.source?.run_id

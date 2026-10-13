@@ -1,10 +1,7 @@
 import type { GoalProgressArtifactSource, GoalEventScope, GoalEventSystemPayload, GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { ExecutionRunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
-import type { EvidenceRecord } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
-import type { ReviewRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { GoalsDocumentUiPrimitives } from "./document-ui-model.js";
-import { RUN_STATE_LABELS, EVIDENCE_RESULT_LABELS, EVIDENCE_LIFECYCLE_LABELS, EVIDENCE_KIND_LABELS, JOURNAL_TYPE_LABELS, SYSTEM_TYPE_LABELS, reviewVerdictLabel, type GoalHistoryIndexItem } from "./event-history-map.js";
+import { JOURNAL_TYPE_LABELS, SYSTEM_TYPE_LABELS, type GoalHistoryIndexItem } from "./event-history-map.js";
 
 export function renderProgressSource(source: GoalProgressArtifactSource | undefined, escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"]): string {
   if (!source) return "";
@@ -13,9 +10,6 @@ export function renderProgressSource(source: GoalProgressArtifactSource | undefi
 
 export interface GoalHistoryBodyLookups {
   workEvent?: GoalWorkEventRecord | null;
-  run?: ExecutionRunRecord | null;
-  evidence?: EvidenceRecord | null;
-  review?: ReviewRecord | null;
   journal?: GoalsDecisionEvent | null;
   requirementNames?: Readonly<Record<string, string>>;
 }
@@ -27,10 +21,7 @@ export function renderHistoryItemBody(
 ): string {
   const { translate: L, escapeHtml } = primitives;
   if (item.source === "event_work" && lookups.workEvent) return renderWorkEventBody(lookups.workEvent, L, escapeHtml, lookups.requirementNames);
-  if (item.source === "legacy_run" && lookups.run) return renderLegacyRun(lookups.run, L, escapeHtml);
-  if (item.source === "legacy_evidence" && lookups.evidence) return renderLegacyEvidence(lookups.evidence, L, escapeHtml);
-  if (item.source === "legacy_review" && lookups.review) return renderLegacyReview(lookups.review, L, escapeHtml);
-  if (item.source === "legacy_record" && lookups.journal) return renderJournal(lookups.journal, L, escapeHtml, item.relation);
+  if (item.source === "journal" && lookups.journal) return renderJournal(lookups.journal, L, escapeHtml, item.relation);
   return `<article class="event"><h2>${escapeHtml(item.title)}</h2><p class="event-meta">${escapeHtml(item.type_label)} · ${escapeHtml(item.actor_id)}</p><p>${L("原文当前不可读。记录仍保留原 ID 和来源。")}</p></article>`;
 }
 
@@ -150,39 +141,6 @@ function renderScope(
     scope.action ? `${L("动作")} ${escapeHtml(scope.action)}` : "",
   ].filter(Boolean);
   return parts.length ? `<p>${L("范围")}：${parts.join(" · ")}</p>` : "";
-}
-
-function renderLegacyRun(run: ExecutionRunRecord, L: GoalsDocumentUiPrimitives["translate"], escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"]): string {
-  const refs = run.output_refs.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
-  return `<article class="event"><h2>${escapeHtml(L(RUN_STATE_LABELS[run.state]))}</h2><p class="event-meta">${L("推进记录")} · ${escapeHtml(run.actor_id)} · ${escapeHtml(formatEventTime(run.ended_at ?? run.started_at))}</p>
-    <p><small>${L("原 Run")} ${escapeHtml(run.run_id)} · ${escapeHtml(run.role)}</small></p>
-    ${run.block_reason ? `<p>${escapeHtml(run.block_reason)}</p>` : ""}
-    ${refs ? `<h3>${L("产物")}</h3><ul>${refs}</ul>` : ""}
-  </article>`;
-}
-
-function renderLegacyEvidence(item: EvidenceRecord, L: GoalsDocumentUiPrimitives["translate"], escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"]): string {
-  const access = item.locator_status === "verified" ? L("可访问") : L("当前不可访问");
-  const copy = `<button class="inline-ref" type="button" data-copy-value="${escapeHtml(item.locator)}" title="${L("复制引用")}">${escapeHtml(item.locator)}</button>`;
-  const reason = item.locator_validation_reason ? ` · ${escapeHtml(item.locator_validation_reason)}` : "";
-  const locator = item.locator_status === "verified"
-    ? `<p class="attachment"><a class="inline-ref" href="/api/project-references/${encodeURIComponent(item.locator)}?evidence_id=${encodeURIComponent(item.evidence_id)}" data-project-reference>${escapeHtml(item.locator)}</a>${copy}<small>${escapeHtml(access)}</small></p>`
-    : /^https?:\/\//i.test(item.locator)
-      ? `<p class="attachment"><a class="inline-ref" href="${escapeHtml(item.locator)}" target="_blank" rel="noreferrer">${escapeHtml(item.locator)}</a>${copy}<small>${escapeHtml(access)}${reason}</small></p>`
-      : `<p class="attachment">${copy}<small>${escapeHtml(access)}${reason}</small></p>`;
-  return `<article class="event"><h2>${escapeHtml(L(EVIDENCE_KIND_LABELS[item.kind]))} · ${escapeHtml(L(EVIDENCE_RESULT_LABELS[item.result]))}</h2><p class="event-meta">${L("完成依据")} · ${escapeHtml(item.producer_actor_id)} · ${escapeHtml(formatEventTime(item.captured_at))}</p>
-    <p><small>${L("原 Evidence")} ${escapeHtml(item.evidence_id)} · ${escapeHtml(L(EVIDENCE_LIFECYCLE_LABELS[item.lifecycle_state]))}</small></p>
-    ${locator}
-    ${item.digest ? `<p>${escapeHtml(item.digest)}</p>` : ""}
-  </article>`;
-}
-
-function renderLegacyReview(item: ReviewRecord, L: GoalsDocumentUiPrimitives["translate"], escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"]): string {
-  return `<article class="event"><h2>${L("检查结论")}：${escapeHtml(reviewVerdictLabel(item.verdict))}</h2><p class="event-meta">${L("检查记录")} · ${escapeHtml(item.actor_id)} · ${escapeHtml(formatEventTime(item.submitted_at))}</p>
-    <p><small>${L("原 Review")} ${escapeHtml(item.review_id)}</small></p>
-    <p>${escapeHtml(item.reasoning || L("未填写"))}</p>
-    ${item.evidence_refs.length ? `<p>${L("关联依据")}：${escapeHtml(item.evidence_refs.join("、"))}</p>` : ""}
-  </article>`;
 }
 
 function renderJournal(event: GoalsDecisionEvent, L: GoalsDocumentUiPrimitives["translate"], escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"], relationInfo?: GoalHistoryIndexItem["relation"]): string {

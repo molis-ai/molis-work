@@ -48,17 +48,20 @@ Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插�
 - 不变量：
   - 目录 Action 的工具时限取提供方 `execution.timeout_ms` 与 Agent 入口上限中的较小者；完整声明参与冻结合同，不按能力名称猜测成本。
   - 仓库里唯一依赖 `@prologue/sdk` 的包。
+  - 每一轮的冻结记录带宿主给的调用编号（`frozen.call_id`）：来自启动权限 `AgentStartAuthority.call_id`，经 `AgentHost.start` 交给适配器；适配器不读请求体里的同名字段，所以插件塞的值不会成为一轮的编号。编号只写在这份冻结记录里，不交给 Prologue（用户 2026-10-10 决定）；它不是工具调用的 `call_id`。回归：`tests/agent-start-authority.test.ts`。
   - 原图输入经可信 Host 选定路径、Node Host intake 与 Session attachments；只读根不交给模型工具。支持 PNG/JPEG/GIF/WebP，单图 32 MiB、每次 30 张/128 MiB，共享资源总量仍限 128 MiB。完成/失败/取消撤销资源，关闭时等待实际清理。回归：`tests/prologue-inference-images.test.ts`。
   - 一个 Home 一个执行 owner；另一个进程得到 `inference.home_in_use` 或 `agent.storage_busy`，经 `inferenceServiceUnavailableReason` 转成给人看的原因。
   - 派出前复核（`beforeDispatch`、凭据核对）拒绝时，调用方拿到复核自己抛的错误（`isDispatchRefusal` 为真），不得改写成模型或网络失败；SDK 侧对应 `EFFECT_NOT_AUTHORIZED`。
   - 角色必须是 Manifest 声明过的，能力必须 Runtime 真支持，目录必须宿主授权且 realpath 已核；`unsupported` 就是不能用，不降级不伪装。
   - Runtime 不能自己扩权：批准一次性，拒绝与过期不能换个入口变成许可。
-- 改动后必跑：`node scripts/run-tests.mjs tests/agent-host.test.ts tests/agent-host-composition.test.ts tests/agent-host-wiring.test.ts tests/agent-action-tools-prologue.test.ts tests/host-inference-completion.test.ts tests/prologue-inference-native.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/agent-host.test.ts tests/agent-host-composition.test.ts tests/agent-host-wiring.test.ts tests/agent-start-authority.test.ts tests/agent-action-tools-prologue.test.ts tests/host-inference-completion.test.ts tests/prologue-inference-native.test.ts`
+- 动作网关的调用与建议均以当前 input schema 校验；参数错误使用 SDK `TOOL_ARGUMENTS_INVALID` 返回有界合同与嵌套要求，不带用户值或任意异常正文，避免未知 Host 异常被截成 240 字后模型重复同一错误。直接执行的可撤销修改（`change-reversible`）在运行前被网关钩子拒绝，回执同样写出完整的 input 合同并说明没有执行；它不算交互工具，模型一直不改时由运行时的重复调用保护停下。通用 input 明确声明 JSON 类型，继续由当前能力 schema 校验具体字段，不从按钮文案猜输入。其他失败不转成参数重试，写入结果未知仍先核对。真实 SDK 回归见 `tests/issue-assistant-repair-page.e2e.test.ts`、`tests/assistant-business-gateway.test.ts`。
+- 补充提问沿用 SDK `ask-user`：自由文本只传 `why`，问卷选项为字符串数组。同一 Run 内同一种交互工具（`ask-user` 或 `suggest-action`）最多容许两次参数失败（首次及一次纠正），第二次 `TOOL_ARGUMENTS_INVALID` 回执触发原控制面停止，避免模型继续重复无效调用；成功的结构化待补充不算失败，原始参数与回执仍由 SDK 记录。
 - 相关手册：[docs/horizontal/agent-host.md](../../docs/horizontal/agent-host.md)、[docs/platform/PROLOGUE-AI.md](../../docs/platform/PROLOGUE-AI.md)、[skills/molis-prologue-ai/SKILL.md](../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
 
-- [Plugin Platform v2 需求书](../../specs/plugin-platform-v2/spec.md) 的 D5
+- [Plugin Platform v2 需求书](../../specs/plugin-platform-v2/spec.md) 的 D5（命令行适配器已删除，现只有 Prologue；D5 开头有 2026-10 的更新说明）
 - [Coding 插件 UI 与交互设计](../../specs/coding-plugin/design.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
@@ -67,8 +70,7 @@ Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插�
 - Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
-两个 adapter 已落地。CLI（`src/adapters/cli-runtime.ts`）真实拉起子进程执行，只读档位，
-写入与命令如实报成 `unsupported`——它的审批在自己的权限模型里，不经宿主队列。
+只有一个 adapter：Prologue。曾经的 `claude` 命令行适配器默认注册却没有内置调用方，已删除（2026-10），公开入口不再导出它；外部 Agent 运行时按口径暂缓。
 
 Prologue（`src/adapters/prologue.ts`）接通了会话、Run、事件流投影，并且**可以挂上审批桥**：
 不挂时写入报 `unsupported`，挂上之后才申报支持，且 Run 停下等的每一笔副作用都先进宿主审查队列。
@@ -84,19 +86,13 @@ Prologue Node 将基础/内置角色、固定 Character、项目说明、选定�
 
 ## 子任务观察与控制
 
-Prologue Node 接上宿主审查队列时声明子任务能力 `partial`。同目录只读角色保留原路径；声明必须分配子目录的只读协调者可以冻结宿主已授权、互不包含的独立目录，以及各子角色的正文、版本和工具。未授权、重复、主目录或嵌套目录不能启动。CLI 未接通此能力。SDK 在第一次子模型请求前再次核对本轮角色和目录归属；父 Character 只接收读取/分派工具，SDK 的运行工具上限额外包含子角色工具，不能让父任务直接调用写工具。
+Prologue Node 接上宿主审查队列时声明子任务能力 `partial`。同目录只读角色保留原路径；声明必须分配子目录的只读协调者可以冻结宿主已授权、互不包含的独立目录，以及各子角色的正文、版本和工具。未授权、重复、主目录或嵌套目录不能启动。SDK 在第一次子模型请求前再次核对本轮角色和目录归属；父 Character 只接收读取/分派工具，SDK 的运行工具上限额外包含子角色工具，不能让父任务直接调用写工具。
 
 子任务沿用原 SDK Session、Run、Pending 和 Effect；Host 只在已有加密归属索引保存父子引用、固定角色和目录，将原待审操作送入同一个 Review 队列。文本与命令审查明确显示所属工作区；命令的相对 cwd 保持原值，命令输出按原子任务回执读取。审查桥失败停止子任务并保留宿主失败原因；重启只读取原记录，不能批准旧待审操作来重派执行。独立目录是工具根目录与命令 cwd 的边界，不代表获得操作系统级进程隔离；批准命令仍须审查其完整参数和执行范围。
 
 此接口尚未接入 Coding 的工作树准备、选择、成果整合与 TaskBoard。现有正式角色不会因新增 Runtime 接口自动开放并行写入；需完成调用方的目录授权和产品流程后再启用。
 
 `agent.subagents.list.v1` / `agent.subagents.cancel.v1` 先核对项目、安装、原 Session 与 Run，再读取或停止该父运行名下的子任务。SDK 登记与原事件拥有状态、正文、活动和用量；Host 只额外保存角色来源，关闭重启不重派。成功结束与用户接受分别记录，后者由消费插件拥有。完整报告通过原 SDK `await-subagents` 的 `reportOffset` 分页读取最后一段结果，默认回传明确为摘要。分派引用、搜索语义和输出质量仍需产品实操核对，能力 `partial` 不代表并行写入或整体协作已完成。
-
-### CLI 被动检查与登录边界（2026-09-24）
-
-打开 Coding 状态和设置时，只检查 CLI 路径是否存在、是否为可执行文件，不运行 `--version`、不探测登录或读取凭据。实测 Shelf 的 `--help` 探测会发起钥匙串读取；被动检查不能假设启动 CLI 没有副作用。只有用户发起任务才走原子进程执行路径；“ready”表示已找到程序且选定模型，登录仍在实际执行时确认，提供方版本保持 unknown。缺失程序与未选模型分别保留原引导。
-
-回滚可还原本切片代码；无需迁移数据、修改用户钥匙串或替换已安装 App。
 
 ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner 新记录的成功、失败或未知回执，重复 settle 与 Prologue 恢复历史不重复通知。监听错误不改写已提交 Effect，也不触发执行重试；消费者必须按项目过滤并自行释放。
 

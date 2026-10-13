@@ -8,7 +8,8 @@ import {
   ArtifactsModule,
   canonicalArtifactJson,
   createArtifactsSchema,
-  migrateArtifactsSchema,
+  ARTIFACTS_SCHEMA_SQL,
+  PROCESS_ITEMS_SCHEMA_SQL,
   type ArtifactEventInput,
   type ArtifactsSqliteDatabase,
 } from "@molis-ai/molis-work-module-artifacts";
@@ -16,13 +17,14 @@ import type {
   ArtifactJsonValue,
   RegisterArtifactVersionInput,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 function createHarness() {
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
   db.exec(`
     CREATE TABLE boards (
-      board_id TEXT PRIMARY KEY,
+      project_id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       active_goal_id TEXT,
       created_at TEXT NOT NULL,
@@ -31,7 +33,7 @@ function createHarness() {
     CREATE TABLE events (
       seq INTEGER PRIMARY KEY AUTOINCREMENT,
       event_id TEXT NOT NULL UNIQUE,
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       actor_id TEXT NOT NULL,
       type TEXT NOT NULL,
       object_type TEXT NOT NULL,
@@ -42,21 +44,23 @@ function createHarness() {
     );
   `);
   db.prepare(`
-    INSERT INTO boards (board_id, title, active_goal_id, created_at, updated_at)
+    INSERT INTO boards (project_id, title, active_goal_id, created_at, updated_at)
     VALUES ('board-artifacts', 'Artifacts', NULL, '2026-09-02T00:00:00.000Z', '2026-09-02T00:00:00.000Z')
   `).run();
   createArtifactsSchema(db as unknown as ArtifactsSqliteDatabase);
+  const cursorOfJournal = eventCursorOf(db);
+  const cursorProjects: string[] = [];
   let tick = 0;
   const module = new ArtifactsModule({
     db: db as unknown as ArtifactsSqliteDatabase,
     now: () => `2026-09-02T00:00:${String(tick++).padStart(2, "0")}.000Z`,
     appendEvent: (event: ArtifactEventInput) => Number(db.prepare(`
       INSERT INTO events (
-        event_id, board_id, actor_id, type, object_type, object_id, reason, payload_json, at
+        event_id, project_id, actor_id, type, object_type, object_id, reason, payload_json, at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       event.eventId,
-      event.boardId,
+      event.projectId,
       event.actorId,
       event.type,
       event.objectType,
@@ -65,15 +69,19 @@ function createHarness() {
       JSON.stringify(event.payload),
       event.at,
     ).lastInsertRowid),
+    eventCursor: (projectId: string) => {
+      cursorProjects.push(projectId);
+      return cursorOfJournal(projectId);
+    },
   });
-  return { db, module };
+  return { db, module, cursorProjects };
 }
 
 function registration(
   overrides: Partial<RegisterArtifactVersionInput> = {},
 ): RegisterArtifactVersionInput {
   return {
-    board_id: "board-artifacts",
+    project_id: "board-artifacts",
     artifact_id: "artifact-report",
     version: 1,
     actor_id: "user-a",
@@ -92,6 +100,7 @@ function registration(
       },
     },
     metadata: { source: "plugin-private-shape" },
+    ...pinnedArtifact("Sprint report"),
     ...overrides,
   };
 }
@@ -117,7 +126,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
     const replayed = module.commands.registerVersion(firstInput);
     assert.equal(replayed.replayed, true);
     assert.equal(replayed.artifact.created_at, first.artifact.created_at);
-    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM artifact_versions").get().count, 1);
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM library_artifact_versions").get().count, 1);
 
     expectCode(
       () => module.commands.registerVersion(registration({
@@ -200,7 +209,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
 
     expectCode(
       () => module.commands.markUnavailable({
-        board_id: "board-artifacts",
+        project_id: "board-artifacts",
         artifact_id: "artifact-report",
         version: 3,
         actor_id: "user-b",
@@ -209,7 +218,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
       "artifact.not_owner",
     );
     const unavailable = module.commands.markUnavailable({
-      board_id: "board-artifacts",
+      project_id: "board-artifacts",
       artifact_id: "artifact-report",
       version: 3,
       actor_id: "user-a",
@@ -226,7 +235,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
     assert.equal(replayAfterAvailabilityChange.artifact.availability, "unavailable");
 
     const archived = module.commands.archiveVersion({
-      board_id: "board-artifacts",
+      project_id: "board-artifacts",
       artifact_id: "artifact-report",
       version: 1,
       actor_id: "user-a",
@@ -242,7 +251,59 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
   }
 });
 
-test("Artifact reference digest mismatch and schema migration are rollback-safe and idempotent", () => {
+test("a replay reports the journal cursor the Host injected, for the project it was asked about", () => {
+  const { db, module, cursorProjects } = createHarness();
+  const unrelatedEvent = (name: string): number => Number(db.prepare(`
+    INSERT INTO events (event_id, project_id, actor_id, type, object_type, object_id, reason, payload_json, at)
+    VALUES (?, 'board-artifacts', 'user-a', 'unrelated.happened', 'unrelated', ?, 'another owner wrote this', '{}', '2026-09-02T01:00:00.000Z')
+  `).run(`event:unrelated:${name}`, name).lastInsertRowid);
+  try {
+    const input = registration();
+    const first = module.commands.registerVersion(input);
+    assert.equal(first.replayed, false);
+    assert.equal(cursorProjects.length, 0, "a first write reports the cursor appendEvent returned and reads none");
+
+    // Registration replay: another owner's event lands after the version; the replay answers with the journal's cursor now.
+    const afterRegistration = unrelatedEvent("after-registration");
+    assert.ok(afterRegistration > first.observed_event_cursor);
+    const registrationReplay = module.commands.registerVersion(input);
+    assert.equal(registrationReplay.replayed, true);
+    assert.equal(registrationReplay.observed_event_cursor, afterRegistration);
+    assert.deepEqual(cursorProjects, ["board-artifacts"]);
+
+    // Unavailable path: the first call appends its own event, the repeated one reports the injected cursor.
+    const unavailable = module.commands.markUnavailable({
+      project_id: "board-artifacts", artifact_id: "artifact-report", version: 1, actor_id: "user-a", reason: "blob missing",
+    });
+    assert.equal(unavailable.replayed, false);
+    assert.ok(unavailable.observed_event_cursor > afterRegistration);
+    const afterUnavailable = unrelatedEvent("after-unavailable");
+    const unavailableReplay = module.commands.markUnavailable({
+      project_id: "board-artifacts", artifact_id: "artifact-report", version: 1, actor_id: "user-a", reason: "blob missing",
+    });
+    assert.equal(unavailableReplay.replayed, true);
+    assert.equal(unavailableReplay.observed_event_cursor, afterUnavailable);
+    assert.deepEqual(cursorProjects, ["board-artifacts", "board-artifacts"]);
+
+    // Archived path, the same way.
+    const archived = module.commands.archiveVersion({
+      project_id: "board-artifacts", artifact_id: "artifact-report", version: 1, actor_id: "user-a",
+    });
+    assert.equal(archived.replayed, false);
+    assert.ok(archived.observed_event_cursor > afterUnavailable);
+    const afterArchive = unrelatedEvent("after-archive");
+    const archiveReplay = module.commands.archiveVersion({
+      project_id: "board-artifacts", artifact_id: "artifact-report", version: 1, actor_id: "user-a",
+    });
+    assert.equal(archiveReplay.replayed, true);
+    assert.equal(archiveReplay.observed_event_cursor, afterArchive);
+    assert.deepEqual(cursorProjects, ["board-artifacts", "board-artifacts", "board-artifacts"]);
+  } finally {
+    db.close();
+  }
+});
+
+test("Artifact reference digest mismatch is rollback-safe, and the owner schema creates only the current tables", () => {
   const { db, module } = createHarness();
   try {
     expectCode(
@@ -263,31 +324,27 @@ test("Artifact reference digest mismatch and schema migration are rollback-safe 
     db.close();
   }
 
-  const migrationDb = new Database(":memory:");
+  const schemaDb = new Database(":memory:");
   try {
-    migrationDb.exec(`
-      CREATE TABLE schema_migrations (migration_id INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+    schemaDb.exec(`
       CREATE TABLE boards (
-        board_id TEXT PRIMARY KEY,
+        project_id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
         active_goal_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
     `);
-    migrateArtifactsSchema(migrationDb as unknown as ArtifactsSqliteDatabase);
-    migrateArtifactsSchema(migrationDb as unknown as ArtifactsSqliteDatabase);
-    const tables = migrationDb.prepare(`
+    schemaDb.exec(ARTIFACTS_SCHEMA_SQL);
+    schemaDb.exec(PROCESS_ITEMS_SCHEMA_SQL);
+    // The 成果库 (A1) and the process items store (A2); the pre-A1 tables are no longer created.
+    const tables = schemaDb.prepare(`
       SELECT name FROM sqlite_master
-      WHERE type = 'table' AND name IN ('artifacts', 'artifact_versions')
+      WHERE type = 'table' AND name IN ('artifacts', 'artifact_versions', 'library_artifacts', 'library_artifact_versions', 'process_items', 'process_item_versions')
       ORDER BY name
     `).all().map((row) => row.name);
-    assert.deepEqual(tables, ["artifact_versions", "artifacts"]);
-    assert.equal(
-      migrationDb.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE migration_id = 31").get().count,
-      1,
-    );
+    assert.deepEqual(tables, ["library_artifact_versions", "library_artifacts", "process_item_versions", "process_items"]);
   } finally {
-    migrationDb.close();
+    schemaDb.close();
   }
 });

@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ImagesService, imagesManifest, handleImagesRoute, IMAGES_CLIENT_FACTORY_SCRIPT, imagesUiContribution } from "@molis-ai/molis-work-plugin-images";
-import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { PERSONAL_PLUGIN_IDS, pluginMarketCards, railEntries } from "@molis-ai/molis-work-app-workbench";
 
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
@@ -22,8 +22,7 @@ test("图片插件通过Manifest进入个人导航和市场，客户端可解析
 
 test("HTTP route 使用Host项目，拒绝伪造project_id，图片下载同样隔离", async () => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "images-routes-"));
-  const keys = new Map<string, string>();
-  const service = new ImagesService({homeDirectory, secrets: {get: (k) => keys.get(k) ?? null, put: (k, v) => {keys.set(k, v);}, delete: (k) => {keys.delete(k);}}, generate: async () => [{bytes: Buffer.from(PNG, "base64"), mime: "image/png"}]});
+  const service = new ImagesService({homeDirectory, resolveConnectionKey: () => undefined, selectConnection: () => {}, selectedConnectionId: () => null, clearConnection: () => {}, generate: async () => [{bytes: Buffer.from(PNG, "base64"), mime: "image/png"}]});
   try {
     const route = (input: Parameters<typeof handleImagesRoute>[1]) => handleImagesRoute(imagesTestClient(service, input.projectId), input);
     const connection = service.saveConnection({name:"受控本地服务", api_format:"openai-images",base_url:"http://127.0.0.1:9999/v1",model:"fixture-image"});

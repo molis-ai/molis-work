@@ -11,7 +11,7 @@ export { MCP_FIXTURE };
 
 test("MCP real stdio handshake, version selection, revocation and persisted config keep project ownership", async()=>{
   const root=await mkdtemp(join(tmpdir(),'molis-mcp-'));
-  const owner={board_id:'a',plugin_id:'io.molis.work.coding'}, other={...owner,board_id:'b'};
+  const owner={project_id:'a',plugin_id:'io.molis.work.coding'}, other={...owner,project_id:'b'};
   const open=()=>createPrologueNodeAdapter({app:{appId:'io.molis.mcp-test',appVersion:'1.0.0'},reviewQueue:new AgentReviewQueue(),storageRoot:join(root,'runtime'),modelConfiguration:async()=>null,resolveCredential:()=>null});
   let adapter:Awaited<ReturnType<typeof open>>|undefined;
   try{
@@ -47,7 +47,7 @@ test("MCP real stdio handshake, version selection, revocation and persisted conf
 
 test("MCP HTTP credentials stay outside views; config identity, cancellation and timeout invalidate old selections", async()=>{
   const root=await mkdtemp(join(tmpdir(),'molis-mcp-http-'));
-  const owner={board_id:'http-project',plugin_id:'io.molis.work.coding'};
+  const owner={project_id:'http-project',plugin_id:'io.molis.work.coding'};
   const secret='mcp-test-only-credential-123456789';
   const authSeen:boolean[]=[];let initialized=0;
   const server=createServer(async(request,response)=>{
@@ -93,7 +93,7 @@ test("MCP HTTP credentials stay outside views; config identity, cancellation and
 
 test("MCP connection selection resolves the current Connector secret again after rotation", async () => {
   const root = await mkdtemp(join(tmpdir(), "molis-mcp-connector-"));
-  const owner = { board_id: "connector-project", plugin_id: "io.molis.work.coding" };
+  const owner = { project_id: "connector-project", plugin_id: "io.molis.work.coding" };
   const authSeen: string[] = [];
   const server = createServer(async (request, response) => {
     authSeen.push(String(request.headers.authorization ?? ""));

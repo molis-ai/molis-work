@@ -3,7 +3,7 @@ import type { Effect, ExactRef, Runtime } from "@prologue/sdk";
 import type { AgentGitIntegrationReviewDocument, AgentGitIndexObservation, AgentGitIndexReviewDocument, AgentToolOperationReviewDocument, AgentReviewReceipt, AgentReviewRequest, AgentReviewRecoveryView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentReviewQueue } from "../reviews.js";
 
-type GitReviewIntent = { board_id: string; workspace_id: string; operation_id: string } & (
+type GitReviewIntent = { project_id: string; workspace_id: string; operation_id: string } & (
   | { operation_kind?: "git-index"; document: AgentGitIndexReviewDocument }
   | { operation_kind: "git-integration"; document: AgentGitIntegrationReviewDocument }
   | { operation_kind: "git-worktree"; document: AgentToolOperationReviewDocument }
@@ -29,7 +29,7 @@ interface Ports {
 }
 const SUBJECT = "molis.git.index";
 const APPROVAL_TTL = 10 * 60 * 1000;
-const fingerprint = (input: GitReviewIntent) => createHash("sha256").update(JSON.stringify([input.board_id, input.operation_id])).digest("hex");
+const fingerprint = (input: GitReviewIntent) => createHash("sha256").update(JSON.stringify([input.project_id, input.operation_id])).digest("hex");
 
 /** SDK Effects owns dispatch/recovery. The Host retains review provenance and diagnostic text, never execution state. */
 export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
@@ -42,13 +42,13 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
     if (!effect.pending) throw new Error("Git 操作缺少原审查等待");
     return { review_id: `prologue-git:${effect.pending.ref.id}`, run: null,
       operation: { kind: saved.operation_kind ?? "git-index", operation_id: saved.operation_id, workspace_id: saved.workspace_id },
-      board_id: saved.board_id, plugin_id: saved.operation_kind && !["git-index", "git-operation"].includes(saved.operation_kind) ? "io.molis.work.coding" : "io.molis.work.git", kind: saved.document.kind, document: saved.document,
+      project_id: saved.project_id, plugin_id: saved.operation_kind && !["git-index", "git-operation"].includes(saved.operation_kind) ? "io.molis.work.coding" : "io.molis.work.git", kind: saved.document.kind, document: saved.document,
       requested_at: saved.requested_at, expires_at: new Date(Date.parse(saved.requested_at) + APPROVAL_TTL).toISOString() };
   };
   const savedOf = async (effect: Effect): Promise<StoredReview | null> => {
     if (effect.proposal.subject.what !== "tool" || effect.proposal.subject.name !== SUBJECT || !effect.proposal.reviewRef) return null;
     const value = await ports.read(effect.proposal.reviewRef) as StoredReview;
-    if (value?.kind !== "molis-git-index-review" || !value.board_id || !value.workspace_id || !value.operation_id
+    if (value?.kind !== "molis-git-index-review" || !value.project_id || !value.workspace_id || !value.operation_id
       || (value.operation_kind === "git-integration" ? value.document?.kind !== "git-integration"
         : value.operation_kind === "git-worktree" ? value.document?.kind !== "tool-operation" || value.document.tool !== "git-worktree-create"
         : value.operation_kind === "git-operation" ? value.document?.kind !== "tool-operation" || !GIT_OPERATION_TOOLS.test(value.document.tool)
@@ -123,14 +123,14 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
   // Git operations from before this process are brought back once per board; every later one is registered live here,
   // so rereading the whole execution ledger on each review refresh found nothing new and cost a disk read per record.
   const settledBoards = new Set<string>();
-  const restore = async (boardId: string) => {
-    if (settledBoards.has(boardId)) return;
+  const restore = async (projectId: string) => {
+    if (settledBoards.has(projectId)) return;
     const report = await runtime.effects.readRecovery();
     if (report.unavailable.length) throw new Error("执行记录暂不可读，不能发起新的 Git 操作");
     for (const effect of report.effects) {
       if (live.has(effect.ref.id) || restored.has(effect.ref.id)) continue;
       const saved = await savedOf(effect);
-      if (!saved || saved.board_id !== boardId) continue;
+      if (!saved || saved.project_id !== projectId) continue;
       const request = requestOf(effect, saved), decision = await ports.readDecision(fingerprint(saved));
       if (decision) {
         const { status, decided_by, decided_at, note } = decision;
@@ -144,7 +144,7 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
       await settle(effect, request, typeof decision?.failure_reason === "string" ? new Error(decision.failure_reason) : undefined, true);
       restored.add(effect.ref.id);
     }
-    settledBoards.add(boardId);
+    settledBoards.add(projectId);
   };
   const detach = queue.registerRefresh(restore);
   return { async prepare(input, execution) {
@@ -153,17 +153,17 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
     if (!/^[a-zA-Z0-9-]{8,80}$/.test(intent.operation_id)) throw new Error("Git 操作标识无效");
     const pending = working.get(key); if (pending) return pending;
     const task = (async () => {
-      await restore(intent.board_id);
+      await restore(intent.project_id);
       const existing = runtime.effects.find(key);
       if (existing) {
         const old = await savedOf(existing);
         if (!old || JSON.stringify({ ...old, requested_at: undefined, kind: undefined }) !== JSON.stringify({ ...intent, requested_at: undefined, kind: undefined })) throw new Error("这次操作标识已对应另一份审查，不能替换");
-        const original = queue.list(intent.board_id).find(item => item.operation?.kind === (intent.operation_kind ?? "git-index") && item.operation.operation_id === intent.operation_id);
+        const original = queue.list(intent.project_id).find(item => item.operation?.kind === (intent.operation_kind ?? "git-index") && item.operation.operation_id === intent.operation_id);
         if (!original) throw new Error("原 Git 审查记录尚不可读，不能重新派出");
         return original;
       }
-      const workspaceKey = JSON.stringify([intent.board_id, intent.workspace_id]);
-      if (busy.has(workspaceKey) || queue.list(intent.board_id).some(item => {
+      const workspaceKey = JSON.stringify([intent.project_id, intent.workspace_id]);
+      if (busy.has(workspaceKey) || queue.list(intent.project_id).some(item => {
         if (item.operation?.workspace_id !== intent.workspace_id) return false;
         const receipt = queue.receipt(item.review_id);
         return receipt?.effect_uncertain || receipt?.status === "pending" || receipt?.status === "approved" && !receipt.effect_settled && !receipt.effect_error;

@@ -1,4 +1,4 @@
-import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
   TODO_STATUSES,
@@ -15,8 +15,9 @@ import {
   type TodoStatus,
   type TodoWaiting,
 } from "@molis-ai/molis-work-contracts/modules/todo";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { addDays, isTodoDate, isTodoInstant, isTodoTime } from "./dates.js";
-import { TodoError } from "./error.js";
+import { todoErrors } from "./error.js";
 
 /**
  * Who is asking and what they may see. A caller inside a project sees personal, unplaced and that
@@ -75,6 +76,16 @@ const RELATIONS: readonly TodoRelation[] = ["blocked_by", "blocks", "split_from"
 const SOURCE_KINDS: readonly TodoSource["kind"][] = ["manual", "material", "assistant", "onboarding", "inbox", "lingguang"];
 const MAX_BATCH = 200;
 
+/**
+ * What makes two requests one: who asked, from which project (or none), and the id they chose. The store is one
+ * Home-wide database and callers choose their own ids, so the id alone would hand one caller another caller's todo.
+ * Both the todo receipts and the organizer's batches keep requests under this key.
+ */
+export function todoRequestKey(access: Pick<TodoAccess, "actorId" | "projectId">, requestId: string | undefined): string | null {
+  const id = requestId?.trim();
+  return id ? JSON.stringify([access.actorId, access.projectId, id]) : null;
+}
+
 export class TodoStore {
   constructor(private readonly db: DatabaseSync, private readonly now: () => Date = () => new Date()) {}
 
@@ -91,7 +102,7 @@ export class TodoStore {
   get(id: string, access: TodoAccess): TodoItem {
     const row = this.db.prepare("SELECT * FROM todo_items WHERE id = ?").get(id) as ItemRow | undefined;
     const item = row ? fromRow(row) : null;
-    if (!item || !visible(item, access)) throw new TodoError("todo.not_found", "找不到这件待办，可能已被删除");
+    if (!item || !visible(item, access)) throw todoErrors.not_found("找不到这件待办，可能已被删除");
     return item;
   }
 
@@ -109,9 +120,9 @@ export class TodoStore {
   }
 
   create(input: TodoCreateInput, access: TodoAccess, batchId: string | null = null): { item: TodoItem; change_id: string; replayed: boolean } {
-    const requestId = input.request_id?.trim();
-    if (requestId) {
-      const seen = this.db.prepare("SELECT item_id FROM todo_requests WHERE request_id = ?").get(requestId) as { item_id: string } | undefined;
+    const requestKey = todoRequestKey(access, input.request_id);
+    if (requestKey) {
+      const seen = this.db.prepare("SELECT item_id FROM todo_requests WHERE request_id = ?").get(requestKey) as { item_id: string } | undefined;
       if (seen) {
         const change = this.db.prepare("SELECT change_id FROM todo_changes WHERE item_id = ? AND kind = 'create'").get(seen.item_id) as { change_id: string } | undefined;
         return { item: this.get(seen.item_id, access), change_id: change?.change_id ?? "", replayed: true };
@@ -152,7 +163,7 @@ export class TodoStore {
       this.insert(item);
       this.record({ change_id: changeId, item_id: item.id, batch_id: batchId, kind: "create", actor: access.actor, at, before: null,
         after: { title: item.title }, revision_after: 1 });
-      if (requestId) this.db.prepare("INSERT INTO todo_requests (request_id, item_id, created_at) VALUES (?, ?, ?)").run(requestId, item.id, at);
+      if (requestKey) this.db.prepare("INSERT INTO todo_requests (request_id, item_id, created_at) VALUES (?, ?, ?)").run(requestKey, item.id, at);
     });
     return { item, change_id: changeId, replayed: false };
   }
@@ -203,7 +214,7 @@ export class TodoStore {
   /** “知道了”: this reminder stops showing. Not a change to the todo itself, so its revision stays. */
   acknowledgeReminder(id: string, access: TodoAccess): TodoItem {
     const current = this.get(id, access);
-    if (!current.remind_at) throw new TodoError("todo.invalid", "这件待办没有提醒");
+    if (!current.remind_at) throw todoErrors.invalid("这件待办没有提醒");
     if (current.reminder_acknowledged_at) return current;
     const at = this.now().toISOString();
     this.db.prepare("UPDATE todo_items SET reminder_acknowledged_at = ? WHERE id = ? AND revision = ?").run(at, id, current.revision);
@@ -231,14 +242,14 @@ export class TodoStore {
     if (change.add) {
       const link = this.normalizeLink(change.add, id, access);
       const duplicate = links.find(existing => existing.kind === link.kind && existing.subject.kind === link.subject.kind && existing.subject.id === link.subject.id);
-      if (duplicate) throw new TodoError("todo.invalid", "已经关联过了");
+      if (duplicate) throw todoErrors.invalid("已经关联过了");
       if (links.length >= 50) throw invalid("一件待办最多关联 50 项");
       links.push(link);
       before = { link_removed: null };
       after = { link_added: link };
     } else if (change.remove_link_id) {
       const link = links.find(existing => existing.link_id === change.remove_link_id);
-      if (!link) throw new TodoError("todo.not_found", "这项关联已经不在了");
+      if (!link) throw todoErrors.not_found("这项关联已经不在了");
       links = links.filter(existing => existing.link_id !== change.remove_link_id);
       before = { link_added: link };
       after = { link_removed: link.link_id };
@@ -317,9 +328,9 @@ export class TodoStore {
     const rows = target.batch_id
       ? this.db.prepare("SELECT * FROM todo_changes WHERE batch_id = ? ORDER BY rowid").all(target.batch_id) as unknown as ChangeRow[]
       : this.db.prepare("SELECT * FROM todo_changes WHERE change_id = ?").all(target.change_id ?? "") as unknown as ChangeRow[];
-    if (!rows.length) throw new TodoError("todo.not_found", "找不到要撤销的修改");
+    if (!rows.length) throw todoErrors.not_found("找不到要撤销的修改");
     const changes = rows.map(changeFromRow);
-    if (changes.some(change => change.reverted_by)) throw new TodoError("todo.conflict", "这次修改已经撤销过了");
+    if (changes.some(change => change.reverted_by)) throw todoErrors.conflict("这次修改已经撤销过了");
     if (changes.some(change => change.kind === "revert")) throw invalid("撤销本身不能再撤销，请直接修改");
     // One todo may have several changes in a batch (created, then linked); they are undone together, newest first.
     const groups = new Map<string, TodoChange[]>();
@@ -330,7 +341,7 @@ export class TodoStore {
       for (const [itemId, group] of groups) {
         const current = this.get(itemId, access);
         const latest = Math.max(...group.map(change => change.revision_after));
-        if (current.revision !== latest) throw new TodoError("todo.conflict", `「${current.title}」之后又被改过，不能撤销这次修改`);
+        if (current.revision !== latest) throw todoErrors.conflict(`「${current.title}」之后又被改过，不能撤销这次修改`);
         if (group.some(change => change.kind === "create")) {
           this.db.prepare("DELETE FROM todo_changes WHERE item_id = ?").run(current.id);
           this.db.prepare("DELETE FROM todo_requests WHERE item_id = ?").run(current.id);
@@ -400,7 +411,7 @@ export class TodoStore {
     const current = this.get(id, access);
     assertRevision(current, expectedRevision);
     if ((current.archived_at !== null) === archived) return { item: current, change_id: null };
-    if (archived && current.status !== "done" && current.status !== "cancelled") throw new TodoError("todo.invalid", `「${current.title}」还没完成或取消，不能归档`);
+    if (archived && current.status !== "done" && current.status !== "cancelled") throw todoErrors.invalid(`「${current.title}」还没完成或取消，不能归档`);
     const at = this.now().toISOString();
     const next: TodoItem = { ...current, archived_at: archived ? at : null, updated_at: at, revision: current.revision + 1 };
     const changeId = crypto.randomUUID();
@@ -424,7 +435,7 @@ export class TodoStore {
     const relation = input.kind === "todo" ? input.relation ?? "related" : null;
     if (relation !== null && !RELATIONS.includes(relation)) throw invalid("关系无效");
     const outcome = input.kind === "outcome" ? input.outcome ?? "draft" : null;
-    if (outcome !== null && outcome !== "draft" && outcome !== "done") throw invalid("成果状态无效");
+    if (outcome !== null && outcome !== "draft" && outcome !== "done") throw invalid("产出状态无效");
     return { link_id: crypto.randomUUID(), kind: input.kind, subject: { kind: subject.kind, id: subject.id }, title, relation, outcome,
       open: normalizeOpen(input.open), added_at: this.now().toISOString() };
   }
@@ -457,55 +468,71 @@ export class TodoStore {
   }
 }
 
+/**
+ * The Todo store's one current schema (repository-anti-corruption §4.1), the organizer's tables included: new stores are
+ * created from it, existing ones must already be at its version.
+ */
+export const TODO_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE todo_items (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    notes TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL,
+    placement TEXT NOT NULL,
+    project_id TEXT,
+    due_date TEXT,
+    due_time TEXT,
+    planned_date TEXT,
+    remind_at TEXT,
+    important INTEGER NOT NULL DEFAULT 0,
+    waiting_json TEXT,
+    sources_json TEXT NOT NULL DEFAULT '[]',
+    links_json TEXT NOT NULL DEFAULT '[]',
+    edited_fields_json TEXT NOT NULL DEFAULT '[]',
+    archived_at TEXT,
+    completed_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    revision INTEGER NOT NULL,
+    reminder_acknowledged_at TEXT
+  );
+  CREATE INDEX todo_items_project ON todo_items (project_id);
+  CREATE TABLE todo_changes (
+    change_id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL,
+    batch_id TEXT,
+    kind TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    at TEXT NOT NULL,
+    before_json TEXT,
+    after_json TEXT NOT NULL,
+    revision_after INTEGER NOT NULL,
+    reverted_by TEXT
+  );
+  CREATE INDEX todo_changes_item ON todo_changes (item_id);
+  CREATE INDEX todo_changes_batch ON todo_changes (batch_id) WHERE batch_id IS NOT NULL;
+  CREATE TABLE todo_requests (
+    request_id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
+  -- The organizer's review batches and what it remembers about sources (organize.ts).
+  CREATE TABLE todo_batches (
+    batch_id TEXT PRIMARY KEY, project_id TEXT, origin TEXT NOT NULL, method TEXT NOT NULL, title TEXT NOT NULL,
+    body_json TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL,
+    request_id TEXT UNIQUE
+  );
+  CREATE TABLE todo_source_memory (
+    source_key TEXT NOT NULL, fingerprint TEXT NOT NULL, decision TEXT NOT NULL, item_id TEXT, reason TEXT NOT NULL, at TEXT NOT NULL,
+    PRIMARY KEY (source_key, fingerprint)
+  );
+` };
+
 export function openTodoStore(homeDirectory: string, now?: () => Date): TodoStore {
   const db = openHomeSqliteDatabase(homeDirectory, "todo");
-  db.exec(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA busy_timeout = 5000;
-    CREATE TABLE IF NOT EXISTS todo_items (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      notes TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL,
-      placement TEXT NOT NULL,
-      project_id TEXT,
-      due_date TEXT,
-      due_time TEXT,
-      planned_date TEXT,
-      remind_at TEXT,
-      important INTEGER NOT NULL DEFAULT 0,
-      waiting_json TEXT,
-      sources_json TEXT NOT NULL DEFAULT '[]',
-      links_json TEXT NOT NULL DEFAULT '[]',
-      edited_fields_json TEXT NOT NULL DEFAULT '[]',
-      archived_at TEXT,
-      completed_at TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      revision INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS todo_items_project ON todo_items (project_id);
-    CREATE TABLE IF NOT EXISTS todo_changes (
-      change_id TEXT PRIMARY KEY,
-      item_id TEXT NOT NULL,
-      batch_id TEXT,
-      kind TEXT NOT NULL,
-      actor TEXT NOT NULL,
-      at TEXT NOT NULL,
-      before_json TEXT,
-      after_json TEXT NOT NULL,
-      revision_after INTEGER NOT NULL,
-      reverted_by TEXT
-    );
-    CREATE INDEX IF NOT EXISTS todo_changes_item ON todo_changes (item_id);
-    CREATE INDEX IF NOT EXISTS todo_changes_batch ON todo_changes (batch_id) WHERE batch_id IS NOT NULL;
-    CREATE TABLE IF NOT EXISTS todo_requests (
-      request_id TEXT PRIMARY KEY,
-      item_id TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-  `);
-  ensureSqliteColumn(db, "todo_items", "reminder_acknowledged_at", "TEXT");
+  db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
+  applySqliteBaseline(db, homeSqlitePath(homeDirectory, "todo"), TODO_STORE_BASELINE);
   return new TodoStore(db, now);
 }
 
@@ -543,7 +570,7 @@ function normalizeFields(patch: TodoFields, current: TodoItem | null, access: To
   }
   if (patch.important !== undefined) {
     if (typeof patch.important !== "boolean") throw invalid("重要标记无效");
-    if (access.actor !== "user" && patch.important !== (current?.important ?? false)) throw new TodoError("todo.forbidden", "重要标记只能由你自己设置");
+    if (access.actor !== "user" && patch.important !== (current?.important ?? false)) throw todoErrors.forbidden("重要标记只能由你自己设置");
     out.important = patch.important;
   }
   if (patch.waiting !== undefined) {
@@ -558,7 +585,7 @@ function normalizeFields(patch: TodoFields, current: TodoItem | null, access: To
   }
   if (patch.placement !== undefined) {
     if (patch.placement === "project") {
-      if (!access.projectId) throw new TodoError("actions.project_required", "要放进项目，请在那个项目里操作");
+      if (!access.projectId) throw new ActionError("actions.project_required", "要放进项目，请在那个项目里操作");
       // "Into the project" means the project the caller is in; other projects are not addressable by id.
       // A todo already in some project stays there, so resending the same placement never moves it silently.
       out.placement = "project";
@@ -621,8 +648,8 @@ function assertRevision(item: TodoItem, expected: number | undefined): void {
 }
 
 const text = (value: unknown, max: number) => typeof value === "string" && value.trim().length > 0 && value.length <= max;
-const invalid = (message: string) => new TodoError("todo.invalid", message);
-const conflict = (title?: string) => new TodoError("todo.conflict", title ? `「${title}」已在别处修改，请重新读取后再改` : "待办已在别处修改，请重新读取后再改");
+const invalid = (message: string) => todoErrors.invalid(message);
+const conflict = (title?: string) => todoErrors.conflict(title ? `「${title}」已在别处修改，请重新读取后再改` : "待办已在别处修改，请重新读取后再改");
 
 function fromRow(row: ItemRow): TodoItem {
   return {

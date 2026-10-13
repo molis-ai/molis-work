@@ -1,11 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { CONTINUITY_ACTIONS, memberClientId } from "@molis-ai/molis-work-server";
+import { isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 /** Local administrator operation. Delegates to the existing protected Host grant owner. Never a mobile endpoint. */
 export async function configureMemberActions(input:{hostUrl:string;controlTokenFile:string;memberId:string;projectId:string;role:"owner"|"editor"|"viewer"|"revoked"}) {
   const url=new URL(input.hostUrl);
-  if(url.protocol!=="http:" || !["127.0.0.1","[::1]"].includes(url.hostname) || url.pathname!=="/" || url.username || url.password || url.search || url.hash)throw Error("Host URL must be a numeric loopback HTTP origin");
+  if(!isLoopbackHttpOrigin(url,{numeric:true}))throw Error("Host URL must be a numeric loopback HTTP origin");
   const token=(await readFile(input.controlTokenFile,"utf8")).trim();
   if(token.length<32 || token.length>512 || /[\r\n\0]/.test(token))throw Error("Invalid Host control token file");
   const results:{capability_id:string;enabled:boolean;status:string}[]=[];

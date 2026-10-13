@@ -1,22 +1,29 @@
-import { createHash, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { ActionError, type ActionClient, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
+import { currentCallId, markCallRecorded, newCallId } from "@molis-ai/molis-work-kernel";
+import { postToResidentHost, residentHostOrigin, type ResidentHostAnswer } from "./resident-host-request.js";
 
 export const ACTION_GATEWAY_PATH = "/api/internal/action-service";
 export const actionGatewayHomeId = (home: string) => createHash("sha256").update(path.resolve(home)).digest("hex");
 
-/** A transport, not an execution fallback. Invocation failures are never retried here. */
+const CALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/**
+ * The one shape of an operation's number the gateway takes: a UUID as `newCallId` writes it. An invocation carries the number of the
+ * forwarding process's operation (a tool call); a discovery is no operation and carries none. The number names no one and grants nothing.
+ */
+export const isGatewayCallId = (value: unknown): value is string => typeof value === "string" && CALL_ID.test(value);
+
+/**
+ * A transport, not an execution fallback. Invocation failures are never retried here. The request itself is the one POST
+ * every process that forwards to the resident Host makes (`postToResidentHost`); this class keeps what is the action
+ * gateway's own: the Home, client and project envelope, the Host instance, and how each failure is named.
+ */
 export class LocalActionGatewayClient implements ActionClient {
   private readonly origin: string;
   private instance?: string;
   constructor(private readonly options: { url: string; homeDirectory: string; clientId: string; projectId: string | null; controlToken?: string; runtimeSessionId?: string }) {
-    const url = new URL(options.url);
-    if (url.protocol !== "http:" || !["127.0.0.1", "[::1]"].includes(url.hostname) || url.username || url.password || url.search || url.hash || url.pathname !== "/") {
-      throw new ActionError("actions.transport_invalid", "系统动作连接必须是本机数字回环 HTTP 地址");
-    }
-    this.origin = url.origin;
+    this.origin = residentHostOrigin(options.url);
   }
   async discover(caller: ActionCallContext): Promise<ActionView[]> {
     this.checkCaller(caller);
@@ -31,8 +38,9 @@ export class LocalActionGatewayClient implements ActionClient {
     const instance = this.instance;
     await caller.validate_authority?.(reference);
     caller.signal?.throwIfAborted();
-    const reply = await this.request({ operation: "invoke", instance_id: instance,
-      capability: { capability_id: reference.capability_id, version: reference.version, ...(reference.provider_id ? { provider_id: reference.provider_id } : {}) }, input }, caller);
+    const callId = caller.call_id ?? currentCallId() ?? newCallId();
+    const reply = await this.request({ operation: "invoke", instance_id: instance, call_id: callId,
+      capability: { capability_id: reference.capability_id, version: reference.version, ...(reference.provider_id ? { provider_id: reference.provider_id } : {}) }, input }, caller, callId);
     if (reply.instance_id !== instance) throw new ActionError("actions.host_replaced", "系统服务已更换，请重新发现；不会重发原调用");
     return reply.result as Output;
   }
@@ -43,26 +51,27 @@ export class LocalActionGatewayClient implements ActionClient {
     const auditActor = this.options.runtimeSessionId === undefined ? undefined : `${this.options.clientId}:${this.options.runtimeSessionId}`;
     if (caller.audit_actor_id !== auditActor || caller.runtime_session_id !== this.options.runtimeSessionId) throw new ActionError("actions.scope_mismatch", "审计作者不属于当前 Runtime 会话");
   }
-  private async request(body: Record<string, unknown>, caller: ActionCallContext): Promise<Record<string, unknown>> {
-    let token: string;
-    try { token = this.options.controlToken ?? (await readFile(path.join(this.options.homeDirectory, WEB_CONTROL_TOKEN_RELATIVE_PATH), "utf8")).trim(); }
-    catch { throw new ActionError("actions.service_unavailable", "尚未取得此 Home 的系统服务连接，请启动对应常驻服务"); }
-    const serialized = JSON.stringify({ ...body, home_id: actionGatewayHomeId(this.options.homeDirectory), client_id: this.options.clientId,
-      project_id: this.options.projectId, ...(this.options.runtimeSessionId === undefined ? {} : { runtime_session_id: this.options.runtimeSessionId }) });
-    let response: Response;
+  private async request(body: Record<string, unknown>, caller: ActionCallContext, callId?: string): Promise<Record<string, unknown>> {
+    const invoking = body.operation === "invoke";
+    const unavailable = () => new ActionError("actions.service_unavailable", "系统服务尚未连接，请启动对应 Home 的常驻服务");
+    let answer: ResidentHostAnswer | null;
     try {
-      response = await fetch(this.origin + ACTION_GATEWAY_PATH, { method: "POST", redirect: "error", signal: caller.signal,
-        headers: { origin: this.origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, body: serialized });
+      answer = await postToResidentHost({ origin: this.origin, homeDirectory: this.options.homeDirectory, controlToken: this.options.controlToken,
+        path: ACTION_GATEWAY_PATH, signal: caller.signal, retryHint: "请核对原结果，不会自动重试",
+        body: { ...body, home_id: actionGatewayHomeId(this.options.homeDirectory), client_id: this.options.clientId,
+          project_id: this.options.projectId, ...(this.options.runtimeSessionId === undefined ? {} : { runtime_session_id: this.options.runtimeSessionId }) } });
     } catch (error) {
-      if (caller.signal?.aborted) throw caller.signal.reason;
-      throw new ActionError(body.operation === "invoke" ? "actions.delivery_unknown" : "actions.service_unavailable",
-        body.operation === "invoke" ? "系统服务连接中断，调用结果尚未确定；请核对原结果，不会自动重试" : "系统服务尚未连接，请启动对应 Home 的常驻服务");
+      // A discovery changes nothing: a connection that breaks or a reply that never completes is the service not being there, not an outcome to check.
+      if (!invoking && error instanceof ActionError && error.code === "actions.delivery_unknown") throw unavailable();
+      throw error;
     }
-    let reply: Record<string, unknown>;
-    try { reply = await response.json() as Record<string, unknown>; }
-    catch { throw new ActionError("actions.delivery_unknown", "未收到完整的系统服务响应；不会自动重发调用"); }
-    if (!reply || typeof reply !== "object" || Array.isArray(reply)) throw new ActionError("actions.transport_invalid", "系统服务响应无效");
-    if (!response.ok) throw new ActionError(typeof reply.code === "string" ? reply.code : "actions.transport_denied", typeof reply.error === "string" ? reply.error : "系统服务拒绝调用");
+    // Nothing was sent: no control token in this Home, or nothing listens at the address.
+    if (!answer) throw unavailable();
+    const reply = answer.body;
+    // The Host names the number of an invocation when it wrote a row for it, in a failure's body as in a success's; only then may this
+    // process show that number to a person. A number it did not send is not taken.
+    if (callId && reply.call_id === callId && currentCallId() === callId) markCallRecorded();
+    if (!answer.ok) throw new ActionError(typeof reply.code === "string" ? reply.code : "actions.transport_denied", typeof reply.error === "string" ? reply.error : "系统服务拒绝调用");
     return reply;
   }
 }

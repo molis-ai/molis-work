@@ -21,7 +21,7 @@ export async function capabilitiesView(options: {
   const { section, url, homeDirectory, host, withCatalog } = options;
   const projectId = url.searchParams.get("project") || null;
   const project = projectId && (section === "library" || section === "history") ? await withCatalog({ homeDirectory }, catalog => catalog.getProject(projectId)) : null;
-  const reference = project ? molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id }) : undefined;
+  const reference = project ? molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }) : undefined;
   // The local owner's permissions come from the native manifests; Runtime plugins add their installed grants. Never from query parameters.
   const builtinPermissions = LOCAL_OWNER_PERMISSIONS;
   const model: CapabilitiesView = { section, actions: [], query: url.searchParams.get("q") ?? "", kind: url.searchParams.get("kind") ?? "" };

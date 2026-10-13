@@ -114,7 +114,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | 场景 | 现在 | 位置 |
 | --- | --- | --- |
 | 已有插件里再加一个 AI 动作 | 0 | 包内 `actions.ts`、`prompts.ts`；指令追加到包导出的 `X_INSTRUCTIONS`，目录条目已引用它 |
-| 新的 Runtime 插件要调模型 | +1 | `PluginHostServices` 没有模型服务（`packages/contracts/src/platform/plugin.ts`）：要在宿主里新建一个端口文件（如 `shelf-ai.ts` 那样），由 `project-plugins.ts` 注入；`project-plugins.ts` 已在 3.1 的 12 处里 |
+| 新的 Runtime 插件要调模型 | 0 | Manifest 声明 `model:invoke`，在动作处理器里用 `context.services.model`（W3-06 E，`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`，只对宿主自己运行的非沙箱插件）；没有目录条目的插件在 `PluginDefinition.instructions` 里声明指令，不新建宿主端口文件。构建期插件的 5 个适配文件随各自迁移删掉（W5-11） |
 | 宿主自己的模型调用（不属于任何插件） | 2 | `apps/local-host/src/agent-definitions/system-prompts.ts`（定义）、`builtin-instructions.ts`（`BUILTIN_INSTRUCTIONS`、`SYSTEM_INSTRUCTION_SOURCES` 登记）；调用方是功能本身，不计 |
 | 内置 Agent 的角色提示词与方法 | 0 | 目录条目的 `agent`、`methods`（`BUILTIN_PLUGIN_AGENTS` 派生）；系统内联角色在 `builtin-instructions.ts` 的 `BUILTIN_INLINE_AGENT_*` |
 | Runtime 与已安装插件的 `methods` | 不会被登记 | 只有目录条目里的 `methods` 在 Host 启动时登记（`apps/local-host/src/agent-definitions/builtin-agents.ts` 的 `builtinRegistrations`）；`packages/plugin-runtime`、`apps/local-host/src/installed-plugin-host.ts` 和 `plugin-builder/` 里没有任何登记 `methods` 的代码。2026-10-08 已定：和内置插件一样登记，启动时登记，停用、卸载、升级时收回（切片 W4-02） |
@@ -122,7 +122,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 宿主里还有 5 个按插件写的 AI 适配文件：`alchemist-prologue.ts`、`cognia-prologue.ts`、`jelly-model.ts`、`shelf-ai.ts`、`typesafe-prologue.ts`。
 
-**目标：0 / 0 / 2。** W3-06 把模型做成 Runtime 插件服务（`services.model`，由 agent-host 支撑，带登记指令、concurrent 调度和 `beforeEffect`），不是新的 typed 宿主能力（2026-10-07「两套能力机制收敛」：typed 注册表只留作 Runtime 插件的宿主内服务通道，不许再加新项）。系统级调用保持 2：定义加登记是有意的显式登记，`tests/prompt-registration.test.ts` 会让没登记的调用失败。W5-11 用 `services.model` 取代 5 个适配文件。`methods` 随 W4-02 生效：Runtime 和已安装插件声明的方法由监督器和安装宿主在启动时登记、在停用、卸载、升级时收回，目标同内置插件（0 处宿主改动）。
+**目标：0 / 0 / 2。** W3-06 E 已把模型做成 Runtime 插件服务（`services.model`，由 agent-host 支撑，带登记指令、concurrent 调度和 `beforeEffect`），不是新的 typed 宿主能力（2026-10-07「两套能力机制收敛」：typed 注册表只留作 Runtime 插件的宿主内服务通道，不许再加新项）。系统级调用保持 2：定义加登记是有意的显式登记，`tests/prompt-registration.test.ts` 会让没登记的调用失败。W5-11 用 `services.model` 取代 5 个适配文件。`methods` 随 W4-02 生效：Runtime 和已安装插件声明的方法由监督器和安装宿主在启动时登记、在停用、卸载、升级时收回，目标同内置插件（0 处宿主改动）。
 
 ### 3.5 动作与消费场景
 

@@ -670,6 +670,7 @@ pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <�
 | | | **记录一：验收编号缺口。** 本 spec §19.4 的 W2-01、W2-02、W2-04、W2-05、W2-08 还没有证明它们的测试：W2-02（窗格里的浮条、悬停保位、Esc 记「忽略」）需要一条分屏用例；W2-04 改成了「等着的结果不丢」（§19.8），对应用例已在 `contextual-interaction.e2e`；W2-05（⌘K 打开链接面板）与 W2-08（开场建议报错改为提示条）待补。检查器目前只报告，不挡合并 |
 | | | **记录二：两个近似的压缩函数。** 工作台的 `served()`（`builtin-plugins.ts`，插件客户端脚本）和设计系统新增的 `compactScript`（情境脚本）做的是同一类事：去缩进与整行注释，后者还去空行。应并成一个（`served` 改用 `compactScript`，各插件资源再降一点），这会动所有插件的资源，留给页面资源门禁的主人 |
 | | | **记录三：整个 `workbench.js` 还没过压缩。** 工作台脚本里的缩进与注释行占相当大一部分，对拼装 `workbench.js` 的那一处用 `compactScript`，整个资源可以少几十 KB；已用「空白压缩后的 esbuild 输出相同」验证过情境脚本和 Pages 脚本不改语义，别的脚本需逐个验证 |
+| 2026-10-13 晚 | `fc18d5f6`（#471 Computer Use、#472 旧采用树）、`ee84a837`（#463、#473 文档）、`c33448f2`（#474、#475、#482、#483 测试改走公开入口与构建副本） | **通过，修了五处。** 机器项：M1 `boundary:check` 无错；M2 健康门禁对照 merge-base `c33448f2` 通过，比 merge-base 小的是巨大单元、`as unknown as`、Error 子类，本地快查已降；M4、M5 快照与源码一致（只有本线有意的合同变化：`ActionIntake`/`ActionAttach`、`SurfaceFocus.place/side_tab/screen`、落点、`ContextTools`、去掉两个只为写作菜单存在的事件）；M6 页面资源每个文件都不比 main 大，按实测降了预算（见下）。**修的五处**：① W1-4 回归：`plugin-sdk` 的 `context-declarations.ts` 遇到形状不对的声明（`null`、数字、错的 `subject_kinds`）会抛 TypeError，改成先按形状过滤，问题交给形状规则报告（`f86f85dd`，加回归用例 `0534f47d`）；② 新用例里一处 `as unknown as`（门禁按文件计数）改成先声明为 `unknown` 再断言一次（`fa762b97`）；③ 页面资源：合 main 后 `workbench.js` 比 main 多 6,230 字节——main 的宿主现在用 esbuild 压空白，原来的底栏代码缩进与注释多、压得多，本线的浮条已经是 `compactScript` 压过的，压不出新空间。查到 esbuild 默认把每个中文字符写成 6 字节的 `\uXXXX`，而资源按 UTF-8 发（3 字节），main 的 `workbench.js` 里有 17,851 个；宿主的 `tightenServedJs` 加 `charset: "utf8"`，程序与名字不变（新用例 `served-script-text` 经包入口证明），`workbench.js` 比 main 少 47,531 字节，每个插件包都变小（几个共享的大包各少约 22.9 KB）（`1f278d01`、`161ba540`）；④ 全量抓到 W2 弄坏的 W0 原型：W2 去掉了 Pages 编辑器句柄上的 `toolbar`，原型还在删它、读它，载入文档时抛错，右栏 Shelf 一条材料都不出；改成读 `tools()`、调 `runTool()`（`c24fb961`）；⑤ 电脑格不再写「只留位置」，改成说明 main 上 #471 的真实格（`541ff17f`）。人工 27 条对照本线 diff 通过；第 16.4 前两行的记录二、三已被 main 的 esbuild 压缩取代。 |
 
 ## 17. 接续入口（2026-10-12）
 
@@ -952,6 +953,26 @@ W2 自己的验收（在 T01–T09 之外）：
 > 2. #471 还改了 `side-panel.ts`、`side-panel-browser.ts`、`page-assets.ts`、`assistant-island.ts` 和页面资源预算；与 #411 的直接文件冲突在 `apps/local-host/src/index.ts`、`apps/workbench/src/page-assets.ts`、`specs/README.md`、`tooling/gates/baseline.json`、`tooling/gates/page-assets.json`。页面资源字节两个方向都要精确：合 main 后重新 `pnpm workspace:build` 再 `node scripts/gates/page-assets.mjs --update --base origin/main`，不手工合并数字。
 > 3. #411 合进 main 的顺序不变（排在采用线之后），但采用线的 #408 现在要先和 #472 对账，可能晚到；如果 #411 先具备条件（W1-4 回归已修、合 main 后防腐复查过、定向用例与基线比对过），由统筹决定是否先合。
 
+
+### 20.0 当前状态（2026-10-13 晚，统筹接手后，先读）
+
+本节之后的 20.1–20.10 写于 10-13 早上；与本节不一致的以本节为准。
+
+- **#411 已合 main 到 `c33448f2`**（#471、#472 与之后的测试迁移都在里面），冲突只有 `packages/design-system/README.md`（两边都留）以及一开始的 `page-assets.ts`、两份门禁文件（重新生成）。
+- **防腐复查**：见 16.4 的 2026-10-13 晚一行（通过，修了五处）。
+- **工程证据**：
+  - 全量（合 main `ee84a837` 之后、W0 修复之前的树，`node scripts/run-tests.mjs`，约 117 分钟）：6154 条，6135 通过、10 失败、9 跳过。10 条逐条比对过：
+    - W0 原型 5 条：本线 W2 引入，已修（`c24fb961`），`context-program-slice` 单元加浏览器 18/18；
+    - `goal-event-document.e2e` 1 条：负载下的时序，单独在本线与干净 main 上都 3/3；
+    - `feed-inbox-schedule-error-model` 1 条：main 上同样失败（#472 在 `schedule-task-runner.ts` 加了裸 `new Error`），由采用线 #408 修；
+    - `settings-requests-through-helper` 1 条：main 上同样失败（#471 在 `settings-assistant.ts` 直接 `fetch("/api/computer…")`），不属于四条线，已报统筹；
+    - `touch-targets.e2e` 2 条（触屏窗口的 44px 与助理行）：干净 main 上同样失败。
+  - 再合 main `c33448f2`（只有测试迁移）后：重建、门禁全过；main 改过的 210 个测试文件加本线四个文件：1337 条，1336 通过、1 失败（`functions-authoring-actions` 的「发布校验期间草稿被改」，与采用线的定向用例同时跑时失败，单独在本线连跑两次与在干净 main 上都 4/4，判为负载时序）。
+  - 浏览器：浮条与情境用例在 10-13 早上的树上通过（20.3）；本轮跑了 `context-program-slice.e2e`（5/5）与 `goal-event-document.e2e`（3/3）。6 个分屏用例在全量里通过，不再是待查项。
+- **开发者实操、用户验收**：同 20.1，没有变化。
+- **20.4 里已经做完的**：第 1 条（W1-4 回归）、第 2 条（与 main 的冲突）、第 3 条（6 个分屏用例，全量里通过）、第 4 条（小批浏览器复跑，含在全量里）。
+- **还没做的**：W2-02、W2-05、W2-08 的用例和 `contextual.md` 的浮条章节（20.4 第 5、6 条）；W1-9 门禁 PR（要先问用户）；20.4 第 8 条的后续各项；真实 Jev 评估与桌面原生拖出（要用户授权）。
+- **下一步**：统筹按条件合 #411（`Verify` 绿、与 main 同步、secrets 与 health `--base` 过、证据入本文、读过 diff），然后从 20.5 第 4 步接着做。
 
 本节取代第 17 节。读它的人可能在另一台机器上，看不到本机的工作树、锁目录和别的会话：下面凡是本线要用的事实都写在这里，链接只是出处。本节写于用户 2026-10-13 的「先暂停一下」之后，所以「没做」里的事都等恢复通知再动。
 

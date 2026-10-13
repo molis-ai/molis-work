@@ -123,7 +123,7 @@ test('a stand-in is a valid value for the capability\'s output', async () => {
 });
 
 test('the designer sees the capabilities that bear on the request in full, the ones in use always, and the rest summarised by source', async () => {
-  const { focusCatalog } = await import('../plugins/native/plugin-builder/src/agent-catalog.js');
+  const { focusCatalog } = await import('../plugins/native/plugin-builder/dist/agent-catalog.js');
   const entry = (id: string, title: string, source: string) => ({ id, title, source, description: title, input: { type: 'object' } });
   const catalog = [entry('model.generate', '调用模型', '插件平台'), entry('reminders.add', '到点提醒', '插件平台'), entry('reminders.cancel', '取消提醒', '插件平台'),
     entry('goals.list', '目标目录', 'Goals'), entry('goals.note', '记录目标便笺', 'Goals'),
@@ -160,7 +160,7 @@ test('an action that only answers its own installation is on the board but not o
 });
 
 test('an installed plugin\'s functions are actions of the directory: people, the Home AI, MCP clients and other plugins can call them; uninstalling withdraws them', async () => {
-  const { exposeInstalledPlugin, exposedActionId } = await import('../apps/local-host/src/plugin-builder/exposed-actions.js');
+  const { exposeInstalledPlugin, exposedActionId } = await import('../apps/local-host/dist/plugin-builder/exposed-actions.js');
   const service = new ActionService(), actions = { registry: service, client: service, project_id: 'p' };
   const contract = { version: 1, pluginId: 'io.molis.work.generated.words', revision: 'r', entities: [], pages: [], acceptance: [], operations: [
     { id: 'words.list', kind: 'query', description: '列出生词', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: { storage: ['read'] }, examples: [] },
@@ -204,7 +204,7 @@ test('a capability that needs another action is not offered to generated plugins
 });
 
 test('the designer\'s catalog stays within budget: what is in use and the most relevant keep full schemas, the rest their field names', async () => {
-  const { withinBudget } = await import('../plugins/native/plugin-builder/src/agent-catalog.js');
+  const { withinBudget } = await import('../plugins/native/plugin-builder/dist/agent-catalog.js');
   const huge = (id: string) => ({ id, title: id, description: id, input: { type: 'object', properties: Object.fromEntries(Array.from({ length: 200 }, (_, index) => ['field' + index, { type: 'string', description: 'x'.repeat(40) }])) }, output: { type: 'object' } });
   const entries = [huge('pages.create'), huge('pages.generate'), huge('pages.extract'), huge('goals.list')];
   const trimmed = withinBudget(entries, ['goals.list'], 20_000);
@@ -215,7 +215,7 @@ test('the designer\'s catalog stays within budget: what is in use and the most r
 });
 
 test('arbitrarily named providers drive sandbox limits, cost disclosure and rate limits through the same directory', async () => {
-  const { capabilityLimits, slowOperations } = await import('../apps/local-host/src/plugin-builder/capabilities.js');
+  const { capabilityLimits, slowOperations } = await import('../apps/local-host/dist/plugin-builder/capabilities.js');
   const { actions } = project();
   const base = goals('research.summarize', 'query');
   const definition: ActionDefinition = { ...base, version: 2, action: { ...base.action, execution: { timeout_ms: 75_000, cost: 'metered', max_calls_per_minute: 1 } } };

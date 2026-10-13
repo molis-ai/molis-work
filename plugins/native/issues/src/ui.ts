@@ -9,8 +9,8 @@ export const issuesUiContribution: UiContribution<unknown> = {
   render: () => renderIssuesWorkbench(),
 };
 
-const types = (name: string) => `<div class="mw-toggle-group" role="radiogroup" aria-label="类型" data-issue-types="${name}">${[["bug", "Bug"], ["experience", "体验问题"], ["feature", "功能需求"]]
-  .map(([value, label]) => `<button type="button" role="radio" aria-checked="false" data-type="${value}">${label}</button>`).join("")}</div>`;
+const types = (name: string) => `<div class="mw-toggle-group" data-issue-label role="radiogroup" aria-label="类型" data-issue-types="${name}">${[["bug", "Bug"], ["experience", "体验问题"], ["feature", "功能需求"]]
+  .map(([value, label]) => `<button type="button" data-issue-label role="radio" aria-checked="false" data-type="${value}">${label}</button>`).join("")}</div>`;
 const shots = (key: string) => `<div class="issues-shots" data-issue-${key}></div>`;
 
 /**
@@ -21,24 +21,24 @@ export function renderIssuesWorkbench(): string {
   return renderPluginStageShell({ surface: "issues", label: "Issue", dataset: "issues", body: `<div class="issues" data-issue-root>
     <section class="issues-home" data-issue-home>
       <form class="issues-composer" data-issue-composer>
-        <textarea name="description" rows="3" maxlength="100000" aria-label="问题描述" placeholder="遇到什么问题？写下来，截图可以直接粘贴"></textarea>
+        <textarea data-issue-label name="description" rows="3" maxlength="100000" aria-label="问题描述" placeholder="遇到什么问题？写下来，截图可以直接粘贴"></textarea>
         ${shots("thumbs")}
         <div class="issues-bar">
-          <button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" data-issue-pick aria-label="添加截图" title="添加截图">${icon("image")}</button>
+          <button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" data-issue-pick data-issue-label aria-label="添加截图" title="添加截图">${icon("image")}</button>
           <span class="issues-tip" data-issue-tip></span>
-          <button type="submit" class="mw-btn mw-btn--primary mw-btn--sm" data-issue-submit>记录<span class="mw-btn__key" data-issue-key></span></button>
+          <button type="submit" class="mw-btn mw-btn--primary mw-btn--sm" data-issue-submit data-issue-label>记录<span class="mw-btn__key" data-issue-key></span></button>
         </div>
       </form>
-      <h2 class="issues-head">我的 Issue</h2>
-      <ol class="issues-list" data-issue-list aria-label="我的 Issue" aria-busy="true"></ol>
-      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm issues-more" data-issue-more hidden>加载更多</button>
+      <h2 class="issues-head" data-issue-label>我的 Issue</h2>
+      <ol class="issues-list" data-issue-list data-issue-label aria-label="我的 Issue" aria-busy="true"></ol>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm issues-more" data-issue-more data-issue-label hidden>加载更多</button>
     </section>
     <article class="issues-detail" data-issue-detail hidden>
       <header class="issues-detail-bar">
-        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-back>${icon("chevron-left")}<span>全部</span></button>
+        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-back>${icon("chevron-left")}<span data-issue-label>全部</span></button>
         <span></span>
-        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-edit>编辑</button>
-        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-delete>删除</button>
+        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-edit data-issue-label>编辑</button>
+        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-delete data-issue-label>删除</button>
       </header>
       <div class="issues-page" data-issue-page>
         <div data-issue-view>
@@ -50,28 +50,28 @@ export function renderIssuesWorkbench(): string {
         </div>
         <form class="issues-editor" data-issue-editor hidden novalidate>
           <p class="issues-flag" data-issue-flag role="status" hidden></p>
-          <input class="mw-input" name="title" maxlength="200" aria-label="标题" placeholder="标题">
+          <input class="mw-input" data-issue-label name="title" maxlength="200" aria-label="标题" placeholder="标题">
           ${types("edit")}
-          <textarea class="mw-textarea" name="description" maxlength="100000" aria-label="问题描述" placeholder="问题描述"></textarea>
+          <textarea class="mw-textarea" data-issue-label name="description" maxlength="100000" aria-label="问题描述" placeholder="问题描述"></textarea>
           ${shots("edit-shots")}
           <div class="issues-bar">
-            <button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" data-issue-pick aria-label="添加截图" title="添加截图">${icon("image")}</button>
+            <button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" data-issue-pick data-issue-label aria-label="添加截图" title="添加截图">${icon("image")}</button>
             <span class="issues-tip" data-issue-tip></span>
-            <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-cancel>取消</button>
-            <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-redo hidden>重新整理</button>
-            <button type="submit" class="mw-btn mw-btn--primary mw-btn--sm" data-issue-save>保存</button>
+            <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-cancel data-issue-label>取消</button>
+            <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-redo data-issue-label hidden>重新整理</button>
+            <button type="submit" class="mw-btn mw-btn--primary mw-btn--sm" data-issue-save data-issue-label>保存</button>
           </div>
         </form>
       </div>
     </article>
     <div class="issues-toast" data-issue-toast role="status" hidden><span></span><button type="button" class="mw-btn mw-btn--sm" data-issue-toast-action></button></div>
     <input type="file" accept="image/png,image/jpeg,image/webp" multiple hidden data-issue-files>
-    <dialog class="mw-dialog issues-preview" data-issue-preview aria-label="截图">
-      <form method="dialog"><img alt=""><button class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-zoom type="button">原始尺寸</button><button class="mw-btn mw-btn--secondary mw-btn--sm">关闭</button></form>
+    <dialog class="mw-dialog issues-preview" data-issue-preview data-issue-label aria-label="截图">
+      <form method="dialog"><img alt=""><button class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-zoom data-issue-label type="button">原始尺寸</button><button class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-label>关闭</button></form>
     </dialog>
     <dialog class="mw-dialog mw-dialog--form" data-issue-dialog aria-labelledby="issue-dialog-title">
       <form method="dialog" class="mw-dialog__shell mw-form"><div class="mw-form__body"><h2 id="issue-dialog-title"></h2><p></p></div>
-        <footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" value="cancel">取消</button><button class="mw-btn mw-btn--danger" value="confirm"></button></footer>
+        <footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" data-issue-label value="cancel">取消</button><button class="mw-btn mw-btn--danger" value="confirm"></button></footer>
       </form>
     </dialog>
   </div>` });

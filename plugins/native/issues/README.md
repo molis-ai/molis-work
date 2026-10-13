@@ -11,6 +11,7 @@
 - **需要你处理**：助理要补充信息、模型不可用、整理超时，或你设置了这类保存每次都要确认时，这条留在列表顶部并写明原因。点开就是编辑器，原文原图都在：补充后「重新整理」，或写标题、选类型直接「保存」，或「放弃」。
 - **查看**：列表按记录时间倒序，每行是标题、类型、时间、记录时的地点和截图数。点开是只读详情，写明记录于哪个页面、由谁整理；「编辑」改标题、类型、描述和截图，「删除」要再确认一次。Esc 从详情回到列表，再按收起侧栏。
 - **离开页面不丢字**：输入框的文字留在本机，换页面、换项目再打开还在，直到发出；还没完成的录入也留下文字，回来时以「上次没有完成」排在顶部（截图要重新添加），期间助理已经保存的会自动消失。截图只在当前页面里保留。
+- **界面语言**：Home、项目侧栏和完整页面沿用工作台的语言设置。静态控件与已知错误使用现有词典；标题、描述和截图名称保持原文。模型不可用时可打开同页设置、重试加载并返回，录入内容保留。
 
 ## 归属与接入
 
@@ -50,6 +51,7 @@
   - 提交前复查授权，更新和删除要求版本，冲突不覆盖；撤销只删除没改过的新记录。
 - 改动后必跑：`node scripts/run-tests.mjs tests/issue-home.test.ts tests/issue-home-runtime.test.ts tests/issue-capture.test.ts tests/issue-assistant.test.ts tests/issue-capture-page.e2e.test.ts tests/issue-page.e2e.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/issue-manual-save.e2e.test.ts tests/issue-global-navigation.e2e.test.ts tests/issue-clarification-page.e2e.test.ts tests/issue-assistant-repair-page.e2e.test.ts`
+- Home 语言接线加跑：`node scripts/run-tests.mjs tests/issue-home-locale.e2e.test.ts`（W2-18-HOME-LOCALE-01：中英控件、原文保持、无模型设置往返与真实启动失败）。
 - 相关手册：[插件开发](../../../skills/molis-plugin-dev/SKILL.md)、[Home 数据归属](../../../docs/system/HOME-DATA.md)、[开发要求](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 模型回复替身（`tests/fixtures/issue-model.ts`）只证明数据流、撤销与写入边界；真实模型的标题与分类质量、中文输入法和跨应用粘贴手感由用户验收。

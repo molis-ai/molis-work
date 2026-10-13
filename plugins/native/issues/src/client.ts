@@ -14,6 +14,11 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   const style = document.createElement('style'); style.textContent = ${JSON.stringify(ISSUES_STYLES)}; root.appendChild(style);
   scope.own(() => { style.remove(); delete root.dataset.ready; });
   const L = host.translate || (text => text), $ = key => root.querySelector('[data-issue-' + key + ']');
+  // Only static controls opt in: never translate a person's title, description, or screenshot name.
+  for (const node of root.querySelectorAll('[data-issue-label]')) {
+    for (const text of node.childNodes) if (text.nodeType === 3) text.textContent = L(text.textContent);
+    for (const name of ['placeholder', 'aria-label', 'title']) if (node.hasAttribute(name)) node.setAttribute(name, L(node.getAttribute(name)));
+  }
   const home = $('home'), detail = $('detail'), composer = $('composer'), editor = $('editor'), list = $('list'), toastBox = $('toast');
   const desc = composer.elements.description, titleInput = editor.elements.title, detailInput = editor.elements.description;
   const kinds = { bug: 'Bug', experience: '体验问题', feature: '功能需求' };
@@ -33,7 +38,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
       // A write that lost its answer may have happened: say so instead of inviting a blind repeat.
       throw new Error(L(/(update|delete|capture|discard|run)$/.test(path) ? '没收到结果，可能已经生效，请刷新列表核对。' : '连接中断，请稍后重试。'));
     }
-    if (!response.ok) throw Object.assign(new Error(result.error || L('操作失败，请重试')), { status: response.status });
+    if (!response.ok) throw Object.assign(new Error(L(result.error || '操作失败，请重试')), { status: response.status });
     return result;
   };
   const run = work => { void Promise.resolve().then(work).catch(error => { if (error.name !== 'AbortError') toast(error.message); }); };
@@ -88,7 +93,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   });
   const pick = (type = '') => { editor.dataset.type = type; for (const button of editor.querySelectorAll('[data-type]')) button.setAttribute('aria-pressed', String(button.dataset.type === type)); };
   const flag = (text = '') => { const box = $('flag'); box.hidden = !text; box.textContent = text;
-    if (/模型/.test(text)) box.insertAdjacentHTML('beforeend', ' <a href="/settings/models">' + esc(L('模型设置')) + '</a>'); };
+    if (/模型|model/i.test(text)) box.insertAdjacentHTML('beforeend', ' <a href="/settings/models">' + esc(L('模型设置')) + '</a>'); };
   const fill = data => { titleInput.value = data.title || ''; pick(data.type); detailInput.value = data.text ?? data.description ?? ''; edits = data.images || []; paint(); };
   const draft = () => Boolean(current && !current.version);
   const values = () => ({ title: titleInput.value.trim(), type: editor.dataset.type, description: detailInput.value, images: edits });

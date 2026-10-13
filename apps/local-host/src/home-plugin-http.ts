@@ -8,6 +8,7 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
 import { dispatchRuntimePluginRoute } from "./plugin-route-operations.js";
+import { L, htmlLang, clientI18nScript } from "./web-locale.js";
 
 /** Called only after the common local transport Host/Origin/token checks. No business dispatch list lives here. */
 export async function handleHomePluginHttp(request: IncomingMessage, response: ServerResponse, url: URL,
@@ -31,7 +32,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     const message = error instanceof Error ? error.message : String(error);
     if (page && entry) {
       response.writeHead(503, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
-      response.end(renderHomePluginPage(entry, null, message, controlToken, true, Boolean(sideView)));
+      response.end(renderHomePluginPage(entry, null, message, controlToken, { L, htmlLang, clientI18nScript }, true, Boolean(sideView)));
     } else sendLocalWebJson(response, 503, { error: message });
     return true;
   }
@@ -50,7 +51,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     const surface = view?.descriptor.surfaces?.find(surface => surface.target_slot_id === slot);
     const html = view && surface ? view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: null }) : null;
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
-    response.end(renderHomePluginPage(entry, html, platform.supervisor.state(pluginId)?.message ?? null, controlToken, false, Boolean(sideView)));
+    response.end(renderHomePluginPage(entry, html, platform.supervisor.state(pluginId)?.message ?? null, controlToken, { L, htmlLang, clientI18nScript }, false, Boolean(sideView)));
     return true;
   }
   if (["enable", "disable"].includes(operation)) {

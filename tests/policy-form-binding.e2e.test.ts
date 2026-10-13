@@ -1,32 +1,39 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 
-// A Goal's rules form and the project's rules page live in the same workbench document. Each is saved by its own
-// script, once: saving a Goal's rules never rewrites the project's default rules, and the project's rules page is not
-// also sent as a Goal's.
-test("a Goal's rules and the project's rules are each saved once, by their own script", { timeout: 60_000 }, async t => {
+test("W1-18-GOAL-POLICY-01 Goal requirements use events, while the project rules page saves its current default once", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { origin, projectId, command, sessionId, evaluate, navigate, waitFor, click } = browser;
   const prefix = `/projects/${projectId}`;
+  assert.ok(projectId);
+  const app = new GoalProjectApplication(browser.store);
+  const goal = app.goalEvents.createIntent({ project_id: projectId, title: "规则入口", outcome: "只通过现行合同保存", actor_id: "web-user",
+    actor_kind: "user", source_kind: "web", idempotency_key: "policy-current-goal" }).goal;
   // Every rules request the page sends is kept for this browser session, through any reload a save causes.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => { const original = window.fetch;
     window.fetch = (url, options) => { if (String(url).endsWith('/api/policy-bindings') && options?.method === 'POST') {
       const posts = JSON.parse(sessionStorage.getItem('policy-posts') || '[]'); posts.push(JSON.parse(options.body).scope); sessionStorage.setItem('policy-posts', JSON.stringify(posts)); }
       return original(url, options); }; })()` }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/" + goal.goal_id }, sessionId));
   const posts = () => evaluate<string[]>("JSON.parse(sessionStorage.getItem('policy-posts') || '[]')");
   const projectDefaults = () => JSON.stringify(browser.store.db.prepare("SELECT policy_binding_id, policy_json FROM policy_bindings WHERE scope = 'project_default' AND state = 'active'").all());
   const before = projectDefaults();
 
-  await waitFor("!!document.querySelector('.policy-form[data-policy-form] [name=goal_id]')", 15_000);
-  await evaluate(`(() => { const form = document.querySelector('.policy-form[data-policy-form]');
-    form.querySelectorAll('[required]').forEach(field => { if (!field.value) field.value = '只验证这条 Goal 的规则'; });
-    form.requestSubmit(); })()`);
-  await waitFor("JSON.parse(sessionStorage.getItem('policy-posts') || '[]').length > 0", 10_000);
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  assert.deepEqual(await posts(), ["goal"]);
-  assert.equal(projectDefaults(), before, "a Goal's rules did not become the project's defaults");
+  await waitFor("!!document.querySelector('[data-goal-event-document]')", 15_000);
+  assert.equal(await evaluate("!!document.querySelector('[data-policy-form] [name=goal_id], [data-policy-form] [name=scope][value=goal]')"), false);
+  await click('[data-goal-event-document] [data-event-reader="requirements"]');
+  await click('[data-event-panel="requirements"] [data-event-form-open="requirement"]');
+  await evaluate(`(() => { const form = document.querySelector('[data-event-form="requirement"]');
+    form.querySelector('[name="statement"]').value = '由用户核对真实结果';
+    form.querySelector('[name="human_decision_required"]').checked = true;
+    form.querySelector('[name="statement"]').dispatchEvent(new Event('input', {bubbles:true})); })()`);
+  await click('[data-event-form="requirement"] button[type=submit]');
+  await waitFor("document.querySelector('[data-document-pane]')?.getAttribute('aria-busy') !== 'true' && document.querySelector('[data-event-panel=requirements]')?.textContent.includes('由用户核对真实结果')", 10_000);
+  assert.equal(app.goalEvents.readState(projectId, goal.goal_id).requirements[0]?.statement, "由用户核对真实结果");
+  assert.deepEqual(await posts(), []);
+  assert.equal(projectDefaults(), before, "a Goal requirement does not rewrite the project default");
 
   await evaluate("sessionStorage.removeItem('policy-posts')");
   await evaluate(`document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: ${JSON.stringify(prefix + "/settings/rules")} } }))`);

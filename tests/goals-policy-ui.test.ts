@@ -16,12 +16,13 @@ const item: GoalsPolicyItem = {
   resolved_policy: base,
 };
 
-test("Workbench mounts Goals policy UI with inherited locked controls and the authoritative effective policy", () => {
+test("W1-18-GOAL-POLICY-01 Workbench mounts current rules and Goal requirements without a Goal override form", () => {
   const host = createWorkbenchUiHost();
   assert.ok(host.list().some(entry => entry.contribution_id === GOALS_POLICY_UI_CONTRIBUTION_ID));
   const html = renderer.renderPolicyEditor(item);
-  assert.match(html, /name="goal_id" value="goal-&quot;&lt;unsafe&gt;"/);
-  assert.match(html, /name="human_approval" checked disabled/, "the project requires it, so this Goal cannot turn it off");
+  assert.match(html, /data-goal-policy-requirements/);
+  assert.match(html, /data-event-reader="requirements"/);
+  assert.doesNotMatch(html, /data-policy-form|name="goal_id"|GOAL OVERRIDE|<input|<textarea/);
   assert.match(html, /<dt>用户确认<\/dt><dd><strong>需要<\/strong>/);
   assert.doesNotMatch(html, /data-live-form="policy-project_default-/);
 });
@@ -47,14 +48,13 @@ test("archived/read-only policy presentation has no writable forms and locale re
   assert.doesNotMatch(chinese, /Effective rules now/);
 });
 
-test("project policy form preserves scope and save fields, and refuses an unbound Goal form", () => {
+test("project policy form preserves its current scope and save fields", () => {
   const html = renderer.renderPolicyForm(null, "project_default", base, undefined, "project-one", true);
   assert.match(html, /name="scope" value="project_default"/);
   assert.match(html, /data-live-form="policy-project_default-project-one"/);
   assert.doesNotMatch(html, /name="reason"/);
   assert.match(html, /name="human_approval" checked>/);
   assert.doesNotMatch(html, /name="goal_id"/);
-  assert.throws(() => renderer.renderPolicyForm(null, "goal", base, undefined), /必须绑定 Goal/);
 });
 
 test("project policy document selects the last active project binding and uses default values when absent", () => {

@@ -86,6 +86,10 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 
 ## 开发要求
 
+固定输入和交付物的动作等待 owner，因此声明并发调度；委托保留原调用的授权、取消和生命周期，owner 返回后再次检查原 beforeEffect、同步授权和 Goal 是否归档/移入回收站，再写 Ledger 关联。owner 已提交的成果保留。收尾表单遇到固定回执未知时先核对清单，同一意图不自动再次固定；已有版本可沿 reference 关联，新明确固定意图仍增版。
+
+问题的解决/推翻提交后续事件 `supporting_event_ids` 或已有可信用户决定，拒绝时保留输入。Goal 规则只展示现行项目默认和事件记录中的完成要求；要求修改沿事件表单，项目默认沿项目设置。规划详情按请求和当前选择回写，关闭或页面拆除后忽略迟到成功与失败。
+
 - 负责：Goals 的导航、界面、命令与组合（每个项目都带的内置插件）。
 - 不负责：Goal 事实与 Store（归 `modules/goals`，由宿主组合；本插件不导入它）、其他插件的实现。
 - 公开入口：`@molis-ai/molis-work-plugin-goals`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。

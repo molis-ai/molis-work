@@ -5,7 +5,6 @@ import type { GoalEventDocumentView } from "./event-document-model.js";
 
 export function createEventDocumentForms(primitives: GoalsDocumentUiPrimitives) {
   const { translate: L, escapeHtml } = primitives;
-
   function fieldError(id: string): string {
     return `<p class="event-field-error" data-field-error="${escapeHtml(id)}" hidden></p>`;
   }
@@ -131,7 +130,7 @@ export function createEventDocumentForms(primitives: GoalsDocumentUiPrimitives) 
       : `<input type="hidden" name="action" value="open">`;
     const requirements = state.requirements.map((item) => `<label class="check-row"><input type="checkbox" name="requirement_ids" value="${escapeHtml(item.requirement_id)}"><span>${escapeHtml(item.statement)}</span></label>`).join("");
     const decisions = state.current_decisions.length
-      ? `<label data-concern-accept hidden><span>${L("引用的用户决定（接受风险时需要）")}</span><select name="cited_decision_id"><option value="">${L("不引用")}</option>${
+      ? `<label data-concern-decision hidden><span>${L("引用的用户决定（接受风险时需要）")}</span><select name="cited_decision_id"><option value="">${L("不引用")}</option>${
         state.current_decisions.map((item) => `<option value="${escapeHtml(item.decision_id)}">${escapeHtml(item.conclusion)} · ${escapeHtml(item.actor_id)}</option>`).join("")
       }</select></label>`
       : `<p class="form-note" data-concern-accept hidden>${L("接受风险前需要一条覆盖该范围的用户决定。")}</p>`;
@@ -142,7 +141,8 @@ export function createEventDocumentForms(primitives: GoalsDocumentUiPrimitives) 
       <label data-concern-new><span>${L("问题标题")}</span><input name="title" required placeholder="${L("发生了什么，需要跟进什么")}"></label>
       <label data-concern-new><span>${L("说明")}</span><textarea name="statement" rows="3" required></textarea></label>
       <label data-concern-existing hidden><span>${L("处理理由")}</span><textarea name="reason" rows="2"></textarea></label>
-      <fieldset><legend>${L("明确影响范围")}</legend>
+      <label data-concern-evidence hidden><span>${L("处理证据（后续事件 ID）")}</span><input name="supporting_event_ids" placeholder="gevt-…"><small>${L("引用本 Goal 在问题提出后记录的事件；多个 ID 用空格或逗号分开。")}</small></label>
+      <fieldset data-concern-new><legend>${L("明确影响范围")}</legend>
         <p class="form-note">${L("请说明影响哪项要求、哪条事件或哪个动作。")}</p>
         ${requirements || `<p class="form-note">${L("当前没有完成要求。仍可指定事件或动作。")}</p>`}
         <details class="form-disclosure"><summary>${L("关联具体事件或动作（可选）")}</summary><label><span>${L("相关事件 ID")}</span><input name="event_ids" placeholder="gevt-…"></label>
@@ -202,7 +202,7 @@ export function createEventDocumentForms(primitives: GoalsDocumentUiPrimitives) 
     return `<form class="event-form mw-form" data-event-form="closure" hidden>
       <header class="event-form-heading"><h2>${L("显式收尾")}</h2></header>
       <div class="event-form-body"><label><span>${L("结论")}</span><select name="kind"><option value="complete">${L("完成")}</option><option value="cancel">${L("取消")}</option></select></label>
-      <label><span>${L("结果说明")}</span><textarea name="result" rows="2"></textarea></label><fieldset class="closure-deliverables" data-closure-deliverables><legend>${L("交付物")}</legend><p class="form-note">${L("选成果库里的版本，或把目标的资料当场固定一版；选中的记在目标下，之后原对象怎么改都不影响它。")}</p><div data-closure-deliverable-list></div></fieldset>
+      <label><span>${L("结果说明")}</span><textarea name="result" rows="2"></textarea></label><fieldset class="closure-deliverables" data-closure-deliverables><legend>${L("交付物")}</legend><p class="form-note">${L("选成果库里的版本，或把目标的资料当场固定一版；选中的记在目标下，之后原对象怎么改都不影响它。")}</p><div data-closure-deliverable-list></div><p class="form-note" data-deliverable-read-status role="status" hidden></p><button type="button" class="mw-btn mw-btn--secondary" data-reconcile-deliverables hidden>${L("核对交付物")}</button></fieldset>
       <label><span>${L("理由")}</span><textarea name="reason" rows="3" required></textarea></label>
       <input type="hidden" name="expected_config_version" value="${state.config.version}">
       <input type="hidden" name="expected_agreement_version" value="${state.agreement.version}">

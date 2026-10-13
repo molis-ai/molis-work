@@ -142,3 +142,56 @@ for (const width of [1440, 390]) test(`Planning ${width}px copies a template, re
     t.diagnostic("Planning screenshots: " + captures);
   }
 });
+
+for (const late of ["success", "failure"] as const) test(`W2-18-PLANNING-LATE-01 late A ${late} cannot replace B's draft, reopen a closed detail, or write after teardown`, { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { origin, projectId, web, command, sessionId, navigate, evaluate, waitFor, click } = browser;
+  assert.ok(projectId);
+  const prefix = "/projects/" + projectId, a = "domain-software-development", b = "domain-data-analysis";
+  for (const id of [a, b]) await web.post(prefix + "/api/settings/planning-methods/apply", { method_id: id, user_confirmed: true });
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/planning" }, sessionId));
+  await waitFor("!!document.querySelector('[data-work-surface=project-settings] .work-planning')", 15_000);
+  const pathA = prefix + "/settings/planning/" + a, pathB = prefix + "/settings/planning/" + b;
+  const openA = '.planning-composition-row[data-planning-detail-path="' + pathA + '"]';
+  const openB = '.planning-composition-row[data-planning-detail-path="' + pathB + '"]';
+  await evaluate(`(() => { const original=window.fetch; window.__planningArm=true; window.__planningWaiting=false; window.__planningFinished=false;
+    window.fetch=async(url,options)=>{
+      if(new URL(String(url),location.origin).pathname !== ${JSON.stringify(pathA)} || !window.__planningArm) return original(url,options);
+      window.__planningArm=false;
+      // A real response whose consumer cannot cancel it: both the old and fixed client receive the same late transport.
+      const {signal,...request}=options||{}; const response=await original(url,request);
+      window.__planningWaiting=true; await new Promise(resolve=>window.__planningRelease=resolve); window.__planningFinished=true;
+      ${late === "failure" ? "throw new Error('late A failure');" : "return response;"}
+    };
+  })()`);
+  const arm = () => evaluate("window.__planningArm=true; window.__planningWaiting=false; window.__planningFinished=false");
+  const release = async () => {
+    await evaluate("window.__planningRelease()"); await waitFor("window.__planningFinished");
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  };
+  await click(openA); await waitFor("window.__planningWaiting");
+  await click(openB); await waitFor("!!document.querySelector('[data-planning-detail] .planning-detail')");
+  await click('[data-planning-detail] .planning-detail-header .mw-btn--primary');
+  await waitFor("document.querySelector('[data-planning-edit-form] [name=method_id]')?.value === " + JSON.stringify(b));
+  await evaluate("document.querySelector('[data-planning-edit-form] [name=name]').value='Keep the B draft'");
+  await release();
+  assert.equal(await evaluate("document.querySelector('[data-planning-edit-form] [name=name]')?.value"), "Keep the B draft");
+  assert.equal(await evaluate("!!document.querySelector('[data-planning-detail] .mw-empty--error')"), false);
+
+  await arm(); await click(openA); await waitFor("window.__planningWaiting");
+  await click('[data-planning-close]');
+  assert.equal(await evaluate("document.querySelector('.work-planning').dataset.planningSplit"), "hero");
+  await release();
+  assert.equal(await evaluate("document.querySelector('[data-planning-detail]').childElementCount"), 0);
+  assert.equal(await evaluate("document.querySelector('.work-planning').dataset.planningSplit"), "hero");
+
+  await arm(); await click(openA); await waitFor("window.__planningWaiting");
+  await evaluate(`window.__removedPlanning=document.querySelector('.work-planning');
+    document.dispatchEvent(new CustomEvent('molis-work:open-settings-path',{detail:{href:${JSON.stringify(prefix + "/settings/general")}}}))`);
+  await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-project-rename]')", 15_000);
+  assert.equal(await evaluate("window.__removedPlanning.isConnected"), false);
+  await release();
+  assert.equal(await evaluate("!!window.__removedPlanning.querySelector('.planning-detail,.planning-edit,.mw-empty--error')"), false);
+  assert.equal(await evaluate("!!document.querySelector('[data-work-surface=project-settings] .planning-edit')"), false);
+});

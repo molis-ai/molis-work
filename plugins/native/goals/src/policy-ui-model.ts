@@ -1,4 +1,4 @@
-import type { GoalPolicy } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventStateView, GoalPolicy } from "@molis-ai/molis-work-contracts/modules/goals";
 
 /** The Web projection of a rule binding; its scope strings are the page's, not the Module's binding scopes. */
 export interface GoalsPolicyBinding {
@@ -16,6 +16,7 @@ export interface GoalsPolicyItem {
   goal: { goal_id: string };
   policy_bindings: GoalsPolicyBinding[];
   resolved_policy: GoalPolicy;
+  event_document?: { state: Pick<GoalEventStateView, "requirements"> } | null;
 }
 
 export interface GoalsPolicyUiPrimitives {

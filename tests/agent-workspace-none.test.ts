@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AgentHost, type AgentStartAuthority } from "../horizontal/agent-host/src/index.js";
-import { PrologueAgentAdapter, type PrologueRuntimePort, type PrologueStartInput, type PrologueRestoredSession } from "../horizontal/agent-host/src/adapters/prologue.js";
+import { AgentHost, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
+import { PrologueAgentAdapter, type PrologueRuntimePort, type PrologueStartInput, type PrologueRestoredSession } from "../horizontal/agent-host/dist/adapters/prologue.js";
 import type { AgentStartRequest, AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { importedCharacterInstructions } from "../horizontal/agent-host/src/character-import.js";
+import { importedCharacterInstructions } from "../horizontal/agent-host/dist/character-import.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 const owner = { project_id: "board", plugin_id: "unknown.inference", install_id: "installation", actor_id: "user" };

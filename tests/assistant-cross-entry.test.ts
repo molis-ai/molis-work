@@ -82,6 +82,7 @@ test("W3-09-1-01 T1/T2 assistant: approved Schedule changes and owner refusals r
   assert.deepEqual([refused[0]!.ok, refused[0]!.code, refused[0]!.refused, refused[0]!.actor_id, refused[0]!.audience], [false, subject.missing.code, undefined, "web-user", "agent"]);
   assert.deepEqual(home.host.callLog!.find(refusedId.slice(0, 8)), home.host.callLog!.find(refusedId));
   assert.ok(isCrossEntryObject(network[3]));
+  // GATEWAY-MODEL-CODE-01: the real SDK model sees the same owner code and reason as the Host row.
   assert.match(JSON.stringify(network[3]), /schedule\.task_not_found/u);
   assert.match(JSON.stringify(network[3]), /定时任务不存在/u);
   assert.deepEqual(await home.web.get(subject.path(project.project_id)), facts, "the owner refusal leaves every persisted task unchanged");

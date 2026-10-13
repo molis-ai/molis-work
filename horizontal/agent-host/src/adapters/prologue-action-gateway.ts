@@ -116,6 +116,12 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     runSignal?.addEventListener("abort", stop, { once: true });
     if (runSignal?.aborted || call.signal?.aborted || call.abort?.requested()) stop();
     try { abort.signal.throwIfAborted(); return await run(call.args as Record<string, unknown>, abort.signal); }
+    catch (error) {
+      if (error instanceof ActionError && !abort.signal.aborted) {
+        throw createPrologueError("HOST_RESPONSE_INVALID", `${error.code}: ${error.message}`);
+      }
+      throw error;
+    }
     finally { unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
   };
   const current = async (args: CapabilityArgs, write: boolean): Promise<ActionView> => {

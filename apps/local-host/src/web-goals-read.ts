@@ -3,6 +3,7 @@ import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { availableProjectPluginIds, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { goalsActions, resolveGoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
+import { actionErrorBody, actionErrorStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalProjectApplication } from "./goal-project-application.js";
@@ -53,7 +54,7 @@ export function createLocalGoalsReadHttp(ports: {
         [methods, guidance, policy] = await Promise.all([actions.invoke(goalsActions.planningRead, {}).then(value => value.methods),
           actions.invoke(goalsActions.guidanceRead, {}), actions.invoke(goalsActions.policyHistory, {})]);
       }
-      catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) }); return true; }
+      catch (error) { sendJson(response, actionErrorStatus(error), actionErrorBody(error)); return true; }
       const html = renderMolisWorkProjectSettingsHub(
         { ...view, policy_bindings: policy.bindings },
         guidance,

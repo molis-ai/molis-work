@@ -77,7 +77,7 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
     try { return { result: await mcp.client.invoke(mcp.caller, origin, {}), error: undefined, recorded: recordedCallId() }; }
     catch (error) { return { result: undefined, error, recorded: recordedCallId() }; }
   });
-  await Promise.race([entered.promise, pending.then(() => { throw new Error("Typed progress settled before the downstream policy barrier"); })]);
+  await Promise.race([entered.promise, pending.then(outcome => { throw new Error("SDK progress settled before the downstream policy barrier", { cause: outcome.error ?? outcome.result }); })]);
   await home.revoke(clientId, project.project_id, [origin]);
   const current = (await readMcpToolPreference(home.home)).action_grants.filter(row => row.client_id === clientId && row.project_id === project.project_id);
   assert.equal(current.find(row => row.capability_id === origin.capability_id)?.enabled, false);

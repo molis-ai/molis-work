@@ -503,8 +503,8 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async t => {
     const project = await served.createProject("MCP Promote");
     const databasePath = project.database_path;
     const caller = { actor_id: "runtime:codex", project_id: project.project_id, audience: "mcp" as const, permissions: [] };
-    const createName = molisWorkActionToolName(pagesActions.create), readName = molisWorkActionToolName(pagesActions.read), promoteName = molisWorkActionToolName(pagesActions.promote);
-    await served.grant(caller.actor_id, project.project_id, [pagesActions.create, pagesActions.read, pagesActions.promote]);
+    const createName = molisWorkActionToolName(pagesActions.create), readName = molisWorkActionToolName(pagesActions.get), promoteName = molisWorkActionToolName(pagesActions.promote);
+    await served.grant(caller.actor_id, project.project_id, [pagesActions.create, pagesActions.get, pagesActions.promote]);
     const server = new MolisWorkServer("runtime", {
       databasePath,
       projectId: project.project_id,

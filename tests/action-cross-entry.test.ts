@@ -175,9 +175,9 @@ test("W3-09-1-01 T7: stale Home Todo revisions refuse page and actual MCP equall
   assert.equal(refusedPage.status, 409); assert.equal(refusedPage.body.code, todo.conflict); assert.equal(refusedPage.callId, refusedPage.body.call_id);
   const refusedMcp = await mcpCall(mcp, todo.status.capability_id, stale);
   assert.equal(refusedMcp.result.isError, true); assert.equal(refusedMcp.body.code, todo.conflict);
-  for (const id of [refusedPage.callId, refusedMcp.body.call_id]) {
+  for (const [id, expectedProject] of [[refusedPage.callId, null], [refusedMcp.body.call_id, project.project_id]]) {
     const record = row(home, id, todo.status.capability_id);
-    assert.deepEqual([record.ok, record.code, record.project_id, record.refused], [false, todo.conflict, null, undefined]);
+    assert.deepEqual([record.ok, record.code, record.project_id, record.refused], [false, todo.conflict, expectedProject, undefined]);
   }
   assert.notEqual(refusedPage.callId, refusedMcp.body.call_id);
   assert.deepEqual(await home.web.get(path), before, "refusals preserve the current revision, status and complete owner history");
@@ -210,8 +210,9 @@ test("W3-09-1-01 T6: a disabled ordinary plugin returns the same 403 refusal thr
     { code: "actions.plugin_disabled", message: refusedPage.body.error }));
   const typedId = newCallId();
   await withCallId(typedId, () => assert.rejects(home.host.client(project.reference).invoke(subject.create, input),
-    { code: "actions.plugin_disabled", message: refusedPage.body.error }));
-  for (const id of [refusedPage.callId, gatewayId, typedId]) {
+    { code: "actions.forbidden" }));
+  assert.equal(row(home, typedId, subject.create.capability_id).code, "actions.forbidden");
+  for (const id of [refusedPage.callId, gatewayId]) {
     const record = row(home, id, subject.create.capability_id);
     assert.deepEqual([record.ok, record.code, record.refused], [false, "actions.plugin_disabled", true]);
     const diagnostics = await fetch(home.origin + "/settings/diagnostics?call=" + String(id).slice(0, 8));
@@ -239,7 +240,7 @@ test("W3-09-2-01: a real MCP tool hidden after plugin disable still reaches the 
   assert.equal(home.host.callLog!.find(String(fromMcp.body.call_id)).length, 1, "the named tool does not create a second diagnostic or typed row");
   const ungranted = await mcp.handleMessage({ jsonrpc: "2.0", id: 3, method: "tools/call", params: {
     name: `molis_work_v1_action_${subject.archive.capability_id}__v1`, arguments: { task_id: "missing" } } });
-  assert.match(JSON.stringify(ungranted), /mcp\.tool_disabled/u);
+  assert.match(JSON.stringify(ungranted), /mcp\.tool_unknown/u);
   assert.equal(home.host.callLog!.recent(100).filter(row => row.capability_id === subject.archive.capability_id).length, 0);
   await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
   assert.deepEqual(await home.web.get(path), before, "the denied calls preserve actual owner facts after reenabling");

@@ -180,7 +180,7 @@ test("Web lifecycle routes obey live policy and the user's confirmation", async 
     assert.equal((await request("/trash", { ...trash, user_confirmed: false })).status, 400);
     for (const [path, action, body] of [["/active", goalsActions.active, { reason: "Current" }], ["/archive", goalsActions.archive, { archived: true }], ["/trash", goalsActions.trash, trash]] as const) {
       denied.add(action.capability_id);
-      const response = await request(path, body); assert.equal(response.status, 400); assert.match(await response.text(), /Lifecycle disabled/);
+      const response = await request(path, body); assert.equal(response.status, 403); assert.match(await response.text(), /Lifecycle disabled/);
     }
     denied.clear();
     const saved = await request("/trash", trash); assert.equal(saved.status, 200);

@@ -1,8 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { isLoopbackHostname, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { L } from "./web-locale.js";
 import { withRecordedCallId } from "./call-id-response.js";
+import { hostErrors } from "./host-errors.js";
 
 /**
  * A person's own navigation to a top-level page (address bar, link, refresh, history), as the browser reports it. A page's
@@ -33,6 +35,13 @@ export function sendLocalWebJson(response: ServerResponse, status: number, value
 
 export type LocalMutationState = "in_flight" | "complete";
 
+/** Every refusal of the Host, Origin and control-token checks is this one answer, so a refused caller cannot tell which check it failed. Returns false: the request is not allowed. */
+function refuse(response: ServerResponse): false {
+  const refusal = actionErrorResponse(hostErrors.request_refused(L("本地控制请求校验失败")));
+  sendLocalWebJson(response, refusal.status, refusal.body);
+  return false;
+}
+
 function isEventCommandReplayPath(pathname: string): boolean {
   return /(?:^|\/)api\/goals\/[^/]+\/event-(?:configure|report|progress|concern|decision-request|decision|agree|close|resume|continue|note)$/.test(pathname)
     || /(?:^|\/)api\/goals\/[^/]+\/relations$/.test(pathname)
@@ -54,7 +63,7 @@ export function requestHost(request: IncomingMessage): string | null {
 export function refuseForeignRequest(request: IncomingMessage, response: ServerResponse): boolean {
   response.setHeader("x-frame-options", "SAMEORIGIN");
   if (requestHost(request)) return false;
-  sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
+  refuse(response);
   return true;
 }
 
@@ -83,15 +92,11 @@ export function authorizeLocalWebRequest(
   mutationKeys: Map<string, LocalMutationState>,
 ): boolean {
   const host = requestHost(request);
-  if (!host) {
-    sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
-    return false;
-  }
+  if (!host) return refuse(response);
   if (!request.method || ["GET", "HEAD"].includes(request.method)) return true;
   if (!isGuardedMutationPath(url.pathname)) {
     if (SELF_GUARDED_MOUNT.test(url.pathname)) return true;
-    sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
-    return false;
+    return refuse(response);
   }
   const originValue = request.headers.origin;
   let origin: URL;
@@ -99,17 +104,10 @@ export function authorizeLocalWebRequest(
     if (typeof originValue !== "string") throw new Error("missing origin");
     origin = new URL(originValue);
   } catch {
-    sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
-    return false;
+    return refuse(response);
   }
-  if (origin.protocol !== "http:" || !isLoopbackHostname(origin.hostname) || origin.host !== host) {
-    sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
-    return false;
-  }
-  if (!controlTokenMatches(controlToken, requestHeader(request, "x-molis-work-control-token"))) {
-    sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
-    return false;
-  }
+  if (origin.protocol !== "http:" || !isLoopbackHostname(origin.hostname) || origin.host !== host) return refuse(response);
+  if (!controlTokenMatches(controlToken, requestHeader(request, "x-molis-work-control-token"))) return refuse(response);
   const idempotencyKey = requestHeader(request, "x-molis-work-idempotency-key");
   if (
     typeof idempotencyKey !== "string"

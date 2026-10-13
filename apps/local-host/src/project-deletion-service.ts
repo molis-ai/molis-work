@@ -1,6 +1,6 @@
 import type { DeleteProjectInput, ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import { requireDeletionConfirmed, requiredDeletionIdempotencyKey } from "./managed-project-deletion.js";
-import { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
+import { catalogErrors } from "./project-catalog-contract.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { L } from "./web-locale.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -31,7 +31,7 @@ export class ProjectDeletionService {
       const project = catalog.listProjects().find(item => item.project_id === input.project_id.trim());
       if (project) {
         if (catalog.listDesktopPanels(project.project_id).some(panel => this.ports.isPanelAlive(panel.panel_id))) {
-          throw new MolisWorkProjectCatalogError("catalog.project_terminal_live", L("请先关闭这个项目中正在运行的终端，再删除项目。"));
+          throw catalogErrors.project_terminal_live(L("请先关闭这个项目中正在运行的终端，再删除项目。"));
         }
         await this.ports.releaseProject(project.database_path);
       }

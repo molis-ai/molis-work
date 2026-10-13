@@ -1,9 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { actionGatewayHomeId } from "./action-gateway.js";
 import { runtimeActorId } from "./mcp-event-identity.js";
-import { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
 import type { ProjectDeletionService } from "./project-deletion-service.js";
 import { postToResidentHost, residentHostOrigin } from "./resident-host-request.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
@@ -85,17 +85,13 @@ export async function handleProjectDeletionGatewayHttp(request: IncomingMessage,
 
 /**
  * How the Host answers a deletion that did not happen. The failure keeps the code it has (the catalog's and the actions' codes
- * are namespaced); one without a namespaced code, such as a file system error, is the deletion's own failure. Only the cases
- * the caller can act on have their own status: a live terminal conflicts (409), a request that cannot be a deletion is
- * malformed (400), a Host of another Home refuses (403); anything else went wrong inside the Host (500).
+ * are namespaced); one without a namespaced code, such as a file system error, is the deletion's own failure. The status is the
+ * one of the failure's kind: a live terminal conflicts (409), a request that cannot be a deletion is invalid (400), a Host of
+ * another Home refuses (403), a project that is not there is 404; anything that is not a failure of ours went wrong inside the Host (500).
  */
 function deletionFailure(error: unknown): { code: string; status: number } {
   const own = error instanceof Error && "code" in error && typeof error.code === "string" && /^[a-z_]+\.[a-z_]+/.test(error.code) ? error.code : null;
-  const code = own ?? "project_deletion.failed";
-  if (code === "catalog.project_terminal_live") return { code, status: 409 };
-  if (code === "actions.home_mismatch") return { code, status: 403 };
-  if (code === "actions.input_invalid" || error instanceof MolisWorkProjectCatalogError) return { code, status: 400 };
-  return { code, status: 500 };
+  return { code: own ?? "project_deletion.failed", status: actionHttpStatus(error) };
 }
 
 function readGatewayBody(request: IncomingMessage): Promise<Record<string, unknown>> {

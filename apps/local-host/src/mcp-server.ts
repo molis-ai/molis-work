@@ -9,7 +9,6 @@ import { createMcpRuntimeContextHandlers, createMcpContextPresenter, handleMcpMe
   createActionMcpPorts, isRuntimeContextMcpTool, molisWorkActionToolName,
   type McpToolResult, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
-import { MolisWorkProjectCatalogError } from "./project-catalog.js";
 import { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
 import { RuntimeSessionHost } from "./runtime-session.js";
 import { RuntimeProjectConnection } from "./runtime-project-connection.js";
@@ -104,7 +103,7 @@ export class LocalMcpServer {
       withCatalog: (homeDirectory, operation) => withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => operation({
         aliasPanelSession: (input) => catalog.desktopPanels.aliasSession(input),
       })),
-      isMissingPanel: (error) => error instanceof MolisWorkProjectCatalogError && error.code === "catalog.panel_not_found",
+      isMissingPanel: (error) => error instanceof ActionError && error.code === "catalog.panel_not_found",
     });
     this.runtimeSessions = new RuntimeSessionHost();
   }

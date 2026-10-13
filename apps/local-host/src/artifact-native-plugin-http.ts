@@ -1,12 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_READABLE_FILE } from "@molis-ai/molis-work-plugin-pages";
-import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import {
-  ArtifactBrowserError, ArtifactImportError, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf,
+  artifactsErrors, documentErrors, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf,
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-plugin-artifacts";
-import { ExternalDocumentImportError } from "@molis-ai/molis-work-integration-catalog";
 import { artifactWorkbench, artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, BUILTIN_PLUGIN_CATALOG, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { importedDocumentFile, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -84,10 +84,10 @@ export function createLocalArtifactHttp() {
         // Preserve the established HTTP wire errors; the shared action contract
         // still validates the complete input before any business operation.
         if (input.source !== "file" && !EXTERNAL_DOCUMENT_SOURCES.includes(input.source as ArtifactExternalImport["source"])) {
-          throw new ArtifactImportError(400, "document.source_invalid", "请选择支持的文档来源");
+          throw documentErrors.source_invalid("请选择支持的文档来源");
         }
         if (input.source === "file" && typeof input.content !== "string" && input.original_file === undefined) {
-          throw new ArtifactImportError(400, "document.content_invalid", "请选择要导入的文件");
+          throw documentErrors.content_invalid("请选择要导入的文件");
         }
         const saved = input.source === "file"
           ? await context.actions.invoke(artifactsActions.importFile, input as unknown as ArtifactFileImport)
@@ -102,7 +102,7 @@ export function createLocalArtifactHttp() {
         const reference = { artifact_id: String(body.reference?.artifact_id ?? ""), version: Number(body.reference?.version) };
         const view = await context.actions.invoke(artifactsActions.read, { reference });
         const continuer = view.selected ? artifactContinuers().get(view.selected.artifact_type_id)?.find(item => item.plugin_id === body.plugin_id) : undefined;
-        if (!view.selected || !continuer || !context.ownerActions) { sendLocalWebJson(response, 400, { error: L("这一版不能在这个插件里继续") }); return true; }
+        if (!view.selected || !continuer || !context.ownerActions) throw artifactsErrors.continue_unavailable("这一版不能在这个插件里继续");
         const result = await context.ownerActions(continuer.action.action.permissions).invoke(continuer.action, { artifact: view.selected }) as ArtifactContinueResult;
         sendLocalWebJson(response, 201, result);
         return true;
@@ -136,7 +136,7 @@ export function createLocalArtifactHttp() {
         const view = await context.actions.invoke(artifactsActions.browser, { reference: route.reference,
           supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1 }] });
         const file = importedFileOf(view.selected);
-        if (!file) { sendLocalWebJson(response, 404, { error: L("这个版本没有可取回的文件") }); return true; }
+        if (!file) throw artifactsErrors.file_missing("这个版本没有可取回的文件");
         response.writeHead(200, { "content-type": file.mime, "cache-control": "no-store", "x-content-type-options": "nosniff",
           "content-security-policy": "default-src 'none'; sandbox",
           "content-disposition": `${file.inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.filename)}` });
@@ -191,16 +191,9 @@ export function createLocalArtifactHttp() {
         ...(available ? { importForm: { connectionStatus: available.sources, connections: available.connections } } : {}) }, compact ? "frame-block" : "detail"));
       return true;
     } catch (error) {
-      if (error instanceof ActionError) {
-        sendLocalWebJson(response, error.code === "actions.forbidden" ? 403 : ["actions.missing", "actions.plugin_disabled"].includes(error.code) ? 404 : 400, { error: L(error.message), code: error.code });
-        return true;
-      }
-      if (error instanceof ArtifactImportError || error instanceof ExternalDocumentImportError) {
-        sendLocalWebJson(response, error.status, { error: L(error.message), code: error.code });
-        return true;
-      }
-      if (!(error instanceof ArtifactBrowserError)) throw error;
-      sendLocalWebJson(response, error.status, { error: L(error.message) });
+      // The status is the one of the failure's kind. This is the one edge where the Host translates a failure's message itself.
+      const failure = actionErrorResponse(error, { translate: L });
+      sendLocalWebJson(response, failure.status, failure.body);
       return true;
     }
   };

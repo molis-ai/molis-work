@@ -97,23 +97,30 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
   const add = issue => { rows = [issue, ...rows.filter(row => row.id !== issue.id)]; fresh = issue.id; };
   // Retires an unfinished draft. The Assistant may have saved it meanwhile: then that record is the result.
   const release = async item => {
-    const result = await api('cancel-capture', { draft_id: item.id }); void quiet(item, true);
-    return result.saved_id ? api('read?id=' + encodeURIComponent(result.saved_id)) : null;
+    await api('cancel-capture', { draft_id: item.id }); void quiet(item, true);
+    try { return await api('read?id=' + encodeURIComponent(item.id)); }
+    catch (error) { if (error.status !== 404) throw error; return null; }
   };
-  const settled = async (item, issue) => { drop(item); add(issue); current = null; editing = false; await back(); };
+  const settled = async (item, issue, original) => {
+    drop(item); add(issue); current = null; editing = false; await back();
+    toast(L('已记录：') + issue.title, original ? L('撤销') : '', original && (() => undo(issue, original)));
+  };
   const keep = async (item, data) => {
     const already = await release(item);
-    if (already) { await settled(item, already); toast(L('这条已经由助理保存')); return; }
-    const id = crypto.randomUUID();
+    if (already) return settled(item, already);
+    // Retain the request identity before dispatch: a lost receipt is checked before another write.
+    if (!item.manual) item.id = crypto.randomUUID();
+    Object.assign(item, { manual: true, text: data.description, images: data.images, card: { title: data.title, type: data.type } }); remember();
+    const id = item.id;
     await api('prepare', { draft_id: id, description: data.description, images: data.images, ...(item.page ? { page: item.page } : {}) });
     const issue = await api('capture', { draft_id: id, title: data.title, type: data.type });
-    await settled(item, issue); toast(L('已记录：') + issue.title, L('撤销'), () => undo(issue, { text: data.description, images: data.images }));
+    await settled(item, issue, item);
   };
   const redo = async item => {
-    const text = editor.elements.description.value, shot = edits;
+    const text = detailInput.value, shot = edits;
     if (!text.trim() && !shot.length) { flag(L('先写一句话或加一张截图。')); return; }
     const already = await release(item);
-    if (already) { await settled(item, already); toast(L('这条已经由助理保存')); return; }
+    if (already) return settled(item, already);
     const next = { id: crypto.randomUUID(), text, images: shot, page: item.page, at: Date.now() };
     pending[pending.indexOf(item)] = next; current = null; editing = false; await back();
     await organize(next);
@@ -121,7 +128,7 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
   const abandon = async item => {
     if (!await confirm('放弃这条记录？', L('写下的内容和截图都不会保存。'), '放弃')) return;
     const already = await release(item);
-    if (already) { await settled(item, already); toast(L('这条已经由助理保存')); return; }
+    if (already) return settled(item, already);
     drop(item); current = null; editing = false; await back(); toast(L('已放弃这条记录'));
   };
   try {

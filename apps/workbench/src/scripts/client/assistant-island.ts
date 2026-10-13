@@ -124,7 +124,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     charactersPop.replaceChildren(el("p", "assistant-popover-title", L("由哪个角色负责（从下一轮开始）")));
     let choices = [];
     try { choices = (await api("/characters" + (work ? "?work=" + encodeURIComponent(work.work_id) : ""))).characters; }
-    catch (error) { charactersPop.append(el("p", "assistant-material-origin", error.message)); }
+    catch (error) { const note=el("p","assistant-material-origin");molisWorkRequest.show(note,error);charactersPop.append(note); }
     const pick = (value) => { setCharacters(false); if (work) pendingCharacter = value; else newCharacter = value; paintTarget(); input.focus(); };
     const own = el("button", "assistant-starter"); own.type = "button";
     if (!chosen) own.setAttribute("aria-current", "true");
@@ -179,7 +179,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       try {
         await api("/send", "POST", { work_id: holder.work_id, request_id: crypto.randomUUID(), written_by: "page", text: L("我把浏览器交还给你了，先重新观察页面再继续") });
         await refresh(); schedule();
-      } catch (error) { host.showToast?.(error.message); }
+      } catch (error) { host.showToast?.(error); }
     })();
   });
   // A surface says the person changed something there that this work may show: read the work again.
@@ -805,7 +805,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         const { material: full } = await api("/works/" + encodeURIComponent(workId) + "/materials/" + encodeURIComponent(material.material_id));
         if (typeof full.text !== "string") { host.showToast?.(L("这份材料没有可以预览的正文")); return; }
         sidePreview({ preview: { title, media_type: "text/plain", text: full.text, truncated: Boolean(full.truncated), ...(full.url ? { source_url: full.url } : {}) } });
-      } catch (error) { host.showToast?.(error.message, true); }
+      } catch (error) { host.showToast?.(error, true); }
     };
   };
   /** A picture the work carried, shown in the side panel; one the app no longer holds (it restarted) is marked, not offered. */
@@ -816,7 +816,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       try {
         const { image } = await api("/works/" + encodeURIComponent(workId) + "/materials/" + encodeURIComponent(material.material_id) + "/image");
         sidePreview({ preview: { title, media_type: image.media_type, url: "data:" + image.media_type + ";base64," + image.data } });
-      } catch (error) { host.showToast?.(error.message, true); }
+      } catch (error) { host.showToast?.(error, true); }
     };
   };
   const EXPIRED_IMAGE = "应用重启后图片不再保留；需要时请重新添加这张图片";
@@ -1052,7 +1052,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     button.addEventListener("click", async (event) => {
       event.stopPropagation();
       button.disabled = true; button.setAttribute("aria-busy", "true");
-      try { await run(); } catch (error) { host.showToast?.(error.message); } finally { if (button.isConnected) { button.disabled = false; button.removeAttribute("aria-busy"); } }
+      try { await run(); } catch (error) { host.showToast?.(error); } finally { if (button.isConnected) { button.disabled = false; button.removeAttribute("aria-busy"); } }
     });
     return button;
   };
@@ -1420,7 +1420,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       form.addEventListener("submit", async (event) => {
         event.preventDefault(); save.disabled = true;
         try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/budget", "POST", { budget_tokens: field.value.trim() === "" ? null : Number(field.value) }); render(); }
-        catch (error) { host.showToast?.(error.message); }
+        catch (error) { host.showToast?.(error); }
         finally { save.disabled = false; }
       });
       details.append(form);
@@ -2399,7 +2399,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           const { material } = await api("/attachments", "POST", { name: file.name, data });
           // The preview is a data URL: the page's policy shows data images, not blob URLs.
           files.push({ material_id: material.material_id, kind: "image", title: material.title, image: material.image, explicit: true, preview: "data:" + file.type + ";base64," + data });
-        } catch (error) { host.showToast?.(file.name + "：" + error.message); }
+        } catch (error) { host.showToast?.({...error,name:"Error",message:file.name+"："+(error.message||String(error))}); }
         continue;
       }
       // A PDF is read by the Agent runtime's own parser (text layer only); what cannot be read says why.
@@ -2408,7 +2408,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         try {
           const { material } = await api("/attachments", "POST", { name: file.name, data: await readBase64(file) });
           files.push({ material_id: material.material_id, kind: "file", title: material.title, text: material.text, explicit: true });
-        } catch (error) { host.showToast?.(file.name + "：" + error.message); }
+        } catch (error) { host.showToast?.({...error,name:"Error",message:file.name+"："+(error.message||String(error))}); }
         continue;
       }
       // Only text is read here; other binary files would reach the model as noise.

@@ -225,7 +225,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     bar.append(where, access, links, saved);
     slot.append(bar);
     let description = null;
-    try { description = await describe(object, false); } catch (error) { where.textContent = L("位置读不到"); bar.title = error.message; return; }
+    try { description = await describe(object, false); } catch (error) { if(slot.isConnected&&slot.dataset.placementPainted===signature){where.textContent=L("位置读不到");const note=node("p",undefined,"placement-read-error");molisWorkRequest.show(note,error);slot.append(note);}return; }
     if (slot.dataset.placementPainted !== signature) return;
     const location = description.location;
     where.textContent = location ? location.title : L("位置读不到");
@@ -326,7 +326,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault(); ok.disabled = true; error.textContent = "";
       try { await run(new FormData(form)); shell.close(); }
-      catch (failure) { error.textContent = failure.message; ok.disabled = false; }
+      catch (failure) { molisWorkRequest.show(error,failure); ok.disabled = false; }
     });
     shell.addEventListener("close", () => shell.remove());
     shell.showModal();

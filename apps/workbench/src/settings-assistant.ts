@@ -303,7 +303,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
         if (!data.permissions) { permsEl.textContent = data.problem ? L("电脑助手：") + data.problem : L("电脑助手尚未就绪。"); return; }
         const missing = Object.keys(data.permissions).filter((key) => !data.permissions[key]).map((key) => PERM[key] || key);
         permsEl.textContent = missing.length ? L("还缺系统授权：") + missing.join("、") + L("。在侧栏的「电脑」标签里按引导授权。") : L("系统授权齐全。");
-      } catch (failure) { permsEl.textContent = failure.message; }
+      } catch (failure) { molisWorkRequest.show(permsEl,failure); }
     };
     const runComputer = async (work) => { computerError.hidden = true; try { await work(); } catch (failure) { molisWorkRequest.show(computerError,failure); computerError.hidden = false; } };
     enable.addEventListener("change", () => runComputer(async () => { const data = await computerApi("/settings", { enabled: enable.checked }); enable.checked = data.enabled; await paintPerms(); }));

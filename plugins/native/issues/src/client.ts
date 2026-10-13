@@ -15,7 +15,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   scope.own(() => { style.remove(); delete root.dataset.ready; });
   const L = host.translate || (text => text), $ = key => root.querySelector('[data-issue-' + key + ']');
   // Only static controls opt in: never translate a person's title, description, or screenshot name.
-  for (const node of root.querySelectorAll('[data-issue-label]')) {
+  for (const node of root.querySelectorAll('[data-issue-i18n]')) {
     for (const text of [...node.childNodes, ...node.attributes])
       if (text.nodeType === 3 || ['placeholder', 'aria-label', 'title'].includes(text.name)) text.textContent = L(text.textContent);
   }

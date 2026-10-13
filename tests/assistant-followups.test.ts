@@ -7,11 +7,11 @@ import { DatabaseSync } from "node:sqlite";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import type { AssistantFollowUp } from "@molis-ai/molis-work-contracts/services/assistant";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantError, AssistantService, sameLocalTimeLater } from "../apps/local-host/src/assistant/assistant-service.js";
-import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
-import { ASSISTANT_FOLLOW_UP_ACTIONS, registerAssistantRuleActions } from "../apps/local-host/src/assistant/assistant-rule-actions.js";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { AssistantError, AssistantService, sameLocalTimeLater } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_FOLLOW_UP_ACTIONS, registerAssistantRuleActions } from "../apps/local-host/dist/assistant/assistant-rule-actions.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -49,7 +49,7 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed", "first round");
     // Added the way the Assistant adds it: through its own action, attached to the work its round acts for.
     const actions = new ActionService();
-    registerAssistantRuleActions(actions, () => service);
+    registerAssistantRuleActions(actions, () => service, home);
     const due = new Date(Date.now() + 700);
     await actions.invoke({ actor_id: "web-user", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [], audit_actor_id: `assistant:${sent.work.work_id}` },
       ASSISTANT_FOLLOW_UP_ACTIONS.add, { text: "汇总今天的进展", at: due.toISOString(), repeat: "daily", label: "每天六点汇总" });

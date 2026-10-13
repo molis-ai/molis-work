@@ -111,6 +111,9 @@ export interface PrologueStreamState {
   turn_changes: AgentTurnChanges[];
   /** While the Run sleeps on its own: when it wakes. */
   sleeping_until?: string;
+  /** The model the person switched this Run to (since its last `model-switched`), and one asked for but not yet in effect. */
+  model_now?: string;
+  model_requested?: string;
 }
 
 export function emptyPrologueStreamState(): PrologueStreamState {
@@ -280,6 +283,75 @@ function closeUnappliedSteers(state: PrologueStreamState): void {
     ? { ...turn, steer: { ...turn.steer, state: "unconfirmed" } } : turn);
 }
 
+/** Marks one activity as a desktop step. Stripped before the person reads the target. */
+const DESKTOP_STEP = "\u0000desktop";
+const desktopSurfaces = new WeakMap<PrologueStreamState, Set<string>>();
+const desktopObservations = new WeakMap<PrologueStreamState, Set<string>>();
+
+function remember(map: WeakMap<PrologueStreamState, Set<string>>, state: PrologueStreamState, id: string): void {
+  const ids = map.get(state) ?? new Set<string>();
+  ids.add(id);
+  map.set(state, ids);
+}
+
+/** Surface ids from a surface-list result (`id — desktop, open`). Returns whether any desktop was listed. */
+function rememberDesktopSurfaces(state: PrologueStreamState, text: string): boolean {
+  const pattern = /^(\S+) — desktop,/gm;
+  let found = false;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    remember(desktopSurfaces, state, match[1]!);
+    found = true;
+  }
+  return found;
+}
+
+/** An observation produced by looking at a desktop surface, so the later action on it is a desktop step. */
+function rememberDesktopObservation(state: PrologueStreamState, text: string): void {
+  const match = /^observation (\S+) /m.exec(text);
+  if (match?.[1]) remember(desktopObservations, state, match[1]);
+}
+
+function desktopCall(state: PrologueStreamState, name: string, input: Record<string, unknown> | undefined): boolean {
+  const targetId = typeof input?.target === "string" ? input.target : "";
+  const observationId = typeof input?.observation === "string" ? input.observation : "";
+  if ((name === "surface-observe" || name === "surface-act") && targetId !== "" && desktopSurfaces.get(state)?.has(targetId)) return true;
+  return name === "surface-act" && observationId !== "" && (desktopObservations.get(state)?.has(observationId) ?? false);
+}
+
+function noteToolCall(state: PrologueStreamState, event: Extract<PrologueEvent, { type: "tool-call" }>, at: string | null): boolean {
+  const call = event.call;
+  closeStreaming(state);
+  const named = call.name === "ask-user" ? askedOf(call.input) ?? target(call.input) : target(call.input);
+  state.activity.push({
+    call_id: call.id,
+    name: call.name,
+    target: desktopCall(state, call.name, call.input) ? DESKTOP_STEP : named,
+    state: "started",
+    summary: call.name,
+    at,
+    sequence: state.next_sequence++,
+  });
+  return true;
+}
+
+function noteToolResult(state: PrologueStreamState, event: Extract<PrologueEvent, { type: "tool-result" }>, at: string | null): boolean {
+  const index = state.activity.findIndex((entry) => entry.call_id === event.callId);
+  if (index < 0) return false;
+  const prior = state.activity[index]!;
+  const listed = event.name === "surface-list" && rememberDesktopSurfaces(state, event.text);
+  if (event.name === "surface-observe" && prior.target === DESKTOP_STEP) rememberDesktopObservation(state, event.text);
+  state.activity[index] = {
+    ...prior,
+    state: event.outcome === "failed" ? "failed" : event.outcome === "returned" ? "completed" : "unknown",
+    summary: event.errorCode ? `${event.name} · ${event.errorCode}` : event.name,
+    output: event.text.slice(0, 16_384),
+    output_truncated: event.text.length > 16_384,
+    at,
+    ...(listed ? { target: DESKTOP_STEP } : {}),
+  };
+  return true;
+}
+
 function applyResponseRepair(state: PrologueStreamState, frame: PrologueEvent, at: string | null): boolean {
   const event = frame as Extract<PrologueEvent, { type: "model-response-repair" }>;
   if (event.reason === "output-truncated") {
@@ -379,6 +451,8 @@ function applyModelSwitched(state: PrologueStreamState, event: PrologueEvent, at
   const switched = event as Extract<PrologueEvent, { type: "model-switched" }>;
   if (typeof switched.to?.model !== "string") return false;
   closeStreaming(state);
+  state.model_now = switched.to.model;
+  delete state.model_requested;
   const sequence = state.next_sequence++;
   state.activity.push({ call_id: `model-switch-${sequence}`, name: "model-switch", target: `${switched.from?.model ?? ""} → ${switched.to.model}`,
     state: "completed", summary: `从这一次模型调用起改用 ${switched.to.model}；之前的结果与授权不变`, at, sequence });
@@ -482,36 +556,10 @@ export function applyPrologueEvent(
       if (!state.command_calls.includes(event.callId)) state.command_calls.push(event.callId);
       return true;
     }
-    case "tool-call": {
-      const call = (event as Extract<PrologueEvent, { type: "tool-call" }>).call;
-      closeStreaming(state);
-      state.activity.push({
-        call_id: call.id,
-        name: call.name,
-        // A question to the person is named by what it asks.
-        target: call.name === "ask-user" ? askedOf(call.input) ?? target(call.input) : target(call.input),
-        state: "started",
-        summary: call.name,
-        at,
-        sequence: state.next_sequence++,
-      });
-      return true;
-    }
-
-    case "tool-result": {
-      const result = event as Extract<PrologueEvent, { type: "tool-result" }>;
-      const index = state.activity.findIndex((entry) => entry.call_id === result.callId);
-      if (index < 0) return false;
-      state.activity[index] = {
-        ...state.activity[index]!,
-        state: result.outcome === "failed" ? "failed" : result.outcome === "returned" ? "completed" : "unknown",
-        summary: result.errorCode ? `${result.name} · ${result.errorCode}` : result.name,
-        output: result.text.slice(0, 16_384),
-        output_truncated: result.text.length > 16_384,
-        at,
-      };
-      return true;
-    }
+    case "tool-call":
+      return noteToolCall(state, event as Extract<PrologueEvent, { type: "tool-call" }>, at);
+    case "tool-result":
+      return noteToolResult(state, event as Extract<PrologueEvent, { type: "tool-result" }>, at);
 
     case "awaiting-approval": {
       const waiting = event as Extract<PrologueEvent, { type: "awaiting-approval" }>;
@@ -660,13 +708,15 @@ export function applyPrologueEvent(
  * step list, the files each turn wrote, a wait it sleeps in. A fact that no longer holds is not carried forward.
  */
 export function withRunFacts(state: PrologueStreamState, ended: boolean, view: AgentRunView): AgentRunView {
-  const { memory_recalled: _memory, todo: _todo, turn_changes: _changes, sleeping_until: _asleep, ...rest } = view;
+  const { memory_recalled: _memory, todo: _todo, turn_changes: _changes, sleeping_until: _asleep, model_switch: _switch, ...rest } = view;
+  const requested = ended ? undefined : state.model_requested;
   return {
     ...rest,
     ...(state.memory_recalled ? { memory_recalled: structuredClone(state.memory_recalled) } : {}),
     ...(state.todo?.length ? { todo: state.todo.map(item => ({ ...item })) } : {}),
     ...(state.turn_changes.length ? { turn_changes: structuredClone(state.turn_changes) } : {}),
     ...(state.sleeping_until !== undefined && !ended ? { sleeping_until: state.sleeping_until } : {}),
+    ...(state.model_now || requested ? { model_switch: { ...(state.model_now ? { now: state.model_now } : {}), ...(requested ? { requested } : {}) } } : {}),
   };
 }
 

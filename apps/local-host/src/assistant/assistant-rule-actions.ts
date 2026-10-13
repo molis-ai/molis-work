@@ -6,6 +6,7 @@
 import type { ActionDefinition, ActionHandlerBinding, ActionRegistryPort, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantRuleInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantService } from "./assistant-service.js";
+import { computerRecordFileSource } from "../computer/computer-record-source.js";
 
 export const ASSISTANT_RULES_PROVIDER = "io.molis.work.assistant.rules";
 
@@ -68,8 +69,12 @@ export const ASSISTANT_METHOD_ACTIONS = {
 /** The work an Assistant round is acting for (its calls are audited as `assistant:<work_id>`). */
 const callingWork = (context: { audit_actor_id?: string }) => context.audit_actor_id?.startsWith("assistant:") ? context.audit_actor_id.slice("assistant:".length) : null;
 
-export function registerAssistantRuleActions(registry: ActionRegistryPort, service: () => AssistantService): () => void {
+export function registerAssistantRuleActions(registry: ActionRegistryPort, service: () => AssistantService, homeDirectory: string): () => void {
+  // The per-round computer operation records are a home file source for the 文件 tab (specs/computer-use §5), folded into
+  // the Assistant's own provider rather than hand-registering a new one (a new built-in provider goes through the Plugin Runtime).
+  const records = computerRecordFileSource(homeDirectory);
   const handlers: ActionHandlerBinding[] = [
+    ...records.handlers,
     { capability_id: "assistant.rules.list", version: 1, handle: async () => ({ rules: service().rules() }) },
     { capability_id: "assistant.rules.add", version: 1, handle: async (_context, input) => ({ rules: service().saveRule(input as AssistantRuleInput) }) },
     { capability_id: "assistant.rules.remove", version: 1, handle: async (_context, input) => ({ rules: service().removeRule(String((input as { rule_id?: unknown }).rule_id ?? "")) }) },
@@ -94,5 +99,5 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
     } },
   ];
   return registry.registerProvider({ provider: { provider_id: ASSISTANT_RULES_PROVIDER, title: "助理", kind: "system" },
-    definitions: [...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(ASSISTANT_METHOD_ACTIONS)], handlers });
+    definitions: [...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(ASSISTANT_METHOD_ACTIONS), ...records.definitions], handlers });
 }

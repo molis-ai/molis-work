@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { assertContract } from '../packages/plugin-sandbox/dist/index.js';
-import { BUILDER_PROMPTS, expandDesign, expandType, normalizeProposal, parseModelJson, parseStep, validateAgentDesign } from '../plugins/native/plugin-builder/src/index.js';
+import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
+import { BUILDER_PROMPTS, expandDesign, expandType, normalizeProposal, parseModelJson, parseStep, validateAgentDesign } from '@molis-ai/molis-work-plugin-builder';
 
 const base = { id: 'quick', title: '随手记', description: '写一句就保存', rationale: '最短路径', journey: ['写', '看'] };
 const strict = (design: ReturnType<typeof expandDesign>) => validateAgentDesign(design, [], [], contract => assertContract(contract));

@@ -11,7 +11,7 @@
     "repository": "https://github.com/molis-ai/prologue",
     "checkedOn": "2026-10-13",
     "mainHead": "b219d8592d6eae6de56dda3a7ebbb616bdd862f8",
-    "statement": "下面 commitsChecked 里的每个 Prologue 提交（各项的基线、提交，以及来源里写出的提交链）都是上游 main 头的祖先（git merge-base --is-ancestor；2026-10-08 核对 4f7110fe；2026-10-12 PR #4、#5 合并后上游 main 头是 f5ef12e6，`c4b9fde3` 随 a13bf067 进入 main，复核同样成立）。远端特性分支已不能当定位点，所以按提交号定位，不按分支名。2026-10-13 对 `b219d859` 复核：`f5ef12e6`（PR #5）同样是祖先。当前包的来源 `08b84296` 不在 main 上（过渡包，用户 2026-10-13 决定），它的两个父提交在，见它的 provenance。",
+    "statement": "下面 commitsChecked 里的每个 Prologue 提交（各项的基线、提交，以及来源里写出的提交链）都是上游 main 头的祖先（git merge-base --is-ancestor；2026-10-08 核对 4f7110fe；2026-10-12 PR #4、#5 合并后上游 main 头是 f5ef12e6，`c4b9fde3` 随 a13bf067 进入 main，复核同样成立）。远端特性分支已不能当定位点，所以按提交号定位，不按分支名。2026-10-13 对 `b219d859` 复核：`f5ef12e6`（PR #5）、`d4908c11`（随 PR #15 `a47eb26d`）同样是祖先。当前包的来源 `08b84296` 不在 main 上（过渡包，用户 2026-10-13 决定），它的两个父提交在，见它的 provenance。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -34,6 +34,7 @@
       "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
       "c63ea1a16eec8d8217223db1624b2409a1a33d14",
       "d2f5a05df6459440a253787e94ee6520f12d754d",
+      "d4908c118f7899d44e3d1975806797a05f0094b9",
       "f5ef12e6085c2865133b732ebc8ec235142685e1"
     ]
   },
@@ -603,6 +604,22 @@
       "gitBlob": "84cb777f1773e894162452e98dfea86a85f0ae60",
       "commit": "f5ef12e6085c2865133b732ebc8ec235142685e1",
       "description": "提交 `f5ef12e6`（Prologue PR #5 合入 main 的合并提交；树与 PR head `87e063e8` 相同，两者打出逐字节相同的包）。在 adoption-receipts-fields 之上加输入回执第二、三刀；2026-10-12 起是采用交接分支 `feature/handoff-prologue-adoption`（#408）的依赖，从未是 main 的依赖；2026-10-13 被 interim-p1-cu 换掉。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-computer-use.tgz",
+      "bytes": 1074186,
+      "sha256": "0272431a46d0201dfc5aa4d12af648d8cc0f129a1eb1454a5123a8518826d282",
+      "gitBlob": "4a5830739970dcc48b2b870b1f5c9332716da46d",
+      "commit": "d4908c118f7899d44e3d1975806797a05f0094b9",
+      "description": "提交 `d4908c11`（分支 `feat/desktop-computer-use`：`c4b9fde3` 上的五个桌面 Computer Use 提交；2026-10-09 打包时 provenance 记 pushed:false，2026-10-13 推到远端并随 Prologue PR #15（`a47eb26d`）进 main）。#471（Molis `2cb35d4e`）起是 main 的依赖；2026-10-13 在 #408 与 main 对账时被 interim-p1-cu 换掉（以 `d4908c11` 为父，Computer Use 部分的源码相同）。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-molis-adoption.tgz",
+      "bytes": 1057983,
+      "sha256": "100aa5770b5e48844f770cba8a1bd3706f389673671956c84ab7375942919b01",
+      "gitBlob": "40ef235087c15abd8c3e3b86c165d7720879f892",
+      "commit": "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
+      "description": "提交 `c4b9fde3`（A0 的三项 SDK 增强）。只在旧采用分支 `feat/prologue-adoption` 的 `77fde104` 上提交过，随 #472 进入 main 的历史，从未是 main 第一父链上的依赖；computer-use 包含它。"
     }
   ],
   "notes": [

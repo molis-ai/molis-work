@@ -1,47 +1,40 @@
 /**
  * The words the Coding timeline reads tool calls and failures with. Like `createCodingTimeline`, it is injected into the
- * browser with `toString()` and must stay self-contained; the client hands its result to the timeline factory. Its notes
- * live here, outside the function, because everything inside it ships to every page.
- *
- * - `FAILURES`: a round's failure in the user's words. `EFFECT_NOT_AUTHORIZED` is the Host refusing before sending (a
- *   Character disabled, a grant withdrawn): nothing reached the model. A model that went silent or a connection that
- *   dropped mid-answer is not a settings problem, and what was done is kept.
- * - `toolHint`: what a runtime refusal on one tool call means, in words, above its raw output. Only codes whose meaning is
- *   fixed; the raw `CODE: message` stays below for the exact path, line and kind.
+ * browser with `toString()` and must stay self-contained; the client hands its result to the timeline factory.
  */
 export function codingTimelineWords() {
-  const TABLE: Record<string, [verb: string, icon: string, noun: string, unit: string]> = {
-    read: ["读取","file","文件","个"],
-    "read-file": ["读取","file","文件","个"],
-    edit: ["修改","edit","文件","个"],
-    write: ["写入","edit","文件","个"],
-    "run-command": ["运行","terminal","命令","条"],
-    grep: ["搜索","search","内容","次"],
-    search: ["搜索","search","内容","次"],
-    glob: ["查找","search","文件","次"],
-    list: ["查看目录","folder","目录","个"],
-    "list-directory": ["查看目录","folder","目录","个"],
-    "ask-user": ["提问","question","问题","个"],
-    reasoning: ["思考","sparkles","",""],
-    "dispatch-subagent": ["派出子任务","workflow","子任务","个"],
-    "await-subagents": ["等待子任务","clock","",""],
-    "steer-subagent": ["补充子任务要求","workflow","次",""],
-    "board-read": ["查看任务图","list","",""],
-    "board-report": ["回报步骤","list","步骤","次"],
-    "start-command": ["后台运行","terminal","命令","条"],
-    "command-output": ["查看后台输出","terminal","次",""],
-    "command-stop": ["停止后台命令","terminal","条",""],
-    "await-commands": ["等待后台命令","clock","",""],
-    "session-send": ["给其他会话发信","share","封",""],
-    "上下文整理": ["整理上下文","clock","","次"],
-    "工具调用纠正": ["纠正工具调用","circle-alert","","次"],
-    "sleep-wait": ["等一会儿","clock","","次"],
-    "model-switch": ["换模型","sparkles","","次"],
+  const KIND: Record<string, { verb: string; icon: string; noun: string; unit: string }> = {
+    read: { verb: "读取", icon: "file", noun: "文件", unit: "个" },
+    "read-file": { verb: "读取", icon: "file", noun: "文件", unit: "个" },
+    edit: { verb: "修改", icon: "edit", noun: "文件", unit: "个" },
+    write: { verb: "写入", icon: "edit", noun: "文件", unit: "个" },
+    "run-command": { verb: "运行", icon: "terminal", noun: "命令", unit: "条" },
+    grep: { verb: "搜索", icon: "search", noun: "内容", unit: "次" },
+    search: { verb: "搜索", icon: "search", noun: "内容", unit: "次" },
+    glob: { verb: "查找", icon: "search", noun: "文件", unit: "次" },
+    list: { verb: "查看目录", icon: "folder", noun: "目录", unit: "个" },
+    "list-directory": { verb: "查看目录", icon: "folder", noun: "目录", unit: "个" },
+    "ask-user": { verb: "提问", icon: "question", noun: "问题", unit: "个" },
+    reasoning: { verb: "思考", icon: "sparkles", noun: "", unit: "" },
+    "dispatch-subagent": { verb: "派出子任务", icon: "workflow", noun: "子任务", unit: "个" },
+    "await-subagents": { verb: "等待子任务", icon: "clock", noun: "", unit: "" },
+    "steer-subagent": { verb: "补充子任务要求", icon: "workflow", noun: "次", unit: "" },
+    "board-read": { verb: "查看任务图", icon: "list", noun: "", unit: "" },
+    "board-report": { verb: "回报步骤", icon: "list", noun: "步骤", unit: "次" },
+    "start-command": { verb: "后台运行", icon: "terminal", noun: "命令", unit: "条" },
+    "command-output": { verb: "查看后台输出", icon: "terminal", noun: "次", unit: "" },
+    "command-stop": { verb: "停止后台命令", icon: "terminal", noun: "条", unit: "" },
+    "await-commands": { verb: "等待后台命令", icon: "clock", noun: "", unit: "" },
+    "session-send": { verb: "给其他会话发信", icon: "share", noun: "封", unit: "" },
+    "上下文整理": { verb: "整理上下文", icon: "clock", noun: "", unit: "次" },
+    "工具调用纠正": { verb: "纠正工具调用", icon: "circle-alert", noun: "", unit: "次" },
+    "sleep-wait": { verb: "等一会儿", icon: "clock", noun: "", unit: "次" },
+    "model-switch": { verb: "换模型", icon: "sparkles", noun: "", unit: "次" },
   };
-  const KIND: Record<string, { verb: string; icon: string; noun: string; unit: string }> = {};
-  for (const name in TABLE) { const [verb, icon, noun, unit] = TABLE[name]!; KIND[name] = { verb, icon, noun, unit }; }
   const FAILURES: Array<[RegExp, string, string]> = [
+    // The Host refused before sending (a Character disabled, a grant withdrawn): nothing reached the model.
     [/EFFECT_NOT_AUTHORIZED/, "这一轮的授权已失效", "角色被停用或授权被收回，这一轮在发给模型前就停下了，没有发出任何内容。确认设置后再从断点继续。"],
+    // The model went silent or the connection dropped mid-answer: not a settings problem, and what was done is kept.
     [/MODEL_NETWORK_FAILED.*(timeout|went quiet)/i, "模型服务长时间没有回应", "可能是网络不稳或服务繁忙；已完成的操作都保留着，从断点继续即可。反复出现时把任务拆小一些。"],
     [/MODEL_NETWORK_FAILED.*(terminated|reset|hang up)/i, "和模型服务的连接中断了", "已完成的操作都保留着；网络恢复后从断点继续即可。"],
     [/MODEL_NETWORK_FAILED|NETWORK_|ENOTFOUND|ECONN|ETIMEDOUT|DNS/i, "连不上模型服务", "检查网络或代理后，从断点继续即可。"],
@@ -59,6 +52,10 @@ export function codingTimelineWords() {
     [/MODEL_REFUSED/i, "模型拒绝了这个请求", "换个说法或补充背景后再发。"],
     [/MODEL_OUTPUT_TRUNCATED/i, "回答一直写不完", "已写出的部分和已完成的操作都保留着；从断点继续时让它分几次写，或把任务拆小。"],
   ];
+  /**
+   * What a runtime refusal on one tool call means, in words, above its raw output. Only codes whose meaning is fixed:
+   * the raw `CODE: message` stays below for the exact path, line and kind.
+   */
   const toolHint = (output: string): string => {
     const code = /^([A-Z][A-Z0-9_]+):/.exec(output)?.[1];
     return code === "WORKSPACE_SECRET_DETECTED" ? "新写的内容里有像密钥的一段，没有写入，也没有生成待审修改。密钥不要放进项目文件：放在密钥库或环境变量里，让它改用引用。"

@@ -3,7 +3,7 @@ import { createProjectsSchema } from "@molis-ai/molis-work-module-projects";
 import { createPersonalPlanningMethodSchema } from "@molis-ai/molis-work-module-goals";
 import { createRuntimeContextBindingTables, createRuntimeContextSetupRequestTable, createRuntimeContextSuggestionRejectionTable } from "@molis-ai/molis-work-module-private-work-context";
 import { createModelProviderTables } from "./model-provider-store.js";
-import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION, MolisWorkProjectCatalogError, catalogSchemaCompatibilityError, isOwnedCatalogOwner } from "./project-catalog-contract.js";
+import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION, catalogErrors, catalogSchemaCompatibilityError, isOwnedCatalogOwner } from "./project-catalog-contract.js";
 
 export type CatalogDesktopSchema = (db: SqliteDatabase) => void;
 
@@ -24,7 +24,7 @@ export function initializeCatalog(storage: LocalSqliteStorage, createDesktopPane
 
 export function assertOwnedCatalog(storage: LocalSqliteStorage, databasePath: string): void {
   if (!isOwnedCatalogOwner(new LocalCatalogMetadata(storage.db).owner())) {
-    throw new MolisWorkProjectCatalogError("catalog.unknown_database", `不会复用未知项目目录数据库: ${databasePath}`);
+    throw catalogErrors.unknown_database(`不会复用未知项目目录数据库: ${databasePath}`);
   }
 }
 
@@ -34,9 +34,7 @@ export function assertCurrentCatalog(storage: LocalSqliteStorage, databasePath: 
   const compatibilityError = catalogSchemaCompatibilityError(version);
   if (compatibilityError) throw compatibilityError;
   if (version !== CATALOG_SCHEMA_VERSION) {
-    throw new MolisWorkProjectCatalogError(
-      "catalog.unsupported_schema",
-      `Molis Work 项目目录数据库的版本是 ${version}，这个版本只认 ${CATALOG_SCHEMA_VERSION}，不就地升级: ${databasePath}`,
+    throw catalogErrors.unsupported_schema(`Molis Work 项目目录数据库的版本是 ${version}，这个版本只认 ${CATALOG_SCHEMA_VERSION}，不就地升级: ${databasePath}`,
     );
   }
 }

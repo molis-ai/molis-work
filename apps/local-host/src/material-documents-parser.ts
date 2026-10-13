@@ -2,7 +2,7 @@ import { inflateRawSync } from "node:zlib";
 import { unzipSync, zipSync } from "fflate";
 import mammoth from "mammoth";
 import type { MaterialDocument, MaterialDocumentBatch, MaterialSource } from "@molis-ai/molis-work-contracts/services/materials";
-import { decodeMaterialText, MaterialExtractionError } from "./material-text.js";
+import { decodeMaterialText, isMaterialFailure, materialErrors, materialFailure } from "./material-text.js";
 
 const MIB = 1024 * 1024;
 const MAX_EXPANDED_BYTES = 20 * MIB;
@@ -25,7 +25,7 @@ interface ArchiveEntry {
 interface ImportBudget { expandedBytes: number; entries: number }
 
 function invalid(message: string): never {
-  throw new MaterialExtractionError("invalid_document", message, 422);
+  throw materialErrors.invalid_document(message);
 }
 
 function extension(name: string): string {
@@ -165,7 +165,7 @@ function unpackArchive(data: Buffer, source: string, budget: ImportBudget): Arra
       return { name: entry.name, data: content };
     });
   } catch (error) {
-    if (error instanceof MaterialExtractionError) throw error;
+    if (isMaterialFailure(error)) throw error;
     invalid(`${source}：压缩包无法解压，文件可能已损坏或超过安全限制`);
   }
 }
@@ -215,8 +215,8 @@ export async function parseMaterialDocuments(sources: readonly MaterialSource[])
       result.documents.push({ name, format: documentFormat, content,
         coverage: { status: !content.trim() ? "insufficient" : warnings.length ? "partial" : "sufficient", issues: [...new Set(warnings)], truncated: false } });
     } catch (error) {
-      if (error instanceof MaterialExtractionError) {
-        throw new MaterialExtractionError(error.code, error.message.startsWith(`${name}：`) ? error.message : `${name}：${error.message}`, error.status);
+      if (isMaterialFailure(error)) {
+        throw materialFailure(error.code.slice("material.".length), error.message.startsWith(`${name}：`) ? error.message : `${name}：${error.message}`, error.details);
       }
       invalid(`${name}：文档转换失败，文件可能已损坏`);
     }

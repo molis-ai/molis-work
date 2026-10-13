@@ -1,7 +1,8 @@
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { assembleMcpCatalog } from "@molis-ai/molis-work-app-local-host";
 import type { MolisWorkRuntimeConnection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ActionDefinition, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MCP_TOOLS, RUNTIME_MCP_TOOLS, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
+import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { functionsActions } from "@molis-ai/molis-work-module-functions";
 import { formActions, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
@@ -13,9 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
-import { assembleMcpCatalog } from "../apps/local-host/src/mcp-catalog.ts";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 const reference = (view: ActionView) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
 const functionViews: ActionView[] = Object.values(functionsActions).map(action => ({ ...action,
@@ -26,17 +25,20 @@ const creativeViews: ActionView[] = [formManifest, pagesManifest, datasetManifes
 })));
 const names = (catalog: { tools: Array<{ name: string }> }) => catalog.tools.map(tool => tool.name);
 
+/** The person's grant, saved through the access settings of a Host that serves the Home for the length of the call (the MCP servers of the Home are closed). */
 async function grantActions(home: string, connection: MolisWorkRuntimeConnection, actions: ActionDefinition[]) {
   assert.ok(connection.projectId);
-  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const clientId = "runtime:codex", projectId = connection.projectId;
+  const served = await serveTestHost(null, { home });
   try {
-    const caller = { actor_id: "runtime:codex", project_id: connection.projectId, audience: "mcp" as const, permissions: [] };
-    const views = await host.inspectActions(caller, molisWorkHostProjectReference(connection));
-    for (const action of actions) {
-      const view = views.find(view => view.capability_id === action.capability_id && view.version === action.version)!;
-      await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, caller.project_id, view, true));
-    }
-  } finally { await host.close(); }
+    const offered = (await readMcpActionAccess(served.web, { clientId, projectId })).actions;
+    const views = actions.map(action => {
+      const view = offered.find(row => row.capability_id === action.capability_id && row.version === action.version);
+      assert.ok(view, `${action.capability_id} is offered to ${clientId} in the project`);
+      return view;
+    });
+    await served.grant(clientId, projectId, views);
+  } finally { await served.close(); }
 }
 
 async function listToolNames(server: MolisWorkServer): Promise<string[]> {

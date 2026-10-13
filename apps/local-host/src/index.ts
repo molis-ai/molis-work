@@ -55,7 +55,7 @@ export * from "./web-locale.js";
 
 export { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 
-export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, isOwnedCatalogOwner, MolisWorkProjectCatalogError, catalogSchemaCompatibilityError, type MolisWorkProjectCatalogErrorDetails } from "./project-catalog-contract.js";
+export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, isOwnedCatalogOwner, catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
 export { initializeProjectDatabase, readManagedBoard, validateManagedBoard } from "./managed-project-database.js";
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
@@ -116,6 +116,9 @@ export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
 export { handleScheduleNativePluginHttp, type ScheduleNativePluginHttpOptions } from "./schedule-native-plugin-http.js";
 export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
+export { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
+export { handleCogniaNativePluginHttp } from "./cognia-native-plugin-http.js";
+export { handleImagesNativePluginHttp } from "./images-native-plugin-http.js";
 export { handleFunctionsHttp } from "./functions-http.js";
 export { handleFormNativePluginHttp } from "./form-native-plugin-http.js";
 export { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
@@ -159,7 +162,7 @@ export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { createLocalPanelHttp } from "./web-panel.js";
 export { createLocalWorkSessionHttp } from "./web-work-session.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
-export { readProjectReference, ProjectReferenceError } from "./project-file-reference.js";
+export { readProjectReference } from "./project-file-reference.js";
 export { createLocalPlanningHttp } from "./web-planning.js";
 export { createLocalGoalsReadHttp } from "./web-goals-read.js";
 export { createLocalWebServerFactory } from "./web-server.js";
@@ -201,7 +204,7 @@ export {
   type AgentHostComposition,
   type AgentHostCompositionOptions,
 } from "./agent-host-composition.js";
-export { handleAgentReviewHttp, type AgentReviewHttpPorts } from "./agent-review-http.js";
+export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
 export {
   codingDirectoryPanel,
   diffStagePanel,
@@ -229,3 +232,25 @@ export { AssistantService } from "./assistant/assistant-service.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { prologueMemoryBackend } from "./memory/memory-host.js";
+export { ComputerRecords } from "./computer/computer-records.js";
+export { ComputerDesk } from "./computer/computer-desk.js";
+export { ComputerSettings } from "./computer/computer-settings.js";
+export { ComputerDriver, type DeskContext } from "./computer/computer-driver.js";
+export { helperFailure, isRefused } from "./computer/computer-errors.js";
+export {
+  COMPUTER_RECORD_SOURCE_ID,
+  computerRecordFileSource,
+  handleUnscopedComputerFiles,
+  recordsOwnedBy,
+} from "./computer/computer-record-source.js";
+export {
+  SELF_APPROVAL_QUIET_MS,
+  confirmArrivedTooSoon,
+  refuseCapture,
+  refuseDespiteWindowText,
+  refuseLanding,
+  refuseSelfApproval,
+  reviewProjectFor,
+  type ComputerRoundHolder,
+} from "./computer/computer-policy.js";
+export { ASSISTANT_RULES_PROVIDER } from "./assistant/assistant-rule-actions.js";

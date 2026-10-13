@@ -15,6 +15,8 @@
 | 界面改动加跑 | 可选，浏览器用例 | 列出的文件都存在 |
 | 相关手册 | 该读的手册、Skill、spec | 链接都存在 |
 
+测试通过包名或 `dist` 读取构建产物；运行「改动后必跑」前先在仓库根目录运行 `pnpm build`。单包源码未变时可用 `pnpm --filter <包> run build`，也可用 `node scripts/affected-tests.mjs --run`，它会拒绝比源码更旧的构建。
+
 门禁在 `scripts/package-dev-requirements.mjs`，由 `pnpm boundary:check`（`pnpm workspace:verify` 与 CI 都会跑）调用。
 
 挑相关用例的脚本 `scripts/affected-tests.mjs`（[并行开发](PARALLEL-DEVELOPMENT.md)第 6.1 节）读这一节：「改动后必跑」一行里的测试路径总是选；「界面改动加跑」一行里 `再加跑` 之前的测试只在改动是界面时选；其余带测试路径的行（比如“助理逻辑验证”）和 `再加跑` 之后的条件部分只被列出，不被选。所以只想在某个区域改动时才跑的测试，写成单独一行或放在 `再加跑` 之后，不要塞进「改动后必跑」。

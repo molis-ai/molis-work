@@ -11,7 +11,7 @@ export const packageDescriptor = {
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
-export { FunctionsError, assertFunctionKey, assertOptionKey, isPinnedJevModel, suggestFunctionKey } from "./keys.js";
+export { functionsErrors, assertFunctionKey, assertOptionKey, isPinnedJevModel, suggestFunctionKey } from "./keys.js";
 export { hashChoiceConfig, hashFunctionConfig } from "./hash.js";
 export { openFunctionsStore, FunctionsStore, FUNCTIONS_STORE_BASELINE, assertReadyToPublish, assertReadyToEvaluate } from "./store.js";
 export { purgeFunctionsProject, functionsProjectData } from "./project-data.js";

@@ -2,7 +2,7 @@ import type { JellyBlock, JellyItem, JellyWorkspace, JellySchedule } from "@moli
 import { emptyJellyWorkspace, validateJellyWorkspace } from "./calendar.js";
 import { jellyAddDays } from "./calendar-validation.js";
 import { jellyHash, validateJellyContent } from "./content.js";
-import { jellyAssert } from "./error.js";
+import { jellyAssert, jellyErrors } from "./error.js";
 
 type Obj = Record<string, any>;
 function object(value: unknown): Obj { jellyAssert(value && typeof value === "object" && !Array.isArray(value), "导入对象格式无效"); return value as Obj; }
@@ -59,7 +59,7 @@ function mergeById<T extends { id: string }>(current: T[], incoming: readonly T[
     const existing = current.find((item) => item.id === value.id);
     if (existing) {
       if (keepExistingUncategorized && value.id === "uncategorized") continue;
-      jellyAssert(JSON.stringify(existing) === JSON.stringify(value), `导入 ${key} 的 ID 与当前内容冲突：${value.id}。请使用空的插件库或消除冲突。`, "jelly.import_conflict", 409);
+      jellyAssert(JSON.stringify(existing) === JSON.stringify(value), `导入 ${key} 的 ID 与当前内容冲突：${value.id}。请使用空的插件库或消除冲突。`, jellyErrors.import_conflict);
     } else current.push(structuredClone(value));
   }
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MW_PLUGINS, renderPaletteTokens, renderPluginTintBindings } from "../packages/design-system/src/palette.ts";
+import { MW_PLUGINS, renderPaletteTokens, renderPluginTintBindings } from "../packages/design-system/dist/palette.js";
 import { railEntries, pluginTabGlyphs, pluginMarketCards } from "../apps/workbench/src/plugin-catalog.ts";
 import { listPluginSettingsNavItems } from "../apps/workbench/src/plugin-settings-catalog.ts";
 import { renderPluginRail } from "../apps/workbench/src/immersive-shell.ts";

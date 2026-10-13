@@ -5,11 +5,11 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { ShelfStore } from "../modules/shelf/src/store.js";
 import { SHELF_CLIENT_FACTORY_SCRIPT } from "../plugins/native/shelf/src/client.js";
 import { createShelfRouteHandlers } from "../plugins/native/shelf/src/route-handlers.js";
-import { shelfRouteErrorResponse } from "../plugins/native/shelf/src/route-error.js";
 import { ShelfPluginRouteTable } from "../plugins/native/shelf/src/routes.js";
 import { SHELF_STYLES } from "../plugins/native/shelf/src/styles.js";
 import { renderShelfWorkbench } from "../plugins/native/shelf/src/ui.js";
@@ -66,7 +66,7 @@ async function openShelfBrowser(t: TestContext) {
       response.writeHead(result.status, { "content-type": result.mime || "application/json; charset=utf-8", "cache-control": "no-store", ...result.headers });
       response.end(result.bytes ? Buffer.from(result.bytes) : JSON.stringify(result.body));
     } catch (error) {
-      const failure = shelfRouteErrorResponse(error);
+      const failure = actionErrorResponse(error);
       response.writeHead(failure.status, { "content-type": "application/json" }); response.end(JSON.stringify(failure.body));
     }
   });

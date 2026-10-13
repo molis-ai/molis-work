@@ -5,7 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { ShelfError, openShelfStore, SHELF_RECIPES, shelfRecipeOutputName } from "@molis-ai/molis-work-module-shelf";
+import { openShelfStore, SHELF_RECIPES, shelfErrors, shelfRecipeOutputName, type ShelfFailure } from "@molis-ai/molis-work-module-shelf";
 import { extractMaterial } from "../apps/local-host/src/material-extraction.js";
 import { materialImageTextAvailable } from "../apps/local-host/src/material-native.js";
 import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
@@ -57,7 +57,7 @@ test("every AI recipe preserves source identity, uses frozen copies, and stores 
 
 test("a failed model response retains its reason and receipt without a fake deliverable", async () => fixture(async home => {
   const store = openShelfStore(home, { disabled: true }, materials, shelfTestAi(async () => {
-    const error = new ShelfError("shelf.invalid_result", "没有交付正文"); error.execution = shelfTestReceipt; throw error;
+    const error: ShelfFailure = shelfErrors.invalid_result("没有交付正文"); error.execution = shelfTestReceipt; throw error;
   }));
   const item = store.admit({ filename: "材料.md", bytes: Buffer.from("事实") });
   await assert.rejects(store.runJob({ recipe: "summarize", item_id: item.item_id }), { code: "shelf.invalid_result" });

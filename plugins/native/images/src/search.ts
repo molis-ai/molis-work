@@ -1,5 +1,6 @@
 import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, fileContentOf, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding, type FileContentInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { IMAGES_PROJECT_PLUGIN_ID, type ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
+import { imagesErrors } from "./error.js";
 import type { ImagesService } from "./service.js";
 
 /** Images' part in the system search: this project's generation records by their description and model. Image bytes are not text. */
@@ -30,14 +31,14 @@ export function createImagesSearchHandlers(service: () => ImagesService): Action
       const [jobId, imageId] = String(subject.id).split("/");
       let image: ReturnType<ImagesService["readImage"]>;
       try { image = service().readImage(project(caller), jobId ?? "", imageId ?? ""); }
-      catch { throw new ActionError("images.not_found", "这张图片已经不在了"); }
+      catch { throw imagesErrors.not_found("这张图片已经不在了"); }
       return fileContentOf({ subject, revision: `${imageId}:${image.bytes.byteLength}`, title: image.filename, media_type: image.mime, bytes: new Uint8Array(image.bytes) });
     } },
     { ...imagesSearchActions.subject, handle: (caller, input) => {
       let job: ImageJob;
       try { job = service().getJob(project(caller), (input as { subject_id: string }).subject_id); }
       catch (error) {
-        if (/not_found/u.test(String((error as { code?: string })?.code ?? ""))) throw new ActionError("images.not_found", "生成记录已删除");
+        if (/not_found/u.test(String((error as { code?: string })?.code ?? ""))) throw imagesErrors.not_found("生成记录已删除");
         throw error;
       }
       return subjectContext({ subject: { kind: "image_job", id: job.id }, revision: revisionOf(job), title: titleOf(job), content: [job.prompt, summaryOf(job)].filter(Boolean).join("\n"),

@@ -9,8 +9,9 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import { DEFAULT_GOAL_POLICY } from "@molis-ai/molis-work-module-goals";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 async function fixture() {
   const home = await mkdtemp(join(tmpdir(), "goals-configuration-"));
@@ -94,7 +95,7 @@ test("relation actions preserve original receipts, direction, history, graph rul
   } finally { await f.close(); }
 });
 
-test("project policy actions preserve normalized receipts, original binding history and user-only authority", async () => {
+test("project policy actions preserve normalized receipts, original binding history and user-only authority", async t => {
   const f = await fixture(); const { host, ref, project, caller, client, actions, snapshot, denied } = f;
   const input = { policy: { ...DEFAULT_GOAL_POLICY }, user_confirmed: true, idempotency_key: "existing-policy" };
   try {
@@ -115,6 +116,9 @@ test("project policy actions preserve normalized receipts, original binding hist
     await assert.rejects(actions.invoke(goalsActions.policySave, { ...next, user_confirmed: false }), { code: "policy.confirmation_required" });
     await assert.rejects(actions.invoke(goalsActions.policySave, { ...next, policy: { ...next.policy, cross_reviewers: 2 } }), { code: "actions.input_invalid" }, "a rule is only the user's acceptance");
     await assert.rejects(actions.invoke(goalsActions.policySave, { ...next, idempotency_key: input.idempotency_key }));
+    // A model's client cannot hold a grant for what is the person's alone: the access settings never offer these actions to the client,
+    // so each request is refused as unknown and nothing is saved (`createMcpActionGrant`'s own audience rule is pinned in mcp-action-grants.test.ts).
+    const served = await serveTestHost(t, { home: f.home, host });
     for (const definition of [goalsActions.relationAdd, goalsActions.relationDeactivate, goalsActions.policySave]) {
       const payload = definition === goalsActions.policySave ? next : definition === goalsActions.relationAdd
         ? { from_goal_id: "child", to_goal_id: "parent", type: "extends", reason: "Forged", idempotency_key: "forged" }
@@ -128,8 +132,10 @@ test("project policy actions preserve normalized receipts, original binding hist
       await assert.rejects(client.invoke({ ...caller, user_action: { ...caller.user_action!, source: "runtime_dialogue" } }, definition, payload as never), { code: "goals.configuration_user_required" });
       await assert.rejects(client.invoke({ ...caller, permissions: ["goals:read", "goals:write"] }, definition, payload as never), { code: "actions.forbidden" });
       const view = (await host.inspectActions(caller, ref)).find(v => v.capability_id === definition.capability_id)!;
-      assert.throws(() => createMcpActionGrant("external-client", project.project_id, view, true), { code: "mcp.grant_invalid" });
+      await assert.rejects(served.grant("external-client", project.project_id, [view]), { status: 404, code: "actions.missing" });
     }
+    assert.deepEqual((await readMcpActionAccess(served.web, { clientId: "external-client", projectId: project.project_id })).grants, [], "refused grants leave no record");
+    await served.close();
     assert.deepEqual(await snapshot(), stable);
     await host.withProject(ref, r => r.store.db.exec(`CREATE TEMP TRIGGER reject_policy BEFORE INSERT ON events
       WHEN NEW.type = 'policy.project_defaults_saved' BEGIN SELECT RAISE(ABORT, 'injected policy failure'); END`));

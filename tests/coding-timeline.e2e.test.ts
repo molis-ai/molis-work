@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { codingTimelineWords, createCodingTimeline } from "@molis-ai/molis-work-plugin-coding";
+import { codingTimelineWords, createCodingTimeline, createCodingTurnChanges } from "@molis-ai/molis-work-plugin-coding";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 
 interface Reading { summary: string; rows: string[]; footer: string }
@@ -157,5 +157,29 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.equal(plain.row, "失败", "非 TASKBOARD_CONFLICT 的失败保持'失败'标");
     assert.equal(plain.tone, "failed");
     assert.match(plain.summary, /1 项未成功/, "普通失败仍然计入'未成功'摘要");
+    // What a turn really wrote (specs/prologue-adoption §4.4), and a write the runtime refused because it carried a key.
+    const changes = await page.evaluate<{ summary: string; files: string[]; open: string; rewinds: string[]; idle: number; kept: boolean; hint: string }>(`(()=>{
+      const rows=(${createCodingTurnChanges.toString()})(),block=document.createElement('section');document.body.append(block);
+      const turn={turn:2,sequence:9,files:[{path:'src/a.ts',byte_length:120,digest:'d1',checkpoint_id:'cp-1'},{path:'docs/b.md',byte_length:40,digest:'d2',checkpoint_id:'cp-2'}]};
+      const run={ref:{run_id:'w'},phase:'running',activity:[]};
+      const live=rows.place(block,turn,run,false);block.append(live);
+      const idle=live.querySelectorAll('[data-coding-rewind]').length;
+      live.querySelector('details').open=true;
+      const ended=rows.place(block,turn,{...run,phase:'completed'},true);
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
+      const detail=document.createElement('details');document.body.append(detail);
+      const items=[{call_id:'w1',name:'write',target:'config.ts',state:'failed',output:'WORKSPACE_SECRET_DETECTED: "config.ts" line 3 looks like a aws-access-key-id; nothing was proposed or written.'}];
+      timeline.renderGroup(detail,items,{ref:{run_id:'s'},phase:'running',activity:items},true);
+      return {summary:ended.querySelector('summary').textContent.trim(),files:[...ended.querySelectorAll('code')].map(node=>node.textContent),
+        open:ended.querySelector('[data-coding-change-open]').dataset.codingChangeOpen,rewinds:[...ended.querySelectorAll('[data-coding-rewind]')].map(node=>node.dataset.codingRewind),
+        idle,kept:ended===live && ended.querySelector('details').open,hint:detail.querySelector('.coding-tool-hint')?.textContent||''};
+    })()`);
+    assert.match(changes.summary, /本轮写入 2 个文件/);
+    assert.deepEqual(changes.files, ["src/a.ts", "docs/b.md"]);
+    assert.equal(changes.open, "w", "the row opens the round's changes");
+    assert.equal(changes.idle, 0, "no rewind while the round runs");
+    assert.deepEqual(changes.rewinds, ["cp-1", "cp-2"], "once idle, each write can be rewound through the reviewed preview");
+    assert.equal(changes.kept, true, "the same row is redrawn in place and stays open");
+    assert.match(changes.hint, /像密钥的一段，没有写入/, "a refused secret write reads in words above its raw code");
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });

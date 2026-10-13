@@ -333,7 +333,7 @@ export const SETTINGS_STYLES = `
   .runtime-plan-confirm input { width: 16px; height: 16px; margin: 4px 0 0; accent-color: var(--focus); }
   .runtime-plan-shell > footer { padding: 16px 24px; border-top: 1px solid var(--line); background: var(--rail); display: flex; justify-content: flex-end; gap: 8px; }
   .runtime-plan-shell > footer .runtime-plan-apply:disabled { opacity: .55; cursor: not-allowed; }
-  .settings-page .toast { position: fixed; right: 22px; bottom: 22px; z-index: 30; }
+  .settings-page .toast { position: fixed; left: auto; right: 22px; bottom: 22px; z-index: 30; }
   @media (max-width: 760px) {
     .settings-connection-section > header { align-items: stretch; flex-direction: column; }
     .settings-connection-section > header .mw-btn { align-self: flex-start; }

@@ -8,7 +8,7 @@ import { once } from "node:events";
 import { performance } from "node:perf_hooks";
 import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createWebCatalogAccess } from "../apps/local-host/src/web-catalog-access.js";
+import { createWebCatalogAccess } from "../apps/local-host/dist/web-catalog-access.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 test("current catalog reads under another writer without changing facts or waiting for its lock", async t => {

@@ -1,7 +1,6 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { parseAgentRunBudget, agentTextMaterialContent, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
   AgentSkillLibrary,
   AgentMcpLibrary,
@@ -29,6 +28,8 @@ import type {
 
 import { emptyCapabilityMatrix } from "../capabilities.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "../execution-plan.js";
+import { freezeRunStart } from "./prologue-frozen.js";
+import { switchRunModel } from "./prologue-model-switch.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
   applyPrologueEvent,
@@ -88,6 +89,8 @@ export interface PrologueModelConfiguration {
   prompt_cache?: "off" | "best-effort" | "required";
   /** The model thinks before answering. Absent means off, and no thinking field is sent. */
   thinking?: "adaptive";
+  /** The person marked this model as taking a reasoning effort; only then may a round choose one. */
+  reasoning_effort?: true;
   /** What the model settings say about seeing images. Absent means unknown — never guessed. */
   vision?: boolean;
 }
@@ -113,6 +116,8 @@ export interface PrologueControlPort {
   pause(): void;
   resume(): void;
   steer(input: { text: string }): void | Promise<void>;
+  /** Later model calls of this Run go to this target, from its next model boundary. Absent where the runtime cannot. */
+  switchModel?(target: Pick<PrologueModelConfiguration, "protocol" | "endpoint" | "model" | "credential_ref">): Promise<void>;
   subscribe(listener: () => void): () => void;
 }
 
@@ -293,6 +298,8 @@ interface RunRecord {
   view: AgentRunView;
   state: PrologueStreamState;
   control: PrologueControlPort;
+  /** The model this Run started with (live runs only): what a switch has to stay compatible with. */
+  model?: PrologueModelConfiguration;
   unsubscribe: () => void;
   listeners: Set<(view: AgentRunView) => void>;
   timingCommit?: Promise<void>;
@@ -575,45 +582,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const at = this.#now().toISOString();
     const state = emptyPrologueStreamState();
     state.prompt_includes_cache = model.protocol.startsWith("openai");
-    const frozen: AgentRunView["frozen"] = {
-      ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
-      ...(role.character ? { character: structuredClone(role.character) } : {}),
-      ...(role.character_skill_ids === undefined ? {} : { character_skill_ids: [...role.character_skill_ids] }),
-      role_id: role.role_id,
-      role_version: role.version,
-      execution: role.execution, ...(execution?.call_id ? { call_id: execution.call_id } : {}),
-      model_id: model.model,
-      ...(role.compaction ? { compaction: { prompt_id: role.compaction.prompt.prompt_id, version: role.compaction.prompt.version, above_tokens: role.compaction.above_tokens } } : {}),
-      prompts: role.prompts.map((prompt) => ({
-        prompt_id: prompt.prompt_id,
-        version: prompt.version,
-        layer: promptLayerOf(prompt),
-        ...(prompt.user_revision !== undefined ? { user_revision: prompt.user_revision } : {}),
-      })),
-      skills: (role.skills ?? []).map(({ body: _body, ...definition }) => ({ ...definition, tools: [...definition.tools] })),
-      ...(request.action_tools === undefined ? {} : { action_tools: structuredClone(request.action_tools) }),
-      ...(role.action_gateway ? { action_gateway: true as const } : {}),
-      mcp_tools: request.mcp_tools ?? [],
-      mcp_sources: request.mcp_sources ?? [],
-      host_tools: [...role.host_tools],
-      text_materials: textMaterials.map((material) => ({
-        material_id: material.material_id,
-        title: material.title,
-        source_artifact_id: material.source_artifact_id,
-        source_version: material.source_version,
-      })),
-      ...(imageMaterials.length ? { image_materials: imageMaterials.map(({ material_id, title, media_type }) => ({ material_id, title, media_type })) } : {}),
-      ...(request.execution_plan ? { execution_plan: request.execution_plan } : {}),
-      ...(request.continue_step_board_of ? { continues_step_board_of: request.continue_step_board_of } : {}),
-      ...(request.history === "digest" ? { history: "digest" as const } : {}),
-      ...(model.thinking ? { thinking: model.thinking } : {}),
-      ...(this.#runtime.defaultContextWindowTokens ? { model_context: {
-        window_tokens: Math.min(model.context_tokens ?? this.#runtime.defaultContextWindowTokens, this.#runtime.defaultContextWindowTokens),
-        prompt_includes_cache: model.protocol.startsWith("openai"),
-      } } : {}),
-      budget: request.execution_plan ? { ...request.budget, max_turns: request.budget?.max_turns ?? 8 + request.execution_plan.steps.length * 3 } : request.budget ?? null,
-      ...(request.workspace === "none" ? { workspace: "none" } : request.workspace === "business" ? { workspace: "business" } : { directory: structuredClone(request.directory) }),
-    };
+    const frozen = freezeRunStart({ request, role, model, textMaterials, imageMaterials, defaultWindow: this.#runtime.defaultContextWindowTokens, callId: execution?.call_id });
 
     await execution?.beforeStart?.();
     const started = await this.#runtime.startAgentRun({
@@ -670,6 +639,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       view,
       state,
       control: started.control,
+      model,
       unsubscribe: () => {},
       listeners: new Set(),
     };
@@ -778,6 +748,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         break;
       case "steer":
         await record.control.steer({ text: control.text });
+        break;
+      case "switch-model":
+        await switchRunModel({ record, selection: control, configure: this.#ports.modelConfiguration, defaultWindow: this.#runtime.defaultContextWindowTokens,
+          requested: model => { if (model === undefined) delete record.state.model_requested; else record.state.model_requested = model; } });
         break;
       case "answer": {
         const answer = this.#answerPending;

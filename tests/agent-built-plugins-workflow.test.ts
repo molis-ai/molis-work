@@ -4,20 +4,20 @@ import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platfo
 import type { BuilderAgentRecord, BuilderAgentRequest } from '@molis-ai/molis-work-contracts/services/agent-host';
 import type { BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
-import { assertContract } from '../packages/plugin-sandbox/dist/index.js';
-import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts } from '../plugins/native/plugin-builder/src/index.js';
+import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
+import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { agentDefinitionsFor } from '../apps/local-host/src/agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../apps/local-host/src/agent-definitions/builtin-registrations.js';
-import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/src/plugin-builder/agent-surface.js';
-import { releaseInstalledPlugins } from '../apps/local-host/src/installed-plugin-host.js';
+import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
+import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
+import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
+import { releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
-import { builderSkill } from '../apps/local-host/src/plugin-builder/skill.js';
-import { acceptExperience } from '../plugins/native/plugin-builder/src/agent-experience.js';
+import { builderSkill } from '../apps/local-host/dist/plugin-builder/skill.js';
+import { acceptExperience } from '../plugins/native/plugin-builder/dist/agent-experience.js';
 
 /** In-memory storage with the atomic replacement the Builder store requires. */
 function memoryStorage(): PluginPrivateStorage {

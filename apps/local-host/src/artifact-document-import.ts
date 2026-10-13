@@ -1,8 +1,9 @@
 import type { IncomingMessage } from "node:http";
 import { readMaterialHtml } from "./material-extraction.js";
-import { ExternalDocumentImportError, readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
 import {
-  ArtifactImportError, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument,
+  DOCUMENT_IMPORT_MAX_BYTES, documentErrors, importArtifactDocument,
   type ArtifactDocumentImportPorts, type ExternalDocumentSource,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -10,6 +11,20 @@ import { listConnectorConnectionViews } from "./web-connector-connections.js";
 import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
+
+/**
+ * What the Host's side of the document import refuses: reading the request, the HTML file and the connected service. Every code is
+ * `document.<reason>`, the family the plugin declares the rest of (`documentErrors`, which the too-large request below also raises);
+ * what is wrong with the request is `invalid`, as the 422s that stood for the connection were.
+ */
+const artifactImportErrors = defineErrorCodes("document", {
+  request_invalid: "invalid",
+  request_aborted: "invalid",
+  html_invalid: "invalid",
+  connection_revoked: "invalid",
+  connection_required: "invalid",
+  credentials_unavailable: "invalid",
+});
 
 const CONNECTOR_IDS: Record<ExternalDocumentSource, string> = {
   notion: "notion", feishu: "feishu", lark: "lark", "google-docs": "google-drive",
@@ -33,7 +48,7 @@ export function importLocalArtifactDocument(input: Record<string, unknown>, port
   const assertConnection = () => {
     if (!usedConnection) return;
     const active = withConnectorConnections(home, store => { const row = store.require(usedConnection!); return store.state(row) === "connected" && row.updated_at === usedRevision; });
-    if (!active) throw new ArtifactImportError(422, "document.connection_revoked", "读取期间连接已断开或改变，请重新授权后导入");
+    if (!active) throw artifactImportErrors.connection_revoked("读取期间连接已断开或改变，请重新授权后导入");
   };
   return importArtifactDocument(input, {
     ...ports,
@@ -44,19 +59,19 @@ export function importLocalArtifactDocument(input: Record<string, unknown>, port
     },
     async readHtml(html) {
       try { const parsed = await readMaterialHtml(html, { signal: ports.signal, timeoutMs: 12_000 }); return { title: parsed.title ?? "", content: parsed.text }; }
-      catch { ports.signal?.throwIfAborted(); throw new ArtifactImportError(422, "document.html_invalid", "无法读取这个 HTML 文件，请改用 Markdown 或 TXT 导出"); }
+      catch { ports.signal?.throwIfAborted(); throw artifactImportErrors.html_invalid("无法读取这个 HTML 文件，请改用 Markdown 或 TXT 导出"); }
     },
     async readExternal(document) {
       const service = CONNECTOR_IDS[document.source];
       const candidates = documentImportConnections(home).filter(row => row.service_id === service && row.state === "connected");
       const id = document.connection_id || (candidates.length === 1 ? candidates[0]!.connection_id : undefined);
-      if (!id) throw new ArtifactImportError(422, "document.connection_required", candidates.length ? "该来源有多个账号，请选择要使用的连接" : "请先在连接器设置中连接所选文档工具，并授予文档读取权限");
+      if (!id) throw artifactImportErrors.connection_required(candidates.length ? "该来源有多个账号，请选择要使用的连接" : "请先在连接器设置中连接所选文档工具，并授予文档读取权限");
       try { return await withConnectorRequest(home, id, ports.signal, async signal => {
         const beforeDispatch = async () => { await ports.beforeDispatch?.(); signal.throwIfAborted(); assertConnection(); };
         await beforeDispatch();
         let access: Awaited<ReturnType<typeof resolveApiConnection>>;
         try { access = await resolveApiConnection(home, id, service); }
-        catch { signal.throwIfAborted(); throw new ArtifactImportError(422, "document.credentials_unavailable", "所选连接不可用，请在连接器设置中重新授权"); }
+        catch { signal.throwIfAborted(); throw artifactImportErrors.credentials_unavailable("所选连接不可用，请在连接器设置中重新授权"); }
         usedConnection = id;
         usedRevision = access.connection.updated_at;
         const read = () => readExternalDocument(document, { token: access.token, fetch: access.fetchImpl, signal, beforeDispatch,
@@ -65,7 +80,7 @@ export function importLocalArtifactDocument(input: Record<string, unknown>, port
         catch (error) {
           signal.throwIfAborted();
           assertConnection();
-          if (access.connection.auth_method !== "oauth" || !(error instanceof ExternalDocumentImportError) || error.code !== "needs_auth") throw error;
+          if (access.connection.auth_method !== "oauth" || !(error instanceof ActionError) || error.code !== "catalog_integration.needs_auth") throw error;
           await beforeDispatch();
           access = await resolveApiConnection(home, id, service, true);
           return { ...await read(), connection_id: id };
@@ -93,7 +108,7 @@ export async function readArtifactImportBody(request: IncomingMessage): Promise<
       if (size > maxBytes) {
         rejected = true;
         chunks.length = 0;
-        reject(new ArtifactImportError(413, "document.too_large", "导入请求过大，文件不能超过 2 MB"));
+        reject(documentErrors.too_large("导入请求过大，文件不能超过 2 MB"));
       } else chunks.push(chunk);
     });
     request.on("end", () => {
@@ -103,9 +118,9 @@ export async function readArtifactImportBody(request: IncomingMessage): Promise<
         const body: unknown = JSON.parse(raw);
         if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("object required");
         resolve(body as Record<string, unknown>);
-      } catch { reject(new ArtifactImportError(400, "document.request_invalid", "导入请求必须是有效的 UTF-8 JSON 对象")); }
+      } catch { reject(artifactImportErrors.request_invalid("导入请求必须是有效的 UTF-8 JSON 对象")); }
     });
     request.on("error", reject);
-    request.on("aborted", () => reject(new ArtifactImportError(400, "document.request_aborted", "导入请求已中断，请重新尝试")));
+    request.on("aborted", () => reject(artifactImportErrors.request_aborted("导入请求已中断，请重新尝试")));
   });
 }

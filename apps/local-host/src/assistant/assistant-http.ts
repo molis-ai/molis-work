@@ -68,7 +68,13 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
         views.catch(() => { if (directories.get(key)?.views === views) directories.delete(key); });
         return views;
       },
-      invoke: async (action, input) => client.invoke(await personContext(reference), action, input),
+      invoke: async (action, input, beforeDispatch) => {
+        const caller = await personContext(reference);
+        if (!beforeDispatch) return client.invoke(caller, action, input);
+        return client.invoke({ ...caller, validate_authority: async selected => {
+          await caller.validate_authority?.(selected); await beforeDispatch();
+        } }, action, input);
+      },
     };
   };
   const service: AssistantService = new AssistantService(store, {

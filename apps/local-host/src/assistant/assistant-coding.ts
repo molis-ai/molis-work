@@ -4,7 +4,7 @@ import type { AgentRunControl, AgentRunView } from "@molis-ai/molis-work-contrac
 /** The person's own action client in a project: what the Coding page itself can do, nothing more. */
 export interface PersonActions {
   discover(): Promise<readonly ActionView[]>;
-  invoke(reference: ExactActionReference, input: unknown): Promise<unknown>;
+  invoke(reference: ExactActionReference, input: unknown, beforeDispatch?: () => void | Promise<void>): Promise<unknown>;
 }
 
 export interface CodingSessionRead {
@@ -28,7 +28,7 @@ export class CodingExecutor {
   // dispatcher still checks each call's current definition and availability).
   private offered: Promise<readonly ActionView[]> | null = null;
 
-  constructor(private readonly actions: PersonActions) {}
+  constructor(private readonly actions: PersonActions, private readonly beforeDispatch?: () => void | Promise<void>) {}
 
   private async reference(name: string): Promise<ExactActionReference> {
     this.offered ??= this.actions.discover();
@@ -39,7 +39,9 @@ export class CodingExecutor {
   }
 
   private async call<T>(name: string, input: Record<string, unknown>): Promise<T> {
-    return await this.actions.invoke(await this.reference(name), input) as T;
+    const reference = await this.reference(name);
+    await this.beforeDispatch?.();
+    return await this.actions.invoke(reference, input, this.beforeDispatch) as T;
   }
 
   async createSession(title: string): Promise<string> {

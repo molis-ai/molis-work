@@ -1852,15 +1852,15 @@ export class AssistantService {
       ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
   }
 
-  private async coding(work: StoredWork): Promise<CodingExecutor> {
+  private async coding(work: StoredWork, beforeDispatch?: () => void): Promise<CodingExecutor> {
     if (!this.ports.personActions) throw assistantErrors.unsupported("当前环境不能从这里使用 Coding Agent");
-    return new CodingExecutor(await this.ports.personActions(work));
+    return new CodingExecutor(await this.ports.personActions(work), beforeDispatch);
   }
 
   /** A work carried by Coding: its round starts, continues or is answered in Coding's own session. */
   private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean): Promise<AssistantSendResult> {
     if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("Coding 工作暂时不能带图片；可以把图里的要点写成文字再发");
-    const coding = await this.coding(work);
+    const coding = await this.coding(work, stillCurrent ? () => assertSendCurrent(stillCurrent) : undefined);
     let sessionId = work.executor.kind === "coding" ? work.executor.session_id : null;
     if (!sessionId) {
       sessionId = await coding.createSession(work.title);

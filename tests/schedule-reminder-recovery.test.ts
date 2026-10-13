@@ -4,16 +4,16 @@ import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { bindActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { createScheduleReminders, createScheduleReminderManagement, getScheduleReminder, createScheduleActionPorts, scheduleActions, SCHEDULE_ACTION_PERMISSIONS,
   SchedulePluginRouteTable, createScheduleRouteHandlers, createReminderActionHandlers, reminderActions, type ScheduleJobView } from "@molis-ai/molis-work-plugin-schedule";
-import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
-import { seedDemoBoard } from "../apps/local-host/src/demo-seed.js";
-import { scheduleServiceFor } from "../apps/local-host/src/schedule-runtime.js";
-import { hostScheduleReminders, hostScheduleReminderManagement } from "../apps/local-host/src/schedule-reminders.js";
-import { createLocalFeedApplication } from "../apps/local-host/src/feed-application.js";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { registerHostWakeup } from "../apps/local-host/dist/schedule-runtime.js";
+import { hostScheduleReminders, hostScheduleReminderManagement } from "../apps/local-host/dist/schedule-reminders.js";
+import { serveTestHost } from "./fixtures/test-home.js";
+import { LocalActionGatewayClient, MolisWorkLocalHost, molisWorkHostProjectReference, LocalProjectDatabase, seedDemoBoard, scheduleServiceFor, createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+import { todoActions, TODO_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-todo";
+import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const pluginId = "io.molis.work.test.reminder";
@@ -229,4 +229,118 @@ test("Schedule reminder recovery can be cancelled and re-reviewed after reinstal
   assert.equal(schedule.get(job.job_id)?.enabled, true);
   assert.equal(getScheduleReminder(store.db, reminderId)?.installationGeneration, "replacement");
   assert.equal(getScheduleReminder(store.db, reminderId)?.link, "/original-link");
+});
+
+
+const automaticSchedule: ActionDefinition<{ ref: string; title: string; at: string }, { job_id: string }> = {
+  capability_id: "fixture.periodic.register", version: 1, operation: "command", action: {
+    title: "Register controlled owner wakeup", description: "Exercise the resident service timer and current Scheduler", kind: "operation", scope: "project",
+    audiences: ["mcp"], permissions: ["schedule:manage"], subject_kinds: [],
+    input_schema: { type: "object", properties: { ref: { type: "string" }, title: { type: "string" }, at: { type: "string" } }, required: ["ref", "title", "at"], additionalProperties: false },
+    output_schema: { type: "object", properties: { job_id: { type: "string" } }, required: ["job_id"], additionalProperties: false },
+  },
+};
+async function waitAutomatic(check: () => boolean | Promise<boolean>): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  while (!await check()) { assert.ok(Date.now() < deadline, "automatic service effect did not settle"); await new Promise(resolve => setTimeout(resolve, 10)); }
+}
+
+// W2-18-SCHEDULE-01: the only manual clock operation fires the production setInterval callback; no schedule.tick or project page.
+test("W2-18-SCHEDULE-01: persistent and gateway-created jobs execute without visiting any project page", { timeout: 60_000 }, async t => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const home = await mkdtemp(join(tmpdir(), "schedule-automatic-")), previous = process.env.MOLIS_WORK_SECRET_BACKEND;
+  process.env.MOLIS_WORK_SECRET_BACKEND = "file";
+  let host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  let served = await serveTestHost(null, { home, host });
+  const project = await served.createProject("Automatic jobs");
+  const owner = "io.molis.work.test.periodic", capability = "periodic.createTodo";
+  const results: string[] = [];
+  const stop = registerHostWakeup(owner, capability, async (_db, input, control) => {
+    control.beforeEffect();
+    const saved = await host.homeActionClient().invoke<{ item: { id: string; title: string } }>({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null,
+      audience: "user", permissions: TODO_ACTION_PERMISSIONS, signal: control.signal }, todoActions.create, { title: input.object_ref, request_id: input.job_id, placement: "personal" });
+    control.beforeEffect(); results.push(saved.item.title);
+  });
+  const register = async () => host.withProject(project.reference, runtime => {
+    host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: "periodic-owner", title: "Controlled timer owner", kind: "plugin", plugin_id: owner },
+      definitions: [automaticSchedule], handlers: [{ ...automaticSchedule, handle: async (context, raw) => {
+        await context.beforeEffect(); const input = raw as { ref: string; title: string; at: string };
+        const job = scheduleServiceFor(runtime.store.db).register({ plugin_id: owner, capability_id: capability, object_ref: input.ref, title: input.title,
+          due_at: input.at, recurrence: { kind: "once" } }); return { job_id: job.job_id };
+      } }] });
+  });
+  const caller = { actor_id: "runtime:periodic", project_id: project.project_id, audience: "mcp" as const, permissions: [] };
+  try {
+    await register(); await served.grant(caller.actor_id, project.project_id, [automaticSchedule]);
+    let client = new LocalActionGatewayClient({ url: served.origin, homeDirectory: home, clientId: caller.actor_id, projectId: project.project_id, controlToken: served.controlToken });
+    await client.discover(caller);
+    const persisted = await client.invoke<{ job_id: string }>(caller, automaticSchedule, { ref: "Persisted automatic Todo", title: "Persisted", at: new Date(Date.now() - 1000).toISOString() });
+    await served.close(); await host.close();
+    host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); served = await serveTestHost(null, { home, host });
+    await waitAutomatic(() => host.status().projects.some(row => row.project_id === project.project_id && row.state === "ready"));
+    t.mock.timers.tick(30_000); await waitAutomatic(() => results.length === 1);
+    assert.deepEqual(results, ["Persisted automatic Todo"]);
+    await host.withProject(project.reference, runtime => assert.equal(scheduleServiceFor(runtime.store.db).get(persisted.job_id)?.last_wakeup?.status, "ok"));
+    await register(); client = new LocalActionGatewayClient({ url: served.origin, homeDirectory: home, clientId: caller.actor_id, projectId: project.project_id, controlToken: served.controlToken });
+    await client.discover(caller);
+    const fresh = await client.invoke<{ job_id: string }>(caller, automaticSchedule, { ref: "Gateway automatic Todo", title: "Gateway", at: new Date(Date.now() - 1000).toISOString() });
+    t.mock.timers.tick(30_000); await waitAutomatic(() => results.length === 2);
+    t.mock.timers.tick(30_000); await new Promise(resolve => setTimeout(resolve, 25));
+    assert.deepEqual(results, ["Persisted automatic Todo", "Gateway automatic Todo"]);
+    const todos = await host.homeActionClient().invoke<{ items: Array<{ title: string }> }>({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: TODO_ACTION_PERMISSIONS }, todoActions.list, { view: "all" });
+    assert.equal(todos.items.filter(item => results.includes(item.title)).length, 2, "actual Todo owner contains one result per wakeup");
+    await host.withProject(project.reference, runtime => assert.equal(scheduleServiceFor(runtime.store.db).get(fresh.job_id)?.last_wakeup?.status, "ok"));
+  } finally { stop(); await served.close(); await host.close(); if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous;
+    resetSecretStoreCache(); await rm(home, { recursive: true, force: true }); }
+});
+
+
+for (const disposition of ["service", "project", "delete"] as const) test(`W2-18-SCHEDULE-02: ${disposition} close revokes a real waiting handler before release`, { timeout: 60_000 }, async t => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const home = await mkdtemp(join(tmpdir(), "schedule-stop-")), previous = process.env.MOLIS_WORK_SECRET_BACKEND;
+  process.env.MOLIS_WORK_SECRET_BACKEND = "file";
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); let served = await serveTestHost(null, { home, host });
+  const project = await served.createProject("Waiting timer");
+  const entered = Promise.withResolvers<void>(), released = Promise.withResolvers<void>(), late = Promise.withResolvers<void>();
+  let revoked = false, results = 0;
+  const owner = "io.molis.work.test.periodic.stop", capability = "periodic.wait";
+  const stop = registerHostWakeup(owner, capability, async (_db, _input, control) => {
+    entered.resolve(); await released.promise;
+    try {
+      control.beforeEffect();
+      await host.homeActionClient().invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: TODO_ACTION_PERMISSIONS,
+        signal: control.signal }, todoActions.create, { title: "Forbidden late Todo", placement: "personal" }); results++;
+    } catch { revoked = control.signal.aborted; }
+    finally { late.resolve(); }
+  });
+  try {
+    await host.withProject(project.reference, runtime => scheduleServiceFor(runtime.store.db).register({ plugin_id: owner, capability_id: capability,
+      object_ref: "waiting", title: "Waiting", due_at: new Date(Date.now() - 1000).toISOString(), recurrence: { kind: "once" } }));
+    t.mock.timers.tick(30_000); await entered.promise;
+    if (disposition === "service") await served.close();
+    else if (disposition === "project") await host.closeProject(project.reference);
+    else {
+      const response = await fetch(served.origin + "/api/settings/projects/" + project.project_id + "/delete", { method: "POST",
+        headers: { "content-type": "application/json", origin: served.origin, "x-molis-work-control-token": served.controlToken,
+          "x-molis-work-idempotency-key": "schedule-stop-delete" }, body: JSON.stringify({ delete_confirmed: true, idempotency_key: "schedule-stop-delete" }) });
+      assert.equal(response.status, 200, await response.clone().text());
+    }
+    released.resolve(); await late.promise;
+    assert.equal(revoked, true); assert.equal(results, 0);
+    const todos = await host.homeActionClient().invoke<{ items: Array<{ title: string }> }>({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null,
+      audience: "user", permissions: TODO_ACTION_PERMISSIONS }, todoActions.list, { view: "all" });
+    assert.equal(todos.items.filter(item => item.title === "Forbidden late Todo").length, 0);
+    if (disposition === "service") {
+      served = await serveTestHost(null, { home, host });
+      await host.withProject(project.reference, runtime => {
+        const schedule = scheduleServiceFor(runtime.store.db);
+        assert.equal(schedule.active, true, "a live borrowed Host resumes the same service facade");
+        assert.equal(schedule.list(owner).length, 1, "stop preserved its task configuration");
+        assert.equal(schedule.list(owner)[0]!.enabled, false, "the dispatched one-shot is not automatically replayed");
+        assert.equal(schedule.list(owner)[0]!.last_wakeup, null, "no late success or failure receipt was written");
+      });
+      t.mock.timers.tick(30_000); await new Promise(resolve => setTimeout(resolve, 25)); assert.equal(results, 0);
+    } else assert.equal(host.status().projects.some(row => row.project_id === project.project_id), false, "the released instance is gone");
+  } finally { stop(); released.resolve(); await served.close(); await host.close(); if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous;
+    resetSecretStoreCache(); await rm(home, { recursive: true, force: true }); }
 });

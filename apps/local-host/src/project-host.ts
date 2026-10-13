@@ -3,6 +3,7 @@ import { bindHomeSide, releaseHomeSide, type PluginFixture } from "./home-side.j
 import { homeActionProvider } from "./home-actions.js";
 import { workflowEventsFeedOptions } from "./workflow-feed-options.js";
 import { bindScheduleDeliveryFeed } from "./schedule-runtime.js";
+import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedulers.js";
 import { SessionRuntimeService } from "./session-runtime-resources.js";
 import { workActionProvider } from "./work-actions.js";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
@@ -166,11 +167,7 @@ export class MolisWorkLocalHost {
             options.clock ?? (() => new Date()),
             personalMethods,
           );
-          const runtime: MolisWorkProjectRuntime = {
-            store,
-            coordinator,
-            project_id: reference.project_id,
-          };
+          const runtime: MolisWorkProjectRuntime = { store, coordinator, project_id: reference.project_id };
           try {
             const scenes = this.sceneClient(reference);
             const eventFeed = workflowEventsFeedOptions(scenes, reference.project_id);
@@ -201,13 +198,14 @@ export class MolisWorkLocalHost {
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
               }));
+            openProjectSchedulers(this, runtime, reference);
             return runtime;
           } catch (error) {
             store.close();
             throw error;
           }
         },
-        close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference)),
+        close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference), () => closeProjectSchedulers(this, runtime, reference)),
       },
     });
     if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
@@ -434,9 +432,10 @@ export class MolisWorkLocalHost {
  * database. Every step runs even when an earlier one fails: the Host forgets the project afterwards, so a skipped step
  * would leave its instances and the SQLite handle alive for good. The failures are reported once everything ran.
  */
-async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () => void): Promise<void> {
+async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () => void, stopSchedules: () => Promise<void>): Promise<void> {
   const failures: unknown[] = [];
   const attempt = async (step: () => unknown) => { try { await step(); } catch (error) { failures.push(error); } };
+  await attempt(stopSchedules);
   for (const release of [releaseAgentStudio, releaseInstalledPlugins, releaseProjectPlugins]) await attempt(() => release(runtime.store, runtime.project_id));
   await attempt(() => runtime.store.close());
   await attempt(closed);

@@ -198,3 +198,5 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 目录选择的默认runner等待实际子进程退出，期间保持busy；stdout、取消、错误与超时由同一个runner收口。`tests/workspace-directory-picker.test.ts` 的 W2-18-DIRECTORY-PICKER-01使用临时Node子进程，系统目录窗口仍需单列实操。
 
 原生插件HTTP共用的 `native-plugin-http.ts` 按收到的UTF-8字节执行各边缘现有容量上限，超限后继续排空但不保留或解析后来正文，仍能回答413；畸形JSON回答400。`tests/native-plugin-body.test.ts` 的 W2-18-NATIVE-BODY-01覆盖真实Pages HTTP/owner与分块拒绝；容量不改成字符数，也不扩大各插件预算。
+
+项目 Schedule/Feed 在常驻服务启动时从 Catalog 打开，之后新动作打开的项目实例也直接接入同一个后台 timer；不再以项目页面访问作为登记条件。调度服务按项目库复用，关闭或删除项目在 owner 与库释放前撤销等待和续租；借用 Host 的 Web 关闭也等待调度收束，重新绑定恢复同一实例，不自动重放已派发的一次任务。`tests/schedule-reminder-recovery.test.ts` 的 W2-18-SCHEDULE-01/02 覆盖隔离 Home 重启、纯动作网关创建、实际 service timer、真实 Todo owner 结果和迟到拒绝。`tests/assistant-reminders.test.ts` 的 W2-18-S8-TODO-01 走真实 Todo→共同到期查询→Assistant service timer，不经过 Schedule。测试只缩短定时器的等待，不手调业务 tick；尚未运行时不能把源码/夹具完成记为回归通过。

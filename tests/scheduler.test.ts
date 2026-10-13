@@ -540,3 +540,36 @@ test("超长执行仍不重叠", async () => {
   release();
   await first;
 });
+
+
+// W2-18-SCHEDULE-02: a dispatched one-shot may have committed an owner effect before its response is lost.
+test("W2-18-SCHEDULE-02: close revokes waits before SQLite release and never automatically replays a dispatched one-shot", async () => {
+  const home = mkdtempSync(join(tmpdir(), "schedule-close-")), file = join(home, "project.sqlite");
+  const db = new Database(file), wakeups = new PluginWakeupIndex(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  db.exec("CREATE TABLE owner_results (job_id TEXT PRIMARY KEY, value TEXT NOT NULL)");
+  let lateRejected = false;
+  wakeups.register("io.molis.work.test.owner", "test.wakeup", async (input, control) => {
+    control.beforeEffect(); db.prepare("INSERT INTO owner_results VALUES (?, ?)").run(input.job_id, "accepted owner result"); entered.resolve();
+    await release.promise;
+    try { control.beforeEffect(); db.prepare("INSERT INTO owner_results VALUES (?, ?)").run("late", "must not happen"); }
+    catch { lateRejected = true; }
+  });
+  const service = createScheduleService(db, { wakeupIndex: wakeups, leaseMs: 300 });
+  const job = service.register({ plugin_id: "io.molis.work.test.owner", capability_id: "test.wakeup", object_ref: "once", title: "Once",
+    due_at: new Date(Date.now() - 1000).toISOString(), recurrence: { kind: "once" } });
+  const running = service.tick(); await entered.promise;
+  try {
+    await service.close(); await running;
+    const stopped = db.prepare("SELECT enabled, lease_token, lease_until, next_due_at FROM schedule_jobs WHERE job_id=?").get(job.job_id);
+    assert.deepEqual(stopped, { enabled: 0, lease_token: null, lease_until: null, next_due_at: job.next_due_at });
+    db.close(); release.resolve(); await new Promise<void>(resolve => setImmediate(resolve)); assert.equal(lateRejected, true);
+    const reopened = new Database(file);
+    try {
+      const next = createScheduleService(reopened, { wakeupIndex: wakeups });
+      assert.deepEqual(await next.tick(), { invoked: 0, failed: 0, skipped: 0 });
+      assert.deepEqual(reopened.prepare("SELECT * FROM owner_results").all(), [{ job_id: job.job_id, value: "accepted owner result" }]);
+      assert.equal(next.get(job.job_id)?.last_wakeup, null, "a lost response does not become a false success receipt");
+      await next.close();
+    } finally { reopened.close(); }
+  } finally { release.resolve(); await service.close(); if (db.open) db.close(); rmSync(home, { recursive: true, force: true }); }
+});

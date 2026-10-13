@@ -3,9 +3,12 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { assertDueReminderWindow, defineDueRemindersAction, withinDueReminderWindow, type ActionCallContext, type DueReminder, type DueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
+import { LocalHost, AssistantStore, AssistantService } from "@molis-ai/molis-work-app-local-host";
+import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 
 const due = defineDueRemindersAction("fixture.todo.reminders.due", ["todo"], "到期提醒", ["todo:read"]);
 
@@ -76,4 +79,43 @@ test("a reminder the person set is told once when it comes due, where to open it
     notices = service.notices("goals");
     assert.deepEqual(notices.map(notice => [notice.text, notice.open?.project_id]), [["错过的提醒（待办 · 17:30）：交报销单", null]]);
   } finally { unregister(); await local.close(); }
+});
+
+
+// W2-18-S8-TODO-01: real Todo owner → declared due-reminders action → the running service's own reminder timer.
+test("W2-18-S8-TODO-01: a real Todo reminder automatically produces one Assistant notice", { timeout: 60_000 }, async t => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const home = await mkdtemp(join(tmpdir(), "todo-assistant-timer-")), previous = process.env.MOLIS_WORK_SECRET_BACKEND;
+  process.env.MOLIS_WORK_SECRET_BACKEND = "file";
+  const token = "todo-reminder-test-token", server = createDesktopWebHost({ ptyClientFilePath: () => "unused" })({ homeDirectory: home, controlToken: token });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
+  let requests = 0;
+  const request = async (path: string, body?: object) => {
+    const response = await fetch(origin + path, { method: body ? "POST" : "GET", headers: { "content-type": "application/json", origin,
+      "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "todo-reminder-" + (++requests) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    assert.equal(response.status, body ? 201 : 200, await response.clone().text()); return response.json();
+  };
+  try {
+    t.mock.timers.tick(60_000); await new Promise(resolve => setTimeout(resolve, 25));
+    const created = await request("/api/todo/items", { title: "Read the actual overdue draft", placement: "personal", remind_at: new Date(Date.now() + 10).toISOString() }) as { item: { id: string } };
+    await new Promise(resolve => setTimeout(resolve, 25)); t.mock.timers.tick(60_000);
+    const deadline = Date.now() + 10_000;
+    let notices: Array<{ notice_id: string; kind: string; text: string; link?: string }> = [];
+    do {
+      notices = (await request("/api/assistant/notices") as { notices: typeof notices }).notices.filter(notice => notice.text.includes("Read the actual overdue draft"));
+      if (notices.length) break;
+      assert.ok(Date.now() < deadline, "the actual service reminder timer did not report Todo"); await new Promise(resolve => setTimeout(resolve, 10));
+    } while (true);
+    assert.equal(notices.length, 1); assert.equal(notices[0]!.kind, "reminder");
+    assert.match(JSON.stringify(notices[0]), new RegExp(created.item.id));
+    const first = notices[0]!.notice_id;
+    t.mock.timers.tick(60_000); await new Promise(resolve => setTimeout(resolve, 25));
+    const again = (await request("/api/assistant/notices") as { notices: typeof notices }).notices.filter(notice => notice.text.includes("Read the actual overdue draft"));
+    assert.deepEqual(again.map(notice => notice.notice_id), [first], "actual Todo and the timer's persistent notice dedupe agree");
+  } finally {
+    server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous;
+    resetSecretStoreCache(); await rm(home, { recursive: true, force: true });
+  }
 });

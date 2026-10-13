@@ -7,7 +7,7 @@ import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
+import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
 test("plan changes are checked, applied through the Host graph operation, and told to the live round in plain words", async () => {

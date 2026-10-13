@@ -6,8 +6,8 @@ import { tmpdir } from "node:os";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionSceneTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
-import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/src/functions-host.js";
-import { HOME_ACTION_PERMISSIONS } from "../apps/local-host/src/home-actions.js";
+import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { HOME_ACTION_PERMISSIONS } from "../apps/local-host/dist/home-actions.js";
 import { GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
 
 test("system configuration writes Home, Inbox and existing Feed rules through their original owners with concurrency checks", async () => {

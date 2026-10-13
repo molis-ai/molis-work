@@ -11,10 +11,10 @@ import { ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, artifactsActions as a, t
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { artifactActionProvider } from "../apps/local-host/src/artifact-actions.js";
+import { artifactActionProvider } from "../apps/local-host/dist/artifact-actions.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 test("Artifacts share real records through Host and production MCP, preserving fixed versions, authority and restart", { timeout: 120_000 }, async t => {

@@ -7,8 +7,8 @@ import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-a
 import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { MemoryLedgerPort, MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
-import { prologueMemoryBackend } from "../apps/local-host/src/memory/memory-host.js";
-import { readerOutcome } from "../apps/local-host/src/memory/memory-upkeep.js";
+import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import { readerOutcome } from "../apps/local-host/dist/memory/memory-upkeep.js";
 
 async function memoryHome(t: { after(fn: () => Promise<void> | void): void }, clock: { now: Date }) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-upkeep-"));

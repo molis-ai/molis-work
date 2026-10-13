@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { PAGES_CLIENT_FACTORY_SCRIPT } from "../plugins/native/pages/src/client.ts";
+import { PAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-pages";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/context-actions.ts";
 
 // Pages and the workbench's fallback naming (context-actions) share one surface element: whoever writes

@@ -6,10 +6,10 @@ import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryBackendPort } from "@molis-ai/molis-work-service-memory";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
-import { memoryHostFor } from "../apps/local-host/src/memory/memory-host.js";
-import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/src/local-owner-permissions.js";
-import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { memoryHostFor } from "../apps/local-host/dist/memory/memory-host.js";
+import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
+import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 
 const person: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
 const agent: ActionCallContext = { actor_id: "agent:coding-1", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [...MEMORY_PERMISSIONS] };

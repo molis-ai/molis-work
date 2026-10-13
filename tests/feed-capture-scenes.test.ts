@@ -7,7 +7,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { feedCaptureScene, feedRuleActions, feedSceneBindingId, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
 import { bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/src/functions-host.js";
+import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
 
 async function fixture() {
   const home = await mkdtemp(join(tmpdir(), "feed-capture-scenes-"));

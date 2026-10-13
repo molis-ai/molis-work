@@ -11,14 +11,14 @@ import { join } from "node:path";
 import { LocalSqliteStorage, LocalCatalogMetadata, createFileSecretStore, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COGNIA_ACTION_PERMISSIONS, cogniaActions as actions } from "@molis-ai/molis-work-plugin-cognia";
-import { ModelProviderStore, createModelProviderTables } from "../apps/local-host/src/model-provider-store.js";
-import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/src/project-catalog-contract.js";
-import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
-import { createCogniaProloguePort } from "../apps/local-host/src/cognia-prologue.js";
-import { ensureSystemAgentService } from "../apps/local-host/src/system-agent-service.js";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
-import { agentDefinitionsFor } from "../apps/local-host/src/agent-definitions/agent-definitions.js";
-import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-registrations.js";
+import { ModelProviderStore, createModelProviderTables } from "@molis-ai/molis-work-app-local-host";
+import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/dist/project-catalog-contract.js";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { createCogniaProloguePort } from "../apps/local-host/dist/cognia-prologue.js";
+import { ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
+import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-registrations.js";
 
 function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
   const home = mkdtempSync(join(tmpdir(), "cognia-prologue-"));

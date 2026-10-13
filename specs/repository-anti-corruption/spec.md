@@ -2218,3 +2218,5 @@ W3-02-R1沿§1已接受错误码规则和batchB-plan串在H之后准备：仅Goa
 R1语法树清点当前308处、140种码、31份TS文件，比历史设计估数多，逐处语境已核：producer error/validation调用、completion reason.code、当前HTTP failure.code与两处读码比较。Governance事件决定与provenance在owner表明确归Goals，同片接续；server连续性只改其消费比较，业务事件type、SQL及历史日志不改。源码已按同一当前词元位置迁到goals.<旧前缀>.<原因>，解析0，新增MCP/Skill说明和README现行码，API快照无变化。真实HTTP/MCP/状态与整合回归仍待，源迁移不算R1完成。
 
 W3-02-R2准备仍沿§1现行决定：Goal/board/planning/guidance/relation/policy错误码按事实owner接续，goal.not_found按计划归goals.not_found，其余保留旧前缀第二段，业务事件type/命令ID/历史SQL不改。R2-01：AST只迁生产错误与其消费，错误类/kind/消息/details/编号保持；R2-02：规划issue公开enum同当前码，API/实际动作快照同步且形状变动按合同规则升版、所有当前消费者同片更新；R2-03：错误与业务type同名的goal.trashed等各证明，历史数据/事件仍按原type，相关真实HTTP/MCP/状态回归后验收。当前清点279匹配词元横跨105文件，包含大量实际业务type，不能全字替换；仅可确定的生产错误集合用于下一轮语境裁决。尚未修改或运行R2。
+
+R2实测生产错误集合50种，134待迁词元；与其同字的7个实际业务事件/读取断言已单独保留，不按279总匹配替换。规划issue的7个公开enum改变输出合同，因此goals.planning.impact、goals.planning.graph.check、goals.tree.check、goals.tree.decide改v2，实际semantic_review的review_action及公开type/schema同步v2，三现行显式tree.check MCP消费者转v2；无旧版保留。具体消费者与实际快照仍需最终构建后的严格对照，未据源改声称完整。当前Source语法、API及health检查继续，原Goal事件type和SQL不变。

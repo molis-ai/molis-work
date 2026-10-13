@@ -35,8 +35,8 @@ export const catalogErrors = defineErrorCodes("catalog", {
 
 /**
  * The failure the catalog's injected factories raise (Projects, the runtime-context entries and the desktop panels hand it their codes): a
- * `catalog.*` code has the kind the catalog declares for it. Any other code is one of the runtime-context entries' (`context.*`, the Work
- * owner's until W3-02 R4a), each a mistake of the caller, which is what a code nobody classified is.
+ * Declared catalog codes retain their kinds. Work binding and unclassified project or panel validation codes pass through
+ * unchanged as caller input errors. The injected factory does not assign the fact owner.
  */
 export function catalogFailure(code: string, message: string): ActionError {
   const reason = code.startsWith("catalog.") ? code.slice("catalog.".length) : "";

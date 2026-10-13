@@ -23,12 +23,12 @@ function mcpFor(home: TestHome, project: TestProject) {
   return new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id, databasePath: project.database_path, webBaseUrl: home.origin },
     { homeDirectory: home.home, webBaseUrl: home.origin, runtimeContext: { runtime_id: "cross-entry", stable_work_context_id: "cross-entry-session", host_declares_stable: true } }, home.host, home.origin);
 }
-async function mcpCall(mcp: LocalMcpServer, capabilityId: string, input: unknown) {
+async function mcpCall(mcp: LocalMcpServer, capabilityId: string, input: unknown, visible = true) {
   const listed = object((await mcp.handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/list" }))?.result);
   assert.ok(Array.isArray(listed.tools));
   const tools: unknown[] = listed.tools;
   const name = `molis_work_v1_action_${capabilityId}__v1`;
-  assert.ok(tools.some(tool => isCrossEntryObject(tool) && tool.name === name), name);
+  assert.equal(tools.some(tool => isCrossEntryObject(tool) && tool.name === name), visible, name);
   const result = object((await mcp.handleMessage({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name, arguments: input } }))?.result);
   assert.ok(Array.isArray(result.content));
   const content: unknown[] = result.content;
@@ -196,4 +196,30 @@ test("W3-09-1-01 T6: a disabled ordinary plugin returns the same 403 refusal thr
   }
   await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
   assert.deepEqual(await home.web.get(path), before, "reenabling exposes the unchanged owner's task facts");
+});
+
+test("W3-09-2-01: a real MCP tool hidden after plugin disable still reaches the Host under its exact saved grant and records one refusal", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), project = await home.createProject("Named unavailable action", ["schedule"]);
+  await home.grant(clientId, project.project_id, [subject.create, subject.list]);
+  const path = subject.path(project.project_id), before = await home.web.get(path);
+  const mcp = mcpFor(home, project); t.after(() => mcp.close());
+  await home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
+  const input = subject.input("隐藏能力不得写入", "23:00"), fromMcp = await mcpCall(mcp, subject.create.capability_id, input, false);
+  assert.equal(fromMcp.result.isError, true); assert.equal(fromMcp.body.code, "actions.plugin_disabled");
+  assert.ok(typeof fromMcp.body.error === "string");
+  const record = row(home, fromMcp.body.call_id, subject.create.capability_id);
+  assert.deepEqual([record.ok, record.code, record.refused, record.actor_id, record.audience, record.project_id],
+    [false, "actions.plugin_disabled", true, clientId, "mcp", project.project_id]);
+  assert.equal(home.host.callLog!.find(String(fromMcp.body.call_id)).length, 1, "the named tool does not create a second diagnostic or typed row");
+  const ungranted = await mcp.handleMessage({ jsonrpc: "2.0", id: 3, method: "tools/call", params: {
+    name: `molis_work_v1_action_${subject.archive.capability_id}__v1`, arguments: { task_id: "missing" } } });
+  assert.match(JSON.stringify(ungranted), /mcp\.tool_disabled/u);
+  assert.equal(home.host.callLog!.recent(100).filter(row => row.capability_id === subject.archive.capability_id).length, 0);
+  await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
+  assert.deepEqual(await home.web.get(path), before, "the denied calls preserve actual owner facts after reenabling");
+  await home.revoke(clientId, project.project_id, [subject.create]);
+  const denied = await mcp.handleMessage({ jsonrpc: "2.0", id: 4, method: "tools/call", params: {
+    name: `molis_work_v1_action_${subject.create.capability_id}__v1`, arguments: input } });
+  assert.match(JSON.stringify(denied), /mcp\.tool_disabled/u);
+  assert.equal(home.host.callLog!.recent(100).filter(row => row.capability_id === subject.create.capability_id).length, 1, "revoked authority does not enter the Host a second time");
 });

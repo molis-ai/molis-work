@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { actionMcpToolName, createActionMcpPorts, handleMcpMessage, molisWorkActionToolName, MOLIS_WORK_ACTION_TOOL_PREFIX } from "@molis-ai/molis-work-app-mcp";
-import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const context: ActionCallContext = { actor_id: "alice", project_id: "p", audience: "user", permissions: ["read"] };
 const definition: ActionDefinition = { capability_id: "test:words", version: 2, operation: "query",
@@ -66,4 +66,16 @@ test("the public action tool name is molis_work_v1_action_<action>__v<version>, 
   const reference = { capability_id: "test:words", version: 2 };
   assert.equal(molisWorkActionToolName(reference), actionMcpToolName({ ...reference, capability_id: "molis_work_v1_action_test:words" }));
   assert.notEqual(molisWorkActionToolName(reference), actionMcpToolName(reference));
+});
+
+test("W3-09-2-01: the public MCP adapter hides an unavailable granted action while a named call receives the owner's refusal", async () => {
+  let ran = 0;
+  const service = new ActionService();
+  service.registerProvider({ provider: { provider_id: "words", title: "Words", kind: "system" }, definitions: [definition],
+    handlers: [{ ...definition, availability: () => ({ available: false, code: "actions.plugin_disabled", reason: "插件已停用" }), handle: () => { ran++; return []; } }] });
+  const ports = createActionMcpPorts({ service, context: () => ({ ...context, allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id: "words" }] }), serverInfo: { name: "actions", version: "1" } });
+  assert.deepEqual(await ports.tools, []);
+  await assert.rejects(ports.callTool(actionMcpToolName(definition), { input: "原文" }, { runtimeSessionId: null, runtimeSessionIdSource: null }),
+    error => error instanceof ActionError && error.code === "actions.plugin_disabled" && error.message === "插件已停用");
+  assert.equal(ran, 0);
 });

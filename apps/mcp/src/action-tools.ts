@@ -48,7 +48,6 @@ export function createActionMcpPorts(options: {
   const catalog = async (caller: ActionCallContext) => {
     const entries = new Map<string, ActionView>();
     for (const view of await options.service.discover(caller)) {
-      if (!view.availability.available) continue;
       const name = (options.toolName ?? actionMcpToolName)(view);
       if (entries.has(name)) throw new ActionError("actions.mcp_name_conflict", `MCP 名称重复：${name}`);
       entries.set(name, view);
@@ -57,7 +56,7 @@ export function createActionMcpPorts(options: {
   };
   return {
     serverInfo: options.serverInfo,
-    get tools() { return catalog(context()).then(entries => [...entries].map(([name, view]) => actionMcpToolDefinition(view, name))); },
+    get tools() { return catalog(context()).then(entries => [...entries].filter(([, view]) => view.availability.available).map(([name, view]) => actionMcpToolDefinition(view, name))); },
     async callTool(name, arguments_) {
       const caller = context();
       const view = (await catalog(caller)).get(name);

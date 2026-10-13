@@ -18,7 +18,7 @@ function homeScoped(name: string, catalog: AssembledMcpCatalog | undefined): boo
 }
 
 function runtimeSurface(name: string, catalog: AssembledMcpCatalog | undefined): boolean {
-  return isRuntimeContextMcpTool(name) || (catalog?.tools.some((tool) => tool.name === name) ?? false);
+  return isRuntimeContextMcpTool(name) || (catalog?.entries.some(entry => entry.definition.name === name) ?? false);
 }
 
 export function assertMcpToolAllowed(
@@ -27,7 +27,7 @@ export function assertMcpToolAllowed(
   callContext: MolisWorkMcpToolCallContext,
   catalog?: AssembledMcpCatalog,
 ): void {
-  if (catalog && !catalog.tools.some((tool) => tool.name === name)) {
+  if (catalog && !catalog.entries.some(entry => entry.definition.name === name)) {
     const known = catalog.known_names.has(name) || isPlatformMcpTool(name);
     if (!known) {
       throw new MolisWorkV1Error("mcp.tool_unknown", `未知 MCP 方法：${name}`);

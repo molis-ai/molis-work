@@ -87,3 +87,40 @@ test("W3-09-1-01 T1/T2 assistant: approved Schedule changes and owner refusals r
   assert.deepEqual(await home.web.get(subject.path(project.project_id)), facts, "the owner refusal leaves every persisted task unchanged");
   assert.equal(changed.mock.calls.filter(call => call.arguments[0] === "schedule" && call.arguments[1] === project.project_id).length, 1);
 });
+
+for (const failure of ["disabled", "invalid"] as const) test(`W3-09-2-01 assistant ${failure}: the actual preflight preserves its code and reason before review and before dispatch`, { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), project = await home.createProject("Assistant preflight", ["schedule"]);
+  const before = await home.web.get(subject.path(project.project_id));
+  const offered = await home.host.inspectActions({ actor_id: "web-user", audience: "agent", project_id: project.project_id, permissions: ["schedule:write"] }, project.reference);
+  const create = offered.find(view => view.capability_id === subject.create.capability_id); assert.ok(create);
+  if (failure === "disabled") await home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
+  const queue = new AgentReviewQueue(), agent = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: `io.molis.work.cross-entry-preflight-${failure}`, appVersion: "1.0.0" }, storageRoot: join(home.home, "preflight-sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  agent.register(adapter);
+  const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
+  const service = new AssistantService(store, { host: async () => agent,
+    authority: async work => assistantAuthority(home.host, work, () => new Set()), projectTitle: async () => project.display_name }, "web-user");
+  t.after(async () => { await adapter.close(); db.close(); });
+  const originalFetch = globalThis.fetch.bind(globalThis), requests: unknown[] = [];
+  t.mock.method(globalThis, "fetch", async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    if (String(url) !== "https://1.1.1.1/v1/messages") return originalFetch(url, init);
+    assert.ok(typeof init?.body === "string"); const body: unknown = JSON.parse(init.body); requests.push(body);
+    assert.ok(requests.length <= 2, "the model receives the refusal and ends the actual round");
+    return requests.length === 1 ? reply({ name: "change-capability", input: { capability_id: create.capability_id, version: create.version, provider_id: create.provider.provider_id,
+      input: failure === "invalid" ? { ...subject.input("x", "23:00"), title: "x".repeat(201) } : subject.input("不可写的定时", "23:00") } }) : reply(undefined, "没有执行，原内容保留。");
+  });
+  const roundId = newCallId(), sent = await withCallId(roundId, () => service.send({ text: "创建定时", request_id: randomUUID() }, { project_ref: project.reference }));
+  const done = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" ? view : undefined; }, "preflight refusal completed");
+  assert.equal(done.reviews.length, 0); assert.deepEqual(home.host.callLog!.find(roundId), []);
+  assert.equal(requests.length, 2);
+  const code = failure === "disabled" ? "actions.plugin_disabled" : "actions.input_invalid";
+  assert.ok(JSON.stringify(requests[1]).includes(code), "the actual next SDK model turn receives the stable owner code");
+  if (failure === "disabled") {
+    const now = await home.host.inspectActions({ actor_id: "web-user", audience: "agent", project_id: project.project_id, permissions: ["schedule:write"] }, project.reference);
+    const view = now.find(row => row.capability_id === subject.create.capability_id); assert.ok(view && !view.availability.available);
+    assert.ok(JSON.stringify(requests[1]).includes(view.availability.reason));
+    await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
+  }
+  assert.deepEqual(await home.web.get(subject.path(project.project_id)), before, "both preflight refusals leave all owner tasks unchanged");
+});

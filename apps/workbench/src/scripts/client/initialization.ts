@@ -369,11 +369,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       body.textContent = L("正在读取…");
       if (!referenceDialog.open) referenceDialog.showModal();
       try {
-        const response = await fetch(url, { cache: "no-store", signal: request.signal });
-        const text = await response.text();
-        if (!response.ok) { let reason = text; try { reason = JSON.parse(text).error || text; } catch {} throw new Error(reason); }
+        const text=await molisWorkRequest(url,{as:"text",signal:request.signal,fallback:L("项目内引用无法打开")});
         if (referenceRequest === request && referenceDialog.open) body.textContent = text;
-      } catch (error) { if (referenceRequest === request && referenceDialog.open && !request.signal.aborted) body.textContent = error?.message || L("项目内引用无法打开"); }
+      } catch (error) { if (referenceRequest === request && referenceDialog.open && !request.signal.aborted) molisWorkRequest.show(body,error,L("项目内引用无法打开")); }
     });
     updateRelationPreviews();
     updateAllRelationFormPreviews();

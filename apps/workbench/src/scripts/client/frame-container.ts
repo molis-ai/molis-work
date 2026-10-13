@@ -86,10 +86,10 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     if (zoomValue) zoomValue.textContent = Math.round(camera.z * 100) + "%";
   };
   const liveAssetRow = (block) => [...document.querySelectorAll("[data-frame-asset]")].find((row) => row.dataset.frameAsset === block.kind && row.dataset.frameAssetId === block.itemId);
-  const showBlockError = (body, message) => {
+  const showBlockError = (body, error) => {
     const status = document.createElement("p");
     status.className = "frame-block-status";
-    status.textContent = message;
+    molisWorkRequest.show(status,error,L("无法打开这个内容"));
     const retry = document.createElement("button");
     retry.type = "button";
     retry.dataset.frameBlockRetry = "";
@@ -120,10 +120,9 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const loadFeedBody = async (body, block) => {
     const row = liveAssetRow(block);
     const itemId = block.itemRef || row?.dataset.feedItemId || (row?.dataset.inboxSubjectType === "feed" ? row.dataset.inboxSubjectId : "") || block.itemId;
-    const response = await fetch(toRoute("/api/feed/items/" + encodeURIComponent(itemId) + "/detail?preset=feed&surface=frame-block"), { cache: "no-store" });
-    if (!response.ok) throw new Error(L("无法读取这条 Item"));
+    const html=await molisWorkRequest(toRoute("/api/feed/items/"+encodeURIComponent(itemId)+"/detail?preset=feed&surface=frame-block"),{as:"text",fallback:L("无法读取这条 Item")});
     const template = document.createElement("template");
-    template.innerHTML = (await response.text()).trim();
+    template.innerHTML = html.trim();
     const reading = template.content.querySelector("[data-frame-reading]") || template.content.querySelector(".frame-reading") || template.content.firstElementChild;
     if (!reading) throw new Error(L("无法读取这条 Item"));
     body.replaceChildren(reading);
@@ -132,13 +131,9 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const sep = String(block.itemId).lastIndexOf("#");
     const artifactId = sep === -1 ? block.itemId : block.itemId.slice(0, sep);
     const version = sep === -1 ? "1" : block.itemId.slice(sep + 1);
-    const response = await fetch(toRoute("/artifacts/" + encodeURIComponent(artifactId) + "/versions/" + encodeURIComponent(version)), {
-      cache: "no-store",
-      headers: { "x-molis-work-fragment": "frame-block" },
-    });
-    if (!response.ok && response.status !== 404) throw new Error(L("无法读取成果"));
+    const html=await molisWorkRequest(toRoute("/artifacts/"+encodeURIComponent(artifactId)+"/versions/"+encodeURIComponent(version)),{as:"text",accept:[404],headers:{"x-molis-work-fragment":"frame-block"},fallback:L("无法读取成果")});
     const template = document.createElement("template");
-    template.innerHTML = await response.text();
+    template.innerHTML = html;
     const reading = template.content.querySelector("[data-frame-reading]") || template.content.querySelector("[data-artifact-detail]");
     if (!reading) throw new Error(L("无法读取成果"));
     if (reading.matches("[data-artifact-detail]")) {
@@ -147,12 +142,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     } else body.replaceChildren(reading);
   };
   const loadSessionBody = async (body, block) => {
-    const response = await fetch(toRoute("/api/sessions/" + encodeURIComponent(block.itemId) + "/content"), {
-      cache: "no-store",
-      headers: window.molisWorkControlHeaders?.() || {},
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || L("无法打开这个内容"));
+    const payload=await molisWorkRequest(toRoute("/api/sessions/"+encodeURIComponent(block.itemId)+"/content"),{fallback:L("无法打开这个内容")});
     const article = document.createElement("article");
     article.className = "frame-reading";
     article.dataset.frameReading = "session";
@@ -207,7 +197,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       body.dataset.loaded = stamp;
     } catch (error) {
       if (!body.isConnected || body.dataset.loadToken !== token) return;
-      showBlockError(body, error instanceof Error ? error.message : L("无法打开这个内容"));
+      showBlockError(body,error);
     }
   };
   const renderTabs = () => {

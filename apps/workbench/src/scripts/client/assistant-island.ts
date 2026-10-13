@@ -102,7 +102,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       view = await api("/works/" + encodeURIComponent(work.work_id) + "/mode", "POST", { mode: id }); render();
       window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: "coding.sessions.update", session_id: view.work.executor.session_id } }));
     }
-    catch (error) { showProblem({ message: error.message }); }
+    catch (error) { showProblem(error); }
   }
   // The choice is made against what is saved now, not what this panel last read.
   modeButton?.addEventListener("click", async () => { if (!modesPop.hidden) { setModes(false); return; } if (currentId) await refresh().catch(() => {}); setModes(true); });
@@ -193,23 +193,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let draftTimer = 0, draftWrite = Promise.resolve();
   let activeSend = null;
 
-  const api = async (path, method, body, route = host.route("/api/assistant" + path)) => {
-    let response;
-    try {
-      response = await fetch(route, { method: method || "GET", headers: host.headers(),
-        body: body === undefined ? undefined : JSON.stringify(body) });
-    } catch {
-      const failure = new Error(L("连接中断，结果未知；再次发送不会重复提交"));
-      failure.unknown = true;
-      throw failure;
-    }
-    let result = {};
-    try { result = await response.json(); } catch { /* an empty body is reported by status below */ }
-    if (!response.ok) {
-      throw Object.assign(new Error(result.error || L("助理暂时无法完成")), { code: result.code, data: result.details || {} });
-    }
-    return result;
-  };
+  const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:L("助理暂时无法完成")});
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -598,7 +582,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (button) button.disabled = true;
       try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/answer", "POST",
         Object.assign({ run_id: round.run_id, pending_id: question.pending_id, pending_revision: question.pending_revision }, payload)); render(); schedule(); }
-      catch (error) { showProblem({ message: error.message }); if (button) button.disabled = false; }
+      catch (error) { showProblem(error); if (button) button.disabled = false; }
     };
     if (question.answerable === false) { card.append(el("p", "assistant-muted", question.unavailable_reason || L("这个问题暂时不能回答"))); return; }
     if (question.questions && question.questions.length) {
@@ -675,7 +659,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const decide = async (decision) => {
       row.querySelectorAll("button").forEach((one) => { one.disabled = true; });
       try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision }); render(); schedule(); }
-      catch (error) { showProblem({ message: error.message }); row.querySelectorAll("button").forEach((one) => { one.disabled = false; }); }
+      catch (error) { showProblem(error); row.querySelectorAll("button").forEach((one) => { one.disabled = false; }); }
     };
     const allow = el("button", "mw-btn mw-btn--primary mw-btn--sm", L("允许执行")); allow.type = "button";
     const reject = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("拒绝")); reject.type = "button";
@@ -747,7 +731,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           await api("/send", "POST", { work_id: work.work_id, request_id: crypto.randomUUID(), written_by: "page",
             text: L("建议「") + card.title + L("」没有执行：") + (card.outcome || L("数据在建议之后变化了")) + L("。请读取最新状态，按现在的情况重新准备这一项的操作卡。") });
           await refresh(); schedule();
-        } catch (error) { showProblem({ message: error.message }); redo.disabled = false; }
+        } catch (error) { showProblem(error); redo.disabled = false; }
       });
       node.append(redo);
     }
@@ -769,7 +753,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         if (next.status === "done") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: next.capability_id } }));
         render();
         if (hadFocus) (node.querySelector(".assistant-card-status") || node.querySelector("button"))?.focus();
-      } catch (error) { showProblem({ message: error.message }); row.querySelectorAll("button").forEach((one) => { one.disabled = false; }); if (hadFocus) runButton.focus(); }
+      } catch (error) { showProblem(error); row.querySelectorAll("button").forEach((one) => { one.disabled = false; }); if (hadFocus) runButton.focus(); }
     });
     dismiss.addEventListener("click", async () => {
       // The card leaves the list: focus moves to the next card, or back to the input when none is left.
@@ -777,7 +761,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       try { const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/dismiss", "POST", {});
         if (view) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one); render();
         if (!node.isConnected) ((neighbour && neighbour.isConnected && neighbour.querySelector("button")) || input)?.focus(); }
-      catch (error) { showProblem({ message: error.message }); }
+      catch (error) { showProblem(error); }
     });
     row.append(runButton, dismiss); node.append(row);
     node.append(cardHint(card.effect === "read" ? L("点了只读取，不改任何东西。") : card.effect === "irreversible" ? L("点了就执行，不能撤回；执行前你可以改上面的内容。")
@@ -1384,8 +1368,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         const undone = change.state === "undone";
         const actions = [];
         if (change.undoable && !undone) actions.push(sideAction(L("撤销"), change.text, async () => {
-          const response = await fetch(host.route("/api/memory/changes/" + encodeURIComponent(change.change_id) + "/undo"), { method: "POST", headers: host.headers() });
-          if (!response.ok) { let reason = ""; try { reason = (await response.json()).error || ""; } catch { /* the status says it */ } throw new Error(reason || L("没能撤销")); }
+          await molisWorkRequest(host.route("/api/memory/changes/"+encodeURIComponent(change.change_id)+"/undo"),{method:"POST",fallback:L("没能撤销")});
           await refresh();
         }, false, "secondary", "undo"));
         if (!undone) actions.push(sideAction(L("去设置查看"), change.text, async () => {
@@ -1597,7 +1580,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           hand.addEventListener("click", async () => {
             hand.disabled = true;
             try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/handover", "POST", { to: toCoding ? "coding" : "assistant" }); render(); input.focus(); }
-            catch (error) { showProblem({ message: error.message }); }
+            catch (error) { showProblem(error); }
             finally { if (hand.isConnected) hand.disabled = false; }
           });
           rows.push(...metaRow("", hand));
@@ -1774,7 +1757,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (shown) {
       const box = el("div", "assistant-problem"); box.setAttribute("role", "alert");
       const kicker = el("span", "assistant-card-kicker is-blocked"); kicker.append(glyph("circle-alert"), document.createTextNode(L("出了问题")));
-      box.append(kicker, el("p", "", shown.message));
+      const message=el("p", "");molisWorkRequest.show(message,shown,shown.message);box.append(kicker,message);
       if (work && work.state === "needs-check") {
         // What the interrupted round really did, then an explicit close. Nothing is re-run.
         const check = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("查看实际发生了什么")); check.type = "button";
@@ -1793,13 +1776,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
                 close.addEventListener("click", async () => {
                   close.disabled = true;
                   try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/recovery", "POST", { run_id: round.run_id, version: round.version }); render(); }
-                  catch (error) { showProblem({ message: error.message }); }
+                  catch (error) { showProblem(error); }
                 });
                 list.append(close);
               }
             });
             check.replaceWith(list);
-          } catch (error) { showProblem({ message: error.message }); }
+          } catch (error) { showProblem(error); }
         });
         box.append(check);
       }
@@ -1888,7 +1871,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     catch (error) {
       if (id !== currentId) return;
       if (error.code === "assistant.not_found") { currentId = null; remember(); view = null; render(); return; }
-      showProblem({ message: error.message });
+      showProblem(error);
     }
   };
   // A work is followed while it or a sub-task it handed out is live: what they hand back may move it on by itself.
@@ -2320,10 +2303,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     mentionTimer = setTimeout(async () => {
       let result;
       try {
-        const response = await fetch(host.route("/api/search/query"), { method: "POST", cache: "no-store", headers: { "content-type": "application/json", ...host.headers() }, body: JSON.stringify({ query: found.query, scope: "all", limit: 8 }) });
-        result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result.error || L("搜索暂时不可用，请稍后重试"));
-      } catch (error) { if (seq === mentionSeq && mentionOpen()) startersPop.replaceChildren(head, el("p", "assistant-material-origin", error.message)); return; }
+        result=await molisWorkRequest(host.route("/api/search/query"),{body:{query:found.query,scope:"all",limit:8},fallback:L("搜索暂时不可用，请稍后重试")});
+      } catch (error) { if (seq === mentionSeq && mentionOpen()) { const note=el("p","assistant-material-origin");molisWorkRequest.show(note,error);startersPop.replaceChildren(head,note); } return; }
       if (seq !== mentionSeq || !mentionOpen()) return;
       startersPop.replaceChildren(head);
       (result.hits || []).forEach((hit) => {
@@ -2627,7 +2608,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (!message.work_id || !message.object) return;
       void api("/works/" + encodeURIComponent(message.work_id) + "/results", "POST", { object: message.object, source: message.source })
         .then((result) => { if (currentId === message.work_id) { view = result; render(); } })
-        .catch((error) => showProblem({ message: error.message }));
+        .catch((error) => showProblem(error));
     }
   });
   let typed = false, inputRevision = 0;
@@ -2661,7 +2642,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!currentId) return;
     button.disabled = true;
     try { view = await api("/works/" + encodeURIComponent(currentId) + "/control", "POST", { kind: button.dataset.assistantControl }); render(); }
-    catch (error) { showProblem({ message: error.message }); }
+    catch (error) { showProblem(error); }
     finally { button.disabled = false; schedule(); }
   }));
   newButton?.addEventListener("click", () => { switchTo(null); input.focus(); });

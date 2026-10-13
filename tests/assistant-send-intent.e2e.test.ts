@@ -39,7 +39,7 @@ test("W2-18-SEND-01: waiting for A's draft sends A's intent and preserves B's se
   } finally { await barrier.close(); }
 });
 
-// W2-18-SEND-01: a real refusal includes work A; receiving it late must not put A's problem or draft into B.
+// W3-10-4-01 and W2-18-SEND-01: a real refusal includes work A; receiving it late must not put A's problem or draft into B.
 test("W2-18-SEND-01: a late Host refusal belongs to A and leaves B's input and materials intact", { timeout: 90_000 }, async t => {
   const browser = await sendBrowser(t, false); if (!browser) return;
   const a = await seedWork(browser, "未配置模型的 A"), b = await seedWork(browser, "未配置模型的 B");
@@ -154,7 +154,7 @@ test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on s
   } finally { await barrier.close(); }
 });
 
-// W2-18-SEND-02: even the chooser's trusted HTTP project route and an unknown result's retry stay fixed at the click.
+// W3-10-4-01 and W2-18-SEND-02: even the chooser's trusted HTTP project route and an unknown result's retry stay fixed at the click.
 test("W2-18-SEND-02: chooser changes and a lost receipt retry the original scope, materials and request_id exactly once", { timeout: 90_000 }, async t => {
   const browser = await sendBrowser(t); if (!browser) return;
   const a = await seedWork(browser, "等待草稿的旧工作");

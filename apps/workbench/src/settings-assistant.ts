@@ -280,12 +280,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     const forbidId = computer.querySelector("[data-computer-forbid-id]");
     const computerError = computer.querySelector("[data-computer-error]");
     const PERM = { accessibility: L("辅助功能"), screen_recording: L("屏幕录制"), input_monitoring: L("输入监控") };
-    const computerApi = async (path, payload) => {
-      const response = await fetch("/api/computer" + path, payload ? { method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload) } : undefined);
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
-      return data;
-    };
+    const computerApi=(path,payload)=>molisWorkRequest("/api/computer"+path,{body:payload,fallback:L("没有完成，请重试")});
     const paintForbidden = (forbidden) => {
       forbiddenEl.replaceChildren();
       if (!forbidden || !forbidden.length) { forbiddenEl.append(el("p", "settings-muted", L("你还没有额外添加禁区应用。"))); return; }
@@ -310,7 +305,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
         permsEl.textContent = missing.length ? L("还缺系统授权：") + missing.join("、") + L("。在侧栏的「电脑」标签里按引导授权。") : L("系统授权齐全。");
       } catch (failure) { permsEl.textContent = failure.message; }
     };
-    const runComputer = async (work) => { computerError.hidden = true; try { await work(); } catch (failure) { computerError.textContent = failure.message; computerError.hidden = false; } };
+    const runComputer = async (work) => { computerError.hidden = true; try { await work(); } catch (failure) { molisWorkRequest.show(computerError,failure); computerError.hidden = false; } };
     enable.addEventListener("change", () => runComputer(async () => { const data = await computerApi("/settings", { enabled: enable.checked }); enable.checked = data.enabled; await paintPerms(); }));
     forbidForm.addEventListener("submit", (event) => { event.preventDefault(); const id = String(forbidId.value || "").trim(); if (!id) return; runComputer(async () => { const data = await computerApi("/forbidden", { bundle_id: id, name: id }); forbidId.value = ""; paintForbidden(data.forbidden); }); });
     runComputer(async () => { const data = await computerApi("/settings"); enable.checked = data.enabled; paintForbidden(data.forbidden); await paintPerms(); });

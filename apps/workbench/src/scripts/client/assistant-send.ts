@@ -54,8 +54,8 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       if (visible && result.outcome === "steered") host.showToast?.(L("已补充到正在进行的这一轮"));
       if (visible && result.outcome === "answered") host.showToast?.(L("已作为回答发送"));
     } catch (error) {
-      if (!error.unknown) unsettled.delete(intent.work);
-      const data = error.data || {}, visible = here();
+      const unknown=error.code==="ui_host.outcome_unknown";if(!unknown)unsettled.delete(intent.work);
+      const data=error.body?.details||{},visible=here();
       if (data.work) rememberSentWork(data.work);
       if (visible) {
         if (data.work) {
@@ -63,9 +63,9 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
           selectSentWork(data.work);
           if (!unchangedInput()) saveDraft(true);
         }
-        problem = { message: error.message + (error.unknown ? "" : "。" + L("输入已保留")), action: data.action };
+        problem={...error,name:error.name,message:error.message+(unknown?"":"。"+L("输入已保留")),action:data.action};
         if (currentId) await refresh(); else render();
-      } else host.showToast?.(error.message);
+      } else host.showToast?.(error);
     } finally {
       activeSend = null;
       if (intent.draft !== undefined && intent.work) {

@@ -1439,7 +1439,7 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 
 ### 10.6 跨入口与 AI 版本前提的接续验收（W3-09）
 
-固定 I5 8bac4a4ea 的只读核对确认 §1 的 10-10/10-11 决定完整，不重问。按 1a（页面/MCP/typed）→1b（真实助理 gateway 与批准）→1c（等 G1/H 的状态与诊断出口）→2→3 串行；使用已有公开 Test Home、真实 HTTP 项目/授权和 MCP/Assistant/AgentHost 接口，不复制内部导入或全局拦截 fetch。状态与 code 用合同中的 literal 断言，不能用生产 actionHttpStatus 计算期望。
+固定 I5 8bac4a4ea 的只读核对确认 §1 的 10-10/10-11 决定完整，不重问。按 1a（页面/MCP/typed）→1b（真实助理 gateway 与批准）→1c（等 G1/H 的状态与诊断出口）→2→3 串行；使用已有公开 Test Home、真实 HTTP 项目/授权和 MCP/Assistant/AgentHost 接口，不复制内部导入；实际SDK仅用受控模型响应，精确匹配模型URL的fetch桩转发所有其他URL，真实HTTP、gateway与owner不被替换。状态与 code 用合同中的 literal 断言，不能用生产 actionHttpStatus 计算期望。
 
 | 编号 | 可观察结果与证明路径 |
 | --- | --- |
@@ -2124,3 +2124,25 @@ PR-9候选`5c0c128b3`已保存：十四个旧Goals literal及旧导出、隔离�
 W3-09-1a已在`feature/anti-corruption-cross-entry-consistency`准备T1/T2/T4/T7源码，复用现有公开Test Home、真实HTTP项目/授权与实际MCP工具，不增加测试端口或模型调用。T4按当前生产事实补正旧设计：schedule typed服务要求原插件身份，裸Host调用应被拒；成功读取和missing-job拒绝由实际executor装配的声明服务夹具验证，不把伪造plugin_id当身份，也不声称已有正式业务消费者。T5、1b助理、1c状态/诊断、W3-09-2/3仍待；本片运行尚未进行，不能记验收完成。
 
 I7仍为`9fa969049`加隔离SDK验证包的临时依赖/lock；构建25唯一任务仍排在他人Status Ring全量之后，未重复启动、未占用他人名额。SDK隔离回归62/62与SDK构建通过的证据保持；Molis消费者、换模/handback变异、各片整体构建/类型/API/动作/健康/资源及整合全量仍须在实际新head验证。现有远端进度PR #463已合并最新main到本地进度分支，后续按密钥扫描与新head CI再推/合；其它draft与冲突PR未作为可合候选。没有上游SDK提交/推送、正式vendor替换/删除或真实Home写入。
+
+
+2026-10-13 10:03，Root继续持有本进度书的唯一写入权（原进度会话批次源审后明确交回、保持只读）。进度PR #463已按确切head `305c506d2`、当时main `fc18d5f62`，核五项必需CI/Verify与Product subset成功、密钥扫描零命中后合并；main为`0d5169efa`。剩余#411/#410/#409/#408/#156仍draft，#180仍冲突，未作为可合候选。
+
+PR-9的后续`ed4f57663`恢复原CLI `goalQueries` 拒绝并增加实际mutation，六条接线门禁回归再次通过；Goals/Host README旧十项typed与四个Coding桥描述已收口，错误的`goals.events.decide`改为真实`goals.decisions.record`。`b599783d6`补当前typed生产消费者表；`6f0d9fe6b`按实际五个workspace协议均为动作修正文档与清单，不把读取算作剩余typed服务。新增清单核真正已装Host的availability及无工作区的dependency_missing，仍待运行，不以源码替代验收。
+
+跨入口候选已保存T5 Shelf真实页面schema拒绝、1b真实SDK/助理gateway批准及owner拒绝（`0a66d7709`），以及T6真实停用后的页面/Host gateway/typed同码同原因、拒绝后零业务写入、实际诊断页编号查询（`f6f78647f`）。不增加私有导入、测试端口、显式any或类型双断言，语法与Biome检查无诊断；全部新运行断言仍未运行，尤其助理实际review、持久化及SDK后续模型材料的code证明待核。按名调用隐藏MCP动作的两层目录修改属于W3-09-2，尚未实现；不能据Host gateway直调称实际工具按名已通过。
+
+用户已授权向「Work | 进行中 | 优化 Pages 和个人助理交互」发送一次构建/浏览器名额协调消息；Root已发送，未停止他人进程或重复派发。Pages在完成预览后自行释放，I7构建25实际运行退出1：`prologueEffects`返回类型推断泄露SDK私有storage声明（TS2742）。`62a58259d`通过现行公共`PrologueHost`明确返回边界，源码语法/diff检查通过；构建26为唯一接续任务，仍在排队。I7当前仍使用隔离候选SDK临时依赖，仅用于验证；SDK自身62/62及build通过不代替Molis消费者，换模/handback原同步fence变异及最终整合全量仍待。未提交或推送Prologue、未正式替换/删除vendor、未写真实Home。
+
+
+W3-09-2候选`725879ff1`已保存：两层MCP只保留精确授权但暂不可用的调用条目，tools/list继续隐藏，按名进入同一Host拒绝/留行；无授权、撤权、不同provider/version及管理入口仍拒绝。助理gateway的availability与check错误保留稳定code，确认前仍零review、零调用行。实际工具停用/撤权、public adapter、错误provider/version及两种真实SDK preflight用例已补，源码语法/Biome检查零诊断、完整包边界errors为空；运行仍待。批次源审核Schedule create的HTTP合同为201（route handler明确声明、native回应原样传递），新跨入口用例已修正期望；MCP README空预开改为实际!owned条件与resident路径，精确模型URL桩的范围同步写清。上述不放宽业务断言或新增网络框架。
+
+
+W3-09-3源候选`59d825ec5`已保存（十四文件，不含快照更新）：Kernel共同输入校验只运行一次编译schema；只有全部结构化Ajv错误都为根对象缺版本字段required时归`actions.version_required`，错误类型/null map/其他缺业务字段仍为`actions.input_invalid`。有效schema后检查顶层Agent/MCP的声明版本字段、完整ids版本表及Functions authoring updated_at非null；实际允许的expected_revision:null保留CAS语义。助理preflight改调用同一Kernel函数，删除局部旧版本规则。活跃handler上下文由实际dispatcher创建，嵌套检查同时核actor/audience/project、同一beforeEffect函数及实际executing/lifetime；仅继承ALS、新建顶层caller或旧promise不得豁免，不新增JSON嵌套标志或schema兼容。当前schema里两种版本表仅Todo batch与灵光discard，均明确使用ids，已核实际声明；现行非AIworkflow及plugin/user行为保持。新测试经public ActionService覆盖各字段、缺版本/部分表/错误schema、null CAS、真实嵌套及timeout后旧promise；另外通过实际Home Todo MCP和本人页面核版本前提/事实/历史。源码语法/Biome零诊断、静态包边界errors为空；新增文件和实际运行、API/健康门禁及整合全量仍待，不能据源码关闭验收。
+
+用户进一步明确授权本防腐任务内必要构建、浏览器及交接协调，Root已向「Work｜推进中·统筹」发送一条协调消息。统筹核当前adoption-contract-loop持锁者是终端Grok而非Codex采用聊天，现有消息工具不能投递；没有成功联系到负责人的确认，没有停止进程、改锁或重复构建。当前全量仍推进，I7构建26保留唯一排队，独立源整改继续。
+
+
+W3-09-3批次源审补两项，均已源修但待运行：`ed8247d97`将实际Todo batch载荷改为当前`change:{status:"doing"}`（不含不存在的kind字段），否则schema先拒、版本路径未被验证；后续进程内ActionClient的own property为undefined也必须算缺前提，Ajv会略过可选undefined，故共同检查显式拒绝并补原真实ActionService入口断言，合法expected_revision:null保留。`5b7e3b0be`进一步钉原actor_kind/runtime_session_id/plugin_install_id/host_plugin，另一会话即使持有原beforeEffect函数也不能借嵌套豁免；这些仍只有源码/Biome/diff证据。
+
+W3-10-2源候选`fc8887783`已保存：九处Workbench源码的引导/选择、Functions三个脚本、MCP授权、连接与Home模型读取统一经UiRequest；保留空项目的原feedApi分支、输入/选择序号、Controller取消、原已授权后刷新失败恢复，并在失败位置用同一failure view显示可查号。Home插件页原本已使用助手，未重复迁。Functions纯页面夹具挂现行公开UI_REQUEST_CLIENT_SCRIPT，业务保稿/冲突断言不改；新增真实Host/浏览器保稿、owner事实不变、真实诊断页及明确修正后保存用例。九处本范围raw fetch已归零，静态翻译缺失/未装词典/稳定键错误均为零、完整包边界errors为空。新增源与新用例Biome无诊断；原functions-draft-retention四处显式any仍是原基线，未新增，不能称该文件整份lint通过。当前仍待whole build、资产/actual-base健康门禁、浏览器运行和最后整合全量。

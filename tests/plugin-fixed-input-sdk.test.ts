@@ -28,6 +28,7 @@ function portPlugin(pluginId: string, outputs: boolean, library = true): PluginM
     capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: !outputs && library ? [type] : [] },
     process_items: { produces: outputs ? [type] : [], consumes: outputs ? [] : [type] },
+    ui: { contributions: [], views: [] },
     ports: { inputs: outputs ? [] : ["before", "after"].map(port => ({ port, ...type })), outputs: outputs ? [{ port: "after", ...type }] : [] },
   };
 }

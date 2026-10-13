@@ -164,7 +164,7 @@ test("W3-09-AUTH-03 enabling a binding rechecks its exact judgment after permiss
         validate_authority: async target => { if (target.capability_id === judgment.capability_id) throw new ActionError("fixture.revoked", "No target grant"); } };
       assert.equal(await f.service.invoke(manager, origin, {}), true);
       assert.equal(f.bindings.get("slot")?.enabled, false);
-      await assert.rejects(f.service.invoke(manager, judgment, {}), { code: "actions.forbidden" });
+      await assert.rejects(f.service.invoke(manager, judgment, {}), { code: "fixture.revoked" });
       const tail = retained?.assert_authority_current;
       assert.ok(tail);
       assert.throws(() => tail(), { code: "actions.expired" }, "a no-target check cannot revive the finished parent or create a new grant");

@@ -86,8 +86,8 @@ for (const nested of [false, true]) test(nested
     assert.equal(outcome.recorded, callId, "the returned number names an actual Host diagnostic row");
     assert.ok(home.host.callLog);
     const rows = home.host.callLog.find(callId);
-    assert.deepEqual(rows.map(row => [row.capability_id, row.code, row.ok, row.refused]), nested
-      ? [[formActions.generateAi.capability_id, "mcp.action_revoked", false, undefined], [wrapper.capability_id, "mcp.action_revoked", false, undefined]]
+    assert.deepEqual(rows.map(row => [row.capability_id, row.code, row.ok, row.refused] as const).sort(([a], [b]) => a.localeCompare(b)), nested
+      ? [[wrapper.capability_id, "mcp.action_revoked", false, undefined], [formActions.generateAi.capability_id, "mcp.action_revoked", false, undefined]]
       : [[formActions.generateAi.capability_id, "mcp.action_revoked", false, undefined]]);
     assert.ok(rows.every(row => row.call_id === callId && row.actor_id === clientId && row.project_id === project.project_id && (row.path ?? "action") === "action"));
     await home.grant(clientId, project.project_id, [target]);

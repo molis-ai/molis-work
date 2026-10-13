@@ -19,7 +19,7 @@ test("W3-09-AUTH-03 a real published function cannot consume Home Dock after its
   const home = await openTestHome(t, { host: {
     functions: { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: { async evaluate(_key, record) {
       models++; returned = true;
-      return { primitive: record.primitive, choice: "finish", probabilities: { finish: 1 }, confidence: null, model: record.model, noul: null, score: null, legend: null };
+      return { primitive: record.primitive, choice: "finish", probabilities: { finish: 1, dismiss: 0 }, confidence: null, model: record.model, noul: null, score: null, legend: null };
     } } },
     actionAvailability: async (caller, action) => {
       // This is the real Home consumer's later directory/policy wait, after Kernel's scene permission check.
@@ -63,12 +63,14 @@ test("W3-09-AUTH-03 a real published function cannot consume Home Dock after its
     const { choices } = await home.web.post<{ choices: ReturnType<typeof subjectOfferChoices> }>(`/projects/${project.project_id}/api/home/actions/choices`, { subject_kind: "inbox_entry" });
     const choice = choices.find(value => value.offer_id === "inbox.done");
     assert.ok(choice?.availability.available);
+    const dismiss = choices.find(value => value.offer_id === "inbox.dismiss");
+    assert.ok(dismiss?.availability.available);
     // Prepare the real binding through protected owner HTTP first: a scene-dependent MCP grant cannot create that binding.
     const functionsPath = `/projects/${project.project_id}/api/functions`;
     const { function: draft } = await home.web.post<{ function: FunctionRecord }>(functionsPath, { primitive: "choice", function_key: "effect_home_scene", name: "Actual Home scene rule" });
-    await home.web.post(`${functionsPath}/${draft.id}`, { instructions: "Recommend the available finish action", criteria: [{ key: "finish", description: "Finish this entry" }],
+    await home.web.post(`${functionsPath}/${draft.id}`, { instructions: "Recommend the available finish action", criteria: [{ key: "finish", description: "Finish this entry" }, { key: "dismiss", description: "Dismiss this entry" }],
       scene_id: "home.dock", scene_version: 1, scene_provider_id: "system.home", subject_kinds: ["inbox_entry"],
-      scene_map: { finish: choice.key }, action_map: { finish: choice.action } });
+      scene_map: { finish: choice.key, dismiss: dismiss.key }, action_map: { finish: choice.action, dismiss: dismiss.action } });
     await home.web.post(`${functionsPath}/${draft.id}/preview`, { input: "Original inbox work" });
     const { function: rule } = await home.web.post<{ function: FunctionRecord }>(`${functionsPath}/${draft.id}/publish`, {});
     const judgment = publishedFunctionAction(rule);

@@ -2226,3 +2226,6 @@ A1–A3合入后的Codex合规复查（按systematic-review §1–15）：本批
 R2源码固定dd7db1df3：47文件，134错误词元/35TS迁当前owner；七处同名业务事件/读取保持原值。实际Source health通过（w3-r2-health01.log，零语法错误；非主人码845→781）；Goals/Governance两个API快照同步，四规划输出动作v2及实际review_action/显式MCP消费者同片更新。生命周期与真实Runtime已有测试加R2验收编号，未修改断言。动作快照、全量构建、真实HTTP/MCP/事件与H-R整合全量均待，不据源码提交宣称R2验收通过。
 
 W3-02-R3沿当前错误owner规则接在H/R1/R2后：仅Goals树提案、依赖提案、决定与Governance request错误及其现行消费者，按goals.<原前缀>.<原因>同片迁移；身份/授权/决定动作、存储业务type/SQL/事实与结果不改。R3-01：真实受保护审批/Runtime拒绝给现行owner码，kind/details/编号及拒绝副作用保持；R3-02：按AST核对生产与MCP/HTTP/测试/活文档消费者，旧码无生成/读取兼容；公开schema或API实际变化才升动作版本并同片更新消费者。R3-03：事件/树/管理MCP授权、幂等、原子性与重启定向回归，H/R合并全量通过才验收；当前先清点语境，尚无运行或完成声明。由Root独立隔离树串行写入，与冻结构建队列无修改冲突。
+
+A4 #483已在2026-10-13T21:40:11Z合入main c33448f29bbfa3c0eedc49a8b23bd125da9c4bdd：精确HEAD2a78babc0ec25e8201655cf63f2da7a19bad8551对齐目标726e281e，五必需检查与Product subset实际SUCCESS、fresh secrets通过；Linux probe仍运行，仅报告，不记已通过。A4有效本机回归243/243及源码只读复核保留；C/D浏览器与E零混载整合仍待，不把A4合入当全部W2-10完成。
+R2固定源码dd7db1df3已由统筹独立只读核对AST、七业务词元、planning cycle分支、四动作v2与对应消费者/API/文档及health原日志，无当前Blocker/P1；运行证据缺口仍全部保留。

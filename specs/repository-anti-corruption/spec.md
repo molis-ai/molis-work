@@ -1390,7 +1390,7 @@ W3-10-5 复用现有 SOURCE_COUNT_RULES 与逐文件 merge-base 比较，不另�
 | W3-02-G3-03 | 真实助理失败仍持久化原文草稿并返回同一 publicWork，work/action放在details，island同片读failure.code与failure.data=details；保留修复按钮、原request_id与恢复流程，不读取旧顶层work/action。浏览器证明失败后草稿、同一work及修复按钮实际可用。 |
 | W3-02-G3-04 | 应用重启后失效的图片句柄经真实读取入口回答404 / assistant.expired（原410），kind=not_found；保留重新添加文案及业务资料记录，不伪造调用编号。 |
 
-API与相关契约快照同步，整体构建、定向真实入口及浏览器回归完成后进入下一次协调整合全量；巨大单元和页面资源只降。2026-10-12 G1 的网关/删除/availability 子块已保存 source-only 4b08716d0，23文件+191/-54，独立只读未发现必须处理的Blocker/P1；仍未构建/运行/API刷新。原 G1 的 HomeDock、search、placement、contextual 与平台同义码收口尚未覆盖，不把此子块称作整个G1完成；G3仍为方案。
+API与相关契约快照同步，整体构建、定向真实入口及浏览器回归完成后进入下一次协调整合全量；巨大单元和页面资源只降。2026-10-12 G1已完成原网关/删除/availability子块与剩余四HTTP/同义码，共同source-only固定8d37f4de；对Home1e1+I5三测试修复的合成依赖276d2b8f比较为50文件+454/-127，不能把Home/I5祖先计成本片。固定稿独立窄复核与root实际diff核对无Blocker/P1；首轮整体build、两份API刷新、actions/资源实际检查、boundary/noEmit/actual-base健康均通过。实际merge-base56033f06仍早于当前main0568。21文件196条首轮192通过/4失败、无跳过/取消；035412731仅删已孤立的transport_denied表行并修三处消费者/夹具：Inbox实际content.read需feed:read、HomeTalk先经真实Settings安装Sessions、S07现行missing404替旧403。真实编号、无行/UUID/headers、业务不写约束保留；全量冻结祖先的三条test-only修复已机械保留。正在重新整体build与四失败文件验证，不能称整组全绿或独立main-ready；G3仍为已核方案。
 
 G3固定I5源码复核的必要接线同属以上合同：Memory Host的asActionError重新构造会丢owner kind/details，需与mapper一起撤除，直接memory.forbidden也走同一owner声明；不能只改HTTP catch。AgentDefinitionsError范围外唯一生产消费者plugin-model-service的instanceof分支同步改用共同拒绝，保留plugin.model_instruction_refused及原指令边界。Assistant related坏输入使用现有assistant.invalid共同错误体，保留400。完整允许路径包括这三个消费者与现有公开HTTP/模型/浏览器验证，不新增错误别名、读取兼容或业务语义；当前仅核对，尚未实现/运行。
 
@@ -1471,7 +1471,7 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 
 ### 10.8 MCP launcher 闭管道拒绝（CI 独立修复）
 
-新一轮Linux CI的#457和仅test-only的#464产品子集均360文件通过、同一runtime-integration整文件失败；两次尝试仅有file-level test failed报告，尚未取得其原始异常。当前main0568的Linux同文件实跑13/13、I5按同CI runner在本机13/13，故不把它定性为已确认CLI或Issue回归。只读核对发现现行validateMolisWorkMcpLauncher没处理child.stdin的error；经公开MCP包的真实子进程故障注入，两次在输入已关闭而id1回答到达后写tools/list稳定产生未处理EPIPE并退出。此缺陷已确认，但它是否解释原CI的全部失败仍待新CI与原始异常证明。
+新一轮Linux CI的#457、仅test-only的#464及#468产品子集均360文件通过、同一runtime-integration整文件失败；两次尝试仅有file-level test failed报告，尚未取得其原始异常。当前main0568的Linux同文件实跑13/13、I5按同CI runner在本机13/13，故不把它定性为已确认CLI或Issue回归。只读核对发现现行validateMolisWorkMcpLauncher没处理child.stdin的error；经公开MCP包的真实子进程故障注入，两次在输入已关闭而id1回答到达后写tools/list稳定产生未处理EPIPE并退出。此缺陷已确认，但它是否解释原CI的全部失败仍待新CI与原始异常证明。
 
 修复目标是维持原“验证失败→恢复配置及Skill”的行为，范围仅现行MCP launcher验证函数及其公开Runtime安装测试/必要README；单独从最新main提交，不夹带G1/G3，不改CI门槛、清单或超时。真实Home与凭据不访问。输入管道失败让现有finish(false)收口，settled后不再发送请求；不增加重试或进程管理设施。
 

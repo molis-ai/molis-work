@@ -353,6 +353,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     // A project reference (a file in the project that evidence points to) opens in an overlay here, never a new tab.
     const referenceDialog = document.querySelector("[data-project-reference-dialog]");
+    let referenceRequest = null;
+    referenceDialog?.addEventListener("close", () => { if (!referenceDialog.open) { referenceRequest?.abort(); referenceRequest = null; } });
+    boardLifetime.own(() => referenceRequest?.abort());
     referenceDialog?.addEventListener("click", (event) => { if (event.target?.closest?.("[data-dialog-close]")) referenceDialog.close(); });
     document.addEventListener("click", async (event) => {
       const link = event.target?.closest?.("a[data-project-reference]");
@@ -360,17 +363,19 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       event.preventDefault();
       const href = link.getAttribute("href") || "";
       const url = href.startsWith("/api/") ? route(href) : href;
+      referenceRequest?.abort();
+      const request = new AbortController(); referenceRequest = request;
       const body = referenceDialog.querySelector("[data-project-reference-body]");
       referenceDialog.querySelector("#project-reference-title").textContent = link.textContent.trim() || L("项目内引用");
       referenceDialog.querySelector("[data-project-reference-download]").href = url;
       body.textContent = L("正在读取…");
       if (!referenceDialog.open) referenceDialog.showModal();
       try {
-        const response = await fetch(url, { cache: "no-store" });
+        const response = await fetch(url, { cache: "no-store", signal: request.signal });
         const text = await response.text();
         if (!response.ok) { let reason = text; try { reason = JSON.parse(text).error || text; } catch {} throw new Error(reason); }
-        body.textContent = text;
-      } catch (error) { body.textContent = error?.message || L("项目内引用无法打开"); }
+        if (referenceRequest === request && referenceDialog.open) body.textContent = text;
+      } catch (error) { if (referenceRequest === request && referenceDialog.open && !request.signal.aborted) body.textContent = error?.message || L("项目内引用无法打开"); }
     });
     updateRelationPreviews();
     updateAllRelationFormPreviews();

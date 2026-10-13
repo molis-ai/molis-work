@@ -19,7 +19,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   // The market entry lives in the bar's Dock menu (the rail's only on older shells); its count lights the menu's dot too.
   const marketLink = document.querySelector('[data-global-menu] [data-plugin-id="market"], [data-plugin-strip] [data-plugin-id="market"]');
   const updateCount = marketLink?.querySelector("[data-market-update-count]");
-  let projects = null, updates = [], marketRequest = null, updatesRequest = null, pending = false;
+  let projects = null, updates = [], marketRequest = null, updatesRequest = null, pending = false, marketDirty = true, marketRevision = 0;
   const paintUpdateCount = () => {
     if (updateCount) {
       updateCount.hidden = updates.length === 0;
@@ -114,7 +114,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       card.hidden = (onlyAdded && !added) || !((card.querySelector("h2").textContent + " " + card.querySelector("p").textContent).toLocaleLowerCase().includes(query));
       if (!card.hidden) count++;
       const button = card.querySelector("[data-market-add]");
-      button.disabled = !current || pending;
+      button.disabled = !current || pending || marketDirty;
       button.dataset.marketMembership = added ? "added" : "available";
       button.textContent = added ? L("移除") : L("添加");
       const currentProject = selector.value === projectId;
@@ -128,7 +128,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       const upgradeButton = card.querySelector("[data-market-upgrade]");
       upgradeButton.dataset.marketUpgrade = update?.plugin_id || "";
       upgradeButton.hidden = !update;
-      upgradeButton.disabled = !current || pending || !update?.can_upgrade;
+      upgradeButton.disabled = !current || pending || marketDirty || !update?.can_upgrade;
       const version = card.querySelector("[data-market-version]");
       if (update) {
         version.hidden = false;
@@ -145,25 +145,35 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     syncProjectMenu();
   };
   const loadMarket = async () => {
-    if (marketRequest) return marketRequest;
-    if (projects) return;
+    if (marketRequest || pending) return marketRequest;
+    const revision = marketRevision, selectedProject = selector.value;
+    marketDirty = true; selector.disabled = true;
     status.textContent = L("正在读取项目…"); retry.hidden = true;
     marketRequest = (async () => {
       try {
         const response = await fetch("/api/settings/project-plugins", { cache: "no-store" });
         if (!response.ok) throw new Error(L("无法读取项目插件"));
-        projects = (await response.json()).projects;
+        const latest = (await response.json()).projects;
         await refreshUpdates();
+        if (revision !== marketRevision) return;
+        projects = latest; marketDirty = false;
         selector.replaceChildren(...projects.map(project => new Option(project.display_name, project.project_id)));
-        if (projects.some(project => project.project_id === projectId)) selector.value = projectId;
+        if (projects.some(project => project.project_id === selectedProject)) selector.value = selectedProject;
+        else if (projects.some(project => project.project_id === projectId)) selector.value = projectId;
         selector.disabled = !projects.length;
         status.textContent = projects.length ? "" : L("先创建一个项目，再添加插件。");
         filter();
-      } catch (error) { status.textContent = error.message; retry.hidden = false; }
-      finally { marketRequest = null; }
-    })();
+      } catch (error) { if (revision === marketRevision) { status.textContent = error.message; retry.hidden = false; } }
+    })().finally(() => {
+      marketRequest = null; selector.disabled = pending || !projects?.length; filter();
+      if (revision !== marketRevision && !pending) void loadMarket();
+    });
+    filter();
     return marketRequest;
   };
+  document.addEventListener("molis-work:plugins-changed", () => {
+    marketRevision++; marketDirty = true; filter(); if (!pending) void loadMarket();
+  });
   market.addEventListener("input", filter);
   market.addEventListener("change", filter);
   // The dock bell opens this project's notifications, and the list only shows them for the current project.
@@ -230,7 +240,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
         status.textContent = L("已升级至") + " v" + result.version;
         filter();
       } catch (error) { status.textContent = error.message; }
-      finally { pending = false; selector.disabled = false; filter(); }
+      finally { pending = false; selector.disabled = !projects?.length; filter(); if (marketDirty) void loadMarket(); }
       return;
     }
     const button = event.target.closest("[data-market-add]");
@@ -260,7 +270,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       status.textContent = (removing ? L("已移除自") : L("已添加到")) + " " + project.display_name;
       if (targetProject === projectId && !host.membership) { saveUiState(); location.reload(); }
     } catch (error) { status.textContent = error.message; }
-    finally { pending = false; selector.disabled = false; filter(); }
+    finally { pending = false; selector.disabled = !projects?.length; filter(); if (marketDirty) void loadMarket(); }
   });
   const directory = document.querySelector("[data-artifact-directory]");
   const detail = document.querySelector("[data-artifact-detail]");

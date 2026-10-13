@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中（2026-10-12）。§4.1 的兼容清理、第1/2波、第3波A批及其合规修复已合入main；第3波B/C的I1–I3已合入。I4八片已整合并补跑中断文件，六片已合入（#455与#456均七项CI全过后由原进程合并；main679034ca），#457/#459完成复验并推送，已同步MCP修复main e7a51ff0，CLI41/41及Agent/函数60/60通过并重新发布，等本head必需CI/相关Product。I5全量6,051条中的三项失败已完成基线对照和修正后23/23；第五五片完成当前main复验并开#465–#469，待全部CI与合入。独立测试修复#451/#461/#462已合入，#464待CI。Home与G1/G3的候选实现/范围及证据分列§10，未验证项不记完成。继续余下第3波、每批合规复查、第4–6波与错误码改写后的维护八；维护六/七已核对，BL-126只剩用户重开旧会话。
+状态：执行中，未达到整条防腐线的完成标准（2026-10-12 复查）。当前在第 3 波 B/C 的整合回归与分片收尾；本次另发现共同副作用检查的精确授权撤销竞态 P1（源码确认，待复现/修复，§12.3）；I6 冻结稿 `af0fe957` 正在全量回归，不能记为通过。已合入的代码、在途候选和原始失败分别见 §10；第 1 波 W1-18 只完成包事实表，第 2 波 W2-18 只完成首轮证据与相关修复，均未整项完成。剩余包含 71 包职责复核、逐插件异常与组合路径、前端第二轮、测试有效性与动作消费合同核查，以及第 3 波余项、第 4–6 波和维护八。工程通过、真实集成/产品实操与用户验收分别裁决；完整要求映射、必须收口项和任务书 §7 的逐条结论见 §12。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -9,7 +9,7 @@
 ## 0. 现场与范围
 
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。
-- **范围**：全仓 71 个 workspace 包（2026-10-08，`scripts/workspace-packages.mjs` 的 `WORKSPACE_PACKAGES`：`apps` 6、`horizontal` 8、`modules` 13、`packages` 10、`plugins/native` 26、`plugins/official-integrations` 6、`server` 1、`tooling/plugin-cli` 1）。开工时是 73 个，`modules/execution` 与 `modules/evidence-verification` 随 #268 删除；2026-10-10 实验插件删除（`plugins/native/experiments`）后是 70 个，`plugins/native` 25。每个包都至少做一次结构审查，交出 §5 的包级清单。
+- **范围**：全仓 71 个 workspace 包（2026-10-08，`scripts/workspace-packages.mjs` 的 `WORKSPACE_PACKAGES`：`apps` 6、`horizontal` 8、`modules` 13、`packages` 10、`plugins/native` 26、`plugins/official-integrations` 6、`server` 1、`tooling/plugin-cli` 1）。开工时是 73 个，`modules/execution` 与 `modules/evidence-verification` 随 #268 删除；2026-10-10 实验插件删除（`plugins/native/experiments`）后曾为 70 个；Issue 加入后恢复为 71 个，`plugins/native` 26（I6 `af0fe957` 的登记表与代码重算）。每个包都至少做一次结构审查，交出 §5 的包级清单。
 - **在途的其他线**（开工前要重新核对）：`feature/side-shelf`、`feat/plugin-picker-pins`、`docs/archive-project-arrival-flow`、`feature/fix-project-management-freeze`（另一工作树）、Codex 工作树 `~/.codex/worktrees/d62d`。
 
 ## 1. 决策记录与待决事项
@@ -328,6 +328,8 @@
 
 ### 3.1 附录 A 逐项闭环
 
+以下逐项正文保留 `ba223d95` 时的现场与后续补记，不是当前状态表；2026-10-12 按现行源码的裁决统一见 §12.2。历史的「没有门禁」「CI 不跑产品」「尚未实现」若与后续相冲突，以 §12 的带基线结论为准。
+
 | 编号 | 结论 | 证据（`ba223d95`） | 归属 |
 | --- | --- | --- | --- |
 | R-01 | 仍然成立 [已确认] | `tests/builtin-plugin-assembly-gate.test.ts` 冻结 19 个构建期插件（`BUILD_TIME_ASSEMBLED`，含 todo）、7 个经 Runtime（`RUNTIME_ASSEMBLED`）；`apps/local-host/src/*-native-plugin-http.ts` 18 个；`project-host.ts` 26 处 `registerProvider`；`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG`（`:64` 到 `:382`）26 个目录条目（19 个构建期加 7 个经 Runtime）、33 条 import。新插件只走 Runtime 的规则已写进 AGENTS.md:31 与 `skills/molis-plugin-dev/host.md`（#298）；今天新增一个内置插件要改哪些地方逐项列在 `docs/system/EXTENSION-POINTS.md` 3.1，迁移计划在 `docs/system/RUNTIME-MIGRATION.md`（#317） | §4.6：W1-05（装配门禁加严）、W4-04（Form 样板）、W5-01、W5-02、W6-01；host.md 与 AGENTS.md 的说法对不上（BL-119）归 W6-03。决定 #9：Goals、Artifacts、Sessions、插件创作台是批准的构建期例外，其余 15 个逐族迁移；决定 #10：Form 先、Todo 第二 |
@@ -643,7 +645,7 @@
   - **窗口步骤**（对着 [发布前检查清单](../../docs/releases/CHECKLIST.md) 第 4 节；在含这些文件的检出里做，分支或合入后的 main 都行）：0. 用户批准并定时机（弹窗）。1. 停掉连着真实 Home 的进程（4173、4207、4208、各会话的 MCP），按 pid 精确停；脚本也会拦：文件有人持有、端口有人监听就停。2. `pnpm build`。3. 再演一遍：`KEEP=1 TMPDIR=<临时目录> bash tests/fixtures/store-maintenance-run.sh ~/.molis-work`，期望 `stores found: 1` 和 `REHEARSAL OK`；再 `node tests/fixtures/store-maintenance-verify-open.mjs <它打印的 scratch home>`，期望 experiments 一行带 `"user_version":1` 和那一行数据，退出码 0；用完删掉那份临时目录（里面是 Home 的数据）。4. 盖章：`bash tests/fixtures/store-maintenance-run.sh ~/.molis-work --apply ~/molis-work-backups/<日期>-before-maint5 --maintenance-window`，期望 `STAMPED` 和一行 `verified`。5. 只读复核：`sqlite3 "file:$HOME/.molis-work/plugins/experiments/private.sqlite?immutable=1" "PRAGMA user_version"` 为 1。6. 装新构建（Home 安装版、主检出），打开一次 Experiments；备份保留到用户验收。7. 退回：`sqlite3 ~/.molis-work/plugins/experiments/private.sqlite "PRAGMA user_version = 0"`（旧构建不看版本），或从第 4 步的备份恢复。8. 做完后删 `tests/fixtures/store-maintenance-*` 四个文件和 `tests/store-version-maintenance.test.ts`，把 CHECKLIST 第 3 节、CHANGELOG 里的「要先维护」改成「已做」。
   - **做了什么**（2026-10-09，用户当天弹窗定「现在就做」）：在 origin/main（`3f7b181f`，含 #346）的干净工作树里 `pnpm build`。4173、4207、4208 无人监听；连着真实 Home 的只有各会话的 MCP 服务（安装版 0.2.0 的 `molis-work-mcp`，持有 memory、search、placement、agent-definitions 几个库，不持有实验库，旧构建也不看这个版本），没有停它们。第 3 步再演一遍：`stores found: 1`、`REHEARSAL OK`，用新构建打开盖过的拷贝得到 `"user_version":1` 和那一行（`install_id` `io.molis.work.experiments`、`item_key` `experiments.v1`、长 36），用完删掉拷贝。第 4 步第一次 `--apply` 时磁盘满（当时 8 个 B 批工作树在并行构建，可用空间不到 10 GB；Home 有 1,269,849 个文件，整份 APFS 克隆要的元数据就占满了），`cp -c -R` 报 `clonefile failed: No space left on device`，脚本在备份那一步停下、没有碰真库（只读复核版本仍是 0、`integrity_check` ok、1 行）；那份不完整的备份 `~/molis-work-backups/2026-10-09-before-maint5` 留着（删它被权限挡下，留给用户删）。清掉本会话 67 个已合并、干净、无人使用的工作树（腾出约 40 GB）后重跑：备份 `~/molis-work-backups/2026-10-09-before-maint5-r2`（库与原件逐字节相同），`verified …private.sqlite: user_version=1, integrity_check ok, schema and rows unchanged (dump ed621923be40)`、`STAMPED`。第 5 步只读复核：`PRAGMA user_version` 为 1，`integrity_check` ok，1 行。第 6 步（装新构建、打开一次 Experiments）随 B 批合入后的主检出快进一起做；在那之前主检出与安装版仍是旧构建，旧构建不看这个版本，照常能用。第 8 步：本 PR 删了四个工具和演练用例，CHECKLIST 与 CHANGELOG 改成「已做」。
   - **全量回归（路线图 W2-05 行要求）**：已做：第 2 波 A 批 16 片合成的集成分支 `integration/wave2-1009`（含本切片）2026-10-09 全量 5,027 个用例，5,018 通过、0 失败、9 跳过，之后经 #346 合入。原先的记录：本切片跑了 `apps/local-host` README 的必跑清单（评审在拷贝里重跑 132/132 通过）、实验、炼金术士宿主、搜索依据运行时与 Feed 的相关用例（51 个，其中 `studio HTTP` 一个在整批并发下超时、单独跑通过）和本切片自己的用例；按分工不跑全量，留给协调会话的集成窗口。全量跑过之前这一切片不算完成。
-- 真实 Home 维护六（项目库 v6 → v7，删 Casebook 的 5 张表；移出 `plugins/experiments`，并报告实验插件在别处的残留行）——**数据部分和重装已做，收尾核对没做完（2026-10-10：18 个项目库已是 v7、实验插件目录已移出、残留行已清、Home 安装版已重装（计划步骤 7）、新构建的安装版 MCP 列出 18 个项目；新构建打开 v7 项目库那一项（计划步骤 8 的后半）没做，待办 BL-126，见本条末尾「做了什么」；Sessions 库里旧版删项目留下的 1 个空会话的清理在处理中，不属于维护六，也记在末尾）。** 用户 2026-10-10 的决定（§1「删掉 Casebook 与实验插件后真实 Home 的数据」）：删除 PR 合入后立刻维护，做完之前主检出与安装版不更新。分支 `chore/delete-casebook` 删掉 Casebook 的全部代码（宿主子系统、`/casebook/v1/` 通道、5 个 typed 能力、对外合同与参考客户端、`config/casebook.json` 的读取、`LocalHost` 的 observation 钩子），项目库的 `PROJECT_DATABASE_BASELINE` 因此从 6 升到 7（`apps/local-host/src/project-database-schema.ts`）：v7 是 v6 去掉 `casebook_interaction_scopes`、`casebook_interaction_facts`、`casebook_goal_contexts`、`casebook_interaction_audit_keys`、`casebook_interaction_actions`，别的表、索引、外键都没变（这 5 张表没有显式索引，也没有外键进出）。分支 `chore/delete-experiments` 删掉实验插件（`plugins/native/experiments`、宿主里的接线与私有库打开代码、Python 工作进程、手册、目录条目与测试）；真实 Home 里留下 `plugins/experiments/`（私有库，维护五盖过版本 1）和这个插件在别处的残留行。两个分支都合入后才做，三件事在同一个维护窗口里一次做完，下面的描述就是维护六的全部。
+- 真实 Home 维护六（项目库 v6 → v7，删 Casebook 的 5 张表；移出 `plugins/experiments`，并报告实验插件在别处的残留行）——**数据部分和重装已做，收尾核对没做完（2026-10-10：18 个项目库已是 v7、实验插件目录已移出、残留行已清、Home 安装版已重装（计划步骤 7）、新构建的安装版 MCP 列出 18 个项目；新构建打开 v7 项目库那一项（计划步骤 8 的后半）没做，待办 BL-126，见本条末尾「做了什么」；Sessions 库里旧版删项目留下的 1 个空会话已于 10-10 按授权删除，不属于维护六，结果见末尾）。** 用户 2026-10-10 的决定（§1「删掉 Casebook 与实验插件后真实 Home 的数据」）：删除 PR 合入后立刻维护，做完之前主检出与安装版不更新。分支 `chore/delete-casebook` 删掉 Casebook 的全部代码（宿主子系统、`/casebook/v1/` 通道、5 个 typed 能力、对外合同与参考客户端、`config/casebook.json` 的读取、`LocalHost` 的 observation 钩子），项目库的 `PROJECT_DATABASE_BASELINE` 因此从 6 升到 7（`apps/local-host/src/project-database-schema.ts`）：v7 是 v6 去掉 `casebook_interaction_scopes`、`casebook_interaction_facts`、`casebook_goal_contexts`、`casebook_interaction_audit_keys`、`casebook_interaction_actions`，别的表、索引、外键都没变（这 5 张表没有显式索引，也没有外键进出）。分支 `chore/delete-experiments` 删掉实验插件（`plugins/native/experiments`、宿主里的接线与私有库打开代码、Python 工作进程、手册、目录条目与测试）；真实 Home 里留下 `plugins/experiments/`（私有库，维护五盖过版本 1）和这个插件在别处的残留行。两个分支都合入后才做，三件事在同一个维护窗口里一次做完，下面的描述就是维护六的全部。
   - **跑新代码的进程拒绝 v6**，什么都不写：`storage.schema_version_mismatch`「…的结构版本是 6，这个版本的 Molis Work 只认 7；不就地升级」；恢复（`LocalProjectDatabase(path, { existingOnly: true })`）报 `project_recovery_unsupported_schema`。主检出快进到新 main 并构建之后，4207 和主检出的命令行打不开真实 Home 的项目；Home 安装版换成新 main 的构建后，新起的 MCP 也一样；都要等做完维护六的数据部分（本机已按这个顺序做完，见「做了什么」）。
   - **做完以后跑旧代码的进程拒绝 v7**：Home 安装版（只认 6）遇到 v7 报同一个 `storage.schema_version_mismatch`，要用新 main 的干净构建重装；已开着的会话里的 MCP 同样，要重开会话。本机的安装版 2026-10-10 已重装；重装之前起的 MCP 进程跑的仍是重装前的代码，要重连或重开会话才换成新的。
   - **做什么（一）项目库 v6 → v7**：对 `projects/<id>/molis-work.db` 逐个跑 `tests/fixtures/project-maintenance-v7.sql`（目录库列出的每个项目含个人空间，再加磁盘上有、目录库没列出的项目库，先查），一库一个事务：具名 CHECK 做前提（`user_version` 是 6、表正好是 v6 的 78 张、Casebook 的 5 张表的 23 个列对、没有视图和触发器），删 5 张表，`PRAGMA user_version = 7`；前提不成立整个脚本回滚，什么都不改（用 `node:sqlite` 的 `exec` 或 `sqlite3 -bail` 跑；不加 `-bail` 的 sqlite3 出错后会接着往下跑并提交）。没有 `VACUUM`（不能在事务里；释放的页留在文件里无害）。
@@ -780,7 +782,7 @@
 
 ### 5.2 状态、计划深度与审查
 
-**状态**：在用 42、Runtime 7、构建期 19、非产品 3。由代码判定，门禁每次重算：
+**状态**：I6 `af0fe957` 重算为在用 42、Runtime 8、构建期 18、非产品 3（共 71）；Issue 是新增的 Runtime 插件，Experiments 已删除。由代码判定，门禁每次重算：
 
 | 状态 | 含义 | 代码里怎么判 |
 | --- | --- | --- |
@@ -797,9 +799,9 @@
 
 另有两处声明了依赖、包内却没有任何文件按包名导入：`apps/workbench` 对 `packages/im-ui`（「讨论」页签用的是 `/im` 的 iframe）、`plugins/native/goals` 对 `modules/goals`。这版不判断，留给逐包审查。（`packages/test-kit` 对 `packages/contracts` 的依赖原先也在此列，只把包名当字符串；W2-11 c1 起 `/local-host-http` 的类型从 `@molis-ai/molis-work-contracts/platform/actions` 导入，它不再属于「没有文件导入」。）
 
-**计划深度**按风险定（任务书 §0：深入程度按风险决定）。四个量各给分：源文件行数 ≥ 9,000 记 2 分、≥ 3,000 记 1 分；2026-09-08（Cutover）以来碰过这个包的非合并提交数 ≥ 100 记 2 分、≥ 40 记 1 分；被依赖数 ≥ 17 记 2 分、≥ 4 记 1 分；`tooling/gates/baseline.json` 里记在它名下的巨大单元数 ≥ 10 记 2 分、≥ 4 记 1 分。总分 ≥ 4 为「深」。另有两个包放在授权脊梁上，也列「深」：`packages/kernel`（`ActionService`：可信身份、`beforeEffect`、撤销后不再写，见 `AGENTS.md` 硬约束）和 `packages/plugin-runtime`（安装、grant、签名）；每个能力调用和每次插件安装都经过它们，体量小，出错的代价最大。其余有 ≥ 1,000 行源码、或有巨大单元、或被 ≥ 3 个包依赖的为「中」，再其余为「浅」。结果：深 11（`apps/local-host`、`apps/workbench`、`horizontal/agent-host`、`modules/goals`、`packages/contracts`、`packages/design-system`、`packages/kernel`、`packages/plugin-runtime`、`plugins/native/coding`、`plugins/native/goals`、`plugins/native/pages`）、中 43、浅 17。深度是计划，不是门禁：以后某个包越过阈值不会让门禁变红，审它的时候再按当时的数重定。
+**计划深度**按风险定（任务书 §0：深入程度按风险决定）。四个量各给分：源文件行数 ≥ 9,000 记 2 分、≥ 3,000 记 1 分；2026-09-08（Cutover）以来碰过这个包的非合并提交数 ≥ 100 记 2 分、≥ 40 记 1 分；被依赖数 ≥ 17 记 2 分、≥ 4 记 1 分；`tooling/gates/baseline.json` 里记在它名下的巨大单元数 ≥ 10 记 2 分、≥ 4 记 1 分。总分 ≥ 4 为「深」。另有两个包放在授权脊梁上，也列「深」：`packages/kernel`（`ActionService`：可信身份、`beforeEffect`、撤销后不再写，见 `AGENTS.md` 硬约束）和 `packages/plugin-runtime`（安装、grant、签名）；每个能力调用和每次插件安装都经过它们，体量小，出错的代价最大。其余有 ≥ 1,000 行源码、或有巨大单元、或被 ≥ 3 个包依赖的为「中」，再其余为「浅」。结果：深 11（`apps/local-host`、`apps/workbench`、`horizontal/agent-host`、`modules/goals`、`packages/contracts`、`packages/design-system`、`packages/kernel`、`packages/plugin-runtime`、`plugins/native/coding`、`plugins/native/goals`、`plugins/native/pages`）、中 43、浅 17（现行 §5.1 的计划；I6 按阈值重算建议为深 11、中 42、浅 18，审查时再判定，不机械改已有深度）。深度是计划，不是门禁：以后某个包越过阈值不会让门禁变红，审它的时候再按当时的数重定。
 
-**审查**：「待审」是还没做 §4.4 的结构审查，「已审」是做完并在 §5.2 之后写了逐包记录。现在 70 个包都是待审。
+**审查**：「待审」是还没做 §4.4 的结构审查，「已审」是做完并在 §5.2 之后写了逐包记录。现行表的 71 个包仍全部标「待审」。W1-18 的事实表与门禁已经完成，但逐包的职责、依赖、变化原因、放置与冗余判断没有交齐，不能据 #322 已合入记为整项完成；接续验收见 §12.3。
 
 ### 5.x 本轮补记的清单项（2026-10-03）
 
@@ -877,9 +879,9 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 - **W2-02 留下的两个代码层取舍**：Goals 插件的「最近处理结果」贡献现在没有挂载点（见 §3.5），建议由 Goals 的主人在「挂到 Goal 文档」和「连同三处 DD2 守卫退役」里选一个；`PRODUCT.md:88`、`README.md:94`、`README.zh.md:94` 还写着「决定中心」（那一页早就只是 Inbox 的壳，现在连壳也没有了），改文字要按 W1-02 的规矩先把 `PRODUCT.md` 的 diff 给用户看，建议改成「决定卡片」。
 - ~~**W2-18 带出的 15 项待用户决定**~~：2026-10-09 已弹窗问完，结论见 §1「W2-18 产出的决定」；落实在第 2 波 B 批（W2-18 后续）。其中第 2 项（实验的 `grok`/`laya` 本地调用要不要进 AGENTS.md）2026-10-10 随实验插件删除作废，落实时不加这一条。
 
-- **助理库里已存轮次的补标记（待用户批准时机，未做）**：「你说过」和从工作里提炼只认本人打的轮次（[horizontal/memory/README.md](../../horizontal/memory/README.md)）；新写入的轮次由宿主和工作台标 `written_by`，之前的构建存下的轮次没有标记，被当作本人打的。补标记是对 `assistant/assistant.db` 的一次维护，只改 `assistant_rounds.body` 里的 JSON，不改库结构和版本：请求标识 `fu-…` 的（定时安排）补 `host`，`msg-…` 的（插件交办）补 `page`，文字正好是浏览器交还那一句、或“建议「…」没有执行：…请读取最新状态，按现在的情况重新准备这一项的操作卡。”（中英文界面各一种写法）的补 `page`。脚本按合同变更流程第 3 节第 4 条放在会话临时目录、不入库，已在用真实助理库代码建的临时库上演练过（干跑不改、应用后只改这几类、再跑一遍无事可做）；真库上照维护三、四的做法：用户批准并定时机、停进程、整份备份、先在拷贝上演、再就地改、只读核对，可以并进下一次维护窗口。补之前，把某条旧的定时或交办轮次整条照抄进 `remember` 仍会记作“你说过”。
+- **助理库里已存轮次的补标记（执行证据未验证，继续待核）**：「你说过」和从工作里提炼只认本人打的轮次（[horizontal/memory/README.md](../../horizontal/memory/README.md)）；新写入的轮次由宿主和工作台标 `written_by`，之前的构建存下的轮次没有标记，被当作本人打的。补标记是对 `assistant/assistant.db` 的一次维护，只改 `assistant_rounds.body` 里的 JSON，不改库结构和版本：请求标识 `fu-…` 的（定时安排）补 `host`，`msg-…` 的（插件交办）补 `page`，文字正好是浏览器交还那一句、或“建议「…」没有执行：…请读取最新状态，按现在的情况重新准备这一项的操作卡。”（中英文界面各一种写法）的补 `page`。脚本按合同变更流程第 3 节第 4 条放在会话临时目录、不入库，已在用真实助理库代码建的临时库上演练过（干跑不改、应用后只改这几类、再跑一遍无事可做）；真库上照维护三、四的做法：用户批准并定时机、停进程、整份备份、先在拷贝上演、再就地改、只读核对，可以并进下一次维护窗口。补之前，把某条旧的定时或交办轮次整条照抄进 `remember` 仍会记作“你说过”。
 - ~~真实 Home 维护四的时机~~：已定（§1 2026-10-08）：合入后立刻做，并在同一窗口里清掉以前删项目留下的孤儿数据（先在拷贝上列出各库、各多少条给用户看，再在真库上删；整份备份里保留）。
-- **常驻服务 4173 要装新版**：10-03 已停（`launchctl bootout gui/<uid>/com.adeptify.goalboard.web`，plist 未改）。它是安装版 0.2.0，读写已删除的旧成果表，不能再用；装新版或改指向新构建后，用 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.adeptify.goalboard.web.plist` 启动。
+- **常驻服务 4173 的状态（2026-10-12 校正）**：10-03 停旧服务是历史事实；维护六用 `72137e89a`、维护七用 `9f9bda551` 已重装同版本 0.2.0 的新构建，见 §4.1 与发布检查清单。原「还没装新版」已失效。维护七 `service status` 为 absent，本次 4173/4207/4208 均无监听，只能确认未在运行，不能声称已启动新版；重启/真实 Home 新候选的验证继续按既有维护窗口处理，不照旧 plist 指令盲目重启。
 - **旧成果表的备份**：`~/.molis-work-backups/2026-10-03-drop-old-artifact-tables/`（18 个项目库，148 MB，逐个 `integrity_check` 通过、行数与删除前一致）。确认不再需要后由用户删除。
 - ~~**anti-rot**~~：已于 10-03 删除（工作树、本地与远端分支，见 §1），不再需要用户操作。
 - **#192–#215 合入后留下的远端分支**（24 条，GitHub 上 Branches 页删除）：`docs/artifact-positioning-progress`、`fix/shell-s6-settings-in-workbench`、`docs/archive-post-merge-review`、`fix/shell-s6b-capabilities-in-workbench`、`chore/shell-s7-page-gates`、`fix/shell-s4-studio-in-workbench`、`fix/shell-s1b-drop-old-builder`、`docs/artifact-positioning-s4-s1b`、`fix/artifact-a6-naming-and-feed-manifest`、`feat/artifact-a2-process-items`、`feat/artifact-a1-contract`、`feat/artifact-a3-import-in-library`、`feat/artifact-a4-consumers`、`feat/artifact-a5-goal-delivery`、`fix/test-functions-harness-host`、`feat/artifact-a5b-pin-deliverables`、`feat/artifact-a5c-deliverable-proposals`、`feat/artifact-a7-declaration-gates`、`feat/artifact-a4b-source-and-references`、`feat/pages-import-entry-back`、`feat/artifact-a4b2-goal-inputs`、`feat/artifact-a4b3-continue-and-side`、`fix/test-ppt-download-race`、`feat/artifact-a4b3b-continue`；以及之后合入的本目标分支。
@@ -887,7 +889,16 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 ## 8. 未验证的范围
 
-尚未开工，暂无。
+2026-10-12 复查：下列范围仍不能记为完成，具体 owner、接续切片与验收见 §12.1–§12.4。
+
+- 71 个包的逐包职责与代码放置裁决；现有事实表、边界门禁和重点调用链抽查只支持局部结论。
+- 所有现行插件及官方接入的失败、取消、撤权、并发、重启恢复和组合使用。旧的 26 插件首轮表包含已删除的 Experiments、未含新增 Issue，不能直接当现行全集。
+- 前端第二轮：键盘、读屏、暗色、英文、多窗口、离线、加载/空/失败/部分成功/无权限，以及配置真实模型后的核心路径。已有局部浏览器用例和 31 张首轮截图可复用，但不代表全部覆盖。
+- 全部动作的实际生产消费入口、真实返回与声明输出、不同入口的拒绝/持久化/副作用一致性；动作快照只固定声明。
+- 测试与有效需求的系统对照，以及跳过项、过度 Mock、自证预期和只测内部方法的复核；迁移到公开 import 不等于测试有效性已确认。
+- 最终分支的完整工程检查与 CI、第一步全部跨功能场景、能力/UI 快照差异、真实模型和外部服务路径、用户验收。I5 原始三项失败保留；I6 尚在运行。
+- Form Runtime 样板、声明式扩展探针、剩余旧装配、浏览器打包/类型检查、巨大单元、统一 Home 库登记与快照、最终手册/Skill 演练仍随第 4–6 波推进。
+- 维护八及新版本对真实 Home 的最终验证尚未完成；§4.1 维护六/七的已有结果不扩展成对所有后续候选的验证。
 
 ## 9. main 自检（2026-10-03，main aef917dc）
 
@@ -1191,9 +1202,9 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 方法：九个只读普查各看一到三节（main 15c20920），对照任务书 §7 的完成标准量现状、列已满足/部分/缺失与证据、拆成 PR 大小的切片；再由一个完整性评审合并去重成一条路线。原文与逐节证据见 [roadmap-2026-10-07.md](roadmap-2026-10-07.md)。
 
-**第 1 波进度（全部已合入 main；W1-09 于 2026-10-09 随第 2 波 A 批最后合入）**：W1-01 #327、W1-02 #296–#299、W1-03 #293、W1-04 #328、W1-05 #329、W1-06 #330、W1-07 #331、W1-08 #332、W1-09 #357（Biome 最小规则集按文件计数、只许减少：显式 any、console、debugger、浮动的 Promise 等；rustfmt 与 clippy、shellcheck、`JellyMaterial.swift` 类型检查挡合并；`jelly-whisper` 的 Swift 构建先不挡，收口见 BL-122）、W1-10 #294、W1-11 #333、W1-12 #334（380 份真实设计答卷，完整设计一次通过 42/80）、W1-13 #314、W1-14 #319、W1-15 #317、W1-16 #295、W1-17 #315、W1-18 #322、W1-19 #320、W1-20 #318、W1-21 #316、W1-22 #321、W1-23 #335。合入前两次整合回归：batch S 4,441/4,470（22 个门禁测试互相不知道对方，修夹具后过）、batch T 4,527/4,538（3 个浏览器用例负载超时，单跑全过）。新门禁在合入时抓到的跨分支问题：删项目点名 8 个插件（改成插件自己声明）、页面体积增长（以删掉证明无用的客户端代码抵消）、新 `as unknown as`、合同快照漂移。
+**第 1 波进度（已列 PR 均已合入 main；W1-18 仅事实表完成、逐包审查待做；W1-09 于 2026-10-09 随第 2 波 A 批最后合入）**：W1-01 #327、W1-02 #296–#299、W1-03 #293、W1-04 #328、W1-05 #329、W1-06 #330、W1-07 #331、W1-08 #332、W1-09 #357（Biome 最小规则集按文件计数、只许减少：显式 any、console、debugger、浮动的 Promise 等；rustfmt 与 clippy、shellcheck、`JellyMaterial.swift` 类型检查挡合并；`jelly-whisper` 的 Swift 构建先不挡，收口见 BL-122）、W1-10 #294、W1-11 #333、W1-12 #334（380 份真实设计答卷，完整设计一次通过 42/80）、W1-13 #314、W1-14 #319、W1-15 #317、W1-16 #295、W1-17 #315、W1-18 #322、W1-19 #320、W1-20 #318、W1-21 #316、W1-22 #321、W1-23 #335。合入前两次整合回归：batch S 4,441/4,470（22 个门禁测试互相不知道对方，修夹具后过）、batch T 4,527/4,538（3 个浏览器用例负载超时，单跑全过）。新门禁在合入时抓到的跨分支问题：删项目点名 8 个插件（改成插件自己声明）、页面体积增长（以删掉证明无用的客户端代码抵消）、新 `as unknown as`、合同快照漂移。
 
-**第 2 波进度（A 批 2026-10-09，B 批 2026-10-10）**：A 批 15 片（加上第 1 波的 W1-09）先合成整合分支 `integration/wave2-1009` 跑全量（5,027 个用例：5,018 通过、0 失败、9 跳过；W2-01 原先欠的全量回归由这一次补上），再逐个从最新 main 合入：W2-01 #342（删合同包 6 个占位 subpath）、W2-02 #343（死代码一批）、W2-03 #344（插件 SDK 出口补齐）、W2-04 #345（孤儿资源回收、命令行与管理 MCP 不再有默认库路径）、W2-05 #346（两个无版本的库加版本 1；真实 Home 维护五 10-09 已做，#358）、W2-06 #347（跨主人 SQL 清零加门禁）、W2-09 #348（工作区读取一个 id）、W2-12 #349（「讨论」库进 Home 登记与备份）、W2-13 #350（页面事件合同与门禁）、W2-14 #351（验收编号约定）、W2-15 #352（动作合同快照门禁）、W2-16 #356（CI 产品子集单独作业）、W2-17 #353（受影响用例选择器）、W2-18 #354（证据写作）、W2-19 #355（安全不变量逐条测试）。合入时抓到的跨分支问题都在合入它的 PR 里修：产品子集清单里 11 个文件已由挡合并的 `test:security` 跑（从清单删掉，随 #356）；别的切片新写的显式 any 与 console（6 处，随 #357）；#357 带进的新依赖要求工作树重装。B 批 8 片（W2-07 删项目统一与可信身份、W2-08 删 Goals 桥与 Feed 升格改走 Goals 动作、W2-18 十五项决定的落实：网络与搜索、Agent 入口、插件小体验、触控尺寸、第一次配模型、证据清理）做完修复与评审（10-09 用户再答 4 项，§1，之后又做了一轮），10-10 与用户定删的 Casebook、实验插件两个删除分支合成整合分支 `integration/wave2b-1010` 跑全量（5,142 个用例：5,132 通过、9 跳过、1 失败，是删实验插件漏改的一条断言，已在 #370 修好），再逐个从最新 main 合入：W2-07 #361、W2-08 #362、网络与搜索 #363、Agent 入口 #364、插件小体验 #365、触控尺寸 #366、第一次配模型 #367、证据清理 #368，之后删除 Casebook #369、删除实验插件 #370，真实 Home 维护六的记录 #371（§4.1）。C 批 W2-10、W2-11（测试改走公开入口）已与第 3 波分批推进；W2-10-PR-0、PR-B 及 W2-11-a0/a/b/c1 已合入，余项见 §10.1。
+**第 2 波进度（A 批 2026-10-09，B 批 2026-10-10）**：A 批 15 片（加上第 1 波的 W1-09）先合成整合分支 `integration/wave2-1009` 跑全量（5,027 个用例：5,018 通过、0 失败、9 跳过；W2-01 原先欠的全量回归由这一次补上），再逐个从最新 main 合入：W2-01 #342（删合同包 6 个占位 subpath）、W2-02 #343（死代码一批）、W2-03 #344（插件 SDK 出口补齐）、W2-04 #345（孤儿资源回收、命令行与管理 MCP 不再有默认库路径）、W2-05 #346（两个无版本的库加版本 1；真实 Home 维护五 10-09 已做，#358）、W2-06 #347（跨主人 SQL 清零加门禁）、W2-09 #348（工作区读取一个 id）、W2-12 #349（「讨论」库进 Home 登记与备份）、W2-13 #350（页面事件合同与门禁）、W2-14 #351（验收编号约定）、W2-15 #352（动作合同快照门禁）、W2-16 #356（CI 产品子集单独作业）、W2-17 #353（受影响用例选择器）、W2-18 #354（首轮证据写作，余项见 §12）、W2-19 #355（安全不变量逐条测试）。合入时抓到的跨分支问题都在合入它的 PR 里修：产品子集清单里 11 个文件已由挡合并的 `test:security` 跑（从清单删掉，随 #356）；别的切片新写的显式 any 与 console（6 处，随 #357）；#357 带进的新依赖要求工作树重装。B 批 8 片（W2-07 删项目统一与可信身份、W2-08 删 Goals 桥与 Feed 升格改走 Goals 动作、W2-18 十五项决定的落实：网络与搜索、Agent 入口、插件小体验、触控尺寸、第一次配模型、证据清理）做完修复与评审（10-09 用户再答 4 项，§1，之后又做了一轮），10-10 与用户定删的 Casebook、实验插件两个删除分支合成整合分支 `integration/wave2b-1010` 跑全量（5,142 个用例：5,132 通过、9 跳过、1 失败，是删实验插件漏改的一条断言，已在 #370 修好），再逐个从最新 main 合入：W2-07 #361、W2-08 #362、网络与搜索 #363、Agent 入口 #364、插件小体验 #365、触控尺寸 #366、第一次配模型 #367、证据清理 #368，之后删除 Casebook #369、删除实验插件 #370，真实 Home 维护六的记录 #371（§4.1）。C 批 W2-10、W2-11（测试改走公开入口）已与第 3 波分批推进；W2-10-PR-0、PR-B 及 W2-11-a0/a/b/c1 已合入，余项见 §10.1。
 
 **第 2 波 B 批清理（W2-18 后续，2026-10-09，分支 `chore/evidence-cleanups`，经 #368 合入 main）**：逐插件结论的 E-3 至 E-8、E-10、E-11、E-14，前端动线的 V-3 至 V-5，AI 入口清单 §7 第 3、4、6、9 项，是清理与文字修正，没有产品语义的选择，按各自去向做了。E-3 删 Feed 的演示前端；E-4 成果的搜索摘要只取声明过的文字字段（标题、正文、文件名、说明、表格行的值，加内置生产者各自的正文键：Coding 报告的 `body_markdown`、`task`、`model_answer`，演示稿的 `bullets`，角色的 `instructions`，Feed 捕获的 `source_label`、`tags`；其余字符串，如文档 id、节点类型、编码内容，不再进摘要，生成插件若把正文放在别的键下，摘要里也不再有它，这是 E-4 要的取舍；成果搜索条目的 `revision` 现在把摘要文字算在内，否则已建好的索引会因版本与内容摘要没变而跳过这些成果，真实 Home 里的旧摘要（带开头的文档 id）要等每个成果出新版本或手动 `search.rebuild@1` 才换掉——现在合入后的第一次同步就按新取法重读所有成果一次，摘要没变的成果以后不再重读；这是修订号该有的覆盖范围，不是为旧数据写的迁移分支，不进保留机制；若判为要记，退路是不改修订号、把一次 `search.rebuild@1` 记进下一次真实 Home 维护）；E-5、E-6 成果库与 Sessions 的空状态；E-7 缺模型而停下的炼化与研究，方向卡和研究卡都只说一次「还没有可用模型」并带「打开模型设置」，研究阶段的端口类型与假证据运行时分开，README 数目改成 54；E-8 与 §7.3 去掉 `pages.ai` 的 `stub`；E-10 命令标签；E-11 删 `shelf.jobs.run`；E-14 Diff 与 Text Stats 用插件舞台；V-3 Todo 的「查看」；V-4 窄屏的 Todo 页签与 Goals 行（页签条只在自己里横向滚动，不带动下面的列表，所以打开某条整理结果时它不会被滚回去）；§7.6、§7.9 两处 `PROLOGUE-AI.md`。§7.4 的标题与描述做完（Assistant 目录里描述等于标题的 4 个、少于 14 字的 17 个、同名的 16 组，`tests/action-catalog-wording.test.ts` 钉住）；可用性声明做了能做的部分：`alchemist.reuse.assess`、`alchemist.conversation.send`、`alchemist.explorations.start`、`alchemist.research.start`、`images.jobs.start` 在没有模型或没有可用的生图服务时，对助理、MCP、工作流和插件标成不可用并写明原因（让助理在发现阶段就看到），用户自己的页面不变——发送讨论仍先保存消息、启动炼化与研究仍记一条停下的运行并在卡片上指向模型设置、生图仍给出所选服务连接的具体原因；`tests/model-unavailable-declarations.test.ts` 钉住这个划分。没有声明的：`workflows.instances.continue`（只有下一站是 AI 整理才要模型，可用性声明看不到输入）、`experiments.run`、`coding.runs.start`（只对用户开放，助理看不到）、`alchemist.pulse.start`（规则综合，不调模型；AI 入口清单原先把它算进去，已在清单的 §1 第 3 项、TX-15、§6、§7 第 4 项更正）。用户 2026-10-09（第二轮）已定：保持这个做法，可用性只对助理、MCP、工作流和插件声明，用户自己的页面不变，不声明 `workflows.instances.continue`。**V-5 关闭，不改代码**（前端动线走查的 V-5 行已标关闭）：走查本身写的是「观察，不是缺陷」，失败后「输入已保留」是有意的；「只在回到原工作时才带出」会让助理的输入与引用标签随页面消失，是助理草稿语义的变化而不是清理，要做须先定什么算「回到原工作」（同一对象、同一插件还是同一项目）和被收起的草稿放哪里，再单独开片。合同变化（给调用方）：`pages.ai` 的输出少了恒为 false 的 `stub`（版本仍是 1，有意不升：它是常量 false，按旧形状读它的调用方现在拿到 undefined，同样走假值的那个分支；工作流映射、Skill、MCP 文档、页面脚本里没有谁读它，`git grep` 查过，所以按 `pages.ai@1` 固定的引用不会坏）；`shelf.jobs.run` 不存在（用 `shelf.jobs.generate`、`shelf.jobs.extract`）；多个动作的标题与描述改了（`capability_id` 与输入、输出、权限不变）；上面五个动作在没有模型（`images.jobs.start` 是没有可用的生图服务）时，对不同调用方这样表现：工作流和插件的目录里它们是不可用，调用得到 `actions.connection_required`（原来是进了处理器才失败，或先保存、先记录再提示）；助理（Agent）搜能力时不列出它们，已知 id 直接调用得到同一个错误和原因；**MCP 的 `tools/list` 不列出这些工具，按名调用一个没列出的工具得到 `actions.mcp_unavailable`（不是 `connection_required`）**，所以 MCP 工具 `alchemist.reuse.assess__v1`、`alchemist.conversation.send__v1`、`alchemist.explorations.start__v1`、`alchemist.research.start__v1` 在没有模型时从列表里消失，`images.jobs.start__v1` 在没有可用的生图服务时消失（Images 的 MCP 列表先是 10 个，有一条能用的服务后是 11 个）；工具名本身没变，模型或服务配好后它们回到列表里。用户自己的页面不受这条影响。
 
@@ -1256,9 +1267,9 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 **第 3 波进度（W3-03，2026-10-12，五片已合入，C 经 #441）**：按「放进插件开发包」（§1）拆成五片，各自能单独合：PR-0 声明规则刻画用例（只加测试：`tests/plugin-declaration-rules.test.ts` 与夹具 `tests/fixtures/declaration-manifest.ts`，把动作、场景、清单各段、Agent 块、方法的每条规则和「几条一起违反」时的整条消息与先后顺序写成字面量，已进 `test:contracts`；对校验器做了 13 种变异，每一种都使它变红）；PR-A 执行生命周期归插件开发包（`createExecutionLifetime` 随 `git mv` 进 `packages/plugin-sdk/src/execution-lifetime.ts`，合同包删 `platform/execution-lifetime` 子路径，内核不再转出，宿主一侧七处调用与动作服务改从 SDK 取；调度服务、Shelf 模块、沙箱把内核依赖换成 SDK，local-host 与根包加 SDK 依赖；SDK 进共享核心，边界规则 `public-sdk-private-dependency`）；PR-B1 清单本体归插件开发包（`plugin-manifest.ts` 随 `git mv` 成 `packages/plugin-sdk/src/manifest.ts`，端口与事件检查进 `wiring-declarations.ts`；合同包删 `parsePluginManifest`、`PluginManifestError`、`comparePluginVersions`、`canonicalPluginId` 与两个检查函数，`SURFACE_BROWSER_PERMISSION` 留在 `platform/plugin`；Plugin Runtime、命令行、15 个测试改从 SDK 取，Plugin Runtime 与命令行加 SDK 依赖）；PR-B2 动作、Agent 与方法的声明检查归插件开发包，两个巨大函数边搬边拆（`inspectActionDeclarations` 成 `action-declarations.ts` 里按声明段的小函数，四项来源检查成 `source-declarations.ts`，`inspectAgentDeclaration` 与 `inspectMethodDeclarations` 成 `agent-declarations.ts`；合同包删这七个名字，内核改从 SDK 取 `inspectActionDeclarations`，SDK 只多出口这一个；巨大单元 159 变 157，合同包纯度记录 18 变 13；6 个测试改为经清单解析读结论，11 个测试改从 SDK 取）；PR-C 文本比较归插件开发包、删没人用的推荐函数（`workspace-text-diff.ts` 的代码进 `packages/plugin-sdk/src/text-diff.ts`，合同包只留五个类型；工作台审查界面、Coding、Diff 改从 SDK 取，Diff 不再转出；`suggestedAuthoringBehaviors` 删除，两个测试改测目录数据并新增一个执行页面规则的用例；合同包纯度记录 13 变 8）。五片已分别经 #373–#375、#414、#441 合入；合同包里还剩的纯度记录见 §3.1 的 N-11 行。路线表里 W3-03 一行写的「搬进内核」「搬进 plugin-runtime 并由 SDK 转出」做不到（SDK 一转出私有包的东西，外部作者就装不上，2026-09-30 出过一次），已按这条记录改写；W3-05 的交叉检查随之放在 SDK 里，导入 B2 的 `inspectActionDeclarations`。
 
-**第 3 波进度（W3-02，2026-10-12，A 已合入、C 写完待合入）**：A（错误模型与 Todo 样板片）经 #419 合入。C（路由绑定函数归插件开发包，Plugin Runtime 路由器、页面外层与 Coding 客户端改答平台的码，分支 `refactor/route-binders-in-sdk`，叠在 W3-03 C 即 `refactor/text-compare-in-sdk` 上）：`bindPluginActionRoute`、`bindOwnerPluginAction` 随实现进 `packages/plugin-sdk/src/routes.ts`，合同包不再有状态码表（纯度记录 8 变 6）；路由按失败的 kind 答 `{ error, code, details? }`；Plugin Runtime 路由器的四个裸字符串改答 `actions.forbidden`、`actions.plugin_disabled`（404 变 403）、`actions.plugin_unavailable`、`actions.execution_failed`；页面外层与 Coding 设置页跟着改；Characters、Files、Git、Issues、Shelf、Text Stats 加 SDK 依赖。取舍与方案没照顾到的 Files、Git、Diff 缺口（本片补了这三个插件 28 处调用者条件不满足的抛出的主人码）记在 §1 的 2026-10-12 一行。B（错误门禁）、D 起各片未开始。
+**第 3 波进度（W3-02，2026-10-12；本段保留 A/C 实施说明，实时批次见 §10.1、§10.4、§10.9）**：A（错误模型与 Todo 样板片）经 #419 合入。C（路由绑定函数归插件开发包，Plugin Runtime 路由器、页面外层与 Coding 客户端改答平台的码，分支 `refactor/route-binders-in-sdk`，叠在 W3-03 C 即 `refactor/text-compare-in-sdk` 上）：`bindPluginActionRoute`、`bindOwnerPluginAction` 随实现进 `packages/plugin-sdk/src/routes.ts`，合同包不再有状态码表（纯度记录 8 变 6）；路由按失败的 kind 答 `{ error, code, details? }`；Plugin Runtime 路由器的四个裸字符串改答 `actions.forbidden`、`actions.plugin_disabled`（404 变 403）、`actions.plugin_unavailable`、`actions.execution_failed`；页面外层与 Coding 设置页跟着改；Characters、Files、Git、Issues、Shelf、Text Stats 加 SDK 依赖。取舍与方案没照顾到的 Files、Git、Diff 缺口（本片补了这三个插件 28 处调用者条件不满足的抛出的主人码）记在 §1 的 2026-10-12 一行。B（错误门禁）已随 I2 合入，C 已经 #452 合入；D 之后的分片已陆续实施，G1/G3 在 I6 候选中、G4 在途。原「C 待合入、B/D 未开始」已过时，不再用此段判断当前进度。
 
-**第 2 波产出**：W2-18 证据写作（2026-10-09，只读代码、没有改代码）：[逐插件结论](plugin-conclusions.md)（交付第 10 项；26 个内置插件与 6 个官方接入，五个维度加横向比较、平台接点矩阵、11 个组合场景；一行的结论由五格按规则滚上来：通 9、部分 17、缺 0；新发现 21 条：已登记复核 K-1 至 K-5、新发现 E-1 至 E-16；§0.1 逐条对照任务书 §6 的十条检查）、[AI 入口清单](ai-entry-inventory.md)（交付第 12 项；45 行，分类与迁移、旁路核查、工具可理解性；模型之外的出站网络 13 类逐类登记在 §3.10，原来漏了 5 类：评审指出了 npm 注册表和模型主机名的公共 DNS 回退，Whisper 模型下载、侧栏浏览器、研究库的 `git fetch` 是复核时把扫描扩大到原生组件和子进程后补的；评审还指出 Feed 的网页搜索被误写成走 `anysearch-transport.ts` 与公共 DNS 回退，实际走 vendored SEL 自带的宿主，第 3 类因此分 3a、3b，并补解了 SEL 与 intelligence-client 两个 vendored 包；第四次评审又指出扫描的写法漏了 10 个文件，加宽后命中 81 个、逐个对到类，补上了项目上手直读 Gmail、Jelly 的站点适配器（固定主机 `api.bilibili.com`）和 Jelly 读网页自带的一份公共 DNS 回退；待决与清理 12 项）、[前端动线走查](frontend-flow-walk.md)（系统整理要求 §9，只做了一部分，§6 逐条写了做到哪一步；31 张截图在 `evidence/flow-walk/`，新发现 V-1 至 V-5）。**要用户决定的 15 项**（问题、选项、推荐在 §1）：`CliAgentAdapter` 去留、实验的本地调用是否进 AGENTS.md、Schedule 创建时是否查就绪、没有模型时的供应商预设（V-1）、Text Stats 是否留在插件列表、Pages 空文档（E-9）、市场脉搏的 GitHub 令牌怎么读（E-16）、Characters 的写入权限（E-2）、Feed 升格为 Goal 的可用性（E-15）、外壳触控下限的例外（V-2）、飞书/Lark MCP 的 `npx`、Shelf 首次示例（E-12）、个人插件「移除」改真停用的排期（K-1，行为已定）、出站时把主机名与包名发给第三方要不要在界面告知（AI 清单 §7 第 10 项；三处：npm 包名、模型与搜索服务的主机名、Jelly 导入网页的主机名）、AnySearch 两套出站实现的去留（SE-1、SE-4）；E-1 不需要新决定，按 10-07 已定的「各主人一起删」收尾。**遗留（路线里没有片承接，建议协调会话排进第 2 波尾或另开一片）**：（1）前端质感走查第二轮：键盘与读屏、失败与离线等状态、暗色与英文、四态区分、有真实模型的路径；（2）逐插件的失败、取消、并发、恢复审查，对象是 §11 的表里没有点名的 13 个插件（名单见逐插件结论 §0.1 第 8 条）；（3）测试与预期对齐（系统整理要求 §12）：每条断言是否对应预期行为；（4）动作目录的「无生产调用方」扫描与输出合同的逐个比对。
+**第 2 波产出**：W2-18 证据写作（2026-10-09，只读代码、没有改代码）：[逐插件结论](plugin-conclusions.md)（交付第 10 项；26 个内置插件与 6 个官方接入，五个维度加横向比较、平台接点矩阵、11 个组合场景；一行的结论由五格按规则滚上来：通 9、部分 17、缺 0；新发现 21 条：已登记复核 K-1 至 K-5、新发现 E-1 至 E-16；§0.1 逐条对照任务书 §6 的十条检查）、[AI 入口清单](ai-entry-inventory.md)（交付第 12 项；45 行，分类与迁移、旁路核查、工具可理解性；模型之外的出站网络 13 类逐类登记在 §3.10，原来漏了 5 类：评审指出了 npm 注册表和模型主机名的公共 DNS 回退，Whisper 模型下载、侧栏浏览器、研究库的 `git fetch` 是复核时把扫描扩大到原生组件和子进程后补的；评审还指出 Feed 的网页搜索被误写成走 `anysearch-transport.ts` 与公共 DNS 回退，实际走 vendored SEL 自带的宿主，第 3 类因此分 3a、3b，并补解了 SEL 与 intelligence-client 两个 vendored 包；第四次评审又指出扫描的写法漏了 10 个文件，加宽后命中 81 个、逐个对到类，补上了项目上手直读 Gmail、Jelly 的站点适配器（固定主机 `api.bilibili.com`）和 Jelly 读网页自带的一份公共 DNS 回退；待决与清理 12 项）、[前端动线走查](frontend-flow-walk.md)（系统整理要求 §9，只做了一部分，§6 逐条写了做到哪一步；31 张截图在 `evidence/flow-walk/`，新发现 V-1 至 V-5）。**要用户决定的 15 项**（问题、选项、推荐在 §1）：`CliAgentAdapter` 去留、实验的本地调用是否进 AGENTS.md、Schedule 创建时是否查就绪、没有模型时的供应商预设（V-1）、Text Stats 是否留在插件列表、Pages 空文档（E-9）、市场脉搏的 GitHub 令牌怎么读（E-16）、Characters 的写入权限（E-2）、Feed 升格为 Goal 的可用性（E-15）、外壳触控下限的例外（V-2）、飞书/Lark MCP 的 `npx`、Shelf 首次示例（E-12）、个人插件「移除」改真停用的排期（K-1，行为已定）、出站时把主机名与包名发给第三方要不要在界面告知（AI 清单 §7 第 10 项；三处：npm 包名、模型与搜索服务的主机名、Jelly 导入网页的主机名）、AnySearch 两套出站实现的去留（SE-1、SE-4）；E-1 不需要新决定，按 10-07 已定的「各主人一起删」收尾。**必须接续（本次明确并入原 W2-18，依赖与验收见 §12.3 及原路线图，不另建任务线）**：（1）前端质感走查第二轮：键盘与读屏、失败与离线等状态、暗色与英文、四态区分、有真实模型的路径；（2）逐插件的失败、取消、并发、恢复审查，按现行插件全集重对，原「未点名的 13 个」仅是历史差集，须扣掉 Experiments、加入 Issue，并复用 §11 的有效证据；（3）测试与预期对齐（系统整理要求 §12）：每条断言是否对应预期行为；（4）动作目录的「无生产调用方」扫描与输出合同的逐个比对。
 
 ### 10.1 2026-10-12 接续核对与第 3 波 B/C 进度
 
@@ -1427,33 +1438,6 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 
 实际 owner 证据：Todo batch 的缺表/缺键允许无调用者版本写；灵光 discard 的表也只校验已给的键；Functions 的 update/preview/publish/delete/sample 操作用省略或 null 的 updated_at 时采用 owner 刚读的值，仍缺 AI 原先读到的前提，preview 会保存 last_preview，是 command。configure 的 expected_revision:null 则真正做空绑定 CAS。PR3 只在 Kernel 共用输入校验/版本/handler 作用域、助理共用 preflight、gateway code 展示和 actions.version_required:invalid 中收口，不改 owner schema/CAS、不增加公开 nested 字段或宽例外；冻结类内替换调用，不加方法。相关 API、文档与真实拒绝测试同片完成；当前仅核对与实施边界，未实现或运行验证。
 
-## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
-
-用户更正：上一轮逻辑复查只查了 Goal 的完成规则与写进 Goal 的管理门。本轮按事实主人分 8 个区（插件基座、动作服务与授权、成果库/放置/上下文账本、搜索/记忆/助理、个人插件、文稿与数据插件、工作流插件、Coding/创作台/炼金术士），只读查逻辑缺陷，每区一个对抗核验者逐条复现或驳回（复现脚本在会话临时目录 `logic-review/`）。
-
-结果：67 条候选，4 条驳回，63 条成立（高 7、中 25、低 31；53 条已复现，其余读码确认）。按主题分 15 组修，每组一个 PR，先补回归用例再修：
-
-| 组 | 条目 | 状态 |
-| --- | --- | --- |
-| 插件生命周期（停用后升级被重新启用、卸载后不能装别的版本等） | #1, #3, #60, #4, #5, #6, #7, #10, #12 | 已合 main：#313；内置插件一律跟当前构建 #337 |
-| 工作区默认接线覆盖用户固定的成果版本 | #2, #19 | 已合 main：#301 |
-| 成果发布与归属（移出再移回后固定成旧版本、Agent 固定后本人不能再固定、个人范围读取不查归属等） | #15, #41, #16, #17, #18, #20, #21 | 已合 main：#304 |
-| Feed/Inbox（定时拉取失败后每 30 秒重拉、归档只关一条 Inbox 等） | #50, #51, #53, #54, #57, #58 | 已合 main：#302 |
-| 搜索打开时把读不到的对象当已删并移出索引 | #22 | 已合 main：#305 |
-| 动作队列与身份（串行动作被并发动作调用时绕过队列、等模型的动作占住项目队列、进度能力从输入取身份等） | #9, #11, #13, #14, #61, #52, #63 | 已合 main：#308 |
-| Todo（整理覆盖本人后改的字段、request_id 跨项目全局） | #55, #56 | 已合 main：#306 |
-| 助理（开轮前就标记已告知、作业跟两次、撤销无占用、归档不停定时轮等） | #23, #25, #26, #29, #31 | 已合 main：#311 |
-| 记忆（写入门按模型的 same_as 自动保留别的工作的建议、撤销自动记忆删掉本人明说的、recall 无 beforeEffect） | #24, #27, #32 | 已合 main：#338 |
-| 个人插件（Jelly、灵光、Cognia） | #33, #35, #36, #37, #38, #39, #40 | 已合 main：#310 |
-| 文稿与数据插件（交接标题超长、Form 来源取自输入、AI 发请求前不复核权限等） | #42, #46, #47, #48, #49 | 已合 main：#303；问卷停止收集时拒绝非本人提交 #326 |
-| Workflows（判断拦下的运行重载后丢原因、并发令牌不变） | #43, #44 | 已合 main：#307 |
-| 删除项目留下别的主人的数据（弹窗已定：各主人一起删、可重试） | #30, #34, #45, #59, #62 | 已合 main：#325（插件各自声明项目数据）；真实 Home 维护四 10-09 已做；W2-07（#361）补上漏掉的 Sessions 主人（W2-18 E-1）：`modules/private-work-context` 导出 `sessionsProjectData`，回执多一步 `sessions`（关联边经 Ledger 取消，只追加的 Ledger 留下 id 的历史）；以前删项目留在 `sessions/sessions.db` 里的 Session 记录按 10-08 已定的做法先列后删，本片没有读真实 Home；2026-10-10 在维护六之前的备份上列出 1 个空会话（`project-0478192a`，共 56 个 Session），按用户 10-10 的「先列后删」，真库上的删除处理中，结果出来再补，见 §4.1 维护六「做了什么」末尾的「另」 |
-| 助理记忆工具（弹窗已定：核对原话、忘掉可撤销） | #28 | 已合 main：#338（「你说过」只认本人一整条消息） |
-| 旧版 MCP 授权文件（按「不留兼容」不修） | #8 | 不修（§1） |
-
-逐条原文（问题、位置、场景、核验理由、复现脚本、修法提示）保存在会话临时目录 `logic-review.json`；修复 PR 的描述逐条引用编号。
-
-
 ### 10.7 管理入口余项的接续验收（W3-07-PR-6/7/8/9）
 
 沿用§1的10-10决定及现行batchB-plan；PR-5删除最后的Goals管理桥后做6，7复用已存在的resident-host-request及G1/H共同错误出口，8拆为provider接线与Coding消费者两片。现行事实已核：runLocalPluginDevelopment只有一个typed消费者，Host已有withProject；pluginHostActions的dependencyCaller仍固定HOST_PROVIDER_ID，不能直接把Coding改成Goals动作后结束。原设计提到的Casebook已删除，不复建。
@@ -1513,4 +1497,190 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 
 **第五批/测试片在MCP合入后的复验。** main e7a51ff0 上各树先整体offline/build与API/actions/资源/actual-base健康/boundary/noEmit通过，再只复验原作用域加Model14/MCP16：F65/65（head59da70c4e）、G2 71/71（901648f1e）、F1 40/40（ba2f657a3）、d52/52（ae00a07ce）、1b90/90（369baafd7）；均0skip/cancel并strict扫描/核远端后发布。F/F1/G2的README与CALL-CHAINS冲突逐项保留两边语义/必跑，生产无冲突。1b29资源11,366,488字节（比main减156），其余29项11,366,644不变；不重复原浏览器证据、不累加用例或称新全量。CLI2fc的Product新头已SUCCESS，原失败报告保留；其余合并门槛/实际报告仍等待。Issue纯测试片同步2051cde9e并whole build/all gates通过，Model/MCP30/30，原Chrome5/5证据保留，strict发布在核远端后才记完成。
 
-**I6当前组合。** 在前述09e4ffa0（与main e7a ancestry同步且tree不变）上机械并G3 READY0dcffb181，携唯一当前spec至cb46007877741a8f35be832ac73830821f240628，clean。没有生产冲突；Root新整树offline/build/API/actions/资产/actual-base健康/boundary/noEmit正在执行，还未启动全量。唯一writer已从该固定base开独立PR4源码树，按PR4→5→H接续，不构建/改I6/碰真实Home。实际MCP旧withScope在tree载荷校验前已绑定项目，PR4保留该真实身份拒绝顺序及原IO边界，不借迁移新增预准备所有插件或业务行。
+**I6当前组合与冻结回归。** 在前述09e4ffa0（与main e7a ancestry同步且tree不变）上机械并G3 READY0dcffb181，携唯一当前spec至cb46007877741a8f35be832ac73830821f240628，clean且没有生产冲突。Root新整树offline/build/API/actions/资产/actual-base健康/boundary/noEmit均已通过：API刷新0写入/0删除，60份快照共2284声明；相对main有4份已说明的合同变化，动作558+2/25manifest及Host140+1不变；29资源11,366,475字节，workbench1,396,030。实际基点e7a的健康数字为157巨单元、855内部引用、164混源、193casts，错误80/424/93/1013，无放宽门禁。最后仅携5行进度至冻结head af0fe957f8fbeff94c92fa6b1a8f3899694d0660；2026-10-12 19:19:36（UTC 02:19:36）开始协调全量，日志位于临时证据目录的i6-full-01.log。该次持有整机构建锁及1个浏览器名额，源码、脚本、包、Skill、HEAD与构建产物均冻结；当前仍运行，未记录最终通过、失败或跳过数量。
+
+唯一writer已从cb460固定base开独立PR4源码树，按PR4→5→H接续，仅改源码，不构建/改I6/碰真实Home。实际MCP旧client.withScope在tree载荷校验前已绑定项目；新的Host.withProject还会prepareInstalledPlugins，不能替代它。PR4只保留原client.withScope空回调预打开及精确AST约束，三个Goals管理业务全部经unprepared factory/action port，保留真实身份拒绝顺序与原IO边界，不新增插件预准备或业务行；工程与回归须等I6释放机器构建窗口。
+
+## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
+
+用户更正：上一轮逻辑复查只查了 Goal 的完成规则与写进 Goal 的管理门。本轮按事实主人分 8 个区（插件基座、动作服务与授权、成果库/放置/上下文账本、搜索/记忆/助理、个人插件、文稿与数据插件、工作流插件、Coding/创作台/炼金术士），只读查逻辑缺陷，每区一个对抗核验者逐条复现或驳回（复现脚本在会话临时目录 `logic-review/`）。
+
+结果：67 条候选，4 条驳回，63 条成立（高 7、中 25、低 31；53 条已复现，其余读码确认）。按主题分 15 组修，每组一个 PR，先补回归用例再修：
+
+| 组 | 条目 | 状态 |
+| --- | --- | --- |
+| 插件生命周期（停用后升级被重新启用、卸载后不能装别的版本等） | #1, #3, #60, #4, #5, #6, #7, #10, #12 | 已合 main：#313；内置插件一律跟当前构建 #337 |
+| 工作区默认接线覆盖用户固定的成果版本 | #2, #19 | 已合 main：#301 |
+| 成果发布与归属（移出再移回后固定成旧版本、Agent 固定后本人不能再固定、个人范围读取不查归属等） | #15, #41, #16, #17, #18, #20, #21 | 已合 main：#304 |
+| Feed/Inbox（定时拉取失败后每 30 秒重拉、归档只关一条 Inbox 等） | #50, #51, #53, #54, #57, #58 | 已合 main：#302 |
+| 搜索打开时把读不到的对象当已删并移出索引 | #22 | 已合 main：#305 |
+| 动作队列与身份（串行动作被并发动作调用时绕过队列、等模型的动作占住项目队列、进度能力从输入取身份等） | #9, #11, #13, #14, #61, #52, #63 | 已合 main：#308 |
+| Todo（整理覆盖本人后改的字段、request_id 跨项目全局） | #55, #56 | 已合 main：#306 |
+| 助理（开轮前就标记已告知、作业跟两次、撤销无占用、归档不停定时轮等） | #23, #25, #26, #29, #31 | 已合 main：#311 |
+| 记忆（写入门按模型的 same_as 自动保留别的工作的建议、撤销自动记忆删掉本人明说的、recall 无 beforeEffect） | #24, #27, #32 | 已合 main：#338 |
+| 个人插件（Jelly、灵光、Cognia） | #33, #35, #36, #37, #38, #39, #40 | 已合 main：#310 |
+| 文稿与数据插件（交接标题超长、Form 来源取自输入、AI 发请求前不复核权限等） | #42, #46, #47, #48, #49 | 已合 main：#303；问卷停止收集时拒绝非本人提交 #326 |
+| Workflows（判断拦下的运行重载后丢原因、并发令牌不变） | #43, #44 | 已合 main：#307 |
+| 删除项目留下别的主人的数据（弹窗已定：各主人一起删、可重试） | #30, #34, #45, #59, #62 | 已合 main：#325（插件各自声明项目数据）；真实 Home 维护四 10-09 已做；W2-07（#361）补上漏掉的 Sessions 主人（W2-18 E-1）：`modules/private-work-context` 导出 `sessionsProjectData`，回执多一步 `sessions`（关联边经 Ledger 取消，只追加的 Ledger 留下 id 的历史）；以前删项目留在 `sessions/sessions.db` 里的 Session 记录按 10-08 已定的做法先列后删，本片没有读真实 Home；2026-10-10 在维护六之前的备份上列出 1 个空会话（`project-0478192a`，共 56 个 Session），按用户 10-10 的「先列后删」，已于 10-10 按产品自己的 purge 步骤删除：56→55、孤儿 0、integrity_check ok，§4.1 维护六「做了什么」末尾的「另」已有完整结果；10-12 接续线程只读复查仍为 55 且无该项目的最新活跃关联。原「删除处理中」已过时 |
+| 助理记忆工具（弹窗已定：核对原话、忘掉可撤销） | #28 | 已合 main：#338（「你说过」只认本人一整条消息） |
+| 旧版 MCP 授权文件（按「不留兼容」不修） | #8 | 不修（§1） |
+
+逐条原文（问题、位置、场景、核验理由、复现脚本、修法提示）保存在会话临时目录 `logic-review.json`；修复 PR 的描述逐条引用编号。
+
+## 12. 完整要求复查与完成裁决（2026-10-12）
+
+**结论：复查所见的整改仍在执行，整条线未完成。** 本节逐项覆盖两份任务书，纠正进度表达，不替代原路线。已有证据支持已完成片段；不能从已合 PR、门禁变小、测试用例存在或一次全绿推出全部要求达成。唯一实现与回归负责人仍为防腐线接续会话 `01a130de-5470-7223-827e-b28663ee7e06`；本轮协调复查负责本 spec 的裁决与遗漏接续。真实 Home 写入、他人成果清理继续按 §1 的明确边界执行。
+
+**证据切点。** 代码复查以冻结 I6 `af0fe957f8fbeff94c92fa6b1a8f3899694d0660` 为主，度量另列 main `490251d1e82b9db8d58922bbd2e5ef17f1011bf7`（#457 合入后）；I6 内含未回归完、未全部合入 main 的 Home/G1/G3 候选，不能把两列混称已发布。进度文档位于 `feature/anti-corruption-i5-progress-1012`，更新前 HEAD `69d3ef3a1`；保留接续会话已有的 I6 预检与冻结记录。未修改 I6、主检出、他人工作树或启动第二轮构建/回归。切点之后的 PR 收口继续记 §10，不让一张滚动 PR 表改变本次读码和运行证据的适用范围。
+
+### 12.1 系统整理全部 15 节与防腐工作内容的对应
+
+下表「部分」表示已有实现或局部有效证据，但该项尚不能验收；「未验证」不等于已确认代码有缺陷。涉及具体运行结果时以 §12.5 的原始记录为准。
+
+| 系统整理要求 | 防腐任务书工作内容 | 本次核对的实现与证据 | 裁决与接续 |
+| --- | --- | --- | --- |
+| 1 现场、授权与归属 | §0、§4.7、§5 | 核对工作树、开放 PR、主检出脏改动、I6 runner 与构建/浏览器锁；原线程交出 progress 文档写权，保留单一实现 writer | 本轮现场保护通过；既有在途任务不重复启动，主检出不清理。最终工作树收尾仍按 W1-23/W6-06 |
+| 2 全部清单与预期行为 | §3、§4.4、§4.9、§4.12 | `scripts/workspace-packages.mjs` 与包清单门禁重算 71 包；SSOT、§5.1、插件/AI 清单有登记 | 部分：包事实与现行插件成员更新不能代替逐包审查，W1-18；第一步预期基线与当前差异须随 W6-05 复核 |
+| 3 模块划分、代码放置、调用链 | §4.2–§4.5、§4.8 | 追踪 ActionService→dispatcher→owner handler→存储，Runtime→监督器→模型服务；N-03 已按用户决定定义平台产品服务；跨 owner SQL 已有门禁 | 部分：137 处浏览器空 catch、157 个巨大单元及宿主插件专属接线仍在；W1-18、W4-05–08、W5-07–11，不为搬包而推翻 N-03 决定 |
+| 4 契约、注册、协议 | §4.2、§4.6、§4.10、§4.13 | 动作注册、输入/输出 schema 校验、audience/权限/依赖与 `beforeEffect` 在共同服务；Manifest 与 Host 动作快照已入 CI；`tests/plugin-declaration-rules.test.ts` 的字面量预期和既有变异证据可复用 | 部分：快照固定声明，不能证明所有生产消费者与真实返回正确；W2-18-AC、W3-05/07/09、W4-02 |
+| 5 自动发现与扩展 | §4.6–§4.8、§4.10 | Runtime 的贡献撤销与监督器 generation/epoch 检查存在；`project-plugins.ts`、`builtin-plugins.ts` 和装配冻结测试仍为手工清单；扩展点文档列 15 个方向和六个演练 | 部分：8 Runtime、18 构建期，声明式探针和 Form 样板未交付；W4-01/03/04、W5-01/02、W6-01。不能用 Issue 成功接入证明只改自己的包 |
+| 6 逐插件完整性与组合使用 | §4.6、§4.9–§4.11、交付 10 | 首轮逐插件结论、§11 的修复、平台接点与 11 个组合场景可复用；原表是当时 26 插件，不能覆盖新增 Issue | 部分：对现行成员重对空/首次/无模型及异常、取消、撤权、并发、重启、组合路径，W2-18-LC；迁移后的生产者再由 W6-02 验证 |
+| 7 数据、状态、事件、生命周期 | §4.1、§4.2、§4.10–§4.11 | SQLite baseline 明确拒绝错版；项目删除有唯一服务；DOM 事件登记与门禁；模型调用在派发前与返回前复查；模型测试用 barrier 制造取消/停用、旧 client 重启后失效 | 部分：本次另发现精确授权复核后异步窗口的 P1（§12.3）；已有真实交错测试只证明覆盖的生产路径。全插件/后台任务生命周期及多窗口、重启须 W2-18-LC；全部库唯一登记与快照仍 W4-11/W5-16 |
+| 8 AI 与 Prologue | §4.2–§4.3、§4.14、§4.17 | 生产模型端口经 `hostTextGeneration`→`horizontal/agent-host`，`@prologue/sdk` 的 workspace 依赖只在该包；插件模型校验 owner、声明、并发调度、指令与预算；旧实验直连已随插件删除 | 部分：真实模型/外部账户、全生产 AI 入口的恢复未全验；仓库仍使用现有 side-panel-memory tgz，不能把上游补丁或 #408 在途接入当成本仓已采用。W3-06/09、W5-11、W6-03/05 |
+| 9 前端质感、交互与动线 | §4.8、§4.9、交付 10/12 | 查看首轮实际截图（包括助理无模型与保留输入），核对真实浏览器用例的 HTTP、持久化、焦点及失败恢复断言；首轮截图主要为 1440/390、中文亮色、无模型 | 部分：局部暗色截图/键盘断言不覆盖全站；第二轮 W2-18-FR，视觉基线 W4-12、皮肤 W5-05；不得把截图存在记作读屏/离线/真实 AI 已通过 |
+| 10 配置、安全、性能、升级、发布 | §4.1、§4.11、§4.16–§4.19 | 安全不变量表有拒绝测试并在 CI 执行，密钥扫描、schema 版本拒绝、来源与产物核对存在；C 端只出方案符合原范围 | 部分：公开 URL 校验仍分散、上游注入防护未等于当前包已带、macOS sandbox/桌面 IPC 的证据边界见安全表；周期/空闲负载、统一备份与真实 Home 新版验收仍 W4-09–11、W5-12/16/17、W6-05，不在此擅自做 C 端实现 |
+| 11 清理无用、重复、过时内容 | §4.1、§4.9、§4.12、§4.15、§4.17 | 旧 MCP 别名、六个空合同子路径、Casebook/Experiments、历史 schema 升级链已删除；9 个 compat 标记的保留理由在 §4.1；旧名、截图、vendor、根目录有只降门禁 | 部分：旧装配、typed、模板脚本、旧皮肤、剩余重名/日志仍按 W3–W6 清理；不因已归档文案出现旧名就删除历史证据 |
+| 12 测试是否表达有效预期 | §2、§4.8–§4.9、§5、§7 | 抽查模型真实异步交错、storage baseline 数据与回滚、事件恢复的 UI/持久化与失败保持输入；I5 三个失败经基线与生产合同对照，保留原失败 | 部分：855 内部引用不是 855 无效测试，公开 import 也不是质量证明；W2-18-TE 审断言、Mock、skip 与后续可观察行为，W2-10/11 继续降耦合。事件恢复用例直造安装/事件只支持恢复消费端，不能替代生产插件事件发布链 |
+| 13 手册与 Skill | §4.12、§4.14 | 阅读插件开发与 Prologue Skill，核对唯一模型入口、注册/授权/副作用要求；文档引用、380 份创作台答卷回放及对应 CI 已存在 | 部分：离线答卷回放支持解析/校验，不能证明新文档可完成所有开发场景；最终手册、迁移样板及隔离 Home 创作台 smoke 仍 W6-03，受测树冻结期间不改 skills |
+| 14 实施顺序、真实验证 | §5 | 第 3 波按候选整合后分片，I5 留下 raw failures、干净基线和定向修复结果；I6 独占冻结回归进行中 | 本轮纪律通过；最终证据未齐。优先收口新确认权限/状态缺陷，再做结构迁移；不为缩小数字改产品语义，不叠加另一全量 |
+| 15 交付与完成 | §6–§7 | 本节把要求、代码、证据、未完成与原路线对应；原始日志/失败/跳过保留 | 未通过整线验收，见 §12.4。复查完成不等于整改完成；原线程继续已授权实现与验证 |
+
+### 12.2 附录 A 与第一步遗留的现行裁决
+
+§3.1 的长表留作历史出处，以下为当前修正；同一编号不再开另一套问题编号。代码位置及有效原始测试证据分别见 §12.1、§12.5。未写「运行通过」的静态核查不能提升成产品验收。
+
+| 编号 | 现行结论、证据与原路线归属 |
+| --- | --- |
+| R-01 | 未完成：装配冻结测试与监督器为 8 Runtime/18 构建期；批准迁移计划在，但 Form 样板尚未交付。W4-04、W5-01/02、W6-01 |
+| R-02 | 已确认旧 MCP 兼容工具退役；当前管理 MCP 直通 Goals 的剩余路径属 N-12/W3-07，不能混称旧名回流 |
+| R-03 | 未完成：宿主仍承载插件适配与模型接线，32 个按插件命名宿主文件、40 处 registerProvider 是 I6 门禁记录。W3-06、W5-11 |
+| R-04 | 已确认旧个人助理路径未回流，保留删除证据；现行系统助理拆分属 W4-05/W5-10 |
+| R-05 | README 已收成两份，PRODUCT/SSOT 主线已更新；其历史段落数和合同 subpath 数不代表当前值。最终术语、事实与手册复核 W6-03 |
+| R-06 | 不能记无失败：I5 6,039/6,051，三项失败、九项跳过；三文件修后 23/23，I6 尚未结束。W6-05 |
+| R-07 | 未完成：浏览器模板代码与 137 处空 catch 仍在；页面预算仅控体积。W4-04、W5-04/13 |
+| R-08 | 部分：共同错误模型/SDK 路由已实现，多批 owner 接入继续；I6 仍 80 个 Error 子类，不能据数字判断每个都应删除。W3-02/10、W5-13 |
+| R-09 | 部分：schema 基线与离线恢复用例已有；统一库登记和用户快照命令未交付。W4-11、W5-16 |
+| R-10 | 已确认 spec 状态、索引/分类/引用门禁存在；本次纠正正文假完成，门禁不能代替内容真实性裁决。W6-06 |
+| R-11 | 已确认六个空合同 subpath 已删且零容忍门禁存在；现存 package/kernel/testing 描述符按已有决定保留，不新增删除范围 |
+| R-12 | 部分：I6 `as unknown as` 193，AST/lint 只降门禁已生效。全量清零不是用户已定目标；必要重构归 W2-10/11、W5-08 |
+| R-13 | 未解决主检出工作状态：本次看到 main `9da180833` 与未提交他人成果，不 reset/clean；当前隔离复查与受测树不依赖它。主检出整理遵循独立归属与授权 |
+| R-14 | 数量已显著缩小：I6 门禁 318 个入库 `.impeccable` 文件且只降，历史 1,085 不能当现状；保留文件仍按引用规则审查，W1-23/W6-06 |
+| 皮肤 | 未完成：旧皮肤叠加仍在，预算不增长不能证明视觉正确。W4-12、W5-05 |
+| Goals UI | 部分：旧转接仍有，通用挂载器和外壳 renderer 改名仍 W5-06；不能把外壳错移进业务插件 |
+| Server | 按用户决定保留 IM/讨论；表归属与 Home 登记已有修复。实验的独立启动器不包装成生产入口，不删产品讨论 |
+| N-01 | 已确认遗留第二铃铛/占位已清，真实事件恢复用例消费现行唯一注意力入口；后续新 UI 以现行产品决定为准 |
+| N-02 | 已确认仅一份当前 Prologue tgz，旁置来源/摘要与历史补丁记录有门禁；不等于 N-14 上游接入完成 |
+| N-03 | 按用户决定收为平台产品服务，代码不搬；相关层规则与说明保留，W4-08 不再按旧提议迁往 modules |
+| N-04 | 部分：基本合同 C1–C8 与 G 缺口已有逐条去向；交叉声明检查/调用 id 已推进，真实生产者的新合同全生命周期仍 W4-01/02、W6-02 |
+| N-05 | 未完成代码身份收口：Characters 的 UI 在设置，Runtime/安装身份仍待按决定并入宿主。W5-01 |
+| N-06 | 旧「CI 不跑产品」已失效：产品子集及 Linux 报告作业存在，Verify 的现行依赖仍按 §1 已定阶段，不擅自把非必需报告改为门槛。W2-16/W6-05 |
+| N-07 | 本机工作树仍多且有活跃归属，不按数量自动删除；原 W1-23 与各线完成后清理 |
+| N-08 | 已有按单元 AST、merge-base 只降门禁，183→157；剩余拆分未完。W4-05–07、W5-07/09/10 |
+| N-09 | 已确认协作文档、AGENTS 入口、冻结与锁规则存在；本轮实际沿用，不能代替每条在途线遵守情况的持续核对 |
+| N-10 | 部分：同口径 1,054→I6 855，内部引用/混源门禁有约束；W2-10/11 继续。用户已拒绝固定 600 目标，按「不定数字、只降不升」验收 |
+| N-11 | 部分：SDK 迁入后合同纯度剩 6、Host `export *` 11、Module Repository/Store 导出 21；W3-03、W5-08/09 |
+| N-12 | 已定对外只走动作，尚未完成：typed 引用点 244；管理 MCP、CLI、Agent/函数等分片按 §10 推进。W3-07、W6-01 |
+| N-13 | 已确认 Biome/原生静态检查、API/页面预算入 CI；存量告警未清零，Jelly Whisper 构建边界见 BL-122，不能泛称全仓无静态问题 |
+| N-14 | 部分：收敛方案经用户确认，I6 仍用旧命名的当前 tgz；上游结果与本仓采用是两件事，#408 等在途接入不得记已完成。W1-20/W6-03/05 |
+| N-15 | 历史迁移/旧别名已大批删除、就地补表为 0、剩余 9 标记逐项解释；仍须核全库登记、旧服务入口与最终真实 Home，新发现历史读取分支不能用登记保留机制放行。W4-11/W6-01/05 |
+| N-16 | 未完成：本次全量仍串行且约百分钟级，W5-12 的隔离并发与同口径耗时比较未交付 |
+| N-17 | 已确认 API 签名快照与动作声明快照入 CI；I6 API 60 份/2,284 声明，刷新无新增写入。实际生产输出仍须 W2-18-AC |
+| N-18 | 术语文档已存在，内部改名/界面批准边界仍 W5-14；不把旧词字符串总数当语义重复的证明 |
+| N-19 | 纠正：发布策略/版本检查已存在，内置跟随当前构建已在 Runtime 实现（#337）；原「尚未实现」、根目录 outputs/.zcode 等为历史现场。下一产品版本及最终发布未完成，W5-15；未因此授权发布 |
+| N-20 | 已确认 Rust/Swift/shell/Python 检查入 CI，有登记/覆盖边界；原「无检查」已失效。新原生文件需随实际 PR 通过对应检查，Jelly Whisper 仍 BL-122 |
+| C 组 | 方案交付，不做本步未授权的 C 端产品：现行 `c-end-readiness.md` 的里程碑/成本/依赖与尚待决定项保留；不能称自动更新、公证、多平台、观测、安装信任已经实现 |
+| 第一步交接与 PMR/AR/S 列表 | §3.4 与 §9.1 逐项历史证据保留；已删功能按用户决定退役。最终 main 的场景 1–8、能力/UI 差异和真实 Home 仍 W6-05，旧全量/截图不可直接外推到 I6；未看到新证据的行维持未验证 |
+
+### 12.3 必须收口的遗漏与验收
+
+这些均来自原始要求，不是新增建议性重构。负责人是防腐接续会话；各包主人负责被分派的事实/实现，协调会话维护唯一结论。P1 表示整线验收的必要缺口，不能据此推断每个包都有 P1 产品缺陷。确认的运行时缺陷须另写触发、根因和最小修复，不拿「补审查」替代修 bug。
+
+| 既有路线/验收编号 | 严重性、根因与影响 | 必须动作与验收方式 |
+| --- | --- | --- |
+| W3-09 / W2-19（S-08/S-18） | P1 授权竞态，源码已确认、复现待跑：共同 `beforeEffect` 在精确授权之后还 await 权限与 Host 可用性检查；最后只用初始 `allowed_actions`，期间撤销精确动作可能仍写。MCP 权限并集不能识别保留同权限 B、撤销 A 的差别 | 唯一 writer 优先以真实 MCP 授权文件、Form SQLite 与可控后续可用性检查复现；`form.questions.ai` 最后检查后写题目的路径可触发。修共同入口，断言 A 被拒、业务记录不变、B 不能替 A 授权、重新授权恢复；不要每插件补兜底。涉及 kernel/MCP，按共享核心整合验证，I6 结束前只准备源码。依据：`packages/kernel/src/action-service.ts` 119–124/446、`apps/local-host/src/mcp-action-client.ts` 16–26、`local-host.ts` 99–106、Form `actions.ts` 109–110；现 `tests/action-before-effect.test.ts` 只覆盖模型等待时撤权和授权等待时换提供方，未覆盖此窗口。 |
+| W1-18 | P1 完成声明失真：把事实表 PR 当作三阶段逐包审查，71 行全待审仍写第 1 波全完；owner/放置错误可能遗漏 | 按 §5.1 已登记的深 11、中 43、浅 17 逐包写职责、依赖方向、变化原因、代码放置、重叠和必要动作；每行有源码依据与裁决。未完成项不得改成已审。按风险读码，不靠文件数/门禁替代 |
+| W2-18-FR | P1 验收范围遗漏：首轮亮色无模型页面和部分浏览器测试被当成前端整体；暗色/英文/辅助技术/异常恢复未全覆盖 | 在已有 frontend-flow-walk 中接续同一表，复用有效截图；核关键路径的键盘/读屏、三种宽度、暗色/英文、离线/失败/无权限/部分成功、多窗口与真实模型。状态、操作、反馈及输入保持需实际操作；受限项写明，不伪装通过。接 W4-12/W6-05 |
+| W2-18-LC | P1 生命周期证据缺口：首轮差集名单过期，§11 的 15 组修复不覆盖所有插件/官方接入 | 按现行成员重对安装/启用/发现/调用/停用/撤权/卸载/升级/重启；按有意义的路径制造真实交错，验返回、持久化、副作用、重试和下次可观察状态；组合场景按原 11 条更新。已删 Experiments 明确退役，Issue 纳入。批准的例外写理由，迁移后接 W6-02 |
+| W2-18-TE | P1 测试有效性缺口：把 import 耦合下降、用例数和全绿当作需求覆盖 | 沿需求与生产路径审断言/Mock/fixture、期望的独立性、只断言不抛错、内部注入、skip/排除项；实际缺陷才补定向回归，关键疑点可变异。保留原失败分类与干净基线，不为覆盖率造矩阵、不改语义求绿。结果记回原需求/用例而不造独立进度系统 |
+| W2-18-AC | P1 契约与消费证据缺口：动作快照只有声明，不能发现无人消费或 handler 输出不符 | 从实际登记目录追到用户/工作流/Agent/MCP/插件消费者，核发现过滤、身份权限、输入输出与拒绝；“无仓内消费者”先查公开用途，不能直接删公共动作。对实际合同缺陷补真实 action/HTTP/MCP 路径测试；有意改形状按合同规则升版/更新快照。接 W3-09/W4-01 |
+| W6-04/06（本次） | P1 进度文档相互矛盾：§8 暂无、W1 全完、W3-02 未开始、历史现场混入现状 | 本次改回有基线、有证据层级的结论；本节逐条对任务书验收、补同口径数据。只代表文档整改，其他行须由对应验证结案 |
+
+Images 后台 job 未携带原 MCP 调用的持续授权，但 Prologue 手册明确启动 Action 与后台任务有独立生命周期；未找到撤销已完成启动授权必须取消已接受 job 的现行要求，故本次不列 P1、不擅改产品语义，其异常/任务权限边界仍随 W2-18-LC 核对。
+
+执行顺序：原线程先收当前 PR/I6 与已确认缺陷；W1-18 和 W2-18 的只读梳理可以与唯一 writer 并行。需要新的浏览器、真实模型或全量验证时，复用既有运行结果并等当前 I6 结束后排时段。不得为了本次复查重启后台回归。
+
+### 12.4 防腐任务书 §7 逐条验收
+
+本表复用原文顺序，编号 RAC-01–19 用于本次完成核对，沿用原要求顺序；[人工] 表示协调者对代码、已运行证据与复合条件作验收判断，实际业务回归继续引用原 W/S 等编号，不新增重复测试。复合条件须全部成立才记通过；“已有迁移计划”不抵消同条中的“样板已合入”。
+
+| 编号与标准 | 裁决 | 证据、原因及剩余动作 |
+| --- | --- | --- |
+| RAC-01 [人工] 内置只剩 Runtime，或获批计划且样板合入 | 未通过 | 计划获批；8/18 装配仍并存，Form 样板未合，W4-04/W5-01 |
+| RAC-02 [人工] 测试插件证明只改自己的包和声明 | 未通过 | W4-01/W5-02 探针未交付；现有注入 fixture 不证明新增无需改宿主 |
+| RAC-03 [人工] 各扩展方向有路径，演练达目标或补齐计划 | 未通过 | 15 方向文档存在，但文档仍列无切片/X-1 等缺口；需把当前实现、目标与 W4/W5 承接对齐，不把提议当获批实施 |
+| RAC-04 [人工] 热点明显下降且聚合文件各自登记 | 未通过 | 固定样本触碰率 45.7%→32.9%，但手工聚合仍在；W5-02/03，数字改善只支持前半项 |
+| RAC-05 [人工] SSOT owner、合同流程/门禁、CI 产品子集 | 通过（结构/配置） | SSOT/CODEOWNERS 生成、合同变更流程、CI 子集已存在；当前 PR 的 CI 结果另验，不声称产品全覆盖 |
+| RAC-06 [人工] 协作规则入库且 AGENTS 指向 | 通过 | `docs/system/PARALLEL-DEVELOPMENT.md` 与 AGENTS 入口一致；本次沿用冻结/锁/单 writer |
+| RAC-07 [人工] 静态/API/资源预算入 CI，未来回放规则及工具 | 未通过 | 三类门禁与合同规则已有；创作台答卷回放不等于 W4-01 的插件版本回放 corpus，后者未交付 |
+| RAC-08 [人工] 术语表完成、能力机制收敛或获批计划 | 通过（计划分支） | 术语表与对外只走动作的获批计划存在；N-12 实现未完成，不能删掉 W3-07 余项 |
+| RAC-09 [人工] 主链文档一致、每能力一路、界面错误可追 | 未通过 | ActionService 与 call_id 已推进，管理旁路和 owner 错误仍在途；全能力与返回核查 W2-18-AC/W3-07/09 |
+| RAC-10 [人工] 巨大单元门禁缩小，测试内部引用下降且不新增 | 通过（现行只降口径） | 同口径 183→157、1,054→855；CI merge-base 不许增长。剩余巨大单元仍须原计划收口，目标不是强加 600 |
+| RAC-11 [人工] Skill/手册代表性场景及创作台验证 | 未验证 | 有离线 replay/历史验证，最终样板和手册未齐；W6-03 的场景走查与隔离 Home smoke 待做 |
+| RAC-12 [人工] 兼容逻辑清掉，保留机制逐项解释 | 未验证（已清理部分确认） | 0 就地补表与 9 个解释过的标记不证明无非标记兼容；结合 W1-18/旧入口核查与 W6-01 才可最终裁决 |
+| RAC-13 [人工] 每库一份当前 schema、错版明确拒绝 | 未验证（核心拒绝已确认） | baseline helper 与当前版本拒绝/数据不变测试有效；所有库的现行全集与登记门禁 W4-11 未交付 |
+| RAC-14 [人工] 在用 Home 按决定升级/重建并逐表一致 | 未通过最终状态 | 维护六/七结果仅覆盖其当时构建；维护八与新候选仍待做，同事无 Home 已由用户确认，不增加第二份迁移需求 |
+| RAC-15 [人工] 防兼容回流 CI、AGENTS/文档更新 | 通过（已实施清理范围） | merge-base 只降、schema/旧名/vendor/文档规则存在；后续实现改动仍须同步文档，不等于 RAC-12 全仓结论已证 |
+| RAC-16 [人工] 报告、附录 A、第一步每项有结论与证据 | 未通过完成态 | §12.2 已逐项裁决，仍多项在途/未验证；不能因有一个行号或 PR 链接就记已解决 |
+| RAC-17 [人工] 安全不变量测试、依赖/SDK方案用户确认 | 未通过 | 安全表/测试/CI、依赖与 SDK 方案已存在且经决定；本次 S-08/S-18 精确授权竞态未受现有测试守住，须先修并补真实交错回归。外部网络跳过与未采用的上游防护仍保留证据边界 |
+| RAC-18 [人工] 跨功能基线无退化，build/type/boundary/CI通过 | 未验证 | I6 预检通过、全量未结束；最终 main、真实模型场景与快照仍 W6-05。I5 修后定向通过不能替代 |
+| RAC-19 [人工] 持续完成必要工作，不早停/无限扩重构 | 未通过整线收尾 | 原线程继续第 3–6 波及本次漏项；新建议无当前要求/证据则不扩入。本次只关闭已证实完成的审查与文档工作 |
+
+### 12.5 可比度量与有效运行证据
+
+**同口径重算。** 从 Git 对象读取开工 `fccb2a30`、main 切点 `490251d1`、冻结 I6 `af0fe957`，用同一份当前 TypeScript AST 规则计数；排除 tests/fixtures/声明文件的源码体量，巨类分别计行数/方法数、函数阈值 150 行；内部引用含 import/export/import()/require() 和 server 内部路径。先前 959+34、函数 99 等值来自旧正则/扫描范围，保留作历史记录，不与本序列拼接。重算脚本/JSON 放在会话临时证据目录 `/tmp/molis-anti-review-20261012/`，不新增仓库门禁或基线。
+
+| 度量 | 开工 fccb2a30 | main 490251d1 | I6 af0fe957 |
+| --- | ---: | ---: | ---: |
+| 源文件 / 行数 | 1,827 / 291,506 | 1,861 / 285,087 | 1,867 / 285,381 |
+| 超过 800 行的源文件 | 37 | 33 | 33 |
+| 超过 300 行的类 | 43 | 35 | 35 |
+| 超过 25 方法的类 | 25 | 21 | 21 |
+| 超过 150 行的函数 | 98 | 84 | 84 |
+| 巨大单元合计 | 183 | 157 | 157 |
+| 测试内部引用 / 涉及测试文件 | 1,054 / 361 | 886 / 327 | 855 / 317 |
+
+**改动成本与热点。** 两端各取截至该 main 切点最近 70 个 first-parent merge；比较每个合并与第一父提交，全部变更文件计文件数、路径映射到 workspace 包计包数。采用同一组 13 个聚合路径（工作台总词典/初始化/助理岛/外壳/目录、Host 请求/目录/项目装配/监督器、两份核心合同、craft-finish 样式与 workspace 登记表），一个 PR 触碰任一项即计一次。I6 的 first-parent 中有本地整合，不拿来冒充 PR 成本样本。
+
+| 度量 | 开工前 70 合并 | 当前 main 前 70 合并 | 解释 |
+| --- | ---: | ---: | --- |
+| 文件数中位数 / P90 / 最大 | 6 / 98 / 615 | 14 / 38 / 137 | 大尾部缩小，中位数反升，不能宣称全面下降 |
+| 涉及包数中位数 / P90 / 最大 | 1 / 15 / 69 | 2 / 5 / 13 | 同上；样本含功能与重构，不是同需求实验 |
+| 至少触碰一个固定聚合文件 | 32/70（45.7%） | 23/70（32.9%） | 降 12.8 个百分点；不证明并行冲突率或声明式登记已达标 |
+| 动作合同触碰次数 | 11 | 7 | 仍为热点 |
+| Host 项目装配触碰次数 | 7 | 5 | 仍有手工装配 |
+| 总词典 / 初始化脚本触碰次数 | 12 / 11 | 0 / 0 | 最近样本改善；不是文件结构已去聚合的证明 |
+
+**本轮复用、已核原始 footer 的证据。** 下列日志均在 `/private/tmp/codex-anti-corruption-20261012-01a130de/`，不把多个重跑相加成一次全绿；日期均为 2026-10-12 本地时间。
+
+| 运行与文件 | 实际结果 | 可证明与不能证明 |
+| --- | --- | --- |
+| I5 冻结 8bac4a4ea，i5-full-01.log | 6,051 总数；6,039 通过、3 失败、9 跳过、0 取消，退出 1，103m44s | 原始全量失败保留；不删记录，不称全绿 |
+| 三失败重跑 i5-failures-repeat-01.log；干净 acede03e2 对照 i5-failures-acede-01.log | 前者 20/23、3 失败；基线 22/23、1 失败 | action-error-model 的大请求体应 413（旧 400 预期）；settings 测试 hook 需匹配现行绝对 URL，均为迁移后的测试缺陷。Issue finish 未等 decoder 为基线已有时序缺陷，不改变产品语义 |
+| 三个 test-only 修复合成头 2a1912250，i5-failures-fixed-01.log | 23/23、0 失败/跳过/取消；对 8bac 为三测试文件 +8/-6 | 含 G2 77700a330、1b 21ce9d473、Issue 2a1912250；验证生产大包 413、坏 JSON 400、迟到响应/真实拖放后 DOM 与持久化为空等原断言。仅定向通过 |
+| G1 原组与修复组 | 原 196 中 192 通过/4 失败；失败四文件修后 24/24 | 保留其余 172 个有效结果，共 196 个不同用例有通过证据；不是 216 个，不是首跑全绿 |
+| G3 普通/相关/浏览器组 | 5/5、198/198、6/6，均无跳过/取消 | 共 209 个不同用例，含真实 scope/preview 拒绝、坏 SQLite 不变、Host 重开、Chrome 修复后继续同 work；仅覆盖该片 |
+| Home candidate security | 192 总数：191 通过、1 外网可选项跳过 | 安全相关本地路径已验；跳过网络项未验，不能写 192/192 |
+| I6 整树预检 | 整体 build、boundary、类型、actual-base health、API/actions 与资源已通过；API 0 变，29 资源 11,366,475 字节 | 支持冻结候选的工程预检；不是全部测试通过或 main 已合入 |
+| I6 全量 i6-full-01.log | 19:19:36 启动，冻结 af0fe957，当前仍运行 | 不报最终通过数；接续线程在退出后原位补结果，失败先分类/基线对照，不能并行改受测树 |
+
+I5 的九个跳过包含 live 账号/真实网络、MiniMax 凭据与本机缺 shellcheck 的两条；CI 的 Shell/Python 检查有独立证据，不能因此说本地那两条已运行。真实产品证据目前是各片实际 HTTP/SQLite/Chrome 覆盖的路径与历史维护窗口；外部模型/账户、完整辅助技术和最终用户验收没有全量结论。

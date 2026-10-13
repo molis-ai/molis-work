@@ -10,7 +10,7 @@ import { lingguangActions } from "@molis-ai/molis-work-plugin-lingguang";
 import { bindActionClient, type ActionCallContext, type ActionDefinition, type FragmentActionOffer, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
-import { planSteps } from "../plugins/native/goals/src/fragment-offers.js";
+import { planSteps } from "../plugins/native/goals/dist/fragment-offers.js";
 
 /**
  * specs/archive/contextual-interaction §10 P2: the platform-wide fragment offers of Goals and 灵光, through the real directory

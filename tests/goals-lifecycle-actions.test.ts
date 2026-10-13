@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, setActiveGoalCapability } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -76,7 +76,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>
     denied.has(action.capability_id) ? { available: false, code: "actions.plugin_disabled", reason: "Lifecycle disabled" } : { available: true } });
   const caller: ActionCallContext = { actor_id: "runtime:lifecycle", project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] };
-  const client = host.actionClient(ref), typed = host.client(ref), bound = bindActionClient(client, () => caller);
+  const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   const snapshot = () => host.withProject(ref, r => r.store.snapshot(project.project_id));
   const active = { goal_id: "left", reason: "Continue this Goal", idempotency_key: "active-original" };
   const trash = { goal_id: "left", trashed: true, reason: "User confirmed trash", user_confirmed: true, idempotency_key: "trash-original" };
@@ -126,8 +126,8 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     assert.deepEqual(rightRestored.restored_relation_ids, [relation.relation_id]);
     assert.equal((await snapshot()).relations.find(r => r.relation_id === relation.relation_id)?.state, "active");
     assert.equal(((await bound.invoke(goalsActions.event, { goal_id: "left", event_id: note.event_id }))?.payload as { body: string }).body, "Preserve this complete history");
-    await assert.rejects(typed.invoke(setActiveGoalCapability, { project_id: project.project_id, goal: { goal_id: "done", reason: "Finish this Goal" }, write: { actor_id: caller.actor_id, idempotency_key: "forged-active" } as { idempotency_key: string } }), { code: "actions.input_invalid" });
-    await typed.invoke(setActiveGoalCapability, { project_id: project.project_id, goal: { goal_id: "done", reason: "Finish this Goal" }, write: { idempotency_key: "active-done" } });
+    await assert.rejects(bound.invoke(goalsActions.active, { goal_id: "done", reason: "Finish this Goal", actor_id: caller.actor_id, idempotency_key: "active-done" } as never), { code: "actions.input_invalid" });
+    await bound.invoke(goalsActions.active, { goal_id: "done", reason: "Finish this Goal", idempotency_key: "active-done" });
     await recordDelivery(bound, "done");
     const state = await bound.invoke(goalsActions.state, { goal_id: "done" });
     const closed = await bound.invoke(goalsActions.close, { goal_id: "done", kind: "complete", result: "Delivered the agreed work", reason: "Delivered", expected_config_version: state.config.version,
@@ -142,7 +142,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     assert.equal(restored.goal.archived_at, null); assert.equal(restored.goal.fulfillment_state, "satisfied");
 
     denied.add(goalsActions.active.capability_id); denied.add(goalsActions.trash.capability_id); denied.add(goalsActions.trashed.capability_id);
-    await assert.rejects(typed.invoke(setActiveGoalCapability, { project_id: project.project_id, goal: active, write: { idempotency_key: "denied" } }), { code: "actions.plugin_disabled" });
+    await assert.rejects(bound.invoke(goalsActions.active, { ...active, idempotency_key: "denied" }), { code: "actions.plugin_disabled" });
     await assert.rejects(bound.invoke(goalsActions.trash, { ...trash, idempotency_key: "denied" }), { code: "actions.plugin_disabled" });
     await assert.rejects(bound.invoke(goalsActions.trashed, {}), { code: "actions.plugin_disabled" });
     const final = await snapshot();

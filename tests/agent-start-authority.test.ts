@@ -23,6 +23,7 @@ test("typed Agent validation and execution use the same snapshot when a Plugin h
   registerAgentHostCapabilities({ register(definition, handler) { handlers.set(definition.capability_id, handler); return () => {}; } },
     { agentHost: () => host, projectId: () => owner.project_id, authority: () => ({ manifest, authorizedDirectories: [directory.canonical_path] }) });
   const invocation = { consumer: "plugin" as const, plugin: { ...owner, assertActive() {}, declaration: { manifest: {} as never } },
+    assertAuthorityCurrent() { this.plugin.assertActive(); },
     async beforeEffect() { if (++checks === 3) { session.session_id = "foreign-session"; run.session_id = "foreign-session"; run.run_id = "foreign-run"; } } };
   await handlers.get(agentHostCapabilities.controlRun.capability_id)!({}, [session, run, { kind: "cancel" }], invocation);
   assert.equal(checks, 3);
@@ -87,6 +88,7 @@ test("a returned typed start keeps only explicit dispatch authority and the orig
         ...(explicit ? { beforeDispatch() { checks++; } } : {}),
       }) });
     const invocation = { consumer: "plugin" as const, plugin: { ...owner, declaration: { manifest: {} as never }, assertActive() { if (!active) throw new Error("activation revoked"); } },
+      assertAuthorityCurrent() { this.plugin.assertActive(); },
       async beforeEffect() { assert.ok(invocationActive); } };
     await handlers.get(agentHostCapabilities.startRun.capability_id)!({}, ["fixture", { ...owner, directory, session, role_id: "reader", task: "Read" }], invocation);
     invocationActive = false;

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
+import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const caller = (audience: ActionCallContext["audience"]): ActionCallContext => ({ actor_id: "person", audience, project_id: "project", permissions: ["write"] });
@@ -17,7 +18,7 @@ function fixture(action: ActionDefinition, handle?: (context: ActionExecutionCon
     handlers: [{ ...action, handle: handle ?? ((_, input) => { facts.push(input); return { saved: true }; }) }] });
   return { service, facts };
 }
-const refuses = (code: string) => (error: unknown) => error instanceof ActionError && error.code === code && error.kind === "invalid";
+const refuses = (code: string) => (error: unknown) => error instanceof ActionError && error.code === code && actionErrorKind(error) === "invalid";
 
 for (const audience of ["agent", "mcp"] as const) for (const field of ["expected_version", "expected_revision", "expected_revisions", "expected_updated_at", "updated_at"])
   test(`W3-09-3-01: ${audience} must supply ${field} before any production handler runs`, async () => {

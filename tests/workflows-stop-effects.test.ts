@@ -4,13 +4,13 @@ import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { bindActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { bindActionClient, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LocalHost, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { workflowsActions as w, WORKFLOWS_ACTION_PERMISSIONS, openWorkflowsStore } from "@molis-ai/molis-work-plugin-workflows";
-import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { formActions, FORM_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-form";
 import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 
-async function setup(t: test.TestContext, completeText: HostCompleteText | null = null) {
+async function setup(t: test.TestContext, completeText: HostCompleteText | null = null, generated?: () => void) {
   const home = await mkdtemp(join(tmpdir(), "workflow-stop-effects-")), databasePath = join(home, "project.db");
   seedDemoBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
@@ -20,24 +20,37 @@ async function setup(t: test.TestContext, completeText: HostCompleteText | null 
   const caller = { actor_id: "owner", project_id: reference.project_id, audience: "user" as const,
     permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...FORM_ACTION_PERMISSIONS, ...PAGES_ACTION_PERMISSIONS, "external:write"] };
   const actions = bindActionClient(host.actionClient(reference), () => caller);
-  const { document } = await actions.invoke(pagesActions.create, { title: "Original source", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "The original request" }] }] } });
+  const originalRegistry = LocalHost.prototype.actionRegistry;
+  let observed = false;
+  if (generated) LocalHost.prototype.actionRegistry = function (reference) {
+    const registry = originalRegistry.call(this, reference), register = registry.registerProvider;
+    return { ...registry, registerProvider: registration => register({ ...registration,
+      handlers: registration.handlers.map(handler => {
+        if (handler.execution === "sync" || handler.capability_id !== formActions.generateAi.capability_id) return handler;
+        observed = true;
+        return { ...handler, handle: async (context: ActionExecutionContext, input: unknown) => {
+          try { return await handler.handle(context, input); } finally { generated(); }
+        } };
+      }),
+    }) };
+  };
+  const document = await (async () => {
+    try {
+      const result = await actions.invoke(pagesActions.create, { title: "Original source", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "The original request" }] }] } });
+      if (generated) assert.ok(observed, "the observer wraps the production Form registration");
+      return result.document;
+    } finally { LocalHost.prototype.actionRegistry = originalRegistry; }
+  })();
   const pass = { kind: "function", title_template: "", body_template: "{正文}", instructions: "" };
   return { home, host, reference, actions, release, pageId: document.id, pass };
 }
 
 test("W2-18-WF-STOP-01: stop reaches Form's final effect after its model wait and no later station runs", { timeout: 25_000 }, async t => {
   const entered = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>(), childFinished = Promise.withResolvers<void>();
-  const f = await setup(t);
+  const f = await setup(t, async () => { entered.resolve(); await finish.promise; return "Late generated question"; }, () => childFinished.resolve());
   f.release.push(() => finish.resolve());
-  // Observe the production Form handler, not the outer Kernel promise, which may refuse before the child settles.
-  const store = openFormStore(f.home), providerId = "fixture-controlled-form";
-  const handlers = createFormActionHandlers({ withStore: run => run(store), modelAvailability: () => ({ available: true }),
-    completeText: async () => { entered.resolve(); await finish.promise; return "Late generated question"; } });
-  const unregister = f.host.actionRegistry(f.reference).registerProvider({ provider: { provider_id: providerId, title: "Controlled Form", kind: "plugin", project_id: f.reference.project_id },
-    definitions: Object.values(formActions), handlers: handlers.map(handler => handler.capability_id !== formActions.generateAi.capability_id ? handler : {
-      ...handler, async handle(context, input) { try { return await handler.handle(context, input); } finally { childFinished.resolve(); } },
-    }) });
-  t.after(() => { unregister(); store.close(); });
+  // The actual Host Form provider is observed in setup; no second provider can shadow it.
+  const providerId = "io.molis.work.form";
   const create = { ...formActions.create, provider_id: providerId }, get = { ...formActions.get, provider_id: providerId };
   const { form } = await f.actions.invoke(create, { title: "Current target" });
   const { form: later } = await f.actions.invoke(create, { title: "Later target" });

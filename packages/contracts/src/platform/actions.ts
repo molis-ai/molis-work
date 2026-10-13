@@ -431,6 +431,7 @@ export function retainActionAuthority<Context extends ActionCallContext>(context
     await validate?.(pinned);
     if (reference.capability_id !== pinned.capability_id || reference.version !== pinned.version || reference.provider_id !== pinned.provider_id) await validate?.(reference);
   }, assert_authority_current: (reference?: ActionReference, requiredPermissions?: readonly string[]) => {
+    requireSynchronous(assertCurrent?.(), "最终授权检查必须同步完成");
     requireSynchronous(assertCurrent?.(pinned, requiredPermissions), "最终授权检查必须同步完成");
     if (reference && (reference.capability_id !== pinned.capability_id || reference.version !== pinned.version || reference.provider_id !== pinned.provider_id)) {
       requireSynchronous(assertCurrent?.(reference, requiredPermissions), "最终授权检查必须同步完成");

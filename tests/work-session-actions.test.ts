@@ -56,11 +56,11 @@ for (const operation of ["discover", "create", "prepare", "send"] as const) {
         else owner.handoff.send = observe(owner.handoff.send.bind(owner.handoff));
         blocked = true;
         pending = operation === "discover" ? client.invoke(workActions.discover, { runtime_id: "codex" })
-          : operation === "create" ? client.invoke(workActions.create, { action: "create", runtime_id: "codex" })
+          : operation === "create" ? client.invoke(workActions.create, { action: "create", runtime_id: "codex", current_goal_id: null, workspace_id: null, workspace_path: null, title: "Controlled native creation" })
           : operation === "prepare" ? client.invoke(workActions.handoffPrepare, { session_id: source.session_id, target_runtime_id: "codex" })
           : client.invoke(workActions.handoffSend, { package_id: prepared!.handoff.package_id, target_runtime_id: "codex", content: "The original handoff" });
         const rejected = assert.rejects(pending);
-        await entered.promise;
+        await Promise.race([entered.promise, pending.then(() => { throw new Error("The native request settled before its barrier"); })]);
         if (refusal === "cancel") abort.abort();
         else if (refusal === "revoke") revoked = true;
         else await withCatalog({ homeDirectory: home }, catalog => catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "sessions", actor_id: "owner" }));

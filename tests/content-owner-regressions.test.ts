@@ -116,7 +116,7 @@ test("W2-18-PAGES-SOURCES-01: prepared clipped snapshots generate once, disclose
   await f.service.invoke(f.caller, offer.action, offer.input);
   await f.service.invoke(f.caller, offer.action, offer.input);
   assert.equal(calls, 1);
-  assert.match(prompt, /"truncated":true/); assert.doesNotMatch(prompt, /OMITTED_A|OMITTED_B/);
+  assert.match(JSON.parse(prompt).data, /"truncated":true/); assert.doesNotMatch(prompt, /OMITTED_A|OMITTED_B/);
   const generated = f.pages.list(f.project).find(record => record.id !== a.id && record.id !== b.id)!;
   const text = (await f.bound.invoke(pagesContentActions.read, { item_id: generated.id })).body;
   assert.match(text, /已截断的节选，并非完整原文/);

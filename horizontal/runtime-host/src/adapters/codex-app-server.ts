@@ -125,8 +125,17 @@ export class CodexAppServerTransport implements RuntimeSessionTransport {
   }
 
   private write(message: Record<string, unknown>): void {
-    if (!this.child?.stdin.writable) throw new Error("Codex app-server 不可写");
-    this.child.stdin.write(`${JSON.stringify(message)}\n`);
+    const child = this.child;
+    if (!child?.stdin.writable) {
+      const error = new Error("Codex app-server 不可写");
+      if (child) this.failProtocolLine(child, error);
+      throw error;
+    }
+    try { child.stdin.write(`${JSON.stringify(message)}\n`); }
+    catch (error) {
+      this.failProtocolLine(child, error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
   }
 
   private handleChunk(child: ChildProcessWithoutNullStreams, chunk: Buffer | string): void {

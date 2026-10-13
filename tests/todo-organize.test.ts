@@ -87,7 +87,7 @@ test("W2-18-TODO-DATE-01: a date-only phrase adds no invented clock time; unprot
     answer = JSON.stringify({ candidates: [{ ref: "date-only", kind: "request", title: "发送方案", owner: { who: "你", stated: true },
       due: { date: "2030-01-01", time: "22:00", phrase: "10月2日" }, evidence: [{ material: 1, excerpt: "请10月2日发方案" }],
       existing: { id: existing.id, relation: "update", changes: { due_date: "2031-01-01", due_time: "23:00" } } }] });
-    const { batch } = await f.me.invoke(organize.extract, { materials: [{ text: "请10月2日发方案", received_at: "2026-09-28T09:00:00+08:00" }] });
+    const { batch } = await f.me.invoke(organize.extract, { materials: [{ title: "日期约定", text: "请10月2日发方案", received_at: "2026-09-28T09:00:00+08:00" }] });
     const candidate = batch.candidates[0]!;
     assert.deepEqual([candidate.due_date, candidate.due_time], ["2026-10-02", null]);
     assert.deepEqual(candidate.existing?.changes, protect ? { due_date: "2026-10-02" } : { due_date: "2026-10-02", due_time: null });
@@ -107,7 +107,7 @@ test("W2-18-TODO-DATE-01: missing or ambiguous date evidence cannot overwrite an
     answer = JSON.stringify({ candidates: [{ ref: "uncertain", kind: "request", title: "发送方案", owner: { who: "你", stated: true },
       due: { date: "2030-01-01", time: "22:00", phrase }, evidence: [{ material: 1, excerpt: text }],
       existing: { id: existing.id, relation: "same", changes: { due_date: "2031-01-01", due_time: "23:00" } } }] });
-    const { batch } = await f.me.invoke(organize.extract, { materials: [{ text, received_at: null }] });
+    const { batch } = await f.me.invoke(organize.extract, { materials: [{ title: "待核对日期", text, received_at: null }] });
     const candidate = batch.candidates[0]!;
     assert.deepEqual([candidate.due_date, candidate.due_time, candidate.existing?.changes, candidate.existing?.protected], [null, null, {}, []]);
     await f.me.invoke(organize.apply, { id: batch.batch_id, decisions: [{ candidate_id: candidate.candidate_id, action: "merge" }] });

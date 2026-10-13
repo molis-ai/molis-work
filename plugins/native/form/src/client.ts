@@ -1,4 +1,4 @@
-/** Forms workbench client: author, preview, submit, results. */
+import { FORM_ANSWER_LIMIT } from "./fillpage.js";
 // Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `fixedCell`: A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name. `molis:placement-changed`: Moved or copied from the placement bar: this list changed; a form moved away is no longer here to edit.
 export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
@@ -370,14 +370,13 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     buildFields(previewEl, record.questions || []);
   };
-  /** The answer fields of a form, into any container: the author's trial or the full-screen fill page. */
   const buildFields = (container, questions) => {
     questions.forEach((question) => {
-      const field = document.createElement("div");
-      field.className = "form-field";
-      const title = document.createElement("span");
-      title.textContent = question.title + (question.required ? " *" : "");
-      field.append(title);
+      const field = document.createElement("div"); field.className = "form-field";
+      const title = document.createElement(["singleChoice", "multiChoice", "rating"].includes(question.type) ? "span" : "label");
+      title.id = "form-question-" + crypto.randomUUID(); title.textContent = question.title + (question.required ? "（" + L("必填") + "）" : "");
+      field.setAttribute("role", ["singleChoice", "rating"].includes(question.type) ? "radiogroup" : "group"); field.setAttribute("aria-labelledby", title.id);
+      if (field.getAttribute("role") === "radiogroup") field.setAttribute("aria-required", String(question.required)); field.append(title);
       if (question.type === "singleChoice" || question.type === "multiChoice") {
         const box = document.createElement("div");
         box.className = "form-preview-options";
@@ -426,11 +425,12 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         input.type = question.type === "date" ? "date" : "text";
         field.append(input);
       }
+      field.querySelectorAll("input:not([type=radio]):not([type=checkbox]),select").forEach((input) => { input.id = title.id + "-input"; title.htmlFor = input.id; input.setAttribute("aria-labelledby", title.id); input.setAttribute("aria-required", String(question.required)); if (input.type === "text") input.maxLength = ${FORM_ANSWER_LIMIT}; });
       container.append(field);
     });
   };
   const collectAnswers = (container = previewEl) => {
-    const answers = {};
+    const answers = Object.create(null);
     container.querySelectorAll("[data-answer-id]").forEach((node) => {
       const id = node.dataset.answerId;
       if (node.dataset.answerKind === "multi") {

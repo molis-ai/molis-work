@@ -4,6 +4,7 @@ import { calloutIconFor, safePagesCalloutIcon, safePagesCalloutTone } from "./ca
 import { safePagesLanguage } from "./code-language.js";
 import { bookmarkLabel, imageAlt, safePagesBookmarkTitle, safePagesHref, safePagesImageCaption, safePagesImageSrc, safePagesImageWidth } from "./link.js";
 import { safePagesTone } from "./tone.js";
+import { cardDom } from "./card-content.js";
 
 const MIN_COLUMN_WIDTH = 80;
 const MAX_COLUMN_WIDTH = 640;
@@ -324,11 +325,11 @@ const nodes = {
         title: (dom as HTMLElement).getAttribute("data-title") || "",
       }),
     }],
-    toDOM: (node) => ["article", domAttrs(node, {
+    toDOM: (node) => cardDom(node, domAttrs(node, {
       class: "pages-card pages-card--ref",
       "data-pages-ref": String(node.attrs.page_id),
       "data-title": String(node.attrs.title),
-    })],
+    })),
   } satisfies NodeSpec,
   task_card: {
     group: "block",
@@ -352,14 +353,14 @@ const nodes = {
         };
       },
     }],
-    toDOM: (node) => ["article", domAttrs(node, {
+    toDOM: (node) => cardDom(node, domAttrs(node, {
       class: "pages-card pages-card--task",
       "data-pages-task-card": "1",
       "data-title": String(node.attrs.title),
       "data-description": String(node.attrs.description),
       "data-status": String(node.attrs.status),
       "data-due": String(node.attrs.due),
-    })],
+    })),
   } satisfies NodeSpec,
   event_card: {
     group: "block",
@@ -373,12 +374,12 @@ const nodes = {
         at: (dom as HTMLElement).getAttribute("data-at") || "",
       }),
     }],
-    toDOM: (node) => ["article", domAttrs(node, {
+    toDOM: (node) => cardDom(node, domAttrs(node, {
       class: "pages-card pages-card--event",
       "data-pages-event": "1",
       "data-title": String(node.attrs.title),
       "data-at": String(node.attrs.at),
-    })],
+    })),
   } satisfies NodeSpec,
   calendar: {
     group: "block",

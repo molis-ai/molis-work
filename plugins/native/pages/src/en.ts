@@ -1,4 +1,5 @@
 export const PAGES_EN: Record<string, string> = {
+  "这篇文档的内容结构暂不支持此操作，原内容已保留。": "This document structure does not support this operation yet. The original content is preserved.",
   // Said by the delete-project dialog (the label of this owner's project data).
   "Pages 文稿与文件夹": "Pages documents and folders",
   "固定版本": "Fixed version",

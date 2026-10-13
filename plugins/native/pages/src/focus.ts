@@ -34,7 +34,7 @@ export interface PagesFocus {
   readonly surroundings: { readonly heading_path: readonly string[]; readonly before?: string; readonly after?: string };
 }
 
-interface FrozenRange { readonly token: string; readonly from: number; readonly to: number; readonly text: string; readonly quiet?: boolean }
+interface FrozenRange { readonly token: string; readonly from: number; readonly to: number; readonly text: string; readonly quiet?: boolean; readonly missing?: boolean }
 interface FocusPluginState {
   readonly frozen: readonly FrozenRange[];
   /** A second range the person set aside to compare with the current selection (Alt + select). */
@@ -223,7 +223,10 @@ export function pagesFocusPlugin(options: PagesFocusPluginOptions = {}): Plugin<
         const meta = tr.getMeta(pagesFocusKey) as FocusMeta | undefined;
         let frozen = value.frozen, compare = value.compare, lastEditAt = value.lastEditAt, completed = value.completed;
         if (tr.docChanged) {
-          frozen = frozen.map(range => ({ ...range, from: tr.mapping.map(range.from, 1), to: tr.mapping.map(range.to, -1) }));
+          frozen = frozen.map(range => {
+            const point = range.from === range.to, from = tr.mapping.mapResult(range.from, 1), to = tr.mapping.map(range.to, point ? 1 : -1);
+            return { ...range, from: from.pos, to, missing: range.missing || (point ? from.deleted : to <= from.pos) };
+          });
           compare = compare ? { from: tr.mapping.map(compare.from, 1), to: tr.mapping.map(compare.to, -1) } : null;
           if (compare && compare.to <= compare.from) compare = null;
           completed = completed ? { ...completed, from: tr.mapping.map(completed.from, 1), to: tr.mapping.map(completed.to, -1) } : null;
@@ -293,7 +296,7 @@ export function freezePagesFocus(view: EditorView, token: string, range?: { from
     if (!$pos.parent.isTextblock) return null;
     from = $pos.start(); to = $pos.end();
   }
-  if (to <= from) return null;
+  if (to < from || (to === from && !quiet)) return null;
   const frozen = { token, from, to, text: view.state.doc.textBetween(from, to, "\n"), ...(quiet ? { quiet } : {}) };
   view.dispatch(view.state.tr.setMeta(pagesFocusKey, { freeze: frozen } satisfies FocusMeta).setMeta("addToHistory", false));
   return frozen;
@@ -304,7 +307,7 @@ export function resolvePagesFrozen(view: EditorView, token: string): { from: num
   const range = pagesFocusKey.getState(view.state)?.frozen.find(item => item.token === token);
   if (!range) return null;
   const text = range.to > range.from ? view.state.doc.textBetween(range.from, range.to, "\n") : "";
-  return { from: range.from, to: range.to, text, intact: text === range.text };
+  return { from: range.from, to: range.to, text, intact: !range.missing && text === range.text };
 }
 
 export function releasePagesFrozen(view: EditorView, token: string): void {

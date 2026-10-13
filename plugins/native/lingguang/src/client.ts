@@ -72,7 +72,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const chatInput = workbench.querySelector("[data-lingguang-chat-input]");
   let records = [];
   let selectedIds = new Set();
-  let selected = null;
+  let selected = null, editorBase = null;
   let conversation = null;
   let saveTimer = 0;
   let listSeq = 0;
@@ -236,7 +236,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const leaveOnFold = () => queueMicrotask(() => { if (workbench.getAttribute("data-expanded") === "false") void leaveBlank().catch(() => {}); });
   const fillEditor = (record) => {
     const left = selected && selected.id !== record.id ? selected.id : "";
-    selected = record;
+    selected = record; editorBase = { record };
     conversation = null;
     workbench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
@@ -251,7 +251,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const closeWorkspace = () => {
     clearTimeout(saveTimer);
-    selected = null;
+    selected = null; editorBase = null;
     conversation = null;
     selectedIds = new Set();
     workbench.setAttribute("data-expanded", "false");
@@ -335,11 +335,11 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     void annotateFates(records);
     syncSelectionBar();
   };
-  const remember = (record) => {
+  const remember = (record, base) => {
     const index = records.findIndex((item) => item.id === record.id);
     if (index >= 0) records[index] = record;
     else records.unshift(record);
-    if (selected?.id === record.id) {
+    if (selected?.id === record.id && editorBase === base) {
       selected = record;
       titleEl.textContent = record.title;
     }
@@ -349,28 +349,28 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const save = async () => {
     clearTimeout(saveTimer);
     if (!selected || conversation) return null;
-    const record = selected;
+    const record = selected, base = editorBase;
     const title = titleInput.value;
     const body = bodyInput.value;
     const pending = saveQueue.then(async () => {
-      const current = records.find((item) => item.id === record.id) || record;
+      const current = base.record;
       if (current.title === title && current.body === body) return current;
-      if (selected?.id === record.id) showSave('保存中…');
+      if (editorBase === base) showSave('保存中…');
       const payload = await request("POST", api + "/" + encodeURIComponent(record.id), {
         title, body, expected_updated_at: current.updated_at,
       });
-      remember(payload.spark);
-      if (selected?.id === record.id) {
+      base.record = payload.spark; remember(payload.spark, base);
+      if (editorBase === base) {
         if (titleInput.value === title && document.activeElement !== titleInput) titleInput.value = payload.spark.title;
         if (bodyInput.value === body && document.activeElement !== bodyInput) bodyInput.value = payload.spark.body || "";
       }
-      if (selected?.id === record.id && titleInput.value === title && bodyInput.value === body) {
+      if (editorBase === base && titleInput.value === title && bodyInput.value === body) {
         showSave('已保存');
         showNote('', false);
       }
       return payload.spark;
     }).catch(error => {
-      if (selected?.id === record.id) showSave('保存失败', true);
+      if (editorBase === base) showSave('保存失败', true);
       throw error;
     });
     saveQueue = pending.catch(() => {});
@@ -394,7 +394,6 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (selected) {
       const next = records.find((item) => item.id === selected.id);
       if (next) {
-        selected = next;
         markSelected(next.id);
       }
     }

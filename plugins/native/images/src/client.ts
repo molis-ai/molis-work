@@ -22,7 +22,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const connectionAuth = $('[data-images-connection-auth]');
   const serviceMenu = $('[data-images-service-menu]');
   let context = projectId(), connections = [], authConnections = [], jobs = [], connectionId = '', selectedId = '';
-  let editingId = '', editingFormat = 'openai-images', editingAuth = '', pending = null;
+  let editingId = '', editingFormat = 'openai-images', editingAuth = '', pending = null, resumeConnection = null;
   let submitting = false, saving = false, cancelling = false, listSeq = 0, loadSeq = 0;
   let timer = 0, listSignature = '', resultSignature = '';
   const statuses = {
@@ -314,7 +314,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     say('', false, '[data-images-connection-note]');
   };
   const openConnections = () => {
-    editConnection(connectionId); if (!dialog.open) dialog.showModal(); connectionName.focus();
+    if (resumeConnection !== connectionId) editConnection(connectionId); resumeConnection = null; if (!dialog.open) dialog.showModal(); connectionName.focus();
   };
   const syncSaving = () => {
     if (!lifetime.alive) return;
@@ -369,6 +369,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     }
   });
   lifetime.listen(root, 'click', async event => {
+    const link = event.target.closest('a[href^="/settings/"]'); if (link && dialog.contains(link)) { resumeConnection = connectionId; dialog.close(); return; }
     const target = event.target.closest('button'); if (!target || target.disabled) return;
     try {
       if (target.hasAttribute('data-images-connections')) { openConnections(); return; }
@@ -396,7 +397,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       }
       if (target.hasAttribute('data-images-new')) { say(''); showCompose(true); return; }
       if (target.hasAttribute('data-images-back')) {
-        root.dataset.expanded = 'false'; $('[data-images-workspace]').hidden = true; return;
+        selectedId = ''; publishContext(null); root.dataset.expanded = 'false'; $('[data-images-workspace]').hidden = true; saveDraft(); return;
       }
       if (target.hasAttribute('data-images-refresh')) {
         target.disabled = true;

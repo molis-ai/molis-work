@@ -185,11 +185,11 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!id) throw new Error(L("缺少项目"));
     return path + (path.includes("?") ? "&" : "?") + "project_id=" + encodeURIComponent(id);
   };
-  const request = async (method, path, body) => {
+  const request = async (method, path, body, signal) => {
     const payloadBody = body === undefined ? undefined : { ...body, project_id: projectId() };
     const response = await fetch(withProject(path), {
       method,
-      headers: headers(),
+      headers: headers(), signal,
       body: payloadBody === undefined || method === "GET" ? undefined : JSON.stringify(payloadBody),
     });
     const payload = await response.json().catch(() => ({}));
@@ -459,10 +459,9 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderList();
   };
   /* ---- Outline from text: a dialog that turns pasted text into slides, locally or through the model ---- */
-  const outlineDialog = workbench.querySelector("[data-ppt-outline-dialog]");
-  const outlineForm = workbench.querySelector("[data-ppt-outline-form]");
-  let outlineMode = "local", outlineSourceKind = "text";
-  // The other source is a Pages document: listed and read on the server through Pages' own actions, with this person's authority.
+  const outlineDialog = workbench.querySelector("[data-ppt-outline-dialog]"), outlineForm = workbench.querySelector("[data-ppt-outline-form]");
+  let outlineMode = "local", outlineSourceKind = "text", outlineRequest = null;
+  const endOutline = () => { const attempt = outlineRequest; outlineRequest = null; if (attempt) { attempt.controller.abort(); attempt.submit.disabled = false; attempt.submit.textContent = attempt.label; } };
   const paintOutlineSource = async () => {
     if (!outlineDialog) return;
     outlineDialog.querySelectorAll("[data-ppt-outline-source]").forEach((button) => {
@@ -518,10 +517,10 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const openOutline = () => {
     if (!outlineDialog || !selected) return;
+    endOutline();
     showOutlineError("");
     const replace = outlineDialog.querySelector("[data-ppt-outline-replace]");
-    // A deck that is still one blank page is simply filled; the box only matters once there is something to keep.
-    const blank = selected.slides.length === 1 && !selected.slides[0].bullets.length && !selected.slides[0].notes;
+    const blank = selected.slides.length === 1 && !selected.slides[0].title && !selected.slides[0].bullets.length && !selected.slides[0].notes;
     if (replace) { replace.checked = false; replace.closest("label").hidden = blank; }
     paintOutlineModes();
     const select = outlineDialog.querySelector("[data-ppt-outline-page]");
@@ -531,7 +530,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     outlineDialog.querySelector(outlineSourceKind === "page" ? "[data-ppt-outline-page]" : "[data-ppt-outline-text]")?.focus();
   };
   const submitOutline = async () => {
-    if (!outlineDialog || !selected) return;
+    if (!outlineDialog || !selected || outlineRequest) return;
     const textarea = outlineDialog.querySelector("[data-ppt-outline-text]");
     const text = (textarea?.value || "").trim();
     const pageId = outlineSourceKind === "page" ? (outlineDialog.querySelector("[data-ppt-outline-page]")?.value || "") : "";
@@ -539,36 +538,37 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (outlineSourceKind === "text" && !text) { showOutlineError(L("收到的内容里没有可以做成幻灯片的文字")); textarea?.focus(); return; }
     const submit = outlineDialog.querySelector("[data-ppt-outline-submit]");
     const replace = Boolean(outlineDialog.querySelector("[data-ppt-outline-replace]")?.checked);
-    showOutlineError("");
-    submit.disabled = true;
-    const label = submit.textContent;
+    showOutlineError(""); submit.disabled = true;
+    const label = submit.textContent, attempt = { controller: new AbortController(), submit, label, id: selected.id, revision: editRevision, mode: outlineMode, source: outlineSourceKind, text: textarea?.value || "" }; outlineRequest = attempt;
     submit.textContent = outlineMode === "ai" ? L("整理中…") : label;
     try {
       await save();
+      if (outlineRequest !== attempt || !outlineDialog.open || selected?.id !== attempt.id || editRevision !== attempt.revision) return;
       const record = selected;
-      const payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(record.id) + (outlineMode === "ai" ? "/outline-ai" : "/outline"),
-        { ...(pageId ? { page_id: pageId } : { text }), replace, expected_version: record.version });
-      if (!selected || selected.id !== record.id) return;
+      const payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(record.id) + (attempt.mode === "ai" ? "/outline-ai" : "/outline"),
+        { ...(pageId ? { page_id: pageId } : { text }), replace, expected_version: record.version }, attempt.controller.signal);
+      if (outlineRequest !== attempt || !outlineDialog.open || selected?.id !== record.id || editRevision !== attempt.revision || selected.version !== record.version) return;
       currentSlideId = payload.presentation.slides[replace ? 0 : Math.max(0, payload.presentation.slides.length - payload.slide_count)]?.id || currentSlideId;
       fillEditor(payload.presentation);
       await loadList();
-      if (textarea) textarea.value = "";
-      outlineDialog.close();
+      if (outlineRequest !== attempt || !outlineDialog.open) return;
+      if ((textarea?.value || "") === attempt.text && outlineMode === attempt.mode && outlineSourceKind === attempt.source && (!pageId || outlineDialog.querySelector("[data-ppt-outline-page]")?.value === pageId)) { if (textarea) textarea.value = ""; endOutline(); outlineDialog.close(); }
       showNote(L("已生成 {count} 页").replace("{count}", String(payload.slide_count)), false);
     } catch (error) {
-      showOutlineError(error.message || L("演示稿请求失败"));
+      if (outlineRequest === attempt && !attempt.controller.signal.aborted) showOutlineError(error.message || L("演示稿请求失败"));
     } finally {
-      submit.disabled = false;
-      submit.textContent = label;
+      if (outlineRequest === attempt) endOutline();
     }
   };
   outlineDialog?.addEventListener("click", (event) => {
-    if (event.target.closest("[data-ppt-outline-close]")) { outlineDialog.close(); return; }
+    if (event.target.closest("[data-ppt-outline-close]")) { endOutline(); outlineDialog.close(); return; }
     const sourceButton = event.target.closest("[data-ppt-outline-source]");
     if (sourceButton) { outlineSourceKind = sourceButton.dataset.pptOutlineSource; void paintOutlineSource(); return; }
     const mode = event.target.closest("[data-ppt-outline-mode]");
     if (mode && !mode.disabled) { outlineMode = mode.dataset.pptOutlineMode; paintOutlineModes(); }
   });
+  outlineDialog?.addEventListener("cancel", endOutline);
+  outlineDialog?.addEventListener("close", () => { if (!outlineDialog.open) endOutline(); });
   outlineForm?.addEventListener("submit", (event) => { event.preventDefault(); void submitOutline(); });
   const draftFromDom = () => {
     const value = liveRecord();

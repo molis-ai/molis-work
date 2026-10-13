@@ -31,7 +31,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const moveMenu = workbench.querySelector("[data-pages-move-menu]");
   let records = [];
   let folders = [];
-  let selected = null;
+  let selected = null, editorEpoch = 0;
   let editor = null;
   let saveTimer = 0;
   let filling = false;
@@ -262,8 +262,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       plugin_id: "io.molis.work.pages", activity: "selecting", granularity: "objects",
       object: { kind: "pages_document", id: chosen[0].id, version: chosen[0].version, title: chosen[0].title },
       targets: chosen.slice(0, 8).map((record) => {
-        const text = (record.title + "\\n" + docText(record.body)).slice(0, 1500);
-        return { kind: "object", role: "object", text, ...(text.length >= 1500 ? { truncated: true } : {}),
+        const text = record.title + "\\n" + docText(record.body);
+        return { kind: "object", role: "object", text: text.slice(0, 1500), ...(text.length > 1500 ? { truncated: true } : {}),
           ref: { kind: "pages_document", id: record.id, version: record.version, title: record.title } };
       }) };
   };
@@ -550,7 +550,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const draftOf = () => {
-    if (!selected) return null;
+    if (!selected || unshowable) return null;
     return {
       id: selected.id,
       title: titleInput.value,
@@ -603,7 +603,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   ${PAGES_BLANK_CLIENT_SCRIPT}
   const fillEditor = (record) => {
-    const switching = Boolean(selected && record && selected.id !== record.id);
+    editorEpoch += 1; const switching = Boolean(selected && record && selected.id !== record.id);
     const leaving = switching ? draftOf() : null;
     const left = switching ? blankLeaving() : null;
     const pending = Boolean(switching && (saveTimer || dirty));
@@ -636,7 +636,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const closeEditor = () => {
     clearTimeout(saveTimer);
-    selected = null;
+    selected = null; editorEpoch += 1;
     syncEditorChrome();
     workbench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
@@ -690,7 +690,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     saveTimer = setTimeout(() => { void save().catch((error) => showNote(error.message || L("保存失败"), true)); }, 400);
   };
   const persistCurrent = async () => {
-    if (!selected) return;
+    if (!selected || unshowable) return;
     do { await save(); } while (selected && (saveTimer || dirty));
   };
   // Showing the document already open here again (its item tab after the page's list, a reload's second request): the
@@ -738,8 +738,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const htmlDocument = (body) => "<!doctype html><html lang=\\"zh-CN\\"><head><meta charset=\\"utf-8\\"><title>"
     + escapeHtml(selected.title) + "</title><style>body{max-width:760px;margin:40px auto;padding:0 20px;font:15px/1.7 -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;color:#222}img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}</style></head><body><h1>"
     + escapeHtml(selected.title) + "</h1>" + Editor.toHTML(body) + "</body></html>";
+  const assertReadable = (record = selected) => { if (record?.body && Editor?.canShow && !Editor.canShow(record.body)) throw new Error(L("这篇文档的内容结构暂不支持此操作，原内容已保留。")); };
   const exportDocument = (format) => {
-    if (!selected || !Editor) return;
+    assertReadable(); if (!selected || !Editor) return;
     const body = editor ? Editor.getDoc(editor) : selected.body;
     const markdown = format === "md";
     const content = markdown ? "# " + (selected.title || L("无标题")) + "\\n\\n" + Editor.toMarkdown(body) : htmlDocument(body);
@@ -753,7 +754,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     placed({ verb: "exported", title: selected.title, file: { name: link.download, format: markdown ? "Markdown" : L("网页") } });
   };
   const printDocument = () => {
-    if (!selected || !Editor) return;
+    assertReadable(); if (!selected || !Editor) return;
     const frame = document.createElement("iframe");
     frame.setAttribute("aria-hidden", "true");
     frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
@@ -768,23 +769,18 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const escapeHtml = (value) => String(value ?? "")
     .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-  const openCreated = (record) => {
-    remember(record, false);
-    fillEditor(record);
-  };
+  const openCreated = (record) => openDocument(record);
   const createPage = async (body) => {
+    const epoch = editorEpoch;
     if (selected && (saveTimer || dirty)) await persistCurrent();
+    if (editorEpoch !== epoch) return;
     const left = blankLeaving();
     const payload = await request("POST", "/api/plugins/pages", body || {});
     if (!body || !(body.template_id || body.body || body.title)) fresh.set(payload.document.id, { title: payload.document.title, version: payload.document.version });
+    storeDocument(payload.document); placed({ verb: "created", title: payload.document.title || L("无标题"), object: { kind: "pages_document", id: payload.document.id } });
     await loadList();
-    openCreated(payload.document);
+    if (editorEpoch === epoch) { await openCreated(payload.document); titleInput.focus(); titleInput.select(); }
     void dropBlank(left);
-    placed({ verb: "created", title: payload.document.title || L("无标题"), object: { kind: "pages_document", id: payload.document.id } });
-    dirty = false;
-    editVersion += 1;
-    titleInput.focus();
-    titleInput.select();
   };
   const toggleStar = async (id) => {
     const record = records.find((item) => item.id === id);
@@ -810,6 +806,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (selected?.id === id) await persistCurrent();
       const current = selected?.id === id ? selected : records.find(record => record.id === id);
       if (!current) return;
+      assertReadable(current);
       draft = selected?.id === id ? draftOf() : null;
       const payload = await request("POST", pageUrl(id, "/promote"), {
         goal_id: current.publication_pending?.goal_id ?? current.goal_id ?? "", expected_version: current.version,
@@ -1027,15 +1024,18 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-pages-extract]") && selected) {
-        closeMore();
-        const id = selected.id;
+        closeMore(); assertReadable();
+        const id = selected.id, epoch = editorEpoch;
         await persistCurrent();
+        if (selected?.id !== id || editorEpoch !== epoch) return;
+        const draft = draftOf();
         const payload = await request("POST", pageUrl(id, "/extract"), {});
-        await loadList();
-        if (selected && selected.id === id) {
-          dirty = false;
-          remember(payload.document, true);
+        storeDocument(payload.document);
+        if (selected?.id === id && editorEpoch === epoch) {
+          if (editVersion === draft.version && !dirty && !saveTimer) { remember(payload.document, true); editVersion += 1; }
+          else await persistCurrent();
         }
+        await loadList();
         return;
       }
       if (event.target.closest("[data-pages-promote]") && selected) {

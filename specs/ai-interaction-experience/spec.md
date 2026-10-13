@@ -449,6 +449,7 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 | D9 | 助理问题卡的渲染位置（2026-10-12，本线自定） | 宿主用设计系统渲染函数把卡片渲染成 HTML 放进视图（同 Coding 的 `question.html`），助理岛只接行为 | 岛是字符串脚本，不能在浏览器里调设计系统的渲染函数；这样只有一份渲染，岛的字节变小 |
 | D10 | 回答的身份与 R4 | 待统筹定（§17.1「跨线待定」） | 影响 C1、A1 与回执线 1e |
 | D11 | C1 与 H1 合成一片、S1 移到 A1/A2 之后（2026-10-12，统筹定） | 带类型的题在宿主里一次做完（合同子路径、投影、预检、错误码、等待期限、题型交集），叠在 #408 上；题型校验函数放 `packages/plugin-sdk`；S1 等助理与 Coding 的问卷体验做完再做。取舍：C1a（#447）因不含使用者而关闭；#408 若迟迟不合，这一片 PR 里会带着 #408 的提交一起评审，base 在 #408 合入后改到 main | 用户先得到助理与 Coding 的问卷；S1 需要新增 Form 功能与 SDK 出口，体量最大，放最后 |
+| D12 | A1 的字节办法与共享客户端放在哪（2026-10-13，本线建议，**放宽一项待用户定**） | 按 §20.11 的送出字节：先做 (a)+(b)（只带 A1 用到的脚本与样式段、与原语去重、删被替换的旧渲染），CSS 再用 (b′) 删已核实无人引用的旧皮肤规则抵平；`workbench.js` 仍多约 +6.9 K，请用户给一次性、有上限的放宽，由 H2 合入后偿还。`INTERACTION_CLIENT_SCRIPT` 只进 `workbench.js` 一份，A2 用宿主提供的那份，不在 5 个 Coding 系插件包里各嵌一份。取舍：放宽门禁要先问用户；不用内联样式绕过预算（不量内联，但每次重发、不能缓存） | A1 的 PR 描述要附实测；`tests/interaction-components.test.ts` 里「样式不进冻结样式表」一条在 A1 改成断言采用后的状态 |
 
 ## 17. 分期与 PR 序列
 
@@ -769,7 +770,7 @@ I0 预览、共享展示部件（#423，已进 main）、共享浏览器行为�
    - 内容：新合同子路径 `@molis-ai/molis-work-contracts/services/agent-interaction`（`AgentQuestion` 六种题型、`AgentQuestionAnswer`、`AgentQuestionProblem` 与 19 个闭集原因、`AgentAnswerControl`、`AgentPendingQuestion` 从 `agent-host.ts` 搬来）；`agent-host.ts` 净减 24 行并加错误码 `agent.answer_invalid`；`prologue-questions.ts` 新增 `projectQuestion`（显式投影、不再透传 SDK 选项对象）与 `answerProblems`（调 SDK 的 `validateQuestionnaireAnswer`）；`prologue-node.ts` 的 `answerPending` 先预检、形状错误都有码，配 `inputWaitTtlMs` 24 小时与 `askUserQuestionTypes`；宿主装配（`apps/local-host/src/agent-question-surfaces.ts`）给 Runtime 的题型是助理与 Coding 声明的**交集**，现在两边都只有 `choice`，所以**合入后产品行为不变**；测试 `tests/agent-typed-questions.test.ts`（期望已用 SDK 校验函数单独核对过）。
    - 没做：构建、`pnpm api:update`（agent-host 快照 + 新增 `agent-interaction.txt`）、`pnpm actions:update`、任何用例（含 `tests/agent-pending-questions.test.ts` 的类型修正）、`prologue-node.ts` 行数上限（正好 1550/1551）与 `@prologue/sdk` 的 `askUserQuestionTypes` 能否接受只读数组的类型核对；`agent.answer_invalid` 要登记进 main 上新的错误模型（`tooling/gates/error-owners.json`、`defineErrorCodes`）；真实 Node Host 用例（带类型问卷落盘、关闭、新 Runtime 读回并作答）。
    - 回答的 `key` 不在这一片：归回执线 `services/agent-inputs`（D13）。
-4. **A1 里不依赖新 SDK 的部分：没有写代码，只做了测算**。现状（`assistant-island.ts`，约 2,800 行，行号以合并后为准）：`renderQuestion`（约 589 行起）、`renderCard`（约 683 行起）、「接下来」行（约 993–1010 行）；`craft-finish.ts` 与 `touch-targets.ts` 里有对应的 `.assistant-questionnaire/-choice/-card-*/-next-*` 样式。实测：被替换的助理 JS 约 18 KB，样式约 6.6 KB；要加的 `INTERACTION_CLIENT_SCRIPT` 17,644 字节、`INTERACTION_STYLES` 17,428 字节。页面资源门禁只许变小，按现在的划分 `molis-work-workbench.css` 净增约 10 KB（若样式也进另外两张表更多）。**开工前必须先定办法**：（a）缩小 `INTERACTION_STYLES` 抵平；（b）同一 PR 删 `molis-work-workbench.css` 里别处已被取代的样式；（c）请用户对这一项放宽门禁（放宽门禁要先问用户）。倾向 (a)+(b)，构建后用真实的 `workbench.css`/`workbench.js` 字节再定。
+4. **A1 里不依赖新 SDK 的部分：没有写代码，只做了测算（2026-10-13 合并 main 后用门禁的口径重新量过，结果与办法见 20.11，替换这里早先的数）**。早先的「被替换的助理 JS 约 18 KB、样式约 6.6 KB、`INTERACTION_CLIENT_SCRIPT` 17,644、`INTERACTION_STYLES` 17,428」是源码字节，不是门禁量的送出字节，作废。现状（`apps/workbench/src/scripts/client/assistant-island.ts`，2,802 行）：`renderQuestion` 591–646 行、`renderCard` 连同 `EFFECTS` 等 682–782 行、「接下来」行 993–1015 行；`craft-finish.ts` 与 `touch-targets.ts` 里有对应的 `.assistant-questionnaire/-choice/-card-*/-next-*` 样式。开工前的办法已有数字，要用户定一项（20.11）。
 
 ### 20.5 下一步（按顺序）
 
@@ -842,3 +843,56 @@ node scripts/gates/page-assets.mjs --base origin/main
 ```
 
 组件板：隔离宿主上打开 `/__ui/catalog` 的「AI 交互」区块。
+
+### 20.11 A1 字节预算：实测与办法（2026-10-13，合并 main 之后；只量不改）
+
+口径：门禁量的是宿主送出的字节（`tightenServedCss`/`tightenServedJs` 之后的长度），不是源码字节。我用同一批函数在一棵构建好的 main 等价树上复现了冻结预算（`workbench.css` 1,805,325、`workbench.js` 1,172,188），下面全是送出字节，括号里的「估」是没写代码的估计。早先 §18、§20.4 里的约 18 KB / 6.6 KB / 17.4 KB 是源码字节，作废。
+
+| 项 | 送出字节 | 落在哪 |
+| --- | ---: | --- |
+| 要加：`INTERACTION_CLIENT_SCRIPT` | 12,028（`interactionFields` 4,017、`interactionCalendar` 3,524、`assembleInteractionClient` 4,406） | `workbench.js`；若 Coding 自己嵌一份，5 个 Coding 系插件包（coding、diff、files、git、text-stats，各 462 KB）每个再加 12 KB，所以 A2 要用宿主提供的那一份，不嵌 |
+| 要加：`INTERACTION_STYLES` | 16,565（问卷卡、字段、选项、选择、通知、操作区约 9.2 K；日期与数字 1.5 K；对象行 1.2 K；操作卡 2.2 K；下一步 1.9 K；媒体查询与续行 0.6 K） | 只需进 `workbench.css`：助理岛与 Coding 页面只在工作台页（`workbench.js` 只被工作台页载入），`settings.css`、`arrival.css` 不需要 |
+| 要加：岛里的接线（挂载服务端渲染的 HTML、读写草稿、提交、字段错误） | 约 1.5 K（估：草拟了一份接线，送出 1.3 K，留余量；原因到文案的对照放在宿主，随错误一起返回，岛里不带 19 条的表） | `workbench.js` |
+| 可删（A1）：`renderQuestion`（island 591–646 行） | JS 3,068 | `workbench.js` |
+| 可删（A1）：`.assistant-choices/-choice/-choice-row/-answer/-questionnaire` 的样式（`craft-finish.ts`，另有一条在 `touch-targets.ts` 里与 `.assistant-code-head` 合写，只能改不能整条删） | CSS 约 2.0 K，三张表各一份 | `workbench.css`、`settings.css`、`arrival.css` |
+| 可删（H2，不是 A1）：`renderCard` 及 `EFFECTS` 等（682–782 行）、「接下来」行（993–1015 行） | JS 6,835 + 1,309 | `workbench.js` |
+| 可删（H2）：`.assistant-card-origin/-summary/-meta/-status`、`--action`、`.assistant-next-row/-label/-chip` | CSS 2.9 K，三张表各一份 | 同上 |
+| 必须留：卡片外壳 `.assistant-card-head/-kicker/-badge/-title/-hint/-actions`（复核卡、问题卡还在用） | 3.0 K | — |
+
+每个文件的净变化（送出字节，A1 单独合入；门禁对照 merge-base，每个 PR 每个文件都要 ≤ 0，**字节不能攒**：`settings.css` 与 `arrival.css` 的下降抵不了 `workbench.css`）：
+
+| 办法 | `workbench.js` | `workbench.css` | `settings.css` / `arrival.css` |
+| --- | ---: | ---: | ---: |
+| 原划分：整份脚本与样式进来，只删 A1 自己的旧渲染 | +10.5 K | +14.5 K | −2.0 K / −2.0 K |
+| (a)+(b) 只带 A1 用到的：日历拆成按需拼入的第四个函数（−3.5 K，日期题型开放时再带）；样式分成问卷 / 操作卡 / 下一步三段，A1 只带问卷段、先不带日期、数字、对象行（约 9.8 K）；与 `mw-choice`、`mw-badge` 等原语去重（估 −2.5 K，要改标记与用例）；再加上面「可删（A1）」 | +6.9 K | +5.3 K | −2.0 K / −2.0 K |
+| 同上，且 H2 同一个 PR（再删 `renderCard` 与「接下来」行） | 约 +0.3 K | 约 +5.9 K | −4.9 K / −4.9 K |
+| (b′) 在 (a)+(b) 之上，同一个 PR 再删**已核实无人引用**的旧皮肤规则 | 不适用 | 可到 0 或为负 | 同 |
+| (c) 请用户放宽（一次性、写明上限与偿还） | 见下 | 见下 | — |
+
+(b′) 的依据：对 `workbench.css` 做了一遍粗扫（类名只在样式文件里出现、没有任何标记或脚本引用），约 79 KB（4.4%）的规则落在这一类，大头是 `momentum.ts`、`personal-shell.ts` / `personal-workbench-v2.ts` / `-v3.ts`、`calm-desktop.ts`、`quiet-paper.ts`；抽查过 `.momentum-group`、`.momentum-queue-item`、`.personal-nav-item`、`.desktop-utility-heading`、`.navigator-goal-row`，确实只在样式文件里。这是启发式（动态拼出的类名按前缀放过，但可能漏判），**逐族人工核对后才能删**，也属于防腐 W5-05（删旧皮肤）的范围，要与防腐线确认先后；扫描脚本与候选清单在统筹的 scratchpad 里（`audit/dead-css.mjs`，不入库）。
+
+**建议**：(a)+(b) 无论如何都要做（把 A1 带进来的字节压到真正用到的那一段）；CSS 用 (b′) 抵平，不需要放宽；JS 在 (a)+(b) 之后仍多 +6.9 K，我没找到同量级的已核实无人引用的脚本，所以请用户对 `workbench.js` 给一次性 +7 K 的上限放宽（只给这一个文件，写明由 H2 合入后偿还：H2 删 8.1 K、加约 1.5 K，净 −6.6 K，A1+H2 之后回到现在的数以内），PR 里附实测。若不放宽，唯一不放宽的路是把 A1 与 H2 的 JS 并进同一个 PR（≈ +0.3 K，再删岛里问题卡的聚焦选择器等零碎即可到 0），但 H2 是 W5-10 形状的助理拆分、体量大、要等防腐线确认先后，**不建议为了字节把两片捆在一起**。不采用的办法：把样式或脚本改成页面 HTML 里的内联 `<style>`/`<script>`——`scripts/gates/page-assets.mjs` 头部写明它不量内联，这样能「绕过」预算，但每次渲染都重发、不能缓存，违背决定 #17 的本意。
+
+A1 开工时一起要改的断言（改成断言采用后的状态，不是放宽）：`tests/interaction-components.test.ts` 的「styles stay out of the frozen product sheets until adopted」（AC-17）；`tests/coss-control-language.test.ts` 的 `.assistant-choice-row, .assistant-code-head` 44px 一条；`tests/touch-targets.e2e.test.ts` 量到的助理问卷控件；`tests/assistant-island-script.test.ts`。
+
+### 20.12 C1+H1（`c50a5534`）重做时与 main 的碰撞（2026-10-13，只读核对，没有合并）
+
+`git show c50a5534`：17 个文件，+284 / −56。在合并后的树上 `git apply --check`：12 个文件干净，5 个只因上下文不同而失败，都是机械的：
+
+| 文件 | 冲突原因 | 做法 |
+| --- | --- | --- |
+| `apps/local-host/src/assistant/assistant-service.ts` | main 的 `agent-host` 导入列表已没有 `AgentDelegatedWork`、`AgentReviewRequest` | 只把 `AgentPendingQuestion` 挪到 `agent-interaction` 的导入；不加方法（现 `AssistantService` 118 个方法 / 2,543 行，都在基线上） |
+| `apps/local-host/src/coding-surface.ts` | main 只导入 `sendLocalWebJson` | 同上，改一行导入 |
+| `apps/local-host/src/index.ts` | main 的导出是 `handleAgentReviewHttp, handleUnscopedAgentReviews` | 在新的位置加 `agent-question-surfaces` 导出 |
+| `horizontal/agent-host/src/adapters/prologue.ts` | main 去掉了 `promptLayerOf` 导入行；`PrologueAdapterError` 的码联合没变 | 手工放进 `agent.answer_invalid` 与 `problems`；不新增 `Error` 子类（已有 85 个，只许减少） |
+| `horizontal/agent-host/src/index.ts` | main 多了 `surfaceRules` 导出 | 在新位置加 `projectQuestion`、`answerProblems` 的导出 |
+
+不是文本冲突、重做时必须当心的几处：
+
+1. **SDK 是前提**：main 的 vendored 包（computer-use 包，核对过 tgz 内容）没有 `validateQuestionnaireAnswer`、`askUserQuestionTypes`，`PendingQuestion` 也没有 `refKinds`、`multiline`、题型字段；`config.tool.inputWaitTtlMs` 有（默认 10 分钟）。所以 `prologue-questions.ts` 与 `prologue-node.ts` 的改动在换包前编不过；换包后先核对这些名字在统一包里没改。
+2. **`prologue-node.ts` 没有余量**：现在 1,551 行，门禁基线 1,552（门禁数法比 `wc -l` 多 1），正好顶格；`initializePrologueNodeAdapter` 1,281 行是已有的巨大函数；c50a5534 在这个文件里净 0 行（+1 个选项、−3 行投影、+2 行预检），所以只有保持净 0 才放得过；`config:` 那一行是一整行长字符串，就地改，不要拆开。
+3. **`prologue-stream.ts` 没有碰撞**：c50a5534 不碰它；#471/#472 把它改到 744 行（`applyPrologueEvent` 212 行，已有的巨大函数），但 `awaiting-input` 仍只带 `pending_id`、`pending_revision`、`kind`、`why`、`sequence`，带类型的题字段是在 `readPendingQuestion` 里从 Runtime 读的，所以不重叠；统一包若改了 `awaiting-input` 事件的形状（回执线 S4 会给 pending 加 `about`），再核对一次。
+4. **合同 `services/agent-host.ts`（基线 1,656 行）**：main 在 `AgentRunControl` 里 `answer` 之前加了 `switch-model`；c50a5534 只替换 `answer` 一员并搬走 `AgentPendingQuestion`，净 −24 行，应用干净。回执线（D15）要把 `steer` 分支搬出同一个联合，先就绪的先合。新子路径 `services/agent-interaction` 要 `pnpm api:update`（新快照 `agent-interaction.txt`，`agent-host` 的快照也变）并同 PR 带上全部消费者（宿主、助理合同、Coding `ui.ts`）。
+5. **错误码**：main 上 `AgentHostErrorCode` 仍是字符串联合；`agent.answer_invalid` 形如 `<主人>.<原因>`、`agent` 主人在 `tooling/gates/error-owners.json` 里已有 `horizontal/agent-host/`，按 c50a5534 的做法加进联合即可，不增加「形状不对的码」「没带主人名的码」两个数；若评审要求 `defineErrorCodes`，那时再定。
+6. **`AgentRunControl.answer` 的消费者（A2 也用得上）**：助理服务 4 处（`assistant-service.ts` 约 1078、1089、1890、1922 行）、Coding 的 `plugins/native/coding/src/run-inputs.ts` 27–60 行 `questionAnswer`（原来写在 `routes.ts`，#472 带来的 `ceac00a2b` 把它搬进了 `run-inputs.ts`，所以 §17.1 里说 A2 要改的 `routes.ts` 的 `questionAnswer`，现在在 `run-inputs.ts`）与 `plugins/native/coding/src/client.ts` 约 702 行。
+7. 测试 `tests/agent-typed-questions.test.ts`（新）、`tests/agent-pending-questions.test.ts`、`tests/coding-question-card.test.ts` 的改动应用干净；真实 Node Host 用例（带类型问卷落盘、关闭、新 Runtime 读回并作答）仍要在统一包上做。

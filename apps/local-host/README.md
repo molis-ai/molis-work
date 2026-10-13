@@ -55,6 +55,8 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 
 安装/分发也由本包装配：installMolisWorkHome 要求显式 sourceDirectory；RuntimeIntegrationService 和 MolisWorkWebServiceManager 保留检测、计划、确认与恢复流程。Web 自重启先返回 202，再运行 afterResponse，不能在响应发出前停止当前进程。createMolisWorkNpmPackageDirectory 与 createMolisWorkRuntimePayload 分别准备 npm 和 Desktop 资产，不会自动发布。
 
+Runtime 接入按配置路径串行确认。验证失败只恢复仍与本次写入的文件身份、正文或 Skill 链接一致的项；后来改过的项保留并返回冲突，原配置备份可用于核对。TOML 表按引号、点分键的语义识别，字符串和数组里的表头不参与修改；同名未知、重复或无法安全改写的内联定义在写入前拒绝。回归见 `tests/runtime-integration-ownership.test.ts`。
+
 PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信任的进程内开发执行。应用通过 openWorkSessionRegistry 组合 Work 与 Ledger，关闭 Registry 时释放其拥有的连接。
 
 Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定唤醒，无须打开 Studio。`schedule-reminders.ts` 只连接安装仓库和同库 Feed/Inbox 投递；时间、数量、安装隔离和一次性消费归 Schedule 插件。`schedule-operations.ts` 同样只装配安装执行器和 Inbox；计划与 occurrence、重装后的归属确认、未知结果恢复归 Schedule。执行器注册不派出工作，新的 lease 才能运行持久 pending；结果未知必须在 Schedule 核对后明确重试或跳过。

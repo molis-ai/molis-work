@@ -73,6 +73,11 @@ export interface RuntimeIntegrationResult {
   message: string;
 }
 
+export function integrationResult(status: RuntimeIntegrationResultStatus, runtimeId: SupportedRuntimeId, planId: string,
+  backupPath: string | null, receiptPath: string | null, message: string): RuntimeIntegrationResult {
+  return { status, runtime_id: runtimeId, plan_id: planId, backup_path: backupPath, receipt_path: receiptPath, message };
+}
+
 export interface RuntimeIntegrationValidationContext extends McpLauncherValidationContext {
   runtime_id: SupportedRuntimeId;
 }

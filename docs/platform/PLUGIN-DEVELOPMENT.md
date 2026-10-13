@@ -229,6 +229,18 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 
 系统负责首次建立、按集合版本与条目版本增量更新、删除清理、失败保留与重试、停用/卸载清理、按调用者授权过滤和打开前核对。清单里声明的来源经 `inspectActionDeclarations` 校验规范合同。细则与判例见 [搜索接入](../../skills/molis-plugin-dev/search.md)，需求见 `specs/archive/system-search/spec.md`。
 
+## 选区与去处：用户手上有一样东西时
+
+用户选中一段字、拿起右栏的一条材料或看着一个对象时，工作台在它旁边给出几个下一步，名单从目录里读，没有按插件名的分支。插件声明一次：
+
+- 对象读取器与页面的 `data-assistant-context`（见上节）：选中文字就有通用的下一步；
+- 选区动作 `defineFragmentOffersAction` / 对象动作 `defineSubjectOffersAction`，选项可用 `places`（`main`、`side`、`assistant`）收窄出现的位置；
+- 创建入口 `intake`：写在你的创建 command 的 `action` 上，名称、动词、说明、一到三条示例、接收选中文字的顶层字段 `material_field`；撤销沿用该动作的 `undo`，不写第二份；`effect: "proposes"` 只提交提案；
+- 追加 `attach`：写在往已有对象里添加的 command 上，`item_kind` 只能是你自己有读取器的种类，`positions` 取 `cursor`、`selection`、`end`（落在光标或选区的写入入参必须有 `expected_version`）；
+- 侧栏视图的 `objects`：这一格里能拿起的对象种类，每个都要有读取器。
+
+这些声明在登记与 Manifest 解析时由插件开发包检查（`plugin-context-declarations` 用例写明每条报错原文）；不可撤回的动作不能声明为去处。仅本人可见的对象（个人范围）内容不进判断。写法、字段表与判例见 [选区与去处](../../skills/molis-plugin-dev/contextual.md)。
+
 ## 放在哪里：位置、关联与完成提示
 
 对象存在个人空间还是某个项目、和哪项工作有关、谁能读取、做完后从哪里找回，由系统放置服务统一说明。插件要做的是：为展示的对象提供 `*.subject.read`（带 `open`）；能移动、复制的对象声明放置协议（`defineObjectMoveAction` / `defineObjectCopyAction`，只对本人）；能接收内容的做成工作流内容站；页面写 `data-assistant-context` 并留 `data-placement-slot`；新建、导入、导出、存固定版本后发 `molis:placement-result`。不要在插件里自己记“用于哪个项目”“复制自哪里”，也不要把内部动作写成交付。细则见 [放在哪里](../../skills/molis-plugin-dev/placement.md)，需求见 `specs/archive/work-placement/spec.md`。

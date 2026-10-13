@@ -84,7 +84,7 @@ export function dedentServedCss(source: string): string {
 export function tightenServedJs(source: string): string {
   const prepared = source;
   try {
-    const minified = transformSync(prepared, { loader: "js", minifyWhitespace: true, legalComments: "none" }).code;
+    const minified = transformSync(prepared, { loader: "js", minifyWhitespace: true, legalComments: "none", charset: "utf8" }).code;
     return Buffer.byteLength(minified) < Buffer.byteLength(prepared) ? minified : prepared;
   } catch {
     // Preserve the original bytes when the parser cannot establish a valid JavaScript program.

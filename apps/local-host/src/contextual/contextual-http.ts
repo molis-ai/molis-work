@@ -1,18 +1,22 @@
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
-import { ActionError, defineErrorCodes, FRAGMENT_GRANULARITIES, FRAGMENT_ROLES, type ActionReference, type ActionView, type FragmentActionOffer, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionError, type ActionReference, type ActionView, type FragmentActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FUNCTIONS_DEFAULT_MODEL } from "@molis-ai/molis-work-contracts/modules/functions";
-import type { ContextualJudgeRequest, SurfaceActivity, SurfaceFocus, SurfaceFocusTarget } from "@molis-ai/molis-work-contracts/services/contextual";
+import type { ContextualJudgeRequest, SurfaceFocus, SurfaceLanding } from "@molis-ai/molis-work-contracts/services/contextual";
 import { contextualCandidates, type JudgmentWording } from "@molis-ai/molis-work-kernel/contextual";
 import { TYPESAFE_SYSTEMONE_URL } from "@molis-ai/molis-work-module-functions";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { registeredInstructionBody, registeredInstructionRevision } from "../agent-definitions/instructions.js";
 import { CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE } from "../agent-definitions/system-prompts.js";
+import { draftPorts } from "../drafting/draft-wiring.js";
 import { resolvePrologueInference } from "../prologue-inference-host.js";
 import { typeSafeConfiguration, typeSafeCredential } from "../typesafe-connection.js";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "../web-http.js";
-import { prepareSubjectOffer, sameReference } from "./contextual-service.js";
+import { chosenCandidate } from "./contextual-choice.js";
+import { draftRequest } from "./contextual-draft.js";
+import { contextualErrors, invalid, readJudgeRequest, readString } from "./contextual-request.js";
+import { fragmentOffersInput, prepareSubjectOffer, sameReference } from "./contextual-service.js";
 import { createContextualJudgmentService, type ContextualJudgmentService } from "./judgment-service.js";
 
 /**
@@ -78,11 +82,11 @@ const WHERE: Readonly<Record<string, string>> = { word: "选中的词", range: "
  * What the person did with an offered action (P3), for the memory service to count: the capability and its title only,
  * never the content. Nothing is reported when this directory has no memory, and a stale key is refused.
  */
-async function reportSignal(focus: SurfaceFocus, key: string, signal: string, eventId: string, caller: Caller) {
+async function reportSignal(focus: SurfaceFocus, landing: SurfaceLanding | undefined, key: string, signal: string, eventId: string, caller: Caller) {
   const views = await directory(caller);
   const view = memoryAction(views, "memory.signals.report");
   if (!view) return { state: "unavailable" as const };
-  const candidate = contextualCandidates(views, focus).find(item => item.key === key);
+  const candidate = contextualCandidates(views, focus, landing).find(item => item.key === key);
   if (!candidate) throw contextualErrors.stale("这个动作已不在当前内容的候选里");
   const surface = views.find(item => (item.provider.plugin_id ?? item.provider.provider_id) === focus.plugin_id)?.provider.title;
   const where = focus.activity === "completed" ? "刚完成的一步" : focus.activity === "editing" ? "正在写的段落" : WHERE[focus.granularity] ?? "选中的内容";
@@ -142,6 +146,14 @@ function jevEvaluator(home: string): NonNullable<Parameters<typeof createContext
   };
 }
 
+/** Runs `work` with a signal that fires when the page stopped waiting for the answer (the person moved on). */
+async function whileWaited<T>(response: ServerResponse, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const aborted = new AbortController();
+  const stop = () => { if (!response.writableFinished) aborted.abort(); };
+  response.once("close", stop);
+  try { return await work(aborted.signal); } finally { response.off("close", stop); }
+}
+
 export async function handleContextualHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: ContextualHttpPorts): Promise<boolean> {
   // Which object kind each surface opens, from the plugins' own search-source declarations: when a surface opens an
   // item but does not name it itself, the workbench names it. Only a surface that opens exactly one kind is listed.
@@ -151,13 +163,19 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
     return true;
   }
-  const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare|signal)$/u.exec(url.pathname);
+  const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare|signal|draft)$/u.exec(url.pathname);
   if (!match) return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
   const route = match[1]!;
   const service = serviceFor(ports.homeDirectory);
   try {
     const body = await readBody(request);
+    // A draft is asked by a pane that has something in hand, or by a plugin's own page with a sentence: it needs no pane of its own.
+    if (route === "draft") {
+      const actions = ports.actions();
+      sendJson(response, 200, await whileWaited(response, async signal => draftRequest(body, await actions.discover(), { actions, ports: draftPorts(ports.homeDirectory), signal })));
+      return true;
+    }
     const pane = `${ports.scope}\u0000${readString(body.pane_id, "pane_id", 80)}`;
     if (route === "cancel") { service.cancel(pane); sendJson(response, 200, { ok: true }); return true; }
     const caller: Caller = { scope: ports.scope, actions: ports.actions() };
@@ -165,19 +183,16 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     if (route === "candidates") { sendJson(response, 200, await service.candidates(judgeRequest, caller)); return true; }
     if (route === "judge") {
       // The page gave up on this context (the person moved on): stop waiting on the model for it.
-      const aborted = new AbortController();
-      const stop = () => { if (!response.writableFinished) aborted.abort(); };
-      response.once("close", stop);
-      try { sendJson(response, 200, await service.judge(judgeRequest, caller, aborted.signal)); } finally { response.off("close", stop); }
+      sendJson(response, 200, await whileWaited(response, signal => service.judge(judgeRequest, caller, signal)));
       return true;
     }
     if (route === "signal") {
       const signal = readString(body.signal, "signal", 20);
       if (!SIGNALS.has(signal)) throw invalid("signal");
-      sendJson(response, 200, await reportSignal(judgeRequest.focus, readString(body.key, "key", 80), signal, readString(body.event_id, "event_id", 120), caller));
+      sendJson(response, 200, await reportSignal(judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80), signal, readString(body.event_id, "event_id", 120), caller));
       return true;
     }
-    sendJson(response, 200, await prepare(judgeRequest.focus, readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), caller));
+    sendJson(response, 200, await prepare(judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), caller));
   } catch (error) {
     const failure = actionErrorResponse(error);
     sendJson(response, failure.status, failure.body);
@@ -189,10 +204,10 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
  * The chosen offer's complete input, prepared by the provider that declared it for exactly this fragment. Preparing
  * writes nothing; the offer must still be a candidate of this context and name the same action it did when judged.
  */
-async function prepare(focus: SurfaceFocus, key: string, requestId: string, caller: Caller) {
-  const candidate = contextualCandidates(await caller.actions.discover(), focus).find(item => item.key === key);
-  if (!candidate) throw contextualErrors.stale("这个动作已不在当前内容的候选里，请重新选择");
-  if (!candidate.available) throw contextualErrors.unavailable(candidate.reason ?? "这个动作现在不可用");
+async function prepare(focus: SurfaceFocus, landing: SurfaceLanding | undefined, key: string, requestId: string, caller: Caller) {
+  const candidate = chosenCandidate(await caller.actions.discover(), focus, landing, key);
+  // A destination is not prepared by an offers query that the provider answers: the person's passage is drafted into its input (`/api/contextual/draft`).
+  if (candidate.origin === "intake" || candidate.origin === "attach") throw contextualErrors.not_drafted("这个去处的参数要由起草服务准备，这里还不能直接准备");
   // One of the object's subject offers: prepared exactly as the Home / Dock prepares it, by the query that declared it.
   if (candidate.origin === "subject") {
     const notOffered = () => contextualErrors.not_offered(`${candidate.provider_title} 没有为这件事项准备「${candidate.title}」`);
@@ -205,14 +220,7 @@ async function prepare(focus: SurfaceFocus, key: string, requestId: string, call
   }
   // A whole-object action (整篇) is prepared for the object itself: the provider reads its own current content.
   const whole = candidate.scope === "object" || focus.granularity === "object";
-  const { object } = focus;
-  const input: FragmentOffersInput = { request_id: requestId, fragment: { object,
-    granularity: whole ? "object" : focus.granularity as FragmentOffersInput["fragment"]["granularity"],
-    // The fragment contract takes at most eight parts: the ones the person selected first.
-    targets: whole ? [{ kind: "object", role: "object", ref: object, text: (focus.granularity === "object" ? focus.targets[0]?.text : undefined) || object.title || object.id }]
-      : focus.targets.slice(0, 8).map(({ kind, role, ref, text, truncated }) => ({ kind, ...(role ? { role } : {}), ...(ref ? { ref } : {}), text, ...(truncated ? { truncated } : {}) })),
-    ...(focus.surroundings?.heading_path.length ? { heading_path: focus.surroundings.heading_path } : {}),
-    ...(focus.goal ? { goal: { id: focus.goal.id, title: focus.goal.title } } : {}) } };
+  const input = fragmentOffersInput(focus, requestId, whole);
   const { offers } = await caller.actions.invoke(candidate.source, input) as { offers: readonly FragmentActionOffer[] };
   const offer = offers.find(item => item.offer_id === candidate.offer_id);
   if (!offer || offer.action.capability_id !== candidate.action.capability_id || offer.action.version !== candidate.action.version
@@ -244,70 +252,4 @@ export function surfaceKinds(directory: readonly ActionView[]): Record<string, {
     out[surface] = { kind, plugin_id };
   }
   return out;
-}
-
-const contextualErrors = defineErrorCodes("contextual", { stale: "conflict", unavailable: "conflict", not_offered: "conflict", input_invalid: "invalid" });
-const invalid = (field: string) => contextualErrors.input_invalid(`情境请求的 ${field} 不合法`);
-const ACTIVITIES: ReadonlySet<string> = new Set<SurfaceActivity>(["browsing", "selecting", "editing", "comparing", "completed"]);
-const GRANULARITIES: ReadonlySet<string> = new Set(["page", "object", ...FRAGMENT_GRANULARITIES]);
-const ROLES: ReadonlySet<string> = new Set(FRAGMENT_ROLES);
-const MAX_TARGETS = 24;
-const MAX_TARGET_TEXT = 4_000;
-
-function readString(value: unknown, field: string, max: number): string {
-  if (typeof value !== "string" || !value || value.length > max) throw invalid(field);
-  return value;
-}
-
-function readRef(value: unknown, field: string): SurfaceFocus["object"] {
-  if (!value || typeof value !== "object") throw invalid(field);
-  const ref = value as Record<string, unknown>;
-  const version = ref.version;
-  if (version !== undefined && typeof version !== "string" && typeof version !== "number") throw invalid(`${field}.version`);
-  return { kind: readString(ref.kind, `${field}.kind`, 80), id: readString(ref.id, `${field}.id`, 200),
-    ...(version !== undefined ? { version } : {}), ...(typeof ref.title === "string" ? { title: ref.title.slice(0, 200) } : {}) };
-}
-
-/** A page's claim about what the person has in hand, bounded before anything else reads it. */
-function readJudgeRequest(body: Record<string, unknown>): Omit<ContextualJudgeRequest, "pane_id"> {
-  const raw = body.focus;
-  if (!raw || typeof raw !== "object") throw invalid("focus");
-  const focus = raw as Record<string, unknown>;
-  const activity = readString(focus.activity, "focus.activity", 20);
-  const granularity = readString(focus.granularity, "focus.granularity", 20);
-  if (!ACTIVITIES.has(activity)) throw invalid("focus.activity");
-  if (!GRANULARITIES.has(granularity)) throw invalid("focus.granularity");
-  if (!Array.isArray(focus.targets) || focus.targets.length > MAX_TARGETS) throw invalid("focus.targets");
-  const targets = focus.targets.map((item: unknown, index): SurfaceFocusTarget => {
-    if (!item || typeof item !== "object") throw invalid(`focus.targets[${index}]`);
-    const target = item as Record<string, unknown>;
-    if (target.kind !== "text_range" && target.kind !== "block" && target.kind !== "object") throw invalid(`focus.targets[${index}].kind`);
-    if (target.role !== undefined && !ROLES.has(String(target.role))) throw invalid(`focus.targets[${index}].role`);
-    if (typeof target.text !== "string") throw invalid(`focus.targets[${index}].text`);
-    const cut = target.text.length > MAX_TARGET_TEXT;
-    return { kind: target.kind, ...(target.role !== undefined ? { role: target.role as SurfaceFocusTarget["role"] } : {}),
-      ...(target.ref !== undefined ? { ref: readRef(target.ref, `focus.targets[${index}].ref`) } : {}),
-      text: cut ? target.text.slice(0, MAX_TARGET_TEXT) : target.text, ...(cut || target.truncated === true ? { truncated: true } : {}),
-      ...(Number.isInteger(target.anchor) ? { anchor: target.anchor as number } : {}), ...(Number.isInteger(target.head) ? { head: target.head as number } : {}) };
-  });
-  const surroundings = focus.surroundings && typeof focus.surroundings === "object" ? focus.surroundings as Record<string, unknown> : null;
-  const goal = focus.goal && typeof focus.goal === "object" ? focus.goal as Record<string, unknown> : null;
-  const strings = (value: unknown, max: number) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(0, max).map(item => item.slice(0, 200)) : [];
-  return {
-    focus: {
-      context_id: readString(focus.context_id, "focus.context_id", 240), plugin_id: readString(focus.plugin_id, "focus.plugin_id", 120),
-      activity: activity as SurfaceActivity, granularity: granularity as SurfaceFocus["granularity"], object: readRef(focus.object, "focus.object"), targets,
-      ...(surroundings ? { surroundings: { heading_path: strings(surroundings.heading_path, 6),
-        ...(typeof surroundings.before === "string" ? { before: surroundings.before.slice(-300) } : {}),
-        ...(typeof surroundings.after === "string" ? { after: surroundings.after.slice(0, 300) } : {}) } } : {}),
-      ...(focus.unsaved === true ? { unsaved: true } : {}),
-      ...(goal && typeof goal.id === "string" && typeof goal.title === "string" ? { goal: { id: goal.id.slice(0, 200), title: goal.title.slice(0, 200),
-        ...(typeof goal.state === "string" ? { state: goal.state.slice(0, 40) } : {}) } } : {}),
-    },
-    recent: strings(body.recent, 3),
-    pinned: strings(body.pinned, 8),
-    dismissed: strings(body.dismissed, 32),
-    ...(body.previous && typeof body.previous === "object" && typeof (body.previous as Record<string, unknown>).context_id === "string"
-      ? { previous: { context_id: String((body.previous as Record<string, unknown>).context_id).slice(0, 240), primary: strings((body.previous as Record<string, unknown>).primary, 8) } } : {}),
-  };
 }

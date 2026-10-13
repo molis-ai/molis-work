@@ -3,7 +3,7 @@ import type {
   ContextualCandidate, ContextualJudgeRequest, ContextualJudgeResponse, ContextualJudgment, SurfaceFocus,
 } from "@molis-ai/molis-work-contracts/services/contextual";
 import {
-  contextualDigest, contextualCandidates, judgmentQuestions, judgmentState, planContextualLayout, readContextualJudgment, type JudgmentWording,
+  contextualDigest, contextualCandidates, judgmentQuestions, judgmentState, planContextualLayout, privateObjectKinds, readContextualJudgment, type JudgmentWording,
 } from "@molis-ai/molis-work-kernel/contextual";
 
 /**
@@ -68,11 +68,14 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
       screened: receipt.screened, ...(receipt.fallback ? { fallback: receipt.fallback } : {}) },
   });
 
-  const cacheKey = (request: ContextualJudgeRequest) => request.focus.context_id + "\u0000" + request.focus.object.id;
+  // The same thing in hand judged against another landing is another question.
+  const cacheKey = (request: ContextualJudgeRequest) => request.focus.context_id + "\u0000" + request.focus.object.id
+    + (request.landing ? "\u0000" + JSON.stringify([request.landing.plugin_id, request.landing.object.id, request.landing.position, request.landing.version,
+      request.landing.targets?.map(target => [target.anchor, target.head])]) : "");
 
   return {
     async candidates(request, caller) {
-      const candidates = contextualCandidates(await ports.directory(caller), request.focus);
+      const candidates = contextualCandidates(await ports.directory(caller), request.focus, request.landing);
       return respond(request, candidates, null, { digest: null, screened: [], ...(candidates.some(item => item.available) ? {} : { fallback: "no_candidates" as const }) });
     },
 
@@ -83,7 +86,10 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
       const abort = () => controller.abort();
       outer?.addEventListener("abort", abort, { once: true });
       try {
-        const candidates = contextualCandidates(await ports.directory(caller), request.focus);
+        const views = await ports.directory(caller);
+        const candidates = contextualCandidates(views, request.focus, request.landing);
+        // A person's own space (Shelf and the like): what is in it never goes to the judgment, only its shape and kind.
+        const personal = privateObjectKinds(views).has(request.focus.object.kind);
         if (!candidates.some(item => item.available)) return respond(request, candidates, null, { digest: null, screened: [], fallback: "no_candidates" });
         // A judgment asked under other words is not this one's answer: the person may have edited the questions since.
         const wording = ports.wording?.revision() ?? "";
@@ -95,7 +101,8 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
 
         let memory: readonly { kind: string; text: string }[] = [];
         const screened: string[] = [];
-        if (ports.recall) {
+        if (personal) screened.push("仅本人可见：内容不进判断，只按形状和种类");
+        if (ports.recall && !personal) {
           const recallSignal = AbortSignal.any([controller.signal, AbortSignal.timeout(ports.recallMs ?? 400)]);
           try {
             const recalled = await ports.recall(request.focus, caller, recallSignal);
@@ -105,7 +112,7 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
         }
         if (controller.signal.aborted) return respond(request, candidates, null, { digest: null, screened, fallback: "aborted" });
 
-        const state = judgmentState(request.focus, { recent: request.recent, memory });
+        const state = judgmentState(request.focus, { recent: request.recent, memory, landing: request.landing, personal });
         screened.push(...state.clipped.map(label => `截断：${label}`));
         const cleaned = ports.screen ? ports.screen(state.text) : { text: state.text, notes: [] };
         screened.push(...cleaned.notes);

@@ -4,6 +4,7 @@ import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations } from "./action-declarations.js";
 import { inspectAgentDeclaration, inspectMethodDeclarations } from "./agent-declarations.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
+import { inspectContextDeclarations } from "./context-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 
 export class PluginManifestError extends Error {
@@ -233,6 +234,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   problems.push(...inspectRequirementDeclarations(parsed));
   problems.push(...inspectPortPermissions(parsed));
   problems.push(...artifactDeclarationProblems(parsed));
+  problems.push(...inspectContextDeclarations(parsed));
   assertNoDeclarationProblems(problems);
 }
 

@@ -3,6 +3,7 @@ import ts from "typescript";
 import { createBrowserGraph, unwrapBrowserNode as unwrap, browserName } from "./browser-graph.mjs";
 
 const SCRIPT_NAME = /(?:^|_)(?:SCRIPT|CLIENT)(?:$|_FACTORY$)|^CLIENT$/;
+const MAX_ALTERNATIVES = 256;
 const piece = (node, text) => ({ file: node.getSourceFile().fileName, start: node.getStart(), text });
 const where = (node) => {
   const tree = node.getSourceFile(), at = tree.getLineAndCharacterOfPosition(node.getStart());
@@ -10,13 +11,55 @@ const where = (node) => {
 };
 const combine = (left, right) => {
   left = uniqueVariants(left); right = uniqueVariants(right);
-  if (left.length * right.length > 64) throw new Error("more than 64 static program alternatives");
+  if (left.length * right.length > MAX_ALTERNATIVES) throw new Error(`more than ${MAX_ALTERNATIVES} static program alternatives`);
   return uniqueVariants(left.flatMap((a) => right.map((b) => [...a, ...b])));
 };
-const uniqueVariants = (variants) => [...new Map(variants.map((parts) => [JSON.stringify(parts.filter((part) => part.text !== "")), parts])).values()];
+const uniqueVariants = (variants) => [...new Map(variants.map((parts) => [JSON.stringify([textOf(parts),
+  parts.filter((part) => part.text.trim() !== "" && !["null", "molis_dynamic_value"].includes(part.text))]), parts])).values()];
 const textOf = (parts) => parts.map((item) => item.text).join("");
 const literal = (node) => ts.isStringLiteralLike(node) || ts.isNumericLiteral(node);
-const dataCall = (node) => /^(?:JSON\.stringify|(?:\w+\.)?(?:L|translate|escapeHtml|escape|icon|renderIcon|htmlAttribute|String|encodeURIComponent))$/.test(node.expression.getText());
+const dataCall = (node) => /^(?:JSON\.stringify|(?:\w+\.)?(?:L|translate|escapeHtml|escape|icon|renderIcon|htmlAttribute|encodeURIComponent))$/.test(node.expression.getText());
+const DATA_SLOT = Symbol("browser data interpolation");
+const insideString = (prefix) => {
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, prefix);
+  let token;
+  while ((token = scanner.scan()) !== ts.SyntaxKind.EndOfFileToken) {
+    if ([ts.SyntaxKind.StringLiteral, ts.SyntaxKind.NoSubstitutionTemplateLiteral].includes(token) && scanner.isUnterminated()) return true;
+  }
+  return false;
+};
+const indentationOnly = (node) => ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
+  && node.expression.name.text === "replace" && node.arguments.length === 2
+  && node.arguments[0].getText() === "/\\n[ \\t]+/g" && ts.isStringLiteralLike(node.arguments[1]) && node.arguments[1].text === "\n";
+const FORMATTING_PATTERNS = new Map([
+  ["/\\n[ \\t]+/g", /\n[ \t]+/g], ["/^[ \\t]*\\/\\/.*\\n/gm", /^[ \t]*\/\/.*\n/gm],
+  ["/^[ \\t]+/gm", /^[ \t]+/gm], ["/^  /gm", /^  /gm],
+  [String.raw`/^[ \t]*(?:\/\/[^\n]*|\/\*(?:(?!\*\/)[\s\S])*\*\/[ \t]*)\n/gm`, /^[ \t]*(?:\/\/[^\n]*|\/\*(?:(?!\*\/)[\s\S])*\*\/[ \t]*)\n/gm],
+]);
+const sliceParts = (parts, begin, end) => {
+  let offset = 0; const result = [];
+  for (const part of parts) {
+    const from = Math.max(0, begin - offset), to = Math.min(part.text.length, end - offset);
+    if (to > from) result.push({ ...part, start: part.start + from, text: part.text.slice(from, to) });
+    offset += part.text.length;
+  }
+  return result;
+};
+const replaceParts = (parts, node, pattern, replacement, all) => {
+  const text = textOf(parts), matches = [];
+  if (pattern instanceof RegExp) matches.push(...text.matchAll(pattern));
+  else for (let start = 0; start <= text.length;) {
+    const index = text.indexOf(pattern, start); if (index < 0) break;
+    matches.push({ index, 0: pattern }); if (!all) break; start = index + Math.max(1, pattern.length);
+  }
+  let cursor = 0; const result = [];
+  for (const match of matches) {
+    result.push(...sliceParts(parts, cursor, match.index));
+    if (replacement !== "") result.push(piece(node.arguments[1], replacement));
+    cursor = match.index + match[0].length;
+  }
+  result.push(...sliceParts(parts, cursor, text.length)); return result;
+};
 
 export function browserPrograms(snapshot, isSource) {
   const graph = createBrowserGraph(snapshot, isSource), candidates = [], problems = [];
@@ -29,7 +72,13 @@ export function browserPrograms(snapshot, isSource) {
     target.parameters.forEach((parameter, index) => { if (args[index]) next.set(parameter, { node: args[index], env }); });
     if (!target.body) return fail(target, "function has no implementation");
     if (!ts.isBlock(target.body)) return evaluate(target.body, next);
-    const returns = target.body.statements.filter(ts.isReturnStatement).filter((item) => item.expression);
+    const returns = [];
+    const collect = (node) => {
+      if (ts.isReturnStatement(node) && node.expression) returns.push(node);
+      if (node !== target.body && graph.isFunction(node)) return;
+      ts.forEachChild(node, collect);
+    };
+    collect(target.body);
     if (!returns.length) return null;
     return returns.flatMap((item) => evaluate(item.expression, next));
   };
@@ -67,7 +116,15 @@ export function browserPrograms(snapshot, isSource) {
     if (ts.isTaggedTemplateExpression(node) && node.tag.getText() === "String.raw") return evaluateTemplate(node.template, env, true);
     if (ts.isTemplateExpression(node)) return evaluateTemplate(node, env, false);
     if (ts.isCallExpression(node)) {
-      if (dataCall(node)) return [[piece(node, node.expression.getText() === "JSON.stringify" ? "null" : "molis_dynamic_value")]];
+      if (node.expression.getText() === "String") return node.arguments.length === 1 ? evaluate(node.arguments[0], env) : fail(node, "String needs one static argument");
+      if (dataCall(node)) {
+        if (node.expression.getText() === "JSON.stringify") {
+          const argument = unwrap(node.arguments[0]), declared = argument && graph.lookup(argument)?.value, value = unwrap(declared ?? argument);
+          return [[piece(node, value && literal(value) ? JSON.stringify(ts.isNumericLiteral(value) ? Number(value.text) : value.text) : "null")]];
+        }
+        if (env.get(DATA_SLOT)) return [[piece(node, "molis_dynamic_value")]];
+        return fail(node, "a data formatter cannot be treated as executable program text");
+      }
       if (ts.isPropertyAccessExpression(node.expression)) {
         const method = node.expression.name.text, receiver = unwrap(node.expression.expression);
         if (method === "toString") {
@@ -89,13 +146,22 @@ export function browserPrograms(snapshot, isSource) {
           }
           return result;
         }
-        if (["replace", "replaceAll"].includes(method)) return evaluate(receiver, env); // Keep original statements while ignoring formatting.
+        if (["replace", "replaceAll"].includes(method)) {
+          if (node.arguments.length !== 2 || !ts.isStringLiteralLike(node.arguments[1])) return fail(node, "unsupported program replacement");
+          const search = ts.isStringLiteralLike(node.arguments[0]) ? node.arguments[0].text : FORMATTING_PATTERNS.get(node.arguments[0].getText());
+          const replacement = node.arguments[1].text;
+          if (search === undefined || replacement.includes("$")) return fail(node, "unsupported program replacement");
+          return evaluate(receiver, env).map((parts) => replaceParts(parts, node, search, replacement, method === "replaceAll"));
+        }
       }
       const binding = graph.lookup(node.expression);
       if (binding && graph.isFunction(unwrap(binding.value))) {
         const target = unwrap(binding.value);
         // Compiler indentation compaction preserves the program's statements. Keep the unformatted syntax.
-        if (target.body?.getText().includes(".replace(") && target.parameters.length === 1) return evaluate(node.arguments[0], env);
+        const body = target.body && ts.isBlock(target.body) && target.body.statements.length === 1 && ts.isReturnStatement(target.body.statements[0])
+          ? target.body.statements[0].expression : target.body;
+        if (body && indentationOnly(body) && target.parameters.length === 1 && ts.isIdentifier(body.expression.expression)
+          && body.expression.expression.text === browserName(target.parameters[0].name)) return evaluate(node.arguments[0], env);
         const result = evaluateFunction(binding, node.arguments, env); if (result) return result;
       }
       const name = ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : browserName(node.expression);
@@ -149,7 +215,8 @@ export function browserPrograms(snapshot, isSource) {
       const inScript = opening > closing && prefix.indexOf(">", opening) >= 0;
       const tag = inScript ? prefix.slice(opening, prefix.indexOf(">", opening) + 1) : "";
       const dataScript = /\btype\s*=\s*["'](?:application\/json|text\/plain)/i.test(tag);
-      const value = html && (!inScript || dataScript) ? [[piece(span.expression, "molis_dynamic_value")]] : evaluate(span.expression, env);
+      const dataEnv = new Map(env); dataEnv.set(DATA_SLOT, insideString(html ? prefix.slice(prefix.indexOf(">", opening) + 1) : prefix));
+      const value = html && (!inScript || dataScript) ? [[piece(span.expression, "molis_dynamic_value")]] : evaluate(span.expression, dataEnv);
       result = combine(combine(result, value), [[piece(span.literal, templatePart(span.literal, raw))]]);
     }
     return result;

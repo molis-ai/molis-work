@@ -124,3 +124,57 @@ test("W3-10-5-01: an unexpandable or unparsable recognized program refuses updat
     assert.equal(read("tooling/gates/baseline.json"), before);
   }
 });
+
+for (const [name, source] of [
+  ["String", "export const CLIENT_SCRIPT = String(\"fetch('/x');\");"],
+  ["replacement", "export const CLIENT_SCRIPT = \"noop('/x');\".replace('noop', 'fetch');"],
+  ["conditional return", "function script(){if(true)return \"fetch('/x');\";return \"void 0;\";} export const CLIENT_SCRIPT=script();"],
+  ["formatter body", "function script(source){return \"noop('/x');\".replace('noop','fetch');} export const CLIENT_SCRIPT=script('void 0;');"],
+]) test(`W3-10-5-01: the ${name} program transformation cannot silently count zero`, () => {
+  reset(); put("plugins/native/alpha/src/transform.ts", source + "\n"); commit(name);
+  const before = read("tooling/gates/baseline.json"), result = gate("--base", "main");
+  assert.equal(result.code, 1, result.out); assert.match(result.out, /raw fetch calls in a browser program.*0 → 1/);
+  assert.equal(gate("--update", "--base", "main").code, 1); assert.equal(read("tooling/gates/baseline.json"), before);
+});
+
+for (const edge of ["import './effect.js';", "export {start} from './effect.js';", "export * from './effect.js';"]) {
+  test(`W3-10-5-01: typed browser closure includes the runtime edge ${edge}`, () => {
+    reset(); put("apps/workbench/src/terminal-client.ts", edge + "\n");
+    put("apps/workbench/src/effect.ts", "export const start = () => fetch('/runtime');\n"); commit("runtime edge");
+    const result = gate("--base", "main"); assert.equal(result.code, 1, result.out);
+    assert.match(result.out, /raw fetch calls in a browser program in apps\/workbench\/src\/effect\.ts 0 → 1/);
+  });
+}
+
+test("W3-10-5-01: type-only browser edges do not execute server fetch", () => {
+  reset(); put("apps/workbench/src/terminal-client.ts", "import type {Ref} from './effect.js'; import {type Ref as Local} from './effect.js'; export type {Ref} from './effect.js'; export {type Ref as Other} from './effect.js';\n");
+  put("apps/workbench/src/effect.ts", "export type Ref = string; export const server = () => fetch('/server');\n"); commit("type-only edges");
+  const result = gate("--base", "main"); assert.equal(result.code, 0, result.out);
+});
+
+test("W3-10-5-01: a data formatter used as a whole executable program is refused", () => {
+  reset(); put("plugins/native/alpha/src/data.ts", "export const CLIENT_SCRIPT = L(\"fetch('/x');\");\n"); commit("data formatter");
+  const before = read("tooling/gates/baseline.json"), result = gate("--update", "--base", "main");
+  assert.equal(result.code, 1, result.out); assert.match(result.out, /data formatter cannot be treated as executable program text/);
+  assert.equal(read("tooling/gates/baseline.json"), before);
+});
+
+test("W3-10-5-01: a shared formatter keeps each input owner and cannot deduplicate a new fragment", () => {
+  reset();
+  put("plugins/native/alpha/src/a.ts", "export const A_SCRIPT = `fetch('/a');`;\n");
+  put("plugins/native/alpha/src/format.ts", "export function format(source){return source.replace('noop','noop');}\n");
+  put("plugins/native/alpha/src/joined.ts", "import {A_SCRIPT} from './a.js';import {format} from './format.js';export const CLIENT_SCRIPT = format(A_SCRIPT);\n");
+  assert.equal(gate("--update").code, 0); commit("formatter base"); git("branch", "-f", "format-base", "HEAD");
+  put("plugins/native/alpha/src/b.ts", "export const B_SCRIPT = `fetch('/b');`;\n");
+  put("plugins/native/alpha/src/joined.ts", "import {A_SCRIPT} from './a.js';import {B_SCRIPT} from './b.js';import {format} from './format.js';export const CLIENT_SCRIPT = [format(A_SCRIPT),format(B_SCRIPT)].join(';');\n");
+  commit("second input"); const before = read("tooling/gates/baseline.json"), result = gate("--base", "format-base");
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /raw fetch calls in a browser program in plugins\/native\/alpha\/src\/b\.ts 0 → 1/);
+  assert.equal(gate("--update", "--base", "format-base").code, 1); assert.equal(read("tooling/gates/baseline.json"), before);
+});
+
+test("W3-10-5-01: a serialized literal computed property still identifies fetch", () => {
+  reset(); put("plugins/native/alpha/src/property.ts", "const KEY = 'fetch'; export const CLIENT_SCRIPT = `globalThis[${JSON.stringify(KEY)}]('/x');`;\n"); commit("serialized property");
+  const result = gate("--base", "main"); assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /raw fetch calls in a browser program.*0 → 1/);
+});

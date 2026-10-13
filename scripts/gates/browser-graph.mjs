@@ -71,9 +71,13 @@ export function createBrowserGraph(snapshot, isSource) {
     };
     visit(entry.tree);
     for (const statement of entry.tree.statements) {
-      if (ts.isImportDeclaration(statement) && statement.importClause && !statement.importClause.isTypeOnly) {
+      if (ts.isImportDeclaration(statement) && !statement.importClause?.isTypeOnly) {
         const module = resolveModule(entry.file, statement.moduleSpecifier.text);
-        if (module) entry.imports.push(module);
+        const members = statement.importClause?.namedBindings;
+        const runtime = !members || !ts.isNamedImports(members) || !members.elements.length
+          || Boolean(statement.importClause.name) || members.elements.some((item) => !item.isTypeOnly);
+        if (module && runtime) entry.imports.push(module);
+        if (!statement.importClause) continue;
         const bind = (name, imported) => addBinding(entry.tree, name, { file: entry.file, node: statement, module, imported });
         if (statement.importClause.name) bind(statement.importClause.name.text, "default");
         const names = statement.importClause.namedBindings;
@@ -84,10 +88,12 @@ export function createBrowserGraph(snapshot, isSource) {
         for (const item of statement.declarationList.declarations) if (ts.isIdentifier(item.name)) entry.exports.set(item.name.text, { file: entry.file, node: item, value: item.initializer });
       }
       if (ts.isFunctionDeclaration(statement) && exported(statement) && statement.name) entry.exports.set(statement.name.text, { file: entry.file, node: statement, value: statement });
-      if (ts.isExportDeclaration(statement)) {
+      if (ts.isExportDeclaration(statement) && !statement.isTypeOnly) {
         const module = statement.moduleSpecifier ? resolveModule(entry.file, statement.moduleSpecifier.text) : null;
+        const runtime = !statement.exportClause || !ts.isNamedExports(statement.exportClause) || statement.exportClause.elements.some((item) => !item.isTypeOnly);
+        if (module && runtime) entry.imports.push(module);
         if (statement.exportClause && ts.isNamedExports(statement.exportClause)) {
-          for (const item of statement.exportClause.elements) entry.exports.set(item.name.text, { file: entry.file, node: item, module, imported: (item.propertyName ?? item.name).text });
+          for (const item of statement.exportClause.elements) if (!item.isTypeOnly) entry.exports.set(item.name.text, { file: entry.file, node: item, module, imported: (item.propertyName ?? item.name).text });
         } else if (module) entry.stars.push(module);
       }
     }

@@ -186,3 +186,5 @@ Home 插件动作的 JSON 请求按 UTF-8 字节计数，上限 12 MiB，以容�
 Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 Issue 已有图文输入上限一致；图片仍由 Runtime 实际接收，并检查所选模型的视觉能力，不截断附件或用文字替代图片。
 
 独立文字模型读取（`configured-models.ts`，Jelly、Shelf与调度就绪检查等消费）复用正式Catalog的owner与现行schema断言。旧版、未来版或无效版本在读取模型与凭据之前拒绝，不就地升级；回归见 `tests/jelly-model.test.ts` 的 W1-18-MODEL-SCHEMA-01。
+
+目录选择的默认runner等待实际子进程退出，期间保持busy；stdout、取消、错误与超时由同一个runner收口。`tests/workspace-directory-picker.test.ts` 的 W2-18-DIRECTORY-PICKER-01使用临时Node子进程，系统目录窗口仍需单列实操。

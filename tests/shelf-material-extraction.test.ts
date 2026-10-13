@@ -142,13 +142,13 @@ test("Shelf retains 32 MiB admissions while the common extractor keeps its small
   const large = Buffer.concat([pdf.subarray(0, split), Buffer.alloc(26 * 1024 * 1024, 32), pdf.subarray(split)]);
   const store = openShelfStore(home, { disabled: true }, { extract: extractMaterial });
   try {
-    await assert.rejects(extractMaterial({ file_name: "large.pdf", bytes: large }), { code: "invalid_data" });
+    await assert.rejects(extractMaterial({ file_name: "large.pdf", bytes: large }), { code: "material.invalid_data" });
     const item = await store.admitFile({ filename: "large.pdf", bytes: large });
     assert.match(item.preview_text!, /Preserve the original PDF/);
     assert.equal(item.size_bytes, large.length);
     assert.equal(hashBytes(store.readFile(item.item_id).bytes), hashBytes(large));
     await assert.rejects(store.admitFile({ filename: "too-large.pdf", bytes: Buffer.alloc(32 * 1024 * 1024 + 1) }), { code: "shelf.too_large" });
-    await assert.rejects(extractMaterial({ file_name: "test.pdf", bytes: pdf }, { limits: { maxBytes: 32 * 1024 * 1024 + 1 } }), { code: "invalid_limits" });
+    await assert.rejects(extractMaterial({ file_name: "test.pdf", bytes: pdf }, { limits: { maxBytes: 32 * 1024 * 1024 + 1 } }), { code: "material.invalid_limits" });
   } finally { await rm(home, { recursive: true, force: true }); }
 });
 

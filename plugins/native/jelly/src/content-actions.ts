@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { bindWorkflowContentHandlers, defineWorkflowContentActions, workflowDeliveryKey, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { JellyError } from "./error.js";
+import { jellyErrors } from "./error.js";
 import { JELLY_NOTE_SUBJECT_KIND } from "./search.js";
 import type { JellyStore } from "./store.js";
 
@@ -16,7 +16,7 @@ export function createJellyContentHandlers(withStore: <T>(run: (store: JellyStor
       .map(note => ({ item_id: note.id, title: note.title || "新笔记", caption: "Jelly 笔记", at: note.updated_at }))),
     read: ({ item_id }) => withStore(store => {
       const note = store.read().notes.find(entry => entry.id === item_id && !entry.archived_at);
-      if (!note) throw new JellyError("jelly.not_found", "笔记已删除或已归档", 404);
+      if (!note) throw jellyErrors.not_found("笔记已删除或已归档");
       return { title: note.title, body: note.blocks.map(block => block.text).join("\n"), source: "Jelly", feed_item_id: null };
     }),
     // One delivery is one note: a retried handoff finds the note it made the first time.

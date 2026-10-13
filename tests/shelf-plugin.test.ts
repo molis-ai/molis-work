@@ -9,7 +9,7 @@ import { INTERACTION_TEXTURE_STYLES } from "@molis-ai/molis-work-design-system";
 import {
   CLIPBOARD_LIMIT,
   SAMPLE_PDF_TEXT,
-  ShelfError,
+  isShelfFailure,
   clipFingerprint,
   createExtractablePdf,
   hashBytes,
@@ -106,11 +106,11 @@ test("admitting a local file copies bytes and refuses to write if the original h
     await writeFile(originPath, createExtractablePdf("changed original"));
     await assert.rejects(
       store.runJob({ recipe: "extract_text", item_id: item.item_id }),
-      (error: unknown) => error instanceof ShelfError && error.code === "shelf.origin_changed",
+      (error: unknown) => isShelfFailure(error) && error.code === "shelf.origin_changed",
     );
     await assert.rejects(
       store.runJob({ recipe: "summarize", item_id: item.item_id }),
-      (error: unknown) => error instanceof ShelfError
+      (error: unknown) => isShelfFailure(error)
         && error.code === "shelf.no_model"
         && /AI 模型/u.test(error.message),
     );
@@ -206,7 +206,7 @@ test("writeCopy edits the shelf copy and leaves the original file hash untouched
     // 提取文字 is for PDFs and images; a Markdown copy is already text.
     await assert.rejects(
       store.runJob({ recipe: "extract_text", item_id: item.item_id }),
-      (error: unknown) => error instanceof ShelfError && error.code === "shelf.recipe_unavailable",
+      (error: unknown) => isShelfFailure(error) && error.code === "shelf.recipe_unavailable",
     );
     await writeFile(originPath, "# changed original\n");
     const pdfBytes = createExtractablePdf("PDF stays read-only on the shelf.");
@@ -214,7 +214,7 @@ test("writeCopy edits the shelf copy and leaves the original file hash untouched
     assert.equal(isEditableShelfItem(pdf), false);
     assert.throws(
       () => store.writeCopy(pdf.item_id, "nope"),
-      (error: unknown) => error instanceof ShelfError && error.code === "shelf.not_text",
+      (error: unknown) => isShelfFailure(error) && error.code === "shelf.not_text",
     );
   });
 });
@@ -561,7 +561,7 @@ test("local host /api/shelf admits, extracts, and does not expose origin paths",
     headers: headers(),
     body: JSON.stringify({ recipe: "summarize", item_id: first.materials[0]!.item_id }),
   });
-  assert.equal(denied.status, 409);
+  assert.equal(denied.status, 503, "no model configured is the platform's actions.connection_required, as at Jelly, Todo, Form and Dataset");
   const clipResponse = await fetch(`${origin}/api/shelf/clipboard`, {
     method: "POST",
     headers: headers(),

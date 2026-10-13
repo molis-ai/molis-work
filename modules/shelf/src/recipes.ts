@@ -1,4 +1,4 @@
-import { ShelfError } from "./errors.js";
+import { shelfErrors } from "./errors.js";
 import type {
   ShelfItemKind,
   ShelfRecipeAvailability,
@@ -322,10 +322,10 @@ export function finalizeShelfRecipeResult(recipe: ShelfRecipeId, optionId: strin
   if (recipe === "extract_structure" && resolvedChoiceId(recipe, optionId) === "json") {
     const decoded = decodeJson(text);
     if (!decoded.ok || !decoded.value || typeof decoded.value !== "object" || Array.isArray(decoded.value)) {
-      throw new ShelfError("shelf.invalid_result", "结构化结果必须是 JSON 对象");
+      throw shelfErrors.invalid_result("结构化结果必须是 JSON 对象");
     }
     return JSON.stringify(decoded.value, null, 2);
   }
-  if (!looksLikeDeliverable(text)) throw new ShelfError("shelf.invalid_result", "模型只返回了进度或完成说明，没有可交付的正文");
+  if (!looksLikeDeliverable(text)) throw shelfErrors.invalid_result("模型只返回了进度或完成说明，没有可交付的正文");
   return coverage.length ? `${text}\n\n---\n材料覆盖说明：\n${coverage.map(note => `- ${note}`).join("\n")}\n` : text;
 }

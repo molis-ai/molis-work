@@ -7,6 +7,8 @@ import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules
 import type { GitOperation, WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-git";
 import { runWorkspaceGit } from "./workspace-git.js";
+import { CONFLICT_FILE_LIMIT, conflictFingerprint, readConflictSnapshot, resolveConflict } from "./git-conflict-resolution.js";
+import { effectivePushTargets, preparePush, type GitCommandConfiguration } from "./git-push-targets.js";
 
 /**
  * Committing, branching, pushing and opening a pull request, each as one Host-reviewed operation.
@@ -20,9 +22,13 @@ import { runWorkspaceGit } from "./workspace-git.js";
 const exec = promisify(execFile);
 const OPERATION_TIMEOUT = 120_000;
 
-async function operationRun(command: "git" | "gh", root: string, args: string[], input?: string): Promise<{ stdout: string; stderr: string }> {
+async function operationRun(command: "git" | "gh", root: string, args: string[], input?: string, configuration?: GitCommandConfiguration): Promise<{ stdout: string; stderr: string }> {
   const env: Record<string, string | undefined> = { ...process.env, LC_ALL: "C", GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "Never", GH_PROMPT_DISABLED: "1", GIT_EDITOR: "true" };
   for (const key of Object.keys(env)) if (key.startsWith("GIT_") && !["GIT_TERMINAL_PROMPT", "GIT_EDITOR", "GIT_SSH_COMMAND", "GIT_ASKPASS"].includes(key)) delete env[key];
+  if (configuration?.length) {
+    env.GIT_CONFIG_COUNT = String(configuration.length);
+    configuration.forEach(([key, value], index) => { env[`GIT_CONFIG_KEY_${index}`] = key; env[`GIT_CONFIG_VALUE_${index}`] = value; });
+  }
   try {
     const pending = exec(command, args, { cwd: root, env, encoding: "utf8", maxBuffer: 4 * 1024 * 1024, timeout: OPERATION_TIMEOUT });
     pending.child.stdin?.end(input);
@@ -57,12 +63,14 @@ export async function readGitSummary(workspace: ProjectWorkspaceRef): Promise<Wo
   // The porcelain branch header names the branch but not its commit; HEAD is read on its own.
   const headCommit = status.head.kind === "unborn" ? null : await optional(root, ["rev-parse", "--verify", "HEAD"]);
   const branches = (await gitText(root, ["for-each-ref", "--format=%(refname:short)", "refs/heads"])).split("\n").filter(Boolean);
-  const remotes = [...new Map((await gitText(root, ["remote", "-v"])).split("\n").filter(line => line.endsWith("(push)"))
-    .map(line => { const [name, url] = line.split(/\s+/); return [name!, { name: name!, url: url! }] as const; })).values()];
+  const remotes = await effectivePushTargets(root);
   const merging = (await optional(root, ["rev-parse", "-q", "--verify", "MERGE_HEAD"])) !== null;
   const staged = status.staged.map(change => ({ path: change.path.join("/"), status: change.code[0] ?? "M" }));
   const index = await gitText(root, ["diff", "--cached", "--raw", "--no-abbrev", "-z"]);
-  const revision = createHash("sha256").update(JSON.stringify([headCommit, branch, status.upstream ?? null, index, merging])).digest("hex");
+  const conflicts = await Promise.all(status.conflicted.map(async change => {
+    const name = change.path.join("/"); return [name, await conflictFingerprint(root, name)];
+  }));
+  const revision = createHash("sha256").update(JSON.stringify([headCommit, branch, status.upstream ?? null, index, merging, remotes, conflicts])).digest("hex");
   return { outcome: "summary", branch, head_commit: headCommit, upstream: status.upstream?.name ?? null, ahead: status.upstream?.ahead ?? 0, behind: status.upstream?.behind ?? 0,
     branches, remotes, staged, unstaged: status.unstaged.length + status.untracked.length, conflicted: status.conflicted.map(change => change.path.join("/")), merging, revision };
 }
@@ -92,18 +100,15 @@ export interface PreparedGitOperation {
 
 const ACTION_TOOL: Record<GitOperation["action"], string> = { commit: "git-commit", "branch-create": "git-branch-create", "branch-switch": "git-branch-switch", push: "git-push", "pr-create": "git-pr-create",
   merge: "git-merge", pull: "git-pull", resolve: "git-resolve", "merge-abort": "git-merge-abort" };
-const CONFLICT_MARKER = /^(<{7}|={7}|>{7}|\|{7})(\s|$)/m, CONFLICT_FILE_LIMIT = 1024 * 1024;
+const CONFLICT_MARKER = /^(<{7}|={7}|>{7}|\|{7})(\s|$)/m;
 
 /** A conflicted file as it stands, markers included, with the two sides' names. Reads only. */
 export async function readConflictFile(workspace: ProjectWorkspaceRef, file: string): Promise<{ outcome: "conflict-file"; path: string; text: string; conflicts: number; ours: string; theirs: string; revision: string }> {
   const root = await repositoryRoot(workspace), summary = await readGitSummary(workspace);
   if (!summary.conflicted.includes(file)) throw new Error("这个文件没有未解决的冲突");
-  const absolute = path.join(root, ...file.split("/"));
-  if (!absolute.startsWith(root + path.sep) || file.split("/").includes("..")) throw new Error("文件路径无效");
-  const stat = await fs.lstat(absolute);
-  if (!stat.isFile()) throw new Error("冲突的不是普通文件（可能被删除或是链接），请在终端处理");
-  if (stat.size > CONFLICT_FILE_LIMIT) throw new Error("文件太大，请在编辑器里解决冲突");
-  const text = await fs.readFile(absolute, "utf8");
+  const read = await readConflictSnapshot(root, file);
+  if ((await readGitSummary(workspace)).revision !== summary.revision) throw new Error("冲突文件在读取时变化了，请刷新");
+  const text = read.text;
   const merging = await optional(root, ["rev-parse", "-q", "--verify", "MERGE_HEAD"]);
   const theirs = merging ? (await optional(root, ["name-rev", "--name-only", "--no-undefined", merging])) ?? merging.slice(0, 8) : "合并进来的一方";
   return { outcome: "conflict-file", path: file, text, conflicts: (text.match(/^<{7}(\s|$)/gm) ?? []).length, ours: summary.branch ?? "当前", theirs, revision: summary.revision };
@@ -124,6 +129,7 @@ export const GIT_OPERATION_TOOLS = new Set(Object.values(ACTION_TOOL));
 
 /** Checks the operation against the repository as reviewed and returns what the Host review shows and runs. */
 export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revision: string, operation: GitOperation): Promise<PreparedGitOperation> {
+  operation = structuredClone(operation);
   const root = await repositoryRoot(workspace), summary = await readGitSummary(workspace);
   if (summary.revision !== revision) throw new Error("仓库在你查看之后变化了（分支、提交或暂存内容），请刷新后重新操作");
   const check = async () => { const now = await readGitSummary(workspace); if (now.revision !== revision) throw new Error("仓库在审查期间变化了，原操作未执行；请刷新后重新发起"); };
@@ -162,20 +168,8 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
         fields: [...where, { label: "切换到", value: name }, { label: "未提交的改动", value: summary.staged.length + summary.unstaged ? `${summary.staged.length + summary.unstaged} 个文件；Git 会把它们带到新分支，有冲突时会拒绝切换，不会覆盖` : "没有" }],
         async execute() { await check(); await operationRun("git", root, ["switch", name]); return `已切换到「${name}」`; } };
     }
-    case "push": {
-      const remote = summary.remotes.find(item => item.name === operation.remote);
-      if (!remote) throw new Error(`没有远端「${operation.remote}」`);
-      if (!summary.branch) throw new Error("分离的 HEAD 不能推送，先建一个分支");
-      if (!summary.head_commit) throw new Error("还没有提交，没有可推送的内容");
-      const setUpstream = operation.set_upstream || !summary.upstream;
-      if (summary.upstream && summary.ahead === 0) throw new Error("没有需要推送的提交");
-      return { tool: ACTION_TOOL.push, summary: `推送「${summary.branch}」到 ${remote.name}`, check,
-        fields: [...where, { label: "远端", value: `${remote.name}（${remote.url}）` }, { label: "推送的提交", value: summary.upstream ? `${summary.ahead} 个（远端跟踪分支 ${summary.upstream}）` : "整个分支（远端还没有这个分支）" },
-          ...(summary.behind ? [{ label: "注意", value: `远端比本地多 ${summary.behind} 个提交，Git 会拒绝推送；不会强制推送` }] : []),
-          { label: "执行范围", value: `使用这台电脑上已有的 Git 凭据，不强制推送${setUpstream ? "；同时设置远端跟踪分支" : ""}；会运行仓库的 pre-push hook（如有）。` }],
-        async execute() { await check(); const out = await operationRun("git", root, ["push", ...(setUpstream ? ["--set-upstream"] : []), remote.name, summary.branch!]);
-          return `已推送到 ${remote.name}：${(out.stderr.split("\n").find(line => /->/.test(line)) ?? summary.branch!).trim()}`; } };
-    }
+    case "push": return preparePush(root, summary, operation, where, check,
+      (args, config) => operationRun("git", root, args, undefined, config));
     case "pr-create": {
       const support = await readPullRequestSupport(workspace);
       if (support.tool !== "ready") throw new Error(support.message);
@@ -215,14 +209,13 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       const file = operation.path.trim(), content = operation.content.replace(/\r\n/g, "\n");
       if (!summary.conflicted.includes(file)) throw new Error("这个文件没有未解决的冲突");
       if (CONFLICT_MARKER.test(content)) throw new Error("内容里还有冲突标记（<<<<<<< / ======= / >>>>>>>），选好内容并删掉标记后再提交");
-      if (content.length > CONFLICT_FILE_LIMIT) throw new Error("内容太长，请在编辑器里解决");
-      const absolute = path.join(root, ...file.split("/"));
-      if (!absolute.startsWith(root + path.sep) || file.split("/").includes("..")) throw new Error("文件路径无效");
+      if (Buffer.byteLength(content) > CONFLICT_FILE_LIMIT) throw new Error("内容太长，请在编辑器里解决");
+      const reviewed = await readConflictSnapshot(root, file);
+      await check();
       return { tool: ACTION_TOOL.resolve, summary: `解决冲突：${file}`, check,
         fields: [...where, { label: "文件", value: file }, { label: "解决后的内容", value: content.length > 20_000 ? content.slice(0, 20_000) + "\n…（其余未显示，将按你编辑的全文写入）" : content },
           { label: "执行范围", value: "把这个文件写成上面的内容并暂存，标记冲突已解决；其他文件不动，不提交。" }],
-        async execute() { await check(); const now = await readGitSummary(workspace); if (!now.conflicted.includes(file)) throw new Error("这个文件已经不在冲突中，原操作未执行");
-          await fs.writeFile(absolute, content); await operationRun("git", root, ["add", "--", file]); return `已解决并暂存 ${file}`; } };
+        async execute() { await resolveConflict(root, reviewed, content, check); return `已解决并暂存 ${file}`; } };
     }
     case "merge-abort": {
       if (!summary.merging) throw new Error("没有进行中的合并");

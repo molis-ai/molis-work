@@ -160,6 +160,11 @@ mod tests {
             vec![
                 ("public.utf8-plain-text", b"original".as_slice()),
                 ("public.rtf", b"{\\rtf1 original}".as_slice()),
+                // AppKit advertises this derived flavor too; seed its exact bytes explicitly.
+                (
+                    "public.utf16-external-plain-text",
+                    b"\xff\xfeo\0r\0i\0g\0i\0n\0a\0l\0".as_slice(),
+                ),
             ],
             vec![(
                 "public.png",

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { assistantErrors } from "./assistant-errors.js";
 import { applySqliteBaseline, type openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
@@ -148,13 +149,6 @@ export interface StoredCard {
   updated_at: string;
 }
 
-export class AssistantStoreError extends Error {
-  constructor(readonly code: "assistant.not_found" | "assistant.conflict" | "assistant.pending_request", message: string) {
-    super(message);
-    this.name = "AssistantStoreError";
-  }
-}
-
 export class AssistantStore {
   /** What each work started from, used, produced and handed to: Context Ledger edges in this same database. */
   readonly relations: AssistantRelations;
@@ -180,7 +174,7 @@ export class AssistantStore {
 
   get(actorId: string, workId: string): StoredWork {
     const row = this.db.prepare("SELECT body FROM assistant_works WHERE work_id=? AND actor_id=?").get(workId, actorId);
-    if (!row) throw new AssistantStoreError("assistant.not_found", "找不到这项工作，可能已被删除");
+    if (!row) throw assistantErrors.not_found("找不到这项工作，可能已被删除");
     const work = JSON.parse(String(row.body)) as StoredWork;
     return work.executor ? work : { ...work, executor: { kind: "assistant" } };
   }
@@ -195,11 +189,11 @@ export class AssistantStore {
   /** Optimistic: a caller holding an older revision gets a conflict instead of overwriting a newer change. */
   update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "follow_ups" | "delegated_by" | "budget_tokens">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
-    if (expected !== null && current.revision !== expected) throw new AssistantStoreError("assistant.conflict", "这项工作已在别处更新，请刷新后再改");
+    if (expected !== null && current.revision !== expected) throw assistantErrors.conflict("这项工作已在别处更新，请刷新后再改");
     const next: StoredWork = { ...current, ...patch, revision: current.revision + 1, updated_at: touch ? this.now().toISOString() : current.updated_at };
     const changed = this.db.prepare("UPDATE assistant_works SET revision=?, updated_at=?, archived=?, body=? WHERE work_id=? AND actor_id=? AND revision=?")
       .run(next.revision, next.updated_at, next.archived ? 1 : 0, JSON.stringify(next), workId, actorId, current.revision).changes;
-    if (!changed) throw new AssistantStoreError("assistant.conflict", "这项工作已在别处更新，请刷新后再改");
+    if (!changed) throw assistantErrors.conflict("这项工作已在别处更新，请刷新后再改");
     return next;
   }
 
@@ -217,12 +211,12 @@ export class AssistantStore {
    * refused rather than run twice. A Send that failed before it did anything is released so it can be tried again.
    */
   claimRequest(actorId: string, requestId: string): { claimed: true } | { claimed: false; result: AssistantSendResult } {
-    if (!/^[A-Za-z0-9-]{8,80}$/.test(requestId)) throw new AssistantStoreError("assistant.conflict", "发送标识无效，请重新发送");
+    if (!/^[A-Za-z0-9-]{8,80}$/.test(requestId)) throw assistantErrors.conflict("发送标识无效，请重新发送");
     const inserted = this.db.prepare("INSERT OR IGNORE INTO assistant_requests(actor_id,request_id,state,created_at) VALUES (?,?,'pending',?)")
       .run(actorId, requestId, this.now().toISOString()).changes;
     if (inserted) return { claimed: true };
     const row = this.db.prepare("SELECT state, result FROM assistant_requests WHERE actor_id=? AND request_id=?").get(actorId, requestId) as { state: string; result: string | null };
-    if (row.state !== "done" || !row.result) throw new AssistantStoreError("assistant.pending_request", "这次发送还在处理，不会重复提交");
+    if (row.state !== "done" || !row.result) throw assistantErrors.pending_request("这次发送还在处理，不会重复提交");
     return { claimed: false, result: { ...(JSON.parse(row.result) as AssistantSendResult), outcome: "repeated" } };
   }
 
@@ -243,7 +237,7 @@ export class AssistantStore {
 
   card(workId: string, cardId: string): StoredCard {
     const row = this.db.prepare("SELECT body FROM assistant_cards WHERE work_id=? AND card_id=?").get(workId, cardId);
-    if (!row) throw new AssistantStoreError("assistant.not_found", "找不到这个建议，可能已被移除");
+    if (!row) throw assistantErrors.not_found("找不到这个建议，可能已被移除");
     return JSON.parse(String(row.body)) as StoredCard;
   }
 
@@ -252,7 +246,7 @@ export class AssistantStore {
     const next: StoredCard = { ...card, ...patch, revision: expected + 1, updated_at: this.now().toISOString() };
     const changed = this.db.prepare("UPDATE assistant_cards SET revision=?, status=?, body=? WHERE card_id=? AND revision=?")
       .run(next.revision, next.status, JSON.stringify(next), card.card_id, expected).changes;
-    if (!changed) throw new AssistantStoreError("assistant.conflict", "这个建议已在别处处理，已刷新为最新状态");
+    if (!changed) throw assistantErrors.conflict("这个建议已在别处处理，已刷新为最新状态");
     return next;
   }
 

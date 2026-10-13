@@ -62,8 +62,6 @@ export async function dispatchNativePluginJsonHttp(
       query: URLSearchParams;
       body: Record<string, unknown>;
     }): Promise<NativePluginJsonResult | null>;
-    /** Omit it and the failure answers through the SDK: the status of its kind and { error, code, details? } (`actionErrorResponse`). */
-    mapError?(error: unknown): NativePluginJsonResult;
     write?(response: ServerResponse, result: NativePluginJsonResult): void;
   },
 ): Promise<boolean> {
@@ -83,7 +81,7 @@ export async function dispatchNativePluginJsonHttp(
     write(response, result);
     return true;
   } catch (error) {
-    write(response, options.mapError?.(error) ?? actionErrorResponse(error));
+    write(response, actionErrorResponse(error));
     return true;
   }
 }

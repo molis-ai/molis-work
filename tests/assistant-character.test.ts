@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,7 +10,7 @@ import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/servic
 import type { AssistantCharacterChoice } from "@molis-ai/molis-work-contracts/services/assistant";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantError, AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
+import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -88,7 +89,7 @@ test("an unavailable Character is refused with why, never swapped for another; p
   const f = await fixture(t);
   try {
     await assert.rejects(f.service.send({ text: "用旧版本", request_id: "req-character-3", character: { artifact_id: EDITOR.reference.artifact_id, version: 1 } }, { project_ref: f.project }),
-      (error: unknown) => error instanceof AssistantError && error.code === "assistant.character_unavailable" && /已停用/.test(error.message));
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.character_unavailable" && error.kind === "invalid" && /已停用/.test(error.message));
     await assert.rejects(f.service.send({ text: "个人事", request_id: "req-character-4", scope: { kind: "personal" }, character: { artifact_id: EDITOR.reference.artifact_id, version: 2 } }, {}),
       /个人工作暂时不能指定角色/);
     // Chosen while available, withdrawn before the next round: the round refuses rather than running as someone else.

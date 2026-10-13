@@ -139,6 +139,18 @@ test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on s
     assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), a);
     await openWork(browser, b);
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 自己的 Y");
+    // B's later edit alone is not an edit of A: returning without typing in A must still clear only A's sent text.
+    await browser.click(`[data-assistant-tabs] [data-tab="${a}"] .assistant-tab-main`);
+    await putInput(browser, "A 下一次发送的文字");
+    await browser.click("[data-assistant-send]");
+    const nextSend = await barrier.next();
+    await browser.click(`[data-assistant-tabs] [data-tab="${b}"] .assistant-tab-main`);
+    await putInput(browser, "B 再写的 Y2");
+    await browser.click(`[data-assistant-tabs] [data-tab="${a}"] .assistant-tab-main`);
+    await barrier.release(nextSend);
+    await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled && document.querySelector('[data-assistant-input]').value === ''");
+    const finalA = await readWork(browser, a); assert.equal(finalA.work.draft, ""); assert.equal(finalA.rounds.length, 3);
+    await waitWork(browser, b, view => view.work.draft === "B 再写的 Y2");
   } finally { await barrier.close(); }
 });
 

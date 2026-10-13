@@ -204,3 +204,5 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 项目 Schedule/Feed 在常驻服务启动时从 Catalog 打开，之后新动作打开的项目实例也直接接入同一个后台 timer；不再以项目页面访问作为登记条件。调度服务按项目库复用，关闭或删除项目在 owner 与库释放前撤销等待和续租；借用 Host 的 Web 关闭也等待调度收束，重新绑定恢复同一实例，不自动重放已派发的一次任务。`tests/schedule-reminder-recovery.test.ts` 的 W2-18-SCHEDULE-01/02 覆盖隔离 Home 重启、纯动作网关创建、实际 service timer、真实 Todo owner 结果和迟到拒绝。`tests/assistant-reminders.test.ts` 的 W2-18-S8-TODO-01 走真实 Todo→共同到期查询→Assistant service timer，不经过 Schedule。测试只缩短定时器的等待，不手调业务 tick；尚未运行时不能把源码/夹具完成记为回归通过。
 
 子任务交回的自动续跑在当前父状态、最新已完成轮次与既有 `hand_back_held` 上核对。归档、停止正在准备的交回或本人开始新父轮，都使旧候选失效；原调用的同步 `assertBeforeStart` 与 owner 检查一并保留到实际 SDK 接受。拒绝不消费子任务的 `handed_back_run`，本人恢复后仍能核对这份结果。回归见 `tests/assistant-delegation.test.ts` 的 W2-18-HANDBACK-CURRENT-01/02；不将固定调用次数称为 SDK 接受点。
+
+插件消费动作时，`plugin-actions-client.ts` 从该项目真实目录解析唯一提供方并固定它，保留原声明、grant、实例取消与同步复查。Host 启动名单的实际内置 definition 通过 `plugin-entry-identity.ts` 给运行 caller 登记进程内资格；停止前及启动失败清理会撤销，复制对象、同名插件与 publisher 字符串不取得资格。原名单认可的 release restore 重新登记新 definition；Goals 的实际消费验收见防腐 spec §10.7。

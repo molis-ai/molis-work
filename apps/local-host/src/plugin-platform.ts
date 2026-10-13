@@ -119,6 +119,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // carries the same plugin_id is given none.
   const executor = new PluginHostExecutor({
     providerFor,
+    qualifyCaller: identity.qualifyCaller,
     databaseFor: identity.databaseFor,
     project_id: options.project_id,
     actor_id: options.actor_id,
@@ -207,8 +208,11 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
         listed.add(definition.manifest.plugin_id);
       }
       assertDatabaseEntries(entries, options.home);
-      identity.remember(entries);
-      const report = await supervisor.start(entries);
+      const qualified = entries.map(entry => entry.bundled && entry.releaseArtifact ? { ...entry, releaseArtifact: { ...entry.releaseArtifact,
+        restore: async (source: string) => { const released = await entry.releaseArtifact!.restore(source);
+          identity.remember([{ definition: released, bundled: true, database: entry.database }]); return released; } } } : entry);
+      identity.remember(qualified);
+      const report = await supervisor.start(qualified);
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();
       await events.resume(options.project_id);

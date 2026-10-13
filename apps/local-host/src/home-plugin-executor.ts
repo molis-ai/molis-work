@@ -15,6 +15,7 @@ export class HomePluginExecutor implements PluginExecutor {
     home: string; actorId: string; client: ActionClient;
     database(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
     providerFor(definition: PluginDefinition, installId: string): string;
+    qualifyCaller(definition: PluginDefinition, caller: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller): (() => void) | undefined;
     storage: SqlitePluginPrivateStorage;
     active(): boolean;
     record(installId: string): PluginInstanceRecord | null;
@@ -45,8 +46,9 @@ export class HomePluginExecutor implements PluginExecutor {
     const ui = createPluginUiClient(new UiHost(), context, manifest);
     let database: ReturnType<typeof openPluginDatabase> | undefined;
     let withdrawInstructions: (() => void) | undefined;
+    let withdrawCaller: (() => void) | undefined;
     const dispose = () => {
-      active = false;
+      active = false; withdrawCaller?.();
       const failures: unknown[] = [];
       for (const release of [() => database?.close(), () => withdrawInstructions?.(), () => ui.dispose()]) {
         try { release(); } catch (error) { failures.push(error); }
@@ -60,6 +62,7 @@ export class HomePluginExecutor implements PluginExecutor {
       withdrawInstructions = registerPluginInstructions(home, definition, context.install_id);
       const caller = Object.freeze({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actorId, project_id: null,
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }), assertActive });
+      withdrawCaller = this.options.qualifyCaller(definition, caller);
       const authorized = { ...context, requireGrant: authorize };
       const model = pluginModelFor(home, definition, authorized, assertActive);
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
@@ -70,7 +73,7 @@ export class HomePluginExecutor implements PluginExecutor {
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });
       const contribution = await definition.start(hosted);
-      this.sessions.set(context.install_id, { context: hosted, revoke: () => { active = false; }, dispose });
+      this.sessions.set(context.install_id, { context: hosted, revoke: () => { active = false; withdrawCaller?.(); }, dispose });
       return { contribution };
     } catch (error) {
       try { dispose(); } catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与服务释放失败"); }

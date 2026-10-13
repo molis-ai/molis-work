@@ -38,11 +38,13 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let disposeArtifacts = () => {};
   let library: ReturnType<typeof openPluginDatabase> | undefined;
   let withdrawInstructions: (() => void) | undefined;
-  const dispose = () => { active = false; disposeArtifacts(); library?.close(); withdrawInstructions?.(); ui.dispose(); };
+  let withdrawCaller: (() => void) | undefined;
+  const dispose = () => { active = false; withdrawCaller?.(); disposeArtifacts(); library?.close(); withdrawInstructions?.(); ui.dispose(); };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     const manifest = definition.manifest;
     const pluginCaller = hostPluginCaller(options, definition, context, assertActive);
+    withdrawCaller = options.qualifyCaller?.(definition, pluginCaller);
     const providerId = options.providerFor?.(definition, context.install_id) ?? context.install_id;
     const artifactService = createPluginArtifactClient({ api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions,
       project_id: options.project_id, actor_id: options.actor_id });
@@ -51,7 +53,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     withdrawInstructions = registerPluginInstructions(options.home, definition, context.install_id);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
       database: library?.client, model: pluginModelFor(options.home, definition, context, assertActive) });
-    return { context: hosted, revoke: () => { active = false; }, dispose };
+    return { context: hosted, revoke: () => { active = false; withdrawCaller?.(); }, dispose };
   } catch (error) {
     dispose();
     throw error;

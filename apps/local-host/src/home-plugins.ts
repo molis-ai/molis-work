@@ -109,7 +109,7 @@ export class HomePluginHost {
     this.db = db;
     const repository = new SqlitePluginRuntimeRepository(db);
     const executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id), database: identity.databaseFor,
-      providerFor: identity.providerFor });
+      providerFor: identity.providerFor, qualifyCaller: identity.qualifyCaller });
     const runtime = new PluginRuntime(repository, executor, { actions: { registry: this.options.registry,
       providerId: (record, definition) => identity.providerFor(definition, record.install_id) } });
     const supervisor = new PluginSupervisor(runtime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db), hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY] });

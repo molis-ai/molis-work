@@ -2,6 +2,8 @@
 
 > 接续请先读文末「§20 远端交接（2026-10-13，当前接续入口）」：它自成一体，不依赖任何本机工作树；之前的路径、授权与未提交状态以该节为准。
 
+> 统筹更正（2026-10-13 晚）：本行之后的状态句写于知道 #471/#472 之前。C1+H1 不能整支合进来，要等统一 SDK 包进 main 后单独重做。先读 §20 开头的「统筹补充」。
+
 状态：执行中、暂停等恢复（2026-10-13；I0 预览已按实物重做并经开发者走查，待用户看实物；共享部件与共享浏览器行为已完成（#423 已合 main，I1 并入本分支），I0 预览已改用共享客户端；带类型的题进宿主（C1+H1）已写完但未构建未验证，在另一分支等 #408 进 main；助理与 Coding 的产品采用、操作卡协作者、对象引用、单次接续未开始）。§1–§13 是用户讨论定下的需求（2026-10-05 整理）；§14 起是开发 owner 核对现状后补齐的方案、决定与进度，§16 的决定已与用户对齐（2026-10-09）。本文是这项任务唯一的需求书与进度记录。2026-10-11 起唯一可编辑副本在 `feature/ai-interaction-i0` 的本路径；原分支 `feat/ai-interaction-experience@8d0d7dd84` 保留为来源，不并行编辑。
 
 ## 1. 任务与完成标准
@@ -708,6 +710,14 @@ node scripts/run-tests.mjs tests/ai-interaction-slice.e2e.test.ts
 > - **#471**（yijunw0212，10-13 08:24 UTC，78 个文件）把桌面 Computer Use 合进 main，并把 main 的 vendored SDK 换成 `prologue-sdk-0.0.0-rc.1-computer-use.tgz`。它的来源是 Prologue `d4908c11`（分支 `feat/desktop-computer-use`，基于 `c4b9fde3` = `4f7110fe` + 采用修正 + 5 个 Computer Use 提交）；provenance 写着 `pushed: false`，这个提交**不在 Prologue main，也不在 GitHub 远端**。这份包**不含**已进 Prologue main 的 S1–S3、带类型问卷（`a06ae62e`）、P1 合同、P2a–P2f。main 上同时还留着旧的 side-panel-memory 包与补丁（两份 tgz）。#471 还新增了右栏的电脑格（`apps/workbench/src/side-panel-computer.ts`）、`contracts/services/computer.ts`、`services/ui-surfaces.ts`，改了助理服务、`assistant-island.ts`、`prologue-node.ts`、`prologue-stream.ts`、`contracts/services/agent-host.ts`，并把 10-09 版的 `specs/ai-interaction-experience/spec.md` 与参考图带进了 main。
 > - **#472**（yijunw0212，10-13 10:54 UTC，93 个文件 +3399/−953）把旧采用树 `feat/prologue-adoption` 的 10 个提交（10-09 的 `77fde104`…`8b1a0522`）合进 main：一轮的推理力度、运行中换模型、逐轮写入记录（约等于 A1）、灵光流式（A3 的一部分）、助理把交出去的工作收回来后接着做（`8b1a0522`「第 14 项」，A0 当时明确不纳入的私有接续）、变化等待（`b3235bb1`/`8c0b60fb`，约等于 A4）。它沿用 #471 的 computer-use 包，没有换包。main 上的 `specs/prologue-adoption/spec.md` 是 10-09 的旧版（标题「Prologue 新能力接入：修复、适配与功能优化」）。
 > - 统筹层的说明与后续顺序见远端分支 `coordination/handoff-2026-10-13` 的 `coordination/2026-10-13/README.md` §2a。
+> - **以下更正优先于本节下文（统筹审查，2026-10-13）：**
+>   1. 状态句与 §20.5-2「#408 进 main 后把 `feature/agent-typed-questions` 合进 #410」：不要整支合。那个分支叠在 #408 的旧点 `de111f91` 上（带的是旧的 `-fields` 包，比 #408 现在落后很多），整支合会带进 #472 已经取代的提交。做法：只取 `c50a5534` 这一个提交的改动，等统一 SDK 包进 main 后，在 main 上按 #471/#472 的新形状重做。
+>   2. §20.2 的 head：#410 现在是 `cda21315`。顺序「#408 → #411 → #410 → #409」已过时，见 README §2a-4。
+>   3. §20.4-1 把 ANTI-CORRUPTION-REVIEW.md 叫「本机文件」：它在远端分支 `coordination/handoff-2026-10-13` 的 `coordination/2026-10-13/ANTI-CORRUPTION-REVIEW.md`。
+>   4. §20.4-3「`prologue-node.ts` 正好 1550/1551」：那是 #408 上的数；main 上这个文件被 #471/#472 改过，重做 C1+H1 时重新量。
+>   5. §20.6 说 #408 的包是 `-fields.tgz`（`55b0c85a`）：#408 现在带的是 `-adoption-receipts-handling.tgz`（来源 `f5ef12e6`）；`-fields` 只在 C1+H1 那条旧分支上。
+>   6. 把 main 合进 #410 时实际只冲突两个文件：`packages/design-system/README.md`、`specs/ai-interaction-experience/spec.md`（规格以 #410 为准）。
+> - 文中 `coordination/2026-10-13/…` 都是远端分支 `coordination/handoff-2026-10-13` 上的文件（原来写的本机路径 `.claude/locks/…` 已统一改成这里）。
 >
 > **对本线的影响：**
 > 1. Molis main 现在的 SDK 包**不含带类型问卷**（`a06ae62e`）。C1+H1 在 Molis main 上要等采用线把统一包（Prologue main + Computer Use 分支合流后重打）换进 main 才能接；它现在叠在 #408 的分支上，那个包有问卷。#471/#472 也改了 C1+H1 会碰的 `prologue-node.ts`、`prologue-stream.ts`、`contracts/services/agent-host.ts`，合进来时要按 main 的新形状重做那部分。

@@ -5,14 +5,12 @@ import test from "node:test";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "../packages/plugin-sdk/src/index.js";
 import { sceneConfigurationActions, ActionError, bindActionClient, type ActionDefinition, type ActionSceneDefinition, type ActionSceneBinding, type ActionSceneHandlerBinding, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalActionGatewayClient, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/src/functions-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
-import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { grantMcpActions, revokeMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 test("unknown registered scenes can be authored in the real editor, retain missing references, and report actual plugin-owned usages", { timeout: 120_000 }, async t => {
@@ -22,7 +20,7 @@ test("unknown registered scenes can be authored in the real editor, retain missi
       score: null, legend: null, probabilities: {}, confidence: null, model: record.model }; },
   } };
   const browser = await openGoalBrowser(t, "seeded", undefined, null, undefined, functions); if (!browser) return;
-  const { localHost, store, projectId, homeDirectory, command, sessionId, evaluate, waitFor, click, navigate, reloadPage, origin } = browser;
+  const { localHost, store, projectId, homeDirectory, command, sessionId, evaluate, waitFor, click, navigate, reloadPage, origin, web } = browser;
   assert.ok(localHost); assert.ok(projectId);
   const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
   const sceneId = `Notes.Review:${randomUUID()}`;
@@ -144,13 +142,15 @@ test("unknown registered scenes can be authored in the real editor, retain missi
     assert.deepEqual((await bindActionClient(localHost.homeActionClient(), () => ({ ...manager, project_id: null })).invoke(functionContextActions.usages, { id: published.id })).usages, [], "global context must not borrow this project's usages");
     const mcpCaller: ActionCallContext = { actor_id: "runtime:scene-author", project_id: projectId, audience: "mcp", permissions: [] };
     const views = await localHost.inspectActions(mcpCaller, reference);
-    for (const definition of [functionContextActions.catalog, functionContextActions.usages, functionContextActions.targets, functionContextActions.configure, ...Object.values(sceneConfigurationActions(scene)), publishedFunctionAction(published), read, write]) {
-      const view = views.find(row => row.capability_id === definition.capability_id)!;
-      await writeMcpActionGrant(homeDirectory, createMcpActionGrant(mcpCaller.actor_id, view.action.scope === "home" ? null : projectId, view, true));
-    }
+    const viewOf = (definition: ActionDefinition) => views.find(row => row.capability_id === definition.capability_id)!;
+    // The MCP client is granted through the access settings, as a person grants it; the Host checks each grant against what the client can really use.
+    await grantMcpActions(web, { clientId: mcpCaller.actor_id, projectId, actions: [functionContextActions.catalog, functionContextActions.usages, functionContextActions.targets,
+      functionContextActions.configure, ...Object.values(sceneConfigurationActions(scene)), publishedFunctionAction(published), read, write].map(viewOf) });
+    // The cross-process gateway an MCP client process uses; the Host rereads the grants on every call.
+    const gateway = new LocalActionGatewayClient({ url: origin, homeDirectory, clientId: mcpCaller.actor_id, projectId, controlToken: browser.controlToken });
+    await gateway.discover(mcpCaller);
     const mcpQuery = async <I, O>(definition: ActionDefinition<I, O>, args: I): Promise<O> => {
-      const auth = await authorizeMcpActions(localHost, mcpCaller, homeDirectory, reference);
-      const ports = createActionMcpPorts({ service: auth.service, context: () => auth.context, serverInfo: { name: "scene-authoring", version: "1" } });
+      const ports = createActionMcpPorts({ service: gateway, context: () => mcpCaller, serverInfo: { name: "scene-authoring", version: "1" } });
       const response = await handleMcpMessage({ id: 1, method: "tools/call", params: { name: actionMcpToolName(definition), arguments: args } }, ports);
       const result = response!.result as { isError: boolean; content: { text: string }[] };
       assert.equal(result.isError, false, JSON.stringify(response));
@@ -171,14 +171,15 @@ test("unknown registered scenes can be authored in the real editor, retain missi
     await waitFor(`!!document.querySelector('${enableButton}') && !document.querySelector('${enableButton}').disabled`);
     await click(enableButton); await waitFor(`!!document.querySelector('${disableButton}')`);
     assert.equal(current(scene)?.enabled, true, "the web editor observes MCP changes and re-enables the same owner record");
-    const authorized = await authorizeMcpActions(localHost, mcpCaller, homeDirectory, reference);
     let targetReads = 0;
     onTargets = async () => {
-      if (++targetReads === 2) await writeMcpActionGrant(homeDirectory,
-        createMcpActionGrant(mcpCaller.actor_id, projectId, views.find(row => row.capability_id === sceneConfigurationActions(scene).disable.capability_id)!, false));
+      if (++targetReads === 2) {
+        const disable = viewOf(sceneConfigurationActions(scene).disable);
+        await revokeMcpAction(web, { clientId: mcpCaller.actor_id, projectId, action: { capability_id: disable.capability_id, version: disable.version, provider_id: disable.provider.provider_id } });
+      }
     };
     const beforeRevocation = current(scene)!;
-    await assert.rejects(authorized.service.invoke(authorized.context, functionContextActions.configure,
+    await assert.rejects(gateway.invoke(mcpCaller, functionContextActions.configure,
       { ...configure, expected_revision: beforeRevocation.revision, enabled: false }), { code: "mcp.action_revoked" });
     onTargets = undefined;
     assert.equal(current(scene)?.enabled, true, "a write grant revoked after discovery prevents disabling the original binding");

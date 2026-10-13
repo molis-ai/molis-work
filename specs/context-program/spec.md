@@ -1,8 +1,8 @@
 # 情境动作总纲：一个动作池、一条浮条、右栏与创建入口
 
-> 接续请先读文末「接续入口」（第 17 节）与第 16 节的证据。
+> 接续请先读文末第 20 节「远端交接（2026-10-13，当前接续入口）」，再读第 16 节的证据。第 17 节的旧交接已被取代。
 
-状态：执行中（2026-10-12）。完整设计与既有验收保留；W0 独立原型已在新 main 上构建、按实物打磨，工程用例与原型人工实操通过，产品接入、真实 Jev 评估与一骏本人验收未完成。现行基准、范围和逐项证据以[总纲第 15.7、16.2、16.3 节](../context-program/spec.md)为准；以下标为 2026-10-09 的现状表是历史快照，不代表本轮重新验证。
+状态：执行中（2026-10-13）。W0 原型、W1-1 到 W1-8、W1-2、W1-6、W2-0 与 W2（浮条取代底栏、Pages 迁到浮条）已在交接分支 #411 里做完并通过工程用例；真实 Jev 评估、桌面原生拖出、W2-02/05/08 的用例、#411 与 main 的冲突和归因比对未完成，没有一骏本人验收。现行范围、证据和下一步以[总纲第 16.4 节与第 20 节](../context-program/spec.md)为准；标为 2026-10-09 的现状表是历史快照。
 
 本文把三批需求合成一套设计，三份子需求书各管一块，交叉的地方以本文为准：
 
@@ -670,15 +670,7 @@ pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <�
 
 ## 17. 接续入口（2026-10-12）
 
-本分支 `feature/handoff-contextual-actions`（PR molis-ai/molis-work#411）保存 W0 原型、四份完整需求和原验收。本文及 context-toolbar、quick-create、side-shelf 是接续需求来源；交叉处以本文为准。2026-10-11 的远端交接（基点 `9f9bda551`、10 项逻辑测试、未运行浏览器）已被 16.2、16.3 取代。
-
-- **现在在哪**：W0 已在 origin/main `02ceba8c` 上构建、实操、打磨，工程用例通过（16.2、16.3）；只改了独立预览脚本、它的用例和本四份规格及索引，没有改产品 src、合同、SDK、Agent Host、门禁或预算。
-- **已定（统筹按用户的规则，用户验收时可推翻）**：首批「放进左边」清单与网页 / 讨论消息的对象种类名，已写回 side-shelf 5.4、§6、第 11 节与本文 8.3、§14。
-- **下一步**：按 §18 的 W1 切片与 PR 序列做产品接入，每片从最新 main 开分支；动大文件前先拆，每一步对照 §18.2 的门禁。真实 AI 接入用采用线的统一 SDK 包，不另带包；输入提交消费输入回执线的合同；右栏「电脑」格归 Computer Use 原负责人，只留位置。
-- **要先问统筹的**：两组真实 Jev 评估、桌面原生拖出（要真实凭据或真实环境）；推送、开或改 PR、合并、发布、改真实 Home。
-- [AI 交互](https://github.com/molis-ai/molis-work/tree/feature/handoff-ai-interaction/specs/ai-interaction-experience) 与 [输入回执](https://github.com/molis-ai/molis-work/tree/feature/handoff-ai-input-receipts/specs/ai-input-receipts) 有各自主人；本分支延续[设计 PR #180](https://github.com/molis-ai/molis-work/pull/180) 的完整需求，不整份覆盖回旧设计稿。
-
-本分支是 WIP，不是可发布产品。
+已被第 20 节「远端交接（2026-10-13）」取代。2026-10-12 之前的交接（W0 完成、W1 尚未开工的状态）只留在 git 历史里。
 
 ## 18. W1 实施计划（2026-10-12 规划，基于 origin/main `a091fb67`）
 
@@ -936,3 +928,126 @@ W2 自己的验收（在 T01–T09 之外）：
 | 浮条里的徽标与原因 | 「另一个插件的动作写明是谁的」 | 动作按钮和「更多」里的备注一律按「提供方不是当前聚焦的插件」判断（原先按「可用候选里最多的提供方」）；不可用的条目把原因排在名字下面 | 原来的判断在多个提供方时会给当前插件自己的条目也标上名字；E-10 要求原因在名字下面 |
 
 踩到的门禁规则（记给后面的片）：测试文件引用包内部（相对路径进 `src/`、`dist/`）新文件从 0 起，所以新测试走包入口，宿主内部逻辑只能经 `apps/local-host/src/index.ts` 的具名导出（W1-3、W1-7 各加几行）；Error 子类按文件计数，宿主新错误用 `defineErrorCodes` 声明的码（`contextual.*`）；`as unknown as` 与显式 `any` 在新测试里从 0 起，桩用 `stub<T>(value: object): T`；注释在页面脚本里按字节发给每个页面，长解释放进 TS 文件头。
+
+## 20. 远端交接（2026-10-13，当前接续入口）
+
+本节取代第 17 节。读它的人可能在另一台机器上，看不到本机的工作树、锁目录和别的会话：下面凡是本线要用的事实都写在这里，链接只是出处。本节写于用户 2026-10-13 的「先暂停一下」之后，所以「没做」里的事都等恢复通知再动。
+
+### 20.1 一句话现状
+
+| 级别 | 现状 |
+| --- | --- |
+| 工程 | W1 的合同、SDK 声明、内核派生、起草服务、浮条原件，以及 W2（浮条取代底栏、Pages 迁到浮条）都在交接分支里；合入 main `490251d1` 后，健康门禁（`--base origin/main`）与 `boundary:check` 通过，定向非浏览器用例 277/277，页面预算已按实测降低（16.4）。浏览器：新浮条用例（1440、390 宽）和重写后的情境用例通过；窗格类 6 个用例失败，还没有和干净基线比对（20.4） |
+| 开发者实操 | 只有 W0 独立原型（预览端口 4290，内置浏览器，1440 与手机宽度、浅色与深色，16.2）。**产品里的浮条还没有人在真实 Home 里点过**，只有 e2e 在隔离 Home 里走过 |
+| 用户验收 | 没有。一骏本人没有验收过浮条、创建入口、右栏任何一块 |
+
+两件拍板是统筹按用户的规则代定的，用户验收时可以推翻：首批「放进左边」只做 Pages 的三个确定性动作（插入到光标处、替换选中的文字、作为引用插入）；平台自带格的对象种类叫 `browser_page`、`discussion_message`（理由和被否的写法见 §14）。
+
+### 20.2 分支与 PR
+
+| 东西 | 状态 |
+| --- | --- |
+| Molis PR #411 = 分支 `feature/handoff-contextual-actions` | **本线唯一的提交位置**。推送的头是 `be29dd53`（之后只可能多交接文档的提交）。已合入 main 到 `490251d1`；GitHub 之后报告和 main 又有冲突，**没有解**（20.4 第 1 条）。远端：`git@github.com:molis-ai/molis-work.git` |
+| 原单开的 PR #429–#434、#445 | 统筹已关闭，每个留了评论指向 #411；提交都已经在 #411 里 |
+| PR #446（W1-6） | 提交 `e67cd28e` 已在 #411；统筹来关 |
+| 远端分支 `feat/context-w1-*`、`feat/context-w2-toolbar` | **旧版本，不要再推，也不要从它们开新分支**：内容已被 #411 取代（W2 在 #411 里是重新摘取的提交，不是这个分支）。可以删 |
+| 本机分支 `feat/context-w2-toolbar`（9fe0cf7f）、`feat/context-w2-bus-view`（cbfe997c） | 被 #411 里的新版本取代的旧版本，不推送 |
+| 用户规则（2026-10-13 02:10）：不再单开 Molis PR，每条线只往自己的交接 PR 提交 | 因为防腐线在同时改代码质量与架构，单开 PR 容易和它的改动冲突 |
+
+合进 main 的顺序由统筹定：#408（采用线）第一，**#411 第二**。批量全量、防腐复查、`Verify` 都过了统筹才合；本线不自己合。
+
+### 20.3 已完成（带证据级别）
+
+证据级别：**工程**＝单测、门禁、e2e 在隔离 Home 里通过；**实操**＝开发者在浏览器里按用户路径走过；**验收**＝用户本人。除 W0 有实操外，下面都只到工程。
+
+| 项 | 提交 | 内容 | 证据 |
+| --- | --- | --- | --- |
+| W0 打磨 | `6454915a` 起，16.2 | 独立原型：浮条、右栏、落点、创建入口的高保真切片，不改产品代码 | 工程：`tests/context-program-slice.test.ts` 13/13 与 e2e；实操：内置浏览器端口 4290 |
+| W1-3 合同 | `54c79004` | `SurfaceFocus` 加 `place`/`side_tab`/`screen`；`SurfaceLanding`；`ContextTools`/`ContextToolInvoke`/`CONTEXT_TOOL_LIMITS`（6 组、24 项、标签 24 字）；落点与创建入口的类型 | 工程：合同单测、API 快照；进了统筹的批量全量 |
+| W1-4 SDK 声明 | `e4062fce` | 写入类 command 可声明 `intake`（建成一个 Item）和 `attach`（加进已有对象） | 工程：`plugin-context-declarations`、`plugin-declaration-rules` 等 |
+| W1-5 内核派生 | `47c00b44` | 去处（创建入口、追加）作为候选进入排序，且只占推荐位；`packages/kernel/src/contextual/destinations.ts` | 工程：`contextual-destinations`、`contextual-landing` |
+| W1-7 起草服务 | `5af907b1` | `POST /api/contextual/draft`、`ContextualDraft`：用目标动作的输入 schema 当表单、选中文字当材料，一次结构化模型请求填文字与日期字段；模型缺席或出错也不丢用户的话 | 工程：`contextual-draft` |
+| W1-8 第一部分 | `c8a15bbf` | `skills/molis-plugin-dev/contextual.md`（插件作者怎样声明选区动作、`intake`、`attach`）与手册对应节 | 工程：文档引用门禁。覆盖率门禁没做（20.4） |
+| W1-1 拆文件 | `2d8a56dc` | 情境行的脚本拆成 `context-bar.ts`、`context-bus.ts` 与 `context-actions.ts` 工厂，外观不变 | 工程：`contextual-interaction.e2e` 等 |
+| W1-2 放置上移 | `f3b3c7e9` | 浮层怎么放（上、下、旁、留边距）移进设计系统叶子子路径 `@molis-ai/molis-work-design-system/floating`；Pages 删掉自己的副本 | 工程：`design-system-floating`、`pages-plugin` |
+| W1-6 浮条原件 | `e67cd28e` | 设计系统 `context-toolbar.ts`（页面程序＋样式）、`context-tools.ts`（工具有界封闭的清洗）、组件板一节；三个页面事件登记 | 工程：`context-toolbar.test.ts`，`context-toolbar.e2e` 1440/390 通过 |
+| W2-0 总线解耦 | `03ed8ed2` | 总线通过视图接口说话，不再依赖底栏 DOM | 工程：`pages-surface-naming` 新用例、`contextual-interaction.e2e` |
+| W2 切换（五个提交） | `4a1981da`、`83c638ef`、`d7529d86`、`4d1262b7`、`03d6528b` | 工作台顶层和每个分屏窗格各画自己的浮条；删掉底栏宿主与行样式（三份样式表各减约 8.5 KB）；Pages 的格式条与「AI」写作菜单删除，14 个工具作为 4 组 `ContextTools` 发布、点击回到编辑器执行；链接/评论/颜色/候选表单进浮条的面板槽；删 `molis:assistant-context-actions`、`molis:assistant-context-action-choose` 两个事件与合同常量；`molis:context-panel-open` 可取消并带 `keep` | 工程：门禁与定向用例通过；浏览器第一轮 119 个里 105 个通过，含新浮条 e2e 与重写后的 `contextual-interaction`（1440/390、候选写回、编辑后拒绝写入、「更多」等于方案、整篇在最后） |
+| 三处修复与预算 | `fb7fc705`、`88f39abc`、`40313fed`、`771b003e`、`44d551bc` | `client.ts` 不比 main 大；浮条动画改用共享动效令牌（`soft-workbench-refinement` 的「四个时长两条曲线」）；Pages 关编辑器时撤掉浮条面板；Pages 面板请求只在一处构造、工具直接发布；页面预算降到实测；本地基线重新生成 | 工程：重建后 277/277、健康门禁与边界检查通过。「离开文档浮条与面板消失」那一步在浏览器里**还没复跑确认** |
+| 防腐复查 | `1c76b258` | 16.4 | 清单机器项全过，人工项通过，记了三处缺口 |
+
+统筹的批量全量（main＋#442＋W1 合同那几片）结果：5893 过、38 败、9 取消，分布在 35 个文件，多数是浏览器用例；归因比对（把每个失败和干净基线对照）统筹在做，**W1 引入了哪几个还没有结论**。
+
+### 20.4 没完成
+
+1. **#411 与 main 的冲突**：GitHub 报告有冲突，没解。做法：`git fetch git@github.com:molis-ai/molis-work.git main`，合 `FETCH_HEAD`（不 rebase、不 force-push）；`package.json` 的 `test:security` 三方合并（两边都留）；`tooling/gates/page-assets.json`、`baseline.json`、`tooling/gates/api/**` 不手工合：取 main 的，再 `node scripts/gates/page-assets.mjs --update --base origin/main`、`node scripts/check-health-gates.mjs --update --base origin/main`、`node scripts/gates/api-snapshot.mjs --update` 重新生成；解完重跑防腐清单 M1、M2（`.claude/locks/ANTI-CORRUPTION-REVIEW.md` 的内容在 20.6 概述）。
+2. **6 个分屏浏览器用例失败**，两轮都败，还没和干净基线比对：`workbench-hidden-refresh`、`workbench-deferred-clients`、`workbench-tab-workspace`、`workbench-pane-feed` 的 3 个。失败形态是 CDP 超时和「Navigation did not finish」，当时机器负载均值约 30，所以可能是环境，也可能是窗格里的浮条（在窗格文档里多建了一个浮条）拖慢或卡住了页面。判断办法：用干净 main 的构建（统筹有基线工作树）跑同样 6 个文件对比，再在安静时段单独跑一遍。
+3. **小批浏览器用例复跑**：`contextual-interaction`、`context-toolbar`、`pages-actions`、`assistant-dock-ime`、`workbench-tab-workspace`、`workbench-deferred-clients`，确认「离开文档浮条与面板消失」的修复，并看 `assistant-dock-ime`（第一轮败，与底栏行无关，疑似负载）。
+4. **缺测试的验收编号**：W2-02（窗格里的浮条画在窗格自己的文档里；悬停或聚焦的按钮在判断到达时不移动；Esc 收起记「忽略」——需要一条分屏用例）、W2-05（⌘K 打开链接面板）、W2-08（开场建议选了动作后出错，经 `host.showToast` 显示）。W2-04 已改成「等着的结果不丢」（§19.8），对应用例在 `contextual-interaction.e2e`。
+5. **`skills/molis-plugin-dev/contextual.md` 的浮条章节**：给插件作者讲怎么发布工具、接收点击、请求面板、上报 `screen`。要点：根元素上派发 `molis:context-tools`（`{ context_id, groups }`）；点击回到同一个元素上的 `molis:context-tool-invoke`；`molis:context-panel-open` 可取消，浮条接住就 `preventDefault()`，没接住自己放表单，`node: null` 收起，等模型的结果带 `keep: true`；上报焦点时带 `screen: { rect }`（本文档视口坐标，纯数据，滚动后用同一个 `context_id` 再报）。样例：`plugins/native/pages/src/client.ts`。
+6. **W1-9 的门禁 PR**：让 API 快照门禁支持子路径（统筹已同意，要**单独**提 PR，因为改的是门禁本身；放宽或改门禁一律先问用户）。
+7. 还有（更靠后）：W1-8 的覆盖率门禁；SDK 页面端辅助函数；`attach` 的起草（W3）；段落把手入口（Pages 的 `renderMenu` 先要拆，排在 W7）；选区冻结（W2 决定 8 的原意，现在只做了「等着的结果不丢」）；右栏改版 W2'（side-shelf P1）、中枢接右栏与助理的 DOM 线（W3）、落点事件随 W3 登记。
+
+### 20.5 下一步，按顺序
+
+1. 解 #411 的冲突并推送（20.4 第 1 条）。前置：恢复通知；`secrets:check` 先过；不 force-push。
+2. 等统筹的归因比对；如果 6 个分屏用例是本线引入的（窗格里的浮条），先修；不是则记入 16.4。前置：browser 锁（`.claude/locks/slot.sh`，一次只一批）。
+3. 补 W2-02、W2-05、W2-08 的用例和浮条章节（20.4 第 4、5 条）。
+4. #411 合进 main 排在 #408 之后；统筹合。
+5. W1-9 门禁 PR（单独提，先告诉统筹）。
+6. W3 起（中枢接右栏、助理与落点；Pages 的落点；右栏改版）按第 9 节分期，每步先对照第 18.2、19.5 的门禁。
+
+**必须先问用户的**：两组真实 Jev 评估、桌面原生拖出（要真实凭据或真实环境）；合并 main、发布、改真实 Home（端口 4207/4173）、放宽门禁、读真实凭据。**右栏「电脑」那一格归 Computer Use 原负责人**，本线只留位置。真实 AI 接入用采用线（adoption，#408）的统一 SDK 包，不另带包。
+
+### 20.6 跨线约定与防腐交界
+
+- **输入回执线**：情境条把「手上 + 落点」放进现有的 `AssistantSendInput.context` 与 `materials`，回执（`AgentInputView`，子路径 `services/agent-inputs`）只记用户的话，不带附带的情境与材料。
+- **互动线**：与输入框同排的按钮只放对话的下一步，页面选区动作走浮条；输入框上方留一个独立槽挂「手上 + 落点」情境条。`catalog-examples.ts` 是组件板扩展点，谁先合谁先加，后合的解冲突，两边的行都留。
+- **采用线**：真实模型调用只经 `horizontal/agent-host`；本线的起草服务用 Host 的文字模型请求，不另接模型。
+- **防腐在途片**（完整表在统筹的 `ANTI-CORRUPTION-REVIEW.md` §4，和本线直接相关的）：新声明字段的交叉检查加在 SDK 的 `action-declarations.ts`/`action-cross-references.ts`，不加回 contracts（W3-03/05）；选区推荐保持只给工作台的 HTTP，要让助理、工作流或 MCP 用它就触发删除条件，先找统筹（W3-04）；所有 AI 写入路径从一开始带读到的版本（W3-09-3，包括起草）；新的浏览器请求用 `packages/ui-host/src/request-client.ts`，W3-10-4 与本线同文件（`assistant-island.ts` 包装、`placement.ts`、情境动作、`initialization.ts`），动之前先问统筹；新错误码写成 `defineErrorCodes("contextual", …)`（本线的主人名 `contextual`，目录 `apps/local-host/src/contextual/`）；新测试走公开入口，不新增对包内部源码的引用；巨大单元（`assistant-island.ts`、`craft-finish.ts`、`tab-workspace.ts`、`editor-browser.ts`）只减不增。
+- **每次把 main 合进 #411 之后**：对本线 diff 跑一遍防腐清单（机器 16 条：`boundary:check`、健康门禁、API 与动作快照、页面资源、lint、DOM 事件、翻译、测试引用等；人工 27 条），结果写进 16.4。
+
+### 20.7 决策记录要点（全部在第 14 节与 19.8）
+
+- 一个动作池、一个情境中枢、一次判断、一条浮条、一条执行路径；底部动作条取消。写进人眼前正在编辑的对象一律先预览。
+- 首批「放进左边」只做 Pages 三个确定性动作；`browser_page`、`discussion_message`（上面 20.1）。
+- W1：页内锚点叫 `SurfaceFocus.screen`；`intake`、`attach` 声明在被指向的写入动作上，撤销沿用动作已有的 `undo`；浮条按钮 32/28/44px、`--lift-2`，菜单与面板 `--lift-3`。
+- W2：浮条程序在设计系统、只进工作台脚本与样式；顶层和窗格各画一条，总线只在顶层；删两个只为写作菜单存在的事件。**与计划不同的三处**：面板不冻结选区，改为「等着的结果不丢」（`keep`）；开场建议的错误用提示条；✦助理沿用把文字放进助理输入框、不发送的现有入口。
+- 压缩：页面程序过 `compactScript`（去缩进、空行、整行注释）。
+
+### 20.8 工作规则（用户的原话，经统筹转达）
+
+- 「优先开发，全量回归测试不用每次都触发，攒一波一起弄，除非必须」：每片只跑 `node scripts/affected-tests.mjs` 选出的定向用例（含受影响的浏览器用例）；全量由统筹在集成分支上批量跑，结果分给各线。整机同时最多一个构建、一个浏览器用例批次（`slot.sh` 的 build、browser 两把锁，用完立刻放，等锁的脚本用 trap 兜底）；停进程只用 `kill <pid>`，不用 `pkill`。
+- 拍板：技术决策按防腐线的后果判断，功能决策按对用户 UI 交互与使用体验最好的推荐走；本线内的决定写进 §14 并在汇报里列出，跨线或改范围的找统筹。仍先问用户：合并 main、发布、真实 Home 或安装版、放宽门禁、读真实凭据。**拍板不等于用户验收。**
+- 「不用单开PR，每个线都只在之前的交接PR里commit，因为有另外的防腐线在做代码质量和架构升级，所以单开PR的话，如果防腐有改动，容易导致架构问题」。
+- 「先推进按照当前main的代码开发功能，如果几条线之前有依赖关系，从main拉取最新代码合并入各自分支之后按照防腐线防腐要求进行复查，确保需求迭代的同时不与防腐要求冲突，几条线的开发顺序由你统筹」。
+- 「先暂停一下」（2026-10-13）：全部会话停在安全点，不推送、不开新任务，等统筹的恢复通知。
+- 提交署名 `jing xu <jing.xu.sandra@gmail.com>`，推送用 SSH 地址 `git@github.com:molis-ai/molis-work.git`，推前跑 `node scripts/check-secrets.mjs`；不放宽、跳过或删除断言；不碰真实 Home。原文另见统筹分支 `coordination/handoff-2026-10-13` 的 README。
+
+### 20.9 已知问题
+
+- **页面资源字节两个方向都不容差**：变大会被拒，比预算小也要在同一个 PR 里用 `--update --base origin/main` 降到实测值（所以合 main 后预算几乎一定要重新生成）。`workbench.js` 现在比 main 小 607 字节，`pages-editor.js` 小 5.1 KB；任何新增都要同时删等量。
+- **`pages-editor.js` 压线**：编辑器是巨大单元（`editor-browser.ts` 约 3870 行、`mount` 要继续变短），往里加行会被门禁拒。
+- **两个近似的压缩函数**：工作台的 `served()`（`builtin-plugins.ts`，插件客户端脚本）和设计系统的 `compactScript`（情境脚本，还去空行）。应并成一个，会动所有插件的资源，留给页面资源门禁的主人。对整个 `workbench.js` 拼装处用 `compactScript` 预计能少几十 KB，已证明情境脚本和 Pages 脚本压缩前后语义相同，别的脚本需逐个验证。
+- **批量全量里 W1 的浏览器失败还没归因**；`runtime-integration.test.ts` 在 CI 上败过一次，本机一次败一次过，疑似不稳。
+- 本机 `touch-targets.e2e` 有 4 个在干净 main 上也败的用例（不是本线）。
+- 本线没有往 `tests/ci-product-subset.txt` 加用例；W2-02 的分屏用例若又快又稳可以加。
+
+### 20.10 怎么复现
+
+没有 `pnpm` 在 PATH 里时，先把装有 pnpm/corepack 的目录加进 PATH。构建和浏览器用例要走锁（`.claude/locks/slot.sh`，在统筹的主检出里）：
+
+```sh
+pnpm install --frozen-lockfile --offline
+pnpm build                                              # 改过 */src、scripts、package.json 后先整体构建
+node scripts/check-health-gates.mjs --base origin/main
+pnpm boundary:check
+node scripts/gates/page-assets.mjs --base origin/main   # 构建后
+node scripts/affected-tests.mjs --list --unit-only      # 选出的非浏览器用例
+node scripts/run-tests.mjs tests/pages-surface-naming.test.ts tests/context-toolbar.test.ts tests/soft-workbench-refinement.test.ts tests/pages-plugin.test.ts tests/dom-events-contract.test.ts tests/design-system-floating.test.ts tests/contextual-*.test.ts
+node scripts/run-tests.mjs tests/context-toolbar.e2e.test.ts tests/contextual-interaction.e2e.test.ts tests/pages-actions.e2e.test.ts   # 浏览器，需要本机 Chrome
+```
+
+W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <隔离标识> --port 4290`，端口 4290 写在本树未入库的 `.claude/launch.json`。产品里的浮条没有单独的预览入口：用 `tests/fixtures/goal-browser.ts` 的隔离 Home（`openGoalBrowser`），e2e 就是这样走的。
+
+**不用构建就能量页面字节**（构建要排锁，量一次要几分钟）：用一个 Node 加载钩子把 `.ts` 用 TypeScript 的 `transpileModule` 转成 JS、把 `@molis-ai/molis-work-*` 指到各包的 `src`，再 `import` 脚本模块、对导出的脚本字符串取 `Buffer.byteLength`。用 TypeScript 转译而不是 esbuild，因为页面程序里 `.toString()` 带进去的函数文本要和 `tsc` 的产出一致；量 HEAD 和工作树各一次比较。这样量出的数与构建后的 `page-assets.mjs` 一致（工作台脚本、`pages.js` 都对上了）。最终以构建后的 `page-assets.mjs` 为准。

@@ -412,7 +412,8 @@ export function bindActionClient(client: ActionClient, context: () => ActionCall
       return await client.invoke(control ? { ...caller, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context,
         validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); },
         assert_authority_current: (reference, requiredPermissions) => {
-          requireSynchronous(control.assert_authority_current?.(reference, requiredPermissions), "最终授权检查必须同步完成");
+          // The control belongs to its original caller; the bound caller owns the child's reference and permissions.
+          requireSynchronous(control.assert_authority_current?.(), "最终授权检查必须同步完成");
           requireSynchronous(caller.assert_authority_current?.(reference, requiredPermissions), "最终授权检查必须同步完成");
         } } : caller, definition, input) as Output;
     } };

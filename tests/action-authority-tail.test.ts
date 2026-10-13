@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { ActionError, bindActionClient, retainActionAuthority, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionProviderRegistration,
+import { ActionError, bindActionClient, retainActionAuthority, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionProviderRegistration, type ActionReference,
   type ActionSceneBinding, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const caller: ActionCallContext = { actor_id: "owner", project_id: "project", audience: "user", permissions: ["fixture:write", "fixture:consume", "fixture:configure"] };
@@ -69,6 +69,46 @@ const scene: ActionSceneDefinition = { scene_id: "fixture.tail.consume", version
   permissions: ["fixture:consume"], configuration_permissions: ["fixture:configure"] };
 const binding: ActionSceneBinding = { binding_id: "slot", scene_id: scene.scene_id, scene_version: 1, project_id: "project", enabled: true, title: "Actual slot",
   function: { ...judgment, provider_id: "judgments" }, revision: "1" };
+
+test("W3-09-AUTH-03 a bound child uses its own caller's exact grant while control retains only the real parent's authority", async () => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let held = false, parentGranted = true, writes = 0;
+  const parent = { ...effect, capability_id: "fixture.tail.parent", action: { ...effect.action, permissions: ["fixture:parent"] } };
+  const child = { ...effect, capability_id: "fixture.tail.bound-child", action: { ...effect.action, permissions: ["fixture:child"] } };
+  const service = new ActionService(undefined, { beforeEffect: async (_caller, target) => {
+    if (held && target.capability_id === child.capability_id) { entered.resolve(); await release.promise; }
+  } });
+  const principal = (actor: string, action: ActionDefinition, provider: string, active: () => boolean): ActionCallContext => {
+    const reference = { capability_id: action.capability_id, version: action.version, provider_id: provider };
+    const check = (target?: ActionReference, permissions: readonly string[] = []) => {
+      if (!active()) throw new ActionError("fixture.parent_revoked", "The original parent's grant was revoked");
+      if (target && (target.capability_id !== reference.capability_id || target.version !== reference.version || target.provider_id !== reference.provider_id)) {
+        throw new ActionError("actions.forbidden", "This caller has no grant for another caller's target");
+      }
+      if (!permissions.every(permission => action.action.permissions.includes(permission))) throw new ActionError("actions.forbidden", "This caller has no other permissions");
+    };
+    return { ...caller, actor_id: actor, permissions: action.action.permissions, allowed_actions: [reference],
+      validate_authority: async target => { await Promise.resolve(); check(target); },
+      validate_permissions: async permissions => { await Promise.resolve(); check(undefined, permissions); }, assert_authority_current: check,
+    };
+  };
+  const parentCaller = principal("parent", parent, "parent", () => parentGranted);
+  const childCaller = principal("child", child, "child", () => true);
+  const removeChild = service.registerProvider({ provider: { provider_id: "child", title: "Child", kind: "system" }, definitions: [child],
+    handlers: [{ ...child, handle: async context => { await context.beforeEffect(); return ++writes; } }] });
+  const removeParent = service.registerProvider({ provider: { provider_id: "parent", title: "Parent", kind: "system" }, definitions: [parent],
+    handlers: [{ ...parent, handle: context => bindActionClient(service, () => childCaller).invoke(child, {}, context) }] });
+  try {
+    assert.equal(await service.invoke(parentCaller, parent, {}), 1, "neither caller needs the other caller's exact grant or permissions");
+    held = true;
+    const pending = service.invoke(parentCaller, parent, {}), rejected = assert.rejects(pending, { code: "fixture.parent_revoked" });
+    await Promise.race([entered.promise, pending.then(() => { throw new Error("Bound child settled before its final wait"); })]);
+    parentGranted = false; held = false; release.resolve(); await rejected;
+    assert.equal(writes, 1, "the authorized child cannot borrow its own grant to keep the revoked parent alive");
+    parentGranted = true;
+    assert.equal(await service.invoke(parentCaller, parent, {}), 2);
+  } finally { held = false; release.resolve(); removeParent(); removeChild(); }
+});
 
 function sceneFixture(fail = false) {
   const service = new ActionService(), bindings = new Map<string, ActionSceneBinding>();

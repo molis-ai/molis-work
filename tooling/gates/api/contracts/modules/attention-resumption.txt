@@ -81,6 +81,11 @@ export interface CreateAttentionEntryInput {
     at?: string;
 }
 
+export declare const inboxErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly entry_not_found: "not_found";
+    readonly invalid: "invalid";
+}>;
+
 export declare const modulesAttentionResumptionContract: {
     readonly contractId: "io.molis.work.module.attention-resumption.v1";
     readonly kind: "module";

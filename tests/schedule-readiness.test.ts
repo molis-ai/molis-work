@@ -12,9 +12,10 @@ import {
 } from "@molis-ai/molis-work-app-local-host";
 import {
   SCHEDULE_ACTION_PERMISSIONS, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_NATIVE_PLUGIN_ROUTES, SchedulePluginRouteTable,
-  createScheduleRouteHandlers, scheduleActions as s, scheduleRouteErrorResponse, scheduleUiContribution,
+  createScheduleRouteHandlers, scheduleActions as s, scheduleUiContribution,
   type ScheduleUiModel,
 } from "@molis-ai/molis-work-plugin-schedule";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { directScheduleActions } from "./schedule-direct-actions.js";
 
 // W2-18 decision 3: creating a scheduled task without a model or a bound workspace shows a hint in the dialog and still
@@ -98,8 +99,8 @@ test("a Host that gives no readiness check answers the way other missing host po
   const bound = directScheduleActions({ listJobs: () => [], setEnabled: unused, listTasks: () => [], recoverReminder: unused, createTask: unused, updateTask: unused,
     archiveTask: unused, setTaskEnabled: unused, openTask: unused });
   const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ actions: bound, changed: () => undefined }));
-  const answered = await routes.handle({ method: "GET", pathname: "/api/schedule/readiness", query: new URLSearchParams(), body: {} }).catch(scheduleRouteErrorResponse);
-  assert.equal(answered?.status, 503);
+  const answered = await routes.handle({ method: "GET", pathname: "/api/schedule/readiness", query: new URLSearchParams(), body: {} }).catch(actionErrorResponse);
+  assert.deepEqual([answered?.status, (answered?.body as { code: string }).code], [503, "actions.unredeemed"]);
 });
 
 test("the create dialog carries two hidden hints, one per missing thing, and nothing in it blocks creating", () => {

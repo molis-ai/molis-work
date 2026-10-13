@@ -12,13 +12,12 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { artifactActionProvider } from "../apps/local-host/src/artifact-actions.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
-test("Artifacts share real records through Host and production MCP, preserving fixed versions, authority and restart", { timeout: 120_000 }, async () => {
+test("Artifacts share real records through Host and production MCP, preserving fixed versions, authority and restart", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "artifacts-actions-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Artifact actions", actor_id: "owner" });
@@ -26,6 +25,8 @@ test("Artifacts share real records through Host and production MCP, preserving f
   const policy = projectActionAvailability(async (_options, run) => run(catalog), home);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: policy,
     workspaceFor: async () => ({ workspace_id: "fixture", canonical_path: await realpath(home), realpath_verified: true }) });
+  // The Home is served so that the MCP client's grants are saved the way a person saves them; this file keeps its own host (it needs `src` imports of the provider).
+  const served = await serveTestHost(t, { home, host });
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
@@ -60,10 +61,8 @@ test("Artifacts share real records through Host and production MCP, preserving f
     await host.closeProject(ref);
     assert.deepEqual((await bound.invoke(a.read, { reference: { artifact_id: first.artifact_id, version: 1 } })).selected, record);
 
-    for (const definition of [a.importFile, a.read, a.browser, a.export]) {
-      await writeMcpActionGrant(home, createMcpActionGrant("runtime:writer", project.project_id,
-        directory.find(row => row.capability_id === definition.capability_id)!, true));
-    }
+    const view = (definition: { capability_id: string }) => directory.find(row => row.capability_id === definition.capability_id)!;
+    await served.grant("runtime:writer", project.project_id, [a.importFile, a.read, a.browser, a.export].map(view));
     const sdk = await connect("writer");
     assert.ok((await sdk.listTools()).tools.some(tool => tool.name === molisWorkActionToolName(a.importFile)));
     const result = await sdk.callTool({ name: molisWorkActionToolName(a.importFile), arguments: { ...input, content: "MCP 原文" },
@@ -78,8 +77,7 @@ test("Artifacts share real records through Host and production MCP, preserving f
     assert.deepEqual((read.structuredContent as any).selected, mcpRecord);
     const stranger = await connect("stranger");
     assert.equal((await stranger.callTool({ name: molisWorkActionToolName(a.read), arguments: { reference: exact } })).isError, true);
-    const grant = createMcpActionGrant("runtime:writer", project.project_id, directory.find(row => row.capability_id === a.importFile.capability_id)!, false);
-    await writeMcpActionGrant(home, grant);
+    await served.revoke("runtime:writer", project.project_id, [view(a.importFile)]);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(a.importFile), arguments: { ...input, content: "撤权后不能保存" } })).isError, true);
     assert.equal((await bound.invoke(a.browser, {})).versions.length, 2);
     catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" });
@@ -88,7 +86,7 @@ test("Artifacts share real records through Host and production MCP, preserving f
     catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" });
     assert.deepEqual((await bound.invoke(a.read, { reference: exact })).selected, mcpRecord);
   } finally {
-    await Promise.all(clients.map(value => value.close())); await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
+    await Promise.all(clients.map(value => value.close())); await served.close(); await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
   }
 });
 

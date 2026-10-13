@@ -63,7 +63,7 @@ Home 里有 30 种 SQLite 文件：权威库 26 种（Home 级 23 种，按项�
 
 ### 3.3 个人插件库（Home 级，`{home}/<名>/<名>.db`）
 
-路径由 `homeSqlitePath` 给出（`packages/storage/src/home-sqlite.ts:28`），目录权限 0700、文件 0600（`:32-43`）。备份都是必备份，卸载都是 purge（目录在 `PERSONAL_HOME_SQLITE_STORES`，`packages/storage/src/home-sqlite.ts:6-24`）。库里按 `project_id` 分区的行，删除项目时由各 owner 清理（`docs/platform/STORAGE-AND-EXCHANGE.md:21`；各插件包的 `project-data.ts`，登记在 `apps/local-host/src/project-deleted-owners.ts`）。`lingguang/` 目录里除库以外还有 `imports/`、`models/`、`material-upload-*`，见 6.2。
+路径由 `homeSqlitePath` 给出（`packages/storage/src/home-sqlite.ts:28`），目录权限 0700、文件 0600（`:32-43`）。备份都是必备份，卸载都是 purge（目录在 `PERSONAL_HOME_SQLITE_STORES`，`packages/storage/src/home-sqlite.ts:6-24`）。项目里的 Runtime 插件由宿主启动名单声明的库（`PluginPlatformEntry.database`，W3-06 D）也只能用这份清单里的名字，不在清单里的名字名单不启动（`apps/local-host/src/plugin-database-entries.ts`），所以清单就是这类库的登记；清单里宿主自己的库（`functions`、`connectors`、`context-onboarding`、`search`、`memory`、`server`、`plugin-runtime`、`issues`）另有一份临时拒绝名单，等 W4-11 的登记表取代。库里按 `project_id` 分区的行，删除项目时由各 owner 清理（`docs/platform/STORAGE-AND-EXCHANGE.md:21`；各插件包的 `project-data.ts`，登记在 `apps/local-host/src/project-deleted-owners.ts`）。`lingguang/` 目录里除库以外还有 `imports/`、`models/`、`material-upload-*`，见 6.2。
 
 | 路径 | owner 与打开它的代码 | 版本 · 日志 | 表 |
 | --- | --- | --- | --- |

@@ -6,7 +6,8 @@ import { charactersSettingsUiContribution, charactersUiContribution } from "./ui
 import type { CharactersImportPorts } from "./imports.js";
 import { characterBrowserPreview, characterSnapshotPreview, characterFilePreview } from "./import-preview.js";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, bindOwnerPluginAction, referencesAction, searchEntriesPage, subjectContext, type ActionDefinition, type ActionUsage, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, referencesAction, searchEntriesPage, subjectContext, type ActionDefinition, type ActionUsage, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { charactersActions, type CharacterLaunchInput } from "./actions.js";
 import { charactersArtifactPreviewHandler } from "./artifact-preview.js";
 

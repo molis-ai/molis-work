@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import type { ActionView, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
@@ -50,9 +51,11 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "project", storage_key: "memory:project" };
   const seen: unknown[] = [];
+  /** The call number each action handler was given, in the order the tools ran. */
+  const calls: Array<string | undefined> = [];
   const unregister = local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, definitions: [write, count],
-    handlers: [{ ...write, handle(context, input) { seen.push(input); notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, context.audit_actor_id ?? null); return { saved: true }; } },
-      { ...count, handle() { return Number(notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n); } }] });
+    handlers: [{ ...write, handle(context, input) { seen.push(input); calls.push(context.call_id); notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, context.audit_actor_id ?? null); return { saved: true }; } },
+      { ...count, handle(context) { calls.push(context.call_id); return Number(notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n); } }] });
   const requests: any[] = [];
   let turn = 0;
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
@@ -72,7 +75,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user", options.now);
-  return { service, store, host, adapter, queue, notes, seen, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, store, host, adapter, queue, notes, seen, calls, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a project work finds, reads and — after the person approves the exact input — changes through the gateway, with no directory", { timeout: 60_000 }, async t => {
@@ -102,6 +105,45 @@ test("a project work finds, reads and — after the person approves the exact in
     const verbs = done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`);
     assert.deepEqual(verbs, ["lookup:completed", "read:completed", "change:completed"]);
     assert.equal(done.rounds[0]!.activity[2]!.target, "Notes · Save a note");
+  } finally { await f.close(); }
+});
+
+test("every tool call of an Assistant round has the number of the request that sent the message, and the run's frozen record keeps it", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "find-capabilities", input: { query: "Notes" } }),
+    () => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } }),
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "numbered" } } }),
+    () => reply(undefined, "Saved."),
+  ]);
+  try {
+    const page = newCallId();
+    const sent = await withCallId(page, () => f.service.send({ text: "Save a numbered note", request_id: "req-00000401" }, { project_ref: f.project }));
+    const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    // The person decides later, in a request of its own: the tool call that follows still belongs to the round.
+    await withCallId(newCallId(), () => f.service.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" }));
+    await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.equal(f.calls.length, 2, "the round read, then changed");
+    assert.deepEqual(f.calls, [page, page]);
+    const work = f.store.get("web-user", sent.work.work_id);
+    assert.equal((await f.adapter.read({ session_id: work.session_id!, run_id: sent.run_id! })).frozen.call_id, page);
+  } finally { await f.close(); }
+});
+
+test("a round the Assistant starts outside any request has a number of its own, and its tools share it", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "find-capabilities", input: { query: "Notes" } }),
+    () => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } }),
+    () => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } }),
+    () => reply(undefined, "Counted twice."),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "Count the notes twice", request_id: "req-00000402" }, { project_ref: f.project });
+    await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.equal(f.calls.length, 2);
+    assert.match(f.calls[0] ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-/, "a number the Host gave");
+    assert.equal(f.calls[1], f.calls[0]);
+    const work = f.store.get("web-user", sent.work.work_id);
+    assert.equal((await f.adapter.read({ session_id: work.session_id!, run_id: sent.run_id! })).frozen.call_id, f.calls[0]);
   } finally { await f.close(); }
 });
 

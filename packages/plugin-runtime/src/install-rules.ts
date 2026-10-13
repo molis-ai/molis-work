@@ -25,7 +25,9 @@ export function keptDataRefusal(previous: PluginInstanceRecord | null, manifest:
  * one, and nothing lets the person switch a built-in permission off one at a time. It is the one answer for a first install
  * (`PluginRuntime.install`), for a record moved onto the build (`followBundledBuild`) and for a record that lacks one of them
  * (`recordToFollow`), whatever grants a caller names: a first install that honoured a narrower list would be widened by the next
- * start, and the start after that would meet a repeated install whose own list differs from the record and refuse it.
+ * start, and the start after that would meet a repeated install whose own list differs from the record and refuse it. Only for
+ * code the Host runs itself: `PluginRuntime.install` refuses `bundled` for a sandboxed definition, whose permissions are what
+ * the person confirmed and never what its Manifest declares.
  */
 export function bundledGrants(manifest: PluginManifest): string[] {
   return normalizeGrants(manifest, manifest.permissions.map(permission => permission.permission));

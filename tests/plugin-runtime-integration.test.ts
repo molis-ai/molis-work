@@ -645,7 +645,7 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
         inputs: [],
         outputs: [{ port: "project", artifact_type_id: "audit.project", schema_version: 1 }],
       },
-      artifacts: { produces: [{ artifact_type_id: "audit.project", schema_version: 1 }], consumes: [] },
+      process_items: { produces: [{ artifact_type_id: "audit.project", schema_version: 1 }], consumes: [] },
       events: {
         publishes: [{ event_type_id: eventType, type_version: 1 }],
         subscribes: [],
@@ -664,7 +664,7 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
         inputs: [{ port: "project", artifact_type_id: "audit.project", schema_version: 1 }],
         outputs: [],
       },
-      artifacts: { produces: [], consumes: [{ artifact_type_id: "audit.project", schema_version: 1 }] },
+      process_items: { produces: [], consumes: [{ artifact_type_id: "audit.project", schema_version: 1 }] },
       events: {
         publishes: [],
         subscribes: [{ event_type_id: eventType, type_version: 1, from_plugin_ids: [producerId] }],
@@ -808,8 +808,8 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
   });
   assert.deepEqual(received, [{ path: "src/a.ts" }], "撤销后的新投递不能拿到活动实例");
   assert.equal(delivered.length, 1, "撤销后的输入不能拿到活动实例");
-  assert.equal(denied?.status, 404);
-  assert.deepEqual(denied?.body, { error: "plugin_not_enabled" });
+  assert.equal(denied?.status, 403);
+  assert.deepEqual(denied?.body, { error: "此项目未启用该插件", code: "actions.plugin_disabled" });
   assert.equal(routes, 1);
 
   await supervisor.start(entries);

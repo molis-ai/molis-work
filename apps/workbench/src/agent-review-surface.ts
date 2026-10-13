@@ -5,7 +5,8 @@ import type {
   AgentReviewStatus,
   AgentReviewRecoveryView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { compareTexts, textDiffRow, type TextDiffRow } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import type { TextDiffRow } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { compareTexts, textDiffRow } from "@molis-ai/molis-work-plugin-sdk";
 
 /**
  * The Host's review surface: where a user decides whether an Agent's side

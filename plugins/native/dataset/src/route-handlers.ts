@@ -1,6 +1,6 @@
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { datasetActions } from "./actions.js";
-import type { DatasetPluginRouteContext, DatasetPluginRouteHandler, DatasetPluginRouteResponse } from "./routes.js";
+import type { DatasetPluginRouteContext, DatasetPluginRouteHandler } from "./routes.js";
 
 export interface DatasetRoutePorts {
   readonly actions: BoundActionClient;
@@ -34,12 +34,4 @@ export function createDatasetRouteHandlers(ports: DatasetRoutePorts): Record<str
     "dataset.snapshot": call(datasetActions.snapshot, identified),
     "dataset.rollback": call(datasetActions.rollback, identified),
   };
-}
-
-export function datasetRouteErrorResponse(error: unknown): DatasetPluginRouteResponse {
-  const code = error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : "";
-  const message = error instanceof Error ? error.message : "数据表请求失败";
-  const status = code === "dataset.not_found" ? 404 : ["dataset.unavailable", "dataset.conflict", "dataset.publication_pending", "dataset.publication_conflict"].includes(code) ? 409
-    : ["actions.forbidden", "actions.scope_mismatch", "dataset.publication_owner"].includes(code) ? 403 : 400;
-  return { status, body: { error: message, ...(code ? { code } : {}) } };
 }

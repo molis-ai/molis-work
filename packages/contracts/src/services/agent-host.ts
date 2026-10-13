@@ -1,4 +1,4 @@
-import type { ActionView, ExactActionReference } from "../platform/actions.js";
+import type { ActionCallOrigin, ActionView, ExactActionReference } from "../platform/actions.js";
 import type {
   AgentPromptLayer,
   AgentPromptText,
@@ -478,7 +478,7 @@ interface AgentFrozenStartFields {
   image_materials?: Array<{ material_id: string; title: string; media_type: string }>;
   budget: AgentRunBudget | null;
 }
-export type AgentFrozenStart = AgentFrozenStartFields & AgentWorkspace;
+export type AgentFrozenStart = AgentFrozenStartFields & AgentWorkspace & ActionCallOrigin;
 
 interface AgentCreateSessionFields {
   project_id: string;
@@ -1231,8 +1231,8 @@ export interface AgentRecoveryCapability {
   close(session: AgentSessionRef, runId: string, expectedVersion: number): Promise<AgentRecoveryReport>;
 }
 
-/** Host-owned, in-memory authority checks; never part of a Plugin payload or persisted run. */
-export interface AgentStartExecution {
+/** Host-owned, in-memory: authority checks, and the call number the Host gave the round (never from a Plugin payload). */
+export interface AgentStartExecution extends ActionCallOrigin {
   beforeStart?(): void | Promise<void>;
   /** Live owner authority, valid beyond the start invocation's lifetime. */
   beforeDispatch?(): void | Promise<void>;

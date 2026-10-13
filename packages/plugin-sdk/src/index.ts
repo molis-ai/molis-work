@@ -5,9 +5,12 @@ import { parsePluginManifest, PluginManifestError } from "./manifest.js";
 export { parsePluginManifest, PluginManifestError, comparePluginVersions } from "./manifest.js";
 export { inspectActionDeclarations } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
+/** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */
+export { DIFF_STEP_BUDGET, splitLines, joinLines, reconstructSides, compareTexts, textDiffRow, alignSplitRows } from "./text-diff.js";
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineAction } from "./actions.js";
-export { bindPluginActionRoute, bindOwnerPluginAction } from "@molis-ai/molis-work-contracts/platform/actions";
+/** The two binders: an HTTP route over an action, and an action over the local owner's personal state. A route answers a failure by its kind. */
+export { bindPluginActionRoute, bindOwnerPluginAction } from "./routes.js";
 /** One error model: raise `ActionError`s whose codes your plugin declares once with `defineErrorCodes`; the Host's edge answers them by kind. */
 export { ActionError, defineErrorCodes, type ActionErrorKind, type ActionErrorOptions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { actionErrorKind, actionHttpStatus, actionErrorBody, actionErrorResponse, actionErrorFromResponse, type ActionErrorBody, type ActionErrorBodyOptions } from "./errors.js";
@@ -29,7 +32,12 @@ export type {
   PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,
   PluginUiClient, PluginHostServices,
   PluginDatabase, PluginDatabaseReader, PluginDatabaseTransaction, PluginDatabaseDeclaration, PluginSqlValue, PluginSqlRow,
+  PluginModelClient, PluginModelRequest, PluginModelResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
+/** The Host's text model for a plugin it runs itself: `context.services.model`, with the instructions the plugin registers (`PluginDefinition.instructions`). */
+export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+export type { InstructionPrompt, InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 export type { UiContribution, UiContributionDescriptor, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 

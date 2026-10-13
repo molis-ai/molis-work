@@ -252,7 +252,7 @@ export interface AgentFrozenRole {
     host_tools: string[];
 }
 
-export type AgentFrozenStart = AgentFrozenStartFields & AgentWorkspace;
+export type AgentFrozenStart = AgentFrozenStartFields & AgentWorkspace & ActionCallOrigin;
 
 export interface AgentFrozenSubagentRole {
     role_id: string;
@@ -1168,7 +1168,7 @@ export interface AgentSkillsCapability {
     catalog(session: AgentSessionRef): Promise<AgentSkillCatalogEntry[]>;
 }
 
-export interface AgentStartExecution {
+export interface AgentStartExecution extends ActionCallOrigin {
     beforeStart?(): void | Promise<void>;
     beforeDispatch?(): void | Promise<void>;
 }

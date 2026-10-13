@@ -1,4 +1,4 @@
-import type { TextDiffRow } from "./text-diff.js";
+import type { TextDiffRow } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 /**
  * Reading a unified diff that somebody else already computed.

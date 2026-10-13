@@ -1,6 +1,6 @@
 /** Functions workbench: purpose, rules, then preview and activation. */
 export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, feedApi, root, page } = host;
+  const { translate: L, api, root, page } = host;
   const bench = root.matches?.("[data-functions=workbench]") ? root : root.querySelector("[data-functions=workbench]");
   if (!bench || bench.dataset.bound === "1") return; bench.dataset.bound = "1";
   const list = bench.querySelector("[data-functions=directory]");
@@ -181,7 +181,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (dest && dest.kind === "event" && follow && suggested.length >= 2 && outputKeysFromForm().every((key) => catalogBehaviorIds().has(key))) {
       criteriaHint.textContent = L("已按用途提供动作。请补充每个动作的选择条件；切换用途会更新默认动作，自定义结果会保留。");
     } else if (dest && dest.kind === "event" && follow && suggested.length < 2) {
-      criteriaHint.textContent = destId === "home.dock" && !feedApi
+      criteriaHint.textContent = destId === "home.dock" && !api
         ? L("请先选择项目，再配置这个项目可用的首页动作。")
         : suggested.length ? L("可以设置多个判断结果，再为每个结果选择对应动作。") : L("当前没有可用的推荐动作，请检查对象类型、插件状态和权限。");
     } else {
@@ -688,7 +688,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const ruleRequest = (record, suffix, method = "GET", body) => {
     const path = "/api/functions/" + encodeURIComponent(record.id) + "/" + suffix;
-    return feedApi ? feedApi(path, method, body) : request(method, path, body);
+    return api ? api(path, method, body) : request(method, path, body);
   };
   const renderUsages = async (record) => {
     if (!usagesEl) return;
@@ -850,7 +850,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const loadCatalog = async () => {
-    const payload = feedApi ? await feedApi("/api/functions/catalog", "GET") : await request("GET", "/api/functions/catalog");
+    const payload = api ? await api("/api/functions/catalog", "GET") : await request("GET", "/api/functions/catalog");
     if (payload.catalog) catalog = payload.catalog;
     const subjects = bench.querySelector("[data-functions-subject-list]");
     if (catalog.subjects.length && subjects) {
@@ -1237,7 +1237,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (sel?.id !== publishId) return;
       const path = "/api/functions/" + encodeURIComponent(publishId) + "/publish";
       const body = { updated_at: sel.updated_at };
-      const payload = feedApi ? await feedApi(path, "POST", body) : await request("POST", path, body);
+      const payload = api ? await api(path, "POST", body) : await request("POST", path, body);
       if (sel?.id !== publishId) return;
       remember(payload.function);
       await loadList();

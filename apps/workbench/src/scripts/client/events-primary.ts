@@ -209,9 +209,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
     };
     const fillGoalOverlay = async (pane, path, bind) => {
       pane.replaceChildren(settingsLoadingLine());
-      const response = await fetch(path, { headers: { Accept: "text/html" } });
-      if (!response.ok) throw new Error(L("无法加载设置"));
-      const html = await response.text();
+      const html = await molisWorkRequest(path,{as:"text",headers:{Accept:"text/html"},fallback:L("无法加载设置")});
+      if(!pane.isConnected)return;
       const parsed = new DOMParser().parseFromString(html, "text/html");
       const content = parsed.querySelector(".work-planning, .planning-detail, .planning-edit, .project-rules-document, .settings-document") || parsed.querySelector(".settings-content") || parsed.body;
       const node = content.classList?.contains("settings-content") ? (content.firstElementChild || content) : content;
@@ -378,7 +377,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         detail.inert = true;
         showSourceStatus(detail, L("正在保存来源配置…"));
         try {
-          const saved = await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId), "PATCH", {
+          const saved = await api("/api/feed/sources/" + encodeURIComponent(sourceId), "PATCH", {
             name: readField("name") === detail.querySelector('[data-source-config-field="name"]')?.defaultValue ? undefined : readField("name"),
             description: readField("description"),
             scope: detail.querySelector('[data-source-config-field="scope"]') ? readField("scope") : undefined,
@@ -421,7 +420,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         sourceScheduleSave.disabled = true;
         showSourceStatus(sourceScheduleSave, L("正在保存拉取计划…"));
         try {
-          await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId) + "/schedule", "PUT", mode === "manual"
+          await api("/api/feed/sources/" + encodeURIComponent(sourceId) + "/schedule", "PUT", mode === "manual"
             ? { mode: "manual" }
             : { mode: "interval", enabled, interval_minutes: intervalMinutes });
           showSourceStatus(sourceScheduleSave, mode === "manual"
@@ -455,7 +454,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           const body = action === "sync"
             ? { idempotency_key: globalThis.crypto?.randomUUID?.() || (Date.now().toString(36) + "-source-sync") }
             : {};
-          const result = await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId) + "/" + action, "POST", body);
+          const result = await api("/api/feed/sources/" + encodeURIComponent(sourceId) + "/" + action, "POST", body);
           const message = action === "sync"
             ? result.run?.error_code
               ? L("拉取失败：{code}。已保留上次成功内容，可按来源提示重试。", { code: result.run.error_code })
@@ -484,7 +483,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         sourceDelete.disabled = true;
         showSourceStatus(sourceDelete, L("正在删除来源…"));
         try {
-          await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId), "DELETE", { history_decision: historyDecision });
+          await api("/api/feed/sources/" + encodeURIComponent(sourceId), "DELETE", { history_decision: historyDecision });
           showSourceStatus(sourceDelete, historyDecision === "delete_local_history" ? L("来源与本地历史已删除。") : L("来源已删除，历史已保留。"));
           setFeedAddOpen(false);
           await refreshFeedStage();
@@ -543,12 +542,12 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         try {
           let sourceId = form?.dataset.createdSourceId;
           if (!sourceId) {
-            const result = await feedApi("/api/feed/sources", "POST", body);
+            const result = await api("/api/feed/sources", "POST", body);
             sourceId = result.source.source_id;
             if (form) form.dataset.createdSourceId = sourceId;
           }
           const minutes = Number(form?.querySelector("[data-feed-create-frequency]")?.value || 0);
-          if (minutes) await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId) + "/schedule", "PUT", { mode: "interval", enabled: true, interval_minutes: minutes });
+          if (minutes) await api("/api/feed/sources/" + encodeURIComponent(sourceId) + "/schedule", "PUT", { mode: "interval", enabled: true, interval_minutes: minutes });
           selectedFeedTask = sourceId;
           document.dispatchEvent(new CustomEvent("workbench-feed-task", { detail: { taskId: sourceId } }));
           saveUiState();
@@ -586,10 +585,10 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         evaluateRules.disabled = true;
         setFeedSourceFeedback(L("正在按当前规则处理最近的消息…"));
         try {
-          const snapshot = await feedApi("/api/feed", "GET");
+          const snapshot = await api("/api/feed", "GET");
           const items = (snapshot.feed_items || snapshot.feed?.feed_items || []).filter(item => item.source_id === evaluateRules.dataset.feedOutRulesEvaluate).slice(0, 20);
           if (!items.length) throw new Error(L("请先拉取来源内容"));
-          await feedApi("/api/feed/out-rules/evaluate", "POST", { item_ids: items.map(item => item.item_id) });
+          await api("/api/feed/out-rules/evaluate", "POST", { item_ids: items.map(item => item.item_id) });
           await refreshFeedStage(); await refreshInboxStage();
           setFeedSourceFeedback(L("规则处理完成；请在 Inbox 查看筛选结果与待复核项。"));
         } catch (error) { setFeedSourceFeedback(error.message, true); }
@@ -603,7 +602,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         toggleOutRule.disabled = true;
         setFeedSourceFeedback(L("正在更新捕捉规则…"));
         try {
-          await feedApi("/api/feed/out-rules/" + encodeURIComponent(ruleId), "PATCH", { enabled });
+          await api("/api/feed/out-rules/" + encodeURIComponent(ruleId), "PATCH", { enabled });
           saveUiState();
           await refreshFeedStage();
           toggleOutRule.disabled = false;
@@ -619,7 +618,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         deleteOutRule.disabled = true;
         setFeedSourceFeedback(L("正在删除捕捉规则…"));
         try {
-          await feedApi("/api/feed/out-rules/" + encodeURIComponent(ruleId), "DELETE");
+          await api("/api/feed/out-rules/" + encodeURIComponent(ruleId), "DELETE");
           saveUiState();
           await refreshFeedStage();
         } catch (error) {
@@ -635,7 +634,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         sourceToggle.disabled = true;
         setFeedSourceFeedback(action === "pause" ? L("正在暂停来源…") : L("正在恢复来源…"));
         try {
-          await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId) + "/" + action, "POST", {});
+          await api("/api/feed/sources/" + encodeURIComponent(sourceId) + "/" + action, "POST", {});
           saveUiState();
           await refreshFeedStage();
           sourceToggle.disabled = false;
@@ -653,7 +652,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         setFeedSourceFeedback(L("正在同步来源；失败时不会写成成功…"));
         try {
           const operationKey = globalThis.crypto?.randomUUID?.() || (Date.now().toString(36) + "-feed-sync");
-          const result = await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId) + "/sync", "POST", { idempotency_key: operationKey });
+          const result = await api("/api/feed/sources/" + encodeURIComponent(sourceId) + "/sync", "POST", { idempotency_key: operationKey });
           setFeedSourceFeedback(result.run?.error_code
             ? L("同步失败：{code}。已保留上次成功内容，可按来源提示重试。", { code: result.run.error_code })
             : result.run?.receipt?.rss_http?.not_modified

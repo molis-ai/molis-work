@@ -79,7 +79,7 @@ window.fetch = async (url, init) => {
 ${embed(UI_REQUEST_CLIENT_SCRIPT)}
 try {
   // The same host the standalone rules page gives it (functions/bootstrap.ts): its own document and address.
-  (${embed(FUNCTIONS_CLIENT_FACTORY_SCRIPT)})({ translate: (value) => value, feedApi: null, root: document,
+  (${embed(FUNCTIONS_CLIENT_FACTORY_SCRIPT)})({ translate: (value) => value, api: null, root: document,
     page: { address: () => new URL(location.href), replace: (next) => history.replaceState(null, "", next) } });
   window.__booted = true;
 } catch (error) {

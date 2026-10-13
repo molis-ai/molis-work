@@ -92,12 +92,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({
       getState: () => state, translate: L, route,
-      feedApi,
-      messageApi: async (pathname, method, body) => {
-        const response = await fetch(route(pathname), { method, headers: molisWorkControlHeaders(), body: body == null ? undefined : JSON.stringify(body) });
-        const result = await response.json();
-        if (!response.ok && !(response.status === 409 && result.state === 'failed')) throw new Error(result.error || L('消息请求失败，请核对原请求'));
-        return result;
+      api,
+      messageApi: async (pathname,method,body) => {
+        try { return await api(pathname,method,body); }
+        catch(error) { if(error.status===409 && error.body?.state==='failed')return error.body;throw error; }
       },
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
@@ -112,7 +110,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     deferredClients = (${DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT})({
       mountPluginClient, scope: boardLifetime, translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
-      projectTitle: () => state.project?.display_name || "", feedApi, route, headers: () => molisWorkControlHeaders(),
+      projectTitle: () => state.project?.display_name || "", api, route, headers: () => molisWorkControlHeaders(),
       openItem: (...args) => tabWorkspace?.openItem(...args), openBeside: (...args) => tabWorkspace?.openBeside(...args),
       openPlugin: (...args) => tabWorkspace?.openPlugin(...args), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
     });

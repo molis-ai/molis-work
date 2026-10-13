@@ -35,13 +35,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       return true;
     };
 
-    const showToast = (message, error = false) => {
-      toast.textContent = message;
-      toast.classList.toggle("is-error", error);
-      toast.classList.add("is-visible");
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast.classList.remove("is-visible"), 2200);
-    };
+    const showToast = (message,error=false) => {molisWorkRequest.toast(toast,typeof message==="string"?undefined:message,typeof message==="string"?message:undefined,{ms:2200});toast.classList.toggle("is-error",error);};
 
     const { handleGoalPolicySubmit } = (${GOALS_POLICY_CLIENT_FACTORY_SCRIPT})({
       route, controlHeaders: molisWorkControlHeaders, translate: L, requireFormFacts, showToast,

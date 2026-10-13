@@ -8,7 +8,7 @@ import { createHomeFlow } from "../../home-flow.js";
  * (the things at hand). One detail node moves into whichever row is open.
  */
 export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
-  const { getState, translate: L, openItem, openPlugin, openTarget, feedApi, messageApi } = host;
+  const { getState, translate: L, openItem, openPlugin, openTarget, api, messageApi } = host;
   (${HOME_SHORTCUTS_FACTORY_SCRIPT})({ root: document.querySelector('[data-work-surface="home"]'), translate: L,
     projectKey: getState().project?.project_id || getState().snapshot.board.project_id });
   const home = document.querySelector('[data-work-surface="home"]');
@@ -326,14 +326,14 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const event = current(); if (!event?.open || !eventWindow || opening) return;
     opening = event.id; navigationError = ''; renderDetail();
     try {
-      const result = await feedApi('/api/home/events/open', 'POST', { window: eventWindow, source: event.source, event_id: event.event_id, target: event.open });
+      const result = await api('/api/home/events/open', 'POST', { window: eventWindow, source: event.source, event_id: event.event_id, target: event.open });
       if (current()?.id === event.id) openTarget?.(result.target);
     } catch (error) { if (current()?.id === event.id) navigationError = error.message || L('无法打开事项，请重新读取'); }
     finally { opening = ''; if (current()?.id === event.id) renderDetail(); }
   };
-  const talk = (${HOME_TALK_FACTORY_SCRIPT})({ root: home, current, translate: L, prepareApi: feedApi, messageApi,
+  const talk = (${HOME_TALK_FACTORY_SCRIPT})({ root: home, current, translate: L, prepareApi: api, messageApi,
     projectKey, openItem, openPlugin, layout: placeTalk });
-  const offers = (${HOME_OFFERS_FACTORY_SCRIPT})({ root: home, current, translate: L, api: feedApi,
+  const offers = (${HOME_OFFERS_FACTORY_SCRIPT})({ root: home, current, translate: L, api: api,
     projectKey, refresh: () => sync() });
   new ResizeObserver(placeTalk).observe($("[data-home-detail-act]"));
   scroller?.addEventListener("scroll", () => { if (home.dataset.dock === "open") placeTalk(); }, { passive: true });
@@ -402,7 +402,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         const window = homeFlow.buildHomeWindow(new Date());
         loadingEvents = true; render();
         try {
-          const result = await feedApi('/api/home/events', 'POST', window);
+          const result = await api('/api/home/events', 'POST', window);
           eventRows = result.events; eventIssues = result.issues; eventWindow = window;
           collect(); offers.refresh();
         } catch (error) { eventRows = []; eventWindow = null; eventIssues = [error.message || L('暂时无法读取事项')]; }

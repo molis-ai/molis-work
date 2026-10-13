@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
+import { checkGoalsManagementWiring } from "./gates/goals-management-wiring.mjs";
 
 import {
   evaluateImportBoundary,
@@ -1179,17 +1180,17 @@ function checkRuntimeHostOwnership(repositoryRoot) {
   return { errors };
 }
 
-/** W3-07-5-01: no definition, registration, export or caller may restore a retired Goals typed entry. */
+/** W3-07-5-01 / W3-07-9-01: no definition, registration, export or caller may restore a retired Goals or development protocol. */
 export function checkNoGoalTypedAdapters(files) {
   const retiredModules = new Set(["board-entry-capabilities", "goal-event-entry-capabilities", "proposal-capabilities"]);
   const retiredNames = new Set(["initializeBoardCapability", "snapshotBoardCapability", "createGoalIntentCapability",
     "recordGoalUserDecisionCapability", "goalTreeCapabilities", "createGoalProposalClients", "readProjectGuidanceCapability", "setActiveGoalCapability",
     "InitializeBoardInput", "GoalEventEntryApi", "GoalEventDecideEvidence", "GoalEventDecideEntryInput",
-    "GoalTreeCheckEntryInput", "GoalTreeSubmitEntryInput", "GoalTreeDecideEvidence", "GoalTreeDecideEntryInput", "GoalTreeEntryApi"]);
+    "GoalTreeCheckEntryInput", "GoalTreeSubmitEntryInput", "GoalTreeDecideEvidence", "GoalTreeDecideEntryInput", "GoalTreeEntryApi", "goalContextCapabilities", "goalProgressCapabilities", "GoalProgressActor", "pluginDevelopmentCapability"]);
   const retiredIds = new Set(["io.molis.work.local-host.board.initialize", "io.molis.work.local-host.board.snapshot",
     "io.molis.work.goals.events.create-intent", "io.molis.work.goals.events.decide", "io.molis.work.goals.submit-goal-tree-proposal",
     "io.molis.work.goals.list-goal-tree-proposals", "io.molis.work.goals.check-goal-tree-proposal", "io.molis.work.goals.decide-goal-tree-proposal",
-    "io.molis.work.local-host.project.guidance", "io.molis.work.local-host.goals.set-active"]);
+    "io.molis.work.local-host.project.guidance", "io.molis.work.local-host.goals.set-active", "goals.context.list.v1", "goals.context.read.v1", "goals.progress.record.v1", "goals.progress.receipt.v1", "io.molis.work.local-host.plugin.development"]);
   const errors = [];
   for (const { path: relativePath, source } of files) {
     const moduleName = value => value.replace(/\.(?:[cm]?[jt]s|tsx)$/u, "").split("/").at(-1);
@@ -1212,7 +1213,8 @@ export function checkNoGoalTypedAdapters(files) {
       ts.forEachChild(node, visit);
     };
     visit(file);
-    for (const name of named) errors.push(`${relativePath}: ${name} is a retired Goals typed adapter; use the registered Goals action`);
+    for (const name of named) errors.push(`${relativePath}: ${name} is ${name === "pluginDevelopmentCapability" || name === "io.molis.work.local-host.plugin.development"
+      ? "a retired private development protocol; use developInPrivateHost" : "a retired Goals typed adapter; use the registered Goals action"}`);
   }
   return errors;
 }
@@ -1269,7 +1271,7 @@ function goalsBindingsOtherThanActions(node, kind) {
  */
 export function checkGoalTransportCallers({ cli, mcp }) {
   const errors = [];
-  const dispatcherPath = "apps/cli/src/command-dispatch.ts", projectPath = "apps/local-host/src/cli-project.ts";
+  const dispatcherPath = "apps/cli/src/command-dispatch.ts";
   const dispatcher = ts.createSourceFile(dispatcherPath, cli.dispatcher, ts.ScriptTarget.Latest, true);
   for (const { node, kind, specifier } of moduleReferences(dispatcher)) {
     if (specifier === undefined) {
@@ -1298,41 +1300,14 @@ export function checkGoalTransportCallers({ cli, mcp }) {
   }
   if (!snapshot) errors.push(`${dispatcherPath}: the CLI snapshot must be read through goalsActions.snapshot`);
 
-  const project = ts.createSourceFile(projectPath, cli.project, ts.ScriptTarget.Latest, true);
-  const factory = "bindGoalsManagementActions";
-  const imported = moduleReferences(project).some(({ node, kind, specifier }) => kind === "import" && specifier === "./goals-actions.js"
-    && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)
-    && node.importClause.namedBindings.elements.some(element => element.name.text === factory && !element.propertyName));
-  const calls = [], dispatches = [], reached = new Set();
-  const find = node => {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-      if (node.expression.text === factory) calls.push(node);
-      if (node.expression.text === "dispatchCliProjectCommand") dispatches.push(node);
-    }
-    if (ts.isPropertyAccessExpression(node) && ["client", "withProject", "withScope", "goalQueries"].includes(node.name.text)) reached.add(node.name.text);
-    ts.forEachChild(node, find);
-  };
-  find(project);
-  const textOf = node => node?.getText(project);
-  const opened = call => call && ts.isCallExpression(call) && ts.isPropertyAccessExpression(call.expression) && call.expression.name.text === "actionClient"
-    && call.arguments.length === 2 && textOf(call.arguments[0]) === "reference" && call.arguments[1].kind === ts.SyntaxKind.FalseKeyword;
-  const call = calls.length === 1 ? calls[0] : undefined;
-  if (!imported || !call || call.arguments.length !== 2 || !opened(call.arguments[0]) || textOf(call.arguments[1]) !== "reference") {
-    errors.push(`${projectPath}: the CLI's management port must be bindGoalsManagementActions(<host>.actionClient(reference, false), reference), imported from ./goals-actions.js: the Host builds it, over the client that does not prepare the project's plugins and the reference the command is bound to`);
-  } else {
-    const declaration = ts.isVariableDeclaration(call.parent) && ts.isIdentifier(call.parent.name) ? call.parent.name.text : undefined;
-    if (!declaration || dispatches.length !== 1 || textOf(dispatches[0].arguments[0]) !== declaration) {
-      errors.push(`${projectPath}: the dispatcher must be handed the management port bindGoalsManagementActions returned, not another object`);
-    }
-  }
-  for (const name of reached) errors.push(`${projectPath}: .${name} is a Host client of the project; a CLI command's Goals calls all go through the management port`);
+  errors.push(...checkGoalsManagementWiring(cli.project, "cli"));
   errors.push(...checkMcpGoalTransportCallers(mcp));
   return errors;
 }
 
 /** The MCP transport holds no Host client; only its Host composition can build the management port. */
 function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) {
-  const errors = [], toolPath = "apps/mcp/src/tool-dispatch.ts", hostPath = "apps/local-host/src/mcp-v1-tool.ts";
+  const errors = [], toolPath = "apps/mcp/src/tool-dispatch.ts";
   const file = ts.createSourceFile(toolPath, source, ts.ScriptTarget.Latest, true);
   const allowed = new Set(["@molis-ai/molis-work-contracts/platform/actions", GOALS_PACKAGE, "./goal-presentation.js"]);
   for (const { node, kind, specifier } of moduleReferences(file)) {
@@ -1355,47 +1330,7 @@ function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) 
   if (!port) errors.push(`${toolPath}: declare the Host's McpManagementActions port`);
   for (const action of ["initialize", "decide", "treeDecide"]) if (!actions.has(action)) errors.push(`${toolPath}: the management tool must invoke goalsActions.${action}`);
 
-  const host = ts.createSourceFile(hostPath, hostSource, ts.ScriptTarget.Latest, true), factory = "bindGoalsManagementActions";
-  const imported = moduleReferences(host).some(({ node, kind, specifier }) => kind === "import" && specifier === "./goals-actions.js"
-    && !node.importClause?.isTypeOnly && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)
-    && node.importClause.namedBindings.elements.some(element => element.name.text === factory && !element.propertyName && !element.isTypeOnly));
-  const calls = [], dispatches = [], opens = [], typedAccesses = [], heldNames = [];
-  const find = node => {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-      if (node.expression.text === factory) calls.push(node);
-      if (node.expression.text === "dispatchMcpProjectTool") dispatches.push(node);
-    }
-    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "withScope") opens.push(node);
-    if ((ts.isPropertyAccessExpression(node) && ["client", "withScope", "withProject", "coordinator", "actionClient"].includes(node.name.text))
-      || (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_CLIENT_NAMES.has(node.argumentExpression.text))) typedAccesses.push(node);
-    if (ts.isIdentifier(node) && HOST_CLIENT_NAMES.has(node.text)) heldNames.push(node);
-    ts.forEachChild(node, find);
-  };
-  find(host);
-  const text = node => node?.getText(host), call = calls.length === 1 ? calls[0] : undefined, opened = call?.arguments[0];
-  const conditional = call?.parent, declaration = conditional?.parent;
-  const guarded = conditional && ts.isConditionalExpression(conditional) && conditional.whenTrue === call && conditional.whenFalse.kind === ts.SyntaxKind.NullKeyword
-    && ts.isBinaryExpression(conditional.condition) && conditional.condition.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken
-    && text(conditional.condition.left) === "audience" && ts.isStringLiteralLike(conditional.condition.right) && conditional.condition.right.text === "management";
-  if (!imported || !call || call.arguments.length !== 2 || text(call.arguments[1]) !== "reference" || !opened || !ts.isCallExpression(opened)
-    || !ts.isPropertyAccessExpression(opened.expression) || text(opened.expression) !== "caller.localHost.actionClient"
-    || opened.arguments.length !== 2 || text(opened.arguments[0]) !== "reference" || opened.arguments[1].kind !== ts.SyntaxKind.FalseKeyword || !guarded) {
-    errors.push(`${hostPath}: management alone must bindGoalsManagementActions(caller.localHost.actionClient(reference, false), reference); Runtime gets null`);
-  }
-  if (!declaration || !ts.isVariableDeclaration(declaration) || !ts.isIdentifier(declaration.name)
-    || dispatches.length !== 1 || text(dispatches[0].arguments[0]) !== declaration.name.text) errors.push(`${hostPath}: dispatchMcpProjectTool must receive the factory's actual port/null result`);
-  const preopen = opens.length === 1 ? opens[0] : undefined, callback = preopen?.arguments[0];
-  const scopedClient = preopen?.expression.expression;
-  if (!preopen || preopen.arguments.length !== 1 || !scopedClient || !ts.isCallExpression(scopedClient)
-    || text(scopedClient.expression) !== "caller.localHost.client" || scopedClient.arguments.length !== 1 || text(scopedClient.arguments[0]) !== "reference"
-    || !ts.isAwaitExpression(preopen.parent) || !callback || !ts.isArrowFunction(callback)
-    || callback.parameters.length !== 0 || !ts.isIdentifier(callback.body) || callback.body.text !== "undefined"
-    || !call || preopen.pos >= call.pos) {
-    errors.push(`${hostPath}: preserve only caller.localHost.client(reference).withScope(() => undefined) as the awaited pre-open before the factory, with no typed business call or plugin preparation`);
-  }
-  const permitted = [preopen?.expression, scopedClient?.expression, opened?.expression];
-  for (const access of typedAccesses) if (!permitted.includes(access)) errors.push(`${hostPath}: no second route through a Host client`);
-  for (const name of heldNames) if (!permitted.some(access => access?.name === name)) errors.push(`${hostPath}: ${name.text} is not the single empty scope or factory client`);
+  errors.push(...checkGoalsManagementWiring(hostSource, "mcp"));
   return errors;
 }
 

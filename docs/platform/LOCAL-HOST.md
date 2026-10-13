@@ -2,9 +2,9 @@
 
 ## 白话说明
 
-DV1 的项目命令不再从 `withProject` 拿 Coordinator 或 availability：管理 MCP 通过带作用域的 Host Client；命令行（`molis-work v1`）不再经 Host Client 的 typed 能力，由 Host 造一个管理调用者（`apps/local-host/src/goals-actions.ts` 的 `bindGoalsManagementActions`：本机这个人、出处 management、一次一个 Goals 动作），每条命令调 Goals 的一个动作（W3-07 PR-3，链路见 `docs/system/CALL-CHAINS.md` 链 8），所以一条命令在调用记录里只留一行动作记录，不再另有 typed 能力的一行。`withScope` 只保持打开 Runtime 到响应完成的资源周期，不暴露 Store，也不把整个 callback 放进串行队列；内部具名 invoke 仍按原队列执行。Available+projection、trash+work state、planning methods+composition 分别是一个 Host 组合操作，避免异步迁移拆开原有一致性。初始化、快照、恢复事实、回收站等声明和完整输入输出类型归官方 Goals Plugin；Host 的 `project-capabilities.ts` 只注册原实现。DV1 已通过复核；逐项证据见 `specs/molis-work-architecture-reorganization/dv1-validation.md`。
+DV1 的项目命令不再从 `withProject` 拿 Coordinator 或 availability：管理 MCP 通过宿主构造的管理动作端口；命令行（`molis-work v1`）不再经 Host Client 的 typed 能力，由 Host 造一个管理调用者（`apps/local-host/src/goals-actions.ts` 的 `bindGoalsManagementActions`：本机这个人、出处 management、一次一个 Goals 动作），每条命令调 Goals 的一个动作（W3-07 PR-3，链路见 `docs/system/CALL-CHAINS.md` 链 8），所以一条命令在调用记录里只留一行动作记录，不再另有 typed 能力的一行。`withScope` 只保持打开 Runtime 到响应完成的资源周期，不暴露 Store，也不把整个 callback 放进串行队列；内部具名 invoke 仍按原队列执行。Available+projection、trash+work state、planning methods+composition 分别是一个 Host 组合操作，避免异步迁移拆开原有一致性。初始化、快照、恢复事实、回收站等行为归官方 Goals Plugin 的动作实现；公共输入输出合同归 contracts，由 owner 使用。Host 注册动作提供方，不再登记这些 Goals typed 桥。DV1 已通过复核；逐项证据见 `specs/molis-work-architecture-reorganization/dv1-validation.md`。
 
-Goals 的项目初始化、Goal 创建、说明、结构提案与事件决定统一消费 Goals owner 的动作；Coding 的 GoalContext/GoalProgress 四个 typed 依赖尚存，按 W3-07-PR-8 接续。网页与管理 CLI/MCP 从真实调用上下文取得各自权限，不另留管理 typed 桥。管理决定的操作者固定为本机这个人，输入里的身份与出处不授予权力；出处由受保护 Host 调用者构造。插件开发改走隔离 Host 的 `developInPrivateHost`，不登记 typed 开发能力。剩余 typed 家族仍在统一 Host registry 注册，其消费者与退场按防腐线 W3-07-PR-9 核对。
+Goals 的项目初始化、Goal 创建、说明、结构提案与事件决定统一消费 Goals owner 的动作；Coding 的目录、约定、状态、进展与回执使用 contracts 的共享 `goalPluginActions`，原四个 typed 依赖已删除；四项受限读写要求宿主当前运行且声明消费的内置实例，生成插件仍被拒绝。网页与管理 CLI/MCP 从真实调用上下文取得各自权限，不另留管理 typed 桥。管理决定的操作者固定为本机这个人，输入里的身份与出处不授予权力；出处由受保护 Host 调用者构造。插件开发改走隔离 Host 的 `developInPrivateHost`，不登记 typed 开发能力。剩余 typed 家族仍在统一 Host registry 注册，其消费者与退场按防腐线 W3-07-PR-9 核对。
 
 Local Host 是本地产品的“总装配间”。以前 Web、CLI、MCP 各自打开数据库、创建 Store 和 Coordinator；同一个 Project 可能同时出现多份业务运行对象。AP2 把这件事收回到一个地方：入口只描述要连接哪个 Project，再通过 Host Client 调用能力。
 
@@ -19,13 +19,13 @@ Local Host 是本地产品的“总装配间”。以前 Web、CLI、MCP 各自�
 - Web 的 Feed scheduler 复用 Host 已打开的同一 Store，不再为一个 Project 额外创建第二个 writer。
 - Desktop 当前通过它启动的 Web/Workbench 进程使用同一 Host，没有另建业务 Store。
 
-## Client 与兼容端口
+## 动作客户端与宿主内服务
 
-正式入口使用 `LocalHostProjectClient.invoke(capability, input)`。AP2 已接通项目 initialize、snapshot 和 Goal create 作为真实 typed Capability 切片，并验证 CLI、MCP 和 Workbench 风格 Client 对同一命令得到同一事实和幂等结果。
+对外业务入口使用 `ActionClient` 调用 owner 的动作。CLI 与管理 MCP 经 `bindGoalsManagementActions` 获取一次调用的可信管理身份；当前 Home 已登记且连接的项目交给常驻宿主，明确拒绝、取消或结果未知时不回退。未连接或未登记项目保留进程内执行。网页从其受保护入口构造本机用户身份。
 
-尚未迁到独立 Module 的旧调用暂时通过 `MolisWorkLocalHost.withProject` 兼容 composition 端口访问同一 Runtime。它只解决迁移期资源所有权，不是新公共业务 API；EX、WK、AP3、DV1 等 Goal 会逐步用正式 Capability 替换这些调用。
+`MolisWorkLocalHost.withProject` 是宿主装配的私有资源端口，复用同一 Runtime；它不授予业务调用权。`LocalHostProjectClient.invoke` 保留给 Agent、调度与工作区等宿主内服务，不能恢复已退役的 Goals 协议。`tests/typed-registry-inventory.test.ts` 对照完整装配和无工作区装配核对现存 typed 注册；健康门禁继续禁止新增 typed 定义与注册。
 
-DV1 已将完整 Goal Contract、项目说明和 active-goal 三项入口接到官方 Goals Plugin 的具名 Capability，由 Host 注册并调用原 owner。树决定只在受保护的入口执行：Workbench 的审批表单（`POST /api/goal-tree-proposals/:id/decision`，Web 请求通过来源与控制令牌检查后，由 Host 注入 web 出处，`bindGoalsWebActions`），以及管理入口（CLI `goal-tree-decide`，经管理调用者调 `goals.tree.decide` 动作；与 MCP `molis_work_v1_goal_tree_decide`，来源为 management，`managementTreeAuthority`）。两条路径的决定者都固定为本机用户，请求参数里不能带身份或出处，模型 args 不会变成 Session 身份；Runtime 工具不能写入树决定。事件决定（`recordGoalUserDecisionCapability`，管理 MCP `event_decide` 的出口）是同一扇管理入口的另一道决定门，做法一样：`authority` 只收对话出处，决定者由宿主造出（`managementEventDecisionAuthority`），带身份被拒绝（`goals.event_decision_authority_invalid`）。CLI/MCP 已无 `withProject` caller；Workbench 等剩余消费者另由各自迁移任务负责。
+完整 Goal Contract、项目说明和 active-goal 使用 Goals 的动作，由 Host 注册其提供方并调用原 owner。树决定只在受保护的入口执行：Workbench 的审批表单（`POST /api/goal-tree-proposals/:id/decision`，Web 请求通过来源与控制令牌检查后，由 Host 注入 web 出处，`bindGoalsWebActions`），以及管理入口（CLI `goal-tree-decide`，经管理调用者调 `goals.tree.decide` 动作；与 MCP `molis_work_v1_goal_tree_decide`，来源为 management，`managementTreeAuthority`）。两条路径的决定者都固定为本机用户，请求参数里不能带身份或出处，模型 args 不会变成 Session 身份；Runtime 工具不能写入树决定。事件决定（`goals.events.decide`，管理 MCP `event_decide` 的出口）是同一扇管理入口的另一道决定门，做法一样：`authority` 只收对话出处，决定者由宿主造出（`managementEventDecisionAuthority`），带身份被拒绝（`goals.event_decision_authority_invalid`）。CLI/MCP 已无 `withProject` caller；Workbench 等剩余消费者另由各自迁移任务负责。
 
 ## Single writer 的范围
 
@@ -33,7 +33,7 @@ DV1 的 Runtime 项目入口额外通过 `RuntimeProjectCatalogProvider.withCata
 
 AP2 保证一个 Local Host 实例内，每个 Project storage key 只有一份 Store/Coordinator Runtime；多个本地入口可以显式注入并共享这个 Host。Host 关闭后重新创建，事实从 SQLite 恢复。
 
-执行只在常驻 Web 宿主里：一个 Home 只有一个进程持有 Agent 运行锁，stdio MCP 等其他进程经本机动作网关转发（见下文「串行队列与并发声明」）。typed Host Client 本身是进程内实现；没有独立 daemon 或 Unix socket 的自动发现。CLI 独立进程仍通过同一 composition 实现打开 Host，而不是各自复制初始化规则。
+执行只在常驻 Web 宿主里：一个 Home 只有一个进程持有 Agent 运行锁，stdio MCP 等其他进程经本机动作网关转发（见下文「串行队列与并发声明」）。typed Host Client 本身是进程内实现；没有独立 daemon 或 Unix socket 的自动发现。CLI 与管理 MCP 对当前 Home 已登记且连接的项目走受保护常驻管理网关；未连接或未登记时才经同一 composition 在进程内打开 Host。
 
 ## 生命周期与刷新
 

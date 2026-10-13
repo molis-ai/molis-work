@@ -14,10 +14,11 @@ test("Goal read guard covers actual root callers and rejects restored Policy and
   }
 });
 
-test("W3-07-5-01: no production definition, export, registration or caller restores a Goals typed adapter", () => {
+test("W3-07-5-01 / W3-07-9-01: no production definition, export, registration or caller restores a Goals typed adapter", () => {
   const production = (source, path = "apps/local-host/src/project-capabilities.ts") => [{ path, source }];
   const files = ["apps/local-host/src/project-capabilities.ts", "apps/local-host/src/index.ts", "plugins/native/goals/src/index.ts",
-    "plugins/native/goals/src/goal-entry-contract.ts", "plugins/native/goals/src/goal-tree-contract.ts", "plugins/native/goals/src/management-evidence.ts"];
+    "plugins/native/goals/src/goal-entry-contract.ts", "plugins/native/goals/src/goal-tree-contract.ts", "plugins/native/goals/src/management-evidence.ts",
+    "packages/contracts/src/modules/goals.ts", "plugins/native/coding/src/manifest.ts", "plugins/native/coding/src/goal-context.ts", "plugins/native/coding/src/routes.ts"];
   for (const file of files) assert.deepEqual(checkNoGoalTypedAdapters(production(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), file)), []);
   const goals = "@molis-ai/molis-work-plugin-goals";
   for (const mutation of [
@@ -30,12 +31,23 @@ test("W3-07-5-01: no production definition, export, registration or caller resto
     `type Entry = import("${goals}").GoalTreeEntryApi;`,
     `host.register({ capability_id: "io.molis.work.local-host.board.snapshot", version: 1 }, read);`,
     `const entry = { capability_id: "io.molis.work.goals." + "events.decide", version: 1 }; reader.invoke(entry, input);`,
+    'import { goalContextCapabilities as context } from "@molis-ai/molis-work-contracts/modules/goals"; reader.invoke(context.read, input);',
+    'export { goalProgressCapabilities as progress } from "@molis-ai/molis-work-contracts/modules/goals";',
+    'type Actor = import("@molis-ai/molis-work-contracts/modules/goals").GoalProgressActor;',
+    ...["goals.context.list.v1", "goals.context.read.v1", "goals.progress.record.v1", "goals.progress.receipt.v1"].map(id =>
+      `host.register({ capability_id: ${JSON.stringify(id)}, version: 1, operation: "query" }, read);`),
+    'const entry = { capability_id: "goals.progress." + "record.v1", version: 1 }; reader.invoke(entry, input);',
   ]) {
     const original = readFileSync(new URL("../apps/local-host/src/project-capabilities.ts", import.meta.url), "utf8");
     assert.match(checkNoGoalTypedAdapters(production(`${original}\n${mutation}`)).join("\n"), /retired Goals typed adapter/, mutation);
   }
   assert.match(checkNoGoalTypedAdapters(production("export const unrelated = 1;", "plugins/native/goals/src/board-entry-capabilities.ts")).join("\n"), /retired/);
   assert.deepEqual(checkNoGoalTypedAdapters(production("// snapshotBoardCapability and io.molis.work.local-host.board.snapshot are retired.\nconst unrelated = 1;")), []);
+  for (const mutation of ['import { pluginDevelopmentCapability as run } from "@molis-ai/molis-work-contracts/platform/tooling";',
+    'host.register({ capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" }, execute);',
+    'const id = "io.molis.work.local-host.plugin." + "development"; client.invoke({ capability_id: id, version: 1 }, input);']) {
+    assert.match(checkNoGoalTypedAdapters(production(mutation)).join("\n"), /retired private development protocol/);
+  }
 });
 
 const read = file => readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
@@ -104,7 +116,7 @@ test("W3-07-4-01: the MCP gate rejects typed or domain callers and requires thre
 });
 
 test("W3-07-4-01 / W3-07-4-02: the MCP Host gate preserves the bound pre-open and gives only management its unprepared action port", () => {
-  const bind = "bindGoalsManagementActions(caller.localHost.actionClient(reference, false), reference)";
+  const bind = "bindGoalsManagementActions(caller.localHost.actionClient(reference, false), reference, { signal: caller.resident?.signal })";
   const preopen = "await caller.localHost.client(reference).withScope(() => undefined);";
   const dispatch = "dispatchMcpProjectTool(actions, name, arguments_,";
   const source = transportSources().mcp.host;
@@ -117,12 +129,18 @@ test("W3-07-4-01 / W3-07-4-02: the MCP Host gate preserves the bound pre-open an
     ["default preparation", text => text.replace("actionClient(reference, false)", "actionClient(reference)")],
     ["another Host", text => text.replace("caller.localHost.actionClient", "otherHost.actionClient")],
     ["another client reference", text => text.replace("actionClient(reference, false)", "actionClient(otherReference, false)")],
-    ["another factory reference", text => text.replace(bind, bind.replace(", reference)", ", otherReference)"))],
+    ["another factory reference", text => text.replace(bind, bind.replace(", reference,", ", otherReference,"))],
     ["extra factory argument", text => text.replace(bind, `${bind.slice(0, -1)}, caller)`) ],
     ["missing reference", text => text.replace(bind, "bindGoalsManagementActions(caller.localHost.actionClient(reference, false))")],
     ["Runtime gets a port", text => text.replace('audience === "management"', 'audience === "runtime"')],
-    ["every audience gets a port", text => text.replace(`audience === "management" ? ${bind} : null`, bind)],
-    ["Runtime gets an object", text => text.replace(`${bind} : null`, `${bind} : {}`)],
+    ["every audience gets a port", text => text.replace('audience !== "management" ? null : ', "")],
+    ["Runtime gets an object", text => text.replace('audience !== "management" ? null : ', 'audience !== "management" ? {} : ')],
+    ["Runtime receives fallback", text => text.replace('audience !== "management" ? null : ', 'audience !== "management" ? fallback() : ')],
+    ["eager local fallback", text => text.replace('const fallback = () => ', 'const fallback = ')],
+    ["lost cancellation signal", text => text.replace('signal: caller.resident.signal', 'signal: undefined')],
+    ["forged resident project", text => text.replace('projectId: owned.project_id', 'projectId: arguments_.project_id')],
+    ["unconditional pre-open", text => text.replace('if (!owned) ', '')],
+    ["second local fallback", text => `${text}\nfallback();`],
     ["unused factory result", text => text.replace(dispatch, "dispatchMcpProjectTool(makeActions(), name, arguments_,")],
     ["typed route", text => text.replace("const actions =", "const extra = caller.localHost.client(reference);\n  const actions =")],
     ["second action client", text => text.replace("const actions =", "const extra = caller.localHost.actionClient(reference);\n  const actions =")],
@@ -184,21 +202,27 @@ test("the CLI boundary rule reads every way into the Goals package and into a Ho
   // The snapshot is read through the action, not by a look-alike in a comment or a string.
   assert.match(changed("dispatcher", source => source.replace("goalsActions.snapshot", "goalsActions.list").concat('\n// goalsActions.snapshot\nconst note = "goalsActions.snapshot";')), /goalsActions\.snapshot/);
 
-  // The Host side: the factory gets the client that does not prepare plugins and the very reference the command is bound to, and the dispatcher gets what it returned.
-  const bind = "bindGoalsManagementActions(localHost.actionClient(reference, false), reference)";
-  assert.ok(read("apps/local-host/src/cli-project.ts").includes(bind), "the real cli-project.ts holds the call these mutations edit");
+  // The local fallback keeps its original reference and signal; the dispatcher receives the selected resident/local port.
+  const bind = "bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference, false), reference, { signal: options.signal })";
+  const source = read("apps/local-host/src/cli-project.ts");
+  assert.ok(source.includes(bind), "the real cli-project.ts holds the call these mutations edit");
   for (const [mutation, edit] of [
-    ["a second argument that is not the reference", source => source.replace(bind, "bindGoalsManagementActions(localHost.actionClient(reference, false), otherReference)")],
-    ["a second argument that is a copy of it", source => source.replace(bind, "bindGoalsManagementActions(localHost.actionClient(reference, false), { ...reference })")],
-    ["a third argument", source => source.replace(bind, "bindGoalsManagementActions(localHost.actionClient(reference, false), reference, caller)")],
-    ["no second argument", source => source.replace(bind, "bindGoalsManagementActions(localHost.actionClient(reference, false))")],
-    ["a client opened for another reference", source => source.replace(bind, "bindGoalsManagementActions(localHost.actionClient(otherReference, false), reference)")],
-    ["a client that prepares the plugins", source => source.replace(bind, "bindGoalsManagementActions(localHost.actionClient(reference, true), reference)")],
-    ["a factory from somewhere else", source => source.replace('from "./goals-actions.js"', 'from "./elsewhere.js"')],
-    ["a dispatcher given something other than the factory's result", source => source.replace("dispatchCliProjectCommand(actions, args, input)", "dispatchCliProjectCommand(localHost, args, input)")],
-    ["a second route to the project through a Host client", source => source.replace("const actions =", "const extra = localHost.client(reference);\n  const actions =")],
-    ["a factory result nobody uses", source => source.replace("dispatchCliProjectCommand(actions, args, input)", "dispatchCliProjectCommand(makeActions(), args, input)")],
+    ["another factory reference", source => source.replace(bind, bind.replace(", reference,", ", otherReference,"))],
+    ["a copy of the factory reference", source => source.replace(bind, bind.replace(", reference,", ", { ...reference },"))],
+    ["extra factory argument", source => source.replace(bind, `${bind.slice(0, -1)}, caller)`)],
+    ["missing factory reference", source => source.replace(bind, "bindGoalsManagementActions(localHost.actionClient(reference, false))")],
+    ["another client reference", source => source.replace("actionClient(reference, false)", "actionClient(otherReference, false)")],
+    ["prepared client", source => source.replace("actionClient(reference, false)", "actionClient(reference, true)")],
+    ["wrong factory import", source => source.replace('from "./goals-actions.js"', 'from "./elsewhere.js"')],
+    ["type-only factory import", source => source.replace('import { bindGoalsManagementActions }', 'import type { bindGoalsManagementActions }')],
+    ["unused selected port", source => source.replace("dispatchCliProjectCommand(actions, args, input)", "dispatchCliProjectCommand(makeActions(), args, input)")],
+    ["second typed route", source => source.replace("const actions =", "const extra = localHost.client(reference);\n  const actions =")],
+    ["eager local fallback", source => source.replace("const fallback = () => ", "const fallback = ")],
+    ["bypass resident", source => source.replace("project ? residentManagementActions", "false ? residentManagementActions")],
+    ["lost cancellation signal", source => source.replace("signal: options.signal, fallback", "signal: undefined, fallback")],
+    ["forged resident database", source => source.replace("databasePath: project.database_path, projectId", "databasePath: databasePath, projectId")],
   ]) {
+    assert.notEqual(edit(source), source, mutation);
     assert.match(changed("project", edit), /cli-project\.ts/, mutation);
   }
 });

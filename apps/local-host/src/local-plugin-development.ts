@@ -37,13 +37,15 @@ export async function runLocalPluginDevelopment(input: {
 
 /** Host function for the isolated developer door; it is never a plugin capability. */
 export async function developInPrivateHost(host: MolisWorkLocalHost, reference: LocalHostProjectReference, input: PluginDevelopmentInput): Promise<PluginDevelopmentResult> {
-  if (input.project_id !== reference.project_id) throw new ActionError("actions.scope_mismatch", "Plugin 开发不属于已打开的项目");
-  refusePayloadIdentity(input, ["audit_actor_id"]);
+  const request = structuredClone(input);
+  if (request.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "Plugin 开发不属于已打开的项目");
+  refusePayloadIdentity(request, ["audit_actor_id"]);
   return host.withProject(reference, runtime => {
+    if (request.project_id !== runtime.project_id) throw new ActionError("actions.scope_mismatch", "Plugin 开发不属于已打开的项目");
     runtime.coordinator.initializeBoard({ project_id: runtime.project_id, title: "Plugin Development",
       actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID, idempotency_key: "plugin-development-board" });
     const privateStorage = new SqlitePluginPrivateStorage(runtime.store.db);
-    return runPluginDevelopment(input, { project_id: runtime.project_id, actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID,
+    return runPluginDevelopment(request, { project_id: runtime.project_id, actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID,
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: runtime.project_id },
       artifacts: runtime.coordinator.artifacts, processItems: runtime.coordinator.processItems, ui: new UiHost(),
       repository: new SqlitePluginRuntimeRepository(runtime.store.db),

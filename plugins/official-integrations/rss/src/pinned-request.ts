@@ -47,11 +47,12 @@ export function readPinnedRssResponse(input: {
         response.on("data", (chunk: Buffer) => { bytes += chunk.byteLength; if (bytes > input.limit) response.destroy(rssError("content_too_large")); });
         const encoding = (headers.get("content-encoding") ?? "").toLowerCase().trim() || "identity";
         if (encoding !== "identity") {
-          decoded = encoding === "gzip" ? createGunzip() : encoding === "br" ? createBrotliDecompress() : encoding === "deflate" ? createInflate() : response;
-          if (decoded === response) throw rssError("provider_protocol_invalid");
+          const decompressor = encoding === "gzip" ? createGunzip() : encoding === "br" ? createBrotliDecompress() : encoding === "deflate" ? createInflate() : null;
+          if (!decompressor) throw rssError("provider_protocol_invalid");
+          decoded = decompressor;
           response.on("error", error => decoded.destroy(error));
           response.on("aborted", () => decoded.destroy(rssError("feed_unavailable")));
-          response.pipe(decoded);
+          response.pipe(decompressor);
         }
         const view = new Response(Readable.toWeb(decoded) as ReadableStream<Uint8Array>, { status, headers });
         return { response: view, body: await input.consume(view) };

@@ -10,7 +10,7 @@ import type { AgentBuilderPorts, AgentRelease } from './installed-plugin-host.js
 import type { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginPlatform } from './plugin-platform.js';
 import type { PluginSecrets } from './plugin-builder/secrets.js';
-import { releaseVersion } from './plugin-builder/installed.js';
+import { changeInstalledVersion } from './installed-plugin-version.js';
 
 export const APPROVED_KEY = 'plugin-builder:agent-studio:approved:';
 
@@ -29,7 +29,7 @@ export interface InstalledLifecycleContext {
   releaseFor(pluginId: string): AgentRelease | undefined;
   approvedFor(pluginId: string): SandboxEffects | null;
   definition(release: AgentRelease, approved: SandboxEffects): PluginDefinition;
-  expose(release: AgentRelease): Promise<void>;
+  expose(release: AgentRelease, onFailure?: 'caller'): Promise<void>;
   withdraw(pluginId: string): void;
   registerPrompts(release: AgentRelease, state: 'enabled' | 'disabled'): void;
   /** Reminders and scheduled operations of one installation stop with it. */
@@ -129,14 +129,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       const approved = c.approvedFor(pluginId) ?? {};
       if (!covered(release.permissions, approved) && !consent) throw new Error('这个版本需要新的权限，请确认后再切换');
       const nextApproval = covered(release.permissions, approved) ? approved : release.permissions;
-      const next = c.definition(release, nextApproval);
-      const state = action === 'upgrade' ? await platform.upgrade(pluginId, next) : await platform.rollback(pluginId, next);
-      // A plugin the person switched off changes version and stays off; the installation's own record says whether it did.
-      const moved = off ? c.recordFor(pluginId)?.version === releaseVersion(release.version) && c.recordFor(pluginId)?.state === 'disabled' : state?.status === 'running';
-      if (!moved) throw new Error(state?.code === 'plugin_revoked' ? state.message! : verb + '没有完成：' + (state?.message ?? '插件未能启动') + (off ? '，仍停留在原版本，插件保持停用' : '，原版本继续可用'));
-      c.storage.set(APPROVED_KEY + pluginId, JSON.stringify(nextApproval));
-      if (!off) await c.expose(release);
-      c.registerPrompts(release, off ? 'disabled' : 'enabled'); c.recoveryErrors.delete(pluginId); return;
+      return changeInstalledVersion(c, action, release, record, nextApproval, secretsOf(grants.secrets, release));
     }
     if (action === 'disable') { c.withdraw(pluginId); platform.supervisor.revoke(pluginId); await platform.runtime.stop(record.install_id); c.registerPrompts(c.releaseFor(pluginId) ?? release, 'disabled'); return; }
     if (action === 'enable') {

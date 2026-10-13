@@ -1148,3 +1148,25 @@ test('through the studio surface: the studio asks Jev the question the person sa
     store.close(); rmSync(home, { recursive: true, force: true });
   }
 });
+
+// W2-18-BUILDER-LATE-01: a reset belonging to an older job cannot adopt or connect into its replacement.
+for (const stage of ["adopt", "connect"] as const) test(`a late ${stage} reset cannot change a newer ready build`, { timeout: 20_000 }, async () => {
+  const h = harness([PROPOSALS, detail('Old detail'), detail('New detail')]);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let resets = 0;
+  const chosenReset = stage === 'adopt' ? 1 : 2;
+  // This port deliberately ignores the optional checker: the workflow must still check after awaiting it.
+  h.ports.resetPreview = async () => { if (++resets === chosenReset) { entered.resolve(); await release.promise; } };
+  const workflow = new AgentBuilderWorkflow(new AgentBuilderStore(memoryStorage()), h.ports);
+  try {
+    const created = workflow.create('A note keeper'), proposed = await until(workflow, created.id, value => value.phase === 'choosing');
+    await workflow.action(created.id, { action: 'choose', revision: proposed.revision, candidateId: proposed.candidates[0]!.id });
+    await entered.promise;
+    const paused = workflow.pause(created.id);
+    const current = await until(workflow, created.id, value => value.phase === 'paused');
+    await workflow.action(created.id, { action: 'resume', revision: current.revision });
+    const ready = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
+    assert.equal(ready.phase, 'ready', ready.error ?? ''); const snapshot = structuredClone(ready);
+    release.resolve(); await paused;
+    assert.deepEqual(workflow.store.require(created.id), snapshot, 'old token changes neither revision, steps, code/contract nor connected list');
+  } finally { release.resolve(); await workflow.close(); }
+});

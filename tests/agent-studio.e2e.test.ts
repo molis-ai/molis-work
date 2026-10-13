@@ -3,7 +3,14 @@ import { createWorkbenchLocale } from '@molis-ai/molis-work-app-workbench';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createServer, type Server } from 'node:http';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { createServer as createHttpsServer, globalAgent } from 'node:https';
+import { connect as tlsConnect } from 'node:tls';
+import dns from 'node:dns';
+import { syncBuiltinESMExports } from 'node:module';
+import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -394,4 +401,58 @@ test('studio in English: its controls, labels, phases and boards are English', {
     await new Promise<void>(resolve => server.close(() => resolve())); store.close();
     await rm(home, { recursive: true, force: true });
   }
+});
+
+// W2-18-UPGRADE-SECRETS-01: actual browser consent -> native studio HTTP/lifecycle -> new sandbox operation -> HTTPS.
+test('upgrade consent saves the new secret and the upgraded plugin uses it on its actual HTTPS request', { timeout: 90_000, skip: process.platform !== 'darwin' }, async t => {
+  const home = await mkdtemp(join(tmpdir(), 'studio-upgrade-network-')), browser = await openStudioChrome(join(home, 'chrome'));
+  if (!browser) { await rm(home, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
+  try { execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=api.weather.example', '-addext', 'subjectAltName=DNS:api.weather.example', '-keyout', join(home, 'key.pem'), '-out', join(home, 'cert.pem')], { stdio: 'ignore' }); }
+  catch { await browser.close(); await rm(home, { recursive: true, force: true }); t.skip('openssl is required'); return; }
+  const [key, cert] = await Promise.all([readFile(join(home, 'key.pem')), readFile(join(home, 'cert.pem'))]), received = Promise.withResolvers<string>();
+  const tlsServer = createHttpsServer({ key, cert }, (request, response) => { received.resolve(String(request.headers.authorization)); response.end('received'); });
+  await new Promise<void>(resolve => tlsServer.listen(0, '127.0.0.1', resolve)); const tlsAddress = tlsServer.address(); assert.ok(tlsAddress && typeof tlsAddress === 'object');
+  const originalLookup = dns.lookup, dnsMock = t.mock.method(dns, 'lookup', (hostname, options, callback) => hostname === 'api.weather.example'
+    ? callback(null, [{ address: '93.184.216.34', family: 4 }]) : originalLookup(hostname, options, callback)); syncBuiltinESMExports();
+  const originalConnect = globalAgent.createConnection.bind(globalAgent), transport = t.mock.method(globalAgent, 'createConnection', (options, callback) => {
+    if (options.host !== 'api.weather.example' && options.hostname !== 'api.weather.example') return originalConnect(options, callback);
+    const checkedLookup = options.lookup; assert.ok(checkedLookup);
+    // Run the production lookup/address/authority checks; route only the resulting test TLS socket to the local server.
+    return tlsConnect({ ...options, port: tlsAddress.port, ca: cert, servername: 'api.weather.example', lookup: (hostname, lookupOptions, done) => checkedLookup(hostname, lookupOptions, (error, _address, _family) => {
+      if (error) done(error, [], 4); else done(null, lookupOptions?.all ? [{ address: '127.0.0.1', family: 4 }] : '127.0.0.1', 4);
+    }) });
+  });
+  const file = join(home, 'project.db'); seedDemoBoard(file); const store = new LocalProjectDatabase(file), token = randomUUID(), mutations = new Map<string, LocalMutationState>();
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, ...agentStudioFixture(0) }, installed = await ensureInstalledPlugins(options);
+  const build = installed.releases.create('Network upgrade fixture'), pluginId = 'io.molis.work.generated.' + build.id;
+  const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [], acceptance: [], operations: [
+    { id: 'fetch', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: {}, errors: [], examples: [{ input: null, output: 'v1' }] }] };
+  const bundlePath = join(home, 'v1.mjs'); await writeFile(bundlePath, 'export const operations={fetch:async()=>"v1"};');
+  const first: AgentRelease = { buildId: build.id, pluginId, version: 1, directory: home, packagePath: home, bundlePath, nodes: [], prompts: [], permissions: {}, publishedAt: new Date().toISOString(),
+    manifest: { version: 1, pluginId, revision: 'one', effects: {} }, design: { id: 'fixture', catalog: 'actions/1', title: 'Network fixture', description: 'A fixed upgrade test', rationale: 'Fixture', journey: [], contract, parts: [], acceptance: [] } };
+  installed.releases.release(first); await installed.lifecycle('install', first, { consent: true });
+  const permissions = { networkDomains: ['api.weather.example'], secretRefs: ['weather'] }, nextContract = { ...contract, revision: 'two', operations: [{ ...contract.operations[0]!, effects: permissions }] };
+  const nextBundle = join(home, 'v2.mjs'); await writeFile(nextBundle, 'export const operations={fetch:async(_,sdk)=>(await sdk.network.request({url:"https://api.weather.example/today",secretRefs:["weather"]})).body};');
+  const next: AgentRelease = { ...first, version: 2, bundlePath: nextBundle, permissions, manifest: { version: 1, pluginId, revision: 'two', effects: permissions }, design: { ...first.design, contract: nextContract } };
+  installed.releases.release(next); installed.releases.update(build.id, build.revision, value => { value.phase = 'ready'; value.design = next.design; value.connected = ['fetch']; });
+  const server = createServer((request, response) => {
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
+    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html' }); response.end(studioHarnessPage(token)); return; }
+    if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
+    void handleAgentStudioHttp(request, response, url, options, token).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve)); const address = server.address(); assert.ok(address && typeof address === 'object');
+  t.after(async () => { await browser.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await releaseAgentStudio(store, DEMO_PROJECT_ID); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); tlsServer.closeAllConnections(); await new Promise<void>(resolve => tlsServer.close(() => resolve())); transport.mock.restore(); dnsMock.mock.restore(); syncBuiltinESMExports(); await rm(home, { recursive: true, force: true }); });
+  const page = await browser.page(); await page.command('Page.navigate', { url: `http://127.0.0.1:${address.port}` + STUDIO_HARNESS_PATH });
+  await page.wait(`document.querySelector('[data-as-builds] option[value="${build.id}"]')`);
+  await page.evaluate(`(()=>{const select=document.querySelector('[data-as-builds]');select.value=${JSON.stringify(build.id)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await page.wait(`document.querySelector('[data-as-upgrade="2"]')`); await page.click('[data-as-upgrade="2"]');
+  await page.wait(`document.querySelector('.as-dialog [data-secret="weather"]')`); const secretValue = 'Bearer ' + randomUUID();
+  await page.fill('.as-dialog [data-secret-header]', 'Authorization'); await page.fill('.as-dialog [data-secret-value]', secretValue); await page.click('.as-dialog button[value=ok]');
+  await page.wait(`document.querySelector('[data-as-feed]')?.innerText.includes('已安装 v2')||document.querySelector('[role=alert]')`);
+  assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText||''`), ''); assert.equal(installed.installations()[0]!.version, 2);
+  const called = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: 'web-user', execution: { beforeEffect: async () => {} }, body: { operation: 'fetch', input: null } });
+  assert.equal(called?.status, 200, JSON.stringify(called?.body)); assert.equal((called!.body as { value: string }).value, 'received'); assert.equal(await received.promise, secretValue);
+  assert.ok(!JSON.stringify(installed.secrets.list(pluginId)).includes(secretValue)); assert.ok(!String(installed.storage.get('plugin-builder:agent-studio:approved:' + pluginId)).includes(secretValue));
 });

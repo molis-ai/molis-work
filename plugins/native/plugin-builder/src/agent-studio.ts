@@ -460,8 +460,8 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
      if(choice!=='discard')return;
      await install({discardKeptData:true});}
     await refreshState();});});return;}
-  if(el.dataset.asUpgrade){const v=versions.find(x=>x.version===Number(el.dataset.asUpgrade)),inst=installed(current);const go=()=>run(async()=>{await act('upgrade',{version:v.version,grants:{consent:true}});await refreshState();});
-   if(covered(v?.permissions,inst?.effects))go();else consent(L('升级到 v{version} 需要新的权限',{version:v.version}),v?.permissions,L('确认并升级')).then(ok=>{if(ok)go();});return;}
+  if(el.dataset.asUpgrade){const v=versions.find(x=>x.version===+el.dataset.asUpgrade),go=s=>run(async()=>{await act('upgrade',{version:v.version,grants:{consent:true,secrets:s}});await refreshState();});
+   if(covered(v?.permissions,installed(current)?.effects))go();else consent(L('升级到 v{version} 需要新的权限',{version:v.version}),v?.permissions,L('确认并升级')).then(ok=>ok&&go(ok.secrets));return;}
   if(el.hasAttribute('data-as-install-enable')){const inst=installed(current);if(inst)run(async()=>{await act('enable',{version:inst.version});await refreshState();});return;}
   if(el.hasAttribute('data-as-uninstall')){const inst=installed(current);if(!inst)return;ask(L('卸载「{name}」',{name:current.design?.title||''}),L('卸载后它会从这个项目里移除。它保存的数据可以留着，以后重新安装还能看到。'),[['keep',L('卸载，保留数据'),true],['drop',L('卸载并删除数据')],['cancel',L('取消')]]).then(choice=>{if(choice==='keep'||choice==='drop')run(async()=>{await act('uninstall',{version:inst.version,grants:{keepData:choice==='keep'}});await refreshState();host.pluginRemoved('app-'+current.id);});});return;}
   if(el.hasAttribute('data-as-remove')){ask(L('删除「{name}」这个草稿？',{name:current.design?.title||current.title}),L('构建目录和试用数据会一起删除，已发布并安装的插件不受影响。'),[['remove',L('删除'),true],['cancel',L('取消')]]).then(choice=>{if(choice==='remove')run(()=>act('remove'));});return;}

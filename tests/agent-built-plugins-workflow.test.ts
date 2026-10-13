@@ -1158,14 +1158,15 @@ test('W2-18-BUILDER-LATE-01: real Host sandbox cleanup cannot delete the resumed
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address(); assert.ok(address && typeof address === 'object'); const origin = `http://127.0.0.1:${address.port}/api/plugin-builder/studio`;
-  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), removed = Promise.withResolvers<void>(); let arm = false, heldPath = '';
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), removed = Promise.withResolvers<void>(); let arm = false, heldPath = '', removal: Promise<void> | undefined;
   const remove = fs.rm;
   const mock = t.mock.method(fs, 'rm', async (path: Parameters<typeof fs.rm>[0], settings?: Parameters<typeof fs.rm>[1]) => {
     const name = String(path);
     if (arm && name.startsWith(join(tmpdir(), 'molis-plugin-sandbox-'))) {
-      arm = false; heldPath = name; entered.resolve(); await release.promise;
+      arm = false; heldPath = name; entered.resolve();
+      removal = release.promise.then(() => remove(path, settings)).finally(() => removed.resolve());
     }
-    try { return await remove(path, settings); } finally { if (name === heldPath) removed.resolve(); }
+    return name === heldPath ? removal! : remove(path, settings);
   });
   const send = async <Output>(path: string, body?: object): Promise<Output> => {
     const response = await fetch(origin + path, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-molis-work-control-token': 'control-token' }, ...(body ? { body: JSON.stringify(body) } : {}) });
@@ -1184,7 +1185,8 @@ test('W2-18-BUILDER-LATE-01: real Host sandbox cleanup cannot delete the resumed
     await send('/builds/' + ready.id + '/call', { componentId: 'editor', binding: 'submit', payload: { text: 'Old preview record' } });
     arm = true;
     await send('/builds/' + ready.id + '/action', { action: 'revise', revision: ready.revision, message: '保留这两个笔记操作，重新确认完整设计。' });
-    await Promise.race([entered.promise, new Promise<never>((_, reject) => setTimeout(() => reject(new Error('real Host reset did not reach old sandbox cleanup')), 30_000))]);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try { await Promise.race([entered.promise, new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error('real Host reset did not reach old sandbox cleanup')), 30_000); })]); } finally { clearTimeout(timeout); }
     assert.ok(heldPath, 'the paused operation is the real old SandboxRunner cleanup');
     const pause = send('/builds/' + ready.id + '/action', { action: 'pause' });
     const paused = await reached(ready.id, 'paused');
@@ -1195,6 +1197,7 @@ test('W2-18-BUILDER-LATE-01: real Host sandbox cleanup cannot delete the resumed
     assert.match(JSON.stringify(preview.value), /New preview must remain/);
     const resumed = await read(ready.id);
     release.resolve(); await removed.promise; await pause;
+    await new Promise<void>(resolve => setImmediate(resolve));
     assert.deepEqual(await read(ready.id), resumed, 'the old reset cannot replace the current ready build');
     assert.deepEqual(await send('/builds/' + ready.id + '/call', { componentId: 'notes', binding: 'read', payload: {} }), preview, 'the real preview storage remains after old cleanup finishes');
   } finally {

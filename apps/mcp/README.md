@@ -54,7 +54,7 @@ node --import tsx --test --test-concurrency=1 tests/host-entry-consistency.test.
   - Runtime 与 Session 身份由 Host 写入，工具参数不能自填用户、批准或身份。连接工具（绑定、解绑、拒绝建议、新建并绑定、删项目）也不收 `actor_id`：操作者是 Host 记下的 MCP 客户端与 Runtime 会话（`ports.actorFor`），参数里带身份字段被 `mcp.unexpected_field` 拒绝，什么也不写；删项目交给 Host 的删除服务（`ports.deleteProject`），本包不自己开项目目录删。
   - 三个管理工具各调用一个 Goals 动作：`initialize` → `goals.board.initialize`，`event_decide` → `goals.decisions.record`，`goal_tree_decide` → `goals.tree.decide`。Host 私有的 `bindGoalsManagementActions` 复用命令行的本人身份、management 出处、动作自己的权限和单一授权；本包没有 Host 客户端、typed Goals 描述符或第二份工厂，Runtime 只得到 null 端口。
   - `goal_tree_decide` 不收身份：schema 里没有 `actor_id`、`actor_kind`、`audit_actor_id`、`runtime_actor_id`，`authority` 只指向对话出处，带 `actor_id`、`actor_kind`、`authority_source` 被宿主拒绝；决定记本机这个人，没有 Runtime 转交。`event_decide` 只取当前 schema 的业务字段，额外身份或 `authority` 仍以 `mcp.unexpected_field` 拒绝；Host 为它生成管理入口默认的对话出处。`initialize` 仍手选并转字符串，额外身份字段忽略。
-  - 项目路径仍由 Host 解析，参数 `database_path` 优先于 `MOLIS_WORK_DATABASE`，没有默认路径。Host 保留原 `client(reference).withScope(() => undefined)` 的空预打开，只用于绑定原项目与库身份，不运行 typed 业务、不额外准备插件；随后才校验 payload，管理业务只经 `actionClient(reference, false)`。前置身份、authority 或未知字段拒绝可无动作行、无编号；真正进入动作的调用只结算一次，结果或错误里的编号能查到这一行，客户端自带的 `_meta` 编号不读。
+  - 项目路径仍由 Host 解析，参数 `database_path` 优先于 `MOLIS_WORK_DATABASE`，没有默认路径。Host只在 `!owned` 时保留原 `client(reference).withScope(() => undefined)` 空预打开，绑定原项目与库身份、不运行typed业务；随后校验payload。当前Home目录登记的项目通过resident端口交给常驻Host的同一管理工厂，未连接或独立数据库保留原进程内动作路径。前置身份、authority 或未知字段拒绝可无动作行、无编号；真正进入动作的调用只结算一次，结果或错误里的编号能查到这一行，客户端自带的 `_meta` 编号不读。
   - 精确授权但暂不可用的动作保留调用条目，`tools/list`隐藏；按原名字调用进入同一动作服务并保留原因、code与实际已记录的编号，未授权或provider/version不匹配仍拒绝。
   - 平台工具只有连接工具与受信管理入口的工具；其余能力都是动作工具，不进本包的静态目录，也不按名称写 `if`。
   - 生产启动器走常驻服务通道，不回退到本地 typed Host。

@@ -58,7 +58,7 @@ test("W3-09-1-01 T1: page, actual MCP tool and typed-to-action creates agree on 
   const time = `${String(target.getHours()).padStart(2, "0")}:${String(target.getMinutes()).padStart(2, "0")}`;
   const input = subject.input("同一个真实任务", time), results: Array<{ task: Record<string, unknown>; callId: unknown; actor: string; audience: string }> = [];
   const fromPage = await page(home, subject.path(project.project_id) + "/tasks", input);
-  assert.equal(fromPage.status, 200, JSON.stringify(fromPage.body));
+  assert.equal(fromPage.status, 201, JSON.stringify(fromPage.body));
   results.push({ task: object(fromPage.body.task), callId: fromPage.callId, actor: "web-user", audience: "user" });
   assertChanged(1);
   const fromMcp = await mcpCall(mcp, subject.create.capability_id, input);

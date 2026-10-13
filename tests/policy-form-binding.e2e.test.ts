@@ -23,7 +23,7 @@ test("W1-18-GOAL-POLICY-01 Goal requirements use events, while the project rules
 
   await waitFor("!!document.querySelector('[data-goal-event-document]')", 15_000);
   assert.equal(await evaluate("!!document.querySelector('[data-policy-form] [name=goal_id], [data-policy-form] [name=scope][value=goal]')"), false);
-  await click('[data-goal-event-document] [data-event-reader="requirements"]');
+  await click('[data-goal-event-document]:not([hidden]) [data-goal-requirement-progress]');
   await click('[data-event-panel="requirements"] [data-event-form-open="requirement"]');
   await evaluate(`(() => { const form = document.querySelector('[data-event-form="requirement"]');
     form.querySelector('[name="statement"]').value = '由用户核对真实结果';

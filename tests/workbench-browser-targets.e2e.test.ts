@@ -91,6 +91,7 @@ test("W2-18-BROWSER-GRANT-01 / W2-18-BROWSER-GRANT-02: A's delayed site grant de
   const a = await site(t, "Review A"), b = await site(t, "Review B"), queue = queueOf(browser);
   queue.request(review(browser, "review-A", a.origin));
   queue.registerDecisionHandler("review-A", async input => queue.decide(input));
+  await browser.reloadPage();
   await openSideBrowser(browser, a.origin + "/");
   await browser.waitFor("document.querySelector('[data-browser-approval]').textContent.includes('review-A')", 15_000);
   await armResponse(browser, "grant-A", "/api/browser/sites", "POST");
@@ -134,6 +135,7 @@ test("W2-18-BROWSER-GRANT-01: a real Host rejection of the site save does not ap
   const a = await site(t, "Denied grant"), queue = queueOf(browser);
   queue.request(review(browser, "save-rejected", a.origin));
   queue.registerDecisionHandler("save-rejected", async input => queue.decide(input));
+  await browser.reloadPage();
   await openSideBrowser(browser, a.origin + "/");
   await browser.waitFor("!!document.querySelector('[data-browser-action=approve-site]')", 15_000);
   await browser.evaluate(`(() => { const send=window.fetch;

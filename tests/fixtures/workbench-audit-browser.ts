@@ -64,6 +64,7 @@ export async function typeField(browser: AuditBrowser, selector: string, value: 
 export async function openSideBrowser(browser: AuditBrowser, url: string): Promise<void> {
   await browser.evaluate(`document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'browser', target: { url: ${JSON.stringify(url)} }, focus: true } }))`);
   await browser.waitFor(`document.querySelector('[data-browser-address]')?.value === ${JSON.stringify(url)} && document.querySelector('[data-browser-action=stop]')?.hidden && document.querySelector('[data-browser-cover]')?.hidden && document.querySelector('[data-browser-canvas]')?.width > 0`, 15_000);
+  await browser.waitFor(`(() => { const view=document.querySelector('[data-browser-view]'),canvas=document.querySelector('[data-browser-canvas]'),box=view.getBoundingClientRect(); return canvas.width===Math.max(240,Math.floor(box.width)) && canvas.height===Math.max(200,Math.floor(box.height)); })()`, 15_000);
 }
 
 export async function clickBrowserPoint(browser: AuditBrowser, x: number, y: number): Promise<void> {

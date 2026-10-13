@@ -274,8 +274,8 @@ for (const action of ["resolve", "overturn"] as const) test(`W2-18-CONCERN-EVIDE
   app.goalEvents.report({ project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, actor_id: "web-user", actor_kind: "user", idempotency_key: "concern-report",
     events: [{ type_id: "delivery", type_version: 1, title: "已有真实结果", fields: { body: "本目标的结果可读" }, judgments: [{ requirement_id: "delivered", verdict: "supports" }] }] });
   const other = app.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, title: "另一个目标", actor_id: "web-user", actor_kind: "user", idempotency_key: "other-goal" }).goal;
-  const earlier = app.goalEvents.note({ project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, body: "问题提出前的备注", actor_id: "web-user", actor_kind: "user", idempotency_key: "earlier-note" });
-  const foreign = app.goalEvents.note({ project_id: DEMO_PROJECT_ID, goal_id: other.goal_id, body: "其他 Goal 的备注", actor_id: "web-user", actor_kind: "user", idempotency_key: "foreign-note" });
+  const earlier = app.goalEvents.recordNote({ project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, body: "问题提出前的备注", actor_id: "web-user", actor_kind: "user", idempotency_key: "earlier-note" });
+  const foreign = app.goalEvents.recordNote({ project_id: DEMO_PROJECT_ID, goal_id: other.goal_id, body: "其他 Goal 的备注", actor_id: "web-user", actor_kind: "user", idempotency_key: "foreign-note" });
   const formSelector = '[data-goal-event-document]:not([hidden]) [data-event-form="concern"]';
   const open = async (kind: string) => {
     await click('[data-goal-event-document]:not([hidden]) [data-record-menu] > summary');
@@ -322,7 +322,7 @@ for (const action of ["resolve", "overturn"] as const) test(`W2-18-CONCERN-EVIDE
   assert.equal(updated.status, action === "resolve" ? "resolved" : "overturned");
   const resolution = app.goalEvents.readEvent(DEMO_PROJECT_ID, goal.goal_id, updated.resolution_event_id!);
   assert.deepEqual((resolution.payload as { supporting_event_ids: string[] }).supporting_event_ids, [later.event_id]);
-  await click('[data-goal-event-document] [data-event-reader="requirements"]');
+  await click('[data-goal-event-document]:not([hidden]) [data-goal-requirement-progress]');
   await click('[data-event-panel="requirements"] [data-event-form-open="closure"]');
   await evaluate("document.querySelector('[data-event-form=closure] [name=reason]').value='问题已按证据处理'; document.querySelector('[data-event-form=closure] [name=result]').value='真实结果与处理记录可读'");
   await submit('[data-event-form=closure] button[type=submit]');
@@ -341,7 +341,7 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
   app.goalInputs.register({ binding_id: "pin-retry-binding", project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, input_name: "交付稿", source_type: GOAL_PLUGIN_OBJECT_SOURCE,
     source_ref: goalPluginObjectRef(subject), snapshot_digest: null, state: "confirmed", reason: "Fixture", created_by: "web-user", created_at: new Date().toISOString() });
   const openClosure = async () => {
-    await click('[data-goal-event-document] [data-event-reader="requirements"]');
+    await click('[data-goal-event-document]:not([hidden]) [data-goal-requirement-progress]');
     await click('[data-event-panel="requirements"] [data-event-form-open="closure"]');
     await waitFor("!!document.querySelector('[data-event-form=closure] input[name=deliverable-pin]')");
     await evaluate("document.querySelector('[data-event-form=closure] [name=reason]').value='记录真实交付物'");

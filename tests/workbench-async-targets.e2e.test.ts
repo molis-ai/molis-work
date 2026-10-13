@@ -72,8 +72,10 @@ for (const first of ["success", "error"] as const) {
 
 test("W2-18-MARKET-REFRESH-01: reopening the market after a switcher membership change follows the Host and Dock; failed reads leave the last facts and permit retry", { timeout: 120_000 }, async t => {
   const browser = await openAuditBrowser(t); if (!browser) return;
-  const projects = async () => (await (await fetch(browser.origin + "/api/settings/project-plugins")).json()).projects as Array<{ project_id: string; plugins: string[] }>;
-  const plugin = "form", initially = (await projects()).find(row => row.project_id === browser.projectId)!.plugins.includes(plugin);
+  const projects = async () => (await (await fetch(browser.origin + "/api/settings/project-plugins")).json()).projects as Array<{ project_id: string; plugins: string[]; hidden: string[] }>;
+  // Form is personal: its effective membership also follows the persisted hidden list.
+  const plugin = "form", hasForm = (row: { plugins: string[]; hidden: string[] }) => row.plugins.includes(plugin) || !row.hidden.includes(plugin);
+  const initially = hasForm((await projects()).find(row => row.project_id === browser.projectId)!);
   await browser.click('[data-global-menu] [data-plugin-id="market"]');
   await browser.waitFor("!!document.querySelector('[data-market-project] option') && !document.querySelector('[data-market-add=form]').disabled");
   const membership = "document.querySelector('[data-market-add=form]').dataset.marketMembership";
@@ -82,7 +84,7 @@ test("W2-18-MARKET-REFRESH-01: reopening the market after a switcher membership 
   await browser.click("[data-plugin-picker-toggle]");
   await browser.click("[data-plugin-toggle=form]");
   if (initially) await browser.click("[data-plugin-toggle=form]");
-  await until(projects, rows => rows.find(row => row.project_id === browser.projectId)!.plugins.includes(plugin) === !initially, "membership changed through the real switcher");
+  await until(projects, rows => hasForm(rows.find(row => row.project_id === browser.projectId)!) === !initially, "membership changed through the real switcher");
   await browser.waitFor(`document.querySelector('[data-plugin-toggle=form]')?.dataset.state === ${JSON.stringify(initially ? "available" : "added")}`, 15_000);
   if (!initially && !await browser.evaluate("document.querySelector('[data-plugin-tile=form] .dock-keep')?.getAttribute('aria-pressed') === 'true'")) {
     await browser.click("[data-plugin-tile=form] .dock-keep");
@@ -91,7 +93,7 @@ test("W2-18-MARKET-REFRESH-01: reopening the market after a switcher membership 
   await browser.click('[data-global-menu] [data-plugin-id="market"]');
   await browser.waitFor(`!document.querySelector('[data-market-add=form]').disabled && ${membership} === ${JSON.stringify(initially ? "available" : "added")}`, 15_000);
   assert.equal(await browser.evaluate("!!document.querySelector('[data-plugin-strip] [data-plugin-id=form]')"), !initially);
-  assert.equal((await projects()).find(row => row.project_id === browser.projectId)!.plugins.includes(plugin), !initially);
+  assert.equal(hasForm((await projects()).find(row => row.project_id === browser.projectId)!), !initially);
   await browser.click('[data-plugin-strip] [data-plugin-id="home"]');
   await browser.command("Network.enable", {}, browser.sessionId);
   await browser.command("Network.setBlockedURLs", { urls: [browser.origin + "/api/settings/project-plugins"] }, browser.sessionId);

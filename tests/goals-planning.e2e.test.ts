@@ -171,6 +171,7 @@ for (const late of ["success", "failure"] as const) test(`W2-18-PLANNING-LATE-01
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   };
   await click(openA); await waitFor("window.__planningWaiting");
+  await click('[data-planning-close]');
   await click(openB); await waitFor("!!document.querySelector('[data-planning-detail] .planning-detail')");
   await click('[data-planning-detail] .planning-detail-header .mw-btn--primary');
   await waitFor("document.querySelector('[data-planning-edit-form] [name=method_id]')?.value === " + JSON.stringify(b));
@@ -179,6 +180,9 @@ for (const late of ["success", "failure"] as const) test(`W2-18-PLANNING-LATE-01
   assert.equal(await evaluate("document.querySelector('[data-planning-edit-form] [name=name]')?.value"), "Keep the B draft");
   assert.equal(await evaluate("!!document.querySelector('[data-planning-detail] .mw-empty--error')"), false);
 
+  await click('[data-planning-detail] .planning-edit-footer a');
+  await waitFor("!!document.querySelector('[data-planning-detail] .planning-back')");
+  await click('[data-planning-detail] .planning-back');
   await arm(); await click(openA); await waitFor("window.__planningWaiting");
   await click('[data-planning-close]');
   assert.equal(await evaluate("document.querySelector('.work-planning').dataset.planningSplit"), "hero");

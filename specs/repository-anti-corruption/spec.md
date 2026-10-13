@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中（2026-10-12）。§4.1 的兼容清理、第1/2波、第3波A批及其合规修复已合入main；第3波B/C的I1–I3已合入。I4八片已整合并补跑中断文件，五片已合入（含#455的七项CI全过），#456/#457/#459完成复验并推送，按新main同步后等待全部CI。I5全量6,051条中的三项失败已完成基线对照和修正后23/23；第五五片完成当前main复验并开#465–#469，待全部CI与合入。独立测试修复#451/#461/#462已合入，#464待CI。Home与G1/G3的候选实现/范围及证据分列§10，未验证项不记完成。继续余下第3波、每批合规复查、第4–6波与错误码改写后的维护八；维护六/七已核对，BL-126只剩用户重开旧会话。
+状态：执行中（2026-10-12）。§4.1 的兼容清理、第1/2波、第3波A批及其合规修复已合入main；第3波B/C的I1–I3已合入。I4八片已整合并补跑中断文件，六片已合入（#455与#456均七项CI全过后由原进程合并；main679034ca），#457/#459完成复验并推送，按新main同步后等待全部CI及已定位独立MCP修复。I5全量6,051条中的三项失败已完成基线对照和修正后23/23；第五五片完成当前main复验并开#465–#469，待全部CI与合入。独立测试修复#451/#461/#462已合入，#464待CI。Home与G1/G3的候选实现/范围及证据分列§10，未验证项不记完成。继续余下第3波、每批合规复查、第4–6波与错误码改写后的维护八；维护六/七已核对，BL-126只剩用户重开旧会话。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -1480,7 +1480,7 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 | CI-MCP-PIPE-01 | 真实launcher关闭stdin后发送initialize结果，公开验证函数返回false且父进程存活，不产生未处理EPIPE；第一次write可以用于检测远端闭管道，验证失败/exit收口后的剩余stdout及同chunk消息不再触发后续写。监听保留至owned child关闭以吸收已排队错误，不靠Writable字段预测远端状态或另加测试hook。原initialize→tools/list成功、退出launcher和慢启动证明保留，10秒限制及仅关闭自己child不变。 |
 | CI-MCP-PIPE-02 | 同一闭管道fixture通过公开RuntimeIntegrationService实际验证，失败后配置字节/无关Runtime设置、Skill状态和原receipt恢复，没有成功接入或新授权记录；再次可用launcher能正常接入。独立源码复核、整体build、定向Runtime/MCP公开回归及当前main门禁通过后开独立PR，Linux CI另记实际结果。 |
 
-当前仅已定位、实测复现并安排唯一writer实施；不称修复完成或CI通过。
+独立候选5f49307082a6448876adda410c29011f56875f6b已完成，3文件+106/-1，生产仅4行；固定源码窄复核及root实际diff无Blocker/P1。main0568上的整体build/API0变/动作无变/资源29项11,366,644字节不变/actual-base健康/boundary/noEmit全通过，9文件53/53、0跳过/取消。只临时撤自有忽略dist的两settled关口而保留error listener，真实trace按预期失败，实际收到initialize+tools/list；finally字节精确恢复后完整Runtime16/16、无跳过/取消，不能把53+16算69独立用例。Model #456刚合入679034ca后，root已机械并到abcab187a并正在重新锁内构建/门禁与实际Runtime影响组；发布、Linux结果与原CI异常的归因尚待完成。
 
 
 ### 10.9 产品 HTTP 错误出口的接续验收（W3-02-G4）
@@ -1497,3 +1497,8 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 | W3-02-G4-06 | F1/Home的唯一shared operations及controls/hooks/readBody/取消/revision/卸载边界保留；仅真正抛出的失败经SDK，不改restart/upgrade409、not-running503等supervisor结果。Work未知异常按共同500/actions.execution_failed保留实际消息，原状态查询与草稿保留证明结果未知恢复，不加自动重发。实际HTTP、必要Browser/Work公开路径与安全拒绝证明完整后再协调整合，API/动作/资产均按实测记录。 |
 
 本节的Browser64MB409、recovery原409与Work未知共同出口取舍保留现行业务并采用已接受的共同分类，不追加产品语义变化。允许路径按真实owner/消费者扩到Work workspace-actions与Host project-workspace-actions、Agent reviews/prologue-git及必要busy raiser；不增公开测试口、重复码表、兼容读或预算。当前只读计划核到必要调用链，尚未实施或运行；全部Session/Agent raiser与浏览器失败路径仍须在实际片中按影响面验证，不把部分源码阅读记成工程通过。
+
+
+**Model #456合入与原进程。** 2026-10-12 17:55，固定远端d0e0c8c7464fc23c7a3fb61a9af4053e8414dea6的七项CI均SUCCESS（含Linux探针/Product/Verify）、与main0568同步；主协调在自己的Model树fast-forward该远端、再次strict密钥扫描及本地/远端SHA核对后，仅移除原done中的456重排原队列。原daemon11526合入679034ca46da3112b7d4f00f0d85e1c65ee220c7，没有新启驱动。剩余#457/#459及第五PR只按新main与实际CI结果串行推进，不用旧绿结果称新head通过。MCP独立已复现缺陷优先收口，不放宽产品子集或跳过Runtime文件。
+
+**I6准备。** managed隔离树feature/anti-corruption-i6-1012已由G1最终2031建立；机械并当时main0568至0a1d88db194992518f941b6a50b222d83379b4cc，git tree差异为空。它已有已验Home/G1和I5三测试修复，仍等独立MCP与G3候选；未install/build或启动全量。最终组合完成后重新测量所有派生数据、整体build并冻结该树源码/脚本/包/Skill，协调全量与基线对照另记，准备不能算全量通过。

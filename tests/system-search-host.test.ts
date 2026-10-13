@@ -76,11 +76,19 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     // Shelf: a material reaches as far as it is readable; clipboard history stays with the local person, as every clipboard action does.
     await host.homeActionClient().invoke(personalCaller, shelfActions.admit, { text: "置物架里的抹香鲸观察笔记", title: "抹香鲸观察", capture_pages: false });
     await host.homeActionClient().invoke(personalCaller, shelfActions.clip, { text: "剪贴板里的抹香鲸暗号 7731" });
-    assert.deepEqual(ids(await search(refA, "抹香鲸")), ["io.molis.work.shelf:shelf_clip", "io.molis.work.shelf:shelf_item"]);
+    const shelfHits = await search(refA, "抹香鲸");
+    assert.deepEqual(ids(shelfHits), ["io.molis.work.shelf:shelf_clip", "io.molis.work.shelf:shelf_item"]);
+    // W2-18-SHELF-OPEN-01: listing-backed open retains the real clipboard ID, without requiring a subject reader.
+    const clipHit = shelfHits.hits.find(hit => hit.subject.kind === "shelf_clip")!;
+    const openedClip = await call(refA, searchActions.open, { hit_id: clipHit.hit_id });
+    assert.equal(openedClip.state, "ok");
+    if (openedClip.state === "ok") assert.deepEqual(openedClip.open, { surface: "shelf", id: clipHit.subject.id });
     const agent: ActionCallContext = { ...await owner(refA), actor_id: "agent:reader", audience: "agent" };
     const agentSees = await host.actionClient(refA).invoke(agent, searchActions.query, { query: "抹香鲸" }) as SearchQueryResponse;
     assert.deepEqual(ids(agentSees), ["io.molis.work.shelf:shelf_item"], "an Agent never finds clipboard history");
     assert.ok(!JSON.stringify(agentSees).includes("7731"), "not even in a snippet or a source status");
+    const agentOpen = await host.actionClient(refA).invoke(agent, searchActions.open, { hit_id: clipHit.hit_id }) as { state: string };
+    assert.notEqual(agentOpen.state, "ok", "a user's clipboard hit does not authorize an Agent to open it");
     const shelfClient: ActionCallContext = { actor_id: "mcp:shelf-client", project_id: refA.project_id, audience: "mcp", permissions: ["search:read", "shelf:read"],
       allowed_actions: [searchActions.query, shelfActions.searchEntries, shelfActions.clipboardSearchEntries].map(definition => ({ capability_id: definition.capability_id, version: definition.version })) };
     assert.deepEqual(ids(await host.actionClient(refA).invoke(shelfClient, searchActions.query, { query: "暗号" }) as SearchQueryResponse), [], "a grant cannot widen a local-only source");

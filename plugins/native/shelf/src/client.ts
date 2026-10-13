@@ -8,7 +8,6 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   if (!directory || !workbench) return;
   const lifetime=host.mountPluginClient(workbench);if(!lifetime)return;
   let loadVersion=0;
-  // The item a link or tab asked for: whichever load lands next selects it, even one started later (e.g. on becoming visible).
   let wantedId=null;
   const stage = workbench.querySelector("[data-shelf-stage]");
   const preview = workbench.querySelector("[data-shelf-preview]");
@@ -34,7 +33,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   let editing = false;
   let editLoading = false;
   let editDraft = "";
-  const textCache = new Map();
+  const textCache = new Map();let textVersion=0;
   const reading = (${SHELF_READING_FACTORY_SCRIPT})(escapeText, escapeAttr);
   let editTimer = 0;
   let arranging = false;
@@ -69,7 +68,6 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     return payload;
   };
 
-  // The kind rides in the preview header the way DropAgent shows it, never as a chip on the row.
   const cap = (kind) => kind === "pdf" ? "PDF" : kind === "markdown" ? "MD" : kind === "text" ? "TXT" : kind === "image" ? "IMG" : kind === "website" ? "WEB" : kind === "url" ? "URL" : kind === "folder" ? "DIR" : "FILE";
   const clockLabel = (stamp) => {
     const when = new Date(stamp || "");
@@ -280,9 +278,11 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     return ids.map(id => items().find(item => item.item_id === id)).filter(Boolean);
   };
   const readFullText = async (item) => {
+    const version=textVersion;
     const response = await lifetime.fetch(fileUrl(item.item_id), { cache: "no-store" });
     if (!response.ok) throw new Error(L("无法读取这份副本，请重试。"));
     const text = await response.text();lifetime.assertCurrent();
+    if(version!==textVersion)throw new DOMException('Content changed','AbortError');
     textCache.set(item.item_id, text);
     return text;
   };
@@ -293,6 +293,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       readFullText(item).then(text => {
         if (node.isConnected) node.querySelector(".shelf-reading").innerHTML = reading.render(item, text);
       }).catch(error => {
+        if(error.name==='AbortError')return;
         if (node.isConnected) { const line=document.createElement("p");line.className="shelf-read-error";line.textContent=error.message;node.append(line); }
       });
     }
@@ -327,7 +328,6 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (useBtn) useBtn.hidden = !(selected?.group === "result" && hasFile(selected)) || Boolean(selectedClip);
     const materialBtn = workbench.querySelector("[data-shelf-project-material]");
     if (materialBtn) materialBtn.hidden = !projectPrefix || !selected || Boolean(selectedClip) || !hasFile(selected) || !isEditable(selected) || busy;
-    // Shelf lives in the personal space: in a project it can be used there without being copied.
     const useBtn2 = workbench.querySelector("[data-shelf-use-in-project]");
     if (useBtn2) useBtn2.hidden = !projectPrefix || document.body.dataset.projectId === "personal" || !selected || Boolean(selectedClip);
     const context = { plugin_id: "io.molis.work.shelf", surface_title: "Shelf" };
@@ -348,7 +348,6 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const code = ext !== "md" && ext !== "txt" && ext !== "markdown";
     return '<div class="shelf-editor-wrap"><p class="shelf-edit-hint">' + escapeText(L("正在编辑副本。原文件保持不变。")) + '</p><p class="shelf-edit-hint" data-shelf-edit-status role="status" hidden></p><textarea class="shelf-editor' + (code ? " is-code" : "") + '" data-shelf-editor spellcheck="false">' + escapeText(editDraft) + "</textarea></div>";
   };
-
   const paintPreview = () => {
     if(!lifetime.alive)return;
     if (composingAction) return;
@@ -392,7 +391,6 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     fillChildDoc();
     fillReading();
   };
-
   const fillChildDoc = () => {
     const doc = preview.querySelector("[data-shelf-child-doc]");
     if (!doc || !selectedChild) return;
@@ -430,6 +428,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       const payload = await next;
       snapshot = payload.snapshot;
+      loadVersion++;textVersion++;textCache.clear();
       textCache.set(id, text);
       if (selected?.item_id === id) {
         selected = items().find((item) => item.item_id === id) || payload.item || selected;
@@ -689,16 +688,18 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   const applySnapshot = (next, selectId) => {
     if(!lifetime.alive)return;loadVersion++;
+    textVersion++;textCache.clear();
     snapshot = next;
     if (selectId) {
       editing = false;
-      selectedClip = null;
-      clipSelection = new Set();
       selected = items().find((item) => item.item_id === selectId) || null;
+      selectedClip=selected?null:(snapshot.clipboard||[]).find(clip=>clip.clip_id===selectId)||null;
+      clipSelection=new Set(selectedClip?[selectedClip.clip_id]:[]);
+      if(selectedClip)clipExpanded=true;
       selection = selected ? new Set([selected.item_id]) : new Set();
       if (selectId === wantedId) {
         wantedId = null;
-        if (!selected) stickyHint = L("这份材料已不在 Shelf 中，请从列表选择其他材料。");
+        if (!selected && !selectedClip) stickyHint = L("这份材料已不在 Shelf 中，请从列表选择其他材料。");
       }
       pending = null;
       compare = false;
@@ -720,7 +721,6 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     paintPreview();
     syncShelfStage();
   };
-
   const load = async (selectId, signal) => {
     const version=++loadVersion;
     const response = await lifetime.fetch("/api/shelf", { cache: "no-store", signal });
@@ -773,18 +773,19 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
     } finally { if (lastId) applySnapshot(snapshot, lastId); }
   };
-  // Another plugin hands a file over (a generated image): it becomes a personal Shelf copy, and the workbench says where.
-  window.addEventListener("molis:shelf-admit", async (event) => {
+  lifetime.listen(window,"molis:shelf-admit", async (event) => {
     const detail = event.detail || {};
     if (!detail.bytes_base64 || !detail.filename) return;
     try {
       const payload = await post("/api/shelf/items", { filename: detail.filename, mime: detail.mime || "", bytes_base64: detail.bytes_base64 });
+      if(!lifetime.alive)return;
       snapshot = payload.snapshot;
       if (payload.item) applySnapshot(snapshot, payload.item.item_id);
       window.dispatchEvent(new CustomEvent("molis:placement-result", { detail: { verb: "received", title: payload.item ? payload.item.name : detail.filename,
         object: payload.item ? { kind: "shelf_item", id: payload.item.item_id, project_id: null } : undefined,
         note: detail.source ? L("来自 {source}", { source: detail.source }) + " · " + L("可以在 Shelf 里用于项目") : L("可以在 Shelf 里用于项目") } }));
     } catch (error) {
+      if(!lifetime.alive)return;
       window.dispatchEvent(new CustomEvent("molis:placement-result", { detail: { verb: "failed", title: detail.filename, note: error.message || L("放进 Shelf 失败") } }));
     }
   });
@@ -1648,7 +1649,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   }
   lifetime.listen(workbench,"molis-work:select-item", async (event) => {
     const id = event.detail?.itemId;
-    if (!id || selected?.item_id === id) return;
+    if (!id || selected?.item_id === id || selectedClip?.clip_id === id) return;
     try {
       if (editing) await stopEdit();
       if (!lifetime.alive || stageBusy()) return;
@@ -1689,7 +1690,6 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (paths.length) sendToTui(paths.join(" "));
   });
   lifetime.whenVisible(signal => {
-    // Returning to an editor, confirmation or in-flight job preserves that interaction.
     if(!editing && !editLoading && !stageBusy())void load(undefined,signal).catch(() => {});
     return()=>{loadVersion++;};
   });

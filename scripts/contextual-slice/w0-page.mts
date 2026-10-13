@@ -56,7 +56,7 @@ export function renderW0Page(): string {
     <header><h2>这个原型能体验什么</h2><button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only" data-w0-about-close aria-label="关闭">${icon("x")}</button></header>
     <p><strong>真的：</strong>Pages 编辑器、规则候选与陈列策略、设计系统。<strong>模拟：</strong>右栏除 Shelf 外的内容、改写与起草（按样例，不调 AI）、待办 / 灵光 / Goal 提案的写入、助理交接。没有模型、凭据或真实 Home；服务重启后全部复位。</p>
     <p><strong>可以试：</strong>选一段文字看浮条；在右栏选一条，再在文稿里点一下换落点；悬停「放进」类动作看落点；拖一条到文稿；创建后撤销或改放到；标题栏和 Shelf、灵光的 ✦ 一句话新建；⌘/Ctrl+. 进入浮条，方向键移动，Esc 回到原处。</p>
-    <p><strong>没有验证：</strong>桌面原生拖出、跨 iframe 的右栏格、真实浏览器画布选区、Computer Use（电脑格只留位置）、真实 Jev 判断。</p>
+    <p><strong>没有验证：</strong>桌面原生拖出、跨 iframe 的右栏格、真实浏览器画布选区、Computer Use（产品里的电脑格已在 main，原型只写说明）、真实 Jev 判断。</p>
     <div class="w0-about-actions"><p class="w0-menu-label">演示开关</p>
       <button type="button" class="mw-btn mw-btn--secondary" data-w0-no-landing>${icon("minus")}<span>让左边没有落点</span></button></div>
   </section>

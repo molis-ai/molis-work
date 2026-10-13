@@ -83,7 +83,7 @@ export class SidePanel {
     else if (this.tab === "discussion") body.replaceChildren(this.head("讨论", "项目群聊"), this.note("模拟消息 · 不连接聊天服务"), this.list(MESSAGES, "discussion"),
       el("div", { class: "w0-discussion-input", "aria-disabled": "true" }, el("span", { text: "输入框作为落点在第 6 波接入" })));
     else body.replaceChildren(el("div", { class: "w0-empty" }, el("span", { class: "w0-empty-mark" }, glyph("system")), el("h2", { text: "电脑" }),
-      el("p", { text: "这个位置留给 Computer Use，由它的负责人接入。本原型不连接桌面、不操作应用，也不展示模拟画面。" })));
+      el("p", { text: "产品里这一格是 Computer Use 的实时画面：只显示助理正在看的那个应用，每一步先问你，可暂停、接手、停止。画面只读，没有可选取的文字，所以它不是落点，也不产生手上的东西；它的操作记录走那一格自带的「放进 Shelf」。本原型不连接桌面，也不展示模拟画面。" })));
   }
   private head(title: string, caption: string, create?: "shelf" | "sparks") {
     const head = el("header", { class: "w0-side-head" }, el("div", {}, el("h2", { text: title }), el("p", { text: caption })));

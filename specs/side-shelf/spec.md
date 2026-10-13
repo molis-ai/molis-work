@@ -256,7 +256,7 @@ readonly places?: readonly ("main" | "side" | "assistant")[];
 | 灵光 | 当前这条灵光，或其中选中的文字 | 已经声明了对象；同样要转发焦点 |
 | 文件 | 正在预览的文件（对象种类取自文件来源条目），或预览里选中的文字 | 预览区补上 `data-assistant-context` |
 | 浏览器 | 当前页面，或页面里选中的一段 | 画面是 canvas，没有 DOM 选区。选中时经 `/api/browser/capture` 取选中文字或可读正文，作为平台对象种类 `browser_page`（2026-10-12 已定），带地址和时间。浮条的位置（2026-10-09 核对可行）：加一条取选区的消息，浏览器服务用 `evaluate()` 取 `getSelection().getRangeAt(0).getBoundingClientRect()`，外壳按页面视口与 canvas 的比例换算（`side-panel-browser.ts:201` 已有同样的换算），把浮条画在 canvas 上方；页面里跨源 iframe 的选区取不到 |
-| 电脑 | 由 Computer Use 线定义与拥有 | 保留当前电脑格；情境线不创建第二份电脑事实或执行链。接入时消费其公开合同，W0 只展示未接入说明 |
+| 电脑 | 由 Computer Use 线定义与拥有 | main 的 #471 已实现电脑格（只读实时画面，没有可取的文字）；情境线不创建第二份电脑事实或执行链，也不让它产生手上的东西或当落点（context-program §14，2026-10-13）。要让「这次电脑操作」成为手上的东西，由 Computer Use 的公开合同声明（W3） |
 | 讨论 | 选中的一条或几条消息 | im-ui 给消息补上对象声明（`discussion_message`，2026-10-12 已定），并转发焦点 |
 
 左边的各插件还要报告**落点**（光标、选区或当前对象）。现在左边只在有选区时才报焦点。第一批先补 Pages（编辑器知道光标位置）、Goals（当前 Goal）、Coding（当前会话）。
@@ -293,7 +293,7 @@ readonly places?: readonly ("main" | "side" | "assistant")[];
 
 ## 9. 验收
 
-2026-10-11：AC-S01 保留原五格、入口与记忆行为，仅按现行 Computer Use 边界增加电脑格；其余验收全文不变。电脑能力与接入由其 owner 负责，本片不接管。
+2026-10-11：AC-S01 保留原五格、入口与记忆行为，仅按现行 Computer Use 边界增加电脑格（2026-10-13：该格已在 main，#471）；其余验收全文不变。电脑能力由其 owner 负责，本片不接管。
 
 | # | 验收 |
 | --- | --- |

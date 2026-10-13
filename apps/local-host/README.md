@@ -184,3 +184,5 @@ Catalog 的异步 `commit` 只接收同步 owner 提交体：沿用当前连接�
 Home 插件动作的 JSON 请求按 UTF-8 字节计数，上限 12 MiB，以容纳受插件校验的图文输入；超限返回 413，错误 JSON 返回 400。其他调用 `readLocalWebBody` 的入口保留 256,000 字节上限。越界后停止累积请求内容，仍保留现有 Host、Origin、令牌和一次性键校验。验证见 `tests/issue-home-runtime.test.ts` 的跨入口图文用例。
 
 Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 Issue 已有图文输入上限一致；图片仍由 Runtime 实际接收，并检查所选模型的视觉能力，不截断附件或用文字替代图片。
+
+独立文字模型读取（`configured-models.ts`，Jelly、Shelf与调度就绪检查等消费）复用正式Catalog的owner与现行schema断言。旧版、未来版或无效版本在读取模型与凭据之前拒绝，不就地升级；回归见 `tests/jelly-model.test.ts` 的 W1-18-MODEL-SCHEMA-01。

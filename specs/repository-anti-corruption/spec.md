@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，未达到整条防腐线的完成标准（2026-10-12 复查）。全部71包原冻结切点的源码审查已完成；2026-10-13新合入main的`fc18d5f62`（#472）涉及7包，当前按64包已审、7包待补审记录，不以旧审查覆盖新代码。逐包职责、消费者、放置和验证边界见§12.9；必要修复见 §12.3/§12.8，组合路径见 §12.7，均不因源码审完而关闭。I6 冻结稿 `af0fe957` 全量已结束，6,088 个用例中 4 个失败、9 个跳过，不能记为通过；独立修复按明确文件范围推进，共同 AUTH 与机器构建/浏览器队列仍由原会话统一管理（§12.11）。Dataset 文件导入与 Issue 手动保存的本地修复、缺陷复现和修后验证已核，尚待整合；其余准备稿不冒充已验收。第 1 波 W1-18 的源码裁决已补齐，整改未完；第 2 波 W2-18 的逐插件异常、组合路径、前端第二轮、测试有效性与动作消费仍在收口。第 3 波余项、第 4–6 波和维护八沿原路线推进。已合入代码、在途候选、原始失败、真实产品实操与用户验收分别记录，完整要求映射和任务书 §7 的逐条结论见 §12。
+状态：执行中，未达到整条防腐线的完成标准（2026-10-12 复查）。全部71包源码审查已完成；2026-10-13新合入main的`fc18d5f62`（#472）所涉7包增量也已补审，并核合并头`6972b1cb0`及`808f0856c`的修正。新发现换模尾检、自动回交当前状态与动作版本缺口仍须整改，不以源码已审冒充修复或运行通过。逐包职责、消费者、放置和验证边界见§12.9；必要修复见 §12.3/§12.8，组合路径见 §12.7，均不因源码审完而关闭。I6 冻结稿 `af0fe957` 全量已结束，6,088 个用例中 4 个失败、9 个跳过，不能记为通过；独立修复按明确文件范围推进，共同 AUTH 与机器构建/浏览器队列仍由原会话统一管理（§12.11）。Dataset 文件导入与 Issue 手动保存的本地修复、缺陷复现和修后验证已核，尚待整合；其余准备稿不冒充已验收。第 1 波 W1-18 的源码裁决已补齐，整改未完；第 2 波 W2-18 的逐插件异常、组合路径、前端第二轮、测试有效性与动作消费仍在收口。第 3 波余项、第 4–6 波和维护八沿原路线推进。已合入代码、在途候选、原始失败、真实产品实操与用户验收分别记录，完整要求映射和任务书 §7 的逐条结论见 §12。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -722,11 +722,11 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `apps/cli` | 应用 | 5 | 177 | `command-dispatch.ts` 54 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `apps/desktop` | 应用 | 11 | 1,203 | `capsule-shell.ts` 555 | 1 | 6 | 1 | 在用 | 中 | 已审 |
-| `apps/local-host` | 应用 | 369 | 41,807 | `assistant/assistant-service.ts` 2,656 | 1 | 64 | 2 | 在用 | 深 | 待审 |
+| `apps/local-host` | 应用 | 369 | 41,807 | `assistant/assistant-service.ts` 2,656 | 1 | 64 | 2 | 在用 | 深 | 已审 |
 | `apps/mcp` | 应用 | 17 | 1,062 | `runtime-context-tools.ts` 161 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `apps/server` | 应用 | 5 | 186 | `assets.ts` 76 | 1 | 7 | 0 | 非产品 | 浅 | 已审 |
-| `apps/workbench` | 应用 | 171 | 40,687 | `i18n/en.ts` 3,380 | 1 | 32 | 1 | 在用 | 深 | 待审 |
-| `horizontal/agent-host` | 横向 | 35 | 9,410 | `adapters/prologue-node.ts` 1,764 | 1 | 1 | 1 | 在用 | 深 | 待审 |
+| `apps/workbench` | 应用 | 171 | 40,687 | `i18n/en.ts` 3,380 | 1 | 32 | 1 | 在用 | 深 | 已审 |
+| `horizontal/agent-host` | 横向 | 35 | 9,410 | `adapters/prologue-node.ts` 1,764 | 1 | 1 | 1 | 在用 | 深 | 已审 |
 | `horizontal/connector-host` | 横向 | 3 | 567 | `connection-store.ts` 317 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `horizontal/listener-host` | 横向 | 1 | 739 | `index.ts` 739 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `horizontal/memory` | 横向 | 5 | 1,560 | `service.ts` 1,338 | 1 | 1 | 1 | 在用 | 中 | 已审 |
@@ -747,8 +747,8 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `modules/shelf` | 模块 | 11 | 2,652 | `store.ts` 1,176 | 1 | 2 | 2 | 在用 | 中 | 已审 |
 | `modules/signals` | 模块 | 1 | 379 | `index.ts` 379 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `modules/sources` | 模块 | 1 | 395 | `index.ts` 395 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `packages/contracts` | 基础 | 91 | 16,544 | `services/agent-host.ts` 1,734 | 64 | 0 | 70 | 在用 | 深 | 待审 |
-| `packages/design-system` | 基础 | 45 | 17,218 | `styles/craft-finish.ts` 2,313 | 1 | 1 | 22 | 在用 | 深 | 待审 |
+| `packages/contracts` | 基础 | 91 | 16,544 | `services/agent-host.ts` 1,734 | 64 | 0 | 70 | 在用 | 深 | 已审 |
+| `packages/design-system` | 基础 | 45 | 17,218 | `styles/craft-finish.ts` 2,313 | 1 | 1 | 22 | 在用 | 深 | 已审 |
 | `packages/im-ui` | 基础 | 11 | 1,401 | `browser/controller.ts` 966 | 1 | 2 | 3 | 在用 | 中 | 已审 |
 | `packages/kernel` | 基础 | 6 | 1,160 | `action-service.ts` 490 | 2 | 1 | 4 | 在用 | 深 | 已审 |
 | `packages/plugin-runtime` | 基础 | 21 | 4,784 | `index.ts` 886 | 1 | 1 | 3 | 在用 | 深 | 已审 |
@@ -760,7 +760,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/alchemist` | 内置插件 | 97 | 10,327 | `studio/server/db/pulse-repository.ts` 567 | 1 | 4 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/artifacts` | 内置插件 | 19 | 1,628 | `browser-ui.ts` 242 | 1 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/characters` | 内置插件 | 13 | 978 | `client.ts` 217 | 1 | 2 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/coding` | 内置插件 | 58 | 10,718 | `client.ts` 1,656 | 1 | 2 | 2 | Runtime | 深 | 待审 |
+| `plugins/native/coding` | 内置插件 | 58 | 10,718 | `client.ts` 1,656 | 1 | 2 | 2 | Runtime | 深 | 已审 |
 | `plugins/native/cognia` | 内置插件 | 16 | 723 | `store.ts` 151 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/dataset` | 内置插件 | 16 | 2,042 | `client.ts` 694 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/diff` | 内置插件 | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
@@ -772,7 +772,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/images` | 内置插件 | 13 | 1,443 | `client.ts` 456 | 1 | 4 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/inbox` | 内置插件 | 13 | 1,016 | `ui.ts` 189 | 1 | 1 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/jelly` | 内置插件 | 27 | 2,355 | `content.ts` 202 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/lingguang` | 内置插件 | 14 | 1,819 | `client.ts` 645 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/lingguang` | 内置插件 | 14 | 1,819 | `client.ts` 645 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/pages` | 内置插件 | 44 | 14,848 | `editor-browser.ts` 4,043 | 3 | 3 | 2 | 构建期 | 深 | 已审 |
 | `plugins/native/plugin-builder` | 内置插件 | 17 | 2,855 | `agent-authoring.ts` 800 | 1 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/ppt` | 内置插件 | 18 | 2,276 | `client.ts` 806 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
@@ -1954,7 +1954,7 @@ Catalog 目标形状于2026-10-12联网核对官方资料：[Jira 3LO](https://d
 
 ### 12.9 已完成源码审查的逐包结论（持续归回，整改另计）
 
-本节按实际审查批次保留证据；原冻结批次累计71包源码已审，整改及实操另计。2026-10-13 main合入`fc18d5f62`（#472 Prologue接入），相对`2cb35d4e8`新增93文件差异，涉及Local Host、Workbench、AgentHost、contracts、design-system、Coding、Lingguang七包；§5.1这七行暂记待审，其余64包保留结论。只补读这批新增/变化的生产实现、必要消费者及回归，不重做无变更的既有审查。G5只读复核AI/助理/Coding/合同与既有AUTH的交集，协调方核资源变换与其他客户端交集；新发现ASSET-JS见§12.8，整合与运行仍由原会话唯一writer承接。首批 G3/G4 合计 13 个包的跟踪清单经协调方与冻结切点 `git ls-files` 对照，无漏项、重复或未披露可执行文件。G4 全部 191 文件（生产 170 文件/27,820 行）已逐段读；G3 180 文件含 26 个静态资源：CSS 全文件结构、装配/插值、公共令牌、focus/hidden/主题/响应式/减少动态与消费者已审，未逐行评价每个历史选择器；图片/字体核格式、引用及许可，不声称视觉/字形全验。此口径用于代码审查，视觉、原生与用户体验仍需实际证据。生产入口、失败/恢复与测试断言已随各包核对；未出现新问题的包也不是“所有场景已通过”。
+本节按实际审查批次保留证据；原冻结批次累计71包源码已审，整改及实操另计。2026-10-13 main合入`fc18d5f62`（#472 Prologue接入），相对`2cb35d4e8`新增93文件差异，涉及Local Host、Workbench、AgentHost、contracts、design-system、Coding、Lingguang七包；这七包增量已补读，§5.1恢复71包已审；只读这批新增/变化的生产实现、必要消费者及回归，没有重做无变更包。G5按固定合并头`6972b1cb0`、随后`808f0856c`复核AI/助理/Coding/合同及Workbench Follow、Review、模型控制，确认既有AUTH/Memory控制、SDK启动作用域与接受后脱离前台、Documents双资源回收、Assistant错误分类/Follow CAS、Coding生命周期及等待退避保留；协调方核实际合并冲突diff、拆分、资源转换、Lingguang流式进展/版本控制、模型设置与样式消费者。ASSET-JS、MODEL-SWITCH、HANDBACK-CURRENT和CODING-CONTROL-VERSION见§12.8；还发现Memory控制类型只转出未导入的编译缺口，已交writer修复。审读结论不代表上述问题已通过回归，整合与运行仍由原会话唯一writer承接。首批 G3/G4 合计 13 个包的跟踪清单经协调方与冻结切点 `git ls-files` 对照，无漏项、重复或未披露可执行文件。G4 全部 191 文件（生产 170 文件/27,820 行）已逐段读；G3 180 文件含 26 个静态资源：CSS 全文件结构、装配/插值、公共令牌、focus/hidden/主题/响应式/减少动态与消费者已审，未逐行评价每个历史选择器；图片/字体核格式、引用及许可，不声称视觉/字形全验。此口径用于代码审查，视觉、原生与用户体验仍需实际证据。生产入口、失败/恢复与测试断言已随各包核对；未出现新问题的包也不是“所有场景已通过”。
 
 | 已审包 / 覆盖 | 职责、依赖与实际消费者判断 | 变化原因、放置与冗余裁决 | 验证及整改边界 |
 | --- | --- | --- | --- |
@@ -2097,6 +2097,8 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 typed桥及G5五片已全部整合至`697cf9422`；协调方逐份核range-diff，typed/Characters/Builder/Coding生产片原样，Agent仅README上下文接续，Memory保留现行memoryErrors与直接bindings登记，没有恢复旧错误重写层。`dff982674`的无waits明确拒绝与Coding停止不支持消费者、Host回归断言及Diff/S1/Goals/Market真实入口修正均已核，尚未运行。G7只读诊断与协调方源核进一步确认：Pages READONLY/CREATE须明确宽布局；TRANSIENT原选择器命中article而非button；ACTIONS第二段8字被现行规则归word，不支持拆行动项，改长计划文本保留变化后拒绝。Markdown/HTML事实断言已有经过证据，打印捕获须等待实际srcdoc文档并断真实print调用，当前不足以定产品根因。补查Form两个submit处理后，修法收束为公共下拉增强器尊重原select显式aria-required，缺省用native required；若直接给Form添加原生required会让浏览器先行拦截，改变现有错误提示，因此不采用。原MutationObserver已观察全部属性，无需新机制，AX要求不放宽；离线填写/导入后续尚未执行。上述仅是修正方案与源码证据，§12.7组合和最终运行未据此关闭。
 
 `8d4bc1c5e` 已提交公共select的显式ARIA优先及动态回归、Pages宽布局/真实指针切换/实际srcdoc打印捕获；协调方完整读diff，业务断言未放宽，尚未运行。`087e0c7df` 将S5/S6共用的真实Home、Catalog工作区、HTTP和SDK装配抽成夹具，原Shelf完整原文与跨项目拒绝断言保留；新增S6在审批后等待实际回执再判写入，分别核文件、Git index及固定变更正文。两项夹具问题（漏装工作区能力、将审批接受误作效果完成）已在源码审查中纠正。Builder真实Host用例`61bd21df5`/`1e9ab3096`通过真实SandboxRunner目录清理制造旧reset与pause/resume交错，同目录两条清理路径共享实际删除屏障，待续步落地后核新ready状态和预览原文不变；模型使用现有受控fixture，未运行。Goals候选见§12.3，Schedule仍待。这些均不作为工程或组合通过证据。
+
+新main整合头`6972b1cb0`已把ASSET-JS改为直接对原JS调用现有esbuild转换，失败保留原文；真实HTTP用例保留locale/ETag/HEAD/缓存断言并增加插值模板、正则和自动分号的独立执行期望。Goals候选已原样整合为`b468273e1`。`808f0856c`按职责搬移附件/Character校验、启动控制合同和Builder设计夹具，原断言与effects.start整次作用域保留，并补Documents合并时遗漏的函数括号；上述实际diff已核，均未新构建或运行。G5新main补审发现的两个P1、动作版本和控制类型本地import缺口尚待处理。Schedule服务激活与S8自动提醒用例仍在原writer准备中，不以候选实现替代产品证据。
 
 共享spec、路线图、安全不变量、门禁/API/动作/资源快照由协调方按实际整合结果串行同步；writer不得放宽阈值或为绿删断言。当前均只获本地独立实现/提交，不自行推送、开PR、安装、发布或操作真实Home/凭据。§12.8中需同步安全表的具体拒绝必须有生产边界断言；受控第三方响应不等于真实外部账号验收。
 

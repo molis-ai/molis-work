@@ -91,3 +91,5 @@
 - `node scripts/check-health-gates.mjs --base origin/main`
 
 碰了 contracts、agent-host 或跨三个以上包时，全量前先整体 `pnpm build`。
+
+当前合同补记（2026-10-13）：coding.runs.control 输入形状改变，因此按现行合同规则用v2；不保留v1别名，不因没有外部固定引用而复用旧版本。同一runControl/schema、user受众与页面下一次调用换模语义保持。ADOPT-CONTROL-V2-01：公开schema拒绝缺字段、完整answer/steer/stop/pause/resume/switch-model可用，版本为2且页面/HTTP按当前定义调用；构建后更新实际动作快照与现行消费者，再按当前main检查。

@@ -6,6 +6,7 @@ import { LocalMcpServer } from "@molis-ai/molis-work-app-local-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { scheduleCapabilities } from "@molis-ai/molis-work-contracts/services/scheduler";
 import type { PluginCapabilityClient, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
 import { crossEntrySchedule as subject, crossEntryTodo as todo, isCrossEntryObject } from "./fixtures/cross-entry-subjects.js";
 
@@ -154,4 +155,16 @@ test("W3-09-1-01 T7: stale Home Todo revisions refuse page and actual MCP equall
   }
   assert.notEqual(refusedPage.callId, refusedMcp.body.call_id);
   assert.deepEqual(await home.web.get(path), before, "refusals preserve the current revision, status and complete owner history");
+});
+
+test("W3-09-1-01 T5: a real Shelf page caller retains the operation id on schema refusal before any owner write", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), project = await home.createProject("Literal page caller", ["shelf"]);
+  const path = `/projects/${encodeURIComponent(project.project_id)}/api/shelf`;
+  const before = await home.web.get(path);
+  const refused = await page(home, path + "/items", { text: "原材料保留", title: "x".repeat(201), capture_pages: false });
+  assert.equal(refused.status, 400); assert.equal(refused.body.code, "actions.input_invalid");
+  assert.equal(refused.callId, refused.body.call_id);
+  const record = row(home, refused.callId, shelfActions.admit.capability_id);
+  assert.deepEqual([record.ok, record.code, record.refused, record.project_id, record.actor_id], [false, "actions.input_invalid", true, null, "web-user"]);
+  assert.deepEqual(await home.web.get(path), before, "invalid material creates no Shelf item or job");
 });

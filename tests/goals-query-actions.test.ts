@@ -178,10 +178,10 @@ test("Goal definitions take only the four decision methods and the two review st
     // New criteria are held to the known methods.
     await assert.rejects(host.withProject(ref, r => r.coordinator.goals.commands.createGoal(project_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
       acceptance_criteria: [{ statement: "试玩", decision_method: "playtest" as never, pass_condition: "能进球" }] },
-      { actor_id: "user", idempotency_key: "new-goal" })), { code: "goal.acceptance_invalid", message: /automated_check、measurement、inspection、human_decision/ });
+      { actor_id: "user", idempotency_key: "new-goal" })), { code: "goals.goal.acceptance_invalid", message: /automated_check、measurement、inspection、human_decision/ });
     await assert.rejects(host.withProject(ref, r => r.coordinator.goals.commands.createGoal(project_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
       acceptance_criteria: [], decomposition_review: { status: "closed_leaf" as never, coverage: [], open_goal_ids: [], next_step: "" } },
-      { actor_id: "user", idempotency_key: "new-review" })), { code: "goal.decomposition_review_invalid", message: /complete、paused/ });
+      { actor_id: "user", idempotency_key: "new-review" })), { code: "goals.goal.decomposition_review_invalid", message: /complete、paused/ });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 

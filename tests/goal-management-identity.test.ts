@@ -155,13 +155,13 @@ test("W3-07-5-01 / W3-07-8-02: all fourteen retired Goals literals refuse Host a
     assert.deepEqual(Object.values(goalsPlugin).filter(value => value && typeof value === "object" && "capability_id" in value
       && RETIRED_GOALS_ENTRIES.some(([id]) => id === value.capability_id)), [], "the package exports no retired descriptor");
     const second = () => host.withProject(ref, runtime => runtime.coordinator.goalQueries.getGoal(project_id, "PLUGIN-SECOND"));
-    await assert.rejects(second(), { code: "goal.not_found" }, "the retired create entry left no record");
+    await assert.rejects(second(), { code: "goals.not_found" }, "the retired create entry left no record");
 
     // Create remains unavailable to plugins; note retains its existing identity boundary.
     const pluginCaller = { actor_id: "plugin-person", audience: "plugin" as const, project_id, permissions: ["goals:read", "goals:write"] };
     await assert.rejects(host.actionClient(ref).invoke(pluginCaller, goalsActions.create,
       { goal_id: "PLUGIN-SECOND", title: "再一个", idempotency_key: "plugin-intent" }), { code: "actions.forbidden" });
-    await assert.rejects(second(), { code: "goal.not_found" });
+    await assert.rejects(second(), { code: "goals.not_found" });
     await assert.rejects(host.actionClient(ref).invoke(pluginCaller, goalsActions.note,
       { goal_id, body: "伪造写作者", idempotency_key: "forged-plugin-note", actor_id: LOCAL_PERSON_ACTOR_ID } as never), { code: "actions.input_invalid" });
     const pluginNote = await host.actionClient(ref).invoke(pluginCaller, goalsActions.note, { goal_id, body: "插件写的便笺", idempotency_key: "plugin-note" });

@@ -132,7 +132,7 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
       idempotency_key: "guidance-without-confirmation",
     }),
     (error: unknown) =>
-      error instanceof ActionError && error.code === "project_guidance.user_confirmation_required",
+      error instanceof ActionError && error.code === "goals.project_guidance.user_confirmation_required",
   );
   const first = coordinator.goals.commands.addProjectGuidance({
     project_id: "board-1",
@@ -204,7 +204,7 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
       idempotency_key: "guidance-too-long",
     }),
     (error: unknown) =>
-      error instanceof ActionError && error.code === "project_guidance.entry_too_large",
+      error instanceof ActionError && error.code === "goals.project_guidance.entry_too_large",
   );
   store.close();
 });
@@ -239,7 +239,7 @@ test("project guidance edits, deactivation, and restoration preserve immutable r
       idempotency_key: "guidance-version-unconfirmed",
     }),
     (error: unknown) =>
-      error instanceof ActionError && error.code === "project_guidance.user_confirmation_required",
+      error instanceof ActionError && error.code === "goals.project_guidance.user_confirmation_required",
   );
 
   const edited = coordinator.goals.commands.updateProjectGuidance({
@@ -333,7 +333,7 @@ test("project guidance rejects invalid, empty, and project-total overflow conten
       content: "不支持的分类",
       idempotency_key: "guidance-invalid-kind",
     }),
-    (error: unknown) => error instanceof ActionError && error.code === "project_guidance.kind_invalid",
+    (error: unknown) => error instanceof ActionError && error.code === "goals.project_guidance.kind_invalid",
   );
   assert.throws(
     () => coordinator.goals.commands.addProjectGuidance({
@@ -341,7 +341,7 @@ test("project guidance rejects invalid, empty, and project-total overflow conten
       content: "  \n  ",
       idempotency_key: "guidance-empty",
     }),
-    (error: unknown) => error instanceof ActionError && error.code === "project_guidance.invalid",
+    (error: unknown) => error instanceof ActionError && error.code === "goals.project_guidance.invalid",
   );
   for (let index = 0; index < 8; index += 1) {
     coordinator.goals.commands.addProjectGuidance({
@@ -356,7 +356,7 @@ test("project guidance rejects invalid, empty, and project-total overflow conten
       content: "超过项目总长度",
       idempotency_key: "guidance-total-overflow",
     }),
-    (error: unknown) => error instanceof ActionError && error.code === "project_guidance.total_too_large",
+    (error: unknown) => error instanceof ActionError && error.code === "goals.project_guidance.total_too_large",
   );
   assert.equal(store.snapshot("board-1").project_guidance.length, 8);
   store.close();
@@ -372,7 +372,7 @@ test("only satisfied Goals can be archived and restoration preserves completion 
         { goal_id: "archive-target", archived: true, reason: "整理已完成目标" },
         { actor_id: "user-1", idempotency_key: "archive-unmet" },
       ),
-    (error: unknown) => error instanceof ActionError && error.code === "goal.not_satisfied",
+    (error: unknown) => error instanceof ActionError && error.code === "goals.goal.not_satisfied",
   );
 
   coordinator.setActiveGoal(
@@ -483,7 +483,7 @@ test("Goal trash preserves history, deactivates only active relations, and resto
         },
         { actor_id: "user-1", idempotency_key: "trash-new-relation-denied" },
       ),
-    (error) => error instanceof ActionError && error.code === "goal.trashed",
+    (error) => error instanceof ActionError && error.code === "goals.goal.trashed",
   );
 
   const repeatedTrash = coordinator.goals.lifecycle.setTrashed(
@@ -640,7 +640,7 @@ test("user relation maintenance keeps direction, reason, history, and idempotenc
         { actor_id: "user-1", idempotency_key: "relation-maintenance-duplicate" },
       ),
     (error: unknown) =>
-      error instanceof ActionError && error.code === "relation.already_exists",
+      error instanceof ActionError && error.code === "goals.relation.already_exists",
   );
 
   const deactivated = coordinator.goals.commands.deactivateRelation(
@@ -674,7 +674,7 @@ test("user relation maintenance keeps direction, reason, history, and idempotenc
         { actor_id: "user-1", idempotency_key: "relation-maintenance-deactivate-again" },
       ),
     (error: unknown) =>
-      error instanceof ActionError && error.code === "relation.not_active",
+      error instanceof ActionError && error.code === "goals.relation.not_active",
   );
   const event = store.db
     .prepare("SELECT reason FROM events WHERE type = 'relation.deactivated' AND object_id = ?")

@@ -387,7 +387,7 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
         project_id: OTHER_BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "cross-board",
         events: [reportDelivery({ fields: { piece: "有内容" } })],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "goal.not_found",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.not_found",
     );
     assert.throws(
       () => data.module.events.configure({
@@ -439,7 +439,7 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
         project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "trashed-write",
         events: [reportDelivery({ fields: { piece: "不该写入" } })],
       }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "goal.trashed",
+      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.goal.trashed",
     );
   } finally {
     close(data);

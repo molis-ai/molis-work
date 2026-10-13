@@ -63,13 +63,13 @@ export class GoalEventApplication {
   createIntent(input: CreateGoalIntentInput): CreateGoalIntentResult {
     assertCreateIntentKeys(input);
     const title = input.title?.trim();
-    if (!title) throw new ActionError("goal.title_required", "意图创建只需要能辨认的标题");
+    if (!title) throw new ActionError("goals.goal.title_required", "意图创建只需要能辨认的标题");
     const outcome = input.outcome?.trim() ?? "";
     const why = input.why?.trim() ?? "";
     const businessLogic = input.business_logic?.trim() ?? "";
     const priority = input.priority;
     if (priority != null && (!Number.isFinite(priority) || priority < 0 || priority > 100)) {
-      throw new ActionError("goal.priority_invalid", "priority 必须是 0 到 100 的数字");
+      throw new ActionError("goals.goal.priority_invalid", "priority 必须是 0 到 100 的数字");
     }
     const hash = intentHash(input);
     return this.ports.events.runImmediate(() => {
@@ -197,11 +197,11 @@ export class GoalEventApplication {
   listGoals(query: GoalEventDirectoryQuery): GoalEventDirectoryPage {
     const limit = query.limit ?? 20;
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
-      throw new ActionError("goal_list.invalid_limit", "列表数量必须是 1 到 100");
+      throw new ActionError("goals.goal_list.invalid_limit", "列表数量必须是 1 到 100");
     }
     const workStatus = query.work_status as string | undefined;
     if (workStatus != null && !(goalEventWorkStatuses as readonly string[]).includes(workStatus)) {
-      throw new ActionError("goal_list.invalid_status", "不支持的工作状态");
+      throw new ActionError("goals.goal_list.invalid_status", "不支持的工作状态");
     }
     const cursor = query.after_cursor === undefined ? null : parseDirectoryCursor(query.after_cursor);
     const goals = this.ports.query.listGoals(query.project_id)
@@ -325,7 +325,7 @@ export class GoalEventApplication {
 
   private requireGoal(projectId: string, goalId: string): GoalRecord {
     const goal = this.ports.query.getGoal(projectId, goalId);
-    if (!goal) throw new ActionError("goal.not_found", `找不到这个 Goal: ${goalId}`, { kind: "not_found" });
+    if (!goal) throw new ActionError("goals.not_found", `找不到这个 Goal: ${goalId}`, { kind: "not_found" });
     return goal;
   }
 }
@@ -427,7 +427,7 @@ function parseDirectoryCursor(cursor: string): { updated_at: string; goal_id: st
   const updated_at = separator >= 0 ? cursor.slice(0, separator) : "";
   const goal_id = separator >= 0 ? cursor.slice(separator + 1) : "";
   if (!DIRECTORY_CURSOR_TIME.test(updated_at) || !goal_id || !Number.isFinite(Date.parse(updated_at))) {
-    throw new ActionError("goal_list.invalid_cursor", "列表游标无效");
+    throw new ActionError("goals.goal_list.invalid_cursor", "列表游标无效");
   }
   return { updated_at, goal_id };
 }

@@ -270,13 +270,13 @@ export interface PlanningRelationChange {
 
 export interface PlanningGraphIssue {
   code:
-    | "planning.goal_missing"
-    | "planning.goal_trashed"
-    | "planning.relation_self_reference"
-    | "planning.relation_duplicate"
-    | "planning.part_of_cycle"
-    | "planning.dependency_cycle"
-    | "planning.execution_cycle";
+    | "goals.planning.goal_missing"
+    | "goals.planning.goal_trashed"
+    | "goals.planning.relation_self_reference"
+    | "goals.planning.relation_duplicate"
+    | "goals.planning.part_of_cycle"
+    | "goals.planning.dependency_cycle"
+    | "goals.planning.execution_cycle";
   message: string;
   goal_ids: string[];
   relation_ids: string[];

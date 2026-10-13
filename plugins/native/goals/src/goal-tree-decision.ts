@@ -217,7 +217,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
       if (appliedItemIds.length > 0) {
         const graph = this.ports.goals.planning.validateBoardGraph(input.project_id);
         const blocking = graph.issues.filter((issue) =>
-          issue.code === "planning.part_of_cycle" || issue.code === "planning.dependency_cycle" || issue.code === "planning.execution_cycle");
+          issue.code === "goals.planning.part_of_cycle" || issue.code === "goals.planning.dependency_cycle" || issue.code === "goals.planning.execution_cycle");
         if (blocking[0]) {
           throw this.ports.errorFactory(blocking[0].code, blocking[0].message, {
             goal_ids: blocking[0].goal_ids,
@@ -302,7 +302,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
   }
 
   private requireBoard(projectId: string): void {
-    if (!this.ports.goals.query.getBoard(projectId)) throw this.ports.errorFactory("board.not_found", `这个项目还没有初始化目标资料库: ${projectId}`);
+    if (!this.ports.goals.query.getBoard(projectId)) throw this.ports.errorFactory("goals.board.not_found", `这个项目还没有初始化目标资料库: ${projectId}`);
   }
   private requiredText(value: string, code: string, message: string): string {
     const text = value.trim();

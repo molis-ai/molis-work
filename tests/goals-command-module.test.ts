@@ -88,7 +88,7 @@ test("Goals public Command API owns Goal, relation, and Guidance writes", () => 
         reason: "重复关系",
       }, { actor_id: "user-1", idempotency_key: "duplicate-relation" }),
       (error: unknown) =>
-        error instanceof GoalsCommandError && error.code === "relation.already_exists",
+        error instanceof GoalsCommandError && error.code === "goals.relation.already_exists",
     );
   } finally {
     store.close();

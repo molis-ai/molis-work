@@ -33,14 +33,14 @@ export class GoalArchiveCommands {
       if (replay) return { ...replay, replayed: true };
       const goal = this.context.requireGoal(projectId, input.goal_id);
       if (goal.trashed_at) {
-        throw this.context.error("goal.trashed", "回收站中的 Goal 需要先恢复，才能变更归档状态");
+        throw this.context.error("goals.goal.trashed", "回收站中的 Goal 需要先恢复，才能变更归档状态");
       }
       if (input.archived && goal.fulfillment_state !== "satisfied") {
-        throw this.context.error("goal.not_satisfied", "只有已完成的 Goal 可以归档");
+        throw this.context.error("goals.goal.not_satisfied", "只有已完成的 Goal 可以归档");
       }
       if (Boolean(goal.archived_at) === input.archived) {
         throw this.context.error(
-          "goal.archive_state_unchanged",
+          "goals.goal.archive_state_unchanged",
           input.archived ? "Goal 已经归档" : "Goal 当前未归档",
         );
       }
@@ -87,7 +87,7 @@ export class GoalArchiveCommands {
   ): GoalTrashResult & { replayed: boolean; observed_event_cursor: number } {
     const reasonText = input.reason.trim();
     if (!reasonText) {
-      throw this.context.error("goal.trash_reason_required", "移入或恢复回收站时必须说明原因");
+      throw this.context.error("goals.goal.trash_reason_required", "移入或恢复回收站时必须说明原因");
     }
     const hash = requestHash({ project_id: projectId, ...input, reason: reasonText });
     return this.context.repository.immediate(() => {
@@ -195,7 +195,7 @@ export class GoalArchiveCommands {
         ORDER BY trashed_at DESC, trash_record_id DESC LIMIT 1
       `).get(projectId, input.goal_id) as Row | undefined;
       if (!trashRecord) {
-        throw this.context.error("goal.trash_record_missing", "回收站 Goal 缺少可恢复的删除记录");
+        throw this.context.error("goals.goal.trash_record_missing", "回收站 Goal 缺少可恢复的删除记录");
       }
       this.context.repository.db.prepare(`
         UPDATE goals SET trashed_at = NULL, trashed_by = NULL, updated_at = ?

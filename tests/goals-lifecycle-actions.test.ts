@@ -19,9 +19,9 @@ async function recordDelivery(actions: BoundActionClient, goal_id: string) {
 }
 
 for (const graph of [
-  { types: ["part_of", "part_of", "part_of"], code: "planning.part_of_cycle" },
-  { types: ["depends_on", "depends_on", "depends_on"], code: "planning.dependency_cycle" },
-  { types: ["part_of", "part_of", "depends_on"], code: "planning.execution_cycle" },
+  { types: ["part_of", "part_of", "part_of"], code: "goals.planning.part_of_cycle" },
+  { types: ["depends_on", "depends_on", "depends_on"], code: "goals.planning.dependency_cycle" },
+  { types: ["part_of", "part_of", "depends_on"], code: "goals.planning.execution_cycle" },
 ] as const) test(`W2-18-GOALS-01/02 restore refuses ${graph.code} atomically and the same request recovers after a graph correction`, async t => {
   const home = await mkdtemp(join(tmpdir(), "goal-restore-cycle-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Restore graph", actor_id: "user" }));
@@ -35,7 +35,7 @@ for (const graph of [
     { from_goal_id, to_goal_id, type, reason: "Observed graph" }, { actor_id: caller.actor_id, idempotency_key: key }));
   const ca = await add("C", "A", graph.types[0], "C-A"), ab = await add("A", "B", graph.types[1], "A-B");
   await actions.invoke(goalsActions.trash, { goal_id: "A", trashed: true, reason: "Confirmed removal", user_confirmed: true, idempotency_key: "trash-A" });
-  const currentEdge = graph.code === "planning.execution_cycle"
+  const currentEdge = graph.code === "goals.planning.execution_cycle"
     ? await add("C", "B", graph.types[2], "C-B")
     : await add("B", "C", graph.types[2], "B-C");
   const state = () => host.withProject(ref, r => ({
@@ -67,6 +67,7 @@ for (const graph of [
   assert.deepEqual(await state(), after, "retry records no duplicate restore event or relation change");
 });
 
+// R2-01/R2-03: owner refusal codes change; archived/trash event facts, receipts and recovery stay intact.
 test("lifecycle actions preserve old receipts, active Goal, relations, history, rollback and restart", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-lifecycle-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Lifecycle", actor_id: "user" }));
@@ -89,7 +90,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
       { goal_id: active.goal_id, reason: active.reason }, { actor_id: caller.actor_id, idempotency_key: active.idempotency_key }));
     assert.deepEqual(await bound.invoke(goalsActions.active, active), { ...oldActive, replayed: true });
     const before = await snapshot();
-    await assert.rejects(bound.invoke(goalsActions.trash, { ...trash, user_confirmed: false }), { code: "goal.trash_confirmation_required" });
+    await assert.rejects(bound.invoke(goalsActions.trash, { ...trash, user_confirmed: false }), { code: "goals.goal.trash_confirmation_required" });
     await assert.rejects(bound.invoke(goalsActions.trash, { ...trash, actor_id: "user" } as never), { code: "actions.input_invalid" });
     await assert.rejects(client.invoke({ ...caller, permissions: ["goals:read"] }, goalsActions.trash, trash), { code: "actions.forbidden" });
     await assert.rejects(client.invoke({ ...caller, project_id: "foreign" }, goalsActions.active, active), { code: "actions.scope_mismatch" });
@@ -116,7 +117,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     assert.ok(trashedDocument.timeline.items.some(item => item.event_id === note.event_id));
     assert.equal(trashedDocument.relations.find(r => r.relation_id === relation.relation_id)?.state, "inactive");
     await assert.rejects(bound.invoke(goalsActions.trash, { ...trash, reason: "Different request" }));
-    await assert.rejects(bound.invoke(goalsActions.active, { ...active, idempotency_key: "active-trashed" }), { code: "goal.trashed" });
+    await assert.rejects(bound.invoke(goalsActions.active, { ...active, idempotency_key: "active-trashed" }), { code: "goals.goal.trashed" });
     await bound.invoke(goalsActions.trash, { ...trash, goal_id: "right", idempotency_key: "trash-right" });
     const leftRestored = await bound.invoke(goalsActions.trash, { ...trash, trashed: false, reason: "Restore left", idempotency_key: "restore-left" });
     assert.equal(leftRestored.goal.trashed_at, null);

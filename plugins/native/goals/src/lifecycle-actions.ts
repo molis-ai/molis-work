@@ -37,7 +37,7 @@ export function createGoalsLifecycleActionHandlers(ports: GoalsLifecycleActionPo
     } },
     { ...goalsLifecycleActions.trash, handle: (caller, input) => {
       const { idempotency_key, user_confirmed, ...goal } = input as TrashInput;
-      if (!user_confirmed) throw new ActionError("goal.trash_confirmation_required", "移入或恢复回收站必须先由用户明确确认指定目标");
+      if (!user_confirmed) throw new ActionError("goals.goal.trash_confirmation_required", "移入或恢复回收站必须先由用户明确确认指定目标");
       return ports.lifecycle.setTrashed(projectId, goal, { ...goalActor(caller), idempotency_key });
     } },
     { ...goalsLifecycleActions.trashed, handle: () => ({ goals: ports.lifecycle.listTrashed(projectId), observed_event_cursor: ports.eventCursor() }) },

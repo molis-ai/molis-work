@@ -13,9 +13,9 @@ export const goalsTreeActions = {
     "提交新目标及父子或依赖关系的待确认提案；提交不会创建正式目标。五项及以上变化须提供整份 narrative 和逐项 explanation。用户通过 Web 或管理入口审批后落地", "command", schema.treeSubmitInputSchema, schema.treeSubmitResultSchema),
   treeRead: goalAction<Input<"listGoalTreeProposals">, Output<"listGoalTreeProposals">>("goals.tree.read", "读取结构提案",
     "读取当前项目的结构提案；可按提案 ID 或根目标筛选", "query", schema.treeReadInputSchema, schema.treeReadResultSchema),
-  treeCheck: goalAction<Input<"checkGoalTreeProposal">, Output<"checkGoalTreeProposal">>("goals.tree.check", "检查结构提案",
-    "检查提案的事实基线及目标关系约束，保存检查结果；预检回滚正式目标和关系变更", "command", schema.treeCheckInputSchema, schema.treeCheckResultSchema),
-  treeDecide: { ...decide, action: { ...decide.action, audiences: ["user"] as const, permissions: ["goals:decide"] } },
+  treeCheck: { ...goalAction<Input<"checkGoalTreeProposal">, Output<"checkGoalTreeProposal">>("goals.tree.check", "检查结构提案",
+    "检查提案的事实基线及目标关系约束，保存检查结果；预检回滚正式目标和关系变更", "command", schema.treeCheckInputSchema, schema.treeCheckResultSchema), version: 2 },
+  treeDecide: { ...decide, version: 2, action: { ...decide.action, audiences: ["user"] as const, permissions: ["goals:decide"] } },
 } as const;
 
 function authority(caller: ActionCallContext) {

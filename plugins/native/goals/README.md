@@ -105,3 +105,5 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 - 相关手册：[docs/modules/goals.md](../../../docs/modules/goals.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[PRODUCT.md](../../../PRODUCT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 共享的五个 Goals 插件动作合同与schema在 `packages/contracts/src/modules/goal-actions.ts`，插件和Coding读取同一份。contract/state/progress/receipt的plugin受众要求Host实际登记且仍有效的内置caller，项目、操作者与安装都须一致；输入不提供资格。list与note保留原plugin边界。四个Goals context/progress typed协议已移除，Host与SDK均答不可用，不通过伪造描述符恢复。
+
+规划检查/影响与树检查/决定的输出携带现行 goals.planning.* issue，四个动作版本为2；其他动作版本保持。review_action指向goals.planning.impact@2，固定旧版本的调用方需重新发现/授予当前动作。当前错误码按goals.<原前缀>.<原因>，缺Goal为goals.not_found；业务事件goal.trashed/goal.archived等保持。

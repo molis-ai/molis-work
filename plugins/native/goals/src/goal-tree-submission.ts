@@ -192,12 +192,12 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
   }
 
   private requireBoard(projectId: string): void {
-    if (!this.ports.goals.query.getBoard(projectId)) throw this.ports.errorFactory("board.not_found", `这个项目还没有初始化目标资料库: ${projectId}`);
+    if (!this.ports.goals.query.getBoard(projectId)) throw this.ports.errorFactory("goals.board.not_found", `这个项目还没有初始化目标资料库: ${projectId}`);
   }
 
   private requireGoalOnBoard(projectId: string, goalId: string): GoalRecord {
     const goal = this.ports.goals.query.getGoal(projectId, goalId);
-    if (!goal) throw this.ports.errorFactory("goal.not_found", `Goal 不存在: ${goalId}`);
+    if (!goal) throw this.ports.errorFactory("goals.not_found", `Goal 不存在: ${goalId}`);
     return goal;
   }
 }

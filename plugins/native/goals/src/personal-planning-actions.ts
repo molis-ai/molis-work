@@ -25,7 +25,7 @@ function userAvailability(caller: ActionCallContext): ActionAvailability {
   const proof = caller.user_action;
   return caller.audience === "user" && caller.actor_kind === "user" && caller.actor_id.trim() && proof?.conversation_ref.trim()
     && proof.message_ref.trim() && ["web", "management"].includes(proof.source)
-    ? { available: true } : { available: false, code: "planning.user_required", reason: "个人规划修改需要受保护的用户操作" };
+    ? { available: true } : { available: false, code: "goals.planning.user_required", reason: "个人规划修改需要受保护的用户操作" };
 }
 export function createPersonalPlanningActionHandlers(ports: PersonalPlanningActionPorts): ActionHandlerBinding[] {
   return [

@@ -79,7 +79,7 @@ test("Goals actions keep the runtime author; the management caller and the first
     const before = creates;
     await assert.rejects(management.invoke(goalsActions.create, { ...input, goal_id: "DENIED", idempotency_key: "denied" }), { code: "actions.plugin_disabled" });
     assert.ok(creates > before, "the management action must reach the shared action policy");
-    await assert.rejects(host.withProject(ref, runtime => runtime.coordinator.goalQueries.getGoal(project.project_id, "DENIED")), { code: "goal.not_found" });
+    await assert.rejects(host.withProject(ref, runtime => runtime.coordinator.goalQueries.getGoal(project.project_id, "DENIED")), { code: "goals.not_found" });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -309,7 +309,7 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     assert.equal(parseText(await sdk.callTool({ name: "molis_work_v1_action_goals.tree.submit__v1", arguments: treeInput })).replayed, true);
     const treeQuery = { proposal_id: proposed.proposal.proposal_id };
     const treeCheck = { ...treeQuery, idempotency_key: "mcp-tree-check" };
-    const checkedWire = await sdk.callTool({ name: "molis_work_v1_action_goals.tree.check__v1", arguments: treeCheck });
+    const checkedWire = await sdk.callTool({ name: "molis_work_v1_action_goals.tree.check__v2", arguments: treeCheck });
     assert.equal(checkedWire.isError, false, JSON.stringify(checkedWire));
     assert.deepEqual(parseText(checkedWire).conflict_item_ids, []);
     assert.deepEqual(parseText(await sdk.callTool({ name: "molis_work_v1_action_goals.tree.read__v1", arguments: treeQuery })), await invokePlanning(goalsActions.treeRead, treeQuery));

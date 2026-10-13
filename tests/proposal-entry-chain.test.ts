@@ -95,7 +95,8 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     const checkedSnapshot = await snapshot();
     assert.deepEqual(await cli("goal-tree-check", checkInput), checked);
     assert.deepEqual(await snapshot(), checkedSnapshot, "a repeated management check preserves the stored item checks and history");
-    const runtimeChecked = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.tree.check__v1", {
+    // R2-02: the real Runtime discovers and calls the current planning-output contract.
+    const runtimeChecked = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.tree.check__v2", {
       proposal_id: proposed.proposal.proposal_id, idempotency_key: "check-proposal-runtime",
     })) as { conflict_item_ids: string[] };
     assert.deepEqual(runtimeChecked.conflict_item_ids, checked.conflict_item_ids);

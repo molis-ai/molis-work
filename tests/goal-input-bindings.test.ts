@@ -82,7 +82,7 @@ test("Feed input provenance is recorded once and survives reopen independently o
     assert.deepEqual(inputs.list("project-a"), [feedReceipt]);
     assert.equal(ledger.query.history(access, "goal.input:binding-feed").length, 1);
     ledger.commands.remove(access, "goal.input:binding-feed", "test.missing_source");
-    assert.throws(() => inputs.list("project-a"), { code: "goal.input_source_missing" });
+    assert.throws(() => inputs.list("project-a"), { code: "goals.goal.input_source_missing" });
   } finally {
     db.close();
     rmSync(directory, { recursive: true, force: true });

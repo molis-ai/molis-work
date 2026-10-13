@@ -584,10 +584,10 @@ export class GoalEventFacts implements GoalEventFactsApi {
     this.context.requireBoard(projectId);
     const goal = this.context.requireGoal(projectId, goalId);
     if (goal.trashed_at) {
-      throw this.context.error("goal.trashed", "回收站中的 Goal 不能登记事件配置或上报工作事实");
+      throw this.context.error("goals.goal.trashed", "回收站中的 Goal 不能登记事件配置或上报工作事实");
     }
     if (goal.archived_at) {
-      throw this.context.error("goal.archived", "已归档的 Goal 不能登记事件配置或上报工作事实");
+      throw this.context.error("goals.goal.archived", "已归档的 Goal 不能登记事件配置或上报工作事实");
     }
     return goal;
   }

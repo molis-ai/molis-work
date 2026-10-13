@@ -505,7 +505,7 @@ test("Goals public Planning API owns method versions, graph checks, and change i
         relation("cycle-1", "feature", "foundation", "depends_on"),
         relation("cycle-2", "foundation", "feature", "depends_on"),
       ],
-    ).some((issue) => issue.code === "planning.dependency_cycle"));
+    ).some((issue) => issue.code === "goals.planning.dependency_cycle"));
   } finally {
     store.close();
     rmSync(root, { recursive: true, force: true });
@@ -518,13 +518,13 @@ test("whole-graph validation catches dependency and combined execution cycles", 
     relation("d1", "feature", "foundation", "depends_on"),
     relation("d2", "foundation", "feature", "depends_on"),
   ];
-  assert.ok(validatePlanningGraph(goals, dependencyCycle).some((issue) => issue.code === "planning.dependency_cycle"));
+  assert.ok(validatePlanningGraph(goals, dependencyCycle).some((issue) => issue.code === "goals.planning.dependency_cycle"));
 
   const combinedCycle = [
     relation("p1", "feature", "release", "part_of"),
     relation("d3", "feature", "release", "depends_on"),
   ];
-  assert.ok(validatePlanningGraph(goals, combinedCycle).some((issue) => issue.code === "planning.execution_cycle"));
+  assert.ok(validatePlanningGraph(goals, combinedCycle).some((issue) => issue.code === "goals.planning.execution_cycle"));
 
   const projected = projectPlanningRelations([], [
     { action: "add", relation_id: "x1", from_goal_id: "feature", to_goal_id: "foundation", type: "depends_on" },

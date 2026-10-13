@@ -26,7 +26,7 @@ export class GoalTreeDecisionFollowup {
       structural_validation: "passed",
       status: required ? "required" : "not_required",
       next_action: required ? "review_affected_subgraph" : "continue",
-      review_action: { capability_id: "goals.planning.impact", version: 1 },
+      review_action: { capability_id: "goals.planning.impact", version: 2 },
       canonical_changes_require_new_user_confirmation: true,
     };
   }

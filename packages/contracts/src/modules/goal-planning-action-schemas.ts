@@ -23,8 +23,8 @@ export const planningMethodSummarySchema = object({ ...methodFields, version, ev
 export const planningCompositionSchema = object({ method_pack_ids: strings, method_names: strings,
   method_paths: array(object({ method_id: text, method_name: text, kind: kinds, steps: strings, instructions: text })),
   required_coverage: coverage, dependency_rules: dependencies, evidence_requirements: strings, completion_checks: strings, failure_modes: strings });
-export const planningGraphIssueSchema = object({ code: enumeration(["planning.goal_missing", "planning.goal_trashed", "planning.relation_self_reference",
-  "planning.relation_duplicate", "planning.part_of_cycle", "planning.dependency_cycle", "planning.execution_cycle"]),
+export const planningGraphIssueSchema = object({ code: enumeration(["goals.planning.goal_missing", "goals.planning.goal_trashed", "goals.planning.relation_self_reference",
+  "goals.planning.relation_duplicate", "goals.planning.part_of_cycle", "goals.planning.dependency_cycle", "goals.planning.execution_cycle"]),
   message: text, goal_ids: strings, relation_ids: strings, path: strings });
 export const planningImpactSchema = object({ changed_goal_ids: strings, affected_ancestors: strings, affected_dependents: strings,
   adjacent_dependencies: strings, reusable_open_goal_ids: strings, review_order: strings, graph_issues: array(planningGraphIssueSchema) });

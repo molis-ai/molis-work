@@ -24,7 +24,7 @@ test("guidance action consumers preserve original receipts, revisions, prompt te
     confirmation_summary: "用户已确认此原文", user_confirmed: true, idempotency_key: "original" };
   try {
     const before = await bound.invoke(goalsActions.guidanceRead, {});
-    await assert.rejects(bound.invoke(goalsActions.guidanceAdd, { ...input, user_confirmed: false }), { code: "project_guidance.user_confirmation_required" });
+    await assert.rejects(bound.invoke(goalsActions.guidanceAdd, { ...input, user_confirmed: false }), { code: "goals.project_guidance.user_confirmation_required" });
     await assert.rejects(bound.invoke(goalsActions.guidanceAdd, { ...input, actor_id: "user" } as never), { code: "actions.input_invalid" });
     await assert.rejects(actions.invoke({ ...caller, permissions: ["goals:read"] }, goalsActions.guidanceAdd, input), { code: "actions.forbidden" });
     await assert.rejects(actions.invoke({ ...caller, project_id: "foreign" }, goalsActions.guidanceAdd, input), { code: "actions.scope_mismatch" });

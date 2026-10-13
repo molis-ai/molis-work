@@ -278,7 +278,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 测试覆盖到哪里：
 
 - `tests/uninstall.test.ts:115-166` 的 purge 用例不遍历 `PERSONAL_HOME_SQLITE_STORES`，在 `:121`、`:132` 写死 10 个目录（`images`、`jelly`、`pages`、`form`、`dataset`、`ppt`、`lingguang`、`todo`、`alchemist`、`functions`），另放一份 `server/server.sqlite` 加 `-wal`、`-shm`。它断言：这 10 个目录、`server/` 和 `runtime-config-backups/` 在 purge 计划里；确认数不对时被拒绝、项目库文件和讨论库还在；确认后讨论库没了、状态是 `purged`、Home 目录整个没了（`projects/` 的删除只靠这一句间接证明）。同文件 `:41-83` 的普通卸载用例断言 `server/` 不在计划里、确认后讨论库还在。`cognia`、`workflows`、`connectors`、`context-onboarding`、`search`、`memory` 六个库在这个文件里没有任何断言；`sessions/`、`shelf/`、`logs/`、`backups/`、`runtime-integrations/` 也没有用例往里放内容再断言被删。
-- 全部 19 个目录由另一个文件盖到：`tests/personal-plugins-review-fixes.test.ts:107-154` 用 `deepEqual` 钉死清单的 19 个名字（`:108`），再遍历它们，断言每个目录在 purge 计划里、确认后 `<名>.db` 被删。
+- 全部 19 个目录由另一个文件盖到：`tests/personal-plugins-review-fixes.test.ts:105-152` 用 `deepEqual` 钉死清单的 19 个名字（`:106`），再遍历它们，断言每个目录在 purge 计划里、确认后 `<名>.db` 被删。
 - 讨论库的登记另有一条用例：`tests/im-local-project.test.ts:71` 起的用例启动本机的讨论挂载（`apps/local-host/src/im-server.ts`），断言它在 Home 里只写出 `server/server.sqlite`，且 `server` 在 `PERSONAL_HOME_SQLITE_STORES` 里；挂载以后改写到别的目录，这条用例会红。
 
 purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）：

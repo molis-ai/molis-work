@@ -41,6 +41,7 @@ def inventory(repo, main_start):
         pr, br = m.group(1), m.group(2)
         ln = line_of(repo, br)
         if ln is None: continue          # someone else's PR (Molis main has many)
+        if info(repo, h)["an"] not in OURS: continue   # merged by someone else (e.g. #471/#472 by yijunw0212)
         brought = git(repo, "rev-list", f"{ps[0]}..{ps[1]}").split()
         for c in [h] + brought:
             if c in rows: continue

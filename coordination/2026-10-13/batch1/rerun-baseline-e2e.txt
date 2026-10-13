@@ -1,0 +1,140 @@
+
+Interrupted while running:
+
+⚠ tests/agent-action-selection.e2e.test.ts (tests/agent-action-selection.e2e.test.ts:1:1)
+✖ tests/agent-action-selection.e2e.test.ts (17297.991382ms)
+✖ tests/alchemist-workbench.e2e.test.ts
+✖ tests/artifact-clipboard.e2e.test.ts
+✖ tests/assistant-dock-ime.e2e.test.ts
+✖ tests/feed-capture.e2e.test.ts
+✖ tests/goals-document.e2e.test.ts
+✖ tests/goals-narrow-navigation.e2e.test.ts
+✖ tests/immersive-directory.e2e.test.ts
+✖ tests/plugin-market-upgrade.e2e.test.ts
+✖ tests/product-experience-polish.e2e.test.ts
+✖ tests/project-settings-standalone.e2e.test.ts
+✖ tests/project-user-journey.e2e.test.ts
+✖ tests/session-association-journey.e2e.test.ts
+✖ tests/session-workspace.e2e.test.ts
+✖ tests/settings-viewport.e2e.test.ts
+✖ tests/side-panel-narrow-stage.e2e.test.ts
+✖ tests/tab-reorder-preview.e2e.test.ts
+✖ tests/tab-split-drop-preview.e2e.test.ts
+✖ tests/todo-from-inbox.e2e.test.ts
+✖ tests/touch-targets.e2e.test.ts
+✖ tests/ui-audit-browser.e2e.test.ts
+✖ tests/work-placement-journeys.e2e.test.ts
+✖ tests/workbench-deferred-clients.e2e.test.ts
+✖ tests/workbench-pane-feed.e2e.test.ts
+✖ tests/workbench-tab-workspace.e2e.test.ts
+ℹ tests 25
+ℹ suites 0
+ℹ pass 0
+ℹ fail 0
+ℹ cancelled 25
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17329.275031
+
+✖ failing tests:
+
+test at tests/agent-action-selection.e2e.test.ts:1:1
+✖ tests/agent-action-selection.e2e.test.ts (17297.991382ms)
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/alchemist-workbench.e2e.test.ts:1:1
+✖ tests/alchemist-workbench.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/artifact-clipboard.e2e.test.ts:1:1
+✖ tests/artifact-clipboard.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/assistant-dock-ime.e2e.test.ts:1:1
+✖ tests/assistant-dock-ime.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/feed-capture.e2e.test.ts:1:1
+✖ tests/feed-capture.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/goals-document.e2e.test.ts:1:1
+✖ tests/goals-document.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/goals-narrow-navigation.e2e.test.ts:1:1
+✖ tests/goals-narrow-navigation.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/immersive-directory.e2e.test.ts:1:1
+✖ tests/immersive-directory.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/plugin-market-upgrade.e2e.test.ts:1:1
+✖ tests/plugin-market-upgrade.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/product-experience-polish.e2e.test.ts:1:1
+✖ tests/product-experience-polish.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/project-settings-standalone.e2e.test.ts:1:1
+✖ tests/project-settings-standalone.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/project-user-journey.e2e.test.ts:1:1
+✖ tests/project-user-journey.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/session-association-journey.e2e.test.ts:1:1
+✖ tests/session-association-journey.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/session-workspace.e2e.test.ts:1:1
+✖ tests/session-workspace.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/settings-viewport.e2e.test.ts:1:1
+✖ tests/settings-viewport.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/side-panel-narrow-stage.e2e.test.ts:1:1
+✖ tests/side-panel-narrow-stage.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/tab-reorder-preview.e2e.test.ts:1:1
+✖ tests/tab-reorder-preview.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/tab-split-drop-preview.e2e.test.ts:1:1
+✖ tests/tab-split-drop-preview.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/todo-from-inbox.e2e.test.ts:1:1
+✖ tests/todo-from-inbox.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/touch-targets.e2e.test.ts:1:1
+✖ tests/touch-targets.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/ui-audit-browser.e2e.test.ts:1:1
+✖ tests/ui-audit-browser.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/work-placement-journeys.e2e.test.ts:1:1
+✖ tests/work-placement-journeys.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/workbench-deferred-clients.e2e.test.ts:1:1
+✖ tests/workbench-deferred-clients.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/workbench-pane-feed.e2e.test.ts:1:1
+✖ tests/workbench-pane-feed.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/workbench-tab-workspace.e2e.test.ts:1:1
+✖ tests/workbench-tab-workspace.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+exit 1

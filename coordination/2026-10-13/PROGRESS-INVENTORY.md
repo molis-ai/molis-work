@@ -1,6 +1,6 @@
 # 四条线进展盘点
 
-生成：2026-10-13 12:53 UTC。范围：2026-10-12 04:15 UTC（北京时间 12:15，统筹开始）之后的提交。
+生成：2026-10-13 13:09 UTC。范围：2026-10-12 04:15 UTC（北京时间 12:15，统筹开始）之后的提交。
 「已进 main」= 随我们的 PR 合进该仓库 main；「已推远端」= 在某个远端分支上但没进 main；「只在本地」= 没有任何远端分支包含。
 作者 Creamie X 是改用 jing xu 身份之前的提交（未合并的已改写；已进 main 的改不了）。
 
@@ -8,25 +8,7 @@
 
 ### Molis · 采用线
 
-**已进 main**：11 个内容提交（其中 10 个是任务开始前就有的），2 个合并提交
-
-| 提交 | 时间 UTC | 作者 | 说明 | 位置 |
-| --- | --- | --- | --- | --- |
-| `77fde104` | 10-09 13:35 | yijunw0212 | wip(prologue-adoption): in-flight SDK, budget params, state/event projection, tool effects, yield refusal, command grants review（任务前） | #472 |
-| `da9ddd99` | 10-09 14:04 | yijunw0212 | refactor(agent-host,coding): make room in giant units for the Prologue adoption（任务前） | #472 |
-| `804384d8` | 10-09 14:16 | yijunw0212 | test(prologue-adoption): pre-dispatch refusal sends nothing; tools read only when they change nothing; SDK path in workspace packages（任务前） | #472 |
-| `5a4d6feb` | 10-09 14:17 | yijunw0212 | test(prologue-adoption): a pinned memory's fake system markers reach the model neutralized（任务前） | #472 |
-| `ceac00a2` | 10-09 14:30 | yijunw0212 | feat(prologue-adoption): reasoning effort per round and mid-run model switch（任务前） | #472 |
-| `4d90a1b4` | 10-09 14:37 | yijunw0212 | feat(prologue-adoption): composer model controls verified in the browser; turn-change rows and refused-write words covered（任务前） | #472 |
-| `65d6c3e1` | 10-09 14:48 | yijunw0212 | feat(prologue-adoption): 灵光 replies stream as a preview with Stop; only the checked reply is saved（任务前） | #472 |
-| `b3235bb1` | 10-09 15:08 | yijunw0212 | feat(assistant): 页面与定时任务等变化而不是按时读取（第 12 项）（任务前） | #472 |
-| `8c0b60fb` | 10-09 15:18 | yijunw0212 | test(assistant): the change-wait test imports the local host's public entry（任务前） | #472 |
-| `8b1a0522` | 10-09 15:43 | yijunw0212 | feat(assistant): 子任务交回与续做（第 14 项）（任务前） | #472 |
-| `7795b7a4` | 10-13 10:01 | yijunw0212 | refresh the coding run-control action snapshot | #472 |
-
-合并提交：`51a2d82a`（#472）merge feat/prologue-adoption into current main；`fc18d5f6`（#472）Merge pull request #472 from molis-ai/feat/prologue-adoption
-
-**已推远端：在交接 PR 分支上**：15 个内容提交，7 个合并提交
+**已推远端：在交接 PR 分支上**：17 个内容提交，7 个合并提交
 
 | 提交 | 时间 UTC | 作者 | 说明 | 位置 |
 | --- | --- | --- | --- | --- |
@@ -45,12 +27,14 @@
 | `bddbf45c` | 10-12 19:38 | jing xu | fix(agent-host): 流投影里三个新事件改成有类型的联合成员，去掉 as unknown as；spec 记下防腐复查 | feature/handoff-prologue-adoption |
 | `de1952e2` | 10-13 12:51 | jing xu | docs(prologue-adoption): 交接里 #408 的 head 说法改准 | feature/handoff-prologue-adoption |
 | `a8449e2d` | 10-13 12:51 | jing xu | docs(prologue-adoption): 远端交接（2026-10-13）——取代旧交接，自成一体 | feature/handoff-prologue-adoption |
+| `873ffd70` | 10-13 12:59 | jing xu | docs(handoff): coordinator addendum — main merged #471 and #472 during the pause | feature/handoff-prologue-adoption |
+| `7bceedb8` | 10-13 13:08 | jing xu | docs(handoff): coordinator corrections after review | feature/handoff-prologue-adoption |
 
 合并提交：`d7f17580`（feature/agent-typed-questions、feature/handoff-prologue-adoption、feature/prologue-adoption-s3-package）Merge origin/main into feature/handoff-prologue-adoption；`7fc1a5ea`（feature/agent-typed-questions、feature/handoff-prologue-adoption、feature/prologue-adoption-s3-package）Merge origin/main (a091fb67) into feature/handoff-prologue-a；`b804777a`（feature/agent-typed-questions、feature/handoff-prologue-adoption、feature/prologue-adoption-s3-package）Merge origin/main (032a5d00) into feature/handoff-prologue-a；`81d1d9d8`（feature/agent-typed-questions、feature/handoff-prologue-adoption、feature/prologue-adoption-s3-package）Merge origin/main (bcad2584) into feature/handoff-prologue-a；`0e36067a`（feature/agent-typed-questions、feature/handoff-prologue-adoption、feature/prologue-adoption-s3-package）Merge origin/main (aadeef76) into feature/handoff-prologue-a；`4e426f4c`（feature/handoff-prologue-adoption、feature/prologue-adoption-s3-package）Merge feature/handoff-prologue-adoption (P1 contract docs) i；`9a7c9505`（feature/handoff-prologue-adoption）Merge branch 'main' of github.com:molis-ai/molis-work into f
 
 ### Molis · 回执线
 
-**已推远端：在交接 PR 分支上**：21 个内容提交，7 个合并提交
+**已推远端：在交接 PR 分支上**：23 个内容提交，7 个合并提交
 
 | 提交 | 时间 UTC | 作者 | 说明 | 位置 |
 | --- | --- | --- | --- | --- |
@@ -75,6 +59,8 @@
 | `ffe017ec` | 10-12 19:01 | jing xu | docs(ai-input-receipts): §16 记 S4 工程通过（Prologue PR #10）与 R0 并入交接 PR | feature/handoff-ai-input-receipts |
 | `c2e5c806` | 10-12 19:30 | jing xu | docs(ai-input-receipts): R0 浏览器用例并入 #409 之后尚未重跑（browser 锁被占），如实记 | feature/handoff-ai-input-receipts |
 | `ca253fe1` | 10-13 12:52 | jing xu | docs(ai-input-receipts): §19 远端交接（2026-10-13，当前接续入口）——分支与 PR、证据等级、没完成的、下一步与前置、跨线约定、决策、工作规则、复现命令 | feature/handoff-ai-input-receipts |
+| `7430b452` | 10-13 12:59 | jing xu | docs(handoff): coordinator addendum — main merged #471 and #472 during the pause | feature/handoff-ai-input-receipts |
+| `b9fad329` | 10-13 13:08 | jing xu | docs(handoff): coordinator corrections after review | feature/handoff-ai-input-receipts |
 
 合并提交：`d57e5da3`（feature/handoff-ai-input-receipts）merge: main 02ceba8c 进输入回执需求分支；`c0054b4e`（feature/handoff-ai-input-receipts）merge: main aadeef76 进输入回执分支；`dad9ed93`（feature/ai-input-receipts-r0、feature/handoff-ai-input-receipts）Merge branch 'main' of github.com:molis-ai/molis-work into f；`e43e5402`（feature/ai-input-receipts-r0、feature/handoff-ai-input-receipts）Merge branch 'main' of github.com:molis-ai/molis-work into f；`a7bdb72d`（feature/ai-input-receipts-r0、feature/handoff-ai-input-receipts）Merge branch 'main' into feature/ai-input-receipts-r0；`30a0b7f3`（feature/handoff-ai-input-receipts）Merge remote-tracking branch 'origin/feature/ai-input-receip；`0d363c64`（feature/handoff-ai-input-receipts）Merge remote-tracking branch 'origin/main' into feature/hand
 
@@ -89,7 +75,7 @@
 
 合并提交：`accd3d30`（#423）Merge remote-tracking branch 'origin/main' into feature/desi；`95e61777`（#423）Merge remote-tracking branch 'origin/main' into feature/desi；`7f4d37c7`（#423）Merge remote-tracking branch 'origin/main' into feature/desi；`d162b9a8`（#423）Merge branch 'main' into feature/design-system-interaction-p；`8ef679d7`（#423）Merge branch 'main' into feature/design-system-interaction-p；`05c46f67`（#423）Merge pull request #423 from molis-ai/feature/design-system-
 
-**已推远端：在交接 PR 分支上**：19 个内容提交，11 个合并提交
+**已推远端：在交接 PR 分支上**：21 个内容提交，11 个合并提交
 
 | 提交 | 时间 UTC | 作者 | 说明 | 位置 |
 | --- | --- | --- | --- | --- |
@@ -112,6 +98,8 @@
 | `b06be31f` | 10-12 18:38 | jing xu | refactor(ai-interaction): the I0 preview uses the shared interaction client | feature/handoff-ai-interaction |
 | `47babdd5` | 10-12 18:42 | jing xu | docs(ai-interaction): anti-corruption review 1 after merging main 1ec92c18 | feature/handoff-ai-interaction |
 | `b3629e6f` | 10-13 12:49 | jing xu | docs(ai-interaction): self-contained remote handoff (2026-10-13) | feature/handoff-ai-interaction |
+| `cda21315` | 10-13 12:59 | jing xu | docs(handoff): coordinator addendum — main merged #471 and #472 during the pause | feature/handoff-ai-interaction |
+| `6a697a46` | 10-13 13:08 | jing xu | docs(handoff): coordinator corrections after review | feature/handoff-ai-interaction |
 
 合并提交：`f00029c8`（feature/handoff-ai-interaction）Merge remote-tracking branch 'origin/main' into feature/hand；`42d30d36`（feature/handoff-ai-interaction、feature/interaction-shared-behaviour）Merge branch 'feature/design-system-interaction-parts' into ；`9fed98f6`（feature/handoff-ai-interaction、feature/interaction-shared-behaviour）Merge branch 'feature/design-system-interaction-parts' into ；`44c0d6ef`（feature/handoff-ai-interaction）Merge remote-tracking branch 'origin/main' into feature/hand；`68137108`（feature/handoff-ai-interaction、feature/interaction-shared-behaviour）Merge remote-tracking branch 'origin/main' into feature/inte；`ee49f7ea`（feature/handoff-ai-interaction）Merge remote-tracking branch 'origin/main' into feature/hand；`3e744c4e`（feature/handoff-ai-interaction、feature/interaction-shared-behaviour）Merge remote-tracking branch 'origin/main' into feature/inte；`7eb54451`（feature/handoff-ai-interaction、feature/interaction-shared-behaviour）Merge remote-tracking branch 'origin/main' into feature/inte；`12648b9a`（feature/handoff-ai-interaction）Merge remote-tracking branch 'origin/main' into feature/hand；`933c664f`（feature/handoff-ai-interaction）Merge feature/interaction-shared-behaviour (I1) into the han；`2f573bf6`（feature/handoff-ai-interaction）Merge remote-tracking branch 'origin/main' into feature/hand
 
@@ -126,7 +114,7 @@
 
 ### Molis · 情境线
 
-**已推远端：在交接 PR 分支上**：31 个内容提交，11 个合并提交
+**已推远端：在交接 PR 分支上**：33 个内容提交，11 个合并提交
 
 | 提交 | 时间 UTC | 作者 | 说明 | 位置 |
 | --- | --- | --- | --- | --- |
@@ -161,6 +149,8 @@
 | `1c76b258` | 10-13 03:02 | jing xu | docs(context): record the anti-corruption review and where the line stands in the handoff branch | feature/handoff-contextual-actions |
 | `82c91635` | 10-13 12:50 | jing xu | docs(context): remote handoff (2026-10-13), the current entry point for taking this line over | feature/handoff-contextual-actions |
 | `0eff51d8` | 10-13 12:51 | jing xu | docs(context): the confirmed W1-4 regression is the first open item in the handoff | feature/handoff-contextual-actions |
+| `8c27b372` | 10-13 12:59 | jing xu | docs(handoff): coordinator addendum — main merged #471 and #472 during the pause | feature/handoff-contextual-actions |
+| `58b2ed08` | 10-13 13:09 | jing xu | docs(handoff): coordinator corrections after review | feature/handoff-contextual-actions |
 
 合并提交：`c38173bb`（feature/handoff-contextual-actions）Merge remote-tracking branch 'origin/main' into feature/hand；`d8c1f8ff`（feat/context-w1-split-context-actions、feature/handoff-contextual-actions）Merge branch 'main' into feat/context-w1-split-context-actio；`35d1c21d`（feat/context-w1-split-context-actions、feature/handoff-contextual-actions）Merge branch 'main' into feat/context-w1-split-context-actio；`88f78297`（feat/context-w1-split-context-actions、feature/handoff-contextual-actions）Merge branch 'main' into feat/context-w1-split-context-actio；`cbae50d0`（feature/handoff-contextual-actions）Merge main into the contextual-actions handoff branch；`47e73845`（feature/handoff-contextual-actions）Merge W1-7 (drafting a creation entry's input) into the hand；`bf5da48a`（feature/handoff-contextual-actions）Merge the W1 stack (contracts, declarations, derivation, man；`daf51bec`（feature/handoff-contextual-actions）Merge W1-2 (placement moves into the design system) into the；`8a97c1c0`（feature/handoff-contextual-actions）Merge W1-1 (the context row's script split into bar, bus and；`9a3a4a75`（feature/handoff-contextual-actions）Merge main into the contextual-actions handoff branch (after；`6bba80dd`（feature/handoff-contextual-actions）Merge main into the contextual-actions handoff branch
 
@@ -281,8 +271,8 @@
 
 | 线 | 已进 main | 已推远端·交接 PR 分支（Molis）或待合分支（Prologue） | 已推远端·只在其他分支 | 只在本地 |
 | --- | --- | --- | --- | --- |
-| 采用线 | 27 / 15 | 17 / 7 | 0 / 0 | 1 / 1 |
-| 回执线 | 6 / 1 | 28 / 13 | 0 / 0 | 0 / 0 |
-| 交互线 | 3 / 6 | 19 / 11 | 2 / 2 | 0 / 0 |
-| 情境线 | 0 / 0 | 31 / 11 | 9 / 0 | 6 / 0 |
+| 采用线 | 16 / 13 | 19 / 7 | 0 / 0 | 1 / 1 |
+| 回执线 | 6 / 1 | 30 / 13 | 0 / 0 | 0 / 0 |
+| 交互线 | 3 / 6 | 21 / 11 | 2 / 2 | 0 / 0 |
+| 情境线 | 0 / 0 | 33 / 11 | 9 / 0 | 6 / 0 |
 | 统筹 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 3 |

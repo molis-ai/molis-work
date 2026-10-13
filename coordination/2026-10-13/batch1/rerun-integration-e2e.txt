@@ -1,0 +1,215 @@
+✔ Character and Coding discover authorized unknown actions, preserve exact selections and explain withdrawn providers (35668.76215ms)
+✖ native Alchemist: candidates, reports, decision, memory, annotations, Pulse and recoverable model failure in host (56752.428223ms)
+✖ migrated result reference copies exact text and handles denied clipboard permission without changing facts (31487.942144ms)
+✖ 底栏：输入法组合中按回车只确认候选、不发送；组合结束后回车才发送 (38759.520402ms)
+✖ Feed discovers an installed plugin judgment, previews without admission, saves and really consumes it on desktop and narrow screens (36448.37355ms)
+ℹ {"section":"已有捕捉规则\n0 条规则\n\n符合条件的消息会保存精确版本，你可以决定是否自动加入 Inbox。\n\n还没有捕捉规则。在下方直接添加，无需离开 Feed。\n\n新增捕捉规则\n\n告诉 Feed 什么值得关注，先看看会捕捉哪些消息。\n\n关键词\n用自然语言描述\n复用规则\n规则名称\n判断能力\n插件判断：需要跟进 · 捕捉判断示例\n\n使用已发布的判断规则，仍可在这里预览结果。\n\n处理方式\n筛选后自动入 Inbox\n预览最近消息\n保存并启用\n\n预览不会入箱；启用后只处理新消息和更新。","busy":"true"}
+ℹ [{"project_id":"molis-work-v1-demo","rule_id":"feedoutrule-acbccdd5-5a59-4f0e-bf76-14adcdbf6888","name":"需要跟进的消息","enabled":true,"match":{"source_id":"feed-source-96cf44c7caf15636c629dfbe8b2863c2"},"judgment":{"capability_id":"fixture.feed.capture.b08ed582-8a80-4506-93aa-c054a5d03c82","version":1,"provider_id":"plugin-install-9b41d893f154cf06f89eedb271d8db28"},"revision":"039ef330-ac2e-401d-903a-af592e4f9a98","admission":"inbox","created_at":"2026-10-13T02:55:25.424Z","updated_at":"2026-10-13T02:55:25.424Z"}]
+✔ Goal document tabs retry lazy loading, restore selection, and keep the current event document (30971.581555ms)
+✔ late completed document response never replaces the newer selected Goal (27518.825454ms)
+✖ public document clients isolate requests and keep Host callbacks, failure recovery and both pane layouts (25742.576919ms)
+✔ switching Goals while a document is loading still keeps the later selection after the old response arrives (20976.726707ms)
+✔ narrow Goal drawer shows the list, restores the stored view, and keeps work tabs (30347.909061ms)
+✔ narrow list, graph return and desktop side-by-side keep usable geometry (15433.90529ms)
+✖ Immersive directories resize and retain compact, operable Goal, Feed and Session lists (18426.804573ms)
+✔ 底栏：Assistant 常驻居中，回答在上方先写问题；插件从输入框前切换；Shelf 与灵光在右侧；Dock 放不下就收进 +N (21989.921111ms)
+✔ plugin market sends a manual upgrade after a real browser click (20345.915238ms)
+✔ Product journeys: discover tools, create from empty states, save and recover without losing context (44582.947181ms)
+✔ Artifact tabs restore the exact item after switching, reload and split (29460.602544ms)
+✖ Search opens an owner record in the visible split pane without creating a false item tab (26247.928485ms)
+✖ settings serve complete category pages; the project gear opens them in the workbench stage (35695.226507ms)
+✔ work planning opens from the Goal list and is absent from project settings (23632.187168ms)
+✖ project settings preserve edits on failed saves, record guidance versions, and combine planning search with filters (60654.842717ms)
+
+Interrupted while running:
+
+⚠ tests/project-settings-standalone.e2e.test.ts (tests/project-settings-standalone.e2e.test.ts:1:1)
+✖ tests/project-settings-standalone.e2e.test.ts (130479.48461ms)
+✖ tests/project-user-journey.e2e.test.ts
+✖ tests/session-association-journey.e2e.test.ts
+✖ tests/session-workspace.e2e.test.ts
+✖ tests/settings-viewport.e2e.test.ts
+✖ tests/side-panel-narrow-stage.e2e.test.ts
+✖ tests/tab-reorder-preview.e2e.test.ts
+✖ tests/tab-split-drop-preview.e2e.test.ts
+✖ tests/todo-from-inbox.e2e.test.ts
+✖ tests/touch-targets.e2e.test.ts
+✖ tests/ui-audit-browser.e2e.test.ts
+✖ tests/work-placement-journeys.e2e.test.ts
+✖ tests/workbench-deferred-clients.e2e.test.ts
+✖ tests/workbench-pane-feed.e2e.test.ts
+✖ tests/workbench-tab-workspace.e2e.test.ts
+ℹ tests 35
+ℹ suites 0
+ℹ pass 11
+ℹ fail 8
+ℹ cancelled 16
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 746564.455727
+
+✖ failing tests:
+
+test at tests/alchemist-workbench.e2e.test.ts:1:4762
+✖ native Alchemist: candidates, reports, decision, memory, annotations, Pulse and recoverable model failure in host (56752.428223ms)
+  Error: CDP timeout: Runtime.evaluate · new Promise((resolve, reject) => {
+        const deadline = Date.now() + 12000;
+        const check = () => { if (document.querySelector("[data-alc-action=\"explore\"]")?.getBoundingClientRect().width > 0) resolve(true); else if (Date.now() >= deadline) reject(new Error('DOM condition timeout: ' + "document.querySelector(\
+      at Timeout._onTimeout (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/batch1/packages/test-kit/src/browser/cdp.ts:100:72)
+      at listOnTimeout (node:internal/timers:685:17)
+      at process.processTimers (node:internal/timers:618:7)
+
+test at tests/artifact-clipboard.e2e.test.ts:1:660
+✖ migrated result reference copies exact text and handles denied clipboard permission without changing facts (31487.942144ms)
+  Error: CDP timeout: Page.navigate
+      at Timeout._onTimeout (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/batch1/packages/test-kit/src/browser/cdp.ts:100:72)
+      at listOnTimeout (node:internal/timers:685:17)
+      at process.processTimers (node:internal/timers:618:7)
+
+test at tests/assistant-dock-ime.e2e.test.ts:1:238
+✖ 底栏：输入法组合中按回车只确认候选、不发送；组合结束后回车才发送 (38759.520402ms)
+  Error: CDP timeout: Page.navigate
+      at Timeout._onTimeout (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/batch1/packages/test-kit/src/browser/cdp.ts:100:72)
+      at listOnTimeout (node:internal/timers:685:17)
+      at process.processTimers (node:internal/timers:618:7)
+
+test at tests/feed-capture.e2e.test.ts:1:808
+✖ Feed discovers an installed plugin judgment, previews without admission, saves and really consumes it on desktop and narrow screens (36448.37355ms)
+  AssertionError [ERR_ASSERTION]: {"exceptionId":1,"text":"Uncaught (in promise) Error: DOM condition timeout: Array.from(document.querySelectorAll('[data-feed-out-rules=\"feed-source-96cf44c7caf15636c629dfbe8b2863c2\"] [data-feed-out-rule-row]')).some(row => row.textContent.includes('需要跟进的消息')) || document.quer; toast=; focused=<body class=\"immersive-workbench\" data-board-view=\"current\" data-route-prefix=\"/projects/molis-work-v1-demo\" data-project-id=\"molis-work-v1-demo\" data-desktop-shell=\"true\" data-desktop-surface=\"feed\" data-todo-available=\"\" data-side-open=\"false\" style=\"--side-panel-width: 504px;\" data-plugin-events-","lineNumber":0,"columnNumber":0,"exception":{"type":"object","subtype":"error","className":"Error","description":"Error: DOM condition timeout: Array.from(document.querySelectorAll('[data-feed-out-rules=\"feed-source-96cf44c7caf15636c629dfbe8b2863c2\"] [data-feed-out-rule-row]')).some(row => row.textContent.includes('需要跟进的消息')) || document.quer; toast=; focused=<body class=\"immersive-workbench\" data-board-view=\"current\" data-route-prefix=\"/projects/molis-work-v1-demo\" data-project-id=\"molis-work-v1-demo\" data-desktop-shell=\"true\" data-desktop-surface=\"feed\" data-todo-available=\"\" data-side-open=\"false\" style=\"--side-panel-width: 504px;\" data-plugin-events-\n    at check (<anonymous>:3:421)","objectId":"-8062293695154238170.2.1"}}
+  + actual - expected
+  
+  + {
+  +   columnNumber: 0,
+  +   exception: {
+  +     className: 'Error',
+  +     description: `Error: DOM condition timeout: Array.from(document.querySelectorAll('[data-feed-out-rules="feed-source-96cf44c7caf15636c629dfbe8b2863c2"] [data-feed-out-rule-row]')).some(row => row.textContent.includes('需要跟进的消息')) || document.quer; toast=; focused=<body class="immersive-workbench" data-board-view="current" data-route-prefix="/projects/molis-work-v1-demo" data-project-id="molis-work-v1-demo" data-desktop-shell="true" data-desktop-surface="feed" data-todo-available="" data-side-open="false" style="--side-panel-width: 504px;" data-plugin-events-\n` +
+  +       '    at check (<anonymous>:3:421)',
+  +     objectId: '-8062293695154238170.2.1',
+  +     subtype: 'error',
+  +     type: 'object'
+  +   },
+  +   exceptionId: 1,
+  +   lineNumber: 0,
+  +   text: `Uncaught (in promise) Error: DOM condition timeout: Array.from(document.querySelectorAll('[data-feed-out-rules="feed-source-96cf44c7caf15636c629dfbe8b2863c2"] [data-feed-out-rule-row]')).some(row => row.textContent.includes('需要跟进的消息')) || document.quer; toast=; focused=<body class="immersive-workbench" data-board-view="current" data-route-prefix="/projects/molis-work-v1-demo" data-project-id="molis-work-v1-demo" data-desktop-shell="true" data-desktop-surface="feed" data-todo-available="" data-side-open="false" style="--side-panel-width: 504px;" data-plugin-events-`
+  + }
+  - undefined
+  
+      at waitFor (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/batch1/tests/fixtures/goal-browser.ts:120:12)
+      at async TestContext.<anonymous> (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/batch1/tests/feed-capture.e2e.test.ts:59:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { exceptionId: 1, text: `Uncaught (in promise) Error: DOM condition timeout: Array.from(document.querySelectorAll('[data-feed-out-rules="feed-source-96cf44c7caf15636c629dfbe8b2863c2"] [data-feed-out-rule-row]')).some(row => row.textContent.includes('需要跟进的消息')) || document.quer; toast=; focused=<body class="immersive-workbench" data-board-view="current" data-route-prefix="/projects/molis-work-v1-demo" data-project-id="molis-work-v1-demo" data-desktop-shell="true" data-desktop-surface="feed" data-todo-available="" data-side-open="false" style="--side-panel-width: 504px;" data-plugin-events-`, lineNumber: 0, columnNumber: 0, exception: { type: 'object', subtype: 'error', className: 'Error', description: `Error: DOM condition timeout: Array.from(document.querySelectorAll('[data-feed-out-rules="feed-source-96cf44c7caf15636c629dfbe8b2863c2"] [data-feed-out-rule-row]')).some(row => row.textContent.includes('需要跟进的消息')) || document.quer; toast=; focused=<body class="immersive-workbench" data-board-view="current" data-route-prefix="/projects/molis-work-v1-demo" data-project-id="molis-work-v1-demo" data-desktop-shell="true" data-desktop-surface="feed" data-todo-available="" data-side-open="false" style="--side-panel-width: 504px;" data-plugin-events-\n    at check (<anonymous>:3:421)`, objectId: '-8062293695154238170.2.1' } },
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests/goals-document.e2e.test.ts:15:960
+✖ public document clients isolate requests and keep Host callbacks, failure recovery and both pane layouts (25742.576919ms)
+  Error: CDP timeout: Runtime.evaluate · (async () => {
+      const createClient = ((host) => {
+      const { documentPane, documentCollection, route, translate: L,
+        beforeReplace, afterReplace, isAbortError, showError } = host;
+      let goalDocumentRequest = null;
+  
+      const replaceGoalDocument = (html) => {
+        beforeReplace?.();
+        const template = do
+      at Timeout._onTimeout (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/batch1/packages/test-kit/src/browser/cdp.ts:100:72)
+      at listOnTimeout (node:internal/timers:685:17)
+      at process.processTimers (node:internal/timers:618:7)
+
+test at tests/immersive-directory.e2e.test.ts:1:509
+✖ Immersive directories resize and retain compact, operable Goal, Feed and Session lists (18426.804573ms)
+  AssertionError [ERR_ASSERTION]: Add sits with the split on the titlebar right {"lastRight":377,"addLeft":1280,"addRight":1306,"splitLeft":1310,"splitRight":1336,"titlebarRight":1440,"addCy":16,"splitCy":16}
+      at TestContext.<anonymous> (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/batch1/tests/immersive-directory.e2e.test.ts:62:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at tests/product-experience-polish.e2e.test.ts:5:8423
+✖ Search opens an owner record in the visible split pane without creating a false item tab (26247.928485ms)
+  Error: CDP timeout: Input.dispatchMouseEvent
+      at Timeout._onTimeout (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/batch1/packages/test-kit/src/browser/cdp.ts:100:72)
+      at listOnTimeout (node:internal/timers:685:17)
+      at process.processTimers (node:internal/timers:618:7)
+
+test at tests/project-settings-standalone.e2e.test.ts:1:303
+✖ settings serve complete category pages; the project gear opens them in the workbench stage (35695.226507ms)
+  Error: CDP timeout: Runtime.evaluate · document.querySelector('[data-tab-edge=right]').click()
+      at Timeout._onTimeout (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/batch1/packages/test-kit/src/browser/cdp.ts:100:72)
+      at listOnTimeout (node:internal/timers:685:17)
+      at process.processTimers (node:internal/timers:618:7)
+
+test at tests/project-settings-standalone.e2e.test.ts:34:5821
+✖ project settings preserve edits on failed saves, record guidance versions, and combine planning search with filters (60654.842717ms)
+  'test timed out after 60000ms'
+
+test at tests/project-settings-standalone.e2e.test.ts:1:1
+✖ tests/project-settings-standalone.e2e.test.ts (130479.48461ms)
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/project-user-journey.e2e.test.ts:1:1
+✖ tests/project-user-journey.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/session-association-journey.e2e.test.ts:1:1
+✖ tests/session-association-journey.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/session-workspace.e2e.test.ts:1:1
+✖ tests/session-workspace.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/settings-viewport.e2e.test.ts:1:1
+✖ tests/settings-viewport.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/side-panel-narrow-stage.e2e.test.ts:1:1
+✖ tests/side-panel-narrow-stage.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/tab-reorder-preview.e2e.test.ts:1:1
+✖ tests/tab-reorder-preview.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/tab-split-drop-preview.e2e.test.ts:1:1
+✖ tests/tab-split-drop-preview.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/todo-from-inbox.e2e.test.ts:1:1
+✖ tests/todo-from-inbox.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/touch-targets.e2e.test.ts:1:1
+✖ tests/touch-targets.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/ui-audit-browser.e2e.test.ts:1:1
+✖ tests/ui-audit-browser.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/work-placement-journeys.e2e.test.ts:1:1
+✖ tests/work-placement-journeys.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/workbench-deferred-clients.e2e.test.ts:1:1
+✖ tests/workbench-deferred-clients.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/workbench-pane-feed.e2e.test.ts:1:1
+✖ tests/workbench-pane-feed.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+
+test at tests/workbench-tab-workspace.e2e.test.ts:1:1
+✖ tests/workbench-tab-workspace.e2e.test.ts
+  'Promise resolution is still pending but the event loop has already resolved'
+exit 1

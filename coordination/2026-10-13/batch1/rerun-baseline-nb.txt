@@ -1,0 +1,258 @@
+✔ a type with every action it can name, produced and consumed, parses (5.821927ms)
+✔ a produced type without a display name is refused (1.871523ms)
+✔ a produced type without a preview action is refused (0.529547ms)
+✔ a preview that is not one of the plugin's own preview queries is refused (1.281629ms)
+✔ a type that can be pinned on the spot has a compare action, and the pin is for one kind of object (0.799177ms)
+✔ a pin, compare or continue that is not the plugin's own action of that kind is refused (1.014639ms)
+✔ a continue action on a type the plugin only reads must be its own continue command (0.494784ms)
+✔ every problem of every type is reported, produced types first, each in the order name, preview, pin, compare, continue (0.411828ms)
+✔ the artifact problems come after the ones the other declarations raise, in the same message (0.336022ms)
+✔ declarations that are not what the shape rules expect do not make the check throw (0.839188ms)
+✔ a v1 Manifest that produces a type is refused: it cannot declare the preview the type needs (0.540631ms)
+✔ a v1 Manifest that only reads types parses, unless it names a continue action it cannot declare (0.272236ms)
+✔ Runtime refuses to install a plugin whose type has no preview, and installs one that has (3.305112ms)
+✔ every bundled Manifest parses under the rule, and the sweep covers every kind of type action (33.49976ms)
+✖ Alchemist standard MCP shares persisted business state across processes with project and read-only fixture grants (30001.827985ms)
+✖ Host discovery and invocation refresh generated cost without rewriting installed identity or running its capabilities (34944.11244ms)
+✖ an in-flight catalog inspection cannot restore generated registrations after the installation owner closes (33339.867244ms)
+✖ Host alone restores installed actions and scheduled operations, retains data across restart and leaves authoring untouched (34226.771653ms)
+✖ explicitly disabled installations stay disabled after Host restart and only an explicit enable restores discovery (32012.332133ms)
+✔ missing publication or approval is reported without borrowing another Home or granting release permissions (26280.555944ms)
+✔ a disabled installation switches versions and stays disabled, before and after a restart, and enable starts the version it is on (19738.455226ms)
+✔ a version of a disabled installation that needs more permission asks for them, and its approval moves with it (4528.878082ms)
+✔ a quarantined installation is refused a version switch with a reason, before anything is asked of the Supervisor (4056.565547ms)
+✔ an install that cannot start leaves nothing behind: no secrets, no approval, no crashed record, and it can be tried again (5477.132774ms)
+✔ a reinstall that cannot read the data an uninstall kept is refused until the person agrees to drop it, and a failed one gives the data back (6958.824337ms)
+✔ an install that fails over kept data puts the uninstalled record back exactly as it was, so the next install is still asked (6977.192871ms)
+✔ when taking back a failed install fails too, the person is told about both (4984.541318ms)
+✔ an install that fails after another install replaced it leaves that install alone: its data, secrets, approval, actions and running code (7623.229122ms)
+✔ a first-ever install that fails after the person uninstalled it and installed again leaves that install alone: its data, secrets, approval, actions and running code (5871.399473ms)
+✔ an install that fails over kept data does not undo the person's choice to discard that data while it was starting (7039.852088ms)
+✔ after an uninstall the newer published version can be installed again, with the kept data or without it (8188.940876ms)
+✔ a failing installed plugin is recorded with its own reason at startup, not another plugin's (375.984122ms)
+✔ closing a project releases every owner and closes its database even when one release fails, and still reports the failure (4246.506115ms)
+✔ uploaded UTF8 and HTML become traceable text without evaluating scripts (134.123429ms)
+✔ path names, invalid base64, empty, unsupported and non-UTF8 inputs fail (2.122086ms)
+✔ missing native helper and unsupported host return explicit unavailable errors and leave no copy of the upload (2.54259ms)
+mkdir: /.build: Read-only file system
+✔ a symlinked model cache cannot redirect the Home's writes outside the private directory (3.397084ms)
+✖ real macOS helper extracts image OCR, PDF text and image-only PDF pages (23.627437ms)
+✖ real Whisper helper requires an explicit model download choice and leaves no temporary audio (374.231323ms)
+mkdir: /.build: Read-only file system
+✔ cancelling media extraction terminates the helper and removes its run directory (576.59026ms)
+✖ real silent video extracts timestamped frame OCR without downloading a speech model (12.253706ms)
+✖ official stdio MCP client uses actual Lingguang business actions with scoped grants and shared persisted results (30002.070535ms)
+✔ the shared extractor preserves page positions and declares missing text or exhausted budgets (7334.214187ms)
+✔ text limits preserve UTF-8/code points and HTML parsing excludes active content without network access (120.759579ms)
+✔ PDF cancellation and timeout terminate the worker before returning; later extraction still works (1378.663334ms)
+✔ malformed HTML cannot block the Host deadline; cancellation releases its worker and later parsing recovers (426.853152ms)
+✔ read, revoked and aborted uploads leave nothing in the Home (2.618959ms)
+✔ native cancellation kills the child and cleans its actual temporary input and run directory (422.149661ms)
+✔ Host sends the selected OCR languages to its helper and rejects invalid line confidence or text (587.110671ms)
+✔ onboarding rejects partially readable PDFs and truncated text, preserves exact originals and titles (1508.093964ms)
+native helper unavailable on this dev machine
+✖ Host release assets include executable native extraction and its licenses without shipping Swift caches (369.757699ms)
+✔ native source and build inputs invalidate the existing installation build check, generated caches do not (67.731531ms)
+✖ official stdio MCP client queries, imports, edits and generates with actual Pages actions across isolated projects (30001.229168ms)
+✔ Shelf cancel during Host extraction cannot commit an output or failure result and can recover (7716.287521ms)
+✔ Shelf revoke during Host extraction cannot commit an output or failure result and can recover (6940.83066ms)
+✔ Shelf withdraw during Host extraction cannot commit an output or failure result and can recover (7457.526156ms)
+✔ Shelf copy-change during Host extraction cannot commit an output or failure result and can recover (8175.494737ms)
+✔ Shelf job-cancel during Host extraction cannot commit an output or failure result and can recover (7674.307796ms)
+✔ PDF admission cancellation after parsing leaves no saved copy (2111.752061ms)
+✔ Shelf preserves all selected PDF/image materials, OCR language and line-level uncertainty (4756.727353ms)
+mkdir: /.build: Read-only file system
+✖ the packaged Host Vision helper reads clear English and Chinese with line confidence (20.44241ms)
+✔ Shelf retains 32 MiB admissions while the common extractor keeps its smaller default (3379.019746ms)
+✔ an old running record without a live execution is preserved without replay and can be explicitly cancelled (1979.83868ms)
+✔ automatic recipes require a configured model; local extraction works without one (3569.833983ms)
+✔ every AI recipe preserves source identity, uses frozen copies, and stores the complete execution receipt (355.717702ms)
+✔ a failed model response retains its reason and receipt without a fake deliverable (15.735124ms)
+✔ kind and minimum selection checks still precede model dispatch (9.008538ms)
+✖ local Vision still extracts the original image without a model (621.161533ms)
+✖ a plugin disabled in the project leaves the results and comes back when enabled; restart keeps the index; a lost index is rebuilt (18431.750222ms)
+✔ an external MCP client searches through the same action with only what it was granted (45656.499111ms)
+✔ the Assistant finds content through search.query and reads the hit through the owner's reader, with its own switches honored (21416.184119ms)
+ℹ tests 71
+ℹ suites 0
+ℹ pass 57
+ℹ fail 7
+ℹ cancelled 7
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 562662.714668
+
+✖ failing tests:
+
+test at tests/alchemist-mcp.test.ts:1:522
+✖ Alchemist standard MCP shares persisted business state across processes with project and read-only fixture grants (30001.827985ms)
+  'test timed out after 30000ms'
+
+test at tests/installed-plugin-host.test.ts:1:4988
+✖ Host discovery and invocation refresh generated cost without rewriting installed identity or running its capabilities (34944.11244ms)
+  'test timed out after 30000ms'
+
+test at tests/installed-plugin-host.test.ts:1:8659
+✖ an in-flight catalog inspection cannot restore generated registrations after the installation owner closes (33339.867244ms)
+  'test timed out after 30000ms'
+
+test at tests/installed-plugin-host.test.ts:1:9720
+✖ Host alone restores installed actions and scheduled operations, retains data across restart and leaves authoring untouched (34226.771653ms)
+  'test timed out after 30000ms'
+
+test at tests/installed-plugin-host.test.ts:1:11844
+✖ explicitly disabled installations stay disabled after Host restart and only an explicit enable restores discovery (32012.332133ms)
+  'test timed out after 30000ms'
+
+test at tests/jelly-native-material.test.ts:1:3625
+✖ real macOS helper extracts image OCR, PDF text and image-only PDF pages (23.627437ms)
+  Error: Command failed: swift /var/folders/l4/f02jn3yn1pn5t7ysypbp4gyw0000gn/T/molis-jelly-material-fJ6mmN/fixtures.swift /var/folders/l4/f02jn3yn1pn5t7ysypbp4gyw0000gn/T/molis-jelly-material-fJ6mmN
+  mkdir: /.build: Read-only file system
+  
+      at genericNodeError (node:internal/errors:986:15)
+      at wrappedFn (node:internal/errors:540:14)
+      at checkExecSyncError (node:child_process:942:11)
+      at execFileSync (node:child_process:978:15)
+      at TestContext.<anonymous> (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/baseline-894b917a/tests/jelly-native-material.test.ts:54:5)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12) {
+    status: 1,
+    signal: null,
+    output: [ null, <Buffer >, <Buffer 6d 6b 64 69 72 3a 20 2f 2e 62 75 69 6c 64 3a 20 52 65 61 64 2d 6f 6e 6c 79 20 66 69 6c 65 20 73 79 73 74 65 6d 0a> ],
+    pid: 32866,
+    stdout: <Buffer >,
+    stderr: <Buffer 6d 6b 64 69 72 3a 20 2f 2e 62 75 69 6c 64 3a 20 52 65 61 64 2d 6f 6e 6c 79 20 66 69 6c 65 20 73 79 73 74 65 6d 0a>
+  }
+
+test at tests/jelly-native-material.test.ts:20:1759
+✖ real Whisper helper requires an explicit model download choice and leaves no temporary audio (374.231323ms)
+  AssertionError [ERR_ASSERTION]: The validation function is expected to return "true". Received false
+  
+  Caught error:
+  
+  JellyMaterialError: 素材提取失败
+      at async TestContext.<anonymous> (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/baseline-894b917a/tests/jelly-native-material.test.ts:70:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: JellyMaterialError: 素材提取失败
+        at extractJellyMaterial (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/baseline-894b917a/apps/local-host/src/jelly-native-material.ts:57:57)
+        at async waitForActual (node:assert:646:5)
+        at async strict.rejects (node:assert:769:25)
+        at async TestContext.<anonymous> (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/baseline-894b917a/tests/jelly-native-material.test.ts:70:5)
+        at async Test.run (node:internal/test_runner/test:1409:7)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7),
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at tests/jelly-native-material.test.ts:22:484
+✖ real silent video extracts timestamped frame OCR without downloading a speech model (12.253706ms)
+  Error: Command failed: swift /var/folders/l4/f02jn3yn1pn5t7ysypbp4gyw0000gn/T/molis-jelly-material-AYhhF1/video.swift /var/folders/l4/f02jn3yn1pn5t7ysypbp4gyw0000gn/T/molis-jelly-material-AYhhF1
+  mkdir: /.build: Read-only file system
+  
+      at genericNodeError (node:internal/errors:986:15)
+      at wrappedFn (node:internal/errors:540:14)
+      at checkExecSyncError (node:child_process:942:11)
+      at execFileSync (node:child_process:978:15)
+      at TestContext.<anonymous> (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/baseline-894b917a/tests/jelly-native-material.test.ts:90:5)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12) {
+    status: 1,
+    signal: null,
+    output: [ null, <Buffer >, <Buffer 6d 6b 64 69 72 3a 20 2f 2e 62 75 69 6c 64 3a 20 52 65 61 64 2d 6f 6e 6c 79 20 66 69 6c 65 20 73 79 73 74 65 6d 0a> ],
+    pid: 32876,
+    stdout: <Buffer >,
+    stderr: <Buffer 6d 6b 64 69 72 3a 20 2f 2e 62 75 69 6c 64 3a 20 52 65 61 64 2d 6f 6e 6c 79 20 66 69 6c 65 20 73 79 73 74 65 6d 0a>
+  }
+
+test at tests/lingguang-mcp.test.ts:1:523
+✖ official stdio MCP client uses actual Lingguang business actions with scoped grants and shared persisted results (30002.070535ms)
+  'test timed out after 30000ms'
+
+test at tests/material-extraction.test.ts:20:1695
+✖ Host release assets include executable native extraction and its licenses without shipping Swift caches (369.757699ms)
+  Error: Command failed: /var/folders/l4/f02jn3yn1pn5t7ysypbp4gyw0000gn/T/molis-material-release-ofXI6H/native/materials/bin/jelly-material capabilities
+  native helper unavailable on this dev machine
+  
+      at genericNodeError (node:internal/errors:986:15)
+      at wrappedFn (node:internal/errors:540:14)
+      at checkExecSyncError (node:child_process:942:11)
+      at execFileSync (node:child_process:978:15)
+      at TestContext.<anonymous> (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/baseline-894b917a/tests/material-extraction.test.ts:164:37)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    status: 1,
+    signal: null,
+    output: [ null, '', 'native helper unavailable on this dev machine\n' ],
+    pid: 33244,
+    stdout: '',
+    stderr: 'native helper unavailable on this dev machine\n'
+  }
+
+test at tests/pages-mcp.test.ts:1:580
+✖ official stdio MCP client queries, imports, edits and generates with actual Pages actions across isolated projects (30001.229168ms)
+  'test timed out after 30000ms'
+
+test at tests/shelf-material-extraction.test.ts:1:6997
+✖ the packaged Host Vision helper reads clear English and Chinese with line confidence (20.44241ms)
+  Error: Command failed: swift /var/folders/l4/f02jn3yn1pn5t7ysypbp4gyw0000gn/T/shelf-vision-languages-PYIJlO/image.swift /var/folders/l4/f02jn3yn1pn5t7ysypbp4gyw0000gn/T/shelf-vision-languages-PYIJlO/source.png
+  mkdir: /.build: Read-only file system
+  
+      at genericNodeError (node:internal/errors:986:15)
+      at wrappedFn (node:internal/errors:540:14)
+      at checkExecSyncError (node:child_process:942:11)
+      at execFileSync (node:child_process:978:15)
+      at TestContext.<anonymous> (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/baseline-894b917a/tests/shelf-material-extraction.test.ts:126:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    status: 1,
+    signal: null,
+    output: [ null, <Buffer >, <Buffer 6d 6b 64 69 72 3a 20 2f 2e 62 75 69 6c 64 3a 20 52 65 61 64 2d 6f 6e 6c 79 20 66 69 6c 65 20 73 79 73 74 65 6d 0a> ],
+    pid: 34377,
+    stdout: <Buffer >,
+    stderr: <Buffer 6d 6b 64 69 72 3a 20 2f 2e 62 75 69 6c 64 3a 20 52 65 61 64 2d 6f 6e 6c 79 20 66 69 6c 65 20 73 79 73 74 65 6d 0a>
+  }
+
+test at tests/shelf-recipes.test.ts:1:5088
+✖ local Vision still extracts the original image without a model (621.161533ms)
+  Error [ShelfError]: 素材提取失败
+      at ShelfStore.runJob (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/baseline-894b917a/modules/shelf/src/store.ts:613:51)
+      at async <anonymous> (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/baseline-894b917a/tests/shelf-recipes.test.ts:87:17)
+      at async fixture (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/baseline-894b917a/tests/shelf-recipes.test.ts:15:9)
+      at async TestContext.<anonymous> (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/baseline-894b917a/tests/shelf-recipes.test.ts:83:3)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    code: 'shelf.job_failed',
+    execution: undefined,
+    details: undefined
+  }
+
+test at tests/system-search-lifecycle.test.ts:1:1743
+✖ a plugin disabled in the project leaves the results and comes back when enabled; restart keeps the index; a lost index is rebuilt (18431.750222ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + []
+  - [
+  -   '季度复盘会议'
+  - ]
+  
+      at TestContext.<anonymous> (/Users/creamiex/molis-ai/molis-work/.claude/worktrees/baseline-894b917a/tests/system-search-lifecycle.test.ts:45:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ '季度复盘会议' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+exit 1

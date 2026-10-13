@@ -15,13 +15,14 @@
 | 跨插件 AI 交互（交互线） | `specs/ai-interaction-experience/spec.md` | #410 `feature/handoff-ai-interaction` | 依赖的带类型问卷（a06ae62e）已随 Prologue #4 进 main |
 | 情境动作（情境线） | `specs/context-program/spec.md`（总纲）+ `specs/context-toolbar`、`specs/quick-create`、`specs/side-shelf` | #411 `feature/handoff-contextual-actions` | 不需要新 SDK |
 
-逐个提交的盘点（谁、哪个分支、是否已进 main）见 [PROGRESS-INVENTORY.md](PROGRESS-INVENTORY.md)，可用 [tools/inventory.py](tools/inventory.py) 重新生成。
+逐个提交的盘点（谁、哪个分支、是否已进 main）见 [PROGRESS-INVENTORY.md](PROGRESS-INVENTORY.md)，可用 [tools/inventory.py](tools/inventory.py) 重新生成。盘点里「已进 main」只算我们（jing xu）合并的 PR；别人在这期间合进 main、和这几条线相关的 #471、#472 见 §2a。
 
 ## 2. 暂停时的状态（2026-10-13 约 04:00 北京时间，用户：「先暂停一下」）
 
-- 四个 Molis 交接 PR 都开着，**都和 main 有冲突**（main 上防腐线等持续合并），没解。各线恢复后第一步：`git fetch` main → `git merge FETCH_HEAD`（不 rebase、不强推）→ 解冲突（枢纽文件两边都留，快照与基线重新生成，不手工合并）→ 按 [ANTI-CORRUPTION-REVIEW.md](ANTI-CORRUPTION-REVIEW.md) 复查本线 diff → 推送。
+- 四个 Molis 交接 PR 都开着。把 main 合进来时：#408 冲突 26 个文件（主要是 #472 带来的重叠，见 §2a），#410 冲突 2 个（`packages/design-system/README.md`、`specs/ai-interaction-experience/spec.md`），#411 冲突 4 个（`apps/workbench/src/page-assets.ts`、`packages/design-system/README.md`、`tooling/gates/baseline.json`、`tooling/gates/page-assets.json`），#409 **没有冲突**。都还没合 main。各线恢复后第一步：`git fetch` main → `git merge FETCH_HEAD`（不 rebase、不强推）→ 解冲突（枢纽文件两边都留，快照与基线重新生成，不手工合并）→ 按 [ANTI-CORRUPTION-REVIEW.md](ANTI-CORRUPTION-REVIEW.md) 复查本线 diff → 推送。
 - Molis main 上本任务合进去的只有 #423（交互线 P2 第一刀，共享 AI 交互部件进设计系统，合并提交 05c46f67）。
-- Prologue main = 7229b11b，已合 #4 #5 #6 #7 #8 #9 #11 #12 #13 #14；开着的只有 #10（S4）；P2g 在 `feature/p2g-scope`，没开 PR。
+- Prologue main = 7229b11b，已合 #4 #5 #6 #7 #8 #9 #11 #12 #13 #14；开着的只有 #10（S4，head `a0ff62e1`，合并前要在这个提交上先 build dist 再跑一次 SDK 全量与消费者检查）；P2g 在 `feature/p2g-scope`（head `f2c861ec` = 消费者检查脚本，尚未运行；父提交 `6b629bb9` = P2g 实现），没开 PR。
+- 交互线的 C1+H1 在远端分支 `feature/agent-typed-questions`（`c50a5534`，没构建没验证），叠在 #408 的旧点 `de111f91` 上（带旧的 `-fields` 包）：**不要整支合**，只取 `c50a5534` 的改动，等统一 SDK 包进 main 后在 main 上重做。
 - 单开过、后来按用户决定并回交接 PR 并关闭的 Molis PR：#429–#434、#438、#439、#445、#446、#447（作废）；#442 的提交进了 #408 的分支，被 GitHub 标成 merged。
 - 没有任何后台测试、构建在跑；锁全部空闲。
 
@@ -60,7 +61,7 @@
 
 **Prologue 合并条件**：**先重新 build dist**（`packages/sdk/test/fixtures/*.mjs` 子进程夹具加载 dist，vitest 不会重建——P2d 因此漏过 5 条红，#13 修复）再跑 SDK 全量（本机并发时 `--maxWorkers=2`）+ 干净 `git archive` 打包后在空目录只经公开入口的消费者检查（新脚本最好对上一刀的包会失败，证明覆盖了新面）；变异测试；合并方式 merge commit。Molis 还没用的 SDK 切片凭这些即可进 Prologue main；Molis 的默认路径验证放在「换包进 Molis」的那次改动里做，不验证不合。
 
-**D7**（回执线 Molis 生产接入的前置）：① 正式 SDK 来源——已满足（Prologue main 的合并提交）；② Molis 默认包路径验证——工程上已过（真实产品实操、用户验收未做）；③ 采用线合进 Molis main——未满足（#408 待合）。
+**D7**（回执线 Molis 生产接入的前置）：① 正式 SDK 来源——#408 上的包满足（来源是 Prologue main 的合并提交），但 **main 上已不成立**（#471 换上的包来自未进上游的 `d4908c11`，见 §2a-3）；② Molis 默认包路径验证——工程上已过（真实产品实操、用户验收未做）；③ 采用线合进 Molis main——未满足（#408 待合）。
 
 ## 5. 跨线约定（已定，各线需求书决策记录里有原文）
 
@@ -78,10 +79,10 @@
 ## 6. 第一批集成全量（batch1）
 
 - 集成分支（只在本机，不推）：`origin/main 894b917a` + #442（含 #408）+ 情境 W1 栈（#430→#434）；合并冲突只有 `package.json` 的 `test:security`（两边都留）与 `docs/system/SECURITY-INVARIANTS.md` 的 S-13 行（两边条款都留）。
-- 结果（14:46–19:39 UTC）：5957 条，5893 过、38 败、9 取消、17 跳过；失败分布在 35 个文件：[batch1/failing-files.txt](batch1/failing-files.txt)，失败详情 [batch1/failing-section.txt](batch1/failing-section.txt)，汇总 [batch1/full-summary.txt](batch1/full-summary.txt)。
+- 结果（14:46–19:39 UTC）：5957 条，5893 过、38 败、9 取消、17 跳过（node:test 的汇总口径，见 [batch1/full-summary.txt](batch1/full-summary.txt)；[batch1/run-status.txt](batch1/run-status.txt) 里的 pass=5791 fail=95 是按日志行首 ✔/✖ 数的，✖ 行把文件级、套件级和用例级都算进去，以汇总口径为准）；失败分布在 35 个文件：[batch1/failing-files.txt](batch1/failing-files.txt)，失败详情 [batch1/failing-section.txt](batch1/failing-section.txt)，汇总 [batch1/full-summary.txt](batch1/full-summary.txt)。
 - 归因（未完成，暂停时停下）：
   - **确认的回归（情境线 W1-4，e4062fce）**：`tests/action-artifact-references.test.ts`「declarations that are not what the shape rules expect do not make the check throw」在集成分支 1ms 失败、干净基线通过，复跑一致。`TypeError: Cannot read properties of null (reading 'action')`，位置 `packages/plugin-sdk/src/context-declarations.ts:93`（`ownKinds`）← `inspectContextDeclarations`（:100）← `manifest.ts` `assertV2Blocks`。形状不对的声明应报告而不是抛错。#411 合并前必须修。
-  - 非浏览器的其余失败在基线上同样失败或是负载：缺 Swift native helper（材料抽取/Vision/Whisper/release assets）、stdio-MCP 30s 超时（Pages/Lingguang/Alchemist MCP）、installed-plugin-host 一组 26–44s 的超时（两边失败的子集不同，像负载）。见 [batch1/rerun-integration-nb.log](batch1/rerun-integration-nb.log) 与 [batch1/rerun-baseline-nb.log](batch1/rerun-baseline-nb.log)。
+  - 非浏览器的其余失败在基线上同样失败或是负载：缺 Swift native helper（材料抽取/Vision/Whisper/release assets）、stdio-MCP 30s 超时（Pages/Lingguang/Alchemist MCP）、installed-plugin-host 一组 26–44s 的超时（两边失败的子集不同，像负载）。见 [batch1/rerun-integration-nb.txt](batch1/rerun-integration-nb.txt) 与 [batch1/rerun-baseline-nb.txt](batch1/rerun-baseline-nb.txt)。
   - 浏览器失败（touch-targets、workbench-pane-feed、tab-split/reorder、settings-viewport、session-* 等）**归因未完成**：基线那边的 e2e 复跑 0 过，不可信，要在干净基线重新构建后重跑；情境线怀疑其中 6 个分屏用例（hidden-refresh、deferred-clients、tab-workspace、pane-feed×3）与内嵌窗格浮条有关，需要基线比对排除或确认。
 - 采用线 #408 的单独证据：之前半次全量（478/850 文件）的失败已逐个与基线比对，没有 A0 或 SDK 引起的失败（写在采用线需求书 §6.0）。
 

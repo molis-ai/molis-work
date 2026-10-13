@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { alchemistActions as a, ALCHEMIST_ACTION_PERMISSIONS, createAlchemistStudioRuntime, type AlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { alchemistActions as a, alchemistManifest, ALCHEMIST_ACTION_PERMISSIONS, createAlchemistStudioRuntime, type AlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
+import { LocalHost, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
 import { alchemistOutput } from "./fixtures/alchemist-output.js";
 
@@ -88,6 +88,69 @@ for (const operation of ["conversation", "plan", "settings"] as const) {
       assert.deepEqual(await first.bound.invoke(a.settingsGet, {}), before, "metadata return cannot change settings after refusal");
     });
   }
+}
+
+for (const operation of ["conversation", "settings"] as const) {
+  test(`W2-18-ALCHEMIST-EFFECT-01: real provider disable/re-enable cannot revive a waiting ${operation}`, { timeout: 20_000 }, async t => {
+    const plugin: { disable?: () => void; enable?: () => void } = {};
+    const actionRegistry = LocalHost.prototype.actionRegistry;
+    // Capture only the real Host's composition registration, then restore the observer before invoking anything.
+    // Alchemist is personal, so a project Catalog toggle would not actually disable its provider.
+    const observer = t.mock.method(LocalHost.prototype, "actionRegistry", function (this: LocalHost<unknown>, ...args: Parameters<LocalHost<unknown>["actionRegistry"]>) {
+      const registry = actionRegistry.apply(this, args), register = registry.registerProvider;
+      registry.registerProvider = registration => {
+        const dispose = register(registration);
+        if (registration.provider.plugin_id === alchemistManifest.plugin_id) {
+          plugin.disable = dispose; plugin.enable = () => { plugin.disable = register(registration); };
+        }
+        return dispose;
+      };
+      return registry;
+    });
+    const f = await setup(t), first = await f.open("foreground-owner"); observer.mock.restore();
+    assert.ok(plugin.disable); assert.ok(plugin.enable);
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), finished = Promise.withResolvers<void>();
+    f.beforeClose.push(() => release.resolve());
+    const { direction } = await first.bound.invoke(a.directionCreate, { description: "Keep the original foreground invocation stopped after plugin reload" });
+    const before = await first.bound.invoke(a.settingsGet, {});
+    const definition = operation === "conversation" ? a.conversationSend : a.settingsUpdate;
+    const owner = Reflect.get(first.host, "alchemist") as { get(caller: ActionCallContext): AlchemistStudioRuntime };
+    const studio = owner.get(first.caller), invoke = studio.actions.invoke.bind(studio.actions);
+    studio.actions.invoke = async (target, input, signal, control) => {
+      try { return await invoke(target, input, signal, control); }
+      finally { if (target.capability_id === definition.capability_id) finished.resolve(); }
+    };
+    const generate = f.ai.generate, listModels = f.ai.listModels;
+    // Ignore cancellation deliberately, so a late model/metadata return exercises production effect guards.
+    if (operation === "conversation") f.ai.generate = async () => { entered.resolve(); await release.promise; return alchemistOutput('{"reply":"Late answer from the old registration"}'); };
+    else f.ai.listModels = async () => { entered.resolve(); await release.promise; return listModels(); };
+    const message = { body: "The original user message", context: { kind: "direction" as const, label: direction.title, directionId: direction.id } };
+    const settings = { modelPolicy: "auto" as const, modelId: "", defaultBudgets: { marketSpace: { kind: "calls" as const, limit: 9 }, buildCost: { kind: "calls" as const, limit: 9 } } };
+    const pending = operation === "conversation" ? first.bound.invoke(a.conversationSend, message) : first.bound.invoke(a.settingsUpdate, settings);
+    const rejected = assert.rejects(pending, { code: "actions.provider_changed" });
+    await entered.promise;
+    plugin.disable();
+    assert.equal((await first.bound.discover()).some(item => item.capability_id === definition.capability_id), false, "disabled provider is absent from the real directory");
+    plugin.enable();
+    assert.ok((await first.bound.discover()).some(item => item.capability_id === definition.capability_id && item.availability.available), "new registration is available before the old wait returns");
+    release.resolve(); await rejected; await finished.promise;
+    f.ai.generate = generate; f.ai.listModels = listModels;
+    const db = new Database(f.path, { readonly: true });
+    try {
+      assert.equal((db.prepare("SELECT COUNT(*) AS count FROM conversation_messages WHERE author = 'assistant'").get() as { count: number }).count, 0, "old reply or failed reply is never persisted");
+      assert.equal((db.prepare("SELECT COUNT(*) AS count FROM conversation_messages WHERE author = 'user'").get() as { count: number }).count, operation === "conversation" ? 1 : 0);
+    } finally { db.close(); }
+    assert.deepEqual(await first.bound.invoke(a.settingsGet, {}), before, "old metadata return cannot change settings after re-enable");
+    if (operation === "conversation") {
+      const fresh = await first.bound.invoke(a.conversationSend, { ...message, body: "A new invocation after re-enable" });
+      assert.ok("assistantMessage" in fresh);
+      assert.equal(fresh.assistantMessage.responseState, "complete");
+      assert.equal((await first.bound.invoke(a.conversationList, {})).messages.filter(item => item.author === "assistant").length, 1, "only the new invocation writes a reply");
+    } else {
+      await first.bound.invoke(a.settingsUpdate, settings);
+      assert.equal((await first.bound.invoke(a.settingsGet, {})).defaultBudgets.marketSpace.limit, 9, "the new invocation can update settings");
+    }
+  });
 }
 
 // One Home has one execution owner: AI goes through the Home's Prologue Runtime, so a second Host for the same Home is

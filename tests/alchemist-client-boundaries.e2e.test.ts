@@ -27,7 +27,8 @@ test("W2-18-ALCHEMIST-UI-01/02 and PARTIAL-01: object selection, unavailable pub
   const { direction: other } = await f.bound.invoke(f.actions.directionCreate, { description: "Another direction with a queued background run", title: "Other direction" });
   await f.bound.invoke(f.actions.explorationStart, { id: other.id });
   const requests: string[] = [];
-  let block: { entered: ReturnType<typeof Promise.withResolvers<void>>; release: ReturnType<typeof Promise.withResolvers<void>> } | undefined;
+  let block: { entered: ReturnType<typeof Promise.withResolvers<void>>; release: ReturnType<typeof Promise.withResolvers<void>>;
+    cancelled?: ReturnType<typeof Promise.withResolvers<void>>; completed?: ReturnType<typeof Promise.withResolvers<void>> } | undefined;
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>[hidden]{display:none!important}body{margin:0;font-family:system-ui}${ALCHEMIST_STYLES}</style></head><body>
     ${renderAlchemistWorkbench({ primitives: { escape: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;"), text: value => value } })}
     <script src="/client.js"></script></body></html>`;
@@ -37,8 +38,16 @@ test("W2-18-ALCHEMIST-UI-01/02 and PARTIAL-01: object selection, unavailable pub
     if (path === "/" || path === "/client.js") { response.writeHead(200, { "content-type": path === "/" ? "text/html; charset=utf-8" : "text/javascript" }); response.end(path === "/" ? html : script); return; }
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const result = await f.runtime.app.request(`http://localhost${path}`, { method: request.method, headers: { "content-type": "application/json" }, ...(chunks.length ? { body: Buffer.concat(chunks) } : {}) });
-    if (path === "/api/v1/bootstrap" && block) { const wait = block; block = undefined; wait.entered.resolve(); await wait.release.promise; }
-    response.writeHead(result.status, Object.fromEntries(result.headers)); response.end(Buffer.from(await result.arrayBuffer()));
+    let held: typeof block;
+    if (path === "/api/v1/bootstrap" && block) {
+      held = block; block = undefined;
+      response.once("close", () => { if (!response.writableEnded) held?.cancelled?.resolve(); });
+      held.entered.resolve(); await held.release.promise;
+    }
+    try {
+      const bytes = Buffer.from(await result.arrayBuffer());
+      if (!response.destroyed) { response.writeHead(result.status, Object.fromEntries(result.headers)); response.end(bytes); }
+    } finally { held?.completed?.resolve(); }
   });
   let browser: ChromeHarness | undefined;
   t.after(async () => { block?.release.resolve(); await browser?.close(); server.closeAllConnections(); if (server.listening) await new Promise<void>(resolve => server.close(() => resolve())); await f.close(); await rm(home, { recursive: true, force: true }); });
@@ -82,4 +91,22 @@ test("W2-18-ALCHEMIST-UI-01/02 and PARTIAL-01: object selection, unavailable pub
   await evaluate("document.dispatchEvent(new CustomEvent('molis-work:model-ready'))"); await pause(100); assert.equal(reads(), detached);
   await evaluate("parentNode.append(root);boot();boot()"); await pause(200); assert.equal(reads(), detached + 1, "only one mount refreshes");
   const remounted = reads(); await evaluate("document.dispatchEvent(new CustomEvent('molis-work:model-ready'))"); await pause(200); assert.equal(reads(), remounted + 1);
+  // W2-18-ALCHEMIST-UI-02: detach while a real production read is held, not only between requests.
+  await select(direction.id);
+  await waitFor(`document.querySelector('[data-alc-title]').textContent===${JSON.stringify(direction.title)}`);
+  const inFlight = { entered: Promise.withResolvers<void>(), release: Promise.withResolvers<void>(),
+    cancelled: Promise.withResolvers<void>(), completed: Promise.withResolvers<void>() };
+  block = inFlight; t.after(() => inFlight.release.resolve());
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:model-ready'))"); await inFlight.entered.promise;
+  await evaluate("root.remove()"); await inFlight.cancelled.promise;
+  // The old HTTP response already contains the earlier owner snapshot. New mounting must read the changed owner.
+  const { direction: current } = await f.bound.invoke(f.actions.directionUpdate, { id: direction.id,
+    title: "Current owner after remount", description: direction.description });
+  await evaluate("parentNode.append(root);boot();boot()");
+  await waitFor(`document.querySelector('[data-alc-title]').textContent===${JSON.stringify(current.title)}`);
+  inFlight.release.resolve(); await inFlight.completed.promise;
+  await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  assert.equal(await evaluate("document.querySelector('[data-alc-title]').textContent"), current.title, "the cancelled old read cannot overwrite the new mount");
+  assert.deepEqual(await evaluate("JSON.parse(root.dataset.assistantContext).object"),
+    { kind: "alchemist-direction", id: direction.id, title: current.title }, "the new mount keeps its current discussion context after the old response finishes");
 });

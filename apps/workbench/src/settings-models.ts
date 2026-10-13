@@ -290,6 +290,7 @@ function renderModelRow(providerId: string, model: ModelRecord, p: ModelSettings
     <input class="mw-input model-row-id" data-model-id value="${p.escape(model.model_id)}" aria-label="${p.L("模型 ID")}" placeholder="MiniMax-M3" maxlength="200">
     ${badges}
     <span class="model-row-spacer"></span>
+    <label class="model-row-flag" title="${p.L("这个模型接受思考力度（快速 / 平衡 / 深入）时才勾上；勾上后 Coding 发送一轮时可以选力度")}"><input type="checkbox" data-model-effort${model.reasoning_effort === true ? " checked" : ""}>${p.L("可调思考力度")}</label>
     <button type="button" class="mw-btn" data-model-test="${p.escape(model.model_id)}" aria-label="${p.L("测试这个模型")}">${p.icon("link")}</button>
     <button type="button" class="mw-btn" data-model-remove="${p.escape(model.model_id)}" aria-label="${p.L("删除")}">${p.icon("trash")}</button>
     ${renderSwitch({ checked: model.enabled, attrs: { "data-model-enabled": `${providerId}:${model.model_id}`, "aria-label": p.L("启用模型") } })}

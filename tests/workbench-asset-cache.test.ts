@@ -6,7 +6,7 @@ import { currentLocale, runWithLocale } from "../apps/local-host/src/web-locale.
 
 test("Workbench asset cache preserves locale, body, ETag and HEAD while avoiding repeated rendering", async t => {
   let generated = 0;
-  // Comments are notes and are not sent on the shared workbench script. The locale has to live in the program itself.
+  // Comments and line-leading space are notes and are not sent on the shared workbench script. The locale has to live in the program itself.
   const render = () => { generated++; return "/* " + currentLocale() + " */\nkeep " + currentLocale(); };
   const assets = createLocalWebAssets({ ptyClientFilePath: () => "unused", renderer: {
     renderMolisWorkWorkbenchStylesheet: render, renderMolisWorkWorkbenchClientScript: render,
@@ -24,7 +24,7 @@ test("Workbench asset cache preserves locale, body, ETag and HEAD while avoiding
   const url = `http://127.0.0.1:${address.port}/assets/molis-work-workbench.js`;
   const first = await fetch(url);
   const etag = first.headers.get("etag")!;
-  assert.equal(await first.text(), " \nkeep zh");
+  assert.equal(await first.text(), "\nkeep zh");
   assert.equal(first.headers.get("cache-control"), "private, max-age=0, must-revalidate");
   const cached = await fetch(url, { headers: { "if-none-match": etag } });
   assert.equal(cached.status, 304); assert.equal(await cached.text(), "");
@@ -33,7 +33,7 @@ test("Workbench asset cache preserves locale, body, ETag and HEAD while avoiding
   assert.equal(head.status, 200); assert.equal(await head.text(), ""); assert.equal(head.headers.get("etag"), etag);
   assert.equal(generated, 1);
   const english = await fetch(url, { headers: { "accept-language": "en", "if-none-match": etag } });
-  assert.equal(english.status, 200); assert.equal(await english.text(), " \nkeep en");
+  assert.equal(english.status, 200); assert.equal(await english.text(), "\nkeep en");
   assert.notEqual(english.headers.get("etag"), etag); assert.equal(generated, 2);
   assert.equal((await fetch(url)).headers.get("etag"), etag); assert.equal(generated, 2);
 });

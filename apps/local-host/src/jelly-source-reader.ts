@@ -3,6 +3,7 @@ import { request as httpsRequest } from "node:https";
 import { request as httpRequest } from "node:http";
 import { isIP } from "node:net";
 import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
+import { defineErrorCodes, type ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { Readable, Transform } from "node:stream";
 
 /** Public sources only. Every redirect is resolved again and pinned to its validated IP. */
@@ -16,14 +17,43 @@ export function isJellyPublicAddress(address: string): boolean {
 }
 export interface JellyPublicFetchOptions { maxBytes?: number; headers?: Record<string, string>; signal?: AbortSignal }
 export interface JellyPublicResponse { data: Buffer; type: string; final_url: string; status: number }
-export class JellySourceError extends Error {
-  constructor(public readonly code: string, message: string, public readonly status = 422) { super(message); this.name = "JellySourceError"; }
+/**
+ * The source reader's error codes, every one `jelly.source.<reason>`. The kind is the sort of failure; the Host's edges turn it into the
+ * status (plugin SDK `actionHttpStatus`). A source that cannot be read answered 422 before, which has no kind, so it is a request that
+ * cannot be done (400) unless the code says too large (413) or cancelled (499).
+ */
+export const jellySourceErrors = defineErrorCodes("jelly.source", {
+  cancelled: "cancelled",
+  dns_unavailable: "invalid",
+  insufficient: "invalid",
+  interrupted: "invalid",
+  invalid_encoding: "invalid",
+  invalid_json: "invalid",
+  invalid_limit: "invalid",
+  invalid_media: "invalid",
+  invalid_url: "invalid",
+  note_mismatch: "invalid",
+  private_address: "invalid",
+  redirect_invalid: "invalid",
+  redirect_limit: "invalid",
+  redirect_mismatch: "invalid",
+  restricted: "invalid",
+  timeout: "invalid",
+  too_large: "too_large",
+  unavailable: "invalid",
+  unsupported: "invalid",
+  unsupported_encoding: "invalid",
+});
+/** Whether a failure is one of the source reader's (read by its code, not its class). */
+export function isJellySourceFailure(error: unknown): error is ActionError {
+  const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
+  return typeof code === "string" && code.startsWith("jelly.source.");
 }
 export function validateJellyPublicURL(value: string): URL {
-  let url: URL; try { url = new URL(value); } catch { throw new JellySourceError("jelly.source.invalid_url", "来源网址无效", 400); }
-  if (!["https:", "http:"].includes(url.protocol) || url.username || url.password || (url.port && !["80", "443"].includes(url.port))) throw new JellySourceError("jelly.source.invalid_url", "只支持没有登录凭证的公开网页来源", 400);
+  let url: URL; try { url = new URL(value); } catch { throw jellySourceErrors.invalid_url("来源网址无效"); }
+  if (!["https:", "http:"].includes(url.protocol) || url.username || url.password || (url.port && !["80", "443"].includes(url.port))) throw jellySourceErrors.invalid_url("只支持没有登录凭证的公开网页来源");
   const host = url.hostname.replace(/^\[|\]$/gu, "");
-  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || (isIP(host) && !isJellyPublicAddress(host))) throw new JellySourceError("jelly.source.private_address", "不能读取本机或内网地址", 400);
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || (isIP(host) && !isJellyPublicAddress(host))) throw jellySourceErrors.private_address("不能读取本机或内网地址");
   return url;
 }
 interface Address { address: string; family: number }
@@ -41,57 +71,57 @@ async function trustedPublicDNS(hostname: string, signal?: AbortSignal): Promise
   const endpoint = new URL("https://dns.google/resolve"); endpoint.searchParams.set("name", hostname); endpoint.searchParams.set("type", "A");
   const addresses = await new Promise<Address[]>((resolve, reject) => {
     const req = httpsRequest(endpoint, { headers: { accept: "application/dns-json", "accept-encoding": "identity" }, signal }, response => {
-      if (response.statusCode !== 200) { response.destroy(); reject(new JellySourceError("jelly.source.dns_unavailable", "可信 DNS 解析不可用")); return; }
+      if (response.statusCode !== 200) { response.destroy(); reject(jellySourceErrors.dns_unavailable("可信 DNS 解析不可用")); return; }
       let size = 0; const chunks: Buffer[] = [];
-      response.on("data", (chunk: Buffer) => { size += chunk.length; if (size > 65536) req.destroy(new JellySourceError("jelly.source.dns_unavailable", "可信 DNS 响应过大")); else chunks.push(chunk); });
+      response.on("data", (chunk: Buffer) => { size += chunk.length; if (size > 65536) req.destroy(jellySourceErrors.dns_unavailable("可信 DNS 响应过大")); else chunks.push(chunk); });
       response.on("end", () => {
         try {
           const value = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { Status?: number; Question?: { name?: string }[]; Answer?: { type?: number; data?: string }[] };
           if (value.Status !== 0 || value.Question?.[0]?.name?.replace(/\.$/u, "").toLowerCase() !== hostname.replace(/\.$/u, "").toLowerCase() || !Array.isArray(value.Answer)) throw new Error("invalid DNS answer");
           const results = value.Answer.filter(answer => answer.type === 1).map(answer => ({ address: answer.data ?? "", family: 4 }));
-          if (!results.length || results.some(result => isIP(result.address) !== 4 || !isJellyPublicAddress(result.address))) throw new JellySourceError("jelly.source.private_address", "可信 DNS 未返回完全公开的来源地址", 400);
+          if (!results.length || results.some(result => isIP(result.address) !== 4 || !isJellyPublicAddress(result.address))) throw jellySourceErrors.private_address("可信 DNS 未返回完全公开的来源地址");
           resolve(results);
-        } catch (error) { reject(error instanceof JellySourceError ? error : new JellySourceError("jelly.source.dns_unavailable", "可信 DNS 响应无效")); }
+        } catch (error) { reject(isJellySourceFailure(error) ? error : jellySourceErrors.dns_unavailable("可信 DNS 响应无效")); }
       });
-      response.on("error", reject); response.on("aborted", () => reject(new JellySourceError("jelly.source.dns_unavailable", "可信 DNS 读取中断")));
+      response.on("error", reject); response.on("aborted", () => reject(jellySourceErrors.dns_unavailable("可信 DNS 读取中断")));
     });
-    const timer = setTimeout(() => req.destroy(new JellySourceError("jelly.source.dns_unavailable", "可信 DNS 解析超时")), 6000);
-    req.on("close", () => clearTimeout(timer)); req.on("error", error => reject(signal?.aborted ? new JellySourceError("jelly.source.cancelled", "来源读取已取消", 499) : error)); req.end();
+    const timer = setTimeout(() => req.destroy(jellySourceErrors.dns_unavailable("可信 DNS 解析超时")), 6000);
+    req.on("close", () => clearTimeout(timer)); req.on("error", error => reject(signal?.aborted ? jellySourceErrors.cancelled("来源读取已取消") : error)); req.end();
   });
   if (dnsCache.size >= 128) dnsCache.delete(dnsCache.keys().next().value!);
   dnsCache.set(hostname, { expires: Date.now() + 60000, addresses }); return addresses.map(value => ({ ...value }));
 }
 /** Resolver seams are test-only; HTTP requests never bind them. Private answers cannot opt into fallback. */
 export async function resolveJellyPublicAddresses(hostname: string, signal?: AbortSignal, ports: JellySourceResolverPorts = {}): Promise<Address[]> {
-  if (signal?.aborted) throw new JellySourceError("jelly.source.cancelled", "来源读取已取消", 499);
+  if (signal?.aborted) throw jellySourceErrors.cancelled("来源读取已取消");
   const system = await (ports.lookup ?? (value => lookup(value, { all: true, verbatim: true })))(hostname);
   let addresses = system;
   if (system.length && system.every(value => proxySynthetic(value.address))) addresses = await (ports.trustedDNS ?? trustedPublicDNS)(hostname, signal);
-  if (signal?.aborted) throw new JellySourceError("jelly.source.cancelled", "来源读取已取消", 499);
-  if (!addresses.length || addresses.some(value => isIP(value.address) !== value.family || !isJellyPublicAddress(value.address))) throw new JellySourceError("jelly.source.private_address", "不能读取本机或内网地址", 400);
+  if (signal?.aborted) throw jellySourceErrors.cancelled("来源读取已取消");
+  if (!addresses.length || addresses.some(value => isIP(value.address) !== value.family || !isJellyPublicAddress(value.address))) throw jellySourceErrors.private_address("不能读取本机或内网地址");
   return addresses;
 }
 /** Both wire bytes and decoded bytes are bounded, including servers ignoring identity encoding. */
 export function readJellyPublicBody(source: Readable, encoding: string, maxBytes: number): Promise<Buffer> {
   const normalized = encoding.trim().toLowerCase();
   const decoded = !normalized || normalized === "identity" ? source : normalized === "gzip" ? createGunzip() : normalized === "br" ? createBrotliDecompress() : normalized === "deflate" ? createInflate() : null;
-  if (!decoded) { source.destroy(); return Promise.reject(new JellySourceError("jelly.source.unsupported_encoding", "来源响应使用不支持的压缩格式")); }
+  if (!decoded) { source.destroy(); return Promise.reject(jellySourceErrors.unsupported_encoding("来源响应使用不支持的压缩格式")); }
   return new Promise((resolve, reject) => {
     let settled = false; let wireBytes = 0; let decodedBytes = 0; const chunks: Buffer[] = [];
     const fail = (error: Error) => { if (settled) return; settled = true; source.destroy(); if (decoded !== source) decoded.destroy(); reject(error); };
-    source.on("error", fail); source.on("aborted", () => fail(new JellySourceError("jelly.source.interrupted", "来源读取中断")));
-    source.on("data", (chunk: Buffer) => { wireBytes += chunk.length; if (wireBytes > maxBytes) fail(new JellySourceError("jelly.source.too_large", "来源超过读取限制")); });
-    decoded.on("data", (chunk: Buffer) => { decodedBytes += chunk.length; if (decodedBytes > maxBytes) fail(new JellySourceError("jelly.source.too_large", "来源解压后超过读取限制")); else chunks.push(chunk); });
-    decoded.on("error", error => fail(new JellySourceError("jelly.source.invalid_encoding", `来源响应解压失败：${error.message}`)));
+    source.on("error", fail); source.on("aborted", () => fail(jellySourceErrors.interrupted("来源读取中断")));
+    source.on("data", (chunk: Buffer) => { wireBytes += chunk.length; if (wireBytes > maxBytes) fail(jellySourceErrors.too_large("来源超过读取限制")); });
+    decoded.on("data", (chunk: Buffer) => { decodedBytes += chunk.length; if (decodedBytes > maxBytes) fail(jellySourceErrors.too_large("来源解压后超过读取限制")); else chunks.push(chunk); });
+    decoded.on("error", error => fail(jellySourceErrors.invalid_encoding(`来源响应解压失败：${error.message}`)));
     decoded.on("end", () => { if (!settled) { settled = true; resolve(Buffer.concat(chunks)); } });
     if (decoded !== source) source.pipe(decoded as Transform);
   });
 }
 export async function fetchJellyPublicBytes(value: string, options: JellyPublicFetchOptions = {}, depth = 0): Promise<JellyPublicResponse> {
-  if (depth > 4) throw new JellySourceError("jelly.source.redirect_limit", "来源重定向过多");
-  if (options.signal?.aborted) throw new JellySourceError("jelly.source.cancelled", "来源读取已取消", 499);
+  if (depth > 4) throw jellySourceErrors.redirect_limit("来源重定向过多");
+  if (options.signal?.aborted) throw jellySourceErrors.cancelled("来源读取已取消");
   const url = validateJellyPublicURL(value); const maxBytes = options.maxBytes ?? 4_000_000;
-  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0 || maxBytes > 25 * 1024 * 1024) throw new JellySourceError("jelly.source.invalid_limit", "来源读取上限无效", 400);
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0 || maxBytes > 25 * 1024 * 1024) throw jellySourceErrors.invalid_limit("来源读取上限无效");
   const addresses = await resolveJellyPublicAddresses(url.hostname.replace(/^\[|\]$/gu, ""), options.signal);
   const address = addresses[0]!;
   const headers: Record<string, string> = { accept: "text/html,text/plain,application/xhtml+xml,application/json", "accept-encoding": "identity", "user-agent": "MolisWork-Jelly/1.0" };
@@ -101,18 +131,18 @@ export async function fetchJellyPublicBytes(value: string, options: JellyPublicF
     const send = url.protocol === "https:" ? httpsRequest : httpRequest;
     const req = send(url, { headers, signal: options.signal, lookup: (_hostname, lookupOptions, callback) => { if (lookupOptions.all) callback(null, [address]); else callback(null, address.address, address.family); } }, response => {
       if ([301, 302, 303, 307, 308].includes(response.statusCode ?? 0)) {
-        response.destroy(); if (!response.headers.location) { reject(new JellySourceError("jelly.source.redirect_invalid", "来源跳转地址缺失")); return; }
+        response.destroy(); if (!response.headers.location) { reject(jellySourceErrors.redirect_invalid("来源跳转地址缺失")); return; }
         try { void fetchJellyPublicBytes(new URL(response.headers.location, url).href, options, depth + 1).then(resolve, reject); }
-        catch { reject(new JellySourceError("jelly.source.redirect_invalid", "来源跳转地址无效")); } return;
+        catch { reject(jellySourceErrors.redirect_invalid("来源跳转地址无效")); } return;
       }
       const status = response.statusCode ?? 0;
-      if (status !== 200) { response.destroy(); reject(new JellySourceError([401, 403, 412, 429].includes(status) ? "jelly.source.restricted" : "jelly.source.unavailable", `来源返回 ${status}；原链接保留，可以粘贴原文或上传文件继续整理`)); return; }
+      if (status !== 200) { response.destroy(); reject(([401, 403, 412, 429].includes(status) ? jellySourceErrors.restricted : jellySourceErrors.unavailable)(`来源返回 ${status}；原链接保留，可以粘贴原文或上传文件继续整理`)); return; }
       const declared = Number(response.headers["content-length"]);
-      if (Number.isFinite(declared) && declared > maxBytes) { response.destroy(); reject(new JellySourceError("jelly.source.too_large", `来源超过 ${Math.round(maxBytes / 1024 / 1024)} MB 读取限制`)); return; }
+      if (Number.isFinite(declared) && declared > maxBytes) { response.destroy(); reject(jellySourceErrors.too_large(`来源超过 ${Math.round(maxBytes / 1024 / 1024)} MB 读取限制`)); return; }
       void readJellyPublicBody(response, response.headers["content-encoding"] ?? "", maxBytes).then(data => resolve({ data, type: response.headers["content-type"] ?? "", final_url: url.href, status }), reject);
     });
-    const timer = setTimeout(() => req.destroy(new JellySourceError("jelly.source.timeout", "读取来源超时，请稍后重试")), 20_000);
-    req.on("close", () => clearTimeout(timer)); req.on("error", error => reject(options.signal?.aborted ? new JellySourceError("jelly.source.cancelled", "来源读取已取消", 499) : error)); req.end();
+    const timer = setTimeout(() => req.destroy(jellySourceErrors.timeout("读取来源超时，请稍后重试")), 20_000);
+    req.on("close", () => clearTimeout(timer)); req.on("error", error => reject(options.signal?.aborted ? jellySourceErrors.cancelled("来源读取已取消") : error)); req.end();
   });
 }
 export function decodeJellyHTMLEntities(source: string): string {
@@ -123,12 +153,12 @@ export function jellyHTMLArticle(html: string): { text: string; title?: string }
   const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/iu)?.[1];
   const article = html.match(/<(article|main)\b[^>]*>([\s\S]*?)<\/\1>/iu)?.[2] ?? html;
   const text = decodeJellyHTMLEntities(article.replace(/<(script|style|nav|header|footer|noscript)\b[^>]*>[\s\S]*?<\/\1>/giu, "").replace(/<\/(?:p|div|h[1-6]|li|section)>|<br\s*\/?>/giu, "\n").replace(/<[^>]*>/gu, "")).replace(/[ \t]+/gu, " ").replace(/\n\s*\n\s*\n/gu, "\n\n").trim();
-  if (text.length < 40) throw new JellySourceError("jelly.source.insufficient", "来源没有足够的可读正文，可能需要登录；原链接保留，可以粘贴原文继续");
+  if (text.length < 40) throw jellySourceErrors.insufficient("来源没有足够的可读正文，可能需要登录；原链接保留，可以粘贴原文继续");
   return { text, ...(title ? { title: decodeJellyHTMLEntities(title) } : {}) };
 }
 export async function readJellyPublicSource(url: string): Promise<{ text: string; title?: string }> {
   const result = await fetchJellyPublicBytes(url);
   if (/html/iu.test(result.type)) return jellyHTMLArticle(result.data.toString("utf8"));
   if (/text\/(plain|markdown)/iu.test(result.type)) return { text: result.data.toString("utf8") };
-  throw new JellySourceError("jelly.source.unsupported", "这个来源不是网页或文字，请导入文件");
+  throw jellySourceErrors.unsupported("这个来源不是网页或文字，请导入文件");
 }

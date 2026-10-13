@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ActionCallContext, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { JellyPluginRouteTable, jellyRouteErrorResponse, type JellyRouteRequest } from "@molis-ai/molis-work-plugin-jelly";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { JellyPluginRouteTable, type JellyRouteRequest } from "@molis-ai/molis-work-plugin-jelly";
 import { dispatchNativePluginJsonHttp, readNativePluginJsonBody, type NativePluginJsonResult } from "./native-plugin-http.js";
 import { withRewrittenPluginApi } from "./native-plugin-api.js";
 
@@ -24,9 +25,9 @@ export async function handleJellyNativePluginHttp(request: IncomingMessage, resp
       if (result) write({ type: "result", result: result.body });
     } catch (error) {
       if (!response.headersSent) response.writeHead(200, { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store" });
-      const result = jellyRouteErrorResponse(error); write({ type: "error", status: result.status, ...result.body as object });
+      const result = actionErrorResponse(error); write({ type: "error", status: result.status, ...result.body });
     } finally { if (!response.destroyed) response.end(); }
     return true;
   }
-  return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/jelly", maxBodyBytes: 36_000_000, handle, mapError: jellyRouteErrorResponse });
+  return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/jelly", maxBodyBytes: 36_000_000, handle });
 }

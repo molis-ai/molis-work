@@ -9,7 +9,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { readMaterialWebsite } from "../apps/local-host/src/material-web.js";
 import {
-  ShelfError,
+  isShelfFailure,
   clearShelfRuntimeCache,
   defaultPanelKeys,
   defaultShelfDeviceSettings,
@@ -132,11 +132,11 @@ test("a saved shortcut action runs on the copy and writes 原名-动作.md", asy
     const image = store.admit({ filename: "图.png", bytes: Buffer.from([0x89, 0x50, 0x4e, 0x47]), mime: "image/png" });
     await assert.rejects(
       store.runJob({ recipe: "shortcut", item_id: image.item_id, shortcut_id: "act1" }),
-      (error: ShelfError) => error.message === "选中的材料不能用「抽联系人」",
+      (error: Error) => error.message === "选中的材料不能用「抽联系人」",
     );
     await assert.rejects(
       store.runJob({ recipe: "shortcut", item_id: item.item_id, shortcut_id: "gone" }),
-      (error: ShelfError) => error.message === "这个快捷动作已经不在了",
+      (error: Error) => error.message === "这个快捷动作已经不在了",
     );
   });
 });
@@ -201,7 +201,7 @@ test("a folder comes in whole: children stay in place and a recipe gets the tree
     assert.match(child.bytes.toString("utf8"), /人力 8 万/u);
     assert.throws(
       () => store.readChild(folder.item_id, "不存在.md"),
-      (error: unknown) => error instanceof ShelfError && error.code === "shelf.item_not_found",
+      (error: unknown) => isShelfFailure(error) && error.code === "shelf.item_not_found",
     );
 
     const outcome = await store.runJob({ recipe: "summarize", item_id: folder.item_id });

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
-import { COGNIA_LIMITS, requireCognia, type ImportFile, type Link, type Material, type Metadata } from "./types.js";
+import { COGNIA_LIMITS, cogniaErrors, requireCognia, type ImportFile, type Link, type Material, type Metadata } from "./types.js";
 export const contentHash = (data: Uint8Array | string): string => createHash("sha256").update(data).digest("hex");
 const textExtensions = new Set([".md", ".markdown", ".txt"]);
 const attachmentTypes: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".avif": "image/avif", ".svg": "image/svg+xml", ".pdf": "application/pdf", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".mp4": "video/mp4", ".webm": "video/webm" };
@@ -18,7 +18,7 @@ export function decodeFile(file: ImportFile): { bytes: Buffer; body: string; mim
   const type = fileType(file.path); requireCognia(type, "暂不支持此文件类型");
   requireCognia(typeof file.data === "string" && file.data.length <= Math.ceil(type.limit / 3) * 4 && file.data.length % 4 === 0 && !/[^A-Za-z0-9+/=]/u.test(file.data), "文件编码无效或超过大小限制");
   const bytes = Buffer.from(file.data, "base64"); requireCognia(bytes.toString("base64") === file.data, "文件编码无效"); requireCognia(bytes.length <= type.limit, "文件超过大小限制");
-  let body = ""; if (type.text) { try { body = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes); } catch { throw new Error("正文不是有效 UTF-8"); } }
+  let body = ""; if (type.text) { try { body = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes); } catch { throw cogniaErrors.invalid("正文不是有效 UTF-8"); } }
   return { bytes, body, ...type };
 }
 export function metadata(body: string, path: string): Metadata {

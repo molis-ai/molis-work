@@ -254,17 +254,6 @@ export interface TypeSafeProvider {
   evaluate(apiKey: string, record: FunctionRecord, state: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult>;
 }
 
-
-export class FunctionsError extends Error {
-  readonly code: string;
-
-  constructor(code: string, message: string) {
-    super(message);
-    this.name = "FunctionsError";
-    this.code = code;
-  }
-}
-
 export function filterSuggestedBehaviorIds(
   offered: readonly string[],
   allowed: readonly string[],

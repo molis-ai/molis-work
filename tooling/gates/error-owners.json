@@ -234,7 +234,7 @@
       "paths": [
         "apps/local-host/src/material-*"
       ],
-      "reason": "Text extraction from documents and web pages (MaterialExtractionError): the Host's material files raise material.* codes."
+      "reason": "Text extraction from documents and web pages: the Host's material files raise material.* codes (materialErrors, spec W3-02 F)."
     },
     "mcp": {
       "paths": [

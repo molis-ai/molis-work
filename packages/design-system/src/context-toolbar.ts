@@ -26,7 +26,7 @@ export const CONTEXT_TOOLBAR_STYLES = `
 .mw-ctx { position: fixed; z-index: 50; display: flex; align-items: center; gap: 2px; max-width: calc(100vw - 16px); padding: 4px; border-radius: 8px; background: var(--popover, var(--paper)); box-shadow: var(--shadow-raised); }
 .mw-ctx[hidden] { display: none; }
 .mw-ctx[data-away] { visibility: hidden; pointer-events: none; }
-@media (prefers-reduced-motion: no-preference) { .mw-ctx:not([data-away]) { animation: mw-ctx-rise var(--dur-fast, 130ms) ease-out; } }
+@media (prefers-reduced-motion: no-preference) { .mw-ctx:not([data-away]) { animation: mw-ctx-rise var(--motion-fast, 130ms) var(--ease-quint); } }
 @keyframes mw-ctx-rise { from { opacity: 0; transform: translateY(2px); } }
 .mw-ctx .mw-btn { min-height: var(--control-h, 32px); height: var(--control-h, 32px); padding: 0 8px; gap: 4px; font-size: 12px; white-space: nowrap; border-radius: 6px; }
 .mw-ctx .mw-btn svg { width: 14px; height: 14px; }

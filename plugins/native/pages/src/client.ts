@@ -640,6 +640,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = compactScript(`(host) => {
     closeCreate();
     closeMove();
     workbench.querySelectorAll(".pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu, .pages-block-ghost, .pages-drop-line").forEach((node) => { node.hidden = true; });
+    workbench.dispatchEvent?.(new CustomEvent("molis:context-panel-open", { bubbles: true, cancelable: true, detail: { context_id: "", node: null } }));
   };
   const loadList = async () => {
     const seq = ++listSeq;

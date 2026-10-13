@@ -1,4 +1,5 @@
 import path from "node:path";
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -30,12 +31,7 @@ CREATE TABLE prompt_uses (
 );
 CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);` };
 
-export class AgentDefinitionsError extends Error {
-  constructor(readonly code: "agent_definitions.not_found" | "agent_definitions.invalid" | "agent_definitions.conflict", message: string) {
-    super(message);
-    this.name = "AgentDefinitionsError";
-  }
-}
+const agentDefinitionsErrors = defineErrorCodes("agent_definitions", { not_found: "not_found", invalid: "invalid", conflict: "conflict" });
 
 interface Override { key: string; revision: number; base_version: number; body: string; updated_at: string; actor_id: string }
 
@@ -61,19 +57,19 @@ export class AgentDefinitions {
   register(registration: AgentDefinitionRegistration, scope = ""): void {
     const ids = new Set<string>();
     for (const prompt of registration.prompts) {
-      if (ids.has(prompt.prompt_id)) throw new AgentDefinitionsError("agent_definitions.invalid", `${registration.owner_id} 重复登记了 ${prompt.prompt_id}`);
+      if (ids.has(prompt.prompt_id)) throw agentDefinitionsErrors.invalid(`${registration.owner_id} 重复登记了 ${prompt.prompt_id}`);
       ids.add(prompt.prompt_id);
-      if (!prompt.body.trim()) throw new AgentDefinitionsError("agent_definitions.invalid", `${registration.owner_id}/${prompt.prompt_id} 没有正文`);
+      if (!prompt.body.trim()) throw agentDefinitionsErrors.invalid(`${registration.owner_id}/${prompt.prompt_id} 没有正文`);
     }
     for (const role of registration.roles) {
       const missing = role.prompt_ids.filter(id => !ids.has(id));
-      if (missing.length) throw new AgentDefinitionsError("agent_definitions.invalid", `角色 ${role.role_id} 引用了未登记的 Prompt：${missing.join("、")}`);
+      if (missing.length) throw agentDefinitionsErrors.invalid(`角色 ${role.role_id} 引用了未登记的 Prompt：${missing.join("、")}`);
     }
     const methods = new Set<string>();
     for (const method of registration.methods ?? []) {
-      if (methods.has(method.skill_id)) throw new AgentDefinitionsError("agent_definitions.invalid", `${registration.owner_id} 重复登记了方法 ${method.skill_id}`);
+      if (methods.has(method.skill_id)) throw agentDefinitionsErrors.invalid(`${registration.owner_id} 重复登记了方法 ${method.skill_id}`);
       methods.add(method.skill_id);
-      if (!method.body.trim() || method.body.length > 20_000) throw new AgentDefinitionsError("agent_definitions.invalid", `${registration.owner_id}/${method.skill_id} 的方法正文为空或过长`);
+      if (!method.body.trim() || method.body.length > 20_000) throw agentDefinitionsErrors.invalid(`${registration.owner_id}/${method.skill_id} 的方法正文为空或过长`);
     }
     const declarations = this.scopes.get(registration.owner_id) ?? new Map();
     declarations.set(scope, structuredClone(registration));
@@ -119,7 +115,7 @@ export class AgentDefinitions {
     const slash = key.indexOf("/");
     const owner = slash > 0 ? this.owners.get(key.slice(0, slash)) : undefined;
     const prompt = owner?.prompts.find(item => item.prompt_id === key.slice(slash + 1));
-    if (!owner || !prompt) throw new AgentDefinitionsError("agent_definitions.not_found", "没有登记这段 Prompt");
+    if (!owner || !prompt) throw agentDefinitionsErrors.not_found("没有登记这段 Prompt");
     return { owner, prompt };
   }
 
@@ -156,7 +152,7 @@ export class AgentDefinitions {
   /** One registered method with its body, by owner, id and (when given) exact version. */
   method(ownerId: string, skillId: string, version?: number): AgentMethodRegistration {
     const method = this.owners.get(ownerId)?.methods?.find(item => item.skill_id === skillId);
-    if (!method || (version !== undefined && method.version !== version)) throw new AgentDefinitionsError("agent_definitions.not_found", "没有登记这个方法版本");
+    if (!method || (version !== undefined && method.version !== version)) throw agentDefinitionsErrors.not_found("没有登记这个方法版本");
     return structuredClone(method);
   }
 
@@ -178,10 +174,10 @@ export class AgentDefinitions {
   /** Save the person's version. `expected` is the revision they edited (null when they edited the default). */
   save(key: string, body: string, expected: number | null, actorId: string): AgentPromptView {
     const { owner, prompt } = this.registered(key);
-    if (typeof body !== "string" || !body.trim()) throw new AgentDefinitionsError("agent_definitions.invalid", "Prompt 不能为空；要回到原来的文字请用“恢复默认”");
-    if (body.length > AGENT_PROMPT_MAX_CHARS) throw new AgentDefinitionsError("agent_definitions.invalid", `Prompt 最长 ${AGENT_PROMPT_MAX_CHARS} 字`);
+    if (typeof body !== "string" || !body.trim()) throw agentDefinitionsErrors.invalid("Prompt 不能为空；要回到原来的文字请用“恢复默认”");
+    if (body.length > AGENT_PROMPT_MAX_CHARS) throw agentDefinitionsErrors.invalid(`Prompt 最长 ${AGENT_PROMPT_MAX_CHARS} 字`);
     const current = this.override(key);
-    if ((current?.revision ?? null) !== expected) throw new AgentDefinitionsError("agent_definitions.conflict", "这段 Prompt 已在别处修改，请刷新后再改");
+    if ((current?.revision ?? null) !== expected) throw agentDefinitionsErrors.conflict("这段 Prompt 已在别处修改，请刷新后再改");
     const revision = this.nextRevision(key);
     const at = this.now().toISOString();
     this.transaction(() => {
@@ -197,7 +193,7 @@ export class AgentDefinitions {
     const { owner, prompt } = this.registered(key);
     const current = this.override(key);
     if (!current) return this.view(owner, prompt);
-    if (current.revision !== expected) throw new AgentDefinitionsError("agent_definitions.conflict", "这段 Prompt 已在别处修改，请刷新后再改");
+    if (current.revision !== expected) throw agentDefinitionsErrors.conflict("这段 Prompt 已在别处修改，请刷新后再改");
     const revision = this.nextRevision(key);
     this.transaction(() => {
       this.db.prepare("DELETE FROM prompt_overrides WHERE key = ?").run(key);
@@ -224,7 +220,7 @@ export class AgentDefinitions {
 
   /** Host-selected release declaration, never a prompt body supplied by a model action's business input. */
   instructionForDeclaration(ownerId: string, prompt: AgentPromptRegistration, caller: string): { body: string; version: number; user_revision: number | null } {
-    if (prompt.kind !== "instruction") throw new AgentDefinitionsError("agent_definitions.invalid", "这段 Prompt 不是模型调用的指令");
+    if (prompt.kind !== "instruction") throw agentDefinitionsErrors.invalid("这段 Prompt 不是模型调用的指令");
     const key = keyOf(ownerId, prompt.prompt_id), edited = this.override(key);
     this.recordUse({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller, at: this.now().toISOString() });
     return { body: edited ? edited.body : prompt.body, version: prompt.version, user_revision: edited?.revision ?? null };

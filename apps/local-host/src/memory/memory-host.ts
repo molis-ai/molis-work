@@ -17,7 +17,7 @@ import {
   type MemorySignalReport,
   type MemoryWriteRequest,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { MemoryError, MemoryService, purgeProjectMemories, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { memoryErrors, MemoryService, purgeProjectMemories, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { ProjectDeletedDeferred, projectDeletedHooksFor } from "../project-deleted-hooks.js";
 import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
 import { MEMORY_OWNER, memoryOwnerWithoutService } from "../project-deleted-owners.js";
@@ -98,7 +98,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const store = async (): Promise<AgentMemoryCapability> => {
     await ports.ready();
     const memory = ports.agentHost.adapter(RUNTIME).memory;
-    if (!memory) throw new MemoryError("memory.off", "当前运行时没有记忆能力");
+    if (!memory) throw memoryErrors.off("当前运行时没有记忆能力");
     return memory;
   };
   const backend = prologueMemoryBackend(store);
@@ -128,7 +128,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     { ...memoryActions.pairs, handle: async (context, value) => { return { pairs: await service.pairs(caller(context), input(value)) }; } },
     { ...memoryActions.resolvePair, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ pair_id: string; keep: "a" | "b" | "both" }>(value);
       return service.resolvePair(caller(context), request.pair_id, request.keep); } },
-    { ...memoryActions.upkeep, handle: async context => { if (context.audience !== "user") throw new ActionError("memory.forbidden", "只有本人能立即整理"); await context.beforeEffect(); return upkeepNow(); } },
+    { ...memoryActions.upkeep, handle: async context => { if (context.audience !== "user") throw memoryErrors.forbidden("只有本人能立即整理"); await context.beforeEffect(); return upkeepNow(); } },
     { ...memoryActions.preview, handle: async (context, value) => { return service.previewScope(caller(context), input<{ scope: MemoryScope }>(value).scope); } },
     { ...memoryActions.clear, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope: MemoryScope; fingerprint: string }>(value);
       return service.clearScope(caller(context), request.scope, request.fingerprint); } },
@@ -136,12 +136,8 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     { ...memoryActions.import, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope: MemoryScope; package: unknown }>(value);
       return service.importScope(caller(context), request.scope, request.package); } },
   ];
-  // The service's own errors reach every caller as the directory's errors, with the same code and words.
-  const handlers: ActionHandlerBinding[] = bindings.map(binding => ({ ...binding, handle: async (context, value) => {
-    try { return await binding.handle(context, value); } catch (error) { throw asActionError(error); }
-  } }));
   const dispose = ports.localHost.actionRegistry().registerProvider({ provider: { provider_id: MEMORY_PROVIDER_ID, title: "记忆", kind: "system" },
-    definitions: Object.values(memoryActions), handlers });
+    definitions: Object.values(memoryActions), handlers: bindings });
   // Drawing out memories, and daily upkeep: tasks of the runtime's own durable queue (one runner for each kind).
   const LEARN_KIND = "memory.learn", UPKEEP_KIND = "memory.upkeep";
   let queueAttached = false;
@@ -249,7 +245,7 @@ export function prologueMemoryBackend(store: () => Promise<AgentMemoryCapability
     meta: entry.meta ?? {}, ...(entry.paused ? { paused: entry.paused } : {}), created_at_ms: entry.created_at_ms ?? 0, updated_at_ms: entry.updated_at_ms ?? 0 });
   const required = <K extends "setMeta" | "pause" | "resume" | "previewScope" | "clearScope">(memory: AgentMemoryCapability, name: K): NonNullable<AgentMemoryCapability[K]> => {
     const method = memory[name];
-    if (!method) throw new MemoryError("memory.off", "当前运行时的记忆不支持结构化信息与暂停");
+    if (!method) throw memoryErrors.off("当前运行时的记忆不支持结构化信息与暂停");
     return method.bind(memory) as NonNullable<AgentMemoryCapability[K]>;
   };
   return {
@@ -260,7 +256,7 @@ export function prologueMemoryBackend(store: () => Promise<AgentMemoryCapability
     pause: async input => view(await required(await store(), "pause")({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id, reason: input.reason })),
     resume: async input => view(await required(await store(), "resume")({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id })),
     remove: async input => { await (await store()).remove({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id }); },
-    screen: async text => { const memory = await store(); if (!memory.screen) throw new MemoryError("memory.off", "当前运行时不能筛查"); return memory.screen(text); },
+    screen: async text => { const memory = await store(); if (!memory.screen) throw memoryErrors.off("当前运行时不能筛查"); return memory.screen(text); },
     previewScope: async (scope, owner) => required(await store(), "previewScope")(prologueScope(scope), owner),
     clearScope: async input => required(await store(), "clearScope")({ scope: prologueScope(input.scope), owner: input.owner, fingerprint: input.fingerprint }),
     candidates: {
@@ -279,15 +275,10 @@ export function prologueMemoryBackend(store: () => Promise<AgentMemoryCapability
 
 const box = async (store: () => Promise<AgentMemoryCapability>) => {
   const candidates = (await store()).candidates;
-  if (!candidates) throw new MemoryError("memory.off", "当前运行时没有记忆候选箱");
+  if (!candidates) throw memoryErrors.off("当前运行时没有记忆候选箱");
   return candidates;
 };
 const candidateView = (item: AgentMemoryCandidateEntry) => ({ candidate_id: item.candidate_id, text: item.text, state: item.state, ...(item.memory_id ? { memory_id: item.memory_id } : {}) });
-
-export function asActionError(error: unknown): unknown {
-  if (error instanceof MemoryError) return new ActionError(error.code === "memory.not_found" ? "memory.not_found" : error.code, error.message);
-  return error;
-}
 
 /**
  * `/api/memory/*` for the settings pages and the work panel: each call is the shared directory's `memory.*` action,
@@ -334,12 +325,6 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       if (parts.length === 1 && parts[0] === "export") return { status: 200, body: await call(memoryActions.export, body) };
       if (parts.length === 1 && parts[0] === "import") return { status: 200, body: await call(memoryActions.import, body) };
       return null;
-    },
-    mapError(error) {
-      const code = error instanceof ActionError || error instanceof MemoryError ? error.code : "memory.failed";
-      const status = code === "memory.not_found" ? 404 : code === "memory.forbidden" || code === "memory.scope" || code === "actions.forbidden" ? 403
-        : code === "memory.failed" ? 500 : 400;
-      return { status, body: { error: error instanceof Error ? error.message : "记忆暂时无法完成", code } };
     },
   });
 }

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { MemoryApplies, MemoryChangeRecord, MemoryLedgerPort, MemoryMetaRecord, MemoryRecallRequest, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
-import { MemoryError } from "./errors.js";
+import { memoryErrors } from "./errors.js";
 import type { MemoryCaller } from "./service.js";
 
 /**
@@ -12,17 +12,17 @@ import type { MemoryCaller } from "./service.js";
 export function placeOf(caller: MemoryCaller, scope: MemoryScope): { scope: MemoryScope; owner: string; project: string | null } {
   if (scope === "personal") return { scope, owner: caller.actor_id, project: null };
   if (scope === "character") {
-    if (!caller.character) throw new MemoryError("memory.scope", "这一轮不是由某个角色承担的，没有角色记忆");
-    if (!caller.project_id) throw new MemoryError("memory.scope", "角色记忆属于某个项目里的角色；这里没有项目");
+    if (!caller.character) throw memoryErrors.scope("这一轮不是由某个角色承担的，没有角色记忆");
+    if (!caller.project_id) throw memoryErrors.scope("角色记忆属于某个项目里的角色；这里没有项目");
     return { scope, owner: characterOwner(caller.project_id, caller.character.id), project: caller.project_id };
   }
-  if (scope !== "project") throw new MemoryError("memory.invalid", "记忆范围只能是个人、项目或角色");
-  if (!caller.project_id) throw new MemoryError("memory.scope", "这是个人工作，没有项目；只能用个人记忆");
+  if (scope !== "project") throw memoryErrors.invalid("记忆范围只能是个人、项目或角色");
+  if (!caller.project_id) throw memoryErrors.scope("这是个人工作，没有项目；只能用个人记忆");
   return { scope, owner: caller.project_id, project: caller.project_id };
 }
 
 export function personOnly(caller: MemoryCaller, message: string): void {
-  if (!caller.person) throw new MemoryError("memory.forbidden", message);
+  if (!caller.person) throw memoryErrors.forbidden(message);
 }
 
 /** A plugin's own memories are read only by that plugin; everyone else's are shared. */

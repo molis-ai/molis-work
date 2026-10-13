@@ -1,4 +1,4 @@
-export { MemoryService, MemoryError, applies, characterOwner, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE, SIGNAL_THRESHOLD,
+export { MemoryService, memoryErrors, applies, characterOwner, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE, SIGNAL_THRESHOLD,
   type MemoryBackendEntry, type MemoryBackendPort, type MemoryCaller, type MemoryErrorCode, type MemoryServicePorts, type MemoryProposal, type MemoryLearned } from "./service.js";
 export { purgeProjectMemories } from "./purge-project.js";
 export { defaultPrefs, completePrefs, consumerAccess, CONSUMER_LABELS, PLUGIN_DEFAULT_KINDS } from "./prefs.js";

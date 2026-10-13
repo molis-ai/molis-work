@@ -205,7 +205,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     try { result = await response.json(); } catch { /* an empty body is reported by status below */ }
     if (!response.ok) {
       const failure = new Error(result.error || L("助理暂时无法完成"));
-      failure.data = result;
+      failure.code = result.code;
+      failure.data = result.details || {};
       throw failure;
     }
     return result;
@@ -1880,7 +1881,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const id = currentId;
     try { const next = await api("/works/" + encodeURIComponent(id)); if (id === currentId) { view = next; render(); } }
     catch (error) {
-      if (error.data && error.data.code === "assistant.not_found") { currentId = null; remember(); view = null; render(); return; }
+      if (error.code === "assistant.not_found") { currentId = null; remember(); view = null; render(); return; }
       if (id === currentId) showProblem({ message: error.message });
     }
   };

@@ -721,10 +721,10 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | 包 | 层 | 源文件 | 行数 | 最大文件 | 公开入口 | 依赖内部包 | 被依赖 | 状态 | 计划深度 | 审查 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `apps/cli` | 应用 | 5 | 177 | `command-dispatch.ts` 54 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
-| `apps/desktop` | 应用 | 11 | 1,203 | `capsule-shell.ts` 555 | 1 | 6 | 1 | 在用 | 中 | 待审 |
+| `apps/desktop` | 应用 | 11 | 1,203 | `capsule-shell.ts` 555 | 1 | 6 | 1 | 在用 | 中 | 已审 |
 | `apps/local-host` | 应用 | 369 | 41,807 | `assistant/assistant-service.ts` 2,656 | 1 | 64 | 2 | 在用 | 深 | 待审 |
 | `apps/mcp` | 应用 | 17 | 1,062 | `runtime-context-tools.ts` 161 | 1 | 2 | 1 | 在用 | 中 | 待审 |
-| `apps/server` | 应用 | 5 | 186 | `assets.ts` 76 | 1 | 7 | 0 | 非产品 | 浅 | 待审 |
+| `apps/server` | 应用 | 5 | 186 | `assets.ts` 76 | 1 | 7 | 0 | 非产品 | 浅 | 已审 |
 | `apps/workbench` | 应用 | 171 | 40,687 | `i18n/en.ts` 3,380 | 1 | 32 | 1 | 在用 | 深 | 待审 |
 | `horizontal/agent-host` | 横向 | 35 | 9,410 | `adapters/prologue-node.ts` 1,764 | 1 | 1 | 1 | 在用 | 深 | 待审 |
 | `horizontal/connector-host` | 横向 | 3 | 567 | `connection-store.ts` 317 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
@@ -747,18 +747,18 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `modules/shelf` | 模块 | 11 | 2,652 | `store.ts` 1,176 | 1 | 2 | 2 | 在用 | 中 | 待审 |
 | `modules/signals` | 模块 | 1 | 379 | `index.ts` 379 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `modules/sources` | 模块 | 1 | 395 | `index.ts` 395 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
-| `packages/contracts` | 基础 | 91 | 16,544 | `services/agent-host.ts` 1,734 | 64 | 0 | 70 | 在用 | 深 | 待审 |
-| `packages/design-system` | 基础 | 45 | 17,218 | `styles/craft-finish.ts` 2,313 | 1 | 1 | 22 | 在用 | 深 | 待审 |
-| `packages/im-ui` | 基础 | 11 | 1,401 | `browser/controller.ts` 966 | 1 | 2 | 3 | 在用 | 中 | 待审 |
-| `packages/kernel` | 基础 | 6 | 1,160 | `action-service.ts` 490 | 2 | 1 | 4 | 在用 | 深 | 待审 |
-| `packages/plugin-runtime` | 基础 | 21 | 4,784 | `index.ts` 886 | 1 | 1 | 3 | 在用 | 深 | 待审 |
-| `packages/plugin-sandbox` | 基础 | 8 | 726 | `runner.ts` 214 | 1 | 2 | 1 | 在用 | 中 | 待审 |
-| `packages/plugin-sdk` | 基础 | 2 | 199 | `index.ts` 182 | 1 | 1 | 8 | 在用 | 中 | 待审 |
-| `packages/storage` | 基础 | 13 | 2,120 | `adapters/file-secret-store.ts` 588 | 1 | 1 | 17 | 在用 | 中 | 待审 |
-| `packages/test-kit` | 基础 | 11 | 1,165 | `boundaries.ts` 554 | 3 | 1 | 0 | 非产品 | 中 | 待审 |
+| `packages/contracts` | 基础 | 91 | 16,544 | `services/agent-host.ts` 1,734 | 64 | 0 | 70 | 在用 | 深 | 已审 |
+| `packages/design-system` | 基础 | 45 | 17,218 | `styles/craft-finish.ts` 2,313 | 1 | 1 | 22 | 在用 | 深 | 已审 |
+| `packages/im-ui` | 基础 | 11 | 1,401 | `browser/controller.ts` 966 | 1 | 2 | 3 | 在用 | 中 | 已审 |
+| `packages/kernel` | 基础 | 6 | 1,160 | `action-service.ts` 490 | 2 | 1 | 4 | 在用 | 深 | 已审 |
+| `packages/plugin-runtime` | 基础 | 21 | 4,784 | `index.ts` 886 | 1 | 1 | 3 | 在用 | 深 | 已审 |
+| `packages/plugin-sandbox` | 基础 | 8 | 726 | `runner.ts` 214 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `packages/plugin-sdk` | 基础 | 2 | 199 | `index.ts` 182 | 1 | 1 | 8 | 在用 | 中 | 已审 |
+| `packages/storage` | 基础 | 13 | 2,120 | `adapters/file-secret-store.ts` 588 | 1 | 1 | 17 | 在用 | 中 | 已审 |
+| `packages/test-kit` | 基础 | 11 | 1,165 | `boundaries.ts` 554 | 3 | 1 | 0 | 非产品 | 中 | 已审 |
 | `packages/ui-host` | 基础 | 4 | 441 | `client-lifecycle.ts` 152 | 1 | 1 | 2 | 在用 | 浅 | 待审 |
-| `plugins/native/alchemist` | 内置插件 | 97 | 10,327 | `studio/server/db/pulse-repository.ts` 567 | 1 | 4 | 2 | 构建期 | 中 | 待审 |
-| `plugins/native/artifacts` | 内置插件 | 19 | 1,628 | `browser-ui.ts` 242 | 1 | 2 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/alchemist` | 内置插件 | 97 | 10,327 | `studio/server/db/pulse-repository.ts` 567 | 1 | 4 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/artifacts` | 内置插件 | 19 | 1,628 | `browser-ui.ts` 242 | 1 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/characters` | 内置插件 | 13 | 978 | `client.ts` 217 | 1 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/coding` | 内置插件 | 58 | 10,718 | `client.ts` 1,656 | 1 | 2 | 2 | Runtime | 深 | 待审 |
 | `plugins/native/cognia` | 内置插件 | 16 | 723 | `store.ts` 151 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
@@ -777,20 +777,20 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/plugin-builder` | 内置插件 | 17 | 2,855 | `agent-authoring.ts` 800 | 1 | 2 | 2 | 构建期 | 中 | 待审 |
 | `plugins/native/ppt` | 内置插件 | 18 | 2,276 | `client.ts` 806 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
 | `plugins/native/schedule` | 内置插件 | 24 | 2,484 | `client.ts` 379 | 1 | 1 | 2 | 构建期 | 中 | 待审 |
-| `plugins/native/shelf` | 内置插件 | 21 | 5,037 | `client.ts` 1,708 | 2 | 3 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/shelf` | 内置插件 | 21 | 5,037 | `client.ts` 1,708 | 2 | 3 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/text-stats` | 内置插件 | 6 | 372 | `core.ts` 105 | 1 | 1 | 2 | Runtime | 浅 | 待审 |
-| `plugins/native/issues` | 内置插件 | 8 | 392 | `store.ts` 116 | 1 | 2 | 1 | Runtime | 浅 | 待审 |
+| `plugins/native/issues` | 内置插件 | 8 | 392 | `store.ts` 116 | 1 | 2 | 1 | Runtime | 浅 | 已审 |
 | `plugins/native/todo` | 内置插件 | 22 | 4,271 | `client.ts` 1,245 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
-| `plugins/native/work` | 内置插件 | 44 | 6,650 | `terminal/client.ts` 478 | 3 | 2 | 2 | 构建期 | 中 | 待审 |
-| `plugins/native/workflows` | 内置插件 | 15 | 3,708 | `client.ts` 1,387 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/work` | 内置插件 | 44 | 6,650 | `terminal/client.ts` 478 | 3 | 2 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/workflows` | 内置插件 | 15 | 3,708 | `client.ts` 1,387 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
 | `plugins/official-integrations/catalog` | 官方接入 | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 | 在用 | 中 | 待审 |
 | `plugins/official-integrations/github` | 官方接入 | 5 | 934 | `provider.ts` 586 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
 | `plugins/official-integrations/gmail` | 官方接入 | 12 | 2,673 | `provider.ts` 957 | 3 | 2 | 2 | 在用 | 中 | 待审 |
 | `plugins/official-integrations/rss` | 官方接入 | 6 | 1,246 | `catalog.ts` 540 | 2 | 2 | 2 | 在用 | 中 | 待审 |
 | `plugins/official-integrations/web-query` | 官方接入 | 1 | 55 | `index.ts` 55 | 1 | 2 | 0 | 非产品 | 浅 | 待审 |
 | `plugins/official-integrations/youtube` | 官方接入 | 2 | 138 | `channel.ts` 82 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
-| `server` | 模块 | 18 | 1,062 | `continuity/service.ts` 161 | 1 | 2 | 2 | 在用 | 中 | 待审 |
-| `tooling/plugin-cli` | 工具 | 8 | 332 | `sample-source.ts` 93 | 1 | 2 | 0 | 在用 | 浅 | 待审 |
+| `server` | 模块 | 18 | 1,062 | `continuity/service.ts` 161 | 1 | 2 | 2 | 在用 | 中 | 已审 |
+| `tooling/plugin-cli` | 工具 | 8 | 332 | `sample-source.ts` 93 | 1 | 2 | 0 | 在用 | 浅 | 已审 |
 
 ### 5.2 状态、计划深度与审查
 
@@ -813,7 +813,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 
 **计划深度**按风险定（任务书 §0：深入程度按风险决定）。四个量各给分：源文件行数 ≥ 9,000 记 2 分、≥ 3,000 记 1 分；2026-09-08（Cutover）以来碰过这个包的非合并提交数 ≥ 100 记 2 分、≥ 40 记 1 分；被依赖数 ≥ 17 记 2 分、≥ 4 记 1 分；`tooling/gates/baseline.json` 里记在它名下的巨大单元数 ≥ 10 记 2 分、≥ 4 记 1 分。总分 ≥ 4 为「深」。另有两个包放在授权脊梁上，也列「深」：`packages/kernel`（`ActionService`：可信身份、`beforeEffect`、撤销后不再写，见 `AGENTS.md` 硬约束）和 `packages/plugin-runtime`（安装、grant、签名）；每个能力调用和每次插件安装都经过它们，体量小，出错的代价最大。其余有 ≥ 1,000 行源码、或有巨大单元、或被 ≥ 3 个包依赖的为「中」，再其余为「浅」。结果：深 11（`apps/local-host`、`apps/workbench`、`horizontal/agent-host`、`modules/goals`、`packages/contracts`、`packages/design-system`、`packages/kernel`、`packages/plugin-runtime`、`plugins/native/coding`、`plugins/native/goals`、`plugins/native/pages`）、中 43、浅 17（现行 §5.1 的计划；I6 按阈值重算建议为深 11、中 42、浅 18，审查时再判定，不机械改已有深度）。深度是计划，不是门禁：以后某个包越过阈值不会让门禁变红，审它的时候再按当时的数重定。
 
-**审查**：「待审」含尚未开始和已开始但未审完；「已审」须在同一 spec 有完整逐包结论和已核实的实现覆盖。现行表的 71 个包仍全部标「待审」，九组已开始补齐（§12.7）。W1-18 的事实表与门禁已经完成，但逐包的职责、依赖、变化原因、放置与冗余判断没有交齐，不能据 #322 已合入或 §12.6 的局部读码记为整项完成；代码审完、缺陷修复、工程通过、产品实操分别判定。
+**审查**：「待审」含尚未开始和已开始但未审完；「已审」须在同一 spec 有完整逐包结论和已核实的实现覆盖。现行表已有 19 个包完成当前源码审查并标「已审」（G3/G4/G8，逐包结论见 §12.9）；其余 52 个仍「待审」，含正在补读的包。缺陷与运行未完成项另记，不能以代码审完代替整改完成。W1-18 的事实表与门禁已经完成，但逐包的职责、依赖、变化原因、放置与冗余判断没有交齐，不能据 #322 已合入或 §12.6 的局部读码记为整项完成；代码审完、缺陷修复、工程通过、产品实操分别判定。
 
 ### 5.x 本轮补记的清单项（2026-10-03）
 
@@ -1705,7 +1705,7 @@ Images 后台 job 未携带原 MCP 调用的持续授权，但 Prologue 手册�
 | G3 普通/相关/浏览器组 | 5/5、198/198、6/6，均无跳过/取消 | 共 209 个不同用例，含真实 scope/preview 拒绝、坏 SQLite 不变、Host 重开、Chrome 修复后继续同 work；仅覆盖该片 |
 | Home candidate security | 192 总数：191 通过、1 外网可选项跳过 | 安全相关本地路径已验；跳过网络项未验，不能写 192/192 |
 | I6 整树预检 | 整体 build、boundary、类型、actual-base health、API/actions 与资源已通过；API 0 变，29 资源 11,366,475 字节 | 支持冻结候选的工程预检；不是全部测试通过或 main 已合入 |
-| I6 全量 i6-full-01.log | 19:19:36 启动，冻结 af0fe957，当前仍运行；日志 331 行的 `Character and Coding discover authorized unknown actions, preserve exact selections and explain withdrawn providers` 与 6903 行的 `already split panes keep later drags and previews on the hovered pane` 已失败，尚无最终 footer | 不报最终通过数、不记全绿；接续线程在退出后原位补完整结果与异常详情，失败先分类/基线对照，不能并行改受测树 |
+| I6 全量 i6-full-01.log | 19:19:36 启动，冻结 af0fe957，当前仍运行；日志 331 行的 `Character and Coding discover authorized unknown actions, preserve exact selections and explain withdrawn providers` 、6903 行的 `already split panes keep later drags and previews on the hovered pane` 与 7375 行的 `placement survives a restart: relations, a removed relation, a copy, a move, a failed move and collected answers` 已失败，尚无最终 footer | 不报最终通过数、不记全绿；接续线程在退出后原位补完整结果与异常详情，失败先分类/基线对照，不能并行改受测树 |
 
 I5 的九个跳过包含 live 账号/真实网络、MiniMax 凭据与本机缺 shellcheck 的两条；CI 的 Shell/Python 检查有独立证据，不能因此说本地那两条已运行。真实产品证据目前是各片实际 HTTP/SQLite/Chrome 覆盖的路径与历史维护窗口；外部模型/账户、完整辅助技术和最终用户验收没有全量结论。
 
@@ -1760,7 +1760,7 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | Shelf | Module 运行与 authority/lifetime/hash/提交/cancel 的关键路径，Shelf AI Host 的权限与迟到结果断言 | 取消后不把原 running 历史改成新失败记录符合现行“取消后不再写入”；未覆盖终端、所有提取格式与真实配方 |
 | Coding | README、`recovery.ts`、`continuation.ts` 的断点与事实投影，并对照 Agent Host 公开入口 | 本轮没有深追完整真实仓库 Agent 轮次；不得记深审完成，W6-03/05 保留 |
 
-**Workflows 停止的待决边界，尚不计确认缺陷。** 在 `actions.ts` 214–215，下游仅保留原 caller 权限；341–344 先记 attempt 再 invoke；451–453 的 stop 只经 `store.ts` 164–167 将实例改成 stopped/CAS 新 token。若当前 Form AI 动作尚在等模型，stop 返回后 Form 仍可能提交题目，外层流程随后因 CAS 冲突而不记 arrival。这不依赖精确授权 P1。现行文案是“后面的站不会再继续，已经交出去的内容保留”，未明确当前已派发、尚未提交动作的停止含义，不能自行把它解释成撤回外部效果。
+**Workflows 停止的原待决边界，现已由用户明确（本轮决定与验收见 §12.10）。** 在 `actions.ts` 214–215，下游仅保留原 caller 权限；341–344 先记 attempt 再 invoke；451–453 的 stop 只经 `store.ts` 164–167 将实例改成 stopped/CAS 新 token。若当前 Form AI 动作尚在等模型，stop 返回后 Form 仍可能提交题目，外层流程随后因 CAS 冲突而不记 arrival。这不依赖精确授权 P1。现行文案是“后面的站不会再继续，已经交出去的内容保留”，未明确当前已派发、尚未提交动作的停止含义，不能自行把它解释成撤回外部效果。
 
 可审阅的两个收口方向：保留当前动作继续的合同，但停止结果/页面明确呈现当前执行或结果未知并能核对；或让实例停止进入下游调用的 signal/beforeEffect，阻止尚未提交的本机效果，已提交及外部效果仍保留。先以真实 Host actions、FormStore 和模型 barrier 复现“派发→stop→放行模型”，核问题事实及有效需求，再定最小改法。现有 action-step 测试直接 abort 自建控制器、stop 测试串行核 token，均不能证明真实 stop 接口阻止下游效果。归 W2-18-LC/TE，由整线负责人裁决，不扩建任务恢复框架。
 
@@ -1785,12 +1785,12 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | --- | ---: | --- | --- | --- |
 | G1 宿主与 CLI/MCP | 3 | `apps/local-host`、`apps/cli`、`apps/mcp` | `01a1335c-bdeb-7473-b444-25370fc0e242` | 审查中，未计完成 |
 | G2 工作台与 UI 宿主 | 2 | `apps/workbench`、`packages/ui-host` | `01a1335c-c133-7891-9b62-a36a02e10c5a` | 审查中，未计完成 |
-| G3 桌面、设计系统与 IM | 6 | `apps/desktop`、`packages/design-system`、`apps/server`、`server`、`packages/im-ui`、`packages/test-kit` | `01a1335c-c77b-75c2-9ad0-6ea2e5458ba5` | 审查中，未计完成 |
-| G4 公共合同与插件运行时 | 7 | `packages/contracts`、`packages/kernel`、`packages/plugin-runtime`、`packages/plugin-sdk`、`packages/storage`、`packages/plugin-sandbox`、`tooling/plugin-cli` | `01a1335c-d9c5-7990-978a-cf976825eb9d` | 审查中，未计完成 |
+| G3 桌面、设计系统与 IM | 6 | `apps/desktop`、`packages/design-system`、`apps/server`、`server`、`packages/im-ui`、`packages/test-kit` | `01a1335c-c77b-75c2-9ad0-6ea2e5458ba5` | 源码审查完成；修复/最终实操未完成，见 §12.9 |
+| G4 公共合同与插件运行时 | 7 | `packages/contracts`、`packages/kernel`、`packages/plugin-runtime`、`packages/plugin-sdk`、`packages/storage`、`packages/plugin-sandbox`、`tooling/plugin-cli` | `01a1335c-d9c5-7990-978a-cf976825eb9d` | 源码审查完成；修复/最终实操未完成，见 §12.9 |
 | G5 AI 横向服务与开发插件 | 11 | `horizontal/agent-host`、`horizontal/connector-host`、`horizontal/listener-host`、`horizontal/runtime-host`、`horizontal/scheduler`、`horizontal/memory`、`horizontal/search`、`horizontal/placement`、`plugins/native/coding`、`plugins/native/plugin-builder`、`plugins/native/characters` | `01a1335c-f6be-7560-896b-e9153331eea5` | 审查中，未计完成 |
 | G6 业务模块与 Goals | 14 | `modules/projects`、`modules/context-ledger`、`modules/sources`、`modules/signals`、`modules/feed`、`modules/attention-resumption`、`modules/goals`、`modules/private-work-context`、`modules/artifacts`、`modules/shelf`、`modules/characters`、`modules/functions`、`modules/governance-collaboration`、`plugins/native/goals` | `01a1335d-0db9-7a61-90af-d93fb33b11e7` | 审查中，未计完成 |
 | G7 内容创作插件 | 7 | `plugins/native/pages`、`plugins/native/form`、`plugins/native/dataset`、`plugins/native/ppt`、`plugins/native/images`、`plugins/native/cognia`、`plugins/native/lingguang` | `01a1335d-1541-75e2-9c2a-3930e8fb3b2f` | 审查中，未计完成 |
-| G8 工作流与执行插件 | 6 | `plugins/native/workflows`、`plugins/native/alchemist`、`plugins/native/work`、`plugins/native/issues`、`plugins/native/shelf`、`plugins/native/artifacts` | `01a1335d-246b-71f3-ba85-34421a4d71c4` | 审查中，未计完成 |
+| G8 工作流与执行插件 | 6 | `plugins/native/workflows`、`plugins/native/alchemist`、`plugins/native/work`、`plugins/native/issues`、`plugins/native/shelf`、`plugins/native/artifacts` | `01a1335d-246b-71f3-ba85-34421a4d71c4` | 源码审查完成；修复/最终实操未完成，见 §12.9 |
 | G9 信息接入与日常工具 | 15 | `plugins/native/feed`、`plugins/native/inbox`、`plugins/native/todo`、`plugins/native/schedule`、`plugins/native/files`、`plugins/native/diff`、`plugins/native/git`、`plugins/native/text-stats`、`plugins/native/jelly`、`plugins/official-integrations/catalog`、`plugins/official-integrations/github`、`plugins/official-integrations/gmail`、`plugins/official-integrations/rss`、`plugins/official-integrations/web-query`、`plugins/official-integrations/youtube` | `01a1335d-44e2-7a23-aff4-14c68ce9ed5b` | 审查中，未计完成 |
 
 以上集合由协调方与仓库登记的 71 包核对：不遗漏、不重复。九个会话均为 `gpt-6.1-sol / max`，当前仅有只读审查权，不自动成为实现 writer，也不占构建/浏览器时段。Dataset/Issue 的两个既有修复会话继续其已授权边界；共同授权与既有防腐实现仍由原线负责。新问题先核实并登记根因、影响、最小修复和验收，再按不冲突边界接续，不能将交接记为已修复。
@@ -1809,12 +1809,12 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | S6 | Coding 变更集→Git 审批/暂存或提交→Diff；实际批准范围、状态失效与工作目录变化 | G5/G9，待核，不执行真实仓库发布 |
 | S7 | 助理按需发现→选择→审批→真实动作→撤销/刷新；来源精确权限、用户输入保留与真实模型的独立证据 | G1/G2/G4/G5；共同权限 P1 在修，真实模型路径待核 |
 | S8 | Todo 提醒→Schedule；持久任务重启/纯动作创建→自动触发→一次业务结果 | G1/G5/G9；无页面漏调度 P2 待复现修复 |
-| S9 | Workflows 串联 Feed/Inbox/Pages/灵光及动作站；接收回执、结果未知/重试、停止与已派发操作 | G7/G8/G9；停止语义边界仍待裁决，先核事实 |
+| S9 | Workflows 串联 Feed/Inbox/Pages/灵光及动作站；接收回执、结果未知/重试、停止与已派发操作 | G7/G8/G9；停止取消尚未提交的本地步骤，已发生外部结果保留显示（§12.10），实现/验证待完成 |
 | S10 | 现行 26 内置与 6 官方接入的安装/启用/配置变化/停用/卸载/重启→目录/调用/UI/持久事实一致 | 各组按自身包 + G1/G4 装配核对；不以已退役 Experiments 代替 Issue |
 | S11 | 删除项目→所有实际 owner 清理→进程/任务/文件/引用与失败重试；共享个人内容按既有合同保留 | G1/G3/G4/G6/相关插件组，待核当前实际回归 |
 | 补充接点 | Images→Pages、Cognia 固定证据→文稿/PPT、Characters→Artifacts→Coding、创作台→安装→实际调用、Jelly 音频/网页→内容 | 各负责组报告现行真实支持与边界，不能凭同类功能存在就推断可组合 |
 
-真实页面仍按 W2-18-FR 补键盘/辅助技术、暗色/英文、三宽度、离线/失败/无权限/部分成功、多窗口、配置返回与核心模型路径。只读会话先把具体缺证据动线和可复用用例列清；协调方在 I6 及已排修复验证释放机器后安排实操。没有必要账号、权限或产品未支持的路径写明，实质产品语义待决定时只暂停依赖部分，其余继续。当前 71 包深审与组合核查均在进行，不标完成。
+真实页面仍按 W2-18-FR 补键盘/辅助技术、暗色/英文、三宽度、离线/失败/无权限/部分成功、多窗口、配置返回与核心模型路径。只读会话先把具体缺证据动线和可复用用例列清；协调方在 I6 及已排修复验证释放机器后安排实操。没有必要账号、权限或产品未支持的路径写明，实质产品语义待决定时只暂停依赖部分，其余继续。当前 19/71 包源码审查完成，其余包及组合核查仍在进行；整条防腐线不标完成。
 
 ### 12.8 全包深审发现的必要修复（增量，未验收）
 
@@ -1826,9 +1826,79 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | W2-18-WFSAVE / P1 | `workflows/client.ts` 402–434 的队列保存虽然捕获 A 的 URL，却在执行时读 `state.workflow` 的正文/revision，并把回执写回当前对象。A 连续两次修改、首个响应挂起时打开 B，可把 B 写进 A；返回目录还会读 null | 队列固定本次对象与内容快照，在同一对象推进版本；迟到回执/错误只影响所属对象，去抖也绑定原对象。限定 Workflows 客户端及回归/README，不改变流程停止合同。W2-18-WFSAVE-01：真实浏览器/HTTP/Store barrier 制造 A 两次修改→打开 B→放行，A 保存自己的两次修改，B 内容、标题、版本不变。W2-18-WFSAVE-02：返回目录、标题去抖、失败后再开/重载保留原对象编辑，不跳回或覆盖后来对象。 |
 | W2-18-GMAIL / P1 | `gmail/history-cursor.ts` 454–562 合并候选时只留 25 个，`provider.ts` 686–739 却提交整个历史页的最终 historyId，超过 25 的增量邮件永久跳过；初次 25 条快照是另一项既有合同 | 修 reducer/provider 让进度只覆盖已消费记录，或保留有界未完成进度；不能只调大条数或悄悄丢尾。W2-18-GMAIL-01：单页/两页至少 26 个不同新增邮件，经真实 Connector→Listener→Signals→Feed 消费，在重复同步中全部恰好一次进入；W2-18-GMAIL-02：次页/详情失败和重启不丢尾、不越过未消费进度。当前等待分配实现。 |
 | W2-18-PLACEMENT / P1 | `placement-actions.ts` 82–114 丢弃原 caller，在 scope 中重建 ownerContext；`horizontal/placement/index.ts` 158–173 等待读取后直接写关系，move/copy/convert/bindGoal/create 同样丢原生命线 | 按 invocation 传递原可信控制，在本服务提交前复查，嵌套调用保留原来源/取消；不在共享服务上挂可覆盖的当前 caller。W2-18-PLACEMENT-01：真实 Host registry/SQLite，reader barrier 后取消或撤下原提供方，无关系/目标业务新增；W2-18-PLACEMENT-02：正常移动/复制/绑定仍可用，部分已提交结果如实可核对，不自动重派。与精确 AUTH 尾窗分别修、最后合并验证。 |
+| W2-18-CATALOG / P1 | Catalog 的 Jira/Confluence `jiraHost/jiraBase` 与 Salesforce `salesforceInstance` 从 token 拼出任意目标；`createCatalogHttp` 只拒重定向，初始请求仍可携 Basic/Bearer 到声明 network 域之外或明文 HTTP。真实连接创建只验非空/长度，账号读取与 Feed 同步走该路径 | 在形成请求的共同边界校验当前官方 Cloud HTTPS 目标与可信 OAuth base；不新增任意自托管支持。W2-18-CATALOG-01：真实连接/账号读取/同步接线对 HTTP、IP、本机、伪后缀、账号、端口与路径/查询注入零派出、无凭据回显；W2-18-CATALOG-02：合法固定 Cloud 测试替身仍可完成，所有入口共用同一规则，安全不变量同步。只用隔离 Home 和测试凭据。 |
+| W2-18-DATASET-SCHEMA / P2 必修 | `dataset/store.ts` 的 CSV parser 与 normalizeColumns 直接保留长表头，`actions.ts` 的所有记录输出却要求列名不超过 80；导入已落库才被公共动作拒绝，后续 get/list 也失败。Form 合法的 200 字题目会走到同一问题 | Owner 在任何持久化前落实已有 80 字与 40 列合同；receiveCsv 的现有事务保证创建/更新/回执同回滚。W2-18-DATASET-SCHEMA-01：真实动作导入 81 字表头拒绝且原表/版本不变，随后列表仍可读；80 字、引号多行正常往返。W2-18-DATASET-SCHEMA-02：Form 答卷→CSV→Dataset 超 40 列/80 字时明确拒绝、无目标表/回执，保留原答卷和 CSV；不悄悄裁列或扩合同。与正在修的 Dataset 客户端互不混改。 |
+| W2-18-PPT / P1（含同路径 P2） | 本地 outline 等待 Pages source 后无原 beforeEffect 就更新；客户端生成中可关对话框并编辑，迟到回执只核 id 就 fillEditor，清掉新草稿和计时器；isBlank 也把仅有标题的已有页当空白替换 | 同一 PPT slice 补原调用复查/读取版本与对话框请求身份/取消/草稿版本保护，标题计入非空内容。W2-18-PPT-01：真实 source/model barrier 期间取消/撤权/停用/改稿，未提交结果不得写入或覆盖；正常原版本成功一次。W2-18-PPT-02：关生成框→新编辑→迟到回执，原输入与后续 SQL 保持；重开的生成框不受旧回执影响。W2-18-PPT-03：title-only 页在 append 下保留，显式 replace 与全空 starter 沿原合同工作。 |
+| W2-18-FIXED-INPUT / P2 必修 | `PluginInputGraph.reference` 只查普通输出线；`saveArtifactBinding` 会删除这条线，固定成果虽然经 resolve 显示 ready，SDK inputs.reference/read 仍返回 null；Diff 是实际消费者 | 统一固定/普通输入解析顺序，连同 library 与 read 端口核可读性，不只补状态。W2-18-FIXED-INPUT-01：真实成果库绑定固定版本→SDK reference/read→Diff 正文差异均一致；W2-18-FIXED-INPUT-02：重绑、归档/失权、重开后的读取与状态一致，不自动换成最新版本。 |
+| W1-18-SECRET-KEY / P2 必修 | 已有 `aes-gcm-file` 密文时仍调用 loadOrCreateInstallKeyFile，冷开缺 key 会新造主密钥，旧内容读不到后新旧密文可混存 | 有密文只读有效现有 key，缺失明确拒绝，不改 key/密文；空库首次安装仍可创建。W1-18-SECRET-KEY-01：隔离 Home 保存两项→关闭→移走 key→读取/写入/createIfAbsent 拒绝且原文件不变、不新造 key；恢复原 key 后原两项可读、新写正常。禁止操作真实凭据。 |
+| W1-18-MEMORY-TX / P2 必修 | Storage memory-ledger 在 BEGIN IMMEDIATE 前递增 depth，BEGIN 在 finally 之外；锁冲突失败后同实例永远当作嵌套，后续多写失去事务 | depth 只覆盖实际已开始事务并在失败回收。W1-18-MEMORY-TX-01：真实两个连接/进程制造 BEGIN 失败，释放锁后同 ledger 多写的第二步失败必须整笔回滚，随后成功提交/重开结果一致。 |
+| W1-18-SEMVER / P2 必修 | SDK comparePluginVersions 用 split('-', 2)，合法 alpha-a 与 alpha-b 都变成 alpha，影响版本选择和升级来源校验 | 只在第一个连字符处分开 core，保留完整预发布标识。W1-18-SEMVER-01：字母连字符、数字/字母、点分段及 build metadata 的独立字面量期望正确；真实 Runtime 升级接受合法较新版本、拒绝未变/倒退。 |
+| W2-18-MEMORY-EFFECT / P1 | Memory Host 的 write/change/accept/discard/undo/import/clear 等只在进入 service 前检查；Prologue backend 还要等 store/startup，service 又等待 screen/list/origin，之后正文与账本写入无原调用控制。recall 的回执复查不覆盖其余命令 | 按 invocation 将可信效果控制传到实际写点，后台已接受任务继续用其独立授权；不得在共享 service 覆写全局 caller。W2-18-MEMORY-EFFECT-01：真实 registry、backend startup/screen/list barrier 中取消/撤权，放行后无首次业务提交；W2-18-MEMORY-EFFECT-02：本人写入、接受、撤销与清理正常，已提交的部分事实如实恢复，不谎称全无效果或自动重复。 |
+| W2-18-GOAL-PIN / P1 | Goals deliverable/input pin 先核 Goal、await owner pin 后直接写关联；`pinActionSubject` 没保留父固定动作来源检查。仅撤父动作精确授权或归档 Goal 时，子 owner 可保持授权，父关联仍会落库 | 沿现有原调用控制保留委托来源，返回后原 beforeEffect 与 Goal状态复查再写 Ledger。W2-18-GOAL-PIN-01：真实 Host/owner pin 的派出前与返回前 barrier，父撤权/取消/停用分别保证零派出或零新关联；W2-18-GOAL-PIN-02：归档目标不再新增关联，已有 owner 固定成果仍是有效已发生事实，重新授权不重复固定。 |
+| W2-18-COGNIA-EFFECT / P1 | directory_preview 通过普通绑定 scan→preview，只在 scan 后检查 signal；只撤销外层精确动作、保留两个依赖权限，preview 仍可保存暂存材料和业务预览 | 用同一个来源授权机制包住嵌套动作。W2-18-COGNIA-EFFECT-01：真实扫描 barrier 撤外层授权，放行后 previews/materials/sources 无新增；依赖权限不能替代父授权。重新授权后同入口预览、本人明确提交正常。 |
+| W1-18-SESSION-CONFIRM / P2 必修 | `project-resolution.ts` 唯一已关联目录直接返回 bound；MCP restoreBoundSessionConnection 接受它，新的 Session 无确认就取得项目连接。PRODUCT 明确新 Session 即使一个候选也需确认；旧测试的自动继续预期不构成豁免 | 无本 Session 确认绑定时只返回建议，保留已确认绑定恢复和显式 bind；不引入新绑定事实。W1-18-SESSION-CONFIRM-01：隔离 Home 正式 MCP，新 Session 同目录仍无 connection，明确确认后才可进入项目；解绑不因唯一目录立即复活，多候选/symlink/无稳定Session按现行合同处理。 |
+
+| W2-18-CAPSULE / P2 必修 | 胶囊客户端调用 `capsule_resize`，Rust 已实现/注册，现有 `capsule.toml` 却没有允许此命令；remote WebView 拒绝后客户端吞错，内容变化不能调高度 | 只补胶囊现有许可与客户端调用覆盖，保持 S-14 的窗口/来源边界。W2-18-CAPSULE-01：隔离桌面短/长内容下高度在既有 252–476 范围改变且锚点/边界正确；W2-18-CAPSULE-02：错误窗口/外源仍拒绝，不能用名单包含替代原生效果。 |
+| W2-18-CONTINUITY-QA / P2 必修 | 文档指定的 `server/tooling/continuity-demo.mts` 同一 const 重复声明 projectId，解析即失败；固定成果夹具参数也落后于当前 owner 合同，既有测试没有运行这个命令 | 对齐现行参数、保留显式隔离目录与故障开关边界。W2-18-CONTINUITY-QA-01：按 README 真启动隔离 QA，写/读固定成果和进展、丢回执后同键重试只产生一条业务事实；不接真实 Home/账号。 |
+| W2-18-CLIPBOARD / P2 必修 | `shelf_hotkeys_macos.rs` 非 Finder 文件复制只保存纯文本，随后 clearContents 丢掉图片/RTF/文件 URL；未看 changeCount 可误收旧文件；file URL 直接剥前缀未解码中文/空格 | 同一路径保全 pasteboard items/types，确认本次复制有新内容，恢复不得覆盖期间用户的新复制，URL 用现有原生解析；不增加持久状态。W2-18-CLIPBOARD-01：受控独立板的文本/RTF/图片/文件 URL 在复制成功/失败后完整保留；W2-18-CLIPBOARD-02：未复制不收旧文件、新复制不被旧恢复覆盖、中文/空格路径正确。不得拿真实用户剪贴板作破坏性试验。 |
+| W2-18-HOTKEY-IO / P2 必修 | 快捷键 dispatch 明确在主线程，抓网页/收文件继续同步 osascript/curl/文件与 Host IO，curl 可等 20 秒并有 sleep，堵住 AppKit 窗口/菜单/快捷键 | 主线程只做必要 AppKit 与目标快照，慢 IO 用现有 worker 方式，结果回主线程；与 CLIPBOARD 同一 writer 连续处理，异步后仍用原目标。W2-18-HOTKEY-IO-01：受控慢 HTTP/automation 时窗口、胶囊/toggle 可用，超时解释清楚，原目标不漂移、入库不重复。 |
+| W2-18-COMPONENT-DRAFT / P2 必修 | 公共 plugin component renderer 提交后只禁按钮，字段仍可编辑；旧成功无条件关 sheet/dialog、reset form，清掉等待时新写的草稿。epoch 只保护换版/部件，不保护同表单的新输入 | 依据提交时输入版本处理清空/关闭，沿既有 pending 编辑合同，不加草稿服务。W2-18-COMPONENT-DRAFT-01：生产 renderer 提交 A→等待时编辑 B→A 返回，B 保留，真正提交 B 后才清 B；W2-18-COMPONENT-DRAFT-02：失败保输入、销毁/换版旧回包不回写，表单与浮层均覆盖。 |
+
+| W2-18-WORK-EFFECT / P1 | Work discover/create/handoff 入口只在进入 service 前查控制；等待 Runtime discover/create/read 后继续写 Session/草稿，create 返回后还可继续派 handoff，原 caller 控制未传入 | invocation 控制传至每个等待后的首次提交/下一派发点，不存在共享 service 的可变 caller。W2-18-WORK-EFFECT-01：真实 ActionService/Session owner 与 Runtime barrier 中取消/撤权/停用，放行后无新 Session/草稿/后续 handoff；W2-18-WORK-EFFECT-02：外部已创建但本地未获提交授权的目标如实保留未知、不自动重建；仅消息真实送达回执沿 §12.10 窄例外，拒绝返回和重派，恢复不重复。 |
+| W2-18-ALCHEMIST-EFFECT / P1 | foreground invoker 只传 signal；conversation 的取消/拒绝被 catch 后写成新的 failed assistant 行；plan 等模型/来源、settings 等模型元数据后也无 beforeEffect 直接写库 | 可信控制按调用传到前台实际写点，取消/撤权不能转成业务失败回复；已合法保存的本人消息保留，独立后台 job 生命周期保留。W2-18-ALCHEMIST-EFFECT-01：正式 Host/SQLite 的模型/metadata barrier 取消、撤权、停用，无迟到回复/plan/settings 与后续派发；W2-18-ALCHEMIST-EFFECT-02：正常失败解释与重新授权后恢复正确，不靠存 failed 行假称无写入。 |
+| W2-18-WF-OPEN / P2 必修 | 搜索/对象标签发送现行 select-item 的 itemId，Workflows listener 遇 itemId 直接 return，实际保留 B 或目录而非选中的 A | 沿现有 openWorkflow/navigationRevision 接入，兼顾延迟挂载与无 id 返回目录。W2-18-WF-OPEN-01：正式搜索 A、已开 B、首次懒加载/恢复标签均真正打开 A，正文/标题/助理上下文同对象。由现有 WFSAVE writer 连续处理，避免客户端双 writer。 |
+| W2-18-SHELF-OPEN / P2 必修 | Shelf 搜索返回合法 clipboard id，但 applySnapshot 只查 materials/results，清 selectedClip 并说材料已不存在 | 由现有 owner id 区分内容与 clipboard，保留 user-only。W2-18-SHELF-OPEN-01：实际查询/打开剪贴板结果在首次与已挂载页面选中正确正文；普通材料正常，Agent/MCP 仍不可读剪贴板。 |
+| W2-18-SHELF-CACHE / P2 必修 | full text cache 只按 item_id，权威 reload/另一窗口改同 id 正文不失效，旧 file 回包也能覆盖新值 | 将缓存/在途读与 owner 当前内容或 reload 代际绑定，沿现有投影，不造事实库。W2-18-SHELF-CACHE-01：正式 owner 改 A→B 后刷新/返回读到 B，早期文件回包不得恢复 A，比较视图同样正确。 |
+| W2-18-SHELF-LIFETIME / P2 必修 | shelf-admit 用 window.addEventListener 而非共享 lifetime；卸载后旧 handler 仍发失败通知，重挂后成功与假失败并存 | 用既有 lifetime.listen，死 mount 不派出也不发布结果。W2-18-SHELF-LIFETIME-01：真实 detach/remount 后一次入库只一 POST/一成功且无旧失败；只剩已销毁 mount 时零请求/通知。 |
+| W2-18-ALCHEMIST-UI / P2 必修 | Alchemist 搜索只能点当前已渲染 collection/filter 内条目，没有 select-item；client 未挂共享 lifetime，隐藏/卸载后继续轮询与事件响应 | 用现有 authoritative bootstrap 定位 kind 与现有 seq 打开；共享 mount lifetime 管 fetch/listener/observer/timer。W2-18-ALCHEMIST-UI-01：跨集合/过滤/懒加载搜索打开对应对象且迟到回包不覆盖新选择；W2-18-ALCHEMIST-UI-02：隐藏停读、返回一次刷新、卸载取消、重挂无重复，已接受后台 job 独立。 |
+| W2-18-ALCHEMIST-PARTIAL / P2 入口纠正 | 固定研究成果复用的生产 WorkReuseHostPort 缺失是既有披露的未完成项，当前“保存固定版本”却无条件可点且必失败；fixture 端口不能作生产证据 | 本轮按既有 available=false 明示不可用并保留方法复用，不顺手实现全套发布/preview/Manifest。W2-18-ALCHEMIST-PARTIAL-01：正式 Host 无端口时没有可执行发布承诺，说明可见、方法链仍可用；完整成果复用仍保持后续未完成。 |
+| W2-18-BROWSER-UPLOAD / P1 | 浏览器选择 A 文件后等 FileReader，才从共享 dataset 取 chooser；期间 B 覆盖 id，A 字节可上传到 B。Host 对当前 B 的身份校验无法发现错配 | 选择时固定 chooser/page/文件任务，失效就拒绝，禁止把旧文件改投新 chooser。W2-18-BROWSER-UPLOAD-01：两个隔离真实网页，A 读取 barrier→B 选择器→放行，B input/接收端无 A 字节；W2-18-BROWSER-UPLOAD-02：正常多文件/取消/失败重选可用。不使用真实私人文件。 |
+| W2-18-BROWSER-GRANT / P1 | approve-site await 后 decide 读可变 reviewing，可批准后到的 B；站点面板显示 A，按钮从可变 state.origin 写 B，授权失败 catch 后还继续 decide | 点击时固定原 review_id 与显示 site scope，失败不继续批准，旧回执不关新审查。W2-18-BROWSER-GRANT-01：A 站点请求 barrier、A 结束/B 成当前、放行，B 仍 pending/零效果，只保存 A 决策；W2-18-BROWSER-GRANT-02：面板显示 A 后导航 B 再操作，持久决策仍属于 A。 |
+| W2-18-GIT-TARGET / P1 | readGitSummary 读取 remotes，但审查 revision 不含 URL；批准期间 origin 改到 B 后执行 git push remote.name，仍通过旧 A 审查 | 固定该操作实际远端目标并在执行前复核，保留用户正常改 remote 能力；核 pushurl/有效目标，不只显示旧 URL。W2-18-GIT-TARGET-01：临时 bare A/B、prepare A→改 origin B→批准拒绝，B refs/objects 不变；正常 A 推送通过，无真实远端写入。 |
+| W2-18-GIT-CONFLICT / P1 | resolve 的 revision 仅含 HEAD/index 等，不含冲突文件正文/身份；等待期间新编辑未 stage 仍被 writeFile 覆盖，替换 symlink 也未在写前拒绝 | 唯一 Git owner 固定并核正文/文件身份与实际授权路径，写入不跟随后到链接。W2-18-GIT-CONFLICT-01：真实临时冲突，prepare 后改正文再批，拒绝且新正文/index保持；W2-18-GIT-CONFLICT-02：换 symlink 到隔离外部哨兵明确拒绝、哨兵字节不变，正常解决/暂存成功，安全表同步。 |
 
 Gmail 增量判断也与 [Gmail 官方 history.list 合同](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.history/list) 对照：历史按 ID 递增，startHistoryId 排除以前的记录，单条历史可包含多封邮件。因此“最后一页已读”不能替代“候选已消费”。本轮不实际读取外部账户。
 
 以上验收尚未运行。新客户端修复先准备可复现用例与最小改动，机器时段由原防腐会话统筹，在 I6 及已排 Dataset/Issue 验证后执行；每包 README 必跑项、整体构建和最终整合检查仍保留。助理客户端与在途 #471 都触及 `assistant-island.ts`，需按枢纽规则只改本问题范围，在最终组合头检查两边改动，不能覆盖 Computer Use 的工作。
 
-已派两个独立 `gpt-6.1-sol / max` 修复会话：助理发送 `01a13369-d79c-70f1-9798-7b84181fa7d0`、Workflows 保存 `01a13369-e221-7433-a2eb-24bcdcee1039`。仅本地隔离实现与回归准备，尚未运行、提交或验收；两个会话不改本 spec、不自行推送或开 PR。Gmail 与 Placement 尚未派 writer，不能记已修。
+已派两个独立 `gpt-6.1-sol / max` 修复会话：助理发送 `01a13369-d79c-70f1-9798-7b84181fa7d0`、Workflows 保存 `01a13369-e221-7433-a2eb-24bcdcee1039`。仅本地隔离实现与回归准备，尚未运行、提交或验收；两个会话不改本 spec、不自行推送或开 PR。Gmail 与 Placement 尚未派 writer，不能记已修。G4 原审查会话已接续四项核心修复（固定输入、缺 key、Memory 事务、SemVer），在隔离树准备/实现，仍不占验证队列，不碰 AUTH 共用控制。
+
+### 12.9 已完成源码审查的逐包结论（持续归回，整改另计）
+
+截至本节更新，G3/G4 合计 13 个包的跟踪清单经协调方与冻结切点 `git ls-files` 对照，无漏项、重复或未披露可执行文件。G4 全部 191 文件（生产 170 文件/27,820 行）已逐段读；G3 180 文件含 26 个静态资源：CSS 全文件结构、装配/插值、公共令牌、focus/hidden/主题/响应式/减少动态与消费者已审，未逐行评价每个历史选择器；图片/字体核格式、引用及许可，不声称视觉/字形全验。此口径用于代码审查，视觉、原生与用户体验仍需实际证据。生产入口、失败/恢复与测试断言已随各包核对；未出现新问题的包也不是“所有场景已通过”。
+
+| 已审包 / 覆盖 | 职责、依赖与实际消费者判断 | 变化原因、放置与冗余裁决 | 验证及整改边界 |
+| --- | --- | --- | --- |
+| `packages/contracts` / 91 文件 | 跨层词汇、类型、动作 schema 与纯协议；由 Kernel/Runtime/SDK/Host/MCP/插件消费，不持业务事实 | 合同因协议与共同输入边界变化；现位置成立。部分运行 helper 仍须沿既有 SDK 清理；null source_revision 的 pre-snapshot pin 恢复无当前四 writer 来源，不能当正常中断保留 | 共同合同/固定 pin/move 测试有真实断言；历史 pin 分支待 owner 清理并保留真实 pending 恢复，RAC-12 未关闭 |
+| `packages/kernel` / 11 文件 | 唯一注册、场景、调用/授权与纯情境策略；业务由 owner，材料不是授权 | 按注册与执行合同变化，不因插件动作另分支；保留已接受纯策略位置 | 当前动作/场景/CAS/撤销断言有效；精确 AUTH 与 SDK beforeWrite 仍原 writer，在整合头验证 |
+| `packages/plugin-runtime` / 33 文件 | 安装事实、Supervisor、端口 Wiring、持久事件与私有 KV；真正隔离交 Sandbox | 生命周期/连线/事件合同各有实际 Host 与插件消费者，未发现应另建一套的理由 | 固定输入 §12.8 必修；升级/revoke 单独 API 时序候选不越过正式 stop 补偿报生产 P1。真实 SQLite、CAS、崩溃重开证据不覆盖 fixed SDK read |
+| `packages/plugin-sdk` / 17 文件 | 作者只装 SDK/contracts；平台与作者共用 Manifest/声明/lifetime/文本工具，未引入私有依赖 | helper 因共同协议变化，避免作者/Host 两套验证；当前位置成立 | SemVer 必修；routes 原控制沿 AUTH。packed 双包/真实 CLI seam 有证据；导出扫描仅支持 API 可用 |
+| `packages/storage` / 16 文件 | 技术 SQLite、加密内容/secret、原子文件、索引和 Memory 账本；不决定 Goal/建议业务 | 保留技术端口，业务事实由 owner；索引可重建是现行机制 | 缺 key 与 BEGIN 恢复两项必修；现有冷开/Keychain fake/rollback 测试不覆盖它们，不操作真实密钥 |
+| `packages/plugin-sandbox` / 11 文件 | macOS Seatbelt、资源/IPC/Host代理、声明效果与 grant 交集；生成插件 Host 消费 | 不可信代码隔离是真实边界，其他平台 fail closed；严格 HTTPS 公共适配器与生成插件 Host 网络不可混称 | I6 19 项 real Seatbelt、6 项模拟 DNS/TLS 通过、live 网络跳过；POST unknown 候选尚无产品消费者证据，不升生产 P1 |
+| `tooling/plugin-cli` / 12 文件 | scaffold/validate/显式打包/签名/验证与开发请求；不拥有生产安装或运行模型 | 保留作者工具；不执行 lifecycle script，不等于拒绝含 scripts 的包，README 应对齐 | 隔离 built CLI/双公共包/临时签名/Host seam 有证据，第三方分发安装仍在后续，不算可发布 |
+| `apps/desktop` / 58 文件 | Panel/launch recipe/native shell 与启动器；业务经 owner 和常驻 Host，工作终端实际走 Host PTY | 平台桌面适配位置成立；原生注册 PTY 未找到当前 JS 消费者，需按保留用途裁决，不以内部测试证明在用 | 胶囊/剪贴板/主线程 IO 必修。HTTP Panel/PTY 既有测试不替原生 IPC 拒绝、打包和快捷键实操；原生未验 |
+| `packages/design-system` / 56 文件 | tokens/字体/HTML原语/受限生成界面 renderer；Workbench 和插件消费，执行仍经 Host/Runtime | 共享呈现位置成立；历史 CSS cascade 活着，沿既有 W5/字节预算按真实样式收口，不为拆文件而搬移 | 新草稿被清空必修；控件板换月样例后续。select/composition 实浏览器证局部控件，内存样例不证插件持久/模型质量 |
+| `apps/server` / 8 文件 | 私有跨设备启动/管理与 gateway/restore，沿正式 Host 动作与 owner | 按用户既有决定保留明确用途；不随正式根入口交付，不另造 grant/Agent | launcher/gateway/restore 隔离真实 Host 有局部证据；新设备/LAN/TLS/备份完整实操未验，无新增必要代码缺陷 |
+| `server` / 26 文件 | device/member/配对/项目访问/IM/传输回执；Goal/Artifact 经公开 owner | 业务模块位置成立，不持第二份 Goal 事实；旧 SSOT 直 SQL 描述需按实际公开管理函数纠正 | 隔离 HTTP/domain/幂等/撤权有证据；QA 工具必修，撤权后 command error receipt 的类别待合同裁决；完整手机未验 |
+| `packages/im-ui` / 15 文件 | 讨论 DTO/呈现/transport/history/read/draft；身份与权限由 server | UI 位置成立，未复制业务状态；不把未接受的附件/AI 等扩功能当缺陷 | target/epoch/草稿与真实域/HTTP已核；factory 用例不能替完整 controller/触控/软键盘/辅助技术，无新增必修项 |
+| `packages/test-kit` / 17 文件 | dev-only 边界扫描、Chrome/CDP、授权 HTTP 测试工具；不代替真实授权 | 无生产消费者，dev dependency 正确；扫描只保证可读静态 import，不声称完整 JS 语义 | 驱动 fake 验合同，真实 test-home/消费者验用户路径，二者分开；无新增必要修复项 |
+
+G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险核 domain/HTTP/launcher/IPC/bootstrap/renderer/select/driver，范围外长测试只计实际片段。协调方核实新增缺陷的实际生产位置并复核覆盖清单。既有 I6 原日志仅按已出逐案结果复用；本节未新启动任何测试，不能把表内审读写成运行通过。13 包“已审”不关闭 §12.8、W1/W2/W3/W5 或整条防腐线。
+
+
+**G8 六包补齐。** 266 跟踪文件经协调方再次与 Git 对照（258 完整读取、8 样式/词典按静态资源口径审查），无漏项/重复；共 32,308 行，不将静态口径写成完整视觉/逐译文验收。相应根测试核了实际断言，包内测试/fixture 全读；新故障没有运行。合计当前 19/71 包源码审查完成，52 包仍待审；修复与最终组合证据未关闭。
+
+| 已审包 / 覆盖 | 职责、实际消费者、变化与放置裁决 | 验证及整改边界 |
+| --- | --- | --- |
+| `plugins/native/workflows` / 20 文件 | 拥有项目流程定义、编排、attempt/receipt 与交接计算；站点内容归插件，经 provider/version 固定动作消费，Host 管授权/模型 | CAS/幂等接收/unknown/重试现有断言有效；保存串写、搜索打开、按 §12.10 停止当前步骤待修，真实模型质量另验 |
+| `plugins/native/alchemist` / 135 文件 | 单一 Studio 拥有 Direction/Idea 版本、研究证据/报告、Taste/Playbook 与 job/checkpoint；Host 仅装配 AI、搜索/关闭 | 后台 lease/事务/重开有有效证据；前台 effect、client lifecycle/搜索待修。固定成果 reuse 为已披露未接线，纠正入口不冒充全链已实现 |
+| `plugins/native/work` / 48 文件 | 组织 Session 发现/内容/交接、工作区/终端；私有加密事实归 private-work-context，原生传输归 runtime-host | read/resume 快照、unknown、回执事务有效；等待后控制缺失必修，真实送达回执例外按用户 §12.10。原生 transport fixture 不等用户实际 Codex 会话 |
+| `plugins/native/issues` / 16 文件 | Home 内 Issue 自有 schema/命令/原文/版本/capture 草稿，Runtime 管身份安装与授权；不是 Goal/项目或 Host 特例 | 真 Home/HTTP/stdio MCP、CAS/撤销有证据；手工页重复仍由原 writer 修；模型分类/IME/跨 App 实操未验，无重复新缺陷 |
+| `plugins/native/shelf` / 24 文件 | 插件管呈现/入库/recipe映射；Home 字节/clipboard/jobs/settings 归 Module；项目材料是固定 process item，经 SDK 和 KV CAS | 真实完整字节/固定版本/权限有证据；clipboard搜索、缓存、listener 生命周期必修。Agent start 参数只证明材料传入，不代表模型实际消费 |
+| `plugins/native/artifacts` / 23 文件 | 浏览/导入导出/SDK适配；固定版本/过程事实归 Module，owner/project/install来自上下文 | post-wait import、固定读、grant/type/producer与旧SDK拒绝有效；本包无新增独立缺陷；Goal input/Diff 组合仍须修核心固定读并实操 |
+
+### 12.10 用户明确的停止与回执合同（2026-10-12 本轮答复）
+
+用户选择：**工作流取消当前尚未提交的本地步骤；已经发生的外部结果保留并显示状态。** stop 必须使当前实例的在途派发控制失效，传至下游最终 beforeEffect，不能仅改外层状态再让本地插件写入；已经真实发生的外部结果不回滚、不自动重派，按原请求可追踪并明确成功/结果未知。W2-18-WF-STOP-01：正式流程 action-step 调 Form/Pages 等本地动作，模型 barrier 中 stop，放行后目标无迟到正文/题目、无后续站点，实例保持停止。W2-18-WF-STOP-02：外部已接受后才 stop，保留真实结果或未知状态，重开/重试不重复派出，也不把“未收到回包”说成“没有发生”。WFSAVE 与本合同为两个独立根因，不互相代替验收。
+
+用户同时选择：**Work 保存真实送达回执，避免恢复后重复发送；不向无权调用者返回内容。** 这是对通用撤权后禁写的明确、窄例外：仅收敛已经派出且已占用原幂等请求的实际外部事实/原会话对应回执，不允许新业务请求、伪造失败回复、继续交接或返回受保护正文。W2-18-WORK-RECEIPT-01：Runtime 已接受消息后撤权、返回真实 turn id，原请求/对应回执持久一次，调用者被拒，恢复不重发；W2-18-WORK-RECEIPT-02：派出前撤权零调用，未知结果保持未知，撤权后不能以记回执为名派发下一步。Server transport command 的错误回执不能自动套用此例外，须另按实际事实/回执合同核查。

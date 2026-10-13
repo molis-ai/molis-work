@@ -13,8 +13,8 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
   const current=(state,control)=>state.lifetime.alive && control.lifetime.alive && control.lifetime.visible && !control.signal?.aborted && state.control.lifetime===control.lifetime && state.control.signal===control.signal;
   const read=async(path,body,control) => {
     const {lifetime,signal}=control;
-    const response=await control.requestLifetime.fetch(host.route(path),body ? {method:'POST',headers:host.headers(),body:JSON.stringify(body),signal:lifetime.signal} : {signal});
-    const data=await response.json();control.requestLifetime.assertCurrent();lifetime.assertCurrent(body?undefined:signal);if(!response.ok) throw new Error(data.error || '审查暂不可用');return data;
+    const data=await molisWorkRequest(host.route(path),{body,scope:control.requestLifetime,signal:body?lifetime.signal:signal,fallback:'审查暂不可用'});
+    lifetime.assertCurrent(body?undefined:signal);return data;
   };
   // scope.runSession lists every run of one runtime session; scope.limit keeps open items plus that much settled history.
   const show=async(container,refs,sessionId,workspaceId,scope,control) => {
@@ -68,7 +68,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
             if(current(state,control) && scopeKey===state.key && container.contains(row)) {
               let note=holder.querySelector('[data-review-recovery-error]');
               if(!note){note=document.createElement('p');note.dataset.reviewRecoveryError='';note.setAttribute('role','alert');holder.append(note);}
-              note.textContent=error.message;
+              molisWorkRequest.show(note,error);
             }
           } finally {busy.delete(review_id);if(control.lifetime.alive)recoveryButton.disabled=false;}
           return;
@@ -89,7 +89,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
           const row=button.closest('[data-agent-review-item]');
           let note=row.querySelector('[data-review-error]');
           if(!note){note=document.createElement('p');note.dataset.reviewError='';note.className='agent-review-error';note.setAttribute('role','alert');row.append(note);}
-          note.textContent=error.message;
+          molisWorkRequest.show(note,error);
         } finally {busy.delete(review_id);if(current(state,control) && scopeKey===state.key){syncActions(row);await host.onDecision?.({...scope,receipt,error:decisionError});if(current(state,control))void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);}else if(current(state,state.control)){void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);}}
       });
     }

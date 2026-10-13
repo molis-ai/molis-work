@@ -2222,3 +2222,5 @@ W3-02-R2准备仍沿§1现行决定：Goal/board/planning/guidance/relation/poli
 R2实测生产错误集合50种，134待迁词元；与其同字的7个实际业务事件/读取断言已单独保留，不按279总匹配替换。规划issue的7个公开enum改变输出合同，因此goals.planning.impact、goals.planning.graph.check、goals.tree.check、goals.tree.decide改v2，实际semantic_review的review_action及公开type/schema同步v2，三现行显式tree.check MCP消费者转v2；无旧版保留。具体消费者与实际快照仍需最终构建后的严格对照，未据源改声称完整。当前Source语法、API及health检查继续，原Goal事件type和SQL不变。
 
 A1–A3合入后的Codex合规复查（按systematic-review §1–15）：本批差异实际仅测试导入、构建前提文档和只下降快查；§1–7的身份、注册、事实owner、生命周期及生产边界没有新生产路径，公开声明对原定义、私有项对同文件构建已核，无测试专用API；§8/13没有新增模型路径或SDK依赖；§9未改用户界面，浏览器C/D仍待；§10隔离Home/FileSecrets、Cognia基线的真实build指纹与单Home约束已核，未读写真Home/Keychain；§11工具空计划只证明本轮导入迁移，不宣称全仓死码清理；§12/14 AST正文保留加实跑与CI，Cognia暴露的重复Host夹具按现行合同修正、授权/读回/撤权及持久化断言未放宽，基线与失败日志保留；§15原总验收未全部满足，维护8、SourceI7/H/R及剩余路线未关闭。当前该批没有新增必须修复P1；后续片实际合入后再按其diff复查，不把本批复查扩成新功能完整验收。
+
+R2源码固定dd7db1df3：47文件，134错误词元/35TS迁当前owner；七处同名业务事件/读取保持原值。实际Source health通过（w3-r2-health01.log，零语法错误；非主人码845→781）；Goals/Governance两个API快照同步，四规划输出动作v2及实际review_action/显式MCP消费者同片更新。生命周期与真实Runtime已有测试加R2验收编号，未修改断言。动作快照、全量构建、真实HTTP/MCP/事件与H-R整合全量均待，不据源码提交宣称R2验收通过。

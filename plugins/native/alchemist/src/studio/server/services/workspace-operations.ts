@@ -3,6 +3,7 @@ import type { ApiDependencies } from "../api/dependencies.js";
 import type { AlchemistOperationInput } from "../../shared/contracts/actions.js";
 import { AlchemistOperationError } from "./action-error.js";
 import { sendConversationMessage } from "./conversation-message.js";
+import type { AlchemistEffectControl } from "./action-operations.js";
 
 /** Discussion, decisions, calibration and Pulse operate on the same original Studio repositories. */
 export function createWorkspaceOperations(d: ApiDependencies) {
@@ -42,7 +43,7 @@ export function createWorkspaceOperations(d: ApiDependencies) {
           originalFeedback: rule.originalFeedback, limitation: "仅在明确确认后沿用；停用方法不可用于新任务。" }), goal_ids: [], session_id: null });
     },
     conversationList: () => ({ messages: d.conversations.list(d.workspaceId) }),
-    conversationSend: (input: AlchemistOperationInput<"conversationSend">, signal?: AbortSignal) => sendConversationMessage(d, input, signal),
+    conversationSend: (input: AlchemistOperationInput<"conversationSend">, signal?: AbortSignal, control?: AlchemistEffectControl) => sendConversationMessage(d, input, signal, control),
     decisionsList: () => {
       const persisted = d.activity.list(d.workspaceId);
       const jobs = d.jobs.listRecent().map(job => ({ id: `job_activity:${job.id}`, workspaceId: d.workspaceId, kind: `run.${job.status}`, targetKind: "job", targetId: job.id,

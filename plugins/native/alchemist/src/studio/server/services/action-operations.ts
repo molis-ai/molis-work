@@ -1,4 +1,4 @@
-import { ActionError, searchEntriesPage, searchText, type SearchEntry, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, searchEntriesPage, searchText, type SearchEntry, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ApiDependencies } from "../api/dependencies.js";
 import { ALCHEMIST_GENERATE_PERMISSION, alchemistOperations, type AlchemistHomeOperationName, type AlchemistOperationInput, type AlchemistOperationName } from "../../shared/contracts/actions.js";
 import type { AlchemistPulseGithubPort } from "../sources/pulse-github-port.js";
@@ -14,12 +14,13 @@ import { StartPulseRunError } from "./start-pulse-run.js";
 import { AlchemistOperationError } from "./action-error.js";
 export { AlchemistOperationError } from "./action-error.js";
 
+export type AlchemistEffectControl = Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current">;
 export interface AlchemistActionInvoker {
-  invoke<I, O>(definition: ActionDefinition<I, O>, input: I, signal?: AbortSignal): Promise<O>;
+  invoke<I, O>(definition: ActionDefinition<I, O>, input: I, signal?: AbortSignal, control?: AlchemistEffectControl): Promise<O>;
 }
 
 /** What a project's studio implements: every operation but the Home's, which the Host serves from its own ports (`createAlchemistActionHandlers`). */
-type Implementations = { [K in Exclude<AlchemistOperationName, AlchemistHomeOperationName>]: (input: AlchemistOperationInput<K>, signal?: AbortSignal) => unknown | Promise<unknown> };
+type Implementations = { [K in Exclude<AlchemistOperationName, AlchemistHomeOperationName>]: (input: AlchemistOperationInput<K>, signal?: AbortSignal, control?: AlchemistEffectControl) => unknown | Promise<unknown> };
 
 /** Business implementation stays beside the original repositories and services, without HTTP request emulation. */
 function implementations(d: ApiDependencies): Implementations {
@@ -44,10 +45,10 @@ function implementations(d: ApiDependencies): Implementations {
       return searchEntriesPage([...directions, ...ideas], input);
     },
     reuseCandidates: (input, signal) => d.workReuse.candidates(input, signal),
-    reuseAssess: (input, signal) => d.workReuse.assess(input, signal),
-    reusePublish: async (input, signal) => ({ reference: await d.workReuse.publish(input.reportId, signal) }),
+    reuseAssess: (input, signal, control) => d.workReuse.assess(input, signal, control),
+    reusePublish: async (input, signal, control) => ({ reference: await d.workReuse.publish(input.reportId, signal, control) }),
     reuseReceipt: async (input, signal) => ({ receipt: await d.workReuse.receipt(input.planId, signal) }),
-    reuseReconcile: async (input, signal) => ({ receipt: await d.workReuse.reconcile(input.planId, signal) }),
+    reuseReconcile: async (input, signal, control) => ({ receipt: await d.workReuse.reconcile(input.planId, signal, control) }),
     reuseFeedback: async (input, signal) => ({ receipt: await d.workReuse.feedback(input, signal) }),
     playbookRevise: input => ({ rule: d.workReuse.revise(input) }),
     bootstrap: () => ({
@@ -80,10 +81,11 @@ function implementations(d: ApiDependencies): Implementations {
     ideaGet: input => d.ideaCardActions.getIdeaVersionView(input.id, input.version),
     models: async () => ({ models: await d.listRuntimeModels() }),
     researchGet: (input, signal) => d.getResearchWorkspace(input.id, input.version, signal),
-    researchPlan: async ({ id, ...input }, signal) => ({ plan: await d.workReuse.projectPlan(await d.createResearchPlan({ ideaId: id, ...input }), signal) }),
-    researchStart: async ({ id, ...input }, signal) => {
+    researchPlan: async ({ id, ...input }, signal, control) => ({ plan: await d.workReuse.projectPlan(await d.createResearchPlan({ ideaId: id, ...input }, signal, control), signal) }),
+    researchStart: async ({ id, ...input }, signal, control) => {
       const plan = d.research.getPlan(input.planId);
       if (plan) await d.workReuse.validate(plan, signal);
+      await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
       return { run: d.startLensRun({ ideaId: id, ...input }) };
     },
     runCancel: input => {
@@ -99,7 +101,7 @@ function implementations(d: ApiDependencies): Implementations {
       return d.jobs.readEvents(input.id, input.after ?? 0);
     },
     settingsGet: () => d.runtimeSettings.getPublicSettings(),
-    settingsUpdate: input => d.runtimeSettings.update(input),
+    settingsUpdate: (input, _signal, control) => d.runtimeSettings.update(input, control),
     settingsVerify: () => d.runtimeSettings.verifyAndEnable(),
     workspaceExport: async (input, signal) => {
       const file = await d.workspaceExport.create(input.format, signal);
@@ -148,7 +150,7 @@ export function createAlchemistOperationExecutor(dependencies: ApiDependencies):
   const byId = new Map(Object.entries(alchemistOperations).filter(([, operation]) => operation.definition.action.scope !== "home")
     .map(([name, operation]) => [operation.definition.capability_id, { name: name as Exclude<AlchemistOperationName, AlchemistHomeOperationName>, ...operation }]));
   return {
-    async invoke<I, O>(definition: ActionDefinition<I, O>, input: I, signal?: AbortSignal): Promise<O> {
+    async invoke<I, O>(definition: ActionDefinition<I, O>, input: I, signal?: AbortSignal, control?: AlchemistEffectControl): Promise<O> {
       signal?.throwIfAborted();
       const operation = byId.get(definition.capability_id);
       if (!operation || definition.version !== operation.definition.version) throw new ActionError("actions.missing", "没有这个炼金术士能力版本。");
@@ -158,9 +160,12 @@ export function createAlchemistOperationExecutor(dependencies: ApiDependencies):
         throw new AlchemistOperationError(code, message, 400);
       }
       let result: unknown;
+      const effect = async () => { signal?.throwIfAborted(); await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted(); };
       try {
+        await effect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
         // The mapped implementation and schema always come from the same operation key.
-        result = await (handlers[operation.name] as (input: unknown, signal?: AbortSignal) => unknown)(parsed.data, signal);
+        result = await (handlers[operation.name] as (input: unknown, signal?: AbortSignal, control?: AlchemistEffectControl) => unknown)(parsed.data, signal, { ...control, beforeEffect: effect });
+        await effect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
       } catch (error) { businessError(error); }
       if (!operation.output.safeParse(result).success) throw new ActionError("actions.output_invalid", "炼金术士返回的数据不符合已声明的合同。");
       return result as O;
@@ -209,12 +214,12 @@ export function createAlchemistActionHandlers(ports: AlchemistActionPorts): Acti
     if (definition.action.scope === "home") {
       const run = home[name];
       if (!run) throw new Error(`The Home operation ${definition.capability_id} has no implementation.`);
-      return { ...base, async handle(_caller, input) { return run(input); } };
+      return { ...base, async handle(caller, input) { await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted(); return run(input); } };
     }
     const handler: ActionHandlerBinding = { ...base,
       async handle(caller, input) {
         if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目。");
-        return (await ports.resolve(caller)).invoke(definition as ActionDefinition, input, caller.signal);
+        return (await ports.resolve(caller)).invoke(definition as ActionDefinition, input, caller.signal, caller);
       },
     };
     return modelAvailability && definition.action.permissions.includes(ALCHEMIST_GENERATE_PERMISSION)

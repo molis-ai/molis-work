@@ -4,10 +4,11 @@ import { mkdtemp, rm, access } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { alchemistActions as a, ALCHEMIST_ACTION_PERMISSIONS, createAlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
+import { alchemistOutput } from "./fixtures/alchemist-output.js";
 
 async function setup(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "alchemist-host-lifecycle-")), hosts: MolisWorkLocalHost[] = [];
@@ -27,6 +28,52 @@ async function setup(t: test.TestContext) {
   };
   t.after(async () => { beforeClose.forEach(release => release()); await Promise.all(hosts.map(host => host.close())); await rm(home, { recursive: true, force: true }); });
   return { home, ai, requests, ref, open, as, beforeClose, path: join(home, "alchemist/projects/project-a/studio.sqlite") };
+}
+
+for (const operation of ["conversation", "plan", "settings"] as const) {
+  for (const refusal of ["cancel", "revoke"] as const) {
+    test(`W2-18-ALCHEMIST-EFFECT-01: formal Host ${operation} rejects late foreground writes (${refusal})`, { timeout: 20_000 }, async t => {
+      const f = await setup(t), first = await f.open("foreground-owner");
+      const { direction } = await first.bound.invoke(a.directionCreate, { description: "验证前台等待结束后原始权限仍然有效" });
+      let ideaId = "";
+      if (operation === "plan") {
+        const receipt = await first.bound.invoke(a.explorationStart, { id: direction.id });
+        let exploration;
+        for (let n = 0; n < 100; n++) {
+          exploration = (await first.bound.invoke(a.explorationGet, { id: receipt.runId })).exploration;
+          if (exploration.status === "completed") break;
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        assert.equal(exploration!.status, "completed");
+        ideaId = (await first.bound.invoke(a.cardKeep, { id: exploration!.cards[0]!.id })).idea.id;
+      }
+      const before = await first.bound.invoke(a.settingsGet, {});
+      const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), abort = new AbortController();
+      f.beforeClose.push(() => release.resolve());
+      let revoked = false;
+      const listModels = f.ai.listModels;
+      if (operation === "conversation") f.ai.generate = async () => { entered.resolve(); await release.promise; return alchemistOutput('{"reply":"Late answer"}'); };
+      else f.ai.listModels = async () => { entered.resolve(); await release.promise; return listModels(); };
+      const caller = { ...first.caller, signal: abort.signal, validate_authority: async () => {
+        if (revoked) throw new ActionError("actions.forbidden", "original grant revoked");
+      } };
+      const pending = operation === "conversation"
+        ? first.client.invoke(caller, a.conversationSend, { body: "The original user message", context: { kind: "direction", label: direction.title, directionId: direction.id } })
+        : operation === "settings" ? first.client.invoke(caller, a.settingsUpdate, { modelPolicy: "auto", modelId: "", defaultBudgets: { marketSpace: { kind: "calls", limit: 9 }, buildCost: { kind: "calls", limit: 9 } } })
+        : first.client.invoke(caller, a.researchPlan, { id: ideaId, ideaVersion: 1, lens: "build_cost", modelPolicy: "auto", budget: { kind: "calls", limit: 3 } });
+      const rejected = assert.rejects(pending);
+      await entered.promise; if (refusal === "cancel") abort.abort(); else revoked = true;
+      release.resolve(); await rejected; f.ai.listModels = listModels;
+      const db = new Database(f.path, { readonly: true });
+      try {
+        assert.equal((db.prepare("SELECT COUNT(*) AS count FROM research_plans").get() as { count: number }).count, 0);
+        assert.equal((db.prepare("SELECT COUNT(*) AS count FROM mvp_scope_versions").get() as { count: number }).count, 0);
+        assert.equal((db.prepare("SELECT COUNT(*) AS count FROM conversation_messages WHERE author = 'assistant'").get() as { count: number }).count, 0);
+        assert.equal((db.prepare("SELECT COUNT(*) AS count FROM conversation_messages WHERE author = 'user'").get() as { count: number }).count, operation === "conversation" ? 1 : 0);
+      } finally { db.close(); }
+      assert.deepEqual(await first.bound.invoke(a.settingsGet, {}), before, "metadata return cannot change settings after refusal");
+    });
+  }
 }
 
 // One Home has one execution owner: AI goes through the Home's Prologue Runtime, so a second Host for the same Home is

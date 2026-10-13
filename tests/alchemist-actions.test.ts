@@ -151,7 +151,7 @@ test("Alchemist Kernel validates authority and schemas before side effects; HTTP
   assert.equal((await f.call(a.bootstrap, {})).directions.length, 1);
 });
 
-test("Alchemist aborting an event observer leaves its job intact; cancelled conversation cannot publish a late model answer", async t => {
+test("W2-18-ALCHEMIST-EFFECT-01: cancelled discussion writes no reply; event observers leave accepted jobs intact", async t => {
   const f = await fixture(t);
   const { direction } = await f.call(a.directionCreate, { description: "验证观察窗口关闭不会取消后台研究" });
   const receipt = await f.call(a.explorationStart, { id: direction.id });
@@ -167,8 +167,23 @@ test("Alchemist aborting an event observer leaves its job intact; cancelled conv
   f.ai.generate = async () => { entered.resolve(); await release.promise; return alchemistOutput('{"reply":"迟到的成功回复"}'); };
   const pending = f.service.invoke({ ...f.caller, signal: abort.signal }, a.conversationSend, { body: "这次讨论取消", context: { kind: "direction", label: direction.title, directionId: direction.id } });
   await entered.promise;
-  abort.abort(); release.resolve(); await pending;
+  const rejected = assert.rejects(pending); abort.abort(); release.resolve(); await rejected;
   const messages = (await f.call(a.conversationList, {})).messages;
-  assert.equal(messages[0]!.body, "这次讨论取消"); assert.equal(messages[1]!.responseState, "failed");
+  assert.equal(messages[0]!.body, "这次讨论取消"); assert.equal(messages.length, 1, "cancellation is not a fabricated failed assistant reply");
   assert.ok(messages.every(message => message.body !== "迟到的成功回复"));
+});
+
+test("W2-18-ALCHEMIST-EFFECT-02: a genuine model failure remains explained and an explicit new discussion can recover", async t => {
+  const f = await fixture(t);
+  const { direction } = await f.call(a.directionCreate, { description: "正常模型失败后可以继续讨论并保留原文" });
+  const context = { kind: "direction" as const, label: direction.title, directionId: direction.id };
+  const generate = f.ai.generate;
+  f.ai.generate = async () => { throw new Error("model unavailable during dispatch"); };
+  const failed = await f.call(a.conversationSend, { body: "保留这条合法消息", context });
+  assert.ok("assistantMessage" in failed); assert.equal(failed.assistantMessage.responseState, "failed");
+  f.ai.generate = generate;
+  const recovered = await f.call(a.conversationSend, { body: "再次明确讨论", context });
+  assert.ok("assistantMessage" in recovered); assert.equal(recovered.assistantMessage.responseState, "complete");
+  assert.deepEqual((await f.call(a.conversationList, {})).messages.map(row => [row.author, row.responseState]),
+    [["user", "complete"], ["assistant", "failed"], ["user", "complete"], ["assistant", "complete"]]);
 });

@@ -10,6 +10,7 @@ import type { SqliteMemoryRepository } from "../studio/server/db/memory-reposito
 import type { SqliteResearchRepository } from "../studio/server/db/research-repository.js";
 import { generateWithHost, type AlchemistAiPort } from "../studio/server/runtime/host-port.js";
 import { AlchemistOperationError } from "../studio/server/services/action-error.js";
+import type { AlchemistEffectControl } from "../studio/server/services/action-operations.js";
 import { reuseAssessmentSchema, reuseFeedbackSchema, reuseReviseSchema, type reuseAssessInputSchema, type reuseCandidateInputSchema,
   type ReuseCandidates, type ReuseReceipt, type ReuseSelection, type ReuseSnapshot, type WorkReuseHostPort } from "./contracts.js";
 
@@ -95,7 +96,7 @@ export class WorkReuseService {
     }
     return { available: true, artifacts, methods, truncated: references.length > seen.size };
   }
-  async assess(input: z.infer<typeof reuseAssessInputSchema>, signal?: AbortSignal) {
+  async assess(input: z.infer<typeof reuseAssessInputSchema>, signal?: AbortSignal, control?: AlchemistEffectControl) {
     if (this.d.host) await this.caller(signal, ["alchemist:read", "alchemist:write", "alchemist:generate"]);
     const candidates = await this.candidates(input, signal);
     if (candidates.artifacts.length !== new Set(input.references.map(artifactReuseKey)).size)
@@ -105,7 +106,8 @@ export class WorkReuseService {
     const entries = [...candidates.artifacts.map(a => ({ key: artifactReuseKey(a.reference), ...a })),
       ...methods.map(m => ({ key: `method:${m.id}@${m.version}`, ...m }))];
     if (!entries.length) return fail("REUSE_SELECTION_EMPTY", "先选择要检查的成果或方法。");
-    const guard = this.generationGuard({ actorId: this.d.actorId(), methods, artifacts: input.references.map(reference => ({ reference, reason: "适用性检查" })) }, signal);
+    const validate = this.generationGuard({ actorId: this.d.actorId(), methods, artifacts: input.references.map(reference => ({ reference, reason: "适用性检查" })) }, signal);
+    const guard = async () => { await validate(); await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted(); };
     const resultSchema = reuseAssessmentSchema.omit({ runtimeLabel: true });
     const result = await generateWithHost(this.d.ai, { operationId: `reuse:${crypto.randomUUID()}`, purpose: "检查历史成果与已确认方法在本次任务中的适用性",
       systemPrompt: instructed(ALCHEMIST_REUSE, ""),
@@ -201,12 +203,15 @@ export class WorkReuseService {
     return { ...receipt, artifacts: projected.artifacts, methods: projected.methods,
       feedback: projected.artifacts.some(item => item.contentUnavailable) ? null : receipt.feedback };
   }
-  async reconcile(planId: string, signal?: AbortSignal): Promise<ReuseReceipt | null> {
+  async reconcile(planId: string, signal?: AbortSignal, control?: AlchemistEffectControl): Promise<ReuseReceipt | null> {
     const receipt = this.rawReceipt(planId);
     if (!receipt || receipt.relationState !== "pending") return this.receipt(planId, signal);
     // Recover a missing edge without repeating model calls. A revoked source remains pending.
     for (const selected of receipt.artifacts) await this.read(selected.reference, signal);
-    await this.d.host!.linkConsumption(await this.caller(signal, ["alchemist:read", "alchemist:write"]), { planId, runId: receipt.runId, references: receipt.artifacts.map(a => a.reference) });
+    const caller = await this.caller(signal, ["alchemist:read", "alchemist:write"]);
+    await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
+    await this.d.host!.linkConsumption(caller, { planId, runId: receipt.runId, references: receipt.artifacts.map(a => a.reference) });
+    await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
     this.d.database.prepare("UPDATE work_reuse_receipts SET relation_state = 'recorded' WHERE plan_id = ? AND actor_id = ?").run(planId, this.d.actorId());
     return this.receipt(planId, signal);
   }
@@ -222,11 +227,12 @@ export class WorkReuseService {
     if (rule.status !== "active") return fail("REUSE_METHOD_DISABLED", "已停用的方法不能直接修改，请从报告反馈确认新的方法。");
     return this.d.memory.revisePlaybookRule(input, this.d.now());
   }
-  async publish(reportId: string, signal?: AbortSignal) {
+  async publish(reportId: string, signal?: AbortSignal, control?: AlchemistEffectControl) {
     const report = this.d.research.getReport(reportId);
     if (!report) return fail("REUSE_REPORT_NOT_FOUND", "研究报告不存在。");
     const evidence = this.d.research.listEvidence(reportId);
     const caller = await this.caller(signal, ["alchemist:read", "alchemist:write"]);
+    await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
     return this.d.host!.publishReport(caller, { report, evidence, title: report.summary.slice(0, 100) });
   }
 }

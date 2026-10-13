@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { checkGoalReadOwnerSql, checkGoalQueryCapabilityAdapters, checkGoalsTypedHostCallers, checkGoalTransportCallers } from "../scripts/check-package-boundaries.mjs";
+import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers } from "../scripts/check-package-boundaries.mjs";
 
 test("Goal read guard covers actual root callers and rejects restored Policy and relation SQL", () => {
   for (const file of ["apps/desktop/launchers/web/server.ts", "apps/local-host/src/web-request.ts", "apps/local-host/src/goal-project-application.ts", "apps/desktop/launchers/mcp/server.ts", "apps/local-host/src/mcp-server.ts", "apps/mcp/src/tool-dispatch.ts", "apps/local-host/src/cli-project.ts", "apps/cli/src/command-dispatch.ts", "apps/local-host/src/feed-application.ts"]) {
@@ -14,34 +14,28 @@ test("Goal read guard covers actual root callers and rejects restored Policy and
   }
 });
 
-test("typed Goal read adapters return the shared Action result, not a direct owner read", () => {
-  const source = readFileSync(new URL("../apps/local-host/src/project-capabilities.ts", import.meta.url), "utf8");
-  assert.deepEqual(checkGoalQueryCapabilityAdapters(source), []);
-  for (const action of ["snapshot"]) {
-    const direct = source.replace(`return goalAction(runtime, goalsActions.${action},`, `return runtime.goalQueries.${action}(`);
-    assert.notEqual(direct, source);
-    assert.match(checkGoalQueryCapabilityAdapters(direct).join("\n"), new RegExp(`goalsActions\\.${action}`));
-    const wrongAction = source.replace(`return goalAction(runtime, goalsActions.${action},`, "return goalAction(runtime, goalsActions.list,");
-    assert.notDeepEqual(checkGoalQueryCapabilityAdapters(wrongAction), []);
-    const noReturn = source.replace(`return goalAction(runtime, goalsActions.${action},`, `// return goalAction(runtime, goalsActions.${action},`);
-    assert.notDeepEqual(checkGoalQueryCapabilityAdapters(noReturn), []);
+test("W3-07-5-01: no production definition, export, registration or caller restores a Goals typed adapter", () => {
+  const production = (source, path = "apps/local-host/src/project-capabilities.ts") => [{ path, source }];
+  const files = ["apps/local-host/src/project-capabilities.ts", "apps/local-host/src/index.ts", "plugins/native/goals/src/index.ts",
+    "plugins/native/goals/src/goal-entry-contract.ts", "plugins/native/goals/src/goal-tree-contract.ts", "plugins/native/goals/src/management-evidence.ts"];
+  for (const file of files) assert.deepEqual(checkNoGoalTypedAdapters(production(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), file)), []);
+  const goals = "@molis-ai/molis-work-plugin-goals";
+  for (const mutation of [
+    `import { snapshotBoardCapability as read } from "${goals}"; reader.invoke(read, input);`,
+    `import * as goals from "${goals}"; reader.invoke(goals["snapshotBoardCapability"], input);`,
+    `export { goalTreeCapabilities as tree } from "${goals}";`,
+    `export * from "./proposal-capabilities.js";`,
+    `const module = await import("./board-entry-capabilities.js");`,
+    `const modulePath = "./goal-event-entry-capabilities.js"; const module = require(modulePath);`,
+    `type Entry = import("${goals}").GoalTreeEntryApi;`,
+    `host.register({ capability_id: "io.molis.work.local-host.board.snapshot", version: 1 }, read);`,
+    `const entry = { capability_id: "io.molis.work.goals." + "events.decide", version: 1 }; reader.invoke(entry, input);`,
+  ]) {
+    const original = readFileSync(new URL("../apps/local-host/src/project-capabilities.ts", import.meta.url), "utf8");
+    assert.match(checkNoGoalTypedAdapters(production(`${original}\n${mutation}`)).join("\n"), /retired Goals typed adapter/, mutation);
   }
-});
-
-test("Host-internal callers reach the first-run Goal and the project guidance through Goals' actions, not the typed entries", () => {
-  const production = (source, file = "apps/local-host/src/web-onboarding.ts") => [{ path: file, source }];
-  assert.deepEqual(checkGoalsTypedHostCallers(production('import { goalsActions } from "@molis-ai/molis-work-plugin-goals";\nbindGoalsWebActions(client, reference).invoke(goalsActions.create, input);')), []);
-  for (const name of ["createGoalIntentCapability", "readProjectGuidanceCapability"]) {
-    for (const file of ["apps/local-host/src/web-onboarding.ts", "apps/local-host/src/agent-host-composition.ts", "apps/local-host/src/assistant/assistant-authority.ts", "plugins/native/coding/src/routes.ts"]) {
-      const errors = checkGoalsTypedHostCallers(production(`import { ${name} } from "@molis-ai/molis-work-plugin-goals";\nclient.invoke(${name}, input);`, file));
-      assert.match(errors.join("\n"), new RegExp(`${file}.*${name}`), `${name} in ${file}`);
-    }
-    // The Goals package defines them, the Host's project capabilities register them and the entry re-exports them, until the bridges go.
-    for (const file of ["plugins/native/goals/src/goal-entry-contract.ts", "apps/local-host/src/project-capabilities.ts", "apps/local-host/src/index.ts"]) {
-      assert.deepEqual(checkGoalsTypedHostCallers(production(`export const ${name} = {};`, file)), [], file);
-    }
-  }
-  assert.deepEqual(checkGoalsTypedHostCallers(production("// createGoalIntentCapability was the typed first-run entry\nconst unrelated = 1;")), [], "a comment is not a caller");
+  assert.match(checkNoGoalTypedAdapters(production("export const unrelated = 1;", "plugins/native/goals/src/board-entry-capabilities.ts")).join("\n"), /retired/);
+  assert.deepEqual(checkNoGoalTypedAdapters(production("// snapshotBoardCapability and io.molis.work.local-host.board.snapshot are retired.\nconst unrelated = 1;")), []);
 });
 
 const read = file => readFileSync(new URL(`../${file}`, import.meta.url), "utf8");

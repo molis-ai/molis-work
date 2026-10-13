@@ -1,3 +1,5 @@
+import { managementGoals } from "./goal-management-caller.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -6,7 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createMolisWorkLocalHost, molisWorkHostProjectReference, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
@@ -21,7 +23,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
   const { database_path: databasePath, project_id: projectId } = project;
   const host = createMolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
-  const client = host.client(reference);
+  const client = managementGoals(host.actionClient(reference, false), projectId);
   const runtimeHost = {
     homeDirectory: directory,
     runtimeContext: { runtime_id: "chain", stable_work_context_id: "session", host_declares_stable: true },
@@ -38,7 +40,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
       return JSON.parse(lines.at(-1)!) as T;
     } finally { console.log = original; }
   }
-  const snapshot = () => client.invoke(snapshotBoardCapability, { project_id: projectId });
+  const snapshot = () => client.invoke(goalsActions.snapshot, {});
   try {
     await grantGoalsMcp(served, project, "runtime:chain");
     const created = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.create__v1", {
@@ -143,7 +145,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     await runtime.close();
     await host.close();
     const restarted = createMolisWorkLocalHost();
-    try { assert.deepEqual(await restarted.client(reference).invoke(snapshotBoardCapability, { project_id: projectId }), beforeReplay); }
+    try { assert.deepEqual(await managementGoals(restarted.actionClient(reference, false), projectId).invoke(goalsActions.snapshot, {}), beforeReplay); }
     finally { await restarted.close(); }
   } finally {
     await runtime.close();

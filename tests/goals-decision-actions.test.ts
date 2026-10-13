@@ -3,14 +3,12 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkServer, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, recordGoalUserDecisionCapability, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, managementEventDecisionAuthority, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { serveTestHost } from "./fixtures/test-home.js";
-import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
-import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 
 test("user decisions share the action path without granting user authority to models or business input", async t => {
   const home = await mkdtemp(join(tmpdir(), "goals-decisions-"));
@@ -24,7 +22,8 @@ test("user decisions share the action path without granting user authority to mo
     }
     return { available: true };
   } });
-  const client = host.actionClient(ref), typed = host.client(ref);
+  const client = host.actionClient(ref);
+  const management = new MolisWorkServer("management", null, null, host);
   const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", project_id: project.project_id, audience: "user",
     permissions: ["goals:read", "goals:write", "goals:decide"] };
   const goal_id = "USER-DECISION";
@@ -58,29 +57,23 @@ test("user decisions share the action path without granting user authority to mo
     for (const extra of [{ authority: oldAuthority }, { actor_id: "another-user" }, { user_confirmed: true }, { user_action: provenance }]) {
       await assert.rejects(client.invoke(trusted, goalsActions.decide, { ...payload, ...extra }), { code: "actions.input_invalid" });
     }
-    await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, authority: evidence, project_id: "other-board" }), { code: "actions.scope_mismatch" });
-    const plugin = createPluginCapabilityClient({ ...filesManifest, plugin_id: "io.molis.work.example.claimed-user",
-      capabilities: { provides: [], consumes: [recordGoalUserDecisionCapability.capability_id] } }, typed);
-    const availability = plugin.availability(recordGoalUserDecisionCapability);
-    assert.equal(availability.available, false); assert.equal(!availability.available && availability.code, "actions.host_only");
-    await assert.rejects(plugin.invoke({ ...recordGoalUserDecisionCapability, host_only: false },
-      { ...payload, project_id: project.project_id, authority: evidence }, { consumer: undefined }), { code: "actions.host_only" });
-    // The host capability belongs to the management entry, which decides as the person on this machine: the authority it takes only
+    await assert.rejects(client.invoke({ ...trusted, project_id: "other-board" }, goalsActions.decide, payload), { code: "actions.scope_mismatch" });
+    // The management evidence owner fixes the person and origin; the evidence only
     // points at the conversation, so another person named in it, another entry's provenance, a runtime, or even the local person
     // spelled out are all refused (repository-anti-corruption §9.5 #6).
     for (const authority of [hostEventDecisionAuthority("management", project.project_id, "another-person", payload.idempotency_key),
       hostEventDecisionAuthority("web", project.project_id, LOCAL_PERSON_ACTOR_ID, payload.idempotency_key), oldAuthority,
       { ...evidence, actor_id: "another-person" }, { ...evidence, actor_kind: "runtime" }, { ...evidence, authority_source: "web" }]) {
-      await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, project_id: project.project_id, authority } as never), { code: "goals.event_decision_authority_invalid" });
+      assert.throws(() => managementEventDecisionAuthority(project.project_id, payload.idempotency_key, authority), { code: "goals.event_decision_authority_invalid" });
+      await assert.rejects(client.invoke(trusted, goalsActions.decide, { ...payload, authority } as never), { code: "actions.input_invalid" });
     }
     assert.equal(await cursor(), before, "rejected authority never appends a decision");
 
     const old = await host.withProject(ref, r => r.coordinator.goalEvents.recordTrustedDecision({ ...payload, project_id: project.project_id, authority: oldAuthority }));
     const expected = { ...JSON.parse(JSON.stringify(old)), replayed: true };
     assert.deepEqual(await client.invoke(trusted, goalsActions.decide, payload), expected);
-    assert.deepEqual(await typed.invoke(recordGoalUserDecisionCapability, { ...payload, project_id: project.project_id, authority: evidence }), expected);
-    // Without evidence the decision points at the management entry itself: the references this entry has always recorded.
-    assert.deepEqual(await typed.invoke(recordGoalUserDecisionCapability, { ...payload, project_id: project.project_id }), expected);
+    assert.deepEqual(JSON.parse(await management.callTool("molis_work_v1_event_decide", { database_path: project.database_path, project_id: project.project_id, ...payload })), expected);
+    assert.deepEqual(managementEventDecisionAuthority(project.project_id, payload.idempotency_key), oldAuthority, "the management owner keeps the recorded default provenance");
     assert.equal(await cursor(), old.observed_event_cursor, "legacy decision retries use the same receipt and provenance");
 
     const pendingInput = { ...payload, idempotency_key: "snapshot", conclusion: "第二次真实用户操作" };
@@ -117,12 +110,12 @@ test("user decisions share the action path without granting user authority to mo
 
     const beforeDenied = await cursor();
     blocked = true;
-    await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, idempotency_key: "disabled", project_id: project.project_id, authority: evidence }), { code: "actions.plugin_disabled" });
+    await assert.rejects(client.invoke(trusted, goalsActions.decide, { ...payload, idempotency_key: "disabled" }), { code: "actions.plugin_disabled" });
     assert.equal(await cursor(), beforeDenied);
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     try {
-      assert.deepEqual(await restarted.client(ref).invoke(recordGoalUserDecisionCapability, { ...payload, project_id: project.project_id, authority: evidence }), expected);
+      assert.deepEqual(await restarted.actionClient(ref).invoke(trusted, goalsActions.decide, payload), expected);
     } finally { await restarted.close(); }
-  } finally { release?.(); await host.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { release?.(); await management.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

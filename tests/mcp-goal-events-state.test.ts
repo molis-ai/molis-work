@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkLocalHost, snapshotBoardCapability, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkV1Error, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { managementGoals } from "./goal-management-caller.js";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
@@ -132,9 +132,9 @@ test("Runtime state tools record progress and close without applying user identi
     assert.equal(reopened.work_status, "completed");
     assert.equal(reopened.applied_decisions[0]?.authority_source, "management");
 
-    const persisted = await host.client(molisWorkHostProjectReference({
+    const persisted = await managementGoals(host.actionClient(molisWorkHostProjectReference({
       databasePath: project.database_path, projectId: project.project_id,
-    })).invoke(snapshotBoardCapability, { project_id });
+    }), false), project_id).invoke(goalsActions.snapshot, {});
     assert.equal("claims" in persisted, false, "the retired claim protocol has no state");
 
     const progressEvent = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.read__v1", { goal_id, event_id: progress.event_id,

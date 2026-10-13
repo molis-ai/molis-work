@@ -1,3 +1,5 @@
+import { managementGoals } from "./goal-management-caller.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { cp, mkdtemp, rename, rm } from "node:fs/promises";
@@ -10,8 +12,7 @@ import { createSessionContentStore } from "@molis-ai/molis-work-module-private-w
 
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import {
-  createMolisWorkLocalHost, createGoalIntentCapability, molisWorkHostProjectReference,
-  snapshotBoardCapability,
+  createMolisWorkLocalHost, molisWorkHostProjectReference,
 } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
@@ -26,8 +27,7 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const host = createMolisWorkLocalHost({ instanceId: "backup-source" });
     try {
-      await host.client(reference).invoke(createGoalIntentCapability, {
-        project_id: project.project_id, idempotency_key: "backup-goal",
+      await managementGoals(host.actionClient(reference, false), project.project_id).invoke(goalsActions.create, { idempotency_key: "backup-goal",
         goal_id: "retained-goal", title: "保留交接正文", outcome: "恢复后继续工作",
         why: "不能只恢复空壳", business_logic: "保留正文、关系、版本和历史", priority: 50,
       });
@@ -65,7 +65,7 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
     finally { restoredCatalog.close(); }
     const restoredHost = createMolisWorkLocalHost({ instanceId: "backup-restored" });
     try {
-      const snapshot = await restoredHost.client(reference).invoke(snapshotBoardCapability, { project_id: project.project_id });
+      const snapshot = await managementGoals(restoredHost.actionClient(reference, false), project.project_id).invoke(goalsActions.snapshot, {});
       assert.deepEqual(snapshot, before, "all Goal facts and event history survive, not only IDs");
       assert.equal(snapshot.goals.find(goal => goal.goal_id === "retained-goal")?.outcome, "恢复后继续工作");
     } finally { await restoredHost.close(); }

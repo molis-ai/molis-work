@@ -1,3 +1,5 @@
+import { managementGoals } from "./goal-management-caller.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -5,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, createMolisWorkLocalHost, molisWorkHostProjectReference, snapshotBoardCapability,
+  LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, createMolisWorkLocalHost, molisWorkHostProjectReference,
 } from "@molis-ai/molis-work-app-local-host";
 import { feedItemActions } from "@molis-ai/molis-work-plugin-feed";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -40,7 +42,7 @@ async function fixture() {
     { homeDirectory, ...(nativeRuntimeSessionId ? { nativeRuntimeSessionId } : {}),
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false } }, host);
   const written = async () => ({
-    goals: (await host.client(reference).invoke(snapshotBoardCapability, { project_id: project.project_id })).goals.length,
+    goals: (await managementGoals(host.actionClient(reference, false), project.project_id).invoke(goalsActions.snapshot, {})).goals.length,
     ...(await host.withProject(reference, runtime => {
       const row = createLocalFeedApplication(runtime.store.db).getItem(project.project_id, item.item_id);
       return { receipts: runtime.coordinator.goalInputs.list(project.project_id).length, item: { linked_goal_id: row.linked_goal_id, revision: row.revision, disposition: row.disposition } };

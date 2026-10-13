@@ -553,12 +553,9 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     errors.push(`${goalReadApplicationPath}: compatibility composition must not own Goal persistence or bypass Goals Query`);
   }
   errors.push(...checkGoalReadOwnerSql(read("apps/local-host/src/feed-application.ts")).map(error => `apps/local-host/src/feed-application.ts: ${error}`));
-  errors.push(...checkGoalsTypedHostCallers(["apps", "horizontal", "modules", "packages", "plugins"]
+  errors.push(...checkNoGoalTypedAdapters(["apps", "horizontal", "modules", "packages", "plugins", "server"]
     .flatMap(directory => filesUnder(path.join(repositoryRoot, directory), file => /\.(?:ts|tsx|mts)$/u.test(file) && !/[\\/](?:tests?|__tests__)[\\/]/u.test(file)))
-    .map(file => ({ path: path.relative(repositoryRoot, file).split(path.sep).join("/"), source: fs.readFileSync(file, "utf8") }))
-    .filter(({ source }) => /createGoalIntentCapability|readProjectGuidanceCapability/u.test(source))));
-  errors.push(...checkGoalQueryCapabilityAdapters(read("apps/local-host/src/project-capabilities.ts"))
-    .map(error => `apps/local-host/src/project-capabilities.ts: ${error}`));
+    .map(file => ({ path: path.relative(repositoryRoot, file).split(path.sep).join("/"), source: fs.readFileSync(file, "utf8") }))));
   for (const relativePath of ["apps/local-host/src/web-request.ts", "apps/mcp/src/tool-dispatch.ts", "apps/cli/src/command-dispatch.ts"]) {
     const source = read(relativePath);
     errors.push(...checkGoalReadOwnerSql(source).map(error => `${relativePath}: ${error}`));
@@ -1182,62 +1179,40 @@ function checkRuntimeHostOwnership(repositoryRoot) {
   return { errors };
 }
 
-/** Typed compatibility reads may remain, but only as adapters to the same Action owner. */
-export function checkGoalQueryCapabilityAdapters(source) {
-  const file = ts.createSourceFile("project-capabilities.ts", source, ts.ScriptTarget.Latest, true);
-  const expected = new Map([
-    ["snapshotBoardCapability", "snapshot"],
-  ]);
-  const registrations = new Map();
-  const visit = node => {
-    if (ts.isCallExpression(node) && node.expression.getText(file) === "host.register") {
-      const name = node.arguments[0]?.getText(file);
-      if (expected.has(name)) {
-        const callbacks = registrations.get(name) ?? [];
-        callbacks.push(node.arguments[1]);
-        registrations.set(name, callbacks);
-      }
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(file);
-  const errors = [];
-  for (const [name, action] of expected) {
-    const callbacks = registrations.get(name) ?? [];
-    const callback = callbacks[0];
-    const body = callback && (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) ? callback.body : undefined;
-    const returns = body && ts.isBlock(body)
-      ? body.statements.filter(ts.isReturnStatement).map(statement => statement.expression) : [body];
-    const call = returns.length === 1 ? returns[0] : undefined;
-    if (callbacks.length !== 1 || !call || !ts.isCallExpression(call)
-      || call.expression.getText(file) !== "goalAction"
-      || call.arguments[1]?.getText(file) !== `goalsActions.${action}`) {
-      errors.push(`${name} must forward its result through goalsActions.${action} via goalAction`);
-    }
-  }
-  return errors;
-}
-
-/**
- * The typed first-run and guidance entries of Goals have no Host caller left: the first-run Goal and the project guidance read call
- * Goals' own actions (`bindGoalsWebActions`, `readProjectGuidance`). Only the Goals package that defines them, the Host's project
- * capabilities that still register them and the entry that re-exports them may name them, until the bridges are removed.
- * `files` are `{ path, source }` pairs of production code; a comment or a string is not a caller.
- */
-export function checkGoalsTypedHostCallers(files) {
-  const typed = new Set(["createGoalIntentCapability", "readProjectGuidanceCapability"]);
-  const allowed = new Set(["apps/local-host/src/project-capabilities.ts", "apps/local-host/src/index.ts"]);
+/** W3-07-5-01: no definition, registration, export or caller may restore a retired Goals typed entry. */
+export function checkNoGoalTypedAdapters(files) {
+  const retiredModules = new Set(["board-entry-capabilities", "goal-event-entry-capabilities", "proposal-capabilities"]);
+  const retiredNames = new Set(["initializeBoardCapability", "snapshotBoardCapability", "createGoalIntentCapability",
+    "recordGoalUserDecisionCapability", "goalTreeCapabilities", "createGoalProposalClients", "readProjectGuidanceCapability", "setActiveGoalCapability",
+    "InitializeBoardInput", "GoalEventEntryApi", "GoalEventDecideEvidence", "GoalEventDecideEntryInput",
+    "GoalTreeCheckEntryInput", "GoalTreeSubmitEntryInput", "GoalTreeDecideEvidence", "GoalTreeDecideEntryInput", "GoalTreeEntryApi"]);
+  const retiredIds = new Set(["io.molis.work.local-host.board.initialize", "io.molis.work.local-host.board.snapshot",
+    "io.molis.work.goals.events.create-intent", "io.molis.work.goals.events.decide", "io.molis.work.goals.submit-goal-tree-proposal",
+    "io.molis.work.goals.list-goal-tree-proposals", "io.molis.work.goals.check-goal-tree-proposal", "io.molis.work.goals.decide-goal-tree-proposal",
+    "io.molis.work.local-host.project.guidance", "io.molis.work.local-host.goals.set-active"]);
   const errors = [];
   for (const { path: relativePath, source } of files) {
-    if (relativePath.startsWith("plugins/native/goals/") || allowed.has(relativePath)) continue;
-    const file = ts.createSourceFile(relativePath, source, ts.ScriptTarget.Latest, true);
+    const moduleName = value => value.replace(/\.(?:[cm]?[jt]s|tsx)$/u, "").split("/").at(-1);
     const named = new Set();
+    if (retiredModules.has(moduleName(relativePath))) named.add(relativePath);
+    const file = ts.createSourceFile(relativePath, source, ts.ScriptTarget.Latest, true);
+    const literalText = node => {
+      if (ts.isStringLiteralLike(node)) return node.text;
+      if (ts.isParenthesizedExpression(node)) return literalText(node.expression);
+      if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+        const left = literalText(node.left), right = literalText(node.right);
+        return left === undefined || right === undefined ? undefined : left + right;
+      }
+      return undefined;
+    };
     const visit = node => {
-      if (ts.isIdentifier(node) && typed.has(node.text)) named.add(node.text);
+      if (ts.isIdentifier(node) && retiredNames.has(node.text)) named.add(node.text);
+      const literal = literalText(node);
+      if (literal !== undefined && (retiredIds.has(literal) || retiredNames.has(literal) || retiredModules.has(moduleName(literal)))) named.add(literal);
       ts.forEachChild(node, visit);
     };
     visit(file);
-    for (const name of named) errors.push(`${relativePath}: ${name} is a typed entry nothing in the Host calls; call Goals' action (bindGoalsWebActions, readProjectGuidance)`);
+    for (const name of named) errors.push(`${relativePath}: ${name} is a retired Goals typed adapter; use the registered Goals action`);
   }
   return errors;
 }

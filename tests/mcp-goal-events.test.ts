@@ -1,3 +1,5 @@
+import { managementGoals } from "./goal-management-caller.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { rejectSessionReportIndex } from "./fixtures/session-secondary-failure.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -7,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
-import { snapshotBoardCapability, molisWorkHostProjectReference, createMolisWorkLocalHost, LocalProjectDatabase, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference, createMolisWorkLocalHost, LocalProjectDatabase, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
@@ -129,9 +131,9 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(read.kind, "report");
     assert.equal(read.payload.piece, "开场洞穴");
 
-    const snapshot = await host.client(molisWorkHostProjectReference({
+    const snapshot = await managementGoals(host.actionClient(molisWorkHostProjectReference({
       databasePath: project.database_path, projectId: project.project_id,
-    })).invoke(snapshotBoardCapability, { project_id });
+    }), false), project_id).invoke(goalsActions.snapshot, {});
     assert.equal("claims" in snapshot || "runs" in snapshot, false, "the retired claim/run protocol has no state");
 
     await mcp.close();
@@ -220,9 +222,9 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     const afterReject = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id }));
     assert.equal(afterReject.events.length, beforeReject);
 
-    const persisted = await host.client(molisWorkHostProjectReference({
+    const persisted = await managementGoals(host.actionClient(molisWorkHostProjectReference({
       databasePath: project.database_path, projectId: project.project_id,
-    })).invoke(snapshotBoardCapability, { project_id });
+    }), false), project_id).invoke(goalsActions.snapshot, {});
     assert.equal("claims" in persisted || "runs" in persisted, false, "the retired claim/run protocol has no state");
   } finally {
     await mcp?.close();
@@ -297,7 +299,7 @@ test("missing stable Session identity rejects event writes with no Goal or event
     const reference = molisWorkHostProjectReference({
       databasePath: project.database_path, projectId: project.project_id,
     });
-    const before = await host.client(reference).invoke(snapshotBoardCapability, { project_id: project.project_id });
+    const before = await managementGoals(host.actionClient(reference, false), project.project_id).invoke(goalsActions.snapshot, {});
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
@@ -313,7 +315,7 @@ test("missing stable Session identity rejects event writes with no Goal or event
         && error.code === "mcp.runtime_identity_missing"
         && /稳定 Session/.test(error.message),
     );
-    const after = await host.client(reference).invoke(snapshotBoardCapability, { project_id: project.project_id });
+    const after = await managementGoals(host.actionClient(reference, false), project.project_id).invoke(goalsActions.snapshot, {});
     assert.equal(after.goals.length, before.goals.length);
     assert.deepEqual(after.goals.map((goal) => goal.goal_id), before.goals.map((goal) => goal.goal_id));
 

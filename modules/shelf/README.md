@@ -22,6 +22,8 @@ Host 打开用户 Home 下的 `shelf/`；`admit` 写入材料副本，`runJob("e
 
 不写项目数据库，不发布 Artifact。原路径只用于事后 Hash 校验，不进入 Prompt 或 API 展示。
 
+目录只读当前版本 1 和当前 item/job/clipboard 形状；错版或旧字段缺失明确拒绝并保留原文件，不在读取或后续保存时补齐历史字段。单项任务的现行 API 输入仍可使用 `item_id`。
+
 网页材料通过 Host 注入的 `ShelfMaterialPorts.readWebsite` 读取，Module 只保存标题、链接和产品 Markdown。纯 Module 调用未注入时只保留链接，不隐式联网；抓取失败同样保留链接并注明没有正文。异步入库传递 `ShelfExecutionControl`，取消/撤权不入库，剪贴板在最终同步写入前重新核对来源。HTML 通用解析不由 Shelf 导出。
 
 PDF/OCR 使用同一端口的 `extract`，原生可用性由 `imageTextAvailable` 被动提供。`admitFile` 异步准备 PDF 预览、复查执行权后入库；底层 `admit` 同步保存已授权的副本和已准备预览，供示例及 Coding 文字成果使用。无提取端口的纯 Module 不自行解析 PDF 或启动进程。文件上限保持 32 MiB；OCR 语言选择、逐行“待确认”和提取不完整说明由本模块组织。
@@ -52,7 +54,7 @@ node --import tsx --test --test-concurrency=1 tests/shelf-plugin.test.ts
   - CLI 能力探测只缓存完成的结果，超时或启动失败下次重新探测。
   - 任务使用 SDK 的执行生命周期；在途执行按 Home/root/job 隔离。异步等待后复查原 Action、任务和原件/副本 hash，再写输出、成果或失败记录。已取消/撤权的执行不补写失败；终止或重启后的旧 running 记录不自动重跑，也不继续阻塞材料。显式取消可以关闭原记录。
   - 失败都是 `ActionError`：码是 `shelf.<原因>`（`shelfErrors`），状态只由 kind 推出，模块没有错误类和状态表。带着模型运行回执的失败是 `ShelfFailure`（多一个 `execution`），任务记录据此留下回执；`isShelfFailure` 按码认自己的失败，不用 `instanceof`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/shelf-cli-probe.test.ts tests/shelf-project-results-http.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/shelf-cli-probe.test.ts tests/shelf-project-results-http.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts tests/shelf-current-format.test.ts`
 - 材料迁移额外验证：`node scripts/run-tests.mjs tests/shelf-material-extraction.test.ts tests/shelf-recipes.test.ts tests/shelf-settings.test.ts tests/material-extraction.test.ts`
 - 相关手册：[docs/modules/shelf.md](../../docs/modules/shelf.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

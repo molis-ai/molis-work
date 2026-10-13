@@ -39,9 +39,6 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:packages/design-system
-      '@molis-ai/molis-work-im-ui':
-        specifier: workspace:*
-        version: link:packages/im-ui
       '@molis-ai/molis-work-integration-catalog':
         specifier: workspace:*
         version: link:plugins/official-integrations/catalog
@@ -241,6 +238,9 @@ importers:
       '@molis-ai/molis-work-app-server':
         specifier: workspace:*
         version: link:apps/server
+      '@molis-ai/molis-work-im-ui':
+        specifier: workspace:*
+        version: link:packages/im-ui
       '@molis-ai/molis-work-server':
         specifier: workspace:*
         version: link:server

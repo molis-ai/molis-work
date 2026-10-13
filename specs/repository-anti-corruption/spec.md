@@ -2210,3 +2210,5 @@ E真实CLI第二轮32/32通过，零skip/cancel；首轮实际抓到无--base的
 #482 A3在确切95dad0fff、五必需及Product subset成功、currentmain/密钥核对后于21:10:07UTC真实合入main726e281e5（Linux probe只报告）。A4 #483现在转main并同步，冲突按当前门禁重生成。E候选73e6af397七文件，完整health/update相对39通过，快查两旧混用键真实删除，32真实CLI通过、只读复核无P1；整合到I7必须保留它已有browserErrors的update前置拒绝，同时加入split absolute。D组合40文件100/100，后两文件8条7通过1真实公网失败，零取消/跳过；DoH重跑仍TLS连接错误，干净基线同旗标对照未结束。不得将网络或C/D浏览器、H/I7构建/全量标为通过。
 
 公网探针根因已更新：基线同败不能证明环境故障。两份DoH运行均得到93.184.216.34，实际是前一DNS单元测试桩值；全新进程实际解析到VPN假IP，再经已存在的明确DoH端口得到104.16.*及对应公网IPv6，resolver正常。Node测试同一属性两次mock的自动恢复在finally之后又把第一个桩装回默认dns.lookup，污染后续live的默认对象端口。最小test-only修复为先t.mock.reset清空恢复跟踪，再按现有方法还原并syncBuiltinESMExports；所有DNS/SSRF/pin/TLS/secret/cancel拒绝断言保留，不改生产与VPN设置。真实公网固定04正在重跑，未运行完不得记通过。
+
+D公网回归已真实通过：a2525e9c2只增加测试清理t.mock.reset并保留原同步，固定04实际7/7、零skip/cancel/fail，核定公网DNS地址及registry.npmjs.org固定HTTPS返回200。生产网络策略无变。D非浏览器42文件共108条独立用例已有通过证据（100首批及末8的唯一网络重跑），不把历史失败/重跑叠成更多用例。C/D仍缺浏览器组合；源码零混用、健康门禁与公网通过不替代该项或I7最终全量。A4本地2a78同步726后首推SSL失败，已按原密钥/最新main规则重试，成功须读实际工具返回。

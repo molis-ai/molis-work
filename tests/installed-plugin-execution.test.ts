@@ -12,7 +12,7 @@ import { UiHost } from '@molis-ai/molis-work-ui-host';
 import { createPluginPlatform, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { createSandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import { goalPluginActions } from '@molis-ai/molis-work-contracts/modules/goal-actions';
-import { LocalProjectDatabase } from '../apps/local-host/dist/project-database.js';
+import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
 import { exposeInstalledPlugin, exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
 import { capabilityCatalog, catalogCapabilities } from '../apps/local-host/dist/plugin-builder/catalog.js';

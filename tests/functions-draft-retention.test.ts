@@ -7,7 +7,7 @@ import test from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 
-import { MICRO_INTERACTION_CLIENT_SCRIPT } from "../packages/design-system/src/styles/micro-interactions.ts";
+import { MICRO_INTERACTION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/functions/client.ts";
 import { renderFunctionsWorkbench } from "../apps/workbench/src/functions/ui.ts";
 

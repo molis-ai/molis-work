@@ -3,7 +3,7 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { TODO_ACTION_PERMISSIONS, openTodoStore, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
-import { withContextJourneys, type ContextJourney } from "../apps/local-host/src/context-onboarding-store.js";
+import { withContextJourneys, type ContextJourney } from "../apps/local-host/dist/context-onboarding-store.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 

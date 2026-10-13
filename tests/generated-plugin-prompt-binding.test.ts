@@ -10,16 +10,16 @@ import { createPrologueNodeAdapter } from '@molis-ai/molis-work-service-agent-ho
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { resetSecretStoreCache } from '@molis-ai/molis-work-storage';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
-import { seedDemoBoard, DEMO_PROJECT_ID } from '../apps/local-host/src/demo-seed.js';
-import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/src/installed-plugin-host.js';
-import { STABLE_PREVIEW, studioStorage } from '../apps/local-host/src/plugin-builder/storage.js';
-import { buildManifest } from '../apps/local-host/src/plugin-builder/build-project.js';
-import { exposedActionId } from '../apps/local-host/src/plugin-builder/exposed-actions.js';
-import { withConnectorConnections } from '../apps/local-host/src/connector-connection-store.js';
-import { bindPrologueInference } from '../apps/local-host/src/prologue-inference-host.js';
-import { agentDefinitionsFor } from '../apps/local-host/src/agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../apps/local-host/src/agent-definitions/builtin-registrations.js';
+import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
+import { seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
+import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
+import { STABLE_PREVIEW, studioStorage } from '../apps/local-host/dist/plugin-builder/storage.js';
+import { buildManifest } from '../apps/local-host/dist/plugin-builder/build-project.js';
+import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
+import { withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
+import { bindPrologueInference } from '../apps/local-host/dist/prologue-inference-host.js';
+import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
+import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
 
 test('installed and authoring model calls bind their own release through the real Host, sandbox and shared Runtime', { skip: process.platform !== 'darwin', timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), 'generated-prompt-binding-'));

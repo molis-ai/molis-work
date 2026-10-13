@@ -17,11 +17,11 @@ import { randomUUID } from 'node:crypto';
 import { openStudioChrome } from './fixtures/plugin-builder-browser.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { STUDIO_HARNESS_PATH, studioHarnessPage } from '../scripts/agent-studio-harness.mjs';
-import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
-import { seedDemoBoard, DEMO_PROJECT_ID } from '../apps/local-host/src/demo-seed.js';
-import { handleAgentStudioHttp, installedPluginStages, releaseAgentStudio } from '../apps/local-host/src/plugin-builder/agent-surface.js';
-import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/src/installed-plugin-host.js';
-import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } from '../apps/local-host/src/web-http.js';
+import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
+import { seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
+import { handleAgentStudioHttp, installedPluginStages, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
+import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
+import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } from '@molis-ai/molis-work-app-local-host';
 
 /**
  * The whole studio journey in a real browser: only the models are labelled stand-ins. Build gates, the Seatbelt

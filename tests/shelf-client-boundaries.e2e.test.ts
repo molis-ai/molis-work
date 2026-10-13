@@ -7,12 +7,12 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
-import { ShelfStore } from "../modules/shelf/src/store.js";
-import { SHELF_CLIENT_FACTORY_SCRIPT } from "../plugins/native/shelf/src/client.js";
-import { createShelfRouteHandlers } from "../plugins/native/shelf/src/route-handlers.js";
-import { ShelfPluginRouteTable } from "../plugins/native/shelf/src/routes.js";
-import { SHELF_STYLES } from "../plugins/native/shelf/src/styles.js";
-import { renderShelfWorkbench } from "../plugins/native/shelf/src/ui.js";
+import { ShelfStore } from "../modules/shelf/dist/store.js";
+import { SHELF_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
+import { createShelfRouteHandlers } from "@molis-ai/molis-work-plugin-shelf";
+import { ShelfPluginRouteTable } from "@molis-ai/molis-work-plugin-shelf";
+import { SHELF_STYLES } from "@molis-ai/molis-work-plugin-shelf";
+import { renderShelfWorkbench } from "@molis-ai/molis-work-plugin-shelf";
 import { directShelfActions } from "./shelf-direct-actions.js";
 
 // The only stub is runtime availability, so client handoffs can be exercised

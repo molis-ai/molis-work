@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 export function normalizeIdempotencyKey(value: string): string {
   const key = value.trim();
   if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$/u.test(key)) {
-    throw new FeedDomainError("同步需要 8–128 位幂等键", "feed_source_idempotency_required");
+    throw feedErrors.source_idempotency_required("同步需要 8–128 位幂等键");
   }
   return key;
 }
@@ -12,7 +12,7 @@ export function normalizeQuery(value: string): string {
   const query = value.trim().replace(/\s+/gu, " ");
   const length = Array.from(query).length;
   if (length < 2 || length > 500) {
-    throw new FeedDomainError("网页查询需要 2–500 个字符", "feed_source_query_invalid");
+    throw feedErrors.source_query_invalid("网页查询需要 2–500 个字符");
   }
   return query;
 }

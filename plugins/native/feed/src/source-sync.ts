@@ -1,5 +1,5 @@
 import { fingerprintSearchIntentExactV1 } from "@adeptify/intelligence-client";
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord, FeedSourceRunRecord } from "./projection.js";
 import type { FeedSourcePorts, FeedSourceSyncResult, FeedSourceSyncInput, PublicFeedRuntime, IntelligenceCollectResult } from "./source-ports.js";
@@ -17,10 +17,10 @@ export class PublicSourceSync {
   ): Promise<FeedSourceSyncResult> {
     const sourceId = source.source_id;
     if (source.sync_kind !== "public_source") {
-      throw new FeedDomainError("这个来源不是公开 Feed 来源", "feed_source_wrong_sync_kind");
+      throw feedErrors.source_wrong_sync_kind("这个来源不是公开 Feed 来源");
     }
     if (!source.enabled || source.status === "paused" || source.status === "disconnected") {
-      throw new FeedDomainError("来源已暂停，请先恢复", "feed_source_paused");
+      throw feedErrors.source_paused("来源已暂停，请先恢复");
     }
     const idempotencyKey = normalizeIdempotencyKey(input.idempotencyKey);
     const beforeEffect = createFeedSourceSyncGuard(this.feed, source, input);
@@ -32,7 +32,7 @@ export class PublicSourceSync {
     if (prior?.phase === "terminal") {
       const storedFingerprint = prior.receipt?.intent_fingerprint;
       if (storedFingerprint && storedFingerprint !== planFingerprint) {
-        throw new FeedDomainError("同一幂等键对应的来源配置已经变化", "feed_source_idempotency_conflict");
+        throw feedErrors.source_idempotency_conflict("同一幂等键对应的来源配置已经变化");
       }
       return {
         source: this.feed.getSource(this.projectId, sourceId),
@@ -119,7 +119,7 @@ export class PublicSourceSync {
         const actionable = rssFailureAction(errorCode, failures);
         if (actionable) this.recordRssSourceFault(failedSource, errorCode, actionable, updatedAt);
       }
-      throw new FeedDomainError(interruptedMessage(errorCode), "feed_source_sync_interrupted");
+      throw feedErrors.source_sync_interrupted(interruptedMessage(errorCode));
     } finally {
       await runtime.shutdown().catch(() => undefined);
     }

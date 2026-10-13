@@ -68,7 +68,7 @@ export function createLocalInboxScene(home: string, projectId: string, feed: Fee
           || provenance.function.capability_id !== usage.function.capability_id || provenance.function.version !== usage.function.version || provenance.function.provider_id !== usage.function.provider_id) return false;
         let subject;
         try { subject = resolve(record.subject.id); }
-        catch (error) { if (error instanceof Error && "code" in error && error.code === "inbox_entry_not_found") return false; throw error; }
+        catch (error) { if (error instanceof Error && "code" in error && error.code === "inbox.entry_not_found") return false; throw error; }
         return (subject.status === "open" || subject.status === "in_progress") && subjectRevision(subject) === provenance.subject_revision;
       });
       return { judgments };

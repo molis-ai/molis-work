@@ -1,7 +1,7 @@
 import { feedSourceSyncLease } from "./feed-source-sync-lease.js";
 import { createHash } from "node:crypto";
 import { LocalSqliteJournal, resolveMolisWorkHome, type SqliteDatabase } from "@molis-ai/molis-work-storage";
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
 import { ListenerHost } from "@molis-ai/molis-work-service-listener-host";
 import { SignalsModule } from "@molis-ai/molis-work-module-signals";
@@ -31,7 +31,7 @@ export function createLocalFeedConnectorSync(
         const current = store.get(id);
         if (!original || !current || current.disconnected_at || current.updated_at !== original.updated_at
           || current.credential_ref !== source.credential_ref) {
-          throw new FeedDomainError("账号连接已断开或改变，请重新确认来源账号后拉取", "feed_source_connection_changed");
+          throw feedErrors.source_connection_changed("账号连接已断开或改变，请重新确认来源账号后拉取");
         }
       });
     },

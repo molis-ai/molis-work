@@ -1477,7 +1477,7 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 
 | 编号 | 可观察结果与证明路径 |
 | --- | --- |
-| CI-MCP-PIPE-01 | 真实launcher关闭stdin后发送initialize结果（包括退出/失败已收口后到达的剩余消息），公开验证函数返回false且父进程存活，不产生未处理EPIPE、不再发tools/list。原initialize→tools/list成功、退出launcher和慢启动证明保留，10秒限制及仅关闭自己child不变。 |
+| CI-MCP-PIPE-01 | 真实launcher关闭stdin后发送initialize结果，公开验证函数返回false且父进程存活，不产生未处理EPIPE；第一次write可以用于检测远端闭管道，验证失败/exit收口后的剩余stdout及同chunk消息不再触发后续写。监听保留至owned child关闭以吸收已排队错误，不靠Writable字段预测远端状态或另加测试hook。原initialize→tools/list成功、退出launcher和慢启动证明保留，10秒限制及仅关闭自己child不变。 |
 | CI-MCP-PIPE-02 | 同一闭管道fixture通过公开RuntimeIntegrationService实际验证，失败后配置字节/无关Runtime设置、Skill状态和原receipt恢复，没有成功接入或新授权记录；再次可用launcher能正常接入。独立源码复核、整体build、定向Runtime/MCP公开回归及当前main门禁通过后开独立PR，Linux CI另记实际结果。 |
 
 当前仅已定位、实测复现并安排唯一writer实施；不称修复完成或CI通过。

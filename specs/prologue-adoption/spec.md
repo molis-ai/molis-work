@@ -838,7 +838,7 @@ A0 执行记录（下列历史方案记录之后继续）：
 
 | 分支 / PR | 状态 |
 | --- | --- |
-| #408 = `feature/handoff-prologue-adoption` | head `9a7c9505`（合了 main `e7a51ff0` 的那次合并），**与 main 又有冲突，未解**。本线唯一的 Molis 提交处（用户决定，见 §7.8）。#442（`feature/prologue-adoption-s3-package`，第二个包）的提交已并入此分支，GitHub 上显示 merged，已留评论 |
+| #408 = `feature/handoff-prologue-adoption` | head 是写本节的提交（它的前一个提交 `9a7c9505` 是合 main `e7a51ff0` 的那次合并），**与 main 又有冲突，未解**。本线唯一的 Molis 提交处（用户决定，见 §7.8）。#442（`feature/prologue-adoption-s3-package`，第二个包）的提交已并入此分支，GitHub 上显示 merged，已留评论 |
 | `coordination/handoff-2026-10-13` | 统筹层材料，不是本线的开发分支 |
 
 **Prologue**（`molis-ai/prologue`；推送用 `origin`，每刀单独一个 PR，由统筹读过后合）

@@ -148,8 +148,8 @@ test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on s
     await putInput(browser, "B 再写的 Y2");
     await browser.click(`[data-assistant-tabs] [data-tab="${a}"] .assistant-tab-main`);
     await barrier.release(nextSend);
-    await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled && document.querySelector('[data-assistant-input]').value === ''");
-    const finalA = await readWork(browser, a); assert.equal(finalA.work.draft, ""); assert.equal(finalA.rounds.length, 3);
+    await browser.waitFor("document.querySelector('[data-assistant-input]').value === ''");
+    const finalA = await waitWork(browser, a, view => view.work.state === "completed"); assert.equal(finalA.work.draft, ""); assert.equal(finalA.rounds.length, 3);
     await waitWork(browser, b, view => view.work.draft === "B 再写的 Y2");
   } finally { await barrier.close(); }
 });

@@ -2238,3 +2238,5 @@ R3独立源审确认148literal/32TS/90码之外正文仅两注释，2990JS/TS含
 C/D冻结ada822a15的25文件真实浏览器组合已完成：w2-10-cd-browser-runtime01.log实际77/77，零fail/cancel/skip，session65943退出0；C 7Darwin63条与D42非浏览器108条既有独立有效证据保留，不重复计 rerun。I8预检01安装frozen/offline/optional通过，整体build退出1，contracts报告闲置导入（原日志i8-build01.log）；未执行后续动作快照/门禁/类型/79文件，不记运行通过。先最小清理编译阻断后整体重建。
 
 I8编译接续：02验证contracts已越过，但Goals报告13闲置import，02b7c66cf仅移除这些绑定；03先单包Goal编译，明确TS4023是公共动作使用contracts私有GoalReadActionInput、插件另有同形输入定义。沿P-MCP的单一合同主人公开现有{goal_id:string}输入到goal-actions subpath，插件import/re-export现行类型并删本地定义，同步API；不改字段/动作schema/运行行为，不增加读取兼容。03仍未整体build或运行，不记通过。
+
+I8源码编译修复固定f2fad9f96：fc1c8b3fe清contracts闲置imports，02b7c66cf清Goal13闲置绑定，7a8903319公开并复用GoalReadActionInput唯一合同/API（插件原类型名作纯type再导出），f2fad9f96标明Coding位置参数_api；动作行为不改。05整体build/API/actions/types实际退出0，四个Goal规划输出已实测v2；另四Goal读/进度动作plugin消费场景及Coding control v2来自既有I7承接，不能误记只四行变化。资源实测十一项超main预算，未写预算；health拒context-onboarding内部import 7→8，未写基线；boundary另发现Goals HTTP SDK未声明dep，候选SDK临时路径也仍待正式许可。79文件真实运行仍在进行，已有失败待末尾完整诊断，先不改断言或生产语义。C独立仅测试分支对齐main a4106442f，正确头版本脚本health降至520/7，密钥扫描通过；#484已开draft并附到当前任务，等完整CI，不提前合。

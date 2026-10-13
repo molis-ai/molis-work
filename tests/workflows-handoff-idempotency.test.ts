@@ -8,8 +8,8 @@ import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSource
 import { WORKFLOWS_ACTION_PERMISSIONS, createWorkflowContentPorts, handoffKey, openWorkflowsStore, workflowsActions as w, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
 
 const PROJECT = "project-handoff";
 

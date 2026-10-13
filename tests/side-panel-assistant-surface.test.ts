@@ -6,12 +6,12 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import type { HostSurfaceAction, HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
-import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
-import { createBrowserSurfaceDriver } from "../apps/local-host/src/browser/surface-driver.js";
-import type { BrowserPage } from "../apps/local-host/src/browser/browser-host.js";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { AssistantService } from "@molis-ai/molis-work-app-local-host";
+import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { createBrowserSurfaceDriver } from "../apps/local-host/dist/browser/surface-driver.js";
+import type { BrowserPage } from "../apps/local-host/dist/browser/browser-host.js";
 
 /*
  * The Assistant drives the side panel's browser through Molis's own wiring (specs/archive/side-panel P5): a business round gets

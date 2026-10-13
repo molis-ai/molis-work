@@ -21,12 +21,12 @@ import { readWorkspaceFile } from "../apps/local-host/dist/workspace-files.js";
 import { WORKSPACE_BYTES_LIMIT, workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import {
   bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, definePlugin, fileContentOf, fileEntriesPage, FILE_CONTENT_MAX_BYTES,
-} from "../packages/plugin-sdk/src/index.js";
+} from "@molis-ai/molis-work-plugin-sdk";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 import { browserAddress } from "../apps/local-host/dist/browser/browser-host.js";
-import { renderSidePanel } from "../apps/workbench/src/side-panel.js";
+import { renderSidePanel } from "../apps/workbench/dist/side-panel.js";
 
 /*
  * The side panel as a platform capability (specs/archive/side-panel §3.3, D11, D13): the file source protocol, the `side`

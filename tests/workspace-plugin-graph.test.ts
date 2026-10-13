@@ -15,7 +15,7 @@ import {
   seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
-import { bindWorkspaceCompanions } from "../apps/local-host/src/workspace-plugin-bindings.js";
+import { bindWorkspaceCompanions } from "../apps/local-host/dist/workspace-plugin-bindings.js";
 import { DIFF_PLUGIN_ID, createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { GIT_PLUGIN_ID, createGitPlugin } from "@molis-ai/molis-work-plugin-git";

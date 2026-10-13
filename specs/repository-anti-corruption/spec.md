@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，未达到整条防腐线的完成标准（2026-10-12 复查）。当前在第 3 波 B/C 的整合回归与分片收尾；本轮源码复查确认精确授权撤销竞态、Dataset 文件导入错目标两个 P1，以及 Issue 手动补录重复创建、Schedule 无项目页面访问时漏调度、Goals 恢复关系可能成环三个 P2，运行复现与修复验收尚未完成（§12.3）。I6 冻结稿 `af0fe957` 正在全量回归，不能记为通过；经用户追加授权，两个独立会话并行准备 Dataset/Issue 修复，原 writer 处理共同权限，机器构建与浏览器仍排队（§12.6）。已合入的代码、在途候选和原始失败分别见 §10；第 1 波 W1-18 只完成包事实表，第 2 波 W2-18 只完成首轮证据与相关修复，均未整项完成。剩余包含 71 包职责复核的未审范围、逐插件异常与组合路径、前端第二轮、测试有效性与动作消费合同核查，以及第 3 波余项、第 4–6 波和维护八。工程通过、真实集成/产品实操与用户验收分别裁决；完整要求映射、必须收口项和任务书 §7 的逐条结论见 §12。
+状态：执行中，未达到整条防腐线的完成标准（2026-10-12 复查）。当前在第 3 波 B/C 的整合回归与分片收尾；首轮确认的精确授权、Dataset、Issue、Schedule、Goals 缺陷见 §12.3；全部 71 包深审正在继续，新增源码确认与修复验收见 §12.8，不以旧五项当作完整缺陷清单。I6 冻结稿 `af0fe957` 正在全量回归，不能记为通过；经用户追加授权，独立修复会话按不冲突范围并行准备，原 writer 处理共同权限，机器构建与浏览器仍排队（§12.6–12.8）。已合入的代码、在途候选和原始失败分别见 §10；第 1 波 W1-18 只完成包事实表，第 2 波 W2-18 只完成首轮证据与相关修复，均未整项完成。剩余包含 71 包职责复核的未审范围、逐插件异常与组合路径、前端第二轮、测试有效性与动作消费合同核查，以及第 3 波余项、第 4–6 波和维护八。工程通过、真实集成/产品实操与用户验收分别裁决；完整要求映射、必须收口项和任务书 §7 的逐条结论见 §12。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -16,6 +16,7 @@
 
 | 日期 | 事项 | 选项 | 结论 | 说明 |
 | --- | --- | --- | --- | --- |
+| 2026-10-12 | 将复查推进到现有全部 71 包实际审完（用户后续明确要求） | 只核对要求与部分路径；逐包补齐全部现行代码、插件和组合路径 | 逐包继续到审完，必要修复归本 spec | 用户明确“把现有全部 71 个包逐包审完，补齐未审代码、插件和组合路径，不只核对要求和进度”。已启动 §12.7 的 9 个 `gpt-6.1-sol / max` 只读会话，按完整包边界互不重叠，现行五个缺陷沿原 owner 修复；所有结论由协调方核源码/证据后回写此 spec。阶段报告、首次扫描、派发、测试存在均不计已审完成。I6 冻结和机器验证队列不变。 |
 | 2026-10-12 | 复查后提高独立修复并发（用户在协调会话追加） | 原 writer 串行；按独立包新建 Codex 会话 | Dataset、Issue 各新建一个会话 | 用户明确现有 writer 较慢，可以新开提高并发；随后允许派发会话使用 `gpt-6.1-sol`、`max`。两个新会话已按此设置，文件边界与身份见 §12.6；这一决定覆盖本任务此前的单 writer 默认，仅允许互不冲突的实现并行。I6 受测树冻结、整机一个构建/一个浏览器批次、共享核心整合验证和唯一进度 spec 保持。没有扩大真实 Home、发布或他人成果清理授权。 |
 | 2026-10-12 | G3 记忆错误的 kind（日常取舍，沿用统一错误模型） | 保留 Host 重写和默认400；由 owner 分类并贯通共同出口 | 由 owner 分类 | 实际源码中两个 HTTP 入口的 limit/conflict 都是400，Assistant 重写后的 forbidden 也是400。按现有拒绝条件，待本人处理的建议达到上限、预览后事实改变均用 conflict→409；forbidden/scope→forbidden、not_found→not_found，invalid/off维持invalid。Assistant 的权限拒绝400→403、两个入口的状态冲突400→409明确记为分类修正；Memory主人原码、文案、拒绝与无写入语义保留，Host旧assistant码重写删除；不把状态变化说成旧行为未变。图片 expired 的410→404已由原方案接受。 |
 | 2026-10-12 | BL-133 的五条 Issue 导航旧测试（弹窗，现场已测量） | 防腐线修正；交给 Issue 原会话；保留基线失败 | 防腐线修正旧测试 | 用户批准保留 ISSUE-30 的右上角常显入口，修正控件登记与标题栏几何预期。实测 Home 按钮桌面 32px、手机 44px；测试继续检查所有触控 44px、桌面 Home 32px（含短窗口）、视窗边界与实际命中，以及 Add/分屏对齐、标签距离与 Home 相邻且不遮挡，不改产品布局。 |
@@ -704,7 +705,7 @@
 
 ## 5. 包级清单（§4.4）
 
-分三个 PR 交（W1-18）：第一个就是这一版，71 个 workspace 包的事实表，每行带状态和计划审查深度；第二个逐包深审「深」11 个和「中」43 个；第三个审「浅」17 个，并把未深入或无法验证的范围写进 §8。审完的包，把「主要文件及各自的变化原因、放错位置的类和方法、重复实现、建议的移动」写在 §5.2 之后，审查列由「待审」改为「已审」。每个包的 README 都有「开发要求」一节（公开入口、负责与不负责、依赖、不变量、必跑测试），现在 70/70 过 `pnpm boundary:check`。
+W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个；计划「浅」17 个。用户 2026-10-12 明确要求继续把现有 71 包全部实际审完，现按 §12.7 的九组并行补齐，不在前轮核心路径抽查处停下。审完的包，把「主要文件及各自的变化原因、放错位置的类和方法、重复实现、建议的移动」写入本 spec 的逐包结论，审查列才由「待审」改为「已审」；该列表示代码审查完毕，修复与运行/产品验收另记，不能互相替代。每个包的 README 都有「开发要求」一节；当前清单为 71 包，I6 预检的 boundary 结果见 §10/§12.5，原 70/70 是旧计数。
 
 ### 5.1 事实表
 
@@ -812,7 +813,7 @@
 
 **计划深度**按风险定（任务书 §0：深入程度按风险决定）。四个量各给分：源文件行数 ≥ 9,000 记 2 分、≥ 3,000 记 1 分；2026-09-08（Cutover）以来碰过这个包的非合并提交数 ≥ 100 记 2 分、≥ 40 记 1 分；被依赖数 ≥ 17 记 2 分、≥ 4 记 1 分；`tooling/gates/baseline.json` 里记在它名下的巨大单元数 ≥ 10 记 2 分、≥ 4 记 1 分。总分 ≥ 4 为「深」。另有两个包放在授权脊梁上，也列「深」：`packages/kernel`（`ActionService`：可信身份、`beforeEffect`、撤销后不再写，见 `AGENTS.md` 硬约束）和 `packages/plugin-runtime`（安装、grant、签名）；每个能力调用和每次插件安装都经过它们，体量小，出错的代价最大。其余有 ≥ 1,000 行源码、或有巨大单元、或被 ≥ 3 个包依赖的为「中」，再其余为「浅」。结果：深 11（`apps/local-host`、`apps/workbench`、`horizontal/agent-host`、`modules/goals`、`packages/contracts`、`packages/design-system`、`packages/kernel`、`packages/plugin-runtime`、`plugins/native/coding`、`plugins/native/goals`、`plugins/native/pages`）、中 43、浅 17（现行 §5.1 的计划；I6 按阈值重算建议为深 11、中 42、浅 18，审查时再判定，不机械改已有深度）。深度是计划，不是门禁：以后某个包越过阈值不会让门禁变红，审它的时候再按当时的数重定。
 
-**审查**：「待审」是还没做 §4.4 的结构审查，「已审」是做完并在 §5.2 之后写了逐包记录。现行表的 71 个包仍全部标「待审」。W1-18 的事实表与门禁已经完成，但逐包的职责、依赖、变化原因、放置与冗余判断没有交齐，不能据 #322 已合入记为整项完成；接续验收见 §12.3。
+**审查**：「待审」含尚未开始和已开始但未审完；「已审」须在同一 spec 有完整逐包结论和已核实的实现覆盖。现行表的 71 个包仍全部标「待审」，九组已开始补齐（§12.7）。W1-18 的事实表与门禁已经完成，但逐包的职责、依赖、变化原因、放置与冗余判断没有交齐，不能据 #322 已合入或 §12.6 的局部读码记为整项完成；代码审完、缺陷修复、工程通过、产品实操分别判定。
 
 ### 5.x 本轮补记的清单项（2026-10-03）
 
@@ -1704,7 +1705,7 @@ Images 后台 job 未携带原 MCP 调用的持续授权，但 Prologue 手册�
 | G3 普通/相关/浏览器组 | 5/5、198/198、6/6，均无跳过/取消 | 共 209 个不同用例，含真实 scope/preview 拒绝、坏 SQLite 不变、Host 重开、Chrome 修复后继续同 work；仅覆盖该片 |
 | Home candidate security | 192 总数：191 通过、1 外网可选项跳过 | 安全相关本地路径已验；跳过网络项未验，不能写 192/192 |
 | I6 整树预检 | 整体 build、boundary、类型、actual-base health、API/actions 与资源已通过；API 0 变，29 资源 11,366,475 字节 | 支持冻结候选的工程预检；不是全部测试通过或 main 已合入 |
-| I6 全量 i6-full-01.log | 19:19:36 启动，冻结 af0fe957，当前仍运行 | 不报最终通过数；接续线程在退出后原位补结果，失败先分类/基线对照，不能并行改受测树 |
+| I6 全量 i6-full-01.log | 19:19:36 启动，冻结 af0fe957，当前仍运行；日志 331 行的 `Character and Coding discover authorized unknown actions, preserve exact selections and explain withdrawn providers` 与 6903 行的 `already split panes keep later drags and previews on the hovered pane` 已失败，尚无最终 footer | 不报最终通过数、不记全绿；接续线程在退出后原位补完整结果与异常详情，失败先分类/基线对照，不能并行改受测树 |
 
 I5 的九个跳过包含 live 账号/真实网络、MiniMax 凭据与本机缺 shellcheck 的两条；CI 的 Shell/Python 检查有独立证据，不能因此说本地那两条已运行。真实产品证据目前是各片实际 HTTP/SQLite/Chrome 覆盖的路径与历史维护窗口；外部模型/账户、完整辅助技术和最终用户验收没有全量结论。
 
@@ -1773,3 +1774,61 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | 协调复查会话与只读审查代理 | 核 diff、源码证据与验收，串行维护本 spec/原路线图；只读审查不启动构建、测试、浏览器或修改代码 | 15 节、附录与 §7 已对应；逐包/逐插件深审和真实实操的缺口保持可见，不把派发与代码准备记作关闭 |
 
 新会话只提交自己的本地改动，不自行推送、开 PR、发布或安装，不改总 spec、路线图和共享门禁快照；由协调方在实际整合后记录验证与去向。I6 结束并释放机器锁前先准备源码，不起第二全量；之后按单一构建/浏览器队列做有意义的缺陷复现和修复验证。最终共享核心整合结果不能用三个独立工作树的通过数相加代替。
+
+### 12.7 全部 71 包实际审查与组合路径接续（2026-10-12）
+
+**本轮执行合同。** 本节承接用户在 §12.6 交付后明确追加的继续要求，不再以全仓清点加重点路径抽查作为终点。保持同一 spec 和 W1-18/W2-18 路线；先补齐各包所有受跟踪生产实现、原生/启动脚本与必要配置，再沿实际消费者检查合同、事实 owner、状态/权限/事件/取消/恢复、重复及旧路径，核相关测试的断言有效性。每包给职责与放置判断、文件职责/变化原因、必要修复与可验证结论。长文件必须分段读完；仅 grep、README、导出或注册表不计该实现文件已审。静态资源与生成内容按适用规则审查并写清边界，不制造无意义逐行计数门槛。
+
+共同源码切点为冻结 I6 `af0fe957`。审查期间只读该树，不动源码、dist、脚本、配置、skills，不启动第二回归。后续 main/修复发生变更时，对受影响文件和调用链补差异审查，不能把旧切点的结论直接转为新头通过。临时文件覆盖清单只是防漏证据，不是另一份进度事实；唯一状态仍在本 spec。主检出与真实 Home 不写入。
+
+| 组与重点 | 包数 | 完整包边界 | Codex 会话 | 状态 |
+| --- | ---: | --- | --- | --- |
+| G1 宿主与 CLI/MCP | 3 | `apps/local-host`、`apps/cli`、`apps/mcp` | `01a1335c-bdeb-7473-b444-25370fc0e242` | 审查中，未计完成 |
+| G2 工作台与 UI 宿主 | 2 | `apps/workbench`、`packages/ui-host` | `01a1335c-c133-7891-9b62-a36a02e10c5a` | 审查中，未计完成 |
+| G3 桌面、设计系统与 IM | 6 | `apps/desktop`、`packages/design-system`、`apps/server`、`server`、`packages/im-ui`、`packages/test-kit` | `01a1335c-c77b-75c2-9ad0-6ea2e5458ba5` | 审查中，未计完成 |
+| G4 公共合同与插件运行时 | 7 | `packages/contracts`、`packages/kernel`、`packages/plugin-runtime`、`packages/plugin-sdk`、`packages/storage`、`packages/plugin-sandbox`、`tooling/plugin-cli` | `01a1335c-d9c5-7990-978a-cf976825eb9d` | 审查中，未计完成 |
+| G5 AI 横向服务与开发插件 | 11 | `horizontal/agent-host`、`horizontal/connector-host`、`horizontal/listener-host`、`horizontal/runtime-host`、`horizontal/scheduler`、`horizontal/memory`、`horizontal/search`、`horizontal/placement`、`plugins/native/coding`、`plugins/native/plugin-builder`、`plugins/native/characters` | `01a1335c-f6be-7560-896b-e9153331eea5` | 审查中，未计完成 |
+| G6 业务模块与 Goals | 14 | `modules/projects`、`modules/context-ledger`、`modules/sources`、`modules/signals`、`modules/feed`、`modules/attention-resumption`、`modules/goals`、`modules/private-work-context`、`modules/artifacts`、`modules/shelf`、`modules/characters`、`modules/functions`、`modules/governance-collaboration`、`plugins/native/goals` | `01a1335d-0db9-7a61-90af-d93fb33b11e7` | 审查中，未计完成 |
+| G7 内容创作插件 | 7 | `plugins/native/pages`、`plugins/native/form`、`plugins/native/dataset`、`plugins/native/ppt`、`plugins/native/images`、`plugins/native/cognia`、`plugins/native/lingguang` | `01a1335d-1541-75e2-9c2a-3930e8fb3b2f` | 审查中，未计完成 |
+| G8 工作流与执行插件 | 6 | `plugins/native/workflows`、`plugins/native/alchemist`、`plugins/native/work`、`plugins/native/issues`、`plugins/native/shelf`、`plugins/native/artifacts` | `01a1335d-246b-71f3-ba85-34421a4d71c4` | 审查中，未计完成 |
+| G9 信息接入与日常工具 | 15 | `plugins/native/feed`、`plugins/native/inbox`、`plugins/native/todo`、`plugins/native/schedule`、`plugins/native/files`、`plugins/native/diff`、`plugins/native/git`、`plugins/native/text-stats`、`plugins/native/jelly`、`plugins/official-integrations/catalog`、`plugins/official-integrations/github`、`plugins/official-integrations/gmail`、`plugins/official-integrations/rss`、`plugins/official-integrations/web-query`、`plugins/official-integrations/youtube` | `01a1335d-44e2-7a23-aff4-14c68ce9ed5b` | 审查中，未计完成 |
+
+以上集合由协调方与仓库登记的 71 包核对：不遗漏、不重复。九个会话均为 `gpt-6.1-sol / max`，当前仅有只读审查权，不自动成为实现 writer，也不占构建/浏览器时段。Dataset/Issue 的两个既有修复会话继续其已授权边界；共同授权与既有防腐实现仍由原线负责。新问题先核实并登记根因、影响、最小修复和验收，再按不冲突边界接续，不能将交接记为已修复。
+
+**完成与证据口径。** W1-18-ALL-01 [人工]：71 个包各有完整当前代码审查结论，受跟踪生产文件不存在未披露的未审项，重要实际入口/消费者与 owner 判断有源码依据；§5.1 逐行据此更新，未审完仍“待审”。W1-18-ALL-02 [人工]：发现的必要问题按原 owner 修复并核实际 diff，状态/权限/并发缺陷有能发现原错误的生产路径回归；代码审完但整改未完的包须明确标出。W2-18-ALL-03 [人工]：下列现行组合路径逐项核当前实现、完整传递与运行证据，缺口按真实权限/环境说明，不能把 Mock 模型输出当真实模型质量验证。W2-18-ALL-04 [人工]：最后在整合后的实际代码头核受影响差异与必要工程/产品实操，复用有效证据，不相加不同树的通过数冒充最终验证。
+
+**组合路径沿原 S1–S11 继续。** 原 `plugin-conclusions.md` §7 是历史证据，下列待核点不是新增一键产品需求；阶段状态在同一 spec 更新，不再复制一份进度表到其他文件。
+
+| 原编号 | 本轮核查的真实路径与边界 | 审查组及当前结论 |
+| --- | --- | --- |
+| S1 | 灵光/Pages 选区→Todo、Jelly、Goals；核来源、内容与返回入口、失败输入保持 | G2/G6/G7/G9，待补全链证据 |
+| S2 | 连接/Feed→Inbox→Pages→固定成果；无模型、撤权、来源删除/变更、部分成功与重试 | G1/G7/G9，待核 |
+| S3 | Pages 固定版本→Artifacts→Goal 输入/交付→Diff；固定引用、删除/移动后读取与授权 | G6/G7/G8/G9，待核 |
+| S4 | Form 答卷 CSV→Dataset 文件/粘贴导入；Pages→PPT 大纲/文件；只验现行人工衔接，不新增一键流转 | G7；Dataset P1 原 writer 在修，当前未通过 |
+| S5 | Shelf 材料提取/处理→项目材料→Coding 会话实际消费 | G1/G5/G8，待核 |
+| S6 | Coding 变更集→Git 审批/暂存或提交→Diff；实际批准范围、状态失效与工作目录变化 | G5/G9，待核，不执行真实仓库发布 |
+| S7 | 助理按需发现→选择→审批→真实动作→撤销/刷新；来源精确权限、用户输入保留与真实模型的独立证据 | G1/G2/G4/G5；共同权限 P1 在修，真实模型路径待核 |
+| S8 | Todo 提醒→Schedule；持久任务重启/纯动作创建→自动触发→一次业务结果 | G1/G5/G9；无页面漏调度 P2 待复现修复 |
+| S9 | Workflows 串联 Feed/Inbox/Pages/灵光及动作站；接收回执、结果未知/重试、停止与已派发操作 | G7/G8/G9；停止语义边界仍待裁决，先核事实 |
+| S10 | 现行 26 内置与 6 官方接入的安装/启用/配置变化/停用/卸载/重启→目录/调用/UI/持久事实一致 | 各组按自身包 + G1/G4 装配核对；不以已退役 Experiments 代替 Issue |
+| S11 | 删除项目→所有实际 owner 清理→进程/任务/文件/引用与失败重试；共享个人内容按既有合同保留 | G1/G3/G4/G6/相关插件组，待核当前实际回归 |
+| 补充接点 | Images→Pages、Cognia 固定证据→文稿/PPT、Characters→Artifacts→Coding、创作台→安装→实际调用、Jelly 音频/网页→内容 | 各负责组报告现行真实支持与边界，不能凭同类功能存在就推断可组合 |
+
+真实页面仍按 W2-18-FR 补键盘/辅助技术、暗色/英文、三宽度、离线/失败/无权限/部分成功、多窗口、配置返回与核心模型路径。只读会话先把具体缺证据动线和可复用用例列清；协调方在 I6 及已排修复验证释放机器后安排实操。没有必要账号、权限或产品未支持的路径写明，实质产品语义待决定时只暂停依赖部分，其余继续。当前 71 包深审与组合核查均在进行，不标完成。
+
+### 12.8 全包深审发现的必要修复（增量，未验收）
+
+本节只登记协调方已经核过实际源码的新增问题。其他审查候选仍需核事实与现行合同；源码确定不等于运行复现，更不等于已修复。修复沿用户允许的独立并行边界，唯一 spec 仍由协调方维护，I6 源码和整机验证队列保持冻结。公开合同、门禁与快照不在客户端修复的顺手修改范围。
+
+| 编号 / 优先级 | 根因、真实触发与必要边界 | 最小实现范围与验收 |
+| --- | --- | --- |
+| W2-18-SEND / P1 | `assistant-island.ts` 2663–2686 在点击发送后先等待草稿请求，才从可变 UI 读取 work、scope、project、Character、上下文；`switchTo` 不受 busy 限制。A 的文字和材料可被发给后来选择的 B。回执也无条件重设当前工作、消费材料 | 点击时固定完整发送意图和未知结果重试身份；回执更新对应工作，仅在仍对应当前页面时更新可见输入与选择。限定助理客户端及其回归/README；不改领域合同。W2-18-SEND-01：真实 Home A/B、草稿 HTTP barrier、发送后切 B，只有 A 收到原文，B 事实/输入与当前选择保持。W2-18-SEND-02：选择页切项目与丢回执重试仍使用原 scope/材料/request_id，只产生一次业务结果。 |
+| W2-18-WFSAVE / P1 | `workflows/client.ts` 402–434 的队列保存虽然捕获 A 的 URL，却在执行时读 `state.workflow` 的正文/revision，并把回执写回当前对象。A 连续两次修改、首个响应挂起时打开 B，可把 B 写进 A；返回目录还会读 null | 队列固定本次对象与内容快照，在同一对象推进版本；迟到回执/错误只影响所属对象，去抖也绑定原对象。限定 Workflows 客户端及回归/README，不改变流程停止合同。W2-18-WFSAVE-01：真实浏览器/HTTP/Store barrier 制造 A 两次修改→打开 B→放行，A 保存自己的两次修改，B 内容、标题、版本不变。W2-18-WFSAVE-02：返回目录、标题去抖、失败后再开/重载保留原对象编辑，不跳回或覆盖后来对象。 |
+| W2-18-GMAIL / P1 | `gmail/history-cursor.ts` 454–562 合并候选时只留 25 个，`provider.ts` 686–739 却提交整个历史页的最终 historyId，超过 25 的增量邮件永久跳过；初次 25 条快照是另一项既有合同 | 修 reducer/provider 让进度只覆盖已消费记录，或保留有界未完成进度；不能只调大条数或悄悄丢尾。W2-18-GMAIL-01：单页/两页至少 26 个不同新增邮件，经真实 Connector→Listener→Signals→Feed 消费，在重复同步中全部恰好一次进入；W2-18-GMAIL-02：次页/详情失败和重启不丢尾、不越过未消费进度。当前等待分配实现。 |
+| W2-18-PLACEMENT / P1 | `placement-actions.ts` 82–114 丢弃原 caller，在 scope 中重建 ownerContext；`horizontal/placement/index.ts` 158–173 等待读取后直接写关系，move/copy/convert/bindGoal/create 同样丢原生命线 | 按 invocation 传递原可信控制，在本服务提交前复查，嵌套调用保留原来源/取消；不在共享服务上挂可覆盖的当前 caller。W2-18-PLACEMENT-01：真实 Host registry/SQLite，reader barrier 后取消或撤下原提供方，无关系/目标业务新增；W2-18-PLACEMENT-02：正常移动/复制/绑定仍可用，部分已提交结果如实可核对，不自动重派。与精确 AUTH 尾窗分别修、最后合并验证。 |
+
+Gmail 增量判断也与 [Gmail 官方 history.list 合同](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.history/list) 对照：历史按 ID 递增，startHistoryId 排除以前的记录，单条历史可包含多封邮件。因此“最后一页已读”不能替代“候选已消费”。本轮不实际读取外部账户。
+
+以上验收尚未运行。新客户端修复先准备可复现用例与最小改动，机器时段由原防腐会话统筹，在 I6 及已排 Dataset/Issue 验证后执行；每包 README 必跑项、整体构建和最终整合检查仍保留。助理客户端与在途 #471 都触及 `assistant-island.ts`，需按枢纽规则只改本问题范围，在最终组合头检查两边改动，不能覆盖 Computer Use 的工作。
+
+已派两个独立 `gpt-6.1-sol / max` 修复会话：助理发送 `01a13369-d79c-70f1-9798-7b84181fa7d0`、Workflows 保存 `01a13369-e221-7433-a2eb-24bcdcee1039`。仅本地隔离实现与回归准备，尚未运行、提交或验收；两个会话不改本 spec、不自行推送或开 PR。Gmail 与 Placement 尚未派 writer，不能记已修。

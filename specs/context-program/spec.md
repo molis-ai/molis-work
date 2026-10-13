@@ -657,6 +657,17 @@ pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <�
 
 没做、有风险的：桌面原生拖出与应用内放置的分离（风险 §11 第一条，仍未验）；真实 Jev 的两组评估；右栏 iframe 格与分屏窗格里各自画浮条；浏览器格的真实画布选区；助理面板里的结果作为手上的东西；Pages 浮条工具里只放了加粗、斜体、格式菜单三项，真实迁移要把 Pages 的 14 个格式按钮、链接、评论都声明成工具（context-toolbar §7）。
 
+### 16.4 交接分支的进度与防腐复查（2026-10-13）
+
+按用户 2026-10-13 的决定，本线所有提交只进交接分支（#411）：W1-1…W1-8、W1-2、W1-6、W2-0 和 W2 都已并入（原 #429–#434、#445 已关闭，#446 的提交 `e67cd28e` 已在其中）。
+
+| 日期 | 合入的 main | 结论 |
+| --- | --- | --- |
+| 2026-10-13 | `e7a51ff0`（#470）、`490251d1` | **通过，有三处记录。** 机器项：M1 `boundary:check` 无错；M2 健康门禁对照 merge-base 通过（`client.ts` 1148 行 < main 的 1151、`craft-finish.ts` −65、`editor-browser.ts` `mount` 变短；测试引用包内部 909 → 886）；M4 API 快照已重新生成（`dom-events` 删两项并给 `context-panel-open` 加 `cancelable`/`keep`，合同删两个常量，SDK 加 `ActionIntake`/`ActionAttach`）；M6 页面资源预算已降到实测（`workbench.js` −607 字节，三份样式表各 −8.1～8.5 KB，`pages-editor.js` −5.1 KB，`pages.js` 不增）；M8、M9 随健康门禁通过；M5 `action-contract-snapshot` 通过；M15 无密钥。人工项：第 1 条无兼容代码（读取、别名、迁移都没加）；第 9 条无新巨大单元；第 11 条合同只删不加；第 12 条两个事件和常量的消费者（Pages、总线、用例、文档）同一提交改完；第 13 条快照与预算都由工具重新生成；第 18 条所有 `CustomEvent` 已登记；第 20 条新文案的英文在 `plugin-components.ts`；第 21 条没有新的浏览器请求；第 26、27 条没有开新 PR、没有放宽门禁（门禁脚本、`limits.json`、`biome.jsonc` 未动） |
+| | | **记录一：验收编号缺口。** 本 spec §19.4 的 W2-01、W2-02、W2-04、W2-05、W2-08 还没有证明它们的测试：W2-02（窗格里的浮条、悬停保位、Esc 记「忽略」）需要一条分屏用例；W2-04 改成了「等着的结果不丢」（§19.8），对应用例已在 `contextual-interaction.e2e`；W2-05（⌘K 打开链接面板）与 W2-08（开场建议报错改为提示条）待补。检查器目前只报告，不挡合并 |
+| | | **记录二：两个近似的压缩函数。** 工作台的 `served()`（`builtin-plugins.ts`，插件客户端脚本）和设计系统新增的 `compactScript`（情境脚本）做的是同一类事：去缩进与整行注释，后者还去空行。应并成一个（`served` 改用 `compactScript`，各插件资源再降一点），这会动所有插件的资源，留给页面资源门禁的主人 |
+| | | **记录三：整个 `workbench.js` 还没过压缩。** 工作台脚本里的缩进与注释行占相当大一部分，对拼装 `workbench.js` 的那一处用 `compactScript`，整个资源可以少几十 KB；已用「空白压缩后的 esbuild 输出相同」验证过情境脚本和 Pages 脚本不改语义，别的脚本需逐个验证 |
+
 ## 17. 接续入口（2026-10-12）
 
 本分支 `feature/handoff-contextual-actions`（PR molis-ai/molis-work#411）保存 W0 原型、四份完整需求和原验收。本文及 context-toolbar、quick-create、side-shelf 是接续需求来源；交叉处以本文为准。2026-10-11 的远端交接（基点 `9f9bda551`、10 项逻辑测试、未运行浏览器）已被 16.2、16.3 取代。

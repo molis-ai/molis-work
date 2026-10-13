@@ -724,7 +724,7 @@ export class MemoryService {
     const out: MemoryCandidateRecord[] = [];
     for (const note of this.ports.ledger.candidates(actorId).filter(item => item.scope === scope && item.owner === owner)) {
       const found = held.get(note.candidate_id);
-      if (!found) throw new MemoryError("memory.not_found", "记忆建议的原记录不可读；请核对存储后继续");
+      if (!found) throw memoryErrors.not_found("记忆建议的原记录不可读；请核对存储后继续");
       const state: MemoryCandidateRecord["state"] = found.state === "promoted" ? "accepted" : found.state;
       out.push({ ...note, state, memory_id: found.memory_id ?? note.memory_id });
     }

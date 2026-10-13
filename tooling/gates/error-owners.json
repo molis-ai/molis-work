@@ -101,6 +101,12 @@
       ],
       "reason": "The Cognia plugin and the Host files that serve it; its codes start with cognia."
     },
+    "computer": {
+      "paths": [
+        "apps/local-host/src/computer/"
+      ],
+      "reason": "The desktop computer helper, its driver and the operation records in the file list. Its codes start with computer."
+    },
     "connector": {
       "paths": [
         "horizontal/connector-host/",
@@ -228,7 +234,7 @@
       "paths": [
         "apps/local-host/src/material-*"
       ],
-      "reason": "Text extraction from documents and web pages (MaterialExtractionError): the Host's material files raise material.* codes."
+      "reason": "Text extraction from documents and web pages: the Host's material files raise material.* codes (materialErrors, spec W3-02 F)."
     },
     "mcp": {
       "paths": [

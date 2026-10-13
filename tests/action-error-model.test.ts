@@ -11,7 +11,7 @@ import {
   type ActionErrorKind,
   type BoundActionClient,
 } from "@molis-ai/molis-work-contracts/platform/actions";
-import { handleShelfNativePluginHttp, handleTodoNativePluginHttp } from "@molis-ai/molis-work-app-local-host";
+import { handleFunctionsHttp, handleTodoNativePluginHttp } from "@molis-ai/molis-work-app-local-host";
 import {
   actionErrorBody,
   actionErrorFromResponse,
@@ -208,17 +208,15 @@ test("Todo declares its codes with defineErrorCodes: every one is todo.<reason> 
 // The dispatcher: the body is read inside the try, a body that cannot be read is an ordinary coded error, and a mapper is optional.
 const never: BoundActionClient = { discover: async () => [], invoke: async () => { throw new Error("the route must not run"); } };
 
-test("a body that is too large or not JSON reaches a route that still has its own mapper as a coded error, and the mapper's 400 default answers it", async () => {
-  // Shelf keeps its own mapper until its owner slice (it was Workflows until W3-02-D). On origin/main the body was read outside the dispatcher's try, so this
-  // failure escaped to the Host's last-resort catch and answered 500 with no code; now it reaches the mapper as a coded error, and the mapper's default for a
-  // platform code is 400. So the answer for this route changes from 500 to 400. (Shelf reads up to 96 MiB, so the large body is a plain 97 MiB string:
-  // the size is checked before the JSON is.)
-  const server = await serveNativeHttp((request, response, url) => handleShelfNativePluginHttp(request, response, url, {} as Parameters<typeof handleShelfNativePluginHttp>[3]));
+test("Functions answers through the SDK: invalid JSON is 400 and an oversized body is 413, with exact codes and messages", async () => {
+  // W3-02-G2-BODY-01: Functions has no mapper; platform kinds keep the exact body and never execute the action.
+  // The existing body limit is checked before JSON parsing.
+  const server = await serveNativeHttp((request, response, url) => handleFunctionsHttp(request, response, url, "/unused", { actions: never }));
   try {
-    const notJson = await server.post("/api/shelf/items", "{not json");
+    const notJson = await server.post("/api/functions/settings", "{not json");
     assert.deepEqual([notJson.status, notJson.body.code, notJson.body.error], [400, "actions.input_invalid", "请求不是有效 JSON"]);
-    const tooLarge = await server.post("/api/shelf/items", "x".repeat(97 * 1024 * 1024));
-    assert.deepEqual([tooLarge.status, tooLarge.body.code, tooLarge.body.error], [400, "actions.input_too_large", "请求内容过大"]);
+    const tooLarge = await server.post("/api/functions/settings", "x".repeat(1_100_000));
+    assert.deepEqual([tooLarge.status, tooLarge.body.code, tooLarge.body.error], [413, "actions.input_too_large", "请求内容过大"]);
   } finally { await server.close(); }
 });
 

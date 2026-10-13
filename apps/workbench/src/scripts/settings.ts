@@ -62,13 +62,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
       errorBox.hidden = true;
       dialog.showModal();
       try {
-        const response = await fetch("/api/settings/runtimes/" + encodeURIComponent(runtimeId) + "/plan", {
-          method: "POST",
-          headers: molisWorkControlHeaders(),
-          body: JSON.stringify({ action }),
-        });
-        const plan = await response.json();
-        if (!response.ok) throw new Error(plan.error || L("无法生成 Runtime 接入预览"));
+        const plan = await molisWorkRequest("/api/settings/runtimes/" + encodeURIComponent(runtimeId) + "/plan", { body: { action }, fallback: L("无法生成 Runtime 接入预览") });
         activePlan = plan;
         title.textContent = plan.display_name + (plan.action === "remove" ? L(" · 移除预览") : L(" · 接入预览"));
         message.textContent = plan.message;
@@ -79,7 +73,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
         confirmLabel.textContent = plan.confirmation;
         applyButton.hidden = plan.status !== "ready";
       } catch (error) {
-        errorBox.textContent = error.message || L("无法生成 Runtime 接入预览");
+        molisWorkRequest.show(errorBox, error);
         errorBox.hidden = false;
         message.textContent = L("没有修改任何配置。");
       }
@@ -90,13 +84,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
       applyButton.textContent = L("正在验证…");
       errorBox.hidden = true;
       try {
-        const response = await fetch("/api/settings/runtimes/" + encodeURIComponent(activePlan.runtime_id) + "/confirm", {
-          method: "POST",
-          headers: molisWorkControlHeaders(),
-          body: JSON.stringify({ plan_id: activePlan.plan_id, decision: "confirmed" }),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.message || result.error || L("Runtime 接入未完成"));
+        const result = await molisWorkRequest("/api/settings/runtimes/" + encodeURIComponent(activePlan.runtime_id) + "/confirm", { body: { plan_id: activePlan.plan_id, decision: "confirmed" }, fallback: L("Runtime 接入未完成") });
         message.textContent = result.message;
         changes.innerHTML = L("<li><strong>完成</strong><div><p>") + escapeText(result.message) + "</p></div></li>";
         confirmRow.hidden = true;
@@ -104,7 +92,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
         reloadOnClose = true;
         showToast(result.message);
       } catch (error) {
-        errorBox.textContent = error.message || L("Runtime 接入未完成");
+        if (error.body?.message) errorBox.textContent = error.body.message; else molisWorkRequest.show(errorBox, error);
         errorBox.hidden = false;
         applyButton.disabled = false;
         applyButton.textContent = L("重新确认");
@@ -263,26 +251,21 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       submit.textContent = L("正在保存…");
       try {
         const isAdd = mode === "add";
-        const response = await fetch(
-          isAdd ? routePrefix + "/api/project-guidance" : routePrefix + "/api/project-guidance/" + encodeURIComponent(guidanceId),
-          {
-            method: isAdd ? "POST" : "PATCH",
-            headers: molisWorkControlHeaders(),
-            body: JSON.stringify({
-              action: isAdd ? undefined : mode,
-              kind: isAdd || mode === "edit" ? kindInput.value : undefined,
-              content: isAdd || mode === "edit" ? content : undefined,
-              reason,
-              user_confirmed: true,
-            }),
+        await molisWorkRequest(isAdd ? routePrefix + "/api/project-guidance" : routePrefix + "/api/project-guidance/" + encodeURIComponent(guidanceId), {
+          method: isAdd ? "POST" : "PATCH",
+          body: {
+            action: isAdd ? undefined : mode,
+            kind: isAdd || mode === "edit" ? kindInput.value : undefined,
+            content: isAdd || mode === "edit" ? content : undefined,
+            reason,
+            user_confirmed: true,
           },
-        );
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || L("项目说明保存失败"));
+          fallback: L("项目说明保存失败，请检查输入后重试"),
+        });
         sessionStorage.setItem("molis-work-guidance-receipt:" + routePrefix, copyReceipt(mode));
         location.reload();
       } catch (error) {
-        errorBox.textContent = error instanceof TypeError ? L("无法连接本地服务，输入已保留，请重试。") : error.message || L("项目说明保存失败，请检查输入后重试");
+        molisWorkRequest.show(errorBox, error);
         errorBox.hidden = false;
         saving = false;
         form.removeAttribute("aria-busy");

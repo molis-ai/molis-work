@@ -11,10 +11,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         const refresh=root.querySelector('[data-project-workspaces-refresh]'), pick=root.querySelector('[data-project-workspaces-pick]');
         const prefix=root.dataset.workspacePrefix;
         let busy=false;
-        const api=async(path,body)=>{
-          const response=await fetch(prefix+path,body === undefined ? {} : {method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify(body)});
-          const value=await response.json();if(!response.ok)throw new Error(value.error || L('工作目录操作失败'));return value;
-        };
+        const api=(path,body)=>molisWorkRequest(prefix+path,{body,fallback:L('工作目录操作失败')});
         const load=async()=>{
           refresh.disabled=true;status.textContent=L('正在读取工作目录…');
           try{
@@ -27,18 +24,18 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
               const button=document.createElement('button');button.type='button';button.className='mw-btn mw-btn--secondary';
               const selected=state.selected===workspace.workspace_id;button.textContent=selected?L('当前浏览目录'):workspace.realpath_verified?L('用于浏览'):L('目录不可用');
               button.disabled=selected || !workspace.realpath_verified;button.setAttribute('aria-pressed',String(selected));button.dataset.browseWorkspace=workspace.workspace_id;
-              button.addEventListener('click',async()=>{if(busy)return;busy=true;button.disabled=true;try{await api('/api/project-settings/workspaces',{workspace_id:workspace.workspace_id});await load();}catch(error){status.textContent=error.message;button.disabled=false;}finally{busy=false;}});
+              button.addEventListener('click',async()=>{if(busy)return;busy=true;button.disabled=true;try{await api('/api/project-settings/workspaces',{workspace_id:workspace.workspace_id});await load();}catch(error){molisWorkRequest.show(status,error);button.disabled=false;}finally{busy=false;}});
               row.append(copy,button);list.append(row);
             }
             status.textContent=state.workspaces.length?(state.selected?'':L('请选择一个目录供 Files 和 Git 浏览。')):L('还没有关联目录，请在下方添加。');
-          }catch(error){list.replaceChildren();status.textContent=error.message;}finally{refresh.disabled=false;}
+          }catch(error){list.replaceChildren();molisWorkRequest.show(status,error);}finally{refresh.disabled=false;}
         };
         refresh.addEventListener('click',()=>void load());
-        pick.addEventListener('click',async()=>{pick.disabled=true;try{const result=await api('/api/workspaces/pick',{});if(!result.cancelled)form.elements.path.value=result.path;}catch(error){message.textContent=error.message;}finally{pick.disabled=false;}});
+        pick.addEventListener('click',async()=>{pick.disabled=true;try{const result=await api('/api/workspaces/pick',{});if(!result.cancelled)form.elements.path.value=result.path;}catch(error){molisWorkRequest.show(message,error);}finally{pick.disabled=false;}});
         form.addEventListener('submit',async(event)=>{
           event.preventDefault();if(busy)return;busy=true;const submit=form.querySelector('[type=submit]');submit.disabled=true;message.textContent=L('正在关联目录…');
           try{await api('/api/workspaces',{workspace_path:form.elements.path.value.trim(),user_confirmed:true});form.reset();message.textContent=L('目录已关联。可在上方选择用于浏览。');await load();}
-          catch(error){message.textContent=error.message;}finally{busy=false;submit.disabled=false;}
+          catch(error){molisWorkRequest.show(message,error);}finally{busy=false;submit.disabled=false;}
         });
         void load();
       });
@@ -55,15 +52,12 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
           submit.disabled = true;
           error.hidden = true;
           try {
-            const response = await fetch("/api/settings/projects/" + encodeURIComponent(form.dataset.projectRename) + "/rename", {
-              method: "POST", headers: molisWorkControlHeaders(),
-              body: JSON.stringify({ display_name: String(new FormData(form).get("display_name") || "").trim() }),
+            await molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectRename) + "/rename", {
+              body: { display_name: String(new FormData(form).get("display_name") || "").trim() }, fallback: L("项目改名失败"),
             });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error || L("项目改名失败"));
             location.reload();
           } catch (caught) {
-            error.textContent = caught.message || L("项目改名失败");
+            molisWorkRequest.show(error, caught);
             error.hidden = false;
             submit.disabled = false;
           }
@@ -81,7 +75,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         const error = dialog.querySelector("[data-project-delete-error]");
         const cancel = dialog.querySelector("[data-project-delete-cancel]");
         const names = dialog.querySelector("[data-project-delete-scope] span");
-        const loadNames = () => fetch("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete-scope").then((response) => response.json())
+        const loadNames = () => molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete-scope")
           .then((result) => { names.textContent = result.owners.map((owner) => owner.label).join("；"); }).catch(() => null);
         let busy = false;
         let cleanupPending = false;
@@ -101,24 +95,20 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         form.addEventListener("submit", async (event) => {
           event.preventDefault();
           if (busy || !confirmation.checked) return;
-          const headers = molisWorkControlHeaders();
-          deletionKey ||= headers["x-molis-work-idempotency-key"];
+          deletionKey ||= crypto.randomUUID();
           busy = true;
           submit.disabled = cancel.disabled = confirmation.disabled = true;
           error.hidden = true;
           submit.textContent = L("正在删除…");
           try {
-            const response = await fetch("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete", {
-              method: "POST", headers,
-              body: JSON.stringify({ delete_confirmed: true, idempotency_key: deletionKey }),
+            const result = await molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete", {
+              body: { delete_confirmed: true, idempotency_key: deletionKey }, fallback: L("项目删除失败"),
             });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error || L("项目删除失败"));
             cleanupPending = result.deletion.cleanup_state !== "complete";
             if (cleanupPending) throw new Error(L("项目已从目录移除，但本机数据清理未完成。请重试清理。"));
             location.assign(globalThis.molisWorkNavigationUrl(form.dataset.projectDirectoryHref));
           } catch (caught) {
-            error.textContent = caught.message || L("项目删除失败");
+            molisWorkRequest.show(error, caught);
             error.hidden = false;
             busy = false;
             cancel.disabled = confirmation.disabled = false;
@@ -145,9 +135,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
           button.disabled = true;
           if (error) error.hidden = true;
           try {
-            const response = await fetch("/api/settings/demo", { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({ action, user_confirmed: true }) });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error || L("demo 操作失败"));
+            const result = await molisWorkRequest("/api/settings/demo", { body: { action, user_confirmed: true }, fallback: L("demo 操作失败") });
             if (toast) {
               toast.textContent = result.message || L("demo 已更新");
               toast.classList.add("is-visible");
@@ -155,7 +143,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
             }
             setTimeout(() => location.reload(), 450);
           } catch (caught) {
-            if (error) { error.textContent = caught.message || L("demo 操作失败"); error.hidden = false; }
+            if (error) { molisWorkRequest.show(error, caught); error.hidden = false; }
             button.disabled = false;
           }
         });
@@ -218,12 +206,10 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         submit.disabled = true;
         error.hidden = true;
         try {
-          const response = await fetch("/api/settings/projects", { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({ display_name: String(values.get("display_name") || "").trim(), user_confirmed: true }) });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || L("项目创建失败"));
+          const result = await molisWorkRequest("/api/settings/projects", { body: { display_name: String(values.get("display_name") || "").trim(), user_confirmed: true }, fallback: L("项目创建失败") });
           location.assign(globalThis.molisWorkNavigationUrl(result.project_path));
         } catch (caught) {
-          error.textContent = caught.message || L("项目创建失败");
+          molisWorkRequest.show(error, caught);
           error.hidden = false;
           submit.disabled = false;
         }
@@ -254,9 +240,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
       details.dataset.loaded = "pending";
       target.innerHTML = "<p class=\\"project-settings-embed-pending\\">" + L("正在打开…") + "</p>";
       try {
-        const response = await fetch(details.dataset.settingsEmbed, { headers: { Accept: "text/html" } });
-        if (!response.ok) throw new Error();
-        target.innerHTML = await response.text();
+        target.innerHTML = await molisWorkRequest(details.dataset.settingsEmbed, { as: "text", headers: { Accept: "text/html" } });
         details.dataset.loaded = "1";
         bindEmbedded(details);
       } catch {

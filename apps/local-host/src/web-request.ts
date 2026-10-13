@@ -79,11 +79,41 @@ import { serviceProcessId } from "./web-runtime-settings.js";
 import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleLocalCatalogWebRequest } from "./web-catalog.js";
 import { webProjectDeletionPorts } from "./project-deletion-service.js";
-import { handleAgentReviewHttp } from "./agent-review-http.js";
+import { handleAgentReviewHttp, handleUnscopedAgentReviews } from "./agent-review-http.js";
+import { computerHolderFor } from "./computer/computer-surfaces.js";
+import { handleUnscopedComputerFiles } from "./computer/computer-record-source.js";
 import { inspectGitIndex } from "./workspace-git-index.js";
 import { isPluginEventManagementPath } from "./plugin-event-http.js";
 import { handleCodingPluginHttp, type CodingSurfacePorts } from "./coding-surface.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
+
+/** Review HTTP, including a confirm for the round that holds the computer while another project is open. */
+async function agentReviews(
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+  localHost: MolisWorkLocalHost,
+  projectId: string,
+  project: { project_id: string } | null | undefined,
+  agentHost: AgentHost,
+  agentReady: () => Promise<void>,
+  composition: LocalWebComposition,
+  homeDirectory: string | undefined,
+): Promise<boolean> {
+  if (url.pathname !== "/api/agent/reviews" && !url.pathname.startsWith("/api/agent/reviews/")) return false;
+  await agentReady();
+  return handleAgentReviewHttp(request, response, url, {
+    projectId,
+    agentHost,
+    actorId: LOCAL_PERSON_ACTOR_ID,
+    computerHolder: () => computerHolderFor(localHost)?.() ?? null,
+    observeGitIndex: review => {
+      if (review.project_id !== projectId || review.operation?.kind !== "git-index" || review.document.kind !== "git-index" || !project) throw new Error("原操作没有可核对的项目工作区");
+      return inspectGitIndex(review.operation.workspace_id, review.document, async () => composition.withCatalog(
+        { homeDirectory }, catalog => catalog.listWorkspaceDirectory(project.project_id)));
+    },
+  });
+}
 
 export async function handleMolisWorkWebRequest(
   request: IncomingMessage,
@@ -127,11 +157,12 @@ export async function handleMolisWorkWebRequest(
   if (resolved.kind === "catalog_index") {
     // Personal memories are managed from the global settings, outside any project.
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost })) return;
-    // Personal work needs no project: the Assistant answers on the project list too, in the person's own scope.
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, {
       localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady,
       projectTitle: async projectId => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }),
     })) return;
+    if (serverOptions.homeDirectory && url.pathname.startsWith("/api/side/files/") && await handleUnscopedComputerFiles(request, response, url, serverOptions.homeDirectory)) return;
+    if (await handleUnscopedAgentReviews(request, response, url, { agentHost, actorId: LOCAL_PERSON_ACTOR_ID, computerHolder: () => computerHolderFor(localHost)?.() ?? null, ready: agentReady })) return;
     await handleLocalCatalogWebRequest(request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, resolved.projects, composition,
       webProjectDeletionPorts({ isPanelAlive: panelId => ptyHost.alive(panelId), feedSchedulers, webViewCache, localHost }),
       async () => { await agentReady(); return agentHost.descriptors(); });
@@ -227,7 +258,7 @@ export async function handleMolisWorkWebRequest(
               const healthy = new Set(catalog.models.health().filter((entry) => entry.status === "ready").map((entry) => entry.provider_id));
               return catalog.models.list().filter((entry) => healthy.has(entry.provider_id)).flatMap((provider) =>
                 provider.models.filter((model) => model.enabled).map((model) => ({ provider_id: provider.provider_id,
-                  model_id: model.model_id, label: `${provider.display_name} · ${model.display_name ?? model.model_id}` })));
+                  model_id: model.model_id, label: `${provider.display_name} · ${model.display_name ?? model.model_id}`, reasoning_effort: model.reasoning_effort === true })));
             }),
           },
         };
@@ -348,18 +379,7 @@ export async function handleMolisWorkWebRequest(
         // The Host's review queue. Deciding sits under /api/, so the local
         // control guard already required same-origin, the token and a one-time
         // key before anything here runs.
-        if (url.pathname === "/api/agent/reviews" || url.pathname.startsWith("/api/agent/reviews/")) await agentReady();
-        if (await handleAgentReviewHttp(request, response, url, {
-          projectId: options.projectId,
-          agentHost,
-          // 与本地 Web 其它写操作一致的操作者标识
-          actorId: LOCAL_PERSON_ACTOR_ID,
-          observeGitIndex: review => {
-            if (review.project_id !== options.projectId || review.operation?.kind !== "git-index" || review.document.kind !== "git-index" || !options.project) throw new Error("原操作没有可核对的项目工作区");
-            return inspectGitIndex(review.operation.workspace_id, review.document, async () => composition.withCatalog(
-              { homeDirectory: serverOptions.homeDirectory }, catalog => catalog.listWorkspaceDirectory(options.project!.project_id)));
-          },
-        })) return;
+        if (await agentReviews(request, response, url, localHost, options.projectId, options.project, agentHost, agentReady, composition, serverOptions.homeDirectory)) return;
         if (request.method === "GET" && url.pathname === "/api/board") {
           sendJson(response, 200, await readWebView());
           return;

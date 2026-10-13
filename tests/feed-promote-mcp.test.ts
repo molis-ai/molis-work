@@ -11,6 +11,7 @@ import { feedItemActions } from "@molis-ai/molis-work-plugin-feed";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 const PROMOTE = "molis_work_v1_action_feed.items.promote__v1";
 const CLIENT = "runtime:codex";
@@ -32,7 +33,9 @@ async function fixture() {
   const item = createLocalFeedApplication(seed.db).ingestItem({ source, externalId: "mcp-promotion", title: "MCP promotion", summary: "s", body: "b",
     priority: "high", occurredAt: "2026-09-08T00:00:00.000Z", attention: false }).item;
   seed.close();
-  await grantGoalsMcp(host, homeDirectory, project, CLIENT, [feedItemActions.promote, feedItemActions.offers, { capability_id: "home.actions.prepare" }, { capability_id: "home.actions.execute" }]);
+  // The Host is bound to this Home, so it is the Host that serves the access settings the grants go through.
+  const served = await serveTestHost(null, { home: homeDirectory, host });
+  await grantGoalsMcp(served, project, CLIENT, [feedItemActions.promote, feedItemActions.offers, { capability_id: "home.actions.prepare" }, { capability_id: "home.actions.execute" }]);
   const server = (nativeRuntimeSessionId?: string) => new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173" },
     { homeDirectory, ...(nativeRuntimeSessionId ? { nativeRuntimeSessionId } : {}),
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false } }, host);
@@ -44,7 +47,7 @@ async function fixture() {
     })),
   });
   return { item, reference, host, server, written,
-    done: async () => { await host.close(); catalog.close(); rmSync(directory, { recursive: true, force: true }); } };
+    done: async () => { await served.close(); await host.close(); catalog.close(); rmSync(directory, { recursive: true, force: true }); } };
 }
 
 test("a Runtime without a stable Session cannot write Goals' session-authored records through the promotion", async () => {

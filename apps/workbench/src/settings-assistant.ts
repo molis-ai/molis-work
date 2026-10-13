@@ -48,6 +48,20 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
         ${projectId ? `<a class="mw-btn mw-btn--ghost mw-btn--sm" href="/projects/${encodeURIComponent(projectId)}/settings/memory">${L("去项目记忆")}</a>` : ""}
       </div>
     </section>
+    <section class="settings-section assistant-computer" aria-labelledby="assistant-computer-title" data-assistant-computer>
+      <h2 id="assistant-computer-title">${L("使用电脑")}</h2>
+      <p class="settings-muted">${L("开启后，助理能看这台 Mac 的屏幕、操作其他桌面应用，完成跨应用的多步任务；每一步先问你，过程在侧栏的「电脑」标签实时可见。它需要系统授权、会影响整台电脑，所以默认关闭。网页上的事仍用侧栏浏览器。")}</p>
+      <label class="settings-check"><input type="checkbox" data-computer-enable> ${L("允许助理使用电脑")}</label>
+      <p class="settings-muted" data-computer-perms></p>
+      <h3 class="settings-subhead">${L("禁区应用")}</h3>
+      <p class="settings-muted">${L("助理连看都不看的应用。系统设置、钥匙串、密码和支付类应用，以及 Molis Work 自己，已经在禁区里、不能移除；你可以再加别的。")}</p>
+      <div data-computer-forbidden><p class="settings-muted">${L("正在读取…")}</p></div>
+      <form class="assistant-rule-form" data-computer-forbid-form>
+        <input class="mw-input" type="text" data-computer-forbid-id placeholder="${L("应用标识，如 com.example.app")}" aria-label="${L("应用标识")}">
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${L("加入禁区")}</button>
+      </form>
+      <p class="settings-form-error" data-computer-error role="alert" hidden></p>
+    </section>
     <p class="prompt-settings-notice" role="note">${L("读取类能力直接使用；修改类每次执行前都会请你确认准确参数；不可撤回的操作每次单独确认。")}</p>
     <div class="prompt-settings-tools">
       <div class="mw-toggle-group settings-segmented" role="group" aria-label="${L("范围")}" data-assistant-scope-group>
@@ -79,12 +93,8 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
   // The Assistant's routes answer for the project whose path they are under; the Home's own, for personal work.
   const base = () => (scope === "project" && project ? "/projects/" + encodeURIComponent(project) : "") + "/api/assistant";
-  const api = async (path, method, payload) => {
-    const response = await fetch(base() + path, method === "POST" ? { method, headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload || {}) } : undefined);
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
-    return data;
-  };
+  const api = (path, payload) => molisWorkRequest(base() + path, { body: payload });
+  const problem = (failure) => { const note = el("p", "settings-form-error"); molisWorkRequest.show(note, failure); return note; };
   const EFFECT = { read: "读取", write: "修改", irreversible: "不可撤回" };
   function paint() {
     const query = String(search.value || "").trim().toLowerCase();
@@ -110,8 +120,8 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
         toggle.setAttribute("aria-label", (row.enabled ? L("关闭") : L("打开")) + "：" + row.title);
         toggle.addEventListener("change", async () => {
           toggle.disabled = true;
-          try { await api("/capabilities", "POST", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, enabled: toggle.checked }); row.enabled = toggle.checked; paint(); }
-          catch (failure) { toggle.checked = row.enabled; toggle.disabled = false; alert(failure.message); }
+          try { await api("/capabilities", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, enabled: toggle.checked }); row.enabled = toggle.checked; paint(); }
+          catch (failure) { toggle.checked = row.enabled; toggle.disabled = false; alert(molisWorkRequest.text(failure)); }
         });
         head.append(copy, meta, control);
         item.append(head);
@@ -121,8 +131,8 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
           mode.append(box, document.createTextNode(" " + L("每次执行前都请我确认（它可以撤销，默认在你明确要求时直接执行）")));
           box.addEventListener("change", async () => {
             box.disabled = true;
-            try { await api("/capabilities", "POST", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, confirm_always: box.checked }); row.confirm_always = box.checked; }
-            catch (failure) { box.checked = Boolean(row.confirm_always); alert(failure.message); }
+            try { await api("/capabilities", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, confirm_always: box.checked }); row.confirm_always = box.checked; }
+            catch (failure) { box.checked = Boolean(row.confirm_always); alert(molisWorkRequest.text(failure)); }
             finally { box.disabled = false; }
           });
           item.append(mode);
@@ -136,7 +146,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const load = async () => {
     body.replaceChildren(el("p", "settings-muted", L("正在读取…")));
     try { rows = (await api("/capabilities")).capabilities; paint(); }
-    catch (failure) { body.replaceChildren(el("p", "settings-form-error", failure.message)); }
+    catch (failure) { body.replaceChildren(problem(failure)); }
   };
   root.querySelectorAll("[data-assistant-scope]").forEach((button) => button.addEventListener("click", () => {
     scope = button.dataset.assistantScope;
@@ -168,16 +178,11 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
         list.append(row);
       });
       contributionsBody.replaceChildren(data.contributions.length ? list : el("p", "settings-muted", L("这里还没有向助理开放能力的插件")));
-    } catch (failure) { delete contributions.dataset.loaded; contributionsBody.replaceChildren(el("p", "settings-form-error", failure.message)); }
+    } catch (failure) { delete contributions.dataset.loaded; contributionsBody.replaceChildren(problem(failure)); }
   };
   contributions.addEventListener("toggle", () => { if (contributions.open) loadContributions(); });
   // Attention rules belong to the person, not to a project: always the Home's own route.
-  const rulesApi = async (path, payload) => {
-    const response = await fetch("/api/assistant" + path, payload ? { method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload) } : undefined);
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
-    return data;
-  };
+  const rulesApi = (path, payload) => molisWorkRequest("/api/assistant" + path, { body: payload });
   const SURFACES = [["pages", "Pages"], ["coding", "Coding"], ["goals", "Goals"], ["jelly", "Jelly"], ["cognia", "Cognia"], ["dataset", "Dataset"], ["form", "Forms"], ["workflows", "工作流程"], ["lingguang", "灵光"], ["home", "项目首页"]];
   const surfaceName = (id) => (SURFACES.find((row) => row[0] === id) || [id, id])[1];
   const KIND = { failed: "失败", "needs-decision": "需要决定", completed: "做完", result: "交回结果", material: "相关新资料", reminder: "你设的提醒" };
@@ -211,7 +216,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   };
   const run = async (work) => {
     rulesError.hidden = true;
-    try { paintRules((await work()).rules); } catch (failure) { rulesError.textContent = failure.message; rulesError.hidden = false; }
+    try { paintRules((await work()).rules); } catch (failure) { molisWorkRequest.show(rulesError, failure); rulesError.hidden = false; }
   };
   const exceptOf = (form) => [...form.querySelectorAll("[data-assistant-rule-except]")].filter((box) => box.checked).map((box) => box.dataset.assistantRuleExcept);
   root.querySelector("[data-assistant-rule-quiet]").addEventListener("submit", (event) => {
@@ -231,13 +236,12 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   run(() => rulesApi("/rules"));
   // Memory is managed on its own pages (个人 → 记忆, 项目记忆): here only how much there is and whether the Assistant may use it.
   const memorySummary = root.querySelector("[data-assistant-memory-summary]");
-  const overview = async (url) => { const response = await fetch(url); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || ""); return data; };
   (async () => {
     try {
-      const personal = await overview("/api/memory/overview?scope=personal");
+      const personal = await molisWorkRequest("/api/memory/overview?scope=personal");
       const parts = [L("个人记忆") + " " + ((personal.counts && personal.counts.personal) || 0) + " " + L("条")];
       if (project) {
-        const own = await overview("/projects/" + encodeURIComponent(project) + "/api/memory/overview?scope=project");
+        const own = await molisWorkRequest("/projects/" + encodeURIComponent(project) + "/api/memory/overview?scope=project");
         parts.push(L("这个项目的记忆") + " " + ((own.counts && own.counts.project) || 0) + " " + L("条"));
       }
       const waiting = (personal.candidates || []).length;
@@ -259,17 +263,58 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
       + (usage.daily_tokens ? " · " + L("上限") + " " + usage.daily_tokens.toLocaleString() : " · " + L("不设上限"));
     if (document.activeElement !== budgetInput) budgetInput.value = usage.daily_tokens ? String(usage.daily_tokens) : "";
   };
-  const usageApi = async (payload) => {
-    const response = await fetch("/api/assistant" + (payload ? "/budget" : "/usage"), payload ? { method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload) } : undefined);
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
-    return data;
-  };
-  const runUsage = async (work) => { budgetError.hidden = true; try { paintUsage(await work()); } catch (failure) { budgetError.textContent = failure.message; budgetError.hidden = false; } };
+  const usageApi = (payload) => molisWorkRequest("/api/assistant" + (payload ? "/budget" : "/usage"), { body: payload });
+  const runUsage = async (work) => { budgetError.hidden = true; try { paintUsage(await work()); } catch (failure) { molisWorkRequest.show(budgetError, failure); budgetError.hidden = false; } };
   budgetForm.addEventListener("submit", (event) => { event.preventDefault(); const raw = String(budgetInput.value || "").trim(); runUsage(() => usageApi({ daily_tokens: raw ? Number(raw) : null })); });
   runUsage(() => usageApi());
   if (location.hash === "#contributions") { contributions.open = true; loadContributions(); }
   load();
+
+  // 使用电脑: the master switch (off by default), the helper's system-permission status, and the forbidden apps the person added.
+  const computer = root.querySelector("[data-assistant-computer]");
+  if (computer) {
+    const enable = computer.querySelector("[data-computer-enable]");
+    const permsEl = computer.querySelector("[data-computer-perms]");
+    const forbiddenEl = computer.querySelector("[data-computer-forbidden]");
+    const forbidForm = computer.querySelector("[data-computer-forbid-form]");
+    const forbidId = computer.querySelector("[data-computer-forbid-id]");
+    const computerError = computer.querySelector("[data-computer-error]");
+    const PERM = { accessibility: L("辅助功能"), screen_recording: L("屏幕录制"), input_monitoring: L("输入监控") };
+    const computerApi = async (path, payload) => {
+      const response = await fetch("/api/computer" + path, payload ? { method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload) } : undefined);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
+      return data;
+    };
+    const paintForbidden = (forbidden) => {
+      forbiddenEl.replaceChildren();
+      if (!forbidden || !forbidden.length) { forbiddenEl.append(el("p", "settings-muted", L("你还没有额外添加禁区应用。"))); return; }
+      const list = el("ul", "prompt-list");
+      forbidden.forEach((app) => {
+        const item = el("li", "prompt-row");
+        item.append(el("span", "", (app.name || app.bundle_id) + "（" + app.bundle_id + "）"));
+        const remove = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("移除"));
+        remove.type = "button";
+        remove.addEventListener("click", () => runComputer(() => computerApi("/forbidden", { remove: app.bundle_id }).then((data) => paintForbidden(data.forbidden))));
+        item.append(remove);
+        list.append(item);
+      });
+      forbiddenEl.append(list);
+    };
+    const paintPerms = async () => {
+      if (!enable.checked) { permsEl.textContent = ""; return; }
+      try {
+        const data = await computerApi("/permissions");
+        if (!data.permissions) { permsEl.textContent = data.problem ? L("电脑助手：") + data.problem : L("电脑助手尚未就绪。"); return; }
+        const missing = Object.keys(data.permissions).filter((key) => !data.permissions[key]).map((key) => PERM[key] || key);
+        permsEl.textContent = missing.length ? L("还缺系统授权：") + missing.join("、") + L("。在侧栏的「电脑」标签里按引导授权。") : L("系统授权齐全。");
+      } catch (failure) { permsEl.textContent = failure.message; }
+    };
+    const runComputer = async (work) => { computerError.hidden = true; try { await work(); } catch (failure) { computerError.textContent = failure.message; computerError.hidden = false; } };
+    enable.addEventListener("change", () => runComputer(async () => { const data = await computerApi("/settings", { enabled: enable.checked }); enable.checked = data.enabled; await paintPerms(); }));
+    forbidForm.addEventListener("submit", (event) => { event.preventDefault(); const id = String(forbidId.value || "").trim(); if (!id) return; runComputer(async () => { const data = await computerApi("/forbidden", { bundle_id: id, name: id }); forbidId.value = ""; paintForbidden(data.forbidden); }); });
+    runComputer(async () => { const data = await computerApi("/settings"); enable.checked = data.enabled; paintForbidden(data.forbidden); await paintPerms(); });
+  }
 };
 globalThis.molisWorkBindAssistantSettings(document);
 `;

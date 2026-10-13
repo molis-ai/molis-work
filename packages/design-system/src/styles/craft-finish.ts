@@ -962,8 +962,7 @@ const CRAFT_BASE_STYLES = `
   /* A later round opens with when it began. */
   ${ASSIST} .assistant-round-time { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
   ${ASSIST} .assistant-round-time::before, ${ASSIST} .assistant-round-time::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-  /* What a round carried reads as a line under the person's own message. */
-  /* The conversation: the person's words on the right, the assistant's answer as text, what it did as quiet lines. */
+  /* The conversation: the person's words on the right, the Host's in the middle, the answer as text, what it did as quiet lines. */
   ${ASSIST} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 16px; font-size: 13px; line-height: 1.6; overscroll-behavior: contain; }
   ${ASSIST} .assistant-empty { color: var(--muted); }
   ${ASSIST} .assistant-empty strong { display: block; margin-bottom: 4px; color: var(--ink); font-weight: 500; }
@@ -974,6 +973,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-msg--user { align-self: flex-end; max-width: 85%; padding: 8px 12px; border-radius: 12px; background: var(--nav-active); color: var(--ink); white-space: pre-wrap; }
   ${ASSIST} .assistant-msg--assistant { color: var(--ink); }
   ${ASSIST} .assistant-msg--note { font-size: 12px; color: var(--muted); }
+  ${ASSIST} .assistant-msg--host { align-self: center; max-width: 85%; padding: 4px 12px; border: 1px dashed var(--line); border-radius: 999px; color: var(--muted); font-size: 12px; text-align: center; white-space: pre-wrap; }
   ${ASSIST} .assistant-rich > :last-child { margin-bottom: 0; }
   ${ASSIST} .assistant-rich p { margin: 0 0 8px; }
   ${ASSIST} .assistant-rich :is(ul, ol) { margin: 0 0 8px; padding-left: 24px; }
@@ -1572,8 +1572,8 @@ const CRAFT_BASE_STYLES = `
 
   /* Toasts: a graphite note that rises above the bar and says, with a mark, how it went. */
   ${PAGES} .toast {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 12px 16px 12px 12px; border-radius: 12px; font-size: 13px; line-height: 18px;
+    display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; width: max-content; max-width: calc(100vw - 32px);
+    padding: 12px 16px 12px 36px; border-radius: 12px; font-size: 13px; line-height: 18px;
     background: var(--tip-bg); color: var(--tip-ink);
     box-shadow: var(--shadow);
     transform: translate(-50%, 12px) scale(.97);
@@ -1581,14 +1581,13 @@ const CRAFT_BASE_STYLES = `
   }
   ${SHELL} .toast { bottom: calc(var(--dock-h) + 14px); }
   ${PAGES} .toast::before {
-    content: ""; flex: none; width: 16px; height: 16px; border-radius: 50%;
+    content: ""; position: absolute; left: 12px; top: 13px; width: 16px; height: 16px; border-radius: 50%;
     background: var(--hue-green-fill, #4cb782) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.3l2.2 2.2 4.8-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 16px no-repeat;
   }
-  ${PAGES} .toast.is-error { background: var(--tip-bg); color: var(--tip-ink); }
+  ${PAGES} .toast [data-molis-call-id] {min-height:0;padding-block:var(--reach,10px);margin-block:calc(-1*var(--reach,10px));color:inherit;text-decoration:underline;}
   ${PAGES} .toast.is-error::before {
     background: var(--hue-red-fill, #eb5757) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 4.4v4.4M8 11.3v.2' fill='none' stroke='white' stroke-width='1.9' stroke-linecap='round'/%3E%3C/svg%3E") center / 16px no-repeat;
   }
-  ${PAGES} .toast:empty::before { display: none; }
   ${PAGES} .toast.is-visible { transform: translate(-50%, 0) scale(1); }
   ${PAGES} .toast.is-visible.is-error { animation: craft-nudge 420ms var(--ease-quint) 130ms; }
   @keyframes craft-nudge { 0%, 100% { translate: 0; } 25% { translate: -4px; } 50% { translate: 3px; } 75% { translate: -2px; } }

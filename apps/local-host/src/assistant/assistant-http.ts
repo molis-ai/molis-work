@@ -113,7 +113,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: "助理在这个项目里的工作", alive: () => ports.localHost.lifecycle() === "running",
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.removeFollowUp(id); } }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
-  try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service); }
+  try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory); }
   catch (error) { console.warn("[assistant] 提醒规则动作没能登记到动作目录", error); }
   return entry;
 }
@@ -230,6 +230,13 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (parts[0] !== "works" || !parts[1]) return null;
       const workId = parts[1];
       if (method === "GET" && parts.length === 2) return { status: 200, body: await service.read(workId) };
+      // The page follows a live work by waiting for its view to change (closing the request ends the wait).
+      if (method === "GET" && parts.length === 3 && parts[2] === "wait") {
+        const ended = new AbortController(), stop = () => ended.abort();
+        response.once("close", stop);
+        try { return { status: 200, body: await service.waitForChange(workId, url.searchParams.get("since") || null, Number(url.searchParams.get("timeout") ?? 20_000) || 0, ended.signal) }; }
+        finally { response.off("close", stop); }
+      }
       if (method === "GET" && parts.length === 3 && parts[2] === "recovery") return { status: 200, body: await service.recovery(workId) };
       if (method === "GET" && parts.length === 4 && parts[2] === "materials") return { status: 200, body: { material: service.material(workId, parts[3]!) } };
       if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materialImage(workId, parts[3]!) } };

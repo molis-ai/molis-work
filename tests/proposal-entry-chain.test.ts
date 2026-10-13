@@ -5,16 +5,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkLocalHost, molisWorkHostProjectReference, initializeBoardCapability, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalTreeProposalDecisionResult, GoalTreeProposalListResult, GoalTreeApplicationApi } from "@molis-ai/molis-work-plugin-goals";
 
 test("CLI and MCP share current Goal/Relation proposal decisions across Host restart", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-proposal-chain-"));
-  const databasePath = join(directory, "project.db");
-  const projectId = "proposal-chain";
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
+  // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
+  const project = await catalog.createProject({ display_name: "Proposal chain", actor_id: "user" });
+  const { database_path: databasePath, project_id: projectId } = project;
   const host = createMolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
   const client = host.client(reference);
@@ -23,6 +27,8 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     runtimeContext: { runtime_id: "chain", stable_work_context_id: "session", host_declares_stable: true },
   };
   const runtime = new MolisWorkServer("runtime", { databasePath, projectId, webBaseUrl: "http://127.0.0.1:4173" }, runtimeHost, host);
+  // The MCP server below binds this Host to the Home, and a Home has one Host: the same Host serves the access settings the grant goes through.
+  const served = await serveTestHost(null, { home: directory, host });
   async function cli<T>(operation: string, input: object): Promise<T> {
     const lines: string[] = [];
     const original = console.log;
@@ -34,8 +40,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
   }
   const snapshot = () => client.invoke(snapshotBoardCapability, { project_id: projectId });
   try {
-    await client.invoke(initializeBoardCapability, { project_id: projectId, title: "Proposal chain", idempotency_key: "init" });
-    await grantGoalsMcp(host, directory, { project_id: projectId, database_path: databasePath }, "runtime:chain");
+    await grantGoalsMcp(served, project, "runtime:chain");
     const created = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.create__v1", {
       goal_id: "draft", title: "整理开发入口", outcome: "提案先保存，用户决定后生效", idempotency_key: "start",
     }));
@@ -142,7 +147,9 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     finally { await restarted.close(); }
   } finally {
     await runtime.close();
+    await served.close();
     await host.close();
+    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

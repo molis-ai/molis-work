@@ -2,10 +2,7 @@ export { STYLES } from "./styles/base.js";
 export { PROJECT_RULES_CLIENT_SCRIPT, PROJECT_RULES_SETTINGS_STYLES } from "@molis-ai/molis-work-plugin-goals";
 export { MORE_STYLES } from "./styles/workbench.js";
 export { RESPONSIVE_STYLES } from "./styles/responsive.js";
-export {
-  CONTROL_CLIENT_SCRIPT,
-  ONBOARDING_DISMISS_CLIENT_SCRIPT,
-} from "./scripts/control.js";
+export { ONBOARDING_DISMISS_CLIENT_SCRIPT } from "./scripts/control.js";
 export {
   PROJECT_GUIDANCE_SETTINGS_STYLES,
   SETTINGS_STYLES,

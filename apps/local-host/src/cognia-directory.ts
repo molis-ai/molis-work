@@ -1,16 +1,17 @@
 import { constants } from "node:fs";
 import { lstat, open, readdir, realpath } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, sep } from "node:path";
-import { COGNIA_LIMITS, CogniaError, fileType, ignoredPath, requireCognia, type ImportFile } from "@molis-ai/molis-work-plugin-cognia";
+import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
+import { COGNIA_LIMITS, cogniaErrors, fileType, ignoredPath, requireCognia, type ImportFile } from "@molis-ai/molis-work-plugin-cognia";
 export async function scanCogniaDirectory(path: string, signal?: AbortSignal): Promise<{ locator: string; name: string; files: ImportFile[] }> {
   signal?.throwIfAborted();
   requireCognia(isAbsolute(path), "请输入绝对目录路径"); const rootStat = await lstat(path); requireCognia(rootStat.isDirectory() && !rootStat.isSymbolicLink(), "来源必须是实际目录，不能是符号链接");
   const root = await realpath(path), files: ImportFile[] = []; let total = 0;
   const within = (value: string) => { const rel = relative(root, value); return rel !== ".." && !rel.startsWith(".." + sep) && !isAbsolute(rel); };
-  const append = (file: ImportFile) => { requireCognia(files.length < COGNIA_LIMITS.files, "每批最多 1000 个文件，请选择较小目录", 413); files.push(file); };
+  const append = (file: ImportFile) => { requireCognia(files.length < COGNIA_LIMITS.files, "每批最多 1000 个文件，请选择较小目录", cogniaErrors.too_large); files.push(file); };
   const walk = async (directory: string): Promise<void> => {
     signal?.throwIfAborted();
-    const actual = await realpath(directory); requireCognia(within(actual) && actual === directory, "目录在扫描时发生变化，请重新选择", 409);
+    const actual = await realpath(directory); requireCognia(within(actual) && actual === directory, "目录在扫描时发生变化，请重新选择", cogniaErrors.conflict);
     for (const entry of await readdir(directory, { withFileTypes: true })) {
       signal?.throwIfAborted();
       const absolute = join(directory, entry.name), filePath = relative(root, absolute).split(sep).join("/");
@@ -32,7 +33,7 @@ export async function scanCogniaDirectory(path: string, signal?: AbortSignal): P
           const after = await lstat(absolute), parent = await realpath(directory); requireCognia(parent === directory && after.dev === stat.dev && after.ino === stat.ino && !after.isSymbolicLink(), "路径在扫描时发生变化");
           total += size; append({ path: filePath, data: buffer.subarray(0, size).toString("base64") });
         } finally { await handle.close(); }
-      } catch (error) { signal?.throwIfAborted(); if (error instanceof CogniaError && error.status === 413) throw error; append({ path: filePath, reason: error instanceof Error ? error.message : "读取失败" }); }
+      } catch (error) { signal?.throwIfAborted(); if (actionErrorKind(error) === "too_large") throw error; append({ path: filePath, reason: error instanceof Error ? error.message : "读取失败" }); }
     }
   };
   await walk(root); return { locator: "local:" + root, name: basename(root), files };

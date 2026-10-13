@@ -49,7 +49,7 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed", "first round");
     // Added the way the Assistant adds it: through its own action, attached to the work its round acts for.
     const actions = new ActionService();
-    registerAssistantRuleActions(actions, () => service);
+    registerAssistantRuleActions(actions, () => service, home);
     const due = new Date(Date.now() + 700);
     await actions.invoke({ actor_id: "web-user", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [], audit_actor_id: `assistant:${sent.work.work_id}` },
       ASSISTANT_FOLLOW_UP_ACTIONS.add, { text: "汇总今天的进展", at: due.toISOString(), repeat: "daily", label: "每天六点汇总" });

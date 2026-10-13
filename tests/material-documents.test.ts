@@ -9,7 +9,7 @@ import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contra
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createPagesActionHandlers, createPagesContentHandlers, openPagesStore, pagesActions, pagesManifest, PAGES_ACTION_PERMISSIONS, preparePagesImport } from "@molis-ai/molis-work-plugin-pages";
 import { readMaterialDocuments, readMaterialUploads } from "../apps/local-host/src/material-documents.js";
-import { MaterialExtractionError } from "../apps/local-host/src/material-text.js";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { preparePagesFileImport } from "../apps/local-host/src/pages-import.js";
 
 const { zipSync } = createRequire(new URL("../apps/local-host/package.json", import.meta.url))("fflate") as { zipSync(entries: Record<string, Uint8Array>, options?: { level: number }): Uint8Array };
@@ -37,7 +37,7 @@ test("DOCX/ZIP parsing cancellation and timeout release the real worker and do n
   const controller = new AbortController(), stopped = new Error("stop importing");
   const pending = readMaterialDocuments(source, { signal: controller.signal }); controller.abort(stopped);
   await assert.rejects(pending, error => error === stopped); assert.equal(ports(), initial);
-  await assert.rejects(readMaterialDocuments(source, { timeoutMs: 1 }), error => error instanceof MaterialExtractionError && error.code === "timeout");
+  await assert.rejects(readMaterialDocuments(source, { timeoutMs: 1 }), error => error instanceof ActionError && error.code === "material.timeout" && actionHttpStatus(error) === 502);
   assert.equal(ports(), initial);
   assert.match((await readMaterialDocuments(source)).documents[0]!.content, /保留事实/); assert.equal(ports(), initial);
 });

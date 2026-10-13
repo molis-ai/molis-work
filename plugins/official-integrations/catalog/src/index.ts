@@ -67,6 +67,6 @@ export { officialMethodsFor, OFFICIAL_CONNECTOR_METHODS } from "./methods.js";
 export { catalogAccountPresentation, catalogWhoami, createCatalogProvider, type CatalogWhoamiResult } from "./provider.js";
 export { CatalogLiveError } from "./http.js";
 export type { CatalogFetch } from "./types.js";
-export { readExternalDocument, ExternalDocumentImportError } from "./document-import.js";
+export { readExternalDocument, externalDocumentErrors } from "./document-import.js";
 export type { ExternalDocument, ExternalDocumentSource, ExternalDocumentImportErrorCode } from "./document-import.js";
 export { notionAuthorizationUrl, notionOAuthToken, NotionOAuthError, type NotionOAuthTokens } from "./notion-oauth.js";

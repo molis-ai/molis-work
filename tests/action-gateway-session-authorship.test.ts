@@ -6,8 +6,8 @@ import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalActionGatewayClient, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 /** The resident Host judges a Runtime client by what the gateway request says about its Session; a client that names none is marked on its context. */
 const CLIENT = "runtime:gateway-author";
@@ -27,13 +27,12 @@ test("the gateway refuses a Runtime client that names no Session for an action t
     host.actionRegistry(reference).registerProvider({ provider: { provider_id: "fixture-gateway", title: "Fixture", kind: "plugin", plugin_id: "io.molis.work.example.gateway-author" },
       definitions: [recorded], handlers: [{ ...recorded, handle: caller => { handled.push(caller.audit_actor_id ?? caller.actor_id); return { author: caller.audit_actor_id ?? caller.actor_id }; } }] });
   });
-  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address(); assert.ok(address && typeof address === "object");
-  const origin = `http://127.0.0.1:${address.port}`;
+  // The provider above lives on this Host, so this Host serves the access settings the grant goes through, and the gateway.
+  const served = await serveTestHost(null, { home, host });
+  const origin = served.origin;
   const ref = { capability_id: recorded.capability_id, version: recorded.version, provider_id: "fixture-gateway" };
   try {
-    await grantGoalsMcp(host, home, project, CLIENT, [recorded]);
+    await grantGoalsMcp(served, project, CLIENT, [recorded]);
     const bare: ActionCallContext = { actor_id: CLIENT, project_id: project.project_id, audience: "mcp", permissions: [] };
     const withoutSession = new LocalActionGatewayClient({ url: origin, homeDirectory: home, clientId: CLIENT, projectId: project.project_id });
     await withoutSession.discover(bare);
@@ -46,7 +45,7 @@ test("the gateway refuses a Runtime client that names no Session for an action t
     assert.deepEqual(await withSession.invoke(bound, ref, { text: "with session" }), { author: `${CLIENT}:s1` });
     assert.deepEqual(handled, [`${CLIENT}:s1`]);
   } finally {
-    await new Promise<void>(resolve => server.close(() => resolve()));
+    await served.close();
     await host.close();
     await rm(home, { recursive: true, force: true });
   }

@@ -67,6 +67,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 - 不变量：
   - 密钥与正文存储跟随创建时的 Home，不靠切换全局变量混用目录。
   - 钥匙串主密钥读取失败后，同一进程、Home 与配置停止自动重试；不改密文、不自动降级到文件存储。
+  - 文件后端已有密文时必须读取原有的有效密钥；缺失或无效即拒绝读取、写入和后端诊断，不生成替代 key。恢复原 key 后可重新打开。回归见 [secret-store-missing-key.test.ts](../../tests/secret-store-missing-key.test.ts)。
   - 只有部分操作需要凭据的服务用 `createLazyFileSecretStore`：读取尚未保存的引用不初始化后端。
   - 原子文件写入、日志与幂等记录由这里提供，Module 不各建一套。
   - 搜索索引是可删除的派生缓存：文件缺失、损坏或 schema 版本不符时清空重建，不读回任何业务事实。

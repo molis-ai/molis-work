@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface McpActionGrant {
   readonly client_id: string;
@@ -29,20 +30,19 @@ export function mcpToolPreferencePath(homeDirectory: string): string {
 }
 
 export function parseMcpToolPreference(value: unknown): McpToolPreference {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return EMPTY;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw invalidPreference();
   const record = value as { version?: unknown; action_grants?: unknown };
-  if (record.version !== MCP_TOOL_PREFERENCE_VERSION) return EMPTY;
-  const grants = Array.isArray(record.action_grants) ? record.action_grants.filter(isMcpActionGrant) : [];
-  // Conflicting records must not let an older enabled grant defeat a revocation.
-  const counts = new Map<string, number>();
-  for (const grant of grants) { const key = actionGrantKey(grant); counts.set(key, (counts.get(key) ?? 0) + 1); }
-  const unique = grants.filter(grant => counts.get(actionGrantKey(grant)) === 1);
-  return { version: MCP_TOOL_PREFERENCE_VERSION, action_grants: unique };
+  if (Object.keys(record).length !== 2 || Object.keys(record).some(key => key !== "version" && key !== "action_grants")
+    || record.version !== MCP_TOOL_PREFERENCE_VERSION || !Array.isArray(record.action_grants) || !record.action_grants.every(isMcpActionGrant)) throw invalidPreference();
+  // Keep every valid record: duplicates are existing facts, never absence that reopens a public default.
+  return { version: MCP_TOOL_PREFERENCE_VERSION, action_grants: record.action_grants };
 }
 
 function isMcpActionGrant(value: unknown): value is McpActionGrant {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
+  const fields = ["client_id", "project_id", "capability_id", "version", "provider_id", "permissions", "enabled"];
+  if (Object.keys(row).length !== fields.length || Object.keys(row).some(key => !fields.includes(key))) return false;
   const id = (v: unknown) => typeof v === "string" && v.trim().length > 0;
   return id(row.client_id) && (row.project_id === null || id(row.project_id)) && id(row.capability_id)
     && Number.isSafeInteger(row.version) && Number(row.version) > 0 && id(row.provider_id)
@@ -54,18 +54,36 @@ export function actionGrantKey(grant: Pick<McpActionGrant, "client_id" | "projec
 }
 
 export async function readMcpToolPreference(homeDirectory: string): Promise<McpToolPreference> {
-  try {
-    const text = await readFile(mcpToolPreferencePath(homeDirectory), "utf8");
-    return parseMcpToolPreference(JSON.parse(text) as unknown);
-  } catch {
-    return EMPTY;
-  }
+  try { return parsePreferenceText(await readFile(mcpToolPreferencePath(homeDirectory), "utf8")); }
+  catch (error) { return unreadablePreference(error); }
 }
 
 /** The final effect check reads the same atomic file and current-version parser without yielding. */
 export function readMcpToolPreferenceSync(homeDirectory: string): McpToolPreference {
-  try { return parseMcpToolPreference(JSON.parse(readFileSync(mcpToolPreferencePath(homeDirectory), "utf8")) as unknown); }
-  catch { return EMPTY; }
+  try { return parsePreferenceText(readFileSync(mcpToolPreferencePath(homeDirectory), "utf8")); }
+  catch (error) { return unreadablePreference(error); }
+}
+
+function invalidPreference(cause?: unknown): ActionError {
+  return new ActionError("actions.configuration_unavailable", "MCP 授权配置无效，已保留原文件；请修复为完整 version 2 配置后重试", { cause });
+}
+
+function parsePreferenceText(text: string): McpToolPreference {
+  let value: unknown;
+  try { value = JSON.parse(text); } catch (error) { throw invalidPreference(error); }
+  return parseMcpToolPreference(value);
+}
+
+function unreadablePreference(error: unknown): McpToolPreference {
+  if (error instanceof ActionError) throw error;
+  if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return EMPTY;
+  throw new ActionError("actions.configuration_unavailable", "MCP 授权配置无法读取，已保留原文件；请检查文件权限或路径后重试", { cause: error });
+}
+
+function assertUniqueGrants(preference: McpToolPreference): void {
+  if (new Set(preference.action_grants.map(actionGrantKey)).size !== preference.action_grants.length) {
+    throw new ActionError("actions.configuration_unavailable", "MCP 配置包含重复授权记录，已保留原文件；请明确修复配置后重试");
+  }
 }
 
 const writes = new Map<string, Promise<unknown>>();
@@ -74,16 +92,10 @@ const writes = new Map<string, Promise<unknown>>();
 export async function updateMcpToolPreference(homeDirectory: string, change: (current: McpToolPreference) => McpToolPreference): Promise<McpToolPreference> {
   const filePath = mcpToolPreferencePath(homeDirectory);
   const pending = (writes.get(filePath) ?? Promise.resolve()).catch(() => undefined).then(async () => {
-    let current: McpToolPreference;
-    try {
-      const raw = JSON.parse(await readFile(filePath, "utf8"));
-      current = parseMcpToolPreference(raw);
-      if (!raw || raw.version !== MCP_TOOL_PREFERENCE_VERSION || !Array.isArray(raw.action_grants) || raw.action_grants.length !== current.action_grants.length) {
-        throw new Error("MCP 配置包含无效或冲突的记录，已保留原文件；请先修复配置");
-      }
-    }
-    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; current = EMPTY; }
-    const preference = change(current);
+    const current = await readMcpToolPreference(homeDirectory);
+    assertUniqueGrants(current);
+    const preference = parseMcpToolPreference(change(current));
+    assertUniqueGrants(preference);
     await mkdir(path.dirname(filePath), { recursive: true });
     const temporary = `${filePath}.${randomUUID()}.tmp`;
     await writeFile(temporary, `${JSON.stringify(preference, null, 2)}\n`, "utf8");

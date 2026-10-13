@@ -3,8 +3,20 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { PrologueHost, Session } from "@prologue/sdk";
 import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentStartExecution } from "@molis-ai/molis-work-contracts/services/agent-host";
 
+interface PrologueEffects {
+  readonly host: PrologueHost;
+  call<T>(control: AgentMemoryExecutionControl, work: () => Promise<T>): Promise<T>;
+  start<T>(execution: AgentStartExecution | undefined, work: () => Promise<T>): Promise<T>;
+  session(target: Session): Session;
+  beforeEffect(): Promise<void>;
+  assertCurrent(): void;
+  accepted(): boolean;
+  detach<T>(work: () => T): T;
+  bind(memory: AgentMemoryCapability, control: AgentMemoryExecutionControl): AgentMemoryCapability;
+}
+
 /** Per-invocation SDK commit checks; accepted runs detach from the start call before driving background work. */
-export function prologueEffects(host: PrologueHost) {
+export function prologueEffects(host: PrologueHost): PrologueEffects {
   const calls = new AsyncLocalStorage<{ control: AgentMemoryExecutionControl; active: boolean; accepted: boolean }>();
   const beforeEffect = async () => { const frame = calls.getStore(); if (frame?.active) await frame.control.beforeEffect(); };
   const assertCurrent = () => { const frame = calls.getStore(); if (frame?.active) requireSynchronous(frame.control.assert_current(), "最终授权检查必须同步完成"); };

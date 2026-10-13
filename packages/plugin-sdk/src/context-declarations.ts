@@ -87,10 +87,14 @@ export function contextDeclarationProblems(key: string, operation: unknown, acti
   return [...intakeProblems(key, operation, action), ...attachProblems(key, operation, action), ...choicePlaceProblems(key, action)];
 }
 
-/** The kinds this Manifest reads objects of: each has a reader in its own actions. */
+/** The kinds this Manifest reads objects of: each has a reader in its own actions. Entries that are not shaped like actions read as none. */
 function ownKinds(manifest: Pick<PluginManifest, "actions">): ReadonlySet<string> {
-  const definitions = Array.isArray(manifest.actions) ? manifest.actions : [];
-  return new Set(definitions.filter(definition => isObject(definition.action) && isSubjectReader(definition.action)).flatMap(definition => definition.action.subject_kinds));
+  const kinds = new Set<string>();
+  for (const definition of Array.isArray(manifest.actions) ? manifest.actions : []) {
+    if (!isObject(definition) || !isObject(definition.action) || !isSubjectReader(definition.action) || !Array.isArray(definition.action.subject_kinds)) continue;
+    for (const kind of definition.action.subject_kinds) if (typeof kind === "string") kinds.add(kind);
+  }
+  return kinds;
 }
 
 /** Declarations that refer to other declarations of the same Manifest: unique ids, a `prepare` that exists, kinds it owns. */
@@ -110,8 +114,8 @@ export function inspectContextDeclarations(manifest: Pick<PluginManifest, "actio
         set.add(own);
       }
       const prepare = declared.prepare;
-      if (reference(prepare) && !definitions.some(target => target.capability_id === prepare.capability_id && target.version === prepare.version
-        && target.operation === "query" && target.action?.input_type === FRAGMENT_OFFERS_INPUT_TYPE)) {
+      if (reference(prepare) && !definitions.some(target => isObject(target) && target.capability_id === prepare.capability_id && target.version === prepare.version
+        && target.operation === "query" && isObject(target.action) && target.action.input_type === FRAGMENT_OFFERS_INPUT_TYPE)) {
         problems.push(`能力 ${key} 的${name}的 prepare ${prepare.capability_id}@${prepare.version} 不是本插件的选区动作查询（defineFragmentOffersAction）`);
       }
     }
@@ -121,7 +125,7 @@ export function inspectContextDeclarations(manifest: Pick<PluginManifest, "actio
     }
   }
   for (const view of Array.isArray(manifest.ui.views) ? manifest.ui.views : []) {
-    if (view.objects === undefined) continue;
+    if (!isObject(view) || view.objects === undefined) continue;
     if (view.slot !== "side") problems.push(`视图 ${view.view_id} 的 objects 只能用在 side 视图上`);
     else if (!Array.isArray(view.objects) || view.objects.length === 0 || view.objects.length > 8 || view.objects.some(kind => !words(kind, 80)) || new Set(view.objects).size !== view.objects.length) {
       problems.push(`视图 ${view.view_id} 的 objects 无效：一到八个不重复的对象种类`);

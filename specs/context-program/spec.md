@@ -2,6 +2,8 @@
 
 > 接续请先读文末第 20 节「远端交接（2026-10-13，当前接续入口）」，再读第 16 节的证据。第 17 节的旧交接已被取代。
 
+> 统筹更正（2026-10-13 晚）：本行之后的状态句写于知道 #471/#472 之前。#411 具备条件可以先于 #408 合；右栏电脑格改接 #471 的实现。先读 §20 开头的「统筹补充」。
+
 状态：执行中（2026-10-13）。W0 原型、W1-1 到 W1-8、W1-2、W1-6、W2-0 与 W2（浮条取代底栏、Pages 迁到浮条）已在交接分支 #411 里做完并通过工程用例；真实 Jev 评估、桌面原生拖出、W2-02/05/08 的用例、#411 与 main 的冲突和归因比对未完成，没有一骏本人验收。现行范围、证据和下一步以[总纲第 16.4 节与第 20 节](../context-program/spec.md)为准；标为 2026-10-09 的现状表是历史快照。
 
 本文把三批需求合成一套设计，三份子需求书各管一块，交叉的地方以本文为准：
@@ -936,6 +938,13 @@ W2 自己的验收（在 T01–T09 之外）：
 > - **#471**（yijunw0212，10-13 08:24 UTC，78 个文件）把桌面 Computer Use 合进 main，并把 main 的 vendored SDK 换成 `prologue-sdk-0.0.0-rc.1-computer-use.tgz`。它的来源是 Prologue `d4908c11`（分支 `feat/desktop-computer-use`，基于 `c4b9fde3` = `4f7110fe` + 采用修正 + 5 个 Computer Use 提交）；provenance 写着 `pushed: false`，这个提交**不在 Prologue main，也不在 GitHub 远端**。这份包**不含**已进 Prologue main 的 S1–S3、带类型问卷（`a06ae62e`）、P1 合同、P2a–P2f。main 上同时还留着旧的 side-panel-memory 包与补丁（两份 tgz）。#471 还新增了右栏的电脑格（`apps/workbench/src/side-panel-computer.ts`）、`contracts/services/computer.ts`、`services/ui-surfaces.ts`，改了助理服务、`assistant-island.ts`、`prologue-node.ts`、`prologue-stream.ts`、`contracts/services/agent-host.ts`，并把 10-09 版的 `specs/ai-interaction-experience/spec.md` 与参考图带进了 main。
 > - **#472**（yijunw0212，10-13 10:54 UTC，93 个文件 +3399/−953）把旧采用树 `feat/prologue-adoption` 的 10 个提交（10-09 的 `77fde104`…`8b1a0522`）合进 main：一轮的推理力度、运行中换模型、逐轮写入记录（约等于 A1）、灵光流式（A3 的一部分）、助理把交出去的工作收回来后接着做（`8b1a0522`「第 14 项」，A0 当时明确不纳入的私有接续）、变化等待（`b3235bb1`/`8c0b60fb`，约等于 A4）。它沿用 #471 的 computer-use 包，没有换包。main 上的 `specs/prologue-adoption/spec.md` 是 10-09 的旧版（标题「Prologue 新能力接入：修复、适配与功能优化」）。
 > - 统筹层的说明与后续顺序见远端分支 `coordination/handoff-2026-10-13` 的 `coordination/2026-10-13/README.md` §2a。
+> - **以下更正优先于本节下文（统筹审查，2026-10-13）：**
+>   1. 上面「对本线的影响」第 2 条列的直接冲突文件不准。实测把 main 合进 #411 只冲突 4 个：`apps/workbench/src/page-assets.ts`、`packages/design-system/README.md`、`tooling/gates/baseline.json`、`tooling/gates/page-assets.json`；`apps/local-host/src/index.ts`、`specs/README.md` 能自动合并，`package.json` 不再冲突，所以 §20.4-2 里 `test:security` 那一步不适用。
+>   2. 上面第 3 条「顺序不变（排在采用线之后）」与 §20.2、§20.5-5「#408 第一，#411 第二」：已过时。#411 具备条件（W1-4 回归已修、合 main 后防腐复查过、定向用例与基线比对过）就可以先合（README §2a-4）。
+>   3. §20.2「PR #446 … 统筹来关」：#446 已关闭。#411 的 head 现在是 `8c27b372`（代码 head 仍是 `be29dd53`，之后都是文档）。
+>   4. §20.5「右栏『电脑』那一格归 Computer Use 原负责人，本线只留位置」：以上面第 1 条为准——#471 已在 main 实现电脑格，合 main 后改接它。
+>   5. §20.8 的工作规则补两条：模型分配（规划用 Opus 5.5 high/xhigh，执行用 Sonnet 5.5 xhigh/high）；提交身份 `jing xu <jing.xu.sandra@gmail.com>`，提交说明结尾带 `Co-Authored-By` 行。原文见 README §3。
+> - 文中 `coordination/2026-10-13/…` 都是远端分支 `coordination/handoff-2026-10-13` 上的文件（原来写的本机路径 `.claude/locks/…` 已统一改成这里）。
 >
 > **对本线的影响：**
 > 1. #471 在 main 上实现了右栏的电脑格（`apps/workbench/src/side-panel-computer.ts`、`contracts/services/computer.ts`、`services/ui-surfaces.ts`）。W0/W1 里「电脑」格原来只是占位、归 Computer Use 原负责人；合 main 后改成接 #471 的实现（只留位置的说明删掉），右栏六格的落点、拖放与浮条在电脑格上的行为按 #471 的表面核对。
@@ -993,7 +1002,7 @@ W2 自己的验收（在 T01–T09 之外）：
 ### 20.4 没完成
 
 1. **已确认的回归（排第一，这一轮只记录、不修）**：`tests/action-artifact-references.test.ts` 的「declarations that are not what the shape rules expect do not make the check throw」在批量集成分支（main `894b917a` + #408 + W1 栈）上 1ms 就失败，干净基线 `894b917a` 上通过；重跑结果一样，不是负载问题。堆栈：`TypeError: Cannot read properties of null (reading 'action')`，在 `packages/plugin-sdk/src/context-declarations.ts` 的 `ownKinds`（93:30，filter 回调在 93:71）→ `inspectContextDeclarations`（100:17）→ `packages/plugin-sdk/src/manifest.ts` 的 `assertV2Blocks`（236:20）→ `parsePluginManifest`（116:5）。来源是 W1-4（`e4062fce`）。形状不对的声明（比如条目是 `null`）应该作为问题报告出来，不能抛错。修法：在 `ownKinds` 和 `inspectContextDeclarations` 里先按形状过滤或报告，再读 `.action`；**断言不放宽**。
-2. **#411 与 main 的冲突**：GitHub 报告有冲突，没解。做法：`git fetch git@github.com:molis-ai/molis-work.git main`，合 `FETCH_HEAD`（不 rebase、不 force-push）；`package.json` 的 `test:security` 三方合并（两边都留）；`tooling/gates/page-assets.json`、`baseline.json`、`tooling/gates/api/**` 不手工合：取 main 的，再 `node scripts/gates/page-assets.mjs --update --base origin/main`、`node scripts/check-health-gates.mjs --update --base origin/main`、`node scripts/gates/api-snapshot.mjs --update` 重新生成；解完重跑防腐清单 M1、M2（`.claude/locks/ANTI-CORRUPTION-REVIEW.md` 的内容在 20.6 概述）。
+2. **#411 与 main 的冲突**：GitHub 报告有冲突，没解。做法：`git fetch git@github.com:molis-ai/molis-work.git main`，合 `FETCH_HEAD`（不 rebase、不 force-push）；`package.json` 的 `test:security` 三方合并（两边都留）；`tooling/gates/page-assets.json`、`baseline.json`、`tooling/gates/api/**` 不手工合：取 main 的，再 `node scripts/gates/page-assets.mjs --update --base origin/main`、`node scripts/check-health-gates.mjs --update --base origin/main`、`node scripts/gates/api-snapshot.mjs --update` 重新生成；解完重跑防腐清单 M1、M2（`coordination/2026-10-13/ANTI-CORRUPTION-REVIEW.md` 的内容在 20.6 概述）。
 3. **6 个分屏浏览器用例失败**，两轮都败，还没和干净基线比对：`workbench-hidden-refresh`、`workbench-deferred-clients`、`workbench-tab-workspace`、`workbench-pane-feed` 的 3 个。失败形态是 CDP 超时和「Navigation did not finish」，当时机器负载均值约 30，所以可能是环境，也可能是窗格里的浮条（在窗格文档里多建了一个浮条）拖慢或卡住了页面。判断办法：用干净 main 的构建（统筹有基线工作树）跑同样 6 个文件对比，再在安静时段单独跑一遍。
 4. **小批浏览器用例复跑**：`contextual-interaction`、`context-toolbar`、`pages-actions`、`assistant-dock-ime`、`workbench-tab-workspace`、`workbench-deferred-clients`，确认「离开文档浮条与面板消失」的修复，并看 `assistant-dock-ime`（第一轮败，与底栏行无关，疑似负载）。
 5. **缺测试的验收编号**：W2-02（窗格里的浮条画在窗格自己的文档里；悬停或聚焦的按钮在判断到达时不移动；Esc 收起记「忽略」——需要一条分屏用例）、W2-05（⌘K 打开链接面板）、W2-08（开场建议选了动作后出错，经 `host.showToast` 显示）。W2-04 已改成「等着的结果不丢」（§19.8），对应用例在 `contextual-interaction.e2e`。
@@ -1005,7 +1014,7 @@ W2 自己的验收（在 T01–T09 之外）：
 
 1. 先修 20.4 第 1 条的回归（`ownKinds` 对形状不对的声明不抛错，改完跑 `tests/action-artifact-references.test.ts` 与 `plugin-context-declarations`、`plugin-manifest-v2`）。前置：恢复通知；这是 W1-4 的 bug，和 main 的冲突无关，可以先于下一条做。
 2. 解 #411 的冲突并推送（20.4 第 2 条）。前置：恢复通知；`secrets:check` 先过；不 force-push。
-3. 等统筹的归因比对；如果 6 个分屏用例是本线引入的（窗格里的浮条），先修；不是则记入 16.4。前置：browser 锁（`.claude/locks/slot.sh`，一次只一批）。
+3. 等统筹的归因比对；如果 6 个分屏用例是本线引入的（窗格里的浮条），先修；不是则记入 16.4。前置：browser 锁（`coordination/2026-10-13/tools/slot.sh`，一次只一批）。
 4. 补 W2-02、W2-05、W2-08 的用例和浮条章节（20.4 第 5、6 条）。
 5. #411 合进 main 排在 #408 之后；统筹合。
 6. W1-9 门禁 PR（单独提，先告诉统筹）。
@@ -1049,7 +1058,7 @@ W2 自己的验收（在 T01–T09 之外）：
 
 ### 20.10 怎么复现
 
-没有 `pnpm` 在 PATH 里时，先把装有 pnpm/corepack 的目录加进 PATH。构建和浏览器用例要走锁（`.claude/locks/slot.sh`，在统筹的主检出里）：
+没有 `pnpm` 在 PATH 里时，先把装有 pnpm/corepack 的目录加进 PATH。构建和浏览器用例要走锁（`coordination/2026-10-13/tools/slot.sh`，在统筹的主检出里）：
 
 ```sh
 pnpm install --frozen-lockfile --offline

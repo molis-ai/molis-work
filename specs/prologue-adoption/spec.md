@@ -823,6 +823,20 @@ A0 执行记录（下列历史方案记录之后继续）：
 
 ## 7. 远端交接（2026-10-13，当前接续入口）
 
+> **统筹补充（2026-10-13 晚，先读）：暂停期间 main 上有两次大合并，本节下文写于知道它们之前。**
+>
+> - **#471**（yijunw0212，10-13 08:24 UTC，78 个文件）把桌面 Computer Use 合进 main，并把 main 的 vendored SDK 换成 `prologue-sdk-0.0.0-rc.1-computer-use.tgz`。它的来源是 Prologue `d4908c11`（分支 `feat/desktop-computer-use`，基于 `c4b9fde3` = `4f7110fe` + 采用修正 + 5 个 Computer Use 提交）；provenance 写着 `pushed: false`，这个提交**不在 Prologue main，也不在 GitHub 远端**。这份包**不含**已进 Prologue main 的 S1–S3、带类型问卷（`a06ae62e`）、P1 合同、P2a–P2f。main 上同时还留着旧的 side-panel-memory 包与补丁（两份 tgz）。#471 还新增了右栏的电脑格（`apps/workbench/src/side-panel-computer.ts`）、`contracts/services/computer.ts`、`services/ui-surfaces.ts`，改了助理服务、`assistant-island.ts`、`prologue-node.ts`、`prologue-stream.ts`、`contracts/services/agent-host.ts`，并把 10-09 版的 `specs/ai-interaction-experience/spec.md` 与参考图带进了 main。
+> - **#472**（yijunw0212，10-13 10:54 UTC，93 个文件 +3399/−953）把旧采用树 `feat/prologue-adoption` 的 10 个提交（10-09 的 `77fde104`…`8b1a0522`）合进 main：一轮的推理力度、运行中换模型、逐轮写入记录（约等于 A1）、灵光流式（A3 的一部分）、助理把交出去的工作收回来后接着做（`8b1a0522`「第 14 项」，A0 当时明确不纳入的私有接续）、变化等待（`b3235bb1`/`8c0b60fb`，约等于 A4）。它沿用 #471 的 computer-use 包，没有换包。main 上的 `specs/prologue-adoption/spec.md` 是 10-09 的旧版（标题「Prologue 新能力接入：修复、适配与功能优化」）。
+> - 统筹层的说明与后续顺序见远端分支 `coordination/handoff-2026-10-13` 的 `coordination/2026-10-13/README.md` §2a。
+>
+> **对本线的影响（接手先做）：**
+> 1. **#408 不能整体合进 main。** 它和 #472 重叠 37 个文件（agent-host 各适配器、`contracts/services/agent-host.ts` 与快照、Coding 时间线与模型控件、助理服务、`specs/prologue-adoption/spec.md`、`baseline.json`、`page-assets.json` 等）。先做对账：以 main（#471 + #472）为基准，逐项列出 #408 里 main 还没有的东西（A0 的修正与证据、P1 合同 §4.6.9、决策记录、换包），把 main 合进 #408 解冲突时**实现以 main 为准**，只留 main 没有的部分；规格以 #408 新版为准，把 main 旧版里 #472 带来的事实并进来。
+> 2. **统一 SDK 包要重做。** 先请 Computer Use 原负责人（或 yijunw0212）把 `feat/desktop-computer-use`（`d4908c11`）推到 Prologue 远端，并与 Prologue main（#4–#14：A0、S1–S3、问卷、P1、P2a–P2f）合流进 main，再从 Prologue main 重打一个包，替换 Molis main 上的两份 tgz（vendored 至多两份）。合流冲突面预计在 agent / effect-policy / composition（审批、表面、派出）。在这之前 Molis main 的 SDK 缺 S1–S3、问卷与 P2。
+> 3. **D7 要重新判定。** 第一项「正式 SDK 来源」在 main 上已不成立（main 的包来自没进上游的分支）；第三项「采用线进 main」只是旧提交进了，#408 没进。统一包换进 main、#408 的剩余部分合进 main 之后再判定，并告诉回执线。
+> 4. **「第 14 项交回与续做」已在 main**，和 P1/P2 的统一协作冲突（X6 删除无板协作，接续只走节点）。P3/P4 要把它改到统一合同上，不留兼容；P3 的硬前置 W4-06 照旧。
+> 5. A1（推理力度、换模型、逐轮展示）基本已随 #472 进 main：A1 改成核对 #472 的实现是否满足 PA-12/PA-24，缺的补齐，不重做。
+
+
 > 本节**取代** 2026-10-11 的旧交接（那一节讲的是 A0 的 WIP 候选包，已过时）。接手的人可能在另一台机器、另一个 AI 上，看不到原机器的工作树、临时目录、日志和锁，所以本节自成一体：路径都是仓库内路径或远端分支，命令都能在新克隆上直接跑。统筹层的事实（用户规则、跨线约定、合并顺序、批量全量结果、防腐清单、进展盘点）在 Molis 远端分支 `coordination/handoff-2026-10-13` 的目录 `coordination/2026-10-13/`，下面把和本线直接相关的部分复述在 §7.6–§7.8，不要求先去读那里。**当前处于用户的暂停指令之下**（2026-10-13 03:55 北京时间「先暂停一下」），只做了写交接和推送本地遗留；恢复由统筹通知。
 
 ### 7.1 一句话现状

@@ -52,16 +52,17 @@ export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
       for (const command of task.commands || []) {
         const line = node("div", undefined, "background-task-command");
         const stop = node("button", L("停止"), "mw-btn mw-btn--ghost"); stop.type = "button";
+        const feedback = node("div", "", "background-task-detail"); feedback.setAttribute("role", "alert");
         stop.addEventListener("click", async () => {
-          stop.disabled = true;
+          stop.disabled = true; feedback.replaceChildren();
           try {
             const url = "/projects/" + encodeURIComponent(task.project_id) + "/api/plugins/io.molis.work.coding/sessions/" + encodeURIComponent(task.session_id) + "/background/" + encodeURIComponent(command.task_id) + "/stop";
             await molisWorkRequest(url, { body: {} });
             line.remove(); key = ""; void refresh();
-          } catch { stop.disabled = false; }
+          } catch (error) { molisWorkRequest.show(feedback, error); stop.disabled = false; }
         });
         line.append(node("span", L("后台命令"), "background-task-command-label"), node("code", command.summary), stop);
-        menu.append(line);
+        menu.append(line, feedback);
       }
     }
   };

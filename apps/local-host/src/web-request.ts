@@ -55,7 +55,7 @@ import type { SessionRuntimeResources } from "./web-session.js";
 import { cachedMolisWorkWebView, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
 import { handleSideFilesHttp } from "./side-files-http.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
-import { projectFeedOptions } from "./project-schedulers.js";
+import { projectFeedOptions } from "./workflow-feed-options.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";

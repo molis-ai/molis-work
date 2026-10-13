@@ -1,17 +1,8 @@
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createFeedCaptureTrigger, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
-import { SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
-import { createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
-import { createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
-import { bindLocalWebActions } from "./local-web-actions.js";
-import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import { createLocalFeedApplication } from "./feed-application.js";
-import { memoryForAgentRun } from "./memory/memory-host.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { bindScheduledTaskRunner, closeHostSchedule, scheduleServiceFor } from "./schedule-runtime.js";
-import { createHostScheduledTaskRunner } from "./schedule-task-runner.js";
-import { feedPull } from "./web-view.js";
+import { createHostScheduledTaskRunner, scheduledTaskMemory } from "./schedule-task-runner.js";
+import { createProjectFeedScheduler } from "./workflow-feed-options.js";
 import type { FeedSchedulerRuntime } from "./web-types.js";
 
 type Composition = Omit<Parameters<typeof createHostScheduledTaskRunner>[0], "projectId" | "memory"> & {
@@ -56,31 +47,14 @@ export async function closeProjectSchedulers(host: MolisWorkLocalHost, runtime: 
   await closeHostSchedule(runtime.store.db);
 }
 
-export function projectFeedOptions(host: MolisWorkLocalHost, reference: LocalHostProjectReference) {
-  const scenes = host.sceneClient(reference);
-  const context = (permissions: readonly string[]) => () => ({ actor_id: LOCAL_PERSON_ACTOR_ID,
-    project_id: reference.project_id, audience: "user" as const, permissions: [...permissions] });
-  return {
-    captureJudgment: createFeedCaptureTrigger({ scenes, projectId: reference.project_id,
-      context: context(["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"]) }),
-    homeJudgment: createHomeJudgmentTrigger({ scenes, projectId: reference.project_id,
-      context: context(HOME_ACTION_PERMISSIONS.filter(permission => permission !== "home:write")) }),
-    inboxJudgment: createInboxJudgmentTrigger({ scenes, projectId: reference.project_id,
-      context: context(["inbox:read", "model:invoke", "functions:invoke"]) }),
-  };
-}
 
 function activate(host: MolisWorkLocalHost, composition: Composition, runtime: MolisWorkProjectRuntime, reference: LocalHostProjectReference): void {
   if (composition.runtimes.has(reference.storage_key)) return;
-  const feed = createLocalFeedApplication(runtime.store.db, projectFeedOptions(host, reference));
-  feed.recoverInterruptedSourceRuns(reference.project_id);
-  const actions = bindLocalWebActions(host, reference, LOCAL_OWNER_PERMISSIONS);
-  const scheduler = { tick: () => feedPull(() => actions.invoke(feedSourceActions.tick, {})) };
+  const scheduler = createProjectFeedScheduler(host, runtime, reference);
   const schedule = scheduleServiceFor(runtime.store.db);
   if (!schedule.active) schedule.start();
   bindScheduledTaskRunner(runtime.store.db, createHostScheduledTaskRunner({ ...composition, projectId: reference.project_id,
-    memory: (task, title) => memoryForAgentRun(host, { project_id: reference.project_id, task, plugin_id: SCHEDULE_PLUGIN_ID,
-      used_for: `定时任务 · ${title.replace(/\s+/g, " ").trim().slice(0, 40)}` }) }));
+    memory: scheduledTaskMemory(host, reference.project_id) }));
   composition.runtimes.set(reference.storage_key, { scheduler, schedule });
   void scheduler.tick().then(result => { if (result.completed || result.failed) composition.changed(reference.storage_key); }).catch(() => undefined);
 }

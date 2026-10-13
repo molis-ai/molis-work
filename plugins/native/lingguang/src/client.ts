@@ -71,7 +71,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const chatForm = workbench.querySelector("[data-lingguang-chat]");
   const chatInput = workbench.querySelector("[data-lingguang-chat-input]");
   let records = [];
-  let selectedIds = new Set();
+  let picks = new Set();
   let selected = null, editorBase = null;
   let conversation = null;
   let saveTimer = 0;
@@ -191,9 +191,9 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (sameDay) return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
     return (date.getMonth() + 1) + "/" + date.getDate();
   };
-  const selectedRecords = () => records.filter((item) => selectedIds.has(item.id));
+  const selectedRecords = () => records.filter((item) => picks.has(item.id));
   const syncSelectionBar = () => {
-    const count = selectedIds.size;
+    const count = picks.size;
     selectionBar.hidden = count < 2;
     selectedCountEl.textContent = count >= 2 ? L("已选") + " " + count : "";
   };
@@ -253,7 +253,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     clearTimeout(saveTimer);
     selected = null; editorBase = null;
     conversation = null;
-    selectedIds = new Set();
+    picks = new Set();
     workbench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
     showChat(false);
@@ -263,7 +263,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const markSelected = (id) => {
     rowsEl.querySelectorAll("[data-lingguang-id]").forEach((row) => {
-      const on = selectedIds.has(row.dataset.lingguangId) || row.dataset.lingguangId === id;
+      const on = picks.has(row.dataset.lingguangId) || row.dataset.lingguangId === id;
       row.classList.toggle("is-selected", on);
       row.setAttribute("aria-selected", String(on));
     });
@@ -273,7 +273,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     item.className = "feed-stage-item";
     const row = document.createElement("button");
     row.type = "button";
-    const on = selectedIds.has(record.id) || selected?.id === record.id;
+    const on = picks.has(record.id) || selected?.id === record.id;
     row.className = "feed-stage-entry directory-list-row" + (on ? " is-selected" : "");
     row.dataset.lingguangId = record.id;
     row.setAttribute("aria-selected", String(on));
@@ -388,7 +388,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     const payload = await request("GET", api).finally(() => { if (seq === listSeq) loadingFor = null; });
     if (seq !== listSeq) return;
     records = payload.sparks || [];
-    selectedIds = new Set([...selectedIds].filter((id) => records.some((item) => item.id === id)));
+    picks = new Set([...picks].filter((id) => records.some((item) => item.id === id)));
     if (selected && !records.some((item) => item.id === selected.id)) closeWorkspace();
     renderList();
     if (selected) {
@@ -468,7 +468,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   askForm?.addEventListener("keydown", (event) => { if (event.key === "Escape") { askForm.hidden = true; workbench.querySelector("[data-lingguang-ask-toggle]")?.focus(); } });
   const openBrainstorm = async () => {
-    const ids = selectedIds.size ? [...selectedIds] : (selected ? [selected.id] : []);
+    const ids = picks.size ? [...picks] : (selected ? [selected.id] : []);
     if (!ids.length) throw new Error(L("先选至少一条"));
     await save();
     ids.forEach((id) => fresh.delete(id));
@@ -507,7 +507,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const keepReading = async (reading, fallbackTitle, origin) => {
     const body = [reading.text, origin, reading.partial && reading.issues && reading.issues.length ? L("说明：") + reading.issues.join("；") : ""].filter(Boolean).join("\\n\\n");
     const payload = await request("POST", api, { title: (reading.title || fallbackTitle).slice(0, 80), body });
-    selectedIds = new Set([payload.spark.id]);
+    picks = new Set([payload.spark.id]);
     await loadList();
     fillEditor(payload.spark);
     placed({ verb: "created", title: payload.spark.title, object: { kind: "lingguang_spark", id: payload.spark.id } });
@@ -533,7 +533,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
         await save();
         const payload = await request("POST", api, {});
         fresh.set(payload.spark.id, payload.spark.title);
-        selectedIds = new Set([payload.spark.id]);
+        picks = new Set([payload.spark.id]);
         await loadList();
         fillEditor(payload.spark);
         titleInput.focus();
@@ -561,7 +561,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-lingguang-clear-selection]")) {
-        selectedIds = selected ? new Set([selected.id]) : new Set();
+        picks = selected ? new Set([selected.id]) : new Set();
         renderList();
         return;
       }
@@ -570,7 +570,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-lingguang-discard]")) {
-        await discardIds(selectedIds.size ? [...selectedIds] : (selected ? [selected.id] : []));
+        await discardIds(picks.size ? [...picks] : (selected ? [selected.id] : []));
         return;
       }
       if (event.target.closest("[data-lingguang-ask-toggle]")) {
@@ -606,17 +606,17 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (row && list.contains(row)) {
         const id = row.dataset.lingguangId;
         if (event.metaKey || event.ctrlKey) {
-          if (selectedIds.has(id)) selectedIds.delete(id);
-          else selectedIds.add(id);
-          row.classList.toggle("is-selected", selectedIds.has(id));
-          row.setAttribute("aria-selected", String(selectedIds.has(id)));
+          if (picks.has(id)) picks.delete(id);
+          else picks.add(id);
+          row.classList.toggle("is-selected", picks.has(id));
+          row.setAttribute("aria-selected", String(picks.has(id)));
           syncSelectionBar();
           return;
         }
         if (selected && selected.id !== id) await save();
         const record = records.find((item) => item.id === id);
         if (!record) return;
-        selectedIds = new Set([id]);
+        picks = new Set([id]);
         fillEditor(record);
         renderList();
       }
@@ -666,7 +666,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     wantedId = null; wantedByLink = false;
     if (selected?.id === record.id) return;
     if (selected) await save();
-    selectedIds = new Set([record.id]);
+    picks = new Set([record.id]);
     fillEditor(record);
     renderList();
   };

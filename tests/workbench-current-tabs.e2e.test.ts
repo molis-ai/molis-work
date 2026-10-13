@@ -21,7 +21,7 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
     document.querySelector('[data-tab-pane="'+state.focusedPaneId+'"] [data-tab-edge=bottom]').click(); })()`);
   await browser.waitFor("document.querySelectorAll('[data-tab-pane]').length === 3");
   const saved = await browser.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`);
-  const before = JSON.parse(saved) as { panes: Array<{ tabs: Array<{ kind: string; itemId?: string }>; groups: Array<{ collapsed: boolean }> }>;
+  const before = JSON.parse(saved) as { panes: Array<{ tabs: Array<{ kind: string; itemId?: string }>; groups: Array<{ collapsed: boolean }> }> };
   assert.equal(before.panes.length, 3);
   assert.ok(before.panes.every(pane => pane.tabs.some(tab => tab.kind === "item" && tab.itemId === "CORE")));
   assert.ok(before.panes.some(pane => pane.groups.some(group => group.collapsed)));

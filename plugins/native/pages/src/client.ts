@@ -4,34 +4,34 @@ import { PAGES_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
 /** Pages workbench client: library, autosave, ProseMirror host. */
 export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
-  const workbench = document.querySelector("[data-pages=workbench]");
-  if (!workbench) return;
-  const list = workbench.querySelector("[data-pages=directory]");
-  const rowsEl = workbench.querySelector("[data-pages-rows]");
-  const empty = workbench.querySelector("[data-pages-empty]");
-  const searchEmpty = workbench.querySelector("[data-pages-search-empty]");
-  const searchInput = workbench.querySelector("[data-pages-search]");
-  const workspace = workbench.querySelector("[data-pages-stage-workspace]");
-  const titleEl = workbench.querySelector("[data-pages-editor-title]");
-  const statusEl = workbench.querySelector("[data-pages-editor-status]");
-  const titleInput = workbench.querySelector("[data-pages-title]");
-  const goalSelect = workbench.querySelector("[data-pages-goal]");
-  const starEditor = workbench.querySelector("[data-pages-star-editor]");
-  const editorHost = workbench.querySelector("[data-pages-editor]");
-  const note = workbench.querySelector("[data-pages-note]");
-  const confirmDialog = workbench.querySelector("[data-pages-confirm]");
-  const nameDialog = workbench.querySelector("[data-pages-name]");
-  const templateDialog = workbench.querySelector("[data-pages-template-dialog]");
+  const bench = document.querySelector("[data-pages=workbench]");
+  if (!bench) return;
+  const list = bench.querySelector("[data-pages=directory]");
+  const rowsEl = bench.querySelector("[data-pages-rows]");
+  const empty = bench.querySelector("[data-pages-empty]");
+  const searchEmpty = bench.querySelector("[data-pages-search-empty]");
+  const searchInput = bench.querySelector("[data-pages-search]");
+  const workspace = bench.querySelector("[data-pages-stage-workspace]");
+  const titleEl = bench.querySelector("[data-pages-editor-title]");
+  const statusEl = bench.querySelector("[data-pages-editor-status]");
+  const titleInput = bench.querySelector("[data-pages-title]");
+  const goalSelect = bench.querySelector("[data-pages-goal]");
+  const starEditor = bench.querySelector("[data-pages-star-editor]");
+  const editorHost = bench.querySelector("[data-pages-editor]");
+  const note = bench.querySelector("[data-pages-note]");
+  const confirmDialog = bench.querySelector("[data-pages-confirm]");
+  const nameDialog = bench.querySelector("[data-pages-name]");
+  const templateDialog = bench.querySelector("[data-pages-template-dialog]");
   const Editor = window.MolisWorkPagesEditor;
   const ICON = (name) => '<svg aria-hidden="true"><use href="#icon-' + name + '"></use></svg>';
-  const moreMenu = workbench.querySelector("[data-pages-more-menu]");
-  const moreButton = workbench.querySelector("[data-pages-more]");
-  const createMenu = workbench.querySelector("[data-pages-create-menu]");
-  const createMore = workbench.querySelector("[data-pages-create-more]");
-  const moveMenu = workbench.querySelector("[data-pages-move-menu]");
+  const moreMenu = bench.querySelector("[data-pages-more-menu]");
+  const moreButton = bench.querySelector("[data-pages-more]");
+  const createMenu = bench.querySelector("[data-pages-create-menu]");
+  const createMore = bench.querySelector("[data-pages-create-more]");
+  const moveMenu = bench.querySelector("[data-pages-move-menu]");
   let records = [];
   let folders = [];
-  let selected = null, editorEpoch = 0;
+  let sel = null, editorEpoch = 0;
   let editor = null;
   let saveTimer = 0;
   let filling = false;
@@ -43,7 +43,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   let listSeq = 0;
   let selectionSeq = 0;
   let openingId = null;
-  let editVersion = 0;
+  let editRev = 0;
   let dirty = false;
   // The open document's body cannot be shown by this editor: read-only, never autosaved (see fillEditor).
   let unshowable = false;
@@ -79,7 +79,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const showNote = (text, isError) => {
     if (!note) return;
-    if (!text && selected?.publication_pending) text = L("上次成果保存尚未完成。继续保存会恢复当时的快照，当前编辑内容可在之后另存一版。");
+    if (!text && sel?.publication_pending) text = L("上次成果保存尚未完成。继续保存会恢复当时的快照，当前编辑内容可在之后另存一版。");
     // While the open body cannot be shown, clearing other notes leaves this one: the page is read-only for that reason.
     if (!text && unshowable) { text = L("这篇文档的内容结构在编辑器里显示不了，为了不覆盖原内容，这里暂停编辑和自动保存。可以让助理重新写一遍，或在助理的工作面板里撤销那次修改。"); isError = true; }
     note.hidden = !text;
@@ -156,7 +156,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!moveMenu) return;
     moveMenu.hidden = true;
     movingId = "";
-    workbench.querySelectorAll("[data-pages-move][aria-expanded=true]").forEach((node) => {
+    bench.querySelectorAll("[data-pages-move][aria-expanded=true]").forEach((node) => {
       node.setAttribute("aria-expanded", "false");
     });
   };
@@ -180,7 +180,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     };
     addItem("", L("未分类"));
     folders.forEach((folder) => addItem(folder.id, folder.title));
-    workbench.querySelectorAll("[data-pages-move]").forEach((node) => {
+    bench.querySelectorAll("[data-pages-move]").forEach((node) => {
       node.setAttribute("aria-expanded", node === trigger ? "true" : "false");
     });
     moveMenu.hidden = false;
@@ -195,7 +195,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const fillGoalSelect = () => {
     if (!goalSelect) return;
-    const current = selected?.goal_id || "";
+    const current = sel?.goal_id || "";
     goalSelect.replaceChildren();
     const none = document.createElement("option");
     none.value = "";
@@ -226,29 +226,29 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const docText = (node) => !node ? "" : typeof node.text === "string" ? node.text
     : Array.isArray(node.content) ? node.content.map(docText).join(node.type === "doc" ? "\\n" : "") : "";
   const publishContext = () => {
-    const unsaved = Boolean(selected && (saveTimer || dirty));
+    const unsaved = Boolean(sel && (saveTimer || dirty));
     const context = { plugin_id: "io.molis.work.pages", surface_title: "Pages" };
-    if (selected) {
-      context.object = { kind: "pages_document", id: selected.id, version: selected.version, title: titleInput.value || selected.title };
+    if (sel) {
+      context.object = { kind: "pages_document", id: sel.id, version: sel.version, title: titleInput.value || sel.title };
       if (unsaved) {
         context.unsaved = true;
-        const text = docText(editor && Editor ? Editor.getDoc(editor) : selected.body);
+        const text = docText(editor && Editor ? Editor.getDoc(editor) : sel.body);
         if (text) context.draft_text = text.slice(0, 20000);
       }
     }
-    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
+    bench.setAttribute("data-assistant-context", JSON.stringify(context));
   };
   // What the person has in hand here, for the bar and the Assistant (specs/archive/contextual-interaction §4): the editor's
   // focus around this document, nothing for one it cannot show. Pages reports its own focus, so a list row's selection is not part of it.
-  workbench.setAttribute("data-surface-focus", "own");
+  bench.setAttribute("data-surface-focus", "own");
   let focusNow = null;
   let focusShown = null;
   const surfaceFocus = () => {
-    if (!focusNow || !selected || unshowable) return null;
-    const goal = goals.find((item) => item.id === selected.goal_id);
-    return { context_id: "pages:" + selected.id + ":" + focusNow.local_id, plugin_id: "io.molis.work.pages",
+    if (!focusNow || !sel || unshowable) return null;
+    const goal = goals.find((item) => item.id === sel.goal_id);
+    return { context_id: "pages:" + sel.id + ":" + focusNow.local_id, plugin_id: "io.molis.work.pages",
       activity: focusNow.activity, granularity: focusNow.granularity,
-      object: { kind: "pages_document", id: selected.id, version: selected.version, title: titleInput.value || selected.title },
+      object: { kind: "pages_document", id: sel.id, version: sel.version, title: titleInput.value || sel.title },
       targets: focusNow.targets, surroundings: focusNow.surroundings,
       ...(saveTimer || dirty ? { unsaved: true } : {}), ...(goal ? { goal: { id: goal.id, title: goal.title } } : {}) };
   };
@@ -280,12 +280,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     paintPicked();
     reportFocus();
   };
-  workbench.addEventListener("keydown", (event) => { if (event.key === "Escape" && picked.size) clearPicked(); });
+  bench.addEventListener("keydown", (event) => { if (event.key === "Escape" && picked.size) clearPicked(); });
   const reportFocus = () => {
     const detail = objectsFocus() || surfaceFocus();
     if ((detail ? detail.context_id : null) === (focusShown ? focusShown.context_id : null)) return;
     focusShown = detail;
-    workbench.dispatchEvent?.(new CustomEvent("molis:surface-focus", { bubbles: true, detail }));
+    bench.dispatchEvent?.(new CustomEvent("molis:surface-focus", { bubbles: true, detail }));
   };
   // The person chose one of this document's actions in the bar: run it on the range they had in hand when it was
   // ranked, through the writing popup, so the result is a candidate they accept before anything is written. A
@@ -294,11 +294,11 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   window.addEventListener?.("molis:assistant-context-action-chosen", (event) => {
     const chosen = event.detail;
     if (!chosen || chosen.plugin_id !== "io.molis.work.pages") return;
-    const whole = chosen.scope === "object" && Boolean(chosen.object && selected && !unshowable && chosen.object.id === selected.id);
+    const whole = chosen.scope === "object" && Boolean(chosen.object && sel && !unshowable && chosen.object.id === sel.id);
     if (!whole && (!focusShown || !focusNow || chosen.context_id !== focusShown.context_id || focusShown.granularity === "objects")) return;
     if (!editor || !editor.runCommand || !["result", "replace", "insert_after"].includes(chosen.apply) || typeof chosen.prepare !== "function") return;
     event.preventDefault();
-    const documentId = selected.id;
+    const documentId = sel.id;
     void editor.runCommand("", undefined, { ...(whole ? { scope: "object" } : { localId: focusNow.local_id }), title: chosen.title,
       mode: chosen.apply === "replace" ? "replace" : "insert_after", okLabel: chosen.apply === "replace" ? L("替换") : L("插到后面"),
       prepare: async () => {
@@ -336,16 +336,16 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const syncEditorChrome = () => {
     publishContext();
     reportFocus();
-    if (!selected) return;
+    if (!sel) return;
     if (starEditor) {
-      starEditor.classList.toggle("is-on", Boolean(selected.starred));
-      starEditor.setAttribute("aria-label", selected.starred ? L("取消收藏") : L("收藏"));
-      starEditor.title = selected.starred ? L("取消收藏") : L("收藏");
+      starEditor.classList.toggle("is-on", Boolean(sel.starred));
+      starEditor.setAttribute("aria-label", sel.starred ? L("取消收藏") : L("收藏"));
+      starEditor.title = sel.starred ? L("取消收藏") : L("收藏");
     }
     fillGoalSelect();
-    const artifactBar = workbench.querySelector("[data-pages-artifact-bar]");
-    if (artifactBar) artifactBar.textContent = selected.publication_pending ? L("继续保存上次固定版本") : selected.artifact_version > 0 ? L("再存一个固定版本") : L("存为固定版本");
-    if (selected.publication_pending) showNote("", false);
+    const artifactBar = bench.querySelector("[data-pages-artifact-bar]");
+    if (artifactBar) artifactBar.textContent = sel.publication_pending ? L("继续保存上次固定版本") : sel.artifact_version > 0 ? L("再存一个固定版本") : L("存为固定版本");
+    if (sel.publication_pending) showNote("", false);
   };
   const markSelected = (id) => {
     rowsEl.querySelectorAll("[data-page-id]").forEach((row) => {
@@ -370,9 +370,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const row = document.createElement("button");
     row.type = "button";
     row.draggable = folders.length > 0;
-    row.className = "feed-stage-entry directory-list-row" + (selected?.id === record.id ? " is-selected" : "");
+    row.className = "feed-stage-entry directory-list-row" + (sel?.id === record.id ? " is-selected" : "");
     row.dataset.pageId = record.id;
-    row.setAttribute("aria-selected", String(selected?.id === record.id));
+    row.setAttribute("aria-selected", String(sel?.id === record.id));
     row.setAttribute("aria-pressed", String(picked.has(record.id)));
     if (picked.has(record.id)) item.classList.add("is-picked");
     const leading = document.createElement("span");
@@ -490,7 +490,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (unfiled.length) rowsEl.append(renderFold("", L("未分类"), unfiled));
   };
   const remember = (record, redraw) => {
-    selected = record;
+    sel = record;
     const index = records.findIndex((item) => item.id === record.id);
     if (index >= 0) records[index] = record;
     else records.unshift(record);
@@ -521,22 +521,22 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (record) void openDocument(record).catch((error) => showNote(error.message || L("保存失败"), true));
       },
       runAi: async (input) => {
-        if (!selected) throw new Error(L("文档请求失败"));
-        const id = selected.id;
-        const revision = editVersion;
-        if (saveTimer || dirty) await persistCurrent();
-        if (!selected || selected.id !== id || editVersion !== revision) throw new Error(L("文档已改变，请重新生成"));
-        const result = await request("POST", pageUrl(id, "/ai"), { ...input, expected_version: selected.version });
-        if (!selected || selected.id !== id || editVersion !== revision) throw new Error(L("文档已改变，请重新生成"));
+        if (!sel) throw new Error(L("文档请求失败"));
+        const id = sel.id;
+        const revision = editRev;
+        if (saveTimer || dirty) await persist();
+        if (!sel || sel.id !== id || editRev !== revision) throw new Error(L("文档已改变，请重新生成"));
+        const result = await request("POST", pageUrl(id, "/ai"), { ...input, expected_version: sel.version });
+        if (!sel || sel.id !== id || editRev !== revision) throw new Error(L("文档已改变，请重新生成"));
         return result;
       },
       // Selected text to the resident Assistant, as a suggestion or as the person's own request (spec 8.3).
       askAssistant: (input) => {
-        if (!selected) return;
+        if (!sel) return;
         window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
           message_id: crypto.randomUUID(), purpose: input.mode, source: { surface: "pages", title: "Pages" },
-          object: { kind: "pages_document", id: selected.id, title: selected.title, version: selected.version },
-          text: input.request, materials: input.selection.trim() ? [{ title: L("选中的文字") + " · " + selected.title, text: input.selection }] : [],
+          object: { kind: "pages_document", id: sel.id, title: sel.title, version: sel.version },
+          text: input.request, materials: input.selection.trim() ? [{ title: L("选中的文字") + " · " + sel.title, text: input.selection }] : [],
         } }));
       },
       onCreateFromAi: async (input) => {
@@ -550,13 +550,13 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const draftOf = () => {
-    if (!selected || unshowable) return null;
+    if (!sel || unshowable) return null;
     return {
-      id: selected.id,
+      id: sel.id,
       title: titleInput.value,
-      body: editor && Editor ? Editor.getDoc(editor) : selected.body,
-      version: editVersion,
-      server_version: selected.version,
+      body: editor && Editor ? Editor.getDoc(editor) : sel.body,
+      version: editRev,
+      server_version: sel.version,
     };
   };
   const storeDocument = (document) => {
@@ -567,10 +567,10 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const adoptSaved = (draft, document) => {
     storeDocument(document);
-    if (!selected || selected.id !== draft.id) return document;
-    if (editVersion !== draft.version || saveTimer) {
-      selected = {
-        ...selected,
+    if (!sel || sel.id !== draft.id) return document;
+    if (editRev !== draft.version || saveTimer) {
+      sel = {
+        ...sel,
         goal_id: document.goal_id,
         artifact_id: document.artifact_id,
         artifact_version: document.artifact_version,
@@ -580,7 +580,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       };
       return document;
     }
-    selected = document;
+    sel = document;
     titleEl.textContent = document.title;
     statusEl.textContent = L("已保存");
     markSelected(document.id);
@@ -592,7 +592,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const run = saveQueue.then(async () => {
       const payload = await request("POST", pageUrl(draft.id), {
         ...(patch || { title: draft.title, body: draft.body }),
-        expected_version: selected && selected.id === draft.id ? selected.version : draft.server_version,
+        expected_version: sel && sel.id === draft.id ? sel.version : draft.server_version,
       });
       if (!payload.document || payload.document.id !== draft.id) throw new Error(L("文档请求失败"));
       if (!patch) savedByPerson(payload.document);
@@ -603,15 +603,15 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   ${PAGES_BLANK_CLIENT_SCRIPT}
   const fillEditor = (record) => {
-    editorEpoch += 1; const switching = Boolean(selected && record && selected.id !== record.id);
+    editorEpoch += 1; const switching = Boolean(sel && record && sel.id !== record.id);
     const leaving = switching ? draftOf() : null;
     const left = switching ? blankLeaving() : null;
     const pending = Boolean(switching && (saveTimer || dirty));
     clearTimeout(saveTimer);
     saveTimer = 0;
     filling = true;
-    selected = record;
-    workbench.setAttribute("data-expanded", "true");
+    sel = record;
+    bench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
     titleEl.textContent = record.title;
     statusEl.textContent = L("已保存");
@@ -636,14 +636,14 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const closeEditor = () => {
     clearTimeout(saveTimer);
-    selected = null; editorEpoch += 1;
+    sel = null; editorEpoch += 1;
     syncEditorChrome();
-    workbench.setAttribute("data-expanded", "false");
+    bench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
     closeMore();
     closeCreate();
     closeMove();
-    workbench.querySelectorAll(".pages-format-bar, .pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu, .pages-block-ghost, .pages-drop-line").forEach((node) => { node.hidden = true; });
+    bench.querySelectorAll(".pages-format-bar, .pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu, .pages-block-ghost, .pages-drop-line").forEach((node) => { node.hidden = true; });
   };
   const loadList = async () => {
     const seq = ++listSeq;
@@ -652,15 +652,15 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     records = payload.documents || [];
     folders = payload.folders || [];
     renderList();
-    if (selected) {
-      const next = records.find((item) => item.id === selected.id);
+    if (sel) {
+      const next = records.find((item) => item.id === sel.id);
       if (!next) closeEditor();
       else if (!saveTimer && !dirty) {
         // Changed elsewhere (the Assistant, another window): show what is there now. The old text left on screen under
         // the new version would be saved over the change by the next keystroke.
-        const moved = next.version !== selected.version;
+        const moved = next.version !== sel.version;
         remember(next, moved);
-        if (moved) editVersion += 1;
+        if (moved) editRev += 1;
       }
     }
   };
@@ -671,7 +671,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!draft) return null;
     try {
       const saved = await enqueueSave(draft);
-      if (editVersion === draft.version && !saveTimer) dirty = false;
+      if (editRev === draft.version && !saveTimer) dirty = false;
       publishContext();
       return saved;
     } catch (error) {
@@ -683,38 +683,38 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const queueSave = () => {
     if (unshowable) return;
     statusEl.textContent = L("保存中");
-    editVersion += 1;
+    editRev += 1;
     dirty = true;
     publishContext();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => { void save().catch((error) => showNote(error.message || L("保存失败"), true)); }, 400);
   };
-  const persistCurrent = async () => {
-    if (!selected || unshowable) return;
-    do { await save(); } while (selected && (saveTimer || dirty));
+  const persist = async () => {
+    if (!sel || unshowable) return;
+    do { await save(); } while (sel && (saveTimer || dirty));
   };
   // Showing the document already open here again (its item tab after the page's list, a reload's second request): the
   // workbench took its name off the surface when it hid it, so name it again with its version and title.
   const revealEditor = () => {
-    workbench.setAttribute("data-expanded", "true");
+    bench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
     syncEditorChrome();
   };
   const openDocument = async (record) => {
     if (!record) return;
-    if (selected && selected.id === record.id) {
+    if (sel && sel.id === record.id) {
       revealEditor();
       return;
     }
-    if (selected && (saveTimer || dirty)) await persistCurrent();
+    if (sel && (saveTimer || dirty)) await persist();
     fillEditor(record);
     dirty = false;
-    editVersion += 1;
+    editRev += 1;
   };
-  workbench.addEventListener("molis-work:select-item", (event) => {
+  bench.addEventListener("molis-work:select-item", (event) => {
     const id = event.detail?.itemId;
     if (!id) { selectionSeq++; openingId = null; leaveOnFold(); return; }
-    if (selected?.id === id) {
+    if (sel?.id === id) {
       revealEditor();
       return;
     }
@@ -722,12 +722,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     openingId = id;
     const seq = ++selectionSeq;
     void (async () => {
-      if (selected && (saveTimer || dirty)) await persistCurrent();
+      if (sel && (saveTimer || dirty)) await persist();
       const payload = await request("GET", pageUrl(id));
       if (seq !== selectionSeq) return;
       fillEditor(payload.document);
       dirty = false;
-      editVersion += 1;
+      editRev += 1;
       showNote("", false);
     })().catch((error) => { if (seq === selectionSeq) showNote(error.message || L("保存失败"), true); })
       .finally(() => { if (seq === selectionSeq) openingId = null; });
@@ -736,34 +736,34 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const placed = (detail) => { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); };
   const safeName = (value) => String(value || L("无标题")).replace(/[\\\\/:*?"<>|]/g, "_").slice(0, 80);
   const htmlDocument = (body) => "<!doctype html><html lang=\\"zh-CN\\"><head><meta charset=\\"utf-8\\"><title>"
-    + escapeHtml(selected.title) + "</title><style>body{max-width:760px;margin:40px auto;padding:0 20px;font:15px/1.7 -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;color:#222}img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}</style></head><body><h1>"
-    + escapeHtml(selected.title) + "</h1>" + Editor.toHTML(body) + "</body></html>";
-  const assertReadable = (record = selected) => { if (record?.body && Editor?.canShow && !Editor.canShow(record.body)) throw new Error(L("这篇文档的内容结构暂不支持此操作，原内容已保留。")); };
+    + escapeHtml(sel.title) + "</title><style>body{max-width:760px;margin:40px auto;padding:0 20px;font:15px/1.7 -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;color:#222}img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}</style></head><body><h1>"
+    + escapeHtml(sel.title) + "</h1>" + Editor.toHTML(body) + "</body></html>";
+  const assertReadable = (record = sel) => { if (record?.body && Editor?.canShow && !Editor.canShow(record.body)) throw new Error(L("这篇文档的内容结构暂不支持此操作，原内容已保留。")); };
   const exportDocument = (format) => {
-    assertReadable(); if (!selected || !Editor) return;
-    const body = editor ? Editor.getDoc(editor) : selected.body;
+    assertReadable(); if (!sel || !Editor) return;
+    const body = editor ? Editor.getDoc(editor) : sel.body;
     const markdown = format === "md";
-    const content = markdown ? "# " + (selected.title || L("无标题")) + "\\n\\n" + Editor.toMarkdown(body) : htmlDocument(body);
+    const content = markdown ? "# " + (sel.title || L("无标题")) + "\\n\\n" + Editor.toMarkdown(body) : htmlDocument(body);
     const blob = new Blob([content], { type: markdown ? "text/markdown;charset=utf-8" : "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = safeName(selected.title) + (markdown ? ".md" : ".html");
+    link.download = safeName(sel.title) + (markdown ? ".md" : ".html");
     link.click();
     URL.revokeObjectURL(url);
-    placed({ verb: "exported", title: selected.title, file: { name: link.download, format: markdown ? "Markdown" : L("网页") } });
+    placed({ verb: "exported", title: sel.title, file: { name: link.download, format: markdown ? "Markdown" : L("网页") } });
   };
   const printDocument = () => {
-    assertReadable(); if (!selected || !Editor) return;
+    assertReadable(); if (!sel || !Editor) return;
     const frame = document.createElement("iframe");
     frame.setAttribute("aria-hidden", "true");
     frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
     document.body.append(frame);
-    frame.srcdoc = htmlDocument(editor ? Editor.getDoc(editor) : selected.body);
+    frame.srcdoc = htmlDocument(editor ? Editor.getDoc(editor) : sel.body);
     frame.addEventListener("load", () => {
       frame.contentWindow.focus();
       frame.contentWindow.print();
-      placed({ verb: "printed", title: selected?.title || "" });
+      placed({ verb: "printed", title: sel?.title || "" });
       setTimeout(() => frame.remove(), 1000);
     }, { once: true });
   };
@@ -772,7 +772,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const openCreated = (record) => openDocument(record);
   const createPage = async (body) => {
     const epoch = editorEpoch;
-    if (selected && (saveTimer || dirty)) await persistCurrent();
+    if (sel && (saveTimer || dirty)) await persist();
     if (editorEpoch !== epoch) return;
     const left = blankLeaving();
     const payload = await request("POST", "/api/plugins/pages", body || {});
@@ -795,7 +795,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     await loadList();
   };
   const clearDrop = () => {
-    workbench.querySelectorAll("[data-pages-drop].is-drop").forEach((node) => node.classList.remove("is-drop"));
+    bench.querySelectorAll("[data-pages-drop].is-drop").forEach((node) => node.classList.remove("is-drop"));
   };
 
   const publishPage = async (id) => {
@@ -803,11 +803,11 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     publishing.add(id);
     let draft = null;
     try {
-      if (selected?.id === id) await persistCurrent();
-      const current = selected?.id === id ? selected : records.find(record => record.id === id);
+      if (sel?.id === id) await persist();
+      const current = sel?.id === id ? sel : records.find(record => record.id === id);
       if (!current) return;
       assertReadable(current);
-      draft = selected?.id === id ? draftOf() : null;
+      draft = sel?.id === id ? draftOf() : null;
       const payload = await request("POST", pageUrl(id, "/promote"), {
         goal_id: current.publication_pending?.goal_id ?? current.goal_id ?? "", expected_version: current.version,
       });
@@ -821,7 +821,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       try {
         const payload = await request("GET", pageUrl(id));
         if (draft) adoptSaved(draft, payload.document); else storeDocument(payload.document);
-        if (selected?.id === id) syncEditorChrome();
+        if (sel?.id === id) syncEditorChrome();
       } catch { /* Keep the original error and the user's draft. */ }
       throw error;
     } finally { publishing.delete(id); }
@@ -832,7 +832,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const detail = event.detail || {};
     if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("pages_document")) return;
     void (async () => {
-      if (detail.mode === "move" && detail.from && selected && selected.id === detail.from.id) closeEditor();
+      if (detail.mode === "move" && detail.from && sel && sel.id === detail.from.id) closeEditor();
       await loadList();
     })().catch((error) => showNote(error.message || L("文档请求失败"), true));
   });
@@ -840,14 +840,14 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   // Back in this window: the open document may have changed elsewhere (another window, the Assistant in another tab).
   // Only it is read again; the change shows at once when nothing of the person's own waits, and otherwise they are told.
   const recheckOpen = async () => {
-    if (!selected || document.hidden) return;
-    const id = selected.id, version = selected.version;
+    if (!sel || document.hidden) return;
+    const id = sel.id, version = sel.version;
     const payload = await request("GET", pageUrl(id));
     const next = payload && payload.document;
-    if (!next || !selected || selected.id !== id || next.version === version) return;
+    if (!next || !sel || sel.id !== id || next.version === version) return;
     if (saveTimer || dirty) { showNote(L("这篇文档刚在别处改过；你还有未保存的修改，保存时会提示冲突，不会覆盖。"), true); return; }
     remember(next, true);
-    editVersion += 1;
+    editRev += 1;
   };
   window.addEventListener?.("focus", () => { void recheckOpen().catch(() => {}); });
   document.addEventListener?.("visibilitychange", () => { void recheckOpen().catch(() => {}); });
@@ -857,15 +857,15 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const capability = event.detail && event.detail.capability_id;
     if (typeof capability !== "string" || capability.indexOf("pages.") !== 0) return;
     void (async () => {
-      const before = selected ? { id: selected.id, version: selected.version } : null;
+      const before = sel ? { id: sel.id, version: sel.version } : null;
       await loadList();
-      if (!before || !selected || selected.id !== before.id) return;
+      if (!before || !sel || sel.id !== before.id) return;
       const next = records.find((item) => item.id === before.id);
       if (!next || next.version === before.version) return;
       if (saveTimer || dirty) { showNote(L("助理刚修改了这篇文档；你还有未保存的修改，保存时会提示冲突，不会覆盖。"), true); return; }
       fillEditor(next);
       dirty = false;
-      editVersion += 1;
+      editRev += 1;
     })().catch(() => {});
   });
 
@@ -884,17 +884,17 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderList();
   });
   goalSelect?.addEventListener("change", () => {
-    if (!selected) return;
+    if (!sel) return;
     const draft = draftOf();
     if (!draft) return;
-    selected = { ...selected, goal_id: goalSelect.value };
+    sel = { ...sel, goal_id: goalSelect.value };
     void enqueueSave(draft, { goal_id: goalSelect.value })
       .catch((error) => {
         dirty = true;
         showNote(error.message || L("保存失败"), true);
       });
   });
-  workbench.addEventListener("click", async (event) => {
+  bench.addEventListener("click", async (event) => {
     try {
       if (Date.now() < suppressFoldToggleUntil && event.target.closest("summary")) {
         stop(event);
@@ -998,7 +998,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (row && (event.metaKey || event.ctrlKey)) {
         // Picking, not opening: the open document joins the first pick, so one ⌘-click already gives two.
         const id = row.dataset.pageId;
-        if (!picked.size && selected && selected.id !== id) picked.add(selected.id);
+        if (!picked.size && sel && sel.id !== id) picked.add(sel.id);
         if (picked.has(id)) picked.delete(id); else picked.add(id);
         paintPicked();
         reportFocus();
@@ -1010,12 +1010,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (record) await openDocument(record);
         return;
       }
-      if (event.target.closest("[data-pages-star-editor]") && selected) {
-        await toggleStar(selected.id);
+      if (event.target.closest("[data-pages-star-editor]") && sel) {
+        await toggleStar(sel.id);
         return;
       }
       if (event.target.closest("[data-pages-back]")) {
-        await persistCurrent();
+        await persist();
         dirty = false;
         const left = blankLeaving();
         closeEditor();
@@ -1023,41 +1023,41 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         await loadList();
         return;
       }
-      if (event.target.closest("[data-pages-extract]") && selected) {
+      if (event.target.closest("[data-pages-extract]") && sel) {
         closeMore(); assertReadable();
-        const id = selected.id, epoch = editorEpoch;
-        await persistCurrent();
-        if (selected?.id !== id || editorEpoch !== epoch) return;
+        const id = sel.id, epoch = editorEpoch;
+        await persist();
+        if (sel?.id !== id || editorEpoch !== epoch) return;
         const draft = draftOf();
         const payload = await request("POST", pageUrl(id, "/extract"), {});
         storeDocument(payload.document);
-        if (selected?.id === id && editorEpoch === epoch) {
-          if (editVersion === draft.version && !dirty && !saveTimer) { remember(payload.document, true); editVersion += 1; }
-          else await persistCurrent();
+        if (sel?.id === id && editorEpoch === epoch) {
+          if (editRev === draft.version && !dirty && !saveTimer) { remember(payload.document, true); editRev += 1; }
+          else await persist();
         }
         await loadList();
         return;
       }
-      if (event.target.closest("[data-pages-promote]") && selected) {
+      if (event.target.closest("[data-pages-promote]") && sel) {
         closeMore();
-        await publishPage(selected.id);
+        await publishPage(sel.id);
         return;
       }
-      if (event.target.closest("[data-pages-export]") && selected) {
+      if (event.target.closest("[data-pages-export]") && sel) {
         closeMore();
         exportDocument(event.target.closest("[data-pages-export]").dataset.pagesExport || "html");
         return;
       }
-      if (event.target.closest("[data-pages-print]") && selected) {
+      if (event.target.closest("[data-pages-print]") && sel) {
         closeMore();
         printDocument();
         return;
       }
-      if (event.target.closest("[data-pages-delete]") && selected) {
+      if (event.target.closest("[data-pages-delete]") && sel) {
         closeMore();
         const ok = await ask(L("要删除这篇文档吗？删除后无法恢复。"), L("删除"));
         if (!ok) return;
-        const id = selected.id;
+        const id = sel.id;
         await request("POST", pageUrl(id, "/delete"), {});
         closeEditor();
         await loadList();
@@ -1066,7 +1066,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       showNote(error.message || L("文档请求失败"), true);
     }
   });
-  workbench.addEventListener("dragstart", (event) => {
+  bench.addEventListener("dragstart", (event) => {
     if (event.target.closest(".pages-row-act, .pages-folder-actions, .creative-artifact-act")) {
       event.preventDefault();
       return;
@@ -1077,7 +1077,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     event.dataTransfer.effectAllowed = "move";
     row.classList.add("is-dragging");
   });
-  workbench.addEventListener("dragover", (event) => {
+  bench.addEventListener("dragover", (event) => {
     const fold = event.target.closest("[data-pages-drop=folder]");
     if (!fold) return;
     event.preventDefault();
@@ -1085,26 +1085,26 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     clearDrop();
     fold.classList.add("is-drop");
   });
-  workbench.addEventListener("dragleave", (event) => {
+  bench.addEventListener("dragleave", (event) => {
     const fold = event.target.closest("[data-pages-drop=folder]");
     if (!fold) return;
     const next = event.relatedTarget;
     if (next && fold.contains(next)) return;
     fold.classList.remove("is-drop");
   });
-  workbench.addEventListener("drop", (event) => {
+  bench.addEventListener("drop", (event) => {
     const fold = event.target.closest("[data-pages-drop=folder]");
     clearDrop();
-    workbench.querySelectorAll(".pages-doc-row.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
+    bench.querySelectorAll(".pages-doc-row.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
     if (!fold || !event.dataTransfer) return;
     stop(event);
     suppressFoldToggleUntil = Date.now() + 400;
     const id = event.dataTransfer.getData("text/plain");
     void movePage(id, fold.dataset.folderId || "").catch((error) => showNote(error.message || L("保存失败"), true));
   });
-  workbench.addEventListener("dragend", () => {
+  bench.addEventListener("dragend", () => {
     clearDrop();
-    workbench.querySelectorAll(".pages-doc-row.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
+    bench.querySelectorAll(".pages-doc-row.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
   });
   document.addEventListener("pointerdown", (event) => {
     const target = event.target && event.target.nodeType === 1 ? event.target : event.target && event.target.parentElement;

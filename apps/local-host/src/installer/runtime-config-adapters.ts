@@ -116,7 +116,7 @@ export function restartInstructionsFor(displayName: string): readonly string[] {
 
 export function adapterFor(runtimeId: SupportedRuntimeId): RuntimeAdapter {
   const adapter = ADAPTERS.find((candidate) => candidate.id === runtimeId);
-  if (!adapter) throw new RuntimeIntegrationError("runtime.unsupported", `尚未支持 Runtime: ${runtimeId}`);
+  if (!adapter) throw new RuntimeIntegrationError("installer.unsupported", `尚未支持 Runtime: ${runtimeId}`);
   return adapter;
 }
 

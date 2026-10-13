@@ -265,7 +265,7 @@ export class RuntimeIntegrationService {
       }
       return receipt;
     } catch {
-      throw new RuntimeIntegrationError("runtime.receipt_invalid", `Molis Work 接入收据无法解析: ${filePath}`);
+      throw new RuntimeIntegrationError("installer.receipt_invalid", `Molis Work 接入收据无法解析: ${filePath}`);
     }
   }
 

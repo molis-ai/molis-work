@@ -170,11 +170,11 @@ export interface PreparedPlan {
 export class RuntimeIntegrationError extends Error {
   constructor(
     readonly code:
-      | "runtime.unsupported"
-      | "runtime.installation_invalid"
-      | "runtime.config_invalid"
-      | "runtime.plan_invalid"
-      | "runtime.receipt_invalid",
+      | "installer.unsupported"
+      | "installer.installation_invalid"
+      | "installer.config_invalid"
+      | "installer.plan_invalid"
+      | "installer.receipt_invalid",
     message: string,
   ) {
     super(message);

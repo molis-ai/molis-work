@@ -1,63 +1,63 @@
 /** Functions workbench: purpose, rules, then preview and activation. */
 export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L, feedApi, root, page } = host;
-  const workbench = root.matches?.("[data-functions=workbench]") ? root : root.querySelector("[data-functions=workbench]");
-  if (!workbench || workbench.dataset.bound === "1") return; workbench.dataset.bound = "1";
-  const list = workbench.querySelector("[data-functions=directory]");
-  const rowsEl = workbench.querySelector("[data-functions-rows]");
-  const empty = workbench.querySelector("[data-functions-empty]");
-  const workspace = workbench.querySelector("[data-functions-stage-workspace]");
-  const titleEl = workbench.querySelector("[data-functions-editor-title]");
-  const statusEl = workbench.querySelector("[data-functions-editor-status]");
-  const deleteBtn = workbench.querySelector("[data-functions-delete]");
-  const form = workbench.querySelector("[data-functions-editor]");
-  const nameInput = workbench.querySelector("[data-functions-name]");
-  const keyInput = workbench.querySelector("[data-functions-key]");
-  const instructionsInput = workbench.querySelector("[data-functions-instructions]");
-  const criteriaLabel = workbench.querySelector("[data-functions-criteria-label]");
-  const addCriterionBtn = workbench.querySelector("[data-functions-add-criterion]");
-  const criteriaHead = workbench.querySelector("[data-functions-criteria-head]");
-  const criteriaHint = workbench.querySelector("[data-functions-criteria-hint]");
-  const criteriaEl = workbench.querySelector("[data-functions-criteria]");
-  const paletteEl = workbench.querySelector("[data-functions-palette]");
-  const mapPanel = workbench.querySelector("[data-functions-map-panel]");
-  const mapEl = workbench.querySelector("[data-functions-map]");
-  const samplesEl = workbench.querySelector("[data-functions-samples]");
-  const previewInput = workbench.querySelector("[data-functions-preview-input]");
-  const publishBtn = workbench.querySelector("[data-functions-publish]");
-  const note = workbench.querySelector("[data-functions-note]");
-  const lastPreview = workbench.querySelector("[data-functions-last-preview]");
-  const usagesEl = workbench.querySelector("[data-functions-usages]");
-  const createDialog = workbench.querySelector("[data-functions-create-dialog]");
-  const createForm = workbench.querySelector("[data-functions-create-form]");
-  const choiceOnlyHint = workbench.querySelector("[data-functions-choice-only]");
-  const saveStatus = workbench.querySelector("[data-functions-save-status]");
-  const paletteSearch = workbench.querySelector("[data-functions-palette-search]");
-  const paletteDetails = workbench.querySelector("[data-functions-palette-details]");
-  const destinationHint = workbench.querySelector("[data-functions-destination-hint]");
-  const releaseHint = workbench.querySelector("[data-functions-release-hint]");
+  const bench = root.matches?.("[data-functions=workbench]") ? root : root.querySelector("[data-functions=workbench]");
+  if (!bench || bench.dataset.bound === "1") return; bench.dataset.bound = "1";
+  const list = bench.querySelector("[data-functions=directory]");
+  const rowsEl = bench.querySelector("[data-functions-rows]");
+  const empty = bench.querySelector("[data-functions-empty]");
+  const workspace = bench.querySelector("[data-functions-stage-workspace]");
+  const titleEl = bench.querySelector("[data-functions-editor-title]");
+  const statusEl = bench.querySelector("[data-functions-editor-status]");
+  const deleteBtn = bench.querySelector("[data-functions-delete]");
+  const form = bench.querySelector("[data-functions-editor]");
+  const nameInput = bench.querySelector("[data-functions-name]");
+  const keyInput = bench.querySelector("[data-functions-key]");
+  const instructionsInput = bench.querySelector("[data-functions-instructions]");
+  const criteriaLabel = bench.querySelector("[data-functions-criteria-label]");
+  const addCriterionBtn = bench.querySelector("[data-functions-add-criterion]");
+  const criteriaHead = bench.querySelector("[data-functions-criteria-head]");
+  const criteriaHint = bench.querySelector("[data-functions-criteria-hint]");
+  const criteriaEl = bench.querySelector("[data-functions-criteria]");
+  const paletteEl = bench.querySelector("[data-functions-palette]");
+  const mapPanel = bench.querySelector("[data-functions-map-panel]");
+  const mapEl = bench.querySelector("[data-functions-map]");
+  const samplesEl = bench.querySelector("[data-functions-samples]");
+  const previewInput = bench.querySelector("[data-functions-preview-input]");
+  const publishBtn = bench.querySelector("[data-functions-publish]");
+  const note = bench.querySelector("[data-functions-note]");
+  const lastPreview = bench.querySelector("[data-functions-last-preview]");
+  const usagesEl = bench.querySelector("[data-functions-usages]");
+  const createDialog = bench.querySelector("[data-functions-create-dialog]");
+  const createForm = bench.querySelector("[data-functions-create-form]");
+  const choiceOnlyHint = bench.querySelector("[data-functions-choice-only]");
+  const saveStatus = bench.querySelector("[data-functions-save-status]");
+  const paletteSearch = bench.querySelector("[data-functions-palette-search]");
+  const paletteDetails = bench.querySelector("[data-functions-palette-details]");
+  const destinationHint = bench.querySelector("[data-functions-destination-hint]");
+  const releaseHint = bench.querySelector("[data-functions-release-hint]");
   let activeStep = "look";
   const stepOrder = ["look", "fn", "use"];
   const setStep = (step, focus = false) => {
     activeStep = step;
-    workbench.querySelectorAll("[data-functions-col]").forEach((node) => { node.hidden = node.dataset.functionsCol !== step; });
-    workbench.querySelectorAll("[data-functions-step]").forEach((node) => {
+    bench.querySelectorAll("[data-functions-col]").forEach((node) => { node.hidden = node.dataset.functionsCol !== step; });
+    bench.querySelectorAll("[data-functions-step]").forEach((node) => {
       if (node.dataset.functionsStep === step) node.setAttribute("aria-current", "step");
       else node.removeAttribute("aria-current");
     });
-    const prev = workbench.querySelector("[data-functions-prev]");
-    const next = workbench.querySelector("[data-functions-next]");
+    const prev = bench.querySelector("[data-functions-prev]");
+    const next = bench.querySelector("[data-functions-next]");
     prev.hidden = step === "look";
     next.hidden = step === "use";
     next.textContent = step === "look" ? L("下一步：判断规则") : L("下一步：试跑与启用");
-    workbench.querySelector("[data-functions-columns]").scrollTop = 0;
-    if (focus) workbench.querySelector('[data-functions-col="' + step + '"] h2')?.focus();
+    bench.querySelector("[data-functions-columns]").scrollTop = 0;
+    if (focus) bench.querySelector('[data-functions-col="' + step + '"] h2')?.focus();
   };
-  workbench.querySelectorAll("[data-functions-step]").forEach((node) => node.addEventListener("click", () => setStep(node.dataset.functionsStep, true)));
-  workbench.querySelector("[data-functions-prev]").addEventListener("click", () => setStep(stepOrder[Math.max(0, stepOrder.indexOf(activeStep) - 1)], true));
-  workbench.querySelector("[data-functions-next]").addEventListener("click", () => setStep(stepOrder[Math.min(2, stepOrder.indexOf(activeStep) + 1)], true));
+  bench.querySelectorAll("[data-functions-step]").forEach((node) => node.addEventListener("click", () => setStep(node.dataset.functionsStep, true)));
+  bench.querySelector("[data-functions-prev]").addEventListener("click", () => setStep(stepOrder[Math.max(0, stepOrder.indexOf(activeStep) - 1)], true));
+  bench.querySelector("[data-functions-next]").addEventListener("click", () => setStep(stepOrder[Math.min(2, stepOrder.indexOf(activeStep) + 1)], true));
   let records = [];
-  let selected = null;
+  let sel = null;
   let selectionSeq = 0;
   let openingId = null;
   let saveTimer = 0;
@@ -89,7 +89,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const matchesScene = (row, record) => row.destination_id === record?.scene_id
     && (!record.scene_version || row.scene_version === record.scene_version)
     && (!record.scene_provider_id || row.provider_id === record.scene_provider_id);
-  const destOf = (id, record = selected) => {
+  const destOf = (id, record = sel) => {
     const reference = record?.scene_id === id ? record : { scene_id: id };
     const matches = catalog.destinations.filter(row => matchesScene(row, reference));
     return matches.length === 1 ? matches[0] : id ? {
@@ -98,7 +98,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       availability: { available: false, reason: L(matches.length > 1 ? "请为原用途选择具体版本。" : "当前范围未注册原用途，请检查插件状态或重新选择。") },
     } : null;
   };
-  const behaviorMatches = (row, destId, record = selected) => {
+  const behaviorMatches = (row, destId, record = sel) => {
     const dest = destOf(destId, record);
     return row.destination_id === destId && (!row.scene_version || row.scene_version === dest?.scene_version)
       && (!row.provider_id || row.provider_id === dest?.provider_id);
@@ -125,7 +125,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const destTitle = (recordOrId) => {
     const id = recordOrId && typeof recordOrId === "object" ? recordOrId.scene_id : recordOrId;
-    const dest = destOf(id, typeof recordOrId === "object" ? recordOrId : selected);
+    const dest = destOf(id, typeof recordOrId === "object" ? recordOrId : sel);
     if (dest?.title) return L(dest.title) + (dest.scene_version ? " · v" + dest.scene_version : "");
     return id === "home.dock" ? L("首页") : id === "inbox.next" ? L("Inbox") : id === "feed.capture" ? L("Feed") : id === "agent.mcp" ? L("Agent") : L("还没选");
   };
@@ -175,7 +175,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     return next;
   };
   const updateCriteriaHint = (destId, suggested) => {
-    if (!criteriaHint || primitiveOf(selected) !== "choice") return;
+    if (!criteriaHint || primitiveOf(sel) !== "choice") return;
     const dest = destOf(destId);
     const follow = criteriaFollowContext(outputKeysFromForm());
     if (dest && dest.kind === "event" && follow && suggested.length >= 2 && outputKeysFromForm().every((key) => catalogBehaviorIds().has(key))) {
@@ -189,20 +189,20 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   };
   const syncCriteriaPanel = () => {
-    if (!selected) return;
+    if (!sel) return;
     const destId = selectedDestId();
     const kinds = subjectKindsFromForm();
     const suggested = suggestedBehaviors(destId, kinds);
     if (destOf(destId)?.availability?.available === false) {
-      selected = { ...selected, scene_id: destId || null, subject_kinds: kinds };
-      renderPalette(selected); renderMap(selected);
+      sel = { ...sel, scene_id: destId || null, subject_kinds: kinds };
+      renderPalette(sel); renderMap(sel);
       return;
     }
-    if (selected.status === "published" || primitiveOf(selected) !== "choice") {
-      selected = { ...selected, scene_id: destId || null, subject_kinds: kinds };
+    if (sel.status === "published" || primitiveOf(sel) !== "choice") {
+      sel = { ...sel, scene_id: destId || null, subject_kinds: kinds };
       updateCriteriaHint(destId, suggested);
-      renderPalette(selected);
-      renderMap(selected);
+      renderPalette(sel);
+      renderMap(sel);
       return;
     }
     const keys = outputKeysFromForm();
@@ -210,7 +210,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const eventDest = Boolean(dest && dest.kind === "event");
     const follow = criteriaFollowContext(keys);
     const hasCatalogKeys = keys.some((key) => catalogBehaviorIds().has(key));
-    let nextMap = selected.scene_map || {};
+    let nextMap = sel.scene_map || {};
     if (follow && eventDest && suggested.length >= 2) {
       applyChoiceRows(suggested.map((row) => ({ key: row.behavior_id, description: row.title || "" })));
       nextMap = {};
@@ -222,16 +222,16 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     } else {
       nextMap = pruneSceneMap(nextMap, destId);
     }
-    selected = {
-      ...selected,
+    sel = {
+      ...sel,
       scene_id: destId || null,
       subject_kinds: kinds,
       scene_map: nextMap,
       criteria: criteriaFromForm(),
     };
     updateCriteriaHint(destId, suggested);
-    renderPalette(selected);
-    renderMap(selected);
+    renderPalette(sel);
+    renderMap(sel);
   };
   const functionMeta = (record) => {
     const bits = [];
@@ -266,7 +266,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     return payload;
   };
   const showNote = (text, isError) => {
-    const target = workspace.hidden ? workbench.querySelector("[data-functions-list-note]") : note;
+    const target = workspace.hidden ? bench.querySelector("[data-functions-list-note]") : note;
     if (!target) return;
     target.hidden = !text;
     target.textContent = text || "";
@@ -274,22 +274,22 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const primitiveOf = (record) => record?.primitive || "choice";
   const selectedDestId = () => {
-    const current = workbench.querySelector("[data-functions-destination].is-current");
-    if (!current) return selected?.scene_id || "";
+    const current = bench.querySelector("[data-functions-destination].is-current");
+    if (!current) return sel?.scene_id || "";
     return current.dataset.functionsDestination || "";
   };
   const destinationReference = (node) => ({ scene_id: node?.dataset.functionsDestination || null,
     scene_version: Number(node?.dataset.sceneVersion) || null, scene_provider_id: node?.dataset.sceneProvider || null });
   const selectedSceneReference = () => {
-    const current = workbench.querySelector("[data-functions-destination].is-current");
-    return current ? destinationReference(current) : { scene_id: selected?.scene_id || null,
-      scene_version: selected?.scene_version || null, scene_provider_id: selected?.scene_provider_id || null };
+    const current = bench.querySelector("[data-functions-destination].is-current");
+    return current ? destinationReference(current) : { scene_id: sel?.scene_id || null,
+      scene_version: sel?.scene_version || null, scene_provider_id: sel?.scene_provider_id || null };
   };
-  const subjectKindsFromForm = () => [...workbench.querySelectorAll("[data-functions-source]:checked")]
+  const subjectKindsFromForm = () => [...bench.querySelectorAll("[data-functions-source]:checked")]
     .map((node) => node.dataset.functionsSource)
     .filter(Boolean);
   const outputKeysFromForm = () => {
-    const kind = primitiveOf(selected);
+    const kind = primitiveOf(sel);
     if (kind === "noul") return ["true", "false"];
     if (kind === "score") return [];
     return [...criteriaEl.querySelectorAll("[data-choice-row]")].map((row) => {
@@ -320,7 +320,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const actionReferenceValue = (reference) => reference ? JSON.stringify({ capability_id: reference.capability_id,
     version: reference.version, provider_id: reference.provider_id }) : "";
   const criteriaFromForm = () => {
-    const kind = primitiveOf(selected);
+    const kind = primitiveOf(sel);
     if (kind === "noul") {
       return {
         true_description: (criteriaEl.querySelector("[data-noul-true]") || {}).value || "",
@@ -574,7 +574,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const kind = primitiveOf(record);
     const destId = record.scene_id || "";
     const selectedKinds = new Set(record.subject_kinds || []);
-    const list = workbench.querySelector(".functions-dest-list");
+    const list = bench.querySelector(".functions-dest-list");
     list.replaceChildren();
     const destinations = [{ destination_id: "", kind: "none", title: L("独立使用"), when: L("先写规则、试跑，暂不接入页面。") }, ...catalog.destinations];
     const chosen = destOf(destId, record);
@@ -589,13 +589,13 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       const hint = document.createElement("small"); hint.textContent = destination.availability?.available === false ? L(destination.availability.reason) : L(destination.when || "");
       button.append(title, hint); list.append(button);
     });
-    for (const kindId of selectedKinds) if (![...workbench.querySelectorAll("[data-functions-source]")].some(node => node.dataset.functionsSource === kindId)) {
+    for (const kindId of selectedKinds) if (![...bench.querySelectorAll("[data-functions-source]")].some(node => node.dataset.functionsSource === kindId)) {
       const label = document.createElement("label"); label.className = "functions-chip";
       const input = document.createElement("input"); input.type = "checkbox"; input.className = "mw-check"; input.dataset.functionsSource = kindId;
       const text = document.createElement("span"); text.textContent = kindId + " · " + L("原对象类型");
-      label.append(input, text); workbench.querySelector("[data-functions-subject-list]").append(label);
+      label.append(input, text); bench.querySelector("[data-functions-subject-list]").append(label);
     }
-    workbench.querySelectorAll("[data-functions-destination]").forEach((node) => {
+    bench.querySelectorAll("[data-functions-destination]").forEach((node) => {
       const id = node.dataset.functionsDestination || "";
       const reference = destinationReference(node);
       const on = id === destId && (id ? reference.scene_version === (chosen?.scene_version || null) && reference.scene_provider_id === (chosen?.provider_id || null) : true);
@@ -612,7 +612,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       : destId === "feed.capture" ? L("发布后，到 Feed 任务的捕捉规则中选择此函数；具体处理由该规则决定。")
       : destId ? L("判断结果用于推荐页面动作。发布后还需要在当前项目启用。")
       : L("可先保存和试跑，不必绑定任何页面。发布后也可通过接口调用。");
-    workbench.querySelectorAll("[data-functions-source]").forEach((node) => {
+    bench.querySelectorAll("[data-functions-source]").forEach((node) => {
       const kindId = node.dataset.functionsSource;
       node.checked = selectedKinds.has(kindId);
       node.disabled = record.status === "published";
@@ -709,7 +709,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const renderUsages = async (record) => {
     if (!usagesEl) return;
     const sequence = ++usagesSeq;
-    const current = () => selected?.id === record.id && sequence === usagesSeq;
+    const current = () => sel?.id === record.id && sequence === usagesSeq;
     usagesEl.replaceChildren();
     const head = document.createElement("strong"); head.textContent = L("使用状态"); usagesEl.append(head);
     const line = (text) => { const p = document.createElement("p"); p.textContent = L(text); usagesEl.append(p); return p; };
@@ -771,22 +771,22 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   };
   const fillEditor = (record) => {
-    const switching = selected?.id !== record.id;
-    selected = record;
+    const switching = sel?.id !== record.id;
+    sel = record;
     if (switching) {
       dirty = false;
-      workbench.querySelector("[data-functions-subject-details]").open = Boolean(record.subject_kinds?.length);
+      bench.querySelector("[data-functions-subject-details]").open = Boolean(record.subject_kinds?.length);
       paletteDetails.open = false;
       setStep(record.status === "published" ? "use" : "look");
       paletteSearch.value = "";
     }
     saveStatus.textContent = record.status === "published" ? L("已发布 · 规则只读") : L("草稿自动保存");
-    workbench.querySelector("[data-functions-kind-description]").textContent = primitiveOf(record) === "noul"
+    bench.querySelector("[data-functions-kind-description]").textContent = primitiveOf(record) === "noul"
       ? L("是非判断：返回成立的概率，例如材料是否足够。")
       : primitiveOf(record) === "score" ? L("等级评分：按你定义的档位返回分数，例如紧急程度。")
       : L("结果选择：从你定义的结果中选出一个，例如跟进、保存或忽略。");
     releaseHint.textContent = record.status === "published" ? L("规则已锁定，可以继续试跑，并查看或调整使用状态。") : L("发布会锁定名称、规则和用途。确认试跑符合预期后再发布；发布不会自动启用页面判断。");
-    workbench.setAttribute("data-expanded", "true");
+    bench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
     titleEl.textContent = record.name;
     statusEl.textContent = record.status === "published" ? "v" + (record.version || 1) : L("草稿");
@@ -814,10 +814,10 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const closeEditor = () => {
-    selected = null;
+    sel = null;
     const next = page.address(); next.searchParams.delete("rule"); next.searchParams.delete("key");
     page.replace(next);
-    workbench.setAttribute("data-expanded", "false");
+    bench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
     list.querySelectorAll("[data-function-id]").forEach((row) => {
       row.classList.remove("is-selected");
@@ -840,9 +840,9 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       item.className = "feed-stage-item";
       const row = document.createElement("button");
       row.type = "button";
-      row.className = "feed-stage-entry directory-list-row" + (selected?.id === record.id ? " is-selected" : "");
+      row.className = "feed-stage-entry directory-list-row" + (sel?.id === record.id ? " is-selected" : "");
       row.dataset.functionId = record.id;
-      row.setAttribute("aria-selected", String(selected?.id === record.id));
+      row.setAttribute("aria-selected", String(sel?.id === record.id));
       const leading = document.createElement("span");
       leading.className = "feed-stage-leading";
       const title = document.createElement("strong");
@@ -868,9 +868,9 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const loadCatalog = async () => {
     const payload = feedApi ? await feedApi("/api/functions/catalog", "GET") : await request("GET", "/api/functions/catalog");
     if (payload.catalog) catalog = payload.catalog;
-    const subjects = workbench.querySelector("[data-functions-subject-list]");
+    const subjects = bench.querySelector("[data-functions-subject-list]");
     if (catalog.subjects.length && subjects) {
-      const checked = new Set(selected?.subject_kinds || subjectKindsFromForm());
+      const checked = new Set(sel?.subject_kinds || subjectKindsFromForm());
       subjects.replaceChildren();
       catalog.subjects.forEach((subject) => {
         const label = document.createElement("label");
@@ -893,8 +893,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (seq !== listSeq) return;
     records = payload.functions || [];
     renderList();
-    if (!selected) return;
-    const next = records.find((item) => item.id === selected.id);
+    if (!sel) return;
+    const next = records.find((item) => item.id === sel.id);
     if (opts.preserveForm) {
       if (!next) closeEditor();
       return;
@@ -902,7 +902,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (next) {
       if (opts.remount) fillEditor(next);
       else {
-        selected = next;
+        sel = next;
         titleEl.textContent = next.name;
       }
     }
@@ -917,12 +917,12 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     subject_kinds: subjectKindsFromForm(),
     scene_map: sceneMapFromForm(),
     action_map: actionMapFromForm(),
-    updated_at: selected.updated_at,
+    updated_at: sel.updated_at,
   });
   let saving = null;
   const saveDraft = async () => {
     clearTimeout(saveTimer); saveTimer = 0;
-    const record = selected, revision = editRevision;
+    const record = sel, revision = editRevision;
     if (!record || record.status === "published") return record;
     const body = draftBody();
     if (saving) { const prior = await saving; if (prior?.id === record.id) body.updated_at = prior.updated_at; }
@@ -931,20 +931,20 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     try { return await operation; } finally { if (saving === operation) saving = null; }
   };
   const persistDraft = async (savingId, body, revision) => {
-    if (selected?.id === savingId) saveStatus.textContent = L("正在保存…");
+    if (sel?.id === savingId) saveStatus.textContent = L("正在保存…");
     try {
       const payload = await request("POST", "/api/functions/" + encodeURIComponent(savingId), body);
       const saved = payload.function;
       rememberRecord(saved);
-      if (selected?.id !== savingId) return saved;
-      selected = saved;
+      if (sel?.id !== savingId) return saved;
+      sel = saved;
       if (revision === editRevision) dirty = false;
       saveStatus.textContent = dirty ? L("有更改，等待保存…") : L("已保存");
-      titleEl.textContent = selected.name;
+      titleEl.textContent = sel.name;
       showNote("", false);
-      return selected;
+      return sel;
     } catch (error) {
-      if (selected?.id === savingId) {
+      if (sel?.id === savingId) {
         saveStatus.textContent = L("未保存 · 请修正后重试");
         await loadList({ preserveForm: true }).catch(() => {});
       }
@@ -952,42 +952,42 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   };
   const queueSave = () => {
-    if (!selected || selected.status === "published") return;
-    const savingId = selected.id;
+    if (!sel || sel.status === "published") return;
+    const savingId = sel.id;
     dirty = true;
     editRevision++;
     saveStatus.textContent = L("有更改，等待保存…");
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       void saveDraft().catch((error) => {
-        if (selected?.id === savingId) showNote(error.message, true);
+        if (sel?.id === savingId) showNote(error.message, true);
       });
     }, 280);
   };
   const remember = (record, origin) => {
     rememberRecord(record);
-    if (origin && selected?.id !== origin.id) return;
+    if (origin && sel?.id !== origin.id) return;
     if (origin && editRevision !== origin.revision) {
-      selected = { ...selected, updated_at: record.updated_at, samples: record.samples };
-      renderSamples(selected); return;
+      sel = { ...sel, updated_at: record.updated_at, samples: record.samples };
+      renderSamples(sel); return;
     }
     const next = page.address(); next.searchParams.set("rule", record.id); next.searchParams.delete("key");
     page.replace(next);
-    const listNote = workbench.querySelector("[data-functions-list-note]");
+    const listNote = bench.querySelector("[data-functions-list-note]");
     if (listNote) listNote.hidden = true;
     fillEditor(record);
   };
-  workbench.addEventListener("molis-work:select-item", (event) => {
+  bench.addEventListener("molis-work:select-item", (event) => {
     const id = event.detail?.itemId;
     if (!id) { selectionSeq++; openingId = null; return; }
-    if (selected?.id === id) {
-      workbench.setAttribute("data-expanded", "true"); workspace.hidden = false; return;
+    if (sel?.id === id) {
+      bench.setAttribute("data-expanded", "true"); workspace.hidden = false; return;
     }
     if (openingId === id) return;
     openingId = id;
     const seq = ++selectionSeq;
     void (async () => {
-      if (selected && (saveTimer || saving || dirty)) { clearTimeout(saveTimer); saveTimer = 0; await saveDraft(); }
+      if (sel && (saveTimer || saving || dirty)) { clearTimeout(saveTimer); saveTimer = 0; await saveDraft(); }
       await loadCatalog();
       const payload = await request("GET", "/api/functions/" + encodeURIComponent(id));
       if (seq === selectionSeq) remember(payload.function);
@@ -1003,11 +1003,11 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     else createDialog.removeAttribute("open");
   };
 
-  workbench.querySelector("[data-functions-new]").addEventListener("click", () => {
+  bench.querySelector("[data-functions-new]").addEventListener("click", () => {
     showNote("", false);
     openCreate();
   });
-  workbench.querySelectorAll("[data-functions-create-close]").forEach((node) => {
+  bench.querySelectorAll("[data-functions-create-close]").forEach((node) => {
     node.addEventListener("click", () => closeCreate());
   });
   let creating = false;
@@ -1015,7 +1015,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     event.preventDefault();
     if (creating) return;
     creating = true;
-    const createNote = workbench.querySelector("[data-functions-create-note]");
+    const createNote = bench.querySelector("[data-functions-create-note]");
     createNote.textContent = "";
     const submitter = event.submitter;
     const primitive = submitter && submitter.value ? submitter.value : "choice";
@@ -1033,7 +1033,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       createForm.querySelectorAll("button").forEach((node) => { node.disabled = false; });
     }
   });
-  workbench.querySelector("[data-functions-back]").addEventListener("click", async () => {
+  bench.querySelector("[data-functions-back]").addEventListener("click", async () => {
     try {
       await saveDraft();
       closeEditor();
@@ -1041,113 +1041,113 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     } catch (error) { showNote(error.message, true); }
   });
   deleteBtn.addEventListener("click", async () => {
-    if (!selected || selected.status === "published") return;
-    const record = selected;
+    if (!sel || sel.status === "published") return;
+    const record = sel;
     if (!window.confirm(L("确定删除这个草稿？"))) return;
     try {
       await request("POST", "/api/functions/" + encodeURIComponent(record.id) + "/delete", { updated_at: record.updated_at });
-      if (selected?.id === record.id) closeEditor();
+      if (sel?.id === record.id) closeEditor();
       await loadList({ preserveForm: true });
-    } catch (error) { if (selected?.id === record.id) showNote(error.message, true); }
+    } catch (error) { if (sel?.id === record.id) showNote(error.message, true); }
   });
   addCriterionBtn.addEventListener("click", () => {
-    if (selected?.status === "published") return;
-    if (primitiveOf(selected) === "score") addScoreRow("");
-    else if (primitiveOf(selected) === "choice") addChoiceRow(nextOptionKey(), "");
-    renderPalette(selected);
-    renderMap(selected);
+    if (sel?.status === "published") return;
+    if (primitiveOf(sel) === "score") addScoreRow("");
+    else if (primitiveOf(sel) === "choice") addChoiceRow(nextOptionKey(), "");
+    renderPalette(sel);
+    renderMap(sel);
     queueSave();
   });
   usagesEl?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-functions-scene-bind]");
     const args = button && configurationRequests.get(button);
-    if (!args || button.disabled || selected?.id !== args.id) return;
-    const record = selected;
+    if (!args || button.disabled || sel?.id !== args.id) return;
+    const record = sel;
     button.disabled = true;
     try {
       await ruleRequest(record, "configure", "POST", args);
-      if (selected?.id === record.id) await renderUsages(selected);
+      if (sel?.id === record.id) await renderUsages(sel);
     } catch (error) {
-      if (selected?.id !== record.id) return;
-      await renderUsages(selected);
-      if (selected?.id !== record.id) return;
+      if (sel?.id !== record.id) return;
+      await renderUsages(sel);
+      if (sel?.id !== record.id) return;
       const status = document.createElement("p"); status.setAttribute("role", "alert");
       status.textContent = error.message || L("配置未保存，请重试。"); usagesEl.append(status);
     }
   });
-  workbench.querySelector("[data-functions-destinations]").addEventListener("click", (event) => {
+  bench.querySelector("[data-functions-destinations]").addEventListener("click", (event) => {
     const button = event.target.closest("[data-functions-destination]");
-    if (!button || !selected || selected.status === "published" || button.disabled) return;
+    if (!button || !sel || sel.status === "published" || button.disabled) return;
     const destId = button.dataset.functionsDestination || "";
-    if (primitiveOf(selected) === "score" && destId && destId !== "agent.mcp") {
+    if (primitiveOf(sel) === "score" && destId && destId !== "agent.mcp") {
       showNote(L("Score 不能绑 Inbox、首页、Feed。"), true);
       return;
     }
     const reference = destinationReference(button);
-    if (destId === (selected.scene_id || "") && reference.scene_version === (selected.scene_version || null)
-      && reference.scene_provider_id === (selected.scene_provider_id || null)) return;
-    selected = {
-      ...selected,
+    if (destId === (sel.scene_id || "") && reference.scene_version === (sel.scene_version || null)
+      && reference.scene_provider_id === (sel.scene_provider_id || null)) return;
+    sel = {
+      ...sel,
       ...reference,
-      scene_map: destId && destId !== "agent.mcp" ? (selected.scene_map || {}) : {},
-      action_map: destId === "agent.mcp" ? (selected.action_map || {}) : {},
+      scene_map: destId && destId !== "agent.mcp" ? (sel.scene_map || {}) : {},
+      action_map: destId === "agent.mcp" ? (sel.action_map || {}) : {},
     };
-    renderRoute(selected);
+    renderRoute(sel);
     syncCriteriaPanel();
-    void renderUsages(selected);
+    void renderUsages(sel);
     queueSave();
   });
-  paletteSearch.addEventListener("input", () => { if (selected) renderPalette(selected); });
+  paletteSearch.addEventListener("input", () => { if (sel) renderPalette(sel); });
   form.addEventListener("submit", (event) => event.preventDefault());
   form.addEventListener("input", (event) => {
     if (event.target.matches("[data-functions-palette-search], [data-functions-preview-input]")) return;
     if (event.target.matches("[data-choice-key], [data-choice-description]")) {
-      if (selected) renderMap({ ...selected, criteria: criteriaFromForm(), scene_map: sceneMapFromForm(), action_map: actionMapFromForm() });
+      if (sel) renderMap({ ...sel, criteria: criteriaFromForm(), scene_map: sceneMapFromForm(), action_map: actionMapFromForm() });
     }
     queueSave();
   });
   form.addEventListener("change", (event) => {
     if (event.target.matches("[data-functions-source]")) {
-      if (selected && selected.status !== "published") {
-        selected = { ...selected, subject_kinds: subjectKindsFromForm(), scene_map: sceneMapFromForm(), action_map: actionMapFromForm() };
-        renderRoute(selected);
+      if (sel && sel.status !== "published") {
+        sel = { ...sel, subject_kinds: subjectKindsFromForm(), scene_map: sceneMapFromForm(), action_map: actionMapFromForm() };
+        renderRoute(sel);
         syncCriteriaPanel();
       }
     }
-    if (event.target.matches("[data-map-key]") && selected) {
-      selected = { ...selected, scene_map: sceneMapFromForm(), action_map: actionMapFromForm(), criteria: criteriaFromForm() };
-      void renderUsages(selected);
+    if (event.target.matches("[data-map-key]") && sel) {
+      sel = { ...sel, scene_map: sceneMapFromForm(), action_map: actionMapFromForm(), criteria: criteriaFromForm() };
+      void renderUsages(sel);
     }
     queueSave();
   });
   form.addEventListener("click", (event) => {
     const paletteAdd = event.target.closest("[data-palette-add]");
-    if (paletteAdd && selected?.status !== "published" && primitiveOf(selected) === "choice") {
+    if (paletteAdd && sel?.status !== "published" && primitiveOf(sel) === "choice") {
       const behavior = behaviorOf(paletteAdd.dataset.paletteAdd);
-      selected = { ...selected, scene_map: sceneMapFromForm(), action_map: actionMapFromForm() };
-      if (behavior.action_ref && selectedDestId() === "agent.mcp") selected.action_map[behavior.behavior_id] = behavior.action_ref;
+      sel = { ...sel, scene_map: sceneMapFromForm(), action_map: actionMapFromForm() };
+      if (behavior.action_ref && selectedDestId() === "agent.mcp") sel.action_map[behavior.behavior_id] = behavior.action_ref;
       if (!outputKeysFromForm().includes(behavior.behavior_id)) {
         addChoiceRow(behavior.behavior_id, behaviorTitle(behavior));
       }
-      renderPalette(selected);
-      renderMap(selected);
+      renderPalette(sel);
+      renderMap(sel);
       queueSave();
       return;
     }
     const removeChoice = event.target.closest("[data-choice-remove]");
-    if (removeChoice && selected?.status !== "published") {
+    if (removeChoice && sel?.status !== "published") {
       if (criteriaEl.querySelectorAll("[data-choice-row]").length < 3) {
         showNote(L("Choice 至少需要两个选项"), true);
         return;
       }
       removeChoice.closest("[data-choice-row]").remove();
-      renderPalette(selected);
-      renderMap(selected);
+      renderPalette(sel);
+      renderMap(sel);
       queueSave();
       return;
     }
     const removeScore = event.target.closest("[data-score-remove]");
-    if (removeScore && selected?.status !== "published") {
+    if (removeScore && sel?.status !== "published") {
       if (criteriaEl.querySelectorAll("[data-score-level]").length < 3) {
         showNote(L("Score 至少需要两个档位"), true);
         return;
@@ -1161,34 +1161,34 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const load = event.target.closest("[data-sample-load]");
     const remove = event.target.closest("[data-sample-remove]");
     const row = event.target.closest("[data-sample-id]");
-    if (!row || !selected) return;
-    const sample = (selected.samples || []).find((item) => item.id === row.dataset.sampleId);
+    if (!row || !sel) return;
+    const sample = (sel.samples || []).find((item) => item.id === row.dataset.sampleId);
     if (load && sample) previewInput.value = sample.input || "";
     if (remove) {
-      const record = selected, origin = { id: record.id, revision: editRevision };
+      const record = sel, origin = { id: record.id, revision: editRevision };
       try {
         const payload = await request("POST", "/api/functions/" + encodeURIComponent(record.id) + "/samples/delete", {
           sample_id: row.dataset.sampleId, updated_at: record.updated_at,
         });
         remember(payload.function, origin);
-      } catch (error) { if (selected?.id === record.id) showNote(error.message, true); }
+      } catch (error) { if (sel?.id === record.id) showNote(error.message, true); }
     }
   });
-  workbench.querySelector("[data-functions-save-sample]").addEventListener("click", async () => {
-    if (!selected) return;
-    const origin = { id: selected.id, revision: editRevision }, input = previewInput.value;
+  bench.querySelector("[data-functions-save-sample]").addEventListener("click", async () => {
+    if (!sel) return;
+    const origin = { id: sel.id, revision: editRevision }, input = previewInput.value;
     try {
       const saved = await saveDraft();
       const payload = await request("POST", "/api/functions/" + encodeURIComponent(origin.id) + "/samples", { input, updated_at: saved.updated_at });
       remember(payload.function, origin);
-    } catch (error) { if (selected?.id === origin.id) showNote(error.message, true); }
+    } catch (error) { if (sel?.id === origin.id) showNote(error.message, true); }
   });
   rowsEl.addEventListener("click", async (event) => {
     const row = event.target.closest("[data-function-id]");
     if (!row) return;
     const record = records.find((item) => item.id === row.dataset.functionId);
     if (record) {
-      if (selected?.id === record.id) return;
+      if (sel?.id === record.id) return;
       try {
         if (saveTimer || saving || dirty) await saveDraft();
         fillEditor(record);
@@ -1196,27 +1196,27 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   });
   let previewing = false;
-  const previewBtn = workbench.querySelector("[data-functions-preview]");
+  const previewBtn = bench.querySelector("[data-functions-preview]");
   previewBtn.addEventListener("click", async () => {
-    if (!selected || previewing) return;
-    const previewId = selected.id;
+    if (!sel || previewing) return;
+    const previewId = sel.id;
     previewing = true;
-    workbench.querySelectorAll("[data-functions-col=look], [data-functions-col=fn]").forEach((node) => { node.inert = true; });
+    bench.querySelectorAll("[data-functions-col=look], [data-functions-col=fn]").forEach((node) => { node.inert = true; });
     publishBtn.disabled = true;
     previewBtn.disabled = true;
     previewBtn.textContent = L("正在试跑…");
     showNote(L("正在请求判断，通常需要几秒。"), false);
     try {
       await saveDraft();
-      if (selected?.id !== previewId) return;
+      if (sel?.id !== previewId) return;
       const payload = await request("POST", "/api/functions/" + encodeURIComponent(previewId) + "/preview", {
         input: previewInput.value,
-        updated_at: selected.updated_at,
+        updated_at: sel.updated_at,
       });
-      if (selected?.id !== previewId) return;
+      if (sel?.id !== previewId) return;
       remember(payload.function);
     } catch (error) {
-      if (selected?.id === previewId) {
+      if (sel?.id === previewId) {
         if (error.code === "functions.invalid" && !instructionsInput.value.trim()) setStep("fn", true);
         showNote(error.message, true);
         if (error.code === "functions.provider_not_configured" || error.code === "actions.connection_required") {
@@ -1232,33 +1232,33 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
     } finally {
       previewing = false;
-      workbench.querySelectorAll("[data-functions-col=look], [data-functions-col=fn]").forEach((node) => { node.inert = false; });
+      bench.querySelectorAll("[data-functions-col=look], [data-functions-col=fn]").forEach((node) => { node.inert = false; });
       publishBtn.disabled = false;
       previewBtn.disabled = false;
       previewBtn.textContent = L("试跑");
     }
   });
   publishBtn.addEventListener("click", async () => {
-    if (!selected || publishBtn.disabled) return;
-    if (selectedDestId() && selectedDestId() !== "agent.mcp" && !mappingReady({ ...selected, scene_id: selectedDestId(), criteria: criteriaFromForm(), scene_map: sceneMapFromForm() })) {
+    if (!sel || publishBtn.disabled) return;
+    if (selectedDestId() && selectedDestId() !== "agent.mcp" && !mappingReady({ ...sel, scene_id: selectedDestId(), criteria: criteriaFromForm(), scene_map: sceneMapFromForm() })) {
       setStep("fn", true);
       showNote(L("还有结果未对应页面动作，请补齐后再发布。"), true);
       return;
     }
-    const publishId = selected.id;
+    const publishId = sel.id;
     publishBtn.disabled = true;
     showNote("", false);
     try {
       await saveDraft();
-      if (selected?.id !== publishId) return;
+      if (sel?.id !== publishId) return;
       const path = "/api/functions/" + encodeURIComponent(publishId) + "/publish";
-      const body = { updated_at: selected.updated_at };
+      const body = { updated_at: sel.updated_at };
       const payload = feedApi ? await feedApi(path, "POST", body) : await request("POST", path, body);
-      if (selected?.id !== publishId) return;
+      if (sel?.id !== publishId) return;
       remember(payload.function);
       await loadList();
     } catch (error) {
-      if (selected?.id === publishId) showNote(error.message, true);
+      if (sel?.id === publishId) showNote(error.message, true);
     } finally { publishBtn.disabled = false; }
   });
   const load = () => loadCatalog().then(loadList).catch((error) => {
@@ -1277,12 +1277,12 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   rowsEl.addEventListener("click", (event) => {
     const row = event.target.closest("[data-function-id]");
     if (!row) return;
-    workbench.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: row.dataset.functionId } }));
+    bench.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: row.dataset.functionId } }));
   });
   void load().then(() => {
     const params = page.address().searchParams;
     const id = params.get("rule") || records.find(record => record.function_key === params.get("key"))?.id;
-    if (id) workbench.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: id } }));
+    if (id) bench.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: id } }));
     else if (params.get("key")) showNote(L("找不到这条判断规则，请从列表重新选择。"), true);
   });
 }

@@ -21,7 +21,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const connectionModel = $('[data-images-connection-model]');
   const connectionAuth = $('[data-images-connection-auth]');
   const serviceMenu = $('[data-images-service-menu]');
-  let context = projectId(), connections = [], authConnections = [], jobs = [], connectionId = '', selectedId = '';
+  let context = projectId(), connections = [], authConnections = [], jobs = [], cid = '', selectedId = '';
   let editingId = '', editingFormat = 'openai-images', editingAuth = '', pending = null, resumeConnection = null;
   let submitting = false, saving = false, cancelling = false, listSeq = 0, loadSeq = 0;
   let timer = 0, listSignature = '', resultSignature = '';
@@ -45,13 +45,13 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     node.textContent = message || ''; node.hidden = !message;
     node.classList.toggle('is-error', Boolean(message && isError));
   };
-  const selectedConnection = () => connections.find(item => item.id === connectionId);
+  const pickedConn = () => connections.find(item => item.id === cid);
   const draftKey = () => 'molis-work-images-draft:' + context;
   const saveDraft = () => {
     try {
       sessionStorage.setItem(draftKey(), JSON.stringify({
         prompt: prompt.value, size: size.value, aspect_ratio: ratio.value,
-        connection_id: connectionId, selected_id: selectedId, pending,
+        connection_id: cid, selected_id: selectedId, pending,
       }));
     } catch {}
   };
@@ -61,7 +61,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     prompt.value = typeof draft.prompt === 'string' ? draft.prompt : '';
     size.value = typeof draft.size === 'string' ? draft.size : '';
     ratio.value = typeof draft.aspect_ratio === 'string' ? draft.aspect_ratio : '';
-    connectionId = typeof draft.connection_id === 'string' ? draft.connection_id : '';
+    cid = typeof draft.connection_id === 'string' ? draft.connection_id : '';
     selectedId = typeof draft.selected_id === 'string' ? draft.selected_id : '';
     pending = draft.pending && typeof draft.pending.request_id === 'string' && typeof draft.pending.fingerprint === 'string' ? draft.pending : null;
   };
@@ -93,27 +93,27 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const syncGenerate = () => {
     if (!lifetime.alive) return;
-    generate.disabled = submitting || !context || !selectedConnection() || selectedConnection().available === false || !prompt.value.trim();
+    generate.disabled = submitting || !context || !pickedConn() || pickedConn().available === false || !prompt.value.trim();
     generate.textContent = submitting ? L('正在提交…') : L('生成图片');
     $('[data-images-project-note]').hidden = Boolean(context);
   };
   const syncParameters = () => {
-    const connection = selectedConnection();
-    $('[data-images-connected]').hidden = !connectionId && !connections.length;
+    const connection = pickedConn();
+    $('[data-images-connected]').hidden = !cid && !connections.length;
     $('[data-images-connection-empty]').hidden = connections.length > 0;
     // Until a service is connected, connecting is the step; the generate row waits.
     const submitRow = $('.images-submit-row'); if (submitRow) submitRow.hidden = !connections.length;
     $('[data-images-service-label]').textContent = connection ? connection.name + ' · ' + connection.model : L('所选生图服务不可用，请重新选择');
     const unavailable = $('[data-images-service-unavailable]');
-    unavailable.hidden = !connectionId || Boolean(connection && connection.available !== false);
+    unavailable.hidden = !cid || Boolean(connection && connection.available !== false);
     unavailable.textContent = connection?.unavailable_reason || L('所选生图服务不可用，请重新选择');
     $('[data-images-size-field]').hidden = !connection || connection.api_format !== 'openai-images';
     $('[data-images-ratio-field]').hidden = !connection || connection.api_format !== 'gemini';
-    $('[data-images-service-options]').querySelectorAll('[data-images-use-connection]').forEach(node => node.setAttribute('aria-pressed', String(node.dataset.imagesUseConnection === connectionId)));
+    $('[data-images-service-options]').querySelectorAll('[data-images-use-connection]').forEach(node => node.setAttribute('aria-pressed', String(node.dataset.imagesUseConnection === cid)));
     syncGenerate();
   };
   const paintConnections = () => {
-    if (!connectionId) connectionId = connections[0]?.id || '';
+    if (!cid) cid = connections[0]?.id || '';
     const options = $('[data-images-service-options]');
     options.replaceChildren(...connections.map(connection => {
       const node = button('', 'data-images-use-connection', connection.id);
@@ -252,10 +252,10 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const loadJobs = async (signal = viewSignal) => {
     if (!lifetime.visible) return;
-    ensureContext(); const currentContext = context; const seq = ++listSeq;
+    ensureContext(); const ctx = context; const seq = ++listSeq;
     try {
       const payload = await request('GET', '/jobs', undefined, signal);
-      if (currentContext !== projectId() || seq !== listSeq || !root.isConnected) return;
+      if (ctx !== projectId() || seq !== listSeq || !root.isConnected) return;
       jobs = Array.isArray(payload.jobs) ? payload.jobs : []; paintList();
       if (selectedId) {
         const job = jobs.find(item => item.id === selectedId);
@@ -263,12 +263,12 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       }
       say('', false, '[data-images-list-note]');
     } catch (error) {
-      if (!lifetime.alive || signal?.aborted || currentContext !== projectId() || seq !== listSeq) return;
+      if (!lifetime.alive || signal?.aborted || ctx !== projectId() || seq !== listSeq) return;
       say((error.message || L('无法读取生成记录')) + ' ' + L('可点击刷新重试。'), true, '[data-images-list-note]');
       if (selectedId) say(L('暂时无法更新进度，恢复连接后会继续读取。') + ' ' + L('可点击刷新重试。'), true);
       throw error;
     } finally {
-      if (!signal?.aborted && currentContext === projectId() && seq === listSeq) schedulePoll();
+      if (!signal?.aborted && ctx === projectId() && seq === listSeq) schedulePoll();
     }
   };
   const loadConnections = async (signal = viewSignal) => {
@@ -277,9 +277,9 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (seq !== loadSeq || !root.isConnected) return;
     connections = Array.isArray(payload.connections) ? payload.connections : [];
     authConnections = Array.isArray(payload.auth_connections) ? payload.auth_connections : [];
-    paintConnections(); syncConnectionEditor();
+    paintConnections(); paintConn();
   };
-  const syncConnectionEditor = () => {
+  const paintConn = () => {
     root.querySelectorAll('[data-images-format]').forEach(node => node.setAttribute('aria-pressed', String(node.dataset.imagesFormat === editingFormat)));
     root.querySelectorAll('[data-images-edit-connection]').forEach(node => node.setAttribute('aria-pressed', String(node.dataset.imagesEditConnection === editingId)));
     const existing = connections.find(item => item.id === editingId);
@@ -301,7 +301,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     connectionName.value = preset === 'gemini' ? 'Gemini' : preset === 'openai' ? 'OpenAI' : '';
     connectionUrl.value = preset === 'gemini' ? 'https://generativelanguage.googleapis.com/v1beta' : preset === 'openai' ? 'https://api.openai.com/v1' : '';
     connectionModel.value = preset === 'gemini' ? 'gemini-3.1-flash-image' : preset === 'openai' ? 'gpt-image-1.5' : '';
-    syncConnectionEditor();
+    paintConn();
   };
   const editConnection = (id) => {
     const connection = connections.find(item => item.id === id); editingId = connection?.id || '';
@@ -309,12 +309,12 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (connection) {
       editingFormat = connection.api_format; connectionName.value = connection.name;
       connectionUrl.value = connection.base_url; connectionModel.value = connection.model;
-      syncConnectionEditor();
+      paintConn();
     } else usePreset('openai');
     say('', false, '[data-images-connection-note]');
   };
   const openConnections = () => {
-    if (resumeConnection !== connectionId) editConnection(connectionId); resumeConnection = null; if (!dialog.open) dialog.showModal(); connectionName.focus();
+    if (resumeConnection !== cid) editConnection(cid); resumeConnection = null; if (!dialog.open) dialog.showModal(); connectionName.focus();
   };
   const syncSaving = () => {
     if (!lifetime.alive) return;
@@ -334,21 +334,21 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       loadSeq += 1;
       const index = connections.findIndex(item => item.id === payload.connection.id);
       if (index >= 0) connections[index] = payload.connection; else connections.push(payload.connection);
-      connectionId = payload.connection.id; editingId = connectionId;
+      cid = payload.connection.id; editingId = cid;
       paintConnections(); saveDraft(); dialog.close(); say(L(payload.connection.available === false ? '服务已保存，请先完成账号连接。' : '服务已保存。可以开始生成图片。'));
     } catch (error) {
       say(error.message || L('保存服务失败'), true, '[data-images-connection-note]');
     } finally { saving = false; syncSaving(); }
   });
   lifetime.listen(dialog, 'cancel', event => { if (saving) event.preventDefault(); });
-  lifetime.listen(connectionUrl, 'input', syncConnectionEditor);
-  lifetime.listen(connectionAuth, 'change', () => { editingAuth = connectionAuth.value; syncConnectionEditor(); });
+  lifetime.listen(connectionUrl, 'input', paintConn);
+  lifetime.listen(connectionAuth, 'change', () => { editingAuth = connectionAuth.value; paintConn(); });
   lifetime.listen(compose, 'input', () => { saveDraft(); syncGenerate(); });
   lifetime.listen(compose, 'submit', async event => {
     event.preventDefault(); ensureContext();
-    if (submitting || !context || !selectedConnection() || selectedConnection().available === false || !compose.reportValidity()) return;
+    if (submitting || !context || !pickedConn() || pickedConn().available === false || !compose.reportValidity()) return;
     const currentContext = context;
-    const connection = selectedConnection();
+    const connection = pickedConn();
     const body = { connection_id: connection.id, prompt: prompt.value.trim() };
     if (connection.api_format === 'gemini' && ratio.value.trim()) body.aspect_ratio = ratio.value.trim();
     if (connection.api_format === 'openai-images' && size.value.trim()) body.size = size.value.trim();
@@ -369,13 +369,13 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     }
   });
   lifetime.listen(root, 'click', async event => {
-    const link = event.target.closest('a[href^="/settings/"]'); if (link && dialog.contains(link)) { resumeConnection = connectionId; dialog.close(); return; }
+    const link = event.target.closest('a[href^="/settings/"]'); if (link && dialog.contains(link)) { resumeConnection = cid; dialog.close(); return; }
     const target = event.target.closest('button'); if (!target || target.disabled) return;
     try {
       if (target.hasAttribute('data-images-connections')) { openConnections(); return; }
       if (target.hasAttribute('data-images-dialog-close')) { if (!saving) dialog.close(); return; }
       if (target.dataset.imagesPreset) { if (!saving) usePreset(target.dataset.imagesPreset); return; }
-      if (target.dataset.imagesFormat) { if (!saving) { editingFormat = target.dataset.imagesFormat; syncConnectionEditor(); } return; }
+      if (target.dataset.imagesFormat) { if (!saving) { editingFormat = target.dataset.imagesFormat; paintConn(); } return; }
       if (target.hasAttribute('data-images-add-connection')) { if (!saving) editConnection(''); return; }
       if (target.dataset.imagesEditConnection) { if (!saving) editConnection(target.dataset.imagesEditConnection); return; }
       if (target.dataset.imagesDeleteConnection) {
@@ -393,7 +393,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
         return;
       }
       if (target.dataset.imagesUseConnection) {
-        connectionId = target.dataset.imagesUseConnection; serviceMenu.open = false; syncParameters(); saveDraft(); return;
+        cid = target.dataset.imagesUseConnection; serviceMenu.open = false; syncParameters(); saveDraft(); return;
       }
       if (target.hasAttribute('data-images-new')) { say(''); showCompose(true); return; }
       if (target.hasAttribute('data-images-back')) {
@@ -414,7 +414,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if (target.dataset.imagesReuse) {
         const job = jobs.find(item => item.id === target.dataset.imagesReuse); if (!job) return;
         prompt.value = job.prompt; size.value = job.size || ''; ratio.value = job.aspect_ratio || '';
-        connectionId = job.connection_id;
+        cid = job.connection_id;
         pending = null; syncParameters(); say(''); showCompose(true); return;
       }
       if (target.dataset.imagesDeleteJob) {

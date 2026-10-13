@@ -1,14 +1,12 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { createHash } from "node:crypto";
-import { promises as fs } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { constants, promises as fs, type Stats } from "node:fs";
 import path from "node:path";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { GitOperation, WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { parseFilePath, type GitOperation, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-git";
 import { runWorkspaceGit } from "./workspace-git.js";
-import { CONFLICT_FILE_LIMIT, conflictFingerprint, readConflictSnapshot, resolveConflict } from "./git-conflict-resolution.js";
-import { effectivePushTargets, preparePush, type GitCommandConfiguration } from "./git-push-targets.js";
 
 /**
  * Committing, branching, pushing and opening a pull request, each as one Host-reviewed operation.
@@ -224,4 +222,195 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
         async execute() { await check(); await operationRun("git", root, ["merge", "--abort"]); return "已放弃这次合并"; } };
     }
   }
+}
+
+export type GitCommandConfiguration = Array<[string, string]>;
+const text = async (root: string, args: string[]) => (await runWorkspaceGit(root, args)).toString().trimEnd();
+
+export async function effectivePushTargets(root: string): Promise<Array<{ name: string; url: string }>> {
+  const rows: Array<{ name: string; url: string }> = [];
+  for (const name of (await text(root, ["remote"])).split("\n").filter(Boolean)) {
+    for (const url of (await text(root, ["remote", "get-url", "--push", "--all", "--", name])).split("\n").filter(Boolean)) rows.push({ name, url });
+  }
+  return rows;
+}
+
+const configured = async (root: string, key: string) => {
+  try { return await text(root, ["config", "--get-all", key]); }
+  catch (error) { if ((error as { code?: number }).code === 1) return ""; throw error; }
+};
+
+/** An ephemeral configured remote keeps all reviewed destinations, without re-reading the live remote's URLs at push. */
+export async function preparePush(root: string, summary: WorkspaceGitSummary, operation: Extract<GitOperation, { action: "push" }>,
+  where: Array<{ label: string; value: string }>, check: () => Promise<void>,
+  run: (args: string[], config?: GitCommandConfiguration) => Promise<{ stdout: string; stderr: string }>): Promise<PreparedGitOperation> {
+  const targets = summary.remotes.filter(item => item.name === operation.remote);
+  if (!targets.length) throw new Error(`没有远端「${operation.remote}」`);
+  if (!summary.branch) throw new Error("分离的 HEAD 不能推送，先建一个分支");
+  if (!summary.head_commit) throw new Error("还没有提交，没有可推送的内容");
+  if (summary.upstream && summary.ahead === 0) throw new Error("没有需要推送的提交");
+  const name = operation.remote, branch = summary.branch, commit = summary.head_commit;
+  const setUpstream = operation.set_upstream || !summary.upstream;
+  const fetch = await configured(root, `remote.${name}.fetch`);
+  const branchRemote = await configured(root, `branch.${branch}.remote`), branchMerge = await configured(root, `branch.${branch}.merge`);
+  const alias = `molis-reviewed-${randomUUID()}`;
+  const config: GitCommandConfiguration = [];
+  targets.forEach((target, index) => {
+    // Git expands insteadOf once. A fresh alias pins the already resolved URL even when that URL itself matches another rewrite.
+    const marker = `${alias}-${index}:`;
+    config.push([`url.${target.url}.insteadOf`, marker], [`remote.${alias}.${index ? "pushurl" : "url"}`, marker]);
+    if (index === 0) config.push([`remote.${alias}.pushurl`, marker]);
+  });
+  for (const rule of fetch.split("\n").filter(Boolean)) config.push([`remote.${alias}.fetch`, rule]);
+  for (const setting of ["proxy", "proxyAuthMethod", "receivepack", "vcs", "pushOption"]) {
+    const value = await configured(root, `remote.${name}.${setting}`);
+    if (value) for (const part of value.split("\n")) config.push([`remote.${alias}.${setting}`, part]);
+  }
+  const checkPush = async () => {
+    await check();
+    if (await configured(root, `remote.${name}.fetch`) !== fetch) throw new Error("远端跟踪设置在审查期间变化了，原操作未执行");
+  };
+  return { tool: "git-push", summary: `推送「${branch}」到 ${name}`, check: checkPush,
+    fields: [...where, { label: "远端", value: `${name}（${targets.map(target => target.url).join("\n")}）` },
+      { label: "推送的提交", value: summary.upstream ? `${summary.ahead} 个（远端跟踪分支 ${summary.upstream}）` : "整个分支（远端还没有这个分支）" },
+      ...(summary.behind ? [{ label: "注意", value: `远端比本地多 ${summary.behind} 个提交，Git 会拒绝推送；不会强制推送` }] : []),
+      { label: "执行范围", value: `推送已审查的提交 ${commit.slice(0, 12)} 到以上全部地址；使用已有 Git 凭据，不强制推送${setUpstream ? "；同时设置远端跟踪分支" : ""}；会运行仓库的 pre-push hook（如有）。` }],
+    async execute() {
+      await checkPush();
+      let out;
+      try { out = await run(["push", "--no-force", "--no-follow-tags", "--recurse-submodules=no", alias, `${commit}:refs/heads/${branch}`], config); }
+      catch (error) { throw Object.assign(new Error(`推送结果未确认；请核对以上远端，不要直接重试：${error instanceof Error ? error.message : String(error)}`), { code: "EFFECT_RECONCILE_REQUIRED" }); }
+      if (setUpstream) {
+        if (await configured(root, `branch.${branch}.remote`) !== branchRemote || await configured(root, `branch.${branch}.merge`) !== branchMerge
+          || await configured(root, `remote.${name}.fetch`) !== fetch) return `已推送到 ${name}；后来改过的本地跟踪设置已保留，请核对。`;
+        try {
+          await run(["config", "--local", `branch.${branch}.remote`, name]);
+          await run(["config", "--local", `branch.${branch}.merge`, `refs/heads/${branch}`]);
+        } catch (error) { throw Object.assign(new Error(`已推送到 ${name}，本地跟踪设置未完成：${error instanceof Error ? error.message : String(error)}`), { code: "EFFECT_RECONCILE_REQUIRED" }); }
+      }
+      return `已推送到 ${name}：${(out.stderr.split("\n").find(line => /->/.test(line)) ?? branch).trim()}`;
+    } };
+}
+
+export const CONFLICT_FILE_LIMIT = 1024 * 1024;
+type FileHandle = Awaited<ReturnType<typeof fs.open>>;
+export interface ConflictSnapshot { name: string; absolute: string; text: string; bytes: Buffer; identity: Stats; fingerprint: string }
+const identity = (state: Stats) => [state.dev, state.ino, state.mode, state.size, state.mtimeMs, state.ctimeMs];
+const same = (left: Stats, right: Stats) => identity(left).every((value, index) => value === identity(right)[index]);
+
+async function assertPath(root: string, name: string): Promise<string> {
+  if (await fs.realpath(root) !== root) throw new Error("工作区目录已变化，请重新关联");
+  const segments = parseFilePath(name.split("/"));
+  let target = root;
+  for (const [index, segment] of segments.entries()) {
+    target = path.join(target, segment);
+    const state = await fs.lstat(target);
+    if (state.isSymbolicLink() || index < segments.length - 1 && !state.isDirectory()) throw new Error("冲突路径包含链接或非目录，原操作未执行");
+  }
+  if (await fs.realpath(target) !== target) throw new Error("冲突路径已变化，原操作未执行");
+  return target;
+}
+
+async function readHeld(root: string, name: string, file: FileHandle): Promise<ConflictSnapshot> {
+  const absolute = await assertPath(root, name), before = await file.stat();
+  if (!before.isFile()) throw new Error("冲突的不是普通文件，请在终端处理");
+  if (before.size > CONFLICT_FILE_LIMIT) throw new Error("文件太大，请在编辑器里解决冲突");
+  const bytes = Buffer.alloc(before.size + 1);
+  let used = 0;
+  while (used < bytes.length) { const read = await file.read(bytes, used, bytes.length - used, used); if (!read.bytesRead) break; used += read.bytesRead; }
+  const after = await file.stat(), named = await fs.lstat(await assertPath(root, name));
+  if (!same(before, after) || !same(after, named) || used !== before.size) throw new Error("冲突文件在读取时变化了，请刷新");
+  const body = bytes.subarray(0, used);
+  if (body.includes(0)) throw new Error("二进制冲突请在编辑器里处理");
+  let text: string;
+  try { text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(body); }
+  catch { throw new Error("文件不是完整 UTF-8 文本，请在编辑器里解决冲突"); }
+  const fingerprint = createHash("sha256").update(JSON.stringify([name, identity(after)])).update(body).digest("hex");
+  return { name, absolute, text, bytes: body, identity: after, fingerprint };
+}
+
+export async function readConflictSnapshot(root: string, name: string): Promise<ConflictSnapshot> {
+  const absolute = await assertPath(root, name);
+  const file = await fs.open(absolute, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  try { return await readHeld(root, name, file); }
+  finally { await file.close(); }
+}
+
+/** Unreadable conflicts still appear in the summary, so abandoning a merge remains available. They cannot be resolved here. */
+export async function conflictFingerprint(root: string, name: string): Promise<string> {
+  try { return (await readConflictSnapshot(root, name)).fingerprint; }
+  catch (error) { return `unreadable:${name}:${error instanceof Error ? error.message : String(error)}`; }
+}
+
+async function indexBytes(indexPath: string): Promise<Buffer> {
+  const file = await fs.open(indexPath, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  try { if (!(await file.stat()).isFile()) throw new Error("暂存区不是普通文件，不能更新"); return await file.readFile(); }
+  finally { await file.close(); }
+}
+
+async function writeHeld(file: FileHandle, contents: Buffer): Promise<void> {
+  let written = 0;
+  while (written < contents.length) {
+    const result = await file.write(contents, written, contents.length - written, written);
+    if (!result.bytesWritten) throw new Error("冲突正文未完整写入，请核对");
+    written += result.bytesWritten;
+  }
+  await file.truncate(contents.length); await file.sync();
+}
+
+async function lineage(root: string): Promise<string> {
+  const commit = (await runWorkspaceGit(root, ["rev-parse", "--verify", "HEAD"])).toString();
+  const branch = (await runWorkspaceGit(root, ["rev-parse", "--abbrev-ref", "HEAD"])).toString();
+  return commit + branch;
+}
+
+/** Freeze the resolved bytes in a temporary index and publish under Git's own lock, never `git add` a later path. */
+export async function resolveConflict(root: string, reviewed: ConflictSnapshot, content: string, check: () => Promise<void>): Promise<void> {
+  await check();
+  const file = await fs.open(await assertPath(root, reviewed.name), constants.O_RDWR | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  let written = false;
+  try {
+    if ((await readHeld(root, reviewed.name, file)).fingerprint !== reviewed.fingerprint) throw new Error("冲突正文或文件身份在审查期间变化了，原操作未执行");
+    const indexPath = path.resolve(root, (await runWorkspaceGit(root, ["rev-parse", "--git-path", "index"])).toString().trimEnd());
+    const original = await indexBytes(indexPath), originalLineage = await lineage(root), lockPath = indexPath + ".lock";
+    let lock: FileHandle;
+    try { lock = await fs.open(lockPath, "wx", 0o600); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error("Git 暂存区正被其他操作使用，原操作未执行"); throw error; }
+    const lockIdentity = await lock.stat();
+    let temp: string | undefined, published = false;
+    try {
+      await check();
+      if (!(await indexBytes(indexPath)).equals(original)) throw new Error("暂存区在审查期间变化了，原操作未执行");
+      temp = await fs.mkdtemp(path.join(path.dirname(indexPath), "molis-resolve-"));
+      const temporaryIndex = path.join(temp, "index");
+      await fs.writeFile(temporaryIndex, original);
+      const oid = (await runWorkspaceGit(root, ["hash-object", "-w", "--stdin"], undefined, { input: content })).toString().trim();
+      const converted = (await runWorkspaceGit(root, ["hash-object", "--stdin", `--path=${reviewed.name}`], undefined, { input: content })).toString().trim();
+      if (converted !== oid) throw new Error("Git 内容转换会改变审查正文，本次未写入；请在编辑器里处理");
+      const mode = reviewed.identity.mode & 0o100 ? "100755" : "100644";
+      await runWorkspaceGit(root, ["update-index", "-z", "--index-info"], undefined,
+        { indexFile: temporaryIndex, input: `0 ${"0".repeat(oid.length)}\t${reviewed.name}\0${mode} ${oid}\t${reviewed.name}\0` });
+      await check();
+      if ((await readHeld(root, reviewed.name, file)).fingerprint !== reviewed.fingerprint) throw new Error("冲突正文或文件身份在审查期间变化了，原操作未执行");
+      written = true;
+      await writeHeld(file, Buffer.from(content));
+      const after = await readHeld(root, reviewed.name, file);
+      if (after.text !== content) throw new Error("写入后的冲突正文已变化，请核对");
+      await lock.writeFile(await fs.readFile(temporaryIndex)); await lock.sync();
+      if (await lineage(root) !== originalLineage) throw new Error("分支或提交在写入期间变化了，请核对");
+      if (!(await indexBytes(indexPath)).equals(original)) throw new Error("暂存区在写入期间变化了，请核对");
+      if ((await readHeld(root, reviewed.name, file)).fingerprint !== after.fingerprint) throw new Error("冲突正文在写入期间又被修改，请核对");
+      await lock.close(); await fs.rename(lockPath, indexPath); published = true;
+    } finally {
+      await lock.close().catch(() => undefined);
+      if (!published) {
+        const named = await fs.lstat(lockPath).catch(() => null);
+        if (named?.dev === lockIdentity.dev && named.ino === lockIdentity.ino) await fs.rm(lockPath, { force: true });
+      }
+      if (temp) await fs.rm(temp, { recursive: true, force: true });
+    }
+  } catch (error) {
+    if (written) throw Object.assign(new Error(`冲突正文已开始写入，但完成结果未确认；请核对文件与暂存区：${error instanceof Error ? error.message : String(error)}`), { code: "EFFECT_RECONCILE_REQUIRED" });
+    throw error;
+  } finally { await file.close(); }
 }

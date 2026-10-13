@@ -271,6 +271,13 @@ test("a streamed reply shows the model's text as it comes; closing the request s
     const result = lines.find(line => line.type === "result");
     assert.equal(result.result.messages.at(-1).body, "第一句，第二句。");
     assert.deepEqual((await bound.invoke(actions.getConversation, { id: conversation.id })).messages.map((message: { body: string }) => message.body), ["继续", "第一句，第二句。"]);
+    const hostSource = readFileSync(new URL("../apps/local-host/src/lingguang-native-plugin-http.ts", import.meta.url), "utf8");
+    for (const word of ["waiting", "extracting", "writing", "text_delta"]) assert.equal(hostSource.includes(word), false, `the host still names ${word}`);
+    const client = readFileSync(new URL("../plugins/native/lingguang/src/client.ts", import.meta.url), "utf8");
+    const submit = client.slice(client.indexOf('chatForm.addEventListener("submit"'), client.indexOf('chatForm.addEventListener("keydown"'));
+    const caught = submit.slice(submit.indexOf("} catch"), submit.indexOf("} finally"));
+    assert.equal(caught.includes("chatInput.value"), false, "closing the request leaves the typed input in the box");
+    assert.match(submit, /if \(chatInput\.value === body\) chatInput\.value = "";/);
   } finally {
     finish.resolve();
     if (server.listening) await new Promise<void>(resolve => { server.closeAllConnections?.(); server.close(() => resolve()); });

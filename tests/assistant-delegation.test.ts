@@ -187,15 +187,19 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
     if (JSON.stringify(body.messages).includes("委托给你的子任务")) return child(childRound++, init.signal);
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))();
   });
-  const flags = { model: true };
+  const flags = { model: true, beforeAuthority: undefined as (() => Promise<void>) | undefined, beforeStart: undefined as (() => Promise<void>) | undefined };
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-fixture-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)), projectTitle: async () => "项目" }, "web-user");
-  return { service, store, project, flags, close: async () => { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+    authority: async work => {
+      const base = assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work));
+      if (!work.delegated_by) await flags.beforeAuthority?.();
+      return { ...base, beforeStart: async () => { await base.beforeStart?.(); if (!work.delegated_by) await flags.beforeStart?.(); } };
+    }, projectTitle: async () => "项目" }, "web-user");
+  return { service, store, project, flags, adapter, close: async () => { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a sub-task the person put away still counts for the work that handed it out: its tokens, its place among the limit, and the stop", { timeout: 60_000 }, async t => {
@@ -258,4 +262,31 @@ test("a sub-task whose first round cannot start is not left behind: no idle orph
     assert.equal(f.store.delegatedBy("web-user", parent.work_id).length, 1);
     assert.equal(started.title, "能开始的");
   } finally { await f.close(); }
+});
+
+
+for (const stage of ["authority", "before-start", "sdk-commit"] as const) test(`W2-18-HANDBACK-CURRENT-01: archive during ${stage} prevents an automatic accepted run`, { timeout: 60_000 }, async t => {
+  const childWaiting = Promise.withResolvers<void>(), finishChild = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let parentCalls = 0;
+  const f = await delegationFixture(t, [
+    () => { parentCalls++; return reply({ name: "delegate-work", input: { title: "Draft", brief: "写出一段交回的文字。", acceptance: "一段文字" } }); },
+    () => { parentCalls++; return reply(undefined, "子任务正在写。等它交回。" ); },
+    () => { parentCalls++; return reply(undefined, "must not continue an archived work"); },
+  ], async () => { childWaiting.resolve(); await finishChild.promise; return reply(undefined, "已交回的一段完整文字。"); });
+  try {
+    const sent = await f.service.send({ text: "委托起草并等它交回", request_id: "handback-archive-" + stage }, { project_ref: f.project });
+    await childWaiting.promise;
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "parent finishes before child");
+    const before = f.store.get("web-user", sent.work.work_id); assert.ok(before.session_id);
+    const beforeSession = await f.adapter.readSession({ session_id: before.session_id }); assert.equal(beforeSession.runs.length, 1);
+    if (stage === "authority") f.flags.beforeAuthority = async () => { entered.resolve(); await release.promise; };
+    else { let checks = 0; f.flags.beforeStart = async () => { if (++checks === (stage === "before-start" ? 1 : 3)) { entered.resolve(); await release.promise; } }; }
+    finishChild.resolve(); await entered.promise;
+    await f.service.archive(sent.work.work_id, true); release.resolve();
+    await until(() => f.service.notices(null).some(notice => notice.kind === "needs-decision" && notice.text.includes("没有自动接着做")), "cancelled hand-back settles");
+    const after = await f.adapter.readSession({ session_id: before.session_id });
+    assert.deepEqual(after.runs, beforeSession.runs, "the actual SDK accepted no hand-back run");
+    assert.equal(f.store.rounds(sent.work.work_id).length, 1); assert.equal(f.store.get("web-user", sent.work.work_id).archived, true);
+    assert.equal(parentCalls, 2, "no automatic model inference was dispatched");
+  } finally { finishChild.resolve(); release.resolve(); await f.close(); }
 });

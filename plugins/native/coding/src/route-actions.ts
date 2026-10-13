@@ -14,8 +14,8 @@ const LOCAL: readonly ActionAudience[] = ["user"];
 
 type Translate = { toInput(request: PluginRouteRequest): Record<string, unknown>; toRequest(input: Record<string, unknown>): Pick<PluginRouteRequest, "params" | "query" | "body"> & { method: PluginRouteMethod } };
 function define(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
-  permissions: readonly string[], audiences: readonly ActionAudience[], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent"): ActionDefinition<Record<string, unknown>, unknown> {
-  return { capability_id: `coding.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), ...(scheduling ? { scheduling } : {}), kind: operation === "query" ? "query" : "operation",
+  permissions: readonly string[], audiences: readonly ActionAudience[], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent", version = 1): ActionDefinition<Record<string, unknown>, unknown> {
+  return { capability_id: `coding.${name}`, version, operation, action: { title, description, ...(execution ? { execution } : {}), ...(scheduling ? { scheduling } : {}), kind: operation === "query" ? "query" : "operation",
     scope: "project", audiences, permissions, subject_kinds: ["coding_session"], input_schema: input, output_schema: result } };
 }
 const body = (request: PluginRouteRequest) => request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {};
@@ -53,7 +53,7 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
       ["artifact:read", "storage:private"], LOCAL, { cost: "metered" }, "concurrent"),
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
   "coding.control-run": { definition: define("runs.control", "控制编码轮次", "回答提问、补充要求、暂停、继续或停止正在进行的一轮，或把它从下一次模型调用起换到另一个已配置的模型", "command",
-      open({ ...session, run_id: id, kind: { enum: ["answer", "steer", "stop", "pause", "resume", "switch-model"] } }, ["session_id", "run_id", "kind"]), [], LOCAL),
+      open({ ...session, run_id: id, kind: { enum: ["answer", "steer", "stop", "pause", "resume", "switch-model"] } }, ["session_id", "run_id", "kind"]), [], LOCAL, undefined, undefined, 2),
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
   "coding.read-report": { definition: define("reports.read", "读取执行报告", "读取一轮的固定报告；没有固定版本时按这一轮的记录生成预览", "query",
       closed({ ...round, fixed: { type: "boolean" } }, ["session_id", "run_id"]), ["artifact:read"], READS),

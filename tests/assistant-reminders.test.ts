@@ -94,11 +94,11 @@ test("W2-18-S8-TODO-01: a real Todo reminder automatically produces one Assistan
   const request = async (path: string, body?: object) => {
     const response = await fetch(origin + path, { method: body ? "POST" : "GET", headers: { "content-type": "application/json", origin,
       "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "todo-reminder-" + (++requests) }, ...(body ? { body: JSON.stringify(body) } : {}) });
-    assert.equal(response.status, body ? 201 : 200, await response.clone().text()); return response.json();
+    assert.equal(response.status, 200, await response.clone().text()); return response.json();
   };
   try {
     t.mock.timers.tick(60_000); await new Promise(resolve => setTimeout(resolve, 25));
-    const created = await request("/api/todo/items", { title: "Read the actual overdue draft", placement: "personal", remind_at: new Date(Date.now() + 10).toISOString() }) as { item: { id: string } };
+    const created = await request("/api/todo", { title: "Read the actual overdue draft", placement: "personal", remind_at: new Date(Date.now() + 10).toISOString() }) as { item: { id: string } };
     await new Promise(resolve => setTimeout(resolve, 25)); t.mock.timers.tick(60_000);
     const deadline = Date.now() + 10_000;
     let notices: Array<{ notice_id: string; kind: string; text: string; link?: string }> = [];

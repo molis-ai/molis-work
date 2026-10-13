@@ -26,7 +26,7 @@ export interface DelegationPorts {
   lastReply(work: StoredWork): Promise<string | undefined>;
   chooseCharacter(work: StoredWork, choice: AssistantCharacterRef): Promise<StoredWork>;
   /** Start (or add to) a round of this work; `host` marks words the Host wrote. `request` makes the start happen once. */
-  dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], writtenBy: "assistant" | "host", request?: string): Promise<unknown>;
+  dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], writtenBy: "assistant" | "host", request?: string, stillCurrent?: () => boolean): Promise<unknown>;
   read(workId: string): Promise<AssistantWorkView>;
   /** Tell the person, once per key. */
   notify(work: StoredWork, text: string, key: string): void;
@@ -229,11 +229,20 @@ export class AssistantDelegations {
     if (!owed.some(item => item.state !== "stopped")) return;
     const latest = await this.ports.latestRun(host, parent);
     if (!latest || latest.phase !== "completed" || parent.hand_back_held === latest.ref.run_id) return;
+    const stillCurrent = () => {
+      try {
+        const current = store.get(actorId, parentId);
+        return !current.archived && !current.delegated_by && current.executor.kind !== "coding"
+          && current.session_id === parent.session_id && current.hand_back_held !== latest.ref.run_id
+          && store.rounds(parentId).at(-1)?.run_id === latest.ref.run_id;
+      } catch { return false; }
+    };
+    if (!stillCurrent()) return;
     const names = owed.map(item => `「${item.child.title}」`).join("");
     // The same results never move it on twice, whatever happens to the marks: the start is keyed by them.
     const key = `hand-back-${createHash("sha256").update(owed.map(item => store.rounds(item.child.work_id).at(-1)?.run_id).sort().join(",")).digest("hex").slice(0, 24)}`;
     try {
-      await this.ports.dispatch(parent, `（子任务都已交回）请核对${names}的结果，把这项工作接着做完。`, [], "host", key);
+      await this.ports.dispatch(parent, `（子任务都已交回）请核对${names}的结果，把这项工作接着做完。`, [], "host", key, stillCurrent);
     } catch (error) {
       const why = error instanceof Error ? error.message : String(error);
       this.ports.notify(parent, `「${parent.title}」的子任务都已交回，但没有自动接着做：${why}`, key);

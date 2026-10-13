@@ -3,7 +3,7 @@ import { FOLLOW_UP_KIND, followUpTask, enqueueCurrentFollowUp, runDueFollowUp } 
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorBody, actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 import { describeReview } from "./assistant-review-words.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
@@ -519,9 +519,10 @@ export class AssistantService {
       read: workId => this.read(workId),
       notify: (work, text, key) => void this.store.raiseNotice(actorId, { kind: "needs-decision", work_id: work.work_id, work_title: work.title, text }, key),
       // A start the Host writes happens once per key: a repeated settle finds it claimed.
-      dispatch: async (work, text, materials, writtenBy, request) => {
+      dispatch: async (work, text, materials, writtenBy, request, stillCurrent) => {
+        assertSendCurrent(stillCurrent);
         if (request && !store.claimRequest(actorId, request).claimed) return;
-        try { const result = await this.dispatch(work, text, materials, null, undefined, writtenBy); if (request) store.finishRequest(actorId, request, result); return result; }
+        try { const result = await this.dispatch(work, text, materials, null, undefined, writtenBy, stillCurrent); if (request) store.finishRequest(actorId, request, result); return result; }
         catch (error) { if (request) store.releaseRequest(actorId, request); throw error; }
       } });
   }
@@ -1874,6 +1875,8 @@ export class AssistantService {
     const base = await this.ports.authority(work);
     const authority = stillCurrent ? { ...base, beforeStart: async () => {
       await base.beforeStart?.(); assertSendCurrent(stillCurrent);
+    }, assertBeforeStart: () => {
+      requireSynchronous(base.assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent);
     } } : base;
     if (!work.session_id) {
       const session = await host.createSession(RUNTIME, { project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID,

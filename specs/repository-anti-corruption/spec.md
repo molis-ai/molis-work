@@ -2234,3 +2234,5 @@ R3源码20e9b32e9固定：148错误词元/32TS、90现行码；AST门禁仅识�
 
 I8接续共享核心整合：新树i8-error-test-import-integration由当前main c33448f29建立，4778d5636合入H/R1–R3与此前I7源码，194a288fa合入C/D测试与隔离夹具/DNS恢复，2e29acd4e承接E绝对零；冲突保留新增业务测试正文并按现行入口重写导入。E入口同时保留I7浏览器程序拒写guard与新增混载绝对零检查，不放宽门禁。实际静态图零混载（967进程），缺的整体构建/类型、MCP/HTTP与动作v2、核心与全量由这一组合统一补证。Root已核pid/cwd/未启动日志，仅取消自己未启动的H47546/82294与I7 15935/78750两个排队构建，组合代替它们，不重复构建；外来全量自然结束，其进程未动，C/D25浏览器已拿到名额。候选SDK仍只在私有临时树引用，pkg1+/1-、lock5+/5-且118optional项保留；上游commit/push/PR与正式vendor替换许可仍待，未动正式vendor。
 R3独立源审确认148literal/32TS/90码之外正文仅两注释，2990JS/TS含嵌入脚本零旧错误码；八业务type/三宿主in-flight保留，无Blocker/P1。运行与动作快照缺口继续保留。
+
+C/D冻结ada822a15的25文件真实浏览器组合已完成：w2-10-cd-browser-runtime01.log实际77/77，零fail/cancel/skip，session65943退出0；C 7Darwin63条与D42非浏览器108条既有独立有效证据保留，不重复计 rerun。I8预检01安装frozen/offline/optional通过，整体build退出1，contracts报告闲置导入（原日志i8-build01.log）；未执行后续动作快照/门禁/类型/79文件，不记运行通过。先最小清理编译阻断后整体重建。

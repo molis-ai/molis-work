@@ -1,12 +1,8 @@
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { cogniaActions as actions } from "./actions.js";
-import { CogniaError, requireCognia } from "./types.js";
+import { requireCognia } from "./types.js";
 export interface CogniaRouteRequest { method: "GET" | "POST"; pathname: string; query: URLSearchParams; body: Record<string, unknown> }
 export interface CogniaRouteResponse { status: number; body?: unknown; bytes?: Uint8Array; filename?: string; mime?: string }
-export function cogniaRouteErrorResponse(error: unknown): CogniaRouteResponse {
-  const code = error instanceof Error && "code" in error ? String(error.code) : "cognia.failed";
-  return { status: error instanceof CogniaError ? error.status : code.includes("forbidden") ? 403 : code.includes("connection_required") || code.includes("unavailable") ? 503 : code.includes("conflict") || code.includes("configuration_changed") ? 409 : code.includes("not_found") ? 404 : 400, body: { code, error: error instanceof Error ? error.message : "Cognia 请求失败" } };
-}
 /** Historical URLs and response shape; business handlers belong to the registered provider. */
 export class CogniaPluginRouteTable {
   constructor(private readonly actions: BoundActionClient) {}

@@ -124,7 +124,7 @@ test("original images require the selected vision model; folder and PDF contents
   assert.match(prompt, /sources\/nested\/code.ts/); assert.match(prompt, /amount = 12/); assert.match(prompt, /PDF facts/);
   await f.actions.invoke(a.saveSettings, { model_selection: { provider_id: "missing", model_id: "missing" } });
   const count = f.requests.length;
-  await assert.rejects(f.actions.invoke(a.generate, { recipe: "summarize", item_id: folder.item_id }), { code: "shelf.no_model" });
+  await assert.rejects(f.actions.invoke(a.generate, { recipe: "summarize", item_id: folder.item_id }), { code: "actions.connection_required" });
   assert.equal(f.requests.length, count);
   const directory = await f.host.homeActionClient().discover({ actor_id: "reader", project_id: null, audience: "mcp", permissions: SHELF_ACTION_PERMISSIONS });
   assert.equal(directory.find(row => row.capability_id === a.generate.capability_id)?.availability.available, false);

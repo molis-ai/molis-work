@@ -1,7 +1,7 @@
 import { decodePrologueJsonOutput } from "@molis-ai/molis-work-service-agent-host";
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { ActionError, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createJellyActionHandlers, createJellyServiceHandlers, jellyManifest, openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
+import { createJellyActionHandlers, createJellyServiceHandlers, jellyErrors, jellyManifest, openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
 import { createJellyCompletion, readJellyModelSettings, saveJellyModelSettings } from "./jelly-model.js";
 import type { HostCompleteText } from "./host-complete-text.js";
 
@@ -24,7 +24,7 @@ export function jellyActionProvider(home: string, completion?: HostCompleteText 
           await caller.beforeEffect();
           options?.signal?.throwIfAborted();
           const decoded = decodePrologueJsonOutput(text, { allowCodeFence: true });
-          if (!decoded.ok) throw new ActionError("jelly.ai_invalid", "模型没有返回有效计划，原文未修改，请重试或手工拆解");
+          if (!decoded.ok) throw jellyErrors.ai_invalid("模型没有返回有效计划，原文未修改，请重试或手工拆解");
           return decoded.value;
         },
       }),

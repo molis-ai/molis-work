@@ -484,9 +484,7 @@ test("canonical workspace routing supports symlinks, multiple project candidates
       assert.equal(initialMembership[0]?.workspace_name, "ordinary-project-directory");
 
       const aliasResolved = catalog.resolveRuntimeContext(aliasSession);
-      assert.equal(aliasResolved.status, "suggested");
-      assert.equal(aliasResolved.project, null);
-      assert.equal(aliasResolved.connection, null);
+      assert.deepEqual([aliasResolved.status, aliasResolved.project, aliasResolved.connection], ["suggested", null, null]);
       assert.deepEqual(aliasResolved.suggested_projects.map(item => item.project_id), [first.project_id]);
       assert.equal(
         aliasResolved.context.workspace?.workspace_id,

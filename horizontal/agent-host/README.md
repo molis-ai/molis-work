@@ -100,3 +100,5 @@ Prologue Node 接上宿主审查队列时声明子任务能力 `partial`。同�
 ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner 新记录的成功、失败或未知回执，重复 settle 与 Prologue 恢复历史不重复通知。监听错误不改写已提交 Effect，也不触发执行重试；消费者必须按项目过滤并自行释放。
 
 目录状态读取在冷会话上使用原加密启动索引、SDK 运行/未结束工作与 checkpoint 恢复检查，只回放最后一轮的过程，并从索引定位最近计划轮的步骤。它不保留历史正文或创建历史控制句柄；打开详情和开始新轮仍走完整恢复路径。不支持内部轻量读取口的 Runtime 保留原恢复行为。回归见 `tests/prologue-status-projection.test.ts` 与 `tests/prologue-recovery.test.ts`。
+
+中途换模型的原调用控制经现有 `withAgentEffect` 进入实际 Node Runtime；配置和凭据等待后复查异步授权，SDK 完成校验后的同步接受点再核原调用。待切换显示也在同一接受点更新，拒绝的候选不覆盖此前接受的目标。W2-18-MODEL-SWITCH-01/02 在 `tests/agent-sdk-effects.test.ts` 使用正式 typed Host、实际 SDK/Node Host、真实文件读取与受控供应商回复，核取消/撤权、B 后拒绝 C，以及后续模型请求确实仍为 B；真实供应商推理质量另列未验。

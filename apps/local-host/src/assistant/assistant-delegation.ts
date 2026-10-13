@@ -202,6 +202,9 @@ export class AssistantDelegations {
   }
 
   /** Settle the hand-back of one delegating work, one at a time per work. */
+  /** A stop may withdraw a hand-back still preparing its next round. */
+  isHandingBack(parentId: string): boolean { return this.#settling.has(parentId); }
+
   settle(parentId: string): Promise<void> {
     const next = (this.#settling.get(parentId) ?? Promise.resolve()).then(() => this.#settle(parentId)).catch(() => undefined);
     this.#settling.set(parentId, next);

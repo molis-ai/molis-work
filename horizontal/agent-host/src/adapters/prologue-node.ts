@@ -42,7 +42,7 @@ import { createPrologueMemory } from "./prologue-memory.js";
 import { createPrologueDocuments } from "./prologue-documents.js";
 import { runModelParams } from "./prologue-run-params.js";
 export { THINKING_OUTPUT_TOKENS } from "./prologue-run-params.js";
-import { PrologueCredentialBridge } from "./prologue-credentials.js";
+import { PrologueCredentialBridge, prepareInferenceCredential } from "./prologue-credentials.js";
 export { PrologueCredentialBridge, type PrologueCredentialHost } from "./prologue-credentials.js";
 import { prologueEffects } from "./prologue-effects.js";
 import { resolveModelHostname } from "./node-model-dns.js";
@@ -688,22 +688,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     host: { writeCredential: (input) => runtime.credentials.write(input) },
     resolve: options.resolveCredential,
   });
-  const inference = createPrologueInference(runtime, async (input, signal, optional) => {
-    const normalize = (value: string | null) => value?.trim() ? value : null;
-    signal.throwIfAborted();
-    await input.beforeDispatch?.();
-    const snapshot = normalize(await input.resolveCredential(input.credential_ref));
-    signal.throwIfAborted();
-    const assertCurrent = async () => {
-      signal.throwIfAborted();
-      if (normalize(await input.resolveCredential(input.credential_ref)) !== snapshot) throw new Error("模型凭据或配置已改变");
-      signal.throwIfAborted();
-    };
-    if (optional && snapshot === null) return { assertCurrent };
-    if (snapshot === null) throw new Error("模型凭据不可用");
-    const ref = await credentials.prologueRefFor(input.credential_ref, async () => { await assertCurrent(); return snapshot; }, signal);
-    return { ref, assertCurrent };
-  }, (guard, operation) => dispatchGuards.run(guard, operation));
+  const inference = createPrologueInference(runtime, prepareInferenceCredential(credentials), (guard, operation) => dispatchGuards.run(guard, operation));
   const builders = new Set<Awaited<ReturnType<typeof createPluginBuilderAgent>>>();
   let closingBuilders = false;
   const createBuilderAgent = async (input: PluginBuilderAgentOptions) => {
@@ -1370,7 +1355,12 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           },
           pause: () => control.pause(), resume: () => control.resume(),
           // The new model's key is exchanged first; the runtime refuses a target or frozen settings it cannot carry.
-          switchModel: async target => control.switchModel({ protocol: target.protocol, endpoint: target.endpoint, model: target.model, credentialRef: await credentials.prologueRefFor(target.credential_ref) }),
+          beforeModelSwitch: effects.beforeEffect,
+          switchModel: async (target, beforeAccept) => {
+            const credentialRef = await credentials.prologueRefFor(target.credential_ref);
+            await effects.beforeEffect();
+            return control.switchModel({ protocol: target.protocol, endpoint: target.endpoint, model: target.model, credentialRef }, { beforeAccept: () => { effects.assertCurrent(); beforeAccept(); } });
+          },
           steer: input => control.steer(input), subscribe: listener => control.subscribe(listener),
         },
       };

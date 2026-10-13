@@ -5,6 +5,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
+const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
+const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
@@ -199,7 +203,7 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
       if (!work.delegated_by) await flags.beforeAuthority?.();
       return { ...base, beforeStart: async () => { await base.beforeStart?.(); if (!work.delegated_by) await flags.beforeStart?.(); } };
     }, projectTitle: async () => "项目" }, "web-user");
-  return { service, store, project, flags, adapter, close: async () => { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, store, project, flags, adapter, home, close: async () => { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a sub-task the person put away still counts for the work that handed it out: its tokens, its place among the limit, and the stop", { timeout: 60_000 }, async t => {
@@ -265,13 +269,13 @@ test("a sub-task whose first round cannot start is not left behind: no idle orph
 });
 
 
-for (const stage of ["authority", "before-start", "sdk-commit"] as const) test(`W2-18-HANDBACK-CURRENT-01: archive during ${stage} prevents an automatic accepted run`, { timeout: 60_000 }, async t => {
+for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const) test(`W2-18-HANDBACK-CURRENT-01: archive during ${stage} prevents an automatic accepted run`, { timeout: 60_000 }, async t => {
   const childWaiting = Promise.withResolvers<void>(), finishChild = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let parentCalls = 0;
   const f = await delegationFixture(t, [
     () => { parentCalls++; return reply({ name: "delegate-work", input: { title: "Draft", brief: "写出一段交回的文字。", acceptance: "一段文字" } }); },
     () => { parentCalls++; return reply(undefined, "子任务正在写。等它交回。" ); },
-    () => { parentCalls++; return reply(undefined, "must not continue an archived work"); },
+    () => { parentCalls++; return reply(undefined, "恢复后已核对交回的完整文字。"); },
   ], async () => { childWaiting.resolve(); await finishChild.promise; return reply(undefined, "已交回的一段完整文字。"); });
   try {
     const sent = await f.service.send({ text: "委托起草并等它交回", request_id: "handback-archive-" + stage }, { project_ref: f.project });
@@ -280,13 +284,80 @@ for (const stage of ["authority", "before-start", "sdk-commit"] as const) test(`
     const before = f.store.get("web-user", sent.work.work_id); assert.ok(before.session_id);
     const beforeSession = await f.adapter.readSession({ session_id: before.session_id }); assert.equal(beforeSession.runs.length, 1);
     if (stage === "authority") f.flags.beforeAuthority = async () => { entered.resolve(); await release.promise; };
-    else { let checks = 0; f.flags.beforeStart = async () => { if (++checks === (stage === "before-start" ? 1 : 3)) { entered.resolve(); await release.promise; } }; }
+    else if (stage === "before-start") f.flags.beforeStart = async () => { entered.resolve(); await release.promise; };
+    else {
+      const inspector = createNodeHost({ storageRoot: join(f.home, "sdk") });
+      const indexKind = "molis-agent-index-" + createHash("sha256").update("io.molis.work.assistant-delegation-fixture-test").digest("hex").slice(0, 24);
+      const get = f.store.get.bind(f.store); let armed = false, held = false;
+      t.mock.method(f.store, "get", (actor: string, id: string) => {
+        const current = get(actor, id);
+        if (armed && id === sent.work.work_id) {
+          armed = false;
+          // Commit the owner's archive immediately after the async guard's current-state read;
+          // the actual SDK commit must still run the synchronous acceptance fence.
+          queueMicrotask(() => f.store.update("web-user", id, null, { archived: true }));
+        }
+        return current;
+      });
+      f.flags.beforeStart = async () => {
+        const bytes = await inspector.storage.readSecure({ kind: indexKind, id: before.session_id! });
+        const prepared = JSON.parse(new TextDecoder().decode(bytes)); bytes.fill(0);
+        if (!held && prepared.attempts.length > beforeSession.runs.length && !prepared.attempts.at(-1).run_id) {
+          held = true; entered.resolve(); await release.promise; armed = true;
+        }
+      };
+    }
     finishChild.resolve(); await entered.promise;
-    await f.service.archive(sent.work.work_id, true); release.resolve();
+    if (stage !== "sdk-prepared-start") await f.service.archive(sent.work.work_id, true);
+    release.resolve();
     await until(() => f.service.notices(null).some(notice => notice.kind === "needs-decision" && notice.text.includes("没有自动接着做")), "cancelled hand-back settles");
     const after = await f.adapter.readSession({ session_id: before.session_id });
     assert.deepEqual(after.runs, beforeSession.runs, "the actual SDK accepted no hand-back run");
     assert.equal(f.store.rounds(sent.work.work_id).length, 1); assert.equal(f.store.get("web-user", sent.work.work_id).archived, true);
     assert.equal(parentCalls, 2, "no automatic model inference was dispatched");
+    const child = f.store.delegatedBy("web-user", sent.work.work_id, "any")[0]!;
+    assert.equal(child.handed_back_run, undefined, "a rejected hand-back did not consume the child's result");
+    f.flags.beforeAuthority = undefined; f.flags.beforeStart = undefined;
+    await f.service.archive(sent.work.work_id, false);
+    await f.service.send({ work_id: sent.work.work_id, text: "恢复后核对子任务交回的结果", request_id: "handback-resume-" + stage });
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "explicit resumed round completes");
+    assert.equal(f.store.rounds(sent.work.work_id).length, 2);
+    assert.equal(f.store.get("web-user", child.work_id).handed_back_run, f.store.rounds(child.work_id).at(-1)?.run_id);
+    assert.equal((await f.adapter.readSession({ session_id: before.session_id })).runs.length, 2);
+    assert.equal(parentCalls, 3);
   } finally { finishChild.resolve(); release.resolve(); await f.close(); }
+});
+
+
+for (const change of ["stop", "new-round"] as const) test(`W2-18-HANDBACK-CURRENT-02: ${change} invalidates an older prepared hand-back`, { timeout: 60_000 }, async t => {
+  const waiting = Promise.withResolvers<void>(), childRelease = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const f = await delegationFixture(t, [
+    () => reply({ name: "delegate-work", input: { title: "Draft", brief: "写一段交回。", acceptance: "一段文字" } }),
+    () => reply(undefined, "主任务先收工，等子任务交回。"),
+    () => reply(undefined, "按用户的新要求核对子任务并完成。"),
+  ], async () => { waiting.resolve(); await childRelease.promise; return reply(undefined, "子任务的固定交回文字。"); });
+  try {
+    const sent = await f.service.send({ text: "委托起草", request_id: "handback-current-" + change }, { project_ref: f.project });
+    await waiting.promise; await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed");
+    const parent = f.store.get("web-user", sent.work.work_id); assert.ok(parent.session_id);
+    f.flags.beforeAuthority = async () => { entered.resolve(); await release.promise; };
+    childRelease.resolve(); await entered.promise; f.flags.beforeAuthority = undefined;
+    if (change === "stop") await f.service.control(parent.work_id, { kind: "stop" });
+    else {
+      await f.service.send({ work_id: parent.work_id, text: "按我这次新要求继续核对", request_id: "new-parent-round" });
+      await until(async () => (await f.service.read(parent.work_id)).work.state === "completed");
+    }
+    release.resolve();
+    await until(() => f.service.notices(null).some(notice => notice.text.includes("没有自动接着做")), "old hand-back refused");
+    const child = f.store.delegatedBy("web-user", parent.work_id, "any")[0]!;
+    assert.equal((await f.adapter.readSession({ session_id: parent.session_id })).runs.length, change === "stop" ? 1 : 2);
+    if (change === "stop") {
+      assert.equal(child.handed_back_run, undefined); assert.equal(f.store.get("web-user", parent.work_id).hand_back_held, f.store.rounds(parent.work_id)[0]!.run_id);
+      await f.service.send({ work_id: parent.work_id, text: "现在由我明确要求继续核对交回结果", request_id: "resume-stopped-handback" });
+      await until(async () => (await f.service.read(parent.work_id)).work.state === "completed");
+    }
+    assert.equal(f.store.rounds(parent.work_id).length, 2);
+    assert.equal((await f.adapter.readSession({ session_id: parent.session_id })).runs.length, 2, "only the person's current continuation was accepted");
+    assert.equal(f.store.get("web-user", child.work_id).handed_back_run, f.store.rounds(child.work_id).at(-1)?.run_id);
+  } finally { childRelease.resolve(); release.resolve(); await f.close(); }
 });

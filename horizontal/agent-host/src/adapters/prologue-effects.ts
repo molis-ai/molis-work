@@ -6,10 +6,11 @@ import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentStartExec
 /** Per-invocation SDK commit checks; accepted runs detach from the start call before driving background work. */
 export function prologueEffects(host: PrologueHost) {
   const calls = new AsyncLocalStorage<{ control: AgentMemoryExecutionControl; active: boolean; accepted: boolean }>();
+  const beforeEffect = async () => { const frame = calls.getStore(); if (frame?.active) await frame.control.beforeEffect(); };
+  const assertCurrent = () => { const frame = calls.getStore(); if (frame?.active) requireSynchronous(frame.control.assert_current(), "最终授权检查必须同步完成"); };
   const commit = <T>(write: () => Promise<T>): Promise<T> => {
-    const frame = calls.getStore();
-    if (!frame?.active) return write();
-    return (async () => { await frame.control.beforeEffect(); requireSynchronous(frame.control.assert_current(), "最终授权检查必须同步完成"); return write(); })();
+    if (!calls.getStore()?.active) return write();
+    return (async () => { await beforeEffect(); assertCurrent(); return write(); })();
   };
   const storage: PrologueHost["storage"] = {
     get: input => host.storage.get(input), list: input => host.storage.list(input), readSecure: input => host.storage.readSecure(input),
@@ -42,5 +43,5 @@ export function prologueEffects(host: PrologueHost) {
     };
     const value: unknown = Reflect.get(object, key); return typeof value === "function" ? value.bind(object) : value;
   } });
-  return { host: { ...host, storage }, call, start, session, accepted: () => calls.getStore()?.accepted ?? false, detach: <T>(work: () => T) => calls.exit(work), bind: (memory: AgentMemoryCapability, control: AgentMemoryExecutionControl) => wrap(memory, control) };
+  return { host: { ...host, storage }, call, start, session, beforeEffect, assertCurrent, accepted: () => calls.getStore()?.accepted ?? false, detach: <T>(work: () => T) => calls.exit(work), bind: (memory: AgentMemoryCapability, control: AgentMemoryExecutionControl) => wrap(memory, control) };
 }

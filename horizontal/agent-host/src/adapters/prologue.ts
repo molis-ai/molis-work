@@ -29,7 +29,7 @@ import type {
 
 import { emptyCapabilityMatrix } from "../capabilities.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "../execution-plan.js";
-import { freezeRunStart, validateRunAttachments } from "./prologue-frozen.js";
+import { freezeRunStart, validateRunAttachments, assertSessionCreation } from "./prologue-frozen.js";
 import { switchRunModel } from "./prologue-model-switch.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
@@ -117,8 +117,9 @@ export interface PrologueControlPort {
   pause(): void;
   resume(): void;
   steer(input: { text: string }): void | Promise<void>;
+  /** Revalidate the original invocation after model-selection waits. */ beforeModelSwitch?(): Promise<void>;
   /** Later model calls of this Run go to this target, from its next model boundary. Absent where the runtime cannot. */
-  switchModel?(target: Pick<PrologueModelConfiguration, "protocol" | "endpoint" | "model" | "credential_ref">): Promise<void>;
+  switchModel?(target: Pick<PrologueModelConfiguration, "protocol" | "endpoint" | "model" | "credential_ref">, beforeAccept: () => void): Promise<void>;
   subscribe(listener: () => void): () => void;
 }
 
@@ -308,15 +309,6 @@ interface RunRecord {
   timingReady?: boolean;
   timingError?: string;
   observedEndAt?: string;
-}
-
-function assertSessionCreation(input: AgentCreateSessionInput, workspaceNone: boolean | undefined, workspaceBusiness: boolean | undefined): void {
-  if (input.workspace === "none" && (!workspaceNone || input.directory !== undefined || !input.actor_id?.trim())) {
-    throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此无工作区会话");
-  }
-  if (input.workspace === "business" && (!workspaceBusiness || input.directory !== undefined || !input.actor_id?.trim())) {
-    throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此业务会话");
-  }
 }
 
 export class PrologueAgentAdapter implements AgentRuntimeAdapter {
@@ -754,7 +746,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         break;
       case "switch-model":
         await switchRunModel({ record, selection: control, configure: this.#ports.modelConfiguration, defaultWindow: this.#runtime.defaultContextWindowTokens,
-          requested: model => { if (model === undefined) delete record.state.model_requested; else record.state.model_requested = model; } });
+          requested: model => { record.state.model_requested = model; } });
         break;
       case "answer": {
         const answer = this.#answerPending;

@@ -14,8 +14,8 @@ import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-describe("mcp server", () => {
-    it("defaults to a Runtime-only tool surface", async () => {
+describe("mcp runtime surface and catalog reader", () => {
+it("defaults to a Runtime-only tool surface", async () => {
     const server = new MolisWorkServer();
     const init = await server.handleMessage({
       jsonrpc: "2.0",
@@ -75,7 +75,7 @@ describe("mcp server", () => {
     assert.ok(listedTools.every((tool) => !("project_id" in (tool.inputSchema.properties ?? {})) || tool.name.startsWith("molis_work_v1_context_") || tool.name === "molis_work_v1_project_delete"));
   });
 
-  it("returns structured reader-too-old diagnostics without exposing the catalog path", async () => {
+it("returns structured reader-too-old diagnostics without exposing the catalog path", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-reader-too-old-"));
     const home = path.join(directory, "home", ".molis-work");
     try {
@@ -119,7 +119,7 @@ describe("mcp server", () => {
     }
   });
 
-  it("does not restore the removed static Runtime DB connection from environment", () => {
+it("does not restore the removed static Runtime DB connection from environment", () => {
     const keys = [
       "MOLIS_WORK_DATABASE",
       "MOLIS_WORK_PROJECT_ID",
@@ -143,8 +143,10 @@ describe("mcp server", () => {
       }
     }
   });
+});
 
-  it("a management call that names no database fails instead of using a path under the working directory", async () => {
+describe("mcp management database scope", () => {
+it("a management call that names no database fails instead of using a path under the working directory", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-no-default-"));
     const previousCwd = process.cwd();
     const previousDatabase = process.env.MOLIS_WORK_DATABASE;
@@ -177,7 +179,7 @@ describe("mcp server", () => {
     }
   });
 
-  it("a management call takes its database from database_path before MOLIS_WORK_DATABASE", async () => {
+it("a management call takes its database from database_path before MOLIS_WORK_DATABASE", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-argument-over-environment-"));
     const previousDatabase = process.env.MOLIS_WORK_DATABASE;
     const fromEnvironment = path.join(directory, "from-environment.db");
@@ -199,7 +201,7 @@ describe("mcp server", () => {
     }
   });
 
-  it("a management call that names no project_id runs as database:<path>, and a later name for the same database conflicts with it", async () => {
+it("a management call that names no project_id runs as database:<path>, and a later name for the same database conflicts with it", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-database-project-"));
     const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
     const management = new MolisWorkServer("management", null, null, host);
@@ -226,8 +228,10 @@ describe("mcp server", () => {
       fs.rmSync(directory, { recursive: true, force: true });
     }
   });
+});
 
-  it("keeps Molis Work Session, native Runtime Session, surface, Goal and legacy work context separate", () => {
+describe("mcp contexts and resources", () => {
+it("keeps Molis Work Session, native Runtime Session, surface, Goal and legacy work context separate", () => {
     const host = runtimeContextHostFromEnvironment({
       MOLIS_WORK_RUNTIME_ID: "codex",
       MOLIS_WORK_SESSION_ID: "session-molis-work",
@@ -247,7 +251,7 @@ describe("mcp server", () => {
     assert.equal(host.runtimeContext.stable_work_context_id, "host-work-context");
   });
 
-  it("unknown method", async () => {
+it("unknown method", async () => {
     const server = new MolisWorkServer();
     const result = await server.handleMessage({
       jsonrpc: "2.0",
@@ -258,7 +262,7 @@ describe("mcp server", () => {
     assert.equal((result as { error: { code: number } }).error.code, -32601);
   });
 
-  it("serves empty resource and resource-template lists for clients that enumerate them", async () => {
+it("serves empty resource and resource-template lists for clients that enumerate them", async () => {
     const server = new MolisWorkServer();
     const resources = await server.handleMessage({
       jsonrpc: "2.0",
@@ -281,8 +285,10 @@ describe("mcp server", () => {
       [],
     );
   });
+});
 
-  it("lets the current Runtime list, unbind, and separately confirm project deletion", async () => {
+describe("mcp project deletion", () => {
+it("lets the current Runtime list, unbind, and separately confirm project deletion", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-project-lifecycle-"));
     const home = path.join(directory, "home", ".molis-work");
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
@@ -400,8 +406,10 @@ describe("mcp server", () => {
       fs.rmSync(directory, { recursive: true, force: true });
     }
   });
+});
 
-  it("W1-18-SESSION-CONFIRM-01 suggests one exact workspace project and keeps confirmed Session bindings local", async () => {
+describe("mcp confirmed Session bindings", () => {
+it("W1-18-SESSION-CONFIRM-01 suggests one exact workspace project and keeps confirmed Session bindings local", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-workspace-routing-"));
     const home = path.join(directory, "home", ".molis-work");
     const workspace = path.join(directory, "ordinary-workspace");
@@ -493,5 +501,4 @@ describe("mcp server", () => {
       fs.rmSync(directory, { recursive: true, force: true });
     }
   });
-
 });

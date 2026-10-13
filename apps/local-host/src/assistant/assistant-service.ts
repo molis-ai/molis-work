@@ -1018,7 +1018,7 @@ export class AssistantService {
     const children = control.kind === "stop" ? (await Promise.all(this.store.delegatedBy(this.actorId, work.work_id, "any")
       .map(async child => ({ child, run: await this.latestRun(host, child).catch(() => null) })))).filter(item => item.run && !isTerminalAgentPhase(item.run.phase)) : [];
     const running = latest && !isTerminalAgentPhase(latest.phase);
-    if (!running && !children.length) throw assistantErrors.state("这项工作当前没有在执行的一轮");
+    if (!running && !children.length && !(control.kind === "stop" && this.delegations.isHandingBack(work.work_id))) throw assistantErrors.state("这项工作当前没有在执行的一轮");
     if (control.kind === "stop") this.delegations.hold(work);
     if (running) {
       await host.adapter(RUNTIME).control(latest.ref, { kind: control.kind });

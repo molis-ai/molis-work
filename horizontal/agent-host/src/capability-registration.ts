@@ -360,8 +360,10 @@ export function registerAgentHostCapabilities<Context>(
     }),
     register(agentHostCapabilities.controlRun, async (context, [session, run, control]) => {
       await requireRun(context, session, run);
+      const adapter = ports.agentHost(context).adapter(session.runtime_id);
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-      await ports.agentHost(context).adapter(session.runtime_id).control(run, control);
+      if (control.kind === "switch-model" && !adapter.withEffect) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能在原调用授权下切换模型");
+      await adapter.control(run, control);
     }),
 
     // A receipt of a command already run, never a way to run one. When the

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -105,3 +105,63 @@ for (const phase of ["sdk-session", "owner-index"] as const) test(`new Session r
   const fresh = await adapter.createSession({ project_id: "project", plugin_id: "coding", install_id: "install", actor_id: "person", title: "Fresh", directory: { canonical_path: home, realpath_verified: true } });
   assert.equal((await adapter.readSession(fresh)).title, "Fresh");
 });
+
+
+function switchReadResponse(): Response {
+  const events: string[] = [];
+  const emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
+  emit("message_start", { message: { id: "switch-tool", type: "message", role: "assistant", model: "START", usage: { input_tokens: 20, output_tokens: 0 } } });
+  emit("content_block_start", { index: 0, content_block: { type: "tool_use", id: "read-note", name: "read", input: {} } });
+  emit("content_block_delta", { index: 0, delta: { type: "input_json_delta", partial_json: JSON.stringify({ path: "note.txt" }) } });
+  emit("content_block_stop", { index: 0 }); emit("message_delta", { delta: { stop_reason: "tool_use" }, usage: { output_tokens: 10 } }); emit("message_stop", {});
+  return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
+}
+
+for (const stage of ["configuration", "credential"] as const) for (const invalidation of ["cancel", "revoke"] as const)
+  test(`W2-18-MODEL-SWITCH-01/02: ${invalidation} during ${stage} keeps accepted B and its display`, { timeout: 60_000 }, async t => {
+    const home = await mkdtemp(join(tmpdir(), "switch-original-call-")); await writeFile(join(home, "note.txt"), "A real bounded read before finishing.");
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), network = Promise.withResolvers<void>(), response = Promise.withResolvers<void>();
+    const models: string[] = []; let held = false, current = true;
+    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.switch-authority-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+      modelConfiguration: async selection => {
+        const name = selection?.model_id === "denied" ? "C" : selection?.model_id === "peer" ? "B" : "START";
+        if (stage === "configuration" && name === "C" && !held) { held = true; entered.resolve(); await release.promise; }
+        return { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: name, credential_ref: name };
+      }, resolveCredential: async ref => {
+        if (stage === "credential" && ref === "C" && !held) { held = true; entered.resolve(); await release.promise; }
+        return "fixture-only";
+      } });
+    const host = new AgentHost(); host.register(adapter);
+    const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } });
+    registerAgentHostCapabilities<null>({ register: (definition, handler) => local.registerCapability(definition, handler) }, { agentHost: () => host, projectId: () => "project", authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home] }) });
+    const client = local.client({ project_id: "project", storage_key: join(home, "project.db") });
+    const owner = { project_id: "project", plugin_id: "io.molis.work.coding", install_id: "install", actor_id: "person" }, directory = { canonical_path: home, realpath_verified: true };
+    const controller = new AbortController();
+    const check = () => { controller.signal.throwIfAborted(); if (!current) throw new ActionError("actions.forbidden", "original switch revoked"); };
+    t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+      const payload = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
+      const body = JSON.parse(payload); models.push(body.model);
+      if (models.length === 1) { network.resolve(); await response.promise; return switchReadResponse(); }
+      return cogniaModelResponse("Finished with the accepted model B.");
+    });
+    t.after(async () => { release.resolve(); response.resolve(); await local.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
+    const session = await client.invoke(agent.createSession, ["prologue", { ...owner, directory, title: "One running session" }]);
+    const handle = await client.invoke(agent.startRun, ["prologue", { ...owner, session, directory, role_id: "reader", task: "Read note.txt, then answer." }]);
+    await network.promise;
+    const requested = (id: string) => [session, handle.ref, { kind: "switch-model" as const, provider_id: "fixture", model_id: id }] as const;
+    await client.invoke(agent.controlRun, [...requested("peer")]);
+    assert.equal((await adapter.read(handle.ref)).model_switch?.requested, "B");
+    const refused = client.invoke(agent.controlRun, [...requested("denied")], { signal: controller.signal, before_effect: async () => check(), assert_authority_current: check });
+    const rejected = assert.rejects(refused);
+    await entered.promise;
+    assert.equal((await adapter.read(handle.ref)).model_switch?.requested, "B", "preparing C does not alter the accepted display");
+    if (invalidation === "cancel") controller.abort(new Error("original switch cancelled")); else current = false;
+    release.resolve(); await rejected;
+    assert.equal((await adapter.read(handle.ref)).model_switch?.requested, "B", "rejection preserves the SDK's still-pending B");
+    response.resolve();
+    const deadline = Date.now() + 20_000;
+    for (;;) { const view = await adapter.read(handle.ref); if (["completed", "failed", "cancelled"].includes(view.phase)) { assert.equal(view.phase, "completed"); break; }
+      assert.ok(Date.now() < deadline, "accepted work did not finish"); await new Promise(resolve => setTimeout(resolve, 10)); }
+    assert.deepEqual(models, ["START", "B"], "the actual SDK's later model call matches its accepted display");
+    assert.equal((await adapter.readSession(session)).runs.length, 1, "control created no new run");
+  });

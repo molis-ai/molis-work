@@ -1,4 +1,4 @@
-import { AGENT_REASONING_EFFORTS, agentTextMaterialContent, type AgentImageMaterial, type AgentRunView, type AgentStartRequest, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { AGENT_REASONING_EFFORTS, agentTextMaterialContent, type AgentCreateSessionInput, type AgentImageMaterial, type AgentRunView, type AgentStartRequest, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { PrologueAdapterError, type PrologueModelConfiguration } from "./prologue.js";
 
@@ -67,4 +67,13 @@ export function validateRunAttachments(request: AgentStartRequest, supportsImage
     || imageMaterials.some(item => !item || typeof item.resource?.id !== "string" || !Number.isSafeInteger(item.resource.revision) || !/^image\//.test(String(item.media_type)))) throw new Error("图片过多、重复或格式无效");
   if (imageMaterials.length && (!supportsImages || request.workspace !== "business")) throw new PrologueAdapterError("agent.capability_unavailable", "这个运行方式还不能把图片交给模型");
   return { textMaterials, imageMaterials };
+}
+
+export function assertSessionCreation(input: AgentCreateSessionInput, workspaceNone: boolean | undefined, workspaceBusiness: boolean | undefined): void {
+  if (input.workspace === "none" && (!workspaceNone || input.directory !== undefined || !input.actor_id?.trim())) {
+    throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此无工作区会话");
+  }
+  if (input.workspace === "business" && (!workspaceBusiness || input.directory !== undefined || !input.actor_id?.trim())) {
+    throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此业务会话");
+  }
 }

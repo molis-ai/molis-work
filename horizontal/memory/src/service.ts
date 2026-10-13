@@ -48,7 +48,6 @@ import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sa
 import { fromEntryMeta, pauseReason, toEntryMeta } from "./facts.js";
 import type { AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-export { memoryErrors, type MemoryErrorCode } from "./errors.js";
 export { applies, characterOwner } from "./places.js";
 
 /** One entry as Prologue Memory holds it, with the facts the platform keeps on it (spec §8.2 S3). */

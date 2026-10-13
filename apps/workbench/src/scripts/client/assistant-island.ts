@@ -204,10 +204,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     let result = {};
     try { result = await response.json(); } catch { /* an empty body is reported by status below */ }
     if (!response.ok) {
-      const failure = new Error(result.error || L("助理暂时无法完成"));
-      failure.code = result.code;
-      failure.data = result.details || {};
-      throw failure;
+      throw Object.assign(new Error(result.error || L("助理暂时无法完成")), { code: result.code, data: result.details || {} });
     }
     return result;
   };

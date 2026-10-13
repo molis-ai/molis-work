@@ -71,10 +71,12 @@ node --import tsx --test --test-concurrency=1 tests/primitives.test.ts tests/vis
 隔离预览（不要动用户 4180）：
 
 ```bash
-node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home "$HOME/.molis-work"
+node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home /tmp/molis-ui-catalog-isolated-home
 ```
 
-然后打开 `http://127.0.0.1:4182/__ui/catalog`。
+然后打开 `http://127.0.0.1:4182/__ui/catalog`。这里使用专用临时 Home，换端口不会隔离真实 Home。
+
+生成插件表单按提交时的输入版本处理回执：等待中又编辑时，旧成功不清新草稿、不关它的 sheet/dialog；当前草稿成功提交后才复位，prefill 编辑表单继续保留值。换版/销毁的旧回包不写当前表单或错误反馈。`tests/plugin-composition.e2e.test.ts` 的 W2-18-COMPONENT-DRAFT-01/02 使用生产 renderer、延迟回包并覆盖 form/sheet/dialog。
 
 ## 开发要求
 

@@ -4,6 +4,7 @@ import type { SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-
 import type { PluginComponentNode } from './plugin-components.js';
 import type { PluginPresentation } from './plugin-presentation.js';
 import { createPluginPresentationClient } from './plugin-presentation-client.js';
+import { createPluginFormDraft } from './plugin-form-draft.js';
 export interface PluginComponentView { contract: SandboxPluginContract; nodes: PluginComponentNode[]; connected: string[]; presentation?: PluginPresentation }
 export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: string, binding: 'read' | 'submit', payload: unknown): Promise<unknown>; inspect?(nodeId: string): void;
   /** The inspect button's label (the studio passes it translated). */
@@ -644,9 +645,10 @@ export function createPluginComponentClient(options: PluginComponentClientOption
         form.append(panel);
         if (composer(node)) form.classList.add('pc-composer');
       }
+      const draft = createPluginFormDraft(form, syncChoices);
       form.addEventListener('submit', async event => {
         event.preventDefault(); if (part.busy || !ready(node.submit?.operationId)) return;
-        const generation = epoch;
+        const generation = epoch, submittedDraft = draft.version;
         try {
           const values: Record<string, unknown> = {};
           for (const input of form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('[data-field]')) {
@@ -664,18 +666,15 @@ export function createPluginComponentClient(options: PluginComponentClientOption
           // A toggle ("打卡" again on a checked day) answers with its new state: false means it was undone.
           const flags = result && typeof result === 'object' && !Array.isArray(result) ? Object.values(result as Record<string, unknown>).filter(value => typeof value === 'boolean') : [];
           const undone = (verb === '打卡' || verb === '完成') && flags.length === 1 && flags[0] === false;
-          report(part, 'success', undone ? '已取消' + verb : verb ? '已' + verb : '已完成');
-          part.dialog?.close();
+          report(part, 'success', (undone ? '已取消' + verb : verb ? '已' + verb : '已完成') + (draft.version === submittedDraft ? '' : '；新输入还未提交'));
           // Show a command's result only when the design points at it or it is a plain value; an internal id or record is not a message.
           if (!part.node.read && (part.node.submit?.outputPath || ['string', 'number', 'boolean'].includes(typeof result))) output(part, result, 'submit');
-          // A form that creates something starts empty again; an edit form (prefilled from a selection) keeps its values.
-          if (!Object.values(part.node.submit?.input ?? {}).some(source => source.source === 'form' && source.prefill)) {
-            form.reset(); form.querySelectorAll<HTMLInputElement>('input[data-pc-choice]').forEach(input => { input.value = input.dataset.pcInitial ?? ''; }); syncChoices(form);
-            form.querySelectorAll('textarea').forEach(area => { area.style.height = ''; }); form.querySelectorAll('select').forEach(choice => choice.dispatchEvent(new Event('change', { bubbles: true })));
+          if (draft.complete(submittedDraft, Object.values(part.node.submit?.input ?? {}).some(source => source.source === 'form' && source.prefill))) {
+            part.dialog?.close();
             if (form.classList.contains('pc-composer')) form.querySelector<HTMLElement>('input:not([type=hidden]),textarea')?.focus({ preventScroll: true });
           }
           fresh = true; try { await refresh(); } finally { fresh = false; }
-        } catch (error) { if (!disposed) report(part, 'error', error instanceof Error ? error.message : '操作失败，输入已保留'); }
+        } catch (error) { if (!disposed && generation === epoch && parts.get(node.id) === part) report(part, 'error', error instanceof Error ? error.message : '操作失败，输入已保留'); }
         finally { part.busy = false; delete submit.dataset.loading; submit.querySelector('.mw-spinner')?.remove(); submit.disabled = !ready(node.submit?.operationId); }
       });
       part.form = form; if (!part.dialog) element.append(form);
@@ -771,4 +770,4 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     destroy() { disposed = true; epoch++; for (const part of parts.values()) { clearTimeout(part.waiting); clearTimeout(part.feedbackTimer); } parts.clear(); details.clear(); pages.clear(); regions.clear(); root.replaceChildren(); },
   };
 }
-export const PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT = '((createPluginPresentationClient)=>(' + createPluginComponentClient.toString() + '))(' + createPluginPresentationClient.toString() + ')';
+export const PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT = '((createPluginPresentationClient,createPluginFormDraft)=>(' + createPluginComponentClient.toString() + '))(' + createPluginPresentationClient.toString() + ',' + createPluginFormDraft.toString() + ')';

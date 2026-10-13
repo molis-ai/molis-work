@@ -1,4 +1,4 @@
-import { ActionError, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextAccess, ContextEdge, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { goalAction, goalActor } from "./action-contract.js";
@@ -27,6 +27,8 @@ const OUTPUT_ROLE: LinkRole = { type: "goal.output", proposal: "goal.output.prop
 const INPUT_ROLE: LinkRole = { type: "goal.input", proposal: "goal.input.proposal", code: "goals.artifact_input", noun: "输入", item: "input", items: "inputs" };
 const reference = object({ artifact_id: identifier, version: { type: "integer", minimum: 1 } });
 const subject = object({ kind: identifier, id: identifier });
+const concurrent = <Input, Output>(definition: ActionDefinition<Input, Output>): ActionDefinition<Input, Output> =>
+  ({ ...definition, action: { ...definition.action, scheduling: "concurrent" } });
 const deliverable = object({ goal_id: text, reference, title: text, artifact_type_id: text, recorded_at: text, proposed: boolean, reason: nullable(text) });
 const reason = { type: "string", minLength: 1, maxLength: 300 };
 
@@ -44,9 +46,9 @@ export const goalsDeliverableActions = {
     object({ goal_id: identifier, reference }), object({ removed: boolean })),
   list: goalAction<{ goal_id: string }, { deliverables: GoalDeliverable[] }>("goals.deliverables.list",
     "目标的交付物", "列出目标交付的成果版本，以及还在等用户确认的提议（proposed）", "query", object({ goal_id: identifier }), object({ deliverables: array(deliverable) })),
-  pin: goalAction<{ goal_id: string; subject: { kind: string; id: string }; reason?: string }, { deliverable: GoalDeliverable; replayed: boolean }>("goals.deliverables.pin",
+  pin: concurrent(goalAction<{ goal_id: string; subject: { kind: string; id: string }; reason?: string }, { deliverable: GoalDeliverable; replayed: boolean }>("goals.deliverables.pin",
     "固定并交付", "把一份资料（文档、问卷、演示稿、数据表）的当前内容固定为成果库里的一版，并记为目标的交付物；每次固定都是新的一版，原对象之后仍可修改。由助理等调用时只记为提议", "command",
-    object({ goal_id: identifier, subject, reason }, ["goal_id", "subject"]), object({ deliverable, replayed: boolean })),
+    object({ goal_id: identifier, subject, reason }, ["goal_id", "subject"]), object({ deliverable, replayed: boolean }))),
   candidates: goalAction<{ goal_id: string }, { objects: Array<{ subject: { kind: string; id: string }; title: string }> }>("goals.deliverables.candidates",
     "可以当场固定的资料", "列出目标绑定的资料里，能当场固定为成果的那些", "query", object({ goal_id: identifier }), object({ objects: array(object({ subject, title: text })) })),
 } as const;
@@ -62,19 +64,20 @@ export const goalsArtifactInputActions = {
   list: goalAction<{ goal_id: string }, { inputs: GoalDeliverable[] }>("goals.artifact_inputs.list",
     "目标的成果输入", "列出目标作为输入的成果版本，以及还在等用户确认的提议（proposed）", "query", object({ goal_id: identifier }), object({ inputs: array(deliverable) })),
   /** 「固定这一版」 when a Goal takes an object as input (one entry for both kinds, artifact-positioning 五.1). */
-  pin: goalAction<{ goal_id: string; subject: { kind: string; id: string }; reason?: string }, { input: GoalDeliverable; replayed: boolean }>("goals.artifact_inputs.pin",
+  pin: concurrent(goalAction<{ goal_id: string; subject: { kind: string; id: string }; reason?: string }, { input: GoalDeliverable; replayed: boolean }>("goals.artifact_inputs.pin",
     "固定这一版作为输入", "把一份资料（文档、问卷、演示稿、数据表）的当前内容固定为成果库里的一版，并记为目标的输入；目标认的是这一版，原对象之后仍可修改。由助理等调用时只记为提议", "command",
-    object({ goal_id: identifier, subject, reason }, ["goal_id", "subject"]), object({ input: deliverable, replayed: boolean })),
+    object({ goal_id: identifier, subject, reason }, ["goal_id", "subject"]), object({ input: deliverable, replayed: boolean }))),
 } as const;
 
 export interface GoalDeliverablePorts {
   readonly projectId: string;
+  /** Current directory membership; archived or trashed Goals are unavailable. */
   goalExists(goalId: string): boolean;
   /** A version in the 成果库 (never a process item); null when it is not there. */
   readArtifact(reference: ArtifactReference): { title: string; artifact_type_id: string; availability: string; lifecycle_state: string } | null;
   readonly ledger: ContextLedgerApi;
   /** Fixes the object's current revision through its owner, as a new version in the 成果库. */
-  pin(caller: ActionCallContext, subject: { kind: string; id: string }): Promise<ArtifactReference>;
+  pin(caller: ActionExecutionContext, subject: { kind: string; id: string }): Promise<ArtifactReference>;
   /** The kinds of object some owner can pin for this caller. */
   pinnableKinds(caller: ActionCallContext): Promise<readonly string[]>;
   /** The Goal's confirmed bound materials (its input bindings). */
@@ -135,12 +138,18 @@ export function createGoalsDeliverableActionHandlers(ports: GoalDeliverablePorts
     { ...goalsDeliverableActions.pin, handle: async (caller, input) => {
       const value = input as { goal_id: string; subject: { kind: string; id: string }; reason?: string };
       requireGoal(value.goal_id);
-      return outputs.record(caller, value.goal_id, await ports.pin(caller, value.subject), value.reason);
+      const reference = await ports.pin(caller, value.subject);
+      await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
+      requireGoal(value.goal_id);
+      return outputs.record(caller, value.goal_id, reference, value.reason);
     } },
     { ...goalsArtifactInputActions.pin, handle: async (caller, input) => {
       const value = input as { goal_id: string; subject: { kind: string; id: string }; reason?: string };
       requireGoal(value.goal_id);
-      return inputs.record(caller, value.goal_id, await ports.pin(caller, value.subject), value.reason);
+      const reference = await ports.pin(caller, value.subject);
+      await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
+      requireGoal(value.goal_id);
+      return inputs.record(caller, value.goal_id, reference, value.reason);
     } },
     { ...goalsDeliverableActions.candidates, handle: async (caller, input) => {
       const value = input as { goal_id: string };

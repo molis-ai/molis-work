@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
-import type { JellyModelSelection, JellyModelSettings, JellyModelInput } from "@molis-ai/molis-work-plugin-jelly";
+import { jellyErrors, type JellyModelSelection, type JellyModelSettings, type JellyModelInput } from "@molis-ai/molis-work-plugin-jelly";
 export type { JellyModelSelection, JellyModelSettings, JellyModelInput } from "@molis-ai/molis-work-plugin-jelly";
 
 import { openConfiguredModels as openProviders, selectConfiguredTextModel, modelCredentialMetadata, validateTextModelUrl as validBaseUrl } from "./configured-models.js";
@@ -17,9 +17,9 @@ function preferencePath(home: string): string { return join(home, "jelly", "pref
 function readPreference(home: string): PreferenceFile | undefined {
   const path = preferencePath(home); if (!existsSync(path)) return undefined;
   const value: unknown = JSON.parse(readFileSync(path, "utf8"));
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Jelly 模型偏好文件无效，原文件已保留");
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw jellyErrors.invalid("Jelly 模型偏好文件无效，原文件已保留");
   const pref = value as Partial<PreferenceFile>;
-  if (pref.schema_version !== 1 || typeof pref.provider_id !== "string" || !pref.provider_id.trim() || typeof pref.model_id !== "string" || !pref.model_id.trim()) throw new Error("Jelly 模型偏好文件无效，原文件已保留");
+  if (pref.schema_version !== 1 || typeof pref.provider_id !== "string" || !pref.provider_id.trim() || typeof pref.model_id !== "string" || !pref.model_id.trim()) throw jellyErrors.invalid("Jelly 模型偏好文件无效，原文件已保留");
   return { schema_version: 1, provider_id: pref.provider_id, model_id: pref.model_id };
 }
 function atomicWrite(path: string, body: string): void {
@@ -46,30 +46,30 @@ export function readJellyModelSettings(home: string): JellyModelSettings {
   return settings;
 }
 export function saveJellyModelSettings(home: string, input: JellyModelInput): JellyModelSettings {
-  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("模型设置必须是对象");
-  if ("api_key" in input) throw new Error("请在 Connectors 中管理模型 API Key");
-  for (const key of ["provider_id", "model_id", "base_url", "api_format", "connection_id"] as const) if (input[key] !== undefined && typeof input[key] !== "string") throw new Error("模型设置字段必须是文本");
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw jellyErrors.invalid("模型设置必须是对象");
+  if ("api_key" in input) throw jellyErrors.invalid("请在 Connectors 中管理模型 API Key");
+  for (const key of ["provider_id", "model_id", "base_url", "api_format", "connection_id"] as const) if (input[key] !== undefined && typeof input[key] !== "string") throw jellyErrors.invalid("模型设置字段必须是文本");
   const custom = input.base_url !== undefined || input.api_format !== undefined || input.connection_id !== undefined || input.provider_id === CUSTOM_PROVIDER_ID;
-  if (custom && input.provider_id && input.provider_id !== CUSTOM_PROVIDER_ID) throw new Error("只能选择已有供应商；自定义设置仅修改 Jelly 专用供应商");
+  if (custom && input.provider_id && input.provider_id !== CUSTOM_PROVIDER_ID) throw jellyErrors.invalid("只能选择已有供应商；自定义设置仅修改 Jelly 专用供应商");
   const providerId = custom ? CUSTOM_PROVIDER_ID : input.provider_id?.trim(), modelId = input.model_id?.trim();
-  if (!providerId || !modelId || modelId.length > 512) throw new Error("请选择供应商并填写有效模型 ID");
+  if (!providerId || !modelId || modelId.length > 512) throw jellyErrors.invalid("请选择供应商并填写有效模型 ID");
   const format = input.api_format;
-  if (format !== undefined && !["anthropic-messages", "openai-chat-completions"].includes(format)) throw new Error("模型接口格式无效");
+  if (format !== undefined && !["anthropic-messages", "openai-chat-completions"].includes(format)) throw jellyErrors.invalid("模型接口格式无效");
   const suppliedUrl = input.base_url !== undefined ? validBaseUrl(input.base_url) : undefined;
   // The catalog is created and owned by the normal Host lifecycle. Never write an incomplete lookalike catalog.
-  const opened = openProviders(home); if (!opened) throw new Error("Molis Work 工作台尚未初始化，请先打开工作台再保存模型设置");
+  const opened = openProviders(home); if (!opened) throw jellyErrors.invalid("Molis Work 工作台尚未初始化，请先打开工作台再保存模型设置");
   const prefPath = preferencePath(home), oldPreference = existsSync(prefPath) ? readFileSync(prefPath, "utf8") : undefined;
   let preferenceWritten = false;
   try {
     const existing = opened.store.get(providerId);
-    if (!custom && (!existing || !existing.enabled || !existing.models.some(model => model.model_id === modelId && model.enabled))) throw new Error("所选供应商或模型不存在，或尚未启用");
+    if (!custom && (!existing || !existing.enabled || !existing.models.some(model => model.model_id === modelId && model.enabled))) throw jellyErrors.invalid("所选供应商或模型不存在，或尚未启用");
     const baseUrl = custom ? suppliedUrl ?? (existing ? validBaseUrl(existing.base_url) : undefined) : undefined;
-    if (custom && !baseUrl) throw new Error("请填写自定义模型的 Base URL");
+    if (custom && !baseUrl) throw jellyErrors.invalid("请填写自定义模型的 Base URL");
     const selectedConnection = input.connection_id?.trim()
       ? withConnectorConnections(home, (store) => store.require(input.connection_id!.trim(), "model-api")) : null;
-    if (selectedConnection && (!selectedConnection.credential_ref || selectedConnection.disconnected_at)) throw new Error("所选模型连接不可用");
+    if (selectedConnection && (!selectedConnection.credential_ref || selectedConnection.disconnected_at)) throw jellyErrors.invalid("所选模型连接不可用");
     if (!selectedConnection && (!existing || !modelCredentialMetadata(home, { ...existing, base_url: baseUrl ?? existing.base_url }).available)) {
-      throw new Error("所选模型连接不可用，请恢复连接或重新选择；原选择已保留");
+      throw jellyErrors.invalid("所选模型连接不可用，请恢复连接或重新选择；原选择已保留");
     }
     if (custom && baseUrl) {
       const connectionId = selectedConnection?.connection_id

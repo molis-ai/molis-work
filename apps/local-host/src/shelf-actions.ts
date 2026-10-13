@@ -1,7 +1,7 @@
 import { shelfAiPorts } from "./shelf-ai.js";
 import type { ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SHELF_ACTIONS, SHELF_PROJECT_ACTIONS, createShelfActionHandlers, createShelfProjectActionHandlers, shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
-import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
+import { openShelfStore, shelfErrors } from "@molis-ai/molis-work-module-shelf";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { SHELF_TEXT_MATERIAL_TYPE, type ShelfTextMaterial, type ShelfMaterialPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
 import type { ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -53,7 +53,7 @@ export function publishShelfMaterial(processItems: ProcessItemsApplicationApi, p
   const artifactId = "shelf-material:" + projectId + ":" + payload.source.item_id;
   const latest = processItems.query.latestArtifactVersion(projectId, artifactId);
   if (latest && (latest.owner_actor_id !== actorId || latest.producer_plugin_id !== shelfManifest.plugin_id
-    || latest.producer_binding_signature !== shelfManifest.publisher.signature || latest.artifact_type_id !== SHELF_TEXT_MATERIAL_TYPE)) throw new Error("项目材料的原归属不一致");
+    || latest.producer_binding_signature !== shelfManifest.publisher.signature || latest.artifact_type_id !== SHELF_TEXT_MATERIAL_TYPE)) throw shelfErrors.invalid("项目材料的原归属不一致");
   // Artifact storage canonicalizes object keys; compare data independently of property order.
   const same = (a: unknown, b: unknown): boolean => {
     const ordered = (v: unknown): string => JSON.stringify(v, (_key, value) => value && typeof value === "object" && !Array.isArray(value)

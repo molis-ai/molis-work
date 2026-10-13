@@ -1,5 +1,5 @@
 {
-  "giantUnits": 156,
+  "giantUnits": 155,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
     "file apps/local-host/src/assistant/assistant-service.ts": 2543,
@@ -171,7 +171,7 @@
     "file packages/design-system/src/primitives/catalog.ts": 947,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
     "file packages/design-system/src/styles/calm-desktop.ts": 1392,
-    "file packages/design-system/src/styles/craft-finish.ts": 2305,
+    "file packages/design-system/src/styles/craft-finish.ts": 2236,
     "file packages/design-system/src/styles/momentum.ts": 1171,
     "file packages/design-system/src/styles/personal-workbench-v3.ts": 1301,
     "file packages/design-system/src/styles/primitives.ts": 1276,
@@ -238,20 +238,19 @@
     },
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
-    "file plugins/native/pages/src/client.ts": 1152,
+    "file plugins/native/pages/src/client.ts": 1147,
     "file plugins/native/pages/src/commands.ts": 2241,
-    "file plugins/native/pages/src/editor-browser.ts": 4043,
+    "file plugins/native/pages/src/editor-browser.ts": 3876,
     "function plugins/native/pages/src/editor-browser.ts#slashPlugin": 160,
     "function plugins/native/pages/src/editor-browser.ts#hoverHandlePlugin": 798,
     "function plugins/native/pages/src/editor-browser.ts#view": 676,
     "function plugins/native/pages/src/editor-browser.ts#renderMenu": 173,
     "function plugins/native/pages/src/editor-browser.ts#findPlugin": 169,
-    "function plugins/native/pages/src/editor-browser.ts#mount": 1024,
+    "function plugins/native/pages/src/editor-browser.ts#mount": 890,
     "class plugins/native/pages/src/store.ts#PagesStore": {
       "lines": 376,
       "methods": 28
     },
-    "file plugins/native/pages/src/styles.ts": 812,
     "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": 225,
     "class plugins/native/plugin-builder/src/agent-workflow.ts#AgentBuilderWorkflow": {
       "lines": 654,
@@ -1018,7 +1017,7 @@
     "server/tooling/continuity-demo.mts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 193,
+  "unknownCastsTotal": 192,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1081,7 +1080,6 @@
     "plugins/native/work/src/directory.ts": 1,
     "plugins/native/workflows/src/store.ts": 4,
     "scripts/contextual-slice/client.ts": 2,
-    "scripts/preview-contextual-interaction.mts": 1,
     "server/src/im/reads.ts": 6,
     "tests/action-service.test.ts": 1,
     "tests/agent-built-plugins-agent.test.ts": 1,
@@ -1392,7 +1390,7 @@
   },
   "testImportSplitsTotal": 0,
   "testImportSplits": {},
-  "errorSubclassTotal": 85,
+  "errorSubclassTotal": 84,
   "errorSubclasses": {
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 1,
     "apps/local-host/src/assistant/assistant-coding.ts": 1,
@@ -1403,7 +1401,6 @@
     "apps/local-host/src/connector-api-oauth.ts": 1,
     "apps/local-host/src/connector-cli.ts": 1,
     "apps/local-host/src/connector-mcp.ts": 1,
-    "apps/local-host/src/contextual/contextual-http.ts": 1,
     "apps/local-host/src/git-worktrees.ts": 1,
     "apps/local-host/src/installer/home-contract.ts": 1,
     "apps/local-host/src/installer/runtime-integration-contract.ts": 1,

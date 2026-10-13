@@ -34,7 +34,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 工作台是一页：外壳、插件界面和几个 iframe。目标规则是：模块之间不传内部对象（上一节），页面内的状态变化用 DOM `CustomEvent` 宣布、请别的模块改状态也用它。这条通道的词汇登记在一份合同里：[`packages/contracts/src/platform/dom-events.ts`](../../packages/contracts/src/platform/dom-events.ts)（子路径 `@molis-ai/molis-work-contracts/platform/dom-events`）。登记只覆盖这一条通道，页面今天也不是处处守着这条规则；差距写在本节末的「现状与例外」里，不要把规则读成现状。
 
-- **事件**（`DOM_EVENTS`，按名字排序）：名字、种类、主人、发在哪里、载荷、含义。种类只有两种：`announcement`（主人报告自己状态的变化或自己做的决定，主人发、别人听）和 `request`（别人请主人去改它的状态，主人听、别人发；一个界面把自己的情况报给持有共同状态的主人，也是 `request`，如 `molis:surface-focus`、`molis:assistant-surface-changed`）。发在哪里是 `window`、`document` 或某个元素（`bubbles` 说明它是否冒泡）；`window` 上的监听器听不到发在 `document` 上的、不冒泡的事件，两个模块对不上多半就是这一条。带 `cancelable` 的事件（登记里现在两个：请求 `molis:side-open`，公告 `molis:assistant-context-action-chosen`）由接住它的一方调用 `preventDefault()`，发的一方读结果决定要不要另想办法。代码里还有第三处这样用、却没有登记也没有人接住的：见「现状与例外」里的 `molis-work:open-settings-section`。
+- **事件**（`DOM_EVENTS`，按名字排序）：名字、种类、主人、发在哪里、载荷、含义。种类只有两种：`announcement`（主人报告自己状态的变化或自己做的决定，主人发、别人听）和 `request`（别人请主人去改它的状态，主人听、别人发；一个界面把自己的情况报给持有共同状态的主人，也是 `request`，如 `molis:surface-focus`、`molis:assistant-surface-changed`）。发在哪里是 `window`、`document` 或某个元素（`bubbles` 说明它是否冒泡）；`window` 上的监听器听不到发在 `document` 上的、不冒泡的事件，两个模块对不上多半就是这一条。带 `cancelable` 的事件（登记里现在三个：请求 `molis:side-open`、`molis:context-panel-open`，公告 `molis:assistant-context-action-chosen`）由接住它的一方调用 `preventDefault()`，发的一方读结果决定要不要另想办法。代码里还有第三处这样用、却没有登记也没有人接住的：见「现状与例外」里的 `molis-work:open-settings-section`。
 - **页面状态的主人**（`PAGE_STATE_OWNERS`）：持有一块页面状态的客户端模块和它持有什么。工作台客户端由许多片段文件拼成一个程序，所以一个主人可以是几个文件。目标规则：一块状态一个主人，别的模块不去改它的内部变量，只发 request、听 announcement。门禁查的只有主人这一侧（announcement 从它的文件里发出、request 在它的文件里被听到），不查别的模块有没有绕过去。登记的范围是「别的模块要通过事件看到或请它改」的状态；模块内部的变量和存储键都不在其中（`state` 的描述里提到某个存储键，只是说明主人持有什么，那个键本身没有登记）。
 - **前缀**（`DOM_EVENT_PREFIXES`）：现在有四种写法（`molis-work:`、`molis:`、`molis-shelf-`、`workbench-`）。合成一种是后续单独的改动；在那之前，新名字必须落在列表里的某个前缀上，不会出现第五种。
 
@@ -65,6 +65,8 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 - `molis-work:select-item`（主人 `tab-workspace`）：`apps/workbench/src/functions/client.ts`（判断规则页）在自己的行被点击、或地址指定了某条规则时，给自己的界面根发它；`apps/workbench/src/scripts/client/deferred-plugin-client.ts` 在按需装载的界面装好之后，把先前被它截住的那一次补发出去。前者不是工作台在宣布「打开了某项」，后者是重放，都不是主人的决定。
 
 （`molis:surface-focus` 登记为 `request`，不是公告：发它的是各个界面，听它的是主人 `context-actions`。主人自己在 `context-actions.ts` 里也发它，那是替只声明了对象、不自己上报焦点的界面，按人的文字选区代发。）
+
+（情境浮条的三个事件，主人是 `context-toolbar`（设计系统的页面程序）：`molis:context-tools` 与 `molis:context-panel-open` 是 `request`，发的是拥有内容的插件，听的是浮条；`molis:context-tool-invoke` 是公告，浮条在插件发布工具的那个元素上发，插件自己执行。工作台已经采用它，Pages 是第一个真实的发送方；组件板的示范是另一个。`molis:context-panel-open` 带 `cancelable`：浮条接住了（有这个情境的浮条在）就 `preventDefault()`，没接住时插件自己把表单放在原处。）
 
 另有四处也是 `--report` 提示出来、门禁不拦的：发了没人收的，或收不到的。它们是现状，不是设计：
 

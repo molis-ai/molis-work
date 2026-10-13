@@ -2772,7 +2772,7 @@ test("浮层放不下就翻到另一边，菜单里的当前项滚进视野", ()
   assert.equal(scrollShouldFollow(null, null), true);
   const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
   assert.equal(editor.match(/followScroll\(menu/g)?.length, 3);
-  assert.match(editor, /followScroll\(toolbar/);
+  assert.match(editor, /followScroll\(linkPreview/);
 });
 
 test("代码块空行回车走出去，快捷键只翻转当前待办", () => {

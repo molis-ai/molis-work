@@ -157,11 +157,13 @@ test("W3-07-5-01 / W3-07-8-02: all fourteen retired Goals literals refuse Host a
     const second = () => host.withProject(ref, runtime => runtime.coordinator.goalQueries.getGoal(project_id, "PLUGIN-SECOND"));
     await assert.rejects(second(), { code: "goals.not_found" }, "the retired create entry left no record");
 
-    // Create remains unavailable to plugins; note retains its existing identity boundary.
+    // Reversible create/note preserve the actual plugin actor; protected decisions keep their separate guards.
     const pluginCaller = { actor_id: "plugin-person", audience: "plugin" as const, project_id, permissions: ["goals:read", "goals:write"] };
-    await assert.rejects(host.actionClient(ref).invoke(pluginCaller, goalsActions.create,
-      { goal_id: "PLUGIN-SECOND", title: "再一个", idempotency_key: "plugin-intent" }), { code: "actions.forbidden" });
-    await assert.rejects(second(), { code: "goals.not_found" });
+    await host.actionClient(ref).invoke(pluginCaller, goalsActions.create,
+      { goal_id: "PLUGIN-SECOND", title: "再一个", idempotency_key: "plugin-intent" });
+    assert.equal((await second()).goal_id, "PLUGIN-SECOND");
+    const pluginCreated = await management.invoke(goalsActions.events, { goal_id: "PLUGIN-SECOND" });
+    assert.equal(pluginCreated.events[0]!.actor_id, "plugin-person", "reversible create records the real caller");
     await assert.rejects(host.actionClient(ref).invoke(pluginCaller, goalsActions.note,
       { goal_id, body: "伪造写作者", idempotency_key: "forged-plugin-note", actor_id: LOCAL_PERSON_ACTOR_ID } as never), { code: "actions.input_invalid" });
     const pluginNote = await host.actionClient(ref).invoke(pluginCaller, goalsActions.note, { goal_id, body: "插件写的便笺", idempotency_key: "plugin-note" });

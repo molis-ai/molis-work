@@ -184,7 +184,7 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
     { result: { isError: boolean; content: Array<{ text: string }> } };
   assert.equal(reply.result.isError, true);
   const line = JSON.parse(reply.result.content[0]!.text) as Record<string, unknown>;
-  assert.deepEqual(line, { error: `Molis Work catalog schema=${supported + 1}，当前 reader 支持 1..${supported}。`, code: "catalog.reader_too_old",
+  assert.deepEqual(line, { error: `Molis Work catalog schema=${supported + 1}，当前 reader 支持 1..${supported}。当前 Session 不会热刷新 MCP；请新建或 Fork 一个 Session，先确认当前任务焦点，再只读调用 context_resolve。解析成功后再继续写入；不要回滚 catalog.db，也不要用 SQLite、CLI 或 Web 绕过。`, code: "catalog.reader_too_old",
     details: { actual_schema_version: supported + 1, supported_schema_min: 1, supported_schema_max: supported,
       recovery: "new_or_fork_session_then_context_resolve" } });
   const preserved = new Database(databasePath, { readonly: true });

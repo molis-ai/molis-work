@@ -160,7 +160,7 @@ test("Web tree approval reaches action policy, preserves trusted provenance and 
     const before = await snapshot();
     assert.equal((await request(id, decision, false)).status, 403);
     denied = true;
-    const blocked = await request(id, decision); assert.equal(blocked.status, 400); assert.match(await blocked.text(), /Tree disabled/);
+    const blocked = await request(id, decision); assert.equal(blocked.status, 403); assert.match(await blocked.text(), /Tree disabled/);
     assert.deepEqual(await snapshot(), before);
     denied = false;
     const response = await request(id, { ...decision, authority: { actor_id: "forged" }, runtime_actor_id: "forged" });

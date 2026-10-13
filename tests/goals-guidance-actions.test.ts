@@ -99,14 +99,14 @@ test("Web settings and Work prompt consume the same guidance and obey live read/
     const editPath = `/api/project-guidance/${added.entry.guidance_id}`;
     denied.add(goalsActions.guidanceUpdate.capability_id);
     const update = { ...input, action: "deactivate", idempotency_key: "off" };
-    assert.equal((await request(editPath, update, "PATCH")).status, 400);
+    assert.equal((await request(editPath, update, "PATCH")).status, 403);
     assert.deepEqual(await (await request("/api/project-guidance")).json(), added.project_guidance);
     denied.clear();
     assert.equal((await request(editPath, update, "PATCH")).status, 200);
     assert.doesNotMatch((await (await request(promptPath)).json() as { prompt: string }).prompt, /所有导出必须由用户发起/);
     denied.add(goalsActions.guidanceRead.capability_id);
-    assert.equal((await request("/api/project-guidance")).status, 400);
-    assert.equal((await request("/settings/guidance")).status, 400);
+    assert.equal((await request("/api/project-guidance")).status, 403);
+    assert.equal((await request("/settings/guidance")).status, 403);
     const savedWithoutRefresh = await request("/api/project-guidance", { ...input, content: "保留恢复记录。", idempotency_key: "saved-without-refresh" });
     assert.equal(savedWithoutRefresh.status, 200);
     const receipt = await savedWithoutRefresh.json() as { created: boolean; project_guidance: unknown; project_guidance_error: string };

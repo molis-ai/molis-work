@@ -100,7 +100,7 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
 test('W3-07-8-02 a real sandbox and production broker cannot acquire builtin Goal authority for the four protected actions', { skip: process.platform !== 'darwin', timeout: 30_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'goal-sandbox-authority-')), databasePath = join(directory, 'project.db');
   seedDemoBoard(databasePath);
-  const host = new MolisWorkLocalHost({ completeText: null }), ref = molisWorkHostProjectReference({ projectId: DEMO_PROJECT_ID, databasePath });
+  const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }), ref = molisWorkHostProjectReference({ projectId: DEMO_PROJECT_ID, databasePath });
   const goal_id = 'SANDBOX-GOAL', ids = [goalPluginActions.contract, goalPluginActions.state, goalPluginActions.progress, goalPluginActions.receipt].map(item => item.capability_id);
   let runner: Awaited<ReturnType<typeof createSandboxRunner>> | undefined;
   try {
@@ -125,7 +125,9 @@ test('W3-07-8-02 a real sandbox and production broker cannot acquire builtin Goa
       return {listed:listed.goals.some(goal=>goal.goal_id===input.goal_id),denied};}};`);
     const identity = { projectId: DEMO_PROJECT_ID, installationId: 'real-sandbox-install', pluginId: 'io.molis.work.generated.goal-scope', namespace: 'installed' as const };
     runner = await createSandboxRunner({ bundlePath, identity, grants: effects, contract: { version: 1, pluginId: identity.pluginId, revision: 'one', entities: [], pages: [], acceptance: [],
-      operations: [{ id: 'run', kind: 'command', input: { type: 'object' }, output: { type: 'object' }, effects, errors: [], examples: [{ input: {}, output: {} }] }] },
+      operations: [{ id: 'run', kind: 'command', input: { type: 'object', additionalProperties: false, properties: { goal_id: { type: 'string' }, cursor: { type: 'integer', minimum: 0 } }, required: ['goal_id', 'cursor'] },
+        output: { type: 'object', additionalProperties: false, properties: { listed: { type: 'boolean' }, denied: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { id: { type: 'string' }, code: { type: 'string' } }, required: ['id', 'code'] } } }, required: ['listed', 'denied'] },
+        effects, errors: [], examples: [{ input: { goal_id, cursor: initial.cursor }, output: { listed: true, denied: ids.map(id => ({ id, code: 'CAPABILITY_DENIED' })) } }] }] },
       services: { capability: catalogCapabilities({ actions, catalog, live: item => item.installationId === identity.installationId }) } });
     const result = await runner.call('run', { goal_id, cursor: initial.cursor });
     assert.deepEqual(result, { listed: true, denied: ids.map(id => ({ id, code: 'CAPABILITY_DENIED' })) }, 'the production broker refuses despite explicit sandbox declarations and grants');

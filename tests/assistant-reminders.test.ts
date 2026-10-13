@@ -87,7 +87,7 @@ test("W2-18-S8-TODO-01: a real Todo reminder automatically produces one Assistan
   t.mock.timers.enable({ apis: ["setInterval"] });
   const home = await mkdtemp(join(tmpdir(), "todo-assistant-timer-")), previous = process.env.MOLIS_WORK_SECRET_BACKEND;
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
-  const token = "todo-reminder-test-token", server = createDesktopWebHost({ ptyClientFilePath: () => "unused" })({ homeDirectory: home, controlToken: token });
+  const token = "todo-reminder-test-token-012345678901234", server = createDesktopWebHost({ ptyClientFilePath: () => "unused" })({ homeDirectory: home, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
   let requests = 0;

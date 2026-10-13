@@ -2192,3 +2192,7 @@ A3第三批从16a重跑现行工具，53普通无浏览器/平台专属测试，
 2026-10-13 A3 真回归结束：40/13 文件实际321/321与104/104，均零失败、取消或跳过。只读核对两动态声明、原测试正文与基线无增长，无新增P1。f3625612d已密钥扫描并推送，开并附加#482，当前叠#475；A2合入后转main并核其CI。Cognia干净对照复用ee84的干净adoption-main-baseline，未修改源码且无活动进程；公共computeBuildSourceDigest与19:09:34UTC完整构建manifest严格一致，实际3/3通过。仅停止Root自己还在排队的baseline54821，不动foreign contextual全量。原迁移唯一失败与修复后3/3的原日志全部保留。
 
 W3-02-H源码继续：删除旧MolisWorkV1Error与platform/errors出口/快照，原第三参数details改为ActionError options.details，无旧导出别名。MCP包复用SDK actionErrorBody，一份formatter处理普通动作/连接/管理的JSON {error,code,details?,call_id?}，保留owner详情，拒绝其code/call_id覆盖，Host只附已留行编号。Goals HTTP catch及已知输入共用SDK，删除transport regex猜kind；实际配置与协议版本检查在owner处携conflict，原8裸输入归invalid，未知内部500。旧event_http等数据式拒绝保留当前code与表示，送共同SDK，改名仍归R1。模块factory可携kind到Host的Goal ActionError。H-01/02/03构建、真实入口、重启及回归仍待。锁工具曾删optional项，已恢复当前完整锁，只保留MCP新增SDK的3行workspace链接。旧API快照删除，含新文件门禁与MCP消费者仍检查，不宣称H通过。
+
+2026-10-13 接续状态：#475确切16a在五必需与Product subset成功、currentmain及密钥核对后真实合入39a1a800c（20:28:54UTC），Linux probe是报告任务。A3 #482已转main、同步39并重生成626/68下降基线为95dad0fff后推送，现等CI。A4从95重测剩余100文件，选51普通测试（4动态引用），导入外正文相同、语法0、完整health/update通过570内部引用/29混用进程。首次测试在导入尚写入时启动，结果废弃并保留日志；仅核对并停Root75645/75678，完成写入后02批重新运行，首40文件已202/202，其余11文件待，未称片完成。
+
+H源码候选6a330c8de，源复核发现Personal测试缺Goal namespace和action-error-edges遗漏旧message/两行协议断言，b7f00b793均修正，保留真实Todo conflict、编号查询及业务断言。f2322857a补公共Host及真实Goals HTTP的400输入/坏JSON、owner版本冲突409/details/实际调用行、内部故障500与业务事实不变。H04含两个新增文件完整health通过，仅源码/静态证据；H05与新测试构建/类型/运行均待。I7仍冻结71405559e等待唯一整合构建15935，不在测试冻结树改源码。

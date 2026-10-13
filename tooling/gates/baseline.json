@@ -1098,9 +1098,8 @@
     "server/tooling/continuity-demo.mts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 196,
+  "unknownCastsTotal": 193,
   "unknownCasts": {
-    "apps/cli/src/goal-tree-commands.ts": 4,
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
     "apps/local-host/src/artifact-native-plugin-http.ts": 2,
@@ -1162,6 +1161,7 @@
     "plugins/native/work/src/directory.ts": 1,
     "plugins/native/workflows/src/store.ts": 4,
     "scripts/contextual-slice/client.ts": 2,
+    "scripts/preview-contextual-interaction.mts": 1,
     "server/src/im/reads.ts": 6,
     "tests/action-service.test.ts": 1,
     "tests/agent-built-plugins-agent.test.ts": 1,

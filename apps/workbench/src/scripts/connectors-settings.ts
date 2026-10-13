@@ -32,13 +32,8 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           fold.append(summary, pre); node.append(fold);
         }
       };
-      const fail = (node, error) => output(node, error.message || L('操作未完成，请重试。'), true);
-      const api = async (path, body, method = 'POST') => {
-        const response = await fetch(path, { method, headers: globalThis.molisWorkControlHeaders(), ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(45000) });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) { const error = new Error(payload.error || L('服务暂时无法连接，请重试。')); error.status = response.status; throw error; }
-        return payload;
-      };
+      const fail = (node, error) => { if (!node) return; output(node, '', true); molisWorkRequest.show(node.querySelector('p'), error, L('操作未完成，请重试。')); };
+      const api = (path, body, method = 'POST') => molisWorkRequest(path, {method, body, signal: AbortSignal.timeout(45000), fallback: L('服务暂时无法连接，请重试。')});
       const pageUrl = id => {
         const next = new URL('/capabilities/connections', location.origin);
         for (const key of ['desktop', 'project']) { const value = page.address().searchParams.get(key); if (value) next.searchParams.set(key, value); }
@@ -56,9 +51,9 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       const reload = async (id, notice) => {
         stopWaiting();
         if (notice) remember(noticeKey, { service: id, ...notice });
-        const response = await fetch(pageUrl(id), { headers: { Accept: 'text/html' }, signal: AbortSignal.timeout(45000) });
-        if (!response.ok) throw new Error(L('连接已更新，但页面未能刷新。请重新打开服务连接。'));
-        const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+        const html = await molisWorkRequest(pageUrl(id), {as:'text', headers:{Accept:'text/html'}, signal:AbortSignal.timeout(45000), fallback:L('连接已更新，但页面未能刷新。请重新打开服务连接。')});
+        if (!box.isConnected) return;
+        const doc = new DOMParser().parseFromString(html, 'text/html');
         const next = doc.querySelector('[data-connectors-settings]');
         if (!next) throw new Error(L('页面未能刷新，请重新打开服务连接。'));
         next.dataset.openConnector = id;

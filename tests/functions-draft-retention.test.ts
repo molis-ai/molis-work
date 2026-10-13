@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
+import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 
 import { MICRO_INTERACTION_CLIENT_SCRIPT } from "../packages/design-system/src/styles/micro-interactions.ts";
 import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/functions/client.ts";
@@ -75,6 +76,7 @@ window.fetch = async (url, init) => {
   const result = await window.__handle(method, path, body);
   return new Response(JSON.stringify(result.body), { status: result.status, headers: { "content-type": "application/json" } });
 };
+${embed(UI_REQUEST_CLIENT_SCRIPT)}
 try {
   // The same host the standalone rules page gives it (functions/bootstrap.ts): its own document and address.
   (${embed(FUNCTIONS_CLIENT_FACTORY_SCRIPT)})({ translate: (value) => value, feedApi: null, root: document,

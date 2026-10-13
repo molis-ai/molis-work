@@ -248,28 +248,12 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     return bits.join(" · ") || L("还没有说明");
   };
 
-  const headers = () => typeof molisWorkControlHeaders === "function"
-    ? molisWorkControlHeaders()
-    : { "content-type": "application/json" };
-  const request = async (method, path, body) => {
-    const response = await fetch(path, {
-      method,
-      headers: headers(),
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const failure = new Error(payload.error || L("Functions 请求失败"));
-      failure.code = payload.code || "";
-      throw failure;
-    }
-    return payload;
-  };
+  const request = (method, path, body) => molisWorkRequest(path, {method, body, fallback: L("Functions 请求失败")});
   const showNote = (text, isError) => {
     const target = workspace.hidden ? bench.querySelector("[data-functions-list-note]") : note;
     if (!target) return;
     target.hidden = !text;
-    target.textContent = text || "";
+    if (isError && text && typeof text === "object") molisWorkRequest.show(target, text); else target.textContent = text || "";
     target.classList.toggle("is-error", Boolean(isError && text));
   };
   const primitiveOf = (record) => record?.primitive || "choice";
@@ -767,7 +751,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
         : record.scene_id ? "当前范围没有可配置的位置。请先在对应场景中创建规则或检查插件状态。"
         : "当前范围未绑定消费场景，可独立调用。");
     } catch (error) {
-      if (current()) line(error.message || "未能读取实际使用位置，请重试。");
+      if(current()) { const status=document.createElement("p");molisWorkRequest.show(status,error,L("未能读取实际使用位置，请重试。"));usagesEl.append(status); }
     }
   };
   const fillEditor = (record) => {
@@ -960,7 +944,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       void saveDraft().catch((error) => {
-        if (sel?.id === savingId) showNote(error.message, true);
+        if (sel?.id === savingId) showNote(error, true);
       });
     }, 280);
   };
@@ -991,7 +975,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       await loadCatalog();
       const payload = await request("GET", "/api/functions/" + encodeURIComponent(id));
       if (seq === selectionSeq) remember(payload.function);
-    })().catch((error) => { if (seq === selectionSeq) showNote(error.message, true); })
+    })().catch((error) => { if (seq === selectionSeq) showNote(error, true); })
       .finally(() => { if (seq === selectionSeq) openingId = null; });
   });
   const openCreate = () => {
@@ -1027,7 +1011,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       await loadList();
       remember(payload.function);
     } catch (error) {
-      createNote.textContent = error.message || L("保存失败");
+      molisWorkRequest.show(createNote,error,L("保存失败"));
     } finally {
       creating = false;
       createForm.querySelectorAll("button").forEach((node) => { node.disabled = false; });
@@ -1038,7 +1022,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       await saveDraft();
       closeEditor();
       await loadList();
-    } catch (error) { showNote(error.message, true); }
+    } catch (error) { showNote(error, true); }
   });
   deleteBtn.addEventListener("click", async () => {
     if (!sel || sel.status === "published") return;
@@ -1048,7 +1032,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       await request("POST", "/api/functions/" + encodeURIComponent(record.id) + "/delete", { updated_at: record.updated_at });
       if (sel?.id === record.id) closeEditor();
       await loadList({ preserveForm: true });
-    } catch (error) { if (sel?.id === record.id) showNote(error.message, true); }
+    } catch (error) { if (sel?.id === record.id) showNote(error, true); }
   });
   addCriterionBtn.addEventListener("click", () => {
     if (sel?.status === "published") return;
@@ -1072,7 +1056,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       await renderUsages(sel);
       if (sel?.id !== record.id) return;
       const status = document.createElement("p"); status.setAttribute("role", "alert");
-      status.textContent = error.message || L("配置未保存，请重试。"); usagesEl.append(status);
+      molisWorkRequest.show(status,error,L("配置未保存，请重试。")); usagesEl.append(status);
     }
   });
   bench.querySelector("[data-functions-destinations]").addEventListener("click", (event) => {
@@ -1171,7 +1155,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
           sample_id: row.dataset.sampleId, updated_at: record.updated_at,
         });
         remember(payload.function, origin);
-      } catch (error) { if (sel?.id === record.id) showNote(error.message, true); }
+      } catch (error) { if (sel?.id === record.id) showNote(error, true); }
     }
   });
   bench.querySelector("[data-functions-save-sample]").addEventListener("click", async () => {
@@ -1181,7 +1165,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       const saved = await saveDraft();
       const payload = await request("POST", "/api/functions/" + encodeURIComponent(origin.id) + "/samples", { input, updated_at: saved.updated_at });
       remember(payload.function, origin);
-    } catch (error) { if (sel?.id === origin.id) showNote(error.message, true); }
+    } catch (error) { if (sel?.id === origin.id) showNote(error, true); }
   });
   rowsEl.addEventListener("click", async (event) => {
     const row = event.target.closest("[data-function-id]");
@@ -1192,7 +1176,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       try {
         if (saveTimer || saving || dirty) await saveDraft();
         fillEditor(record);
-      } catch (error) { showNote(error.message, true); }
+      } catch (error) { showNote(error, true); }
     }
   });
   let previewing = false;
@@ -1218,7 +1202,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     } catch (error) {
       if (sel?.id === previewId) {
         if (error.code === "functions.invalid" && !instructionsInput.value.trim()) setStep("fn", true);
-        showNote(error.message, true);
+        showNote(error, true);
         if (error.code === "functions.provider_not_configured" || error.code === "actions.connection_required") {
           const link = document.createElement("a");
           const connection = new URL("/capabilities/connections", location.origin);
@@ -1258,12 +1242,12 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       remember(payload.function);
       await loadList();
     } catch (error) {
-      if (sel?.id === publishId) showNote(error.message, true);
+      if (sel?.id === publishId) showNote(error, true);
     } finally { publishBtn.disabled = false; }
   });
   const load = () => loadCatalog().then(loadList).catch((error) => {
     empty.hidden = false;
-    empty.querySelector("p").textContent = error.message || L("Functions 请求失败");
+    molisWorkRequest.show(empty.querySelector("p"),error,L("Functions 请求失败"));
     let retry = empty.querySelector("button");
     if (!retry) {
       retry = document.createElement("button");

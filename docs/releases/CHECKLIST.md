@@ -36,7 +36,7 @@
 | 会话库 | `sessions/sessions.db` | 7 | `session_meta.schema_version` | `modules/private-work-context/src/session-schema.ts#SESSION_REGISTRY_SCHEMA_VERSION` | 拒绝 |
 | Functions | `functions/functions.db` | 3 | `user_version` | `modules/functions/src/store.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |
 | 助理 | `assistant/assistant.db` | 2 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 拒绝 |
-| Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 1 | `user_version` | `apps/local-host/src/home-plugins.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 拒绝 |
+| Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 2 | `user_version` | `apps/local-host/src/home-plugin-store.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 拒绝 |
 | Issue | `issues/issues.db` | 2 | `user_version` | `plugins/native/issues/src/store.ts#ISSUES_DATABASE` | 拒绝 |
 | 记忆 | `memory/memory.db` | 2 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 拒绝 |
 | Form | `form/form.db` | 2 | `user_version` | `plugins/native/form/src/store.ts#FORM_STORE_BASELINE` | 拒绝 |

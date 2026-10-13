@@ -124,12 +124,12 @@ export interface LocalHostStatus {
   capabilities: HostCapabilityDescriptor[];
 }
 
-/** Bound by the original Plugin Host executor; never parsed from a request body. */
+/** Bound by the Home or project Plugin Host executor; never parsed from a request body. */
 export interface HostPluginCaller {
   readonly plugin_id: string;
   readonly install_id: string;
   readonly actor_id: string;
-  readonly project_id: string;
+  readonly project_id: string | null;
   readonly declaration: Pick<import("./plugin.js").PluginDefinition, "manifest" | "agent_prompts" | "agent_skills">;
   /** Installation lifetime, also usable by the original Agent after this typed call ends. */
   readonly assertActive: () => void;

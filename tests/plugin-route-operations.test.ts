@@ -118,7 +118,7 @@ test("the shared route operations know no plugin: they are the only place that r
   assert.match(shared, /export async function dispatchRuntimePluginRoute\(/);
   // One implementation for the project's instance and the Home-level one: neither a plugin id nor a plugin package is written in it.
   assert.doesNotMatch(shared, /io\.molis\.work\./);
-  assert.doesNotMatch(shared, /@molis-ai\/molis-work-plugin-(?!runtime\b)/);
+  assert.doesNotMatch(shared, /@molis-ai\/molis-work-plugin-(?!(?:runtime|sdk)\b)/);
   assert.doesNotMatch(shared, /@molis-ai\/molis-work-module-/);
   const surface = await readFile(path.join(repoRoot, "apps/local-host/src/coding-surface.ts"), "utf8");
   for (const operation of [/supervisor\.restart\(/, /platform\.upgrade\(/, /\.viewRevision\(/]) {

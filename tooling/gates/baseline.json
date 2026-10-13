@@ -38,14 +38,14 @@
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 309,
+      "lines": 308,
       "methods": 23
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 332,
     "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
-    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 424,
+    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 423,
     "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 325,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 231,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 228,
@@ -80,7 +80,7 @@
       "methods": 18
     },
     "function horizontal/agent-host/src/adapters/prologue.ts#(module) callback 1": 187,
-    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 393,
+    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 392,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
       "lines": 409,
       "methods": 12
@@ -1771,7 +1771,7 @@
     "plugins/native/artifacts/src/plugin-client.ts": 7,
     "tooling/plugin-cli/src/package-files.ts": 5
   },
-  "errorStatusDecisionTotal": 135,
+  "errorStatusDecisionTotal": 133,
   "errorStatusDecisions": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/action-gateway-http.ts": 2,
@@ -1781,7 +1781,6 @@
     "apps/local-host/src/browser/browser-http.ts": 2,
     "apps/local-host/src/contextual/contextual-http.ts": 4,
     "apps/local-host/src/home-dock-http.ts": 12,
-    "apps/local-host/src/home-plugin-http.ts": 2,
     "apps/local-host/src/memory/memory-host.ts": 4,
     "apps/local-host/src/placement-http.ts": 4,
     "apps/local-host/src/plugin-builder/agent-surface.ts": 2,

@@ -154,10 +154,9 @@ export async function handleMolisWorkWebRequest(
         }
         return;
       }
-      const hostReference = molisWorkHostProjectReference({
-        databasePath: options.databasePath,
-        projectId: options.projectId,
-      });
+      // The prefix locates an existing project, but Home plugin HTTP keeps its Home caller and the same instance.
+      if (await handleHomePluginHttp(request, response, url, localHost, controlToken, PAGE_CSP)) return;
+      const hostReference = molisWorkHostProjectReference({ databasePath: options.databasePath, projectId: options.projectId });
       // A web user's call into one surface's own actions, with whatever transport (cancellation) the surface adds.
       const userActions = (permissions: readonly string[], transport: Partial<ActionCallContext> = {}) => bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user" as const, permissions: [...permissions], ...transport }));
       const shownPlugins = (projectId: string) => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },

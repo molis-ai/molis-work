@@ -55,14 +55,13 @@ export function registerAgentHostCapabilities<Context>(
 ): () => void {
   type Call = { source: Context; invocation: HostCapabilityInvocation };
   const denied = () => new AgentHostError("agent.session_unknown", "调用身份与插件或会话归属不一致");
-  const pluginFor = (call: Call, pluginId?: string): HostPluginCaller | undefined => {
+  const pluginFor = (call: Call, pluginId?: string): (HostPluginCaller & { readonly project_id: string }) | undefined => {
     const caller = call.invocation.plugin;
     if (call.invocation.consumer === "plugin" && !caller) throw denied();
-    if (caller) {
-      caller.assertActive();
-      if (caller.project_id !== owners.projectId(call.source) || pluginId !== undefined && caller.plugin_id !== pluginId) throw denied();
-    }
-    return caller;
+    if (!caller) return undefined;
+    caller.assertActive();
+    if (caller.project_id === null || caller.project_id !== owners.projectId(call.source) || pluginId !== undefined && caller.plugin_id !== pluginId) throw denied();
+    return { ...caller, project_id: caller.project_id };
   };
   const ports = {
     agentHost: (call: Call) => owners.agentHost(call.source),

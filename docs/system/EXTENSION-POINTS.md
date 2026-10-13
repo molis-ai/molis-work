@@ -34,7 +34,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 | # | 方向 | 现在 | 目标 | 靠什么到目标 |
 | --- | --- | --- | --- | --- |
-| 1 | 内置插件（项目插件，经 Plugin Runtime） | 12（另有 2 处按需；外加 2）；个人（Home 级）插件没有合规路径 | 1（外加 2）；没有 X-1 是 4 | W3-06、W4-03、W5-02、W5-06 加 X-1（4.3）；W4-04 先做样板 |
+| 1 | 内置插件（项目插件，经 Plugin Runtime） | 12（另有 2 处按需；外加 2）；Home 路径已有 Issue，通用服务见 W3-06 F | 1（外加 2）；没有 X-1 是 4 | W3-06、W4-03、W5-02、W5-06 加 X-1（4.3）；W4-04 先做样板 |
 | 2 | 第三方插件 | 改本仓库 0 处，但用户今天装不上 | 0；平台新增 4 件 | THIRD-PARTY-PLUGINS.md（信任模型已定，方案未实现） |
 | 3 | 服务集成 | token 型 1；公开来源型 5–7；自带 OAuth 型 12 | 1 | OAuth 型靠 W5-11；公开来源型无切片 |
 | 4 | AI 能力、Agent 角色、提示词 | 已有插件 0；新 Runtime 插件 +1；系统级 2 | 0 / 0 / 2 | W3-06（`services.model`） |
@@ -75,7 +75,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`builtin-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `coding-surface.ts`（宿主里写死的伙伴页渲染分支）、`workspace-plugin-bindings.ts`（默认连线表）、`demo-plugin-seed.ts`。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。
 
-**个人（Home 级）插件**：没有合规路径。`createPluginPlatform` 只在每个项目里建（`project-plugins.ts` 的 `startPlatform`、`installed-plugin-host.ts`），`PluginHostServices`（`packages/contracts/src/platform/plugin.ts`）只有项目库里的键值存储，没有 Home 库、也没有模型服务。现有样本 Shelf 靠宿主里手写的端口文件接上 Home 数据：按第 1 节同一条命令换成 shelf，包外有 17 个源码或配置文件点名它，宿主里仍有 `shelf-native-plugin-http.ts`、`personal-native-plugin-http.ts`、`shelf-actions.ts`、`shelf-ai.ts`（这类 `*-native-plugin-http.ts` 新文件已被门禁拦住）。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本。W3-06 补平台服务后才有路径。
+**个人（Home 级）插件**：在目录的实际 runtime 声明上由唯一 `HomePluginHost` 装配，Issue 已在这条路径；Home 与项目执行器共用 `services.database`、`services.model`、指令与可信提供方规则，Home 私有 KV 在完整 v2 安装库。现有 Form、Todo 等仍未迁移，不能把平台接线当成消费者迁移完成。现有样本 Shelf 靠宿主里手写的端口文件接上 Home 数据：按第 1 节同一条命令换成 shelf，包外有 17 个源码或配置文件点名它，宿主里仍有 `shelf-native-plugin-http.ts`、`personal-native-plugin-http.ts`、`shelf-actions.ts`、`shelf-ai.ts`（这类 `*-native-plugin-http.ts` 新文件已被门禁拦住）。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本。Home 当前接线与工程证据按防腐 spec §10.2 核对；后续迁移仍逐插件推进。
 
 **目标：1（外加 2）。** 新增一个内置插件 = 自己的包 + `scripts/workspace-packages.mjs` 一条登记，外加门禁名单一行和 SSOT 一行。其余由声明产生，下面五项都做到才是 1：
 
@@ -309,7 +309,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 本切片不改 `skills/`（W1-12 的回放工具验证每次 Skill 修改）。核对当前代码后，下列是真实存在的偏差，留给 W6-03 或单独一次 Skill 改动：
 
 1. `skills/molis-plugin-dev/host.md`「必改」第 1–11 步缺少：根 `package.json`、设计系统的三处名单（`MW_PLUGINS`、`PLUGIN_ICON`、`PLUGIN_NAMES`）。第 4 步说内置插件要在 `builtin-plugins.ts` 加目录条目，与 `AGENTS.md`「不再往 `builtin-plugins.ts` 加构建期条目」并存，需要一句话说清后者指的是构建期装配的条目。
-2. `host.md`「数据落哪」写本机数据放 `{home}/<id>/<id>.db`，但新的 Runtime 插件今天没有 Home 库服务（见 3.1），应注明在 W3-06 之前只能用项目库键值存储或宿主端口。
+2. `host.md`「数据落哪」写本机数据放 `{home}/<id>/<id>.db`，当前库由可信 Host 条目的 `database` 声明、插件经 `services.database` 访问；Home/项目都复用同一服务，作者不能从 Manifest/参数选库（见 3.1）。
 3. `skills/molis-plugin-dev/SKILL.md`「选 kind 和家族」：Shelf 的 Manifest 是 `native` 但 `start()` 返回 `app` 贡献，Characters、Coding 一族是 `app`；新内置插件写哪个 kind 没有明说，而授权有两层，要分开写清：
    - **调用者的权限**由 kind 决定：`apps/local-host/src/local-owner-permissions.ts` 只把 `manifest.kind === "native"` 的目录条目的动作权限当作本机所有者的内置权限，其余插件走安装授权（`local-web-actions.ts` 的 `localWebActionContext` 要求运行中安装的 `grants` 覆盖动作的全部权限）。
    - **动作可不可用**与 kind 无关：每个经 Plugin Runtime 安装的提供方，都要求安装的 `grants` 覆盖该动作的全部 `permissions`，否则报 `actions.plugin_permission`（`packages/plugin-runtime/src/action-provider.ts`；内核在发现和每次调用时检查，`packages/kernel/src/index.ts` 的 `requireCapability`）。授予什么按插件是不是随宿主发布的分。不是 `bundled` 的条目：监督器安装时只授予 Manifest 里 `required: true` 的权限，除非条目传 `grants`（`packages/plugin-runtime/src/supervisor.ts` 的 `#activate`、`install-rules.ts` 的 `defaultGrants`），所以这类插件的动作用到的权限要标 `required: true`，或由安装的人确认授权。`bundled` 的条目（监督器条目标 `bundled: true` 的内置插件）：安装和每次启动都拿到 Manifest 声明的全部权限，必需的和可选的一样，条目自己的 `grants` 不起作用（用户 2026-10-10 的决定，W3-06 B；`install-rules.ts` 的 `bundledGrants`、`recordToFollow`、`followBundledBuild`；[POLICY.md](../releases/POLICY.md) 第 7.8 节；[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 4.2 第 5 点）。所以内置插件不必为让动作可用而把权限标成 `required: true`；标不标只看 `required` 自己的意思：缺它插件就不能运行，撤销它整个提供方就不可用（`action-provider.ts` 的 `availability`，`actions.plugin_permission`）。Shelf 能用，是因为它是 `bundled`、拿到清单声明的全部权限（今天它的三项权限恰好都是必需的，`plugins/native/shelf/src/manifest.ts`、`runtime-actions.ts`），不是因为它是 `native`。

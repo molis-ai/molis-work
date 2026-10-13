@@ -251,7 +251,8 @@ test("the desktop driver stores the round's project and frees the computer when 
     assert.equal(desk.holding(), null);
     assert.equal(desk.state().record_id, null);
     const finished = records.get(openId);
-    assert.equal(finished?.outcome, "completed");
+    assert.equal(finished?.outcome, "failed");
+    assert.match(finished?.conclusion ?? "", /模型说完成了/);
     assert.equal(typeof finished?.ended_at, "string");
 
     driver.describeRound!("sess-2", { run_id: null, project_id: "project-b", goal: "下一轮" });

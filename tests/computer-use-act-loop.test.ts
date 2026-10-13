@@ -22,7 +22,8 @@ function desk(options: { nodes?: Node[]; truncated?: boolean; picture?: Record<s
   return {
     helper: { async call<T>(op: string, payload?: Record<string, unknown>): Promise<T> {
       options.calls?.push({ op, payload });
-      if (op === "app.state") return state as T;
+      if (op === "app.state" || op === "app.open") return state as T;
+      if (op === "apps.installed" || op === "apps.running") return { apps: [{ bundle_id: state.bundle_id, name: state.name }] } as T;
       if (op === "observe.screenshot") return (options.picture ?? shot()) as T;
       if (op === "observe.tree") return { window: { title: "Notes", frame: state.window.frame }, nodes, truncated: options.truncated === true, menus: [] } as T;
       if (op === "probe.point") return { window: { pid: 4, title: "Notes" }, element: { pid: 4, name: "保存", window_title: "Notes" } } as T;
@@ -112,4 +113,22 @@ test("the model is offered a target-window picture only when the tree is not eno
   await assert.rejects(() => acted(desk({ picture: shot({ password_fields: 1, masked: 0 }) })), /密码/);
   await assert.rejects(() => acted(desk({ picture: shot({ included_pids: [4, 8] }) })), /别的应用/);
   assert.match(DESKTOP_NODE_ID_GAP, /节点标识/);
+});
+
+test("switching apps keeps that window's picture when the tree is not enough", async () => {
+  const app = { what: "app" as const, app: "com.apple.TextEdit" };
+  const cut = await acted(desk({ truncated: true }), app);
+  assert.equal(cut.image_reason, "truncated");
+  assert.deepEqual(Buffer.from(cut.model_image ?? []), png);
+  assert.throws(() => deliverDesktopAct(cut), /没有改成每一步都发图/);
+
+  const empty = await acted(desk({ nodes: [label] }), app);
+  assert.equal(empty.image_reason, "no-clickable");
+  assert.deepEqual(Buffer.from(empty.model_image ?? []), png);
+
+  const complete = await acted(desk(), app);
+  assert.equal(complete.model_image, undefined);
+  deliverDesktopAct(complete);
+
+  await assert.rejects(() => acted(desk({ picture: shot({ password_fields: 1, masked: 0 }) }), app), /密码/);
 });

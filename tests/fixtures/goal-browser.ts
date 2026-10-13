@@ -233,5 +233,5 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   }
   /** The person's side of the Host's local HTTP interface, for settings the page does not need to show (grants, projects). */
   const web = new LocalHostHttpClient({ origin, controlToken: CONTROL_TOKEN });
-  return { store, localHost, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
+  return { store, localHost, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, on: browser.on.bind(browser), evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
 }

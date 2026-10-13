@@ -8,7 +8,7 @@ import { goalsActions, readGoalResumeFacts } from "@molis-ai/molis-work-plugin-g
 import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { createMcpRuntimeContextHandlers, createMcpContextPresenter, handleMcpMessage,
   mcpRuntimeSessionActivity, MCP_SERVER_INFO as SERVER_INFO,
-  createActionMcpPorts, isRuntimeContextMcpTool, molisWorkActionToolName,
+  createActionMcpPorts, isPlatformMcpTool, isRuntimeContextMcpTool, molisWorkActionToolName,
   type McpToolResult, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
@@ -98,7 +98,7 @@ export class LocalMcpServer {
         { homeDirectory: this.runtimeContextHost!.homeDirectory }, catalog => catalog.listWorkspaceDirectory(projectId)) } : {}),
     });
     if (this.runtimeContextHost?.homeDirectory) this.localHost.configurePersonalPlanning(this.runtimeContextHost.homeDirectory, this.withCatalog);
-    if (this.audience === "runtime" && !this.actionServiceUrl && this.runtimeContextHost?.homeDirectory) {
+    if (!this.actionServiceUrl && this.runtimeContextHost?.homeDirectory) {
       ensureSystemAgentService(this.localHost, this.runtimeContextHost.homeDirectory, this.withCatalog);
     }
     this.linkPanelSession = createRuntimePanelSessionLinker({
@@ -164,7 +164,7 @@ export class LocalMcpServer {
         throw new ActionError("mcp.context_changed", "调用等待期间客户端或项目连接已变化，或会话身份不再一致，请重新发现能力");
     };
     const home = this.runtimeContextHost?.homeDirectory;
-    if (this.audience === "runtime" && this.actionServiceUrl) {
+    if (this.actionServiceUrl) {
       if (!home) throw new ActionError("actions.home_required", "跨进程动作需要明确的 Runtime Home");
       const service = new LocalActionGatewayClient({ url: this.actionServiceUrl, homeDirectory: home,
         clientId: current.context.actor_id, projectId: current.context.project_id, runtimeSessionId });
@@ -188,7 +188,8 @@ export class LocalMcpServer {
     let actionServiceError: ActionError | undefined;
     try { discovered = await actions.service.discover(actions.context); }
     catch (error) {
-      if (this.audience !== "runtime" || !this.actionServiceUrl || !(error instanceof ActionError) || error.code !== "actions.service_unavailable") throw error;
+      // Management platform tools use their protected factory; granted action tools keep the same gateway and never run locally on its refusal.
+      if (!this.actionServiceUrl || !(error instanceof ActionError) || (this.audience === "runtime" && error.code !== "actions.service_unavailable")) throw error;
       actionServiceError = error;
       discovered = [];
     }
@@ -196,12 +197,14 @@ export class LocalMcpServer {
       audience: this.audience,
       actions: discovered,
       actionToolName: molisWorkActionToolName,
-      authorized_actions: this.audience === "runtime" && this.actionServiceUrl ? discovered.map(view => ({ capability_id: view.capability_id,
+      authorized_actions: this.actionServiceUrl ? discovered.map(view => ({ capability_id: view.capability_id,
         version: view.version, provider_id: view.provider.provider_id })) : actions.context.allowed_actions,
     });
-    if (actionServiceError) return { ...catalog, actionServiceError,
-      tools: catalog.tools.filter(tool => isRuntimeContextMcpTool(tool.name)),
-      entries: catalog.entries.filter(entry => isRuntimeContextMcpTool(entry.definition.name)) };
+    if (actionServiceError) {
+      const platformAvailable = (name: string) => isRuntimeContextMcpTool(name) || (this.audience === "management" && isPlatformMcpTool(name));
+      return { ...catalog, actionServiceError, tools: catalog.tools.filter(tool => platformAvailable(tool.name)),
+        entries: catalog.entries.filter(entry => platformAvailable(entry.definition.name)) };
+    }
     return catalog;
   }
 
@@ -231,7 +234,7 @@ export class LocalMcpServer {
 
   private async callToolResult(name: string, arguments_: Record<string, unknown>, callContext: McpToolCallContext): Promise<string | McpToolResult> {
     const catalog = await this.ensureCatalog();
-    if (catalog.actionServiceError && !isRuntimeContextMcpTool(name)) throw catalog.actionServiceError;
+    if (catalog.actionServiceError && !isRuntimeContextMcpTool(name) && !(this.audience === "management" && isPlatformMcpTool(name))) throw catalog.actionServiceError;
     const connection = this.runtimeConnection;
     assertMcpToolAllowed({ audience: this.audience, connectionState: this.connectionState,
       runtimeConnection: this.runtimeConnection, runtimeContextHost: this.runtimeContextHost }, name, callContext, catalog);

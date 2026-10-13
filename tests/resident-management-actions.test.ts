@@ -7,8 +7,10 @@ import { join } from "node:path";
 import test from "node:test";
 import { LocalMcpServer, createMolisWorkLocalHost, runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
+import { grantMcpAction, revokeMcpAction, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 import type { McpToolResult } from "@molis-ai/molis-work-app-mcp";
 import { FORGED_CALL, residentManagement } from "./fixtures/resident-management.js";
 
@@ -75,4 +77,41 @@ test("W3-07-7-01 an online refusal preserves its code and details and never open
   await assert.rejects(runV1Cli(["snapshot", "--db", env.project.database_path, "--json", JSON.stringify({ project_id: env.project.project_id })],
     { homeDirectory: env.home, actionServiceUrl: env.origin, localHost: fallbackHost }), { code: "goals.test_refused", message: "常驻入口拒绝" });
   assert.deepEqual(opened, []);
+});
+
+test("W3-07-7-03 an authorized management action tool still executes through the resident Runtime gateway and keeps its grants", async t => {
+  const env = await residentManagement(t), actor = "runtime:management-actions";
+  const action: ActionDefinition<{ text: string }, { saved: number }> = { capability_id: "unknown.management.save", version: 1, operation: "command", action: {
+    title: "Save management note", description: "Persistent routing fixture", kind: "operation", scope: "project", audiences: ["mcp"], permissions: ["notes:write"], subject_kinds: [],
+    input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false },
+    output_schema: { type: "object", properties: { saved: { type: "integer" } }, required: ["saved"], additionalProperties: false } } };
+  await env.host.withProject(env.reference, runtime => {
+    runtime.store.db.exec("CREATE TABLE management_notes (actor TEXT NOT NULL, text TEXT NOT NULL)");
+    env.host.actionRegistry(env.reference).registerProvider({ provider: { provider_id: "management-routing", title: "Routing", kind: "plugin", plugin_id: "io.molis.work.example.routing" },
+      definitions: [action], handlers: [{ ...action, handle: async (context, input) => {
+        await context.beforeEffect?.();
+        runtime.store.db.prepare("INSERT INTO management_notes VALUES (?, ?)").run(context.actor_id, (input as { text: string }).text);
+        return { saved: Number((runtime.store.db.prepare("SELECT count(*) AS n FROM management_notes").get() as { n: number }).n) };
+      } }] });
+  });
+  const context = { runtime_id: "management-actions", stable_work_context_id: "management-action-session", host_declares_stable: true };
+  await env.catalog.bindRuntimeContext({ context, project_id: env.project.project_id, actor_id: "user", user_confirmed: true });
+  const web = new LocalHostHttpClient({ origin: env.origin, controlToken: env.token });
+  const reference = { capability_id: action.capability_id, version: 1, provider_id: "management-routing" };
+  await grantMcpAction(web, { clientId: actor, projectId: env.project.project_id, action: reference });
+  const opened: string[] = [], fallbackHost = createMolisWorkLocalHost({ onRuntimeOpen: ref => opened.push(ref.storage_key) });
+  const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "management", { projectId: env.project.project_id,
+    databasePath: env.project.database_path, webBaseUrl: env.origin }, { homeDirectory: env.home, runtimeContext: context }, fallbackHost, env.origin);
+  t.after(async () => { await mcp.close(); await fallbackHost.close(); });
+  const message = { id: 1, method: "tools/call", params: { name: molisWorkActionToolName(action), arguments: { text: "唯一常驻写入" } } };
+  const reply = await mcp.handleMessage(message) as { result: McpToolResult };
+  assert.notEqual(reply.result.isError, true); assert.deepEqual(reply.result.structuredContent, { saved: 1 });
+  const callId = reply.result._meta?.["molis-work/callId"];
+  assert.deepEqual(env.host.callLog!.find(String(callId)).map(row => [row.capability_id, row.actor_id, row.audience]), [[action.capability_id, actor, "mcp"]]);
+  await revokeMcpAction(web, { clientId: actor, projectId: env.project.project_id, action: reference });
+  const refused = await mcp.handleMessage(message) as { result: McpToolResult };
+  assert.equal(refused.result.isError, true);
+  const rows = await env.host.withProject(env.reference, runtime => runtime.store.db.prepare("SELECT actor, text FROM management_notes").all() as { actor: string; text: string }[]);
+  assert.deepEqual(rows.map(row => [row.actor, row.text]), [[actor, "唯一常驻写入"]]);
+  assert.deepEqual(opened, [], "management action tools keep the resident execution and never fall back to a second project runtime");
 });

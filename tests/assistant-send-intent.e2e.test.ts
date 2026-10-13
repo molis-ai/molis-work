@@ -12,14 +12,17 @@ test("W2-18-SEND-01: waiting for A's draft sends A's intent and preserves B's se
   try {
     await putInput(browser, "只给 A 的补充", "A 的材料");
     const draft = await barrier.next();
+    await browser.evaluate("document.querySelector('.chooser').setAttribute('data-assistant-context', JSON.stringify({ plugin_id: 'todo', surface_title: '页面 A' }))");
     await browser.click("[data-assistant-send]");
     await openWork(browser, b);
+    await browser.evaluate("document.querySelector('.chooser').setAttribute('data-assistant-context', JSON.stringify({ plugin_id: 'todo', surface_title: '页面 B' }))");
     await putInput(browser, "B 的下一条输入", "B 的材料");
     await barrier.release(draft);
     const sent = await barrier.next();
     const body = JSON.parse(sent.request.postData!);
     assert.equal(body.work_id, a, "the delayed request must still name the work chosen at Send");
     assert.equal(body.text, "只给 A 的补充");
+    assert.equal(body.context.source.title, "页面 A", "context is captured with the original work before waiting for its draft");
     assert.deepEqual(body.materials.map((item: { title: string }) => item.title), ["A 的材料"]);
     await barrier.release(sent);
     await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
@@ -61,6 +64,31 @@ test("W2-18-SEND-01: a late Host refusal belongs to A and leaves B's input and m
   } finally { await barrier.close(); }
 });
 
+// W2-18-SEND-01: switching away saves a newer draft for A after its send, so the Host cannot clear that later input.
+test("W2-18-SEND-01: text written after Send survives in A while B remains current", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const a = await seedWork(browser, "工作 A"), b = await seedWork(browser, "工作 B");
+  await openWork(browser, a);
+  const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+  try {
+    await putInput(browser, "A 发出的内容");
+    await browser.click("[data-assistant-send]");
+    const sent = await barrier.next();
+    await putInput(browser, "A 还没发送的新输入");
+    await openWork(browser, b);
+    await putInput(browser, "B 的输入");
+    await barrier.release(sent);
+    await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
+    const afterA = await waitWork(browser, a, view => view.work.draft === "A 还没发送的新输入");
+    assert.equal(afterA.rounds.at(-1)?.text, "A 发出的内容");
+    assert.equal(afterA.rounds.length, 2);
+    assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), b);
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 的输入");
+    const afterB = await waitWork(browser, b, view => view.work.draft === "B 的输入");
+    assert.equal(afterB.rounds.length, 1);
+  } finally { await barrier.close(); }
+});
+
 // W2-18-SEND-02: even the chooser's trusted HTTP project route and an unknown result's retry stay fixed at the click.
 test("W2-18-SEND-02: chooser changes and a lost receipt retry the original scope, materials and request_id exactly once", { timeout: 90_000 }, async t => {
   const browser = await sendBrowser(t); if (!browser) return;
@@ -73,6 +101,7 @@ test("W2-18-SEND-02: chooser changes and a lost receipt retry the original scope
     await browser.click("[data-assistant-new]");
     await putInput(browser, "项目 A 的新工作", "项目 A 的材料");
     await browser.click("[data-assistant-send]");
+    await browser.click("[data-assistant-panel-close]");
     await browser.click("#row-personal");
     await putInput(browser, "项目 A 的新工作", "后来选择的材料");
     await barrier.release(draft);

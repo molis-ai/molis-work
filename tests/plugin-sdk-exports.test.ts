@@ -30,7 +30,6 @@ const sdk = await import(pathToFileURL(join(sdkDirectory, sdkEntry)).href) as Sd
 /** Helpers a plugin does not take from the SDK, with why. An entry that is exported after all, or no longer exists, fails the test. */
 const NOT_FOR_PLUGINS: Readonly<Record<string, string>> = {
   bindActionClient: "Host and test side: binds a client to a call context; a running plugin uses `context.services.actions`",
-  defineInstructionPrompt: "plugins import it from `@molis-ai/molis-work-contracts/platform/model-prompts` (docs/platform/PLUGIN-DEVELOPMENT.md, 调用模型)",
 };
 
 const HELPER = /^export (?:async )?function ((?:define|bind|with)[A-Z]\w*)/gmu;
@@ -59,7 +58,10 @@ test("the SDK exports are working functions, among them the ones W2-03 added", (
     "defineArtifactPreviewAction", "bindArtifactPreview", "defineArtifactPinAction", "nextPinnedVersion", "defineArtifactCompareAction", "bindArtifactCompare",
     "sameArtifactFields", "objectOrMissing", "defineArtifactContinueAction", "bindArtifactContinue", "defineArtifactReferrersAction", "linkedArtifactVersion",
     "linksToArtifactVersion", "withActionEffect",
+    // W3-06 E: the model service takes registered instructions, so a plugin author gets both helpers from the SDK.
+    "defineInstructionPrompt", "instructed",
   ]) assert.equal(typeof sdk[name], "function", name);
+  assert.deepEqual(sdk.PLUGIN_MODEL_LIMITS, { default_timeout_ms: 120_000, max_timeout_ms: 600_000, default_output_tokens: 5_000, max_output_tokens: 12_000 });
   assert.equal(sdk.FRAGMENT_ANY_OBJECT, "molis.any-object");
   assert.ok(sdk.FRAGMENT_INTENTS.length > 0 && sdk.FRAGMENT_GRANULARITIES.length > 0 && sdk.FRAGMENT_ROLES.length > 0);
   assert.equal("defineSearchQueryAction" in sdk, false, "decision 19 removed the on-demand search source");

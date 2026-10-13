@@ -1,3 +1,4 @@
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { SourceHistoryDecision } from "./projection.js";
 import { requireParam } from "./route-input.js";
 import type { FeedPluginRouteHandler } from "./routes.js";
@@ -23,16 +24,14 @@ export function createFeedSourceRouteHandlers(options: FeedRouteHandlerPorts): R
     },
     "feed.sources.delete": async ({ params, request }) => {
       const historyDecision = request.body.history_decision as SourceHistoryDecision;
-      if (historyDecision !== "retain_history" && historyDecision !== "delete_local_history") {
-        return { status: 400, body: { error: "删除来源前必须选择保留或删除本地历史" } };
-      }
+      if (historyDecision !== "retain_history" && historyDecision !== "delete_local_history") throw feedErrors.request_invalid("删除来源前必须选择保留或删除本地历史");
       const result = await options.actions.invoke(feedSourceActions.delete, { source_id: requireParam(params.source_id, "Feed 来源不存在"), history_decision: historyDecision });
       changed();
       return { status: 200, body: result };
     },
     "feed.sources.schedule": async ({ params, request }) => {
       const valid = request.body.mode === "manual" || (request.body.mode === "interval" && typeof request.body.enabled === "boolean" && Number.isInteger(request.body.interval_minutes));
-      if (!valid) return { status: 400, body: { error: "拉取计划参数无效" } };
+      if (!valid) throw feedErrors.request_invalid("拉取计划参数无效");
       const result = await options.actions.invoke(feedSourceActions.schedule, request.body.mode === "manual"
         ? { source_id: requireParam(params.source_id, "Feed 来源不存在"), mode: "manual" }
         : { source_id: requireParam(params.source_id, "Feed 来源不存在"), mode: "interval", enabled: request.body.enabled as boolean, interval_minutes: Number(request.body.interval_minutes) });

@@ -324,6 +324,12 @@ Figures on main: ≈283 touched files (≈277 after #385); 196 split processes.
 - Add `tests/schedule-readiness.test.ts` to the list (missed by the design).
 - Dependencies: A; FB `feed-promotion-checks` and `schedule-readiness-hint`.
 - Gates: api `contracts/modules/feed.txt`. Size M (~30 files).
+- **As done (recorded here, the design did not settle these):**
+  - *Where the declarations live.* `feedErrors` is in `contracts/modules/feed.ts` and `inboxErrors` in `contracts/modules/attention-resumption.ts`, not in the plugins: the Feed plugin, the Host files that sync and the RSS and YouTube integrations all refuse in Feed's name and share no other package, and the Feed plugin raises the Inbox's `inbox.entry_not_found` (Inbox entries are the Attention module's facts and Feed composes the module) while the Inbox plugin raises `inbox.invalid`. `scheduleErrors` is in the Schedule plugin. The module classes `FeedError` and `AttentionError` stay (tail J); `callFeed` and `callAttention` turn them into these codes where the plugin calls the module. If W3-02-B is on main first, its owner table needs `packages/contracts/src/modules/attention-resumption.ts` (owner of the `inbox.*` declaration) added.
+  - *Provider failures.* A pull the provider reported as failed raised the provider's own code as the error's code (`connector_rate_limited`, `connector_needs_auth`, ...). The error is `feed.connector_failed` now and the provider's code is `details.error_code`; `toFeedPublicError` reads it from there, so the Inbox source-fault entry stores the same code as before. The persisted run and source codes are untouched (J3).
+  - *Statuses.* Every owner code answers the status its old name had (the parity table was made by running the three deleted mappers over each code on the merge-base). Expected changes: every platform code answers its kind's status at all three edges (measured on the merge-base for the common ones: `actions.scope_mismatch` and `owner_mismatch` at Feed and Inbox 400→403; `actions.connection_required` at Feed and Schedule 400→503; `actions.unredeemed` at Feed and Inbox 400→503; `actions.subject_changed`, `binding_changed` and `provider_changed` at Feed and Schedule 400→409; `actions.missing` at Inbox 400→404; `actions.plugin_disabled` at Schedule 400→403); a failure with no code of ours 400→500 `actions.execution_failed`; the two "workbench not available" answers 501→503 `actions.service_unavailable`; `schedule.not_found` (Schedule search) is `schedule.task_not_found`, 400→404; a request body that is too large or not JSON no longer escapes the three edges (500 by the Host's last-resort catch) and answers 413/400 with its code.
+  - *Scheduler failures.* Schedule's actions raise only declared failures: the plugin's own `ScheduleError` raises became `schedule.job_invalid`/`job_not_found`, the caller-mistake bare `Error`s of reminders and timed operations became `job_invalid` (identity failures `actions.forbidden`), and `scheduleFailure` turns the scheduler service's `ScheduleError` into the same two codes at every action (so `schedule_interval_too_short`, `schedule_path_refused` and `schedule_handler_missing` also answer as `schedule.job_invalid`, 400 as before). The failures of a run that already started (a due task or timed operation that cannot be carried out) stay plain errors: they are recorded on the task or the job, never answered.
+  - *Stored codes (for maintenance 8).* New rows carry the new names; rows written before keep the old ones: the Inbox source-fault entries' `detail.error_code` (the thrown code of a sync that lost its connection, was reconfigured, or whose account was disconnected) and the `error_code` of Feed capture and Inbox judgments (the code of whatever the judged call raised). The old→new table is in the PR text.
 
 **W3-02-F: Shelf, Jelly, Cognia, Images, host material errors.**
 - Dependencies: A, #384.
@@ -501,21 +507,23 @@ All MCP-visible renames must land before 0.3.0 (the first version installed outs
 **W3-06-F1 (new split): move `plugin-route-operations.ts` out of `handleCodingPluginHttp`** (`coding-surface.ts:181-222`; no behaviour change; plugin-specific branches stay as hooks so `pluginOutsideMentions` does not grow).
 - Before W3-02 G4. Size S.
 
-**W3-06-F: Home-level Runtime instance.**
+**W3-06-F: complete the existing Home Runtime instance (implementation scope refreshed 2026-10-12).**
+- **Current entry:** Issue already runs through `HomePluginHost` / `HomePluginExecutor` and the catalog's Home entry. Reuse that one instance and its explicit protected retry; the old empty-production-list design is superseded. The remaining business plugins stay at their current entries until W5-01/W5-02.
 - **Changes:**
-  - `home-plugin-platform.ts`, `home-plugins.ts`;
-  - the `scope` parameter that A skipped;
-  - extract the bundled `WeakSet`/`providerFor` helper so Home-level built-ins also register under `plugin_id`;
-  - `homePluginEntries() = []`; `project-host.ts:334,341` in place; `local-web-actions.ts` 46 → ~52;
-  - storage `PERSONAL_HOME_SQLITE_STORES` + `plugin-runtime`; the `HOME_PLUGIN_RUNTIME_BASELINE` row in **CHECKLIST 各库版本表** (the design missed it; `verify-release-versions` fails without it);
-  - HOME-DATA, SSOT, schema fixtures.
-- **Decisions:** 10-10 「按今天的登记方式分」 (mechanism only, empty list); 「内置插件一律用插件名」; #20.
-- **Dependencies:** D, E, F1, M7, #384. FB `sessions-purge` (HOME-DATA `:44`, a direct conflict).
-- **Hubs:** `project-plugins.ts`, SSOT, CHECKLIST, CALL-CHAINS, baseline.
-- **Size/risk/tests:** L (~28 files), high risk. Fail-first: `tests/home-plugin-platform.test.ts`, plus C's deferred case (no plugin in both lists).
+  - Wire D's `services.database` and E's instruction/model service into the Home executor, with the existing lifecycle, grants and post-model effect checks. Business SQLite facts remain with their owners.
+  - Add trusted Home fixture declarations and shared bundled-definition identity checks. Only bundled definitions use `plugin_id` as provider and receive all declared permissions; other installations use `install_id`. Reject overlapping Home/project entries, impersonated built-ins and untrusted database declarations.
+  - Complete the existing `services.storage` private KV contract in the Home Runtime database. Current schema becomes v2 with the private-value tables; v1 and damaged v2 databases are refused unchanged, before a storage constructor can add a missing table. No runtime migration, fallback or rebuild. Update HOME-DATA, CHECKLIST and independent schema fixtures together. The coordinator's read-only check found no such database in the real Home; any actual maintenance remains a separate decision after clone/count/rehearsal.
+  - Prepare Home providers for action and scene discovery, authorize their actual scopes and installation generations, and isolate Home startup failure so unrelated Goals/project actions remain usable. Preserve failure state and explicit retry semantics.
+  - Reuse F1's generic route operations with the structural fields Home actually has; keep Files/wiring/Coding hooks with their project owner. Dispatch the same Home instance after parsing project prefixes, retaining cancellation, mutation protection, upload limits, `page_context` and view revision.
+  - The current HTTP route/action-client contract stays Home-scoped even behind a project prefix; do not manufacture trusted project identity from body, query or path. Project-scoped actions of a Home provider use the existing scoped action client and refuse a missing project.
+- **Decisions:** spec §1, 10-10 Home/project division and bundled identity; 10-12 routine choices explicitly preserve the existing Issue instance, full private KV contract and current HTTP scope.
+- **Dependencies:** D, E, F1, M7, #384. Serialize with W3-02 G4 after F. No new catalog owner, method lifecycle, business-plugin migration or public compatibility API in this slice.
+- **Hubs:** project/Home assembly, SSOT, CHECKLIST, CALL-CHAINS and baseline. Keep all current Home-data/purge obligations; do not duplicate the existing Runtime backup registration.
+- **Size/risk/tests:** L, high risk. Use public Host/HTTP/action entries with isolated Homes and a local model substitute. Prove one shared Home instance, trusted provider/grant refusal, cancellation/revocation/disable/reinstall recovery, KV persistence/isolation/CAS/failed-upgrade restore, strict nonempty v1 and damaged v2 rejection without changes, unrelated Goals access during Home failure, scene discovery, protected operations and existing Issue upload/retry paths. Existing giant classes may not grow; extract only the helpers required by these paths. Whole build, schema/version checks, API/action/resource checks, relevant README tests, security and coordinator-owned integration regression.
 
-**W3-06-G: close-out docs** (spec §1 routine calls, §10 progress, RUNTIME-MIGRATION, EXTENSION-POINTS, ai-entry-inventory `:204`; project-deleted delivery is docs only).
-- Fold into F if F stays reviewable. Separate gate-comment PR for `action-contract-snapshot.mjs:44-52`. Size S.
+**W3-06-G: close-out docs.**
+- Update RUNTIME-MIGRATION, EXTENSION-POINTS, ai-entry-inventory, Home-data/version/owner documents and the relevant plugin/Prologue Skill chapters to the implementation above. The coordinator owns spec §1/§10 progress.
+- Fold into F if reviewable. Project-deleted delivery remains a documented migration obligation of the existing catalog owner. The snapshot script already states bundled provider identity, so do not add a gate-comment PR unless the final implementation actually changes that statement. Validate changed Studio-mounted Skill chapters through offline replay and isolated smoke as required.
 
 ### W3-07 (none merged; Q1/Q2/Q3 decided = convert / forward / keep)
 
@@ -626,7 +634,14 @@ All MCP-visible renames must land before 0.3.0 (the first version installed outs
 - **Size/risk/tests:** M (~14 files), **high risk**: external MCP and Agent calls without a version now fail. T8 fails first.
 - **Open (user):** does the `workflow` audience count as an AI source? Recommendation: no, unless workflow Agent steps already call as `agent` (unknown — check). Routine calls: which fields count (`expected_revisions`, `expected_updated_at`?); nested calls exempt.
 
-### W3-10 (none merged)
+### W3-10（1a 经 #436 合入；1b 在 I5 接续）
+
+2026-10-12 接续核对：实际入口为 ui-host 的 `createUiRequest`、`createUiFailureView`、`UI_REQUEST_CLIENT_SCRIPT` 与 `globalThis.molisWorkRequest: UiRequest`；不增加同义包装。1b 已为了资源预算前移 side-panel-browser/files、side-panel、background-tasks、plugin-notifications 和 settings-directory，后续不重复迁移。固定 main acede03e2 的 Workbench 请求是 87 处/41 文件；1b 后 53 处/27 文件，2、3a、3b、4 对应 12/15/16/10 处，正式实现时以实际组合树再量。这些是定位数字，不是固定验收数量。
+
+2 包含原设计漏列的 home-model-settings 与 home-plugin-page；Functions 的 feedApi 同时承担「有无项目」，以 projectPrefix 保留空项目判断。3a 同片迁所有 feedApi 工厂与读者，Home 消息仅接纳既有 409 且 body.state=failed 的收据。3b 保留 Files/Git 的五参数 host.request adapter、读取 view signal 与审批写入 activation signal 的区别、可渲染成果 404。4 等 G3 的最终 owner 详情合同；不添加 body/data/details 历史别名，Placement JSON 只编码一次，助理断线恢复沿用原 request_id。各片保留错误对象的 code/status/callId/body、取消后与切项目后的答复复查；下载、导航、WebSocket、二进制绘图与 PTY 不改成 JSON 请求。
+
+§1 的四条决定已经有效：可查编号才显示、粗指针 44px/桌面 32px、插件页面浏览器英文过渡至 W5-04、rawFetchInScripts 门禁 10-11 已批准。5 独立提交，只冻结实际执行的浏览器程序里 raw fetch，工作台归零、插件存量随 W5-04 减少；底层运输实现精确豁免，不豁免目录。最新 main 资源预算与 #420 的 page/status/快捷键/忙态/焦点行为必须保留。验收见 spec §10.3。
+
 
 **W3-10-0 (conditional):** not needed if W3-01 C applies the `recordedCallId()` rule. Check this at C's review.
 
@@ -662,9 +677,9 @@ All MCP-visible renames must land before 0.3.0 (the first version installed outs
 - Dependencies: 1b; W3-02 G3 first; FB `goals-input-accept` and `touch-targets-360`.
 - M (~12 files), high risk.
 
-**W3-10-5: gate `rawFetchInScripts`.** Gate PR. Needs the user's OK (no §1 row). After 4. S.
+**W3-10-5: gate `rawFetchInScripts`.** Independent gate PR after 4. User approval is recorded in spec §1 (10-11); do not request it again. S.
 
-**W3-10 open questions:**
+**W3-10 原待决表（已由 spec §1 的决定收口）：**
 
 | Question | Recommendation | Needs |
 | --- | --- | --- |

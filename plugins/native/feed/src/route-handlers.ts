@@ -1,3 +1,4 @@
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { feedQueryActions } from "./query-actions.js";
 import type { FeedPluginRouteHandler } from "./routes.js";
 import type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
@@ -17,9 +18,7 @@ export function createFeedRouteHandlers(options: FeedRouteHandlerPorts): Record<
     }),
     "feed.workbench": async ({ request }) => {
       const preset = request.query.get("preset") ?? "feed";
-      if (preset !== "feed") {
-        return { status: 400, body: { error: "Feed 工作区类型无效" } };
-      }
+      if (preset !== "feed") throw feedErrors.request_invalid("Feed 工作区类型无效");
       return { status: 200, html: await options.renderWorkbench() };
     },
     ...createFeedOutRuleRouteHandlers(options),

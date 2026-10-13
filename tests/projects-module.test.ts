@@ -71,7 +71,8 @@ test("Projects Module owns canonical project identity and workspace membership",
         actor_id: "user-1",
         user_confirmed: false,
       }),
-      (error: unknown) => error instanceof ProjectsTestError && error.code === "context.user_confirmation_required",
+      // R4A2-01: project membership owns this separate confirmation refusal.
+      (error: unknown) => error instanceof ProjectsTestError && error.code === "catalog.context.user_confirmation_required",
     );
     assert.throws(
       () => projects.lifecycle.prepareRecord({

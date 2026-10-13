@@ -361,7 +361,7 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
             user_confirmed: false,
           }),
         (error: unknown) =>
-          error instanceof ActionError && error.code === "context.user_confirmation_required",
+          error instanceof ActionError && error.code === "work.context.user_confirmation_required",
       );
       const initial = catalog.bindRuntimeContext({
         context: codexEntry,
@@ -402,7 +402,7 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
             user_confirmed: true,
           }),
         (error: unknown) =>
-          error instanceof ActionError && error.code === "context.rebind_confirmation_required",
+          error instanceof ActionError && error.code === "work.context.rebind_confirmation_required",
       );
       assert.equal(catalog.resolveRuntimeContext(codexEntry).connection?.project_id, first.project_id);
       assert.equal(catalog.resolveRuntimeContext(claudeEntry).connection?.project_id, first.project_id);
@@ -592,7 +592,7 @@ test("a fresh Runtime Session receives host suggestions but needs confirmation, 
             suggestion_clues: clues,
           }),
         (error: unknown) =>
-          error instanceof ActionError && error.code === "context.user_confirmation_required",
+          error instanceof ActionError && error.code === "work.context.user_confirmation_required",
       );
       const rejected = catalog.rejectRuntimeContextSuggestion({
         context: firstSession,
@@ -687,7 +687,7 @@ test("current Runtime can create and bind one new project without orphaning data
             idempotency_key: "create-current-runtime-project",
           }),
         (error: unknown) =>
-          error instanceof ActionError && error.code === "context.idempotency_conflict",
+          error instanceof ActionError && error.code === "work.context.idempotency_conflict",
       );
 
       await assert.rejects(
@@ -700,7 +700,7 @@ test("current Runtime can create and bind one new project without orphaning data
             idempotency_key: "create-without-rebind-confirmation",
           }),
         (error: unknown) =>
-          error instanceof ActionError && error.code === "context.rebind_confirmation_required",
+          error instanceof ActionError && error.code === "work.context.rebind_confirmation_required",
       );
       assert.equal(catalog.listProjects().length, 1);
 
@@ -718,7 +718,7 @@ test("current Runtime can create and bind one new project without orphaning data
             idempotency_key: "create-without-stable-context",
           }),
         (error: unknown) =>
-          error instanceof ActionError && error.code === "context.stable_identity_required",
+          error instanceof ActionError && error.code === "work.context.stable_identity_required",
       );
       assert.equal(catalog.listProjects().length, 1);
     } finally {
@@ -749,7 +749,7 @@ test("unbinding removes only the current Runtime entry and preserves the managed
             user_confirmed: false,
           }),
         (error: unknown) =>
-          error instanceof ActionError && error.code === "context.user_confirmation_required",
+          error instanceof ActionError && error.code === "work.context.user_confirmation_required",
       );
       assert.equal(catalog.resolveRuntimeContext(context).connection?.project_id, project.project_id);
 

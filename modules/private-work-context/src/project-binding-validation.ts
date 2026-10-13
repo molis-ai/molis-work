@@ -1,5 +1,5 @@
 import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, RuntimeWorkspaceContext, NormalizedRuntimeWorkspaceContext } from "@molis-ai/molis-work-contracts/modules/private-work-context";
-export type RuntimeProjectBindingErrorCode = "context.user_confirmation_required" | "context.suggestion_not_available" | "catalog.project_not_found" | "context.workspace_default_unsupported" | "context.workspace_required" | "context.idempotency_conflict" | "context.rebind_confirmation_required" | "context.stable_identity_required" | "context.identity_required" | "catalog.invalid_name" | "context.idempotency_key_required";
+export type RuntimeProjectBindingErrorCode = "work.context.user_confirmation_required" | "work.context.suggestion_not_available" | "catalog.project_not_found" | "work.context.workspace_default_unsupported" | "work.context.workspace_required" | "work.context.idempotency_conflict" | "work.context.rebind_confirmation_required" | "work.context.stable_identity_required" | "work.context.identity_required" | "catalog.invalid_name" | "work.context.idempotency_key_required";
 export type RuntimeProjectBindingErrorFactory = (code: RuntimeProjectBindingErrorCode, message: string) => Error;
 export interface RuntimeProjectBindingValidationPorts {
   error: RuntimeProjectBindingErrorFactory;
@@ -32,7 +32,7 @@ function requireStableRuntimeWorkContext(input: RuntimeWorkContext): NormalizedR
   const normalized = normalizeRuntimeWorkContext(input);
   if (!normalized.stable_work_context_id) {
     throw error(
-      "context.stable_identity_required",
+      "work.context.stable_identity_required",
       "当前 Runtime 没有宿主明确声明的稳定工作入口，不能建立自动连接绑定",
     );
   }
@@ -43,7 +43,7 @@ function requireRoutableRuntimeWorkContext(input: RuntimeWorkContext): Normalize
   const normalized = normalizeRuntimeWorkContext(input);
   if (!normalized.stable_work_context_id && !normalized.workspace) {
     throw error(
-      "context.stable_identity_required",
+      "work.context.stable_identity_required",
       "当前 Runtime 没有 Session 标识或可用的项目目录，不能保存项目关联",
     );
   }
@@ -54,7 +54,7 @@ function runtimeContextPersistenceId(context: NormalizedRuntimeWorkContext): str
   if (context.stable_work_context_id) return context.stable_work_context_id;
   if (context.workspace) return `workspace-request:${context.workspace.workspace_id}`;
   throw error(
-    "context.identity_required",
+    "work.context.identity_required",
     "当前 Runtime 没有可用于保存请求的 Session 或项目目录",
   );
 }
@@ -76,7 +76,7 @@ function requiredProjectId(value: string): string {
 function requiredRuntimeId(value: string): string {
   const runtimeId = value.trim();
   if (!runtimeId) {
-    throw error("context.stable_identity_required", "Runtime 标识不能为空");
+    throw error("work.context.stable_identity_required", "Runtime 标识不能为空");
   }
   return runtimeId;
 }
@@ -84,7 +84,7 @@ function requiredRuntimeId(value: string): string {
 function requiredActorId(value: string): string {
   const actorId = value.trim();
   if (!actorId) {
-    throw error("context.user_confirmation_required", "绑定操作必须记录执行者");
+    throw error("work.context.user_confirmation_required", "绑定操作必须记录执行者");
   }
   return actorId;
 }
@@ -93,7 +93,7 @@ function requiredContextIdempotencyKey(value: string): string {
   const key = value.trim();
   if (!key) {
     throw error(
-      "context.idempotency_key_required",
+      "work.context.idempotency_key_required",
       "创建并绑定项目需要幂等请求键",
     );
   }

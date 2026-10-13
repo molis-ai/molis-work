@@ -65,7 +65,7 @@ export class ProjectWorkspaceService {
     const actorId = this.requiredActorId(input.actor_id);
     this.requireConfirmation(input.user_confirmed, "只有用户明确确认后才能关联工作目录");
     const workspace = this.normalize({ canonical_path: input.canonical_path, realpath_verified: false });
-    if (!workspace) throw this.error("context.workspace_required", "工作目录必须是绝对路径");
+    if (!workspace) throw this.error("catalog.context.workspace_required", "工作目录必须是绝对路径");
     this.repository.transaction(() => this.upsertMembership(workspace, projectId, actorId));
     return this.requireDirectory(workspace.workspace_id);
   }
@@ -77,10 +77,10 @@ export class ProjectWorkspaceService {
     this.requireConfirmation(input.user_confirmed, "只有用户明确确认后才能修复工作目录路径");
     const current = this.requireDirectory(workspaceId);
     if (!current.project_ids.includes(projectId)) {
-      throw this.error("context.workspace_membership_not_found", "这个目录尚未关联当前项目");
+      throw this.error("catalog.context.workspace_membership_not_found", "这个目录尚未关联当前项目");
     }
     const next = this.normalize({ canonical_path: input.canonical_path, realpath_verified: false });
-    if (!next) throw this.error("context.workspace_required", "新的工作目录必须是绝对路径");
+    if (!next) throw this.error("catalog.context.workspace_required", "新的工作目录必须是绝对路径");
     this.repository.transaction(() => {
       this.upsertMembership(next, projectId, actorId);
       if (next.workspace_id !== workspaceId) {
@@ -98,7 +98,7 @@ export class ProjectWorkspaceService {
   setDefault(input: ChangeWorkspaceProjectInput): ProjectWorkspaceMembership[] {
     this.requireConfirmation(input.user_confirmed, "只有用户明确确认后才能更改目录的默认项目");
     throw this.error(
-      "context.workspace_default_unsupported",
+      "catalog.context.workspace_default_unsupported",
       "工作目录不再保存默认项目；请为当前 Session 选择项目",
     );
   }
@@ -155,7 +155,7 @@ export class ProjectWorkspaceService {
 
   requireDirectory(workspaceId: string): ProjectWorkspaceDirectoryRecord {
     const record = this.listDirectory().find((workspace) => workspace.workspace_id === workspaceId);
-    if (!record) throw this.error("context.workspace_membership_not_found", "找不到这条工作目录记录");
+    if (!record) throw this.error("catalog.context.workspace_membership_not_found", "找不到这条工作目录记录");
     return record;
   }
 
@@ -176,7 +176,7 @@ export class ProjectWorkspaceService {
   }
 
   private requireConfirmation(value: boolean, message: string): void {
-    if (value !== true) throw this.error("context.user_confirmation_required", message);
+    if (value !== true) throw this.error("catalog.context.user_confirmation_required", message);
   }
 
   private requiredProjectId(value: string): string {
@@ -187,13 +187,13 @@ export class ProjectWorkspaceService {
 
   private requiredWorkspaceId(value: string): string {
     const workspaceId = value.trim();
-    if (!workspaceId) throw this.error("context.workspace_required", "必须选择一个项目目录");
+    if (!workspaceId) throw this.error("catalog.context.workspace_required", "必须选择一个项目目录");
     return workspaceId;
   }
 
   private requiredActorId(value: string): string {
     const actorId = value.trim();
-    if (!actorId) throw this.error("context.user_confirmation_required", "项目操作必须记录执行者");
+    if (!actorId) throw this.error("catalog.context.user_confirmation_required", "项目操作必须记录执行者");
     return actorId;
   }
 }

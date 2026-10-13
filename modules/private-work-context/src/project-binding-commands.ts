@@ -35,7 +35,7 @@ rejectRuntimeContextSuggestion(
     const projectId = this.validation.requiredProjectId(input.project_id);
     if (input.user_confirmed !== true) {
       throw this.error(
-        "context.user_confirmation_required",
+        "work.context.user_confirmation_required",
         "只有用户在当前对话明确拒绝候选项目后才能停止在本 Session 推荐它",
       );
     }
@@ -43,7 +43,7 @@ rejectRuntimeContextSuggestion(
     return this.transaction(() => {
       if (this.contextResolution.findRuntimeContextBinding(normalized)) {
         throw this.error(
-          "context.suggestion_not_available",
+          "work.context.suggestion_not_available",
           "当前 Runtime 工作入口已经绑定项目，不能拒绝未绑定 Session 的候选项目",
         );
       }
@@ -51,7 +51,7 @@ rejectRuntimeContextSuggestion(
       const suggestion = allSuggestions.find((candidate) => candidate.project_id === projectId);
       if (!suggestion) {
         throw this.error(
-          "context.suggestion_not_available",
+          "work.context.suggestion_not_available",
           "这个项目不是当前 Runtime Session 的候选项目，不能把它标记为已拒绝",
         );
       }
@@ -88,13 +88,13 @@ bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextR
     }
     if (input.user_confirmed !== true) {
       throw this.error(
-        "context.user_confirmation_required",
+        "work.context.user_confirmation_required",
         "只有用户在当前对话明确选择项目后才能建立绑定",
       );
     }
     if (input.binding_scope === "workspace_default") {
       throw this.error(
-        "context.workspace_default_unsupported",
+        "work.context.workspace_default_unsupported",
         "工作目录不再保存默认项目；请为当前 Session 选择项目",
       );
     }
@@ -117,7 +117,7 @@ unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeCont
     const actorId = this.validation.requiredActorId(input.actor_id);
     if (input.user_confirmed !== true) {
       throw this.error(
-        "context.user_confirmation_required",
+        "work.context.user_confirmation_required",
         "只有用户在当前对话明确要求解除绑定后才能断开当前项目",
       );
     }
@@ -126,7 +126,7 @@ unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeCont
       if (input.binding_scope === "workspace") {
         if (!normalized.workspace) {
           throw this.error(
-            "context.workspace_required",
+            "work.context.workspace_required",
             "解除目录关联时，Runtime 必须提供当前项目目录",
           );
         }
@@ -180,7 +180,7 @@ bindRuntimeContextInTransaction(input: {
     const project = this.projects.query.getProject(input.projectId);
     if (input.bindingScope === "workspace_default") {
       throw this.error(
-        "context.workspace_default_unsupported",
+        "work.context.workspace_default_unsupported",
         "工作目录不再保存默认项目；请为当前 Session 选择项目",
       );
     }
@@ -188,7 +188,7 @@ bindRuntimeContextInTransaction(input: {
     if (input.bindingScope === "workspace_member") {
       if (!input.normalized.workspace) {
         throw this.error(
-          "context.workspace_required",
+          "work.context.workspace_required",
           "当前 Runtime 没有 Session 标识时，必须提供项目目录才能记录本次选择",
         );
       }
@@ -198,7 +198,7 @@ bindRuntimeContextInTransaction(input: {
 
     if (!input.normalized.stable_work_context_id) {
       throw this.error(
-        "context.stable_identity_required",
+        "work.context.stable_identity_required",
         "只切换当前 Session 时需要 Runtime 提供稳定 Session 标识",
       );
     }
@@ -238,7 +238,7 @@ bindRuntimeContextInTransaction(input: {
     }
     if (!input.rebindConfirmed) {
       throw this.error(
-        "context.rebind_confirmation_required",
+        "work.context.rebind_confirmation_required",
         "这个 Runtime 工作入口已绑定其他项目；请在当前对话明确确认后再切换",
       );
     }

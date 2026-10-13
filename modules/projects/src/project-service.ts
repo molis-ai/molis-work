@@ -250,7 +250,7 @@ export class ProjectService {
 
   private requiredActorId(value: string): string {
     const actorId = value.trim();
-    if (!actorId) throw this.error("context.user_confirmation_required", "项目操作必须记录执行者");
+    if (!actorId) throw this.error("catalog.context.user_confirmation_required", "项目操作必须记录执行者");
     return actorId;
   }
 }

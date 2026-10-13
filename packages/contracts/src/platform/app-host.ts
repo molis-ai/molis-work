@@ -176,8 +176,8 @@ export type DesktopPanelErrorCode =
   | "catalog.project_not_found"
   | "catalog.panel_not_found"
   | "catalog.panel_confirmation_required"
-  | "context.stable_identity_required"
-  | "context.user_confirmation_required";
+  | "catalog.context.stable_identity_required"
+  | "catalog.context.user_confirmation_required";
 
 export interface DesktopPanelRepository {
   transaction<T>(operation: () => T): T;

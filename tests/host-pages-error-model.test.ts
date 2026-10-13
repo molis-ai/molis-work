@@ -152,7 +152,7 @@ test("the catalog's failures are ActionErrors with a code and the kind each answ
   expect(capture(() => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "no-such-plugin", actor_id: "user" })), "catalog.plugin_not_found", 400);
   // The codes of the runtime-context entries the catalog serves are its callers' mistakes: 400, as the class answered them.
   expect(capture(() => catalog.bindRuntimeContext({ context: { runtime_id: "codex", stable_work_context_id: "entry-1", host_declares_stable: true }, project_id: project.project_id, actor_id: "runtime", user_confirmed: false })),
-    "context.user_confirmation_required", 400);
+    "work.context.user_confirmation_required", 400);
   // A live terminal is a conflict the person can resolve.
   const panel = catalog.openDesktopPanel({ project_id: project.project_id, goal_id: "goal-1", runtime_kind: "generic", launch_command: "/bin/cat", cwd: directory, actor_id: "user", user_confirmed: true });
   const service = new hostModule.ProjectDeletionService(withMolisWorkProjectCatalog, { isPanelAlive: id => id === panel.panel_id, releaseProject: async () => undefined });

@@ -22,13 +22,14 @@ test("Ledger retains exact reference revisions, idempotent replay, removal and s
     assert.equal(ledger.commands.put(access, { ...input, target: reference("artifacts", "artifact-1", 3) }).revision, 2);
     assert.deepEqual(ledger.query.history(access, "output").map((item) => item.target.version), [2, 3]);
     assert.deepEqual(ledger.query.list({ ...access, scope: { kind: "personal", id: "project-b" } }), []);
-    assert.throws(() => ledger.query.list({ ...access, actor_id: "bob" }), { code: "context.access_denied" });
-    assert.throws(() => ledger.commands.put({ ...access, actor_id: "bob" }, input), { code: "context.access_denied" });
-    assert.throws(() => ledger.commands.remove({ ...access, actor_id: "bob" }, "output", "denied"), { code: "context.access_denied" });
+    // R4A2-01: foreign actors cannot access the owner partition; no relation is committed.
+    assert.throws(() => ledger.query.list({ ...access, actor_id: "bob" }), { code: "context_ledger.access_denied" });
+    assert.throws(() => ledger.commands.put({ ...access, actor_id: "bob" }, input), { code: "context_ledger.access_denied" });
+    assert.throws(() => ledger.commands.remove({ ...access, actor_id: "bob" }, "output", "denied"), { code: "context_ledger.access_denied" });
     assert.equal(ledger.query.history(access, "output").length, 2);
-    assert.throws(() => ledger.commands.put(access, { ...input, target: { ...input.target, scope: { kind: "team_project", id: "project-a" } } }), { code: "context.scope_mismatch" });
-    assert.throws(() => ledger.commands.put(access, { ...input, target: reference("artifacts", "artifact-1") }), { code: "context.invalid_reference" });
-    assert.throws(() => ledger.commands.put(access, { ...input, source: reference("goals", "other") }), { code: "context.key_conflict" });
+    assert.throws(() => ledger.commands.put(access, { ...input, target: { ...input.target, scope: { kind: "team_project", id: "project-a" } } }), { code: "context_ledger.scope_mismatch" });
+    assert.throws(() => ledger.commands.put(access, { ...input, target: reference("artifacts", "artifact-1") }), { code: "context_ledger.invalid_reference" });
+    assert.throws(() => ledger.commands.put(access, { ...input, source: reference("goals", "other") }), { code: "context_ledger.key_conflict" });
     assert.equal(ledger.commands.remove(access, "output", "removed")?.revision, 3);
     assert.equal(ledger.commands.remove(access, "output", "retry")?.revision, 3);
     assert.equal(ledger.query.get(access, "output"), null);

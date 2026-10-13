@@ -62,9 +62,9 @@ test("Rebuild rejects unauthorized roots before content access and retries fresh
       calls++;
       return { state: "resolved", ref, value: "private content" };
     };
-    assert.throws(() => materializer.rebuild({ ...access, actor_id: "intruder" }, request, read), { code: "context.access_denied" });
+    assert.throws(() => materializer.rebuild({ ...access, actor_id: "intruder" }, request, read), { code: "context_ledger.access_denied" });
     assert.throws(() => materializer.rebuild(access, { ...request, roots: [goal, { ...feed,
-      scope: { kind: "team_project", id: "team-a" } }] }, read), { code: "context.scope_mismatch" });
+      scope: { kind: "team_project", id: "team-a" } }] }, read), { code: "context_ledger.scope_mismatch" });
     assert.equal(calls, 0);
     assert.throws(() => materializer.rebuild(access, request, () => { throw new Error("owner temporarily offline"); }), /temporarily offline/);
     // Discard the handler (and its view), then reconstruct from fresh owner content.

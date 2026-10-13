@@ -40,7 +40,7 @@ export interface DesktopPanelContextPort {
     appendProjectEvent(projectId: string, type: "project.desktop_panel_opened" | "project.desktop_panel_closed", actorId: string, payload: Record<string, unknown>): void;
 }
 
-export type DesktopPanelErrorCode = "catalog.invalid_name" | "catalog.project_not_found" | "catalog.panel_not_found" | "catalog.panel_confirmation_required" | "context.stable_identity_required" | "context.user_confirmation_required";
+export type DesktopPanelErrorCode = "catalog.invalid_name" | "catalog.project_not_found" | "catalog.panel_not_found" | "catalog.panel_confirmation_required" | "catalog.context.stable_identity_required" | "catalog.context.user_confirmation_required";
 
 export interface DesktopPanelRecord {
     panel_id: string;

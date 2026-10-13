@@ -55,7 +55,8 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     });
     const context = { runtimeSessionId: null, runtimeSessionIdSource: null };
     await assert.rejects(handlers.molis_work_v1_context_bind({ project_id: project.project_id, user_confirmed: "true" }, context),
-      (error: unknown) => error instanceof ActionError && error.code === "context.user_confirmation_required");
+      // R4A2-01: private Runtime binding retains its explicit-confirmation refusal under Work.
+      (error: unknown) => error instanceof ActionError && error.code === "work.context.user_confirmation_required");
     assert.equal(connection.connection, originalConnection);
     assert.deepEqual(fixture.listRuntimeContextBindings(), before);
     assert.throws(() => scoped!.listProjects(), /closed|not open/);

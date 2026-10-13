@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PLUGIN_ICON, STATUS_ICON } from "../packages/design-system/src/icons.js";
+import { PLUGIN_ICON, STATUS_ICON } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs } from "../apps/workbench/src/plugin-catalog.js";
 import {
   renderMolisWorkArrivalStylesheet,

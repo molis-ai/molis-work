@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COGNIA_ACTIONS, COGNIA_ACTION_PERMISSIONS, cogniaActions as actions, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
-import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 function fixture(t: { after(fn: () => Promise<void>): void }, completeText: HostCompleteText | null = null) {
   const home = mkdtempSync(join(tmpdir(), "cognia-actions-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText });

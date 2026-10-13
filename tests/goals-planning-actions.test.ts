@@ -11,7 +11,7 @@ import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-c
 import type { ResolvedPlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-module-goals";
-import { readPersonalPlanningMethodPacks } from "../apps/local-host/src/personal-planning-methods.js";
+import { readPersonalPlanningMethodPacks } from "@molis-ai/molis-work-app-local-host";
 
 test("planning actions preserve complete methods, project versions, live policy and restart state", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-planning-actions-"));

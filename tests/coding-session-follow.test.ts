@@ -9,8 +9,8 @@ import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurf
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ensureProjectPlugins } from "../apps/local-host/src/project-plugins.js";
-import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
+import { ensureProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
+import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 
 for (const stop of [false, true]) test(`Coding background follower ${stop ? "rejects late state and events after activation stops" : "publishes real terminal state with no page open"}`, { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-follow-")), dbPath = join(root, "board.db");

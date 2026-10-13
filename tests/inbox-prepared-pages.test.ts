@@ -4,12 +4,12 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ActionService } from "../packages/kernel/src/action-service.js";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesInputSnapshot } from "@molis-ai/molis-work-contracts/modules/pages";
-import { createInboxActionHandlers, inboxActions, INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, type InboxActionEntry, type InboxPagesInput } from "../plugins/native/inbox/src/actions.js";
-import { createInboxPagesHandlers, inboxPagesRequestHash } from "../plugins/native/inbox/src/pages.js";
-import { createPagesActionHandlers, pagesActions, PAGES_ACTIONS } from "../plugins/native/pages/src/actions.js";
+import { createInboxActionHandlers, inboxActions, INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, type InboxActionEntry, type InboxPagesInput } from "@molis-ai/molis-work-plugin-inbox";
+import { createInboxPagesHandlers, inboxPagesRequestHash } from "@molis-ai/molis-work-plugin-inbox";
+import { createPagesActionHandlers, pagesActions, PAGES_ACTIONS } from "@molis-ai/molis-work-plugin-pages";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { createHomeOfferHandlers, homeOfferActions, type HomeActionOffers, type HomeOfferExecutionInput } from "../apps/local-host/src/home-offer-actions.js";
 

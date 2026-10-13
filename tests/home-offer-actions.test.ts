@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import { definePlugin, defineSubjectOffersAction } from "../packages/plugin-sdk/src/index.js";
+import { definePlugin, defineSubjectOffersAction } from "@molis-ai/molis-work-plugin-sdk";
 import { type ActionCallContext, type ActionDefinition, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHomeOfferHandlers, homeOfferActions, type HomeActionOffers } from "../apps/local-host/src/home-offer-actions.js";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingManifest, codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 
 test("Coding's business surface is redeemed by the project Runtime, owner-bound, and the same code answers its routes", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "coding-actions-"));

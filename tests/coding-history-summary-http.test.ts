@@ -9,7 +9,7 @@ import { LocalHost, LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releas
 import { CodingSessionStore, HISTORY_DIGEST_MARKER, digestTask } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentDraftTextRequest, type AgentRunView, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
+import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import type { ActionCallContext, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const run = (index: number, task: string, over: Record<string, unknown> = {}) => ({

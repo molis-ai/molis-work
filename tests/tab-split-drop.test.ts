@@ -14,7 +14,7 @@ import {
   TAB_SPLIT_EDGE_Y,
   TAB_SPLIT_RATIO,
 } from "../apps/workbench/src/tab-split-drop.js";
-import { COSS_CONTROL_STYLES } from "../packages/design-system/src/styles/coss-controls.js";
+import { COSS_CONTROL_STYLES } from "@molis-ai/molis-work-design-system";
 
 test("split drop edges prefer left/right over top/bottom and leave a center rest zone", () => {
   assert.equal(splitDropEdge(0.1, 0.5), "left");

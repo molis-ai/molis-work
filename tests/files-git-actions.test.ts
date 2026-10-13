@@ -8,7 +8,7 @@ import { filesActions, FILES_ACTIONS } from "@molis-ai/molis-work-plugin-files";
 import { gitActions, GIT_ACTIONS } from "@molis-ai/molis-work-plugin-git";
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 
 test("Files/Git production Host actions keep fixed ownership, reject impersonation and revalidate before publishing", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "files-git-actions-"));

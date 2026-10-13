@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { EditorState, type Transaction } from "prosemirror-state";
-import { pagesSchema as s } from "../plugins/native/pages/src/schema.js";
-import { commitDrag, dragLayoutSource, previewRowPairs } from "../plugins/native/pages/src/drag-preview.js";
-import { dragRows, previewSpan } from "../plugins/native/pages/src/reorder.js";
+import { pagesSchema as s } from "@molis-ai/molis-work-plugin-pages";
+import { commitDrag, dragLayoutSource, previewRowPairs } from "../plugins/native/pages/dist/drag-preview.js";
+import { dragRows, previewSpan } from "@molis-ai/molis-work-plugin-pages";
 
 const localRequire = createRequire(new URL("../plugins/native/pages/package.json", import.meta.url));
 const { history, undo } = localRequire("prosemirror-history");

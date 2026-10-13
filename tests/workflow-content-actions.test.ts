@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { PluginRuntime, MemoryPluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { definePlugin, defineWorkflowContentActions, bindWorkflowContentHandlers } from "../packages/plugin-sdk/src/index.js";
+import { definePlugin, defineWorkflowContentActions, bindWorkflowContentHandlers } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type WorkflowContentActions, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createWorkflowContentPorts, createWorkflowsRouteHandlers, WorkflowsPluginRouteTable, openWorkflowsStore, manualLink, WORKFLOWS_ACTION_PERMISSIONS,
   type Workflow, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";

@@ -8,9 +8,9 @@ import { bindActionClient, type ActionCallContext, type ActionReference } from "
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { contextualCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
-import type { FunctionsHostOptions } from "../apps/local-host/src/functions-host.js";
-import { homeActions, HOME_ACTION_PERMISSIONS } from "../apps/local-host/src/home-actions.js";
-import { prepareSubjectOffers } from "../apps/local-host/src/contextual/contextual-service.js";
+import type { FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { homeActions, HOME_ACTION_PERMISSIONS } from "../apps/local-host/dist/home-actions.js";
+import { prepareSubjectOffers } from "../apps/local-host/dist/contextual/contextual-service.js";
 
 /**
  * One set of recommendations (specs/archive/contextual-interaction §6.4.3): on the same Feed and Inbox items, what the Home /

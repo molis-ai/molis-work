@@ -1,5 +1,5 @@
 import { createFeedCaptureTrigger, feedCaptureScene } from "@molis-ai/molis-work-plugin-feed";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -18,7 +18,7 @@ import { INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger, inboxActions, inb
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/src/functions-host.js";
+import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
 import { createWorkflowContentPorts } from "@molis-ai/molis-work-plugin-workflows";
 
 test("HTTP admission, ingestion, workflow and scheduler events use the saved Inbox scene without a second judgment path", { timeout: 25_000 }, async () => {

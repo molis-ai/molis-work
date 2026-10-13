@@ -8,9 +8,9 @@ import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-wo
 import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
 import { WORKFLOWS_ACTION_PERMISSIONS, openWorkflowsStore, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
 import { SCHEDULE_ACTION_PERMISSIONS, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
-import { defineAction, definePlugin } from "../packages/plugin-sdk/src/index.js";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
+import { defineAction, definePlugin } from "@molis-ai/molis-work-plugin-sdk";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 test("a workflow step runs any registered action — even one the Host never heard of — by mapping handed-over fields", { timeout: 120_000 }, async t => {

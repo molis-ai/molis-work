@@ -1,5 +1,5 @@
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -12,7 +12,7 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { GoalProjectApplication, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { EN } from "../apps/workbench/src/i18n/en.js";
+import { EN } from "@molis-ai/molis-work-app-workbench";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { buildInboxUiEntries } from "@molis-ai/molis-work-plugin-inbox";
 import {

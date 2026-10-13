@@ -1,3 +1,5 @@
+import { serveTestHost } from "./fixtures/test-home.js";
+import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import type { Server } from "node:http";
@@ -7,7 +9,7 @@ import test from "node:test";
 import type { AddressInfo } from "node:net";
 
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 
@@ -1131,4 +1133,39 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
     store.close();
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("W3-02-H-02 actual Goals HTTP distinguishes input, owner conflict and internal failure without writing facts", async t => {
+  const home = mkdtempSync(join(tmpdir(), "goals-shared-http-errors-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const served = await serveTestHost(null, { home, host });
+  t.after(async () => { await served.close(); await host.close(); rmSync(home, { recursive: true, force: true }); });
+  const project = await served.createProject("错误出口");
+  const path = "/projects/" + encodeURIComponent(project.project_id) + "/api/goals";
+  const created = await served.web.post<{ goal: { goal_id: string } }>(path, { title: "保存原事实", idempotency_key: "create" });
+  const goalId = created.goal.goal_id;
+  const facts = () => host.withProject(project.reference, runtime => ({ events: runtime.store.readEventsDescending(project.project_id),
+    state: runtime.coordinator.goalEvents.readState(project.project_id, goalId) }));
+  const before = await facts();
+  const post = (suffix: string, body: string) => fetch(served.origin + path + suffix, { method: "POST",
+    headers: { "content-type": "application/json", origin: served.origin, "x-molis-work-control-token": served.controlToken,
+      "x-molis-work-idempotency-key": randomUUID() }, body });
+  const invalid = await post("", JSON.stringify({ title: "" }));
+  assert.equal(invalid.status, 400);
+  const badInput = await invalid.json(); assert.equal(badInput.code, "actions.input_invalid"); assert.equal(badInput.error, "title 不能为空");
+  const jsonFailure = await post("", "{"); assert.equal(jsonFailure.status, 400); assert.equal((await jsonFailure.json()).code, "actions.input_invalid");
+  const configure = "/" + encodeURIComponent(goalId) + "/event-configure";
+  const conflict = await post(configure, JSON.stringify({ idempotency_key: "stale", expected_version: 1, types: [] }));
+  assert.equal(conflict.status, 409);
+  const stale = await conflict.json(); assert.equal(stale.code, "event_config.version_conflict");
+  assert.deepEqual(stale.details, { current_version: 0, expected_version: 1 });
+  assert.equal(host.callLog!.find(stale.call_id)[0]?.code, "event_config.version_conflict", "the owner failure points to its actual diagnostic row");
+  await host.withProject(project.reference, runtime => {
+    const original = runtime.coordinator.goalEvents.configure;
+    runtime.coordinator.goalEvents.configure = () => { throw new Error("forced owner failure"); };
+    t.after(() => { runtime.coordinator.goalEvents.configure = original; });
+  });
+  const failed = await post(configure, JSON.stringify({ idempotency_key: "internal", expected_version: 0, types: [] }));
+  assert.equal(failed.status, 500); assert.equal((await failed.json()).code, "actions.execution_failed");
+  assert.deepEqual(await facts(), before, "no refused request writes a Goal event or state");
 });

@@ -69,6 +69,7 @@ test("W3-09-3-03: only the dispatcher's active execution context exempts nested 
   service.registerProvider({ provider: { provider_id: "parent", title: "Parent", kind: "system" }, definitions: [parent], handlers: [{ ...parent, async handle(context) {
     saved = context;
     await assert.rejects(service.invoke(caller("agent"), child, { value: "独立顶层调用" }), refuses("actions.version_required"));
+    await assert.rejects(service.invoke({ ...context, runtime_session_id: "another-session" }, child, { value: "另一会话不能借原函数" }), refuses("actions.version_required"));
     await service.invoke({ ...context }, child, { value: "真实嵌套调用" });
     return { saved: true };
   } }] });

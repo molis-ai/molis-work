@@ -60,7 +60,9 @@ export function isActiveNestedAction(context: ActionCallContext): boolean {
   const origin = handlers.getStore();
   return !!origin && origin.active() && !origin.execution.signal?.aborted
     && context.actor_id === origin.execution.actor_id && context.audience === origin.execution.audience
-    && context.project_id === origin.execution.project_id && "beforeEffect" in context
+    && context.project_id === origin.execution.project_id && context.actor_kind === origin.execution.actor_kind
+    && context.runtime_session_id === origin.execution.runtime_session_id && context.plugin_install_id === origin.execution.plugin_install_id
+    && context.host_plugin === origin.execution.host_plugin && "beforeEffect" in context
     && context.beforeEffect === origin.execution.beforeEffect;
 }
 

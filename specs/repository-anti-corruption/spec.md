@@ -2124,3 +2124,12 @@ PR-9候选`5c0c128b3`已保存：十四个旧Goals literal及旧导出、隔离�
 W3-09-1a已在`feature/anti-corruption-cross-entry-consistency`准备T1/T2/T4/T7源码，复用现有公开Test Home、真实HTTP项目/授权与实际MCP工具，不增加测试端口或模型调用。T4按当前生产事实补正旧设计：schedule typed服务要求原插件身份，裸Host调用应被拒；成功读取和missing-job拒绝由实际executor装配的声明服务夹具验证，不把伪造plugin_id当身份，也不声称已有正式业务消费者。T5、1b助理、1c状态/诊断、W3-09-2/3仍待；本片运行尚未进行，不能记验收完成。
 
 I7仍为`9fa969049`加隔离SDK验证包的临时依赖/lock；构建25唯一任务仍排在他人Status Ring全量之后，未重复启动、未占用他人名额。SDK隔离回归62/62与SDK构建通过的证据保持；Molis消费者、换模/handback变异、各片整体构建/类型/API/动作/健康/资源及整合全量仍须在实际新head验证。现有远端进度PR #463已合并最新main到本地进度分支，后续按密钥扫描与新head CI再推/合；其它draft与冲突PR未作为可合候选。没有上游SDK提交/推送、正式vendor替换/删除或真实Home写入。
+
+
+2026-10-13 10:03，Root继续持有本进度书的唯一写入权（原进度会话批次源审后明确交回、保持只读）。进度PR #463已按确切head `305c506d2`、当时main `fc18d5f62`，核五项必需CI/Verify与Product subset成功、密钥扫描零命中后合并；main为`0d5169efa`。剩余#411/#410/#409/#408/#156仍draft，#180仍冲突，未作为可合候选。
+
+PR-9的后续`ed4f57663`恢复原CLI `goalQueries` 拒绝并增加实际mutation，六条接线门禁回归再次通过；Goals/Host README旧十项typed与四个Coding桥描述已收口，错误的`goals.events.decide`改为真实`goals.decisions.record`。`b599783d6`补当前typed生产消费者表；`6f0d9fe6b`按实际五个workspace协议均为动作修正文档与清单，不把读取算作剩余typed服务。新增清单核真正已装Host的availability及无工作区的dependency_missing，仍待运行，不以源码替代验收。
+
+跨入口候选已保存T5 Shelf真实页面schema拒绝、1b真实SDK/助理gateway批准及owner拒绝（`0a66d7709`），以及T6真实停用后的页面/Host gateway/typed同码同原因、拒绝后零业务写入、实际诊断页编号查询（`f6f78647f`）。不增加私有导入、测试端口、显式any或类型双断言，语法与Biome检查无诊断；全部新运行断言仍未运行，尤其助理实际review、持久化及SDK后续模型材料的code证明待核。按名调用隐藏MCP动作的两层目录修改属于W3-09-2，尚未实现；不能据Host gateway直调称实际工具按名已通过。
+
+用户已授权向「Work | 进行中 | 优化 Pages 和个人助理交互」发送一次构建/浏览器名额协调消息；Root已发送，未停止他人进程或重复派发。Pages在完成预览后自行释放，I7构建25实际运行退出1：`prologueEffects`返回类型推断泄露SDK私有storage声明（TS2742）。`62a58259d`通过现行公共`PrologueHost`明确返回边界，源码语法/diff检查通过；构建26为唯一接续任务，仍在排队。I7当前仍使用隔离候选SDK临时依赖，仅用于验证；SDK自身62/62及build通过不代替Molis消费者，换模/handback原同步fence变异及最终整合全量仍待。未提交或推送Prologue、未正式替换/删除vendor、未写真实Home。

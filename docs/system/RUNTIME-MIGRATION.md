@@ -94,6 +94,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 `PluginHostServices`（`packages/contracts/src/platform/plugin.ts`）现在只有 `actions`、项目库键值 `storage`、`artifacts`、`processItems`、`ui`、`events`、`inputs`、`outputs`、`capabilities`。缺：
 
 1. **模型服务**：`services.model`，由 `horizontal/agent-host` 支撑，带登记的指令、`scheduling: "concurrent"` 和 `beforeEffect()`；是 Runtime 插件服务，不是 typed 宿主能力。
+   **已有（W3-06 E）**：`context.services.model`，只给宿主自己运行（非沙箱）、Manifest 声明 `model:invoke`、平台有 Home 的插件；只在声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作里放行；经 `hostTextGeneration` → agent-host，不向 Prologue 传调用编号。写法与限额见 [Prologue AI 手册第 4 节](../platform/PROLOGUE-AI.md)。**这一片不含**：选定某个模型与列出可选模型、图片输入、动作返回后的后台任务里调模型、Home 级实例（`HomePluginExecutor`）上的模型；迁移要用到时先补服务，不在迁移 PR 里补。
 2. **插件自有的 Home 库服务**：按 `{home}/<id>/<id>.db` 打开已有的库，表不变。
 3. **Home 级 Runtime 实例**：`createPluginPlatform` 现在只在每个项目里创建，Home 级的个人插件（Todo、Jelly、Cognia、Images、Alchemist）要有一个 Home 级实例，按项目启用照旧。
 4. **「项目已删」步骤的送达**：见 4.2 末项。这是 2026-10-07 删除项目决定带来的缺口，路线图的 W3-06 描述里没有，需要补进去。

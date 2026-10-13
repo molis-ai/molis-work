@@ -1,5 +1,6 @@
 import { ActionError, type ActionAvailability, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginContribution, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { runInPluginAction } from "./action-scope.js";
 
 /**
  * What a running Plugin offers the action service: the actions and scenes its Manifest declares, each available only while
@@ -18,8 +19,12 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
   return {
     provider: { provider_id: providerId, plugin_install_id: installId, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin",
       ...(projectId ? { project_id: projectId } : {}) },
-    definitions: manifest.actions ?? [], handlers: (contribution.actions ?? []).map(h => ({ ...h,
-      availability: grantAvailability(manifest.actions!.find(d => d.capability_id === h.capability_id && d.version === h.version)!.action.permissions, h.availability) })),
+    definitions: manifest.actions ?? [], handlers: (contribution.actions ?? []).map(h => {
+      const definition = manifest.actions!.find(d => d.capability_id === h.capability_id && d.version === h.version)!;
+      // The Plugin's services ask which action is running; the Host answers, the Plugin does not say.
+      return { ...h, handle: (context, input) => runInPluginAction({ install_id: installId, definition, caller: context }, () => h.handle(context, input)),
+        availability: grantAvailability(definition.action.permissions, h.availability) };
+    }),
     scenes: manifest.action_scenes ?? [], scene_handlers: (contribution.action_scenes ?? []).map(h => {
       const declaration = manifest.action_scenes!.find(d => d.scene_id === h.scene_id && d.version === h.version)!;
       const configuration = grantAvailability(declaration.configuration_permissions ?? []);

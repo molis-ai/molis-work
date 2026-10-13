@@ -56,6 +56,7 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.home_required": "invalid";
     readonly "actions.dependency_cycle": "invalid";
     readonly "actions.function_unpublished": "invalid";
+    readonly "actions.provider_ambiguous": "invalid";
     readonly "actions.input_too_large": "too_large";
     readonly "actions.rate_limited": "rate_limited";
     readonly "actions.cancelled": "cancelled";

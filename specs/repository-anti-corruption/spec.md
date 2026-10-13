@@ -2155,3 +2155,5 @@ W3-10-2批次源修`74d554195`保留context rangePick与native+save共用捕获�
 W3-10-3b候选`376d2da54`及`2c92d01e1`、`f69fd2aa0`把Workbench自有插件/Review/companion请求统一到UiRequest。真实原requestLifetime、审批写入activation signal/读取view signal、五参数Files/Git adapter与返回后的assertCurrent、成果HTML404/fragmentheader、member串行修改及原错误对象透传均源核保留。审查刷新与固定成果读取也用共同failure view，原可见性/序号及只读刷新提示保留。未扩到Files/Git插件内部显示，其迁移仍在W5；回归尚未运行。
 
 尝试两条既有脚本验证的原始`w3-request-static-scripts01.log`为2文件、0通过/2启动失败：构建产物缺失导致进入断言前ERR_MODULE_NOT_FOUND，不能算静态/产品通过，也未通过改导入路径绕过。目前唯一I7构建26仍排在Grok全量之后；I7冻结`62a58259d`加临时SDK依赖、没有重复启动或停止他人任务。后续须实际整体构建，再在同一冻结树完成SDK消费者/变异和各批运行验收。
+
+W3-10-4源候选`4a822c9f1`已固定十三文件：两处助理、Placement、Context、搜索、Frame/Board与当前电脑面板经同一UiRequest。按G3仅从`body.details`恢复work/action，断线仍用原request_id；原文、材料、草稿与切换后的状态保护保持。Placement数据属性JSON解析一次交助手编码；Frame成果404与fragment header、Board三段读取回退、Computer二进制Response、原幂等键/失败撤回及409收据处理保留。错误展示保留code/status/callId/body，不再只取message。原电脑Shelf用例改接公开助手和真实Response，失败撤回/二进制/幂等断言保留；原断线发送浏览器用例补验收编号，不修改断言。相关十三TS与六个完整序列化程序语法零错误、十三文件分组Biome零诊断、静态包边界errors为空、缺英文/未挂词典零；grep定位Workbench直接fetch为零不等于AST门禁通过。当前仅源码候选，已发既有统筹只读复核；实际整体构建、脚本/浏览器运行、资源与健康门禁均待。唯一构建26仍等adoption全量释放，未重复启动或中断他人。

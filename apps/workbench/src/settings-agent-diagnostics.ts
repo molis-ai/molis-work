@@ -104,15 +104,13 @@ globalThis.molisWorkBindAgentDiagnostics = (container = document) => {
     if (root.dataset.loaded) return;
     root.dataset.loaded = "1";
     try {
-      const response = await fetch("/api/assistant/diagnostics");
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
+      const data = await molisWorkRequest("/api/assistant/diagnostics");
       const rounds = el("section");
       rounds.append(el("h3", "prompt-diagnostics-heading", L("助理最近几轮")));
       if (!data.rounds.length) rounds.append(el("p", "settings-muted", L("最近 7 天没有助理的轮次。")));
       else { const list = el("ul", "prompt-diagnostics-list"); data.rounds.forEach((round) => list.append(roundItem(round))); rounds.append(list); }
       body.replaceChildren(runtimePart(data.runtime), rounds);
-    } catch (failure) { delete root.dataset.loaded; body.replaceChildren(el("p", "settings-form-error", failure.message)); }
+    } catch (failure) { delete root.dataset.loaded; const note = el("p", "settings-form-error"); molisWorkRequest.show(note, failure); body.replaceChildren(note); }
   };
   root.addEventListener("toggle", () => { if (root.open) load(); });
   if (location.hash === "#agent-diagnostics") { root.open = true; load(); }

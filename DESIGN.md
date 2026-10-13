@@ -418,7 +418,7 @@ Creating or picking an item opens a centred modal — New Goal, Feed task config
 
 ### Toasts, alerts and empty states
 
-Toasts are a graphite capsule above the bottom bar with a success or failure glyph. `mw-alert` is a soft status wash with a glyph, a title and a retry or next action. `mw-empty` is a centred block — the paper mark, a 15px / 600 title, 13px body up to 34em — offering only a real available action. Directory empty states are the same block left-aligned inside the column.
+Toasts are a graphite capsule above the bottom bar with a success or failure glyph, as wide as their words up to the window less 16px on each side (never half the window), the glyph on the first line. A failure that has a diagnostic ID carries a 诊断编号 button after the message, or under it when the line is full, in the toast's ink and underlined; it is a link inside a sentence, so on phones and coarse pointers it is 44px tall by padding above and below that takes no line room. `mw-alert` is a soft status wash with a glyph, a title and a retry or next action. `mw-empty` is a centred block — the paper mark, a 15px / 600 title, 13px body up to 34em — offering only a real available action. Directory empty states are the same block left-aligned inside the column.
 
 **Loading.** One rule: content whose shape is known (a list, cards) shows a static `mw-skeleton` placeholder; anything else shows `.mw-loading`, a quiet line with a small spinner that appears only once the wait passes 250ms, so a fast load never flashes. Skeletons never shimmer; under reduced motion the spinner is still.
 

@@ -427,9 +427,9 @@ export function retainActionAuthority<Context extends ActionCallContext>(context
   if (!validate && !beforeEffect && !assertCurrent) return context;
   const pinned = { capability_id: origin.capability_id, version: origin.version, provider_id: origin.provider_id };
   return { ...context, validate_authority: async (reference: ActionReference) => {
-    await beforeEffect?.();
     await validate?.(pinned);
     if (reference.capability_id !== pinned.capability_id || reference.version !== pinned.version || reference.provider_id !== pinned.provider_id) await validate?.(reference);
+    await beforeEffect?.();
   }, assert_authority_current: (reference?: ActionReference, requiredPermissions?: readonly string[]) => {
     requireSynchronous(assertCurrent?.(), "最终授权检查必须同步完成");
     requireSynchronous(assertCurrent?.(pinned, requiredPermissions), "最终授权检查必须同步完成");

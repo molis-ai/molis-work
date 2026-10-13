@@ -203,6 +203,11 @@ function assertBusinessRole(role: AgentRoleDeclaration, manifest: AgentManifest)
 }
 
 export interface AgentStartAuthority {
+  /**
+   * The number of the operation that starts this round (`ActionCallOrigin`). Only the Host gives it; nothing in a request is read for it.
+   * The adapter writes it into the round's frozen record as `frozen.call_id` (not a tool call's id); it is not sent to Prologue.
+   */
+  call_id?: string;
   /** Original invocation guard, after all asynchronous preparation and before starting the Runtime. */
   beforeStart?(): void | Promise<void>;
   /** Recheck installation/material authority at real dispatch, without retaining a completed invocation. */
@@ -630,7 +635,7 @@ export class AgentHost implements AgentHostApi {
         ...(compaction ? { compaction } : {}),
         host_tools: hostTools,
       },
-    }, { beforeStart, beforeDispatch });
+    }, { beforeStart, beforeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}) });
     // The Runtime cannot widen what the Manifest froze. A mismatch is the
     // adapter's fault, and the run does not continue on a wider authority.
     if ((handle.frozen.workspace ?? "required") !== workspace

@@ -1,6 +1,7 @@
 import { renderModelSettingsDocument } from "./settings-models.js";
 import { renderHint, icon as modelIcon } from "@molis-ai/molis-work-design-system";
-import { CONTROL_CLIENT_SCRIPT, SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
+import { SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
+import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import type { RuntimeIntegrationDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkSettingsView, WebSettingsProject } from "./settings-view.js";
 import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
@@ -11,7 +12,8 @@ import { renderConnectorsSettings } from "./settings-connectors.js";
 import { renderPromptSettings } from "./settings-prompts.js";
 import { renderAssistantSettings } from "./settings-assistant.js";
 import { renderMemorySettings } from "./settings-memory.js";
-import { renderAgentDiagnostics } from "./settings-agent-diagnostics.js";
+import { renderDiagnosticsSettings } from "./settings-call-diagnostics.js";
+import { settingRow } from "./settings-row.js";
 import { createCapabilitiesRenderer } from "./capabilities.js";
 import { renderMcpAccess } from "./mcp-access.js";
 import { renderFunctionsWorkbench } from "./functions/ui.js";
@@ -57,10 +59,6 @@ function runtimeStatePresentation(state: RuntimeIntegrationDetection["connection
 
 function renderAppearanceSettings(nextPath: string): string {
   return renderAppearanceSettingsDocument({ L, currentLocale, localeSwitchHref }, nextPath);
-}
-
-function settingRow(title: string, description: string, value: string): string {
-  return `<section class="settings-setting-row"><div class="setting-copy"><strong>${title}</strong><span>${description}</span></div><div class="setting-value">${value}</div></section>`;
 }
 
 function renderRuntimeSettings(view: MolisWorkSettingsView): string {
@@ -153,56 +151,6 @@ function renderProjectSettings(view: MolisWorkSettingsView, desktopShell: boolea
   </section>`;
 }
 
-function renderDiagnosticsSettings(view: MolisWorkSettingsView): string {
-  const diagnostics = view.diagnostics;
-  const service = view.web_service;
-  const installation = diagnostics.installation_state === "ready"
-    ? { label: L("安装完整"), tone: "success" }
-    : diagnostics.installation_state === "missing"
-      ? { label: L("尚未安装本体"), tone: "warning" }
-      : { label: L("安装清单无效"), tone: "danger" };
-  const launchers = diagnostics.launchers.map((launcher) => settingRow(escapeHtml(launcher.name), escapeHtml(launcher.path), `<span class="settings-state settings-state--${launcher.state === "ready" ? "success" : "danger"}">${launcher.state === "ready" ? L("可用") : L("缺失")}</span>`)).join("");
-  const serviceTone = service.state === "running" ? "success" : service.state === "stopped" || service.state === "absent" || service.state === "unhealthy" ? "warning" : "danger";
-  const serviceLabel = service.state === "running" ? L("运行中") : service.state === "stopped" ? L("已安装，未运行") : service.state === "unhealthy" ? L("进程运行中，页面不可用") : service.state === "absent" ? L("未启用") : service.state === "unsupported" ? L("当前系统不支持") : service.state === "conflict" ? L("配置冲突") : L("需要修复");
-  const serviceActions = service.state === "running"
-    ? [["restart", L("重启")], ["stop", L("停止")], ["remove", L("移除")]]
-    : service.state === "stopped"
-      ? [["start", L("启动")], ["remove", L("移除")]]
-      : service.state === "unhealthy"
-        ? [["restart", L("重启并检查")], ["remove", L("移除")]]
-      : service.state === "absent"
-        ? [["install", L("启用常驻服务")]]
-        : service.state === "needs_repair"
-          ? [["install", L("修复常驻服务")]]
-        : [];
-  const serviceButtons = serviceActions.map(([action, label]) => `<button class="mw-btn mw-btn--secondary" type="button" data-web-service-action="${action}">${label}</button>`).join("");
-  const serviceMessage = service.message ? escapeHtml(L(service.message)) : "";
-  return `<section class="settings-document" aria-labelledby="settings-title">
-    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("诊断")}</h1>${renderHint({ id: "settings-hint-diagnostics", label: L("如何生效"), html: `${escapeHtml(L("如果本体不完整，请在终端重新运行 "))}<code>molis-work install</code>${escapeHtml(L("。常驻服务操作会先展示预览并要求确认；不会在后台使用 nohup。"))}` })}</div><p>${L("这里只读取 Molis Work 自己的安装状态，不扫描项目内容，也不会自动修复或修改 Runtime。")}</p></header>
-    <section class="settings-section" aria-label="${L("Molis Work 本体")}">
-      ${settingRow(L("安装状态"), L("只检查本机安装清单，不扫描项目内容。"), `<span class="settings-state settings-state--${installation.tone}">${installation.label}</span>`)}
-      ${settingRow(L("版本"), L("当前安装的产品版本。"), `<span class="setting-number">${escapeHtml(diagnostics.version ?? L("未识别"))}</span>`)}
-      ${settingRow(L("项目数"), L("本机已经创建的项目数量。"), `<span class="setting-number">${diagnostics.project_count}</span>`)}
-      <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${L("本机路径")}</strong><span>${L("查看安装目录与发布位置。")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>Home</dt><dd>${escapeHtml(diagnostics.home_directory)}</dd></div><div><dt>Release</dt><dd>${escapeHtml(diagnostics.release_directory ?? L("未找到"))}</dd></div></dl></details>
-    </section>
-    <section class="settings-section" aria-label="${L("提示词与角色登记")}">
-      ${settingRow(L("提示词与角色登记"), L("查看每个来源登记了什么、哪些没有生效。"), `<a class="mw-btn mw-btn--secondary mw-btn--sm" href="/settings/prompts#diagnostics">${L("开发者诊断")}</a>`)}
-    </section>
-    ${renderAgentDiagnostics({ L })}
-    <section class="settings-section" aria-labelledby="launcher-title"><h2 id="launcher-title">${L("启动入口")}</h2>${launchers}</section>
-    <section class="settings-section settings-project-maintenance" aria-labelledby="web-service-title">
-      <h2 id="web-service-title">${L("Web 常驻服务")}</h2>
-      <section class="project-manager-danger" aria-labelledby="web-service-state">
-        <h3 id="web-service-state"><span class="settings-state settings-state--${serviceTone}">${serviceLabel}</span></h3>
-        ${serviceMessage ? `<p>${serviceMessage}</p>` : ""}
-        ${serviceButtons ? `<div class="project-manager-danger-actions">${serviceButtons}</div>` : ""}
-        <p class="settings-form-error" data-web-service-error role="alert" hidden></p>
-      </section>
-      <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${L("服务配置与日志")}</strong><span>${L("查看方式、命令、配置和日志路径。")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>${L("方式")}</dt><dd>${service.provider === "macos-launchagent" ? L("macOS 用户级 LaunchAgent") : L("尚未提供")}</dd></div><div><dt>${L("命令")}</dt><dd>${escapeHtml(service.command.join(" "))}</dd></div><div><dt>${L("配置")}</dt><dd>${escapeHtml(service.plist_path)}</dd></div><div><dt>${L("日志")}</dt><dd>${escapeHtml(service.stdout_log)}<br>${escapeHtml(service.stderr_log)}</dd></div></dl></details>
-    </section>
-  </section>`;
-}
-
 function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "", desktopShell = false): string {
   const capabilities = view.capabilities ? createCapabilitiesRenderer(primitives, view.capabilities, view.context_project ?? null, view.projects, desktopShell) : undefined;
   const pluginPage = findPluginSettingsNavItem(view.section);
@@ -251,7 +199,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
           : view.section === "projects"
           ? renderProjectSettings(view, desktopShell)
           : view.section === "diagnostics"
-            ? renderDiagnosticsSettings(view)
+            ? renderDiagnosticsSettings(view, primitives, desktopShell)
             : "");
   return `<!doctype html>
 <html lang="${htmlLang()}">
@@ -265,7 +213,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   </main>
   ${renderRuntimePlanDialog({ L, icon })}
   <div class="toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
 </body></html>`;
 }
 

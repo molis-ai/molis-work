@@ -13,9 +13,11 @@
 //                   object literal (`validators.validateThing`), a class property holding a function, a function handed to a call
 //                   or exported as the default. Functions nested in another function are part of it and not counted again; an
 //                   anonymous one is named `<anonymous#N>` by order in the file.
-// Every number may only fall and a file with no record starts at 0. The existing runtime code (createExecutionLifetime's
-// timers, bindPluginActionRoute's status table, the manifest validators, the diff algorithm) is the baseline; moving it
-// to its owner (W3-03) lowers the numbers.
+// Every number may only fall and a file with no record starts at 0. W3-03 moved the runtime code that was the baseline here
+// (createExecutionLifetime's timers, the manifest and declaration validators, the diff algorithm) into plugin-sdk, and W3-02-C moved
+// bindPluginActionRoute (with its status table) and bindOwnerPluginAction there too. What is left is six payload readers W3-03 leaves
+// alone (parseCharacterImportSnapshot, parseFilePath, parseFilesCollection, parseChangeSet, parseCodingChangeSet, modelRequestShape);
+// moving any of these to its owner lowers the numbers.
 //
 // What it does not see (no type checker, no cross-file flow; review does): a literal written to through an alias
 // (`const alias = cache; alias.x = 1`), handed to a function that writes to it (`fill(cache)`), or written to from another file

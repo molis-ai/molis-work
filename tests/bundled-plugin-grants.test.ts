@@ -46,7 +46,7 @@ function hostProcess(directory: string) {
     actions, project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
-    ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
+    ui: new UiHost(), home: null, privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
   const grants = () => platform.runtime.list().find(record => record.plugin_id === PLUGIN_ID)!.grants;
   const installId = () => platform.runtime.list().find(record => record.plugin_id === PLUGIN_ID)!.install_id;
@@ -206,3 +206,27 @@ test("PluginRuntime.install with bundled records every declared permission whate
     assert.throws(() => other.install({ definition, deployment: "local", grants: declared }),
       (error: unknown) => (error as { code?: string }).code === "plugin_state_invalid", "and a repeated install that names other grants is still a silent grant change");
   });
+
+// Every permission without asking is for code the Host ships. Sandboxed code is generated or installed from outside and runs in
+// isolation: what it may do is what the person confirmed, never what its Manifest declares. A start list that marks such a
+// definition `bundled` (a mistake in the Host's own composition) is refused rather than honoured as a grant of everything.
+test("a sandboxed definition is never granted everything because an entry calls it bundled: the install is refused, with grants or without, and the supervisor records nothing",
+  withDirectory(async directory => {
+    const sandboxed = { ...build("1.0.0", [REQUIRED, OPTIONAL]), execution: "sandbox" as const };
+    const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+    for (const grants of [undefined, [], [REQUIRED.permission], [OPTIONAL.permission, REQUIRED.permission]]) {
+      assert.throws(() => runtime.install({ definition: sandboxed, deployment: "local", bundled: true, ...(grants ? { grants } : {}) }),
+        (error: unknown) => (error as { code?: string }).code === "plugin_grant_denied", `grants ${JSON.stringify(grants)}`);
+    }
+    assert.deepEqual(runtime.list(), []);
+    // Not bundled, with the grants the person confirmed: unchanged, and it holds exactly those.
+    assert.deepEqual(runtime.install({ definition: sandboxed, deployment: "local", grants: [REQUIRED.permission] }).install.grants, [REQUIRED.permission]);
+
+    const host = hostProcess(directory);
+    try {
+      const report = await host.platform.start([{ definition: sandboxed, bundled: true, grants: [REQUIRED.permission] }]);
+      assert.deepEqual(report.running, []);
+      assert.deepEqual(report.failed.map(failure => failure.code), ["plugin_grant_denied"]);
+      assert.deepEqual(host.platform.runtime.list(), [], "nothing was installed, so nothing holds a permission");
+    } finally { host.store.close(); }
+  }));

@@ -2,7 +2,7 @@ import {
   ActionError, type ActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PluginDefinition, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabase, PluginDefinition, PluginManifest, PluginModelClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
 import {
   createPluginCapabilityClient,
@@ -12,7 +12,10 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
+import { openPluginDatabase } from "./plugin-database.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
+import { registerPluginInstructions } from "./plugin-instructions.js";
+import { pluginModelFor } from "./plugin-model-service.js";
 
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
@@ -33,7 +36,9 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   const ui = createPluginUiClient(options.ui, context, definition.manifest);
   let active = true;
   let disposeArtifacts = () => {};
-  const dispose = () => { active = false; disposeArtifacts(); ui.dispose(); };
+  let library: ReturnType<typeof openPluginDatabase> | undefined;
+  let withdrawInstructions: (() => void) | undefined;
+  const dispose = () => { active = false; disposeArtifacts(); library?.close(); withdrawInstructions?.(); ui.dispose(); };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     const manifest = definition.manifest;
@@ -42,12 +47,28 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     const artifactService = createPluginArtifactClient({ api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions,
       project_id: options.project_id, actor_id: options.actor_id });
     disposeArtifacts = artifactService.dispose;
-    const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active });
+    library = openDeclaredLibrary(options, definition, context, assertActive);
+    withdrawInstructions = registerPluginInstructions(options.home, definition, context.install_id);
+    const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
+      database: library?.client, model: pluginModelFor(options.home, definition, context, assertActive) });
     return { context: hosted, revoke: () => { active = false; }, dispose };
   } catch (error) {
     dispose();
     throw error;
   }
+}
+
+/**
+ * The plugin's library in the Home, when the Host's start list declared one for this definition. It is the one service the
+ * Home-level instances have (`openPluginDatabase`), opened here for the length of the run: every call asks again whether this
+ * instance is still the running one and still holds the grants, so a stopped, disabled, uninstalled or revoked plugin writes
+ * nothing, its own `stop` hook included.
+ */
+function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
+  const declaration = options.databaseFor?.(definition);
+  if (declaration === undefined) return undefined;
+  if (!options.home) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了 Home 库，但这个插件平台没有 Home`);
+  return openPluginDatabase(options.home.directory, declaration, permission => { assertActive(); context.requireGrant(permission); });
 }
 
 function hostPluginCaller(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void): HostPluginCaller {
@@ -68,6 +89,10 @@ interface SessionParts {
   readonly ui: PluginUi;
   readonly assertActive: () => void;
   readonly isActive: () => boolean;
+  /** The library the Host's start list declared for this plugin, if any (`openDeclaredLibrary`). */
+  readonly database: PluginDatabase | undefined;
+  /** The Host's text model, when the Manifest declares `model:invoke` and the Host runs the plugin itself (`pluginModelFor`). */
+  readonly model: PluginModelClient | undefined;
 }
 
 /** The context the Plugin's `start` receives: its identity plus the services below. */
@@ -86,6 +111,8 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       artifacts: artifactService.client,
       ...((manifest.process_items?.produces ?? []).length > 0 ? { processItems: artifactService.process } : {}),
       ui: ui.client,
+      ...(parts.database === undefined ? {} : { database: parts.database }),
+      ...(parts.model === undefined ? {} : { model: parts.model }),
       ...coordinationServices(options, manifest, context, parts),
     }) });
 }

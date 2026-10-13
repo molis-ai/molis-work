@@ -4,6 +4,21 @@
 
 export type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+export { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export interface ActionErrorBody {
+    readonly error: string;
+    readonly code: string;
+    readonly details?: Readonly<Record<string, unknown>>;
+    readonly call_id?: string;
+}
+
+export interface ActionErrorBodyOptions {
+    translate?(message: string): string;
+}
+
+export type { ActionErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ActionErrorOptions } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionExecutionPolicy } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -35,6 +50,9 @@ export type { ArtifactReferrer } from "@molis-ai/molis-work-contracts/platform/a
 export type { ArtifactReferrersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ArtifactReferrersResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+
+export declare const DIFF_STEP_BUDGET = 200000;
+
 export type { DueReminder } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { DueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -79,10 +97,13 @@ export type { HomeEvent } from "@molis-ai/molis-work-contracts/platform/actions"
 export type { HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+export type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PlacementResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginArtifactPublishInput } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -105,6 +126,9 @@ export declare class PluginManifestError extends Error {
     constructor(code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid", message: string);
 }
 
+export type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginModelRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -122,6 +146,22 @@ export type { SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform
 export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+
+export declare function actionErrorBody(error: unknown, options?: ActionErrorBodyOptions): ActionErrorBody;
+
+export declare function actionErrorFromResponse(status: number, body: unknown): ActionError;
+
+export declare function actionErrorKind(error: unknown): ActionErrorKind;
+
+export declare function actionErrorResponse(error: unknown, options?: ActionErrorBodyOptions): {
+    status: number;
+    body: ActionErrorBody;
+};
+
+export declare function actionHttpStatus(error: unknown): number;
+
+export declare function alignSplitRows(rows: readonly TextDiffRow[]): SplitPair[];
+
 export { assertDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { assertHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -134,12 +174,17 @@ export { bindFileEntriesHandler } from "@molis-ai/molis-work-contracts/platform/
 export { bindHomeObjectMoveHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindObjectCopyHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindObjectMoveHandler } from "@molis-ai/molis-work-contracts/platform/actions";
-export { bindOwnerPluginAction } from "@molis-ai/molis-work-contracts/platform/actions";
-export { bindPluginActionRoute } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function bindOwnerPluginAction<Input, Output>(context: PluginStartContext, definition: ActionDefinition<Input, Output>, handle: (input: Input, beforeWrite: () => Promise<void>) => Output | Promise<Output>, dependencies?: readonly ActionReference[]): ActionHandlerBinding;
+
+export declare function bindPluginActionRoute<Input, Output>(context: PluginStartContext, definition: ActionDefinition<Input, Output>, input: (request: PluginRouteRequest) => Input, route_id?: string): PluginRouteBinding;
+
 export { bindSearchEntriesHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function comparePluginVersions(left: string, right: string): number;
+
+export declare function compareTexts(before: string, after: string): TextDiff;
 
 export declare function createExecutionLifetime(options?: ExecutionLifetimeOptions): ExecutionLifetime;
 
@@ -155,10 +200,12 @@ export { defineArtifactPinAction } from "@molis-ai/molis-work-contracts/platform
 export { defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineArtifactReferrersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineDueRemindersAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFileContentAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFileEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFragmentOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineHomeEventsAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineInstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export { defineObjectCopyAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineObjectMoveAction } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -177,7 +224,13 @@ export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/pla
 export { fileContentOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { fileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare function inspectActionCrossReferences(definitions: unknown): string[];
+
 export declare function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[];
+
+export { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+
+export declare function joinLines(lines: readonly DiffLine[]): string;
 
 export { linkedArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 export { linksToArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -197,6 +250,11 @@ export declare const packageDescriptor: {
 
 export declare function parsePluginManifest(input: unknown): PluginManifest;
 
+export declare function reconstructSides(ops: readonly DiffOp[]): {
+    before: string;
+    after: string;
+};
+
 export { referencesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 export { sameArtifactFields } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -204,7 +262,13 @@ export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platfo
 export { searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchRevisionOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchText } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function splitLines(text: string): DiffLine[];
+
 export { subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function textDiffRow(op: DiffOp): TextDiffRow;
+
 export { withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";

@@ -73,7 +73,7 @@
 | 18 | `modules/goals` | 7 | 10 | 3 |  |
 | 19 | `modules/functions` | 1 | 2 | 3 |  |
 | 20 | `packages/design-system` | 1 | 2 | 3 |  |
-| 21 | `packages/kernel` | 1 | 1 | 3 | `registerProvider` 已在 W3-01 降到阈值下；W3-05 的交叉校验放在新文件，不加进它里面 |
+| 21 | `packages/kernel` | 1 | 1 | 3 | `registerProvider` 已在 W3-01 降到阈值下；W3-05 的交叉校验在 SDK 的 `action-cross-references.ts`，`registerProvider` 只在原有的一行里多调一个函数，没有加行 |
 | 22 | `horizontal/placement` | 1 | 1 | 3 | 决定 N-03：代码不搬，包内拆 |
 | 23 | `plugins/official-integrations/gmail` | 4 | 5 | 2 |  |
 | 24 | `modules/private-work-context` | 4 | 4 | 2 |  |
@@ -198,7 +198,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `scripts/client/events-primary.ts` | 文件 810 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（808/810 行）。 | 7 |
 | `scripts/client/navigation-feed.ts` | 文件 1,025 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（1,020/1,025 行），里面写死了 Feed 的客户端。 | 5 |
 | `scripts/client/tab-workspace.ts` | 文件 2,049 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（2,014/2,049 行）。 | 11 |
-| `settings-renderer.ts` | `createWorkbenchSettingsRenderer` 函数 235 行 | 拆 · W5-10 | 13 条语句，其中 `renderMolisWorkSettings`（65）、`renderDiagnosticsSettings`（49）、`renderProjectSettings`（47）、`renderRuntimeSettings`（16）各是一个设置页；每个页面一个文件，主函数只做组合。 | 5 |
+| `settings-renderer.ts` | `createWorkbenchSettingsRenderer` 函数 181 行（W3-01 F 搬出诊断页和 `settingRow`，原 235 行） | 拆 · W5-10 | 其中 `renderMolisWorkSettings`（65）、`renderProjectSettings`（47）、`renderRuntimeSettings`（16）各是一个设置页；每个页面一个文件，主函数只做组合（诊断页已经在 `settings-call-diagnostics.ts`）。 | 5 |
 | `tab-workspace-ops.ts` | `createTabWorkspaceOps` 函数 461 行 | 拆 · W5-04 | 标签工作区的纯规则，文件头 `// @ts-nocheck`，用 `toString` 序列化后注入浏览器。50 条语句里 `splitPane`（33）、`moveTab`（30）、`normalizeLayout`（22）、`ensureHome`（21）、`openBeside`（21）等本来就各自独立。W5-04 把交付形式改成打包的类型检查模块时，这些变成各自的模块导出，同一个 PR 拆到阈值以下。（本清单对 W5-04 的范围解释：凡在浏览器里跑的代码，不论模板字符串还是 `toString` 注入的函数。） | 2 |
 
 ### Agent Host `horizontal/agent-host`（唯一直接依赖 `@prologue/sdk` 的包）
@@ -270,7 +270,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `design-system` | `src/styles/primitives.ts` | 文件 1,276 行 | 例外 · 样式表 | `PRIMITIVE_STYLES` 一个模板字符串，纯 CSS，开头只有几个共用的 CSS 片段常量。 | 1 |
 | `im-ui` | `src/browser/controller.ts` | 文件 966 行<br>`startIm` 函数 957 行 | 拆 · W5-10 | “讨论”页签与 IM 是在用、还会迭代的功能（决定 #4），所以按职责拆，不是冻结：`startIm` 957 行、86 条语句，启动（`startup` 72）、房间（`selectRoom` 62、`refresh` 60）、线程（`newThread` 60、`selectThread` 48）、发送（`send` 48）、document 级点击监听（一段 111 行）各成模块，`startIm` 只组合。 | 1 |
 | `im-ui` | `src/views.ts` | `createViews` 函数 164 行 | 拆 · W5-10 | `createViews` 里 `stream` 84 行、`context` 16、`markup` 12、`restoreScroll` 12：流、上下文、滚动保持各成视图函数。 | 0 |
-| `kernel` | `src/action-service.ts` | `ActionService` 类 413 行 / 15 方法 | 拆 · W5-10 | `registerProvider` 的 `try` 块有两个循环：动作登记（每个动作的 `execute` 闭包里是限速、生命周期、`beforeEffect` 检查、输出校验）和场景登记（逐项校验、登记）。W3-01 把结算搬出 `execute`（到 `action-settlement.ts`，由 `invoke` 与 `invokeSync` 做），`registerProvider` 因此降到阈值下、不再是巨大单元；两个循环各成函数、`execute` 的各步再各成助手仍是 W5-10 的做法。类里场景相关的 `discoverScenes`、`bind`、`runScene`、`requireScene` 为一组，动作相关的 `discover`、`inspect`、`directory`、`invoke` 为另一组。W3-05 要在注册时加交叉校验：校验代码放在新文件由 `registerProvider` 调用，不要加在函数里（它离阈值不远）。 | 3 |
+| `kernel` | `src/action-service.ts` | `ActionService` 类 413 行 / 15 方法 | 拆 · W5-10 | `registerProvider` 的 `try` 块有两个循环：动作登记（每个动作的 `execute` 闭包里是限速、生命周期、`beforeEffect` 检查、输出校验）和场景登记（逐项校验、登记）。W3-01 把结算搬出 `execute`（到 `action-settlement.ts`，由 `invoke` 与 `invokeSync` 做），`registerProvider` 因此降到阈值下、不再是巨大单元；两个循环各成函数、`execute` 的各步再各成助手仍是 W5-10 的做法。类里场景相关的 `discoverScenes`、`bind`、`runScene`、`requireScene` 为一组，动作相关的 `discover`、`inspect`、`directory`、`invoke` 为另一组。W3-05 的交叉校验已做：校验代码在 SDK 的 `action-cross-references.ts`，`registerProvider` 只在原有的一行里多调一个函数，没有加行（它离阈值不远，以后也这样加）。 | 3 |
 | `plugin-runtime` | `src/events.ts` | `PluginEventBus` 类 420 行 / 23 方法 | 拆 · W5-10 | `PluginEventBus` 的 23 个方法分三组：发布与匹配（`publish` 72、`#match`、`#enqueue`）、投递（`#deliver` 99、`#fail`、`#resume`、`drain`）、游标与恢复（`#saveCursor`、`recover`、`recoveryHistory`、`cursors`）。 | 4 |
 | `plugin-runtime` | `src/index.ts` | `PluginRuntime` 类 660 行 / 30 方法（文件 886 行，W3-06 A 把 `MemoryPluginRuntimeRepository`、`NativePluginExecutor` 和 `validateManifest` 等模块级函数移到 `memory-repository.ts`、`native-executor.ts`、`runtime-rules.ts`，文件 760 行，已不是巨大单元） | 拆 · W5-10 | `PluginRuntime` 660 行/30 方法分三组：安装与卸载（`install` 115、`uninstall*`）、版本切换（`upgrade`、`rollback`、`changeVersion` 117）、生命周期（`start*`、`stop*`、`recover*`、`reportCrash*`，各有 `…Once` 版本）。W3-06 要加 Home 级实例，类已冻结，它的新增部分先写在新文件里。 | 4 |
 | `plugin-runtime` | `src/supervisor.ts` | `PluginSupervisor` 类 592 行 / 31 方法 | 拆 · W5-10 | `PluginSupervisor` 31 个方法分三组：启动与重启（`start` 56、`#restart` 39、`#activate` 37、`ensureStarted`）、升级回滚（`#changeVersion` 57、`upgrade`、`rollback`、`#resolveInstalledEntry` 51）、撤销与启用（`revoke` 30、`enable`）。W4-02 要在监督器里登记和收回 Manifest methods，类已冻结，它的新增部分先写在新文件里。 | 3 |

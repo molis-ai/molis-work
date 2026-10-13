@@ -1,6 +1,6 @@
 # Prologue AI 开发手册
 
-状态：2026-09-27 按 main（8b609527）之后的代码整理，示例与文件位置均为实际代码。执行时的步骤清单在 Skill：[`skills/molis-prologue-ai/SKILL.md`](../../skills/molis-prologue-ai/SKILL.md)；本文解释架构、调用链和为什么。插件的通用写法仍以 [`skills/molis-plugin-dev/`](../../skills/molis-plugin-dev/SKILL.md) 为准。
+状态：2026-09-27 按 main（8b609527）之后的代码整理，此后随功能改动逐段更新（最近三次：2026-10-10 的提示词登记，W3-04；2026-10-11 按 main `add0c21be` 改 Alchemist 的生命周期来源；2026-10-12 Runtime 插件的 `services.model` 与按场景的时限表，W3-06 E）；示例与文件位置均为实际代码。执行时的步骤清单在 Skill：[`skills/molis-prologue-ai/SKILL.md`](../../skills/molis-prologue-ai/SKILL.md)；本文解释架构、调用链和为什么。插件的通用写法仍以 [`skills/molis-plugin-dev/`](../../skills/molis-plugin-dev/SKILL.md) 为准。
 
 用户口径（不要扩大）：「AI 能力都用 Prologue」指**模型调用经过同一 Home 的 Prologue Runtime**，不是把模型搬到本地、也不是让 Prologue 管所有进程。Jelly 本机 OCR/Whisper、外部 CLI Runtime 暂不纳入。
 
@@ -22,6 +22,8 @@
 | 一次有界的文字/结构化/图片/判断调用，没有工具 | Host 注入的端口：文字用 `hostCompleteText`，需要结构、进度和回执时用同一绑定的 `hostTextGeneration`（`apps/local-host/src/host-complete-text.ts`）；图片、TypeSafe 判断、需要用量时用 `resolvePrologueInference(home)` 的 `generateImages` / `evaluateTypeSafe` / `completeTextResult` | 灵光对话、Pages 写作助手与生成、Form/Dataset 的 AI 拟题拟列、Images、判断函数 |
 | 有工具、工作区、审查的多轮工作 | Manifest `agent` 块声明角色，经 Host 能力 `agent.session.create.v1` / `agent.run.start.v1` / `agent.run.wait.v1` / `agent.run.control.v1` | Coding、Schedule 到点任务、Characters |
 | 需要专门编排边界的新 Agent | 在 `horizontal/agent-host/src/adapters/` 为该场景新建适配器，仍用同一 Home Runtime | 插件创作台代码 Agent（`adapters/plugin-builder.ts`） |
+
+宿主自己运行的 Runtime 插件调模型用 `context.services.model`（第 4 节「Runtime 插件」），不再写宿主绑定文件；构建期插件今天仍是 Host 注入的端口，随各自迁移删掉（W5-11）。
 
 不要为了统一把单次调用塞进 Agent 循环，也不要在插件或 Host 里直接依赖 `@prologue/sdk`——只有 `horizontal/agent-host` 声明了这个依赖（`scripts/workspace-packages.mjs`），其他包经它的公开入口使用。
 
@@ -50,7 +52,7 @@ Coding 的提交说明与接续摘要定义在 `plugins/native/coding/src/prompt
 
 Cognia 的资料选择、提示词、Markdown 与引用校验由 `plugins/native/cognia/src/ai.ts` 拥有。`cognia-prologue.ts` 只固定目录中的模型并注入 `hostCompleteText`，使用 Home 已绑定的同一 Runtime；不再建立 cognia/runtime/runs。发现只读元数据，执行才解析凭据。
 
-Alchemist 的 `alchemist-prologue.ts` 复用同一模型目录与 `hostTextGeneration`，不另行解密或复制配置比对逻辑；首次授权等待与模型执行复用 Kernel 的三分钟生命周期，固定模型不可用时明确拒绝，不切换供应商。Host 使用 SDK `decodeJsonOutput` 解码（显式允许整个响应的代码围栏），把语法成功/失败与原文、用量一起交给插件。`generateWithHost` 只做领域 parse；只有业务预算显式允许才纠正一次，纠正调用重新经过原派出授权。Zod 校验属于插件，不能把提示词中的 schema 宣称为 SDK 原生约束。
+Alchemist 的 `alchemist-prologue.ts` 复用同一模型目录与 `hostTextGeneration`，不另行解密或复制配置比对逻辑；首次授权等待与模型执行复用 Plugin SDK 的 `createExecutionLifetime`（`@molis-ai/molis-work-plugin-sdk`，Kernel 不转出它）取三分钟生命周期，固定模型不可用时明确拒绝，不切换供应商。Host 使用 SDK `decodeJsonOutput` 解码（显式允许整个响应的代码围栏），把语法成功/失败与原文、用量一起交给插件。`generateWithHost` 只做领域 parse；只有业务预算显式允许才纠正一次，纠正调用重新经过原派出授权。Zod 校验属于插件，不能把提示词中的 schema 宣称为 SDK 原生约束。
 
 Alchemist 六类固定指令在 `src/prompts.ts` 登记为 `ALCHEMIST_INSTRUCTIONS`：方向生成、Copilot、研究交叉检查/综合、成果适用性和格式纠正。`systemPrompt` 接收 `InstructedPrompt`，研究维度作为 data，用户内容仍在 userPrompt；Host 在授权复查后解析当前 Home 的用户覆盖并记录使用。用户修改正文不改变领域校验或增加格式纠正次数；原预算/授权检查继续约束纠正调用。
 
@@ -79,6 +81,8 @@ Coding 页面 → plugins/native/coding/src/routes.ts
   ← agent.run.wait.v1 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
 ```
 
+**每一轮带一个调用编号**（W3-01 E；见 [调用链](../system/CALL-CHAINS.md) §1 第 5 条）：一轮（助理、Coding 等 Agent、定时任务到点跑的 Agent）开始时，宿主给它一个调用编号。启动权限的 `call_id`（`AgentStartAuthority`）经 `AgentHost.start` 交给适配器，适配器写进这一轮的冻结记录（`AgentRunView.frozen.call_id`，和角色、提示词版本、工具一起冻结，读回时原样）；这一轮每次工具调用的上下文也带同一个编号，所以按编号能从调用记录找到这一轮走过的每一步。编号只记在 Molis Work 自己的冻结记录里，不交给 Prologue（用户 2026-10-10 决定），Prologue 的运行元数据没有它。编号只由宿主给：适配器只读启动权限，不读 `agent.run.start` 的请求体，插件在里面写的 `call_id` 不会成为一轮的编号。有界推理（`hostTextGeneration`、`hostCompleteText`）没有运行记录可挂，不带编号，它所在的那个动作的调用记录行带着。`frozen.call_id` 与 `AgentToolActivity.call_id`（Prologue 给一次工具调用的 id）是两回事。
+
 ## 4. 新增一个 AI 能力：调用骨架与可执行示例
 
 以下片段解释接缝，省略了输入合同、提示词构造和端口定义，不能单独运行。以「灵光对话」为蓝本（`plugins/native/lingguang/src/actions.ts`、`apps/local-host/src/lingguang-actions.ts`）。
@@ -100,7 +104,7 @@ bind(lingguangActions.message, async (input, caller) => {
   const snapshot = ports.withStore(store => store.conversation(input.id, projectId));
   if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置文字模型，再继续对话");
   const reply = (await ports.completeText(prompt, { signal: caller.signal })).trim();
-  if (!reply) throw new ActionError("lingguang.empty_reply", "模型没有返回正文，输入已保留，可重试");
+  if (!reply) throw lingguangErrors.empty_reply("模型没有返回正文，输入已保留，可重试"); // 插件用 defineErrorCodes 声明自己的码，状态由 kind 推出
   await caller.beforeEffect();                        // 复查注册实例、授权、生命周期、作用域、取消
   return ports.withStore(store => store.addReply(input.id, input.body, reply, projectId, snapshot)); // 快照变了就拒绝
 }, () => ports.modelAvailability()),
@@ -124,6 +128,26 @@ modelAvailability: () => model() ? { available: true } : { available: false, cod
 生成插件声明 `export const prompts = [...]`，调用 `model.generate` 能力时传 `{ prompt: id, input }` 指定一段正文。Host 的 `plugin-builder/model.ts` 解析当前指令/用户覆盖，继续调用同一 `hostTextGeneration`；不接受写在代码里的 instructions。安装、停用、启用、版本切换、卸载与恢复的登记属于 `installed-plugin-host.ts`，不依赖打开创作台。设计与编码阶段则由 Builder 的 prompt 端口取有效正文，运行版本包含用户修订号。
 
 Cognia 同时保留已登记的知识角色与回答指令：角色作为共享单次推理的 system 输入，回答指令与固定资料作为正文。可编辑的提示词必须真实进入调用，不能只有登记页面。`tests/cognia-prologue.test.ts` 与 `tests/plugin-model-generation.test.ts` 经真实 SDK 和本地 HTTP 核对用户覆盖、工具边界、取消和撤权；`tests/installed-plugin-host.test.ts` 核对真实安装生命周期。
+
+**Runtime 插件（宿主自己运行的）：`services.model`**（W3-06 E；`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`）。Manifest 声明 `model:invoke`、定义不是沙箱执行、平台有 Home，`context.services.model` 才存在；它不是 typed 能力，沙箱插件（生成插件）仍走 `model.generate`。
+
+- **只在插件自己的动作里**：处理器所在的动作要在 `action.permissions` 里写 `model:invoke`，并且 `scheduling: "concurrent"`。Runtime 给每个动作处理器包一层（`action-scope.ts`，`AsyncLocalStorage`），记下正在执行的动作和这次调用的 `beforeEffect`；插件不传、也伪造不了。`start()`、路由、定时器、别的插件的动作、串行动作、没声明权限的动作里调用，在发出之前就以 `plugin.model_action_required`、`plugin.model_action_not_concurrent`、`plugin.model_permission_undeclared` 拒绝。
+- **发出前和返回后各问一次**：实例仍在运行、安装仍持有 `model:invoke`、这次调用的 `beforeEffect()` 通过，才发出；模型返回后再问一遍，才把结果交给插件。动作已经返回的调用得到 `actions.expired`（定时器里迟到的调用就是这样被挡下的），取消、撤权、停用的调用拿不到结果。插件写入前仍要自己 `await caller.beforeEffect()`，按读取时的版本提交。
+- **只收自己登记的指令**：`complete(instructed(指令, 数据), { system?, output?, timeout_ms?, max_output_tokens? })`。`owner_id` 必须是本插件（`system` 也是），裸字符串、别人的指令、没登记的指令以 `plugin.model_instruction_refused` 拒绝；发送的是用户在设置 › 提示词里改过的版本。有目录条目的内置插件，指令仍由目录条目的 `instructions` 登记；没有目录条目的插件在 `PluginDefinition.instructions` 里声明，随实例启动登记、最后一个运行它的实例停止时撤下；目录里已经为这个主人登记了任何 Agent 定义（指令、Agent 提示词、角色或方法，例如 Schedule、助理的角色，Issues 的方法）的，不能再用 `PluginDefinition.instructions`，启动失败：一个主人的定义只在一处，第二个来源会在设置和别的 Agent 眼里顶掉目录登记的角色与方法；同一个插件的两个安装（两个发布者签名）可以并排登记。
+- **限额**：`timeout_ms` 默认 120 秒、至多 600 秒，`max_output_tokens` 默认 5000、至多 12000（`PLUGIN_MODEL_LIMITS`），超出以 `plugin.model_limit_exceeded` 拒绝，不截断。`output: "json"` 用 agent-host 的 `decodePrologueJsonOutput` 解码（允许代码围栏），解不出是 `plugin.model_output_invalid`；它只解码，结构由插件自己校验。结果的 `usage` 只在供应商报告了才有。
+- **路径**：宿主端口 → `hostTextGeneration` → agent-host 的 Prologue 推理，和别的调用方同一条；不新开供应商直连，不向 Prologue 传调用编号（2026-10-10）。宿主构造时给的 `completeText`（函数是测试替身，`null` 是没有模型）照旧有效，每次调用时才读。`availability()` 可以接在动作的 `availability` 上。
+- **不在这一片里**：图片输入、选定某个模型与列出可选模型、动作返回之后的后台任务里调模型（动作一返回，调用就被拒）。有消费者的迁移再加。
+
+```ts
+const SUMMARIZE = defineInstructionPrompt({ owner_id: "io.example.notes", prompt_id: "summarize", version: 1, title: "摘要", purpose: "把笔记压成一句话", used_by: ["笔记摘要"], body: "把下面的笔记压成一句话。" });
+// definition.instructions: [SUMMARIZE]；动作：permissions: ["model:invoke"], scheduling: "concurrent"
+handle: async (caller, input) => {
+  const note = readNote(input.id);                                    // 读快照
+  const { text } = await services.model!.complete(instructed(SUMMARIZE, note.body));
+  await caller.beforeEffect();                                        // 写之前再问一次
+  return saveSummary(input.id, text, note);                           // 按读取时的版本提交
+},
+```
 
 ### 在仓库里直接运行完整示例
 
@@ -182,8 +206,19 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 - **流式**：Agent 轮次用 `agent.run.wait.v1`（最长 25 秒的长轮询，按版本返回变化）；有界推理可用 `onProgress` 观察原 Run 的文本、模型和用量事件，最终结果仍需等待终态与领域校验。
 - **结构化输出**：SDK `structured` 执行明确支持的 schema；`decodeJsonOutput` 只处理格式，不能替代领域验证。Alchemist 默认不纠正，仅在原业务预算明确允许时增加一次；Jelly 不自动重试。判断类用 TypeSafe（`evaluateTypeSafe`），返回 Choice/Score/Noul。
 - **错误**：推理层抛 `PrologueInferenceError`（保留 `code`，文字统一为安全文案）。消费方先用 `inferenceServiceUnavailableReason(error)` 识别「执行服务被本机另一进程占用 / 未就绪」，如实告诉用户，不要改写成网络或厂商问题；宿主自己的派出前复核（`beforeDispatch`、凭据是否变了）拒绝时，SDK 报 `EFFECT_NOT_AUTHORIZED`，推理层把复核自己抛的错误原样交回，消费方用 `isDispatchRefusal(error)` 识别并说明「没有发出」；Agent 轮次的 `stop_reason` 同样以 `EFFECT_NOT_AUTHORIZED` 开头；HTTP 4xx/5xx 按状态给可操作提示。
-- **取消**：`caller.signal` 一路传到 SDK（`run.cancel()`）；被取消、撤权、停用的调用**不再写任何记录**，包括失败记账（action-architecture F2，`tests/action-before-effect.test.ts`）。需要让用户能立刻重试的，用「发起者已结束即可接管」的设计，而不是在被拒绝后写记录。
-- **超时**：文字 120 秒、`max_output_tokens` 5000（`host-complete-text.ts`）；Agent 用预算里的 `max_duration_ms`。
+- **取消**：`caller.signal` 一路传到 SDK（`run.cancel()`）；被取消、撤权、停用的调用**不再写任何业务记录**，包括失败记账（action-architecture F2，`tests/action-before-effect.test.ts`）；其中处理器开始之前就被拒的，调用记录里只留一行「未执行」的诊断行，只记谁、什么动作、结果与错误码，不记内容（输入、返回、动作给的错误信息都不记），不算业务数据（用户 2026-10-10 决定）。需要让用户能立刻重试的，用「发起者已结束即可接管」的设计，而不是在被拒绝后写记录。
+- **超时**（按场景，数字都以代码为准，这里只是列清楚；W3-06 E 没有改任何一个）：
+
+  | 场景 | 时限 | 在哪里 |
+  | --- | --- | --- |
+  | 文字补全的默认 | 120 秒，`max_output_tokens` 5000 | `apps/local-host/src/host-complete-text.ts` |
+  | Runtime 插件的 `services.model` | 默认 120 秒、至多 600 秒；5000、至多 12000 个输出 token | `PLUGIN_MODEL_LIMITS`（`packages/contracts/src/platform/plugin-model.ts`） |
+  | 生成插件的 `model.generate` | 110 秒 | `apps/local-host/src/plugin-builder/model.ts` |
+  | Shelf 的自动处理 | 600 秒、12000 个输出 token | `apps/local-host/src/shelf-ai.ts` |
+  | Cognia 与 Alchemist | 180 秒（Alchemist 4096 个输出 token） | `apps/local-host/src/cognia-prologue.ts`、`apps/local-host/src/alchemist-prologue.ts` |
+  | 项目上手 | 180 秒 | `apps/local-host/src/context-onboarding-service.ts` |
+  | Agent 轮次的每次模型调用 | 默认 180 秒；预算里的 `max_duration_ms` 优先 | `horizontal/agent-host/src/adapters/prologue-node.ts`（`MODEL_CALL_TIMEOUT_MS`） |
+  | 创作台的角色 | designer 600 秒、coder 300 秒 | `horizontal/agent-host/src/adapters/plugin-builder.ts`（`MODEL_CALL_LIMIT_MS`） |
 - **恢复**：Agent 会话用 `agent.session.recovery.v1` / `agent.session.recover.v1`；长任务靠持久记录与幂等键（`request_id`），重试不重复调用模型、不重复写入。
 
 ## 9. 常见错误（都真实发生过）
@@ -204,6 +239,7 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 
 - 单元与动作层：`new MolisWorkLocalHost({ homeDirectory, completeText })` 注入受控模型；或 `bindPrologueInference(home, { completeText, … })` 在生产接缝替身。断言端点、协议、凭据真正到达推理边界，而不是只断言被调用。
 - 副作用前检查：照 `tests/action-before-effect.test.ts` 覆盖「等模型时撤权 / 停用 / 取消」三种，验证不写入、可恢复。
+- Runtime 插件的 `services.model`：`tests/plugin-model-service.test.ts`（宿主给的测试替身、生产路径 `MolisWorkLocalHost({ completeText, pluginFixtures })`，以及不给替身时经本机替身模型服务走 `hostTextGeneration` 的一条）。
 - 并发：`tests/action-model-scheduling.test.ts`（门禁）；需要时像 `tests/lingguang-actions.test.ts` 那样验证等模型期间同项目读写照常完成。
 - 真实 SDK：`tests/agent-budget-prologue.test.ts`、`tests/agent-action-tools-prologue.test.ts` 用本机替身模型服务驱动真实 Prologue。
 - 真实模型：用户配置的 MiniMax（anthropic-messages）；`scripts/verify-model.mjs`。图片与 TypeSafe 无法用 MiniMax 测，需各自服务。

@@ -5,8 +5,8 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { bindPluginActionRoute, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { bindPluginActionRoute, type ActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
@@ -152,8 +152,10 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
     assert.deepEqual(await response.json(), { count: 1 });
     assert.equal((await request(other.project_id, "notes", { text: "wrong project" })).status, 404);
     assert.equal((await request(project.project_id, "notes", { text: "forged", actor_id: "someone" })).status, 400);
-    assert.equal((await fetch(`${origin}/projects/${project.project_id}/api/plugins/io.molis.work.coding/state`)).status, 404,
-      "generic registration must not bypass bundled project enablement");
+    // W3-02-C: a bundled plugin the project has not enabled answers with the platform's own code and status, the one the action layer uses.
+    const notEnabled = await fetch(`${origin}/projects/${project.project_id}/api/plugins/io.molis.work.coding/state`);
+    assert.equal(notEnabled.status, 403, "generic registration must not bypass bundled project enablement");
+    assert.deepEqual(await notEnabled.json(), { error: "此项目未启用该插件", code: "actions.plugin_disabled" });
     assert.equal((await request(project.project_id, "restart", {}, false)).status, 403);
     assert.equal((await request(project.project_id, "restart", {})).status, 200);
     platform.supervisor.revoke(pluginId);

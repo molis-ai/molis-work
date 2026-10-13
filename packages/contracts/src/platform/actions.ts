@@ -1,6 +1,8 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
 export * from "./action-execution.js";
+import { ActionError } from "./action-errors.js";
+export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
 import type { ActionResultView } from "./action-result.js";
 import type { SubjectOfferChoice } from "./action-offers.js";
@@ -120,8 +122,9 @@ export interface ActionMetadata {
   readonly plugin?: false;
   /** Provider owns transaction/conflict safety across awaits; Host still tracks lifetime. Default is serial. */
   readonly scheduling?: "concurrent";
-  /** `session`: an external Runtime may call it only from a stable Session, which becomes the author of what it records;
-   * dispatch refuses a call whose context says the Session is missing (`runtime_session_missing`), nested or not. */
+  /** `session`: an external AI tool (a Runtime reached through MCP) may call it only from a stable Session, which becomes the author of what it records;
+   * dispatch refuses a call whose context says the Session is missing (`runtime_session_missing`), nested or not. Only that entry is asked: for the
+   * Assistant and the built-in Agents the Host records the author itself (`audit_actor_id`), and on a page the author is the person (decided 2026-10-10). */
   readonly authorship?: "session";
   /** Declarative limits shared by every entry; cancellation uses signal + beforeEffect. */
   readonly execution?: ActionExecutionPolicy;
@@ -140,9 +143,9 @@ export interface ActionMetadata {
   readonly search_source?: SearchSourceDeclaration;
   /** A side panel file source: the file kinds it lists (or previews) and where each opens (specs/archive/side-panel §3.3). */
   readonly file_source?: FileSourceDeclaration;
-  /** Optional rule choices owned by this subject-offer query; targets belong to the same provider. */
+  /** Optional rule choices owned by this subject-offer query; each target is declared in the same registration, in the same scope, and handles the option's subject kinds. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
-  /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); targets belong to the same provider. */
+  /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); each target is declared in the same registration and scope. */
   readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
   /** A trigger action needs an enabled compatible binding in this consumer scene. */
   readonly required_scene?: { readonly scene_id: string; readonly version: number };
@@ -151,14 +154,15 @@ export interface ActionMetadata {
   readonly required_actions?: readonly ActionReference[];
   /**
    * Where a command's output names the object it created or changed: dot paths to its id and new revision, e.g.
-   * `{ id: "document.id", revision: "document.version" }`. The object's kind is the action's single subject kind.
-   * Callers that keep relations to results (the Assistant's work) use it; undeclared, see `actionResultSubject`.
+   * `{ id: "document.id", revision: "document.version" }`. The object's kind is the action's single subject kind. Written, it is an object, and both paths must be
+   * in this action's `output_schema` (checked at registration). Callers that keep relations to results (the Assistant's work) use it;
+   * undeclared, `actionResultSubject` reads the result by the rule written in its comment.
    */
   readonly result_subject?: { readonly id: string; readonly revision?: string };
   /**
    * A command that starts background work (a research run, a generation job): how a caller follows it to its end.
-   * `id` is the dot path to the job id in this command's output; the `status` query of the same provider takes it in
-   * its `input` field and reports the state at the dot path `state`; `done` and `failed` list the final states.
+   * `id` is the dot path to the job id in this command's output; the `status` query, declared in the same registration and scope,
+   * takes it in its `input` field and reports the state at the dot path `state` (all three paths are checked against the schemas); `done` and `failed` list the final states.
    * The Assistant uses it to watch a job it started and tell the person when it ends (the convention for long work).
    */
   readonly background_job?: {
@@ -170,7 +174,7 @@ export interface ActionMetadata {
     readonly failed: readonly string[];
   };
   /**
-   * How this change is taken back: another command of the same provider, with its input read from this command's
+   * How this change is taken back: another command declared in the same registration and scope, with its input read from this command's
    * output (a path such as "spark.id"; a one-item array wraps the value in an array, e.g. ["spark.id"]). A change that
    * declares it may run without a confirmation when the person asked for exactly this effect (they can set it back to
    * confirm each time), and the work then offers “撤销”. Never on an irreversible change.
@@ -417,78 +421,12 @@ export function retainActionAuthority<Context extends ActionCallContext>(context
   } };
 }
 
-/** A plugin HTTP route only adapts transport to an action; execution always goes through the Host. */
-export function bindPluginActionRoute<Input, Output>(
-  context: import("./plugin.js").PluginStartContext,
-  definition: ActionDefinition<Input, Output>,
-  input: (request: import("./plugin.js").PluginRouteRequest) => Input,
-  route_id = definition.capability_id,
-): import("./plugin.js").PluginRouteBinding {
-  return { route_id, async handle(request) {
-    try {
-      if (!context.actor_id || request.actor_id !== context.actor_id) throw new ActionError("actions.forbidden", "调用者与当前插件入口不一致");
-      if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
-      return { status: 200, body: await context.services.actions.invoke(definition, input(request), request.execution) };
-    } catch (error) {
-      const code = error instanceof ActionError ? error.code : undefined;
-      const status = ["actions.forbidden", "actions.owner_mismatch"].includes(code ?? "") ? 403 : code === "actions.missing" ? 404 : code === "actions.conflict" ? 409 : code === "actions.unredeemed" ? 503 : 400;
-      return { status, body: { error: error instanceof Error ? error.message : String(error), ...(code ? { code } : {}) } };
-    }
-  } };
-}
-
-/** An action over the local owner's personal state and 成果: it runs only for that owner and never impersonates the startup owner. */
-export function bindOwnerPluginAction<Input, Output>(
-  context: import("./plugin.js").PluginStartContext,
-  definition: ActionDefinition<Input, Output>,
-  handle: (input: Input, beforeWrite: () => Promise<void>) => Output | Promise<Output>,
-  dependencies: readonly ActionReference[] = [],
-): ActionHandlerBinding {
-  const availability = (caller: ActionCallContext): ActionAvailability => {
-    if (!context.actor_id || caller.actor_id !== context.actor_id) return { available: false, code: "actions.owner_mismatch", reason: "此入口使用本地用户的个人状态与成果；当前调用者尚未接通独立归属，不能借用该用户身份" };
-    for (const dependency of dependencies) {
-      const state = context.services?.capabilities?.availability?.(dependency);
-      if (!state) return { available: false, code: "actions.dependency_unknown", reason: "宿主未提供依赖状态检查" };
-      if (!state.available) return state;
-    }
-    return { available: true };
-  };
-  return { ...definition, availability, async handle(caller, input) {
-    const owner = availability(caller);
-    if (!owner.available) throw new ActionError(owner.code, owner.reason);
-    const beforeWrite = async () => {
-      caller.signal?.throwIfAborted();
-      if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
-      // The plugin's own registration of this action: the provider id it carries is the plugin id for a plugin that ships with the Host.
-      const current = (await context.services.actions.discover()).find(row => row.capability_id === definition.capability_id
-        && row.version === definition.version && row.provider.plugin_install_id === context.install_id);
-      if (!current) throw new ActionError("actions.missing", "原插件动作已撤下，不能继续保存");
-      await caller.validate_authority?.({ capability_id: definition.capability_id, version: definition.version, provider_id: current.provider.provider_id });
-      if (!current.availability.available) throw new ActionError(current.availability.code, current.availability.reason);
-      for (const permission of definition.action.permissions) context.requireGrant(permission);
-      caller.signal?.throwIfAborted();
-    };
-    // A query writes nothing, and the registry already routed it to the live registration after the Host checked its
-    // availability. Only a command confirms, before it writes, that the action is still the one published: discovering
-    // every action of the project on each read made plain page refreshes pay for it.
-    if (definition.operation !== "query") await beforeWrite();
-    return handle(input as Input, beforeWrite);
-  } };
-}
-
 /** A Manifest declares every permission its actions use; these stay optional because the Host grants them per call. */
 export function actionPermissionDeclarations(definitions: readonly ActionDefinition[], reason: string,
   declared: readonly { readonly permission: string }[] = []): { permission: string; required: boolean; reason: string }[] {
   const known = new Set(declared.map(item => item.permission));
   return [...new Set(definitions.flatMap(definition => definition.action.permissions))].filter(permission => !known.has(permission))
     .map(permission => ({ permission, required: false, reason }));
-}
-
-export class ActionError extends Error {
-  constructor(readonly code: string, message: string) {
-    super(message);
-    this.name = "ActionError";
-  }
 }
 
 function object(v: unknown): v is Record<string, unknown> { return !!v && typeof v === "object" && !Array.isArray(v); }

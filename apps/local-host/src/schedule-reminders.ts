@@ -1,6 +1,6 @@
 import { AgentBuilderStore } from "@molis-ai/molis-work-plugin-builder";
 import { SqlitePluginRuntimeRepository, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { createScheduleReminders, createScheduleReminderManagement, deliverScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
+import { createScheduleReminders, createScheduleReminderManagement, deliverScheduleReminder, scheduleErrors } from "@molis-ai/molis-work-plugin-schedule";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ScheduleService, ScheduleSqliteDatabase, ScheduleWakeupControl, ScheduleWakeupInput } from "@molis-ai/molis-work-service-scheduler";
 import type { FeedApplication } from "@molis-ai/molis-work-plugin-feed";
@@ -12,7 +12,7 @@ export function hostScheduleReminders(options: { db: ScheduleSqliteDatabase; pro
   const { installations, describe } = reminderInstallations(options.db, options.projectId);
   return createScheduleReminders({ ...options, describe(identity) {
     const record = installations.get(identity.installationId);
-    if (!record || record.plugin_id !== identity.pluginId || record.state !== "running") throw new Error("提醒的插件安装当前没有运行");
+    if (!record || record.plugin_id !== identity.pluginId || record.state !== "running") throw scheduleErrors.job_invalid("提醒的插件安装当前没有运行");
     return { ...describe(record),
       link: (options.routePrefix ?? `/projects/${encodeURIComponent(options.projectId)}`) + "/plugins/" + encodeURIComponent(identity.pluginId) };
   } });

@@ -4,8 +4,8 @@ import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/pl
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { ActionError, type ActionCallContext, type ActionReference, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
-import { assertActionInput } from "@molis-ai/molis-work-kernel";
+import { readProjectGuidance } from "../goals-actions.js";
+import { assertActionInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import type { StoredWork } from "./assistant-store.js";
@@ -49,7 +49,10 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   dispatched?: (view: ActionView) => void,
   pageContext?: () => ActionCallContext["page_context"]): AgentStartAuthority {
   const reference = work.project_ref;
-  const base = (session?: string, signal?: AbortSignal): ActionCallContext => ({ actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: `assistant:${work.work_id}`,
+  // This round's number: the request that sent the message when there is one, else a new one. The tools run later, in the Runtime's loop,
+  // outside any scope, so the number goes into every call's context.
+  const callId = currentCallId() ?? newCallId();
+  const base = (session?: string, signal?: AbortSignal): ActionCallContext => ({ actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: `assistant:${work.work_id}`, call_id: callId,
     ...(session ? { runtime_session_id: session } : {}), project_id: reference?.project_id ?? null, audience: "agent", permissions: [],
     page_context: pageContext?.(), ...(signal ? { signal } : {}) });
   const accepted = (catalog: readonly ActionView[], caller: ActionCallContext) => {
@@ -82,6 +85,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   let discovered: readonly ActionView[] = [];
   const discover = async (validate?: () => void | Promise<void>) => { discovered = await service().discover(await context(validate)); return discovered; };
   return {
+    call_id: callId,
     manifest: ASSISTANT_AGENT,
     prompts: ASSISTANT_PROMPTS,
     authorizedDirectories: [],
@@ -144,11 +148,11 @@ export function requireVersionPrecondition(view: Pick<ActionView, "operation" | 
 }
 
 /** The project's confirmed guidance as the project layer; personal work and unreadable guidance contribute nothing. */
-export async function assistantProjectPrompts(localHost: Pick<MolisWorkLocalHost, "client">, work: StoredWork): Promise<AgentPromptText[]> {
+export async function assistantProjectPrompts(localHost: Pick<MolisWorkLocalHost, "actionClient">, work: StoredWork): Promise<AgentPromptText[]> {
   const reference = work.project_ref;
   if (!reference) return [];
   let view: ProjectGuidanceView;
-  try { view = await localHost.client(reference).invoke(readProjectGuidanceCapability, { project_id: reference.project_id }); }
+  try { view = await readProjectGuidance(localHost.actionClient(reference, false), reference); }
   catch { return []; }
   if (view.entries.length === 0) return [];
   return [{ prompt_id: "project-guidance", version: view.revisions.length, layer: "project", body: view.runtime_prompt_prefix }];

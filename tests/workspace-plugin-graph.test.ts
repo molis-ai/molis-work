@@ -51,6 +51,7 @@ function project(directory: string, capabilities?: Parameters<typeof createPlugi
     db: store.db,
     artifacts, processItems: new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     ui: new UiHost(),
+    home: null,
     ...(capabilities ? { capabilities } : {}),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });

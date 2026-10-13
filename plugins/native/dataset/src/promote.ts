@@ -1,5 +1,5 @@
 import type { DatasetRecord } from "@molis-ai/molis-work-contracts/modules/dataset";
-import { DatasetError } from "./error.js";
+import { datasetErrors } from "./error.js";
 import type { DatasetStore } from "./store.js";
 import { isDeepStrictEqual } from "node:util";
 import { nextPinnedVersion, type ArtifactLineHead } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -43,7 +43,7 @@ export function promoteDataset(
   const written = Math.max(current.artifact_version, head?.version ?? 0);
   if (written > 0) options.readArtifact?.({ project_id: projectId, record_id: id, version: written });
   const intent = store.beginPublication(id, projectId, options.actorId, options.expectedVersion ?? current.version, existing ?? undefined, version);
-  if (existing && !isDeepStrictEqual(existing, intent.content)) throw new DatasetError("dataset.publication_conflict", "成果与原发布快照不同，数据表及快照已保留");
+  if (existing && !isDeepStrictEqual(existing, intent.content)) throw datasetErrors.publication_conflict("成果与原发布快照不同，数据表及快照已保留");
   const published = existing ? { artifact_id: "dataset-" + id, version: intent.version } : publishArtifact({
     project_id: projectId,
     record_id: current.id,
@@ -52,7 +52,7 @@ export function promoteDataset(
     source_version: intent.source_version,
     content: intent.content,
   });
-  if (published.artifact_id !== "dataset-" + id || published.version !== intent.version) throw new DatasetError("dataset.publication_conflict", "成果返回身份与发布意图不一致，原快照已保留");
+  if (published.artifact_id !== "dataset-" + id || published.version !== intent.version) throw datasetErrors.publication_conflict("成果返回身份与发布意图不一致，原快照已保留");
   return {
     dataset: store.completePublication(current.id, projectId, intent, published),
     artifact: published,

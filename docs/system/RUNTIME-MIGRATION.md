@@ -18,11 +18,13 @@
 | 2026-10-07 | 第一个样板 | Form 先、Todo 第二；Form 同时作浏览器代码打包与类型检查的样板 |
 | 2026-10-07 | 两套能力机制收敛 | 对外的只走动作；typed 注册表只留作 Runtime 插件的宿主内服务通道，不许再加新项 |
 | 2026-10-07 | 删除项目时别的主人存在 Home 里的该项目数据 | 各主人一起删、可重试：每个按项目分区的 Home 库主人加「项目已删」钩子，删项目提交后逐个清掉该项目的数据，每步记在删除收据里、失败可重试；删前确认框列出会一起删的插件数据 |
-| 2026-10-04 | 内置插件随宿主升级 | 监督器条目标 `bundled: true`，启动时把安装记录升到宿主的版本，保留新 Manifest 仍声明的授权、补上它要求的授权；不再恢复旧发行物 |
+| 2026-10-04 | 内置插件随宿主升级 | 监督器条目标 `bundled: true`，启动时把安装记录升到宿主的版本，保留新 Manifest 仍声明的授权、补上它要求的授权；不再恢复旧发行物（授权这一半 2026-10-10 改了，见本表最后一行） |
 | 2026-10-08 | 版本与发布策略 | 内置插件 Manifest 跟宿主版本；工作区包保持私有 0.0.0 |
 | 2026-10-08 | Runtime 与安装插件声明的 methods | 和内置插件一样注册：启动时注册，停用、卸载、升级时收回（切片 W4-02） |
 | 2026-10-08 | Characters 的代码身份 | 用户没选推荐。Characters 不再是 Runtime 插件：代码并进宿主或一个 Module，界面仍是设置里的一节；安装记录与 Runtime 条目一起删（第 4 波切片） |
 | 2026-10-08 | 第三方插件的安装与信任 | 本地装、首次确认、沙箱里跑，只写计划（见 THIRD-PARTY-PLUGINS.md） |
+| 2026-10-10 | 迁到 Runtime 的内置插件，能力的来源编号（W3-06 C，弹窗） | 随宿主发布的插件（宿主启动名单标 `bundled`）用插件名，创作台、未签名开发插件与第三方用安装编号；已在 Runtime 上的 7 个插件的存量记录由维护七改写（4.2 提供方身份；开发机的真实 Home 10-11 核对时没有要改的） |
+| 2026-10-10 | 迁到 Runtime 的内置插件声明的权限怎么给（W3-06 B，弹窗） | 内置插件安装与每次启动都拿到清单声明的全部权限，必需的和可选的一样；内置插件的权限不能逐项关（4.2 授权第 5 点，POLICY.md 7.8） |
 
 AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`；冻结名单只许减少。
 
@@ -92,6 +94,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 `PluginHostServices`（`packages/contracts/src/platform/plugin.ts`）现在只有 `actions`、项目库键值 `storage`、`artifacts`、`processItems`、`ui`、`events`、`inputs`、`outputs`、`capabilities`。缺：
 
 1. **模型服务**：`services.model`，由 `horizontal/agent-host` 支撑，带登记的指令、`scheduling: "concurrent"` 和 `beforeEffect()`；是 Runtime 插件服务，不是 typed 宿主能力。
+   **已有（W3-06 E）**：`context.services.model`，只给宿主自己运行（非沙箱）、Manifest 声明 `model:invoke`、平台有 Home 的插件；只在声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作里放行；经 `hostTextGeneration` → agent-host，不向 Prologue 传调用编号。写法与限额见 [Prologue AI 手册第 4 节](../platform/PROLOGUE-AI.md)。**这一片不含**：选定某个模型与列出可选模型、图片输入、动作返回后的后台任务里调模型、Home 级实例（`HomePluginExecutor`）上的模型；迁移要用到时先补服务，不在迁移 PR 里补。
 2. **插件自有的 Home 库服务**：按 `{home}/<id>/<id>.db` 打开已有的库，表不变。
 3. **Home 级 Runtime 实例**：`createPluginPlatform` 现在只在每个项目里创建，Home 级的个人插件（Todo、Jelly、Cognia、Images、Alchemist）要有一个 Home 级实例，按项目启用照旧。
 4. **「项目已删」步骤的送达**：见 4.2 末项。这是 2026-10-07 删除项目决定带来的缺口，路线图的 W3-06 描述里没有，需要补进去。
@@ -111,15 +114,15 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
      - **还没逐个核对的**：下列地方也读写带 `provider_id` 的引用，本文没有确认它们迁移后会不会失配，设计稿要查全：搜索索引的 `search_sources` 表（`packages/storage/src/adapters/text-search-index.ts` 第 148 行）和搜索命中编号（`horizontal/search/src/index.ts` 第 110 行的 `encodeSearchHitId`）、角色可选能力的引用（`plugins/native/characters/src/actions.ts` 第 10 行、`plugin.ts` 第 59 行）。
      - **清点命令**：`git grep -n -E 'provider_id: *([A-Za-z_.]*(PLUGIN_ID|plugin_id)|"io\.molis\.work\.[a-z.]+")' -- apps packages plugins modules horizontal ':!tests' ':!*.md' | grep -v -E 'provider_id: [A-Za-z]+\.plugin_id, plugin_id:'`。`grep -v` 滤掉的是各 `*-actions.ts` 登记自己提供方的行，形状是 `provider_id: <X>Manifest.plugin_id, plugin_id: …`。在 origin/main `31c357df` 上输出 20 行：`personal-planning-actions.ts` 那行登记的是系统提供方，不是钉死；指向例外的 6 行不受影响；剩 13 行，分布在 11 个文件，就是上面逐条列的。命令只认 `provider_id: …` 的写法，经变量传递的要在设计稿里另查。
   - **选项。**
-    - (a) **对内置实例让 `provider_id` 保持 `plugin_id`（倾向这个）。** 上面三类后果都不出现：存量授权、步骤、规则和代码里的钉死值都仍然等于登记的 `provider_id`，迁 Pages 也不会让 Inbox 的动作失效，迁移顺序不受牵制。要改的是把 `provider_id` 当 `install_id` 用的查找：`apps/local-host/src/local-web-actions.ts` 第 13 行按 `install_id` 建表，第 17、27、41 行再用 `view.provider.provider_id` 去查；范围要在设计稿里量。
+    - (a) **对内置实例让 `provider_id` 保持 `plugin_id`（倾向这个；用户 2026-10-10 选了它，W3-06 C，已实现）。** 上面三类后果都不出现：存量授权、步骤、规则和代码里的钉死值都仍然等于登记的 `provider_id`，迁 Pages 也不会让 Inbox 的动作失效，迁移顺序不受牵制。要改的是把 `provider_id` 当 `install_id` 用的查找：`apps/local-host/src/local-web-actions.ts` 第 13 行按 `install_id` 建表，第 17、27、41 行再用 `view.provider.provider_id` 去查；范围要在设计稿里量。（已改：登记自己带 `plugin_install_id`，说明读哪一份安装的授权，`local-web-actions.ts` 的 `installOf` 与嵌套检查 `validate_authority` 都按它找安装，不再按 `provider_id`。）
     - (b) **在真实 Home 维护里改写存量引用**（需要用户批准，走备份和拷贝演练）。只覆盖第 1、2 类的数据，改不了第 3 类写死在代码里的值，这些代码也要改：Feed、Inbox、Workflows 对自己的钉死（`retainActionAuthority` 的 `provider_id` 必填）要改成不写死，自身身份从哪来，例如 `ActionCallContext.plugin_install_id`（`packages/contracts/src/platform/actions.ts` 第 70 行）是否够用，要在设计稿里核，可能要宿主或合同补一项；跨插件的钉死（Inbox 对 Pages、`information.plan` 对 Feed 与 Inbox）可以去掉 `provider_id`，因为合同里它是可省略的（`ActionReference.provider_id` 可选，同文件第 34–39 行），代价是放弃「固定原提供方」的保证（该字段的合同注释写的就是这个用途）；首页规则的推荐选项键要改成运行时按目录里 Inbox 的实际提供方算。
     - (c) **接受一次重新授权。** 同样盖不到第 3 类，要做 (b) 里的全部代码改动；另外用户要重新授权 MCP 客户端，工作流步骤和判断规则也要重选。
   - **(b)(c) 带来的顺序约束。** 迁 Pages（W5-01 第 1 组）会让 Inbox 的 `inbox.pages.results`、`inbox.pages.generate` 不可用（`actions.provider_changed`），`pages.ts` 第 69 行的权限核对也被拒；而 Inbox 在第 3 组，且写不出 Pages 的 `install_id`。迁 Feed、Inbox 或 Workflows，会让各自文件里的自钉死核对失败。所以选 (b) 或 (c) 时，对应钉死处的改动必须先于（或在同一个 PR 里跟着）被钉的插件迁移。(a) 没有这个约束，这也是倾向它的原因之一。
 - **授权有两层，都会变，而且对所有迁来的插件一样，不是 Todo 一个的事。**
   1. **动作可不可用，与 `kind` 无关。** 每个经 Plugin Runtime 安装的提供方，都要求安装的 `grants` 覆盖该动作的全部 `permissions`，否则报 `actions.plugin_permission`（`packages/plugin-runtime/src/action-provider.ts` 第 10–20 行）。内核在发现（`packages/kernel/src/action-service.ts` 第 215 行）和每次调用（`action-service.ts` 第 230 行，经 `CapabilityRegistry.invoke` 的 `requireCapability`，`packages/kernel/src/index.ts` 第 152–163 行）时检查，副作用前再检查一次（`action-service.ts` 第 112 行）。构建期插件没有安装记录，所以今天不受这条约束。
-  2. **安装时授予什么。** 监督器只授予 Manifest 里 `required: true` 的权限，除非条目传 `grants`（`packages/plugin-runtime/src/supervisor.ts` 第 37–38 行、第 559–561 行）；内置插件跟宿主的构建时（版本更高、更低或同版本改了清单都一样），安装记录保留「仍声明的旧授权加新的必需授权」，不看条目的 `grants`（`packages/plugin-runtime/src/install-rules.ts` 的 `followBundledBuild`）。
+  2. **安装时授予什么。** 非 `bundled` 的条目：监督器只授予 Manifest 里 `required: true` 的权限，除非条目传 `grants`（`packages/plugin-runtime/src/supervisor.ts` 第 37–38 行、第 559–561 行，`install-rules.ts` 的 `defaultGrants`）。`bundled` 的条目（迁来的内置插件）：安装、每次启动、跟宿主的构建时（版本更高、更低或同版本改了清单都一样）都是 Manifest 声明的全部权限，必需的和可选的一样，条目的 `grants` 不起作用，记录缺了其中任何一项也在启动时补齐（`install-rules.ts` 的 `bundledGrants`、`recordToFollow`、`followBundledBuild`；用户 2026-10-10 的决定，W3-06 B，见第 5 点与 [POLICY.md](../releases/POLICY.md) 第 7.8 节）。此前跟构建时的规则「仍声明的旧授权加新的必需授权」（2026-10-04 的向上跟）已被换掉。
   3. **`kind` 只决定用户在网页里调动作时的调用者权限**：`apps/local-host/src/local-owner-permissions.ts` 把 `kind: "native"` 的目录条目的动作权限算作本机所有者的，非 native 的要求安装的 `grants` 覆盖（`local-web-actions.ts` 的 `localWebActionContext`）。保持 `kind: "native"` 不能让第 1 层放行。
-  4. **后果。** 动作用到的权限里有不是 `required: true` 的，迁移后这些动作就不可用：Todo 的 `todo:write`（`plugins/native/todo/src/manifest.ts` 第 20 行只把 `todo:read` 标必需，写动作要 `todo:read` 加 `todo:write`），Form 的 `model:invoke`（`plugins/native/form/src/manifest.ts` 第 26 行）。Shelf 能用，是因为它的三项权限都是 `required: true`，它的 Runtime 动作只用这三项（`plugins/native/shelf/src/manifest.ts`、`runtime-actions.ts`），不是因为它是 `native`。Form 是第一个样板，所以这一条要在 W4-04 之前定。
+  4. **后果（这是做决定前的分析，内置插件现已不受影响：第 5 点已定，`bundled` 的条目拿到声明的全部权限）。** 若不改规则，动作用到的权限里有不是 `required: true` 的，迁移后这些动作就不可用：Todo 的 `todo:write`（`plugins/native/todo/src/manifest.ts` 第 20 行只把 `todo:read` 标必需，写动作要 `todo:read` 加 `todo:write`），Form 的 `model:invoke`（`plugins/native/form/src/manifest.ts` 第 26 行）。Shelf 当时能用，是因为它的三项权限都是 `required: true`，它的 Runtime 动作只用这三项（`plugins/native/shelf/src/manifest.ts`、`runtime-actions.ts`），不是因为它是 `native`。Form 是第一个样板，所以这一条要在 W4-04 之前定（已在 2026-10-10 定下）。
   5. **选项。** (a) 把动作用到的权限都标 `required: true`：不动平台；但 `required` 同时表示「撤销它整个提供方就不可用」（`action-provider.ts` 第 47–49 行）且不能在安装时拒绝，`model:invoke` 被 Form 有意标成可选，改成必需等于装上就允许调模型。(b) 监督器条目传显式 `grants`：只对第一次安装生效，之后宿主升级走上面第 2 点的路径，新版本新增的权限拿不到，第一次升级就又坏一次，还要改那条路径。(c) 改 bundled 的授予规则：`bundled: true` 的条目安装和升级时都授予 Manifest 声明的全部权限。这复现的是今天的行为（构建期插件的权限都算本机所有者的，且没有逐项撤销），代价是内置插件的授权不能再被逐项撤销，要在设计稿里写明。倾向 (c)，由 W3-06 设计稿拍板；它改的是授权语义，需要评审。**已定并实现（用户 2026-10-10 选 (c)，W3-06 B）：** 内置插件（`bundled`）安装和每次启动都拿到清单声明的全部权限，`bundledGrants`（安装与跟随共用）、`recordToFollow`、`followBundledBuild` 照此改，条目自己的 `grants` 对内置插件不起作用，见 [POLICY.md](../releases/POLICY.md) 第 7.8 节。
 - **放置。** 见 2.2 的放置规则：6 个 Home 级、9 个每项目；与决定原文的差别待用户确认（第 10 节第 3 项）。
 - **项目库里的表。** Inbox、Schedule、Feed 的表在项目库基线里，W3-06 的库服务只写了 Home 库。这一族要么先保持表由 Module 或包自建（现状），只迁动作和界面，要么另设项目库服务；建议先按现状。这也是扩展点清单的 X-5。
@@ -157,7 +160,7 @@ Characters 并进宿主（第 5.4 节）是第 4 波的另一片，不在这条�
 2. 改：`apps/workbench/src/ui-composition.ts`、`renderer.ts`、`goals-page-renderer.ts` 里 Form 的挂载（`FORM_SURFACE_SLOTS`、`renderFormContribution`、`renderFormNativePluginSurface`）改为 Runtime 视图；`creative-artifacts.ts` 里 Form 的成果发布与读取端口（`registerFormArtifactVersion`、`readFormArtifactVersion`）换成 `services.artifacts`，还是保留为宿主端口，由样板设计定。
 3. 加：包里 `plugin.ts`（`createFormPlugin`，`start()` 兑现 Manifest 的每条视图、路由、动作）；`project-plugins.ts` 的监督器条目（`bundled: true`），放在每个项目一个的实例里（2.2 的放置规则）；`tests/builtin-plugin-assembly-gate.test.ts` 里从 `BUILD_TIME_ASSEMBLED` 和 `NATIVE_PLUGIN_HTTP_FILES` 移到 `RUNTIME_ASSEMBLED`。
 4. 保持：`plugin_id`、`{home}/form/form.db` 的位置与结构、界面外观、动作 id 与版本。不碰真实 Home 的数据。
-5. 开工前要已经定下的：授权规则（4.2，Form 的 `model:invoke` 是可选权限，不定就会让 Form 的 AI 动作全部不可用）、「项目已删」步骤的送达方式（Form 的表带 `project_id`）。
+5. 授权规则与提供方身份已定（用户 2026-10-10，4.2，W3-06 B、C）：Form 的条目标 `bundled: true`，所以 `model:invoke` 虽是可选权限，也随清单声明的全部权限一起授予，Form 的 AI 动作不会因此不可用；动作登记在 `plugin_id` 之下。开工前仍要定下的只有「项目已删」步骤的送达方式（Form 的表带 `project_id`）。
 
 验收：Form 的现有用例全过；`tests/builtin-plugin-assembly-gate.test.ts` 的名单缩短；浏览器里把问卷创建、填写、看结果走一遍；W4-01 的探针夹具对 Form 同样成立（安装、发现、调用、升级、停用、卸载）；`model:invoke` 的动作在迁移后仍可用；删除一个有问卷的项目后，Form 的该项目数据被清掉。
 
@@ -165,7 +168,7 @@ Characters 并进宿主（第 5.4 节）是第 4 波的另一片，不在这条�
 
 **Todo 是第二个迁移，排在 Form 之后、其余各族之前**（2026-10-07 决定）。W5-01 的描述把「Dataset/PPT/Pages」列在「Todo」前面，只是那条描述的列举顺序，不改这个决定。
 
-Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用到 Home 级实例、Home 库服务、`services.model`（`todo-actions.ts` 注入 `completeText`）。迁之前要先回答 4.2 的提供方身份和授权规则：Todo 的 `todo:write` 是 `required: false`，不处理，迁移后所有写动作不可用。它的表带可空的 `project_id`，「项目已删」步骤只清带项目的条目，个人待办留下。
+Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用到 Home 级实例、Home 库服务、`services.model`（`todo-actions.ts` 注入 `completeText`）。提供方身份和授权规则已定（用户 2026-10-10，4.2，W3-06 B、C）：Todo 迁来时条目标 `bundled: true`，`todo:write` 虽是 `required: false`，也随清单声明的全部权限一起授予，写动作不会因此不可用；动作登记在 `plugin_id` 之下。它的表带可空的 `project_id`，「项目已删」步骤只清带项目的条目，个人待办留下。
 
 ### 5.3 其余各族（W5-01，一个 PR 一族）
 
@@ -173,7 +176,7 @@ Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用
 
 1. 文档创作族：Dataset、PPT、Pages。与 Form 同形，样板之后最稳。
 2. 个人族：Jelly、Cognia、灵光、Images。其中 Jelly、Cognia、Images 依赖 Home 级实例；灵光按 2.2 的放置规则是每个项目一个。Images 有长驻的 `ImagesHostService`，有一处额外适配。
-3. 流程族：Schedule、Workflows、Inbox。Schedule 的提醒和定时操作与宿主调度器相连，Workflows 要通过动作目录调其他插件，Inbox 与 Feed 有判断场景绑定；碰到 4.2 的项目库表问题。Inbox 和 Workflows 还在代码里写死了自己的 `provider_id`，Inbox 还钉着 Pages（4.2 第 3 类后果）：如果 4.2 不选「保持 `plugin_id`」，这一族里 Inbox 的钉死处要在第 1 组的 Pages 迁移之前或同一个 PR 里改掉，顺序要跟着调。
+3. 流程族：Schedule、Workflows、Inbox。Schedule 的提醒和定时操作与宿主调度器相连，Workflows 要通过动作目录调其他插件，Inbox 与 Feed 有判断场景绑定；碰到 4.2 的项目库表问题。Inbox 和 Workflows 还在代码里写死了自己的 `provider_id`，Inbox 还钉着 Pages（4.2 第 3 类后果）：4.2 已定内置插件保持 `plugin_id`（用户 2026-10-10，W3-06 C），这些钉死处不用改，迁 Pages 也不会让 Inbox 的动作不可用，迁移顺序不受它牵制。
 4. Feed：被 29 个宿主文件 import，来源、信号、连接器、Inbox 都和它相连，单独写计划再迁。
 5. 混合插件收拢：Shelf（删 `shelf-native-plugin-http.ts`、`personal-native-plugin-http.ts`、两处 `registerProvider`）。
 6. Alchemist：最后迁，它有自己的宿主服务和每项目工作室库。
@@ -203,7 +206,7 @@ Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用
 5. 目录条目（`builtin-plugins.ts`）保留。**这一条偏离任务书**：`docs/prompts/repository-anti-corruption.md` §4.6 写的是迁一个就删掉对应的宿主 `<插件>-actions.ts`、`<插件>-native-plugin-http.ts` 和工作台目录条目。保留的原因：Runtime 装配的插件同样有目录条目，门禁的第二项断言要求它们有；目录条目还带着 Manifest 里没有的工作台字段（`summary`、`personal`、样式、客户端工厂、`searchRow`、`instructions`、`agent`、`methods` 的正文）。手写的目录条目由 W5-02 改成从各包的声明生成，到那时它就没了，意图与任务书一致，只是晚于单个迁移 PR。待用户确认（第 10 节第 9 项）。工作台里这个插件的挂载改为 Runtime 视图。
 6. 客户端请求改到 `/api/plugins/<plugin_id>/…`。
 7. 门禁名单：从 `BUILD_TIME_ASSEMBLED`、`NATIVE_PLUGIN_HTTP_FILES` 移走，加进 `RUNTIME_ASSEMBLED`。
-8. 提供方身份、授权规则（动作用到的每一项权限在迁移后仍然授予）、`kind` 按 4.2 的结论办。**迁移前先清点写死的 `provider_id`**：跑 4.2 提供方身份第 3 类后果里的清点命令，凡指向被迁插件的行（它自己的、别的插件钉着它的）都要在这个 PR 里有交代：4.2 选保持 `plugin_id` 的，这些行不变，PR 描述里写明；选别的，这些行都要改，并加用例证明迁移后仍然走通（例如迁 Pages 后 Inbox 的 `inbox.pages.generate` 仍可用，迁 Feed 后 Feed 的嵌套调用仍过得了入口的权限核对）。
+8. 提供方身份与授权规则已定（用户 2026-10-10，4.2，W3-06 B、C）：条目标 `bundled: true`，动作登记在 `plugin_id` 之下，清单声明的每一项权限（必需的和可选的）在迁移后都授予；`kind` 按 4.2 授权第 3 点办。**迁移前先清点写死的 `provider_id`**：跑 4.2 提供方身份第 3 类后果里的清点命令，凡指向被迁插件的行（它自己的、别的插件钉着它的）都要在这个 PR 里有交代：提供方身份保持 `plugin_id`，这些行不变，PR 描述里写明；被别的插件钉着的动作，加用例证明迁移后仍然走通（例如迁 Pages 后 Inbox 的 `inbox.pages.generate` 仍可用，迁 Feed 后 Feed 的嵌套调用仍过得了入口的权限核对）。
 9. `methods`：插件有 `methods` 的，W4-02 之后加一个用例，停用后方法不再登记。
 10. **「项目已删」步骤**：2.2 的表里标「有」的插件，按 4.2 末项定下的送达方式保持这一步可用，并加用例：删除一个有该插件数据的项目后，这个项目的数据没了、别的项目的还在；插件被停用时也成立；这一步失败后重试成功。
 11. 跑受影响用例；浏览器里走一遍主路径；W6-02 之后再加生命周期用例（升级、停用、卸载）。
@@ -212,8 +215,8 @@ Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用
 ## 7. 数据与真实 Home
 
 - **数据不动**：库仍在 `{home}/<id>/<id>.db`，由平台库服务打开，表和版本号不变（2026-10-07 决定的主要好处就是这个）。迁移不触发任何真实 Home 维护。
-- **安装记录是新的**：监督器首次启动一个迁来的插件时，会新建安装记录并授予必需权限（`#activate`）。项目里启用了哪些插件记在项目目录里（`packages/contracts/src/modules/projects.ts` 的 `plugins` 列表），迁移不应改变这份记录。
-- **会变的是引用**：见 4.2 的提供方身份。如果选择改写存量引用，那是对真实 Home 的数据操作，必须先问用户，先备份、在拷贝上演练、逐项核对；而且改写只覆盖存储里的引用（MCP 授权、工作流步骤、判断规则的场景提供方），代码里写死的 `provider_id` 要另外改，改写数据不能让它们恢复。
+- **安装记录是新的**：监督器首次启动一个迁来的插件时，会新建安装记录，并授予清单声明的全部权限，必需的和可选的一样（迁来的插件是 `bundled`，`PluginRuntime.install` 带 `bundled` 时用 `bundledGrants`；用户 2026-10-10 的决定，[POLICY.md](../releases/POLICY.md) 第 7.8 节）。项目里启用了哪些插件记在项目目录里（`packages/contracts/src/modules/projects.ts` 的 `plugins` 列表），迁移不应改变这份记录。
+- **引用不变（已定）**：4.2 的提供方身份已定内置插件保持 `plugin_id`（用户 2026-10-10，W3-06 C），迁来的插件存量的 MCP 授权、工作流步骤、判断规则的场景提供方和代码里写死的 `provider_id` 都不用改写。要改写存量引用的只有已在 Runtime 上的 7 个插件（维护七，[CHECKLIST.md](../releases/CHECKLIST.md) 第 4.3 节）：开发机的真实 Home 已于 2026-10-11 核对，没有要改写的记录，没写真库；别的 Home 照那一节的做法，先问用户、先备份、在拷贝上列出与演练、逐项核对，工具从 Git 历史取。
 - **删除项目的路径会变**：迁移不改变「项目已删」步骤清什么，但改变它怎么被调用（4.2 末项）。迁移之后第一次在真实 Home 上删项目会走新路径，所以每一族迁完，要在 Home 的拷贝上演练一次：删一个有各插件数据的项目，核对删除收据里每个插件一步，再逐库核对数据没了、别的项目的还在。
 - **Characters 的安装记录**：并进宿主时删掉各项目库里的 `io.molis.work.characters` 安装记录（5.4 第 6 点），那是对真实 Home 的项目库删行，按同样的流程做，不在迁移 PR 里顺手做。
 - 迁移完成后，`uninstall --purge` 列表（`PERSONAL_HOME_SQLITE_STORES`）不变。Runtime 插件卸载时「删除私有存储」今天指 `services.storage`（项目库里的键值）；W3-06 的库服务要保证卸载迁来的插件不删除 `{home}/<id>/<id>.db`，保留与否仍按 `uninstall --purge` 的现有规则。
@@ -240,8 +243,8 @@ Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用
 
 ## 10. 待决事项
 
-1. **提供方身份**（4.2）：内置实例保持 `plugin_id`（倾向）、改写存量引用、还是接受重新授权。后两项不只动用户的真实 Home，还要改写死 `provider_id` 的 13 行代码（11 个文件）：自钉死要改成不写死，跨插件的钉死要去掉 `provider_id` 或另想办法（4.2 选项 (b)），而且 Pages、Inbox 的迁移顺序受它约束；保持 `plugin_id` 则这些都不用动。涉及用户的真实 Home，要用户定。
-2. **内置插件的授权规则**（4.2）：把动作用到的权限都标必需、监督器条目传显式 `grants`、还是改 bundled 的授予规则（倾向最后一个）。对所有迁来的插件一样，Form 样板之前必须定。由 W3-06 设计稿拍板，需要评审，因为它改的是授权语义。
+1. **提供方身份**（4.2）：**已定（用户 2026-10-10，W3-06 C）：内置插件一律用插件名（`plugin_id`），实现见 4.2 提供方身份一条的「已定并实现」；下面是做决定前的写法。** 内置实例保持 `plugin_id`（倾向）、改写存量引用、还是接受重新授权。后两项不只动用户的真实 Home，还要改写死 `provider_id` 的 13 行代码（11 个文件）：自钉死要改成不写死，跨插件的钉死要去掉 `provider_id` 或另想办法（4.2 选项 (b)），而且 Pages、Inbox 的迁移顺序受它约束；保持 `plugin_id` 则这些都不用动。涉及用户的真实 Home，要用户定。
+2. **内置插件的授权规则**（4.2）：**已定（用户 2026-10-10，W3-06 B）：改 bundled 的授予规则，内置插件拿清单声明的全部权限，实现见 4.2 授权一条第 5 点。** 下面是做决定前的写法：把动作用到的权限都标必需、监督器条目传显式 `grants`、还是改 bundled 的授予规则（倾向最后一个）。对所有迁来的插件一样，Form 样板之前必须定。由 W3-06 设计稿拍板，需要评审，因为它改的是授权语义。
 3. **放置规则的读法**（2.2）：本计划按「提供方今天怎么登记」放（6 个 Home 级、9 个每项目一个），Form、Dataset、PPT、Pages、灵光、Workflows 因此在每个项目一个的实例里。如果决定「个人插件装在一个 Home 级实例」要按目录 `personal` 标志字面读，这 6 个也上 Home 级实例。要用户确认。
 4. **项目库内的插件表**（4.2）：Inbox、Schedule、Feed 先按现状只迁动作和界面，还是另设项目库服务。
 5. **「项目已删」步骤的送达**（4.2 末项）：倾向做成 Home 库登记项里的「按文件清除某个项目」函数。由 W3-06 与 W4-11 的设计稿定；要补进 W3-06 的描述。

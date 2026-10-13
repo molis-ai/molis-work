@@ -58,6 +58,10 @@
 
 W4-08 给记忆、放置、搜索加同类规则时，可以在同一个模块里加表项，或改名为 `platform-product-services.mjs`。验证：`node scripts/run-tests.mjs tests/health-gates-kernel-contextual.test.ts`（真实的内核没有问题；每条规则在内存里的内核源码上被违反一次，必须报出对应的规则编号；拆成 `contextual/` 目录、情境排序导入新的核心文件、核心自己的错误码与定时器不能变红；入口里的接线在临时仓库里验证，`--base main` 要失败，改 `baseline.json` 没用）。该测试文件名落在 CI「Health gates reject what they claim to」那一步的 `tests/health-gates-*.test.ts` 里，不用改 `ci.yml`。
 
+## 错误模型（`error-scan.mjs`、`error-owners.mjs`、`error-metrics.mjs`，W3-02-B）
+
+四个按文件计数、只许减少的数（`errorSubclasses`、`errorCodeShape`、`errorStatusDecisions`、`errorCodeOwner`）和一张主人表（`tooling/gates/error-owners.json`，指标 `errorOwnerTable`）。口径、读不到的（已知限制）、表的规则和「表只许变严」的含义写在 [tooling/gates/README.md](../../tooling/gates/README.md) 的「错误模型」一节，实现在三个模块开头的注释里：`error-scan.mjs` 一次解析读出类、代码字面量和状态判断，`error-owners.mjs` 读表、认文件的主人、数不合主人名的码，`error-metrics.mjs` 把它们接成入口的指标。突变用例（每条规则在临时仓库里被违反一次）在 `tests/health-gates-errors.test.ts`，每个判断（读哪些名字、数字落在哪些位置、表怎样挑文件的主人、两张表比出什么算松）的小用例在 `tests/health-gates-error-pieces.test.ts`：后一个文件里的每条都对应过一次「把门禁里的这一处改坏，其余测试仍然全绿」（CI 里由 `tests/health-gates-*.test.ts` 的通配跑到）。
+
 ## 引用怎么写，门禁才认
 
 门禁读的是**行内代码**（`like this`），围栏代码块是示例，不读。

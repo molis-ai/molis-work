@@ -15,8 +15,9 @@ import {
   type TodoStatus,
   type TodoWaiting,
 } from "@molis-ai/molis-work-contracts/modules/todo";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { addDays, isTodoDate, isTodoInstant, isTodoTime } from "./dates.js";
-import { TodoError } from "./error.js";
+import { todoErrors } from "./error.js";
 
 /**
  * Who is asking and what they may see. A caller inside a project sees personal, unplaced and that
@@ -101,7 +102,7 @@ export class TodoStore {
   get(id: string, access: TodoAccess): TodoItem {
     const row = this.db.prepare("SELECT * FROM todo_items WHERE id = ?").get(id) as ItemRow | undefined;
     const item = row ? fromRow(row) : null;
-    if (!item || !visible(item, access)) throw new TodoError("todo.not_found", "找不到这件待办，可能已被删除");
+    if (!item || !visible(item, access)) throw todoErrors.not_found("找不到这件待办，可能已被删除");
     return item;
   }
 
@@ -213,7 +214,7 @@ export class TodoStore {
   /** “知道了”: this reminder stops showing. Not a change to the todo itself, so its revision stays. */
   acknowledgeReminder(id: string, access: TodoAccess): TodoItem {
     const current = this.get(id, access);
-    if (!current.remind_at) throw new TodoError("todo.invalid", "这件待办没有提醒");
+    if (!current.remind_at) throw todoErrors.invalid("这件待办没有提醒");
     if (current.reminder_acknowledged_at) return current;
     const at = this.now().toISOString();
     this.db.prepare("UPDATE todo_items SET reminder_acknowledged_at = ? WHERE id = ? AND revision = ?").run(at, id, current.revision);
@@ -241,14 +242,14 @@ export class TodoStore {
     if (change.add) {
       const link = this.normalizeLink(change.add, id, access);
       const duplicate = links.find(existing => existing.kind === link.kind && existing.subject.kind === link.subject.kind && existing.subject.id === link.subject.id);
-      if (duplicate) throw new TodoError("todo.invalid", "已经关联过了");
+      if (duplicate) throw todoErrors.invalid("已经关联过了");
       if (links.length >= 50) throw invalid("一件待办最多关联 50 项");
       links.push(link);
       before = { link_removed: null };
       after = { link_added: link };
     } else if (change.remove_link_id) {
       const link = links.find(existing => existing.link_id === change.remove_link_id);
-      if (!link) throw new TodoError("todo.not_found", "这项关联已经不在了");
+      if (!link) throw todoErrors.not_found("这项关联已经不在了");
       links = links.filter(existing => existing.link_id !== change.remove_link_id);
       before = { link_added: link };
       after = { link_removed: link.link_id };
@@ -327,9 +328,9 @@ export class TodoStore {
     const rows = target.batch_id
       ? this.db.prepare("SELECT * FROM todo_changes WHERE batch_id = ? ORDER BY rowid").all(target.batch_id) as unknown as ChangeRow[]
       : this.db.prepare("SELECT * FROM todo_changes WHERE change_id = ?").all(target.change_id ?? "") as unknown as ChangeRow[];
-    if (!rows.length) throw new TodoError("todo.not_found", "找不到要撤销的修改");
+    if (!rows.length) throw todoErrors.not_found("找不到要撤销的修改");
     const changes = rows.map(changeFromRow);
-    if (changes.some(change => change.reverted_by)) throw new TodoError("todo.conflict", "这次修改已经撤销过了");
+    if (changes.some(change => change.reverted_by)) throw todoErrors.conflict("这次修改已经撤销过了");
     if (changes.some(change => change.kind === "revert")) throw invalid("撤销本身不能再撤销，请直接修改");
     // One todo may have several changes in a batch (created, then linked); they are undone together, newest first.
     const groups = new Map<string, TodoChange[]>();
@@ -340,7 +341,7 @@ export class TodoStore {
       for (const [itemId, group] of groups) {
         const current = this.get(itemId, access);
         const latest = Math.max(...group.map(change => change.revision_after));
-        if (current.revision !== latest) throw new TodoError("todo.conflict", `「${current.title}」之后又被改过，不能撤销这次修改`);
+        if (current.revision !== latest) throw todoErrors.conflict(`「${current.title}」之后又被改过，不能撤销这次修改`);
         if (group.some(change => change.kind === "create")) {
           this.db.prepare("DELETE FROM todo_changes WHERE item_id = ?").run(current.id);
           this.db.prepare("DELETE FROM todo_requests WHERE item_id = ?").run(current.id);
@@ -410,7 +411,7 @@ export class TodoStore {
     const current = this.get(id, access);
     assertRevision(current, expectedRevision);
     if ((current.archived_at !== null) === archived) return { item: current, change_id: null };
-    if (archived && current.status !== "done" && current.status !== "cancelled") throw new TodoError("todo.invalid", `「${current.title}」还没完成或取消，不能归档`);
+    if (archived && current.status !== "done" && current.status !== "cancelled") throw todoErrors.invalid(`「${current.title}」还没完成或取消，不能归档`);
     const at = this.now().toISOString();
     const next: TodoItem = { ...current, archived_at: archived ? at : null, updated_at: at, revision: current.revision + 1 };
     const changeId = crypto.randomUUID();
@@ -569,7 +570,7 @@ function normalizeFields(patch: TodoFields, current: TodoItem | null, access: To
   }
   if (patch.important !== undefined) {
     if (typeof patch.important !== "boolean") throw invalid("重要标记无效");
-    if (access.actor !== "user" && patch.important !== (current?.important ?? false)) throw new TodoError("todo.forbidden", "重要标记只能由你自己设置");
+    if (access.actor !== "user" && patch.important !== (current?.important ?? false)) throw todoErrors.forbidden("重要标记只能由你自己设置");
     out.important = patch.important;
   }
   if (patch.waiting !== undefined) {
@@ -584,7 +585,7 @@ function normalizeFields(patch: TodoFields, current: TodoItem | null, access: To
   }
   if (patch.placement !== undefined) {
     if (patch.placement === "project") {
-      if (!access.projectId) throw new TodoError("actions.project_required", "要放进项目，请在那个项目里操作");
+      if (!access.projectId) throw new ActionError("actions.project_required", "要放进项目，请在那个项目里操作");
       // "Into the project" means the project the caller is in; other projects are not addressable by id.
       // A todo already in some project stays there, so resending the same placement never moves it silently.
       out.placement = "project";
@@ -647,8 +648,8 @@ function assertRevision(item: TodoItem, expected: number | undefined): void {
 }
 
 const text = (value: unknown, max: number) => typeof value === "string" && value.trim().length > 0 && value.length <= max;
-const invalid = (message: string) => new TodoError("todo.invalid", message);
-const conflict = (title?: string) => new TodoError("todo.conflict", title ? `「${title}」已在别处修改，请重新读取后再改` : "待办已在别处修改，请重新读取后再改");
+const invalid = (message: string) => todoErrors.invalid(message);
+const conflict = (title?: string) => todoErrors.conflict(title ? `「${title}」已在别处修改，请重新读取后再改` : "待办已在别处修改，请重新读取后再改");
 
 function fromRow(row: ItemRow): TodoItem {
   return {

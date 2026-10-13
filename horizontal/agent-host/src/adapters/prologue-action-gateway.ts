@@ -98,13 +98,6 @@ function inputSchemaError(error: unknown, schema: ActionView["action"]["input_sc
   throw error;
 }
 
-/**
- * The Host's action gateway as one SDK pack: three tools instead of one per action.
- *
- * Every call reads the directory again, so what a round may use is what is offered now: an action switched off,
- * uninstalled or changed since the round began is refused, and one installed since is found. Reads run at once;
- * a change is a separate tool whose every call is held for the person's review of its exact arguments.
- */
 function guardGatewayTool(run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>, runSignal?: AbortSignal): ToolRunner {
   return async call => {
     const abort = new AbortController();
@@ -124,6 +117,13 @@ function guardGatewayTool(run: (args: Record<string, unknown>, signal: AbortSign
   };
 }
 
+/**
+ * The Host's action gateway as one SDK pack: three tools instead of one per action.
+ *
+ * Every call reads the directory again, so what a round may use is what is offered now: an action switched off,
+ * uninstalled or changed since the round began is refused, and one installed since is found. Reads run at once;
+ * a change is a separate tool whose every call is held for the person's review of its exact arguments.
+ */
 export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal) {
   // Capabilities this round has seen offered (found or used): one missing later was taken away, not guessed.
   const known = new Set<string>();

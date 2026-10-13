@@ -2,6 +2,8 @@
 
 > 远端接续请先读文末「§19 远端交接（2026-10-13，当前接续入口）」：它自成一体（分支与 PR、证据等级、没完成的、下一步与前置、跨线约定、决策、工作规则、复现命令）。§17 是 2026-10-11 的旧交接，已被取代，只作历史。
 
+> 统筹更正（2026-10-13 晚）：本行之后的状态句写于知道 #471/#472 之前。D7 的「正式 SDK 来源」在 main 上已不成立，合并顺序已调整。先读 §19 开头的「统筹补充」。
+
 状态：执行中（2026-10-13）。**SDK 一侧：** S1（输入身份与读到回执）、S2（会话级持久排队）、S3（处理说明与有界提醒）已合进 Prologue main（PR #4、#5）；S4（任务图 / 待办 / 问题引用输入）工程通过，Prologue PR #10 可合、未合——都是工程通过，真实 Provider、Molis 生产入口、用户实操未跑。**Molis 一侧：** 只有需求书与合同设计，外加独立体验预览 R0（`scripts/` 下，不连 Home，已并进本交接分支 #409，工程通过，用户本人验收未进行）；生产接入（阶段 1 与阶段 3）等 D7（采用线 #408 合入 main），acknowledge-inputs 在面板里的显示与措辞（D16）归本线、接 S3 时定。§14 的九项已按推荐定下（用户 2026-10-09「按你推荐，开工」），D10–D16 见 §14。进度记在 §16，当前接续入口是 §19。
 
 覆盖所有 AI 对话场景里「用户输入的处理反馈」。Coding 是验证样本，全局助理是第二个首批场景；同时给出个人助理等对话场景的深化方向，以及其他 AI 场景的适用性判断。界面上的 Option、推荐动作和交互卡片归 `specs/ai-interaction-experience`（主检出里未入库的需求书，分工见 §13.2）；本文只拥有「输入」这条生命周期，以及它与任务、结果的关联。
@@ -1000,6 +1002,14 @@ Molis 层的事实（L0「发送中」、页面代写来源、本人的纠正与
 > - **#471**（yijunw0212，10-13 08:24 UTC，78 个文件）把桌面 Computer Use 合进 main，并把 main 的 vendored SDK 换成 `prologue-sdk-0.0.0-rc.1-computer-use.tgz`。它的来源是 Prologue `d4908c11`（分支 `feat/desktop-computer-use`，基于 `c4b9fde3` = `4f7110fe` + 采用修正 + 5 个 Computer Use 提交）；provenance 写着 `pushed: false`，这个提交**不在 Prologue main，也不在 GitHub 远端**。这份包**不含**已进 Prologue main 的 S1–S3、带类型问卷（`a06ae62e`）、P1 合同、P2a–P2f。main 上同时还留着旧的 side-panel-memory 包与补丁（两份 tgz）。#471 还新增了右栏的电脑格（`apps/workbench/src/side-panel-computer.ts`）、`contracts/services/computer.ts`、`services/ui-surfaces.ts`，改了助理服务、`assistant-island.ts`、`prologue-node.ts`、`prologue-stream.ts`、`contracts/services/agent-host.ts`，并把 10-09 版的 `specs/ai-interaction-experience/spec.md` 与参考图带进了 main。
 > - **#472**（yijunw0212，10-13 10:54 UTC，93 个文件 +3399/−953）把旧采用树 `feat/prologue-adoption` 的 10 个提交（10-09 的 `77fde104`…`8b1a0522`）合进 main：一轮的推理力度、运行中换模型、逐轮写入记录（约等于 A1）、灵光流式（A3 的一部分）、助理把交出去的工作收回来后接着做（`8b1a0522`「第 14 项」，A0 当时明确不纳入的私有接续）、变化等待（`b3235bb1`/`8c0b60fb`，约等于 A4）。它沿用 #471 的 computer-use 包，没有换包。main 上的 `specs/prologue-adoption/spec.md` 是 10-09 的旧版（标题「Prologue 新能力接入：修复、适配与功能优化」）。
 > - 统筹层的说明与后续顺序见远端分支 `coordination/handoff-2026-10-13` 的 `coordination/2026-10-13/README.md` §2a。
+> - **以下更正优先于本节下文（统筹审查，2026-10-13）：**
+>   1. 状态句与 §19.5-2「D7 = #408 合进 main」、顺序「① #408 → ② #411 → ③ #410 → ④ #409」：已过时。D7 第一项在 main 上不成立（main 的包来自未进上游的 `d4908c11`）；本线的 Molis 生产接入等「Prologue main + Computer Use 分支」合流后的统一包换进 main，再由统筹重判 D7。新顺序见 README §2a-4。
+>   2. §19.5-4「Molis main 现在 vendored 的是 S1 之前的 `9fc3b173`」：main 现在是 `computer-use.tgz`（`d4908c11`，不含 S1–S3）；`9fc3b173` 来源的 side-panel-memory 包是留在 main 上的第二份旧包。
+>   3. §19.4-1「统筹的 Molis 全量回归占着锁」：已过时，暂停时没有任何东西在跑，锁全部空闲。
+>   4. §19.2 的 head：#409 现在是 `7430b452`；它和 main **没有冲突**（`git merge-tree` 干净）。
+>   5. §19.6「交互线 C1+H1 等 #408 进 main」：改成等统一 SDK 包进 main。
+>   6. Prologue #10（S4）的 head 是 `a0ff62e1`，已推送（统筹代推）；合并前要在 `a0ff62e1` 上先 build dist 再跑一次 SDK 全量与消费者检查（之前的全量是在合 P2f 之前的 `80d8d8d3` 上跑的）。
+> - 文中 `coordination/2026-10-13/…` 都是远端分支 `coordination/handoff-2026-10-13` 上的文件（原来写的本机路径 `.claude/locks/…` 已统一改成这里）。
 >
 > **对本线的影响：** Molis main 现在的 SDK 包（computer-use，来源 `d4908c11`）**不含 S1–S3**，所以 D7 的第一项「正式 SDK 来源」在 main 上不成立；采用线只有旧提交进了 main（#472），#408 还没进。Molis 侧的生产接入要等采用线把「Prologue main + Computer Use 分支」合流后的统一包换进 Molis main，再由统筹重新判定 D7。#471/#472 都改了助理服务和 `assistant-island.ts`（你的阶段 1、阶段 3 会动这两处），恢复后先合 main、按防腐清单复查。S4（Prologue #10）照旧可以合进 Prologue main，不受影响。
 
@@ -1047,7 +1057,7 @@ SDK 一侧的四刀（S1 输入身份与读到回执、S2 会话级持久排队�
 
 ### 19.4 没完成的
 
-1. **R0 浏览器用例在 #409 上还没重跑**：`tests/input-receipts-slice.e2e.test.ts` 要持 browser 锁（`.claude/locks/slot.sh try browser <owner>`），统筹的 Molis 全量回归占着锁；锁放开后补跑，结果记进 §18.8。
+1. **R0 浏览器用例在 #409 上还没重跑**：`tests/input-receipts-slice.e2e.test.ts` 要持 browser 锁（`coordination/2026-10-13/tools/slot.sh try browser <owner>`），统筹的 Molis 全量回归占着锁；锁放开后补跑，结果记进 §18.8。
 2. **S4 没合进 Prologue main**（PR #10）。
 3. **Molis 的生产接入（阶段 1 与阶段 3）一行没写**，等 D7（见 19.5）。
 4. **D16**：`acknowledge-inputs` 在助理面板里怎么显示、用什么措辞——采用线暂时在 `assistant-service.ts` 的 `presentActivity` 里把它藏了（裸工具名不能给人看），归本线，在 Molis 接 S3 时定。方向见 §14 D16；R0 预览已按「说明显示在对应输入下面、不出现裸工具名」画了。
@@ -1058,7 +1068,7 @@ SDK 一侧的四刀（S1 输入身份与读到回执、S2 会话级持久排队�
 
 1. **（SDK）合 S4**：Prologue main 现在含 P2a–P2f。先 `pnpm --filter @prologue/sdk run build` 重建 dist，再跑 SDK 全量（`--maxWorkers=2`）和打包消费者检查，通过后由统筹合 #10。
 2. **D7 = 采用线 PR #408（`feature/handoff-prologue-adoption`）合进 Molis main。** D7 的定义：正式 SDK 来源、Molis 默认包路径验证、采用线合入 Molis main，三项都满足。统筹定的合 main 顺序：① #408（批量全量 + 防腐复查 + `Verify` 后合）→ ② #411（情境线）→ ③ #410（交互线；C1+H1 等 #408 进 main 后再并入）→ ④ #409（本线 R0；生产接入等 D7）。
-3. **#408 进 main 之后**：把 main 合进 #409；按 `.claude/locks/ANTI-CORRUPTION-REVIEW.md`（统筹分支里有，机器检查 16 条、人工检查 27 条、与防腐在途 16 片的交界表；注意错误模型门禁 `defineErrorCodes`、浏览器请求统一走 `packages/ui-host/src/request-client.ts`）复查本线自己的 diff，结果写进本 spec；然后补跑 R0 浏览器用例。
+3. **#408 进 main 之后**：把 main 合进 #409；按 `coordination/2026-10-13/ANTI-CORRUPTION-REVIEW.md`（统筹分支里有，机器检查 16 条、人工检查 27 条、与防腐在途 16 片的交界表；注意错误模型门禁 `defineErrorCodes`、浏览器请求统一走 `packages/ui-host/src/request-client.ts`）复查本线自己的 diff，结果写进本 spec；然后补跑 R0 浏览器用例。
 4. **换包**：Molis 的 vendored SDK 换成含 S1–S4 的版本（Molis main 现在 vendored 的是 S1 之前的 `9fc3b173`，没有 `projectInputReceipts`）。**同一个 PR 里** R0 预览改成现场调用 `projectInputReceipts` / `session.inputQueue()`，删掉录好的投影文件，只留事件账（§18.2）；换包 PR 没验证不合。
 5. **阶段 1（Molis，§11）**：1a 抽取（`prologue-inputs.ts`、`assistant-inputs.ts`、`input-receipts-client.ts`）→ 1b 合同（新子路径 `services/agent-inputs`，L0/L1 与来源；`AgentRunControl.steer` 加 `key` / `interrupt` / `source`，与交互线 D15 的先后）→ 1c agent-host → 1d Coding → 1e 助理。先写模块合同（§6.2 草案）再实现，别在 `services/agent-host.ts` 里加行（巨大单元，W5-09 会拆）。
 6. **阶段 3**：3a 投影 L2–L4 并去掉阶段 1 的推导 → 3b 动作 → 3c 共享组件（回执条等进设计系统 `/__ui/catalog`，Coding 与助理改用）→ 3d Coding → 3e 助理；这一步里定 D16 的措辞。
@@ -1085,7 +1095,7 @@ SDK 一侧的四刀（S1 输入身份与读到回执、S2 会话级持久排队�
 
 ### 19.8 工作规则（用户原话 + 统筹整理）
 
-- 2026-10-12 用户：「优先开发，全量回归测试不用每次都触发，攒一波一起弄，除非必须」——平时只守整机同时最多一个构建、一个浏览器用例批次（`build` / `browser` 两把锁，`.claude/locks/slot.sh try|release <build|browser> <owner>`，跑完即放），每次只跑定向用例，不自己跑全量；全量由统筹批量排。（Prologue 的 PR 例外：各线自己跑 SDK 全量与干净包消费者检查，写进 PR 证据，`--maxWorkers=2`。）
+- 2026-10-12 用户：「优先开发，全量回归测试不用每次都触发，攒一波一起弄，除非必须」——平时只守整机同时最多一个构建、一个浏览器用例批次（`build` / `browser` 两把锁，`coordination/2026-10-13/tools/slot.sh try|release <build|browser> <owner>`，跑完即放），每次只跑定向用例，不自己跑全量；全量由统筹批量排。（Prologue 的 PR 例外：各线自己跑 SDK 全量与干净包消费者检查，写进 PR 证据，`--maxWorkers=2`。）
 - 2026-10-13 用户：「不用单开PR，每个线都只在之前的交接PR里commit，因为有另外的防腐线在做代码质量和架构升级，所以单开PR的话，如果防腐有改动，容易导致架构问题」——Molis 侧本线只往 #409 提交，不再开新的 Molis PR；Prologue 侧照旧每刀单开 PR。
 - 2026-10-13 用户：「先推进按照当前main的代码开发功能，如果几条线之前有依赖关系，从main拉取最新代码合并入各自分支之后按照防腐线防腐要求进行复查，确保需求迭代的同时不与防腐要求冲突，几条线的开发顺序由你统筹」——每次把 main 合进 #409 后按防腐复查清单复查，结果写进本 spec。
 - 拍板：技术决策按防腐线的后果判断（单一事实主人、不留兼容层、不新增巨大单元、数字只降不升）；功能决策按对用户 UI 交互与使用体验最好的推荐走。本线内的决定自己定，写进 spec 决策记录并在汇报里列出；跨线或改目标 / 范围的找统筹。**仍先问用户**：合并 Molis / Prologue main、发布、真实 Home / 安装版、放宽门禁、读真实凭据。拍板不等于用户验收。

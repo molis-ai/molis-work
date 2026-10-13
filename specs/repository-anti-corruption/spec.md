@@ -1465,9 +1465,9 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 | W3-07-8-02 | Coding的四个Goals桥改用goals.list、goals.contract.read、goals.state.read、goals.progress.record、goals.progress.receipt五个现行动作；完整ActionDefinition及schema只有一份owner合同，contracts供Goals与Coding共用，插件不import Goals实现、不复制schema或靠强转满足BoundActionClient。仅contract/state/progress/receipt四项新增plugin audience及可信host_plugin拒绝；原list与events.note的plugin边界保留，不能顺带撤销。沙箱broker现行runtime身份无host_plugin，生成插件实际调用四项须拒绝，不修改broker帮其取得身份；伪造输入无效。真实Coding取得相同GoalContextSnapshot与user进展结果，Goals移除仍明确不可用。删除四桥、对应类型/注册/出口并验证旧literal协议不能恢复；四动作/API快照、Skill及调用方影响同片记录。 |
 | W3-07-9-01 | 基于实际完整Host测量剩余typed家族与生产调用者，tests/typed-registry-inventory及mutation拒绝Goals/开发入口回流；CALL-CHAINS、GLOSSARY、SDK/Host/Goals/CLI/MCP README与Skill均只描述现行唯一业务路径。不存在的Casebook及已删host_only不留为当前清单；计数实测降低，不用改基线放过新增。 |
 
-已实际复核snapshotCaller、bindCall和bindActionClient现行浅拷贝会保留host_plugin原对象，故过程内对象登记可守住这条信任边界；它目前尚不存在，不能凭现有非空host_plugin授权。Kernel原register已按同ID/version和重叠项目拒绝重复来源（kernel.capability_duplicate）；真实同scope歧义无法先注册进目录，回归证明该真实注册拒绝及跨项目隔离，resolver保留唯一候选核对，不新增假目录/testing hook凑覆盖。
+已实际复核snapshotCaller、bindCall和bindActionClient现行浅拷贝会保留host_plugin原对象，故过程内对象登记可守住这条信任边界。PR-8首片`eaeb5e86d`已加入实际内置definition登记、session撤回及真实bundled restore重新登记，并按目录解析依赖提供方；协调方已核源码与真实Runtime回归的拒绝断言，尚未运行。不能凭非空host_plugin授权。Kernel原register已按同ID/version和重叠项目拒绝重复来源（kernel.capability_duplicate）；真实同scope歧义无法先注册进目录，回归证明该真实注册拒绝及跨项目隔离，resolver保留唯一候选核对，不新增假目录/testing hook凑覆盖。
 
-本节是已核对的实施边界。PR-6候选已以`0df38883c`、`d55c0e9ba`、`840a6902c`纳入I7：开发入口改为Host函数，保留输入快照、真实项目核对、固定操作者、原运行owner与私有状态目录；旧开发注册、host_only字段与错误分类删除，真实Host/Runtime旧协议拒绝、身份及目录回归源码已核。PR-7候选`52085f0bc`已纳入I7；协调方已核只读目录匹配、同库别名统一为owner路径、现有受保护HTTP入口、可信管理调用者、同一调用号与取消传递，以及真实CLI/MCP和拒绝/断连回归源码。复核发现把management全部动作绕开常驻网关会改变既有已授权action工具的执行owner；`31013e08e`已恢复普通action工具原网关与授权，只在网关发现失败时保留平台工具可用。新增真实授权、常驻写入与调用号、撤权后零新增事实和零本地项目执行回归，源码已核；S-03/S-07文档映射实际检查为空，不代替安全用例运行。上述候选尚未构建、刷新API或执行用例，不记验收完成；PR-8/9仍待。单片整体构建、契约/API/健康/资源/安全及实际相关入口回归后再进入协调全量；7的安全边界与8的可信身份必须做只读窄复核，不把测试工具或假caller当生产证明。
+本节是已核对的实施边界。PR-6候选已以`0df38883c`、`d55c0e9ba`、`840a6902c`纳入I7：开发入口改为Host函数，保留输入快照、真实项目核对、固定操作者、原运行owner与私有状态目录；旧开发注册、host_only字段与错误分类删除，真实Host/Runtime旧协议拒绝、身份及目录回归源码已核。PR-7候选`52085f0bc`已纳入I7；协调方已核只读目录匹配、同库别名统一为owner路径、现有受保护HTTP入口、可信管理调用者、同一调用号与取消传递，以及真实CLI/MCP和拒绝/断连回归源码。复核发现把management全部动作绕开常驻网关会改变既有已授权action工具的执行owner；`31013e08e`已恢复普通action工具原网关与授权，只在网关发现失败时保留平台工具可用。新增真实授权、常驻写入与调用号、撤权后零新增事实和零本地项目执行回归，源码已核；S-03/S-07文档映射实际检查为空，不代替安全用例运行。上述候选尚无整合构建和用例通过证据，不记验收完成。PR-8第二片正在将完整Goals动作合同与原schema移到contracts，由Goals和Coding共用；协调方已核schema声明保真与静态纯度，四个原Host专用动作新增可信调用者拒绝，原list/note边界保留。Coding接线、父调用控制、旧桥删除及真实拒绝/恢复用例仍待完成；PR-9尚待。单片整体构建、契约/API/健康/资源/安全及实际相关入口回归后再进入协调全量；7的安全边界与8的可信身份必须做只读窄复核，不把测试工具或假caller当生产证明。
 
 
 ### 10.8 MCP launcher 闭管道拒绝（CI 独立修复）
@@ -2102,9 +2102,11 @@ typed桥及G5五片已全部整合至`697cf9422`；协调方逐份核range-diff�
 
 第23轮整合构建实际失败于`AgentMemoryExecutionControl`缺少本地类型导入（TS2304）；`5bf879c03`已补实际import，尚无重建通过证据。Schedule与S8候选`ea34f2a89`已整合，协调方核完整生产、README和测试diff；两个闭合、状态复用和关闭回收修正未放宽门禁。Schedule源/构建双实例夹具已统一为构建产物，旧测试的内部导入数量减少；Todo提醒HTTP夹具在`89af5b5f2`已改为现行`POST /api/todo`/200。当前这些是待运行候选，不更新全量通过数字。
 
-`89af5b5f2`与`d18c735ef`已将handback的同一`stillCurrent`贯穿dispatch准备与SDK启动的同步接受检查，保留基础授权检查；父工作归档、明确停止或已有新轮次时旧交回失效。停止入口复用现有settling状态，允许撤回正在准备的交回。真实SDK用例覆盖authority、beforeStart和已持久化准备记录后的归档屏障，新增停止/新父轮、未消费子结果及显式恢复后仅一次接续断言；源码已核，尚未运行。Coding控制动作升为v2，旧版拒绝和调用方影响已写入README；构建后动作快照与消费者运行尚待。MODEL-SWITCH的Molis候选已改为在SDK最终同步接受点核原调用，并在同一点更新待切换显示，移除失败后清空显示的旧行为；正式typed Host、Node SDK、真实文件读取与受控模型回复的配置/凭据交错用例已备。`e652b4a0b`补入实际SDK接受帧中的取消/撤权：原调用检查须确实到达该帧，拒绝后显示仍为B，实际后续模型请求严格为START、B且不新建Run；协调方已核实际diff。S-18与安全测试命令已同步；上述Molis新增用例及新SDK打包仍待运行，不提前结案。
+`89af5b5f2`与`d18c735ef`已将handback的同一`stillCurrent`贯穿dispatch准备与SDK启动的同步接受检查，保留基础授权检查；父工作归档、明确停止或已有新轮次时旧交回失效。停止入口复用现有settling状态，允许撤回正在准备的交回。真实SDK用例覆盖authority、beforeStart和已持久化准备记录后的归档屏障，新增停止/新父轮、未消费子结果及显式恢复后仅一次接续断言；源码已核，尚未运行。Coding控制动作升为v2，旧版拒绝和调用方影响已写入README；构建后动作快照与消费者运行尚待。MODEL-SWITCH的Molis候选已改为在SDK最终同步接受点核原调用，并在同一点更新待切换显示，移除失败后清空显示的旧行为；正式typed Host、Node SDK、真实文件读取与受控模型回复的配置/凭据交错用例已备。`e652b4a0b`补入实际SDK接受帧中的取消/撤权：原调用检查须确实到达该帧，拒绝后显示仍为B，实际后续模型请求严格为START、B且不新建Run；协调方已核实际diff。S-18与安全测试命令已同步；上述Molis新增用例及正式SDK集成仍待完成，不提前结案。
 
 Prologue修复在当前包对应提交`d4908c118f7899d44e3d1975806797a05f0094b9`的隔离树内实现。SDK首轮四文件62项中61通过、1失败：新拒绝用例漏算subscribe立即触发的首次通知；当前源码按订阅后基准计数纠正，不改生产通知语义，第二轮实际命令已退出0：四文件62/62通过、类型检查无错误，随后SDK构建通过；协调方已核完整日志、同一命令的退出结果与最终源码差异。协调方在受控端口下执行旧/新生产换模封装：先接受B再拒绝C，旧版清空B显示、新版保留B；这仅证明封装状态，不替代实际SDK整链验证。上述新候选的整体构建、工程门禁、浏览器和全量通过数均未更新。
+
+新SDK已打成隔离验证包，协调方核包内相对当前正式包只改变换模控制实现和类型声明。I7第24轮整体构建实际失败于Memory仍引用已移除的`MemoryError`（TS2552）；`9fa969049`改为现行owner的`memoryErrors.not_found`，协调方已核一行差异，重建与Molis真实SDK换模回归尚待。隔离验证包尚未替换正式vendor与来源记录，不宣称已完成SDK集成。
 
 共享spec、路线图、安全不变量、门禁/API/动作/资源快照由协调方按实际整合结果串行同步；writer不得放宽阈值或为绿删断言。当前均只获本地独立实现/提交，不自行推送、开PR、安装、发布或操作真实Home/凭据。§12.8中需同步安全表的具体拒绝必须有生产边界断言；受控第三方响应不等于真实外部账号验收。
 

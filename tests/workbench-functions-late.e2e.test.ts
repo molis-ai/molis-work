@@ -22,7 +22,7 @@ async function get(browser: AuditBrowser, id: string): Promise<FunctionRecord> {
 async function setupRules(browser: AuditBrowser) {
   const a = (await post(browser, "/api/functions", { primitive: "choice", name: "Rule A" })).function;
   const b = (await post(browser, "/api/functions", { primitive: "choice", name: "Rule B" })).function;
-  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/capabilities/library?project=" + browser.projectId + "&rule=" + a.id }, browser.sessionId));
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/capabilities/rules?project=" + browser.projectId + "&rule=" + a.id }, browser.sessionId));
   await browser.waitFor("document.querySelector('[data-functions-name]')?.value === 'Rule A'", 15_000);
   return { a, b };
 }

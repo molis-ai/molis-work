@@ -9,7 +9,7 @@ type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 type Download = { name: string; content: string };
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
 const open = async (b: Browser, plugin: string, id: string) => {
-  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=${plugin}&openItem=${id}` }, b.sessionId));
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=${plugin}&${plugin === 'form' ? 'openRecord' : 'openItem'}=${id}` }, b.sessionId));
   await b.waitFor(`document.querySelector('[data-${plugin}=workbench]')?.dataset.expanded === 'true'`);
 };
 // Capture only the download sink: the page still creates its actual Blob and runs its own export/submit handler.

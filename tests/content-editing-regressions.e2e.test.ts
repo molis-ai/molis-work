@@ -11,7 +11,7 @@ const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "tex
 const body = (text: string) => ({ type: "doc" as const, content: [paragraph(text)] });
 const readPage = (b: Browser, id: string) => { const store = openPagesStore(b.homeDirectory); try { return store.get(id, b.projectId!); } finally { store.close(); } };
 const open = async (b: Browser, plugin: string, id: string) => {
-  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=${plugin}&openItem=${id}` }, b.sessionId));
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=${plugin}&${plugin === 'ppt' ? 'openRecord' : 'openItem'}=${id}` }, b.sessionId));
   await b.waitFor(`document.querySelector('[data-${plugin}=workbench]')?.dataset.expanded === 'true'`);
 };
 const input = (b: Browser, selector: string, value: string) => b.evaluate(`(() => { const input=document.querySelector(${JSON.stringify(selector)}); input.value=${JSON.stringify(value)}; input.dispatchEvent(new Event('input',{bubbles:true})); })()`);

@@ -81,7 +81,7 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
   }));
   const privateValues = new Map<string, string>();
   const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, actions: pluginActions(store, DEMO_PROJECT_ID),
-    artifacts: new ArtifactsModule(store.db), processItems: new ProcessItemsModule(store.db), ui: new UiHost(), home: null,
+    artifacts: new ArtifactsModule({ db: store.db }), processItems: new ProcessItemsModule({ db: store.db }), ui: new UiHost(), home: null,
     privateStorageFor: () => ({ get: key => privateValues.get(key) ?? null, set: (key, value) => { privateValues.set(key, value); }, delete: key => privateValues.delete(key) }),
     capabilities: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
       reads++; if (!readable) throw new Error("runtime unavailable after capture");

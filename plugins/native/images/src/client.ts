@@ -315,6 +315,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const openConnections = () => {
     if (resumeConnection !== cid) editConnection(cid); resumeConnection = null; if (!dialog.open) dialog.showModal(); connectionName.focus();
+    void loadConnections().catch(error => { if (!viewSignal?.aborted && dialog.open) say(error.message || L('图片服务请求失败'), true, '[data-images-connection-note]'); });
   };
   const syncSaving = () => {
     if (!lifetime.alive) return;

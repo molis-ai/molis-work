@@ -133,7 +133,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
       container.hidden=false;
       let note=container.querySelector('[data-review-load-error]');
       if(!note){note=document.createElement('p');note.dataset.reviewLoadError='';note.setAttribute('role','alert');container.prepend(note);}
-      note.textContent='审查暂未刷新：'+error.message;
+      molisWorkRequest.show(note,error);note.prepend(document.createTextNode('审查暂未刷新：'));
     }
   };
   return show;

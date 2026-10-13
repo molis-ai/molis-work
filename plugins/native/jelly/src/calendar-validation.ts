@@ -1,7 +1,7 @@
 import type { JellyItem, JellySchedule, JellySeries, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import { jellyAssert, jellyErrors } from "./error.js";
 
 export const JELLY_UNCATEGORIZED_ID = "uncategorized";
-export function jellyAssert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
 export function jellyDate(value: unknown): string {
   jellyAssert(typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value), "日期应为 YYYY-MM-DD");
   const timestamp = Date.parse(`${value}T12:00:00.000Z`);
@@ -33,7 +33,7 @@ export function validateJellyItem(item: JellyItem, categoryIds: Set<string>): vo
   jellyAssert(stamp(item.completed_at) && stamp(item.created_at) && stamp(item.updated_at) && item.created_at !== null && item.updated_at !== null, "事项时间戳无效");
   jellyAssert(typeof item.notes === "string" && typeof item.completion_description === "string", "事项内容无效");
   jellyAssert(typeof item.time_zone === "string", "时区无效");
-  try { new Intl.DateTimeFormat("en", { timeZone: item.time_zone }); } catch { throw new Error("时区无效"); }
+  try { new Intl.DateTimeFormat("en", { timeZone: item.time_zone }); } catch { throw jellyErrors.invalid("时区无效"); }
   validateJellySchedule(item);
 }
 export function jellyWithinSeries(series: JellySeries, date: string): boolean { return date >= series.start_date && (series.until === null || date <= series.until); }

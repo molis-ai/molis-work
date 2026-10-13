@@ -3,7 +3,7 @@ import type {
   ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobOutcome, ShelfJobRecord, ShelfRecipeId, ShelfSettingsPatch, ShelfSnapshot,
   ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput, ShelfExecutionControl, ShelfAiStatus,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { parseSettingsWriteBody, SHELF_RECIPES, SHELF_SHORTCUT_RECIPE, SHELF_JOB_TIMEOUT_MS } from "@molis-ai/molis-work-module-shelf";
+import { parseSettingsWriteBody, shelfErrors, SHELF_RECIPES, SHELF_SHORTCUT_RECIPE, SHELF_JOB_TIMEOUT_MS } from "@molis-ai/molis-work-module-shelf";
 import { shelfTextMaterial } from "./material.js";
 import { createShelfSearchHandlers, shelfClipboardSearchEntriesAction, shelfFileContentAction, shelfFileEntriesAction, shelfSearchEntriesAction, shelfSubjectAction } from "./search.js";
 
@@ -122,12 +122,12 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller),
     ...(definition.capability_id === shelfActions.generate.capability_id && ports.aiStatus ? { availability: () => {
       const state = ports.aiStatus!();
-      return state.available ? { available: true } : { available: false, code: "shelf.no_model", reason: state.reason ?? "请先配置 AI 模型" };
+      return state.available ? { available: true } : { available: false, code: "actions.connection_required", reason: state.reason ?? "请先配置 AI 模型" };
     } } : {}),
   });
   const bytes = (encoded: string) => {
     const decoded = Buffer.from(encoded, "base64");
-    if (!decoded.byteLength && encoded.length) throw new ActionError("shelf.invalid", "文件内容无效");
+    if (!decoded.byteLength && encoded.length) throw shelfErrors.invalid("文件内容无效");
     return decoded;
   };
   return [
@@ -150,7 +150,7 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
       const typed = input.text?.trim();
       if (typed) return { item: await ports.admitText(typed, input.title?.trim() || undefined, input.capture_pages !== false, { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) };
       const filename = input.filename?.trim();
-      if (!filename || !input.bytes_base64) throw new ActionError("shelf.invalid", "请选择要加入的文件");
+      if (!filename || !input.bytes_base64) throw shelfErrors.invalid("请选择要加入的文件");
       return { item: await ports.admit({ filename, bytes: bytes(input.bytes_base64), mime: input.mime?.trim() || undefined, origin_realpath: input.origin_realpath?.trim() || null },
         { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) };
     }),
@@ -162,7 +162,7 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
     bind(shelfActions.useAsMaterial, input => ({ item: ports.useAsMaterial(input.item_id) })),
     bind(shelfActions.edit, input => ({ item: ports.writeCopy(input.item_id, input.text) })),
     ...[shelfActions.generate, shelfActions.extract].map(definition => bind(definition, async (input, caller) => {
-      if (!input.item_id && !input.item_ids?.length) throw new ActionError("shelf.invalid", "请选择动作和材料");
+      if (!input.item_id && !input.item_ids?.length) throw shelfErrors.invalid("请选择动作和材料");
       const beforeEffect = () => caller.beforeEffect();
       await beforeEffect();
       return ports.runJob(input, { signal: caller.signal, beforeEffect });
@@ -171,7 +171,7 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
     bind(shelfActions.settings, () => ports.settings()),
     bind(shelfActions.saveSettings, input => {
       const parsed = parseSettingsWriteBody(input);
-      if ("error" in parsed) throw new ActionError("shelf.invalid", parsed.error);
+      if ("error" in parsed) throw shelfErrors.invalid(parsed.error);
       return ports.saveSettings(parsed.ok);
     }),
     bind(shelfActions.clip, input => ({ clip: ports.addClipboard(input.text, { concealed: input.concealed === true, types: input.types ?? [] }) })),
@@ -215,7 +215,7 @@ export function createShelfProjectActionHandlers(projectId: string, ports: Shelf
     { ...shelfProjectActions.saveMaterial, handle: async (caller, input) => {
       const { item_id, expected_fingerprint } = input as { item_id: string; expected_fingerprint: string };
       const value = current(caller, item_id);
-      if (value.fingerprint !== expected_fingerprint) throw new ActionError("shelf.conflict", "材料已变化，请重新预览后保存");
+      if (value.fingerprint !== expected_fingerprint) throw shelfErrors.conflict("材料已变化，请重新预览后保存");
       await caller.beforeEffect();
       return { reference: ports.publish(value.payload, caller.actor_id), title: value.payload.title };
     } },

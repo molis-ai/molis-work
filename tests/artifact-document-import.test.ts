@@ -169,8 +169,8 @@ test("invalid, empty, oversized and unauthorized imports leave Artifact records 
   const before = coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const cases: Array<{ body: unknown; status: number; code: string }> = [
     { body: { source: "unsupported" }, status: 400, code: "document.source_invalid" },
-    { body: { source: "file", filename: "empty.md", content: " \n\t" }, status: 422, code: "document.empty" },
-    { body: { source: "file", filename: "binary.txt", content: "\u0000binary" }, status: 415, code: "document.binary" },
+    { body: { source: "file", filename: "empty.md", content: " \n\t" }, status: 400, code: "document.empty" },
+    { body: { source: "file", filename: "binary.txt", content: "\u0000binary" }, status: 400, code: "document.binary" },
     // Any file is accepted (artifact-positioning A3), but one that is not text must come with its original bytes.
     { body: { source: "file", filename: "report.pdf", content: "PDF" }, status: 400, code: "document.original_invalid" },
     { body: { source: "file", filename: "report.pdf", original_file: { filename: "report.pdf", mime: "application/pdf", data_base64: "not base64!" } }, status: 413, code: "document.original_invalid" },
@@ -211,7 +211,7 @@ test("invalid, empty, oversized and unauthorized imports leave Artifact records 
   await missingKey.text();
   assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID), before);
   const failed = await post({ ...file, content: "" }, "failed-import-retry");
-  assert.equal(failed.status, 422);
+  assert.equal(failed.status, 400, "a document with nothing to import was a 422; no kind stands for 422, so it is the caller's mistake (400)");
   await failed.text();
   const recovered = await post(file, "failed-import-retry");
   assert.equal(recovered.status, 201, "a failed attempt must release its mutation key for a corrected retry");

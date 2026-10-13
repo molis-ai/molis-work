@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ArtifactsApplicationApi, ArtifactJsonValue } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactsManifest } from "./manifest.js";
 import { artifactVersionPath } from "./browser.js";
 
@@ -24,12 +25,23 @@ export interface ImportedArtifactDocument {
   original_file?: { filename: string; mime: string; data_base64: string };
 }
 
-export class ArtifactImportError extends Error {
-  constructor(readonly status: number, readonly code: string, message: string) {
-    super(message);
-    this.name = "ArtifactImportError";
-  }
-}
+/**
+ * What the document import refuses, every code `document.<reason>`. The kind is the sort of failure, and the Host's edge turns it into
+ * the status (SDK `actionHttpStatus`): what is wrong with the request or the document is `invalid` (400, also for the files that were 415
+ * and the documents that were 422), and a document over its size is `too_large` (413). The Host's reading of a connected service raises
+ * the rest of the family (`artifactImportErrors` in apps/local-host/src/artifact-document-import.ts).
+ */
+export const documentErrors = defineErrorCodes("document", {
+  source_invalid: "invalid",
+  content_invalid: "invalid",
+  filename_invalid: "invalid",
+  input_invalid: "invalid",
+  /** The original file's snapshot is not a safe name, a media type or valid base64. (Over its size the same code is `too_large`, below.) */
+  original_invalid: "invalid",
+  empty: "invalid",
+  binary: "invalid",
+  too_large: "too_large",
+});
 
 export interface ArtifactDocumentImportPorts {
   projectId: string;
@@ -57,11 +69,11 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
     const url = requiredString(input.url, "请输入文档链接", 4096);
     const connection_id = input.connection_id === undefined ? undefined : requiredString(input.connection_id, "请选择有效连接", 100);
     document = await ports.readExternal({ source: source as ExternalDocumentSource, url, ...(connection_id ? { connection_id } : {}) });
-  } else throw new ArtifactImportError(400, "document.source_invalid", "请选择支持的文档来源");
+  } else throw documentErrors.source_invalid("请选择支持的文档来源");
 
-  if (document.format !== "file" && !document.content.trim()) throw new ArtifactImportError(422, "document.empty", "没有读到可导入的正文；请检查文档内容与访问权限");
+  if (document.format !== "file" && !document.content.trim()) throw documentErrors.empty("没有读到可导入的正文；请检查文档内容与访问权限");
   if (Buffer.byteLength(document.content, "utf8") > DOCUMENT_IMPORT_MAX_BYTES) {
-    throw new ArtifactImportError(413, "document.too_large", "文档正文超过 2 MB，请拆分后导入");
+    throw documentErrors.too_large("文档正文超过 2 MB，请拆分后导入");
   }
   await ports.beforeSave?.();
   ports.signal?.throwIfAborted();
@@ -97,7 +109,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
 
 async function readFileDocument(input: Record<string, unknown>, readHtml: ArtifactDocumentImportPorts["readHtml"]): Promise<ImportedArtifactDocument> {
   const filename = requiredString(input.filename, "请选择一个文档文件", 255);
-  if (/[\\/\u0000-\u001f]/u.test(filename)) throw new ArtifactImportError(400, "document.filename_invalid", "文件名无效");
+  if (/[\\/\u0000-\u001f]/u.test(filename)) throw documentErrors.filename_invalid("文件名无效");
   const extension = filename.toLowerCase().match(/\.(md|markdown|txt|html|htm)$/u)?.[1];
   // Any other file is kept as it is: its original bytes and media type, no text read out of it (A3).
   if (!extension) {
@@ -106,10 +118,10 @@ async function readFileDocument(input: Record<string, unknown>, readHtml: Artifa
       source_url: null, title: input.title == null || input.title === "" ? filename.replace(/\.[^.]+$/u, "") || filename : requiredString(input.title, "文档标题无效", 500),
       content: "", format: "file", warnings: [], original_file: original };
   }
-  if (typeof input.content !== "string") throw new ArtifactImportError(400, "document.content_invalid", "文件必须是 UTF-8 文本");
+  if (typeof input.content !== "string") throw documentErrors.content_invalid("文件必须是 UTF-8 文本");
   const original = input.content.replace(/^\uFEFF/u, "");
-  if (Buffer.byteLength(original, "utf8") > DOCUMENT_IMPORT_MAX_BYTES) throw new ArtifactImportError(413, "document.too_large", "文件超过 2 MB，请拆分后导入");
-  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(original)) throw new ArtifactImportError(415, "document.binary", "文件包含二进制内容，请使用 UTF-8 文本导出");
+  if (Buffer.byteLength(original, "utf8") > DOCUMENT_IMPORT_MAX_BYTES) throw documentErrors.too_large("文件超过 2 MB，请拆分后导入");
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(original)) throw documentErrors.binary("文件包含二进制内容，请使用 UTF-8 文本导出");
   const html = extension === "html" || extension === "htm";
   const extracted = html ? await readHtml(original) : null;
   const title = input.title == null || input.title === "" ? extracted?.title || filename.replace(/\.[^.]+$/u, "")
@@ -131,21 +143,21 @@ async function readFileDocument(input: Record<string, unknown>, readHtml: Artifa
 /** The original bytes of an imported file: a safe name, a media type and at most 6 MB of valid base64. */
 function originalFileOf(value: unknown): NonNullable<ImportedArtifactDocument["original_file"]> {
   const file = value as Record<string, unknown> | null | undefined;
-  if (!file || typeof file !== "object") throw new ArtifactImportError(400, "document.original_invalid", "原文件快照无效");
+  if (!file || typeof file !== "object") throw documentErrors.original_invalid("原文件快照无效");
   const name = requiredString(file.filename, "原文件名无效", 255);
-  if (/[\\/\u0000-\u001f]/u.test(name)) throw new ArtifactImportError(400, "document.original_invalid", "原文件名无效");
+  if (/[\\/\u0000-\u001f]/u.test(name)) throw documentErrors.original_invalid("原文件名无效");
   const mime = requiredString(file.mime, "原文件类型无效", 128).toLowerCase();
-  if (!/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/u.test(mime)) throw new ArtifactImportError(400, "document.original_invalid", "原文件类型无效");
+  if (!/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/u.test(mime)) throw documentErrors.original_invalid("原文件类型无效");
   const data = file.data_base64;
   if (typeof data !== "string" || data.length > 8_000_000 || data.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(data)
     || Buffer.from(data, "base64").toString("base64") !== data || Buffer.from(data, "base64").length > 6_000_000) {
-    throw new ArtifactImportError(413, "document.original_invalid", "原文件必须为有效的 base64，最大 6 MB");
+    throw new ActionError("document.original_invalid", "原文件必须为有效的 base64，最大 6 MB", { kind: "too_large" });
   }
   return { filename: name, mime, data_base64: data };
 }
 
 function requiredString(value: unknown, message: string, maxLength: number): string {
-  if (typeof value !== "string" || !value.trim() || value.length > maxLength) throw new ArtifactImportError(400, "document.input_invalid", message);
+  if (typeof value !== "string" || !value.trim() || value.length > maxLength) throw documentErrors.input_invalid(message);
   return value.trim();
 }
 

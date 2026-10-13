@@ -6,7 +6,8 @@ import type {
   TypeSafeEvaluateResult,
   TypeSafeProvider,
 } from "@molis-ai/molis-work-contracts/modules/functions";
-import { FunctionsError } from "./keys.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { functionsErrors } from "./errors.js";
 
 export const TYPESAFE_SYSTEMONE_URL = "https://api.typesafe.ai/v1/systemone";
 /** The Host executes the native structured protocol through Prologue. */
@@ -24,11 +25,11 @@ export function createTypeSafeProvider(execute: TypeSafeExecution): TypeSafeProv
           questions: { [record.function_key]: questionBody(record) }, api_key: apiKey, signal });
       } catch (error) {
         signal?.throwIfAborted();
-        if (error instanceof FunctionsError) throw error;
-        if (isAbortError(error)) throw new FunctionsError("functions.provider_timeout", "TypeSafe 超时，没有自动重试");
+        if (error instanceof ActionError && error.code.startsWith("functions.")) throw error;
+        if (isAbortError(error)) throw functionsErrors.provider_timeout("TypeSafe 超时，没有自动重试");
         const status = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
-        if (status === 401 || status === 403) throw new FunctionsError("functions.provider_unauthorized", "TypeSafe Key 无效");
-        throw new FunctionsError("functions.provider_failed", "TypeSafe 请求失败");
+        if (status === 401 || status === 403) throw functionsErrors.provider_unauthorized("TypeSafe Key 无效");
+        throw functionsErrors.provider_failed("TypeSafe 请求失败");
       }
       signal?.throwIfAborted();
       return readAnswer(body, record);
@@ -57,7 +58,7 @@ export function readAnswer(
     : {};
   if (record.primitive === "noul") {
     if (typeof answer.noul !== "number" || !Number.isFinite(answer.noul)) {
-      throw new FunctionsError("functions.provider_failed", "TypeSafe 没有返回成立概率");
+      throw functionsErrors.provider_failed("TypeSafe 没有返回成立概率");
     }
     return {
       primitive: "noul",
@@ -72,7 +73,7 @@ export function readAnswer(
   }
   if (record.primitive === "score") {
     if (typeof answer.score !== "number" || !Number.isFinite(answer.score)) {
-      throw new FunctionsError("functions.provider_failed", "TypeSafe 没有返回评分");
+      throw functionsErrors.provider_failed("TypeSafe 没有返回评分");
     }
     const levels = Array.isArray(record.criteria) && record.criteria.every((item) => typeof item === "string")
       ? record.criteria as readonly string[]

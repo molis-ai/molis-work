@@ -1920,7 +1920,7 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | W2-18-CODING-LIFETIME / P2 必修 | Coding全局assistant-effect监听未归lifetime，卸载/重挂保留旧闭包响应 | 使用现有lifetime.listen。W2-18-CODING-LIFETIME-01：真实挂载→卸载→重挂→effect，仅活实例刷新，旧DOM/请求/监听不残留。 |
 | W2-18-CODING-REPORT / P2 必修 | 合法TaskBoard insert后节点数不同原plan，report拒绝整个board/verdict且Markdown只遍历原steps | 保留固定plan来源核对，接受owner合法修订的当前图并固定新增节点/用户记录/评价/version。W2-18-CODING-REPORT-01：真实SDK插步并记录/评价→保存重开报告，原/新增均留，后续变化不改固定报告；来源不可核仍拒推断。 |
 | W2-18-FORM-ANSWER / P2 必修 | 离线填写页无4000字检查，生成“成功”答卷后owner无法导入，组合路径自相矛盾 | 导出输入与提交执行现行答案上限，含多选合成值，超限留输入/无成功文件。W2-18-FORM-ANSWER-01：真实导出HTML4000字可导入一次，4001不假成功，required/choice/date正常。 |
-| W2-18-FORM-LABEL / P2 必修 | 原生/导出Form题目仅视觉span，input/select无可访问名称，选项缺题目分组名 | 复用原生label/fieldset/legend或aria关联，不改变题意。W2-18-FORM-LABEL-01：两种真实页的浏览器可访问树/键盘填写暴露题名和必填状态；真实读屏本人体验仍单列。 |
+| W2-18-FORM-LABEL / P2 必修 | 原生/导出Form题目仅视觉span，input/select无可访问名称，选项缺题目分组名；整合真实AX又确认dropdown仅设aria-required，增强器从原生required读到false，必填语义丢失 | 复用原生label/fieldset/legend或aria关联，不改变题意。W2-18-FORM-LABEL-01：两种真实页的浏览器可访问树/键盘填写暴露题名和必填状态；真实读屏本人体验仍单列。 |
 | W2-18-CONTENT-CONTEXT / P2 必修 | Cognia返回/删除与Images返回历史只关工作区，留下插件声明的旧对象，助理/Placement继续消费A | 各owner统一关闭路径清当前可见对象，不因Images导航取消已接受job。W2-18-CONTENT-CONTEXT-01：真实A→目录/删除→B，助理对象与实际可见对象一致，删除后无旧id，重开正常。 |
 | W2-18-IMAGES-SETUP / P2 必修 | Images服务modal内连接设置链接打开设置cover但不关原生modal，top-layer/inert挡住设置 | 跟随既有设置链接前关modal，保留服务草稿，打开服务框主动刷新账号。首轮真实浏览器确认设置cover只改变CSS可见性，不触发现有hidden生命周期，单靠whenVisible仍漏掉新账号；2edbc178c已补打开刷新及失败提示，待运行。W2-18-IMAGES-SETUP-01：真实首次无账号→设置可点/键盘可达→建受控账号→返回可继续生成，原输入在；不使用真实厂商。 |
 | W2-18-LINGGUANG-REVISION / P1 | list刷新把selected换新updated_at但保留旧编辑正文，后续用新版本提交旧输入，绕过正确CAS覆盖远端编辑 | 编辑器ack版本独立于目录元数据，只有真正打开/成功保存才能推进。W2-18-LINGGUANG-REVISION-01：实际A编辑器、外部动作改A、B placement触发列表刷新后本地改A必须冲突并保留两边；显式重开及同草稿队列正常。 |
@@ -2087,6 +2087,8 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 随后`d42f19dc2`的7文件定向运行`i7-main-sdk-and-assets-tests-01.log`为119/119、0失败/取消/跳过，实际退出0；协调方已核driver、HEAD/命令、exit记录与完整日志。包括上述RAC-19真实HTTP资源语义与缓存两条、Functions19条，以及当前Computer Use/助理相关回归和vendor来源校验。G5及typed桥尚未纳入，这119条不支持其效果控制验收；同切点13文件浏览器复跑仍待最终结果。
 
 同切点13文件浏览器复跑`i7-six-owner-browser-fixed-02.log`现已结束：47条、33通过、14失败、0取消/跳过，实际命令退出1；已核HEAD、命令、完整footer与失败原文。Images真实设置到本机provider、PPT取消后迟到响应、Lingguang冲突、Planning两种迟到结果、Browser真实上传/授权、Functions四条、既有companion与放置组合均有该轮通过证据。剩余Diff夹具缺必需appendEvent、Market对非popover元素调用hidePopover、Goal四条未到可见工作区和S1输入建议层遮挡继续修正操作步骤，业务断言不放宽；Pages/Form六类继续按实际失败诊断。STOP进程406秒仍忙循环，抓栈后仅终止该精确PID，计失败而非通过或跳过；Host无waits立即空成功与Coding重复等待已定位为生产缺陷，纳入W2-18-CODING-WAKE-02。typed桥已纳入`022893041`，G5首片整合为`cb8f0be17`，余片正按既有事实owner解决冲突，均尚无本切点运行证据。该批不是整体通过，G5效果控制、Builder真实Host停止与S6整链仍未验收。
+
+typed桥及G5五片已全部整合至`697cf9422`；协调方逐份核range-diff，typed/Characters/Builder/Coding生产片原样，Agent仅README上下文接续，Memory保留现行memoryErrors与直接bindings登记，没有恢复旧错误重写层。`dff982674`的无waits明确拒绝与Coding停止不支持消费者、Host回归断言及Diff/S1/Goals/Market真实入口修正均已核，尚未运行。G7只读诊断与协调方源核进一步确认：Pages READONLY/CREATE须明确宽布局；TRANSIENT原选择器命中article而非button；ACTIONS第二段8字被现行规则归word，不支持拆行动项，改长计划文本保留变化后拒绝。Markdown/HTML事实断言已有经过证据，打印捕获须等待实际srcdoc文档并断真实print调用，当前不足以定产品根因。Form下拉必填由原生required补齐，AX要求不放宽；离线填写/导入后续尚未执行。上述仅是修正方案与源码证据，§12.7组合和最终运行未据此关闭。
 
 共享spec、路线图、安全不变量、门禁/API/动作/资源快照由协调方按实际整合结果串行同步；writer不得放宽阈值或为绿删断言。当前均只获本地独立实现/提交，不自行推送、开PR、安装、发布或操作真实Home/凭据。§12.8中需同步安全表的具体拒绝必须有生产边界断言；受控第三方响应不等于真实外部账号验收。
 

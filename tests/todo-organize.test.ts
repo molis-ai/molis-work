@@ -9,6 +9,8 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, openTodoStore, passageFound, todoActions, todoManifest, todoOrganizeActions as organize } from "@molis-ai/molis-work-plugin-todo";
 
 const TODAY = "2026-09-28";
+
+// W2-18-TODO-DATE-01: assertions below exercise extraction, protected-field adoption and owner readback.
 const MAIL = { title: "张总：新版方案", subject: { kind: "feed_item", id: "mail-1" }, received_at: "2026-09-28T09:00:00+08:00",
   text: "小王你好，请周五前发新版方案，预算等小李确认。另外，下周的团建改到周四，大家知悉。" };
 
@@ -41,6 +43,77 @@ const exampleAnswer = (existing?: { id: string; relation: string; changes?: Reco
       evidence: [{ material: 1, excerpt: "请在月底前准备季度汇报材料" }], uncertain: [], depends_on: [] },
   ],
   reference_only: [{ summary: "下周团建改到周四（通知）", material: 1 }],
+});
+
+test("W2-18-TODO-DATE-01: new and existing todos use the same literal date and time despite contradictory model dates", async t => {
+  for (const mode of ["new", "existing", "protected", "accepted"] as const) {
+    let answer = "";
+    const f = fixture(t, () => answer);
+    const before = mode === "new" ? null : (await f.agent.invoke(todoActions.create, {
+      title: "发送方案", due_date: "2026-10-05", due_time: "18:00",
+    })).item;
+    if (mode === "protected" || mode === "accepted") await f.me.invoke(todoActions.update, { id: before!.id, due_date: "2026-10-06", due_time: "19:00" });
+    const material = { title: "工程约定", text: "请在10月2日上午10点发送方案。", received_at: "2026-09-28T09:00:00+08:00" };
+    answer = JSON.stringify({ candidates: [{ ref: "literal", kind: "request", title: "发送方案", owner: { who: "你", stated: true },
+      due: { date: "2030-01-01", time: "22:00", phrase: "10月2日上午10点" }, evidence: [{ material: 1, excerpt: material.text }],
+      existing: before ? { id: before.id, relation: "update", changes: { due_date: "2031-01-01", due_time: "23:00" } } : null }] });
+    const { batch } = await f.me.invoke(organize.extract, { materials: [material] });
+    const candidate = batch.candidates[0]!;
+    assert.deepEqual([candidate.due_date, candidate.due_time], ["2026-10-02", "10:00"], mode);
+    if (mode === "existing") assert.deepEqual(candidate.existing?.changes, { due_date: "2026-10-02", due_time: "10:00" });
+    if (mode === "protected" || mode === "accepted") {
+      assert.deepEqual(candidate.existing?.changes, {});
+      assert.deepEqual(candidate.existing?.protected, [{ field: "due_date", value: "2026-10-02" }, { field: "due_time", value: "10:00" }]);
+    }
+    const applied = await f.me.invoke(organize.apply, { id: batch.batch_id, expected_revision: batch.revision, decisions: [{ candidate_id: candidate.candidate_id,
+      action: before ? "update" : "add", ...(mode === "accepted" ? { accept_protected: ["due_date", "due_time"] } : {}) }] });
+    const id = before?.id ?? applied.results[0]!.item_id!;
+    const readback = await f.me.invoke(todoActions.get, { id }), stored = readback.item;
+    if (before) assert.deepEqual(["due_date", "due_time"].map(field => readback.history.find(change => Object.hasOwn(change.after, field))?.after[field]), [stored.due_date, stored.due_time], mode);
+    else assert.deepEqual(readback.history.find(change => change.kind === "create")?.after, { title: "发送方案" });
+    assert.deepEqual([stored.due_date, stored.due_time], mode === "protected" ? ["2026-10-06", "19:00"] : ["2026-10-02", "10:00"], mode);
+    const reviewed = (await f.me.invoke(organize.get, { id: batch.batch_id })).batch.candidates[0]!;
+    assert.equal(reviewed.decision?.item_id, id);
+    assert.equal(JSON.stringify(reviewed).includes("2031-01-01"), false);
+  }
+});
+
+test("W2-18-TODO-DATE-01: a date-only phrase adds no invented clock time; unprotected time is cleared and protected time needs acceptance", async t => {
+  for (const protect of [false, true]) {
+    let answer = "";
+    const f = fixture(t, () => answer);
+    const existing = (await f.agent.invoke(todoActions.create, { title: "发送方案", due_date: "2026-10-05", due_time: "18:00" })).item;
+    if (protect) await f.me.invoke(todoActions.update, { id: existing.id, due_time: "19:00" });
+    answer = JSON.stringify({ candidates: [{ ref: "date-only", kind: "request", title: "发送方案", owner: { who: "你", stated: true },
+      due: { date: "2030-01-01", time: "22:00", phrase: "10月2日" }, evidence: [{ material: 1, excerpt: "请10月2日发方案" }],
+      existing: { id: existing.id, relation: "update", changes: { due_date: "2031-01-01", due_time: "23:00" } } }] });
+    const { batch } = await f.me.invoke(organize.extract, { materials: [{ text: "请10月2日发方案", received_at: "2026-09-28T09:00:00+08:00" }] });
+    const candidate = batch.candidates[0]!;
+    assert.deepEqual([candidate.due_date, candidate.due_time], ["2026-10-02", null]);
+    assert.deepEqual(candidate.existing?.changes, protect ? { due_date: "2026-10-02" } : { due_date: "2026-10-02", due_time: null });
+    assert.deepEqual(candidate.existing?.protected, protect ? [{ field: "due_time", value: null }] : []);
+    await f.me.invoke(organize.apply, { id: batch.batch_id, decisions: [{ candidate_id: candidate.candidate_id, action: "update" }] });
+    const stored = (await f.me.invoke(todoActions.get, { id: existing.id })).item;
+    assert.deepEqual([stored.due_date, stored.due_time], ["2026-10-02", protect ? "19:00" : null]);
+  }
+});
+
+test("W2-18-TODO-DATE-01: missing or ambiguous date evidence cannot overwrite an existing deadline", async t => {
+  for (const phrase of ["周五前", "下次会前", "模型编造的日期"]) {
+    let answer = "";
+    const f = fixture(t, () => answer);
+    const existing = (await f.agent.invoke(todoActions.create, { title: "发送方案", due_date: "2026-10-05", due_time: "18:00" })).item;
+    const text = phrase === "模型编造的日期" ? "请发送方案" : `请${phrase}发送方案`;
+    answer = JSON.stringify({ candidates: [{ ref: "uncertain", kind: "request", title: "发送方案", owner: { who: "你", stated: true },
+      due: { date: "2030-01-01", time: "22:00", phrase }, evidence: [{ material: 1, excerpt: text }],
+      existing: { id: existing.id, relation: "same", changes: { due_date: "2031-01-01", due_time: "23:00" } } }] });
+    const { batch } = await f.me.invoke(organize.extract, { materials: [{ text, received_at: null }] });
+    const candidate = batch.candidates[0]!;
+    assert.deepEqual([candidate.due_date, candidate.due_time, candidate.existing?.changes, candidate.existing?.protected], [null, null, {}, []]);
+    await f.me.invoke(organize.apply, { id: batch.batch_id, decisions: [{ candidate_id: candidate.candidate_id, action: "merge" }] });
+    const stored = (await f.me.invoke(todoActions.get, { id: existing.id })).item;
+    assert.deepEqual([stored.due_date, stored.due_time], ["2026-10-05", "18:00"]);
+  }
 });
 
 test("passages must really be in the material; small spacing and punctuation differences still match", () => {

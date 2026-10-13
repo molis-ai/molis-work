@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { createActionMcpPorts, handleMcpMessage, serveMcpStdio } from "@molis-ai/molis-work-app-mcp";
-import { defineAction, definePlugin } from "../../packages/plugin-sdk/src/index.js";
+import { defineAction, definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionMetadata } from "@molis-ai/molis-work-contracts/platform/actions";
 
 // The launcher binds identity. No private Runtime session or tool argument supplies authority.

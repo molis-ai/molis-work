@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
+import { createMcpActionGrant } from "../apps/local-host/dist/mcp-action-grants.js";
+import { writeMcpActionGrant } from "../apps/local-host/dist/mcp-settings-store.js";
 import type { ActionDefinition, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 async function until<T>(read: () => T | Promise<T>): Promise<NonNullable<T>> {
@@ -198,7 +198,7 @@ test("real SDK binds identical tools to separate callers and cancellation reache
 });
 
 test("Agent tool declarations preserve provider deadlines within the Agent ceiling", async () => {
-  const { prologueActionTools } = await import('../horizontal/agent-host/src/adapters/prologue-action-tools.js');
+  const { prologueActionTools } = await import('../horizontal/agent-host/dist/adapters/prologue-action-tools.js');
   const { ActionService } = await import('@molis-ai/molis-work-kernel');
   const service = new ActionService();
   const definitions: ActionDefinition[] = [2_000, 120_000, undefined].map((timeout_ms, index) => ({ capability_id: 'arbitrary.tool' + index, version: 1, operation: 'query',

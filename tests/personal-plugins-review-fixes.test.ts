@@ -1,8 +1,4 @@
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { handlePagesNativePluginHttp } from "../apps/local-host/src/pages-native-plugin-http.js";
 import type { PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";
 import { pagesTestPorts } from "./fixtures/pages-actions.js";
@@ -61,6 +57,7 @@ import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/src/plugin-workbench.ts";
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/src/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -502,18 +499,16 @@ test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", a
   });
 });
 
-test("绑定项目的 MCP promote 走 Host Artifact 口", async () => {
+test("绑定项目的 MCP promote 走 Host Artifact 口", async t => {
   await withHome(async (home) => {
-    const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "MCP Promote", actor_id: "user" }));
-    const databasePath = project.database_path;
     const host = new MolisWorkLocalHost({ homeDirectory: home });
+    // The Home is served so that the project and the client's grants are made the way a person makes them, through the settings routes.
+    const served = await serveTestHost(t, { home, host });
+    const project = await served.createProject("MCP Promote");
+    const databasePath = project.database_path;
     const caller = { actor_id: "runtime:codex", project_id: project.project_id, audience: "mcp" as const, permissions: [] };
-    const views = await host.inspectActions(caller, molisWorkHostProjectReference({ projectId: project.project_id, databasePath }));
     const createName = molisWorkActionToolName(pagesActions.create), promoteName = molisWorkActionToolName(pagesActions.promote);
-    for (const action of [pagesActions.create, pagesActions.promote]) {
-      const view = views.find(view => view.capability_id === action.capability_id)!;
-      await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, caller.project_id, view, true));
-    }
+    await served.grant(caller.actor_id, project.project_id, [pagesActions.create, pagesActions.promote]);
     const server = new MolisWorkServer("runtime", {
       databasePath,
       projectId: project.project_id,
@@ -559,6 +554,7 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async () => {
       }
     } finally {
       await server.close();
+      await served.close();
       await host.close();
     }
   });

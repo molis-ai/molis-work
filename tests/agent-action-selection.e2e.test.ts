@@ -7,8 +7,7 @@ import { definePlugin } from "../packages/plugin-sdk/src/index.js";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { grantMcpActions } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
@@ -33,9 +32,9 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   let stopped = false; t.after(() => stopped ? undefined : runtime.stop(install.install_id));
   const ref = { capability_id: read.capability_id, version: 2, provider_id: install.install_id };
   const caller = { actor_id: "agent:prologue", project_id: projectId, audience: "agent" as const, permissions: [] };
-  for (const view of (await localHost.inspectActions(caller, project)).filter(row => [read.capability_id, write.capability_id].includes(row.capability_id))) {
-    await writeMcpActionGrant(homeDirectory, createMcpActionGrant(caller.actor_id, projectId, view, true));
-  }
+  // The agent is granted through the access settings, as a person grants it; the Host checks each grant against what the agent can really use.
+  await grantMcpActions(b.web, { clientId: caller.actor_id, projectId,
+    actions: (await localHost.inspectActions(caller, project)).filter(row => [read.capability_id, write.capability_id].includes(row.capability_id)) });
   const fill = (selector: string, value: string) => evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   const choose = (selector: string, title: string) => evaluate(`(()=>{const label=[...document.querySelectorAll(${JSON.stringify(selector)})].find(node=>node.textContent.includes(${JSON.stringify(title)}));if(!label)throw new Error('missing choice');label.querySelector('input').click();})()`);
   // Characters' page is Settings › 角色 (specs/archive/page-interaction-flow); other plugins open from the switcher.

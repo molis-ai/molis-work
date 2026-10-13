@@ -78,7 +78,8 @@ test('HTTPS proxy pins checked DNS, verifies hostname, rejects redirects and blo
     t.mock.method(dns, 'lookup', async () => [{ address: '93.184.216.34', family: 4 }, { address: '127.0.0.1', family: 4 }]); syncBuiltinESMExports();
     await assert.rejects(proxy.request(context, request, authorization), { code: 'NETWORK_DENIED' }); assert.equal(connections, before);
   } finally {
-    // Restore named built-in ESM bindings as well as default export methods.
+    // W2-10: nested mock restoration must finish before the real DNS/HTTPS methods are synchronized.
+    t.mock.reset();
     dns.lookup = originalLookup; https.request = originalRequest; syncBuiltinESMExports();
   }
 });

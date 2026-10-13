@@ -2136,3 +2136,8 @@ PR-9的后续`ed4f57663`恢复原CLI `goalQueries` 拒绝并增加实际mutation
 
 
 W3-09-2候选`725879ff1`已保存：两层MCP只保留精确授权但暂不可用的调用条目，tools/list继续隐藏，按名进入同一Host拒绝/留行；无授权、撤权、不同provider/version及管理入口仍拒绝。助理gateway的availability与check错误保留稳定code，确认前仍零review、零调用行。实际工具停用/撤权、public adapter、错误provider/version及两种真实SDK preflight用例已补，源码语法/Biome检查零诊断、完整包边界errors为空；运行仍待。批次源审核Schedule create的HTTP合同为201（route handler明确声明、native回应原样传递），新跨入口用例已修正期望；MCP README空预开改为实际!owned条件与resident路径，精确模型URL桩的范围同步写清。上述不放宽业务断言或新增网络框架。
+
+
+W3-09-3源候选`59d825ec5`已保存（十四文件，不含快照更新）：Kernel共同输入校验只运行一次编译schema；只有全部结构化Ajv错误都为根对象缺版本字段required时归`actions.version_required`，错误类型/null map/其他缺业务字段仍为`actions.input_invalid`。有效schema后检查顶层Agent/MCP的声明版本字段、完整ids版本表及Functions authoring updated_at非null；实际允许的expected_revision:null保留CAS语义。助理preflight改调用同一Kernel函数，删除局部旧版本规则。活跃handler上下文由实际dispatcher创建，嵌套检查同时核actor/audience/project、同一beforeEffect函数及实际executing/lifetime；仅继承ALS、新建顶层caller或旧promise不得豁免，不新增JSON嵌套标志或schema兼容。当前schema里两种版本表仅Todo batch与灵光discard，均明确使用ids，已核实际声明；现行非AIworkflow及plugin/user行为保持。新测试经public ActionService覆盖各字段、缺版本/部分表/错误schema、null CAS、真实嵌套及timeout后旧promise；另外通过实际Home Todo MCP和本人页面核版本前提/事实/历史。源码语法/Biome零诊断、静态包边界errors为空；新增文件和实际运行、API/健康门禁及整合全量仍待，不能据源码关闭验收。
+
+用户进一步明确授权本防腐任务内必要构建、浏览器及交接协调，Root已向「Work｜推进中·统筹」发送一条协调消息。统筹核当前adoption-contract-loop持锁者是终端Grok而非Codex采用聊天，现有消息工具不能投递；没有成功联系到负责人的确认，没有停止进程、改锁或重复构建。当前全量仍推进，I7构建26保留唯一排队，独立源整改继续。

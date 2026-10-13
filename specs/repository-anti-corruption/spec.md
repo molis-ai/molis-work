@@ -1293,7 +1293,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | W3-01-F 诊断查找 | #453 已于 12:15 合入 main e4ec01bd0，必需 CI 全过 | 10 文件 78/78，锁内编号查找/真实剪贴板 1/1；原 7 文件 85/85 有效证据保留；构建、健康、边界与资源通过，API/动作无新增变动 |
 | W3-02-C SDK 路由绑定器 | #454 已于 13:29 合入 main 56033f06d，必需 CI 全过 | 17 文件 108/108；绑定器移至 SDK 同名实现，contracts/SDK 快照同步；contracts 长函数项 8 → 6，工作台脚本比最新 main 降 24 字节；对齐 Issue #420 后再整体构建与门禁，6 文件 30/30；再合诊断 main 后 3 文件 17/17，源码无冲突/修复 |
 | W3-02-E Feed/Inbox/Schedule | #455已于16:42合入main0568cd684；3ce67a1e5在实际ed419基点七项CI（含Linux/Product/Verify）全部通过 | 13 文件 188/188；含浏览器的 Schedule 文件另经锁复验 5/5；错误子类 102 → 99、坏形状码 539 → 448、状态决策 200 → 187、错主人码 1139 → 1043；构建与门禁通过，无动作/资源变化；对齐 Issue #420 后 4 文件 42/42；再合诊断 main 后 3 文件 26/26，无新增生产修复 |
-| W3-06-E 模型服务 | #456；READY并已推送a49382308，base ed419f303，待CI | 11 文件 117/117；包括本机替身经真实 SDK/动作 client、取消/停用/调用结束/指令归属拒绝；公开类型及 SDK 提示词出口快照同步，构建与门禁通过，无动作/资源变化；对齐 Issue #420 后 4 文件 37/37，包括真实 SDK 经本机替身与新 Issue 助理；再合诊断 main 后 3 文件 26/26，仅合并必跑清单 |
+| W3-06-E 模型服务 | #456已于17:55合入main679034ca；固定d0e0c8c74在main0568基点七项CI全部通过 | 11 文件 117/117；包括本机替身经真实 SDK/动作 client、取消/停用/调用结束/指令归属拒绝；公开类型及 SDK 提示词出口快照同步，构建与门禁通过，无动作/资源变化；对齐 Issue #420 后 4 文件 37/37，包括真实 SDK 经本机替身与新 Issue 助理；再合诊断 main 后 3 文件 26/26，仅合并必跑清单 |
 | W3-07-PR-3 CLI Goals 动作 | #457；READY并已推送d27fad963，base ed419f303，待CI | 11 文件 129/129；每命令一次动作/一个编号、无并行 typed 记录，身份拒绝、提案跨 Host 重启及合同快照通过；构建与门禁通过，unknown casts 197 → 193；对齐 Issue #420 后 4 文件 24/24；再合诊断 main 后 3 文件 17/17，仅合并必跑清单 |
 | W2-11-c2 插件授权真实路由 | #458 已于 12:53 合入 main ba6f5232，必需 CI 全过 | 9 文件 19/19；真实 Web/MCP 共享授权和撤权、用户专用拒绝与恢复；构建与门禁通过，内部引用 909 → 886、混源进程 176 → 173；对齐 Issue #420 后 4 文件 9/9 |
 | W2-11-c3 Agent/函数授权 | #459；READY并已推送b6d3c0043，base ed419f303，待CI | 普通 3 文件 23/23、浏览器锁内 3 文件 3/3；真实动作选择、Agent 创作与未知场景编辑器通过；构建与门禁通过，内部引用 909 → 898，无 API/动作/资源变化；对齐 Issue #420 后 2 文件 7/7 |
@@ -1462,8 +1462,8 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 | W3-07-7-01 | CLI与management MCP只对当前Home目录登记的同一项目数据库借常驻Host；只读目录匹配，非目录数据库与Host未连接保留原进程内路径。Host明确拒绝、取消或已送出后结果未知均停止，不回退或重发。复用postToResidentHost的数字回环、Home令牌、Origin、一次性键、禁止redirect及发送前序列化；Runtime MCP继续原动作网关。 |
 | W3-07-7-02 | 新management-action端点挂在现行保护后，closed正文/有效调用号/项目及数据库均核对owner目录，仅受理原CLI/MCP管理动作集合与确切版本，真实身份由bindGoalsManagementActions构造。真实HTTP的无Origin、外来Origin、错误token、缺键、复用键及不匹配数据库拒绝且业务事实不变；请求断开不再提交。S-03/S-07与现有安全测试同片更新，不新增公开SDK端口或第二套目录。 |
 | W3-07-7-03 | 真实CLI与管理MCP各在常驻Host中留下同一操作号的一条动作记录、无typed或第二个项目执行Host；成功stdout/工具JSON不变，失败保留code/message/details及可查的实际已记录号。未留行与伪造_meta/输入不造号；Host停用后的进程内路径、在线拒绝后零回退、送出后断连结果未知均有真实证明。 |
-| W3-07-8-01 | dependencyCaller从真实目录解析唯一提供方，仅原Host或可信的内置进程内提供方；已安装外部提供方、缺失、歧义或伪造条目不放行。不固定错的HOST_PROVIDER_ID；actor_kind与真实Host插件/安装/项目身份同传，原声明/权限/世代/取消及beforeEffect仍生效。provider解析独立小文件，Executor巨单元不增长。 |
-| W3-07-8-02 | Coding的四个Goals桥改用现行Goals动作，五个引用的合同由contracts提供，插件不import Goals实现；manifest权限/consumes、Goals的plugin audience及真实host_plugin拒绝一起更新。真实Coding取得相同GoalContextSnapshot与进展结果，Goals移除仍明确不可用，生成插件/伪造身份不能借此取人审批准或写入。删除四桥、对应类型/注册/出口并验证旧literal协议不能恢复；动作/API快照、Skill及调用方影响同片记录。 |
+| W3-07-8-01 | dependencyCaller从真实目录解析唯一提供方，可信身份取实际内置definition的现行WeakSet登记，不凭plugin_id、publisher字符串或HostPluginCaller的结构形状判断。缺失、歧义或伪造提供方不放行；Runtime的真实内置提供方也有install_id，不能据此一律当外部。移除固定HOST_PROVIDER_ID，actor_kind与真实Host插件/安装/项目身份同传；Coding依赖调用显式保留原user身份。原声明/权限/世代/取消及beforeEffect仍生效，provider解析独立小文件，Executor巨单元不增长。 |
+| W3-07-8-02 | Coding的四个Goals桥改用goals.list、goals.contract.read、goals.state.read、goals.progress.record、goals.progress.receipt五个现行动作；完整ActionDefinition及schema只有一份owner合同，contracts供Goals与Coding共用，插件不import Goals实现、不复制schema或靠强转满足BoundActionClient。仅contract/state/progress/receipt四项新增plugin audience及可信host_plugin拒绝；原list与events.note的plugin边界保留，不能顺带撤销。沙箱broker现行runtime身份无host_plugin，生成插件实际调用四项须拒绝，不修改broker帮其取得身份；伪造输入无效。真实Coding取得相同GoalContextSnapshot与user进展结果，Goals移除仍明确不可用。删除四桥、对应类型/注册/出口并验证旧literal协议不能恢复；四动作/API快照、Skill及调用方影响同片记录。 |
 | W3-07-9-01 | 基于实际完整Host测量剩余typed家族与生产调用者，tests/typed-registry-inventory及mutation拒绝Goals/开发入口回流；CALL-CHAINS、GLOSSARY、SDK/Host/Goals/CLI/MCP README与Skill均只描述现行唯一业务路径。不存在的Casebook及已删host_only不留为当前清单；计数实测降低，不用改基线放过新增。 |
 
 本节是已核对的实施边界，尚未实现或验证。单片整体构建、契约/API/健康/资源/安全及实际相关入口回归后再进入协调全量；7的安全边界与8的可信身份必须做只读窄复核，不把测试工具或假caller当生产证明。
@@ -1480,7 +1480,7 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 | CI-MCP-PIPE-01 | 真实launcher关闭stdin后发送initialize结果，公开验证函数返回false且父进程存活，不产生未处理EPIPE；第一次write可以用于检测远端闭管道，验证失败/exit收口后的剩余stdout及同chunk消息不再触发后续写。监听保留至owned child关闭以吸收已排队错误，不靠Writable字段预测远端状态或另加测试hook。原initialize→tools/list成功、退出launcher和慢启动证明保留，10秒限制及仅关闭自己child不变。 |
 | CI-MCP-PIPE-02 | 同一闭管道fixture通过公开RuntimeIntegrationService实际验证，失败后配置字节/无关Runtime设置、Skill状态和原receipt恢复，没有成功接入或新授权记录；再次可用launcher能正常接入。独立源码复核、整体build、定向Runtime/MCP公开回归及当前main门禁通过后开独立PR，Linux CI另记实际结果。 |
 
-独立候选5f49307082a6448876adda410c29011f56875f6b已完成，3文件+106/-1，生产仅4行；固定源码窄复核及root实际diff无Blocker/P1。main0568上的整体build/API0变/动作无变/资源29项11,366,644字节不变/actual-base健康/boundary/noEmit全通过，9文件53/53、0跳过/取消。只临时撤自有忽略dist的两settled关口而保留error listener，真实trace按预期失败，实际收到initialize+tools/list；finally字节精确恢复后完整Runtime16/16、无跳过/取消，不能把53+16算69独立用例。Model #456刚合入679034ca后，root已机械并到abcab187a并正在重新锁内构建/门禁与实际Runtime影响组；发布、Linux结果与原CI异常的归因尚待完成。
+独立候选5f49307082a6448876adda410c29011f56875f6b已完成，3文件+106/-1，生产仅4行；固定源码窄复核及root实际diff无Blocker/P1。main0568上的整体build/API0变/动作无变/资源29项11,366,644字节不变/actual-base健康/boundary/noEmit全通过，9文件53/53、0跳过/取消。只临时撤自有忽略dist的两settled关口而保留error listener，真实trace按预期失败，实际收到initialize+tools/list；finally字节精确恢复后完整Runtime16/16、无跳过/取消，不能把53+16算69独立用例。Model #456合入679034ca后，root机械并到abcab187a73040696560526628701123a409fcc5，独有范围仍3文件+106/-1。第二次整体build/API0变/动作无变/29资源11,366,644字节不变、actual-base健康/boundary/noEmit均通过；Runtime与Model两个实际文件30/30、0跳过/取消。动作检查首次误用不存在的--check参数退出2，原日志保留，按脚本默认调用重新检查通过，未据此重建或放宽规则。推送前strict扫描106新增行干净并核对远端相同，独立[#470](https://github.com/molis-ai/molis-work/pull/470)已发布并附到本任务；Linux/Product/Verify尚在运行，原CI异常的唯一归因仍未证明。
 
 
 ### 10.9 产品 HTTP 错误出口的接续验收（W3-02-G4）
@@ -1501,4 +1501,4 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 
 **Model #456合入与原进程。** 2026-10-12 17:55，固定远端d0e0c8c7464fc23c7a3fb61a9af4053e8414dea6的七项CI均SUCCESS（含Linux探针/Product/Verify）、与main0568同步；主协调在自己的Model树fast-forward该远端、再次strict密钥扫描及本地/远端SHA核对后，仅移除原done中的456重排原队列。原daemon11526合入679034ca46da3112b7d4f00f0d85e1c65ee220c7，没有新启驱动。剩余#457/#459及第五PR只按新main与实际CI结果串行推进，不用旧绿结果称新head通过。MCP独立已复现缺陷优先收口，不放宽产品子集或跳过Runtime文件。
 
-**I6准备。** managed隔离树feature/anti-corruption-i6-1012已由G1最终2031建立；机械并当时main0568至0a1d88db194992518f941b6a50b222d83379b4cc，git tree差异为空。它已有已验Home/G1和I5三测试修复，仍等独立MCP与G3候选；未install/build或启动全量。最终组合完成后重新测量所有派生数据、整体build并冻结该树源码/脚本/包/Skill，协调全量与基线对照另记，准备不能算全量通过。
+**I6准备。** managed隔离树feature/anti-corruption-i6-1012已由G1最终2031建立；机械并当时main0568至0a1d88db194992518f941b6a50b222d83379b4cc，git tree差异为空。随后机械并入独立MCP候选abcab187a及其main679祖先至bb85902097e40e3d942a33a68a1b80506fc99930；两README仅原必跑清单顺序冲突，保留已包含全部main用例的Home/G1清单，实际新增仍只有MCP三文件。它已有已验Home/G1、I5三测试修复与MCP独立候选，仍等G3候选；未install/build或启动全量。最终组合完成后重新测量所有派生数据、整体build并冻结该树源码/脚本/包/Skill，协调全量与基线对照另记，准备不能算全量通过。

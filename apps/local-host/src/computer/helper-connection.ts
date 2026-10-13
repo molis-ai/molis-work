@@ -4,6 +4,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { computerErrors, helperFailure, markHelper } from "./computer-errors.js";
 
 /**
  * The connection to the macOS computer helper (specs/computer-use D09): local-host opens a Unix socket only this user can
@@ -41,11 +42,7 @@ export type HelperEvent =
   | { readonly event: "closed"; readonly unexpected: boolean };
 
 /** Why the helper cannot be used right now, in a code the driver turns into Prologue's `driver-unavailable`. */
-export type HelperProblem = "helper.unsupported" | "helper.missing" | "helper.start_failed" | "helper.crashed" | "helper.restarting_too_often";
-
-export class HelperError extends Error {
-  constructor(readonly code: string, message: string) { super(message); this.name = "HelperError"; }
-}
+export type HelperProblem = "computer.unsupported" | "computer.missing" | "computer.start_failed" | "computer.crashed" | "computer.restarting_too_often";
 
 export interface HelperConnectionOptions {
   /** The built `Molis Work Computer Helper.app`; null when this install has none. */
@@ -61,6 +58,10 @@ export interface HelperConnectionOptions {
 const MAX_RESTARTS_PER_MINUTE = 3;
 
 function darwinMajor(): number { return Number(os.release().split(".")[0]) || 0; }
+
+function described(error: { readonly code: string; readonly message: string }): { readonly code: HelperProblem; readonly message: string } {
+  return { code: error.code as HelperProblem, message: error.message };
+}
 
 export class HelperConnection {
   private server: net.Server | null = null;
@@ -81,10 +82,10 @@ export class HelperConnection {
   /** Why the helper is not usable at all on this install, before anything is started; null when it may be started. */
   unsupported(): { readonly code: HelperProblem; readonly message: string } | null {
     const platform = this.options.platform ?? { os: process.platform, darwinMajor: darwinMajor() };
-    if (platform.os !== "darwin") return { code: "helper.unsupported", message: "操作电脑只支持 macOS。" };
+    if (platform.os !== "darwin") return described(computerErrors.unsupported("操作电脑只支持 macOS。"));
     // Darwin 23 is macOS 14, the first with the screenshot interface the helper uses (D11).
-    if (platform.darwinMajor < 23) return { code: "helper.unsupported", message: "操作电脑需要 macOS 14 或更新的系统。" };
-    if (!this.options.appPath || !fs.existsSync(this.options.appPath)) return { code: "helper.missing", message: "这次安装里没有电脑助手（Molis Work Computer Helper）。" };
+    if (platform.darwinMajor < 23) return described(computerErrors.unsupported("操作电脑需要 macOS 14 或更新的系统。"));
+    if (!this.options.appPath || !fs.existsSync(this.options.appPath)) return described(computerErrors.missing("这次安装里没有电脑助手（Molis Work Computer Helper）。"));
     return null;
   }
 
@@ -102,16 +103,17 @@ export class HelperConnection {
 
   /** Starts the helper when it is not running and waits for it to say hello. */
   async ensure(): Promise<HelperStatus> {
-    if (this.closed) throw new HelperError("helper.closed", "电脑助手已关闭");
+    if (this.closed) throw markHelper(computerErrors.closed("电脑助手已关闭"));
     if (this.ready && this.last) return this.last;
     if (this.starting) return this.starting;
     const unsupported = this.unsupported();
-    if (unsupported) { this.problemCode = unsupported.code; throw new HelperError(unsupported.code, unsupported.message); }
+    if (unsupported) { this.problemCode = unsupported.code; throw markHelper(unsupported.code === "computer.missing" ? computerErrors.missing(unsupported.message) : computerErrors.unsupported(unsupported.message)); }
     const now = Date.now();
     while (this.restarts.length && now - this.restarts[0]! > 60_000) this.restarts.shift();
     if (this.restarts.length >= MAX_RESTARTS_PER_MINUTE) {
-      this.problemCode = "helper.restarting_too_often";
-      throw new HelperError("helper.restarting_too_often", "电脑助手一分钟内反复退出，先停下；稍后再试。");
+      const error = computerErrors.restarting_too_often("电脑助手一分钟内反复退出，先停下；稍后再试。");
+      this.problemCode = "computer.restarting_too_often";
+      throw markHelper(error);
     }
     this.restarts.push(now);
     this.starting = this.start().finally(() => { this.starting = null; });
@@ -123,8 +125,8 @@ export class HelperConnection {
     const timeoutMs = this.options.startTimeoutMs ?? 15_000;
     const hello = new Promise<HelperStatus>((resolve, reject) => {
       const timer = setTimeout(() => {
-        this.problemCode = "helper.start_failed";
-        reject(new HelperError("helper.start_failed", "电脑助手没有按时启动。"));
+        this.problemCode = "computer.start_failed";
+        reject(markHelper(computerErrors.start_failed("电脑助手没有按时启动。")));
       }, timeoutMs);
       this.onHello = status => { clearTimeout(timer); resolve(status); };
     });
@@ -186,8 +188,8 @@ export class HelperConnection {
     socket.on("close", () => {
       if (this.socket !== socket) return;
       this.socket = null;
-      for (const [id, entry] of this.waiting) { clearTimeout(entry.timer); entry.reject(new HelperError("helper.crashed", "电脑助手中途退出了，这一步结果不确定。")); this.waiting.delete(id); }
-      if (!this.closed) this.problemCode = "helper.crashed";
+      for (const [id, entry] of this.waiting) { clearTimeout(entry.timer); entry.reject(markHelper(computerErrors.crashed("电脑助手中途退出了，这一步结果不确定。"))); this.waiting.delete(id); }
+      if (!this.closed) this.problemCode = "computer.crashed";
       this.emit({ event: "closed", unexpected: !this.closed });
     });
     socket.on("error", () => undefined);
@@ -209,7 +211,8 @@ export class HelperConnection {
     if (message.ok === true) entry.resolve(message.result);
     else {
       const error = (message.error ?? {}) as { code?: string; message?: string };
-      entry.reject(new HelperError(error.code ?? "helper.failed", error.message ?? "电脑助手没能完成这一步"));
+      const text = error.message ?? "电脑助手没能完成这一步";
+      entry.reject(error.code ? helperFailure(error.code, text) : markHelper(computerErrors.failed(text)));
     }
   }
 
@@ -221,12 +224,12 @@ export class HelperConnection {
   async call<T>(op: string, params: Record<string, unknown> = {}, timeoutMs?: number): Promise<T> {
     await this.ensure();
     const socket = this.socket;
-    if (!socket) throw new HelperError("helper.crashed", "电脑助手不在运行");
+    if (!socket) throw markHelper(computerErrors.crashed("电脑助手不在运行"));
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.waiting.delete(id);
-        reject(new HelperError("helper.timeout", "电脑助手没有按时回答，这一步结果不确定。"));
+        reject(markHelper(computerErrors.timeout("电脑助手没有按时回答，这一步结果不确定。")));
       }, timeoutMs ?? this.options.requestTimeoutMs ?? 20_000);
       this.waiting.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
       socket.write(`${JSON.stringify({ id, op, params })}\n`);

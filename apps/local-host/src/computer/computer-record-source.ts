@@ -1,7 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ActionError, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, fileContentOf, FILE_ENTRIES_PAGE_LIMIT, LOCAL_PERSON_ACTOR_ID,
+import { bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, fileContentOf, FILE_ENTRIES_PAGE_LIMIT, LOCAL_PERSON_ACTOR_ID,
   type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type FileEntry, type FileContentInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { writeNativePluginJsonResponse } from "../native-plugin-http.js";
+import { computerErrors } from "./computer-errors.js";
 import { ComputerRecords, type ComputerRecord } from "./computer-records.js";
 
 /**
@@ -84,7 +86,7 @@ export function computerRecordFileSource(homeDirectory: string): { definitions: 
     { capability_id: computerRecordActions.content.capability_id, version: 1, handle: async (caller, input) => {
       const subject = (input as FileContentInput).subject;
       const record = records.get(subject.id);
-      if (!record || record.project_id !== caller.project_id) throw new ActionError("files.not_found", "这份电脑操作记录不在了");
+      if (!record || record.project_id !== caller.project_id) throw computerErrors.not_found("这份电脑操作记录不在了");
       return fileContentOf({ subject, revision: record.ended_at ?? record.started_at, title: titleOf(record), media_type: "text/markdown", text: renderMarkdown(record) });
     } },
   ];
@@ -116,8 +118,8 @@ export async function handleUnscopedComputerFiles(request: IncomingMessage, resp
     json(200, { content, via: "content" });
     return true;
   } catch (error) {
-    const code = (error as { code?: string }).code ?? "";
-    json(/not_found$/u.test(code) ? 404 : 409, { error: error instanceof Error ? error.message : String(error), code });
+    const answer = actionErrorResponse(error);
+    json(answer.status, answer.body);
     return true;
   }
 }

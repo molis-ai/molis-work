@@ -232,8 +232,8 @@ export { prologueMemoryBackend } from "./memory/memory-host.js";
 export { ComputerRecords } from "./computer/computer-records.js";
 export { ComputerDesk } from "./computer/computer-desk.js";
 export { ComputerSettings } from "./computer/computer-settings.js";
-export { ComputerDriver, Refused, type DeskContext } from "./computer/computer-driver.js";
-export { HelperError } from "./computer/helper-connection.js";
+export { ComputerDriver, type DeskContext } from "./computer/computer-driver.js";
+export { helperFailure, isRefused } from "./computer/computer-errors.js";
 export {
   COMPUTER_RECORD_SOURCE_ID,
   computerRecordFileSource,

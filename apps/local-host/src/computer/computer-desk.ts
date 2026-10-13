@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import type { HostSurfaceDriver, HostSurfaceRefusal } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import type { ComputerActivity, ComputerControlMode, ComputerState } from "@molis-ai/molis-work-contracts/services/computer";
 import { showsMolis, tierOf } from "./app-tiers.js";
-import { ComputerDriver, Refused, type AppState, type DeskContext, type Target } from "./computer-driver.js";
+import { refused } from "./computer-errors.js";
+import { ComputerDriver, type AppState, type DeskContext, type Target } from "./computer-driver.js";
 import type { ComputerRecords } from "./computer-records.js";
 import type { ComputerSettings } from "./computer-settings.js";
 import { type HelperConnection, type HelperEvent, type HelperStatus } from "./helper-connection.js";
@@ -97,7 +98,7 @@ export class ComputerDesk implements DeskContext {
     const problem = unsupported ?? (helper.problem() ? { code: helper.problem()!, message: problemMessage(helper.problem()!) } : null);
     return {
       enabled: this.options.settings.enabled,
-      helper: { state: unsupported ? (unsupported.code === "helper.unsupported" ? "unsupported" : "missing") : helper.ready ? "ready" : helper.problem() ? "crashed" : "stopped",
+      helper: { state: unsupported ? (unsupported.code === "computer.unsupported" ? "unsupported" : "missing") : helper.ready ? "ready" : helper.problem() ? "crashed" : "stopped",
         problem, version: status?.version ?? null },
       permissions: status ? { ...status.permissions } : null,
       presence: this.presence(status),
@@ -204,7 +205,7 @@ export class ComputerDesk implements DeskContext {
 
   async ready(sessionId: string | null): Promise<void> {
     const blocked = await this.readiness(sessionId);
-    if (blocked) throw new Refused(blocked.refusal, blocked.detail);
+    if (blocked) throw refused(blocked.refusal, blocked.detail);
     // The first look or action of a round takes the computer for it, starts its record, and watches the person's input.
     if (sessionId && (!this.lease || this.lease.session_id !== sessionId)) {
       const record = this.options.records.start({ session_id: sessionId, run_id: this.context?.run_id ?? null, project_id: this.context?.project_id ?? null, goal: this.context?.goal ?? "" });
@@ -250,9 +251,9 @@ export class ComputerDesk implements DeskContext {
 
 function problemMessage(code: string): string {
   switch (code) {
-    case "helper.crashed": return "电脑助手意外退出了；下一步会自动重新启动它。";
-    case "helper.start_failed": return "电脑助手没能启动。";
-    case "helper.restarting_too_often": return "电脑助手一分钟内反复退出，先停下；稍后再试。";
+    case "computer.crashed": return "电脑助手意外退出了；下一步会自动重新启动它。";
+    case "computer.start_failed": return "电脑助手没能启动。";
+    case "computer.restarting_too_often": return "电脑助手一分钟内反复退出，先停下；稍后再试。";
     default: return "电脑助手现在不可用。";
   }
 }

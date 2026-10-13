@@ -2,12 +2,13 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal, HostSurfaceRefusalError } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import type { ComputerActivity } from "@molis-ai/molis-work-contracts/services/computer";
 import { tierOf, type AppTierVerdict } from "./app-tiers.js";
+import { isHelperFailure, isRefused, refused } from "./computer-errors.js";
 import { refuseCapture, refuseDespiteWindowText, refuseLanding, refuseSelfApproval, type LandingProbe } from "./computer-policy.js";
 import type { ComputerRecords } from "./computer-records.js";
-import { HelperError, type HelperConnection } from "./helper-connection.js";
+import type { HelperConnection } from "./helper-connection.js";
 
 /** The scope before any app is targeted: Prologue's `DESKTOP_NO_APP_SCOPE`, which no app rule matches. */
 export const NO_APP_SCOPE = "desktop:no-app";
@@ -42,13 +43,9 @@ export interface AppState {
 export interface Target { readonly bundle_id: string; readonly name: string; pid: number; readonly verdict: AppTierVerdict }
 type Tree = { window: { title: string; frame: [number, number, number, number] }; nodes: TreeNode[]; truncated: boolean; menus: string[] };
 
-export class Refused extends Error implements HostSurfaceRefusalError {
-  constructor(readonly refusal: HostSurfaceRefusal, message: string, readonly partial = false) { super(message); this.name = "HostSurfaceRefused"; }
-}
-
 /** A refusal is written on the round's record before it leaves the driver, so the words survive Prologue's refusal code. */
 function rememberRefusal(ctx: DeskContext, app: { bundle_id: string; name: string } | null, error: Error): never {
-  if (error instanceof Refused) ctx.recordStep({ kind: "refused", app, summary: error.message });
+  if (isRefused(error)) ctx.recordStep({ kind: "refused", app, summary: error.message });
   throw error;
 }
 
@@ -201,7 +198,7 @@ export class ComputerDriver {
     try { return await this.ctx.helper.call<AppState>("app.state", { pid: target.pid }); }
     catch (error) {
       // The app quit and came back under another process: find it again by its bundle id.
-      if (error instanceof HelperError && error.code === "app.gone") {
+      if (isHelperFailure(error) && error.code === "app.gone") {
         const running = await this.ctx.helper.call<{ apps: AppState[] }>("apps.running");
         const again = running.apps.find(app => app.bundle_id === target.bundle_id);
         if (!again) throw new Error(`「${target.name}」已经退出了`);
@@ -224,13 +221,13 @@ export class ComputerDriver {
   private forbidCheck(state: AppState, action?: string): void {
     const title = state.window?.title ?? "";
     const why = refuseDespiteWindowText({ app: { bundle_id: state.bundle_id, name: state.name }, windowTitle: title, windowText: title, ...(action ? { action } : {}), userForbidden: this.ctx.settings.forbiddenIds() });
-    if (why) throw new Refused("outside-target", why);
+    if (why) throw refused("outside-target", why);
   }
 
   private async screenshot(state: AppState): Promise<Buffer> {
     const shot = await this.ctx.helper.call<{ png: string; included_pids?: number[]; password_fields?: number; masked?: number }>("observe.screenshot", { pid: state.pid, rect: state.window!.frame, scale: 1 }).catch(error => rememberRefusal(this.ctx, this.appRef(), this.translate(error)));
     const why = refuseCapture({ targetPid: state.pid, includedPids: shot.included_pids, passwordFields: shot.password_fields, coveredFields: shot.masked });
-    if (why) rememberRefusal(this.ctx, this.appRef(), new Refused("outside-target", why));
+    if (why) rememberRefusal(this.ctx, this.appRef(), refused("outside-target", why));
     const png = Buffer.from(shot.png, "base64");
     this.ctx.emitFrame(png);
     return png;
@@ -273,7 +270,7 @@ export class ComputerDriver {
     const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 });
     const text = renderTree(state, tree);
     // The words go to the model; the person's record and the tab get the picture of the same moment.
-    const png = await this.screenshot(state).catch(error => { if (error instanceof Refused) throw error; return undefined; });
+    const png = await this.screenshot(state).catch(error => { if (isRefused(error)) throw error; return undefined; });
     this.ctx.recordStep({ kind: "look", app: this.appRef(), summary: `查看「${target.name}」的窗口（${state.window.title || "无标题"}）` }, png);
     return new TextEncoder().encode(text);
   }
@@ -281,7 +278,7 @@ export class ComputerDriver {
   /** Waits for the person's mouse to settle before the Assistant moves it; refuses when it does not. */
   private async settled(): Promise<void> {
     for (let waited = 0; this.ctx.pendingPersonMove(); waited += 100) {
-      if (waited >= 2_000) { this.ctx.pauseForPerson(); throw new Refused("person-present", "用户正在用鼠标，助理暂停；等用户交还后先重新观察。"); }
+      if (waited >= 2_000) { this.ctx.pauseForPerson(); throw refused("person-present", "用户正在用鼠标，助理暂停；等用户交还后先重新观察。"); }
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
@@ -302,7 +299,7 @@ export class ComputerDriver {
       await this.inject(action, target, at, pid);
     } catch (error) {
       const translated = this.translate(error);
-      this.ctx.recordStep({ kind: translated instanceof Refused ? "refused" : "failed", app: this.appRef(),
+      this.ctx.recordStep({ kind: isRefused(translated) ? "refused" : "failed", app: this.appRef(),
         summary: `${this.ctx.activity()?.summary ?? action.what}：${translated.message}`,
         ...(this.ctx.activity()?.point ? { point: this.ctx.activity()!.point! } : {}) });
       throw translated;
@@ -310,7 +307,7 @@ export class ComputerDriver {
     this.ctx.noteInjected();
     // The step and the picture after it, for the person's tab and the record.
     let png: Uint8Array | undefined;
-    try { png = await this.freshFrame(); } catch (error) { if (error instanceof Refused) throw error; /* a missing picture does not undo the step */ }
+    try { png = await this.freshFrame(); } catch (error) { if (isRefused(error)) throw error; /* a missing picture does not undo the step */ }
     const activity = this.ctx.activity();
     this.ctx.recordStep({ kind: "act", app: this.appRef(), summary: activity?.summary ?? action.what, ...(activity?.point ? { point: activity.point } : {}) }, png);
   }
@@ -349,7 +346,7 @@ export class ComputerDriver {
       case "text": {
         await this.settled();
         const field = await this.focusedField();
-        if (field.sensitive) throw new Refused("outside-target", "焦点在密码类输入框里：助理不替用户输入密码，请用户自己完成");
+        if (field.sensitive) throw refused("outside-target", "焦点在密码类输入框里：助理不替用户输入密码，请用户自己完成");
         this.ctx.mark(`在「${target.name}」${field.label ? `的「${field.label}」里` : ""}输入 ${[...action.text].length} 个字`, null);
         return void await helper.call("input.text", { pid, text: action.text });
       }
@@ -384,25 +381,25 @@ export class ComputerDriver {
     if (!known) throw new Error(`这台电脑上没有应用「${bundleId}」：先观察一次，看正在运行的应用列表`);
     const verdict = tierOf(known, this.ctx.settings.forbiddenIds());
     const blocked = refuseSelfApproval(known, "", this.ctx.settings.forbiddenIds());
-    if (blocked) rememberRefusal(this.ctx, { bundle_id: known.bundle_id, name: known.name }, new Refused("outside-target", blocked));
+    if (blocked) rememberRefusal(this.ctx, { bundle_id: known.bundle_id, name: known.name }, refused("outside-target", blocked));
     await this.settled();
     this.ctx.mark(`打开或切到「${known.name}」`, null);
     let state: AppState;
     try { state = await this.ctx.helper.call<AppState>("app.open", { bundle_id: bundleId }, 30_000); }
     catch (error) { throw this.translate(error); }
     // Prologue judged the switch by exactly this identity: an app that answers to another one is not the app approved.
-    if (state.bundle_id !== bundleId) throw new Refused("outside-target", `打开的应用是「${state.bundle_id}」，不是要求的「${bundleId}」`);
+    if (state.bundle_id !== bundleId) throw refused("outside-target", `打开的应用是「${state.bundle_id}」，不是要求的「${bundleId}」`);
     this.ctx.setTarget({ bundle_id: bundleId, name: state.name || known.name, pid: state.pid, verdict });
     try { this.forbidCheck(state); } catch (error) { rememberRefusal(this.ctx, this.appRef(), this.translate(error)); }
     this.ctx.changed();
-    try { await this.freshFrame(); } catch (error) { if (error instanceof Refused) throw error; /* no picture yet is fine */ }
+    try { await this.freshFrame(); } catch (error) { if (isRefused(error)) throw error; /* no picture yet is fine */ }
   }
 
   /** The point is on the target app and not on a window that shows Molis Work. The helper checks again at the last moment. */
   private async landsOnTarget(point: [number, number]): Promise<void> {
     const probe = await this.ctx.helper.call<LandingProbe>("probe.point", { point });
     const why = refuseLanding(probe, this.ctx.target()?.pid ?? -1);
-    if (why) throw new Refused("outside-target", why);
+    if (why) throw refused("outside-target", why);
   }
 
   private async describePoint(x: number, y: number): Promise<string> {
@@ -435,18 +432,18 @@ export class ComputerDriver {
   }
 
   private translate(error: unknown): Error {
-    if (error instanceof Refused) return error;
-    if (error instanceof HelperError) {
+    if (isRefused(error)) return error;
+    if (isHelperFailure(error)) {
       switch (error.code) {
         case "person.present":
           this.ctx.pauseForPerson();
           // Some of the step's events may have landed already: Prologue settles it as needing reconciliation, never replays it.
-          return new Refused("person-present", "用户动了鼠标或键盘，这一步停在半途，助理暂停；等用户交还后先重新观察。", true);
-        case "landing.covered": return new Refused("outside-target", `${error.message}；不点，先重新观察。`);
-        case "capture.password": case "field.password": case "input.look_only": return new Refused("outside-target", error.message);
-        case "permission.accessibility": case "permission.screen_recording": case "helper.crashed": case "helper.timeout":
-        case "helper.unsupported": case "helper.missing": case "helper.start_failed": case "helper.restarting_too_often":
-          return new Refused("driver-unavailable", error.message);
+          return refused("person-present", "用户动了鼠标或键盘，这一步停在半途，助理暂停；等用户交还后先重新观察。", true);
+        case "landing.covered": return refused("outside-target", `${error.message}；不点，先重新观察。`);
+        case "capture.password": case "field.password": case "input.look_only": return refused("outside-target", error.message);
+        case "permission.accessibility": case "permission.screen_recording": case "helper.crashed": case "computer.crashed": case "helper.timeout": case "computer.timeout":
+        case "helper.unsupported": case "computer.unsupported": case "helper.missing": case "computer.missing": case "helper.start_failed": case "computer.start_failed": case "helper.restarting_too_often": case "computer.restarting_too_often":
+          return refused("driver-unavailable", error.message);
         default: return new Error(error.message);
       }
     }

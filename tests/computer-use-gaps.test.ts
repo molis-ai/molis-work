@@ -16,8 +16,8 @@ import {
   ComputerDriver,
   ComputerRecords,
   ComputerSettings,
-  HelperError,
-  Refused,
+  helperFailure,
+  isRefused,
   computerRecordFileSource,
   confirmArrivedTooSoon,
   handleAgentReviewHttp,
@@ -181,7 +181,7 @@ test("operation records are listed for the project that owns them, including no 
     const content = source.handlers.find(handler => handler.capability_id === "computer.records.content")!;
     const page = await entries.handle(caller("project-a"), { cursor: null, limit: 50 }) as { entries: Array<{ subject: { id: string } }> };
     assert.deepEqual(page.entries.map(entry => entry.subject.id), [owned.id]);
-    await assert.rejects(() => content.handle(caller("project-a"), { subject: { kind: "computer_record", id: foreign.id } }), (error: { code?: string }) => error.code === "files.not_found");
+    await assert.rejects(() => content.handle(caller("project-a"), { subject: { kind: "computer_record", id: foreign.id } }), (error: { code?: string }) => error.code === "computer.not_found");
     const own = await content.handle(caller("project-a"), { subject: { kind: "computer_record", id: owned.id } }) as { data: string };
     assert.match(own.data, /项目甲的操作/);
 
@@ -306,33 +306,33 @@ function seen(bundle: string, name: string, title: string, pid = 4) {
 test("the desktop driver refuses the same four inputs before it acts", async () => {
   const perform = async (action: HostSurfaceAction, context: DeskContext) => context && new ComputerDriver(context).surface().perform(action, { session_id: "s" });
   const terminalSteps: { kind?: string }[] = [];
-  await assert.rejects(() => perform({ what: "text", text: "rm" }, desktop(seen("com.apple.Terminal", "Terminal", TEXT), {}, { png: "" }, { steps: terminalSteps })), (error: unknown) => error instanceof Refused && /只能看和点/.test(error.message));
+  await assert.rejects(() => perform({ what: "text", text: "rm" }, desktop(seen("com.apple.Terminal", "Terminal", TEXT), {}, { png: "" }, { steps: terminalSteps })), (error: unknown) => isRefused(error) && /只能看和点/.test(error.message));
   assert.equal(terminalSteps.at(-1)?.kind, "refused");
   const settingsSteps: { kind?: string }[] = [];
-  await assert.rejects(() => perform({ what: "app", app: "com.apple.systempreferences" }, desktop(seen("com.apple.systempreferences", "系统设置", "Privacy"), {}, { png: "" }, { steps: settingsSteps })), (error: unknown) => error instanceof Refused && /禁区/.test(error.message));
+  await assert.rejects(() => perform({ what: "app", app: "com.apple.systempreferences" }, desktop(seen("com.apple.systempreferences", "系统设置", "Privacy"), {}, { png: "" }, { steps: settingsSteps })), (error: unknown) => isRefused(error) && /禁区/.test(error.message));
   assert.equal(settingsSteps.at(-1)?.kind, "refused");
-  await assert.rejects(() => perform({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, desktop(seen("com.apple.Safari", "Safari", "确认 · Molis Work"), {})), (error: unknown) => error instanceof Refused && /Molis Work/.test(error.message));
+  await assert.rejects(() => perform({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, desktop(seen("com.apple.Safari", "Safari", "确认 · Molis Work"), {})), (error: unknown) => isRefused(error) && /Molis Work/.test(error.message));
   const covered = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), { window: { pid: 9, title: "Mail" }, element: { pid: 9, window_title: "Mail" } });
-  await assert.rejects(() => perform({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, covered), (error: unknown) => error instanceof Refused && /落点不在目标应用/.test(error.message));
+  await assert.rejects(() => perform({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, covered), (error: unknown) => isRefused(error) && /落点不在目标应用/.test(error.message));
   const capture = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), { window: { pid: 4 }, element: { pid: 4, window_title: "Notes" } }, { png: "", included_pids: [4, 8] });
-  await assert.rejects(() => new ComputerDriver(capture).surface().observe("screenshot", { session_id: "s" }), (error: unknown) => error instanceof Refused && /别的应用/.test(error.message));
+  await assert.rejects(() => new ComputerDriver(capture).surface().observe("screenshot", { session_id: "s" }), (error: unknown) => isRefused(error) && /别的应用/.test(error.message));
   const passwords = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), {}, { png: "", password_fields: 1, masked: 0 });
-  await assert.rejects(() => new ComputerDriver(passwords).surface().observe("screenshot", { session_id: "s" }), (error: unknown) => error instanceof Refused && /密码框/.test(error.message));
+  await assert.rejects(() => new ComputerDriver(passwords).surface().observe("screenshot", { session_id: "s" }), (error: unknown) => isRefused(error) && /密码框/.test(error.message));
   const helperShot: { kind?: string }[] = [];
-  const helperCapture = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), {}, { png: "" }, { steps: helperShot, fail: { "observe.screenshot": new HelperError("capture.password", "截图会带出没有涂黑的密码框") } });
-  await assert.rejects(() => new ComputerDriver(helperCapture).surface().observe("screenshot", { session_id: "s" }), (error: unknown) => error instanceof Refused && /密码框/.test(error.message));
+  const helperCapture = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), {}, { png: "" }, { steps: helperShot, fail: { "observe.screenshot": helperFailure("capture.password", "截图会带出没有涂黑的密码框") } });
+  await assert.rejects(() => new ComputerDriver(helperCapture).surface().observe("screenshot", { session_id: "s" }), (error: unknown) => isRefused(error) && /密码框/.test(error.message));
   assert.equal(helperShot.at(-1)?.kind, "refused");
   const typed: { kind?: string }[] = [];
-  const lookOnly = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), { window: { pid: 4 }, element: { pid: 4, window_title: "Notes" } }, { png: Buffer.from("png").toString("base64"), included_pids: [4], password_fields: 0, masked: 0 }, { steps: typed, fail: { "input.text": new HelperError("input.look_only", "「Terminal」只能看和点：助理不能在这里输入或按键（命令走 Coding）") } });
-  await assert.rejects(() => perform({ what: "text", text: "echo" }, lookOnly), (error: unknown) => error instanceof Refused && /只能看和点/.test(error.message));
+  const lookOnly = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), { window: { pid: 4 }, element: { pid: 4, window_title: "Notes" } }, { png: Buffer.from("png").toString("base64"), included_pids: [4], password_fields: 0, masked: 0 }, { steps: typed, fail: { "input.text": helperFailure("input.look_only", "「Terminal」只能看和点：助理不能在这里输入或按键（命令走 Coding）") } });
+  await assert.rejects(() => perform({ what: "text", text: "echo" }, lookOnly), (error: unknown) => isRefused(error) && /只能看和点/.test(error.message));
   assert.equal(typed.at(-1)?.kind, "refused");
-  await assert.rejects(() => perform({ what: "text", text: "secret" }, desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), { window: { pid: 4 }, element: { pid: 4 } }, { png: "" }, { field: { name: "密码", secure: true } })), (error: unknown) => error instanceof Refused && /密码/.test(error.message));
+  await assert.rejects(() => perform({ what: "text", text: "secret" }, desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), { window: { pid: 4 }, element: { pid: 4 } }, { png: "" }, { field: { name: "密码", secure: true } })), (error: unknown) => isRefused(error) && /密码/.test(error.message));
   const clear = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), { window: { pid: 4 }, element: { pid: 4, window_title: "Notes" } }, { png: Buffer.from("png").toString("base64"), included_pids: [4], password_fields: 0, masked: 0 });
   await new ComputerDriver(clear).surface().perform({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, { session_id: "s" });
   assert.equal((clear as DeskContext & { injected(): number }).injected(), 1);
   const menuSteps: { kind?: string }[] = [];
   const menu = desktop(seen("com.apple.Terminal", "Terminal", TEXT), {}, { png: "" }, { steps: menuSteps });
-  await assert.rejects(() => perform({ what: "menu", path: ["脚本", "运行"] }, menu), (error: unknown) => error instanceof Refused && /只能看和点/.test(error.message));
+  await assert.rejects(() => perform({ what: "menu", path: ["脚本", "运行"] }, menu), (error: unknown) => isRefused(error) && /只能看和点/.test(error.message));
   assert.equal(menuSteps.at(-1)?.kind, "refused");
   assert.equal((menu as DeskContext & { injected(): number }).injected(), 0);
 });
@@ -341,8 +341,8 @@ test("a look at the assistant's own window is recorded as refused", async () => 
   const steps: { kind?: string; summary?: string }[] = [];
   const own = desktop(seen("com.apple.Safari", "Safari", "确认 · Molis Work"), {}, { png: "" }, { steps });
   const driver = new ComputerDriver(own);
-  await assert.rejects(() => driver.surface().observe("accessibility-tree", { session_id: "s" }), (error: unknown) => error instanceof Refused && /Molis Work/.test(error.message));
-  await assert.rejects(() => driver.freshFrame(), (error: unknown) => error instanceof Refused && /Molis Work/.test(error.message));
+  await assert.rejects(() => driver.surface().observe("accessibility-tree", { session_id: "s" }), (error: unknown) => isRefused(error) && /Molis Work/.test(error.message));
+  await assert.rejects(() => driver.freshFrame(), (error: unknown) => isRefused(error) && /Molis Work/.test(error.message));
   assert.equal(steps.filter(step => step.kind === "refused").length, 2);
   assert.match(steps[0]?.summary ?? "", /Molis Work/);
 });
@@ -354,7 +354,7 @@ test("a refused picture after the action is not recorded as a successful step", 
   const clicked = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), probe, shot, { steps });
   await assert.rejects(
     () => new ComputerDriver(clicked).surface().perform({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, { session_id: "s" }),
-    (error: unknown) => error instanceof Refused && /密码/.test((error as Error).message),
+    (error: unknown) => isRefused(error) && /密码/.test((error as Error).message),
   );
   assert.equal(steps.filter(step => step.kind === "act").length, 0);
   assert.equal(steps.filter(step => step.kind === "refused").length, 1);
@@ -363,7 +363,7 @@ test("a refused picture after the action is not recorded as a successful step", 
   const opened = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), probe, shot, { steps: switched });
   await assert.rejects(
     () => new ComputerDriver(opened).surface().perform({ what: "app", app: "com.apple.TextEdit" }, { session_id: "s" }),
-    (error: unknown) => error instanceof Refused,
+    (error: unknown) => isRefused(error),
   );
   assert.equal(switched.filter(step => step.kind === "refused").length, 1);
   assert.equal((opened as DeskContext & { injected(): number }).injected(), 0);

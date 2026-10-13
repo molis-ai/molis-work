@@ -9,16 +9,14 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, LocalMcpServer, molisWorkHostProjectReference, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { createGoalIntentCapability, goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-test("Goals MCP action tools use client grants and the shared Host, and record the Session as author with replayable receipts", { timeout: 60_000 }, async () => {
+test("Goals MCP action tools use client grants and the shared Host, and record the Session as author with replayable receipts", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "goals-mcp-aliases-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Legacy Goals", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
@@ -31,16 +29,15 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     }
     return { available: true };
   } });
-  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host });
+  // The access settings and the MCP gateway of this Host: the grants below go through the former, the MCP process reaches the latter.
+  const served = await serveTestHost(t, { home, host });
+  const origin = served.origin;
   const clientId = "runtime:legacy-goals", session = "legacy-thread", auditActor = `${clientId}:${session}`;
   const context = { runtime_id: "legacy-goals", stable_work_context_id: session, host_declares_stable: true };
   const aliases = { create: "molis_work_v1_action_goals.create__v1", list: "molis_work_v1_action_goals.list__v1", note: "molis_work_v1_action_goals.note__v1", state: "molis_work_v1_action_goals.state.read__v1", events: "molis_work_v1_action_goals.events.list__v1", event: "molis_work_v1_action_goals.events.read__v1" };
   const sdk = new Client({ name: "not-the-authorized-client", version: "1" });
   let pending: Promise<Awaited<ReturnType<typeof sdk.callTool>>> | undefined;
   try {
-    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-    const address = server.address(); assert.ok(address && typeof address === "object");
-    const origin = `http://127.0.0.1:${address.port}`;
     await withCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({ context, project_id: project.project_id, actor_id: "user", user_confirmed: true }));
     const registry = await openWorkSessionRegistry({ homeDirectory: home });
     const sessionId = registry.explicitlyLinkSession({ runtime_id: context.runtime_id, native_runtime_session_id: session,
@@ -66,7 +63,9 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     const names = async () => (await sdk.listTools()).tools.map(tool => tool.name);
     for (const alias of Object.values(aliases)) assert.equal((await names()).includes(alias), false);
     assert.equal((await sdk.callTool({ name: aliases.create, arguments: input })).isError, true, "a project binding grants no writes");
-    await grantGoalsMcp(host, home, project, clientId);
+    await grantGoalsMcp(served, project, clientId);
+    // Saving the grants asked the policy about the client too; what the assertions below read is what the MCP calls asked.
+    policies.length = 0;
     const tools = (await sdk.listTools()).tools;
     for (const alias of Object.values(aliases)) assert.ok(tools.some(tool => tool.name === alias));
     for (const alias of tools.filter(tool => Object.values(aliases).includes(tool.name))) {
@@ -143,14 +142,14 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     gate = new Promise<void>(resolve => { release = resolve; });
     pending = sdk.callTool({ name: aliases.note, arguments: { ...newInput, idempotency_key: "revoked-in-flight" } });
     await Promise.race([started, pending.then(() => { throw new Error("Expected an asynchronous policy checkpoint"); })]);
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, noteView, false));
+    await served.revoke(clientId, project.project_id, [noteView]);
     release!(); assert.equal((await pending).isError, true); pending = undefined; gate = undefined;
     const afterRevoke = await names();
     assert.equal(afterRevoke.includes(aliases.note), false); assert.equal(afterRevoke.includes(molisWorkActionToolName(goalsActions.note)), false);
     const events = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 2);
     const stateView = (await host.inspectActions(caller, ref)).find(view => view.capability_id === goalsActions.state.capability_id)!;
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, stateView, false));
+    await served.revoke(clientId, project.project_id, [stateView]);
     const withoutState = await names();
     assert.equal(withoutState.includes(aliases.state), false);
     assert.equal(withoutState.includes(molisWorkActionToolName(goalsActions.state)), false);
@@ -169,6 +168,6 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     } finally { await management.close(); }
   } finally {
     release?.(); await pending?.catch(() => undefined); await sdk.close();
-    await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true });
+    await served.close(); await host.close(); await rm(home, { recursive: true, force: true });
   }
 });

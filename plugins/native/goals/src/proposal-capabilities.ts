@@ -6,8 +6,9 @@ import { evidenceText, managementEvidence } from "./management-evidence.js";
 
 export const goalTreeCapabilities = {
   /**
-   * Management entries only (the CLI, the typed client), like the check below: the host records the person on this machine, so a
-   * plugin that lists this under capabilities.consumes is refused. A Runtime submits through the `goals.tree.submit` action.
+   * A typed management entry only, like the check below: the host records the person on this machine, so a plugin that lists this
+   * under capabilities.consumes is refused. The CLI and a Runtime submit through the `goals.tree.submit` action (the CLI as the
+   * management caller the Host builds); only tests call this entry until the typed bridge is removed.
    */
   submitGoalTreeProposal: {
     capability_id: "io.molis.work.goals.submit-goal-tree-proposal", version: 1, operation: "command", host_only: true,
@@ -16,8 +17,8 @@ export const goalTreeCapabilities = {
     capability_id: "io.molis.work.goals.list-goal-tree-proposals", version: 1, operation: "query",
   } as MethodCapability<GoalTreeApplicationApi["listGoalTreeProposals"]>,
   /**
-   * Management entries only (the CLI, the typed client): the host records the person on this machine, so a plugin that lists this
-   * under capabilities.consumes is refused and cannot be recorded as that person.
+   * A typed management entry only (the CLI calls the `goals.tree.check` action through the management caller): the host records the
+   * person on this machine, so a plugin that lists this under capabilities.consumes is refused and cannot be recorded as that person.
    */
   checkGoalTreeProposal: {
     capability_id: "io.molis.work.goals.check-goal-tree-proposal", version: 1, operation: "command", host_only: true,
@@ -28,8 +29,8 @@ export const goalTreeCapabilities = {
 };
 
 /**
- * The Host builds the authority of a structure decision taken at a management entry (the CLI, the management MCP, the typed
- * client): the person on this machine, origin management. The caller may point at the conversation the decision came from and
+ * The Host builds the authority of a structure decision taken at a management entry (the CLI through the management caller of
+ * `bindGoalsManagementActions`, the management MCP, the typed client): the person on this machine, origin management. The caller may point at the conversation the decision came from and
  * say the whole proposal was shown; who decides, and through which entry, is fixed here and refused when the caller names it
  * (repository-anti-corruption §9.5 #6).
  */

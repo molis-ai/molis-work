@@ -25,9 +25,10 @@ export interface GoalTreeApplicationApi {
 }
 
 /**
- * What the Host entry (the typed client, the CLI) takes to check a proposal. It names no one: the host records the person on this
- * machine and refuses an `actor_id` in the arguments (specs/goal-closure-identity). The domain method above keeps the actor its
- * caller, the action handler, reads from the call context.
+ * What the typed Host entry takes to check a proposal (the CLI sends the same fields to the `goals.tree.check` action as the
+ * management caller the Host builds). It names no one: the host records the person on this machine and refuses an `actor_id` in
+ * the arguments (specs/goal-closure-identity). The domain method above keeps the actor its caller, the action handler, reads from
+ * the call context.
  */
 export type GoalTreeCheckEntryInput = Omit<GoalTreeProposalCheckInput, "actor_id">;
 

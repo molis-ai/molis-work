@@ -1,9 +1,8 @@
-import { compactScript } from "@molis-ai/molis-work-design-system";
 import { PAGES_BLANK_CLIENT_SCRIPT } from "./blank-client.js";
 import { PAGES_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
 
 /** Pages workbench client: library, autosave, ProseMirror host. */
-export const PAGES_CLIENT_FACTORY_SCRIPT = compactScript(`(host) => {
+export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const workbench = document.querySelector("[data-pages=workbench]");
   if (!workbench) return;
@@ -247,7 +246,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = compactScript(`(host) => {
   const surfaceFocus = () => {
     if (!focusNow || !selected || unshowable) return null;
     const goal = goals.find((item) => item.id === selected.goal_id);
-    const rect = editor && editor.screen ? editor.screen() : null;
+    const rect = editor && editor.screen();
     return { context_id: "pages:" + selected.id + ":" + focusNow.local_id, plugin_id: "io.molis.work.pages",
       ...(rect ? { screen: { rect } } : {}),
       activity: focusNow.activity, granularity: focusNow.granularity,
@@ -320,7 +319,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = compactScript(`(host) => {
         return { command: input.command, style: typeof input.style === "string" ? input.style : undefined, text: typeof input.text === "string" ? input.text : undefined };
       } });
   });
-  let toolsKey = "", toolsQueued = false;
+  let toolsKey = "";
   const publishTools = () => {
     if (!editor || !editor.tools || !focusShown || focusShown.granularity === "objects") return;
     const groups = editor.tools(), key = focusShown.context_id + JSON.stringify(groups);
@@ -328,7 +327,11 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = compactScript(`(host) => {
     toolsKey = key;
     workbench.dispatchEvent(new CustomEvent("molis:context-tools", { bubbles: true, detail: { context_id: focusShown.context_id, groups } }));
   };
-  const queueTools = () => { if (!toolsQueued) { toolsQueued = true; window.setTimeout(() => { toolsQueued = false; publishTools(); }, 0); } };
+  const sendPanel = (detail) => {
+    const event = new CustomEvent("molis:context-panel-open", { bubbles: true, cancelable: true, detail: { context_id: focusShown ? focusShown.context_id : "", ...detail } });
+    workbench.dispatchEvent?.(event);
+    return event.defaultPrevented;
+  };
   workbench.addEventListener("molis:context-tool-invoke", (event) => {
     const chosen = event.detail;
     if (editor && chosen && focusShown && chosen.context_id === focusShown.context_id) editor.runTool(chosen.id);
@@ -511,14 +514,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = compactScript(`(host) => {
       doc: body,
       onChange: () => { if (!filling) queueSave(); },
       onFocus: (focus) => { focusNow = focus; reportFocus(); },
-      onTools: queueTools,
+      onTools: publishTools,
       onScreen: reportFocus,
-      openPanel: (panel) => {
-        if (!focusShown && panel.node) return false;
-        const event = new CustomEvent("molis:context-panel-open", { bubbles: true, cancelable: true, detail: { context_id: focusShown ? focusShown.context_id : "", ...panel } });
-        workbench.dispatchEvent(event);
-        return event.defaultPrevented;
-      },
+      openPanel: (panel) => (focusShown || !panel.node) && sendPanel(panel),
       translate: L,
       pages: () => records.map((item) => ({ id: item.id, title: item.title })),
       onOpenPage: (id) => {
@@ -640,7 +638,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = compactScript(`(host) => {
     closeCreate();
     closeMove();
     workbench.querySelectorAll(".pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu, .pages-block-ghost, .pages-drop-line").forEach((node) => { node.hidden = true; });
-    workbench.dispatchEvent?.(new CustomEvent("molis:context-panel-open", { bubbles: true, cancelable: true, detail: { context_id: "", node: null } }));
+    sendPanel({ node: null });
   };
   const loadList = async () => {
     const seq = ++listSeq;
@@ -1145,4 +1143,4 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = compactScript(`(host) => {
   };
   void loadList().catch((error) => { showNote(error.message || L("文档请求失败"), true); listFailed(error); });
   void loadGoals();
-}`);
+}`;

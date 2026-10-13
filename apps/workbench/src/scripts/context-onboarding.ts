@@ -31,6 +31,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   let saveQueue = Promise.resolve();
   const api = (path, body) => molisWorkRequest(path, {body, fallback:L('请求失败，请重试')});
   const failureText = value => typeof value==='string' ? value : molisWorkRequest.text(value);
+  const keepFailure = err => err && typeof err==='object' && 'callId' in err ? err : String(err?.message||err);
   const endpoint = suffix => '/api/onboarding/context/' + journey.id + (suffix ? '/' + suffix : '');
   const source = kind => journey.sources.find(s => s.kind === kind);
   const connected = () => (config.connections || []).filter(c => c.state === 'connected');
@@ -455,7 +456,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   async function poll() {
     clearTimeout(timer);
     try { journey=await api(endpoint()); if(journey.phase==='complete'){location.assign(projectLocation());return;} render();if(journey.phase==='reading'||journey.phase==='adopting')timer=setTimeout(poll,1800); }
-    catch(e){error=e;render();timer=setTimeout(poll,5000);}
+    catch(e){error=keepFailure(e);render();timer=setTimeout(poll,5000);}
   }
   async function connect(auto=false) {
     if(!config.gmail_configured) { expanded='gmail';error=L('Google 接入还未准备好，可先使用其他来源。');render();return; }
@@ -474,7 +475,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       if(latest.oauth_status==='connected'){error='';if(journey.auto_start&&journey.phase==='selecting')await prepare();else if(journey.phase==='reading'||journey.phase==='adopting')await poll();}
       else error=journey.error||L('Google 连接未完成。可以重试，或先使用其他来源。');
       render();
-    }catch(e){error=e;render();authTimer=setTimeout(pollAuthorization,5000);}
+    }catch(e){error=keepFailure(e);render();authTimer=setTimeout(pollAuthorization,5000);}
   }
   async function refreshGrants() { if(native) for(const grant of await invoke('context_directory_status')) grants[grant.id]=grant; }
   async function authorize(kind) {
@@ -555,7 +556,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     if(e.target.id==='cx-blank-name'){blankName=e.target.value;const typed=blankName.trim();const preview=app.querySelector('.ob-project-name');if(preview)preview.textContent=typed||L('新项目');const status=bar.querySelector('.mw-bar-status__text small');if(status)status.textContent=typed?L('将创建「{name}」',{name:typed}):L('写下名字就可以开始');return;}
     if(e.target.dataset.field&&e.target.tagName!=='SELECT'){
       const s=source(e.target.dataset.kind);if(s[e.target.dataset.field]!==e.target.value)invalidateSource(s);
-      s[e.target.dataset.field]=e.target.value;if(s.kind==='browser'&&e.target.dataset.field==='text')s.selected=Boolean(s.text?.trim());refreshSelection();clearTimeout(inputTimer);inputTimer=setTimeout(()=>save().catch(e=>{error=e;render();}),400);
+      s[e.target.dataset.field]=e.target.value;if(s.kind==='browser'&&e.target.dataset.field==='text')s.selected=Boolean(s.text?.trim());refreshSelection();clearTimeout(inputTimer);inputTimer=setTimeout(()=>save().catch(e=>{error=keepFailure(e);render();}),400);
     }
   });
   root.addEventListener('change',async e=>{
@@ -581,19 +582,19 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
         const s=source(el.dataset.upload);invalidateSource(s);uploads.set(s.kind,chosen);s.metadata={files:chosen.map(f=>({path:f.webkitRelativePath||f.name,size:f.size,modified_ms:f.lastModified,identity:'upload'})),skipped:el.files.length-chosen.length,truncated:false};s.excluded=[];s.selected=true;error='';changed=true;
       }
       if(changed)await save();
-    }catch(e){error=e;}finally{busy=false;if(changed||error)render(el.id);}
+    }catch(e){error=keepFailure(e);}finally{busy=false;if(changed||error)render(el.id);}
   });
-  root.addEventListener('submit',async e=>{if(e.target.id!=='cx-blank-form')return;e.preventDefault();busy=true;try{await adopt(true);}catch(e){error=e;}finally{busy=false;render();}});
+  root.addEventListener('submit',async e=>{if(e.target.id!=='cx-blank-form')return;e.preventDefault();busy=true;try{await adopt(true);}catch(e){error=keepFailure(e);}finally{busy=false;render();}});
   root.addEventListener('click',async e=>{
     const link=e.target.closest('a[href^="/locale"]');
     if(link){return;}
     const b=e.target.closest('button');if(!b||b.disabled)return;
-    if(b.id==='cx-exit'){try{await saveQueue;if(firstRun)await api('/api/onboarding/dismiss',{kind:'first_run',user_confirmed:true});try{sessionStorage.removeItem(introKey);}catch{}location.assign(route('/'));}catch(err){error=err;render();}return;}
+    if(b.id==='cx-exit'){try{await saveQueue;if(firstRun)await api('/api/onboarding/dismiss',{kind:'first_run',user_confirmed:true});try{sessionStorage.removeItem(introKey);}catch{}location.assign(route('/'));}catch(err){error=keepFailure(err);render();}return;}
     if(b.id==='cx-theme'){const theme=document.documentElement.dataset.resolvedTheme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;document.documentElement.dataset.resolvedTheme=theme;try{localStorage.setItem('molis-work:theme',theme);}catch{}render();return;}
     if(b.dataset.open){expanded=expanded===b.dataset.open&&!b.closest('.ob-quick')?null:b.dataset.open;render();const cfg=app.querySelector('.ob-source__cfg');arrival.arrive(cfg,[{opacity:0,transform:'translateY(-4px)'},{opacity:1,transform:'none'}],{duration:250});app.querySelector('#cx-browser-text')?.focus({preventScroll:true});return;}
     if(b.dataset.pick){folderKind=b.dataset.pick;render();return;}
-    if(b.dataset.rangePick!==undefined){const s=source(folderKind);s.days=Number(b.dataset.rangePick);invalidateSource(s);delete s.metadata;s.excluded=[];busy=true;error='';render();try{if(grants[folderKind]?.state==='ready'){await metadata(s);s.selected=Boolean(s.metadata);}await save();}catch(err){error=String(err.message||err);}finally{busy=false;render();}return;}
-    if(b.dataset.remove){busy=true;render();try{await removeSource(b.dataset.remove);}catch(err){error=err;}finally{busy=false;render();}return;}
+    if(b.dataset.rangePick!==undefined){const s=source(folderKind);s.days=Number(b.dataset.rangePick);invalidateSource(s);delete s.metadata;s.excluded=[];busy=true;error='';render();try{if(grants[folderKind]?.state==='ready'){await metadata(s);s.selected=Boolean(s.metadata);}await save();}catch(err){error=keepFailure(err);}finally{busy=false;render();}return;}
+    if(b.dataset.remove){busy=true;render();try{await removeSource(b.dataset.remove);}catch(err){error=keepFailure(err);}finally{busy=false;render();}return;}
     if(b.dataset.cite){const ref=journey.summary.references.find(r=>r.label===b.dataset.cite);if(!ref)return;opener=b;dialog.innerHTML='<h2 id="cx-dialog-title">'+esc(ref.title)+'</h2><div class="cx-source-meta">'+esc(L('{path} · 版本 {version}',{path:ref.path,version:ref.version}))+'</div><div class="cx-source-body">'+esc(ref.body)+'</div><div class="cx-actions">'+btn({variant:'secondary',size:'md',label:L('关闭'),attrs:{'data-close':true}})+'</div>';dialog.showModal();return;}
     if(b.dataset.authorize||b.dataset.forget||b.dataset.refresh||b.dataset.skip||b.dataset.range||b.dataset.add){
       busy=true;error='';render();
@@ -605,7 +606,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
         else if(b.dataset.skip)source(b.dataset.skip).selected=false;
         else if(b.dataset.add){journey.previewed=false;expanded=b.dataset.add==='directory'?'folder':b.dataset.add;}
         await save();
-      }catch(err){error=String(err.message||err);}finally{busy=false;render();}return;
+      }catch(err){error=keepFailure(err);}finally{busy=false;render();}return;
     }
     const action=b.dataset.action;if(!action)return;
     if (action === 'intro-next' || action === 'intro-back') {
@@ -614,15 +615,15 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       render();
       return;
     }
-    if(action==='choose-account'){source('gmail').selected=true;expanded='gmail';render('cx-account');try{await save();}catch(err){error=err;render();}return;}
-    if(action==='edit'){preserveEdits();if(editing){try{await saveDraft();}catch(err){error=err;render('cx-summary-editor');return;}}editing=!editing;render(editing?'cx-summary-editor':'cx-project-title');return;}
+    if(action==='choose-account'){source('gmail').selected=true;expanded='gmail';render('cx-account');try{await save();}catch(err){error=keepFailure(err);render();}return;}
+    if(action==='edit'){preserveEdits();if(editing){try{await saveDraft();}catch(err){error=keepFailure(err);render('cx-summary-editor');return;}}editing=!editing;render(editing?'cx-summary-editor':'cx-project-title');return;}
     if(action==='blank'||action==='materials-only'){materialsOnly=action==='materials-only';blank=true;error='';render('cx-blank-name');return;}
     if(action==='back'){blank=false;materialsOnly=false;error='';render();return;}
-    if(action==='personal'){busy=true;render();try{await saveQueue;const result=await api('/api/onboarding/personal',{});location.assign(route(result.path));}catch(err){error=err;busy=false;render();}return;}
+    if(action==='personal'){busy=true;render();try{await saveQueue;const result=await api('/api/onboarding/personal',{});location.assign(route(result.path));}catch(err){error=keepFailure(err);busy=false;render();}return;}
     if(action==='reload'){location.reload();return;}
     busy=true;error='';b.disabled=true;
     try{if(action==='new-journey')await restart();else if(action==='resume'){await save();const url=new URL(location.href);url.searchParams.set('journey',config.resume.id);url.searchParams.delete('oauth');location.assign(url);}else if(action==='skip-auth'){clearTimeout(authTimer);source('gmail').selected=false;journey.auto_start=false;journey.oauth_status=undefined;await save();if(picked().length)await prepare();}else if(action==='sources'){journey.previewed=false;await save();}else if(action==='prepare')await prepare();else if(action==='connect')await connect(journey.previewed===true);else if(action==='start'||action==='retry')await start();else if(action==='restart')await reopen();else if(action==='adopt')await adopt();}
-    catch(err){error=err;}finally{busy=false;render();}
+    catch(err){error=keepFailure(err);}finally{busy=false;render();}
   });
   dialog.addEventListener('click',e=>{if(e.target.closest('[data-close]'))dialog.close();});dialog.addEventListener('close',()=>opener?.focus());
   document.addEventListener('keydown', e => {
@@ -660,6 +661,6 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     if(url.searchParams.get('start')==='blank'||url.searchParams.get('name')){blank=true;blankName=(url.searchParams.get('name')||'').trim();}
     const oauth=url.searchParams.get('oauth');if(oauth==='failed'||oauth==='cancelled'||journey.oauth_status==='failed'){error=journey.error||L('Google 连接未完成。可以重新连接，或取消勾选 Gmail 后先整理其他材料。');expanded='gmail';}
     render();if(desktop&&oauth&&!globalThis.molisWorkOpenExternalUrl){frame.dataset.screen='onboard';app.innerHTML='<div class="stage-single"><div class="stage-sheet"><div class="ob-error-page">'+empty({icon:oauth==='connected'?'check':'circle-alert',title:L(oauth==='connected'?'Google 已连接':'Google 连接未完成'),body:L('请回到 Molis Work，原来的整理流程会自动接续。')})+'</div></div></div>';return;}if(journey.oauth_status==='pending'&&globalThis.molisWorkOpenExternalUrl)authTimer=setTimeout(pollAuthorization,1000);if(journey.phase==='complete')location.assign(projectLocation());else if(!journey.requires_reselection&&(journey.phase==='reading'||journey.phase==='adopting'))await poll();else if(oauth==='connected'&&journey.auto_start)await prepare();
-  }catch(e){loadError=e;error=e;render();}})();
+  }catch(e){loadError=e;error=keepFailure(e);render();}})();
 })();
 `;

@@ -105,12 +105,13 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         const start = area.querySelector('[data-protocol-start]'); busy(start, true);
         const finish = () => { stopWaiting(); busy(start, false); };
         const notice = { id, message: L('账号授权已完成。你可以检查连接，或继续设置使用范围。') };
-        const refreshFailed = () => {
+        const refreshFailed = error => {
           finish();
           const result = resultFor(area);
           output(result, L('账号已授权，但页面刷新失败。请重新加载连接信息，无需再次授权。'), true);
+          if(error){const detail=document.createElement('p');molisWorkRequest.show(detail,error);result.append(detail);}
           const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'mw-btn mw-btn--secondary'; retry.textContent = L('重新加载连接信息');
-          retry.addEventListener('click', async () => { busy(retry, true); try { await reload(service, notice); } catch { refreshFailed(); } });
+          retry.addEventListener('click', async () => { busy(retry, true); try { await reload(service, notice); } catch(error) { refreshFailed(error); } });
           result.append(retry);
         };
         const monitor = createAuthorizationMonitor({

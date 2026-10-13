@@ -1,8 +1,8 @@
 # Molis Work 跨插件 AI 交互能力与体验统一：完整开发 Prompt
 
-> 远端接续请先读文末「远端交接」；历史路径、授权及未提交状态以该节为准。
+> 接续请先读文末「§20 远端交接（2026-10-13，当前接续入口）」：它自成一体，不依赖任何本机工作树；之前的路径、授权与未提交状态以该节为准。
 
-状态：执行中（2026-10-12；I0 预览已按实物重做并经开发者走查，待用户看实物；共享部件已进设计系统与组件板，I0 预览改用它们；产品采用、Molis 合同、宿主与真实 SDK 接入未开始）。§1–§13 是用户讨论定下的需求（2026-10-05 整理）；§14 起是开发 owner 核对现状后补齐的方案、决定与进度，§16 的决定已与用户对齐（2026-10-09）。本文是这项任务唯一的需求书与进度记录。2026-10-11 起唯一可编辑副本在 `feature/ai-interaction-i0` 的本路径；原分支 `feat/ai-interaction-experience@8d0d7dd84` 保留为来源，不并行编辑。
+状态：执行中、暂停等恢复（2026-10-13；I0 预览已按实物重做并经开发者走查，待用户看实物；共享部件与共享浏览器行为已完成（#423 已合 main，I1 并入本分支），I0 预览已改用共享客户端；带类型的题进宿主（C1+H1）已写完但未构建未验证，在另一分支等 #408 进 main；助理与 Coding 的产品采用、操作卡协作者、对象引用、单次接续未开始）。§1–§13 是用户讨论定下的需求（2026-10-05 整理）；§14 起是开发 owner 核对现状后补齐的方案、决定与进度，§16 的决定已与用户对齐（2026-10-09）。本文是这项任务唯一的需求书与进度记录。2026-10-11 起唯一可编辑副本在 `feature/ai-interaction-i0` 的本路径；原分支 `feat/ai-interaction-experience@8d0d7dd84` 保留为来源，不并行编辑。
 
 ## 1. 任务与完成标准
 
@@ -701,13 +701,122 @@ node scripts/run-tests.mjs tests/ai-interaction-slice.e2e.test.ts
 
 **AC-17**（P2）：设计系统提供问卷、选项组、操作卡、下一步与输入框标记的共享部件，只收展示参数、调用方文字全部转义、六种题型都有不依赖系统控件的输入方式、每个字段有稳定的错误位；组件板有区块并进入目录；样式只用令牌、不进共享页面样式表；I0 预览用这些部件跑通全部路径。
 
-## 20. 远端交接（2026-10-11，当前接续入口）
+## 20. 远端交接（2026-10-13，当前接续入口）
 
-用户已授权提交、推送供别人接续。本分支 `feature/handoff-ai-interaction` 保存 I0 切片及完整原需求，基点为 `d72fdc4c7`；§19 的“未提交/未推送”与本机绝对路径是当时记录。本文是接续的唯一需求书。本次未改预览逻辑或测试断言。
+写给另一台机器上的接手者：这一节取代 2026-10-11 的旧交接，只靠远端分支就能接续；本机工作树、本机锁文件与 scratchpad 你看不到，需要的内容已复述在下面。统筹层的事实也在远端分支 `coordination/handoff-2026-10-13`（目录 `coordination/2026-10-13/`），与本线直接相关的部分已写进 §20.6。
 
-- 已有证据：13 项实际状态逻辑测试、局部严格 TypeScript、定向 lint 与内存渲染通过。浏览器、真实 IME、读屏、视觉、响应式、实际焦点/滚动以及真实 SDK/模型接入未验证；原 AC-01–12 未完整通过。
-- 下一步先对照最新 main 的 DESIGN 与公开入口，再启动 §19 的 `node --import tsx scripts/preview-ai-interaction.mts --port 4319` 做实操；浏览器自动化前需独占时段构建 test-kit。预览用固定示例与模拟提交，不能据此宣称生产输入回执或动作执行已接通。
-- SDK 字段问卷来源为 [提交 f423aabb](https://github.com/molis-ai/prologue/commit/f423aabb272d77b5a180cefd22855a2df62d1c94)（分支 `feature/handoff-ask-user-fields`，原实现 a06ae62e）。该能力尚未进入 A0 候选；生产接入前由采用线与 S1 整合进同一份 SDK，不能直接换另一份包。
-- 关联入口：[完整采用](https://github.com/molis-ai/molis-work/tree/feature/handoff-prologue-adoption/specs/prologue-adoption)、[输入回执](https://github.com/molis-ai/molis-work/tree/feature/handoff-ai-input-receipts/specs/ai-input-receipts)。D7 限制真实接入，独立视觉验证可先继续。设计系统仅接 contracts/platform 的展示参数，仍由消费方转换领域状态。
+### 20.1 一句话现状
 
-在浏览器验证前保持“代码切片已交接、实物未验”的结论；验证后再按原完整 spec 推进共享组件、规格板和真实场景。所有截图用忽略目录，既有门禁与页面预算不放宽。本次未合并、发布或改动真实 Home。
+I0 预览、共享展示部件（#423，已进 main）、共享浏览器行为（I1，已并入本分支）都已完成，I0 预览已改用共享客户端；**产品里还没有任何用户能看到的变化**：带类型的题进宿主（C1+H1）写完但没构建、没验证；助理与 Coding 的接入（A1/A2）、操作卡协作者（H2）、对象引用（H3）、Coding 操作卡（H4）、单次接续（S1）都没开始。
+
+三级证据分开记：
+
+| 级别 | 状态 |
+| --- | --- |
+| 工程通过 | I0 预览：纯逻辑 21/21、浏览器用例 10/10（2026-10-12，迁到共享客户端**之前**）；设计系统部件与 I1 客户端：单测与 13 个浏览器子用例（I1 自己的树上）。**迁移之后的预览浏览器用例、合并后的树上的 `interaction-client` 浏览器用例都还没重跑**；C1+H1 没构建、没跑任何用例 |
+| 真实产品实操（开发者走查） | I0 预览在内置浏览器里走查过（三个宽度、浅深色）；真实 Home、真实 SDK、真实模型：**不适用/未做**（预览不连这些）。迁到共享客户端后没有再走查 |
+| 用户验收 | **未开始**：用户还没看过实物；统筹代定的各项只是拍板，不等于验收 |
+
+### 20.2 分支与 PR（只列远端）
+
+仓库 `molis-ai/molis-work`，推送用 SSH 地址 `git@github.com:molis-ai/molis-work.git`。
+
+| 分支 / PR | 状态 | 说明 |
+| --- | --- | --- |
+| #410 = `feature/handoff-ai-interaction` | 开着，head `47babdd5`，**与 main 有冲突，未解** | 本线唯一的交接分支，也是此后唯一提交的地方（用户 2026-10-13 决定：各线只在交接 PR 里提交，防腐线在改架构，单开 PR 容易冲突）。冲突来自 main 上别的线的新合并（#408 与 #411 当时都还没合；统筹更正：#438 是关闭不是合并） |
+| #423 `feature/design-system-interaction-parts` | **已合进 main**（`05c46f67`） | 设计系统的展示部件与组件板「AI 交互」区块 |
+| #439 `feature/interaction-shared-behaviour`（`b4015af1`） | 内容**已并进 #410**，PR 已关 | I1 共享浏览器行为；远端旧分支不用再动 |
+| #447 `feature/agent-interaction-contract`（`704d95de`） | **作废**，PR 已关 | C1a（只有合同子路径、没有使用者）已并进 C1+H1，不要用 |
+| `feature/agent-typed-questions`（`c50a5534`） | 无 PR，统筹已代推，叠在 #408 的分支上 | C1+H1：**未构建、未验证**。#408 进 main 后：先把 main 合进 #410，再把这个分支并进 #410 |
+
+合入 main 的顺序（统筹定）：#408 → #411 → #410 → #409。#408（完整采用，带带类型 `ask-user` 的 vendored SDK）和 #411 在 2026-10-13 还开着。
+
+### 20.3 已完成（带证据等级）
+
+1. **I0 第二轮 R1–R13**（2026-10-12，§19.1）：按产品框架重做布局、信息层级、操作路径、状态反馈。工程通过（21/21、10/10）+ 开发者走查；用户验收未开始。R4（输入框补充）的最终语义见 §20.6。
+2. **#423 共享展示部件**（已在 main）：`packages/design-system` 的 `interaction.ts`、`styles/interaction.ts`（`INTERACTION_STYLES`，**不并入 `PRIMITIVE_STYLES`**，原因是页面资源冻结）、`interaction-example.ts`、`catalog-examples.ts`，组件板 `/__ui/catalog` 的「AI 交互」区块；单测 `tests/interaction-components.test.ts`、`tests/interaction-sdk-mapping.test.ts`。工程通过；组件板在隔离宿主上浅深色、三个宽度目视过。
+3. **I1 共享浏览器行为**（并入 #410）：`packages/design-system/src/interaction-client.ts`——`createInteractionClient(root, host)` 与脚本表达式 `INTERACTION_CLIENT_SCRIPT`（17,644 字节）；覆盖选项/对象切换、单选组方向键、步进器上下界、日历、回车跳项与 ⌘/Ctrl+回车、输入法组合期间不报变化、`write` 不夺走正在输入的字段、`showErrors` 逐字段；客户端不存值。用例 `tests/interaction-client.e2e.test.ts`（13 个子用例，I1 树上通过；合并后的树上未重跑）。评审里修过：点外面收起、WebKit 的 keyCode 229、焦点落在选中的 radio、选择器注入。工程通过；真实中文输入法、Safari/桌面壳、读屏未验证。
+4. **预览迁移**（并入 #410，`b06be31f`）：`scripts/ai-interaction-slice/` 改用 `createInteractionClient`，删掉预览自己的 `calendar.ts`，`bindings.ts` 只剩演示按钮与输入框；服务端额外提供 `/packages/design-system/src/interaction-client.ts`。净减 128 行。局部 typecheck 与纯逻辑 21/21 通过；**浏览器用例未重跑**。
+5. **防腐复查 1**（合入 main `1ec92c18` 后）：`check-health-gates --base origin/main` 全绿，页面事件已登记；构建类检查没跑（见 §20.4）。
+
+### 20.4 没完成
+
+1. **#410 要合 main 并解冲突**：`git fetch git@github.com:molis-ai/molis-work.git main`，合并 `FETCH_HEAD`（不 rebase、不 force-push）；枢纽文件两边都留；`tooling/gates/api/**`、`tooling/gates/actions/**`、`baseline.json`、`page-assets.json` 不手工合并，合完重新生成。合完按 `ANTI-CORRUPTION-REVIEW.md`（统筹维护，27 条人看项 + 16 条机器项；本机文件，复述在统筹分支里）复查并把结果写进 §18。
+2. **验证欠账**：合并后整体构建，然后重跑 `tests/ai-interaction-slice.e2e.test.ts`、`tests/interaction-client.e2e.test.ts`（需要本机 Chrome 与 browser 锁），再跑 `pnpm boundary:check`、动作快照、页面资源检查。
+3. **C1+H1**（分支 `feature/agent-typed-questions`，`c50a5534`）：
+   - 内容：新合同子路径 `@molis-ai/molis-work-contracts/services/agent-interaction`（`AgentQuestion` 六种题型、`AgentQuestionAnswer`、`AgentQuestionProblem` 与 19 个闭集原因、`AgentAnswerControl`、`AgentPendingQuestion` 从 `agent-host.ts` 搬来）；`agent-host.ts` 净减 24 行并加错误码 `agent.answer_invalid`；`prologue-questions.ts` 新增 `projectQuestion`（显式投影、不再透传 SDK 选项对象）与 `answerProblems`（调 SDK 的 `validateQuestionnaireAnswer`）；`prologue-node.ts` 的 `answerPending` 先预检、形状错误都有码，配 `inputWaitTtlMs` 24 小时与 `askUserQuestionTypes`；宿主装配（`apps/local-host/src/agent-question-surfaces.ts`）给 Runtime 的题型是助理与 Coding 声明的**交集**，现在两边都只有 `choice`，所以**合入后产品行为不变**；测试 `tests/agent-typed-questions.test.ts`（期望已用 SDK 校验函数单独核对过）。
+   - 没做：构建、`pnpm api:update`（agent-host 快照 + 新增 `agent-interaction.txt`）、`pnpm actions:update`、任何用例（含 `tests/agent-pending-questions.test.ts` 的类型修正）、`prologue-node.ts` 行数上限（正好 1550/1551）与 `@prologue/sdk` 的 `askUserQuestionTypes` 能否接受只读数组的类型核对；`agent.answer_invalid` 要登记进 main 上新的错误模型（`tooling/gates/error-owners.json`、`defineErrorCodes`）；真实 Node Host 用例（带类型问卷落盘、关闭、新 Runtime 读回并作答）。
+   - 回答的 `key` 不在这一片：归回执线 `services/agent-inputs`（D13）。
+4. **A1 里不依赖新 SDK 的部分：没有写代码，只做了测算**。现状（`assistant-island.ts`，约 2,800 行，行号以合并后为准）：`renderQuestion`（约 589 行起）、`renderCard`（约 683 行起）、「接下来」行（约 993–1010 行）；`craft-finish.ts` 与 `touch-targets.ts` 里有对应的 `.assistant-questionnaire/-choice/-card-*/-next-*` 样式。实测：被替换的助理 JS 约 18 KB，样式约 6.6 KB；要加的 `INTERACTION_CLIENT_SCRIPT` 17,644 字节、`INTERACTION_STYLES` 17,428 字节。页面资源门禁只许变小，按现在的划分 `molis-work-workbench.css` 净增约 10 KB（若样式也进另外两张表更多）。**开工前必须先定办法**：（a）缩小 `INTERACTION_STYLES` 抵平；（b）同一 PR 删 `molis-work-workbench.css` 里别处已被取代的样式；（c）请用户对这一项放宽门禁（放宽门禁要先问用户）。倾向 (a)+(b)，构建后用真实的 `workbench.css`/`workbench.js` 字节再定。
+
+### 20.5 下一步（按顺序）
+
+1. 合 main 进 #410、解冲突、复查、构建、补验证欠账（§20.4 第 1、2 条）。
+2. #408 进 main 后：再合一次 main，把 `feature/agent-typed-questions` 并进 #410，做完 §20.4 第 3 条的验证。
+3. **A1 助理接入**（前置 C1+H1、I1）：先定字节办法；宿主新协作者 `assistant-questions.ts` 把问题转成 `InteractionQuestionView` 并服务端渲染 HTML 放进视图（同 Coding 的 `question.html`；岛是字符串脚本，不能在浏览器里调设计系统的渲染函数）；岛只接行为（`INTERACTION_CLIENT_SCRIPT` 进 `workbench.js`）；草稿存助理库新表 `assistant_question_drafts`；删 `renderQuestion` 与对应样式，用删掉的字节抵新增；`assistant-island.ts`、`assistant-service.ts` 只减；新文案给英文；`assistant-base` 升版；在助理声明里加上它画得了的题型；验收 AC-21。
+4. **A2 Coding 接入**：`ui.ts` 问题卡改用 `renderInteractionQuestion`，`client.ts` 用共享函数，`routes.ts` 的 `questionAnswer` 收 `value`，`question_drafts` 收值，`coding-base` 升版，在 Coding 声明里加题型；Coding 客户端字节在 5 个包里都不涨；AC-22。
+5. **H2/H3/H4**：H2 操作卡协作者（`assistant-offers.ts`，W5-10 形状）、H3 对象引用只读动作 `interaction.references.search`（`pnpm actions:update`，安全不变量加拒绝用例）、H4 Coding 的 `suggest-action`；AC-23–25。
+6. **S1 单次接续**：题型校验纯函数放 `packages/plugin-sdk`（不放 kernel），与 Prologue 的 `validateQuestionnaireAnswer` 做一致性用例并加进 `tests/ci-product-subset.txt`；Form「AI 生成表单」缺信息返回 `needs_input` → 同一问卷卡（宿主提供客户端挂载）→ 接续生成。Form 现在没有这个功能，是新功能；AC-26。
+7. **D1 文档**随各片：`skills/molis-prologue-ai`、`docs/platform/PROLOGUE-AI.md`、`skills/molis-plugin-dev`（含 `generated-ai.md`）、设计系统 README；§15.8 三个示例都要有用例。
+
+### 20.6 跨线约定
+
+- **X2：操作卡不进任务图**。卡与节点的关系靠推导 `card.run → boards.attemptOf(run) → node`；H2 必须给每张卡保留产生它的 session 与 `run_id`，助理与 Coding 共用同一个卡片键空间；卡不是等待条件，也不授予权限。
+- **X6：P2 之后不再有绕过看板的 Agent 协作**（dispatch 自动建子节点，session-send 的交接必须点名节点）。H4、A2 按此写。TaskBoard 与外部条件等待归采用线，本线只显示不另存。
+- **H2 = 防腐 W5-10**（从 `AssistantService` 拆操作卡协作者）：防腐线尚未开工，**开工前要等防腐线负责人确认先后**；本线 PR 要在 `specs/repository-anti-corruption` 的 W5-10 行写「由 ai-interaction H2 实现」并带链接。
+- **回执线的三条约定**（在 `feature/handoff-ai-input-receipts` 的 `specs/ai-input-receipts/spec.md`，那一线的 PR 现为 #409；#438 已关）：D13 回答也是输入，身份类型与格式由 `services/agent-inputs` 定义，回答的 `key` 与 steer 的同一规则（SDK 里是可选的，所以回答的也可选），回答的「读到」回执等它的 S4，在那之前本线只在 Molis 侧做幂等；D14 把 D5 修订为问题待回答时输入框上方显示目标芯片、**默认值一直显示在芯片上、一下切换**；D15 `AgentRunControl` 搬迁先后：本线搬出 `answer` 分支，回执线搬出 `steer` 分支，先就绪的先合，后合的在同一个 PR 里改完所有消费者。
+- **R4 并进 D5 芯片**（本线推荐，统筹按「体验最好」原则定）：芯片三种目标——「写进问卷：补充要求」（**本线做**，只改问卷草稿，不交回，有自由文本题时才有、并且是默认）、「补充这一轮」（**回执线做**，一条 steer，排在回答之后，带回执）、无问题时芯片不出现。
+- **`catalog-examples.ts`**（组件板示例）情境线 W1 也会加区块：各加各的一行，先合者先合。
+- **和 Prologue 的关系**：真实 SDK 带类型的 `ask-user` 在 #408 的合成包里（`vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz`，Prologue main `55b0c85a`）；SDK 的 `askUserQuestionTypes` 与 `inputWaitTtlMs` 是 **Runtime 级**配置，不是每个 Run 或角色一份，所以宿主给的是各界面都画得了的题型交集（D8 改订）。
+
+### 20.7 决策记录与理由
+
+已记在 §16（D1–D11）与 §19.1（R1–R13），这里只列接手最需要的几条和统筹代定的事项：
+
+- **D7**：设计系统只收展示参数，不认识 SDK 与回执；消费方写纯函数转换，`reason → 文案` 由消费方做。理由：接入时不改组件。
+- **D8（改订）**：每个读 `awaiting_input` 的界面各声明自己画得了的题型，宿主给 Runtime **交集**；界面加一种题型与让它画出来的改动在同一个 PR。理由：SDK 把题型配置放在 Runtime 级，否则会有 Run 问出某界面画不出来的题把人卡住。代价：助理与 Coding 要么一起开放一种题型，要么都不开放。
+- **D9**：助理问题卡由宿主用设计系统渲染函数服务端渲染成 HTML，岛只接行为。理由：岛是字符串脚本，不能在浏览器里调渲染函数；只有一份渲染，岛的字节变小。
+- **D10**：回答的身份与 R4 交统筹，已由 D13/D14 落定（§20.6）。
+- **D11（统筹代定）**：C1 与 H1 合成一片叠在 #408 上；S1 移到 A1/A2 之后；校验函数放 `packages/plugin-sdk`。理由：C1a（#447）只有合同没有使用者，违反「新子路径要有真实使用者」；kernel 的 K2 门禁不许 import services，而且它不是外部作者要装的包；S1 要新开 Form 功能并动公开 SDK 出口，体量最大又不阻塞助理与 Coding 的体验。取舍：#408 迟迟不合时，C1+H1 要带着 #408 的提交一起评审。
+- **R1–R13**：见 §19.1 的表（布局放进工作台框架、问卷紧凑、回答后折叠为摘要、R4 回车放进补充要求、日历与开始时间拆分、由记录推出的下一步、下一步位置锁、失效后草稿可写、回车跳项与 ⌘/Ctrl+回车、就近状态反馈、助理面板可最小化、回答后失效保持摘要、失败后重试回到待执行），每条都有收益与取舍。
+- **统筹代定的流程事项**：各线只在交接 PR 里提交；跨线依赖经 main，每次合 main 后按防腐清单复查本线 diff 并写进 §18；不单开 PR；合并由统筹做、各会话不自己合并。
+
+### 20.8 工作规则（用户原话与已定规则）
+
+- 用户 2026-10-13：「不用单开PR，每个线都只在之前的交接PR里commit，因为有另外的防腐线在做代码质量和架构升级，所以单开PR的话，如果防腐有改动，容易导致架构问题」。
+- 用户：「先推进按照当前main的代码开发功能，如果几条线之前有依赖关系，从main拉取最新代码合并入各自分支之后按照防腐线防腐要求进行复查，确保需求迭代的同时不与防腐要求冲突，几条线的开发顺序由你统筹」。
+- 用户 2026-10-12：「优先开发，全量回归测试不用每次都触发，攒一波一起弄，除非必须」——平时只守「整机同时最多一个构建、一个浏览器用例批次」，每次改动跑 `node scripts/affected-tests.mjs` 选出的定向用例，不自己跑全量。
+- 拍板规则：技术决策按防腐线的后果判断；功能线按对用户 UI 交互与使用体验最好的推荐走；本线内的决定自己定、写进决策记录并汇报；跨线或改目标/范围找统筹。**仍先问用户**：合并 Molis/Prologue main、发布、真实 Home/安装版、放宽门禁、读真实凭据。拍板不等于用户验收。
+- 推送用 SSH 地址，推送前先 `git fetch` main 再跑 `node scripts/check-secrets.mjs`（即 `pnpm secrets:check`）；提交署名为用户 `jing xu`；不重置、不覆盖别人的未提交改动；不碰真实 Home（4207/4173），预览一律用临时/隔离 Home。
+- 模型：规划用 Opus 5.5，执行用 Sonnet 5.5。
+- 2026-10-13 03:55 用户说「先暂停一下」：全部会话停在安全点、释放锁、不开新任务，等统筹的恢复通知；之后用户只为「写交接」和「把本地进展提交到远端」两件事临时解除暂停。
+
+### 20.9 已知问题
+
+- Molis 的 `tests/runtime-integration.test.ts` 在 Linux CI 上偶发失败，统筹判断与本线无关；#410 / #423 的 `Product subset` 失败曾因此出现，本线没有改它。
+- 页面资源字节预算（§20.4 第 4 条）。
+- Auto-fix 在持续报告 #410 与 main 的冲突（head `47babdd5`）；暂停期间没有处理，恢复后按 §20.4 第 1 条解决。
+- 预览的组合输入与 keyCode 229 用例用的是合成事件，只证明事件处理，不能代替真实中文输入法（含 Safari/桌面壳里的 WebKit）；读屏下未验证。
+- 浏览器侧只能用 `INTERACTION_CLIENT_SCRIPT` 字符串，不能从设计系统包根 import `createInteractionClient`（包根会带进只给 node 用的模块）。
+- `pnpm` 在有些非交互 shell 里不在 PATH：用 node 目录里的 corepack（`corepack pnpm …`）。
+- 旧分支 `feature/interaction-shared-behaviour`、`feature/design-system-interaction-parts` 的内容已经在 #410 或 main 里，不用再推。
+
+### 20.10 怎么复现
+
+```sh
+pnpm install --frozen-lockfile --offline
+pnpm build                                  # 或 pnpm workspace:build；浏览器用例前需要
+node --import tsx scripts/preview-ai-interaction.mts --port 4319   # I0 预览（固定示例、模拟提交）
+node scripts/run-tests.mjs tests/ai-interaction-slice.test.ts                     # 预览纯逻辑 21 条
+node scripts/run-tests.mjs tests/ai-interaction-slice.e2e.test.ts                 # 预览浏览器 10 条（本机 Chrome、browser 锁）
+node scripts/run-tests.mjs tests/interaction-client.e2e.test.ts                   # 共享客户端浏览器 13 个子用例
+node scripts/run-tests.mjs tests/interaction-components.test.ts tests/interaction-sdk-mapping.test.ts tests/primitives.test.ts
+node node_modules/typescript/bin/tsc --noEmit --target ES2023 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --strict --noUnusedLocals --noUnusedParameters --skipLibCheck --lib ES2023,DOM,DOM.Iterable scripts/ai-interaction-slice/client.ts tests/ai-interaction-slice.test.ts
+node scripts/check-health-gates.mjs --base origin/main
+# 并入 C1+H1 之后
+node scripts/run-tests.mjs tests/agent-typed-questions.test.ts tests/agent-pending-questions.test.ts tests/coding-question-card.test.ts
+pnpm api:update && pnpm actions:update      # 然后看 tooling/gates/ 下的 diff
+node scripts/gates/page-assets.mjs --base origin/main
+```
+
+组件板：隔离宿主上打开 `/__ui/catalog` 的「AI 交互」区块。

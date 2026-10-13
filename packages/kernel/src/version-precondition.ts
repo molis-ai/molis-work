@@ -29,7 +29,7 @@ function check(definition: Pick<ActionDefinition, "capability_id" | "operation" 
   if (!object(input)) return;
   const declared = properties(definition.action.input_schema);
   for (const field of names) {
-    if (!Object.hasOwn(input, field)) refuse(field);
+    if (!Object.hasOwn(input, field) || input[field] === undefined) refuse(field);
     const value = input[field], shape = declared[field];
     if (object(shape) && shape.type === "object" && object(value)) {
       const ids = input.ids;

@@ -25,6 +25,7 @@ for (const audience of ["agent", "mcp"] as const) for (const field of ["expected
     const action = definition(field, shape, { ...(field === "updated_at" ? { capability: "functions.authoring.update" } : {}) });
     const { service, facts } = fixture(action);
     await assert.rejects(service.invoke(caller(audience), action, { value: "原稿" }), refuses("actions.version_required"));
+    await assert.rejects(service.invoke(caller(audience), action, { value: "进程内缺前提", [field]: undefined }), refuses("actions.version_required"));
     assert.deepEqual(facts, []);
     const current = map ? { id: 2 } : field.includes("at") ? "2026-10-13T10:00:00Z" : 2;
     assert.deepEqual(await service.invoke(caller(audience), action, { value: "新稿", [field]: current }), { saved: true });

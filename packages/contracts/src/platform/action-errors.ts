@@ -36,7 +36,6 @@ export const ACTION_ERROR_KINDS = {
   // The caller may not do this, here or at all.
   "actions.forbidden": "forbidden", "actions.scope_mismatch": "forbidden", "actions.owner_mismatch": "forbidden", "actions.plugin_permission": "forbidden",
   "actions.home_mismatch": "forbidden", "actions.plugin_disabled": "forbidden", "actions.unauthenticated": "forbidden", "actions.host_only": "forbidden",
-  "actions.transport_denied": "forbidden",
   // The thing asked for is not there (any more).
   "actions.missing": "not_found", "actions.binding_missing": "not_found", "actions.scene_missing": "not_found",
   "actions.recommendation_missing": "not_found", "actions.subject_unavailable": "not_found",

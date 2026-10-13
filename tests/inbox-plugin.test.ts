@@ -25,7 +25,7 @@ test("W3-02-G1-05 Inbox refuses a Goal decision handover without changing the at
     project_id: "board", title: "Inbox", kind: "plugin" }, definitions,
     handlers: handlers.filter(handler => definitions.some(definition => definition.capability_id === handler.capability_id)) });
   try {
-    await assert.rejects(service.invoke({ actor_id: "owner", project_id: "board", audience: "user", permissions: INBOX_ACTION_PERMISSIONS },
+    await assert.rejects(service.invoke({ actor_id: "owner", project_id: "board", audience: "user", permissions: [...inboxContentActions.read.action.permissions] },
       inboxContentActions.read, { item_id: entry.entry_id }), { code: "actions.input_invalid", message: "这条 Inbox 事项没有可以交接的正文" });
     assert.deepEqual(effects, []);
     assert.deepEqual(entry, before);

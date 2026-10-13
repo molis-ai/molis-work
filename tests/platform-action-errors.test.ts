@@ -103,7 +103,7 @@ test("W3-02-G1-03/04 real platform routes reject JSON and UTF-8 byte overflow be
 
 test("W3-02-G1-03 real Home, Placement and Contextual routes preserve owner details, trusted recorded numbers and unknown failure messages", { timeout: 60_000 }, async t => {
   const { host, origin, controlToken, createProject } = await openTestHome(t);
-  const project = await createProject("Platform owner failures"), target = await createProject("Move target");
+  const project = await createProject("Platform owner failures", ["sessions"]), target = await createProject("Move target");
   const reader = defineSubjectContextAction("example.platform.subject", "example_note", "Example note", []);
   const mover = defineObjectMoveAction("example.platform.move", ["example_note"], "Example note", []);
   const write: ActionDefinition<{ id: string }, null> = { ...command, capability_id: "example.platform.write", action: {
@@ -148,7 +148,7 @@ test("W3-02-G1-03 real Home, Placement and Contextual routes preserve owner deta
   for (const [path, body] of paths) {
     readerFails = path.includes("/talk/");
     const refused = await post(path, body), answer = await refused.json();
-    assert.equal(refused.status, 409, path);
+    assert.equal(refused.status, 409, `${path}: ${JSON.stringify(answer)}`);
     assert.deepEqual({ error: answer.error, code: answer.code, details: answer.details }, { error: "原资料已变化", code: "example.stale", details });
     assert.equal(answer.call_id, refused.headers.get("x-molis-work-call-id"));
     assert.notEqual(answer.call_id, details.call_id);
@@ -158,7 +158,7 @@ test("W3-02-G1-03 real Home, Placement and Contextual routes preserve owner deta
   for (const [path, body] of paths) {
     readerFails = path.includes("/talk/");
     const refused = await post(path, body), answer = await refused.json();
-    assert.equal(refused.status, 500, path);
+    assert.equal(refused.status, 500, `${path}: ${JSON.stringify(answer)}`);
     assert.deepEqual([answer.error, answer.code], ["存储暂时读不到", "actions.execution_failed"]);
     assert.equal(Object.hasOwn(answer, "details"), false);
   }

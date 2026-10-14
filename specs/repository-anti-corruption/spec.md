@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 c761c7750已整合I3–I33、main774a A2、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建与96b登记失败已修，96c九项工程检查通过；97/98实际失败已逐项记录，SDK六种切换交错及send/Workflow通过；夹具修正2916及新main774a A2已纳入6b1，源码复查已接受，新增fixture真实字节解析已修；等Pages短窗结束后重新整建和定向回归。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
+状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 b66ad829a已整合I3–I33、main774a A2、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建与96b登记失败已修，96c九项工程检查通过；97/98实际失败已逐项记录，SDK六种切换交错及send/Workflow通过；夹具修正2916及新main774a A2已纳入6b1，源码复查已接受，新增fixture真实字节解析已修；99当前组合九项工程检查通过，100真实定向回归已开始；最终共享全量仍待。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2674,3 +2674,6 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 
 
 **99已获串行窗口并冻结。** Pages原owner短构建/浏览器明确释放后，Root只启动既有99，Source c761c7750加Docs-only携唯一进度至1b782e042；实际包含main774a A2。源码/脚本/包/Skill冻结。新99开始，安装退出0，其余结果仍待；100七普通+六浏览器尚未开始，不重复已验send-intent/Workflow，也不据新Source猜通过。唯一SSOT开头已改已授权SDK/#20/正式换包，I8分支携带版同步，旧“等用户回答”不再作为当前决定。Pages51cbae80d已实际整建/boundary/health/逐项资源及其短回归通过的外线证据由其原owner保留，Root不累加成防腐整批。
+
+
+**99当前组合工程闭环，100真实回归已开始。** 当前main774a A2与c761夹具修正的联合Source，在1b782e042切点实际offline安装、整体build、根/全workspace类型、API、动作快照、actual-base健康、资源、边界九项全部退出0。健康仍150巨大单元/496内部引用/0混源/28错误子类/0非owner码，资源逐项只降，Root只提交两份实测派生表至b66ad829a、clean。100已在该head冻结实际7普通+6浏览器，file secret backend、原整机构建/浏览器锁；当前未归回，不记通过。100后纳Pages已验候选7b6115153进入同一共享核心组合，只该组合再整建并冻结一次全量，33共同路径不预判33冲突；保真正的caller权限、HTML投影、冻结发送、Pages草稿及现行错误/库版本拒绝，派生数值仍重建后生成。当前没有第二份全量或Pages队列。

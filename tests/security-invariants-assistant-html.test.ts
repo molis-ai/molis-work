@@ -36,13 +36,14 @@ test("PAS-15 S-24: review summaries and every field remain text, including code 
 });
 
 test("PAS-15: Assistant block rules retain headings, nested tasks, continuation, tables, quotes and code folding", () => {
-  const markdown = '# Heading #\r\n## Second\n### Third\n\n3. first\n  - [x] done\n    continued\n\n4. last\n\n- spaced\n-loose\n\n> **strong** and _em_ and ~~gone~~\n\n| left | right |\n| :---: | ---: |\n| `code` | value |\n\n---';
+  const markdown = '# Heading #\r\n## Second\n### Third\n\n3. first\n  - [x] done\n    continued\n\n4. last\n\n另起列表\n\n- spaced\n-loose\n\n> **strong** and _em_ and ~~gone~~\n\n| left | right |\n| :---: | ---: |\n| `code` | value |\n\n---';
   const html = assistantTextHtml(markdown, [], say);
   assert.match(html, /<h3 class="assistant-rich-heading">Heading<\/h3>/);
   assert.match(html, /<h4 class="assistant-rich-heading">Second<\/h4>/);
   assert.match(html, /<h5 class="assistant-rich-heading">Third<\/h5>/);
   assert.match(html, /<ol start="3"><li>first<ul><li class="assistant-task is-done"><span class="assistant-task-box"><\/span>done<br>continued<\/li><\/ul><\/li><li>last<\/li><\/ol>/);
   assert.match(html, /<ul><li>spaced<\/li><li>loose<\/li><\/ul>/);
+  assert.match(assistantTextHtml("3. first\n\n- second", [], say), /<ol start="3"><li>first<\/li><li>second<\/li><\/ol>/, "the original list continues across blank lines and marker changes at the same indent");
   assert.match(html, /<blockquote><p><strong>strong<\/strong> and <em>em<\/em> and <s>gone<\/s><\/p><\/blockquote>/);
   assert.match(html, /<th style="text-align: center;">left/);
   assert.match(html, /<td style="text-align: right;">value/);

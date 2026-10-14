@@ -55,6 +55,10 @@ test("PAS-15: Host text streams, keeps reading state, copies exact code, opens n
   assert.match(await evaluate<string>("document.querySelector('.assistant-rich').textContent"), /「代码验证文档」/);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('.assistant-code-more')");
+  await click("[data-assistant-input]");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await waitFor("!document.querySelector('[data-assistant-panel]').hidden");
 
   for (const decision of ["reject", "approve"]) {
     model.review(`投影测试-${decision}`);

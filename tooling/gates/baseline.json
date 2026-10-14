@@ -1409,10 +1409,9 @@
     "orderDependent": [],
     "nested": []
   },
-  "errorSubclassTotal": 37,
+  "errorSubclassTotal": 28,
   "errorSubclasses": {
     "apps/local-host/src/assistant/assistant-coding.ts": 1,
-    "apps/local-host/src/browser/browser-host.ts": 1,
     "apps/local-host/src/browser/cdp.ts": 1,
     "apps/local-host/src/connector-api-oauth.ts": 1,
     "apps/local-host/src/connector-cli.ts": 1,
@@ -1426,21 +1425,13 @@
     "packages/storage/src/adapters/file-secret-store.ts": 1,
     "packages/storage/src/sqlite-baseline.ts": 1,
     "plugins/native/alchemist/src/studio/domain/calibration/calibration.ts": 1,
-    "plugins/native/alchemist/src/studio/domain/discovery/idea-card.ts": 1,
-    "plugins/native/alchemist/src/studio/domain/discovery/pulse.ts": 1,
     "plugins/native/alchemist/src/studio/domain/memory/rules.ts": 1,
     "plugins/native/alchemist/src/studio/server/jobs/local-worker.ts": 1,
     "plugins/native/alchemist/src/studio/server/services/action-error.ts": 1,
-    "plugins/native/alchemist/src/studio/server/services/cancel-lens-run.ts": 1,
     "plugins/native/alchemist/src/studio/server/services/create-research-plan.ts": 1,
     "plugins/native/alchemist/src/studio/server/services/decision-workspace.ts": 1,
     "plugins/native/alchemist/src/studio/server/services/idea-card-actions.ts": 1,
-    "plugins/native/alchemist/src/studio/server/services/opportunity-actions.ts": 1,
-    "plugins/native/alchemist/src/studio/server/services/start-lens-run.ts": 1,
-    "plugins/native/alchemist/src/studio/server/services/start-pulse-run.ts": 1,
     "plugins/native/alchemist/src/studio/server/sources/http-source-client.ts": 1,
-    "plugins/native/artifacts/src/plugin-client.ts": 1,
-    "plugins/native/coding/src/store.ts": 1,
     "plugins/native/git/src/status.ts": 1,
     "plugins/native/plugin-builder/src/agent-authoring.ts": 1,
     "plugins/official-integrations/catalog/src/http.ts": 1,
@@ -1449,15 +1440,12 @@
     "server/src/errors.ts": 1,
     "server/src/im/errors.ts": 1
   },
-  "errorCodeShapeTotal": 7,
-  "errorCodeShape": {
-    "plugins/native/artifacts/src/plugin-client.ts": 7
-  },
-  "errorStatusDecisionTotal": 89,
+  "errorCodeShapeTotal": 0,
+  "errorCodeShape": {},
+  "errorStatusDecisionTotal": 87,
   "errorStatusDecisions": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/alchemist-native-plugin-http.ts": 3,
-    "apps/local-host/src/browser/browser-http.ts": 2,
     "apps/local-host/src/plugin-builder/agent-surface.ts": 2,
     "apps/local-host/src/plugin-event-http.ts": 2,
     "apps/local-host/src/side-files-http.ts": 2,
@@ -1481,7 +1469,7 @@
     "server/src/http.ts": 2,
     "server/src/identity.ts": 3
   },
-  "errorCodeOwnerTotal": 25,
+  "errorCodeOwnerTotal": 18,
   "errorCodeOwner": {
     "apps/local-host/src/connector-account-actions.ts": 3,
     "apps/local-host/src/installed-plugin-host.ts": 4,
@@ -1493,7 +1481,6 @@
     "apps/mcp/src/tool-dispatch.ts": 1,
     "horizontal/runtime-host/src/adapters/codex-app-server.ts": 1,
     "packages/kernel/src/action-authorship.ts": 1,
-    "plugins/native/artifacts/src/plugin-client.ts": 7,
     "plugins/native/goals/src/goal-event-application.ts": 1,
     "plugins/native/goals/src/planning-actions.ts": 2
   },

@@ -885,10 +885,7 @@ export type AgentRunControl = {
     kind: "stop";
 } | {
     kind: "cancel";
-} | {
-    kind: "steer";
-    text: string;
-} | {
+} | import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentSteerControl | {
     kind: "switch-model";
     provider_id: string;
     model_id: string;
@@ -1356,7 +1353,7 @@ export interface AgentTurnView {
     sequence?: number;
     steer?: {
         id: string;
-        state: "received" | "applied" | "unconfirmed";
+        state: "received" | "applied" | "read" | "unread" | "withdrawn";
     };
 }
 

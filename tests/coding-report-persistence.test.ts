@@ -28,7 +28,7 @@ test("formal report routes freeze real Artifact versions, distinguish missing/fa
       mcp_tools: [], host_tools: [], text_materials: [{ material_id: "snapshot@1", title: "fixture / old.ts", source_artifact_id: "snapshot", source_version: 1 }], budget: null, directory: { canonical_path: "/private/work", realpath_verified: true } },
     turns: [{ turn_id: "task", kind: "user", text: "检查这个修改", at: null },
       { turn_id: "answer", kind: "assistant", text: "所有测试通过。<script>bad()</script>", at: null },
-      { turn_id: "steer", kind: "user", text: "不要发布", at: null, steer: { id: "steer", state: "unconfirmed" } }],
+      { turn_id: "steer", kind: "user", text: "不要发布", at: null, steer: { id: "steer", state: "unread" } }],
     activity: [{ call_id: "lost-tool", name: "编辑", target: "cart.js", summary: "", state: "unknown", at: null }],
     command_outputs: [{ call_id: "check", run_id: "failed" }, { call_id: "missing", run_id: "failed" }],
     usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "未报告" }, awaiting_input: [], stop_reason: "检查失败",
@@ -77,7 +77,7 @@ test("formal report routes freeze real Artifact versions, distinguish missing/fa
     assert.match(preview.body.report.body_markdown, /fixture \/ old.ts v1 \(snapshot\)/);
     assert.match(preview.body.report.body_markdown, /退出码 1/);
     assert.match(preview.body.report.body_markdown, /回执无法读取，结果未知/);
-    assert.match(preview.body.report.body_markdown, /未确认应用/);
+    assert.match(preview.body.report.body_markdown, /这一轮结束时 AI 没读到/);
     assert.match(preview.body.report.body_markdown, /用量不完整或含估算/);
     assert.match(preview.body.report.body_markdown, /输出已截断/);
     assert.equal(preview.body.report.ended_at, null, "reconciled interrupted runs keep unknown original end time");

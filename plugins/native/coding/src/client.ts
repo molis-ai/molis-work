@@ -892,8 +892,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
             }
             if(turn.steer) {
               const receipt=document.createElement('small'); receipt.className='coding-turn-receipt';
-              receipt.textContent=turn.steer.state==='applied'?'已加入后续模型上下文':turn.steer.state==='unconfirmed'?'已保存，未确认应用':'已收到，等待后续处理';
-              receipt.title='加入上下文不代表模型已遵循，也不会撤销先前操作；补充要求不代替问题回答。';
+              receipt.textContent=({applied:'已放进上下文，等 AI 回应',read:'AI 已读到',unread:'这一轮结束时 AI 没读到',withdrawn:'已撤回'})[turn.steer.state]||'已送达';
+              receipt.title='读到不代表已遵循，也不撤销先前操作；补充要求不代替回答问题。';
               node.append(receipt);
             }
             renderedText.set(node,renderKey); enrichCode(node);

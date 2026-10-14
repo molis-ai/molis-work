@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，未达到整条防腐线完成标准（2026-10-13接续）。71包及#472增量源码审查已完成，整改和真实回归仍在。I4/I5的第五批既有修复已收入main，BL-133旧测试按用户决定修正；后续共享核心在I8组合收口，05实际658条中45失败、06定向106条中8失败，修后08冻结验证排队，未宣称全量通过。W2-10 A1–A4已合入，C #484等待现行头CI、D已准备，E绝对零候选待组合验证。错误统一H/R1–R3及权限、生命周期修复尚在候选，Work R4a三片仅源码/静态复核通过，实际运行待补。模型换模SDK上游提交与正式vendor替换仍等已有问题的用户回答；真实Home写入、维护八及他人成果清理遵守§1授权。第4–6波与最终真实场景、手册、度量和交付沿原路线继续，当前main和逐项证据见§10/§12，不以已审、已记、已合PR或静态通过冒充整线完成。
+状态：执行中，未达到整条防腐线完成标准（2026-10-13接续）。71包及#472增量源码审查已完成，整改和真实回归仍在。I4/I5的第五批既有修复已收入main，BL-133旧测试按用户决定修正；后续共享核心在I8组合收口，05实际658条中45失败、06定向106条中8失败，修后08冻结验证排队，未宣称全量通过。W2-10 A1–A4已合入，C #484已合入、D已准备，E绝对零候选待组合验证。错误统一H/R1–R3及权限、生命周期修复尚在候选，Work R4a三片仅源码/静态复核通过，实际运行待补。模型换模SDK上游提交与正式vendor替换仍等已有问题的用户回答；真实Home写入、维护八及他人成果清理遵守§1授权。第4–6波与最终真实场景、手册、度量和交付沿原路线继续，当前main和逐项证据见§10/§12，不以已审、已记、已合PR或静态通过冒充整线完成。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2264,3 +2264,5 @@ R4a1 b4153282b经统筹独立只读复核：3,099份跟踪JS/TS/SQL未剩21种�
 R4b沿已接受owner规则准备Artifacts首片：Module产出的artifact.<原因>→artifacts.artifact.<原因>，成果文档导入的document.<原因>→artifacts.document.<原因>，已是artifacts.*的现行码保持。生产工厂、HTTP/动作消费者及测试/活文档同片更新；artifact.*业务事件/引用路径、document.id/version合同示例、导入文档类型和历史数据不迁。R4B-01：实际成果注册/导入拒绝使用现行owner码，原消息/kind/details、权限、幂等与读回保持；R4B-02：只迁错误语境，完整消费者与工厂类型API同步，业务与SQL保持；R4B-03：owner真实定向、资源/健康/边界与共享组合全量通过才验收。当前排队期间仅准备源码，不另起构建。
 
 R4a3 ac65c8789独立只读复核无新Blocker/P1：3,062份JS/TS/SQL无六类旧错码，实际路径/opaque/快照、repair/unlink补偿顺序与cause及Files/Git拒绝断言保留，静态证据不替代运行。R4b 2f6dc5def准备71错误literal/14file、两document工厂变artifacts.document，17文件合并改动中16JS/TS逆名后AST正文一致；API0差异、base health通过，9条boundary引用与真实Feed消费保持同一检查，仅错码名字同步，不放宽门禁。artifact.published、document.id/version、DOM及旧库保持；构建/真实运行/资源与组合全量仍待，不验收。
+
+W2-10 C #484已在2026-10-14T00:06:34Z合入main 5c66cf0ab607bf1550287942cbc6011e0559eaf7：精确head10a85e13b对齐b03a4e83，五必需检查+Product成功、freshsecrets05通过；Linux仍报告中。GitHub mergeState为UNSTABLE仅因Linux未结束，其余全部已完成SUCCESS；未忽略任何必需/产品失败。C新main03真实73/73和旧Darwin63独立证据保留，D同步后仍须实际新版回归，不据C合入关闭D/E或I8。

@@ -2447,3 +2447,7 @@ W3-02-I7先收Scheduler单一封闭错误类，依赖J4现行scheduler码。范�
 I6生产78a4a42fb独立Source接受，无Blocker/P1；新增真实Node问卷回归6b17c9fb3已保存，验证逐题problems与共同出口details同义、拒绝待答不关闭、有效答案继续，实际运行等待联合SDK。I7候选dcc672861已保存9文件57/-49，五同subpath原因保持服务原invalid400与插件原404/400映射；源码142公开映射0诊断，API42只改scheduler快照，health42相对d530通过75类。两片Source/实际运行证据不能混称全线完成，正式SDK仍未获上游/vendor批准。
 
 W3-02-I8-LEDGER接原错误类收口，仅ContextLedger service/materialization的封闭四原因及公开导出/现行消费者；沿真实无kind400保持，不改权限authorize/ref/scope/版本/固定物化事务，安全拒绝0记录保持。LEDGER-01：真实访问拒绝、scope/精确引用与幂等key冲突code/message/400、原存储0变化与重复无新增保持；LEDGER-02：类/导出删除、同owner defineErrorCodes，无读取别名/兼容或新状态；LEDGER-03：README必跑与固定输入/跨owner物化现行回归及共享build/API/health。独立树准备，不改被冻结I8组合。
+
+I6补测6b17c9fb3经独立Source接受，已对真实SDK typed schema/string界限、choice默认required与number范围、实际Node answerPending控制路径核对；设计可达，但尚无运行结果。I7dcc672861同样Source接受，八造错、五reason、完整有限本域判断/两cancel及外来失败透传核实；实际README/恢复/整建待。SDK41在干净08b基点的新隔离树精确应用原beforeAccept补丁，原树与上游/vendor未改，已排同构建锁，尚未构建。
+
+W3-02-I9-CHAR沿已有R4c仅收Characters模块service/open的五现行原因类，公开导出和三现行instanceof消费者同步共同ActionError。kind沿目前统一动作出口默认invalid400，现行插件HTTP自己的characters.conflict409/not_found404映射在本片保持，后续统一出口另按原W3-02收；不借类收口更改已有状态。CHAR-01：个人owner隔离、wrong schema原库不写、revision CAS/发布/导入固定来源精确code/message和原事实保持；CHAR-02：无类/alias、消息不改、闭合五reason同owner，不动数据库升级兼容或真实Home；CHAR-03：README四文件及真实发布/导入/Agent启动相关回归、build/API/health/assets与共享全量。独立准备，不动冻结I8或任何产品功能。

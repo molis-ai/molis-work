@@ -1,4 +1,5 @@
 /** Forms workbench client: author, preview, submit, results. */
+import { FORM_DRAFT_CLIENT_SCRIPT } from "./draft-client.js";
 // Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `fixedCell`: A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name. `molis:placement-changed`: Moved or copied from the placement bar: this list changed; a form moved away is no longer here to edit.
 export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
@@ -92,7 +93,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = new Error(payload.code === "form.conflict" ? L("问卷已在别处修改，当前输入已保留。请复制需要保留的内容，再重新读取。") : payload.error || L("问卷请求失败"));
-      error.code = payload.code;
+      error.code = payload.code; error.details = payload.details;
       throw error;
     }
     return payload;
@@ -470,7 +471,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     answerDirty = false;
     submissionAttempt = null;
     resultsSeq += 1;
-    selected = record;
+    if (selected?.id !== record.id) draft.close(); selected = record;
     showNote("", false);
     const opening = workspace.hidden;
     workbench.setAttribute("data-expanded", "true");
@@ -602,6 +603,8 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (selected) paintStatus(selected);
   };
 
+  const draft = (${FORM_DRAFT_CLIENT_SCRIPT})({ host, request, L, ask: workbench.querySelector("[data-form-draft-ask]"), prompt: aiPrompt, button: workbench.querySelector("[data-form-generate-ai]"),
+    form: () => selected, done: async (record) => { fillEditor(record); await loadList(); }, note: showNote });
   workbench.addEventListener("click", async (event) => {
     const button = event.target.closest("button");
     if (!button || button.type === "submit" || button.closest("dialog") || button.disabled || busy) return;
@@ -728,15 +731,11 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         queueSave();
         return;
       }
-      if (event.target.closest("[data-form-generate], [data-form-generate-ai]") && selected) {
+      if (event.target.closest("[data-form-generate-ai]") && selected) { await save(); await draft.start(); return; }
+      if (event.target.closest("[data-form-generate]") && selected) {
         await save();
-        const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + (button.matches("[data-form-generate-ai]") ? "/generate-ai-question" : "/generate-questions"), {
-          prompt: aiPrompt.value, expected_version: selected.version,
-        });
-        fillEditor(payload.form);
-        aiPrompt.value = "";
-        await loadList();
-        return;
+        fillEditor((await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/generate-questions", { prompt: aiPrompt.value, expected_version: selected.version })).form);
+        aiPrompt.value = ""; await loadList(); return;
       }
       if (event.target.closest("[data-form-publish]") && selected) {
         await save();

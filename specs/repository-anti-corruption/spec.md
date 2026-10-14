@@ -2275,3 +2275,5 @@ C #484合入后的Codex合规复查按系统整理§1–15：§1–7没有新增
 R4c1 67081873c（41错误词元/6TS）独立只读无新Blocker/P1，旧5码无残留、API0及health通过；R4c2 bd56ef174（22错误词元/8TS+现行文档/fixture说明）将Molis自有推理码和image_比较归agent.inference，逆名AST8/8同、API0/health通过，SDK原生错误与真实拒绝身份标记/模型回执保持。R4c2仍未运行；D现行5c66同步7cf62dc67，整树与c816d570e一致，42非浏览器+2浏览器新版driver仅准备未启动。I8和#477原等待进程保持，不新增同一构建。
 
 R4c3按现行实现收窄旧计划：kernel.capability_*由packages/kernel自己的类生产、owner表已登记kernel，Coding只是消费，保持；Jelly b23旧生产前缀已随早前F片清掉，不重复迁移。仅Diff的三种unified拒绝→diff.unified.<原因>，Coding图的unknown_node/duplicate_node→coding.diagram.<原因>，对应真实消费同步。R4C3-01：实际hunk解析仍拒坏头/数量不符/空片，图仍拒重复与未知节点，输入/输出和事实不变；R4C3-02：错误语境/API或测试消费者现行，kernel自有码、图节点/关系、SQL业务type保持；R4C3-03：真实Diff/图定向、资源/门禁与共享回归后验收。首片只Diff，图另片，一题一个PR。
+
+R4c3a 09db92c77（Diff8词元/2TS）和R4c3b 9e72f8479（图6词元/2TS）源码准备、逆名AST一致、API0/base health通过；统筹独立只读无新增Blocker/P1，Diff comparison消费按类和原message显示unavailable，图结构及coding.diagram.v1成果类型保持。Kernel自己的三码与Jelly现行prefix已按代码核验保持；这两片仍未构建/运行/资源验证。R4c2 bd56ef174独立只读亦无新Blocker/P1：包含fixture说明共9TS，现行image_消费、singleHome拒绝、SDK原生code/status透传和dispatch-refusal机制保持。只读源码接受不升级到产品验收。

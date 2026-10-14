@@ -158,7 +158,9 @@ test("the action bar order keeps known slots, drops strangers, and adopts new ac
   });
 });
 
-test("an old catalog without the new settings still opens", async () => {
+// W1-18-SHELF-FORMAT-01: a catalog is read only in its current shape; an older one is refused and left as it is (no read-time
+// defaults, specs/repository-anti-corruption §4.1). Stored catalogs are brought to the current shape by maintenance instead.
+test("an old catalog without the new settings is refused and left unchanged", async () => {
   await withHome(async (home) => {
     const store = openShelfStore(home, { disabled: true });
     store.admit({ filename: "旧.md", bytes: Buffer.from("旧材料", "utf8"), mime: "text/markdown" });
@@ -170,12 +172,11 @@ test("an old catalog without the new settings still opens", async () => {
       delete item.failure_reason;
       delete item.source_item_ids;
     }
-    writeFileSync(catalogPath, JSON.stringify(catalog));
-    const snapshot = openShelfStore(home, { disabled: true }).snapshot();
-    assert.equal(snapshot.settings.drop_wheel_enabled, false);
-    assert.deepEqual(snapshot.settings.panel_keys, defaultPanelKeys());
-    assert.equal(snapshot.materials[0]?.status, "done");
-    assert.deepEqual(snapshot.materials[0]?.source_item_ids, []);
+    const bytes = JSON.stringify(catalog);
+    writeFileSync(catalogPath, bytes);
+    const reopened = openShelfStore(home, { disabled: true });
+    assert.throws(() => reopened.snapshot(), error => isShelfFailure(error) && error.code === "shelf.invalid_file");
+    assert.equal(readFileSync(catalogPath, "utf8"), bytes, "the refused catalog is not rewritten");
   });
 });
 
@@ -211,7 +212,7 @@ test("a folder comes in whole: children stay in place and a recipe gets the tree
   });
 });
 
-test("a catalog whose jobs predate multi-material runs still hides and deletes", async () => {
+test("a catalog whose jobs predate multi-material runs is refused and left unchanged", async () => {
   await withHome(async (home) => {
     const store = openShelfStore(home, { disabled: true });
     const item = store.admit({ filename: "旧.md", bytes: Buffer.from("旧材料", "utf8"), mime: "text/markdown" });
@@ -228,11 +229,11 @@ test("a catalog whose jobs predate multi-material runs still hides and deletes",
       created_at: new Date().toISOString(),
       finished_at: new Date().toISOString(),
     }];
-    writeFileSync(catalogPath, JSON.stringify(catalog));
+    const bytes = JSON.stringify(catalog);
+    writeFileSync(catalogPath, bytes);
     const reopened = openShelfStore(home, { disabled: true });
-    assert.equal(reopened.snapshot().running_jobs.length, 0);
-    reopened.hide(item.item_id);
-    assert.equal(reopened.snapshot().materials.length, 0);
+    assert.throws(() => reopened.hide(item.item_id), error => isShelfFailure(error) && error.code === "shelf.invalid_file");
+    assert.equal(readFileSync(catalogPath, "utf8"), bytes, "the refused catalog is not rewritten");
   });
 });
 

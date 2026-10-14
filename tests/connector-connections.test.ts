@@ -308,7 +308,7 @@ test("MCP settings keep authorization at 401 and missing connections as safe pro
   const home = mkdtempSync(join(tmpdir(), "molis-mcp-refusal-"));
   const prior = { home: process.env.MOLIS_WORK_HOME, backend: process.env.MOLIS_WORK_SECRET_BACKEND };
   process.env.MOLIS_WORK_HOME = home; process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
-  const controlToken = "mcp-refusal-fixture-control";
+  const controlToken = randomUUID();
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");

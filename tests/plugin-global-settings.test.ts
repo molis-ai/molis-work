@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {mkdir, mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -105,21 +105,26 @@ function settingsPage(overrides: Partial<UiContributionDescriptor> = {}): UiCont
   };
 }
 
-test("old Shelf catalogs without settings keep the drop wheel on", async () => {
+test("INTEGRATION-FIX72-02: Shelf refuses old missing settings without rewriting; current catalogs keep their defaults", async () => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-plugin-settings-legacy-"));
   try {
     const root = join(homeDirectory, "shelf");
     await mkdir(root, { recursive: true });
-    await writeFile(join(root, "catalog.json"), JSON.stringify({
+    const filename = join(root, "catalog.json");
+    const original = JSON.stringify({
       version: 1,
       seeded_sample: false,
       items: [],
       jobs: [],
       clipboard: [],
       current_clip_id: null,
-    }));
-    assert.equal(openShelfStore(homeDirectory).settings().drop_wheel_enabled, true);
-    assert.deepEqual(openShelfStore(homeDirectory).settings().hotkeys, defaultShelfHotKeys());
+    });
+    await writeFile(filename, original);
+    assert.throws(() => openShelfStore(homeDirectory).settings(), { code: "shelf.invalid_file", kind: "invalid" });
+    assert.equal(await readFile(filename, "utf8"), original);
+    const current = openShelfStore(join(homeDirectory, "current"));
+    assert.equal(current.settings().drop_wheel_enabled, true);
+    assert.deepEqual(current.settings().hotkeys, defaultShelfHotKeys());
   } finally {
     await rm(homeDirectory, { recursive: true, force: true });
   }

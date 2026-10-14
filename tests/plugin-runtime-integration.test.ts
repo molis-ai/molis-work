@@ -974,7 +974,7 @@ test("PRERR-02: Runtime distinguishes its current refusals from foreign common e
     const repository = new MemoryPluginRuntimeRepository();
     const runtime = new PluginRuntime(repository);
     const definition: PluginDefinition = { manifest: probeManifest(pluginId), async start() { throw failure; } };
-    const { install } = runtime.install({ definition, deployment: "local", grants: [] });
+    const { install } = runtime.install({ definition, deployment: "local", grants: ["network:probe"] });
     await assert.rejects(runtime.start(install.install_id), (error: unknown) => index === 0 ? error === failure : error instanceof ActionError
       && error.code === "plugin.executor_failed" && error.message === "Plugin entrypoint 启动失败，已记录为 crashed" && error.kind === "invalid");
     assert.equal(runtime.get(install.install_id).state, "crashed");

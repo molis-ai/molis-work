@@ -1,4 +1,4 @@
-import { MolisWorkLocalHost } from "../../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import { createActionMcpPorts, handleMcpMessage, serveMcpStdio } from "@molis-ai/molis-work-app-mcp";
 const [home, access] = process.argv.slice(2);

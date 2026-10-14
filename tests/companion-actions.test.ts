@@ -8,16 +8,16 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { DesktopPanelService } from "../apps/desktop/src/panels.js";
 import { createDesktopPanelTables, SqliteDesktopPanelRepository } from "../apps/desktop/src/adapters/sqlite-panels.js";
-import { MolisWorkProjectCatalog } from "../apps/local-host/src/project-catalog.js";
+import { MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import { textStatsActions } from "@molis-ai/molis-work-plugin-text-stats";
 import { filesActions } from "@molis-ai/molis-work-plugin-files";
 import { diffActions } from "@molis-ai/molis-work-plugin-diff";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { projectActionAvailability } from "../apps/local-host/src/project-action-availability.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { createMcpActionGrant } from "../apps/local-host/dist/mcp-action-grants.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { readMcpToolPreference, writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { readMcpToolPreference, writeMcpActionGrant } from "../apps/local-host/dist/mcp-settings-store.js";
 
 test("headless runtime companions are discovered and called by the official MCP client with live project and client grants", { timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "companion-actions-"));

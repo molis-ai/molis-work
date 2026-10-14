@@ -18,6 +18,8 @@
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
 
+回复的阶段和预览正文由插件的 `src/reply-stream.ts` 解析与输出，Host 沿插件路由转发。预览不作为保存结果；取消请求后保留输入，不保存迟到的回复。
+
 ## 开发要求
 
 - 负责：临时灵感池与围绕灵感的对话。

@@ -6,7 +6,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { isIP } from 'node:net';
-import { assertSchema, assertMatches, isPublicAddress, validateNetworkRequest, createHttpsProxy } from '../packages/plugin-sandbox/dist/index.js';
+import { assertSchema, assertMatches, isPublicAddress, validateNetworkRequest, createHttpsProxy } from '@molis-ai/molis-work-plugin-sandbox';
 
 test('strict schema validator rejects unknown keywords and checks nested constraints', () => {
   for (const schema of [{ type: 'string', pattern: '.*' }, { type: 'object' }, { type: 'array' }, { type: 'object', properties: {}, required: ['missing'], additionalProperties: false }, { type: 'integer', minimum: 10, maximum: 1 }]) assert.throws(() => assertSchema(schema));
@@ -78,7 +78,8 @@ test('HTTPS proxy pins checked DNS, verifies hostname, rejects redirects and blo
     t.mock.method(dns, 'lookup', async () => [{ address: '93.184.216.34', family: 4 }, { address: '127.0.0.1', family: 4 }]); syncBuiltinESMExports();
     await assert.rejects(proxy.request(context, request, authorization), { code: 'NETWORK_DENIED' }); assert.equal(connections, before);
   } finally {
-    // Restore named built-in ESM bindings as well as default export methods.
+    // W2-10: nested mock restoration must finish before the real DNS/HTTPS methods are synchronized.
+    t.mock.reset();
     dns.lookup = originalLookup; https.request = originalRequest; syncBuiltinESMExports();
   }
 });
@@ -97,7 +98,7 @@ test('host resolver is bounded by request deadline and receives cancellation', a
 
 test('injected host resolver connects to real registry.npmjs.org over pinned HTTPS', { skip: process.env.MOLIS_SANDBOX_NETWORK_E2E !== '1', timeout: 35_000 }, async t => {
   // Integration-only dependency: the sandbox package itself never imports Agent Host.
-  const { resolveModelHostname } = await import('../horizontal/agent-host/src/adapters/node-model-dns.js');
+  const { resolveModelHostname } = await import('@molis-ai/molis-work-service-agent-host');
   let resolved: string[] = [];
   const proxy = createHttpsProxy({ timeoutMs: 30_000, resolveHostname: async (hostname, signal) => {
     assert.equal(hostname, 'registry.npmjs.org');

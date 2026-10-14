@@ -159,7 +159,7 @@ v8 第一轮有三处不对：「111」先试着保存（标题传成数字 111�
 
 本次交付范围是现有 Issue 代码、合同、文档与测试进入 `molis-ai/molis-work` 的远端 main。沿用 `codex/issue-daily-integration`，完整包含 `codex/issue-home-v0` 的十个提交；`codex/issue-home-v0-ui` 与 V0 首次提交仅有历史验收记录差别，产品实现相同，后续已由当前分支覆盖。三个原 Issue 工作树检查时均无未提交文件，没有其他已加载会话在写入；主检出的无关未跟踪文件保留。
 
-集成分支已合入最新平台 `bca1bd19`（合并提交 `14c7be3f`）。唯一文本冲突位于安全说明，保留新的常驻 Host 传输约束及 Issue 的 MCP 验证条目；没有产品源码冲突。门禁规则按仓库要求拆成独立 [PR #395](https://github.com/molis-ai/molis-work/pull/395)，使用此前已批准的 Issue 首次 24,000 bytes 上限；功能 PR 接续合入，Issue 当前实测 23,992 bytes。原分支历史保留，临时门禁分支仅用于本轮审阅。
+集成分支已合入最新平台 `bca1bd19`（合并提交 `14c7be3f`）。唯一文本冲突位于安全说明，保留新的常驻 Host 传输约束及 Issue 的 MCP 验证条目；没有产品源码冲突。门禁规则按仓库要求拆成独立 [PR #395](https://github.com/molis-ai/molis-work/pull/395)，使用此前已批准的 Issue 首次 24,000 bytes 上限；功能 PR 接续合入，Issue 当前实测 23,992 bytes。用户 2026-10-14 确认批准过这个 24,000 bytes 的首次上限（此前没有单独记一行，这里补记）。Issue 客户端进入 main 的预算之后，这次首次登记已经用完；门禁脚本里为它留的例外随后删掉，`scripts/gates/page-assets.mjs` 回到「不许新增路径、只许减小」，`tests/page-assets-budget.test.ts` 的 ISSUE-06 改成断言连 Issue 也不能再次首次登记。原分支历史保留，临时门禁分支仅用于本轮审阅。
 
 最终集成树整体构建、相对 `origin/main` 的健康门禁、包边界、资源预算与提交密钥扫描通过。107 个相关测试文件共 **1,018 项通过、0 失败、0 跳过**，覆盖全部 Issue 测试、Home Runtime、插件生命周期、SDK/合同、存储、MCP 授权和网关、模型设置及跨标签返回、工作台和更新后的项目删除边界。本机没有重跑全仓，沿用用户指定的影响范围验证；GitHub 的必需 `Verify` 通过后才执行合并。
 

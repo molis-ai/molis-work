@@ -15,6 +15,9 @@ export interface CodingSessionRead {
   error?: string;
 }
 
+/** The version of each Coding action this executor speaks: a new shape there is a new version here, in the same change. */
+const VERSIONS: Readonly<Record<string, number>> = { "runs.control": 2 };
+
 export class CodingUnavailable extends Error {
   constructor(message: string, readonly action?: string) { super(message); this.name = "CodingUnavailable"; }
 }
@@ -32,7 +35,7 @@ export class CodingExecutor {
 
   private async reference(name: string): Promise<ExactActionReference> {
     this.offered ??= this.actions.discover();
-    const view = (await this.offered).find(row => row.capability_id === `coding.${name}` && row.version === 1);
+    const view = (await this.offered).find(row => row.capability_id === `coding.${name}` && row.version === (VERSIONS[name] ?? 1));
     if (!view) throw new CodingUnavailable("这个项目还没有可用的 Coding 插件", "在插件市场添加 Coding");
     if (!view.availability.available) throw new CodingUnavailable(view.availability.reason);
     return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };

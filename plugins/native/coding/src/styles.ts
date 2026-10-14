@@ -326,13 +326,8 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-turn .coding-code-copy { position:absolute; right:6px; top:6px; height:24px; min-height:24px; padding:0 8px; font-size:12px; opacity:0; transition:opacity 130ms var(--ease-quint); }.coding-turn pre:hover .coding-code-copy,.coding-turn pre:focus-within .coding-code-copy,.coding-turn .coding-code-copy:focus-visible { opacity:1; }@media (hover:none) { .coding-turn .coding-code-copy { opacity:1; } }.coding-activity { max-width:76ch; margin:0 auto 24px; color:var(--muted); font-size:12px; }.coding-activity pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:260px; overflow:auto; }.coding-activity summary { cursor:pointer; }
 .coding-status { flex:none; min-height:18px; margin:0; padding:4px 16px; font-size:12px; color:var(--muted); }
 .coding-status[data-error=true] { color:var(--tone-blocked,var(--ink)); }
-.coding-question-card { max-width:76ch; margin:16px auto 24px; padding:16px; border:1px solid var(--line); border-radius:var(--radius-control); display:grid; gap:12px; }
-.coding-question-prompt,.coding-question-options legend { font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
-.coding-question-options { min-width:0; margin:0; padding:0; border:0; display:grid; gap:8px; }
-.coding-question-option { display:flex; align-items:baseline; gap:8px; font-size:13px; line-height:1.6; cursor:pointer; }
-.coding-question-text { display:grid; gap:8px; font-size:12px; }.coding-question-text textarea { width:100%; resize:vertical; }
-.coding-question-hint,[data-question-status] { margin:0; font-size:12px; line-height:1.6; color:var(--muted); }
-.coding-question-card [data-coding-answer-submit] { justify-self:start; }
+/* A run's waiting question is the shared question card (A2); in the thread it keeps the reading width. */
+[data-coding-question] { max-width:76ch; margin:16px auto 24px; }
 .coding-composer { flex:none; display:flex; flex-direction:column; align-items:center; gap:8px; border:0; background:transparent; }
 .coding-composer > .coding-context,
 .coding-composer-shell,

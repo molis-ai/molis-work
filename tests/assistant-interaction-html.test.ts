@@ -3,8 +3,9 @@ import test from "node:test";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type { AssistantCard, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import {
-  assistantAnswerFrom, assistantCardHtml, assistantNextSteps, assistantQuestionHtml, cardInputValues, drawAssistantReply, instantIn, questionErrors,
+  agentQuestionHtml, assistantCardHtml, assistantNextSteps, cardInputValues, drawAssistantReply, instantIn, questionErrors,
 } from "@molis-ai/molis-work-app-local-host";
+import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 
 // The Assistant's questions, action cards and next steps are drawn on the Host with the design system's shared parts
 // (specs/ai-interaction-experience A1, H2); the page only binds them. `say` stands in for the request's translation.
@@ -22,7 +23,7 @@ const questionnaire: AgentPendingQuestion = {
 };
 
 test("AC-21: a questionnaire is drawn as the shared question card, escaped, with the person's half-written answer in place", () => {
-  const html = assistantQuestionHtml(questionnaire, say, { q0: { picked: ["1"], other: "看情况" }, q1: ["0"] });
+  const html = agentQuestionHtml(questionnaire, say, { q0: { picked: ["1"], other: "看情况" }, q1: ["0"] });
   assert.match(html, /data-ix-question="q-pending-1"/);
   assert.match(html, /怎么安排&lt;复盘&gt;？/, "the Runtime's words are shown as text, never as markup");
   assert.match(html, /data-ix-field="q0"[\s\S]*role="radiogroup"/, "one pick is a radio group");
@@ -36,20 +37,20 @@ test("AC-21: a questionnaire is drawn as the shared question card, escaped, with
 
 test("AC-21: a plain question offers its options and words; a question that can no longer be answered says why and offers no answer", () => {
   const plain: AgentPendingQuestion = { pending_id: "p2", kind: "clarify", prompt: "要发给谁？", options: [{ value: "team", label: "团队" }], allows_free_text: true };
-  const html = assistantQuestionHtml(plain, say, { text: "只发给我" });
+  const html = agentQuestionHtml(plain, say, { text: "只发给我" });
   assert.match(html, /data-ix-field="pick"/);
   assert.match(html, /data-ix-field="text"[\s\S]*只发给我<\/textarea>/);
-  const closed = assistantQuestionHtml({ ...plain, answerable: false, unavailable_reason: "这个问题已经过期" }, say);
+  const closed = agentQuestionHtml({ ...plain, answerable: false, unavailable_reason: "这个问题已经过期" }, say);
   assert.match(closed, /data-ix-banner[^>]*>\s*<p data-ix-banner-text>这个问题已经过期/);
   assert.doesNotMatch(closed, /data-ix-action="answer"/);
 });
 
 test("AC-21: what the card sends becomes the Runtime's answer: every question once, words before a pick, nothing for nothing", () => {
-  assert.deepEqual(assistantAnswerFrom({ q0: { picked: ["1"], other: " 看情况 " }, q1: [] }), { answers: [{ question: 0, indexes: [1], other: "看情况" }, { question: 1, indexes: [] }] });
-  assert.deepEqual(assistantAnswerFrom({ pick: ["team"], text: "" }), { text: "team" });
-  assert.deepEqual(assistantAnswerFrom({ pick: ["team"], text: " 只发给我 " }), { text: "只发给我" });
-  assert.equal(assistantAnswerFrom({ pick: [], text: "  " }), null);
-  assert.equal(assistantAnswerFrom("q0"), null);
+  assert.deepEqual(questionAnswer({ q0: { picked: ["1"], other: " 看情况 " }, q1: [] }), { answers: [{ question: 0, indexes: [1], other: "看情况" }, { question: 1, indexes: [] }] });
+  assert.deepEqual(questionAnswer({ pick: ["team"], text: "" }), { text: "team" });
+  assert.deepEqual(questionAnswer({ pick: ["team"], text: " 只发给我 " }), { text: "只发给我" });
+  assert.equal(questionAnswer({ pick: [], text: "  " }), null);
+  assert.equal(questionAnswer("q0"), null);
   assert.deepEqual(questionErrors([{ question: 0, reason: "required" }, { question: 1, reason: "too-early" }], say),
     { q0: "这一题需要回答", q1: "这一题的回答不能提交，请改一下" }, "each refused question gets a line beside its own field");
 });

@@ -1,5 +1,4 @@
 import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
-import { INTERACTION_CLIENT_SCRIPT_TYPED_DATES } from "@molis-ai/molis-work-design-system";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 
 /**
@@ -573,7 +572,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const cardHint = (text) => el("p", "assistant-card-hint", text);
   /* Questions, action cards and next steps come drawn by the Host (in the person's language); the page binds them with the
      shared client. A node is redrawn only when its key changes, so what the person is typing stays put. */
-  const ixClient = (${INTERACTION_CLIENT_SCRIPT_TYPED_DATES});
+  const ixClient = host.interaction;
   const drawn = (node, html, handlers, key = html) => {
     if (node.ixKey === key) return node.ix;
     node.ix?.destroy(); node.innerHTML = html || ""; node.ixKey = key;

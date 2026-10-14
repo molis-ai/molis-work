@@ -1,6 +1,8 @@
 # 采用合同与 Computer Use 闭环
 
-状态：执行中（2026-10-13）。切应用后树不够时回执带上这一步的窗口图；模型一轮结束不带结果时，记录按窗口标题、文件或操作记录收口，对不上记为失败。`tests/computer-use-act-loop.test.ts`、`tests/computer-use-gaps.test.ts`、`tests/computer-use-task-done.test.ts` 共 17 项通过。二十步跨两个应用的真机没有跑：这台机器有人在用，没有启动走查，没有发 Ctrl+Cmd+Q，没有输入或猜测密码。`specs/computer-use/spec.md` 那一格保持未勾。
+> 归档（2026-10-14）：判定为**已实现**。依据是 main 上的代码。`coding.runs.control` 是版本 2。桌面回执、注入前按节点重算、完成与否看窗口标题、文件或操作记录，在 #480（`46cb083ee`，含 #481）。树不够时这一步把窗口图交回：Molis #493（`f90bf70b5`），Prologue #18（`82108d99`）。二十步真机没有跑，`specs/computer-use/spec.md` 那一格保持未勾，仍由那份规格跟踪。
+
+状态：已实现（2026-10-14）。
 
 把已经在 main 上的 Prologue 采用收成同一份合同，并补上桌面「看一次、点一次」还缺的那一截。防腐以 `docs/prompts/repository-anti-corruption.md` 为准，Computer Use 的禁区与挡法以 `specs/computer-use/spec.md` 的 D01–D19 为准。一个 PR 一个主题。
 
@@ -31,7 +33,7 @@
 
 ### 3.1 编码轮次控制
 
-`coding.runs.control` 版本留在 1。仓库里没有钉死 `coding.runs.control@1` 的引用。schema 用 `oneOf` 按 `kind` 写明必填字段，缺了就在动作校验处拒绝。处理器不再因为 schema 没要求的字段缺失而失败。页面、HTTP 和动作用同一份字段：`session_id`、`run_id`、`kind`，外加下表。受众仍只有 `user`。
+`coding.runs.control` 版本是 2，不保留 1 的别名。仓库里没有钉死旧版本号的引用。schema 用 `oneOf` 按 `kind` 写明必填字段，缺了就在动作校验处拒绝。处理器不再因为 schema 没要求的字段缺失而失败。页面、HTTP 和动作用同一份字段：`session_id`、`run_id`、`kind`，外加下表。受众仍只有 `user`。
 
 | kind | schema 必填 | 旧调用 |
 | --- | --- | --- |
@@ -42,7 +44,7 @@
 
 模型是否在本插件的模型列表里，仍由处理器核对。那不是缺字段。页面上换模型仍从下一次模型调用起生效。
 
-公开合同：`coding.runs.control@1` 的输入哈希从 `78d0a95586bb` 变为 `399b5b1e7ac5`，输出哈希仍是 `a2c799262a3c`。版本留在 1。调用方是页面、这条动作的 HTTP，和动作校验，三处读同一份 schema。仓库里没有工作流、Skill 或 MCP 钉死 `@1`。旧的五种 kind 在必填字段齐全时仍然有效。没有钉住这份输入的外部引用会按新 schema 被拒绝：只带 `session_id`、`run_id`、`kind` 的 `switch-model`、没有题目字段的 `answer`、没有文字的 `steer`。
+公开合同：形状变化时记下的输入哈希从 `78d0a95586bb` 变为 `399b5b1e7ac5`，输出哈希仍是 `a2c799262a3c`。现行版本是 2，不保留 1 的别名。调用方是页面、这条动作的 HTTP，和动作校验，三处读同一份 schema。仓库里没有工作流、Skill 或 MCP 钉死 `@1`。旧的五种 kind 在必填字段齐全时仍然有效。没有钉住这份输入的外部引用会按新 schema 被拒绝：只带 `session_id`、`run_id`、`kind` 的 `switch-model`、没有题目字段的 `answer`、没有文字的 `steer`。
 
 ### 3.2 灵光预览
 
@@ -72,7 +74,7 @@
 
 1. **ACL-01** 只发 `kind=switch-model`、不带供应商和模型的调用，在 `coding.runs.control` 的公开 schema 处被拒绝。
 2. **ACL-02** 回答问题缺题目字段、补充要求缺文字，同样在 schema 处被拒绝。字段齐全的 `answer`、`steer`、`stop`、`pause`、`resume` 仍通过 schema，处理器不因缺字段失败。
-3. **ACL-03** 页面换模型仍提交 `provider_id` 与 `model_id`，并从下一次模型调用起生效。版本仍是 1，受众仍只有 `user`。
+3. **ACL-03** 页面换模型仍提交 `provider_id` 与 `model_id`，并从下一次模型调用起生效。版本是 2，受众仍只有 `user`。
 4. **ACL-04** 灵光回复仍边写边出现。关掉请求不保存回复，输入留在页面上。宿主那份 HTTP 文件不再写出灵光的预览阶段，也不解析预览正文。
 5. **ACL-05** 一条测试证明宿主下发的脚本与源码是同一程序、同一批名字，且 `.a > .b` 保持不变。逐轮变更界面能单独类型检查。
 6. **ACL-06** `page-assets` 对照 `origin/main` 通过。数字等于实测，只许变小。

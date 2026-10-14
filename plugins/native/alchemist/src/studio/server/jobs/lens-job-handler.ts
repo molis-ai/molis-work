@@ -206,7 +206,6 @@ function classifyError(error: unknown): string {
     if (["alchemist.lens_run_input_invalid", "alchemist.idea_version_not_found", "alchemist.ai_output_invalid", "alchemist.research_call_interrupted", "alchemist.research_no_sources", "alchemist.research_budget_invalid", "alchemist.runtime_model_unavailable", "alchemist.runtime_not_configured", "alchemist.runtime_shutdown"].includes(error.message)) {
       return error.message;
     }
-
   }
   return "alchemist.research_runtime_failed";
 }

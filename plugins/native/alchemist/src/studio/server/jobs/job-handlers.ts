@@ -175,7 +175,6 @@ async function generateCheckpoint(
 function classifyError(error: unknown): string {
   if (error instanceof Error) {
     if (["alchemist.exploration_result_conflict", "alchemist.ai_call_interrupted", "alchemist.ai_output_invalid", "alchemist.runtime_not_configured", "alchemist.runtime_model_unavailable", "alchemist.runtime_shutdown"].includes(error.message)) return error.message;
-
   }
   return "alchemist.ai_runtime_failed";
 }

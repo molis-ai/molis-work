@@ -222,6 +222,9 @@ async function measure(probe) {
 }
 
 // ---- the rules -------------------------------------------------------------------------------------------------------
+// User-approved on 2026-10-15 for ISSUE-45/46 only. The existing 23,451-byte Issue baseline may
+// move to at most 24 KiB; once the new measured size is the base, the normal no-growth rule resumes.
+const approvedCeiling = (asset, bytes) => asset === "/assets/molis-work-plugins/issues.js" && bytes === 23451 ? 24576 : bytes;
 // head: what the build measures against the committed budget. The budget must be exactly what the build measures, so a
 // shrink that did not lower its number is caught too (the next PR could otherwise grow back into the slack).
 const headErrors = (measured, budget, base) => {
@@ -241,7 +244,7 @@ const baseErrors = (budget, base) => {
   const errors = [];
   for (const [asset, allowed] of Object.entries(budget)) {
     if (base[asset] === undefined && (INITIAL_ASSET_BUDGETS[asset] === undefined || allowed > INITIAL_ASSET_BUDGETS[asset])) errors.push(`${BUDGET_FILE} adds ${asset} (${allowed} bytes), which the merge-base did not budget; budgets only fall and no asset may be added`);
-    else if (allowed > base[asset]) errors.push(`${BUDGET_FILE} raises the budget of ${asset} ${base[asset]} → ${allowed}; budgets only fall`);
+    else if (allowed > approvedCeiling(asset, base[asset])) errors.push(`${BUDGET_FILE} raises the budget of ${asset} ${base[asset]} → ${allowed}; budgets only fall`);
   }
   return errors;
 };
@@ -253,7 +256,7 @@ const missErrors = (found) => found.map((asset) => `${asset} (${measured[asset]}
 // update: nothing may grow relative to the reference (the merge-base's budget, else the committed one); a missing
 // reference is the first freeze.
 const growthErrors = (measured, reference) => Object.entries(measured).flatMap(([asset, bytes]) => {
-  const allowed = reference[asset] ?? INITIAL_ASSET_BUDGETS[asset];
+  const allowed = approvedCeiling(asset, reference[asset] ?? INITIAL_ASSET_BUDGETS[asset]);
   if (allowed === undefined) return [`${asset} (${bytes} bytes) has no budget to lower`];
   return bytes > allowed ? [`${asset} grew ${allowed} → ${bytes}`] : [];
 });

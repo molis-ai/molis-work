@@ -589,3 +589,24 @@ test("Issue first asset has its own exact ceiling; increases and other plugin pa
   branch("existing-asset-still-frozen", () => { sizes[asset] = 24000; sizes["/assets/a.css"]++; putBudget(sizes); });
   assert.equal(gate("--base", "main").code, 1);
 });
+
+// ISSUE-45/46: this one approved increase must not become a reusable allowance for later changes.
+test("Issue draft/preview exception is bounded and freezes again at the new measured size", () => {
+  const asset = "/assets/molis-work-plugins/issues.js";
+  branch("issue-draft-old", () => { sizes[asset] = 23451; putBudget(sizes); });
+  git("checkout", "-q", "-b", "issue-draft-fix");
+  sizes[asset] = 24576;
+  assert.equal(gate("--update", "--base", "issue-draft-old").code, 0);
+  commit("approved Issue increase");
+  assert.equal(gate("--base", "issue-draft-old").code, 0);
+  sizes[asset]++;
+  assert.equal(gate("--update", "--base", "issue-draft-old").code, 1);
+  putBudget(sizes); assert.equal(gate("--base", "issue-draft-old").code, 1);
+  sizes[asset] = 24390; putBudget(sizes); commit("freeze exact measured size");
+  git("checkout", "-q", "-b", "issue-draft-later");
+  sizes[asset]++; putBudget(sizes); commit("later unapproved growth");
+  assert.equal(gate("--base", "issue-draft-fix").code, 1);
+  assert.equal(gate("--update", "--base", "issue-draft-fix").code, 1);
+  sizes[asset] = 24390; sizes["/assets/a.css"]++; putBudget(sizes);
+  assert.equal(gate("--base", "issue-draft-old").code, 1, "other assets remain frozen");
+});

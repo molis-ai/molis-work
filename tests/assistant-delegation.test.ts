@@ -313,7 +313,7 @@ for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const
     assert.equal(child.handed_back_run, undefined, "a rejected hand-back did not consume the child's result");
     f.flags.beforeAuthority = undefined; f.flags.beforeStart = undefined; f.flags.assertBeforeStart = undefined;
     await f.service.archive(sent.work.work_id, false);
-    await f.service.send({ work_id: sent.work.work_id, text: "恢复后核对子任务交回的结果", request_id: "handback-resume-" + stage });
+    await f.service.send({ work_id: sent.work.work_id, text: "恢复后核对子任务交回的结果", request_id: "handback-resume-" + stage }, { project_ref: f.project });
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "explicit resumed round completes");
     assert.equal(f.store.rounds(sent.work.work_id).length, 2);
     assert.equal(f.store.get("web-user", child.work_id).handed_back_run, f.store.rounds(child.work_id).at(-1)?.run_id);
@@ -338,7 +338,7 @@ for (const change of ["stop", "new-round"] as const) test(`W2-18-HANDBACK-CURREN
     childRelease.resolve(); await entered.promise; f.flags.beforeAuthority = undefined;
     if (change === "stop") await f.service.control(parent.work_id, { kind: "stop" });
     else {
-      await f.service.send({ work_id: parent.work_id, text: "按我这次新要求继续核对", request_id: "new-parent-round" });
+      await f.service.send({ work_id: parent.work_id, text: "按我这次新要求继续核对", request_id: "new-parent-round" }, { project_ref: f.project });
       await until(async () => (await f.service.read(parent.work_id)).work.state === "completed");
     }
     release.resolve();
@@ -347,7 +347,7 @@ for (const change of ["stop", "new-round"] as const) test(`W2-18-HANDBACK-CURREN
     assert.equal((await f.adapter.readSession({ session_id: parent.session_id })).runs.length, change === "stop" ? 1 : 2);
     if (change === "stop") {
       assert.equal(child.handed_back_run, undefined); assert.equal(f.store.get("web-user", parent.work_id).hand_back_held, f.store.rounds(parent.work_id)[0]!.run_id);
-      await f.service.send({ work_id: parent.work_id, text: "现在由我明确要求继续核对交回结果", request_id: "resume-stopped-handback" });
+      await f.service.send({ work_id: parent.work_id, text: "现在由我明确要求继续核对交回结果", request_id: "resume-stopped-handback" }, { project_ref: f.project });
       await until(async () => (await f.service.read(parent.work_id)).work.state === "completed");
     }
     assert.equal(f.store.rounds(parent.work_id).length, 2);

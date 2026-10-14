@@ -1196,11 +1196,14 @@ export class MemoryService {
 
   private async purge(located: Located): Promise<void> {
     await this.ports.backend.remove({ scope: located.scope, owner: located.owner, memory_id: located.entry.memory_id });
-    // The candidate it came in through holds the same words: that goes too (spec §11: no path brings a deleted one back).
-    for (const item of await this.ports.backend.candidates.list(located.scope, located.owner)) {
-      if (item.memory_id === located.entry.memory_id) await this.ports.backend.candidates.purge({ scope: located.scope, owner: located.owner, candidate_id: item.candidate_id });
-    }
-    this.ports.ledger.forget(located.entry.memory_id);
+    // The candidate it came in through holds the same words: that goes too (spec §11: no path brings a deleted one back), and so
+    // does the Host's note about it, or every later read would meet a note whose candidate Prologue no longer holds.
+    const settled = (await this.ports.backend.candidates.list(located.scope, located.owner)).filter(item => item.memory_id === located.entry.memory_id);
+    for (const item of settled) await this.ports.backend.candidates.purge({ scope: located.scope, owner: located.owner, candidate_id: item.candidate_id });
+    this.ports.ledger.transaction(() => {
+      for (const item of settled) this.ports.ledger.dropCandidate(item.candidate_id);
+      this.ports.ledger.forget(located.entry.memory_id);
+    });
   }
 
   private characterEntry(located: Located): { title: string; subject: string | null } | undefined {

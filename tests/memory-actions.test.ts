@@ -6,11 +6,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
-import type { MemoryBackendPort } from "@molis-ai/molis-work-service-memory";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { memoryHostFor, registerMemoryHost } from "../apps/local-host/dist/memory/memory-host.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
-import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { assistantAuthority, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 
 const person: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
 const agent: ActionCallContext = { actor_id: "agent:coding-1", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [...MEMORY_PERMISSIONS] };
@@ -77,13 +76,13 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
 
   // The call is stopped while it is reading the store: the read finishes, the call's own effect check refuses, and no receipt is written.
   const controller = new AbortController();
-  // The store the service reads through is the one place a test can stop a call mid-read; `ports` is private, so it is reached by name and checked.
-  const backend: MemoryBackendPort = service["ports"].backend;
-  assert.equal(typeof backend.list, "function", "the service keeps its store as ports.backend");
-  const list = backend.list.bind(backend);
-  backend.list = async (...args) => { controller.abort(); return list(...args); };
+  // Each call reads through a store bound to that call (memory-host's prologueMemoryBackend over the runtime's memory with the
+  // call's execution control), so the call is stopped where every such store reads: the Home runtime's own memory list.
+  const sdk = ensureSystemAgentService(host, home).agentHost.adapter("prologue").memory!;
+  const list = sdk.list.bind(sdk);
+  t.mock.method(sdk, "list", async (...args: Parameters<typeof list>) => { controller.abort(); return list(...args); });
   try { await assert.rejects(client.invoke({ ...agent, signal: controller.signal }, recallRef, { query: "总结一下" })); }
-  finally { backend.list = list; }
+  finally { t.mock.restoreAll(); }
   assert.deepEqual(service.uses({}), [], "a stopped recall leaves no 最近用于");
 
   // Not stopped: the receipt is written as before.
@@ -95,7 +94,9 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
 for (const phase of ["startup", "screen", "list", "sdk-commit"] as const) for (const stop of ["cancel", "revoke"] as const)
   test(`memory ${stop} during ${phase} leaves no SDK entry or ledger change, and a new call recovers`, { timeout: 30_000 }, async t => {
     const root = await mkdtemp(join(tmpdir(), "memory-effects-")), home = join(root, "controlled");
-    const localHost = new MolisWorkLocalHost({ homeDirectory: join(root, "host"), completeText: null });
+    // A Host built on a Home registers that Home's own memory provider in its constructor (home-side.ts), so the production
+    // registration under test gets a Host without a Home of its own: only the controlled SDK adapter below provides memory.
+    const localHost = new MolisWorkLocalHost({ completeText: null });
     const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.memory-effects-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
       modelConfiguration: async () => { throw new Error("no model in memory regression"); }, resolveCredential: () => { throw new Error("no credentials in memory regression"); } });
     const agentHost = new AgentHost(); agentHost.register(adapter);

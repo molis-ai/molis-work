@@ -909,7 +909,7 @@ node scripts/gates/page-assets.mjs --base origin/main
 
 A1 开工时一起要改的断言（改成断言采用后的状态，不是放宽）：`tests/interaction-components.test.ts` 的「styles stay out of the frozen product sheets until adopted」（AC-17）；`tests/coss-control-language.test.ts` 的 `.assistant-choice-row, .assistant-code-head` 44px 一条；`tests/touch-targets.e2e.test.ts` 量到的助理问卷控件；`tests/assistant-island-script.test.ts`。
 
-### 20.13 A1+H2（2026-10-14，分支 `feature/ai-interaction-a1-h2`，从 `d53062a2` 起）
+### 20.13 A1+H2（2026-10-14，分支 `feature/ai-interaction-a1-h2`，[#492](https://github.com/molis-ai/molis-work/pull/492)）
 
 做了什么（一个改动，用户 10-13 定）：
 
@@ -919,7 +919,9 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
 - **设计系统**：操作卡可带可改的字段（`fields`）；不带日历的客户端脚本；样式分段（D15）。
 - **题型**：助理声明 `["choice"]`，交集仍为空，产品里模型的问法不变（D17）。
 
-字节（按门禁口径从源码估算，构建后用 `page-assets.mjs --base` 复核）：`workbench.js` 约 −0.03 K；`workbench.css`、`arrival.css` 约 −10.4 K（新段 +11.5 K，删旧助理样式 −5.6 K，删 momentum 死规则 −16.3 K）；`settings.css` 约 −21.9 K。
+字节（门禁实测，对照 merge-base `2768dd71`；`page-assets.json` 已按实测调低）：`workbench.js` −73；`workbench.css`、`arrival.css` 各 −10,768（新段约 +11.5 K，删旧助理样式约 −5.6 K，删 momentum 死规则约 −16.3 K）；`settings.css` −22,270。
+
+证据：整体构建、健康门禁 `--base`（助理的巨大单元都变小：`AssistantService` 类 1,830 行 / 112 个方法，岛 2,655 行）、边界、页面资源、动作快照、secrets 通过；相关单测 160/160；助理相关浏览器用例 13 个文件 32/32；在真实助理面板里看过浅色、深色与 390 px 的问卷卡与操作卡，按看到的把执行按钮挪到「将使用这些内容」之下、日期一开始就显示星期。全量回归在跑。
 
 验收：新测试 `tests/assistant-interaction-html.test.ts`（AC-21、AC-23）；改动的断言（预期变化，不是放宽）：`interaction-components` AC-17 改成断言采用后的状态（D15）、`coss-control-language` 的 44 px 一条改到共享部件、`visual-foundation` 去掉钉死规则文字的断言（D16）、`assistant-page-written.e2e` 的失效卡改成库里真有的卡、`agent-typed-questions` 的助理题型。
 

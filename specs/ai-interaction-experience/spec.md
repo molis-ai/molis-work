@@ -981,6 +981,56 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
 
 **实走（隔离 Home）**：待做。main 在 A2 之后要重新整体构建，构建锁被防腐线全量占着；拿到构建时段后在隔离 Home 里走助理与 Coding 的问卷卡、操作卡、Option、下一步，截图 1440/1024/390 与深色，补在这里。
 
+### 20.16 暂停点（2026-10-14，用户让需求线先停、整机让给防腐线）
+
+**两条远端分支，都没构建、没跑任何用例、没开 PR：**
+
+| 分支 | 叠在哪 | 内容 |
+| --- | --- | --- |
+| `feature/ai-interaction-h3-on-w406` | #498（W4-06）的 `21d3853f`；#498 之后又推到 `02e6720a`，恢复时以合入 main 的为准 | H3 全部代码、§20.15 现状核对、D21–D24 |
+| `feature/ai-interaction-s1` | origin/main `393e8958` | S1：插件开发包的题型规则与一致性用例；Form「AI 生成题目」 |
+
+**已写完（未验证）：**
+
+- H3 候选：`search.references@1` 挂在 `system.search` 下（D21）。代码在 `packages/contracts/src/services/search.ts`、`horizontal/search/src/references.ts`（`findReferenceCandidates`、`confirmReferences`）、`apps/local-host/src/search-actions.ts`。
+- H3 复核：
+  - `prologue-questions.ts` 的 `refusedReferences`；`prologue-node-port.ts` 的 `answerPending` 在 SDK 校验之后、交给运行之前调用它。
+  - 没接复核的宿主一律拒绝带引用的回答。
+  - 宿主由 `system-agent-service.ts` 接上 `localHost.search.confirmReferences`，只认本机用户是会话主人的情况。
+  - 新原因 `reference-unavailable`（D22），字段旁的话写在 `agent-question-card.ts`，英文在 `renderer-gap-en.ts`。
+- 安全不变量 S-24（`docs/system/SECURITY-INVARIANTS.md`）及其用例 `tests/security-invariants-object-references.test.ts`（两条），候选用例 `tests/search-references.test.ts`，夹具 `tests/fixtures/reference-owners.ts`。
+- S1：
+  - `packages/plugin-sdk/src/question-rules.ts`（`questionProblems`、`questionSetFlaw`）与 `tests/question-rules-consistency.test.ts`。
+  - Form 新动作 `form.questions.draft@1`（`plugins/native/form/src/drafting.ts`）。不改 `form.questions.ai@1`，因为创作台回放语料引用它。
+  - 页面接线 `draft-client.ts`，宿主附问卷卡在 `form-native-plugin-http.ts`，用例 `tests/form-draft-questions.test.ts`。
+  - `agentQuestionHtml` 多了一个可选的卡底说明参数。
+
+**没做或没验证：**
+
+- 两条分支都没构建、没类型检查、没跑一条用例。
+- 没跑以下检查：`pnpm actions:update`（H3 多一行 `search.references`，S1 多一行 `form.questions.draft`）、`pnpm api:update`（合同多了类型与 `AGENT_QUESTION_HOST_REASONS`，插件开发包多了导出）、`check-health-gates --base`、`page-assets`（S1 改了 Form 客户端，字节可能变大，要实测）、`pnpm test:security`、`secrets:check`。
+- `tests/question-rules-consistency.test.ts` 还没进 `tests/ci-product-subset.txt`。
+- S1 没有浏览器用例。Form 页面的问卷卡没在真页面里看过。
+- 实走截图（§20.15 末）没做。
+  - 隔离 Home 的做法：`pnpm web --home <临时目录> --port <端口>`。
+  - 准备脚本：建项目、装插件、把模型指向本机。
+  - 脚本化模型：「复盘」→ 带类型的选择问卷 → `todo.items.create` 的操作卡；「登录」→ Coding 的问卷。
+  - 这两个脚本只写在本线会话的临时目录里，没入库。恢复时照这段重写即可。
+- H4、放开题型：没开工。
+  - H4 用情境线的 `apps/local-host/src/agent-next-steps.ts`（`interactionNextSteps`，情境线分支 `context/assistant-flow`）与 `card:` / `question:` 的步骤 id。
+  - H4 要先定 Coding 卡片的记录放哪：Coding 的轮次现在没有动作网关；卡片表 `assistant_cards` 按助理工作建。
+  - Coding 的 5 个客户端包字节不能涨。
+- 跨线已定：D24 与情境线 FLOW-01…05。failed 与 unknown 的卡在下一步里只带到卡上。
+
+**恢复时按这个顺序：**
+
+1. #498 合入 main 后，把 `feature/ai-interaction-h3-on-w406` 变基到 main。只留本线的提交 `7c52d038` 起，W4-06 的提交不带。
+2. 构建锁下 `pnpm build`。修类型错。`pnpm actions:update`、`pnpm api:update`，看 `tooling/gates/` 的差异。
+3. 跑 H3 的用例：`node scripts/run-tests.mjs tests/search-references.test.ts tests/security-invariants-object-references.test.ts tests/system-search.test.ts tests/agent-typed-questions.test.ts tests/agent-pending-questions.test.ts`，加 `node scripts/affected-tests.mjs` 选出的；再跑 `pnpm test:security`。
+4. 门禁：`check-health-gates --base origin/main`、`boundary:check`、`secrets:check`；推送并开 H3 的 PR。
+5. 实走截图：1440/1024/390 与深色，助理与 Coding 的问卷卡、操作卡、下一步；补进 §20.15。
+6. 再做 S1。同样构建、出快照、跑用例、量页面资源，加浏览器用例。改了插件开发包算共享核心，要跑全量。之后才是 H4、放开题型。
+
 ### 20.12 C1+H1（`c50a5534`）重做时与 main 的碰撞（2026-10-13，只读核对，没有合并）
 
 `git show c50a5534`：17 个文件，+284 / −56。在合并后的树上 `git apply --check`：12 个文件干净，5 个只因上下文不同而失败，都是机械的：

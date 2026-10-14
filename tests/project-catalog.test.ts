@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { catalogSchemaCompatibilityError, type MolisWorkProjectCatalog, type RuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
@@ -393,6 +394,8 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
         ],
       );
 
+      const bindingsBeforeRefusal = catalog.listRuntimeContextBindings();
+      const eventsBeforeRefusal = catalog.listRuntimeContextBindingEvents(codexEntry);
       assert.throws(
         () =>
           catalog.bindRuntimeContext({
@@ -401,9 +404,19 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
             actor_id: "runtime",
             user_confirmed: true,
           }),
-        (error: unknown) =>
-          error instanceof ActionError && error.code === "work.context.rebind_confirmation_required",
+        (error: unknown) => {
+          // BIND-01: the current explicit rebind refusal keeps its common transport status.
+          assert.ok(error instanceof ActionError);
+          assert.equal(error.code, "work.context.rebind_confirmation_required");
+          assert.equal(error.message, "这个 Runtime 工作入口已绑定其他项目；请在当前对话明确确认后再切换");
+          assert.equal(error.kind, "invalid");
+          assert.equal(actionHttpStatus(error), 400);
+          assert.equal(Object.hasOwn(error, "details"), false);
+          return true;
+        },
       );
+      assert.deepEqual(catalog.listRuntimeContextBindings(), bindingsBeforeRefusal);
+      assert.deepEqual(catalog.listRuntimeContextBindingEvents(codexEntry), eventsBeforeRefusal);
       assert.equal(catalog.resolveRuntimeContext(codexEntry).connection?.project_id, first.project_id);
       assert.equal(catalog.resolveRuntimeContext(claudeEntry).connection?.project_id, first.project_id);
 

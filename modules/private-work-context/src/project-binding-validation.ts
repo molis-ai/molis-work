@@ -1,13 +1,11 @@
 import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, RuntimeWorkspaceContext, NormalizedRuntimeWorkspaceContext } from "@molis-ai/molis-work-contracts/modules/private-work-context";
-export type RuntimeProjectBindingErrorCode = "work.context.user_confirmation_required" | "work.context.suggestion_not_available" | "catalog.project_not_found" | "work.context.workspace_default_unsupported" | "work.context.workspace_required" | "work.context.idempotency_conflict" | "work.context.rebind_confirmation_required" | "work.context.stable_identity_required" | "work.context.identity_required" | "catalog.invalid_name" | "work.context.idempotency_key_required";
-export type RuntimeProjectBindingErrorFactory = (code: RuntimeProjectBindingErrorCode, message: string) => Error;
+import { bindingErrors, bindingCatalogErrors } from "./binding-errors.js";
 export interface RuntimeProjectBindingValidationPorts {
-  error: RuntimeProjectBindingErrorFactory;
   normalizeProjectWorkspace(input: RuntimeWorkspaceContext | null | undefined): NormalizedRuntimeWorkspaceContext | undefined;
 }
 
 /** Preserve host-declared identity, exact workspace normalization and explicit-confirmation validation. */
-export function createRuntimeProjectBindingValidation({ error, normalizeProjectWorkspace }: RuntimeProjectBindingValidationPorts) {
+export function createRuntimeProjectBindingValidation({ normalizeProjectWorkspace }: RuntimeProjectBindingValidationPorts) {
 function normalizeRuntimeWorkContext(input: RuntimeWorkContext): NormalizedRuntimeWorkContext {
   const runtimeId = requiredRuntimeId(input.runtime_id);
   const stableWorkContextId = input.host_declares_stable === true
@@ -31,9 +29,7 @@ function normalizeRuntimeWorkspaceContext(
 function requireStableRuntimeWorkContext(input: RuntimeWorkContext): NormalizedRuntimeWorkContext {
   const normalized = normalizeRuntimeWorkContext(input);
   if (!normalized.stable_work_context_id) {
-    throw error(
-      "work.context.stable_identity_required",
-      "当前 Runtime 没有宿主明确声明的稳定工作入口，不能建立自动连接绑定",
+    throw bindingErrors.stable_identity_required("当前 Runtime 没有宿主明确声明的稳定工作入口，不能建立自动连接绑定",
     );
   }
   return normalized;
@@ -42,9 +38,7 @@ function requireStableRuntimeWorkContext(input: RuntimeWorkContext): NormalizedR
 function requireRoutableRuntimeWorkContext(input: RuntimeWorkContext): NormalizedRuntimeWorkContext {
   const normalized = normalizeRuntimeWorkContext(input);
   if (!normalized.stable_work_context_id && !normalized.workspace) {
-    throw error(
-      "work.context.stable_identity_required",
-      "当前 Runtime 没有 Session 标识或可用的项目目录，不能保存项目关联",
+    throw bindingErrors.stable_identity_required("当前 Runtime 没有 Session 标识或可用的项目目录，不能保存项目关联",
     );
   }
   return normalized;
@@ -53,22 +47,20 @@ function requireRoutableRuntimeWorkContext(input: RuntimeWorkContext): Normalize
 function runtimeContextPersistenceId(context: NormalizedRuntimeWorkContext): string {
   if (context.stable_work_context_id) return context.stable_work_context_id;
   if (context.workspace) return `workspace-request:${context.workspace.workspace_id}`;
-  throw error(
-    "work.context.identity_required",
-    "当前 Runtime 没有可用于保存请求的 Session 或项目目录",
+  throw bindingErrors.identity_required("当前 Runtime 没有可用于保存请求的 Session 或项目目录",
   );
 }
 
 function requiredName(value: string): string {
   const name = value.trim();
-  if (!name) throw error("catalog.invalid_name", "项目显示名称不能为空");
+  if (!name) throw bindingCatalogErrors.invalid_name("项目显示名称不能为空");
   return name;
 }
 
 function requiredProjectId(value: string): string {
   const projectId = value.trim();
   if (!projectId) {
-    throw error("catalog.project_not_found", "项目 ID 不能为空");
+    throw bindingCatalogErrors.project_not_found("项目 ID 不能为空");
   }
   return projectId;
 }
@@ -76,7 +68,7 @@ function requiredProjectId(value: string): string {
 function requiredRuntimeId(value: string): string {
   const runtimeId = value.trim();
   if (!runtimeId) {
-    throw error("work.context.stable_identity_required", "Runtime 标识不能为空");
+    throw bindingErrors.stable_identity_required("Runtime 标识不能为空");
   }
   return runtimeId;
 }
@@ -84,7 +76,7 @@ function requiredRuntimeId(value: string): string {
 function requiredActorId(value: string): string {
   const actorId = value.trim();
   if (!actorId) {
-    throw error("work.context.user_confirmation_required", "绑定操作必须记录执行者");
+    throw bindingErrors.user_confirmation_required("绑定操作必须记录执行者");
   }
   return actorId;
 }
@@ -92,9 +84,7 @@ function requiredActorId(value: string): string {
 function requiredContextIdempotencyKey(value: string): string {
   const key = value.trim();
   if (!key) {
-    throw error(
-      "work.context.idempotency_key_required",
-      "创建并绑定项目需要幂等请求键",
+    throw bindingErrors.idempotency_key_required("创建并绑定项目需要幂等请求键",
     );
   }
   return key;

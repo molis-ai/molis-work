@@ -34,8 +34,7 @@ export const catalogErrors = defineErrorCodes("catalog", {
 });
 
 /**
- * The failure the catalog's injected factories raise (Projects, the runtime-context entries and the desktop panels hand it their codes): a
- * Declared catalog codes retain their kinds. Work binding and unclassified project or panel validation codes pass through
+ * The failure the catalog's remaining desktop-panel factory raises: declared catalog codes retain their kinds. Unclassified panel validation codes pass through
  * unchanged as caller input errors. The injected factory does not assign the fact owner.
  */
 export function catalogFailure(code: string, message: string): ActionError {

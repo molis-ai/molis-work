@@ -21,7 +21,8 @@ test("S-03/S-07 W3-07-7-02 management HTTP refuses missing Origin, foreign Origi
     assert.deepEqual(env.host.callLog!.find(body.call_id), []);
     assert.deepEqual(await env.facts(), original);
   }
-  const key = randomUUID(), body = env.body();
+  const replayInput = { title: env.project.display_name, idempotency_key: `project-catalog-create-${env.project.project_id}` };
+  const key = randomUUID(), body = env.body(replayInput);
   assert.equal((await env.post(body, { "x-molis-work-idempotency-key": key })).status, 200);
   const accepted = await env.facts(), other = env.body();
   assert.equal((await env.post(other, { "x-molis-work-idempotency-key": key })).status, 409);
@@ -50,10 +51,14 @@ test("S-07 W3-07-7-02 management HTTP keeps its body closed, trusts the catalog 
   }
   assert.deepEqual(env.host.callLog!.find(base.call_id), []);
   const identity = env.body({ title: "伪造身份", idempotency_key: "forged", actor_id: "other-user" });
-  const refused = await env.post(identity); assert.equal(refused.status, 400); assert.equal("call_id" in refused.body, false);
+  const refused = await env.post(identity); assert.equal(refused.status, 400); assert.equal(refused.body.code, "actions.input_invalid");
+  assert.equal(refused.body.call_id, identity.call_id, "an action schema refusal has its original findable operation number");
+  const diagnostic = env.host.callLog!.find(identity.call_id);
+  assert.equal(diagnostic.length, 1);
+  assert.deepEqual([diagnostic[0]!.capability_id, diagnostic[0]!.ok, diagnostic[0]!.code], ["goals.board.initialize", false, "actions.input_invalid"]);
   assert.deepEqual(await env.facts(), original);
   const alias = join(env.home, "same-owner.db"); await symlink(env.project.database_path, alias);
-  assert.equal((await env.post({ ...env.body(), database_path: alias })).status, 200);
+  assert.equal((await env.post({ ...env.body({ title: env.project.display_name, idempotency_key: `project-catalog-create-${env.project.project_id}` }), database_path: alias })).status, 200);
 });
 
 for (const mode of ["cancel", "disconnect"] as const) {

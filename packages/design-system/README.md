@@ -17,7 +17,7 @@ icon("copy"); // 页面已注入 sprite 时也可以 <svg><use href="#icon-copy"
 
 状态统一用 `renderStateRing({ state, label?, size?, progress? })` 或 `renderStatusMark({ state, label })`。`state-ring-states.ts` 的 43 个状态复用 21 套环刻样式，业务词义和本地化文案仍归调用方。`doing` 静止，`running` 等实际执行状态持续运动，`round-ended` 只表示一轮结束。部分完成和中断的 `progress` 只接真实完成比例；未知时省略。
 
-构建用仓库已有的 esbuild 压缩新环刻客户端及工作台交付的客户端程序字符串；插件公开导出的原文保留，状态文字与模板字符串内容不改变。
+客户端与插件公开脚本保留原文；宿主沿统一 HTTP 资源入口用 esbuild 压缩交付程序，状态文字与模板字符串内容不改变。
 
 动态界面可把 `data-mw-state` 写在已有的状态文字容器上；共享增强会插入环刻，支持后续状态、真实比例和 `textContent` 更新。常规状态环使用默认 20px，业务样式不再缩小或隐藏它；12/16px 只在规格板作为尺寸对照。图标旁已有文案时无需重复 `label`。`VISUAL_FOUNDATION_CLIENT_SCRIPT` 包含增强；不加载整个 foundation 的 Home 插件页面单独挂 `STATE_RING_CLIENT_SCRIPT`。样式随 `PRIMITIVE_STYLES`。减少动效、离屏、隐藏和卸载的生命周期由共享实现处理，插件不各自启动动画。
 

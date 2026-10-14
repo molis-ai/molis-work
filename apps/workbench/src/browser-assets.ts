@@ -41,6 +41,3 @@ export const CLIENT_SCRIPT = [
   CLIENT_EVENTS_ACCESSIBILITY_SCRIPT,
   CLIENT_INITIALIZATION_SCRIPT,
 ].join("");
-
-/** Build-time delivery compaction leaves the public program above available as authored. */
-export const SERVED_CLIENT_SCRIPT = CLIENT_SCRIPT;

@@ -1,0 +1,70 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/prologue.git",
+    "path": "packages/sdk",
+    "commit": "4007a93c8901f090994bff8d847009982958bdef",
+    "composition": [
+      {
+        "commit": "08b84296f81df1bd5f3429c2dc2997d18b72473a",
+        "summary": "the previous interim package: merge of 95cd901d (H16, on upstream main since PR #17) and d4908c11 (Computer Use, on upstream main since PR #15). This merge itself is not on upstream main."
+      },
+      {
+        "commit": "d8c96e29848a403755b37dd17f08015fcd489804",
+        "summary": "one target-window picture on the surface-act that needed it, and an optional node id. Cherry-picked onto 08b84296. The same change is on upstream main as PR #18 (82108d99)."
+      },
+      {
+        "commit": "b88b2422084a9010b62bac2da39e65b0383ef7ea",
+        "summary": "Public surface snapshot records the already exported UiActPicture; no package-content change."
+      },
+      {
+        "commit": "4007a93c8901f090994bff8d847009982958bdef",
+        "summary": "PR #20: synchronous caller beforeAccept check after asynchronous model validation, before accepting the target; rejection preserves a peer accepted target."
+      }
+    ],
+    "inFlight": {
+      "branch": "feature/model-switch-acceptance-cu-image",
+      "pushed": true,
+      "parents": [
+        "b88b2422084a9010b62bac2da39e65b0383ef7ea"
+      ],
+      "parentsOnUpstreamMain": false,
+      "checkedHead": "c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a",
+      "checkedOn": "2026-10-14",
+      "decision": "User explicitly authorized upstream submission and formal replacement on 2026-10-14. Retain the existing CU-image interim lineage until Molis P3.",
+      "note": "PR #20 is open; source review has no blocker. This source is not on upstream main. GitHub CI is not configured in Prologue. Local clean-archive build, public/control regression and pack passed; Molis consumer regression is pending. No P2/P3 migration."
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-interim-p1-cu-image-acceptance.tgz",
+    "bytes": 1123719,
+    "sha256": "317d097a1e44f84e501413283bdfa94c4b43ee4ac86a689957b9b83d2853597c",
+    "integrity": "sha512-1+Q0r9NJk7y/to+AoAlgWfjc1fiH3bJhb3xoqB62LRUcUj5s3cODKkWaSilz596azpwB4FTsNRaiLG+7CIJnqg=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "git archive 4007a93c8901f090994bff8d847009982958bdef | tar -x -C <dir>",
+      "pnpm install --frozen-lockfile --offline --ignore-scripts",
+      "pnpm --filter @prologue/sdk run build",
+      "pnpm exec vitest run packages/sdk/test/public-surface.test.ts packages/sdk/test/agent-start-modes-control.test.ts packages/sdk/test/agent-model-switch.test.ts packages/sdk/test/control-terminal.test.ts packages/sdk/test/agent-control-public.test.ts",
+      "pnpm --dir packages/sdk pack --pack-destination <dir> # rename to prologue-sdk-0.0.0-rc.1-interim-p1-cu-image-acceptance.tgz"
+    ],
+    "packedOn": "2026-10-14",
+    "reproducedFrom": "4007a93c8901f090994bff8d847009982958bdef",
+    "reproducedByteIdentical": true,
+    "note": "Clean git archive of PR #20 head: build and pack exited 0; 5 files/66 tests passed, no type errors. Tarball is byte-identical to the earlier CU-image plus acceptance candidate (11 files/206 tests passed). Public snapshot fix changes no tarball content. This proves package reconstruction, not real provider inference or desktop live operation; consumer validation remains pending."
+  }
+}

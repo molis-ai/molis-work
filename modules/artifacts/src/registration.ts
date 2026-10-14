@@ -32,10 +32,10 @@ export function normalizeRegistration<R extends FixedVersionRecord, I extends Re
   );
   const scope = input.scope ?? "personal";
   if (scope !== "personal" && scope !== "team_project") {
-    throw artifactErrors.scope_invalid("成果 scope 无效");
+    throw artifactErrors["artifacts.artifact.scope_invalid"]("成果 scope 无效");
   }
   if (scope === "team_project" && input.team_share_authorized !== true) {
-    throw artifactErrors.team_share_not_authorized("共享到 Team Project 需要用户或 Team 的明确授权");
+    throw artifactErrors["artifacts.artifact.team_share_not_authorized"]("共享到 Team Project 需要用户或 Team 的明确授权");
   }
 
   const ownerActorId = ownerOf(input, scope, actorId, readOwner);
@@ -50,7 +50,7 @@ export function normalizeRegistration<R extends FixedVersionRecord, I extends Re
     try {
       payload = normalizeArtifactPayload(input.content.payload);
     } catch (failure) {
-      throw artifactErrors.payload_invalid("成果 inline payload 不是可往返的 JSON", {
+      throw artifactErrors["artifacts.artifact.payload_invalid"]("成果 inline payload 不是可往返的 JSON", {
         cause: failure instanceof Error ? failure.message : String(failure),
       });
     }
@@ -64,7 +64,7 @@ export function normalizeRegistration<R extends FixedVersionRecord, I extends Re
     if (input.content.observed_digest) {
       const observed = normalizedDigest(input.content.observed_digest, "content.observed_digest");
       if (observed !== digest) {
-        throw artifactErrors.hash_mismatch("Storage 返回的内容摘要与 成果 Envelope 不一致");
+        throw artifactErrors["artifacts.artifact.hash_mismatch"]("Storage 返回的内容摘要与 成果 Envelope 不一致");
       }
     }
     if (input.content.available === false) {
@@ -72,12 +72,12 @@ export function normalizeRegistration<R extends FixedVersionRecord, I extends Re
       unavailableReason = "Content reference 在注册时不可读取";
     }
   } else {
-    throw artifactErrors.content_invalid("成果 content kind 无效");
+    throw artifactErrors["artifacts.artifact.content_invalid"]("成果 content kind 无效");
   }
   if (input.expected_digest) {
     const expected = normalizedDigest(input.expected_digest, "expected_digest");
     if (expected !== digest) {
-      throw artifactErrors.hash_mismatch("成果内容摘要与 expected_digest 不一致");
+      throw artifactErrors["artifacts.artifact.hash_mismatch"]("成果内容摘要与 expected_digest 不一致");
     }
   }
 
@@ -121,7 +121,7 @@ function ownerOf(input: RecordFixedVersionInput, scope: ArtifactScope, actorId: 
   const named = input.owner_actor_id === undefined ? undefined : requiredText(input.owner_actor_id, "owner_actor_id");
   const owner = readOwner(named ?? actorId, scope);
   if (named !== undefined && owner !== named) {
-    throw artifactErrors.owner_invalid("这个 Home 里的个人成果属于本机的人", { owner_actor_id: named, home_owner: owner });
+    throw artifactErrors["artifacts.artifact.owner_invalid"]("这个 Home 里的个人成果属于本机的人", { owner_actor_id: named, home_owner: owner });
   }
   return owner;
 }

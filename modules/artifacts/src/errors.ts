@@ -1,7 +1,7 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
 // Keep the current HTTP classification while removing the Host-selected error factory (W3-02-I1).
-export const artifactErrors = defineErrorCodes("artifacts.artifact", {
+const declared = defineErrorCodes("artifacts.artifact", {
   board_mismatch: "invalid",
   content_invalid: "invalid",
   digest_invalid: "invalid",
@@ -22,3 +22,25 @@ export const artifactErrors = defineErrorCodes("artifacts.artifact", {
   version_conflict: "invalid",
   version_not_increasing: "invalid",
 });
+
+export const artifactErrors = {
+  "artifacts.artifact.board_mismatch": declared.board_mismatch,
+  "artifacts.artifact.content_invalid": declared.content_invalid,
+  "artifacts.artifact.digest_invalid": declared.digest_invalid,
+  "artifacts.artifact.hash_mismatch": declared.hash_mismatch,
+  "artifacts.artifact.input_invalid": declared.input_invalid,
+  "artifacts.artifact.metadata_invalid": declared.metadata_invalid,
+  "artifacts.artifact.not_found": declared.not_found,
+  "artifacts.artifact.not_owner": declared.not_owner,
+  "artifacts.artifact.origin_invalid": declared.origin_invalid,
+  "artifacts.artifact.owner_invalid": declared.owner_invalid,
+  "artifacts.artifact.payload_invalid": declared.payload_invalid,
+  "artifacts.artifact.producer_mismatch": declared.producer_mismatch,
+  "artifacts.artifact.scope_invalid": declared.scope_invalid,
+  "artifacts.artifact.supersession_invalid": declared.supersession_invalid,
+  "artifacts.artifact.supersession_missing": declared.supersession_missing,
+  "artifacts.artifact.team_share_not_authorized": declared.team_share_not_authorized,
+  "artifacts.artifact.type_undeclared": declared.type_undeclared,
+  "artifacts.artifact.version_conflict": declared.version_conflict,
+  "artifacts.artifact.version_not_increasing": declared.version_not_increasing,
+} as const;

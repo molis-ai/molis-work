@@ -1,3 +1,4 @@
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   ProjectsQueryApi,
   ProjectsCommandApi,
@@ -18,16 +19,10 @@ export type WorkspaceActionCatalog = Pick<
 
 type WorkspaceActionRegistry = Pick<WorkSessionCommandApi, "reassignWorkspaceSessions">;
 
-export class MolisWorkWorkspaceActionError extends Error {
-  constructor(
-    readonly code: "work.workspace.change_rolled_back" | "work.workspace.recovery_required",
-    message: string,
-    options?: { cause?: unknown },
-  ) {
-    super(message, options);
-    this.name = "MolisWorkWorkspaceActionError";
-  }
-}
+const workspaceActionErrors = defineErrorCodes("work.workspace", {
+  change_rolled_back: "invalid",
+  recovery_required: "invalid",
+});
 
 export function repairProjectWorkspace(input: {
   catalog: WorkspaceActionCatalog;
@@ -84,17 +79,9 @@ export function repairProjectWorkspace(input: {
         });
       }
     } catch (recoveryCause) {
-      throw new MolisWorkWorkspaceActionError(
-        "work.workspace.recovery_required",
-        `Session 关系更新失败，且目录关系自动恢复失败：${errorMessage(recoveryCause)}`,
-        { cause },
-      );
+      throw Object.defineProperty(workspaceActionErrors.recovery_required(`Session 关系更新失败，且目录关系自动恢复失败：${errorMessage(recoveryCause)}`), "cause", { value: cause, writable: true, configurable: true });
     }
-    throw new MolisWorkWorkspaceActionError(
-      "work.workspace.change_rolled_back",
-      `Session 关系更新失败；目录关系已自动恢复：${errorMessage(cause)}`,
-      { cause },
-    );
+    throw Object.defineProperty(workspaceActionErrors.change_rolled_back(`Session 关系更新失败；目录关系已自动恢复：${errorMessage(cause)}`), "cause", { value: cause, writable: true, configurable: true });
   }
 }
 
@@ -134,18 +121,10 @@ export function unlinkProjectWorkspace(input: {
           user_confirmed: true,
         });
       } catch (recoveryCause) {
-        throw new MolisWorkWorkspaceActionError(
-          "work.workspace.recovery_required",
-          `Session 关系更新失败，且目录关系自动恢复失败：${errorMessage(recoveryCause)}`,
-          { cause },
-        );
+        throw Object.defineProperty(workspaceActionErrors.recovery_required(`Session 关系更新失败，且目录关系自动恢复失败：${errorMessage(recoveryCause)}`), "cause", { value: cause, writable: true, configurable: true });
       }
     }
-    throw new MolisWorkWorkspaceActionError(
-      "work.workspace.change_rolled_back",
-      `Session 关系更新失败；目录关系已自动恢复：${errorMessage(cause)}`,
-      { cause },
-    );
+    throw Object.defineProperty(workspaceActionErrors.change_rolled_back(`Session 关系更新失败；目录关系已自动恢复：${errorMessage(cause)}`), "cause", { value: cause, writable: true, configurable: true });
   }
 }
 

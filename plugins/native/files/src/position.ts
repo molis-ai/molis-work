@@ -1,4 +1,6 @@
-import { FilePathError, parseFilePath } from "./paths.js";
+import { parseFilePath } from "./paths.js";
+import { workspaceArtifactErrors } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * The last file the user was reading, kept in this Plugin's private storage.
@@ -34,7 +36,7 @@ export function parseReadingPosition(raw: string | null | undefined): ReadingPos
   try {
     return { workspace_id, path: parseFilePath(record.path) };
   } catch (error) {
-    if (error instanceof FilePathError) return undefined;
+    if (error instanceof ActionError && error.code.startsWith("work.workspace.") && Object.hasOwn(workspaceArtifactErrors, error.code.slice("work.workspace.".length))) return undefined;
     throw error;
   }
 }

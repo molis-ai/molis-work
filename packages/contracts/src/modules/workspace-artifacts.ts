@@ -1,3 +1,4 @@
+import { defineErrorCodes } from "../platform/action-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { HostCapabilityDefinition } from "../platform/app-host.js";
 import type { ActionDefinition, ActionMetadata } from "../platform/actions.js";
@@ -198,25 +199,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-export class WorkspaceArtifactError extends Error {
-  constructor(
-    readonly code:
-      | "work.workspace.invalid_ref"
-      | "work.workspace.handle_not_opaque"
-      | "work.workspace.invalid_path"
-      | "work.workspace.invalid_payload",
-    message: string,
-  ) {
-    super(message);
-    this.name = "WorkspaceArtifactError";
-  }
-}
+export const workspaceArtifactErrors = defineErrorCodes("work.workspace", {
+  invalid_ref: "invalid",
+  handle_not_opaque: "invalid",
+  invalid_path: "invalid",
+  invalid_payload: "invalid",
+});
 
 function requiredText(value: unknown, field: string, maxLength: number): string {
-  if (typeof value !== "string") throw new WorkspaceArtifactError("work.workspace.invalid_payload", `${field} 必须是字符串`);
+  if (typeof value !== "string") throw workspaceArtifactErrors.invalid_payload(`${field} 必须是字符串`);
   const text = value.trim();
-  if (text === "") throw new WorkspaceArtifactError("work.workspace.invalid_payload", `${field} 不能为空`);
-  if (text.length > maxLength) throw new WorkspaceArtifactError("work.workspace.invalid_payload", `${field} 超出上限`);
+  if (text === "") throw workspaceArtifactErrors.invalid_payload(`${field} 不能为空`);
+  if (text.length > maxLength) throw workspaceArtifactErrors.invalid_payload(`${field} 超出上限`);
   return text;
 }
 
@@ -249,16 +243,16 @@ export function isOpaqueHandle(handle: string): boolean {
 }
 
 export function parseWorkspaceRef(content: unknown): WorkspaceRef {
-  if (!isRecord(content)) throw new WorkspaceArtifactError("work.workspace.invalid_ref", "Workspace 不是对象");
+  if (!isRecord(content)) throw workspaceArtifactErrors.invalid_ref("Workspace 不是对象");
   const handle = requiredText(content.handle, "handle", WORKSPACE_HANDLE_MAX_LENGTH);
   if (!isOpaqueHandle(handle)) {
-    throw new WorkspaceArtifactError("work.workspace.handle_not_opaque", "目录引用不能包含路径");
+    throw workspaceArtifactErrors.handle_not_opaque("目录引用不能包含路径");
   }
   const workspace_id = requiredText(content.workspace_id, "workspace_id", WORKSPACE_HANDLE_MAX_LENGTH);
   if (workspace_id !== handle) {
     // Two identities for one directory would let a consumer key its own state
     // on the wrong one and then disagree with the Host about what it is bound to.
-    throw new WorkspaceArtifactError("work.workspace.invalid_ref", "workspace_id 必须等于目录句柄");
+    throw workspaceArtifactErrors.invalid_ref("workspace_id 必须等于目录句柄");
   }
   return { workspace_id, name: requiredText(content.name, "name", WORKSPACE_NAME_MAX_LENGTH), handle };
 }
@@ -296,12 +290,12 @@ function hasControlCharacter(segment: string): boolean {
 }
 
 export function parseFilePath(value: unknown, allowRoot = false): string[] {
-  if (!Array.isArray(value)) throw new WorkspaceArtifactError("work.workspace.invalid_path", "path 不是数组");
-  if (!allowRoot && value.length === 0) throw new WorkspaceArtifactError("work.workspace.invalid_path", "path 不能为空");
-  if (value.length > FILE_PATH_MAX_SEGMENTS) throw new WorkspaceArtifactError("work.workspace.invalid_path", "path 超出上限");
+  if (!Array.isArray(value)) throw workspaceArtifactErrors.invalid_path("path 不是数组");
+  if (!allowRoot && value.length === 0) throw workspaceArtifactErrors.invalid_path("path 不能为空");
+  if (value.length > FILE_PATH_MAX_SEGMENTS) throw workspaceArtifactErrors.invalid_path("path 超出上限");
   return value.map((segment, index) => {
     if (typeof segment !== "string") {
-      throw new WorkspaceArtifactError("work.workspace.invalid_path", `path[${index}] 必须是字符串`);
+      throw workspaceArtifactErrors.invalid_path(`path[${index}] 必须是字符串`);
     }
     // Refused rather than normalised: a payload trying to climb out of the
     // workspace is a bad payload, and quietly rewriting it would hide that from
@@ -315,7 +309,7 @@ export function parseFilePath(value: unknown, allowRoot = false): string[] {
       || hasControlCharacter(segment)
       || segment.length > FILE_SEGMENT_MAX_LENGTH
     ) {
-      throw new WorkspaceArtifactError("work.workspace.invalid_path", `path[${index}] 无效`);
+      throw workspaceArtifactErrors.invalid_path(`path[${index}] 无效`);
     }
     return segment;
   });
@@ -371,9 +365,9 @@ export interface FileSnapshot {
 }
 
 export function parseFileSnapshot(content: unknown): FileSnapshot {
-  if (!isRecord(content)) throw new WorkspaceArtifactError("work.workspace.invalid_payload", "FileSnapshot 不是对象");
-  if (!isRecord(content.workspace)) throw new WorkspaceArtifactError("work.workspace.invalid_payload", "workspace 不是对象");
-  if (typeof content.text !== "string") throw new WorkspaceArtifactError("work.workspace.invalid_payload", "text 必须是字符串");
+  if (!isRecord(content)) throw workspaceArtifactErrors.invalid_payload("FileSnapshot 不是对象");
+  if (!isRecord(content.workspace)) throw workspaceArtifactErrors.invalid_payload("workspace 不是对象");
+  if (typeof content.text !== "string") throw workspaceArtifactErrors.invalid_payload("text 必须是字符串");
   return {
     workspace: {
       workspace_id: requiredText(content.workspace.workspace_id, "workspace.workspace_id", WORKSPACE_HANDLE_MAX_LENGTH),
@@ -410,7 +404,7 @@ export function parseTextSelectionRange(start: unknown, end: unknown): { start: 
     || start < 0
     || end <= start
   ) {
-    throw new WorkspaceArtifactError("work.workspace.invalid_payload", "选区范围无效，必须是一段非空文本");
+    throw workspaceArtifactErrors.invalid_payload("选区范围无效，必须是一段非空文本");
   }
   return { start, end };
 }
@@ -422,7 +416,7 @@ export function parseFileTextSelection(content: unknown): FileTextSelection {
   if (end - start !== snapshot.text.length) {
     // A range that does not match the captured text would let a consumer cite a
     // quotation that never existed at those offsets.
-    throw new WorkspaceArtifactError("work.workspace.invalid_payload", "选区范围与捕获的文本长度不一致");
+    throw workspaceArtifactErrors.invalid_payload("选区范围与捕获的文本长度不一致");
   }
   return { ...snapshot, start, end };
 }
@@ -467,23 +461,23 @@ export interface FilesCollection {
 }
 
 export function parseFilesCollection(content: unknown): FilesCollection {
-  if (!isRecord(content)) throw new WorkspaceArtifactError("work.workspace.invalid_payload", "FilesCollection 不是对象");
-  if (!isRecord(content.workspace)) throw new WorkspaceArtifactError("work.workspace.invalid_payload", "workspace 不是对象");
-  if (!isRecord(content.collection)) throw new WorkspaceArtifactError("work.workspace.invalid_payload", "collection 不是对象");
+  if (!isRecord(content)) throw workspaceArtifactErrors.invalid_payload("FilesCollection 不是对象");
+  if (!isRecord(content.workspace)) throw workspaceArtifactErrors.invalid_payload("workspace 不是对象");
+  if (!isRecord(content.collection)) throw workspaceArtifactErrors.invalid_payload("collection 不是对象");
   const workspace_id = requiredText(content.workspace.workspace_id, "workspace.workspace_id", WORKSPACE_HANDLE_MAX_LENGTH);
   const handle = requiredText(content.collection.handle, "collection.handle", WORKSPACE_HANDLE_MAX_LENGTH);
   if (!isOpaqueHandle(handle)) {
-    throw new WorkspaceArtifactError("work.workspace.handle_not_opaque", "collection.handle 不能包含路径");
+    throw workspaceArtifactErrors.handle_not_opaque("collection.handle 不能包含路径");
   }
   if (workspace_id !== handle) {
-    throw new WorkspaceArtifactError("work.workspace.invalid_payload", "文件集合的工作目录身份与句柄不一致");
+    throw workspaceArtifactErrors.invalid_payload("文件集合的工作目录身份与句柄不一致");
   }
   const collection = content.collection;
   if (typeof collection.entry_count !== "number" || !Number.isSafeInteger(collection.entry_count) || collection.entry_count < 0) {
-    throw new WorkspaceArtifactError("work.workspace.invalid_payload", "collection.entry_count 必须是非负整数");
+    throw workspaceArtifactErrors.invalid_payload("collection.entry_count 必须是非负整数");
   }
   if (typeof collection.truncated !== "boolean") {
-    throw new WorkspaceArtifactError("work.workspace.invalid_payload", "collection.truncated 必须是布尔值");
+    throw workspaceArtifactErrors.invalid_payload("collection.truncated 必须是布尔值");
   }
   return {
     workspace: {
@@ -537,20 +531,20 @@ export interface ChangeSet {
 }
 
 export function parseChangeSet(content: unknown): ChangeSet {
-  if (!isRecord(content)) throw new WorkspaceArtifactError("work.workspace.invalid_payload", "ChangeSet 不是对象");
-  if (!isRecord(content.workspace)) throw new WorkspaceArtifactError("work.workspace.invalid_payload", "workspace 不是对象");
+  if (!isRecord(content)) throw workspaceArtifactErrors.invalid_payload("ChangeSet 不是对象");
+  if (!isRecord(content.workspace)) throw workspaceArtifactErrors.invalid_payload("workspace 不是对象");
   if (typeof content.before_exists !== "boolean") {
-    throw new WorkspaceArtifactError("work.workspace.invalid_payload", "before_exists 必须是布尔值");
+    throw workspaceArtifactErrors.invalid_payload("before_exists 必须是布尔值");
   }
   if (typeof content.after_exists !== "boolean") {
-    throw new WorkspaceArtifactError("work.workspace.invalid_payload", "after_exists 必须是布尔值");
+    throw workspaceArtifactErrors.invalid_payload("after_exists 必须是布尔值");
   }
-  if (typeof content.before !== "string") throw new WorkspaceArtifactError("work.workspace.invalid_payload", "before 必须是字符串");
-  if (typeof content.after !== "string") throw new WorkspaceArtifactError("work.workspace.invalid_payload", "after 必须是字符串");
+  if (typeof content.before !== "string") throw workspaceArtifactErrors.invalid_payload("before 必须是字符串");
+  if (typeof content.after !== "string") throw workspaceArtifactErrors.invalid_payload("after 必须是字符串");
   if (!content.before_exists && !content.after_exists) {
     // A change from nothing to nothing is not a change; rendering one would
     // show an empty comparison that reads as "no difference".
-    throw new WorkspaceArtifactError("work.workspace.invalid_payload", "before_exists 与 after_exists 不能同时为假");
+    throw workspaceArtifactErrors.invalid_payload("before_exists 与 after_exists 不能同时为假");
   }
   return {
     workspace: {
@@ -569,13 +563,13 @@ export function parseChangeSet(content: unknown): ChangeSet {
 }
 
 function parseGitMetadata(value: unknown, beforeExists: boolean, afterExists: boolean): NonNullable<ChangeSet["git"]> {
-  if (!isRecord(value)) throw new WorkspaceArtifactError("work.workspace.invalid_payload", "Git 元数据无效");
+  if (!isRecord(value)) throw workspaceArtifactErrors.invalid_payload("Git 元数据无效");
   const mode = (input: unknown, exists: boolean): GitFileMode | null => {
     if (exists ? input === "100644" || input === "100755" : input === null) return input as GitFileMode | null;
-    throw new WorkspaceArtifactError("work.workspace.invalid_payload", "文件权限与存在状态不一致");
+    throw workspaceArtifactErrors.invalid_payload("文件权限与存在状态不一致");
   };
   if (value.previous_path !== undefined && (!beforeExists || !afterExists)) {
-    throw new WorkspaceArtifactError("work.workspace.invalid_payload", "重命名必须保留两侧文件");
+    throw workspaceArtifactErrors.invalid_payload("重命名必须保留两侧文件");
   }
   return { before_mode: mode(value.before_mode, beforeExists), after_mode: mode(value.after_mode, afterExists),
     ...(value.previous_path === undefined ? {} : { previous_path: parseFilePath(value.previous_path) }) };
@@ -583,7 +577,7 @@ function parseGitMetadata(value: unknown, beforeExists: boolean, afterExists: bo
 
 function parseChangeSetSource(value: unknown): ChangeSetSource {
   if (!isRecord(value) || typeof value.kind !== "string") {
-    throw new WorkspaceArtifactError("work.workspace.invalid_payload", "source 无效");
+    throw workspaceArtifactErrors.invalid_payload("source 无效");
   }
   if (value.kind === "run") return { kind: "run", run_id: requiredText(value.run_id, "source.run_id", 256) };
   if (value.kind === "comparison") {
@@ -592,7 +586,7 @@ function parseChangeSetSource(value: unknown): ChangeSetSource {
   if (value.kind === "operation") {
     return { kind: "operation", operation_id: requiredText(value.operation_id, "source.operation_id", 256) };
   }
-  throw new WorkspaceArtifactError("work.workspace.invalid_payload", "source.kind 无效");
+  throw workspaceArtifactErrors.invalid_payload("source.kind 无效");
 }
 
 /* ------------------------------------------------------------------ *
@@ -630,10 +624,10 @@ const GIT_RESULT_OUTCOMES: readonly GitResultOutcome[] = [
 ];
 
 export function parseGitResult(content: unknown): GitOperationResult {
-  if (!isRecord(content)) throw new WorkspaceArtifactError("work.workspace.invalid_payload", "Git 结果不是对象");
+  if (!isRecord(content)) throw workspaceArtifactErrors.invalid_payload("Git 结果不是对象");
   const outcome = content.outcome;
   if (typeof outcome !== "string" || !GIT_RESULT_OUTCOMES.includes(outcome as GitResultOutcome)) {
-    throw new WorkspaceArtifactError("work.workspace.invalid_payload", "outcome 无效");
+    throw workspaceArtifactErrors.invalid_payload("outcome 无效");
   }
   return {
     workspace_id: requiredText(content.workspace_id, "workspace_id", 512),

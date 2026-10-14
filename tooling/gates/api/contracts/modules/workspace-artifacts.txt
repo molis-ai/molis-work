@@ -268,11 +268,6 @@ export declare const WORKSPACE_REF_TYPE = "workspace.ref.v1";
 
 export declare const WORKSPACE_SELECTED_EVENT = "io.molis.work.workspace.selected";
 
-export declare class WorkspaceArtifactError extends Error {
-    readonly code: "work.workspace.invalid_ref" | "work.workspace.handle_not_opaque" | "work.workspace.invalid_path" | "work.workspace.invalid_payload";
-    constructor(code: "work.workspace.invalid_ref" | "work.workspace.handle_not_opaque" | "work.workspace.invalid_path" | "work.workspace.invalid_payload", message: string);
-}
-
 export interface WorkspaceFileQuery {
     workspace_id: string;
     path: readonly string[];
@@ -481,6 +476,13 @@ export declare const readGitResultsCapability: HostCapabilityDefinition<{
 export declare function samePath(left: readonly string[], right: readonly string[]): boolean;
 
 export declare function selectionCitationLabel(selection: FileTextSelection): string;
+
+export declare const workspaceArtifactErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly invalid_ref: "invalid";
+    readonly handle_not_opaque: "invalid";
+    readonly invalid_path: "invalid";
+    readonly invalid_payload: "invalid";
+}>;
 
 export declare const workspaceArtifactsContract: {
     readonly contractId: "io.molis.work.modules.workspace-artifacts.v1";

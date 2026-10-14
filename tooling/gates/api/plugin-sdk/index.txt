@@ -241,6 +241,16 @@ export declare const packageDescriptor: {
 
 export declare function parsePluginManifest(input: unknown): PluginManifest;
 
+export declare function questionAnswer(values: unknown): {
+    answers: Array<{
+        question: number;
+        indexes: number[];
+        other?: string;
+    }>;
+} | {
+    text: string;
+} | null;
+
 export declare function reconstructSides(ops: readonly DiffOp[]): {
     before: string;
     after: string;

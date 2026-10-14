@@ -23,7 +23,9 @@ import { memoryHostFor } from "../memory/memory-host.js";
 import { builtinRegistrations } from "../agent-definitions/builtin-agents.js";
 import { projectDeletedHooksFor } from "../project-deleted-hooks.js";
 import { purgeAssistantProject } from "./assistant-project-purge.js";
-import { AssistantQuestionDrafts, assistantAnswerFrom, questionErrors } from "./assistant-questions.js";
+import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
+import { questionErrors } from "../agent-question-card.js";
+import { AssistantQuestionDrafts } from "./assistant-questions.js";
 import { drawAssistantReply } from "./assistant-view-html.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
@@ -291,7 +293,7 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
   const drafts = questionDrafts(store);
   // The card sends what its fields hold; it becomes the Runtime's answer here, and its draft goes once the answer is taken.
   if (parts.length === 3 && parts[2] === "answer") {
-    const answer = body.values === undefined ? {} : assistantAnswerFrom(body.values);
+    const answer = body.values === undefined ? {} : questionAnswer(body.values);
     if (!answer) throw assistantErrors.invalid("请先回答再提交");
     const view = await service.answer(workId, { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
       ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),

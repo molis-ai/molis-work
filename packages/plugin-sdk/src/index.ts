@@ -9,6 +9,7 @@ export { inspectActionDeclarations } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */
 export { DIFF_STEP_BUDGET, splitLines, joinLines, reconstructSides, compareTexts, textDiffRow, alignSplitRows } from "./text-diff.js";
+export { questionAnswer } from "./question-answers.js";
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineAction } from "./actions.js";
 /** The two binders: an HTTP route over an action, and an action over the local owner's personal state. A route answers a failure by its kind. */

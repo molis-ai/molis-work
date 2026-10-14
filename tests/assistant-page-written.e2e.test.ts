@@ -6,15 +6,15 @@ import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 
-/** One streamed model turn of plain text. */
-function turn(text = "好的。"): string {
+/** One streamed provider turn through the production model adapter. */
+function turn(text = "好的。", tool?: { name: string; input: object }): string {
   const events: string[] = [];
   const emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
   emit("message_start", { message: { id: "m", type: "message", role: "assistant", model: "fixture-model", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } });
-  emit("content_block_start", { index: 0, content_block: { type: "text", text: "" } });
-  emit("content_block_delta", { index: 0, delta: { type: "text_delta", text } });
+  emit("content_block_start", { index: 0, content_block: tool ? { type: "tool_use", id: "question-call", name: tool.name, input: {} } : { type: "text", text: "" } });
+  emit("content_block_delta", { index: 0, delta: tool ? { type: "input_json_delta", partial_json: JSON.stringify(tool.input) } : { type: "text_delta", text } });
   emit("content_block_stop", { index: 0 });
-  emit("message_delta", { delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
+  emit("message_delta", { delta: { stop_reason: tool ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
   emit("message_stop", {});
   return events.join("");
 }
@@ -131,4 +131,60 @@ test("the bottom bar marks the words it writes itself as the page's, and the Hos
     assert.deepEqual([refused.status, refused.body.code], [400, "assistant.invalid"], JSON.stringify(written_by));
   }
   assert.equal((await stored()).length, 6, "a refused mark started nothing");
+});
+
+test("W3-02-G4-ANSWER-01: a real Runtime refusal shows the field error and a corrected answer continues its original work", { timeout: 180_000 }, async t => {
+  const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
+  const { runWithMolisWorkHome, resetSecretStoreCache } = await import("@molis-ai/molis-work-storage");
+  const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
+  t.after(() => { if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); });
+  const requests: unknown[] = [];
+  const model = createServer(async (req, res) => {
+    let body = ""; for await (const chunk of req) body += chunk;
+    requests.push(JSON.parse(body));
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    res.end(requests.length === 1 ? turn("", { name: "ask-user", input: { why: "确认报告格式", questions: [{ prompt: "以哪种格式整理？", type: "choice", options: [{ label: "周报" }, { label: "纪要" }] }] } }) : turn("按周报整理好了。"));
+  });
+  await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
+  t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
+  const address = model.address(); assert.ok(address && typeof address !== "string");
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
+    const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", "http://127.0.0.1:" + address.port); return created; });
+    catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机 HTTP 模型", base_url: "http://127.0.0.1:" + address.port, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] });
+  }));
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/?openPlugin=todo" }, sessionId));
+  await waitFor("document.querySelector('[data-assistant-input]')");
+  await click("[data-assistant-input]"); await command("Input.insertText", { text: "整理报告" }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await waitFor("document.querySelector('[data-ix-question] [data-ix-field=q0] [data-ix-option=\"0\"]')", 15_000);
+  const api = "/projects/" + projectId + "/api/assistant/works";
+  type View = { work: { work_id: string; state: string }; rounds: { run_id: string; awaiting_input: { pending_id: string }[] }[] };
+  const view = () => evaluate<View>("fetch(" + JSON.stringify(api) + ").then(r => r.json()).then(body => fetch(" + JSON.stringify(api) + " + '/' + body.works[0].work_id)).then(r => r.json())");
+  const waiting = await view(), round = waiting.rounds[0]!, pending = round.awaiting_input[0]!;
+  assert.equal(waiting.work.state, "waiting-input");
+  // Change only the first answer's wire value. The real SDK must reject it; no response or business handler is substituted.
+  await evaluate("(() => { const send = window.fetch.bind(window); let injected = false; window.__answerReceipts = []; window.fetch = async (input, init) => { const answer = new URL(String(input), location.origin).pathname.endsWith('/answer'); if (answer && !injected) { injected = true; const body = JSON.parse(init.body); body.values.q0 = ['999']; init = { ...init, body: JSON.stringify(body) }; } const response = await send(input, init); if (answer) window.__answerReceipts.push({ status: response.status, body: await response.clone().json() }); return response; }; })()");
+  await click('[data-ix-question] [data-ix-field=q0] [data-ix-option="0"]');
+  await click('[data-ix-question] [data-ix-action=answer]');
+  await waitFor("document.querySelector('[data-ix-field=q0] [data-ix-error]')?.textContent === '选项已经变化，请重新选择'");
+  const refusal = await evaluate<{ status: number; body: { code: string; details: { errors: Record<string, string> } } }>("window.__answerReceipts[0]");
+  assert.equal(refusal.status, 400); assert.equal(refusal.body.code, "assistant.invalid");
+  assert.equal(refusal.body.details.errors.q0, "选项已经变化，请重新选择");
+  assert.equal(await evaluate("document.querySelector('[data-ix-field=q0] [data-ix-option=\"0\"]').getAttribute('aria-checked')"), "true", "the person's original selection is retained");
+  assert.equal(await evaluate("document.querySelector('[data-ix-field=q0]').contains(document.activeElement)"), true, "the refused field receives focus");
+  const refused = await view(); assert.equal(refused.work.state, "waiting-input");
+  assert.equal(refused.rounds[0]!.run_id, round.run_id); assert.equal(refused.rounds[0]!.awaiting_input[0]!.pending_id, pending.pending_id);
+  assert.equal(requests.length, 1, "a refused answer starts no provider call");
+  await click('[data-ix-question] [data-ix-field=q0] [data-ix-option="1"]');
+  await click('[data-ix-question] [data-ix-field=q0] [data-ix-option="0"]');
+  await click('[data-ix-question] [data-ix-action=answer]');
+  await waitFor("window.__answerReceipts.length === 2 && window.__answerReceipts[1].status === 200", 15_000);
+  await waitFor("fetch(" + JSON.stringify(api) + ").then(r => r.json()).then(body => body.works[0].state === 'completed')", 15_000);
+  const done = await view(); assert.equal(done.work.work_id, waiting.work.work_id); assert.equal(done.rounds.length, 1);
+  assert.equal(done.rounds[0]!.run_id, round.run_id); assert.equal(done.rounds[0]!.awaiting_input.length, 0);
+  assert.equal(requests.length, 2); assert.match(JSON.stringify(requests[1]), /周报/, "the corrected answer reaches the original provider continuation");
 });

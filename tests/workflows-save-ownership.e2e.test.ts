@@ -139,6 +139,7 @@ test("W2-18-WFSAVE-02: a real CAS failure retains A's latest edits across B, reo
   await editor.waitFor(`document.querySelector('.wf-editor')?.dataset.id === '${editor.a.workflow_id}'`);
   assert.equal(await editor.evaluate("document.querySelectorAll('[data-wf-chain] [data-wf-station]').length"), 3);
   assert.equal(await editor.evaluate("document.querySelector('[data-wf-save-state]').dataset.state"), "error");
+  assert.equal(await editor.evaluate("document.querySelector('[data-wf-save-state]').dataset.mwState"), "failed", "RING-07: a refused save never displays the saved mark");
   assert.equal(await editor.evaluate("JSON.parse(document.querySelector('[data-workflows=workbench]').dataset.assistantContext).unsaved"), true);
   assert.equal(await editor.evaluate("document.querySelector('[data-wf-action=start]').disabled"), true, "an unsaved draft cannot start the older stored chain");
   await editor.reloadPage();
@@ -152,6 +153,7 @@ test("W2-18-WFSAVE-02: a real CAS failure retains A's latest edits across B, reo
   assert.deepEqual(editor.saved(editor.a.workflow_id), editor.a, "opening a retained draft never replays it");
   await editor.click("[data-wf-action=retry-save]");
   await editor.waitFor("document.querySelector('[data-wf-save-state]').dataset.state === 'saved'");
+  assert.equal(await editor.evaluate("document.querySelector('[data-wf-save-state]').dataset.mwState"), "saved", "RING-07: explicit retry restores the saved mark only after success");
   assert.deepEqual(editor.saved(editor.a.workflow_id).stations.map(station => station.plugin), ["feed", "inbox", "pages"]);
   assert.equal(editor.saved(editor.a.workflow_id).revision, editor.a.revision + 1);
   assert.deepEqual(editor.saved(editor.b.workflow_id), savedB);

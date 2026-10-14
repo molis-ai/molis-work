@@ -2557,3 +2557,33 @@ I25补实际Coding消费者：materials.readMaterial原比较bare plugin_artifac
 I25复核复开808f：两处availability只给当前owner code不带kind，ActionService.assertAvailable只传value.kind，owner声明不会自动查询，故wrong-install仍回invalid400；需由同一artifactsErrors.plugin_denied声明取code/kind/message，两个availability共用，不重复分类。新增schema_version2材料参数不可达：materialSelection及SDK read只消费id/version，实际record.schema决定兼容性，不能篡改引用协议让测试成立。撤该新增case，保原BOM/CRLF/固定/foreign断言，增强已有真实archiveVersion→Coding start400/0starts用例的精确恢复文案。ARTACC原403分类与现行引用/读取协议不变；Source接受撤回待修与实跑。
 
 I25修正5f28a6a77：同一owner factory的code/kind/message经denied helper带到两处availability，不新增平台分类或输入协议；真实Kernel wrong-install/目录断言forbidden与SDK派生403，原noRead直接grant code/kind仍保留。S5 schema2新增不可达case撤掉，原固定/foreign文件逐blob恢复；已有真正archiveVersion→SDK→Coding路径增强400/原中文/0新starts。77 Artifact与Coding各own0/all2，health28/形状0/非owner18通过，API76有效；最终Source复核待收，未纳I8或运行。#494实际main5ba仅Skill/test/spec；Grok493已自行同步新29ca并监控CI38548314953，Root不重复抢分支/任务/全量；其旧绿不能当新组合通过。
+
+I25完整5f28 Source独立接受（八路径），两个P1修正以实际生产读取/Kernel路径复核，不能写成已实测HTTP403；串行纳I8并同步仅Skill/test/spec的main5ba，当前冻结b703e20a1879f8992fd128cc181386c864ea5903。SDK临时pkg1+/1-与lock5+/5-精确范围再核，新78 frozen install/整建/全types/快照/health/assets/boundary单份已开始，当前结果待收；未采用仍在Grok493上的CU-image包，不替正式beforeAccept/vendor待决做授权。
+
+78当前5ba+I3–I25组合实际frozen install、整建、根/workspace类型、API/actions、health-base/assets-base全0，boundary唯一tmpSDKinventory不符未关闭。工程实测28类/形状0/非owner18、29资源10013384字节；派生baseline下降保存566ab4e8a。79首40必跑文件含Alchemist/Coding/Artifacts、真实archive与Kernel forbiddens/客户端已单次排队，当前持build等A2释放browser，未有测试log/results；80也只排队，尚未真实开始；80仅另两Store/真实侧栏浏览器文件及Alchemist包内Vitest，在同名额后单份排队，不并发构建/浏览器。当前源码持续冻结，不含随后#492 main34d生产变化或Grok493新包，不能贴为最新远端组合通过。
+
+W3-02-I26-RUNTIME-DIAGNOSTICS统一Runtime Host自己生产的现行有限读取诊断名，不改变Codex协议、请求生命周期或截断行为。RTDIAG-01：原response_too_large拒绝与operation_failed读取失败改当前主人runtime_host.*，消息、outcome(status unknown)、保最后事实与Work显示同样限制说明保持；不得把超限当空成功或启动真实Codex会话。RTDIAG-02：有限Transport ctor/type/消费者及公开RuntimeSessionAdapterResult failed诊断枚举同片更新，无旧码alias/读取compat，既有class数据结构不动。RTDIAG-03：真实隔离子进程大行/EPIPE/恢复、CodexSession未知事实保留、Work HTTP/README，API/health/build/类型与最终组合。只改两现行诊断值，外部厂商动态错误与其他owner不全局重命名；维护八旧值映射按原数据计划。
+
+79/80状态核实：wrapper74617/76022仍只等待浏览器名额，A2活holder74357/74362未释放；此前“已运行”措辞不能代替真实日志，已纠正。原队列保留，不重起、不动foreign。78已结束工程结果有效，I8源继续冻结。
+
+I26 Source721f082de7fed9fc2ad7efb24e7b19bafdd8e08c七文件只两诊断枚举前缀/完整consumer及transport原真实拒绝测试与公开快照；81 Contracts/RuntimeHost各0/all0，Work own0/all2，API单行新枚举后匹配，health28/形状0/非owner17。Source复核待收、不纳I8，不把Node type/gate退出当实际Codex读取回归通过。
+
+W3-02-I27-HOST-WIRING收四处Host自身Catalog/工作区装配失败的错owner producer，不改模块数据主人。HOSTOWN-01：注入Catalog缺失、选择不在当前真实verified列表、Catalog/Session目录均未找到工作区时，按Host自身服务理由host.catalog_unavailable/workspace_unavailable/workspace_not_found；原条件、原文/defaultinvalid通用400、beforeEffect/同步授权复查/目录与关联事务保持。Work HTTP仅原not-found404比较同步新码，其他状态不动。HOSTOWN-02：既有hostErrors声明只追加三真实原因，个人规划availability从同一原错误对象取code/kind/message，拒绝入口不用另一个owner的码；生产/现行消费及固定预期同片更新，不添兼容alias、统一placeholder或日志重写。HOSTOWN-03：真实个人规划Catalog缺失/恢复、项目setting/工作区绑定repair/unlink/Host与Work HTTP拒绝及README，Source/build/API/health/最终组合。当前存量码若需改写只在维护八拷贝演练，不写真Home；不改正在冻结I8或外方工作树。
+
+I26完整721f082 Source独立接受：反向归一两诊断字面量后完整生产AST语义一致，原超限/未知/重启断言保留；真正公开名称RuntimeSessionAdapterResult failed union，文档对齐。仍未纳I8冻结源，待实际SDK/Work/child回归。
+
+I27 Source候选dc6821d43dfc9862cfa45a038e85c77aaef113c7七文件：既有Host声明保全八字段，仅追加三invalid，四装配/查找拒绝归Host原消息及个人availability metadata保持；Work404当前码同步，原其他status不变。82 scopedapp0/all299、Work own0/all2、API无變、health28/形状0/错owner13，原真实恢复测试仍未运行，Source复核待收、未纳I8。
+
+W3-02-I28-CONNECTOR-ACCOUNT统一实际账号读取失败为connector.account五现行原因（unknown/disconnected/needs_auth/configuration/unavailable），不是动作ID重命名。CONACC-01：原连接解析错误四值有限捕获、账号身份/授权/厂商原消息、OAuth单次刷新与错误fallback、actor/secret不进入结果的条件和defaultinvalid400保持。CONACC-02：当地唯一五码声明、raw plural connectors.*错误去掉，现行消费者/真实ActionClient预期同片更新；connectors.account.read@1、权限/connectors provider来源和输入输出完全保持，不抹外服务data错误或碰真实密钥。CONACC-03：真实隔离Host/连接Store、账号动作/MCP与Catalog来源/URL拒绝/README、Source/build/types/API/health与最终组合；只能用测试credential替身，不发真实账号请求。
+
+79运行状态实质变化：A2活进程已自行结束，03:45:32 browser.lock由本线74637取得，driver86574及79真实日志出现并更新；未取消79/80、未kill任何进程，原队列继续，不能把此前等待时间算测试运行。I28 Source候选04a9e2ec3b6e2f1c09b79dec2b1312a60789af2d两文件、五当前Connector account原因与原动作/权限/provider不变；83 scopeapp0/all223、API一致、health28/形状0/非owner10，当前只Source候选。
+
+79真实终态40文件182=159pass/23fail，0skip/cancel，193885ms。17失败共用两旧fixture仍调用已删LocalHost.registerCapability，未触及预期效果/恢复业务；其余6分别Coding Runtime capability查无definition、client lifecycle hidden click、SDK messagewait B waits timeout、MCP unavailable旧预期、Alchemist pulse提示代码静态regex、Shelf archived输出当前Artifacts owner码与旧Shelf wrapper预期。不能记回归通过，先核每条真实边界，禁止改生产来迎合旧夹具/regex。80两文件Store/真实Browser与Alchemist包内Vitest实际退出0，完整footer数字随后核。FIX79-01：原注册fixture改当前公开LocalHost.register，同形handler/AgentHost/真实SDK/Barriers保持，17原拒绝与持久化断言不动；FIX79其余按原因另补，不全局放宽时限/隐藏/MCP权限或跳过用例。
+
+FIX79-01已改两个fixture当前LocalHost.register并保存126874360，84两文件真实17条仍全失败：setup越过旧API后platform未running、第一请求503 actions.plugin_unavailable。不是效果业务断言失败，先沿supervisor/start实际record诊断，不恢复已删接口/弱化取消断言。80精确footer：两个root文件9/9，Alchemist25文件81/81，无skip/cancel。Coding control新version断言用的route-actions key应coding.control-run，capability_id仍coding.runs.control@2；只修lookup不改合同。W3-09-2既定按MCP名称调用未在tools/list可用的动作应actions.mcp_unavailable，实际action-tools.callTool只拒没view、不拒view.availability=false；按现行目录同一availability补此缺口，输入/output/授权/Agent与workflow直接invoke仍actions.connection_required不变，保现有真实model-unavailable断言。需要源变更后整体构建再定向回归与共享全量，不以改旧预期绕过该协议缺陷。
+
+84夹具setup深一层查明：实际supervisor failed/plugin.grant_denied，消息缺goals:read、goals:write、workspace:read，runtime record仍installed；之前17均503 actions.plugin_unavailable不证明产品恢复缺陷。18e4d15fd只给fixture显式既有Manifest必需权限，加MCP现行availability gate并改control route-key查找，保持owner/版本2/输入/模型barriers/所有原拒绝断言。85新整体build队列/实际阶段等原始结果（源变更必须整建），Root在b5ba组合保持冻结；#493已由原线10:52:01Z合f90bf70，Root没有替合/抢它分支；新CU-image SDK组合尚未纳本线，原beforeAccept正式SDK问题独立待答。
+
+FIX79 MCP判断纠正：上条按10-09旧测试推定协议缺陷不成立。唯一总spec§1 2026-10-10已定“原因与码与页面一致、外部工具记一行”，既有725879ff1/W3-09-2-01要求精确授权暂不可用仍由Host结算，tools/list隐藏而callByName保原owner拒绝+可信编号。Source复核拒绝18e4新availability早退gate，它会回归并抹掉诊断；已仅撤此自加行，更新model-unavailable旧预期及comment为Host connection_required，保真实W3-09-2及零模型副作用断言。86自身尚未开始，核唯一queue及只有sleep/无log-results后仅撤本人wrapper，未触foreign；85旧工程证据包含此错误gate不能记为新修正证据。下一整体build再跑MCP新现行用例/缺模型与修好的17Fixture真实业务，不重启重复driver，不问已决定问题。
+
+17夹具已查明缺必需grant并修6项，诊断one-off cleanup安装未running时stop报state_invalid只为诊断脚本失败，不计产品stop缺陷。86单份队列未启动就验证取消，exit143，状态不能写成回归执行/通过；恢复正确MCP gate后Source再次改变，下一整建必须用新源码。当前RootHEAD2f7662527、tempSDK五行，Src未含接受I26–I28、新main f90；此前85错误MCPgate工程日志保留。

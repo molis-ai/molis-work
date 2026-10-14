@@ -9,7 +9,7 @@ interface CommentPopupPorts {
   actions(translate: ((value: string) => string) | undefined, save: () => void, cancel: () => void): HTMLElement;
   hidePop(): void;
   showPop(): void;
-  anchorPop(from: number, to: number): () => { from: number; to: number; intact: boolean } | undefined;
+  anchorPop(from: number, to: number): () => { from: number; to: number; intact: boolean } | null;
   applyComment(view: EditorView, from: number, to: number, text: string, id: string): void;
   placePop(bounds: { left: number; right: number; top: number; bottom: number }, side: "below", label: string): void;
 }

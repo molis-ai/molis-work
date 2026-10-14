@@ -1,3 +1,4 @@
+// PA-22: base SDK adoption behavior and retained review/budget boundaries.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";

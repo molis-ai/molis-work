@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，未达到整条防腐线完成标准（2026-10-13接续）。71包及#472增量源码审查已完成，整改和真实回归仍在。I4/I5的第五批既有修复已收入main，BL-133旧测试按用户决定修正；后续共享核心在I8组合收口，05实际658条中45失败、06定向106条中8失败，修后08冻结验证排队，未宣称全量通过。W2-10 A1–A4已合入，C #484已合入、D已准备，E绝对零候选待组合验证。错误统一H/R1–R3及权限、生命周期修复尚在候选，Work R4a三片仅源码/静态复核通过，实际运行待补。模型换模SDK上游提交与正式vendor替换仍等已有问题的用户回答；真实Home写入、维护八及他人成果清理遵守§1授权。第4–6波与最终真实场景、手册、度量和交付沿原路线继续，当前main和逐项证据见§10/§12，不以已审、已记、已合PR或静态通过冒充整线完成。
+状态：执行中，未达到整条防腐线完成标准（2026-10-13接续）。I4/I5既有修复与BL-133已合入；W2-10 A1–A4/C已合入，D与E待当前组合收口。I8 08实际85条83通过2失败，相关修复、R4八片与R5 Browser收入组合；同步#408正式采用包后build09确认缺少模型接受点回调，临时候选build/types10通过，43文件定向10运行中。formatter拒绝42/42且独立只读复核通过，当前health通过、API0变化，资源预算有增长及boundary缺项待修，未宣称整合全量通过。#477已同步#408并推送，等当前CI；SDK独立候选的上游/vendor仍等已发问题回答。维护八仅40库只读clone/scalar统计，JSON/其余映射与原库窗口未完成；第4–6波及最终真实场景、手册、度量与两份交付沿原路线继续。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2285,3 +2285,9 @@ R5首片仅侧栏Browser的三种page错误为browser.page_crashed/load_failed/b
 R5B源码准备中复查发现撞名：已有browser.crashed是浏览器进程退出，不能给页面崩溃共用，否则stopped会误走重载而非重启。新页面码固定browser.page_crashed，现有进程码/恢复语义保持，API和模板比较同片同步；源逆名证明对同码已有producer也须保留，不只把新码全字逆回。这个候选缺陷在提交/运行验收前修正，不计已通过。
 
 W3-10-5现行程序形态接续：I8合入#411后绝对解析检查拒绝compactScript的split/map(trimStart)/filter/join，导致其父程序集无法展开、已有合法片段被误当完整程序。这不是增加raw fetch许可。BROWSER-FORMAT-01：语法限定该纯逐行formatter，静态计算实际输出并保留每片来源，不执行仓库函数；支持后父程序负责解析、片段不单独判坏，原分片raw-fetch归属/反射/替换/未知动态拒绝保持。BROWSER-FORMAT-02：合法formatter组合通过，新增片fetch及formatter改写仍失败且不能update洗基线；真实current程序展开/等价与既有门禁测试通过后才收口。不采用对未识别文本剥字面量的旧做法、不放宽任何数值或规则。
+
+I8组合增长按实际职责修复：Pages的callout图标/颜色菜单在同一模块提取私有函数，mount继续持有文档弹层生命周期，不新增公开API或资源额度；W2-18-PAGES-CALLOUT-01：A文档弹层关闭/切B后旧按钮不能更改B，B重新打开的按钮仍可正常保存。Schedule旧提醒测试不再import宿主私有reminder adapter，沿真实Host已注册Schedule/Reminder动作验当前安装、200条限额、跨项目、重新安装/原子回滚与拒绝码；W2-18-SCHEDULE-01/02的真实后台timer、等待handler、close/delete撤销及0迟到Todo/收据断言完整保持，registerHostWakeup既有私有引用保留，文件私有引用总数不增。仅重写测试入口，不为门禁新增测试出口、阈值或第二套生产规则。新构建、定向和组合全量未运行。
+
+2026-10-13接续实际：I8 08构建/类型通过，10文件85条中83通过、2失败、0skip/cancel；MCP最后撤 grant 的当前合同返回unknown，SDK nested测试原barrier在实际note写入前未进入，按真实origin beforeEffect修正，尚待重跑。R4八片已收入5bf77084c，main408同步为27f93778e，模型接受点和采用线steer返回处理/安全表/测试清单均保留。现行正式interim SDK安装09完成，但整体build09明确TS2554（switchModel只认单参数），不能把采用线正式包当成接受点修复已交付；此前独立候选仅临时manifest/lock引用，正式上游/vendor决定仍待。浏览器格式化门禁format17实际40/40，但只读复核补出spread赋值仍可能剪枝，修后format18及后续完整health待；format16相对旧f47完整health通过，496内部import/0混载，新main后重新量。Pages与Schedule源修复已保存e61d0a592/f53a0a620，真实运行未记通过。#408已由采用线合入，#477根会话同步当前main283371d23、freshsecrets通过后推送，等新CI，未合。
+
+I8当前资源10实际相对main1a9416ec：共享六客户端各+32、Alchemist+161、Dataset+364、PPT+77、Shelf+482、Todo+117、Workflows+3480、Workbench+2520；更小项待同片下降快照，增长项未update放行。后续仅等价局部标识/重复代码整理和真实资源重测，不改build flags/unsafe程序剥字面量/额度。boundary当前除临SDK未获批路径外，Goals action-only新增SDK依赖未补登记与README；待补现行依赖事实，不给临时SDK改登记。定向10未结束，期间Source/scripts/package/skills冻结。

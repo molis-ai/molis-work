@@ -289,8 +289,6 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-vstep__mark svg { width: 14px; height: 14px; }
   [data-workflows="workbench"] .wf-vstep.is-done .wf-vstep__mark { color: var(--green); }
   [data-workflows="workbench"] .wf-vstep.is-stopped .wf-vstep__mark { color: var(--muted); }
-  [data-workflows="workbench"] .wf-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--station-tint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--station-tint) 22%, transparent); }
-  [data-workflows="workbench"] .wf-ring { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--line-strong); }
   [data-workflows="workbench"] .wf-vstep__copy { display: grid; min-width: 0; }
   [data-workflows="workbench"] .wf-vstep__copy strong { font-weight: var(--weight-control, 500); font-size: 13px; }
   [data-workflows="workbench"] .wf-vstep__copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
@@ -313,10 +311,7 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-vlink[data-state="working"] .wf-vlink__label { color: var(--plugin-tint); }
   [data-workflows="workbench"] .wf-vlink[data-state="blocked"] .wf-vlink__label { color: var(--amber); }
   /* A step that just changed says so once. */
-  [data-workflows="workbench"] .wf-vstep.is-changed.is-done .wf-vstep__mark svg { animation: wf-land 250ms var(--ease-spring) both; }
-  [data-workflows="workbench"] .wf-vstep.is-changed.is-current .wf-dot { animation: wf-land 420ms var(--ease-spring) 130ms both; }
   [data-workflows="workbench"] .wf-vlink.is-changed[data-state="done"] .wf-vlink__line { animation: wf-fill 250ms var(--ease-quint) both; }
-  @keyframes wf-land { from { opacity: 0; transform: scale(.3); } to { opacity: 1; transform: none; } }
   @keyframes wf-fill { from { transform: scaleY(0); } to { transform: none; } }
   [data-workflows="workbench"] .wf-stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   [data-workflows="workbench"] .wf-stage__head { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 12px 16px 8px; }

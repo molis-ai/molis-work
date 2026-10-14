@@ -1,4 +1,4 @@
-import { renderChoice, renderSwitch, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { renderChoice, renderSwitch, renderStateRing, type StateRingState, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import type {
   ModelApiFormat,
   ModelProviderHealth,
@@ -76,6 +76,8 @@ const STATUS_TONE: Record<ModelProviderStatus, string> = {
   disabled: "idle",
 };
 
+const STATUS_RING: Record<ModelProviderStatus, StateRingState> = { ready: "ready", "needs-credential": "reauth", "credential-unavailable": "unavailable", "no-models": "unavailable", disabled: "disabled" };
+
 export function renderModelSettingsDocument(model: ModelSettingsModel): string {
   const { primitives: p } = model;
   const selected = model.draft_provider ?? model.providers.find(
@@ -113,7 +115,7 @@ function renderProviderList(model: ModelSettingsModel, selectedId: string | null
       data-model-provider="${p.escape(provider.provider_id)}"${current ? ' aria-current="true"' : ""}>
       ${p.icon("package")}
       <span class="model-provider-name">${p.escape(provider.display_name)}</span>
-      <span class="mw-status" data-tone="${STATUS_TONE[status]}" title="${p.escape(health?.detail ?? "")}">${p.icon("dot")}</span>
+      <span class="mw-status" data-tone="${STATUS_TONE[status]}" title="${p.escape(health?.detail ?? "")}">${renderStateRing({ state: STATUS_RING[status] })}</span>
     </button>`;
   }).join("");
   return `<nav class="model-provider-list" aria-label="${p.L("供应商")}">

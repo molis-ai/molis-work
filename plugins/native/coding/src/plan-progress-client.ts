@@ -8,7 +8,7 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const {api,current,status,refresh,openStep}=ports;
   const svg=(name)=>'<svg aria-hidden="true"><use href="#icon-'+name+'"></use></svg>';
   const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
-  const MARK={succeeded:'check','running':'','failed':'x',blocked:'circle-alert',cancelled:'minus',ready:'circle','not-started':'circle'};
+  const MARK={succeeded:'done',running:'running',failed:'failed',blocked:'blocked',cancelled:'cancelled',ready:'ready','not-started':'waiting'};
   const LABEL={succeeded:'模型报告完成',running:'进行中',failed:'模型报告失败',blocked:'受阻，等你决定',cancelled:'已取消',ready:'可以开始','not-started':'等待前一步'};
   const skipped=(node)=>node.state==='cancelled'&&node.reports.some(report=>report.note.startsWith('用户跳过'));
   const stepOf=(plan,node)=>node.inserted?{title:node.title||node.id,acceptance:(node.reports.find(report=>report.note.startsWith('用户插入'))?.note.split('完成条件：')[1])||''}
@@ -63,7 +63,7 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       lead.append(el('span','coding-board-guide'),main);
       const verdict=entry.verdicts?.[node.id],decided=verdict&&verdict.board_version===board.version?verdict.status:null;
       const state=el('span','coding-board-state coding-plan-state');state.dataset.tone=decided==='accepted'?'accepted':decided==='needs-work'?'attention':skipped(node)?'quiet':TONE[node.state]||'idle';
-      state.innerHTML=node.state==='running'&&!decided?'<span class="coding-board-pulse" aria-hidden="true"></span>':svg(decided==='accepted'?'check':decided==='needs-work'?'circle-alert':skipped(node)?'minus':MARK[node.state]||'circle');
+      state.dataset.mwState=decided==='accepted'?'done':decided==='needs-work'?'blocked':skipped(node)?'cancelled':node.state==='running'?(node.owner?.kind==='person'?'doing':['starting','running','compacting'].includes(run.phase)?'running':({paused:'paused',pausing:'paused','awaiting-input':'answer','awaiting-review':'approval'})[run.phase]||'doing'):MARK[node.state]||'idle';
       const yours=node.owner?.kind==='person'&&['succeeded','failed'].includes(node.state);
       state.append(el('span','',decided==='accepted'?'你已验收':decided==='needs-work'?'要求返工':skipped(node)?'你跳过了':yours?(node.state==='succeeded'?'你标记完成':'你标记失败'):LABEL[node.state]||node.state));if(decided)state.dataset.verdict=decided;
       const deps=(node.depends_on||[]).map(id=>board.nodes.find(other=>other.id===id)).filter(Boolean),waiting=deps.filter(dep=>!settledNode(dep)),stuck=waiting.filter(dep=>['failed','blocked'].includes(dep.state));

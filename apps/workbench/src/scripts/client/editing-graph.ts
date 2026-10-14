@@ -36,7 +36,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     };
 
     const showToast = (message, error = false) => {
-      toast.textContent = message;
+      toast.textContent = message; toast.dataset.mwState = error ? "failed" : "done";
       toast.classList.toggle("is-error", error);
       toast.classList.add("is-visible");
       clearTimeout(toastTimer);

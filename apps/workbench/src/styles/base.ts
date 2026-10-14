@@ -206,10 +206,6 @@ export const STYLES = `
   .tui-chrome button:not(.mw-btn):disabled { color: var(--faint); cursor: default; }
   .tui-status { margin: 0 0 0 auto; min-width: 8rem; flex: 1 1 12rem; color: var(--muted); font-size: 11px; font-weight: 400; display: flex; align-items: center; gap: 8px; line-height: 1.4; }
   .tui-status:empty { display: none; }
-  .tui-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--faint); flex: 0 0 auto; }
-  .tui-status[data-tone="live"]::before { background: var(--green); }
-  .tui-status[data-tone="busy"]::before { background: var(--blue); animation: none; }
-  .tui-status[data-tone="error"]::before { background: var(--red); }
   .tui-terminal { grid-area: terminal; position: relative; min-width: 0; min-height: 140px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--ink) 55%, var(--terminal)); border-radius: 6px; background: var(--terminal); }
   .tui-terminal .tui-xterm { position: absolute; inset: 10px 12px 12px; opacity: 0; transition: opacity 250ms var(--ease-quint); }
   .tui-terminal .tui-xterm.is-ready { opacity: 1; }

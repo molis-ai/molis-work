@@ -14,7 +14,7 @@ import { FLOATING_CLIENT_SOURCE } from "./floating-source.js";
  * `dismiss(reason)`, `hold({ interacting, pinned })` (the pointer or focus entered or left it, with the keys under them), `settled()` (the pointer and
  * focus are off it again, after a newer view may have been held back). An anchor's `rect` may be a function, read at every placement.
  * `show(view)`: `{ context_id, anchor: { rect, placement? }, touch?, actions: [{ key, label, badge?, emphasis?, hint? }],
- * more: [{ title, items: [{ key, label, note?, disabled? }] }], assistant?: boolean, basis?: { text, title? } }`.
+ * more: [{ title, items: [{ key, label, note?, disabled? }] }], assistant?: boolean, basis?: { text, title?, state? } }`.
  *
  * Three page events, from the plugin that owns the content (they are registered in the DOM events list, owner `context-toolbar`):
  * `molis:context-tools` (its tools, as data), `molis:context-panel-open` (a small form it draws under the bar), and the one the bar
@@ -120,7 +120,7 @@ const title = (text) => h("p", { class: "mw-ctx-menu__label", text }), act = (a)
 if (extra.length) out.push(title(L("推荐")), ...extra.map(act));
 for (const g of view.more || []) out.push(title(g.title), ...g.items.map(act));
 if (view.assistant) out.push(h("div", { class: "mw-ctx-menu__gap", role: "separator" }), title(L("助理")), entry(L("带到助理"), "", 0, () => host.assistant("bring")), entry(L("说出要做什么"), "", 0, () => host.assistant("ask")));
-if (view.basis) out.push(h("p", { class: "mw-ctx-menu__basis", title: view.basis.title || "", text: view.basis.text }));
+if (view.basis) out.push(h("p", { class: "mw-ctx-menu__basis", title: view.basis.title || "", text: view.basis.text, ...(view.basis.state ? { "data-mw-state": view.basis.state } : {}) }));
 return out;
 };
 const menuButton = (label, items, props) => { const n = btn(label + " ▾", () => open(n, items()), { "aria-haspopup": "menu", "aria-expanded": "false", ...props }); return n; };

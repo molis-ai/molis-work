@@ -80,7 +80,7 @@ export function createLocalWebAssets(ports: {
       if (!loaded) return false;
       const body = typeof loaded.body !== "string" ? loaded.body
         : pathname.endsWith(".css") ? tightenServedCss(loaded.body)
-        : pathname === "/assets/molis-work-workbench.js" || plugin ? tightenServedJs(loaded.body)
+        : pathname === "/assets/molis-work-workbench.js" || pathname === "/assets/molis-work-capabilities.js" || plugin ? tightenServedJs(loaded.body)
           : loaded.body;
       asset = { body, contentType: loaded.contentType, etag: `"${createHash("sha256").update(body).digest("base64url")}"` };
       workbenchAssets.set(key, asset);

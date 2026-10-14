@@ -10,9 +10,8 @@ export const PLACEMENT_STYLES = `
   .placement-bar > span + span:not([hidden]) { border-left: 1px solid var(--line); }
   .placement-bar > span:empty { display: none; }
   .placement-bar > .placement-bar-where { color: var(--ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+  .placement-bar-saved { gap: 4px; }
   .placement-bar-saved:empty { display: none; }
-  .placement-bar-saved::before { content: ""; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; background: var(--green); }
-  .placement-bar-saved.is-unsaved::before { background: var(--amber); }
   .placement-target { display: inline-flex; align-items: baseline; gap: 4px; font-size: 12px; color: var(--muted); white-space: nowrap; }
   .placement-target b { font-weight: 500; color: var(--ink-soft, var(--ink)); }
   .placement-panel { position: fixed; z-index: 60; width: min(380px, calc(100vw - 16px)); max-height: calc(100vh - 80px); overflow: auto; padding: 14px;

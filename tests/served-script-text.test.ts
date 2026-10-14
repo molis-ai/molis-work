@@ -13,17 +13,17 @@ function label() {
 label();
 `;
 
-const assets = createLocalWebAssets({
-  ptyClientFilePath: () => "/missing-pty-client.js",
-  renderer: {
-    renderMolisWorkWorkbenchClientScript: () => script,
-    renderMolisWorkWorkbenchStylesheet: () => "",
-    renderMolisWorkArrivalStylesheet: () => "",
-    renderMolisWorkSettingsStylesheet: () => "",
-  },
-});
+function served(pathname: string, source = script): Promise<{ text: string; bytes: number; type: string | null }> {
+  const assets = createLocalWebAssets({
+    ptyClientFilePath: () => "/missing-pty-client.js",
+    renderer: {
+      renderMolisWorkWorkbenchClientScript: () => source,
+      renderMolisWorkWorkbenchStylesheet: () => "",
+      renderMolisWorkArrivalStylesheet: () => "",
+      renderMolisWorkSettingsStylesheet: () => "",
+    },
+  });
 
-function served(pathname: string): Promise<{ text: string; bytes: number; type: string | null }> {
   return new Promise((resolve, reject) => {
     const server = createServer((request, response) => {
       if (!assets.serveWorkbenchAsset(request, response, pathname)) response.end();
@@ -46,9 +46,40 @@ test("the served workbench script keeps Chinese text as UTF-8, not \\u escapes, 
   const sent = await served("/assets/molis-work-workbench.js");
   assert.match(sent.type ?? "", /charset=utf-8/u);
   assert.match(sent.text, /暂时处理不了，请稍后重试/u);
-  assert.match(sent.text, /第 \$\{1\} 步/u);
+  assert.equal(Function(`${sent.text}; return label();`)(), "暂时处理不了，请稍后重试 · 第 1 步");
   assert.doesNotMatch(sent.text, /\\u[0-9a-fA-F]{4}/u, "no character is escaped");
   assert.doesNotMatch(sent.text, /这句注释不发/u, "comments are still not sent");
   assert.equal(program(sent.text), program(script));
   assert.equal(sent.bytes, Buffer.byteLength(sent.text));
+});
+
+test("RING-06 served compaction keeps template text, return newlines and side-effect order", async () => {
+  const source = `(() => {
+    function stopped() { return /* a newline is significant
+      */ host.effects.push("unreachable"); }
+    function step(value) { host.effects.push(value); return value; }
+    host.text = \`first \${step("one")}
+      second \${\`nested \${step("two")}\`}
+    \`;
+    host.matches = /a b\\/c/.test("a b/c");
+    host.stopped = stopped();
+    if (host.enabled) { step("enabled"); } else { step("disabled"); }
+  })();`;
+  const sent = await served("/assets/molis-work-workbench.js", source);
+  for (const enabled of [true, false]) {
+    const host = { enabled, effects: [] };
+    Function("host", sent.text)(host);
+    assert.deepEqual(host, {
+      enabled, effects: ["one", "two", enabled ? "enabled" : "disabled"],
+      text: "first one\n      second nested two\n    ", matches: true, stopped: undefined,
+    });
+  }
+  assert.match(sent.text, /function step\(/u, "binding names remain inspectable");
+  assert.ok(sent.bytes < Buffer.byteLength(source));
+});
+
+test("RING-06 an unparseable served script keeps its exact content", async () => {
+  const source = "  /* preserve this */\nconst broken = ;\n  ";
+  const sent = await served("/assets/molis-work-workbench.js", source);
+  assert.equal(sent.text, source);
 });

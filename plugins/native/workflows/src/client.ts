@@ -42,7 +42,7 @@ import { WORKFLOW_SAVE_SCRIPT } from "./save-client.js";
  * Open the plugin's surface the first time it is shown; come back to where the person was.
  */
 export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
-  const root = docEl.querySelector('[data-workflows=workbench]');
+  const root = document.querySelector('[data-workflows=workbench]');
   if (!root) return;
   const L = host.translate;
   const $ = (selector) => root.querySelector(selector);
@@ -147,7 +147,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     return ui.judgments;
   }
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
-  const when = (iso) => { if (!iso) return ''; const d = new Date(iso); const today = new Date(); return d.toDateString() === today.toDateString() ? d.toLocaleTimeString(docEl.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString(docEl.documentElement.lang || undefined, { month: 'short', day: 'numeric' }); };
+  const when = (iso) => { if (!iso) return ''; const d = new Date(iso); const today = new Date(); return d.toDateString() === today.toDateString() ? d.toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString(document.documentElement.lang || undefined, { month: 'short', day: 'numeric' }); };
 
   const insertStn = (chain, gap, plug, id) => {
     const stations = [...chain.stations]; const links = [...chain.links];
@@ -180,7 +180,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       drawList();
     } catch (err) { listEl.innerHTML = '<p class="wf-error">' + esc(err.message) + '</p>'; }
   }
-  docEl.addEventListener('molis-work:model-ready', () => api('').then((res) => {
+  document.addEventListener('molis-work:model-ready', () => api('').then((res) => {
     ui.ai = res.ai_available; drawList();
     if (root.dataset.wfMode === 'instance') drawRun(); else if (root.dataset.wfMode === 'workflow') drawFlow();
     if (ui.openLink !== null) checkReady(ui.openLink);
@@ -364,7 +364,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   function patchFlowRow(editor) {
     const flow = ui.workflow;
     const title = editor.querySelector('[data-wf-title]');
-    if (title && docEl.activeElement !== title && title.value !== flow.title) title.value = flow.title;
+    if (title && document.activeElement !== title && title.value !== flow.title) title.value = flow.title;
     editor.querySelector('[data-wf-return]').innerHTML = returnHtml();
     patchChain(editor.querySelector('[data-wf-chain]'));
     const issues = editor.querySelector('[data-wf-issues]');
@@ -377,7 +377,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const flow = ui.workflow;
     const before = new Map(); chainEl.querySelectorAll('[data-station-id]').forEach((el) => before.set(el.dataset.stationId, el.getBoundingClientRect()));
     const links = new Map(); chainEl.querySelectorAll('[data-link-key]').forEach((el) => links.set(el.dataset.linkKey, el.dataset.kind + ':' + el.dataset.ready));
-    const focused = docEl.activeElement?.closest?.('[data-station-id]');
+    const focused = document.activeElement?.closest?.('[data-station-id]');
     const focusId = focusNext || (focused && chainEl.contains(focused) ? focused.dataset.stationId : null);
     focusNext = null;
     const empty = !flow.stations.length;
@@ -795,7 +795,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     article.querySelector('[data-wf-run-bar]').innerHTML = runBarHtml(run);
 
     const vchain = article.querySelector('[data-wf-vchain]');
-    const stepFocus = vchain.contains(docEl.activeElement) ? docEl.activeElement.dataset.wfStep : null;
+    const stepFocus = vchain.contains(document.activeElement) ? document.activeElement.dataset.wfStep : null;
     vchain.innerHTML = vchainHtml(run, idx);
     const steps = run.steps.map((_, i) => stepState(run, i));
     const links = run.chain.links.map((_, i) => linkState(run, i));
@@ -809,7 +809,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     article.querySelector('[data-wf-stage-head]').innerHTML = '<span class="wf-stage__step">' + esc(L('第 {n} 步', { n: idx + 1 })) + '</span><span class="wf-station__icon" style="--station-tint:' + tint(step.plugin) + '">' + ico(stnMeta(step.plugin).icon) + '</span><strong>' + esc(label(run.chain.stations[idx])) + '</strong>' + (step.item && step.plugin !== 'action' ? '<span class="wf-muted">' + esc(step.item.title) + '</span>' : '');
 
     const handoffBox = article.querySelector('[data-wf-handoff]');
-    const actionFocus = handoffBox.contains(docEl.activeElement) ? docEl.activeElement.dataset.wfAction : null;
+    const actionFocus = handoffBox.contains(document.activeElement) ? document.activeElement.dataset.wfAction : null;
     const key = handoffKey(run, idx);
     handoffBox.innerHTML = renderHandoff(run, idx);
     if (handoffBox.dataset.key !== key) { handoffBox.dataset.key = key; settle(handoffBox.firstElementChild); }
@@ -855,7 +855,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (!slot.querySelector('.wf-frame-skeleton')) {
       slot.insertAdjacentHTML('afterbegin', '<div class="wf-frame-skeleton" aria-hidden="true"><span class="mw-skeleton" style="width:38%"></span><span class="mw-skeleton" style="width:72%"></span><span class="mw-skeleton" style="width:64%"></span><span class="mw-skeleton" style="width:46%"></span></div>');
     }
-    const frame = docEl.createElement('iframe');
+    const frame = document.createElement('iframe');
     frame.title = L('{plugin} 里这一次的内容', { plugin: label(step.plugin) });
     frame.dataset.wfFrame = '';
     frame.className = 'is-entering';
@@ -1067,7 +1067,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   });
   pop.addEventListener('keydown', (ev) => {
     const items = [...pop.querySelectorAll('.wf-pop__item')];
-    const at = items.indexOf(docEl.activeElement);
+    const at = items.indexOf(document.activeElement);
     if (at < 0 || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(ev.key)) return;
     ev.preventDefault();
     const next = ev.key === 'Home' ? 0 : ev.key === 'End' ? items.length - 1 : (at + (ev.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
@@ -1076,7 +1076,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   pop.addEventListener('toggle', (ev) => {
     if (ev.newState !== 'closed') return;
     const anchor = popAt && popAt();
-    const lostFocus = !docEl.activeElement || docEl.activeElement === docEl.body || pop.contains(docEl.activeElement);
+    const lostFocus = !document.activeElement || document.activeElement === document.body || pop.contains(document.activeElement);
     ui.openLink = null; ui.openGap = null; popAt = null;
     markOpen();
     if (lostFocus && anchor) anchor.focus({ preventScroll: true });

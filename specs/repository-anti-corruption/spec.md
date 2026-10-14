@@ -2623,7 +2623,13 @@ I30 3bc3ba3a6已独立Source接受，文档c82a96e61补两处Kernel缺稳定Sess
 维护八93实际演练成功：三个新临时可写副本分别1/4/2行，共七处（六scalar+一producer限定JSON），每库注入第一次更新后的失败都真实ROLLBACK恢复目标表；成功提交后逐行与仅错误槽变化的独立expected相等，schema/各非调用日志表行数/SQLite integrity保持；二次运行每库0变化。原Home0写、受保护只读克隆0写、Keychain与历史调用日志正文未读/改。未知十五scalar及一个JSON值由完整目标行对照证明未动。不是跨库同步快照、不是已维护真实Home；额外Source映射及部署后原窗口仍待最终决定/实核。I31/I32已独立Source接受，92 scoped0/all223和91/92不同分支wrong-owner数按各自上下文保留。
 
 
-**Coding等待状态 I33（根因假设/准备）。** 79的B waits超时与现行startRound顺序存在明确交错：follow在两次await beforeWrite、await startDelegation和setState running/last-start存储之前启动；立即结束且已park的Run可能先写queued，迟到的发送回执随后改回running，同时wake可先读缺失origin_task。87仍待实际诊断trace，先在另一Source准备最小顺序修正，不能预记证实。R-CODING-RECEIPT-01：先完成原调用复查及running/last-start原收口，再启动activation follower；即时terminal/parked回执仍最终queued，wake原任务、重复唤醒/重启/撤回与cancel原断言保持；不延长超时、不给mock加延迟/跳过。R-CODING-RECEIPT-02：原取消/撤权/停用beforeEffect仍先于这些调用方记录，拒绝不写偏好/状态，Run事实仍由Agent owner；必须与17项真实Coding效果控制一起在新整体构建后验证。Root受测I8暂不改，直到87终结。
+**Coding等待状态 I33（根因假设/准备）。** 79的B waits超时与现行startRound顺序存在明确交错：follow在两次await beforeWrite、await startDelegation和setState running/last-start存储之前启动；立即结束且已park的Run可能先写queued，迟到的发送回执随后改回running，同时wake可先读缺失origin_task。87仍待实际诊断trace，先在另一Source准备最小顺序修正，不能预记证实。R-CODING-RECEIPT-01：先完成原调用复查及running/last-start原收口，再启动activation follower；即时terminal/parked回执仍最终queued，wake原任务、重复唤醒/重启/撤回与cancel原断言保持；不延长超时、不给mock加延迟/跳过。R-CODING-RECEIPT-02：原取消/撤权/停用beforeEffect仍先于这些调用方记录，拒绝不写调用方偏好/起始状态；已接受的Run由activation独立跟踪其状态，Run事实仍由Agent owner；必须与17项真实Coding效果控制一起在新整体构建后验证。Root受测I8暂不改，直到87终结。
 
 
 I33 Source候选已准备3+/1-：仅将同一follow移到原last-start写完后，并在原即时waitRun回归加验收编号注释。Source94 Coding自身0/all2（全程序两条未借用依赖不计全绿）、merge-base健康通过，API未改；不是Root I8当前改动，也不是87实际证实/运行通过。下一步87取状态trace后按原因裁决，再统一纳已接受I26–I32、main f6与新隔离SDK；遵守唯一构建队列，不重复启动。
+
+
+I33首个fcd345dc3仅移末尾候选被Source复核拒绝P1：start成功后原收尾fence仍可拒绝，若直接末尾注册则后台跟踪丢失。已在同一Source将原post-start收口包try/finally，成功收口后或拒绝收口后才注册同一activation follower；原beforeWrite两栅栏、delegate顺序、调用方保存均保留。原coding-session-follow补cancel首栅栏与revoke第二栅栏两个真实router/SQLite交错，调用方拒绝/未写private起始偏好与running，activation仍须消费running→review→completed并发终态事件；原activation stop晚响应拒绝完整保留。94原类型/健康不能关闭这反例；修正后94c与新运行另计；94b修改脚本因重复变量SyntaxError未执行，无源码变化，其检查不计修正证据，仍不改受测Root I8。
+
+
+I33最终674a8a321（含fcd的顺序候选修正）已独立Source接受：两post-start fence+原caller收口逐句保持，try/finally使已接受Run的activation跟踪不因caller拒绝而丢失；源类型94c自身0/all2与健康通过，实际message-wait/session-follow/effect矩阵仍未跑。原Src三片I29–32与补文档均Source接受。#495原6dd全部CI通过且固定head密钥扫描干净，但精确head合并被保护拒绝“未同步main”；未合入/未绕过保护，Root已expected_head update-branch，等新CI。下一受测组合须新main/新CU-image隔离SDK，而不是旧85。

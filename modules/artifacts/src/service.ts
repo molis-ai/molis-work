@@ -15,10 +15,7 @@ import type {
   RegisterArtifactVersionInput,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
-import {
-  defaultArtifactsErrorFactory,
-  type ArtifactsErrorFactory,
-} from "./errors.js";
+import { artifactErrors } from "./errors.js";
 import { ArtifactsRepository } from "./repository.js";
 import { normalizeRegistration } from "./registration.js";
 import { requiredText } from "./validation.js";
@@ -47,7 +44,6 @@ export interface ArtifactsServiceOptions {
   /** Defaults to the 成果库. */
   kind?: VersionStoreKind;
   now?: () => string;
-  errorFactory?: ArtifactsErrorFactory;
   /** Appends one event to the project journal (the journal is storage's: this package keeps no SQL on it) and returns its number. */
   appendEvent: (input: ArtifactEventInput) => number;
   /** The newest event number of the project's journal: what a write that changed nothing reports as `observed_event_cursor`. */
@@ -61,9 +57,9 @@ export interface ArtifactsServiceOptions {
 
 /** A write the host's Manifest check refuses never reaches the store (specs/artifact-positioning A7). */
 function declaredOnly<T extends { producer_plugin_id: string; artifact_type_id: string; schema_version: number }>(normalized: T,
-  declared: ArtifactsServiceOptions["declared"], kind: VersionStoreKind, error: ArtifactsErrorFactory): T {
+  declared: ArtifactsServiceOptions["declared"], kind: VersionStoreKind): T {
   const undeclared = declared?.({ plugin_id: normalized.producer_plugin_id }, normalized, kind);
-  if (undeclared) throw error("artifacts.artifact.type_undeclared", undeclared, { artifact_type_id: normalized.artifact_type_id, producer_plugin_id: normalized.producer_plugin_id });
+  if (undeclared) throw artifactErrors.type_undeclared(undeclared, { artifact_type_id: normalized.artifact_type_id, producer_plugin_id: normalized.producer_plugin_id });
   return normalized;
 }
 
@@ -72,7 +68,6 @@ export class ArtifactsService<
   I extends RecordFixedVersionInput = RegisterArtifactVersionInput,
 > implements FixedVersionQueryApi<R>, FixedVersionCommandApi<R, I> {
   private readonly now: () => string;
-  private readonly error: ArtifactsErrorFactory;
   private readonly kind: VersionStoreKind;
 
   constructor(
@@ -80,7 +75,6 @@ export class ArtifactsService<
     private readonly options: ArtifactsServiceOptions,
   ) {
     this.now = options.now ?? (() => new Date().toISOString());
-    this.error = options.errorFactory ?? defaultArtifactsErrorFactory;
     this.kind = options.kind ?? "artifact";
   }
 
@@ -123,11 +117,11 @@ export class ArtifactsService<
   }
 
   registerVersion(input: I): FixedVersionResult<R> {
-    const normalized = declaredOnly(normalizeRegistration<R, I>(input, { error: this.error, library: this.repository.tables.library, readOwner: (owner, scope) => this.repository.readOwner(owner, scope) }), this.options.declared, this.kind, this.error);
+    const normalized = declaredOnly(normalizeRegistration<R, I>(input, { library: this.repository.tables.library, readOwner: (owner, scope) => this.repository.readOwner(owner, scope) }), this.options.declared, this.kind);
     return this.repository.immediate(() => {
       const globalIdentity = this.repository.getIdentityById(normalized.artifact_id);
       if (globalIdentity && globalIdentity.project_id !== normalized.project_id) {
-        throw this.error("artifacts.artifact.board_mismatch", "成果 ID 已属于另一个 Project", {
+        throw artifactErrors.board_mismatch("成果 ID 已属于另一个 Project", {
           artifact_id: normalized.artifact_id,
         });
       }
@@ -141,7 +135,7 @@ export class ArtifactsService<
       );
       if (existing) {
         if (!sameVersion(existing, normalized)) {
-          throw this.error("artifacts.artifact.version_conflict", "同一成果 id + version 已有不同内容", {
+          throw artifactErrors.version_conflict("同一成果 id + version 已有不同内容", {
             artifact_id: normalized.artifact_id,
             version: normalized.version,
           });
@@ -155,7 +149,7 @@ export class ArtifactsService<
 
       const latest = this.repository.latestVersion(normalized.project_id, normalized.artifact_id);
       if (latest && normalized.version <= latest.version) {
-        throw this.error("artifacts.artifact.version_not_increasing", "成果版本必须由 Plugin 严格递增", {
+        throw artifactErrors.version_not_increasing("成果版本必须由 Plugin 严格递增", {
           artifact_id: normalized.artifact_id,
           latest_version: latest.version,
           requested_version: normalized.version,
@@ -163,14 +157,14 @@ export class ArtifactsService<
       }
       if (normalized.supersedes_version !== null) {
         if (normalized.supersedes_version >= normalized.version) {
-          throw this.error("artifacts.artifact.supersession_invalid", "supersedes_version 必须早于当前 version");
+          throw artifactErrors.supersession_invalid("supersedes_version 必须早于当前 version");
         }
         if (!this.repository.getVersion(
           normalized.project_id,
           normalized.artifact_id,
           normalized.supersedes_version,
         )) {
-          throw this.error("artifacts.artifact.supersession_missing", "找不到被替代的成果版本");
+          throw artifactErrors.supersession_missing("找不到被替代的成果版本");
         }
       }
 
@@ -211,7 +205,7 @@ export class ArtifactsService<
   }
 
   markUnavailable(input: MarkArtifactUnavailableInput): FixedVersionResult<R> {
-    const reason = requiredText(input.reason, "reason", this.error);
+    const reason = requiredText(input.reason, "reason");
     return this.repository.immediate(() => {
       const artifact = this.requireOwnedVersion(input.project_id, input, input.actor_id);
       if (artifact.availability === "unavailable") {
@@ -280,7 +274,7 @@ export class ArtifactsService<
     // An identity written before a Home named its owner still names its producer: it is read as the Home's owner.
     const owner = this.repository.readOwner(identity.owner_actor_id, input.scope);
     if (owner !== input.owner_actor_id) {
-      throw this.error("artifacts.artifact.not_owner", "只有成果 owner 可以注册新 version", {
+      throw artifactErrors.not_owner("只有成果 owner 可以注册新 version", {
         owner_actor_id: owner,
         actor_id: input.created_by,
         requested_owner_actor_id: input.owner_actor_id,
@@ -290,16 +284,13 @@ export class ArtifactsService<
       identity.producer_plugin_id !== input.producer_plugin_id
       || identity.producer_binding_signature !== input.producer_binding_signature
     ) {
-      throw this.error(
-        "artifacts.artifact.producer_mismatch",
-        "Producer binding 已变化，请将结果作为新的成果处理",
-      );
+      throw artifactErrors.producer_mismatch("Producer binding 已变化，请将结果作为新的成果处理");
     }
   }
 
   private requireVersion(projectId: string, reference: ArtifactReference): R {
     const artifact = this.repository.getVersion(projectId, reference.artifact_id, reference.version);
-    if (!artifact) throw this.error("artifacts.artifact.not_found", "找不到成果版本");
+    if (!artifact) throw artifactErrors.not_found("找不到成果版本");
     return artifact;
   }
 
@@ -315,7 +306,7 @@ export class ArtifactsService<
   ): R {
     const artifact = this.requireVersion(projectId, reference);
     if (artifact.owner_actor_id !== actorId && artifact.created_by !== actorId) {
-      throw this.error("artifacts.artifact.not_owner", "只有成果的 owner 或生产它的行为者可以修改版本状态");
+      throw artifactErrors.not_owner("只有成果的 owner 或生产它的行为者可以修改版本状态");
     }
     return artifact;
   }

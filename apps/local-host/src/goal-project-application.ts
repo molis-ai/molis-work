@@ -80,7 +80,6 @@ export class GoalProjectApplication {
       db: this.store.db as unknown as ArtifactsSqliteDatabase,
       homeOwner: LOCAL_PERSON_ACTOR_ID,
       now: () => this.clock().toISOString(),
-      errorFactory: (code, message, details) => new ActionError(code, message, { details }),
       appendEvent: (input) => this.store.appendEvent(input),
       eventCursor: (projectId) => this.store.eventCursor(projectId),
       declared: builtinTypeDeclared,
@@ -92,7 +91,6 @@ export class GoalProjectApplication {
     const processItemsModule = new ProcessItemsModule({
       db: this.store.db as unknown as ArtifactsSqliteDatabase,
       now: () => this.clock().toISOString(),
-      errorFactory: (code, message, details) => new ActionError(code, message, { details }),
       appendEvent: (input) => this.store.appendEvent(input),
       eventCursor: (projectId) => this.store.eventCursor(projectId),
       declared: builtinTypeDeclared,

@@ -85,11 +85,6 @@ export {
   normalizeArtifactPayload,
 } from "./content.js";
 export {
-  ArtifactsError,
-  defaultArtifactsErrorFactory,
-  type ArtifactsErrorFactory,
-} from "./errors.js";
-export {
   ARTIFACT_TABLES,
   ARTIFACTS_SCHEMA_SQL,
   ArtifactsRepository,

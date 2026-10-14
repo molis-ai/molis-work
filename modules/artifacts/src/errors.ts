@@ -1,20 +1,24 @@
-export type ArtifactsErrorFactory = (
-  code: string,
-  message: string,
-  details?: Record<string, unknown>,
-) => Error;
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
-export class ArtifactsError extends Error {
-  readonly code: string;
-  readonly details?: Record<string, unknown>;
-
-  constructor(code: string, message: string, details?: Record<string, unknown>) {
-    super(message);
-    this.name = "ArtifactsError";
-    this.code = code;
-    this.details = details;
-  }
-}
-
-export const defaultArtifactsErrorFactory: ArtifactsErrorFactory = (code, message, details) =>
-  new ArtifactsError(code, message, details);
+// Keep the current HTTP classification while removing the Host-selected error factory (W3-02-I1).
+export const artifactErrors = defineErrorCodes("artifacts.artifact", {
+  board_mismatch: "invalid",
+  content_invalid: "invalid",
+  digest_invalid: "invalid",
+  hash_mismatch: "invalid",
+  input_invalid: "invalid",
+  metadata_invalid: "invalid",
+  not_found: "invalid",
+  not_owner: "invalid",
+  origin_invalid: "invalid",
+  owner_invalid: "invalid",
+  payload_invalid: "invalid",
+  producer_mismatch: "invalid",
+  scope_invalid: "invalid",
+  supersession_invalid: "invalid",
+  supersession_missing: "invalid",
+  team_share_not_authorized: "invalid",
+  type_undeclared: "invalid",
+  version_conflict: "invalid",
+  version_not_increasing: "invalid",
+});

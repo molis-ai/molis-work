@@ -1,10 +1,11 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import Database from "better-sqlite3";
 import {
   artifactContentDigest,
-  ArtifactsError,
   ArtifactsModule,
   canonicalArtifactJson,
   createArtifactsSchema,
@@ -105,9 +106,11 @@ function registration(
   };
 }
 
+// I1-01: the owner raises the shared model and keeps the current exact code and HTTP category.
 function expectCode(operation: () => unknown, code: string): void {
   assert.throws(operation, (error: unknown) =>
-    error instanceof ArtifactsError && error.code === code);
+    error instanceof ActionError && error.code === code && error.kind === "invalid" && actionHttpStatus(error) === 400
+    && actionErrorBody(error).code === code && actionErrorBody(error).error === error.message);
 }
 
 test("Artifacts Module owns exact id + version, opaque content, scope and producer binding", () => {
@@ -128,6 +131,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
     assert.equal(replayed.artifact.created_at, first.artifact.created_at);
     assert.equal(db.prepare("SELECT COUNT(*) AS count FROM library_artifact_versions").get().count, 1);
 
+    const journalBeforeRefusals = db.prepare("SELECT * FROM events ORDER BY seq").all();
     expectCode(
       () => module.commands.registerVersion(registration({
         content: { kind: "inline", payload: { title: "conflicting overwrite" } },
@@ -151,6 +155,11 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
       })),
       "artifacts.artifact.team_share_not_authorized",
     );
+    // I1-01: conflict, bad digest and unauthorized sharing leave the version and journal unchanged.
+    assert.deepEqual(module.query.getArtifactVersion("board-artifacts", { artifact_id: "artifact-report", version: 1 }), first.artifact);
+    assert.equal(module.query.getArtifactVersion("board-artifacts", { artifact_id: "artifact-bad-hash", version: 1 }), null);
+    assert.deepEqual(module.query.listArtifactVersions("board-artifacts", "artifact-report"), [first.artifact]);
+    assert.deepEqual(db.prepare("SELECT * FROM events ORDER BY seq").all(), journalBeforeRefusals);
     const thirdInput = registration({
       version: 3,
       producer: {

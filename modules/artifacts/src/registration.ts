@@ -5,45 +5,40 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 import { artifactContentDigest, artifactContentSize, canonicalArtifactJson, normalizeArtifactPayload } from "./content.js";
-import type { ArtifactsErrorFactory } from "./errors.js";
+import { artifactErrors } from "./errors.js";
 import { libraryFields, nonNegativeInteger, normalizedDigest, normalizedMetadata, positiveInteger, requiredText } from "./validation.js";
 
-/** What a registration is checked against: how to report, whether it is the 成果库 (which also records origin and title), and how an owner reads. */
+/** What a registration is checked against: whether it is the 成果库 (which also records origin and title), and how an owner reads. */
 export interface RegistrationContext {
-  error: ArtifactsErrorFactory;
   library: boolean;
   readOwner(stored: string, scope: ArtifactScope): string;
 }
 
 /** A registration checked and shaped into the version it will be written as; the store's own rules (identity, order) apply after. */
 export function normalizeRegistration<R extends FixedVersionRecord, I extends RecordFixedVersionInput>(
-  input: I, { error, library, readOwner }: RegistrationContext,
+  input: I, { library, readOwner }: RegistrationContext,
 ): Omit<R, "created_at"> {
-  const projectId = requiredText(input.project_id, "project_id", error);
-  const artifactId = requiredText(input.artifact_id, "artifact_id", error);
-  const actorId = requiredText(input.actor_id, "actor_id", error);
-  const artifactTypeId = requiredText(input.artifact_type_id, "artifact_type_id", error);
-  const version = positiveInteger(input.version, "version", error);
-  const schemaVersion = positiveInteger(input.schema_version, "schema_version", error);
-  const pluginId = requiredText(input.producer?.plugin_id, "producer.plugin_id", error);
-  const pluginVersion = requiredText(input.producer?.plugin_version, "producer.plugin_version", error);
+  const projectId = requiredText(input.project_id, "project_id");
+  const artifactId = requiredText(input.artifact_id, "artifact_id");
+  const actorId = requiredText(input.actor_id, "actor_id");
+  const artifactTypeId = requiredText(input.artifact_type_id, "artifact_type_id");
+  const version = positiveInteger(input.version, "version");
+  const schemaVersion = positiveInteger(input.schema_version, "schema_version");
+  const pluginId = requiredText(input.producer?.plugin_id, "producer.plugin_id");
+  const pluginVersion = requiredText(input.producer?.plugin_version, "producer.plugin_version");
   const bindingSignature = requiredText(
     input.producer?.binding_signature,
     "producer.binding_signature",
-    error,
   );
   const scope = input.scope ?? "personal";
   if (scope !== "personal" && scope !== "team_project") {
-    throw error("artifacts.artifact.scope_invalid", "成果 scope 无效");
+    throw artifactErrors.scope_invalid("成果 scope 无效");
   }
   if (scope === "team_project" && input.team_share_authorized !== true) {
-    throw error(
-      "artifacts.artifact.team_share_not_authorized",
-      "共享到 Team Project 需要用户或 Team 的明确授权",
-    );
+    throw artifactErrors.team_share_not_authorized("共享到 Team Project 需要用户或 Team 的明确授权");
   }
 
-  const ownerActorId = ownerOf(input, scope, actorId, readOwner, error);
+  const ownerActorId = ownerOf(input, scope, actorId, readOwner);
 
   let payload: FixedVersionRecord["payload"] = null;
   let contentRef: string | null = null;
@@ -55,7 +50,7 @@ export function normalizeRegistration<R extends FixedVersionRecord, I extends Re
     try {
       payload = normalizeArtifactPayload(input.content.payload);
     } catch (failure) {
-      throw error("artifacts.artifact.payload_invalid", "成果 inline payload 不是可往返的 JSON", {
+      throw artifactErrors.payload_invalid("成果 inline payload 不是可往返的 JSON", {
         cause: failure instanceof Error ? failure.message : String(failure),
       });
     }
@@ -63,13 +58,13 @@ export function normalizeRegistration<R extends FixedVersionRecord, I extends Re
     digest = artifactContentDigest(serialized);
     sizeBytes = artifactContentSize(serialized);
   } else if (input.content.kind === "reference") {
-    contentRef = requiredText(input.content.content_ref, "content.content_ref", error);
-    digest = normalizedDigest(input.content.digest, "content.digest", error);
-    sizeBytes = nonNegativeInteger(input.content.size_bytes, "content.size_bytes", error);
+    contentRef = requiredText(input.content.content_ref, "content.content_ref");
+    digest = normalizedDigest(input.content.digest, "content.digest");
+    sizeBytes = nonNegativeInteger(input.content.size_bytes, "content.size_bytes");
     if (input.content.observed_digest) {
-      const observed = normalizedDigest(input.content.observed_digest, "content.observed_digest", error);
+      const observed = normalizedDigest(input.content.observed_digest, "content.observed_digest");
       if (observed !== digest) {
-        throw error("artifacts.artifact.hash_mismatch", "Storage 返回的内容摘要与 成果 Envelope 不一致");
+        throw artifactErrors.hash_mismatch("Storage 返回的内容摘要与 成果 Envelope 不一致");
       }
     }
     if (input.content.available === false) {
@@ -77,12 +72,12 @@ export function normalizeRegistration<R extends FixedVersionRecord, I extends Re
       unavailableReason = "Content reference 在注册时不可读取";
     }
   } else {
-    throw error("artifacts.artifact.content_invalid", "成果 content kind 无效");
+    throw artifactErrors.content_invalid("成果 content kind 无效");
   }
   if (input.expected_digest) {
-    const expected = normalizedDigest(input.expected_digest, "expected_digest", error);
+    const expected = normalizedDigest(input.expected_digest, "expected_digest");
     if (expected !== digest) {
-      throw error("artifacts.artifact.hash_mismatch", "成果内容摘要与 expected_digest 不一致");
+      throw artifactErrors.hash_mismatch("成果内容摘要与 expected_digest 不一致");
     }
   }
 
@@ -101,20 +96,20 @@ export function normalizeRegistration<R extends FixedVersionRecord, I extends Re
     content_ref: contentRef,
     content_digest: digest,
     size_bytes: sizeBytes,
-    metadata: normalizedMetadata(input.metadata, error),
+    metadata: normalizedMetadata(input.metadata),
     scope,
     availability,
     unavailable_reason: unavailableReason,
     lifecycle_state: "active",
     supersedes_version: input.supersedes_version == null
       ? null
-      : positiveInteger(input.supersedes_version, "supersedes_version", error),
+      : positiveInteger(input.supersedes_version, "supersedes_version"),
     created_by: actorId,
     archived_at: null,
     archived_by: null,
   };
   // The 成果库 also keeps what people see: where the version came from, its title and its real media type (A1).
-  return (library ? { ...base, ...libraryFields(input, error) } : base) as Omit<R, "created_at">;
+  return (library ? { ...base, ...libraryFields(input) } : base) as Omit<R, "created_at">;
 }
 
 /**
@@ -122,11 +117,11 @@ export function normalizeRegistration<R extends FixedVersionRecord, I extends Re
  * belongs to that person, so a registration naming anyone else as the owner of a personal version is refused.
  */
 function ownerOf(input: RecordFixedVersionInput, scope: ArtifactScope, actorId: string,
-  readOwner: RegistrationContext["readOwner"], error: ArtifactsErrorFactory): string {
-  const named = input.owner_actor_id === undefined ? undefined : requiredText(input.owner_actor_id, "owner_actor_id", error);
+  readOwner: RegistrationContext["readOwner"]): string {
+  const named = input.owner_actor_id === undefined ? undefined : requiredText(input.owner_actor_id, "owner_actor_id");
   const owner = readOwner(named ?? actorId, scope);
   if (named !== undefined && owner !== named) {
-    throw error("artifacts.artifact.owner_invalid", "这个 Home 里的个人成果属于本机的人", { owner_actor_id: named, home_owner: owner });
+    throw artifactErrors.owner_invalid("这个 Home 里的个人成果属于本机的人", { owner_actor_id: named, home_owner: owner });
   }
   return owner;
 }

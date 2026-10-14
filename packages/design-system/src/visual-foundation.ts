@@ -26,6 +26,7 @@ import { SOURCE_FEED_STYLES } from "./styles/source-feed.js";
 import { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
 import { PRIMITIVE_STYLES } from "./styles/primitives.js";
 import { ARRIVAL_COMPONENT_STYLES } from "./styles/arrival-components.js";
+import { STATE_RING_CLIENT_SCRIPT } from "./state-ring-client.js";
 
 /** Shared foundation, before the control overlay. */
 const FOUNDATION_LAYERS = [
@@ -49,7 +50,7 @@ export const VISUAL_FOUNDATION_PAGE_STYLES = FOUNDATION_LAYERS + ARRIVAL_COMPONE
 export const VISUAL_FOUNDATION_STYLES = FOUNDATION_LAYERS + COSS_CONTROL_STYLES + PRIMITIVE_STYLES + ARRIVAL_COMPONENT_STYLES;
 
 /** Theme preferences plus the measured micro-interactions; every page renderer inlines this. */
-export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `${PREFERENCE_CLIENT_SCRIPT}${MICRO_INTERACTION_CLIENT_SCRIPT}${SELECT_MENU_CLIENT_SCRIPT}${CRAFT_FINISH_CLIENT_SCRIPT}`;
+export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `${PREFERENCE_CLIENT_SCRIPT}${MICRO_INTERACTION_CLIENT_SCRIPT}${SELECT_MENU_CLIENT_SCRIPT}${CRAFT_FINISH_CLIENT_SCRIPT}${STATE_RING_CLIENT_SCRIPT}`;
 
 export { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
 export { PRIMITIVE_STYLES } from "./styles/primitives.js";

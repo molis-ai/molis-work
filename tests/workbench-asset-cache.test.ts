@@ -7,7 +7,7 @@ import { currentLocale, runWithLocale } from "@molis-ai/molis-work-app-local-hos
 
 test("Workbench asset cache preserves locale, body, ETag and HEAD while avoiding repeated rendering", async t => {
   let generated = 0;
-  // Comments are notes and are not sent on the shared workbench script. The locale has to live in the program itself.
+  // RING-06: comments are notes and are not sent on the shared workbench script. The locale has to live in the program itself.
   const render = () => { generated++; return "/* " + currentLocale() + " */\nglobalThis.assetLocale = " + JSON.stringify(currentLocale()) + ";"; };
   const assets = createLocalWebAssets({ ptyClientFilePath: () => "unused", renderer: {
     renderMolisWorkWorkbenchStylesheet: render, renderMolisWorkWorkbenchClientScript: render,

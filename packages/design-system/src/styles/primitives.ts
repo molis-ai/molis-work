@@ -1,6 +1,7 @@
 /** Shared mw-* control language. Loaded with the visual foundation. */
 
 import { SELECT_MENU_STYLES } from "../select-menu-client.js";
+import { STATE_RING_STYLES } from "./state-ring.js";
 
 /** Keyboard focus: a 2px copper stroke just outside the control, the same on every control. */
 const CONTAINED_FOCUS = "outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: var(--focus-stroke-inset, 1px); box-shadow: none";
@@ -9,6 +10,7 @@ const CONTAINED_FOCUS_DANGER = "outline: 2px solid var(--red); outline-offset: 1
 const FIELD_FOCUS = "outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent)";
 
 export const PRIMITIVE_STYLES = `
+  ${STATE_RING_STYLES}
   :where(a:not([class])) { color: var(--accent); text-underline-offset: 3px; }
   :where(a:not([class])):hover { color: var(--accent-strong, var(--accent)); }
   .mw-sr-only {
@@ -369,24 +371,15 @@ export const PRIMITIVE_STYLES = `
     border-radius: 12px; background: var(--action);
     box-shadow: var(--shadow); color: var(--action-ink); font-size: 13px;
   }
-  .mw-spinner {
-    width: 14px; height: 14px; border: 2px solid color-mix(in srgb, currentColor 22%, transparent);
-    border-top-color: currentColor; border-radius: 50%; display: inline-block;
-    animation: mw-spin 640ms var(--ease-quint) infinite;
-  }
+  .mw-spinner { width: 20px; height: 20px; display: inline-block; color: currentColor; }
   /* One loading rule everywhere: a quiet line with the spinner, which appears only if the wait passes 250ms
      (a quick load never flashes). Skeletons are static placeholders, never shimmer. */
   .mw-loading {
     display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px;
     animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both;
   }
-  .mw-loading::before {
-    content: ""; flex: none; width: 14px; height: 14px; box-sizing: border-box; border-radius: 50%;
-    border: 2px solid color-mix(in srgb, currentColor 22%, transparent); border-top-color: currentColor;
-    animation: mw-spin 640ms var(--ease-quint) infinite;
-  }
   @keyframes mw-loading-in { from { opacity: 0; } to { opacity: 1; } }
-  @media (prefers-reduced-motion: reduce) { .mw-loading { animation: none; } .mw-loading::before { animation: none; border-top-color: color-mix(in srgb, currentColor 22%, transparent); border-right-color: currentColor; } }
+  @media (prefers-reduced-motion: reduce) { .mw-loading { animation: none; } }
   .mw-skeleton {
     display: block; height: 12px; border-radius: 4px;
     background: color-mix(in srgb, var(--ink) 8%, transparent);
@@ -1245,7 +1238,6 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-dir .mw-empty p { font-size: 12px; line-height: 1.55; color: var(--muted); }
 
-  @keyframes mw-spin { to { transform: rotate(360deg); } }
   @media (max-width: 760px), (pointer: coarse) {
     .mw-form__footer .mw-btn:not(.mw-btn--icon-only), .mw-btn--lg, .mw-menu__item { min-height: 44px; }
     .mw-input, .mw-textarea, .mw-select { font-size: 16px; }

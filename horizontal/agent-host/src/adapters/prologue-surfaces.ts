@@ -2,6 +2,7 @@ import type { ExactRef, PolicyRule, Runtime, UiAction, UiAssessment, UiReadiness
 import { APP_MODE_SURFACE_TOOLS, createSurfaceRefusal } from "@prologue/sdk";
 import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceRefusal } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { isHostSurfaceRefusal } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import { deliverDesktopAct } from "./desktop-act-delivery.js";
 
 /**
  * The side panel's browser, as Prologue's interface control (specs/archive/side-panel D05–D10). The local Host implements
@@ -55,7 +56,7 @@ export function siteApprovals(scope: string): PolicyRule[] {
 async function hostAction(action: UiAction, readText: (ref: ExactRef<"resource">) => Promise<string>): Promise<HostSurfaceAction> {
   switch (action.what) {
     case "text": return { what: "text", text: await readText(action.body) };
-    case "pointer": return { what: "pointer", x: action.x, y: action.y, button: action.button, clicks: action.clicks };
+    case "pointer": return { what: "pointer", x: action.x, y: action.y, button: action.button, clicks: action.clicks, ...(action.node ? { node: action.node } : {}) };
     case "key": return { what: "key", keys: [...action.keys] };
     case "navigate": return { what: "navigate", url: action.url };
     case "wait": return { what: "wait", ms: action.ms };
@@ -199,7 +200,7 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
       identity: () => driver.identity(),
       scope: () => driver.scope(),
       observe: kind => driver.observe(kind, { session_id: sessionId }),
-      perform: async action => driver.perform(await hostAction(action, readText), { session_id: sessionId }),
+      perform: async action => { await driver.perform(await hostAction(action, readText), { session_id: sessionId }); },
       close: async () => { drivers.delete(driver); attached.delete(session.ref.id); },
     };
     const target = runtime().surfaces.attach(surface, { owner: session.ref });
@@ -225,7 +226,7 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
       scope: () => driver.scope(),
       readiness: () => desktopReadiness(driver, sessionId),
       observe: async kind => { try { return await driver.observe(kind, { session_id: sessionId }); } catch (error) { throw asRefusal(error); } },
-      perform: async action => { try { await driver.perform(await hostAction(action, readText), { session_id: sessionId }); } catch (error) { throw asRefusal(error); } },
+      perform: async action => { try { return deliverDesktopAct(await driver.perform(await hostAction(action, readText), { session_id: sessionId })); } catch (error) { throw asRefusal(error); } },
       assess: async (action): Promise<UiAssessment> => driver.assess ? driver.assess(await hostAction(action, readText)) : { irreversible: false },
       close: async () => { drivers.delete(driver); desktopAttached.delete(session.ref.id); },
     };

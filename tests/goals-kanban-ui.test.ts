@@ -42,7 +42,9 @@ test("kanban keeps six visible-status columns, empty columns, and current-tree c
   assert.match(html, /goal-kanban-chevron/);
   assert.match(html, /goal-kanban-caret/);
   assert.match(html, /goal-kanban-status/);
-  assert.match(columnBody(html, "in_progress"), /<span class="goal-kanban-status"[^>]*>[\s\S]*viewBox="0 0 16 16"/);
+  // RING-05: grouped status uses the same ring and remains a static category.
+  assert.match(columnBody(html, "in_progress"), /<span class="goal-kanban-status"[^>]*>[\s\S]*data-mw-state="doing"/);
+  assert.match(columnBody(html, "completed"), /data-mw-state="done"/);
   assert.doesNotMatch(html, /#icon-chevron-right/);
   assert.match(columnBody(html, "continue"), /data-goal-id="NEXT"/);
   assert.match(columnBody(html, "in_progress"), /data-goal-id="APP"/);
@@ -74,6 +76,13 @@ test("kanban localizes column labels without translating user titles or adding h
   assert.match(html, />Blocked</);
   assert.match(html, />Completed</);
   assert.doesNotMatch(html, /Kanban|How to use|Click a card to open/);
+});
+
+test("Goal momentum canvas keeps each stable Goal id beside its node title", () => {
+  // Moved from the retired momentum skin's rule (.momentum-node > small) to the canvas that draws the nodes now.
+  const goalIdRule = GOAL_CANVAS_STYLES.match(/\.goal-canvas-node small \{([^}]*)\}/)?.[1] ?? "";
+  assert.match(goalIdRule, /text-overflow:\s*ellipsis/);
+  assert.doesNotMatch(goalIdRule, /display:\s*none/);
 });
 
 test("kanban CSS shares six columns on desktop and stacks groups when the pane is narrow", () => {

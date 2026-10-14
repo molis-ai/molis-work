@@ -13,14 +13,15 @@ import {
 
 const AT = "2026-09-19T00:00:00.000Z";
 
-test("supplements retain user wording and distinguish receipt, context inclusion and unconfirmed completion", () => {
+test("supplements retain user wording and distinguish receipt, context inclusion and the end of the round before a read", () => {
   const state = emptyPrologueStreamState();
   apply(state, { type: "prompt", role: "user", text: "保留测试", steerId: "steer-1" },
     { type: "prompt", role: "user", text: "只看当前文件", steerId: "steer-2" });
   const received = state.turns[0];
   assert.deepEqual(received?.steer, { id: "steer-1", state: "received" });
   apply(state, { type: "steer-applied", steerId: "steer-1" }, { type: "cancelled" });
-  assert.deepEqual(state.turns.map(turn => [turn.text, turn.steer?.state]), [["保留测试", "applied"], ["只看当前文件", "unconfirmed"]]);
+  // Neither was read before the round was cancelled: both are unread, whether the context took it or not (specs/ai-input-receipts D17).
+  assert.deepEqual(state.turns.map(turn => [turn.text, turn.steer?.state]), [["保留测试", "unread"], ["只看当前文件", "unread"]]);
   assert.equal(received?.steer?.state, "received", "later projection must not rewrite a prior view");
   assert.equal(state.unknown_frames, 0);
 });
@@ -232,7 +233,7 @@ test("terminal events close the streamed text and set an honest phase", () => {
   assert.equal(cancelled.phase, "cancelled");
 });
 
-test("the runtime's newer frames are read, not counted as unknown: sleeping, per-turn changes, a model switch", () => {
+test("PA-24: the runtime's newer frames are read, not counted as unknown: sleeping, per-turn changes, a model switch", () => {
   const state = emptyPrologueStreamState();
   const until = Date.parse("2026-10-09T10:00:00Z");
   apply(state, { type: "text-delta", text: "等构建跑完再看。" }, { type: "agent-control", state: "sleeping", untilMs: until });

@@ -24,7 +24,7 @@ const relation = (id: string, type: GoalRelationRecord["type"], from: string, to
 const view = (goals: GoalsContextItem[], relations: GoalRelationRecord[] = []): GoalsContextView =>
   ({ goals, archived_goals: [], trashed_goals: [], snapshot: { relations } });
 
-test("HumanReview summary keeps statements and pass conditions without becoming a second completion owner", () => {
+test("RING-07 HumanReview summary keeps statements and pass conditions without becoming a second completion owner", () => {
   assert.ok(createWorkbenchUiHost().list().some(x => x.contribution_id === GOALS_CONTEXT_UI_CONTRIBUTION_ID));
   const value = item("criteria");
   value.goal.acceptance_criteria = [
@@ -32,9 +32,10 @@ test("HumanReview summary keeps statements and pass conditions without becoming 
     { goal_id: "criteria", criterion_id: "c2", statement: "Object target", decision_method: "inspection", pass_condition: "Verified", target: { min: 1, max: 3 }, required_evidence: [] },
   ];
   const summary = renderer.renderAcceptanceSummary(value);
-  assert.equal((summary.match(/check-box is-checked/g) ?? []).length, 0, "an open Goal has met none of its criteria yet");
+  assert.equal((summary.match(/data-mw-state="done"/g) ?? []).length, 0, "an open Goal has met none of its criteria yet");
+  assert.equal((summary.match(/data-mw-state="idle"/g) ?? []).length, 2);
   value.goal.fulfillment_state = "satisfied";
-  assert.equal((renderer.renderAcceptanceSummary(value).match(/check-box is-checked/g) ?? []).length, 2, "a satisfied Goal has met all of them");
+  assert.equal((renderer.renderAcceptanceSummary(value).match(/data-mw-state="done"/g) ?? []).length, 2, "a satisfied Goal has met all of them");
   assert.match(summary, /Measured &quot;&lt;x&gt;/);
   assert.match(summary, /达到下面的结果就算通过：At least 90/);
   assert.doesNotMatch(summary, /criterion_id|decision_method|required_evidence|report、check/);

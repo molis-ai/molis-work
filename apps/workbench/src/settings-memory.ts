@@ -294,7 +294,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         if (item.scope === "character") meta.append(el("span", "memory-tag memory-tag--character", L("角色") + "「" + (item.character_title || item.character_id) + "」"));
         if (item.plugin_id) meta.append(el("span", "memory-tag", L("插件") + " " + item.plugin_id));
         meta.append(el("span", "memory-tag memory-tag--" + item.source, L(SOURCE[item.source] || item.source) + " " + day(item.created_at)));
-        if (item.state !== "active") meta.append(el("span", "memory-tag memory-tag--state", L(STATE[item.state]) + (item.state_reason ? " · " + item.state_reason : "")));
+        if (item.state !== "active") { const status = el("span", "memory-tag memory-tag--state", L(STATE[item.state]) + (item.state_reason ? " · " + item.state_reason : "")); status.dataset.mwState = item.state; meta.append(status); }
         meta.append(el("span", "", L("适用") + "：" + appliesText(item.applies, item.scope)));
         meta.append(el("span", "", item.last_used ? L("最近用于") + "：" + item.last_used.title + " · " + day(item.last_used.at) : L("还没有用过")));
         copy.append(meta);

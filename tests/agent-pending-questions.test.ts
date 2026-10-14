@@ -142,7 +142,7 @@ test("暂时读不到原问卷时不伪造自由输入，重试恢复冻结题�
     assert.equal(run.run_id, "run-1"); assert.equal(id, "q1"); assert.equal(revision, 3);
     if (!readable) throw new Error("原问题暂时不可读");
     return { pending_id:id, pending_revision:revision, kind:"questionnaire", prompt:"原题", options:[], allows_free_text:false, answerable:true,
-      questions:[{index:2,prompt:"选择范围",options:[{index:7,label:"精确选项"}],multiple:true,allow_other:true}] };
+      questions:[{index:2,prompt:"选择范围",type:"choice",required:true,options:[{index:7,label:"精确选项"}],multiple:true,allow_other:true}] };
   });
   item.emit({...question,kind:"questionnaire",pendingRef:{id:"q1",revision:3}});
   const unavailable = (await item.adapter.read(item.ref)).awaiting_input[0]!;

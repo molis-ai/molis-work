@@ -1,11 +1,10 @@
 import { createHash } from "node:crypto";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import type { HostSurfaceAction, HostSurfaceActReceipt, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import type { ComputerActivity } from "@molis-ai/molis-work-contracts/services/computer";
 import { tierOf, type AppTierVerdict } from "./app-tiers.js";
+import { modelImageReason, observationExpired, pointerFromNode } from "./computer-act.js";
 import { isHelperFailure, isRefused, refused } from "./computer-errors.js";
+import { injectDesktopAction } from "./computer-inject.js";
 import { refuseCapture, refuseDespiteWindowText, refuseLanding, refuseSelfApproval, type LandingProbe } from "./computer-policy.js";
 import type { ComputerRecords } from "./computer-records.js";
 import type { HelperConnection } from "./helper-connection.js";
@@ -49,8 +48,15 @@ function rememberRefusal(ctx: DeskContext, app: { bundle_id: string; name: strin
   throw error;
 }
 
-/** The target app's accessibility tree, as window-relative text for the model. */
-function renderTree(state: AppState, tree: Tree): string {
+/** The title and document the desk will compare when the round ends. An empty title clears a window that closed. */
+function rememberSeen(ctx: DeskContext, state: AppState | null): void {
+  ctx.noteWindow?.(state?.window?.title ?? "");
+  const documentName = state?.window?.document.split("/").filter(Boolean).pop();
+  if (documentName) ctx.noteFile?.(documentName);
+}
+
+/** The target app's accessibility tree, as window-relative text for the model. `cut` is the node cap or the text cap, not the window title. */
+function renderTree(state: AppState, tree: Tree): { text: string; cut: boolean } {
   const [ox, oy, width, height] = tree.window.frame;
   const lines: string[] = [
     `应用：${state.name}（${state.bundle_id}）`,
@@ -61,6 +67,7 @@ function renderTree(state: AppState, tree: Tree): string {
   ];
   let used = lines.join("\n").length;
   let index = 0;
+  let cut = tree.truncated;
   for (const node of tree.nodes) {
     const role = node.subrole === "AXSecureTextField" ? "密码框" : node.subrole === "AXSearchField" ? "搜索框" : ROLE_NAMES[node.role] ?? node.role.replace(/^AX/u, "");
     const states = [node.disabled ? "不可用" : "", node.focused ? "有焦点" : "", node.selected ? "已选中" : "", node.expanded ? "已展开" : ""].filter(Boolean);
@@ -69,13 +76,13 @@ function renderTree(state: AppState, tree: Tree): string {
       ? ` @(${Math.round(node.frame[0] - ox + node.frame[2] / 2)},${Math.round(node.frame[1] - oy + node.frame[3] / 2)})` : "";
     const name = node.name ? `「${node.name.replace(/\s+/gu, " ")}」` : node.role === "AXStaticText" ? "" : "「无名称」";
     const line = `${"  ".repeat(Math.min(node.depth, 6))}[${++index}] ${role}${name}${value}${states.length ? ` （${states.join("、")}）` : ""}${at}`;
-    if (used + line.length > TREE_TEXT_BUDGET) { lines.push("（元素较多，后面的没有列出；可以滚动后再观察，或者看截图）"); break; }
+    if (used + line.length > TREE_TEXT_BUDGET) { lines.push("（元素较多，后面的没有列出；可以滚动后再观察，或者看截图）"); cut = true; break; }
     lines.push(line);
     used += line.length + 1;
   }
   if (tree.truncated) lines.push("（元素较多，只列出前 600 个）");
   if (tree.nodes.some(node => node.secure)) lines.push("", "密码类输入框的内容不显示，助理也不替用户输入；需要登录时请用户自己完成。");
-  return lines.join("\n");
+  return { text: lines.join("\n"), cut };
 }
 
 /** The running apps and their tier, when no app is targeted yet. */
@@ -108,16 +115,6 @@ function assessAction(action: HostSurfaceAction, label: string, targetName: stri
   }
 }
 
-/** A new file in the person's Downloads folder, never overwriting one. */
-function downloadDestination(to: readonly string[]): string {
-  const downloads = path.join(os.homedir(), "Downloads");
-  if (to.some(segment => segment === "..")) throw new Error("取出文件的位置不能含「..」");
-  const resolved = to.length === 1 ? path.join(downloads, to[0]!) : path.resolve(path.sep, ...to);
-  if (path.dirname(resolved) !== downloads) throw new Error("从应用取出的文件只能存进「下载」文件夹");
-  if (fs.existsSync(resolved)) throw new Error(`「下载」里已经有 ${path.basename(resolved)}，换个文件名`);
-  return resolved;
-}
-
 /** What the desk shares with its driver: the helper, the settings, the lease's target, and recording the live view. */
 export interface DeskContext {
   readonly helper: Pick<HelperConnection, "call">;
@@ -147,6 +144,12 @@ export interface DeskContext {
   noteRun(sessionId: string, runId: string): void;
   /** Ends the round that `describeRound` named: finishes its record and frees the computer. */
   release(sessionId: string): void;
+  /** The window title just read. Empty when that window is gone. */
+  noteWindow?(title: string): void;
+  /** A file this round handed over, took out, or found as the window's document. */
+  noteFile?(name: string): void;
+  /** Clock for an observation's age. Tests pass one; a real desk uses the wall clock. */
+  now?(): number;
 }
 
 /**
@@ -155,7 +158,12 @@ export interface DeskContext {
  * the lease, the target, the mode — reaches it through its `DeskContext`.
  */
 export class ComputerDriver {
+  /** When the last accessibility tree was read. A coordinate click after it expires is refused; a node id is read again. */
+  private observedAt: number | null = null;
+
   constructor(private readonly ctx: DeskContext) {}
+
+  private now(): number { return this.ctx.now?.() ?? Date.now(); }
 
   /** The stable `HostSurfaceDriver` the Agent Host attaches. */
   surface(): HostSurfaceDriver {
@@ -253,6 +261,7 @@ export class ComputerDriver {
     const state = await this.appState();
     try { this.forbidCheck(state); } catch (error) { rememberRefusal(this.ctx, this.appRef(), this.translate(error)); }
     if (!state.window) throw new Error(`「${target.name}」现在没有打开的窗口`);
+    rememberSeen(this.ctx, state);
     this.ctx.mark(`正在查看「${target.name}」`, null);
     if (kind === "screenshot") {
       const png = await this.screenshot(state);
@@ -268,7 +277,8 @@ export class ComputerDriver {
     }
     if (kind === "dom") throw new Error("桌面应用没有 DOM：请用 accessibility-tree 观察");
     const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 });
-    const text = renderTree(state, tree);
+    const text = renderTree(state, tree).text;
+    this.observedAt = this.now();
     // The words go to the model; the person's record and the tab get the picture of the same moment.
     const png = await this.screenshot(state).catch(error => { if (isRefused(error)) throw error; return undefined; });
     this.ctx.recordStep({ kind: "look", app: this.appRef(), summary: `查看「${target.name}」的窗口（${state.window.title || "无标题"}）` }, png);
@@ -283,9 +293,9 @@ export class ComputerDriver {
     }
   }
 
-  private async perform(action: HostSurfaceAction, sessionId: string | null): Promise<void> {
+  private async perform(action: HostSurfaceAction, sessionId: string | null): Promise<HostSurfaceActReceipt | void> {
     await this.ctx.ready(sessionId);
-    if (action.what === "app") { await this.switchApp(action.app); this.ctx.noteInjected(); return; }
+    if (action.what === "app") { const png = await this.switchApp(action.app); this.ctx.noteInjected(); return this.receipt(png); }
     if (action.what === "navigate") throw new Error("桌面应用没有网址可打开；网页上的事用侧栏浏览器");
     const target = this.ctx.target();
     if (!target) throw new Error("还没有选定应用：先用 app 动作打开或切到一个应用");
@@ -294,9 +304,12 @@ export class ComputerDriver {
     if (!state.window) throw new Error(`「${target.name}」现在没有打开的窗口`);
     const [ox, oy] = state.window.frame;
     const at = (x: number, y: number): [number, number] => [ox + x, oy + y];
-    const pid = target.pid;
+    const aimed = await this.aim(action, target.pid, state.window.frame);
     try {
-      await this.inject(action, target, at, pid);
+      await injectDesktopAction(aimed, target, at, target.pid, {
+        helper: this.ctx.helper, ctx: this.ctx, settled: () => this.settled(), landsOnTarget: point => this.landsOnTarget(point),
+        describePoint: (x, y) => this.describePoint(x, y), focusedField: () => this.focusedField(),
+      });
     } catch (error) {
       const translated = this.translate(error);
       this.ctx.recordStep({ kind: isRefused(translated) ? "refused" : "failed", app: this.appRef(),
@@ -305,76 +318,40 @@ export class ComputerDriver {
       throw translated;
     }
     this.ctx.noteInjected();
-    // The step and the picture after it, for the person's tab and the record.
+    // The picture is for the person. A password field in it refuses before any receipt can carry the bytes.
     let png: Uint8Array | undefined;
     try { png = await this.freshFrame(); } catch (error) { if (isRefused(error)) throw error; /* a missing picture does not undo the step */ }
     const activity = this.ctx.activity();
     this.ctx.recordStep({ kind: "act", app: this.appRef(), summary: activity?.summary ?? action.what, ...(activity?.point ? { point: activity.point } : {}) }, png);
+    return this.receipt(png);
   }
 
-  private async inject(action: HostSurfaceAction, target: Target, at: (x: number, y: number) => [number, number], pid: number): Promise<void> {
-    const helper = this.ctx.helper;
-    switch (action.what) {
-      case "pointer": {
-        await this.settled();
-        await this.landsOnTarget(at(action.x, action.y));
-        const label = await this.describePoint(action.x, action.y);
-        const verb = action.button === "right" ? "右键点击" : action.clicks > 1 ? "双击" : "点击";
-        this.ctx.mark(`在「${target.name}」${verb}${label ? `「${label}」` : `（${action.x}, ${action.y}）`}`, { x: action.x, y: action.y });
-        return void await helper.call("input.pointer", { pid, point: at(action.x, action.y), button: action.button, clicks: action.clicks });
-      }
-      case "hover":
-        await this.settled();
-        await this.landsOnTarget(at(action.x, action.y));
-        this.ctx.mark(`在「${target.name}」把鼠标移到（${action.x}, ${action.y}）`, { x: action.x, y: action.y });
-        return void await helper.call("input.hover", { pid, point: at(action.x, action.y) });
-      case "scroll":
-        await this.settled();
-        await this.landsOnTarget(at(action.x, action.y));
-        this.ctx.mark(`在「${target.name}」滚动`, { x: action.x, y: action.y });
-        return void await helper.call("input.scroll", { pid, point: at(action.x, action.y), dx: action.dx, dy: action.dy });
-      case "drag":
-        await this.settled();
-        await this.landsOnTarget(at(action.x, action.y));
-        await this.landsOnTarget(at(action.to_x, action.to_y));
-        this.ctx.mark(`在「${target.name}」从（${action.x}, ${action.y}）拖到（${action.to_x}, ${action.to_y}）`, { x: action.to_x, y: action.to_y });
-        return void await helper.call("input.drag", { pid, from: at(action.x, action.y), to: at(action.to_x, action.to_y) });
-      case "key":
-        await this.settled();
-        this.ctx.mark(`在「${target.name}」按下 ${action.keys.join(" + ")}`, null);
-        return void await helper.call("input.key", { pid, keys: action.keys });
-      case "text": {
-        await this.settled();
-        const field = await this.focusedField();
-        if (field.sensitive) throw refused("outside-target", "焦点在密码类输入框里：助理不替用户输入密码，请用户自己完成");
-        this.ctx.mark(`在「${target.name}」${field.label ? `的「${field.label}」里` : ""}输入 ${[...action.text].length} 个字`, null);
-        return void await helper.call("input.text", { pid, text: action.text });
-      }
-      case "menu":
-        this.ctx.mark(`在「${target.name}」选择菜单 ${action.path.join(" › ")}`, null);
-        return void await helper.call("input.menu", { pid, path: action.path });
-      case "wait": {
-        const ms = Math.max(0, Math.min(action.ms, 10_000));
-        this.ctx.mark(`等待「${target.name}」（${Math.round(ms / 100) / 10} 秒）`, null);
-        return void await new Promise(resolve => setTimeout(resolve, ms));
-      }
-      case "upload": {
-        const file = path.resolve(path.sep, ...action.from);
-        this.ctx.mark(`把本机文件 ${path.basename(file)} 交给「${target.name}」`, null);
-        return void await helper.call("file.give", { pid, path: file });
-      }
-      case "download": {
-        const destination = downloadDestination(action.to);
-        const document = await helper.call<{ path: string }>("document", { pid });
-        if (!document.path) throw new Error(`「${target.name}」的前窗没有对应的文件可取出`);
-        this.ctx.mark(`从「${target.name}」取出 ${path.basename(document.path)}，存到 ${destination}`, null);
-        fs.copyFileSync(document.path, destination, fs.constants.COPYFILE_EXCL);
-        return;
-      }
+  /** A node id is resolved on the tree read now. A bare coordinate from an expired look is refused before it is sent. */
+  private async aim(action: HostSurfaceAction, pid: number, frame: readonly [number, number, number, number]): Promise<HostSurfaceAction> {
+    if (action.what === "pointer" && action.node) {
+      const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid, max_nodes: 600 });
+      const point = pointerFromNode(action.node, tree, frame);
+      return { ...action, x: point.x, y: point.y };
     }
+    if ((action.what === "pointer" || action.what === "hover" || action.what === "scroll" || action.what === "drag") && observationExpired(this.observedAt, this.now())) {
+      throw new Error("观察已经过了大约 10 秒，坐标可能已经不准；请重新观察后再操作。");
+    }
+    return action;
   }
 
-  private async switchApp(bundleId: string): Promise<void> {
+  /** The tree after the step. The picture leaves toward a model only when that tree was cut or had nothing clickable. */
+  private async receipt(png?: Uint8Array): Promise<HostSurfaceActReceipt> {
+    const target = this.ctx.target();
+    const state = target ? await this.appState() : null;
+    rememberSeen(this.ctx, state);
+    if (!target || !state?.window) return { tree: "这一步之后没有可读的窗口。" };
+    const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 });
+    const rendered = renderTree(state, tree);
+    const reason = modelImageReason(tree.nodes, rendered.cut);
+    return { tree: rendered.text, ...(reason && png ? { model_image: png, image_reason: reason } : {}) };
+  }
+
+  private async switchApp(bundleId: string): Promise<Uint8Array | undefined> {
     const installed = await this.ctx.helper.call<{ apps: { bundle_id: string; name: string }[] }>("apps.installed");
     const running = await this.ctx.helper.call<{ apps: { bundle_id: string; name: string }[] }>("apps.running");
     const known = running.apps.find(app => app.bundle_id === bundleId) ?? installed.apps.find(app => app.bundle_id === bundleId);
@@ -392,7 +369,7 @@ export class ComputerDriver {
     this.ctx.setTarget({ bundle_id: bundleId, name: state.name || known.name, pid: state.pid, verdict });
     try { this.forbidCheck(state); } catch (error) { rememberRefusal(this.ctx, this.appRef(), this.translate(error)); }
     this.ctx.changed();
-    try { await this.freshFrame(); } catch (error) { if (isRefused(error)) throw error; /* no picture yet is fine */ }
+    try { return await this.freshFrame(); } catch (error) { if (isRefused(error)) throw error; return undefined; }
   }
 
   /** The point is on the target app and not on a window that shows Molis Work. The helper checks again at the last moment. */

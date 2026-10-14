@@ -66,10 +66,3 @@ export const ASSISTANT_STAGE_FACTORY = String.raw`({island,panel,input,current,s
   }};
 }`;
 
-/** A stored instant as the value of a local date-and-time picker. */
-export function localMoment(iso: string): string {
-  const at = new Date(iso);
-  if (!Number.isFinite(at.getTime())) return "";
-  const two = (part: number) => String(part).padStart(2, "0");
-  return at.getFullYear() + "-" + two(at.getMonth() + 1) + "-" + two(at.getDate()) + "T" + two(at.getHours()) + ":" + two(at.getMinutes());
-}

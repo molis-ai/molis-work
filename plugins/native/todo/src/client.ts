@@ -364,7 +364,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     const trail = make("span", "todo-trail");
     if (item.important) trail.append(make("span", "mw-status mw-status--attention", L("重要")));
     item.flags.filter((flag) => FLAG[flag]).forEach((flag) => trail.append(make("span", "mw-status mw-status--" + (flag === "overdue" ? "blocked" : flag === "stale" ? "quiet" : "attention"), FLAG[flag])));
-    if (item.status === "doing" || item.status === "cancelled" || (item.status === "waiting" && view !== "waiting")) trail.append(make("span", "mw-status mw-status--" + (item.status === "doing" ? "progress" : "quiet"), STATUS[item.status]));
+    if (item.status === "doing" || item.status === "cancelled" || (item.status === "waiting" && view !== "waiting")) { const status = make("span", "mw-status mw-status--" + (item.status === "doing" ? "progress" : "quiet"), STATUS[item.status]); status.dataset.mwState = item.status; trail.append(status); }
     open.append(title, line, trail);
     row.append(pick, done, open);
     return row;
@@ -709,7 +709,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   const paintSave = () => {
     saveStatus.textContent = saving ? L("保存中") : dirtyFields.size ? L("尚未保存") : selected ? STATUS[selected.status] : "";
     const tone = saving || dirtyFields.size ? "quiet" : selected && selected.status === "done" ? "done" : selected && selected.status === "doing" ? "progress" : "quiet";
-    saveStatus.className = "mw-status mw-status--" + tone;
+    saveStatus.className = "mw-status mw-status--" + tone; saveStatus.dataset.mwState = saving ? "saving" : dirtyFields.size ? "unsaved" : selected?.status === "open" ? "idle" : selected?.status || "idle";
     publishContext();
   };
   const SOURCE_KIND = { manual: L("手动"), material: L("材料"), assistant: L("助理"), onboarding: L("开始使用时"), inbox: "Inbox", lingguang: L("灵光") };
@@ -756,7 +756,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       const go = make("button", "mw-btn mw-btn--link", L("继续推进"));
       go.type = "button";
       go.dataset.todoContinueWork = work.work_id;
-      line.append(make("span", "todo-link-kind", WORK_STATE[work.state] || work.state), make("span", "", work.title), go);
+      const state = make("span", "todo-link-kind", WORK_STATE[work.state] || work.state); state.dataset.mwState = ({ running: "running", completed: "round-ended", "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", paused: "paused", failed: "failed", stopped: "stopped", idle: "idle" })[work.state] || "idle"; line.append(state, make("span", "", work.title), go);
       box.append(line);
       (work.results || []).forEach((result) => {
         const row = make("div", "todo-link todo-work-result");

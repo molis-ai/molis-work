@@ -104,8 +104,7 @@ export const ISSUES_STYLES = `
 .issues-row small,.issues-meta{display:block;color:var(--muted);font-size:12px;line-height:1.6;margin:2px 0 0}
 .issues-row[data-state] b{font-weight:var(--weight-body);color:var(--ink-soft)}
 .issues-row[data-state=attention] small{color:var(--amber)}
-.issues-row .mw-spinner,.issues-dot{flex:none;margin-top:4px}
-.issues-dot{width:8px;height:8px;margin:6px 3px 0;border-radius:50%;background:var(--amber)}
+.issues-row>[data-mw-state]{flex:none;margin-top:4px}
 .issues-row.is-new{animation:issues-new 1.6s var(--ease-quint)}
 @keyframes issues-new{from{background:var(--accent-soft)}}
 .issues-empty{padding:28px 10px;color:var(--muted);font-size:13px;line-height:1.7;text-align:center}

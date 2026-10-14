@@ -21,9 +21,9 @@ export const WEB_SERVICE_SETTINGS_SCRIPT = `
       dialog.addEventListener("close", () => choose("declined"));
       return dialog;
     };
-    const showStatus = (message) => {
+    const showStatus = (message, state = "done") => {
       const toast = document.querySelector("[data-settings-toast], [data-toast]");
-      if (toast) { toast.textContent = message; toast.classList.add("is-visible"); }
+      if (toast) { toast.textContent = message; toast.dataset.mwState = state; toast.classList.remove("is-error"); toast.classList.add("is-visible"); }
     };
     const waitForRestart = async (previousProcessId) => {
       const deadline = Date.now() + 30000;
@@ -76,7 +76,7 @@ export const WEB_SERVICE_SETTINGS_SCRIPT = `
         const result = await post("confirm", { plan_id: plan.plan_id, decision });
         if (decision === "confirmed") {
           if (result.status === "restarting") {
-            showStatus(L("正在重启常驻服务，等待新进程就绪…"));
+            showStatus(L("正在重启常驻服务，等待新进程就绪…"), "running");
             await waitForRestart(result.previous_process_id);
             showStatus(L("常驻服务已重启，连接已恢复"));
           } else showStatus(result.message);

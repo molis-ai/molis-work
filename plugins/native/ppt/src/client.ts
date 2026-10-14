@@ -163,8 +163,8 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   const fixedCell = (record) => {
     const node = document.createElement("span");
     node.className = "mw-status mw-status--plain feed-entry-status";
-    if (record.publication_pending) { node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
-    else if (record.artifact_version > 0) { node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
+    if (record.publication_pending) { node.dataset.mwState = "unsaved"; node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
+    else if (record.artifact_version > 0) { node.dataset.mwState = "saved"; node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
     else node.setAttribute("aria-hidden", "true");
     return node;
   };
@@ -216,7 +216,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const paintPages = (record) => {
     if (!statusEl) return;
-    statusEl.className = "mw-status mw-status--" + (saveError ? "blocked" : "quiet");
+    statusEl.className = "mw-status mw-status--" + (saveError ? "blocked" : "quiet"); statusEl.dataset.mwState = saveError ? "failed" : savePromise ? "saving" : editRevision > savedRevision ? "unsaved" : busy ? "running" : "saved";
     const state = saveError ? L("保存失败") : savePromise ? L("保存中") : editRevision > savedRevision ? L("尚未保存") : busy ? L("处理中") : L("已保存");
     statusEl.textContent = (record.slides || []).length + " " + L("页") + " · " + state;
     const pending = workbench.querySelector("[data-ppt-publication-note]");

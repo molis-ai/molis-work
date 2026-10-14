@@ -596,7 +596,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         detail.hidden = selectedFeedItem !== entryId;
         if (row.dataset.feedEntryRead === "read") {
           detail.dataset.feedDetailRead = "read";
-          detail.querySelectorAll("[data-feed-read-state]").forEach((label) => { label.textContent = L("已读"); });
+          detail.querySelectorAll("[data-feed-read-state]").forEach((label) => { label.textContent = L("已读"); label.dataset.mwState = "read"; });
         }
         if (slot) {
           slot.replaceChildren(detail);

@@ -26,6 +26,7 @@ globalThis.molisWorkBindAgentDiagnostics = (container = document) => {
   const HOST = { absent: "没有", unavailable: "不可用", undetermined: "探不出来，按没有处理" };
   const PHASE = { starting: "开始中", running: "进行中", "awaiting-review": "等你确认", "awaiting-input": "等你回答", paused: "已暂停", compacting: "整理上下文中",
     completed: "完成", failed: "失败", cancelled: "已取消", stopped: "已停止", "reconcile-required": "结果待核对", unknown: "运行时里读不到" };
+  const PHASE_RING = { starting:"running",running:"running","awaiting-review":"approval","awaiting-input":"answer",paused:"paused",compacting:"running",completed:"round-ended",failed:"failed",cancelled:"cancelled",stopped:"stopped","reconcile-required":"verify",unknown:"verify" };
   const MATERIAL = { selection: "选中内容", object: "对象", text: "文字", file: "文件", image: "图片", capability: "指定能力", method: "方法" };
   const LAYER = { base: "产品约束", role: "角色", project: "项目", task: "任务" };
   const time = (iso) => { const date = new Date(iso); return Number.isFinite(date.getTime()) ? date.toLocaleString() : String(iso || ""); };
@@ -44,7 +45,7 @@ globalThis.molisWorkBindAgentDiagnostics = (container = document) => {
     runtime.slots.forEach((slot) => {
       const words = slot.slot + "：" + L(SLOT[slot.state] || slot.state) + (slot.implementation ? " · " + slot.implementation + (slot.version ? " " + slot.version : "") : "")
         + (slot.fallback ? " · " + L("用的是回退实现") : "") + (slot.why ? " · " + slot.why : "");
-      slotList.append(issue(words, slot.state === "ready" ? "info" : "warning"));
+      const status = issue(words, slot.state === "ready" ? "info" : "warning"); status.dataset.mwState = slot.state; slotList.append(status);
     });
     slots.append(slotList);
     list.append(slots);
@@ -72,8 +73,9 @@ globalThis.molisWorkBindAgentDiagnostics = (container = document) => {
 
   const roundItem = (round) => {
     const item = el("li", "prompt-diagnostics-owner");
+    const status = line(L(PHASE[round.phase] || round.phase) + (round.stop_reason ? " · " + round.stop_reason : "")); status.dataset.mwState = PHASE_RING[round.phase] || "verify";
     item.append(el("strong", "", (round.work_title || L("（已删除的工作）")) + " · " + time(round.started_at)),
-      line(L(PHASE[round.phase] || round.phase) + (round.stop_reason ? " · " + round.stop_reason : "")),
+      status,
       line(L("运行") + " ", code(round.run_id), " · " + L("会话") + " ", code(round.session_id || "—"), " · " + L("工作") + " ", code(round.work_id),
         round.project_id ? " · " + L("项目") + " " : "", round.project_id ? code(round.project_id) : ""));
     const frozen = round.frozen;

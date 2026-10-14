@@ -300,7 +300,8 @@ const PANEL_BODY = `(async () => {
   const source = [...document.scripts].find(script => /molis-work-workbench\\.js/.test(script.src));
   const text = source ? await fetch(source.src).then(response => response.text()) : "";
   const kinds = new Map();
-  for (const match of text.matchAll(/\\b[\\w$]+\\(\\s*"(button|summary|a|input|select|textarea|label)"\\s*,\\s*"((?:assistant|mw)-[^"]*)"/g)) kinds.set(match[1] + "." + match[2], [match[1], match[2]]); // Literal tag/classes survive helper-name and whitespace minification.
+  // RING-06: built clients remove JavaScript trivia; every control still gets measured.
+  for (const match of text.matchAll(/\\bel\\(\\s*"(button|summary|a|input|select|textarea|label)"\\s*,\\s*"((?:assistant|mw)-[^"]*)"/g)) kinds.set(match[1] + "." + match[2], [match[1], match[2]]);
   const thread = panel.querySelector(".assistant-thread");
   if (panel.dataset.side === "open" && panel.dataset.layout === "drawer") panel.querySelector("[data-assistant-side-toggle]").click();
   await wait(300);

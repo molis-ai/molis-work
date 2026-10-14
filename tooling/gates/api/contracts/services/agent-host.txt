@@ -317,7 +317,7 @@ export interface AgentHostApi {
 
 export type AgentHostCapabilityId = (typeof agentHostCapabilities)[keyof typeof agentHostCapabilities]["capability_id"];
 
-export type AgentHostErrorCode = "agent.runtime_unknown" | "agent.runtime_duplicate" | "agent.capability_unavailable" | "agent.role_not_declared" | "agent.role_not_frozen" | "agent.role_execution_exceeded" | "agent.directory_unauthorized" | "agent.model_not_configured" | "agent.session_unknown" | "agent.session_busy" | "agent.run_unknown" | "agent.review_unknown" | "agent.review_already_decided" | "agent.review_expired" | "agent.review_not_approved" | "agent.pending_unknown" | "agent.pending_not_open";
+export type AgentHostErrorCode = "agent.runtime_unknown" | "agent.runtime_duplicate" | "agent.capability_unavailable" | "agent.role_not_declared" | "agent.role_not_frozen" | "agent.role_execution_exceeded" | "agent.directory_unauthorized" | "agent.model_not_configured" | "agent.session_unknown" | "agent.session_busy" | "agent.run_unknown" | "agent.review_unknown" | "agent.review_already_decided" | "agent.review_expired" | "agent.review_not_approved" | "agent.pending_unknown" | "agent.pending_not_open" | "agent.answer_invalid";
 
 export interface AgentImageMaterial {
     material_id: string;
@@ -660,31 +660,6 @@ export interface AgentMessageAttachment {
     title?: string;
 }
 
-export interface AgentPendingQuestion {
-    pending_id: string;
-    pending_revision?: number;
-    sequence?: number;
-    kind: string;
-    prompt: string;
-    options: ReadonlyArray<{
-        value: string;
-        label: string;
-    }>;
-    allows_free_text: boolean;
-    questions?: ReadonlyArray<{
-        index: number;
-        prompt: string;
-        options: ReadonlyArray<{
-            index: number;
-            label: string;
-        }>;
-        multiple: boolean;
-        allow_other: boolean;
-    }>;
-    answerable?: boolean;
-    unavailable_reason?: string;
-}
-
 export type AgentPeopleMessageAction = "deliver" | "accept" | "reject" | "complete" | "cancel" | "record";
 
 export interface AgentPeopleMessageInput {
@@ -885,24 +860,11 @@ export type AgentRunControl = {
     kind: "stop";
 } | {
     kind: "cancel";
-} | {
-    kind: "steer";
-    text: string;
-} | {
+} | import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentSteerControl | {
     kind: "switch-model";
     provider_id: string;
     model_id: string;
-} | {
-    kind: "answer";
-    pending_id: string;
-    pending_revision?: number;
-    text?: string;
-    answers?: ReadonlyArray<{
-        question: number;
-        indexes: readonly number[];
-        other?: string;
-    }>;
-};
+} | AgentAnswerControl;
 
 export interface AgentRunHandle {
     ref: AgentRunRef;
@@ -1356,7 +1318,7 @@ export interface AgentTurnView {
     sequence?: number;
     steer?: {
         id: string;
-        state: "received" | "applied" | "unconfirmed";
+        state: "received" | "applied" | "read" | "unread" | "withdrawn";
     };
 }
 

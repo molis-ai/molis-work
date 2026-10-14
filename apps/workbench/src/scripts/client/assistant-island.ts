@@ -1,5 +1,6 @@
-import { ASSISTANT_STAGE_FACTORY, localMoment } from "./assistant-stage.js";
+import { ASSISTANT_STAGE_FACTORY } from "./assistant-stage.js";
 import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
+import { INTERACTION_CLIENT_SCRIPT_TYPED_DATES } from "@molis-ai/molis-work-design-system";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 
 /**
@@ -50,7 +51,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     get(key) { try { return localStorage.getItem(key); } catch { return null; } },
     set(key, value) { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* per-viewer convenience only */ } },
   };
-  const localMoment = ${localMoment.toString()};
   const CURRENT_KEY = "molis.assistant.current";
   const NEW_DRAFT_KEY = "molis.assistant.new-draft";
   let works = [];
@@ -213,7 +213,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (text !== undefined && text !== null) node.textContent = text;
     return node;
   };
-  const stateLabel = (state) => L(STATE_LABELS[state] || state || "");
+  const stateLabel = (state) => L(STATE_LABELS[state] || state || ""); const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? L("个人")
     : title || (project && scope.project_id === project.id ? (project.title || L("本项目")) : L("另一个项目"));
   const currentWork = () => works.find((work) => work.work_id === currentId) || (view && view.work.work_id === currentId ? view.work : null);
@@ -560,7 +560,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     "file-change": "code", command: "terminal", "command-output": "terminal", ask: "question", todo: "list", suggest: "zap", delegate: "workflow", "delegate-check": "workflow",
     "delegate-follow-up": "workflow", "delegate-stop": "workflow", "memory-keep": "sparkles", "memory-list": "sparkles", "memory-forget": "sparkles", "memory-suggest": "sparkles",
     "auto-continue": "refresh", compact: "refresh", "browser-list": "globe", "browser-look": "globe", "browser-act": "globe", "computer-list": "system", "computer-look": "system", "computer-act": "system", "ended-on-promise": "alert" };
-  const verbGlyph = (item) => item.state === "started" ? spinner() : glyph(item.state === "failed" ? "circle-alert" : item.state === "unknown" ? "alert" : VERB_GLYPH[item.verb] || "circle");
+  const verbGlyph = (item) => item.state === "started" ? spinner() : item.state === "failed" || item.state === "unknown" ? spinner(item.state === "failed" ? "failed" : "verify") : glyph(VERB_GLYPH[item.verb] || "circle");
   const activityLine = (item) => {
     const verb = L(VERBS[item.verb] || item.verb);
     const what = item.target ? (item.verb === "ask" ? "：" : " ") + item.target : "";
@@ -572,81 +572,38 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   /** Every card in the conversation has one shape: what kind of moment it is (and what kind of act), what it is about,
       then what to do and a line on what happens when you do. */
-  const cardShell = (node, { icon, tone, kicker, badge, badgeTone, title }) => {
-    node.replaceChildren();
-    const head = el("div", "assistant-card-head");
-    const mark = el("span", "assistant-card-kicker" + (tone ? " is-" + tone : ""));
-    mark.append(glyph(icon), document.createTextNode(kicker));
-    head.append(mark);
-    if (badge) head.append(el("span", "assistant-card-badge" + (badgeTone ? " is-" + badgeTone : ""), badge));
-    node.append(head);
-    if (title) node.append(el("p", "assistant-card-title", title));
-    return node;
-  };
   const cardHint = (text) => el("p", "assistant-card-hint", text);
+  /* Questions, action cards and next steps come drawn by the Host (in the person's language); the page binds them with the
+     shared client. A node is redrawn only when its key changes, so what the person is typing stays put. */
+  const ixClient = (${INTERACTION_CLIENT_SCRIPT_TYPED_DATES});
+  const drawn = (node, html, handlers, key = html) => {
+    if (node.ixKey === key) return node.ix;
+    node.ix?.destroy(); node.innerHTML = html || ""; node.ixKey = key;
+    return (node.ix = ixClient(node, handlers));
+  };
   const renderQuestion = (card, work, round, question) => {
-    cardShell(card, { icon: "question", tone: "attention", kicker: L("等你回答") });
-    card.append(rich(question.prompt));
-    const answer = async (payload, button) => {
-      if (button) button.disabled = true;
-      try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/answer", "POST",
-        Object.assign({ run_id: round.run_id, pending_id: question.pending_id, pending_revision: question.pending_revision }, payload)); render(); schedule(); }
-      catch (error) { showProblem({ message: error.message }); if (button) button.disabled = false; }
-    };
-    if (question.answerable === false) { card.append(el("p", "assistant-muted", question.unavailable_reason || L("这个问题暂时不能回答"))); return; }
-    if (question.questions && question.questions.length) {
-      const form = el("form", "assistant-questionnaire");
-      question.questions.forEach((item) => {
-        const set = el("fieldset"); set.append(el("legend", "", item.prompt));
-        item.options.forEach((option) => {
-          // Each choice is a row you tap, its box the familiar check or dot.
-          const label = el("label", "assistant-choice-row"); const box = el("input"); box.type = item.multiple ? "checkbox" : "radio";
-          box.name = "q" + item.index; box.value = String(option.index); label.append(box, el("span", "", option.label)); set.append(label);
-        });
-        if (item.allow_other) { const other = el("input", "mw-input"); other.name = "other" + item.index; other.placeholder = L("其他（可选）"); set.append(other); }
-        form.append(set);
-      });
-      const submit = el("button", "mw-btn mw-btn--primary mw-btn--sm", L("提交回答")); submit.type = "submit"; form.append(submit);
-      form.addEventListener("submit", (event) => {
-        event.preventDefault();
-        const answers = question.questions.map((item) => {
-          const indexes = [...form.querySelectorAll('input[name="q' + item.index + '"]:checked')].map((box) => Number(box.value));
-          const other = form.querySelector('input[name="other' + item.index + '"]');
-          return Object.assign({ question: item.index, indexes }, other && other.value.trim() ? { other: other.value.trim() } : {});
-        });
-        answer({ answers }, submit);
-      });
-      card.append(form, cardHint(L("回答后这一轮会接着做。")));
-      return;
-    }
-    if (question.options && question.options.length) {
-      // Short choices sit side by side; longer ones stack as rows you can read whole.
-      const long = question.options.some((option) => String(option.label).length > 14);
-      const row = el("div", "assistant-choices" + (long ? " is-stacked" : ""));
-      question.options.forEach((option) => {
-        const button = el("button", "assistant-choice", option.label); button.type = "button";
-        button.addEventListener("click", () => answer({ text: option.value || option.label }, button));
-        row.append(button);
-      });
-      card.append(row);
-    }
-    if (question.allows_free_text) {
-      const form = el("form", "assistant-answer");
-      const field = el("input", "mw-input"); field.placeholder = L("写下回答，按回车发送"); field.setAttribute("aria-label", L("写下回答"));
-      const submit = el("button", "mw-btn mw-btn--primary mw-btn--sm", L("回答")); submit.type = "submit";
-      form.append(field, submit);
-      form.addEventListener("submit", (event) => { event.preventDefault(); if (field.value.trim()) answer({ text: field.value.trim() }, submit); });
-      card.append(form);
-    }
-    card.append(cardHint(L("回答后这一轮会接着做。")));
+    const path = "/works/" + encodeURIComponent(work.work_id), held = () => ({ pending_id: question.pending_id, values: client.read() });
+    let saving = 0;
+    const client = drawn(card, question.html, {
+      // A half-written answer is kept with the work, so a reload or another tab finds it.
+      onChange: () => { clearTimeout(saving); saving = setTimeout(() => api(path + "/question-draft", "POST", held()).catch(() => undefined), 600); },
+      onSubmit: async () => {
+        clearTimeout(saving);
+        const button = card.querySelector("[type=submit]");
+        if (button) button.disabled = true;
+        try { view = await api(path + "/answer", "POST", { ...held(), run_id: round.run_id, pending_revision: question.pending_revision }); render(); schedule(); }
+        catch (error) { if (error.data?.errors) client.showErrors(error.data.errors, { focus: true }); else showProblem({ message: error.message }); if (button) button.disabled = false; }
+      },
+    }, question.pending_id + question.pending_revision + question.answerable);
   };
   /** What the held effect is, in the person's words and with its glyph: data, files, a command, an outside tool. */
   const REVIEW_KIND = [[/command|shell|exec|terminal/i, "运行命令", "terminal"], [/file|patch|edit|write-file/i, "修改文件", "code"],
     [/mcp|external|http|web|network/i, "调用外部工具", "external"], [/./, "修改数据", "edit"]];
   const renderReview = (card, work, review) => {
     const [, kind, kindIcon] = REVIEW_KIND.find(([pattern]) => pattern.test(String(review.kind || ""))) || REVIEW_KIND[REVIEW_KIND.length - 1];
-    cardShell(card, { icon: "shield", tone: "attention", kicker: L("执行前需要你确认"), badge: L(kind), title: review.summary });
-    card.querySelector(".assistant-card-badge")?.prepend(glyph(kindIcon));
+    const head = el("div", "assistant-card-head"), mark = el("span", "assistant-card-kicker is-attention"), badge = el("span", "assistant-card-badge");
+    mark.append(spinner("approval"), document.createTextNode(L("执行前需要你确认"))); badge.append(glyph(kindIcon), document.createTextNode(L(kind)));
+    head.append(mark, badge); card.replaceChildren(head, el("p", "assistant-card-title", review.summary));
     const plain = review.fields.filter((field) => field.label !== "完整参数" && field.label !== "能力");
     const CODE_FIELD = { "改动": "diff", "命令": "sh", "参数": "json" };
     if (plain.length) {
@@ -675,106 +632,24 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     allow.addEventListener("click", () => decide("approve")); reject.addEventListener("click", () => decide("reject"));
     row.append(allow, reject); card.append(row, cardHint(L("允许只执行这一次；拒绝就不执行，助理会知道你拒绝了。")));
   };
-  const EFFECTS = { read: ["只读取，不改数据", "eye", ""], write: ["会修改，可在原处撤回", "edit", ""], irreversible: ["会修改，不能撤回", "alert", "blocked"] };
-  const CARD_STATUS = { running: "正在执行…", done: "已完成", failed: "没有完成", unknown: "结果未确认，请到原处核对，不会自动重试", stale: "已失效", dismissed: "已忽略", "needs-input": "还需要你填写" };
-  const CARD_TONE = { done: "done", failed: "blocked", unknown: "attention", stale: "attention", "needs-input": "attention" };
   const renderCard = (node, work, card) => {
-    const open = card.status === "ready" || card.status === "needs-input" || card.status === "failed";
-    const [effect, effectIcon, effectTone] = EFFECTS[card.effect] || ["", "zap", ""];
-    cardShell(node, { icon: card.status === "done" ? "check" : "zap", tone: CARD_TONE[card.status] || "", kicker: open ? L("可以执行") : L(CARD_STATUS[card.status] || "操作"),
-      badge: effect ? L(effect) : "", badgeTone: effectTone, title: card.title });
-    if (effect) node.querySelector(".assistant-card-badge")?.prepend(glyph(effectIcon));
     node.dataset.status = card.status;
-    // A card a page prepared (not the Assistant's own suggestion) says which page, and what the selection came from.
-    if (card.from) {
-      const where = card.from.title || surfaceName(card.from.surface) || card.from.surface;
-      const origin = el("p", "assistant-card-origin");
-      origin.append(glyph("external"), document.createTextNode(L("来自「{title}」页面").replace("{title}", where)
-        + (card.source_object && card.source_object.title ? " · " + L("选中自《{title}》").replace("{title}", card.source_object.title) : "")));
-      node.append(origin);
-    }
-    node.append(el("p", "assistant-card-summary", card.summary), el("p", "assistant-card-meta", card.provider + " · " + card.capability_title));
-    const inputs = {};
-    if (card.fields.length) {
-      const list = el("dl", "assistant-fields");
-      card.fields.forEach((field) => {
-        const asked = card.missing.find((item) => item.field === field.key);
-        list.append(el("dt", "", asked ? asked.question : L(field.label)));
-        const cell = el("dd");
-        if (field.editable && open && field.options) {
-          // A declared choice is picked by its words; what runs is its value.
-          const control = el("select", "mw-input");
-          if (!field.raw) control.append(el("option", "", L("请选择")));
-          field.options.forEach((option) => { const item = el("option", "", option.label); item.value = option.value; item.selected = option.value === field.raw; control.append(item); });
-          control.setAttribute("aria-label", asked ? asked.question : field.label);
-          inputs[field.key] = control; cell.append(control);
-        } else if (field.editable && open && field.input) {
-          // A day or a moment is picked, never typed as a timestamp; a moment is picked in local time and sent exactly.
-          const control = el("input", "mw-input");
-          control.type = field.input === "date" ? "date" : "datetime-local";
-          if (field.input === "datetime") { control.dataset.moment = ""; control.value = field.raw ? localMoment(field.raw) : ""; }
-          else control.value = field.raw || "";
-          control.setAttribute("aria-label", asked ? asked.question : field.label);
-          inputs[field.key] = control; cell.append(control);
-        } else if (field.editable && open) {
-          const control = el(field.value.includes("\n") || field.value.length > 60 ? "textarea" : "input", "mw-input");
-          control.value = field.value; control.setAttribute("aria-label", asked ? asked.question : field.label);
-          if (control.tagName === "TEXTAREA") control.rows = Math.min(8, field.value.split("\n").length + 1);
-          inputs[field.key] = control; cell.append(control);
-        } else cell.textContent = field.value;
-        if (asked) cell.classList.add("is-asked");
-        list.append(cell);
-      });
-      node.append(list);
-    }
-    if (card.outcome || (CARD_STATUS[card.status] && !open)) {
-      const status = el("p", "assistant-card-status" + (CARD_TONE[card.status] ? " is-" + CARD_TONE[card.status] : ""), L(CARD_STATUS[card.status] || "") + (card.outcome ? "：" + card.outcome : ""));
-      status.setAttribute("role", "status"); status.tabIndex = -1; node.append(status);
-    }
-    if (card.status === "stale") {
-      // Only an explicit request: the Assistant re-reads and offers a fresh card; nothing runs in this one's place.
-      const redo = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("请助理按最新状态重新准备")); redo.type = "button";
-      redo.addEventListener("click", async () => {
-        redo.disabled = true;
-        try {
-          await api("/send", "POST", { work_id: work.work_id, request_id: crypto.randomUUID(), written_by: "page",
-            text: L("建议「") + card.title + L("」没有执行：") + (card.outcome || L("数据在建议之后变化了")) + L("。请读取最新状态，按现在的情况重新准备这一项的操作卡。") });
-          await refresh(); schedule();
-        } catch (error) { showProblem({ message: error.message }); redo.disabled = false; }
-      });
-      node.append(redo);
-    }
-    if (!open) return;
-    const row = el("div", "assistant-card-actions");
-    const runButton = el("button", "mw-btn mw-btn--primary mw-btn--sm", card.status === "failed" ? L("再试一次") + "：" + card.title : card.title); runButton.type = "button";
-    const dismiss = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("忽略")); dismiss.type = "button";
-    runButton.addEventListener("click", async () => {
-      // Keyboard use keeps its place: after the card redraws, focus lands on its result rather than the page.
-      const hadFocus = node.contains(document.activeElement);
-      row.querySelectorAll("button").forEach((one) => { one.disabled = true; });
-      const values = {};
-      Object.entries(inputs).forEach(([key, control]) => {
-        values[key] = control.dataset.moment !== undefined && control.value ? new Date(control.value).toISOString() : control.value;
-      });
+    const client = drawn(node, card.html, { onAction: async (id, button) => {
+      // Keyboard use keeps its place: after the card redraws, focus lands on it rather than the page.
+      const hadFocus = node.contains(document.activeElement), neighbour = node.nextElementSibling || node.previousElementSibling;
+      const lock = (on) => node.querySelectorAll("[data-ix-action]").forEach((one) => { one.disabled = on; });
+      lock(true);
       try {
-        const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/run", "POST", { revision: card.revision, values });
+        // "redo" only asks: the Assistant re-reads and offers a fresh card; nothing runs in this one's place.
+        const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/" + id, "POST", id === "run" ? { revision: card.revision, values: client.read() } : {});
+        if (id === "redo") { await refresh(); schedule(); return; }
         if (view && view.work.work_id === work.work_id) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one);
         if (next.status === "done") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: next.capability_id } }));
         render();
-        if (hadFocus) (node.querySelector(".assistant-card-status") || node.querySelector("button"))?.focus();
-      } catch (error) { showProblem({ message: error.message }); row.querySelectorAll("button").forEach((one) => { one.disabled = false; }); if (hadFocus) runButton.focus(); }
-    });
-    dismiss.addEventListener("click", async () => {
-      // The card leaves the list: focus moves to the next card, or back to the input when none is left.
-      const neighbour = node.nextElementSibling || node.previousElementSibling;
-      try { const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/dismiss", "POST", {});
-        if (view) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one); render();
-        if (!node.isConnected) ((neighbour && neighbour.isConnected && neighbour.querySelector("button")) || input)?.focus(); }
-      catch (error) { showProblem({ message: error.message }); }
-    });
-    row.append(runButton, dismiss); node.append(row);
-    node.append(cardHint(card.effect === "read" ? L("点了只读取，不改任何东西。") : card.effect === "irreversible" ? L("点了就执行，不能撤回；执行前你可以改上面的内容。")
-      : L("点了就执行一次；之后可以在原处修改或撤回。")));
+        // A card set aside leaves the list: focus moves to the next card, or back to the input when none is left.
+        if (hadFocus) (node.isConnected ? node.querySelector("[data-ix-action], [data-ix-operation]") : (neighbour && neighbour.isConnected && neighbour.querySelector("button")) || input)?.focus();
+      } catch (error) { showProblem({ message: error.message }); lock(false); if (hadFocus) button.focus(); }
+    } });
   };
   /* Puts children in order without moving any that already stand in place: moving a node drops the focus inside it
      (an answer being typed, a button reached by keyboard), and a running work repaints every few seconds. */
@@ -794,9 +669,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const shown = cards.filter((card) => card.status !== "dismissed");
     [...parent.children].forEach((child) => { if (child.dataset.card && !shown.some((card) => card.card_id === child.dataset.card)) child.remove(); });
     shown.forEach((card) => {
-      const node = keyed(parent, "data-card", card.card_id, () => el("div", "assistant-card assistant-card--action"));
-      const signature = card.revision + ":" + card.status;
-      if (node.dataset.signature !== signature) { node.dataset.signature = signature; renderCard(node, work, card); }
+      const node = keyed(parent, "data-card", card.card_id, () => el("div"));
+      renderCard(node, work, card);
       (put || ((one) => parent.append(one)))(node);
     });
   };
@@ -967,7 +841,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     const status = keyed(node, "data-entry", "status", () => el("p", "assistant-round-status"));
     const phase = round.phase;
-    status.dataset.phase = phase;
+    status.dataset.phase = phase; status.dataset.mwState = ({starting:'starting',running:'running',compacting:'running',failed:'failed',stopped:'stopped',cancelled:'cancelled',paused:'paused','reconcile-required':'verify',unknown:'verify'})[phase] || 'idle';
     const ownStop = round.stop_reason && round.stop_reason !== "已停止" ? round.stop_reason : "";
     setText(status, phase === "running" || phase === "starting" || phase === "compacting" ? L("正在处理…")
       : phase === "failed" ? L("这一轮没有完成") + (round.stop_reason ? "：" + round.stop_reason : "")
@@ -980,35 +854,19 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const questions = round.awaiting_input || [];
     [...node.children].forEach((card) => { if (card.dataset.question && !questions.some((q) => q.pending_id === card.dataset.question)) card.remove(); });
     questions.forEach((question) => {
-      const card = keyed(node, "data-question", question.pending_id, () => el("div", "assistant-card assistant-card--question"));
-      const signature = JSON.stringify(question);
-      if (card.dataset.signature !== signature) { card.dataset.signature = signature; renderQuestion(card, work, round, question); }
+      const card = keyed(node, "data-question", question.pending_id, () => el("div"));
+      renderQuestion(card, work, round, question);
       put(card);
     });
     renderCards(node, work, ((view && view.cards) || []).filter((card) => card.run_id === round.run_id && !pageCard(card)), put);
-    const last = view && view.rounds[view.rounds.length - 1] === round;
-    const made = last && view.objects ? view.objects.filter((object) => object.relation === "result" && object.open && object.state !== "missing") : [];
-    const next = last && ((round.phase === "completed" && made.length) || round.phase === "failed");
-    if (!next) node.querySelector(':scope > [data-entry="next"]')?.remove();
-    else {
-      const row = keyed(node, "data-entry", "next", () => el("div", "assistant-next-row"));
-      const signature = JSON.stringify([round.phase, made.map((object) => [object.subject.id, object.title])]);
-      if (row.dataset.signature !== signature) {
-        row.dataset.signature = signature;
-        const parts = [el("span", "assistant-next-label", L("接下来"))];
-        if (round.phase === "failed") {
-          const retry = el("button", "assistant-next-chip"); retry.type = "button"; retry.append(glyph("refresh"), el("span", "", L("用同样的话再试一次")));
-          retry.addEventListener("click", () => { input.value = round.text; typed = true; syncSend(); saveDraft(false); input.focus(); });
-          parts.push(retry);
-        } else made.slice(0, 2).forEach((object) => {
-          const chip = el("button", "assistant-next-chip"); chip.type = "button"; chip.append(glyph(objectGlyph(object)), el("span", "", L("打开") + "「" + object.title + "」"));
-          chip.addEventListener("click", () => showObject(object));
-          parts.push(chip);
-        });
-        row.replaceChildren(...parts);
-      }
-      put(row);
-    }
+    const steps = view && view.rounds[view.rounds.length - 1] === round ? view.next_html : "";
+    if (!steps) node.querySelector(':scope > [data-entry="next"]')?.remove();
+    else drawn(put(keyed(node, "data-entry", "next", () => el("div"))), steps, { onStep: (_index, button) => {
+      // A step opens what the round made, or ("retry") puts the round's words back in the input.
+      const object = view.objects.find((one) => "open:" + one.subject.kind + ":" + one.subject.id === button.dataset.ixStepId);
+      if (object) showObject(object);
+      else { input.value = round.text; typed = true; syncSend(); saveDraft(false); input.focus(); }
+    } });
     return node;
   };
   /* ─── The side pane: what this work is, how it got here, what it used and what it made ─ */
@@ -1041,7 +899,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (found && found.firstElementChild) holder.append(found.firstElementChild.cloneNode(true));
     return holder;
   };
-  const spinner = () => el("span", "assistant-spinner");
+  const spinner = (state = "running") => { const mark = el("span", "assistant-state-ring"); mark.dataset.mwState = state; mark.setAttribute("aria-hidden", "true"); return mark; };
   /** What an object is, read from its kind or the surface it opens in. */
   const KIND_GLYPH = [[/todo/, "check"], [/image|photo/, "image"], [/coding|code/, "code"], [/goal/, "target"], [/lingguang|idea/, "idea"],
     [/feed|inbox|mail/, "inbox"], [/workflow|schedule/, "workflow"], [/dataset|database/, "database"], [/artifact|package/, "package"], [/page|doc|note|form|ppt/, "note"]];
@@ -1204,7 +1062,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           const current = item.state === "in-progress", waiting = current && next;
           const row = el("div", "assistant-subtask assistant-step-item" + (waiting ? " is-attention" : current ? " is-current" : "") + (item.state === "abandoned" ? " is-abandoned" : ""));
           const mark = el("span", "assistant-subtask-mark" + (item.state === "done" ? " is-done" : waiting ? " is-attention" : ""));
-          mark.append(item.state === "done" ? glyph("check") : waiting ? glyph("status-waiting") : current ? spinner() : item.state === "abandoned" ? glyph("x") : glyph("circle"));
+          mark.append(spinner(item.state === "done" ? "done" : waiting ? (work.state === "needs-check" ? "verify" : work.state === "waiting-review" ? "approval" : "answer") : current ? (work.state === "running" ? "running" : work.state === "paused" ? "paused" : "doing") : item.state === "abandoned" ? "cancelled" : "idle"));
           if (waiting) {
             const name = el("button", "assistant-subtask-name", item.text); name.type = "button"; name.setAttribute("aria-label", next.label + "：" + item.text);
             name.addEventListener("click", () => next.run());
@@ -1222,7 +1080,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           const row = el("div", "assistant-subtask" + (WAITING.has(child.state) && !child.taken_back ? " is-attention" : ""));
           const tone = child.taken_back ? "" : child.state === "completed" ? "done" : WAITING.has(child.state) ? "attention" : child.state === "failed" ? "blocked" : "";
           const mark = el("span", "assistant-subtask-mark" + (tone ? " is-" + tone : ""));
-          mark.append(child.state === "running" ? spinner() : glyph(child.state === "completed" ? "check" : WAITING.has(child.state) ? "status-waiting" : child.state === "failed" ? "circle-alert" : "circle"));
+          mark.append(spinner(ringState(child.state)));
           const name = el("button", "assistant-subtask-name", child.title); name.type = "button"; name.setAttribute("aria-label", L("打开") + "：" + child.title);
           name.addEventListener("click", () => switchTo(child.work_id));
           row.append(mark, name, el("span", "assistant-subtask-state", (child.taken_back ? L("已收回") : stateLabel(child.state)) + (child.follow_ups ? " · " + L("补改") + " " + child.follow_ups : "")));
@@ -1361,11 +1219,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           render();
         }, false, "secondary", "undo")] : [] }));
       const JOB = { running: "进行中", completed: "已完成", failed: "没有完成", unknown: "不再跟进，请到原处查看" };
-      const background = jobs.map((job) => card({ icon: job.state === "running" ? spinner() : job.state === "completed" ? "check" : "circle-alert",
+      const background = jobs.map((job) => card({ icon: spinner(job.state === "running" ? "running" : job.state === "completed" ? "round-ended" : job.state === "failed" ? "failed" : "verify"),
         tone: job.state === "completed" ? "done" : job.state === "failed" ? "blocked" : "", title: job.title, sub: L(JOB[job.state] || job.state) + (job.last_state ? " · " + job.last_state : "") }));
       /* A change still with its owner when the round stopped: what it finally did, never re-sent. */
       const SETTLED = { pending: "还在等它的结果，不会重新提交", completed: "停止后已完成", failed: "停止后失败", "not-run": "停止时还没开始，没有执行" };
-      const stopped = unsettled.map((change) => card({ icon: change.state === "pending" ? spinner() : "clock", title: change.title, sub: L(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "") }));
+      const stopped = unsettled.map((change) => card({ icon: spinner(({pending:"waiting",completed:"done",failed:"failed","not-run":"stopped"})[change.state] || "verify"), title: change.title, sub: L(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "") }));
       /* Memory the work kept (asked for, or kept on its own): the memory service owns it; this is where it can be taken back. */
       // The memory service names more kinds than these; one this panel does not know reads as plainly kept.
       const KEPT = { kept: "", auto_kept: "自动记住", replaced: "替换了旧的一条", auto_replaced: "自动替换了旧的一条", merged: "和旧的一条合并", edited: "改过",
@@ -1488,7 +1346,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     node.removeAttribute("data-flash"); void node.offsetWidth; node.setAttribute("data-flash", "");
     setTimeout(() => node.removeAttribute("data-flash"), 700);
     // The card's own decision first (允许执行, 回答, the action), not a copy button inside the code it shows.
-    (node.querySelector(".assistant-card-actions button:not([disabled]), .assistant-choice:not([disabled]), .assistant-answer input, .assistant-questionnaire input")
+    (node.querySelector('.assistant-card-actions button:not([disabled]), [data-ix-action]:not([disabled]), [data-ix-focus]')
       || node.querySelector("button:not([disabled]):not(.assistant-code-copy):not(.assistant-code-more), input, select, textarea"))?.focus({ preventScroll: true });
   };
   const nextStep = (work) => {
@@ -1518,7 +1376,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (strip.hidden) return;
     strip.dataset.tone = WAITING.has(state) ? "waiting" : state === "running" ? "running" : "";
     const stateNode = strip.querySelector("[data-assistant-strip-state]"), nowNode = strip.querySelector("[data-assistant-strip-now]");
-    stateNode.textContent = stateLabel(state); stateNode.dataset.state = state;
+    stateNode.textContent = stateLabel(state); stateNode.dataset.state = state; stateNode.dataset.mwState = ringState(state);
     nowNode.textContent = nowLine(work); nowNode.title = nowNode.textContent;
     const go = strip.querySelector("[data-assistant-strip-next]");
     go.hidden = !next;
@@ -1529,7 +1387,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const work = view && view.work.work_id === currentId ? view.work : currentWork();
     titleEl.textContent = work ? work.title : L("新工作");
     stateEl.textContent = work ? stateLabel(work.state) : "";
-    stateEl.dataset.state = work ? work.state : "";
+    stateEl.dataset.state = work ? work.state : ""; if (work) stateEl.dataset.mwState = ringState(work.state); else stateEl.removeAttribute("data-mw-state");
     const summary = island.querySelector(".assistant-summary");
     if (summary) summary.dataset.tone = !work ? "" : WAITING.has(work.state) ? "waiting" : work.state === "running" ? "running" : work.state === "failed" || work.state === "stopped" ? "failed" : "";
     const now = nowLine(work);
@@ -1628,7 +1486,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   // A tab's mark says at a glance which work waits on the person, which runs, and which has news not yet seen.
   const markOf = (work) => !work ? "" : WAITING.has(work.state) || urgentWorks.has(work.work_id) ? "waiting" : work.state === "running" ? "running"
     : unreadWorks.has(work.work_id) ? "unread" : work.state === "failed" ? "failed" : "";
-  const MARK_LABEL = { waiting: "等你", running: "进行中", unread: "有新结果", failed: "没有完成" };
+  const MARK_LABEL = { waiting: "等你", running: "进行中", unread: "有新结果", failed: "没有完成" }; const tabMark = (mark, work) => { const node = el("span", "assistant-tab-mark"); if (mark) node.dataset.mwState = mark === "waiting" ? (work && WAITING.has(work.state) ? ringState(work.state) : "answer") : mark; node.setAttribute("aria-hidden", "true"); return node; };
   const workById = (id) => works.find((work) => work.work_id === id) || (view && view.work.work_id === id ? view.work : null);
   function paintTabs() {
     if (!tabsEl) return;
@@ -1643,7 +1501,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const main = el("button", "assistant-tab-main"); main.type = "button"; main.setAttribute("role", "tab");
       main.setAttribute("aria-selected", String(current)); main.tabIndex = current ? 0 : -1;
       main.setAttribute("aria-controls", "assistant-side");
-      main.append(el("span", "assistant-tab-mark"), el("span", "assistant-tab-title", title));
+      main.append(tabMark(mark, workById(id)), el("span", "assistant-tab-title", title));
       main.title = title + (mark ? " · " + L(MARK_LABEL[mark]) : "");
       main.addEventListener("click", () => { if (id === "new") void switchTo(null); else void switchTo(id); });
       wrap.append(main);
@@ -1678,7 +1536,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   /* A pill at the foot of the conversation: what waits below the visible part, or news that arrived while reading above. */
   const jump = island.querySelector("[data-assistant-jump]");
   let unseen = false;
-  const PENDING = ':scope > [data-review], [data-question], .assistant-card--action:is([data-status="ready"], [data-status="needs-input"])';
+  const PENDING = ':scope > [data-review], [data-question], [data-card]:is([data-status="ready"], [data-status="needs-input"])';
   const paintJump = () => {
     if (!jump) return;
     const box = thread.getBoundingClientRect();
@@ -1766,7 +1624,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const shown = problem || (work && view.problem) || null;
     if (shown) {
       const box = el("div", "assistant-problem"); box.setAttribute("role", "alert");
-      const kicker = el("span", "assistant-card-kicker is-blocked"); kicker.append(glyph("circle-alert"), document.createTextNode(L("出了问题")));
+      const kicker = el("span", "assistant-card-kicker is-blocked"); kicker.append(spinner("failed"), document.createTextNode(L("出了问题")));
       box.append(kicker, el("p", "", shown.message));
       if (work && work.state === "needs-check") {
         // What the interrupted round really did, then an explicit close. Nothing is re-run.
@@ -1843,9 +1701,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         if (mark) item.dataset.mark = mark;
         if (work.work_id === currentId) item.setAttribute("aria-current", "true");
         const meta = el("span", "assistant-works-meta", stateLabel(work.state) + " · " + scopeLabel(work.scope, work.scope_title) + (tabs.includes(work.work_id) ? " · " + L("已打开") : ""));
-        meta.dataset.state = work.state;
+        meta.dataset.state = work.state; meta.dataset.mwState = ringState(work.state);
         const head = el("span", "assistant-works-head");
-        head.append(el("span", "assistant-tab-mark"), el("span", "assistant-works-title", work.title));
+        head.append(tabMark(mark, work), el("span", "assistant-works-title", work.title));
         item.append(head, meta);
         item.addEventListener("click", () => { setWorks(false); switchTo(work.work_id); });
         worksNav.append(item);

@@ -364,7 +364,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!record.publication_pending && !(record.artifact_version > 0)) return null;
     const node = document.createElement("span");
     node.className = "mw-status mw-status--plain feed-entry-status " + (record.publication_pending ? "mw-status--attention" : "mw-status--done");
-    node.textContent = record.publication_pending ? L("固定版本未存完") : L("固定版本") + " v" + record.artifact_version;
+    node.dataset.mwState = record.publication_pending ? "unsaved" : "saved"; node.textContent = record.publication_pending ? L("固定版本未存完") : L("固定版本") + " v" + record.artifact_version;
     return node;
   };
   const renderRow = (record) => {
@@ -501,7 +501,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     else records.unshift(record);
     renderList();
     titleEl.textContent = record.title;
-    statusEl.textContent = L("已保存");
+    statusEl.textContent = L("已保存"); statusEl.dataset.mwState = "saved";
     markSelected(record.id);
     syncEditorChrome();
     if (redraw) fillEditor(record);
@@ -579,7 +579,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     selected = document;
     titleEl.textContent = document.title;
-    statusEl.textContent = L("已保存");
+    statusEl.textContent = L("已保存"); statusEl.dataset.mwState = "saved";
     markSelected(document.id);
     syncEditorChrome();
     if (document.activeElement !== titleInput) titleInput.value = document.title;
@@ -611,7 +611,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     workbench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
     titleEl.textContent = record.title;
-    statusEl.textContent = L("已保存");
+    statusEl.textContent = L("已保存"); statusEl.dataset.mwState = "saved";
     titleInput.value = record.title;
     // A body this editor cannot show (written elsewhere in another structure) is not shown as an empty page: the next
     // keystroke would save that empty page over it. It stays read-only and unsaved until it is replaced or undone.
@@ -674,13 +674,13 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       return saved;
     } catch (error) {
       dirty = true;
-      statusEl.textContent = L("保存失败");
+      statusEl.textContent = L("保存失败"); statusEl.dataset.mwState = "failed";
       throw error;
     }
   };
   const queueSave = () => {
     if (unshowable) return;
-    statusEl.textContent = L("保存中");
+    statusEl.textContent = L("保存中"); statusEl.dataset.mwState = "saving";
     editVersion += 1;
     dirty = true;
     publishContext();

@@ -565,12 +565,8 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-tab[data-current] .assistant-tab-main { font-weight: 500; }
   ${ASSIST} .assistant-tab-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* The marks, shared by tabs and the list of works: waiting on you, running, news not yet seen, did not finish. */
-  ${ASSIST} .assistant-tab-mark { flex: none; display: none; width: 7px; height: 7px; border-radius: 50%; }
+  ${ASSIST} .assistant-tab-mark { flex: none; display: none; width: 20px; height: 20px; }
   ${ASSIST} [data-mark] .assistant-tab-mark { display: inline-block; }
-  ${ASSIST} [data-mark="waiting"] .assistant-tab-mark { background: var(--tone-attention, var(--amber, #c27c0e)); }
-  ${ASSIST} [data-mark="unread"] .assistant-tab-mark { background: var(--accent); }
-  ${ASSIST} [data-mark="failed"] .assistant-tab-mark { background: var(--danger); }
-  ${ASSIST} [data-mark="running"] .assistant-tab-mark { width: 9px; height: 9px; box-sizing: border-box; background: none; border: 1.5px solid var(--hue-green-fill); border-right-color: transparent; animation: mw-spin 640ms var(--ease-quint) infinite; }
   ${ASSIST} .assistant-tab-close { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 6px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; line-height: 1; cursor: pointer; opacity: 0; }
   ${ASSIST} .assistant-tab:is(:hover, [data-current], :focus-within) .assistant-tab-close { opacity: 1; }
   ${ASSIST} .assistant-tab-close:hover { background: var(--nav-active); color: var(--ink); }
@@ -635,14 +631,9 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-control--stop:hover { color: var(--danger); }
   ${ASSIST} .assistant-control[data-assistant-control="resume"] { background: var(--ink); color: var(--paper); }
   ${ASSIST} .assistant-control:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
-  /* The work's state as a small pill: a dot that says waiting, running, done or not done. */
+  /* The work's state retains its label beside the shared ring. */
   ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px 1px 7px; border-radius: 999px; background: var(--wash); color: var(--ink-soft); font-size: 11px; line-height: 18px; }
-  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state::before { content: ""; flex: none; width: 6px; height: 6px; margin: 0; border-radius: 50%; background: var(--faint); vertical-align: 0; }
   ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"]) { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 13%, transparent); color: var(--ink); }
-  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"])::before { background: var(--tone-attention, #c27c0e); }
-  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state[data-state="running"]::before { width: 8px; height: 8px; box-sizing: border-box; background: none; border: 1.5px solid var(--hue-green-fill); border-right-color: transparent; animation: mw-spin 640ms var(--ease-quint) infinite; }
-  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state[data-state="completed"]::before { background: var(--hue-green-fill); }
-  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state:is([data-state="failed"], [data-state="stopped"])::before { background: var(--danger); }
   ${ASSIST} .assistant-next { align-self: flex-start; margin-top: 8px; }
   ${ASSIST} .assistant-next[hidden] { display: none; }
   /* One row of equal parts, however many choices: five Coding modes fit the side pane without wrapping. */
@@ -711,7 +702,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-glyph.is-done { background: color-mix(in srgb, var(--tone-done, #3a8f5c) 14%, transparent); color: var(--tone-done, #3a8f5c); }
   ${ASSIST} .assistant-glyph.is-suggest { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
   ${ASSIST} .assistant-glyph.is-blocked { background: color-mix(in srgb, var(--tone-blocked, #c53030) 12%, transparent); color: var(--tone-blocked, #c53030); }
-  ${ASSIST} .assistant-spinner { display: inline-block; width: 13px; height: 13px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid currentColor; border-right-color: transparent; animation: mw-spin 640ms var(--ease-quint) infinite; }
+  ${ASSIST} .assistant-state-ring { display: inline-flex; width: 20px; height: 20px; flex: none; }
   /* Block headings carry a glyph and a badge; the one that waits on you does not fold. */
   ${ASSIST} .assistant-block-head .assistant-glyph-icon { color: var(--muted); }
   ${ASSIST} .assistant-block-head.is-fixed { cursor: default; }
@@ -861,34 +852,14 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-card-kicker { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 500; }
   ${ASSIST} .assistant-card-kicker .assistant-glyph-icon svg { width: 14px; height: 14px; }
   ${ASSIST} .assistant-card-kicker.is-attention { color: var(--tone-attention, #b7791f); }
-  ${ASSIST} .assistant-card-kicker.is-done { color: var(--tone-done, #3a8f5c); }
   ${ASSIST} .assistant-card-kicker.is-blocked { color: var(--tone-blocked, var(--danger)); }
   ${ASSIST} .assistant-card-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 0 8px; border-radius: 999px; background: var(--wash); color: var(--ink-soft); font-size: 11px; line-height: 20px; white-space: nowrap; }
   ${ASSIST} .assistant-card-badge .assistant-glyph-icon svg { width: 12px; height: 12px; }
-  ${ASSIST} .assistant-card-badge.is-blocked { background: color-mix(in srgb, var(--tone-blocked, #c53030) 12%, transparent); color: var(--tone-blocked, var(--danger)); }
   ${ASSIST} .assistant-card .assistant-card-title { color: var(--ink); font-size: 13px; font-weight: 600; line-height: 1.45; }
-  ${ASSIST} .assistant-card-summary { color: var(--ink-soft); }
-  ${ASSIST} .assistant-card-meta { color: var(--muted); font-size: 11px; }
-  ${ASSIST} .assistant-card-origin { display: flex; align-items: center; gap: 5px; margin: 2px 0 0; color: var(--muted); font-size: 12px; }
-  ${ASSIST} .assistant-card-origin .assistant-glyph-icon { flex: none; }
   ${ASSIST} .assistant-card-hint { margin: -2px 0 0; color: var(--faint); font-size: 11px; }
   ${ASSIST} .assistant-card:has(.assistant-card-kicker.is-attention) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone-attention, #c27c0e) 40%, var(--line)); }
-  ${ASSIST} .assistant-card-status.is-done { color: var(--tone-done, #3a8f5c); }
-  ${ASSIST} .assistant-card-status.is-blocked { color: var(--tone-blocked, var(--danger)); }
-  ${ASSIST} .assistant-card-status.is-attention { color: var(--tone-attention, #b7791f); }
-  ${ASSIST} .assistant-fields dd.is-asked :is(input, select, textarea) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone-attention, #c27c0e) 45%, var(--line)); }
   ${ASSIST} .assistant-field-label { margin: 0 0 4px; color: var(--muted); font-size: 11px; }
   ${ASSIST} .assistant-field-code .assistant-code { margin: 0; }
-  ${ASSIST} .assistant-choices { display: flex; flex-wrap: wrap; gap: 6px; }
-  ${ASSIST} .assistant-choices.is-stacked { flex-direction: column; }
-  ${ASSIST} .assistant-choice { min-height: 32px; padding: 6px 12px; border: 0; border-radius: 9px; background: var(--wash); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
-    box-shadow: inset 0 0 0 1px var(--line); transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
-  ${ASSIST} .assistant-choice:hover:not(:disabled) { background: var(--nav-active); box-shadow: inset 0 0 0 1px var(--line-strong); }
-  ${ASSIST} .assistant-choice:active:not(:disabled) { transform: scale(.98); }
-  ${ASSIST} .assistant-choice:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
-  ${ASSIST} .assistant-choice-row { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 4px 8px; border-radius: 8px; cursor: pointer; }
-  ${ASSIST} .assistant-choice-row:hover { background: var(--nav-hover); }
-  ${ASSIST} .assistant-choice-row:has(input:checked) { background: var(--nav-active); }
   ${ASSIST} .assistant-problem .assistant-card-kicker { margin-bottom: -2px; }
   /* What a message carried: chips with their kind; an object opens where it lives. */
   ${ASSIST} .assistant-attachments { align-self: flex-end; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 85%; margin-top: -4px; }
@@ -902,18 +873,8 @@ const CRAFT_BASE_STYLES = `
   /* Each step of the process with the glyph of what it did; one still running turns. */
   ${ASSIST} .assistant-activity { display: flex; align-items: center; gap: 6px; }
   ${ASSIST} .assistant-activity .assistant-glyph-icon svg { width: 13px; height: 13px; }
-  ${ASSIST} .assistant-activity .assistant-spinner { width: 11px; height: 11px; }
+  ${ASSIST} .assistant-activity .assistant-state-ring { width: 20px; height: 20px; }
   ${ASSIST} .assistant-activity[data-state="unknown"] { color: var(--tone-attention, #b7791f); }
-  /* After the last round: what to do next, pointed at directly. */
-  ${ASSIST} .assistant-next-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
-  ${ASSIST} .assistant-next-label { color: var(--faint); font-size: 11px; }
-  ${ASSIST} .assistant-next-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 28px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--paper); color: var(--ink); font: inherit; font-size: 12px;
-    box-shadow: 0 0 0 1px var(--line-strong); cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
-  ${ASSIST} .assistant-next-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  ${ASSIST} .assistant-next-chip:hover { background: var(--nav-hover); }
-  ${ASSIST} .assistant-next-chip:active { transform: scale(.97); }
-  ${ASSIST} .assistant-next-chip:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
-  ${ASSIST} .assistant-next-chip .assistant-glyph-icon svg { width: 14px; height: 14px; color: var(--muted); }
   /* Pressing gives a little everywhere in the panel, the same 130ms spring as the bar. */
   ${ASSIST} :is(.assistant-side-action, .assistant-segment, .assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-control, .assistant-start, .assistant-copy, .assistant-tab-close):active:not(:disabled) { transform: scale(.94); }
   ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-tab-close, .assistant-tab-main) { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
@@ -989,19 +950,8 @@ const CRAFT_BASE_STYLES = `
   /* What needs the person: a question to answer, or an exact effect to allow. */
   ${ASSIST} .assistant-card { display: flex; flex-direction: column; gap: 8px; padding: 12px 12px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line-strong); }
   ${ASSIST} .assistant-card-title { margin: 0; font-weight: 500; color: var(--ink); }
-  ${ASSIST} .assistant-card--action { box-shadow: 0 0 0 1px var(--line-strong); }
-  ${ASSIST} .assistant-card--action[data-status="done"] { box-shadow: 0 0 0 1px var(--line); }
-  ${ASSIST} .assistant-card--action :is(input.mw-input, textarea.mw-input) { width: 100%; font: inherit; font-size: 12px; }
-  ${ASSIST} .assistant-card-status { margin: 0; font-size: 12px; color: var(--muted); }
-  ${ASSIST} .assistant-card--action[data-status="failed"] .assistant-card-status { color: var(--danger); }
-  ${ASSIST} .assistant-card--action[data-status="unknown"] .assistant-card-status { color: var(--ink); }
   ${ASSIST} .assistant-card p { margin: 0; }
   ${ASSIST} .assistant-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-  ${ASSIST} .assistant-answer { display: flex; gap: 8px; }
-  ${ASSIST} .assistant-answer .mw-input { flex: 1; min-width: 0; }
-  ${ASSIST} .assistant-questionnaire { display: flex; flex-direction: column; gap: 8px; }
-  ${ASSIST} .assistant-questionnaire fieldset { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; border: 0; }
-  ${ASSIST} .assistant-questionnaire legend { padding: 0; margin-bottom: 4px; font-weight: 500; }
   ${ASSIST} .assistant-fields { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 12px; }
   ${ASSIST} .assistant-fields dt { color: var(--muted); }
   ${ASSIST} .assistant-fields dd { margin: 0; max-height: 200px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -1500,21 +1450,17 @@ const CRAFT_BASE_STYLES = `
   /* Toasts: a graphite note that rises above the bar and says, with a mark, how it went. */
   ${PAGES} .toast {
     display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; width: max-content; max-width: calc(100vw - 32px);
-    padding: 12px 16px 12px 36px; border-radius: 12px; font-size: 13px; line-height: 18px;
+    padding: 12px 16px 12px 40px; border-radius: 12px; font-size: 13px; line-height: 18px;
     background: var(--tip-bg); color: var(--tip-ink);
     box-shadow: var(--shadow);
     transform: translate(-50%, 12px) scale(.97);
     transition: opacity 250ms var(--ease-quint), transform 420ms var(--ease-quint);
   }
   ${SHELL} .toast { bottom: calc(var(--dock-h) + 14px); }
-  ${PAGES} .toast::before {
-    content: ""; position: absolute; left: 12px; top: 13px; width: 16px; height: 16px; border-radius: 50%;
-    background: var(--hue-green-fill, #4cb782) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.3l2.2 2.2 4.8-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 16px no-repeat;
-  }
+  ${PAGES} .toast > .mw-state-ring { --ring-neutral: currentColor; --ring-success: color-mix(in srgb, var(--green) 60%, currentColor); --ring-danger: color-mix(in srgb, var(--red) 60%, currentColor); position: absolute; left: 12px; top: 11px; }
+  ${PAGES} .toast:not(.is-visible) > .mw-state-ring { visibility: hidden; }
   ${PAGES} .toast [data-molis-call-id] {min-height:0;padding-block:var(--reach,10px);margin-block:calc(-1*var(--reach,10px));color:inherit;text-decoration:underline;}
-  ${PAGES} .toast.is-error::before {
-    background: var(--hue-red-fill, #eb5757) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 4.4v4.4M8 11.3v.2' fill='none' stroke='white' stroke-width='1.9' stroke-linecap='round'/%3E%3C/svg%3E") center / 16px no-repeat;
-  }
+
   ${PAGES} .toast.is-visible { transform: translate(-50%, 0) scale(1); }
   ${PAGES} .toast.is-visible.is-error { animation: craft-nudge 420ms var(--ease-quint) 130ms; }
   @keyframes craft-nudge { 0%, 100% { translate: 0; } 25% { translate: -4px; } 50% { translate: 3px; } 75% { translate: -2px; } }
@@ -1582,7 +1528,6 @@ const CRAFT_BASE_STYLES = `
   /* ─── Goal canvas ─── */
   /* The canvas is plain paper: nodes and their links are the only marks on it. */
   ${WORKBENCH} :is(.goal-canvas-viewport, .goal-frame-canvas) { background-color: var(--paper); background-image: none; }
-  ${WORKBENCH} .momentum-map.graph-stage { background: var(--paper); }
   ${WORKBENCH} .goal-canvas-viewport.is-panning { cursor: grabbing; }
   ${WORKBENCH} [data-graph-node] {
     border-radius: var(--r-card); box-shadow: none; border-color: var(--line);

@@ -5,7 +5,7 @@ import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { createPrologueInference } from "./prologue-inference.js";
-import { questionUnavailable, withInteractionRepairLimit } from "./prologue-questions.js";
+import { answerProblems, projectQuestion, questionUnavailable, withInteractionRepairLimit } from "./prologue-questions.js";
 import type { PrologueInferenceClient } from "../inference.js";
 import { prologueActionTools, agentActionToolName } from "./prologue-action-tools.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -96,6 +96,7 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   documentParsers?: readonly import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentParser[];
   /** Host-owned surface; absence keeps all writes unavailable. */
   reviewQueue?: AgentReviewQueue;
+  questionTypes?: readonly import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionType[]; // typed types every interface showing questions renders; absent or empty: the plain question
   /**
    * The side panel's browser pages (specs/archive/side-panel): attached to a business round in their project, looked at and
    * driven only through Prologue's interface control. Absent: no round gets the surface tools.
@@ -194,7 +195,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     // A request between sessions may wait for the other side's whole round, or a restart: a week, not half an hour.
     // Background commands belong to the session and keep running after its round (the person's decision), at most four
     // at a time; a parked session waits up to a week, like a request.
-    config: { delivery: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000, maxPeopleBodyChars: 24_000 }, background: { outliveRun: true, maxPerSession: 4 }, waits: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000 }, agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 20, maxTimeoutMs: 300_000, observation: { maxLines: 1000, maxBytes: 64 * 1024 } }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS }, resource: { publish: { maxBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 }, intake: { maxItemBytes: 32 * 1024 * 1024, maxBatchBytes: 128 * 1024 * 1024 } }, model: { images: { maxResponseBytes: 40 * 1024 * 1024, maxImageBytes: 20 * 1024 * 1024, maxImages: 4 } } },
+    config: { delivery: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000, maxPeopleBodyChars: 24_000 }, background: { outliveRun: true, maxPerSession: 4 }, waits: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000 }, agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 20, maxTimeoutMs: 300_000, observation: { maxLines: 1000, maxBytes: 64 * 1024 }, inputWaitTtlMs: 24 * 60 * 60 * 1000, ...(options.questionTypes?.length ? { askUserQuestionTypes: options.questionTypes } : {}) }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS }, resource: { publish: { maxBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 }, intake: { maxItemBytes: 32 * 1024 * 1024, maxBatchBytes: 128 * 1024 * 1024 } }, model: { images: { maxResponseBytes: 40 * 1024 * 1024, maxImageBytes: 20 * 1024 * 1024, maxImages: 4 } } },
     network: { model: true, mcp: true, loopback: true },
     posture: options.reviewQueue
       ? { sandbox: "workspace-write", approval: "untrusted" }
@@ -923,10 +924,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const unavailable = questionUnavailable(pending, (await host.readClock()).monotonicMs, Boolean(activeRuns.get(run.run_id)?.live() && runtime.effects.pendings.hasLiveWaiter(pending.ref)));
       return { pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind,
         prompt: pending.why, options: [], allows_free_text: pending.kind === "text",
-        ...(pending.kind === "questionnaire" ? { questions: pending.questions.map(question => ({
-          index: question.index, prompt: question.prompt, options: question.options,
-          multiple: question.multiple === true, allow_other: question.allowOther === true,
-        })) } : {}), answerable: unavailable === undefined,
+        ...(pending.kind === "questionnaire" ? { questions: pending.questions.map(projectQuestion) } : {}), answerable: unavailable === undefined,
         ...(unavailable ? { unavailable_reason: unavailable } : {}) };
     },
     async readCommandOutput(sessionId, ref) {
@@ -1226,7 +1224,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
                   host_tools: [...role.host_tools], text_materials: [], skills: [], mcp_tools: [], mcp_sources: [], budget: null,
                   prompts: role.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: prompt.layer ?? "role" })) } }] });
             runRoots.set(childRun.run_id, granted.rootRef);
-            activeRuns.set(childRun.run_id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: async text => { await observed.control.steer({ text }); } });
+            activeRuns.set(childRun.run_id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: async text => { await observed.control.steer({ text, source: "app" }); } });
             const bridgeFailed = async () => {
               const reason = "子任务的宿主审查或归属记录失败，已停止执行；请核对原工具结果后继续";
               const errors = subagentBridgeErrors.get(observed.parentRun.id) ?? {};
@@ -1315,7 +1313,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       // A round is live until it ends: before its first model event it is still "prepared", and it hears a steer then too.
       runSessions.set(started.run.ref.id, session.ref.id); runRefs.set(started.run.ref.id, started.run.ref); if (surfaceHost) surfaceHost.noteRun(session.ref.id, started.run.ref.id);
       activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state) && stopping === undefined,
-        steer: async text => { await started.control.steer({ text }); } });
+        steer: async text => { await started.control.steer({ text, source: "app" }); } });
       if (plan && stepBoard) stepBoards.follow(stepBoard.ref, { session_id: session.ref.id, run_id: started.run.ref.id }, plan);
       // A main round is work under way in its project until it ends; a subtask's work is its parent's.
       if (!none && input.root_path && !index.parent_run) {
@@ -1412,10 +1410,12 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const unavailable = questionUnavailable(pending, now.monotonicMs, Boolean(activeRuns.get(run.run_id)?.live() && runtime.effects.pendings.hasLiveWaiter(pending.ref)));
       if (unavailable) throw new PrologueAdapterError("agent.pending_not_open", unavailable);
       if (pending.kind === "text") {
-        if (typeof answer.text !== "string" || !answer.text.trim() || answer.answers !== undefined) throw new Error("请填写原问题的文字回答");
+        if (typeof answer.text !== "string" || !answer.text.trim() || answer.answers !== undefined) throw new PrologueAdapterError("agent.answer_invalid", "请填写原问题的文字回答");
         await runtime.effects.pendings.answer(pending.ref, { kind: "text", text: answer.text }, now);
       } else {
-        if (!answer.answers || answer.text !== undefined) throw new Error("请按原问卷逐题回答");
+        if (!answer.answers || answer.text !== undefined) throw new PrologueAdapterError("agent.answer_invalid", "请按原问卷逐题回答");
+        const problems = answerProblems(pending.questions, answer.answers);
+        if (problems.length) throw new PrologueAdapterError("agent.answer_invalid", `有 ${problems.length} 道题的回答不能提交`, problems);
         await runtime.effects.pendings.answer(pending.ref, { kind: "questionnaire", answers: answer.answers }, now);
       }
     },

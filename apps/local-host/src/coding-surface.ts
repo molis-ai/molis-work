@@ -49,7 +49,7 @@ import { listWorkspaceDirectory } from "./workspace-files.js";
 import { readWorkspaceGit } from "./workspace-git.js";
 import { TEXT_STATS_PLUGIN_ID, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
 
-import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 
 import { sendLocalWebJson } from "./web-http.js";
 import { dispatchRuntimePluginRoute, type RuntimePluginRouteHooks } from "./plugin-route-operations.js";

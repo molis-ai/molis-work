@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 028769de4已整合I3–I33、当前main、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建与96b登记失败已修，96c九项工程检查通过；97/98实际失败已逐项记录，SDK六种切换交错及send/Workflow通过；夹具修正2916已提交待复跑，正整合新main774a A2。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
+状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 6b1dd019c已整合I3–I33、main774a A2、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建与96b登记失败已修，96c九项工程检查通过；97/98实际失败已逐项记录，SDK六种切换交错及send/Workflow通过；夹具修正2916及新main774a A2已纳入6b1，待源核/重新整建及定向回归。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2665,3 +2665,6 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 
 
 **97/98短段终态与后续修正（真实运行）。** 97普通实际188：183通过、4失败、1取消、0跳过（495393ms）；含被精确终止的effect-control文件失败，其他三Coding Runtime及Goal HTTP细项保原栈。97两文件浏览器2条：1通过1失败、0取消/跳过，Coding正常打开错误地等旧window=1，真实打开窗为6；effect事件仍1，不能全局替换。98生产Node/SDK11条：10通过1失败、0取消/跳过；W2-18-MODEL-SWITCH六种configuration/credential/actual SDK acceptance的取消/撤权全部通过，唯一独立问卷operate角色fixture未接审批入口。98四文件浏览器13条：11通过2失败、0取消/跳过；send-intent五条及Workflows五条（真实CAS failed→saved）全通过，两个失败为page-card旧CSS selector及choice tool_result错误期待type。真实问卷已走到最后形状断言，不能据此记case通过。Root已关闭原两session并明确释放名额，Pages后续短构建交由其原owner协调；没有Root新队列。2916f1bbe只修8个现行fixture/断言：真实注册disposer与finally/cleanup释放barrier、method_owner可信上下文、SDK问卷审批queue、confirmed plan真实revision显式传入并观察失败、Host共享卡run/dismiss、choice结果形状、Coding正常读取6而effect保1，以及Goal404原文案+call_id。原零副作用/持久化/重启/graph/report约束保留；这些修正尚未运行。正把远端774a A2纳入I8，有5处合并冲突，待逐项保留共同错误、共享interaction与新questionAnswer，不称新组合验证通过。
+
+
+**774a A2合并源码完成，未运行。** Root 6b1dd019c合并远端774acaf57，29个主线文件保留。5冲突逐项裁决：HTTP用现行plugin-SDK questionAnswer但保assistantErrors.invalid与details.errors；island保frozen-send、沿main host.interaction不重复内嵌client；初始化共享interaction并保Root原api属性；健康/资源两派生表用main占位、待实测更新，不手合数字。无新运行或第二构建队列，当前构建窗口归Pages原owner。2916f1bbe的fixture修正及该合并须源核、整建、定向实跑后才验收；不能把96c的旧9ab证明称新774a证明。后台命令三失败继续独立定位，已确认method_owner缺失只解释state400、显式confirmed plan_revision缺失解释graph barrier超时，approval未出现尚未关闭。

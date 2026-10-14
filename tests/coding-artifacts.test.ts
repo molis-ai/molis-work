@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import test from "node:test";
 
 import {
@@ -73,6 +74,10 @@ test("连线指向不存在的节点会被指出来，而不是画出一张不�
   assert.equal(problems.length, 1);
   // R4C3-01: the production inspector still refuses an edge whose node is absent.
   assert.equal(problems[0]?.code, "coding.diagram.unknown_node");
+  // DIFF-02: inspect remains a list of actual common errors, with the original user message.
+  assert.ok(problems[0] instanceof ActionError);
+  assert.equal(problems[0].message, "连线指向不存在的节点：ghost");
+  assert.equal(problems[0].kind, "invalid");
 });
 
 test("节点 id 重复会被指出来", () => {

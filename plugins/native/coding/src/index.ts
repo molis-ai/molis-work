@@ -69,7 +69,6 @@ export {
   CODING_REPORT_TYPE,
   CODING_GOAL_CONTEXT_TYPE,
   CODING_PLAN_TYPE,
-  CodingDiagramError,
   inspectDiagram,
   type CodingArtifactType,
   type CodingChangeScope,

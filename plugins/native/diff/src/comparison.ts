@@ -8,7 +8,8 @@ import {
   type TextDiffRow,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { compareTexts, textDiffRow } from "@molis-ai/molis-work-plugin-sdk";
-import { UnifiedDiffError, hunkRows, parseUnifiedDiff } from "./unified.js";
+import { unifiedErrors, hunkRows, parseUnifiedDiff } from "./unified.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * One bounded projection behind every comparison surface.
@@ -224,7 +225,8 @@ export function compareRunChangeSet(
   try {
     rows = hunkRows(parseUnifiedDiff(chosen.diff));
   } catch (error) {
-    const message = error instanceof UnifiedDiffError ? error.message : "读不了这一轮的 diff";
+    const message = error instanceof ActionError && error.code.startsWith("diff.unified.")
+      && Object.hasOwn(unifiedErrors, error.code.slice("diff.unified.".length)) ? error.message : "读不了这一轮的 diff";
     return { ...emptyDiff(group, message, "unavailable", recoveryMessage(group)), files };
   }
   const side: DiffSide = {

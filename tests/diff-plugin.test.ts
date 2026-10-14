@@ -1,8 +1,9 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  UnifiedDiffError,
   compareChangeSet,
   compareRunChangeSet,
   compareSnapshots,
@@ -196,11 +197,19 @@ test("hunk 头声明的行数必须和实际行数对得上", () => {
   assert.throws(
     () => parseUnifiedDiff("@@ -1,5 +1,5 @@\n a\n"),
     // R4C3-01: inconsistent hunk counts still refuse before the parsed rows are used.
-    (error: unknown) => error instanceof UnifiedDiffError && error.code === "diff.unified.count_mismatch",
+    (error: unknown) => {
+      // DIFF-01: malformed hunks retain the precise reason and cannot be rendered as valid rows.
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "diff.unified.count_mismatch");
+      assert.equal(error.message, "hunk 行数与 @@ 头不一致：声明 5/5，实际 1/1");
+      assert.equal(error.kind, "invalid");
+      assert.equal(actionHttpStatus(error), 400);
+      return true;
+    },
   );
   assert.throws(
     () => parseUnifiedDiff("not a diff"),
-    (error: unknown) => error instanceof UnifiedDiffError && error.code === "diff.unified.no_hunks",
+    (error: unknown) => error instanceof ActionError && error.code === "diff.unified.no_hunks",
   );
 });
 

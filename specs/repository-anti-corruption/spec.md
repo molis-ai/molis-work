@@ -2262,3 +2262,5 @@ R4a3按已登记Work owner承接Workspace句柄/文件快照校验与Session目�
 R4a1 b4153282b经统筹独立只读复核：3,099份跟踪JS/TS/SQL未剩21种完整旧错误token，22TS逆名AST一致，HTTP状态/交接SQL/回执与业务词元保持，无新Blocker/P1。R4a2 19a2a9568准备15TS/78词元，独立只读同样无新Blocker/P1，剩25个context业务词元保持；API仅app-host错误union同步，health通过，补工厂透传说明不改行为。R4a3 ac65c8789准备5TS/51错误词元，逆名AST一致、API仅workspace-artifacts错误union、health通过；真实目录回滚/路径拒绝断言保留。三片均未构建或真实运行，不能据静态复核验收。
 
 R4b沿已接受owner规则准备Artifacts首片：Module产出的artifact.<原因>→artifacts.artifact.<原因>，成果文档导入的document.<原因>→artifacts.document.<原因>，已是artifacts.*的现行码保持。生产工厂、HTTP/动作消费者及测试/活文档同片更新；artifact.*业务事件/引用路径、document.id/version合同示例、导入文档类型和历史数据不迁。R4B-01：实际成果注册/导入拒绝使用现行owner码，原消息/kind/details、权限、幂等与读回保持；R4B-02：只迁错误语境，完整消费者与工厂类型API同步，业务与SQL保持；R4B-03：owner真实定向、资源/健康/边界与共享组合全量通过才验收。当前排队期间仅准备源码，不另起构建。
+
+R4a3 ac65c8789独立只读复核无新Blocker/P1：3,062份JS/TS/SQL无六类旧错码，实际路径/opaque/快照、repair/unlink补偿顺序与cause及Files/Git拒绝断言保留，静态证据不替代运行。R4b 2f6dc5def准备71错误literal/14file、两document工厂变artifacts.document，17文件合并改动中16JS/TS逆名后AST正文一致；API0差异、base health通过，9条boundary引用与真实Feed消费保持同一检查，仅错码名字同步，不放宽门禁。artifact.published、document.id/version、DOM及旧库保持；构建/真实运行/资源与组合全量仍待，不验收。

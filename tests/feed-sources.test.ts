@@ -156,8 +156,9 @@ test("public Feed interruption preserves current owner failures and an uncoded r
         if (failure) throw failure;
         return createCompletedIntentResultFixtureV1(request);
       }, async shutdown() {} },
-      content: { write() { throw new Error("this empty result writes no content"); }, read() { return null; }, has() { return false; },
-        inspect() { return { referenced: 0, available: 0, missing: 0, keyAvailable: true }; } }, async shutdown() {},
+      content: { write() { throw new Error("this empty result writes no content"); }, read() { return ""; }, has() { return false; },
+        inspect() { return { referenced: 0, available: 0, missing: 0, keyAvailable: true }; }, delete() { return false; },
+        collect() { return { deleted: [], kept: [] }; } }, async shutdown() {},
     }));
     const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
     for (const [error, expected, operation] of [

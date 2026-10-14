@@ -8,8 +8,8 @@ import { feedQueryActions, feedItemActions } from "@molis-ai/molis-work-plugin-f
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
-import { cachedMolisWorkWebView } from "../apps/local-host/src/web-view.js";
-import { informationActions } from "../apps/local-host/src/information-actions.js";
+import { cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
+import { informationActions } from "../apps/local-host/dist/information-actions.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 test("Feed reads and warm Web projections use each owner's current authority, retain exact content, and recover without altering original records", { timeout: 30_000 }, async () => {

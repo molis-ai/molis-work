@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BUILTIN_PLUGIN_AGENTS, BUILTIN_PLUGIN_CATALOG } from "../apps/workbench/src/plugin-catalog.js";
+import { BUILTIN_PLUGIN_AGENTS, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
 /**
  * A Manifest names its prompts and methods; the package ships their bodies beside it in the catalog entry. A declared

@@ -30,6 +30,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 外部世界、OAuth、secret | [integrations.md](integrations.md) |
 | 同一件工作在助理、插件页面和手动操作之间连续：对象读取、版本前提、页面声明、通知 | [continuity.md](continuity.md) |
 | 放在哪里：个人空间与项目、用于项目、移动/复制/转成、位置条与完成提示 | [placement.md](placement.md) |
+| 用户选中一段字或拿起一样东西时，你的插件能给出什么下一步、能接什么：选区动作、创建入口、放进已有对象 | [contextual.md](contextual.md) |
 | 抄哪个现有插件 | [examples.md](examples.md) |
 
 本仓库开发时 `.cursor/skills/molis-plugin-dev` 已指向这里。装到别的 Agent：见文末「安装」。
@@ -151,6 +152,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 - native / app / integration 的 Host 接线位置（含 `createPluginPlatform`）
 - Plugin CLI / SDK `start` 兑现规则
 - 对象上下文读取、`result_subject`、版本前提、`data-assistant-context` 与助理通知（[continuity.md](continuity.md)）
+- 选区动作（`fragment_offer_choices`）、创建入口 `intake`、追加 `attach`、选项的 `places`、侧栏视图的 `objects`（[contextual.md](contextual.md)）
 
 只改实现、合同没变：不必改 Skill。合同变了只改代码：任务没完。
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import ts from "typescript";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
-import { ARRIVAL_MOTION_CLIENT_SCRIPT } from "../packages/design-system/src/arrival-motion-client.js";
+import { ARRIVAL_MOTION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { CLIENT_SCRIPT, ONBOARDING_DISMISS_CLIENT_SCRIPT } from "../apps/workbench/src/browser-assets.js";
 import { CHOOSER_CLIENT_SCRIPT } from "../apps/workbench/src/arrival/chooser-client.js";
 import { CONTEXT_ONBOARDING_CLIENT } from "../apps/workbench/src/scripts/context-onboarding.js";

@@ -8,9 +8,9 @@ import { charactersActions as c } from "@molis-ai/molis-work-plugin-characters";
 import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
-import { actionUsageActions, type ActionUsagesResult } from "../apps/local-host/src/action-usage-actions.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
+import { actionUsageActions, type ActionUsagesResult } from "../apps/local-host/dist/action-usage-actions.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 test("where a capability is used comes from each owner of saved references: workflow steps, Character scopes and client grants", { timeout: 120_000 }, async t => {

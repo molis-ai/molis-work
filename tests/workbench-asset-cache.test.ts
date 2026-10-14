@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
-import { createLocalWebAssets } from "../apps/local-host/src/web-assets.js";
-import { currentLocale, runWithLocale } from "../apps/local-host/src/web-locale.js";
+import { createLocalWebAssets } from "../apps/local-host/dist/web-assets.js";
+import { currentLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 
 test("Workbench asset cache preserves locale, body, ETag and HEAD while avoiding repeated rendering", async t => {
   let generated = 0;

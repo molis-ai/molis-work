@@ -3,9 +3,9 @@ import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { connectCli, inspectCliConnection, startCliLogin, cliLoginJob } from "../apps/local-host/src/connector-cli.ts";
-import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.ts";
-import { inspectSourceAuthorization } from "../apps/local-host/src/connector-access.ts";
+import { connectCli, inspectCliConnection, startCliLogin, cliLoginJob } from "../apps/local-host/dist/connector-cli.js";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { inspectSourceAuthorization } from "../apps/local-host/dist/connector-access.js";
 
 test("official CLI fixed commands bind separate account identities and reject a later account switch", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-cli-"));

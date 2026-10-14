@@ -35,9 +35,9 @@ import {
 } from "@molis-ai/molis-work-module-functions";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
-import { liveHostFunctionAuthoringCatalog } from "../apps/local-host/src/behavior-catalog.ts";
+import { liveHostFunctionAuthoringCatalog } from "@molis-ai/molis-work-app-local-host";
 import { defineSubjectOffersAction, type ActionProvider, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { projectHomeEvents } from "../apps/workbench/src/home-flow.ts";
+import { projectHomeEvents } from "../apps/workbench/dist/home-flow.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
@@ -523,7 +523,7 @@ test("Functions' declared failures surface from the Module with their code and k
 
 
 test("all builtin action declarations feed the Agent palette without maintaining a second tool list", async () => {
-  const { BUILTIN_PLUGIN_CATALOG } = await import("../apps/workbench/src/plugin-catalog.ts");
+  const { BUILTIN_PLUGIN_CATALOG } = await import("@molis-ai/molis-work-app-workbench");
   const directory = BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.actions ?? []).map(definition => ({ ...definition,
     provider: { provider_id: entry.manifest.plugin_id, title: entry.manifest.name, kind: "plugin" as const }, availability: { available: true as const },
   })));

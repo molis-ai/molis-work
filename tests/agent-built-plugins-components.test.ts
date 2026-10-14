@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
 import { openStudioChrome } from './fixtures/plugin-builder-browser.js';
-import { validatePluginComponentPlans, resolvePluginComponentCall, PLUGIN_COMPONENT_STYLES } from '../packages/design-system/src/plugin-components.js';
-import type { SandboxPluginContract } from '../packages/contracts/src/platform/plugin-sandbox.js';
+import { validatePluginComponentPlans, resolvePluginComponentCall, PLUGIN_COMPONENT_STYLES } from '@molis-ai/molis-work-design-system';
+import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 /** The acceptance driver, loaded when a test needs it (one reference to its source for the whole file). */
 const loadDriver = () => import('../apps/local-host/src/plugin-builder/browser.js');
 const contract: SandboxPluginContract = {

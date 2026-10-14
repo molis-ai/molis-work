@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { alchemistActions as a, ALCHEMIST_ACTION_PERMISSIONS, createAlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
 
 async function setup(t: test.TestContext) {

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
 import { PLUGIN_COMPONENT_STYLES, VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
-import { AGENT_STUDIO_CLIENT_FACTORY_SCRIPT } from '../plugins/native/plugin-builder/src/agent-studio.js';
+import { AGENT_STUDIO_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-plugin-builder';
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from '@molis-ai/molis-work-ui-host';
 import { runBuilderBrowserAcceptance } from '../apps/local-host/src/plugin-builder/browser.js';
 import { openStudioChrome } from './fixtures/plugin-builder-browser.js';

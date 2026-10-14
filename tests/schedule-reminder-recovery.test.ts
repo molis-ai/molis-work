@@ -8,12 +8,12 @@ import { bindActionClient, type ActionExecutionContext, type ActionHandlerBindin
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { createScheduleReminders, createScheduleReminderManagement, getScheduleReminder, createScheduleActionPorts, scheduleActions, SCHEDULE_ACTION_PERMISSIONS,
   SchedulePluginRouteTable, createScheduleRouteHandlers, createReminderActionHandlers, reminderActions, type ScheduleJobView } from "@molis-ai/molis-work-plugin-schedule";
-import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
-import { seedDemoBoard } from "../apps/local-host/src/demo-seed.js";
-import { scheduleServiceFor } from "../apps/local-host/src/schedule-runtime.js";
-import { hostScheduleReminders, hostScheduleReminderManagement } from "../apps/local-host/src/schedule-reminders.js";
-import { createLocalFeedApplication } from "../apps/local-host/src/feed-application.js";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
+import { hostScheduleReminders, hostScheduleReminderManagement } from "../apps/local-host/dist/schedule-reminders.js";
+import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const pluginId = "io.molis.work.test.reminder";

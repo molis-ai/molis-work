@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionDefinition, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: ["source:read"] };

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { icon } from "@molis-ai/molis-work-design-system";
-import { renderAccountGlobalItems, renderPluginMarket } from "../apps/workbench/src/immersive-shell.ts";
-import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/plugin-workbench.ts";
+import { renderAccountGlobalItems, renderPluginMarket } from "../apps/workbench/dist/immersive-shell.js";
+import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/plugin-workbench.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 
 test("plugin market is a catalog directory, not a centered landing form", () => {

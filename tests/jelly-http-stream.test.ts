@@ -1,5 +1,5 @@
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -7,9 +7,9 @@ import { createServer, type Server } from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { handleJellyNativePluginHttp } from '../apps/local-host/src/jelly-native-plugin-http.js';
-import { openJellyStore } from '../plugins/native/jelly/src/store.js';
-import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
+import { handleJellyNativePluginHttp } from '../apps/local-host/dist/jelly-native-plugin-http.js';
+import { openJellyStore } from '@molis-ai/molis-work-plugin-jelly';
+import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 async function fixture(t: {after(fn:()=>void|Promise<void>):void}, ports: { completeText?: HostCompleteText } = {}) {
   const home=mkdtempSync(join(tmpdir(),'jelly-http-'));
   const host=new MolisWorkLocalHost({homeDirectory:home,completeText:ports.completeText??null});

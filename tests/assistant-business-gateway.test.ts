@@ -983,7 +983,7 @@ test("the project layer of a project work is the project's guidance, read throug
 
 // The runtime may start a `safe-read` tool before the model has finished speaking and folds old read output into
 // "call it again" (specs/prologue-adoption §2 items 4–5): only calls that change nothing may say they read.
-test("gateway tools say they read only when they change nothing; the Host-governed writers run without a new prompt", () => {
+test("PA-22: gateway tools say they read only when they change nothing; the Host-governed writers run without a new prompt", () => {
   const client = { discover: async () => [], invoke: async () => ({}), offer: async () => ({ offer_id: "o" }),
     delegate: { start: async () => ({}), status: async () => [], follow_up: async () => ({}), stop: async () => ({}) },
     memory: { remember: async () => ({}), list: async () => [], forget: async () => ({ forgotten: true }), propose: async () => ({}) } };

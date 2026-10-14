@@ -228,7 +228,11 @@ test("a plugin reminder gets the saved Inbox next step like every other arrival,
       grants: ["storage:private"], execution: "sandbox", state: "running", recovery_count: 0, last_error_code: null, installed_at: installedAt, updated_at: installedAt,
       uninstalled_at: null, retain_private_data: false };
     new SqlitePluginRuntimeRepository(runtime.store.db).save(installation);
-    let clock = Date.parse("2026-09-27T00:00:00Z");
+    // The Host already opened this project, so scheduleServiceFor returns the service it cached with the real clock and ignores a
+    // clock passed here. The fixture therefore keeps its own times next to the real now: each tick happens now, and each reminder
+    // is added before its time and falls due before that tick, so the lease a tick takes is judged by the same clock.
+    const minutes = (count: number) => count * 60_000;
+    let clock = Date.now() - minutes(60);
     const schedule = scheduleServiceFor(runtime.store.db, () => new Date(clock));
     const reminders = createScheduleReminders({ db: runtime.store.db, projectId: runtime.project_id, schedule, now: () => clock,
       describe: identity => ({ title: "论语日课", link: "/plugins/" + identity.pluginId, generation: installation.installation_generation }) });
@@ -238,8 +242,8 @@ test("a plugin reminder gets the saved Inbox next step like every other arrival,
       return feed.listInboxEntries(runtime.project_id).find(entry => entry.subject_id === item.item_id)!;
     };
 
-    reminders.add(plugin, { at: "2026-09-27T08:00:00+08:00", text: "复习《学而》" });
-    clock = Date.parse("2026-09-27T00:30:00Z");
+    reminders.add(plugin, { at: new Date(clock + minutes(30)).toISOString(), text: "复习《学而》" });
+    clock = Date.now();
     await schedule.tick(new Date(clock));
     const first = entryOf("复习《学而》");
     assert.equal(first.status, "open");
@@ -247,8 +251,9 @@ test("a plugin reminder gets the saved Inbox next step like every other arrival,
     assert.deepEqual(history().find(record => record.subject.id === first.entry_id)!.suggested_behavior_ids, ["inbox.done"]);
 
     failure = true;
-    const second = reminders.add(plugin, { at: "2026-09-27T09:00:00+08:00", text: "复习《为政》" });
-    clock = Date.parse("2026-09-27T01:30:00Z");
+    clock = Date.now() - minutes(20);
+    const second = reminders.add(plugin, { at: new Date(clock + minutes(10)).toISOString(), text: "复习《为政》" });
+    clock = Date.now();
     await schedule.tick(new Date(clock));
     assert.equal(entryOf("复习《为政》").status, "open", "a judgment failure does not take the reminder out of the Inbox");
     assert.equal(getScheduleReminder(runtime.store.db, second.reminderId), null, "the one-off reminder was consumed by its delivery");

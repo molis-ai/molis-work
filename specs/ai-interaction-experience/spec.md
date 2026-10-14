@@ -552,6 +552,7 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 - 2026-10-11：I0 独立组合预览写成并交接（§19、§20）。
 - 2026-10-12（C1a，已取消）：曾把合同子路径先做成纯新增（#447）；统筹改序后并进 C1+H1（D11），#447 关闭。
 - 2026-10-13（交接 PR 合并 I1）：按用户决定，各线只在交接 PR 里提交；I1（#439）已合进交接分支（933c664f，无冲突）。I0 预览改用 `createInteractionClient`，删掉预览自己的 `calendar.ts` 和 `bindings.ts` 里的字段、日历、键盘处理（净减 128 行）；纯逻辑用例 21/21 与局部 typecheck 通过，**浏览器用例（`tests/ai-interaction-slice.e2e.test.ts`）等 browser 锁，尚未重跑**。
+- 2026-10-13 晚（防腐复查 2）· 合入 main `1a9416ec` · merge-base `1a9416ec` · 通过：M1 边界、M2 健康门禁对照 merge-base、M4 API 快照（只有本线有意的 `agent-interaction` 新子路径与 `agent-host` 搬走的类型）、M5 动作快照无变化；人工项：新合同子路径同一次合入就有真实使用者（宿主、Coding、助理）和守它的用例；合同包只放类型与常量；新错误码沿 `AgentHostErrorCode`；巨大单元不变大（见 20.0）；没有改门禁。
 - 2026-10-13（防腐复查 1）· 合入 main `1ec92c18` · merge-base `1ec92c18` · 通过（机器项）：M2 `check-health-gates --base origin/main` 全绿（157 个巨大单元不变），M8 页面事件已登记；M9/M10 列出的是 main 上已有的翻译冲突与测试引用，不是本线新增。未做：M1 `boundary:check`、M5 动作快照、M6 页面资源（需要构建，等 build 锁）；人看项 3.19（页面资源）见下一条 A1 字节预算，暂缓，等 A1 开工前定办法。本线到目前只改了设计系统、预览脚本、需求书，没有动合同、动作、宿主。
 - 2026-10-13（A1 字节预算，实测）：`INTERACTION_CLIENT_SCRIPT` 17,644 字节、`INTERACTION_STYLES` 17,428 字节；助理岛里要被替换的 `renderQuestion`/`renderCard`/「接下来」行约 18 KB，`craft-finish` 里对应的助理样式约 6.6 KB。页面资源门禁只许变小，所以 A1 按现在的划分净增约 10 KB（`molis-work-workbench.css`）；样式若同时进另外两张表则更多。需要在 A1 开工前定办法：（a）把 `INTERACTION_STYLES` 缩到能与被替换的助理样式抵平；（b）同一 PR 里删 `molis-work-workbench.css` 里别处已被取代的样式；（c）请用户对这一项放宽门禁。构建锁放开后用真实构建量 `workbench.css` 与 `workbench.js` 再定。
 - 2026-10-12（C1+H1）：在 #408 的分支上写了带类型的题的合同、投影、预检、错误码与题型交集；验证在构建锁放开后做（证据另记）。
@@ -727,6 +728,33 @@ node scripts/run-tests.mjs tests/ai-interaction-slice.e2e.test.ts
 
 
 写给另一台机器上的接手者：这一节取代 2026-10-11 的旧交接，只靠远端分支就能接续；本机工作树、本机锁文件与 scratchpad 你看不到，需要的内容已复述在下面。统筹层的事实也在远端分支 `coordination/handoff-2026-10-13`（目录 `coordination/2026-10-13/`），与本线直接相关的部分已写进 §20.6。
+
+### 20.0 当前状态（2026-10-13 晚，统筹接手后，先读）
+
+本节之后的 20.1–20.11 写于 10-13 白天；与本节不一致的以本节为准。
+
+- **合 main 到 `1a9416ec`**：#411 情境浮条、#408 采用线与过渡 SDK 包（`interim-p1-cu`，带带类型的问卷）都已在 main。冲突只有 `packages/design-system/README.md`（两边都留）。
+- **C1+H1 已在 main 的新形状上重做**（`69d8f660`），取自 `c50a5534` 这一个提交，没有整支合 `feature/agent-typed-questions`：
+  - 新合同子路径 `services/agent-interaction`；
+  - agent-host 的显式投影与按 SDK 规则的预检，错误码 `agent.answer_invalid`；
+  - 宿主声明各界面画得了的题型。
+- **与 C1+H1 原稿不同的两处**：
+  1. 回答里的数组改成只读，与 SDK 的 `QuestionnaireAnswer` 一致；原稿不能编译。
+  2. 题型清单改成「这个界面画得了的**带类型问卷**题型」，现在两个界面都是空（`82cc8c3e`）。原稿给 `["choice"]`，以为「产品行为不变」。实际上只要给了 `askUserQuestionTypes`，哪怕只有 `choice`，模型拿到的 `ask-user` 就换成带类型的形式（选项带说明、推荐与默认值）；现在的助理与 Coding 都画不出这些，Issue 的澄清页也依赖原来的形式。`issue-clarification-page` 的 ISSUE-34 抓到了这一处。现在宿主只在交集非空时才给这项配置，Runtime 维持原来的纯选择题；A1、A2 在教会界面画带类型形式的同一个改动里把 `choice` 加进各自的清单（D8 改订）。
+- **为了不让巨大单元变大**：
+  - 题型清单在宿主装配 Prologue 选项的地方（`system-agent-service.ts`）传入，不进 `composeAgentHost`；
+  - 助理用 `AgentRunView["awaiting_input"][number]` 取问题类型，不再多一行 import。
+- **I0 预览的浏览器用例**：迁到共享客户端之后第一次重跑，31/31。其中一处断言按共享客户端的既定行为改了（`37da9a0e`）：回车跳项落在下一组的已选项或第一个控件上，不落在组本身。
+- **工程证据**：
+  - 构建、健康门禁（对照 merge-base）、边界检查通过；API 快照只多 `agent-interaction.txt`，`agent-host.txt` 少了搬走的类型；动作快照没有变化。
+  - `affected-tests` 选出的 392 个文件、3335 条：3320 通过、11 失败。11 条都已处理：
+    - 7 条安装类：本树只增量构建过 local-host，源码与构建指纹对不上；整体重建后通过。
+    - 2 条 ISSUE-34：上面的第 2 处，已修，通过。
+    - 2 条 I0 预览：上面的断言，已改，通过。
+  - `interaction-client.e2e` 14/14。
+  - `affected-tests` 建议全量（改了合同），统筹在合并前跑。
+- **用户 2026-10-13 定**：A1 与 H2 合成一个改动落地，不放宽页面资源门禁（20.11 的 (a)+(b)+(b′)，加上 H2 删掉 `renderCard` 与「接下来」行）。H2 按 W5-10 的协作者形状做，算 W5-10 的一部分。
+- **下一步**：#410 全量通过后由统筹合进 main；之后在新的 PR 上做 A1+H2，再 A2、H3、H4、S1。
 
 ### 20.1 一句话现状
 

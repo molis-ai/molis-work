@@ -2659,3 +2659,6 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 
 
 **96c工程闭环（实际通过，非最终全量）。** frozen head82d8ff56a、比较main9abcb9636，offline/install、whole build、根types、workspace-types、API、actions、actual-base health、assets、boundary九步全部退出0；原始结果i8-joint-preflight96c-results.json与各96c日志已核，代码树clean。71包/1991源码/8501imports/246依赖边/61合同子路径，正式SDK路径与登记已通过边界，不再留下外部file临时例外。97已在该冻结head启动（25普通+2浏览器），98四文件随后，结果未归回不记通过。远端main随后核得774acaf57（#496 A2 shared question card，13:25:42Z合入，29文件与助理/Coding问卷路径有交集），本轮不取消或改树；须在结束后纳入新main，当前证据仍只支持9ab组合，不称最新main最终证明。
+
+
+**97夹具死锁的实际处置（不记通过）。** 冻结82d8组合已开始实际Runtime回归，coding-effect-control的report cancel/revoke两项通过后，replace分支在原动作仍注册时重复registerProvider，被Kernel按原合同拒绝；异常绕过人为SDK-read屏障的release，30秒test timeout后的local.close又等待该operationTail，导致file子进程不结束。已只读核test62–65/Kernel重复注册拒绝，并sample确认该精确子进程26194事件等待（非忙循环）；核parent26129及准确文件后仅SIGTERM本人子进程，driver继续其余文件。该文件计失败，原日志和sample/处置记录保留。后续修fixture保存原disposer、先取definition再真实撤销/注册，finally释放屏障；不放宽Kernel、不改生产语义或跳过9种业务组合。当前受测树仍冻结，修复及重跑在97/98结束后进行。runtime97-head原base774a仅为共享tracking ref开始观察值，另记录实际sourceMergeBase9ab，测试未包含A2。

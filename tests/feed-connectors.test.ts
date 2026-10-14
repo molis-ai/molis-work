@@ -726,9 +726,9 @@ test("Connector interruption is recoverable with the same idempotency key", asyn
     );
     const interrupted = service.feed.snapshot(DEMO_PROJECT_ID).runs[0]!;
     assert.equal(interrupted.phase, "interrupted");
-    // J3E-01: Listener persistence and the Feed catch keep the same current owner code.
-    assert.equal(interrupted.error_code, "connector.network");
-    assert.equal(service.feed.getSource(DEMO_PROJECT_ID, source.source_id).last_error_code, "connector.network");
+    // J3E-01: the real Connector/Listener wrapper and Feed catch preserve their refusal while retrying.
+    assert.equal(interrupted.error_code, "listener.connector_failed");
+    assert.equal(service.feed.getSource(DEMO_PROJECT_ID, source.source_id).last_error_code, "listener.connector_failed");
     assert.deepEqual(service.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor, {});
 
     const retried = await service.sync(source.source_id, { idempotencyKey: "connector-recovery-0001" });

@@ -2455,3 +2455,5 @@ W3-02-I9-CHAR沿已有R4c仅收Characters模块service/open的五现行原因类
 Ledger完整98ab2fab4独立Source接受，无Blocker/P1，六造错及其余ref/授权/事务路径保持；源码142映射0诊断、API43匹配、health43相对d530通过75类，仅局部候选。SDK联合副本说明已改为当前08基点41排队未运行，旧62/62证据明确归d490历史，不能当当前组合验收。Characters新候选发现现行schema拒绝测试尚有旧character.invalid，沿R4c已accepted改名同步characters.invalid，保留原字节与mode不变全部断言，不改生产库。
 
 W3-02-I10-DIFF/CODING沿既有R4c收UnifiedDiffError与CodingDiagramError，只动各自parser/inspect及公开导出和精确consumer，不互相import插件实现。DIFF-01：三个diff.unified原因/中文/count与hunk解析次序保持，comparison只接受本域三个码给原详细文案，外来错误仍原通用文案；DIFF-02：两个coding.diagram原因，原inspect返回错误数组按共同ActionError[]保留code/message/顺序，不变成throw或另种结果；DIFF-03：相关现行diff/coding-artifacts测试/真实固定changeset呈现、README受影响回归及build/API/health/assets/共享全量通过。两域无旧alias/fallback或新数据，现行invalid400保持；候选Source与最终运行分开。
+
+37验证队列已在未取得锁、未安装/构建/测试状态撤销：确切自有wrapper9062仍queued，install/results均不存在，foreign receipts-full-suite仍持锁；只TERM该自有排队进程，退出143，不中断他人回归或操作他人锁。已证旧SDK与新问卷31类型失配，不重复已知失败整建。改为41联合08 SDK先构建/回归/pack，再把已接受I3–I7/Ledger/CHAR及Diff/Diagram集中一次新整建；当前I8 Source解冻可串行整合，未称37通过。

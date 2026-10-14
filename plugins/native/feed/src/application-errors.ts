@@ -37,7 +37,7 @@ export function callAttention<T>(operation: () => T): T {
 
 export function assertSourceHistoryDecision(value: unknown): asserts value is SourceHistoryDecision {
   if (value !== "retain_history" && value !== "delete_local_history") {
-    throw new Error("feed.contract_source_history_decision_required");
+    throw feedErrors.contract_source_history_decision_required("feed.contract_source_history_decision_required");
   }
 }
 

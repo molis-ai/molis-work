@@ -134,6 +134,7 @@ export interface IngestFeedItemInput {
 }
 
 export declare const feedErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly contract_source_history_decision_required: "internal";
     readonly item_not_found: "not_found";
     readonly source_not_found: "not_found";
     readonly out_rule_not_found: "not_found";

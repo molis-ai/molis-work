@@ -54,6 +54,7 @@ type Raiser = (message: string, details?: Record<string, unknown>) => ActionErro
 type Declarations = Readonly<Record<string, Raiser>>;
 
 const FEED: OwnerCodes = { prefix: "feed", status: {
+  contract_source_history_decision_required: 500,
   item_not_found: 404, source_not_found: 404, out_rule_not_found: 404,
   revision_conflict: 409, source_paused: 409, source_use_catalog: 409,
   invalid_transition: 400, request_invalid: 400, out_rule_invalid: 400,
@@ -257,7 +258,7 @@ const BROWSER_SCRIPT = /[\\/]client\.ts$/u;
 //     public feed that fails): they are recorded on the task, the job or the source run and never answered to a caller as they are;
 //   - a contract check the action's input schema has already passed (the history decision of a deletion).
 const STAYS_BARE: readonly RegExp[] = [
-  /^`(?:Feed|Inbox|Schedule) route \$\{[^`]*没有 Host binding`/u, /^`(?:Feed|Inbox|Schedule) UI surface /u, /^"feed\.contract_source_history_decision_required"\)/u,
+  /^`(?:Feed|Inbox|Schedule) route \$\{[^`]*没有 Host binding`/u, /^`(?:Feed|Inbox|Schedule) UI surface /u,
   /^"定时执行尚未登记本次持久记录"/u, /^"本次执行结果未知，不能自动重跑"/u, /^"定时操作已暂停、取消或改变"/u, /^"定时操作的安装身份已改变"/u, /^"本次定时执行已被处理"/u,
   /^"提醒的原安装身份已不可用，记录已保留/u, /^"定时任务已暂停或改变，本轮结果未保存"/u, /^"定时操作的安装执行入口已改变"/u,
   /^"(?:还没有配置到点执行的 Agent|闹钟叫醒没有项目现场|提醒没有项目现场|定时操作没有项目现场)"/u,

@@ -927,6 +927,15 @@ interface AgentInputView {
 
   对四问的回答程度：「被怎么处理」只答到送达、放进上下文、读到、没读到（Coding 有，助理没有）；「在哪里处理」「改变了什么」都没有；「还有什么没处理」只有 Coding 回执条上的「这一轮结束时 AI 没读到」，没有托盘、没有带到下一轮。
 
+- 2026-10-14（回执线会话，**暂停点**；统筹按用户 10-14「当前任务完成后，先暂停需求的线，让防腐线先继续」叫停，整机让给防腐线）：
+  - **已完成（都已推送，没有只在本地的东西）**：
+    - 现状核对（上一条）。
+    - 分支 `receipts/1a-extract`（基于 main `393e8958`）：1a 抽取，行为不变——助理两处发送路由合成 `apps/local-host/src/assistant/assistant-inputs.ts`；Coding 的回执条与补充发送搬到 `plugins/native/coding/src/input-receipts-client.ts`；Coding 页面脚本的四段注释移出模板，按源码算约 −470 字节。另一个提交修了一个现存缺陷：`coding.runs.control` 自 `ed5acdfe` 升到第 2 版后，助理的 Coding 执行者仍只找第 1 版，从助理给正在跑的 Coding 轮次补充或回答会报「这个项目还没有可用的 Coding 插件」；改为按动作写明版本，`tests/assistant-coding-executor.test.ts` 的替身改读 Coding 自己发布的版本，并加一条补充走到 `runs.control` 的用例。本地 `check-health-gates --base origin/main` 通过（巨大单元下降，已 `--update` 本地快查）；`tsc --noEmit` 只有旧 dist 带来的既有类型错，新文件无错。
+    - 草稿分支 `receipts/1c-agent-host`（叠在 1a 上，WIP 提交）：合同 `AgentSteerControl` 加 `mode`（`next-boundary` / `interrupt` / `after-run`）与键的写法 `AGENT_INPUT_KEY_PATTERN`（与 SDK 的 SEGMENT 一致），`control()` 返回 `AgentSteerReceipt`（`input_id`、`replayed`、`delivered: run | queued`）；`prologue-inputs.ts` 的 `deliverSteer`：已结束或 `after-run` 进会话排队、`RUN_NOT_RUNNING` 用同一个键 `queueInput`；`prologue.ts` 接上（文件行数不变、类缩 2 行）；`runViewVersion` 纳入每条补充的状态；Coding `coding.runs.control` 升第 3 版（`key`、`mode`），路由对已结束的轮次放行补充并回传回执；助理用 `send.<request_id>` 作键、竞态时结果为 `queued`（合同 `AssistantSendResult.outcome` 加 `queued`，底栏提示「这一轮刚结束 · 已排到下一轮」，英文已加）。用例 `tests/agent-input-delivery.test.ts`（RC-02–RC-04）、`coding-run-control-contract`（RC-01）。
+    - 草稿分支 `receipts/1d-coding`（叠在 1c 上，WIP 提交）：Coding 发送方式下拉（补充要求 / 打断并改向 / 这一轮结束后再做）；「发送中」气泡与同键重发（只有断网或回包读不出才算「没送到」，被拒的不留气泡）；宿主转告的 `notice` 轮不再挂补充回执条，改标「Molis 的说明，不是你发的话」并换样式；输入框 Esc 不再直接停止（D3），停止按钮去掉 Esc 提示；`plans.ts` 的规划补充不再写「已体现在确认的计划里」（RC-07，G14）。
+  - **没验证的**：三条分支都**没有构建、没有跑任何用例**（构建锁一直被别的会话占着）；没有在隔离 Home 实走（准备了慢速替身模型脚本，未启动）；没开 PR。1c 还缺：`prologue-node*.ts` 一侧的接线（活动跑句柄 `steer` 要把 SDK 的回执交回、`createNodePort` 加 `queueInput`）——等 W4-06（#498）合入后在拆开的 `prologue-run.ts`、`prologue-node-port.ts` 里做；恢复报告的「输入」一类；`pnpm api:update`、`pnpm actions:update`；页面资源字节与巨大单元按 merge-base 复核。1d 还缺：「核对并继续」带上没读到的输入（要 1c 给 `agent.run.start` 加 `queued` 带入），以及三宽度与深色截图。1d 的界面字节没有量过。
+  - **恢复时第一步**：在 `receipts/1a-extract` 上并入最新 main → 拿构建锁 `pnpm build` → 跑 `node scripts/affected-tests.mjs` 选出的 1a 定向用例（含 `assistant-coding-executor`、`coding-client-scripts`、`assistant-*`、Coding 浏览器用例，浏览器用例拿浏览器锁）→ `node scripts/gates/page-assets.mjs --update --base origin/main` 把 Coding 资源字节降到实测 → 在隔离 Home（`MOLIS_WORK_HOME=<临时目录>`、不用 4173/4207/4208 端口、慢速替身模型）把 Coding 与助理的补充回执各实走一遍，结果补进现状核对 → 开 1a PR。之后 1c 等 #498 合入、并入 main 再续写，1d 叠在 1c 之后。
+
 ## 17. 远端交接（2026-10-11，已被 §19 取代，只作历史）
 
 用户已授权四条 Codex 任务及 SDK 依赖分别提交、推送。本分支 `feature/handoff-ai-input-receipts` 基于 Molis `7b4a92287`，保存本完整需求及最新交接；本分支没有 Molis 产品实现。前文的旧主线、旧分支、绝对路径和“提交/推送待授权”只描述当时状态；本文为本线唯一需求书。本次未合并 main、发布或改动正式安装。

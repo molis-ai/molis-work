@@ -95,7 +95,6 @@ export {
 } from "./projection.js";
 export {
   CodingSessionStore,
-  CodingStoreError,
   CODING_ACTIVE_STATES,
   CODING_SCHEMA_SQL,
   listCodingBackgroundSessions,

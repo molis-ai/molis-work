@@ -186,7 +186,13 @@ test("W3-02-G4-ANSWER-01: a real Runtime refusal shows the field error and a cor
   let done = await view();
   for (let attempt = 0; done.work.state !== "completed" && attempt < 150; attempt++) { await new Promise(resolve => setTimeout(resolve, 100)); done = await view(); }
   assert.equal(done.work.state, "completed");
+  await waitFor("document.querySelector('[data-assistant-thread]')?.textContent.includes('按周报整理好了。')", 15_000);
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-assistant-thread] .assistant-problem'))"), false, "the successful answer renders and polling finishes without a client failure");
   assert.equal(done.work.work_id, waiting.work.work_id); assert.equal(done.rounds.length, 1);
   assert.equal(done.rounds[0]!.run_id, round.run_id); assert.equal(done.rounds[0]!.awaiting_input.length, 0);
-  assert.equal(requests.length, 2); assert.match(JSON.stringify(requests[1]), /周报/, "the corrected answer reaches the original provider continuation");
+  assert.equal(requests.length, 2);
+  const continuation = requests[1] as { messages: { content: string | { type: string; tool_use_id?: string; content?: string }[] }[] };
+  const result = continuation.messages.flatMap(message => Array.isArray(message.content) ? message.content : []).find(block => block.type === "tool_result" && block.tool_use_id === "question-call");
+  assert.ok(result, "the answer is the tool result of the original question");
+  assert.deepEqual(JSON.parse(result.content!), { kind: "questionnaire", picked: [{ question: 0, type: "choice", labels: ["周报"] }] }, "the selected label reaches the provider in the original question's result");
 });

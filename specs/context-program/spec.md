@@ -1274,3 +1274,25 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 
 - 2026-10-14：现状按代码核对（21.1）；方案与切片（21.2）；切片在内置浏览器 1440 浅色、375 深色走过五步（选区 → ✦助理 → 记成待办由下一步确认 → 下一步里直接答题 → 回复里选一段放进左边光标处），窄屏时下一步移到输入框上方、页面无横向滚动。**真实产品走查未做**：整机构建锁被 #489 的最终验证（构建 + 全量）占着，本线的构建排在后面；构建后在隔离 Home（脚本模型产生真实的操作卡与问卷卡）补走查与截图，写回本节。
 - 工程验证：无（还没写产品代码）。真实场景验证：无。用户验收：待用户验收。
+
+### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
+
+分支 `context/assistant-flow`（从 origin/main `393e8958` 开，全部已推送，本机没有只在本地的改动；没开 PR）。
+
+**已完成（只到「写完」）**：
+
+- §13 现状核对（16.5）；#180 由统筹关闭，三行出处已在本分支的 `specs/coding-plugin/next-requirements.md`。
+- 方案、决策与波次（21.1–21.5）；可点切片（私有页面 `https://claude.ai/artifact/1PphQCPrX7CgnH5eSWK6FN`，本地副本、截图与隔离 Home 走查脚本 `walk-serve.mts` 在统筹共享笔记目录 `contextual-line/`）。
+- 交互线同意的 D24 与 FLOW-01…05（21.2），H3 的落点读取用法（21.4 W3-B）。
+- 部件参数：`renderInteractionNextSteps(steps, label, { max, more })`、`waiting`/`waitingLabel`、样式、组件板样张、`tests/interaction-components.test.ts` 新用例。
+- 派生函数：`apps/local-host/src/agent-next-steps.ts` 的 `interactionNextSteps` 与 `NEXT_STEP` id（经 `apps/local-host/src/index.ts` 导出），用例 `tests/agent-next-steps.test.ts`（FLOW-02…05，含 unknown 不重跑）。
+
+**没验证的**：部件与派生都没构建（这棵树的 dist 是 10-13 的，`tsc` 对派生报的找不到 `services/agent-interaction` 与 `waiting` 字段都因旧 dist）；FLOW 用例与 design-system 必跑用例没跑；健康门禁、页面资源没量（部件新增的样式会让三份样式表各多约 300 字节，要在 W3-A1 同一个 PR 里用删掉的旧渲染抵掉，单独合会被页面资源门禁拒）；真实产品没走查。
+
+**恢复时按顺序**：
+
+1. `git fetch origin main`，把 main 合进本分支（不 rebase、不强推）；按排队顺序拿构建锁 `pnpm build`。
+2. 跑 `node scripts/run-tests.mjs tests/agent-next-steps.test.ts tests/interaction-components.test.ts` 与 `packages/design-system/README.md` 的必跑用例；`node scripts/check-health-gates.mjs --base origin/main`。
+3. 隔离 Home 实走：`node --import tsx walk-serve.mts 4296`（脚本放回 scratchpad 并把 `node_modules` 链到工作树；它起隔离 Home 与脚本模型，「问我…」出问卷卡、「待办 / 建议」出操作卡），1440/1024/800/390 与深色截图，结果补进 21.6。
+4. 等 #489 合入后接执行：岛外新文件画输入框旁的下一步（`renderInteractionNextSteps` 带 `max: 3`），按 `NEXT_STEP` id 点卡自己的控件（选项像人点一样、卡上有没交的改动就只滚到卡上）；删 A10「接下来」、A11 两个「去…」、A7 建议条（连同 #489 页脚名单里的 `.assistant-offer`），页面资源每个文件只减。
+5. 定向用例、门禁、截图齐了开 W3-A1 的 PR（本分支的文档与部件一起），PR 号与证据发统筹。

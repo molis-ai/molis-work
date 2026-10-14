@@ -103,7 +103,12 @@ test("project planning HTTP reads, adopts and saves through current action polic
     assert.equal((await request(path + "/apply", apply, false)).status, 403);
     denied.add(goalsActions.planningRead.capability_id);
     assert.equal((await request(path)).status, 400);
-    assert.equal((await request("/settings/planning")).status, 400);
+    const blockedPage = await request("/settings/planning");
+    assert.equal(blockedPage.status, 403);
+    const blockedPageBody = await blockedPage.json() as { code: string; error: string; call_id: string };
+    assert.equal(blockedPageBody.code, "actions.plugin_disabled");
+    assert.equal(blockedPageBody.error, "规划停用");
+    assert.match(blockedPageBody.call_id, /^[0-9a-f-]{36}$/, "the shared HTML refusal can be traced to the actual action");
     denied.clear(); denied.add(goalsActions.planningApply.capability_id);
     assert.equal((await request(path + "/apply", apply)).status, 400);
     assert.deepEqual(await (await request(path)).json(), original);

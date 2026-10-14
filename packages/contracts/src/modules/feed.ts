@@ -169,7 +169,7 @@ export class FeedError extends Error {
  * (plugin SDK `actionHttpStatus`), so Feed keeps no status table of its own. They are declared here, beside the module's contract, because
  * the Feed plugin, the Host files that sync and the RSS and YouTube integrations all refuse in Feed's name and share no other package.
  * Every status is the one the Feed route answered for the code's old name: the missing things 404, the changed-under-you things 409,
- * every other refusal 400.
+ * caller refusals 400; an internal deletion-contract violation remains 500.
  */
 export const feedErrors = defineErrorCodes("feed", {
   contract_source_history_decision_required: "internal",

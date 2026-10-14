@@ -146,10 +146,12 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
     if (destination.origin !== location.origin) return;
     if (destination.pathname === location.pathname && destination.search === location.search && destination.hash) return;
     document.body.dataset.navigationPending = "true";
+    if (!document.querySelector('.mw-navigation-loading')) { const mark = document.createElement('span'); mark.className = 'mw-navigation-loading'; mark.dataset.mwState = 'running'; mark.setAttribute('aria-hidden', 'true'); document.body.append(mark); }
     anchor.setAttribute("aria-busy", "true");
   });
   window.addEventListener("pageshow", () => {
     delete document.body.dataset.navigationPending;
+    document.querySelector('.mw-navigation-loading')?.remove();
     document.querySelectorAll('a[aria-busy="true"]').forEach((anchor) => anchor.removeAttribute("aria-busy"));
   });
   applyTheme(readTheme());

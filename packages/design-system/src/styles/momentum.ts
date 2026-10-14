@@ -255,7 +255,6 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   .momentum-node-kicker { margin-bottom: 4px; color: var(--muted); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .momentum-node-kicker > b { color: var(--muted); font: 700 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
   .momentum-node .goal-status { min-height: 15px; padding: 0 4px; border: 0; background: transparent; font-size: 11px; }
-  .momentum-node .goal-status svg { width: 12px; height: 12px; }
   .momentum-node > strong { display: -webkit-box; overflow: hidden; font-size: 11px; line-height: 1.35; font-weight: var(--weight-control, 500); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .momentum-node > small { display: block; margin-top: 4px; overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
   .momentum-legend { min-height: 38px; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--rail); color: var(--muted); display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; font-size: 11px; }
@@ -342,16 +341,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     font-size: 11px;
     font-weight: 400;
   }
-  .goal-document-loading::before {
-    content: "";
-    width: 8px;
-    height: 8px;
-    box-sizing: border-box;
-    border-radius: 50%;
-    border: 2px solid color-mix(in srgb, var(--muted) 30%, transparent);
-    border-top-color: var(--muted);
-    animation: mw-spin 640ms var(--ease-quint) infinite;
-  }
+
   .goal-document { width: min(100%, 940px); padding: 24px 32px 56px; }
   .goal-header { padding-bottom: 12px; }
   .goal-title-row h1 { font-size: 24px; line-height: 1.18; letter-spacing: -.035em; }
@@ -655,13 +645,9 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
       font-size: 11px;
       font-weight: 400;
     }
-    .goal-title-status--narrow .goal-status::before { content: ""; width: 5px; height: 5px; flex: none; border-radius: 50%; background: var(--goal-status-tone); }
-    .goal-title-status--narrow .goal-status > svg { display: none; }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    body[data-navigation-pending="true"]::before,
-    .goal-document-loading::before { animation: none; }
     .document-pane[aria-busy="true"] > [data-goal-view] { transition: none; }
   }
 
@@ -1021,9 +1007,6 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
       border-radius: 0;
       background: transparent;
       font-size: 11px;
-    }
-    html[data-density="compact"] body[data-board-view] .tree-node .goal-status svg {
-      display: none;
     }
     html[data-density="compact"] body[data-board-view] .tree-relations {
       margin: 0 0 1px 12px;

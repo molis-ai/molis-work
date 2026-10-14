@@ -202,7 +202,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     font-weight: 400;
     letter-spacing: 0;
   }
-  .goal-status svg { width: 12px; height: 12px; flex: none; }
+  .goal-status svg {  flex: none; }
   .goal-status--continue,
   .goal-status--execution_pending { --goal-status-tone: var(--tone-idle); }
   .goal-status--clarifying,

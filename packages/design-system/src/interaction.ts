@@ -8,6 +8,8 @@
  * Every text a person reads comes from the caller, except a few control names that have overridable defaults.
  * Markup carries `data-ix-*` hooks so one client can wire behaviour without depending on class names.
  */
+import { renderStateRing } from "./state-ring.js";
+import type { StateRingState } from "./state-ring-states.js";
 import { icon, type MolisWorkIcon } from "./icons.js";
 import { renderButton } from "./primitives/button.js";
 import { renderCalendar } from "./primitives/calendar.js";
@@ -15,7 +17,7 @@ import { renderChoice } from "./primitives/field.js";
 import { type AttrValue, cx, escapeHtml, renderAttrs } from "./primitives/html.js";
 
 export type InteractionTone = "waiting" | "progress" | "done" | "failed" | "quiet";
-export interface InteractionBadge { label: string; tone: InteractionTone }
+export interface InteractionBadge { label: string; tone: InteractionTone; state?: StateRingState }
 /** A button on an interaction part. `id` becomes `data-ix-action`; `attrs` lets the caller keep its own hooks. */
 export interface InteractionAction {
   id: string;
@@ -109,7 +111,7 @@ export function renderInteractionAction(action: InteractionAction): string {
 const actionRow = (actions: InteractionAction[] | undefined, hook: string, end = false) =>
   actions?.length ? `<div class="${cx("mw-ix-actions", end && "mw-ix-actions--end")}" ${hook}>${actions.map(renderInteractionAction).join("")}</div>` : "";
 export function renderInteractionBadge(badge: InteractionBadge | undefined): string {
-  return badge ? `<span class="mw-ix-badge" data-ix-badge data-tone="${badge.tone}">${esc(badge.label)}</span>` : `<span class="mw-ix-badge" data-ix-badge></span>`;
+  return badge ? `<span class="mw-ix-badge" data-ix-badge data-tone="${badge.tone}">${renderStateRing({ state: badge.state ?? ({ quiet: "idle", waiting: "answer", progress: "doing", done: "done", failed: "failed" } as const)[badge.tone] })}${esc(badge.label)}</span>` : `<span class="mw-ix-badge" data-ix-badge></span>`;
 }
 function rows(pairs: Array<[string, string]>): string {
   return pairs.map(([label, value]) => `<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`).join("");
@@ -204,7 +206,7 @@ export function renderInteractionOperation(view: InteractionOperationView): stri
   const preview = view.preview ? `<section class="mw-ix-preview" data-ix-preview tabindex="-1" aria-labelledby="${esc(`${scope}-preview`)}"><h4 id="${esc(`${scope}-preview`)}">${esc(view.preview.title)}</h4><dl data-ix-summary>${rows(view.preview.rows)}</dl>${
     view.preview.note ? `<p class="mw-ix-hint" data-ix-preview-note>${esc(view.preview.note)}</p>` : ""}${actionRow(view.preview.actions, "data-ix-preview-actions", true)}</section>` : "";
   const status = view.status ? `<p class="mw-ix-status" data-ix-status role="status"${view.status.tone ? ` data-tone="${view.status.tone}"` : ""}>${view.status.busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : ""}${esc(view.status.text)}</p>` : "";
-  const result = view.result ? `<section class="mw-ix-result" data-ix-result tabindex="-1" aria-labelledby="${esc(`${scope}-result`)}"><span class="mw-ix-result__mark">${icon("check")}</span><div class="mw-ix-result__body"><h4 id="${esc(`${scope}-result`)}">${esc(view.result.title)}</h4><p>${esc(view.result.body)}</p>${
+  const result = view.result ? `<section class="mw-ix-result" data-ix-result tabindex="-1" aria-labelledby="${esc(`${scope}-result`)}"><span class="mw-ix-result__mark">${renderStateRing({ state: "done" })}</span><div class="mw-ix-result__body"><h4 id="${esc(`${scope}-result`)}">${esc(view.result.title)}</h4><p>${esc(view.result.body)}</p>${
     actionRow(view.result.actions, "")}${view.result.details ? `<div class="mw-ix-result__details" data-ix-result-details><h5>${esc(view.result.details.title)}</h5><p data-ix-result-text>${esc(view.result.details.body)}</p></div>` : ""}</div></section>` : "";
   return `<article class="mw-ix-card mw-ix-operation" data-ix-operation="${esc(scope)}" tabindex="-1" aria-labelledby="${esc(`${scope}-title`)}">${heading(scope, view, "zap")}${target}${
     view.impact ? `<p class="mw-ix-impact">${icon("info")}<span>${esc(view.impact)}</span></p>` : ""}${actionRow(view.actions, "data-ix-actions")}${preview}${status}${actionRow(view.recovery, "data-ix-recovery")}${result}${evidenceBlock(view.evidence)}</article>`;

@@ -17,15 +17,10 @@ export const INTERACTION_STYLES = `
 .mw-ix-card p, .mw-ix-card dl { margin: 0; }
 .mw-ix-head > .mw-btn { margin: -4px -6px 0 0; }
 .mw-ix-badge { flex: none; display: inline-flex; align-items: center; gap: 6px; margin-top: 2px; padding: 1px 8px 1px 7px; border-radius: 999px; background: var(--rail); color: var(--ink-soft); font-size: 11px; line-height: 18px; white-space: nowrap; }
-.mw-ix-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
 .mw-ix-badge:empty { display: none; }
 .mw-ix-badge[data-tone="waiting"] { background: color-mix(in srgb, var(--amber) 13%, transparent); color: var(--ink); }
-.mw-ix-badge[data-tone="waiting"]::before { background: var(--amber); }
-.mw-ix-badge[data-tone="progress"]::before { background: var(--accent); }
 .mw-ix-badge[data-tone="done"] { background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--ink); }
-.mw-ix-badge[data-tone="done"]::before { background: var(--green); }
 .mw-ix-badge[data-tone="failed"] { background: color-mix(in srgb, var(--red) 11%, transparent); color: var(--ink); }
-.mw-ix-badge[data-tone="failed"]::before { background: var(--red); }
 .mw-ix-intro { color: var(--ink-soft); font-size: 12px; }
 .mw-ix-about { color: var(--muted); font-size: 12px; }
 .mw-ix-other { display: grid; gap: 4px; width: 100%; margin-top: 2px; color: var(--ink-soft); font-size: 12px; }
@@ -147,7 +142,7 @@ export const INTERACTION_STYLES = `
 .mw-ix-status:empty { display: none; }
 .mw-ix-status[data-tone="failed"] { color: var(--red); }
 .mw-ix-status[data-tone="waiting"] { color: var(--ink); }
-.mw-ix-status .mw-spinner { width: 12px; height: 12px; color: var(--accent); }
+.mw-ix-status .mw-spinner { width: 20px; height: 20px; color: var(--accent); }
 .mw-ix-result { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; padding: 12px 14px; border-radius: var(--r-row, 10px); background: color-mix(in srgb, var(--green) 7%, var(--paper)); outline: 0; }
 .mw-ix-result:not([hidden]) { animation: mw-ix-arrive var(--dur-arrive) var(--ease-quint); }
 .mw-ix-result__mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--green-soft); color: var(--green); }

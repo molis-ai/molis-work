@@ -50,6 +50,8 @@ for (const width of [1440, 390]) {
     } else {
       assert.equal(row.visible, 2, "a phone row keeps two actions; the third leads 更多");
     }
+    // RING-07: an unconfigured judgment model is unavailable; rules still remain usable.
+    await waitFor("document.querySelector('.context-actions-basis .mw-state-ring')?.dataset.mwState === 'unavailable'");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
 
     // The writing menu shows the row's own plan (spec §6.4.1): the same actions in the same order, then the same

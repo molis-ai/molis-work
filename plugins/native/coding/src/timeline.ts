@@ -103,8 +103,8 @@ export function createCodingTimeline() {
     if (code !== null) return code === 0 ? { tone: "ok", label: "exit 0" } : { tone: "failed", label: `exit ${code}` };
     return { tone: "ok", label: "" };
   };
-  const statusMark = (tone: string) => tone === "running" ? '<span class="coding-spinner" aria-hidden="true"></span>'
-    : tone === "quiet" ? "" : tone === "waiting" ? svg("clock") : tone === "held" ? svg("dot") : tone === "ok" ? svg("check") : tone === "failed" ? svg("x") : tone === "retry" ? svg("dot") : svg("circle-alert");
+  const statusMark = (tone: string) => tone === "quiet" ? "" : '<span aria-hidden="true" data-mw-state="'
+    + (tone === "running" ? "running" : tone === "waiting" ? "approval" : tone === "held" ? "waiting" : tone === "ok" ? "done" : tone === "failed" ? "failed" : tone === "retry" ? "stale" : "verify") + '"></span>';
   const lines = (text: string, limit: number) => {
     const all = text.replace(/\n$/, "").split("\n");
     return all.length <= limit ? { text: all.join("\n"), hidden: 0 } : { text: all.slice(0, limit).join("\n"), hidden: all.length - limit };
@@ -157,7 +157,7 @@ export function createCodingTimeline() {
     if (detail.dataset.signature !== signature) {
       detail.dataset.signature = signature;
       detail.dataset.rendering = "true";
-      const head = `<span class="coding-tools-summary${summary.live ? " is-live" : summary.waiting ? " is-waiting" : ""}">${summary.live ? '<span class="coding-spinner" aria-hidden="true"></span>' : svg(summary.waiting ? "clock" : "activity")}<span>${escape(summary.text)}</span></span><span class="coding-tools-chevron" aria-hidden="true">${svg("chevron-right")}</span>`;
+      const head = `<span class="coding-tools-summary${summary.live ? " is-live" : summary.waiting ? " is-waiting" : ""}">${summary.live ? '<span class="mw-spinner" aria-hidden="true"></span>' : summary.waiting ? '<span data-mw-state="waiting" aria-hidden="true"></span>' : svg("activity")}<span>${escape(summary.text)}</span></span><span class="coding-tools-chevron" aria-hidden="true">${svg("chevron-right")}</span>`;
       const summaryNode = detail.querySelector("summary") ?? detail.appendChild(document.createElement("summary"));
       summaryNode.innerHTML = head;
       let list = detail.querySelector(".coding-tool-list");
@@ -227,7 +227,7 @@ export function createCodingTimeline() {
       if (footer.dataset.progress !== progress) { footer.dataset.progress = progress; footer.dataset.heard = String(Date.now()); }
       // Only a round waiting on the model can go quiet; a running command or test is allowed to take its time.
       footer.dataset.quietable = String(run.phase === "running" && !run.activity.some(item => item.state === "started" && item.name !== "reasoning"));
-      const html = `<div class="coding-live">${footer.dataset.state === "waiting" ? svg(run.phase === "paused" ? "pause" : "waiting") : '<span class="coding-pulse" aria-hidden="true"></span>'}<span class="coding-live-text">${escape(text)}</span><span class="coding-live-time" data-coding-elapsed>${escape(duration(run.started_at))}</span></div><p class="coding-live-quiet" data-coding-quiet role="status" hidden></p>`;
+      const html = `<div class="coding-live"><span data-mw-state="${run.phase === "paused" ? "paused" : run.phase === "awaiting-input" ? "answer" : run.phase === "awaiting-review" ? "approval" : "running"}" aria-hidden="true"></span><span class="coding-live-text">${escape(text)}</span><span class="coding-live-time" data-coding-elapsed>${escape(duration(run.started_at))}</span></div><p class="coding-live-quiet" data-coding-quiet role="status" hidden></p>`;
       if (footer.dataset.html !== text + footer.dataset.state) { footer.innerHTML = html; footer.dataset.html = text + footer.dataset.state; }
       tick(block);
       return;
@@ -237,8 +237,8 @@ export function createCodingTimeline() {
     const lastCommand = commands.at(-1), lastCode = lastCommand ? exitCode(lastCommand) : null;
     // A plan round is only done when its plan is: an ended round with steps left says so and offers to continue.
     const left = run.step_board && !run.step_board.terminal ? run.step_board.nodes.filter(node => !["succeeded", "cancelled"].includes(node.state)).length : 0;
+    const completedFraction = run.step_board?.nodes.length ? run.step_board.nodes.filter(node => node.state === "succeeded").length / run.step_board.nodes.length : undefined;
     // A round that ended on an announcement ("我先读……") without calling a single tool did nothing; it says so plainly
-    // and offers to go on, rather than reading as done. Going on is the person's click, never automatic.
     const said = [...(run.turns ?? [])].reverse().find(turn => turn.kind === "assistant")?.text.trim() ?? "";
     // Thinking is not doing: a round whose only activity is the model's reasoning still did nothing.
     const acted = run.activity.some(item => item.name !== "reasoning");
@@ -271,7 +271,7 @@ export function createCodingTimeline() {
       : stalled ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-nudge="${escape(run.ref.run_id)}">${svg("play")}让它继续</button>` : "";
     const files = edited.size ? `<ul class="coding-run-files">${[...edited].slice(0, 8).map(path => `<li>${svg("edit")}<code>${escape(path)}</code></li>`).join("")}${edited.size > 8 ? `<li>另有 ${edited.size - 8} 个文件</li>` : ""}</ul>` : "";
     const html = `<div class="coding-run-card" data-tone="${tone}">
-      <header><span class="coding-run-mark">${svg(tone === "done" ? "check" : tone === "failed" || tone === "partial" ? "circle-alert" : "clock")}</span><strong>${escape(title)}</strong><span class="coding-run-round">第 ${index + 1} 轮</span></header>
+      <header><span class="coding-run-mark" aria-hidden="true" data-mw-state="${run.phase === "reconcile-required" ? "verify" : tone === "done" ? "round-ended" : tone === "partial" && !stalled ? "partial" : tone === "failed" ? "failed" : "stopped"}"${completedFraction === undefined ? "" : ` data-ring-progress="${completedFraction}"`}></span><strong>${escape(title)}</strong><span class="coding-run-round">第 ${index + 1} 轮</span></header>
       <p class="coding-run-facts">${facts.map(escape).join(" · ")}</p>${stalled ? `<p class="coding-run-reason">模型说了要做什么，但没有调用任何工具就结束了，所以什么都还没做。</p>` : reason}${files}
       <div class="coding-run-actions">${resume}${edited.size ? `<button class="mw-btn" type="button" data-coding-change-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("columns")}查看变更</button>` : ""}${edited.size && run.phase === "completed" ? `<button class="mw-btn mw-btn--ghost" type="button" data-coding-commit-round="${escape(run.ref.run_id)}">${svg("git-branch")}提交这些改动…</button>` : ""}<button class="mw-btn mw-btn--ghost" type="button" data-coding-report-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("file")}执行报告</button></div>
     </div>`;

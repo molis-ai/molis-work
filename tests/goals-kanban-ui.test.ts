@@ -42,7 +42,9 @@ test("kanban keeps six visible-status columns, empty columns, and current-tree c
   assert.match(html, /goal-kanban-chevron/);
   assert.match(html, /goal-kanban-caret/);
   assert.match(html, /goal-kanban-status/);
-  assert.match(columnBody(html, "in_progress"), /<span class="goal-kanban-status"[^>]*>[\s\S]*viewBox="0 0 16 16"/);
+  // RING-05: grouped status uses the same ring and remains a static category.
+  assert.match(columnBody(html, "in_progress"), /<span class="goal-kanban-status"[^>]*>[\s\S]*data-mw-state="doing"/);
+  assert.match(columnBody(html, "completed"), /data-mw-state="done"/);
   assert.doesNotMatch(html, /#icon-chevron-right/);
   assert.match(columnBody(html, "continue"), /data-goal-id="NEXT"/);
   assert.match(columnBody(html, "in_progress"), /data-goal-id="APP"/);

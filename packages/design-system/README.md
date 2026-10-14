@@ -15,6 +15,14 @@ renderButton({ label: "保存", variant: "primary" });
 icon("copy"); // 页面已注入 sprite 时也可以 <svg><use href="#icon-copy"></use></svg>
 ```
 
+状态统一用 `renderStateRing({ state, label?, size?, progress? })` 或 `renderStatusMark({ state, label })`。`state-ring-states.ts` 的 43 个状态复用 21 套环刻样式，业务词义和本地化文案仍归调用方。`doing` 静止，`running` 等实际执行状态持续运动，`round-ended` 只表示一轮结束。部分完成和中断的 `progress` 只接真实完成比例；未知时省略。
+
+构建用仓库已有的 esbuild 压缩新环刻客户端及工作台交付的客户端程序字符串；插件公开导出的原文保留，状态文字与模板字符串内容不改变。
+
+动态界面可把 `data-mw-state` 写在已有的状态文字容器上；共享增强会插入环刻，支持后续状态、真实比例和 `textContent` 更新。常规状态环使用默认 20px，业务样式不再缩小或隐藏它；12/16px 只在规格板作为尺寸对照。图标旁已有文案时无需重复 `label`。`VISUAL_FOUNDATION_CLIENT_SCRIPT` 包含增强；不加载整个 foundation 的 Home 插件页面单独挂 `STATE_RING_CLIENT_SCRIPT`。样式随 `PRIMITIVE_STYLES`。减少动效、离屏、隐藏和卸载的生命周期由共享实现处理，插件不各自启动动画。
+
+状态徽标 `InteractionBadge.state` 可传入精确的环刻状态，例如结果未知用 `verify`、失效用 `stale`；不传时只按已有 `tone` 使用通用表现。业务文案由调用方保留，颜色不作为成功或执行中的证据。
+
 AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`renderInteractionOptions`、`renderInteractionNextSteps`、`renderInteractionComposerTarget`）只做呈现：调用方把自己的记录（Agent 的等待问题、操作卡、插件的「需要补充」结果）转换成展示参数，读人的文字都由调用方给。页面要用它们时自己加载 `INTERACTION_STYLES`；它故意不在 `PRIMITIVE_STYLES` 里，因为那里每加 1 字节，冻结的页面资源里要付约 6 字节。产品采用时，在同一个改动里删掉被替换的旧渲染（跨插件 AI 交互需求书的 P2）。
 
 控件标本：开发预览打开 `/__ui/catalog`（不进用户导航），真实底栏标本在 `/__ui/catalog/bar`。变体、状态、浅深色、密度、打开后的菜单、组合（列表+详情、工具栏+筛选、带错误的表单、对话框里的菜单、长内容嵌套滚动、窄屏与密度）和动效以组件板为准，不要在业务 CSS 里重画一套。改共享控件必须先看这块板。已经达到产品美学要求的共享控件、状态变体或微动效要补进 `src/primitives/catalog.ts`；草稿和产品专属编排不必塞进去，但进产品主链前不得带着系统下拉等 OS 控件。
@@ -30,7 +38,8 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 | [src/primitives/](src/primitives) | HTML helper：按钮、字段、浮层、导航、布局、目录、日历、Catalog |
 | [src/styles/primitives.ts](src/styles/primitives.ts) | `mw-*` CSS |
 | [src/palette.ts](src/palette.ts) | Soft Workbench token 的唯一来源：`renderShellTokens(theme)`（面、字色、状态、阴影、遮罩）、`renderShapeTokens()`（圆角、焦点、动效、图标尺寸）、`renderControlMetrics()`（控件高度，只在早层声明）；14 色相与插件表只作数据 |
-| [src/icons.ts](src/icons.ts) | Lucide 库与 sprite |
+| [src/icons.ts](src/icons.ts) | 导航、动作、对象的 Lucide 库与 sprite；status-* 转到共享环刻 |
+| [src/state-ring.ts](src/state-ring.ts) | 轻量环刻静态呈现；同目录的 states / geometry / client 分别负责映射、几何与浏览器增强 |
 | [src/typeface.ts](src/typeface.ts)、[fonts/](fonts) | `FONT_STACK`（系统无衬线优先，Inter / Noto Sans SC 仅作离线后备）、`MONO_FONT_STACK`、字重角色变量 |
 | [src/visual-foundation.ts](src/visual-foundation.ts) | 主题/密度/分层样式入口 |
 | [src/styles/](src/styles) | 工作台、设置、标题栏等表面层 |
@@ -52,7 +61,7 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 - **字：** 系统字体栈 `FONT_STACK`；字重只有 400 / 500 / 600，用 `--weight-body` / `--weight-control` / `--weight-title`。不准全局强制字重，不准合成粗体（`font-synthesis-weight: none`）。代码与 ID 用 `--font-mono`。
 - **尺寸：** 控件 32px（紧凑 28，手机/粗指针 44），`--control-h` 只在早层声明，好让密度和触控规则赢。圆角：tag 6、control 8、row 10、card 12、sheet 14、composer 15、dialog 16。
 - **焦点：** 只用 `--focus-stroke`（2px 铜色、偏移 1px）；字段是铜色边框加 3px 铜色光晕。不准用 ink 或蓝色描焦点，不准去掉焦点。危险态用 `--red`。
-- **动效：** 只用 `--dur-*`（按压/悬停 130、状态 250、到达 420、时刻 640）和 `--ease-quint` / `--ease-spring`。按下回弹到 .97；菜单从触发处长出，底栏菜单从栏升起；面板从边缘滑入；悬停只变色调。打开弹层的控件不缩放。完成与新到达用 `molisCraft.celebrate` / `molisCraft.land`。`prefers-reduced-motion` 与自动化下全部静止。
+- **动效：** 只用 `--dur-*`（按压/悬停 130、状态 250、到达 420、时刻 640）和 `--ease-quint` / `--ease-spring`。按下回弹到 .97；菜单从触发处长出，底栏菜单从栏升起；面板从边缘滑入；悬停只变色调。打开弹层的控件不缩放。完成与新到达用 `molisCraft.celebrate` / `molisCraft.land`。`prefers-reduced-motion` 与自动化下控件入场动画静止。状态环刻的语义周期为 2.8–5.8 秒，由共享组件维护；减少动效时静止，浏览器回归可以显式验证正常运动。
 - **不准露出操作系统默认控件。** 选择打开后是 `mw-menu`；禁止系统色盘、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。原生 `<select>` 只可隐藏当值，原生 `<dialog>` 只留行为。
 - 选项组用 `renderChoice` / `mw-choice`：选中是石墨底加对勾，不能只靠光影或颜色表达选中。
 - 图标从库取：`icon("name")` 或 `#icon-name`。不要第二套 emoji/Unicode 图标。

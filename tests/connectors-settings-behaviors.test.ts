@@ -257,7 +257,8 @@ test("an existing Gmail account offers targeted OAuth reauthorization while the 
     icon: () => "",
   });
   assert.match(html, /data-connection-reauthorize="33333333-3333-4333-8333-333333333333"/);
-  assert.match(html, /data-connection-state>已保存/);
+  // RING-05: the saved credentials retain their original claim beside the shared mark.
+  assert.match(html, /data-connection-state data-mw-state="saved">已保存/);
   assert.match(html, /data-account-login="gmail"/);
   assert.match(html, /data-connection-disconnect="33333333-3333-4333-8333-333333333333"/);
   assert.match(html, /添加另一个账号/);

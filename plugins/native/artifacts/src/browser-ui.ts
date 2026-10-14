@@ -71,7 +71,7 @@ function directory({ view, routePrefix, primitives: p, importForm, typeTitles }:
         <a class="feed-stage-entry directory-list-row${selected ? " is-selected" : ""}" href="${p.escape(routePrefix + artifactVersionPath(artifact))}" draggable="true" data-frame-asset="artifact" data-frame-asset-id="${p.escape(`${artifact.artifact_id}#${artifact.version}`)}" data-frame-asset-title="${p.escape(title)}" data-frame-asset-caption="${p.escape(`v${artifact.version}`)}">
           <span class="feed-stage-leading"><strong>${p.escape(title)}</strong></span>
           <span class="feed-entry-source">v${artifact.version}</span>
-          <span class="mw-status mw-status--${statusTone} mw-status--plain feed-entry-status">${status}</span>
+          <span class="mw-status mw-status--${statusTone} mw-status--plain feed-entry-status" data-mw-state="${artifact.lifecycle_state === "archived" ? "archived" : artifact.availability === "unavailable" ? "unavailable" : "ready"}">${status}</span>
         </a>
       </article>`;
     }).join("");

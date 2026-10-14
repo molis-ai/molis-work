@@ -1,11 +1,14 @@
 import { icon, type MolisWorkIcon } from "../icons.js";
 import { type AttrValue, cx, escapeHtml, renderAttrs } from "./html.js";
+import { renderStateRing } from "../state-ring.js";
+import type { StateRingState } from "../state-ring-states.js";
 
 export type MwTone = "neutral" | "info" | "success" | "warning" | "danger";
 export type MwStatusTone = "idle" | "progress" | "attention" | "hold" | "blocked" | "done" | "quiet";
 
 export function renderStatusMark(options: {
   label: string;
+  state?: StateRingState;
   tone?: MwStatusTone;
   icon?: MolisWorkIcon;
   plain?: boolean;
@@ -17,7 +20,7 @@ export function renderStatusMark(options: {
     options.tone && `mw-status--${options.tone}`,
     options.plain && "mw-status--plain",
     options.className,
-  )}" data-slot="status">${options.icon ? icon(options.icon) : ""}<span${renderAttrs(options.labelAttrs)}>${escapeHtml(options.label)}</span></span>`;
+  )}" data-slot="status">${options.state ? renderStateRing({ state: options.state }) : options.icon ? icon(options.icon) : ""}<span${renderAttrs(options.labelAttrs)}>${escapeHtml(options.label)}</span></span>`;
 }
 
 export function renderBadge(options: { label: string; tone?: MwTone; className?: string }): string {
@@ -52,9 +55,9 @@ export function renderToast(options: { message: string; tone?: MwTone; className
 }
 
 export function renderSpinner(options: { label?: string; className?: string } = {}): string {
-  return `<span class="${cx("mw-spinner", options.className)}" data-slot="spinner" aria-hidden="${options.label ? "false" : "true"}"${
+  return `<span class="${cx("mw-spinner", options.className)}" data-slot="spinner" data-ring-mounted aria-hidden="${options.label ? "false" : "true"}"${
     options.label ? ` role="status" aria-label="${escapeHtml(options.label)}"` : ""
-  }></span>`;
+  }>${renderStateRing({ state: "running" })}</span>`;
 }
 
 export function renderSkeleton(options: { className?: string } = {}): string {

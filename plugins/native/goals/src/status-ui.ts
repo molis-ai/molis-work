@@ -1,3 +1,4 @@
+import { renderStateRing } from "@molis-ai/molis-work-design-system";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalDisplayStatus } from "./tree-order.js";
 import type { GoalPresentationState } from "./tree-order.js";
@@ -5,57 +6,39 @@ import type { GoalsTreeItem } from "./tree-ui-model.js";
 import { visibleGoalStatus } from "./tree-presentation.js";
 import { createGoalStateExplainer, type GoalStatusTranslate } from "./goal-state-explanation.js";
 import { createGoalActionPresenter } from "./action-presentation.js";
+import { STATUS_MARKS, DISPLAY_STATUS_MARKS } from "./status-rings.js";
 export type GoalStatusIcon = "status-todo" | "status-progress" | "status-waiting" | "status-needs-you" | "status-blocked" | "status-done" | "status-cancelled" | "waiting" | "user" | "tree" | "play" | "blocked" | "ready" | "completed" | "review" | "refresh" | "alert" | "archive" | "trash";
 export interface GoalsStatusPrimitives {
     translate: GoalStatusTranslate;
     escapeHtml(value: string): string;
     icon(name: GoalStatusIcon): string;
 }
-const STATUS_ICONS: Record<GoalPresentationState, GoalStatusIcon> = {
-    waiting_for_human: "status-needs-you",
-    executing: "status-progress",
-    execution_blocked: "status-blocked",
-    execution_pending: "status-todo",
-    satisfied: "status-done",
-    invalidated: "alert",
-    trashed: "trash",
-    archived: "archive",
-};
-const DISPLAY_STATUS_ICONS: Record<GoalDisplayStatus, GoalStatusIcon> = {
-    continue: "status-todo",
-    in_progress: "status-progress",
-    waiting_user: "status-needs-you",
-    waiting: "status-waiting",
-    blocked: "status-blocked",
-    completed: "status-done",
-};
 function createStatusRenderer(primitives: GoalsStatusPrimitives) {
-    const { translate, escapeHtml, icon } = primitives;
+    const { translate, escapeHtml } = primitives;
     const { explainWorkState } = createGoalStateExplainer(translate);
     const { goalDisplayStatusLabel } = createGoalActionPresenter(translate);
     function renderStatus(status: GoalPresentationState, attributes = "", labelAttributes = ""): string {
         const explanation = explainWorkState(status);
-        return `<span class="goal-status goal-status--${status}"${attributes ? ` ${attributes}` : ""} title="${escapeHtml(explanation.meaning)}">${icon(STATUS_ICONS[status])}<span${labelAttributes ? ` ${labelAttributes}` : ""}>${escapeHtml(explanation.label)}</span></span>`;
+        return `<span class="goal-status goal-status--${status}"${attributes ? ` ${attributes}` : ""} title="${escapeHtml(explanation.meaning)}">${renderStateRing({ state: STATUS_MARKS[status] })}<span${labelAttributes ? ` ${labelAttributes}` : ""}>${escapeHtml(explanation.label)}</span></span>`;
     }
     function renderActionStatus(status: GoalDisplayStatus, attributes = "", labelAttributes = ""): string {
         const label = goalDisplayStatusLabel(status);
-        return `<span class="goal-status goal-status--${status}"${attributes ? ` ${attributes}` : ""} title="${escapeHtml(label)}">${icon(DISPLAY_STATUS_ICONS[status])}<span${labelAttributes ? ` ${labelAttributes}` : ""}>${escapeHtml(label)}</span></span>`;
+        return `<span class="goal-status goal-status--${status}"${attributes ? ` ${attributes}` : ""} title="${escapeHtml(label)}">${renderStateRing({ state: DISPLAY_STATUS_MARKS[status] })}<span${labelAttributes ? ` ${labelAttributes}` : ""}>${escapeHtml(label)}</span></span>`;
     }
     function renderVisibleGoalStatus(item: Pick<GoalsTreeItem, "status" | "display_status"> & { status_label?: string }, attributes = "", labelAttributes = ""): string {
         const status = visibleGoalStatus(item);
         if (status === "archived" || status === "trashed") {
             return renderStatus(status, attributes, labelAttributes);
         }
-        if (item.status_label) {
-            return `<span class="goal-status goal-status--${status}"${attributes ? ` ${attributes}` : ""} title="${escapeHtml(item.status_label)}">${icon(DISPLAY_STATUS_ICONS[status as GoalDisplayStatus])}<span${labelAttributes ? ` ${labelAttributes}` : ""}>${escapeHtml(item.status_label)}</span></span>`;
-        }
-        return renderActionStatus(status as GoalDisplayStatus, attributes, labelAttributes);
+        const label = item.status_label || goalDisplayStatusLabel(status as GoalDisplayStatus);
+        const state = item.status === "executing" && status === "in_progress" ? "running" : DISPLAY_STATUS_MARKS[status as GoalDisplayStatus];
+        return `<span class="goal-status goal-status--${status}"${attributes ? ` ${attributes}` : ""} title="${escapeHtml(label)}">${renderStateRing({ state })}<span${labelAttributes ? ` ${labelAttributes}` : ""}>${escapeHtml(label)}</span></span>`;
     }
     function visibleGoalStatusIcon(item: Pick<GoalsTreeItem, "status" | "display_status">): string {
         const status = visibleGoalStatus(item);
-        return icon(status === "archived" || status === "trashed"
-            ? STATUS_ICONS[status]
-            : DISPLAY_STATUS_ICONS[status]);
+        return renderStateRing({ state: status === "archived" || status === "trashed"
+            ? STATUS_MARKS[status]
+            : item.status === "executing" && status === "in_progress" ? "running" : DISPLAY_STATUS_MARKS[status] });
     }
     return { renderStatus, renderActionStatus, renderVisibleGoalStatus, visibleGoalStatusIcon };
 }

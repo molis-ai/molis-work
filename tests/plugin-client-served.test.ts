@@ -11,7 +11,9 @@ import { pluginWorkbenchClientAsset } from "@molis-ai/molis-work-app-workbench";
 // is sent to the same program as what was written (comments, spacing and quoting aside).
 
 const sources: Record<string, string> = { pages: PAGES_CLIENT_FACTORY_SCRIPT, lingguang: LINGGUANG_CLIENT_FACTORY_SCRIPT, schedule: SCHEDULE_CLIENT_FACTORY_SCRIPT };
-const program = (script: string) => transformSync(`const factory = ${script};`, { loader: "js", minify: true }).code;
+// Identifier minification chooses names using character frequencies, which can change after a trivia-only pass.
+// Preserve names so this compares the actual program, including its bindings, rather than the minifier's choices.
+const program = (script: string) => transformSync(`const factory = ${script};`, { loader: "js", minifySyntax: true, minifyWhitespace: true }).code;
 
 for (const [id, source] of Object.entries(sources)) {
   test(`${id}: the asset sent is the script written, without its whole-line comments and indentation`, () => {

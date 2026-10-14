@@ -377,7 +377,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
 function renderWorkspaceLine(workspacePath: string | null, p: CodingUiPrimitives): string {
   // A project with no workspace bound says so; it never shows a guessed path.
   if (workspacePath === null) {
-    return `<span class="mw-status" data-tone="attention">${p.icon("circle-alert")}${p.escape("这个项目还没有绑定工作区目录")}</span>`;
+    return `<span class="mw-status" data-tone="attention" data-mw-state="unavailable">${p.escape("这个项目还没有绑定工作区目录")}</span>`;
   }
   return `<span class="coding-workspace" data-coding-workspace>${p.icon("folder")}${p.escape(workspacePath)}</span>`;
 }
@@ -566,7 +566,7 @@ export function renderPendingReviewCard(model: CodingReviewCardModel): string {
     ? `<li class="coding-review-more">${p.escape(`还有 ${model.pending.length - 3} 项`)}</li>`
     : "";
   return `<aside class="coding-review-card" data-coding-review-card>
-    <div class="mw-status" data-tone="attention">${p.icon("circle-alert")}${p.escape(`${model.pending.length} 项操作等你决定`)}</div>
+    <div class="mw-status" data-tone="attention" data-mw-state="approval">${p.escape(`${model.pending.length} 项操作等你决定`)}</div>
     <ul class="coding-review-list">${items}${more}</ul>
     <a class="mw-button mw-button--primary" href="${p.escape(model.review_href)}" data-coding-review-open>${p.escape("查看并处理")}</a>
     <p class="coding-review-note">${p.escape("在你批准之前，这些操作不会发生。批准在宿主的审查面里做。")}</p>
@@ -614,7 +614,7 @@ export function renderPendingQuestionCard(model: CodingQuestionCardModel): strin
       ${item.allow_other ? `<label class="coding-question-text"><span>${p.escape("其他说明（可选）")}</span>${renderTextarea({ rows: 2, disabled, attrs: { "data-question-other": item.index, maxlength: 500 } })}</label>` : ""}
     </fieldset>`).join("");
     return `<form class="coding-question-card" data-coding-question="${p.escape(question.pending_id)}" data-pending-revision="${question.pending_revision ?? ""}">
-      ${renderStatusMark({ label: disabled ? "问题不可回答" : "需要你回答", tone: disabled ? "quiet" : "attention", icon: "question", plain: true, labelAttrs: { "data-question-label": "" } })}
+      ${renderStatusMark({ label: disabled ? "问题不可回答" : "需要你回答", tone: disabled ? "quiet" : "attention", state: disabled ? "unavailable" : "answer", plain: true, labelAttrs: { "data-question-label": "" } })}
       <p class="coding-question-prompt">${p.escape(question.prompt)}</p>
       ${options === "" ? "" : `<fieldset class="coding-question-options"><legend class="mw-visually-hidden">${p.escape(question.prompt)}</legend>${options}</fieldset>`}
       ${freeText}

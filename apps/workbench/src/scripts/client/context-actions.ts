@@ -303,8 +303,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
       const judgment = out.judgment;
       const fallback = out.receipt.fallback;
       basis.dataset.basis = plan.basis;
-      basis.dataset.pending = String(rulesOnly);
-      basis.firstElementChild.textContent = rulesOnly ? L("按规则 · 判断中")
+      basis.dataset.pending = String(rulesOnly); basis.dataset.mwState = rulesOnly ? "running" : fallback === "unconfigured" ? "unavailable" : fallback === "timeout" ? "interrupted" : fallback === "failed" ? "failed" : "ready";
+      basis.querySelector("span").textContent = rulesOnly ? L("按规则 · 判断中")
         : fallback === "unconfigured" ? L("按规则") : fallback === "timeout" ? L("判断超时 · 按规则") : fallback === "failed" ? L("判断失败 · 按规则")
         : judgment && judgment.basis === "jev" ? "Jev" : L("按规则");
       basis.title = judgment ? (judgment.model || "Jev") + " · " + Math.round(judgment.latency_ms) + "ms"
@@ -428,7 +428,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
         bar.render(out, focus, false);
       } catch (error) {
         if (error && error.name === "AbortError") return;
-        if (seq === this.seq) { const basis = root.querySelector(".context-actions-basis"); if (basis) { basis.dataset.pending = "false"; basis.firstElementChild.textContent = L("判断失败 · 按规则"); } }
+        if (seq === this.seq) { const basis = root.querySelector(".context-actions-basis"); if (basis) { basis.dataset.pending = "false"; basis.dataset.mwState = "failed"; basis.querySelector("span").textContent = L("判断失败 · 按规则"); } }
       } finally { if (this.judging === controller) this.judging = null; }
     },
     // What the person did with an offered action, for the memory to count (its capability and title, never the content).

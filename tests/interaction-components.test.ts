@@ -116,3 +116,12 @@ test("AC-17: an other answer is a free text slot; whether it is chosen is whethe
     fields: [{ id: "f", label: "方式", control: { kind: "choice", options: [{ value: "1", label: "一" }], other: { label: "其他", value: "自己写的" } } }] });
   assert.match(html, /<input[^>]*value="自己写的"[^>]*data-ix-other="f"/);
 });
+
+// RING-07: explicit receipt meaning wins over the badge's visual tone.
+test("RING-07 interaction cards distinguish unknown results from waiting for a person", () => {
+  const target = { prefix: "目标", label: "测试文档" };
+  const html = renderInteractionOperation({ id: "unknown-ring", kicker: "操作", title: "核对", target, badge: { label: "结果未知", tone: "waiting", state: "verify" } });
+  assert.match(html, /data-mw-state="verify"/);
+  assert.doesNotMatch(html, /data-mw-state="answer"/);
+  assert.match(renderInteractionOperation({ id: "done-ring", kicker: "操作", title: "完成", target, result: { title: "已完成", body: "保留原回执" } }), /data-mw-state="done"/);
+});

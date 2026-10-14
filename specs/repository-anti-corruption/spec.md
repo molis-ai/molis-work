@@ -2451,3 +2451,5 @@ W3-02-I8-LEDGER接原错误类收口，仅ContextLedger service/materialization�
 I6补测6b17c9fb3经独立Source接受，已对真实SDK typed schema/string界限、choice默认required与number范围、实际Node answerPending控制路径核对；设计可达，但尚无运行结果。I7dcc672861同样Source接受，八造错、五reason、完整有限本域判断/两cancel及外来失败透传核实；实际README/恢复/整建待。SDK41在干净08b基点的新隔离树精确应用原beforeAccept补丁，原树与上游/vendor未改，已排同构建锁，尚未构建。
 
 W3-02-I9-CHAR沿已有R4c仅收Characters模块service/open的五现行原因类，公开导出和三现行instanceof消费者同步共同ActionError。kind沿目前统一动作出口默认invalid400，现行插件HTTP自己的characters.conflict409/not_found404映射在本片保持，后续统一出口另按原W3-02收；不借类收口更改已有状态。CHAR-01：个人owner隔离、wrong schema原库不写、revision CAS/发布/导入固定来源精确code/message和原事实保持；CHAR-02：无类/alias、消息不改、闭合五reason同owner，不动数据库升级兼容或真实Home；CHAR-03：README四文件及真实发布/导入/Agent启动相关回归、build/API/health/assets与共享全量。独立准备，不动冻结I8或任何产品功能。
+
+Ledger完整98ab2fab4独立Source接受，无Blocker/P1，六造错及其余ref/授权/事务路径保持；源码142映射0诊断、API43匹配、health43相对d530通过75类，仅局部候选。SDK联合副本说明已改为当前08基点41排队未运行，旧62/62证据明确归d490历史，不能当当前组合验收。Characters新候选发现现行schema拒绝测试尚有旧character.invalid，沿R4c已accepted改名同步characters.invalid，保留原字节与mode不变全部断言，不改生产库。

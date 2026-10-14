@@ -40,6 +40,17 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
 
 ## 2. 现在的状态（2026-10-14 18:40 UTC，新主会话接手后更新）
 
+**⏸ 四条需求线已暂停（用户 10-14 原话：「当前任务完成后，可以先暂停一下需求的线，让防腐线先继续。」）**。各线把手上的推到远端分支、撤掉自己排在构建锁后面的等待、在本线需求书写好「暂停点」后停下；整机让给防腐线（Codex，由用户恢复）。暂停时全部**没有构建、没有跑用例**：
+
+| 线 | 远端分支 @ head | 暂停点 | 恢复第一步 |
+| --- | --- | --- | --- |
+| 采用 | Molis `adoption/p3-collaboration` @ `bbb8ee5e`（P3a WIP，底是 #498 `02e6720a` 并 main `59d02a37`）；Prologue `feature/p2k-node-conflicts` @ `46bc586d`，草稿 PR molis-ai/prologue#25（定向用例与 5 个变异过，全量与干净包消费者未跑） | 采用 spec §6.0c | 补跑 Prologue main `b01067b4` → P2k 验证、#25 转 ready 合 → P3a 按 B |
+| 回执 | `receipts/1a-extract` @ `04ad649a`（含修 main 上现存缺陷：助理找 `coding.runs.control@1`，自 `ed5acdfe` 升 v2 后助理给运行中的 Coding 补充或回答会报「没有可用的 Coding 插件」）；`receipts/1c-agent-host` @ `34777083`、`receipts/1d-coding` @ `fe80cfe9`（WIP，逐层叠） | 回执 spec §16 | 1a 并 main → 构建 → 定向用例 → `page-assets --update` → 实走 → 开 1a PR |
+| 交互 | `feature/ai-interaction-h3-on-w406` @ `d1b89835`（叠在 #498 `21d3853f`）；`feature/ai-interaction-s1` @ `6f375dbb` | 交互 spec §20.16 | #498 合入 → 变基 → 构建 → 快照 → H3 用例与 `pnpm test:security` → PR；S1 要全量 |
+| 情境 | `context/assistant-flow` @ `01f0a31c`（总纲 §16.5 核对、§21 助理动作整合方案与 FLOW-01…05、部件 `max/more/waiting` 参数、`agent-next-steps.ts` 派生、用例） | 总纲 §21.7 | 并 main、构建 → FLOW 与 design-system 必跑 → 隔离 Home 实走 → #489 合入后接执行 → W3-A1 PR |
+
+暂停前定下的跨线约定：H3 动作 `search.references@1`（挂 `system.search`）、原因 `reference-unavailable`，情境线落点读取共用；交互 D24 同意把「下一步」挪到输入框同一行，语义五条 = 情境总纲 FLOW-01…05（failed、unknown 的卡只带到卡上，unknown 绝不重跑）；下一步按钮只有一个部件（`renderInteractionNextSteps` 加 `options`），派生函数 `interactionNextSteps` 通用、H4 直接用，改形状先经主会话。#500（采用现状核对）已合（`59d02a37`）；#180 已关（不合并）。
+
 **会话（10-14 11:20 PDT 起）**：
 
 | 角色 | 会话 | 工作树 |

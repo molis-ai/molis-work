@@ -1,5 +1,6 @@
 import { defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteMethod, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { codingRunControlInput } from "./run-inputs.js";
 
 const id = { type: "string", minLength: 1, maxLength: 200 };
 const session = { session_id: id };
@@ -52,8 +53,8 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
       open({ ...session, task: { type: "string", maxLength: 100_000 }, intent: { enum: ["discuss", "plan", "edit", "execute", "review", "collaborate", "parallel"] }, workspace_id: id, provider_id: id, model_id: id }, ["session_id", "intent", "workspace_id", "provider_id", "model_id"]),
       ["artifact:read", "storage:private"], LOCAL, { cost: "metered" }, "concurrent"),
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
-  "coding.control-run": { definition: define("runs.control", "控制编码轮次", "回答提问、补充要求、暂停、继续或停止正在进行的一轮，或把它从下一次模型调用起换到另一个已配置的模型", "command",
-      open({ ...session, run_id: id, kind: { enum: ["answer", "steer", "stop", "pause", "resume", "switch-model"] } }, ["session_id", "run_id", "kind"]), [], LOCAL, undefined, undefined, 2),
+  "coding.control-run": { definition: { ...define("runs.control", "控制编码轮次", "回答提问、补充要求、暂停、继续或停止正在进行的一轮，或把它从下一次模型调用起换到另一个已配置的模型", "command",
+      codingRunControlInput, [], LOCAL), version: 2 },
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
   "coding.read-report": { definition: define("reports.read", "读取执行报告", "读取一轮的固定报告；没有固定版本时按这一轮的记录生成预览", "query",
       closed({ ...round, fixed: { type: "boolean" } }, ["session_id", "run_id"]), ["artifact:read"], READS),

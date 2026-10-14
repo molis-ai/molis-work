@@ -44,6 +44,15 @@ test("Projects Module owns canonical project identity and workspace membership",
 
     assert.equal(projects.query.listProjects().length, 2, "duplicate display names do not change identity");
     assert.deepEqual(projects.query.selections().map((project) => project.project_id), [first.project_id, second.project_id]);
+    // I4-01: the Host's existing missing-project classification is preserved by the owner.
+    assert.throws(() => projects.query.getProject("absent-project"), (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "catalog.project_not_found");
+      assert.equal(error.message, "找不到 Molis Work 项目: absent-project");
+      assert.equal(error.kind, "not_found");
+      assert.equal(actionHttpStatus(error), 404);
+      return true;
+    });
 
     const workspacePath = join(directory, "workspace");
     const workspace = projects.commands.addWorkspaceProject({

@@ -754,6 +754,7 @@ node scripts/run-tests.mjs tests/ai-interaction-slice.e2e.test.ts
   - `interaction-client.e2e` 14/14。
   - `affected-tests` 建议全量（改了合同），统筹在合并前跑。
 - **用户 2026-10-13 定**：A1 与 H2 合成一个改动落地，不放宽页面资源门禁（20.11 的 (a)+(b)+(b′)，加上 H2 删掉 `renderCard` 与「接下来」行）。H2 按 W5-10 的协作者形状做，算 W5-10 的一部分。
+- **A2 要带的合同改动**：main 上 #477 把 `coding.runs.control` 升到第 2 版，`answer` 的每一项只收 `question`、`indexes`、`other`（`additionalProperties: false`），对应现在的纯选择题。A2 让 Coding 画带类型的题时要加 `value`，按 `docs/system/CONTRACT-CHANGES.md` 升第 3 版，并在同一个改动里改完调用方。
 - **下一步**：#410 全量通过后由统筹合进 main；之后在新的 PR 上做 A1+H2，再 A2、H3、H4、S1。
 
 ### 20.1 一句话现状

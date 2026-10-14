@@ -2268,3 +2268,5 @@ R4a3 ac65c8789独立只读复核无新Blocker/P1：3,062份JS/TS/SQL无六类旧
 W2-10 C #484已在2026-10-14T00:06:34Z合入main 5c66cf0ab607bf1550287942cbc6011e0559eaf7：精确head10a85e13b对齐b03a4e83，五必需检查+Product成功、freshsecrets05通过；Linux仍报告中。GitHub mergeState为UNSTABLE仅因Linux未结束，其余全部已完成SUCCESS；未忽略任何必需/产品失败。C新main03真实73/73和旧Darwin63独立证据保留，D同步后仍须实际新版回归，不据C合入关闭D/E或I8。
 
 R4c1先按既有登记Characters owner处理五种character错误（not_found/conflict/deleted/disabled/invalid）为characters.<原因>：Module和插件、HTTP状态比较及现行测试同片更新；角色身份、修订号、启停/删除状态、固定成果、授权和持久化业务事件保持。R4C1-01：真实更新冲突/停用/删除/导入输入拒绝仍阻止写入，owner码现行且原消息和事实不变；R4C1-02：producer和HTTP/测试消费者无旧码读取或alias，既有API/action形状无变化则不机械升版；R4C1-03：owner相关实跑/资源/健康与共享回归后验收。当前从main5c66隔离源码准备，不新增构建排队。
+
+R4c2沿登记Agent owner仅迁Molis自有inference错误到agent.inference.<原因>，保留第二段区分执行服务与既有agent.*；SDK原生闭集错误、Run状态/模型协议/事件、dispatch-refusal身份标记及日志历史保持。生产Molis Prologue适配器/Host服务、Unavailable/image前缀消费者和现行测试/活文档同片更新，不改SDK源码或正式vendor。R4C2-01：服务停用/占用、图片/密钥/空输出等原拒绝保持、模型回执和0外部派发/0事实修改断言不放宽；R4C2-02：现行consumer无旧Molis错码读取兼容，外部SDK码不改，API/action形状有变化才同步；R4C2-03：实际Agent/推理生命周期、类型/资源/门禁与共享组合回归通过后验收。当前仅源码准备。

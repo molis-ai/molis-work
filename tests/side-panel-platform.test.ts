@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -12,7 +13,7 @@ import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { UiViewRegistry } from "@molis-ai/molis-work-ui-host";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { browserSiteDeclarations } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { inspectActionDeclarations, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
+import { inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -195,7 +196,7 @@ test("a Plugin names the websites it uses in the side panel browser as exact ori
   assert.deepEqual(browserSiteDeclarations(parsePluginManifest(manifest([sites]))), ["https://shop.example.com", "http://localhost:8080"]);
   assert.deepEqual(browserSiteDeclarations(parsePluginManifest(manifest([]))), []);
   const refused = (origins: unknown, permission = "surface:browser") => assert.throws(() => parsePluginManifest(manifest([{ ...sites, permission, origins }])),
-    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin.permission_invalid", JSON.stringify(origins));
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.permission_invalid", JSON.stringify(origins));
   // A path, a query, a fragment or another scheme would say less than the site it allows; none, or origins on another permission, say nothing.
   for (const origins of [["https://shop.example.com/orders"], ["https://shop.example.com/?token=x"], ["https://shop.example.com#top"], ["file:///etc"], ["shop.example.com"], [], undefined]) refused(origins);
   refused(["https://shop.example.com"], "artifact:write");

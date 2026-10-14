@@ -1,6 +1,7 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { inspectActionDeclarations, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
+import { inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 test("scene result labels belong to a finite recommendation contract", () => {
@@ -98,7 +99,7 @@ function rejects(mutate: (manifest: Record<string, unknown>) => void, needle: st
   assert.throws(
     () => parsePluginManifest(input),
     (error: unknown) =>
-      error instanceof PluginManifestError
+      (error instanceof ActionError && error.kind === "invalid")
       && error.code === "plugin.declaration_invalid"
       && error.message.includes(needle),
     `期望因为 ${needle} 被拒绝`,
@@ -133,12 +134,12 @@ test("v1 Manifest cannot silently carry v2 declarations", () => {
   };
   assert.throws(
     () => parsePluginManifest(v1),
-    (error: unknown) => error instanceof PluginManifestError
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
       && error.code === "plugin.declaration_invalid" && error.message.includes("ports"),
   );
   assert.throws(
     () => parsePluginManifest({ ...v1, ports: undefined, kind: "app" }),
-    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin.manifest_invalid",
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid",
   );
 });
 
@@ -269,6 +270,6 @@ test("embedded plugin dependencies are explicit v2 IDs, not implicit grants or s
   assert.deepEqual(parsePluginManifest(input).ui.embedded_plugins, ["io.molis.work.example.reader"]);
   for (const invalid of [[PLUGIN_ID], ["io.molis.work.example.reader", "io.molis.work.example.reader"], [" padded"], "io.molis.work.example.reader", [null]]) {
     ui.embedded_plugins = invalid;
-    assert.throws(() => parsePluginManifest(input), PluginManifestError);
+    assert.throws(() => parsePluginManifest(input), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid"));
   }
 });

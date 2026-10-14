@@ -504,3 +504,5 @@ export interface IntegrationProviderPort {
     mode?: "normal" | "rebuild_cursor";
   }): Promise<IntegrationProviderSyncResult>;
 }
+
+export { pluginErrors } from "./plugin-errors.js";

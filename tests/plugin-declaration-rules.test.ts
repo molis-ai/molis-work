@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 // Characterisation of the declaration rules a Manifest is held to (W3-03 PR-0). The rules moved out of the contracts
 // package into the plugin SDK and the two longest were split by declaration segment (B1, B2); what an author is told, word
 // for word and in the order the checks run, came out the same. Every expected value was read off the rule it describes,
@@ -10,7 +11,7 @@ import {
   DUE_REMINDERS_INPUT_TYPE, FILE_ENTRIES_INPUT_TYPE, FRAGMENT_OFFERS_INPUT_TYPE, HOME_EVENTS_INPUT_TYPE, PLACEMENT_MOVE_INPUT_TYPE,
   SEARCH_ENTRIES_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_REFERENCE_TYPE,
 } from "@molis-ai/molis-work-contracts/platform/actions";
-import { defineArtifactPreviewAction, inspectActionDeclarations, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
+import { defineArtifactPreviewAction, inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 const KEY = "example.read@1";
@@ -562,7 +563,7 @@ const SHAPE_RULES: ReadonlyArray<{ rule: string; input: unknown; code: ManifestC
 function parseFailure(input: unknown): { code: string; message: string } | null {
   try { parsePluginManifest(input); return null; }
   catch (error) {
-    if (error instanceof PluginManifestError) return { code: error.code, message: error.message };
+    if ((error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid")) return { code: error.code, message: error.message };
     throw error;
   }
 }

@@ -1,10 +1,11 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { MemoryPluginRuntimeRepository, PluginRuntime, PluginRuntimeError, PluginSupervisor, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { MemoryPluginRuntimeRepository, PluginRuntime, PluginSupervisor, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginPrivateStorage, PluginDefinition, PluginExecutor, PluginManifest, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 
@@ -42,12 +43,12 @@ test("Plugin private storage persists opaque values, isolates signatures and rej
     assert.equal(existsSync(join(directory, "outside")), false, "keys are data, not file paths");
     assert.equal(other.storage.get("../../outside"), null);
     other.storage.set("../../outside", "different publisher");
-    assert.throws(() => denied.storage.get("../../outside"), (error: unknown) => error instanceof PluginRuntimeError
+    assert.throws(() => denied.storage.get("../../outside"), (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
       && error.code === "plugin.grant_denied");
-    assert.throws(() => denied.storage.set("../../outside", "overwrite"), PluginRuntimeError);
+    assert.throws(() => denied.storage.set("../../outside", "overwrite"), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     assert.equal(original.storage.get("../../outside"), value);
     await original.runtime.uninstall(original.installId);
-    assert.throws(() => original.storage.set("../../outside", "stale"), PluginRuntimeError);
+    assert.throws(() => original.storage.set("../../outside", "stale"), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     db.close();
     db = new Database(file);
     owner = new SqlitePluginPrivateStorage(db);

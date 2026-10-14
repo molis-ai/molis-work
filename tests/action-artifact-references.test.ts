@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 // W3-05-2: a 成果 type is declared with a display name and the plugin's own actions (AGENTS.md「成果库」, specs/artifact-positioning
 // A1/A4b/A7). Until now only the built-in plugins were held to it, and only by a test (`artifact-type-gate`); a Manifest parsed
 // anywhere else - a Runtime install, a generated plugin, the CLI, the sample - could produce a type nobody could read. The rule is
@@ -6,11 +7,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { PluginRuntime, PluginRuntimeError } from "@molis-ai/molis-work-plugin-runtime";
-import {
-  defineArtifactCompareAction, defineArtifactContinueAction, defineArtifactPinAction, defineArtifactPreviewAction,
-  parsePluginManifest, PluginManifestError,
-} from "@molis-ai/molis-work-plugin-sdk";
+import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
+import { defineArtifactCompareAction, defineArtifactContinueAction, defineArtifactPinAction, defineArtifactPreviewAction, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { artifactPreview } from "./fixtures/artifact-preview.js";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -46,7 +44,7 @@ function producing(type: Part, actions: ReadonlyArray<unknown> = ALL, consumes: 
 /** The code and message a Manifest is refused with, or null when it parses. */
 function refusal(input: unknown): { code: string; message: string } | null {
   try { parsePluginManifest(input); return null; } catch (error) {
-    if (error instanceof PluginManifestError) return { code: error.code, message: error.message };
+    if ((error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid")) return { code: error.code, message: error.message };
     throw error;
   }
 }
@@ -186,7 +184,7 @@ function definitionOf(manifest: Record<string, unknown>): PluginDefinition {
 test("Runtime refuses to install a plugin whose type has no preview, and installs one that has", () => {
   const unreadable = definitionOf(declarationManifest({ artifacts: { produces: [{ artifact_type_id: TYPE_ID, schema_version: 1, title: "笔记" }], consumes: [] } }));
   assert.throws(() => new PluginRuntime().install({ definition: unreadable, deployment: "local" }),
-    (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin.manifest_invalid" && error.message.includes(`成果类型 ${KEY} 缺少预览动作（preview）`));
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid" && error.message.includes(`成果类型 ${KEY} 缺少预览动作（preview）`));
   const note = artifactPreview(ID, TYPE_ID);
   const readable = definitionOf(declarationManifest({ actions: [note.definition], artifacts: { produces: [note.type], consumes: [] } }));
   assert.equal(new PluginRuntime().install({ definition: readable, deployment: "local" }).install.plugin_id, ID);

@@ -1,8 +1,9 @@
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createHash } from "node:crypto";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PluginRuntimeError } from "./errors.js";
+
 
 export function validateManifest(manifest: PluginManifest): void {
   if (
@@ -13,12 +14,12 @@ export function validateManifest(manifest: PluginManifest): void {
     || !manifest.publisher.publisher_id.trim()
     || !manifest.publisher.signature.trim()
   ) {
-    throw new PluginRuntimeError("plugin.manifest_invalid", "Plugin Manifest 身份、签名或 Host API 不合法");
+    throw pluginErrors.manifest_invalid("Plugin Manifest 身份、签名或 Host API 不合法");
   }
   try {
     parsePluginManifest(manifest);
   } catch (error) {
-    throw new PluginRuntimeError("plugin.manifest_invalid", error instanceof Error ? error.message : "Plugin Manifest 不合法");
+    throw pluginErrors.manifest_invalid(error instanceof Error ? error.message : "Plugin Manifest 不合法");
   }
 }
 
@@ -31,7 +32,7 @@ export function assertRequiredGrants(manifest: PluginManifest, grants: readonly 
     .filter((permission) => permission.required && !grants.includes(permission.permission))
     .map((permission) => permission.permission);
   if (missing.length > 0) {
-    throw new PluginRuntimeError("plugin.grant_denied", `Plugin 缺少必需 grant：${missing.join(", ")}`);
+    throw pluginErrors.grant_denied(`Plugin 缺少必需 grant：${missing.join(", ")}`);
   }
 }
 

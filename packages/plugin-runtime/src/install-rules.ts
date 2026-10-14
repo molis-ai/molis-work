@@ -1,6 +1,8 @@
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDeployment, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
-import { PluginRuntimeError } from "./errors.js";
+
 import { pluginManifestDigest } from "./identity.js";
 
 /**
@@ -56,20 +58,20 @@ export function defaultGrants(manifest: PluginManifest, installs: readonly Plugi
  * their choice about the kept data stands. Both refuse with `plugin.install_replaced`, so the caller leaves everything
  * that belongs to the newer install or to that choice alone. A row back at `earlier` already is what this asks for.
  */
-export function abandonRefusal(current: PluginInstanceRecord, installed: PluginInstanceRecord, earlier?: PluginInstanceRecord): PluginRuntimeError | undefined {
+export function abandonRefusal(current: PluginInstanceRecord, installed: PluginInstanceRecord, earlier?: PluginInstanceRecord): ActionError | undefined {
   if (earlier && (earlier.install_id !== installed.install_id || earlier.state !== "uninstalled")) {
-    return new PluginRuntimeError("plugin.state_invalid", "只能退回到同一安装、已卸载的记录");
+    return pluginErrors.state_invalid("只能退回到同一安装、已卸载的记录");
   }
   if (earlier && current.installation_generation === earlier.installation_generation) return undefined;
   if (current.installation_generation !== installed.installation_generation || current.state === "uninstalled") {
-    return new PluginRuntimeError("plugin.install_replaced", "这次安装已经被另一次安装替换，或已被卸载，不能退回");
+    return pluginErrors.install_replaced("这次安装已经被另一次安装替换，或已被卸载，不能退回");
   }
   return undefined;
 }
 
 export function assertMutable(record: PluginInstanceRecord): void {
   if (record.state === "uninstalled" || record.state === "quarantined") {
-    throw new PluginRuntimeError("plugin.state_invalid", `Plugin 当前状态 ${record.state} 不允许修改`);
+    throw pluginErrors.state_invalid(`Plugin 当前状态 ${record.state} 不允许修改`);
   }
 }
 
@@ -77,7 +79,7 @@ export function normalizeGrants(manifest: PluginManifest, requested: string[]): 
   const ceiling = new Set(manifest.permissions.map((permission) => permission.permission));
   const grants = [...new Set(requested.map((permission) => permission.trim()).filter(Boolean))].sort();
   if (grants.some((permission) => !ceiling.has(permission))) {
-    throw new PluginRuntimeError("plugin.grant_denied", "实际 grant 不能超过 Manifest 声明上限");
+    throw pluginErrors.grant_denied("实际 grant 不能超过 Manifest 声明上限");
   }
   return grants;
 }
@@ -102,7 +104,7 @@ export function recordToFollow(current: PluginInstanceRecord | null, manifest: P
  * the same whether the build is newer, older or the same version.
  */
 export function followBundledBuild(current: PluginInstanceRecord, deployment: PluginDeployment, manifest: PluginManifest, digest: string, entrypoint: string, at: string): PluginInstanceRecord {
-  if (current.deployment !== deployment) throw new PluginRuntimeError("plugin.state_invalid", "已有安装不能通过启动改变部署环境");
+  if (current.deployment !== deployment) throw pluginErrors.state_invalid("已有安装不能通过启动改变部署环境");
   return { ...current, version: manifest.version, publisher_id: manifest.publisher.publisher_id, manifest_digest: digest, selected_entrypoint: entrypoint,
     grants: bundledGrants(manifest), updated_at: at };
 }

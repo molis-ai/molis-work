@@ -1,3 +1,4 @@
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   ArtifactReference,
   FixedVersionRecord,
@@ -167,13 +168,7 @@ export interface PluginCapabilityPort {
   ): Promise<Output>;
 }
 
-export class PluginCapabilityAccessError extends Error {
-  readonly code = "plugin.capability_denied";
-  constructor(message: string) {
-    super(message);
-    this.name = "PluginCapabilityAccessError";
-  }
-}
+
 
 /**
  * A Plugin may invoke exactly the Capabilities its Manifest lists under
@@ -197,11 +192,9 @@ export function createPluginCapabilityClient(
       input: Input,
       options?: import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions,
     ): Promise<Output> {
-      if (!isActive()) throw new PluginCapabilityAccessError("此插件实例已停止");
+      if (!isActive()) throw pluginErrors.capability_denied("此插件实例已停止");
       if (!allowed.has(capability.capability_id)) {
-        throw new PluginCapabilityAccessError(
-          `${manifest.plugin_id} 没有声明消费 Capability ${capability.capability_id}`,
-        );
+        throw pluginErrors.capability_denied(`${manifest.plugin_id} 没有声明消费 Capability ${capability.capability_id}`);
       }
       // Caller authority is added by the trusted executor around this port.
       // A plugin may supply a stricter effect check, never its own identity.

@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -6,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createPluginArtifactClient, PluginArtifactAccessError } from "@molis-ai/molis-work-plugin-artifacts";
-import { PluginRuntime, PluginRuntimeError } from "@molis-ai/molis-work-plugin-runtime";
+import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginArtifactClient, PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
@@ -81,11 +82,11 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
 
     const oldConsumerClient = consumer.client;
     await runtime.reportCrash(consumer.installId);
-    assert.throws(() => oldConsumerClient.read(value), (error: unknown) => error instanceof PluginRuntimeError
+    assert.throws(() => oldConsumerClient.read(value), (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
       && error.code === "plugin.grant_denied");
     await runtime.recover(consumer.installId);
     assert.deepEqual(consumer.client.read(value), first.artifact);
-    assert.throws(() => oldConsumerClient.read(value), PluginRuntimeError,
+    assert.throws(() => oldConsumerClient.read(value), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"),
       "recovery must not restore authority to stale pre-crash clients");
 
     const noRead = await author("denied", { read: false });
@@ -96,7 +97,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     const otherUser = await author("other-user", { actor: "other" });
     const before = store.snapshot(DEMO_PROJECT_ID);
     const versions = api.query.listArtifactVersions(DEMO_PROJECT_ID, value.artifact_id);
-    assert.throws(() => noRead.client.read(value), (error: unknown) => error instanceof PluginRuntimeError
+    assert.throws(() => noRead.client.read(value), (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
       && error.code === "plugin.grant_denied");
     assert.throws(() => wrongSchema.client.read(value), (error: unknown) => error instanceof PluginArtifactAccessError
       && error.code === "plugin_artifact_incompatible");
@@ -110,7 +111,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     await runtime.uninstall(producer.installId);
     assert.deepEqual(consumer.client.read(value), first.artifact, "uninstall preserves exchanged content");
     assert.throws(() => producer.client.publish({ ...value, version: 3 }),
-      (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin.grant_denied");
+      (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.grant_denied");
     assert.deepEqual(api.query.listArtifactVersions(DEMO_PROJECT_ID, value.artifact_id), versions,
       "a retained client cannot keep writing after uninstall");
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }

@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -12,16 +13,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
-import {
-  MemoryPluginEventsRepository,
-  MemoryPluginWiringRepository,
-  PluginCapabilityAccessError,
-  PluginEventBus,
-  PluginInputGraph,
-  PluginRuntime,
-  PluginSupervisor,
-  portArtifactId,
-} from "@molis-ai/molis-work-plugin-runtime";
+import { MemoryPluginEventsRepository, MemoryPluginWiringRepository, PluginEventBus, PluginInputGraph, PluginRuntime, PluginSupervisor, portArtifactId } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -288,7 +280,7 @@ test("a Capability the Manifest never listed is refused before the Host is asked
 
     await assert.rejects(
       () => capabilities.invoke(FORBIDDEN, ["x"]),
-      (error: unknown) => error instanceof PluginCapabilityAccessError,
+      (error: unknown) => (error instanceof ActionError && ["plugin.capability_denied"].includes(error.code) && error.kind === "invalid"),
     );
     assert.deepEqual(rig.invoked, [], "被拒绝的调用不该到达宿主");
 

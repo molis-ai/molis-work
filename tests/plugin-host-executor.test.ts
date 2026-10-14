@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -6,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
-import { PluginRuntime, PluginRuntimeError, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { PluginRuntime, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost, PluginUiAccessError } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
@@ -115,19 +116,19 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
     await runtime.reportCrash(installId);
     assert.deepEqual(ui.list(), []);
     assert.deepEqual(pluginActions(store, DEMO_PROJECT_ID).registry.registry.descriptors(), [], "crash must release SDK actions");
-    assert.throws(() => old.storage!.get("visits"), PluginRuntimeError);
+    assert.throws(() => old.storage!.get("visits"), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     await runtime.recover(installId);
     assert.equal(contexts[1]!.services!.storage!.get("visits"), "2");
     assert.deepEqual(contexts[1]!.services!.artifacts.read({ artifact_id: "hosted-note", version: 1 })!.payload, { visits: 1 });
-    assert.throws(() => old.artifacts.read({ artifact_id: "hosted-note", version: 1 }), PluginRuntimeError);
+    assert.throws(() => old.artifacts.read({ artifact_id: "hosted-note", version: 1 }), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
 
     failStop = true;
-    await assert.rejects(runtime.uninstall(installId), PluginRuntimeError);
+    await assert.rejects(runtime.uninstall(installId), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     assert.equal(runtime.get(installId).state, "crashed");
     assert.equal(runtime.contribution(installId), null);
     assert.deepEqual(ui.list(), []);
     assert.deepEqual(pluginActions(store, DEMO_PROJECT_ID).registry.registry.descriptors(), [], "failed stop must release SDK actions");
-    assert.throws(() => contexts[1]!.services!.storage!.set("visits", "bad"), PluginRuntimeError);
+    assert.throws(() => contexts[1]!.services!.storage!.set("visits", "bad"), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     await runtime.uninstall(installId);
     assert.equal(runtime.get(installId).state, "uninstalled");
     assert.equal(artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, "hosted-note").length, 2);
@@ -135,7 +136,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
     failStart = true;
     failStop = false;
     runtime.install({ definition, deployment: "local", grants: definition.manifest.permissions.map(permission => permission.permission) });
-    await assert.rejects(runtime.start(installId), PluginRuntimeError);
+    await assert.rejects(runtime.start(installId), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     assert.deepEqual(ui.list(), []);
     assert.deepEqual(pluginActions(store, DEMO_PROJECT_ID).registry.registry.descriptors(), [], "failed startup must release SDK actions");
     assert.equal(runtime.get(installId).state, "crashed");
@@ -200,7 +201,7 @@ test("compatible Host execution and crash recovery use the implementation versio
       contribution: { contribution_id: "example.compatible", surface: "main", model: null } }).html, "<p>2.0.0</p>");
     const previous = contexts.at(-1)!;
     await runtime.reportCrash(installed.install_id);
-    assert.throws(() => previous.services!.storage!.get("visits"), PluginRuntimeError);
+    assert.throws(() => previous.services!.storage!.get("visits"), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     await runtime.recover(installed.install_id);
     assert.equal(contexts.at(-1)!.version, "2.0.0");
     assert.equal(contexts.at(-1)!.services!.storage!.get("visits"), "3");
@@ -215,7 +216,7 @@ test("compatible Host execution and crash recovery use the implementation versio
     await assert.rejects(runtime.recover(installed.install_id), /只有 crashed/);
     await assert.rejects(runtime.recover(installed.install_id, { release_quarantine: true }), /已隔离/);
     assert.equal(runtime.get(installed.install_id).state, "quarantined");
-    assert.throws(() => contexts.at(-1)!.requireGrant("storage:private"), PluginRuntimeError);
+    assert.throws(() => contexts.at(-1)!.requireGrant("storage:private"), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     failStart = false;
     await runtime.recover(installed.install_id, { release_quarantine: true });
     assert.equal(runtime.get(installed.install_id).state, "running");

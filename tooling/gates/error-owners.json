@@ -280,9 +280,10 @@
         "tooling/plugin-cli/",
         "apps/local-host/src/installed-plugin-*",
         "packages/contracts/src/platform/plugin-events.ts",
-        "packages/contracts/src/platform/plugin-wiring.ts"
+        "packages/contracts/src/platform/plugin-wiring.ts",
+        "packages/contracts/src/platform/plugin-errors.ts"
       ],
-      "reason": "The Plugin Runtime, the plugin SDK's manifest and definition checks, the plugin CLI and the Host's installed-plugin files: their plugin_* codes become plugin.* (spec W3-02 J1)."
+      "reason": "The Plugin Runtime, the plugin SDK's manifest and definition checks, the plugin CLI and the Host's installed-plugin files: their plugin_* codes become plugin.* (spec W3-02 J1). The shared public contract declares Runtime and authoring refusals once."
     },
     "plugin_builder": {
       "paths": [

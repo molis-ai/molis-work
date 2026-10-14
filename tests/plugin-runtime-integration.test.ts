@@ -1,3 +1,5 @@
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -23,18 +25,7 @@ import {
   createGithubIntegrationPlugin,
   githubIntegrationManifest,
 } from "@molis-ai/molis-work-integration-github";
-import {
-  MemoryPluginEventsRepository,
-  MemoryPluginRuntimeRepository,
-  MemoryPluginWiringRepository,
-  PluginEventBus,
-  PluginInputGraph,
-  PluginRouteRouter,
-  PluginRuntime,
-  PluginRuntimeError,
-  PluginSupervisor,
-  SqlitePluginRuntimeRepository,
-} from "@molis-ai/molis-work-plugin-runtime";
+import { MemoryPluginEventsRepository, MemoryPluginRuntimeRepository, MemoryPluginWiringRepository, PluginEventBus, PluginInputGraph, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { OfficialIntegrationRegistry } from "@molis-ai/molis-work-app-local-host";
@@ -124,12 +115,12 @@ test("official GitHub Plugin installs, grants, produces Signal, recovers, and un
 
       await assert.rejects(
         runtime.start(installId),
-        (error: unknown) => error instanceof PluginRuntimeError
+        (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
           && error.code === "plugin.grant_denied",
       );
       assert.throws(
         () => runtime.grant(installId, ["filesystem:all"]),
-        (error: unknown) => error instanceof PluginRuntimeError
+        (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
           && error.code === "plugin.grant_denied",
       );
       runtime.grant(installId, ["network:github.com", "secret:github"]);
@@ -228,7 +219,7 @@ test("Plugin identity is signature-bound while references retain plugin id and v
   };
   assert.throws(
     () => new PluginRuntime(repository).install({ definition: silentlyChanged, deployment: "local" }),
-    (error: unknown) => error instanceof PluginRuntimeError
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
       && error.code === "plugin.definition_conflict",
   );
 });
@@ -433,7 +424,7 @@ test("a rebuilt runtime activates a persisted running plugin and does not revive
     failRecovery = true;
     await assert.rejects(
       runtimeA.recover(quarantinedInstall),
-      (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin.quarantined",
+      (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.quarantined",
     );
     assert.equal(runtimeA.get(crashedInstall).state, "crashed");
     assert.equal(runtimeA.get(crashedInstall).recovery_count, 0);
@@ -498,7 +489,7 @@ test("a rebuilt runtime activates a persisted running plugin and does not revive
       assert.notEqual(previous, current);
       assert.throws(
         () => previous?.requireGrant(PROBE_PERMISSION),
-        (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin.grant_denied",
+        (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.grant_denied",
       );
       current?.requireGrant(PROBE_PERMISSION);
     } finally {
@@ -566,11 +557,11 @@ test("a failed reactivation revokes grants, and a cold stop does not activate or
       assert.equal(runtimeB.contribution(failingInstall), null);
       assert.throws(
         () => failedContext?.requireGrant(PROBE_PERMISSION),
-        (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin.grant_denied",
+        (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.grant_denied",
       );
       await assert.rejects(
         runtimeB.start(failingInstall),
-        (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin.state_invalid",
+        (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.state_invalid",
       );
       assert.equal(failingStarts, 2, "crashed 记录不能被下一次 start 重置成 running");
       assert.equal(runtimeB.get(failingInstall).state, "crashed");
@@ -640,7 +631,7 @@ test("repeated and concurrent start register once, and a stop queued behind star
   assert.equal(runtime.contribution(installId), null);
   assert.throws(
     () => context?.requireGrant(PROBE_PERMISSION),
-    (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin.grant_denied",
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.grant_denied",
   );
 
   await runtime.start(installId);
@@ -915,7 +906,7 @@ test("a start that finishes after revoke does not become the active instance", a
   assert.equal(runtime.get(installId).recovery_count, 0);
   assert.throws(
     () => context?.requireGrant(PROBE_PERMISSION),
-    (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin.grant_denied",
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.grant_denied",
   );
 
   const enabled = await supervisor.enable(pluginId);
@@ -973,4 +964,21 @@ test("ensureStarted that finishes after revoke cannot register an active instanc
   assert.equal((await supervisor.ensureStarted(pluginId))?.active(), true);
   assert.equal(supervisor.enabledPluginIds().includes(pluginId), true);
   assert.equal(starts, 3);
+});
+
+// PRERR-02: real start failure keeps only Runtime-owned refusals detailed; every failure is still recorded.
+test("PRERR-02: Runtime distinguishes its current refusals from foreign common errors", async () => {
+  const failures = [pluginErrors.state_invalid("原始状态拒绝"), pluginErrors.storage_denied("private-store-fixture-detail"), new ActionError("actions.forbidden", "foreign-fixture-detail", { kind: "forbidden" })];
+  for (const [index, failure] of failures.entries()) {
+    const pluginId = "io.molis.work.example.error-boundary-" + index;
+    const repository = new MemoryPluginRuntimeRepository();
+    const runtime = new PluginRuntime(repository);
+    const definition: PluginDefinition = { manifest: probeManifest(pluginId), async start() { throw failure; } };
+    const { install } = runtime.install({ definition, deployment: "local", grants: [] });
+    await assert.rejects(runtime.start(install.install_id), (error: unknown) => index === 0 ? error === failure : error instanceof ActionError
+      && error.code === "plugin.executor_failed" && error.message === "Plugin entrypoint 启动失败，已记录为 crashed" && error.kind === "invalid");
+    assert.equal(runtime.get(install.install_id).state, "crashed");
+    assert.equal(runtime.get(install.install_id).last_error_code, failure.code);
+    assert.equal(runtime.contribution(install.install_id), null);
+  }
 });

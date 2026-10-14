@@ -4071,6 +4071,35 @@ export declare const platformPluginWiringContract: {
     readonly ssot: "docs/platform/PLUGIN-PLATFORM.md";
 };
 
+export declare const pluginErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly capability_denied: "invalid";
+    readonly contribution_kind_invalid: "invalid";
+    readonly contribution_unredeemed: "invalid";
+    readonly declaration_invalid: "invalid";
+    readonly definition_conflict: "invalid";
+    readonly definition_missing: "invalid";
+    readonly entrypoint_missing: "invalid";
+    readonly event_type_missing: "invalid";
+    readonly event_type_undeclared: "invalid";
+    readonly executor_failed: "invalid";
+    readonly grant_denied: "invalid";
+    readonly install_replaced: "invalid";
+    readonly kept_data_incompatible: "invalid";
+    readonly manifest_invalid: "invalid";
+    readonly package_invalid: "invalid";
+    readonly permission_invalid: "invalid";
+    readonly quarantined: "invalid";
+    readonly signature_invalid: "invalid";
+    readonly signer_mismatch: "invalid";
+    readonly state_invalid: "invalid";
+    readonly storage_denied: "invalid";
+    readonly storage_input_invalid: "invalid";
+    readonly upgrade_required: "invalid";
+    readonly upgrade_rollback_failed: "invalid";
+    readonly upgrade_validation_failed: "invalid";
+    readonly upgrade_validation_missing: "invalid";
+}>;
+
 export declare function portTypeKey(artifactTypeId: string, schemaVersion: number): string;
 
 export declare function presentActionResult(view: ActionResultView | undefined, result: unknown, projectId?: string): ActionResultPresentation | undefined;

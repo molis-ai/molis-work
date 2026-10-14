@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { spawnSync } from "node:child_process";
@@ -6,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { parsePluginPackage, verifyPluginPackage, PluginPackageError } from "@molis-ai/molis-work-plugin-runtime";
+import { parsePluginPackage, verifyPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
 
 test("real CLI creates, packs, signs and verifies a Plugin while rejecting tampering, wrong identity and unsafe files", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-package-"));
@@ -39,19 +40,19 @@ test("real CLI creates, packs, signs and verifies a Plugin while rejecting tampe
     assert.equal(invoke("sign", unsigned, privateFile, signed).status, 1, "existing output is not overwritten");
     assert.equal(readFileSync(signed, "utf8"), untouched);
     const wrong = generateKeyPairSync("ed25519");
-    assert.throws(() => verifyPluginPackage(data, wrong.publicKey), (error: unknown) => error instanceof PluginPackageError
+    assert.throws(() => verifyPluginPackage(data, wrong.publicKey), (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
       && error.code === "plugin.signer_mismatch");
 
     const tampered = structuredClone(data);
     tampered.payload.files.find((file: { path: string }) => file.path === "index.mjs").content_base64 = Buffer.from("throw new Error('changed')").toString("base64");
-    assert.throws(() => verifyPluginPackage(tampered, keys.publicKey), (error: unknown) => error instanceof PluginPackageError
+    assert.throws(() => verifyPluginPackage(tampered, keys.publicKey), (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
       && error.code === "plugin.signature_invalid");
     const changedManifest = structuredClone(data);
     changedManifest.payload.manifest.name = "Changed outer manifest";
-    assert.throws(() => parsePluginPackage(changedManifest), PluginPackageError, "outer Manifest cannot differ from imported manifest.json");
+    assert.throws(() => parsePluginPackage(changedManifest), (error: unknown) => (error instanceof ActionError && ["plugin.package_invalid","plugin.signature_invalid","plugin.signer_mismatch"].includes(error.code) && error.kind === "invalid"), "outer Manifest cannot differ from imported manifest.json");
     const traversing = structuredClone(data);
     traversing.payload.files[0].path = "../outside";
-    assert.throws(() => parsePluginPackage(traversing), PluginPackageError);
+    assert.throws(() => parsePluginPackage(traversing), (error: unknown) => (error instanceof ActionError && ["plugin.package_invalid","plugin.signature_invalid","plugin.signer_mismatch"].includes(error.code) && error.kind === "invalid"));
 
     const manifestPath = join(project, "manifest.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));

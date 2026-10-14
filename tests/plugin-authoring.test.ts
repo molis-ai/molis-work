@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
@@ -5,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 
 function manifest() {
   return {
@@ -26,7 +27,7 @@ test("public Manifest parser preserves author declarations and rejects unsupport
   const input = manifest();
   assert.deepEqual(parsePluginManifest(input), input);
   assert.throws(() => parsePluginManifest({ ...input, host_api_version: 2 }),
-    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin.manifest_invalid"
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid"
       && error.message.includes("host_api_version"));
 });
 
@@ -51,12 +52,12 @@ test("Manifest upgrade declarations use exact older source versions with one dis
     { compatible_from_versions: ["1.0.0"], migratable_from_versions: ["1.0.0"] },
     { migratable_from_versions: [] },
   ]) {
-    assert.throws(() => parsePluginManifest({ ...manifest(), version: "1.1.0", upgrade_compatibility }), PluginManifestError);
+    assert.throws(() => parsePluginManifest({ ...manifest(), version: "1.1.0", upgrade_compatibility }), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid"));
   }
   assert.throws(() => parsePluginManifest({ ...manifest(), upgrade_compatibility: {
     migratable_from_versions: ["1.0.0"],
-  } }), PluginManifestError);
-  assert.throws(() => parsePluginManifest({ ...manifest(), version: "01.0.0" }), PluginManifestError);
+  } }), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid"));
+  assert.throws(() => parsePluginManifest({ ...manifest(), version: "01.0.0" }), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid"));
 });
 
 test("wire Manifest rejects missing shapes, invalid permissions and incompatible Artifact declarations", () => {
@@ -64,14 +65,14 @@ test("wire Manifest rejects missing shapes, invalid permissions and incompatible
     { ...manifest(), capabilities: { provides: [false], consumes: [] } },
     { ...manifest(), artifacts: { produces: [{ artifact_type_id: "example.note", schema_version: 0 }], consumes: [] } },
     { ...manifest(), ui: { contributions: [null] } }]) {
-    assert.throws(() => parsePluginManifest(input), PluginManifestError);
+    assert.throws(() => parsePluginManifest(input), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid"));
   }
   assert.throws(() => parsePluginManifest({ ...manifest(), permissions: [
     { permission: "artifact:write", reason: "write", required: "yes" },
-  ] }), (error: unknown) => error instanceof PluginManifestError && error.code === "plugin.permission_invalid");
+  ] }), (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.permission_invalid");
   assert.throws(() => parsePluginManifest({ ...manifest(), entrypoints: [
     { deployment: "local", entrypoint: "./a.mjs" }, { deployment: "local", entrypoint: "./b.mjs" },
-  ] }), (error: unknown) => error instanceof PluginManifestError && error.code === "plugin.entrypoint_missing");
+  ] }), (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.entrypoint_missing");
 });
 
 test("real Plugin CLI validates in a clean directory without executing entrypoint or modifying input", () => {

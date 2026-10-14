@@ -2441,3 +2441,5 @@ W3-02-I6收AgentHost/AgentReview/PrologueAdapter/PrologueApproval四个封闭cod
 I5完整dc0c402c0独立Source接受，无Blocker/P1。新真实action聚合测试首稿confidence=-1会先被现行schema拒绝，复核后改空白source_refs+reason，达到真正owner两issues路径；不改schema或弱化断言。83声明/93raiser及其余生产AST保持，原partial/whole/rollback与可信授权不变，尚待运行。
 
 最新main d530的问卷依赖与此前防腐临时beforeAccept SDK不相容：40b实际TypeScript31诊断来自SDK缺validateQuestionnaireAnswer与typed Pending/optional indexes。只读解包现行入库08b84296 interim SDK后，问卷诊断全部消失，仅剩既有switchModel第二beforeAccept参数1诊断；证明需要把原9行验权补丁合在现行interim基础上，不能把旧SDK候选的历史运行外推到新main。I6实际168造错迁18现行原因/四类删除，health40相对d530通过72错误类，API40匹配；当前完整类型/整建/运行未通过。联合SDK只在新隔离本地副本准备，原Prologue树/上游/vendor/真Home均不写；正式提交、推送及vendor替换继续等已有用户问题。
+
+W3-02-I7先收Scheduler单一封闭错误类，依赖J4现行scheduler码。范围contracts/services/scheduler、服务本体、Schedule插件现行映射/取消missing处理与两测试；删ScheduleError公开类/导出，五既有scheduler原因在合同同subpath声明共同错误（跨服务/插件共享，不开新subpath）。服务原无kind400保持；Schedule动作原映射仍job_not_found404、其余job_invalid400，以共同ActionError且完整scheduler有限原因识别，不把其他owner错误误映射。I7-01：叫醒缺handler/间隔/路径/缺job精确code/message，关闭/删除/撤权/重启和原持久调度次序不变；I7-02：无类/alias，实际producer与consumer同步，外来owner失败仍原样；I7-03：README三文件与真实reminder/operation恢复、现行错误出口parity、API/health/build/资源及共享全量。不放松计时或新增持久状态，I8冻结不动。

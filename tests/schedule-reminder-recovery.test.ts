@@ -345,11 +345,11 @@ for (const disposition of ["service", "project", "delete"] as const) test(`W2-18
 
 
 test("W2-18-SCHEDULE-02: a source tick waiting inside Home preparation cannot reopen a project after close", { timeout: 60_000 }, async t => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
   const home = await mkdtemp(join(tmpdir(), "schedule-prepare-stop-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const served = await serveTestHost(null, { home, host });
   const project = await served.createProject("Prepare wait");
-  t.mock.timers.enable({ apis: ["setInterval"] });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const plugins = host.homePlugins; assert.ok(plugins);
   await plugins.ready();

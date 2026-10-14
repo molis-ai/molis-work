@@ -564,10 +564,12 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       }
     })().catch(() => undefined).finally(() => waking.delete(runtimeId));
   };
-  if (ports && context.services?.capabilities) void ports.ready().then(() => {
+  // Recovery after a restart: only a project with sessions tied to an Agent run starts the Agent runtime here. Starting the
+  // plugin (or discovering its actions) must not initialize the runtime's storage when there is nothing to wake.
+  const resumable = () => new Set(ports!.sessions.list(projectId).filter(record => record.runtime_session_id).map(record => record.runtime_id));
+  if (ports && context.services?.capabilities && resumable().size) void ports.ready().then(() => {
     if (stopped.signal.aborted) return;
-    for (const runtimeId of new Set(ports.sessions.list(projectId).filter(record => record.runtime_session_id).map(record => record.runtime_id)))
-      wakeLoop(context.services!.capabilities!, ports, runtimeId);
+    for (const runtimeId of resumable()) wakeLoop(context.services!.capabilities!, ports, runtimeId);
   }).catch(() => undefined);
   /** The workspace a send names, as the directory it will run in. */
   const directoryOf = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, workspaceId: unknown) => {

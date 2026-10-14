@@ -183,7 +183,8 @@ export function recordStoppedDelivery(store: WorkflowsStore, expected: WorkflowI
   if (latest.status !== "stopped" || latest.current !== from || !pending || recorded?.key !== pending.key
     || recorded.attempted_at !== pending.attempted_at) return null;
   const { attempted_at: _attempted, attempt_error: _error, ...handoff } = pending;
-  const at = new Date().toISOString();
+  // The arrival and the run's token are the same moment: taken past the attempt mark written in the same millisecond.
+  const at = nextUpdatedAt(latest.updated_at);
   const next = advanceInstance({ ...latest, status: "active" }, from, handoff, arrived, at, arrival);
   return store.saveInstance(latest, { ...next, status: "stopped", steps: next.steps.map((step, index) => index === from
     ? { ...step, held: { at, reason: "流程已停止；这一项已经返回真实结果，内容保留，不会继续下一站。" } } : step) });

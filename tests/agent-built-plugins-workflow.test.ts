@@ -1095,7 +1095,7 @@ test('W2-18-BUILDER-LATE-01: real Host sandbox cleanup cannot delete the resumed
     const choice = await reached(created.id, 'choosing');
     await send('/builds/' + created.id + '/action', { action: 'choose', revision: choice.revision, candidateId: 'board' });
     const ready = await reached(created.id, 'ready');
-    await send('/builds/' + ready.id + '/call', { componentId: 'editor', binding: 'submit', payload: { text: 'Old preview record' } });
+    await send('/builds/' + ready.id + '/call', { componentId: 'editor', binding: 'submit', payload: { form: { text: 'Old preview record' } } });
     arm = true;
     await send('/builds/' + ready.id + '/action', { action: 'revise', revision: ready.revision, message: '保留这两个笔记操作，重新确认完整设计。' });
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -1105,7 +1105,7 @@ test('W2-18-BUILDER-LATE-01: real Host sandbox cleanup cannot delete the resumed
     const paused = await reached(ready.id, 'paused');
     await send('/builds/' + ready.id + '/action', { action: 'resume', revision: paused.revision });
     await reached(ready.id, 'ready');
-    await send('/builds/' + ready.id + '/call', { componentId: 'editor', binding: 'submit', payload: { text: 'New preview must remain' } });
+    await send('/builds/' + ready.id + '/call', { componentId: 'editor', binding: 'submit', payload: { form: { text: 'New preview must remain' } } });
     const preview = await send<{ value: unknown }>('/builds/' + ready.id + '/call', { componentId: 'notes', binding: 'read', payload: {} });
     assert.match(JSON.stringify(preview.value), /New preview must remain/);
     const resumed = await read(ready.id);

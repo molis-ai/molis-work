@@ -1,6 +1,6 @@
 import type { ActionDefinition, ActionExecutionContext, ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { WorkflowContentPorts, WorkflowsActionPorts, workflowsActions } from "./actions.js";
-import { advanceInstance, isActionStation, type WorkflowInstance, type WorkflowItemRef, type WorkflowPayload, type WorkflowStation } from "./model.js";
+import { advanceInstance, isActionStation, nextUpdatedAt, type WorkflowInstance, type WorkflowItemRef, type WorkflowPayload, type WorkflowStation } from "./model.js";
 import { recordStoppedDelivery, type WorkflowsStore } from "./store.js";
 import { workflowsErrors } from "./error.js";
 
@@ -50,7 +50,7 @@ export function createWorkflowContinuation<Reach>(d: Dependencies<Reach>) {
     const { attempted_at: _attempted, attempt_error: _error, ...recorded } = pending;
     try {
       const base = current;
-      return d.changed({ instance: await d.commit(caller, store => store.saveInstance(base, advanceInstance(base, from, recorded, arrived, new Date().toISOString(), arrival))) });
+      return d.changed({ instance: await d.commit(caller, store => store.saveInstance(base, advanceInstance(base, from, recorded, arrived, nextUpdatedAt(base.updated_at), arrival))) });
     } catch (error) {
       await original.beforeEffect(); original.assert_authority_current?.(); original.signal?.throwIfAborted();
       const latest = await d.withStore(store => store.instance(current.instance_id, d.projectId));

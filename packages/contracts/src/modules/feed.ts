@@ -198,7 +198,7 @@ export const feedErrors = defineErrorCodes("feed", {
   source_wrong_sync_kind: "invalid",
   connector_wrong_sync_kind: "invalid",
   connector_needs_auth: "invalid",
-  /** The provider reported a failed pull. Its own code (what a run and a source fault store, e.g. `connector_rate_limited`) is `details.error_code`. */
+  /** The provider reported a failed pull. Its own code (what a run and a source fault store, e.g. `connector.rate_limited`) is `details.error_code`. */
   connector_failed: "invalid",
   custom_rss_url_invalid: "invalid",
   youtube_channel_invalid: "invalid",

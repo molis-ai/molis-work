@@ -464,7 +464,7 @@ test("non-retryable scheduled source failures create one actionable Inbox refere
       service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
       now = new Date("2026-08-30T09:05:00.000Z");
       const scheduler = createLocalFeedSourceScheduler(store.db, DEMO_PROJECT_ID, async () => {
-        throw Object.assign(new Error("需要重新授权"), { code: "connector_needs_auth" });
+        throw Object.assign(new Error("需要重新授权"), { code: "connector.needs_auth" });
       }, () => now);
       const result = await scheduler.tick(now);
       assert.equal(result.failed, 1);
@@ -474,7 +474,7 @@ test("non-retryable scheduled source failures create one actionable Inbox refere
       assert.ok(fault);
       assert.equal(fault.reason, "source_fault");
       assert.deepEqual(fault.detail, {
-        error_code: "connector_needs_auth",
+        error_code: "connector.needs_auth",
         category: "auth",
         retryable: false,
         user_action: "reconnect",

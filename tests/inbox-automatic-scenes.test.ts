@@ -179,7 +179,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     publicSources.configureSchedule(publicSource.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
     now = new Date("2026-09-25T00:05:00Z");
     const scheduler = createLocalFeedSourceScheduler(runtime.store.db, runtime.project_id, async () => {
-      throw Object.assign(new Error("fixture auth failure"), { code: "connector_needs_auth" });
+      throw Object.assign(new Error("fixture auth failure"), { code: "connector.needs_auth" });
     }, () => now, home, feedOptions);
     assert.equal((await scheduler.tick(now)).failed, 1);
     assert.equal(localCalls, 5, "scheduler-created source faults also flush their scene event");

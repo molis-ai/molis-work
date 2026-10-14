@@ -161,7 +161,7 @@ function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSo
   const running = runs.some((run) => run.phase === "running");
   const attention = source.status === "error" || source.status === "disconnected";
   const statusKind = running ? "syncing" : attention ? "attention" : source.status === "paused" ? "paused" : "active";
-  const retryAfterAt = runs.find((run) => run.error_code === "connector_rate_limited")?.receipt?.retry_after_at;
+  const retryAfterAt = runs.find((run) => run.error_code === "connector.rate_limited")?.receipt?.retry_after_at;
   const catalogFeedUrl = source.kind === "rss"
     ? view.feed_source_catalog?.find((entry) => entry.id === source.definition_id)?.feed_url
     : undefined;

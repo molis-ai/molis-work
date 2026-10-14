@@ -192,8 +192,8 @@ test("owner details travel in details and nowhere else", async () => {
   try {
     const declared = declarationsOf("feed");
     assert.ok(declared, "feedErrors is exported");
-    const answer = await edge.fail(declared.connector_failed!("授权已失效", { error_code: "connector_needs_auth" }));
-    assert.deepEqual(answer, { status: 400, body: { error: "授权已失效", code: "feed.connector_failed", details: { error_code: "connector_needs_auth" } } });
+    const answer = await edge.fail(declared.connector_failed!("授权已失效", { error_code: "connector.needs_auth" }));
+    assert.deepEqual(answer, { status: 400, body: { error: "授权已失效", code: "feed.connector_failed", details: { error_code: "connector.needs_auth" } } });
   } finally { await edge.close(); }
 });
 
@@ -208,10 +208,10 @@ test("the Feed classifies a thrown failure by its new code, and a connector fail
   assert.deepEqual(publicError(feed.source_configuration_changed!("来源配置已变化")), { code: "feed.source_configuration_changed", category: "configuration", retryable: false, user_action: "fix_configuration" });
   assert.deepEqual(publicError(feed.source_sync_interrupted!("同步没有终态")), { code: "feed.source_sync_interrupted", category: "interrupted", retryable: true, user_action: "retry" });
   // The failure a provider reported keeps the provider's own code: that code is what a run and a source fault have always stored.
-  assert.deepEqual(publicError(feed.connector_failed!("授权失效", { error_code: "connector_needs_auth" })), { code: "connector_needs_auth", category: "auth", retryable: false, user_action: "reconnect" });
-  assert.deepEqual(publicError(feed.connector_failed!("稍后再试", { error_code: "connector_rate_limited" })), { code: "connector_rate_limited", category: "rate_limit", retryable: true, user_action: "retry" });
+  assert.deepEqual(publicError(feed.connector_failed!("授权失效", { error_code: "connector.needs_auth" })), { code: "connector.needs_auth", category: "auth", retryable: false, user_action: "reconnect" });
+  assert.deepEqual(publicError(feed.connector_failed!("稍后再试", { error_code: "connector.rate_limited" })), { code: "connector.rate_limited", category: "rate_limit", retryable: true, user_action: "retry" });
   // Stored codes are still read as they were written.
-  assert.equal(feedPlugin.toFeedPublicError({ code: "connector_rate_limited", message: "Retry later" }).category, "rate_limit");
+  assert.equal(feedPlugin.toFeedPublicError({ code: "connector.rate_limited", message: "Retry later" }).category, "rate_limit");
 });
 
 test("the old error classes, the mappers and the old exports are gone", () => {
@@ -246,7 +246,7 @@ const FILES = {
 const OLD_CODES = ["feed_item_not_found", "inbox_entry_not_found", "feed_source_not_found", "feed_out_rule_not_found", "feed_revision_conflict", "feed_invalid_transition", "feed_read_not_supported",
   "feed_source_connection_changed", "feed_source_sync_interrupted", "feed_source_idempotency_required", "feed_source_idempotency_conflict", "feed_source_paused", "feed_out_rule_invalid",
   "feed_source_not_syncable", "feed_source_invalid_state", "feed_source_query_invalid", "feed_source_invalid_configuration", "feed_source_definition_unavailable", "feed_source_use_catalog",
-  "feed_source_invalid_schedule", "feed_source_configuration_changed", "feed_source_changed", "feed_source_wrong_sync_kind", "connector_wrong_sync_kind", "connector_needs_auth",
+  "feed_source_invalid_schedule", "feed_source_configuration_changed", "feed_source_changed", "feed_source_wrong_sync_kind", "connector_wrong_sync_kind", "connector.needs_auth",
   "invalid_custom_rss_url", "invalid_youtube_channel", "inbox_source_use_youtube_channel", "inbox_source_use_official_reddit",
   "schedule_task_invalid", "schedule_task_not_found"];
 // A plugin client file is the page's own script, a template string that runs in the browser; it never raises an action's failure.

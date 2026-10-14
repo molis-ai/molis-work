@@ -127,22 +127,22 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
 });
 
 test("public errors expose only stable category, retryability and user action", () => {
-  assert.deepEqual(toFeedPublicError({ code: "connector_needs_auth", message: "Reconnect GitHub" }), {
-    code: "connector_needs_auth",
+  assert.deepEqual(toFeedPublicError({ code: "connector.needs_auth", message: "Reconnect GitHub" }), {
+    code: "connector.needs_auth",
     category: "auth",
     retryable: false,
     user_action: "reconnect",
     safe_message: "Reconnect GitHub",
   });
-  assert.deepEqual(toFeedPublicError({ code: "connector_network", message: "Network unavailable" }), {
-    code: "connector_network",
+  assert.deepEqual(toFeedPublicError({ code: "connector.network", message: "Network unavailable" }), {
+    code: "connector.network",
     category: "network",
     retryable: true,
     user_action: "retry",
     safe_message: "Network unavailable",
   });
-  assert.deepEqual(toFeedPublicError({ code: "connector_rate_limited", message: "Retry later" }), {
-    code: "connector_rate_limited",
+  assert.deepEqual(toFeedPublicError({ code: "connector.rate_limited", message: "Retry later" }), {
+    code: "connector.rate_limited",
     category: "rate_limit",
     retryable: true,
     user_action: "retry",

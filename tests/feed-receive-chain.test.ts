@@ -11,6 +11,7 @@ import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
 import { ListenerHost, ListenerHostError } from "@molis-ai/molis-work-service-listener-host";
 import type {
   ConnectorDriver,
+  ConnectorFailureKind,
   ConnectorPollResult,
   ConnectorRawEvent,
 } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -119,6 +120,47 @@ test("J3A-01: Sources owner refusals leave both the source and its durable event
     assert.throws(() => sources.commands.setEnabled(DEMO_PROJECT_ID, sourceId, true), { code: "sources.not_found" });
     assert.deepEqual(sources.query.get(DEMO_PROJECT_ID, sourceId), retired);
     assert.deepEqual(sources.events.list(DEMO_PROJECT_ID, sourceId), history);
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+// J3C-01/J3C-02: dynamic provider failures are persisted with the current owner, not inferred by the test.
+test("Listener persists a failed provider pull, retains the cursor and replays without polling", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "listener-provider-owner-")), databasePath = join(directory, "project.sqlite");
+  seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath);
+  try {
+    const sourceId = createSource(store), signals = new SignalsModule(store.db);
+    let polls = 0, failure: ConnectorFailureKind = "needs_auth";
+    const driver: ConnectorDriver = { driver_id: "failure-owner-driver", async health() { return { ok: true, status: "connected", message: "ready" }; },
+      async poll() { polls += 1; return { ok: false, mode: "live", failure, message: "Provider refused", retry_after_at: "2026-09-02T08:10:00.000Z" }; } };
+    const listener = new ListenerHost(store.db, connectorWith(driver), signals.commands);
+    const cases: ReadonlyArray<readonly [ConnectorFailureKind, string]> = [["needs_auth", "connector.needs_auth"], ["configuration", "connector.configuration"],
+      ["network", "connector.network"], ["provider", "connector.provider"], ["rate_limited", "connector.rate_limited"], ["stale_history", "connector.stale_history"]];
+    for (const [reason, code] of cases) {
+      failure = reason;
+      const input = { project_id: DEMO_PROJECT_ID, source_id: sourceId, connection_id: "fixture-connection", operation_id: "provider-failure-" + reason, adapter: adapter() };
+      const receipt = await listener.run(input);
+      assert.equal(receipt.error_code, code);
+      assert.deepEqual([receipt.phase, receipt.outcome, receipt.created_count, receipt.deduped_count], ["terminal", "failed", 0, 0]);
+      assert.equal(listener.getRunByOperationId(DEMO_PROJECT_ID, input.operation_id)?.error_code, code);
+      const checkpoint = listener.checkpoint(DEMO_PROJECT_ID, sourceId);
+      assert.deepEqual(checkpoint.cursor, {}); assert.equal(checkpoint.last_error_code, code);
+      assert.equal(checkpoint.state, reason === "rate_limited" ? "retry_wait" : "idle");
+      if (reason === "rate_limited") assert.equal(checkpoint.retry_at, "2026-09-02T08:10:00.000Z");
+      const beforeReplay = polls;
+      assert.equal((await listener.run(input)).replayed, true); assert.equal(polls, beforeReplay);
+      assert.deepEqual(signals.query.list(DEMO_PROJECT_ID, sourceId), []);
+    }
+    const run = listener.listRuns(DEMO_PROJECT_ID)[0]!;
+    listener.saveRun({ ...run, phase: "running", outcome: null, error_code: null, completed_at: null });
+    store.db.prepare("UPDATE listener_instances SET state = 'listening', lease_owner = ?, lease_expires_at = ? WHERE project_id = ? AND source_id = ?")
+      .run("old-process", "2026-09-02T08:10:00.000Z", DEMO_PROJECT_ID, sourceId);
+    const restarted = new ListenerHost(store.db, connectorWith(driver), new SignalsModule(store.db).commands);
+    assert.equal(restarted.recoverInterruptedRuns(DEMO_PROJECT_ID), 1);
+    assert.equal(restarted.getRunByOperationId(DEMO_PROJECT_ID, run.operation_id)?.error_code, "listener.process_interrupted");
+    assert.equal(restarted.checkpoint(DEMO_PROJECT_ID, sourceId).last_error_code, "listener.process_interrupted");
+    assert.equal(restarted.checkpoint(DEMO_PROJECT_ID, sourceId).state, "retry_wait");
+    assert.equal(restarted.recoverInterruptedRuns(DEMO_PROJECT_ID), 0);
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 

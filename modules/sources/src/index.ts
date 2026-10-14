@@ -113,7 +113,7 @@ export function refreshSourceConnectionState(db: SourcesSqliteDatabase, input: {
         : source.status === "paused" ? "paused" : "disconnected";
       if (status === source.status) continue;
       sources.commands.save({ ...source, status, updated_at: at,
-        last_error_code: input.available ? null : "connector_disconnected" });
+        last_error_code: input.available ? null : "sources.connector_disconnected" });
       changed++;
     }
     return changed;

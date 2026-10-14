@@ -402,7 +402,7 @@ test("Gmail source detail opens Connectors with the current project", () => {
     account_label: "owner@example.com",
     status: "error",
     status_kind: "attention",
-    last_error_code: "connector_needs_auth",
+    last_error_code: "connector.needs_auth",
   });
   const html = host.render({
     contribution_id: FEED_UI_CONTRIBUTION_ID,

@@ -222,13 +222,13 @@ export function recoverInterruptedListenerRuns(
 ): number {
   const result = db.prepare(`
     UPDATE feed_source_runs
-    SET phase = 'interrupted', error_code = 'process_interrupted', updated_at = ?
+    SET phase = 'interrupted', error_code = 'listener.process_interrupted', updated_at = ?
     WHERE project_id = ? AND phase = 'running'
   `).run(at, projectId);
   db.prepare(`
     UPDATE listener_instances
     SET state = 'retry_wait', attempt = attempt + 1,
-        last_error_code = 'process_interrupted', lease_owner = NULL,
+        last_error_code = 'listener.process_interrupted', lease_owner = NULL,
         lease_expires_at = NULL, updated_at = ?
     WHERE project_id = ? AND state = 'listening'
   `).run(at, projectId);
@@ -341,7 +341,7 @@ export class ListenerHost implements ListenerHostApi {
           ...run,
           phase: "terminal",
           outcome: "failed",
-          error_code: `connector_${failure.failure}`,
+          error_code: `connector.${failure.failure}`,
           connector_receipt: summarizeConnectorReceipt(connectorReceipt),
           completed_at: completedAt,
           updated_at: completedAt,

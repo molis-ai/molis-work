@@ -168,13 +168,16 @@ test("Feed switching account creates a separate source and keeps the old history
       assert.equal(service.update(switched.source_id, { connection_id: second!.connection_id }).source_id, switched.source_id);
       withConnectorConnections(home, store => store.disconnect(second!.connection_id));
       refreshFeedConnectionState(home, second!.connection_id);
+      // J3C-01: disconnection changes the error fact; reconnect clears it.
       assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).status, "disconnected");
+      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).last_error_code, "sources.connector_disconnected");
       assert.equal(feed.getSource(DEMO_PROJECT_ID, source.source_id).status, "paused");
       withConnectorConnections(home, store => store.replaceToken(second!.connection_id, "github-token-account-b-rotated"));
       assert.equal(withConnectorConnections(home, store => store.state(store.require(second!.connection_id))), "connected");
       assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).enabled, true);
       refreshFeedConnectionState(home, second!.connection_id);
       assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).status, "active");
+      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).last_error_code, null);
       assert.deepEqual(feed.getSource(DEMO_PROJECT_ID, switched.source_id).cursor, {});
     } finally { board.close(); }
   } finally {

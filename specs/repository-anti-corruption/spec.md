@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 028769de4已整合I3–I33、当前main、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建与96b登记失败已修，96c九项工程检查通过；97在冻结head82d8运行，98真实页面证明待补，新main774a须随后整合。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
+状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 028769de4已整合I3–I33、当前main、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建与96b登记失败已修，96c九项工程检查通过；97/98实际失败已逐项记录，SDK六种切换交错及send/Workflow通过；夹具修正2916已提交待复跑，正整合新main774a A2。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2662,3 +2662,6 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 
 
 **97夹具死锁的实际处置（不记通过）。** 冻结82d8组合已开始实际Runtime回归，coding-effect-control的report cancel/revoke两项通过后，replace分支在原动作仍注册时重复registerProvider，被Kernel按原合同拒绝；异常绕过人为SDK-read屏障的release，30秒test timeout后的local.close又等待该operationTail，导致file子进程不结束。已只读核test62–65/Kernel重复注册拒绝，并sample确认该精确子进程26194事件等待（非忙循环）；核parent26129及准确文件后仅SIGTERM本人子进程，driver继续其余文件。该文件计失败，原日志和sample/处置记录保留。后续修fixture保存原disposer、先取definition再真实撤销/注册，finally释放屏障；不放宽Kernel、不改生产语义或跳过9种业务组合。当前受测树仍冻结，修复及重跑在97/98结束后进行。runtime97-head原base774a仅为共享tracking ref开始观察值，另记录实际sourceMergeBase9ab，测试未包含A2。
+
+
+**97/98短段终态与后续修正（真实运行）。** 97普通实际188：183通过、4失败、1取消、0跳过（495393ms）；含被精确终止的effect-control文件失败，其他三Coding Runtime及Goal HTTP细项保原栈。97两文件浏览器2条：1通过1失败、0取消/跳过，Coding正常打开错误地等旧window=1，真实打开窗为6；effect事件仍1，不能全局替换。98生产Node/SDK11条：10通过1失败、0取消/跳过；W2-18-MODEL-SWITCH六种configuration/credential/actual SDK acceptance的取消/撤权全部通过，唯一独立问卷operate角色fixture未接审批入口。98四文件浏览器13条：11通过2失败、0取消/跳过；send-intent五条及Workflows五条（真实CAS failed→saved）全通过，两个失败为page-card旧CSS selector及choice tool_result错误期待type。真实问卷已走到最后形状断言，不能据此记case通过。Root已关闭原两session并明确释放名额，Pages后续短构建交由其原owner协调；没有Root新队列。2916f1bbe只修8个现行fixture/断言：真实注册disposer与finally/cleanup释放barrier、method_owner可信上下文、SDK问卷审批queue、confirmed plan真实revision显式传入并观察失败、Host共享卡run/dismiss、choice结果形状、Coding正常读取6而effect保1，以及Goal404原文案+call_id。原零副作用/持久化/重启/graph/report约束保留；这些修正尚未运行。正把远端774a A2纳入I8，有5处合并冲突，待逐项保留共同错误、共享interaction与新questionAnswer，不称新组合验证通过。

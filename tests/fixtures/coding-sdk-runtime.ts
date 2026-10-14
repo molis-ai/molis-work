@@ -28,7 +28,7 @@ export async function codingSdkRuntime(t: TestContext) {
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
   const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: null,
     actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID }, capabilities: local.client(reference), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
-  await platform.start([{ definition: createCodingPlugin({ execution: { sessions, goalTitle: () => undefined, ready: async () => {}, models: async () => [{ provider_id: "fixture", model_id: "fixture", label: "Fixture" }] } }), grants: ["artifact:read", "artifact:write", "storage:private"] }]);
+  await platform.start([{ definition: createCodingPlugin({ execution: { sessions, goalTitle: () => undefined, ready: async () => {}, models: async () => [{ provider_id: "fixture", model_id: "fixture", label: "Fixture" }] } }), grants: ["goals:read", "goals:write", "artifact:read", "artifact:write", "storage:private", "workspace:read"] }]);
   t.after(async () => { await platform.closeCoordination(); for (const id of platform.supervisor.enabledPluginIds()) { const active = platform.supervisor.state(id); platform.supervisor.revoke(id); if (active?.install_id) await platform.runtime.stop(active.install_id); }
     await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
   const router = platform.router(), prefix = "/api/plugins/io.molis.work.coding";

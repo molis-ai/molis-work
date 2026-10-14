@@ -61,7 +61,7 @@ export function createActionMcpPorts(options: {
     async callTool(name, arguments_) {
       const caller = context();
       const view = (await catalog(caller)).get(name);
-      if (!view) throw new ActionError("actions.mcp_unavailable", "能力未授权、已停用或当前不可用，请刷新能力列表");
+      if (!view || !view.availability.available) throw new ActionError("actions.mcp_unavailable", "能力未授权、已停用或当前不可用，请刷新能力列表");
       const wrapped = !objectSchema(view.action.input_schema);
       if (wrapped && (!Object.hasOwn(arguments_, "input") || Object.keys(arguments_).some(key => key !== "input"))) {
         throw new ActionError("actions.input_invalid", "此能力的参数必须放在 input 字段中");

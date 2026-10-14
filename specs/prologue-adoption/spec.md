@@ -4,7 +4,7 @@
 
 > 2026-10-13 晚已与 main（#471 Computer Use、#472 旧采用树）对账：实现以 main 为准，#408 只留 main 没有的部分；Molis 依赖换成过渡包。对账记录见 §6.0a，接续入口见 §7。
 
-状态：执行中（2026-10-13 晚：#408 已与 main 对账，实现以 main 为准，只留 S1–S3 适配、PA-22/PA-23 证据、安全登记与本文；Molis 依赖换成过渡包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu.tgz`（Prologue `release/molis-interim-p1-cu-2` `08b84296`，两个父提交 `95cd901d`、`d4908c11` 在 Prologue main，用户 2026-10-13 决定）；A0 工程通过；A1 改为核对 #472（缺口见 §5.6a）；P1 冻结；P2a–P2g、S4 已在 Prologue main（#7–#16），不在本包，随 P3 第二次换包；P2h 在做（未提交），P2i、P3–P6、A2–A5 未开始；W4-06 仍是 P3 硬前置）
+状态：执行中（2026-10-13 晚：#408 已与 main 对账，实现以 main 为准，只留 S1–S3 适配、PA-22/PA-23 证据、安全登记与本文；Molis 依赖换成过渡包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz`（Prologue `release/molis-interim-p1-cu-image` `923e5a40`，在 `08b84296` 上接 main 的窗口图 `d8c96e29`；`08b84296` 的两个父提交 `95cd901d`、`d4908c11` 在 Prologue main，用户 2026-10-13 决定留在 P2 之前）；A0 工程通过；A1 改为核对 #472（缺口见 §5.6a）；P1 冻结；P2a–P2g、S4 已在 Prologue main（#7–#16），不在本包，随 P3 第二次换包；P2h 在做（未提交），P2i、P3–P6、A2–A5 未开始；W4-06 仍是 P3 硬前置）
 
 目标完成等级：Prologue **完整采用范围内部完整**——§2 原 1–23 项与存储/预算等既有决定逐项完成采用、验证或按已定边界不做；新增 24/25 项使 Coding 与个人助理共用协作事实及外部条件等待。需要接入的路径在真实执行、界面、权限及异常恢复中可顺畅试用。A0 只是当前基础切片，不是整线完成定义。工程通过、真实产品实操、用户本人验收分别记录。A0 基础采用已完成（工程通过），当前在做 P2 SDK 机制（见 §7.1、§7.5）。授权和工作规则以 §7.8 为准：可推送自己的分支（先跑 secrets 检查、用 SSH 地址）；Molis 侧只往交接 PR #408 提交，Prologue 侧每刀单独 PR；不自己合并、不改真实 Home 或安装版。
 
@@ -129,7 +129,7 @@ SDK 按四层装配：**不可关闭的边界**是身份、权限只收窄、协
 
 ### 3.2 包与集成顺序
 
-**现行（2026-10-13 晚）**：Molis 依赖过渡包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu.tgz`，来源 Prologue `release/molis-interim-p1-cu-2` 的合并提交 `08b84296` = merge(`95cd901d`, `d4908c11`)。`95cd901d` 是 `82488fa0`（PR #6，P1 文档）加输入回执第三刀的修正 H16（名单里没有 `acknowledge-inputs` 就不写编号说明，PR #17）；`d4908c11` 是桌面 Computer Use（PR #15）。两个父提交都在 Prologue main 上，合并提交本身不在。为什么不用 main 末端：P2d 让没绑节点的跑看不到 `dispatch-subagent` 与 `board-*`，并删了 `claims`；Molis 在 P3 之前还在用它们，X6 又不许留兼容路径（用户 2026-10-13 决定用过渡包）。第二次换包放在 P3 的同一个改动里，从 Prologue main 的具名提交打，带 P2a–P2g、S4 及之后的 P2h、P2i，并在那次改动里做 Molis 默认路径验证。来源与重建见 [vendor README](../../vendor/prologue-sdk/README.md)。下面两段是 10-11、10-12 的记录。
+**现行（2026-10-14）**：Molis 依赖过渡包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz`，来源 Prologue `release/molis-interim-p1-cu-image` 的 `923e5a40`（在 `08b84296` 上接 main 的 `d8c96e29`，树不够时只把这一步的窗口图交回，并接受节点标识）。`08b84296` = merge(`95cd901d`, `d4908c11`)。`95cd901d` 是 `82488fa0`（PR #6，P1 文档）加输入回执第三刀的修正 H16（名单里没有 `acknowledge-inputs` 就不写编号说明，PR #17）；`d4908c11` 是桌面 Computer Use（PR #15）。两个父提交都在 Prologue main 上，合并提交本身不在。为什么不用 main 末端：P2d 让没绑节点的跑看不到 `dispatch-subagent` 与 `board-*`，并删了 `claims`；Molis 在 P3 之前还在用它们，X6 又不许留兼容路径（用户 2026-10-13 决定用过渡包）。第二次换包放在 P3 的同一个改动里，从 Prologue main 的具名提交打，带 P2a–P2g、S4 及之后的 P2h、P2i，并在那次改动里做 Molis 默认路径验证。来源与重建见 [vendor README](../../vendor/prologue-sdk/README.md)。下面两段是 10-11、10-12 的记录。
 
 旧采用树的在途包来自 `c4b9fde3`，含微压缩、独占写声明、App 接手 yield 三项增强。当前 A0 新实现树仍保留主线 `side-panel-memory` 包及依赖，实际来源见 [vendor README](../../vendor/prologue-sdk/README.md)；组合源码不等于已换包。`c4b9fde3 + S1` 的组合包尚未构建，包、锁文件、来源记录与默认消费路径均待构建时段完成。
 

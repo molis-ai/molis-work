@@ -56,7 +56,7 @@ export function siteApprovals(scope: string): PolicyRule[] {
 async function hostAction(action: UiAction, readText: (ref: ExactRef<"resource">) => Promise<string>): Promise<HostSurfaceAction> {
   switch (action.what) {
     case "text": return { what: "text", text: await readText(action.body) };
-    case "pointer": return { what: "pointer", x: action.x, y: action.y, button: action.button, clicks: action.clicks };
+    case "pointer": return { what: "pointer", x: action.x, y: action.y, button: action.button, clicks: action.clicks, ...(action.node ? { node: action.node } : {}) };
     case "key": return { what: "key", keys: [...action.keys] };
     case "navigate": return { what: "navigate", url: action.url };
     case "wait": return { what: "wait", ms: action.ms };
@@ -226,7 +226,7 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
       scope: () => driver.scope(),
       readiness: () => desktopReadiness(driver, sessionId),
       observe: async kind => { try { return await driver.observe(kind, { session_id: sessionId }); } catch (error) { throw asRefusal(error); } },
-      perform: async action => { try { deliverDesktopAct(await driver.perform(await hostAction(action, readText), { session_id: sessionId })); } catch (error) { throw asRefusal(error); } },
+      perform: async action => { try { return deliverDesktopAct(await driver.perform(await hostAction(action, readText), { session_id: sessionId })); } catch (error) { throw asRefusal(error); } },
       assess: async (action): Promise<UiAssessment> => driver.assess ? driver.assess(await hostAction(action, readText)) : { irreversible: false },
       close: async () => { drivers.delete(driver); desktopAttached.delete(session.ref.id); },
     };

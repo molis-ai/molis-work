@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Database from "better-sqlite3";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { FeedModule } from "@molis-ai/molis-work-module-feed";
@@ -23,7 +25,16 @@ test("Ledger retains exact reference revisions, idempotent replay, removal and s
     assert.deepEqual(ledger.query.history(access, "output").map((item) => item.target.version), [2, 3]);
     assert.deepEqual(ledger.query.list({ ...access, scope: { kind: "personal", id: "project-b" } }), []);
     // R4A2-01: foreign actors cannot access the owner partition; no relation is committed.
-    assert.throws(() => ledger.query.list({ ...access, actor_id: "bob" }), { code: "context_ledger.access_denied" });
+    assert.throws(() => ledger.query.list({ ...access, actor_id: "bob" }), (error: unknown) => {
+      // LEDGER-01: the same authorization rejection uses the common error and changes no records.
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "context_ledger.access_denied");
+      assert.equal(error.message, "无权访问这个关系分区");
+      assert.equal(error.kind, "invalid");
+      assert.equal(actionHttpStatus(error), 400);
+      assert.equal(Object.hasOwn(error, "details"), false);
+      return true;
+    });
     assert.throws(() => ledger.commands.put({ ...access, actor_id: "bob" }, input), { code: "context_ledger.access_denied" });
     assert.throws(() => ledger.commands.remove({ ...access, actor_id: "bob" }, "output", "denied"), { code: "context_ledger.access_denied" });
     assert.equal(ledger.query.history(access, "output").length, 2);

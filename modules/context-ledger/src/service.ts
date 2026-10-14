@@ -2,13 +2,7 @@ import type {
   ContextAccess, ContextEdge, ContextEdgeInput, ContextEdgeQuery, ContextLedgerApi, ContextScope, ObjectRef,
 } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { ContextLedgerRepository } from "./repository.js";
-
-export class ContextLedgerError extends Error {
-  constructor(readonly code: "context_ledger.access_denied" | "context_ledger.invalid_reference" | "context_ledger.scope_mismatch" | "context_ledger.key_conflict", message: string) {
-    super(message);
-    this.name = "ContextLedgerError";
-  }
-}
+import { ledgerErrors } from "./errors.js";
 
 export interface ContextLedgerOptions {
   authorize(access: ContextAccess, operation: "read" | "write"): boolean;
@@ -68,12 +62,12 @@ export class ContextLedgerService implements ContextLedgerApi {
     this.checkRef(access, input.source);
     this.checkRef(access, input.target);
     if (!input.key.trim() || !input.type.trim() || !input.cause.trim()) {
-      throw new ContextLedgerError("context_ledger.invalid_reference", "关系 key、type 和 cause 不能为空");
+      throw ledgerErrors.invalid_reference("关系 key、type 和 cause 不能为空");
     }
     return this.repository.transaction(() => {
       const previous = this.repository.latest(access.scope, input.key);
       if (previous && (!sameRef(previous.source, input.source) || previous.type !== input.type)) {
-        throw new ContextLedgerError("context_ledger.key_conflict", "关系 key 已属于另一个来源或关系类型");
+        throw ledgerErrors.key_conflict("关系 key 已属于另一个来源或关系类型");
       }
       if (previous?.state === "active" && sameRef(previous.target, input.target)) return previous;
       const value: ContextEdge = { ...input, revision: (previous?.revision ?? 0) + 1,
@@ -87,15 +81,15 @@ export class ContextLedgerService implements ContextLedgerApi {
 
   private checkAccess(access: ContextAccess, operation: "read" | "write"): void {
     if (!access.actor_id.trim() || !access.scope.id.trim() || !this.options.authorize(access, operation)) {
-      throw new ContextLedgerError("context_ledger.access_denied", "无权访问这个关系分区");
+      throw ledgerErrors.access_denied("无权访问这个关系分区");
     }
   }
 
   private checkRef(access: ContextAccess, ref: ObjectRef): void {
-    if (!sameScope(access.scope, ref.scope)) throw new ContextLedgerError("context_ledger.scope_mismatch", "跨分区引用不能进入同一关系记录");
+    if (!sameScope(access.scope, ref.scope)) throw ledgerErrors.scope_mismatch("跨分区引用不能进入同一关系记录");
     if (!ref.id.trim() || (ref.version !== null && (!Number.isSafeInteger(ref.version) || ref.version < 1))
       || (ref.module === "artifacts" && ref.version === null)) {
-      throw new ContextLedgerError("context_ledger.invalid_reference", "对象引用必须具有有效身份；成果必须指定精确版本");
+      throw ledgerErrors.invalid_reference("对象引用必须具有有效身份；成果必须指定精确版本");
     }
   }
 }

@@ -104,7 +104,12 @@ test("Alchemist Pulse, cancellation and exports use real repositories and preser
   assert.equal((await call(a.runEvents, { id: pulse.run.jobId })).status, "completed");
   const reports = await call(a.pulseReports, {}); assert.equal(reports.latestRun!.id, pulse.run.id); assert.ok(reports.reports[0]!.signals.length);
   const opportunity = reports.reports[0]!.opportunities[0]!;
-  assert.equal((await call(a.opportunitySave, { id: opportunity.id })).opportunity.status, "saved_for_later");
+  // J5A-01/J5A-02: the domain refusal must survive the repository and operation adapters.
+  const saved = (await call(a.opportunitySave, { id: opportunity.id })).opportunity;
+  assert.equal(saved.status, "saved_for_later");
+  await assert.rejects(call(a.opportunitySave, { id: opportunity.id }), { code: "alchemist.opportunity_cannot_be_saved", message: "这个机会当前无法执行该动作。" });
+  const savedAgain = (await call(a.pulseReports, {})).reports[0]!.opportunities.find(item => item.id === opportunity.id);
+  assert.deepEqual(savedAgain, saved, "a refused second save leaves the stored opportunity unchanged");
   const first = await f.runtime.app.request(`http://localhost/api/v1/opportunities/${opportunity.id}/convert`, { method: "POST" });
   assert.equal(first.status, 201); const converted = await first.json() as any;
   const reused = await call(a.opportunityConvert, { id: opportunity.id }); assert.equal(reused.created, false); assert.equal(reused.direction.id, converted.direction.id);

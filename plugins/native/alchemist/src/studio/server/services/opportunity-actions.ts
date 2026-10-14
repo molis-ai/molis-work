@@ -1,5 +1,5 @@
 import type { Direction } from "../../domain/discovery/direction.js";
-import type { Opportunity } from "../../domain/discovery/pulse.js";
+import { OpportunityTransitionError, type Opportunity } from "../../domain/discovery/pulse.js";
 import type { Clock, IdFactory } from "../../domain/kernel/identity.js";
 import type { SqliteDirectionRepository } from "../db/direction-repository.js";
 import type { SqliteDatabase } from "../db/open-database.js";
@@ -75,6 +75,7 @@ export function createOpportunityActions(dependencies: Dependencies): Opportunit
 
 function mapError(error: unknown): OpportunityActionError {
   if (error instanceof OpportunityActionError) return error;
+  if (error instanceof OpportunityTransitionError) return new OpportunityActionError(error.message);
   if (error instanceof Error && error.message.startsWith("OPPORTUNITY_")) {
     return new OpportunityActionError(error.message);
   }

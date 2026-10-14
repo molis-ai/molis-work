@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133与W2-10 A1–A4/C/D已合；第4–6波和最终共享全量仍在途。当前main774acaf57；I8 ad0ca76fb已联合Pages7b611、I3–I33及正式CU-image+beforeAccept SDK，102b九项工程检查全通过。103普通99条97通过、浏览器20条19通过，新增真实线程撤权/停止竞态均通过；104 Host HTML五条四通过。四条旧预期/夹具问题已定位，105错误出口13/13通过，106浏览器两条定向复验进行中。Prologue #20已推送并开PR，无GitHub CI；干净构建/打包与66项检查通过。维护八隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。完整未完范围及新旧证据见§12.4–12.11。
+状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133与W2-10 A1–A4/C/D已合；第4–6波和最终共享全量仍在途。当前main774acaf57；I8 ad0ca76fb已联合Pages7b611、I3–I33及正式CU-image+beforeAccept SDK，102b九项工程检查全通过。103普通99条97通过、浏览器20条19通过，新增真实线程撤权/停止竞态均通过；104 Host HTML五条四通过。四条旧预期/夹具问题已定位，105错误出口13/13通过，106浏览器两条定向复验2/2通过，107模块图边界/root类型/merge-base健康检查全通过；准备冻结同一head跑唯一共享全量。Prologue #20已推送并开PR，无GitHub CI；干净构建/打包与66项检查通过。维护八隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。完整未完范围及新旧证据见§12.4–12.11。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2700,3 +2700,5 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 **联合102b工程与103/104真实运行（替代前述“未运行”状态）。** Source98ecf5d04、派生快照提交ad0ca76fb，离线安装、全仓构建、root/工作区类型、API、动作快照、merge-base健康更新、资源更新、boundary九项实际全部exit0。当前150巨大单元、496测试内部引用、0混合进程、28错误子类、0错误码形状/归属缺陷；29资源9,616,239字节，每项只减。API仅retained callable/assertCurrent合同及其消费声明，动作快照未变。103普通11文件99=97通过2失败/42.053秒，浏览器6文件20=19通过1失败/154.513秒，均0取消/跳过；PAS-10 S-18-102-01/02/03实际通过。104同一冻结source Host HTML两文件5=4通过1失败/18.697秒，S-24四项通过。raw结果在Root临时目录i8-joint-preflight102b-results.json、i8-ordinary103.log、i8-browser103.log、i8-host-html104.log；没有重新启动Claude merge-daemon，未启动共同全量。
 
 **四条实际失败的最小test-only修正。** MCP公共共同出口保code/isError/文案，字段由旧message改现行error；source检查从声明的esbuild browser入口计算相对模块图，再减去所有公共server出口及Host binding可达模块，仅不把browser-only裸Error称为HTTP500，其他错误类/mapper/裸owner码检查仍逐文件执行、共享/未引用模块继续受server检查。评论preview按生产collapsed caret设2和10，保原range映射、Prefix不纳入、换Doc老按钮零写入断言。Host review传输失败按唯一molisWorkRequest现行ui_host.outcome_unknown文案检查，保按钮恢复、真实reject零待办/approve一条待办等断言，不改生产出口。105错误出口整文件13/13通过、0取消/跳过、4.998秒；106只重验两个失败浏览器场景，结果待归回。已绿的103其余19浏览器不机械重跑。本次仅测试变更，不扩大门禁例外、阈值、模型主分支或真实Home授权。
+
+**106/107终态与共享全量准备。** 106两条真实Chrome失败场景2/2、0取消/跳过、18.719秒，评论原范围映射/Prefix不纳入/换Doc老按钮零写入，以及Host流式阅读、代码精确复制、折叠、命名对象、review断连恢复与真实reject0/approve1均实际成立。新增最小临时模块图证实browser-only被识别、共享server导出与Host消费同模块不会被免除；107该定向、root tsc与merge-base health全部exit0，不放宽门禁。代码仍沿102b已构建source，随后仅三测试及唯一进度spec变更；不为test-only重新构建。Root将同步spec至I8并冻结head，唯一共享全量108持全机build/browser两个名额，结束前不改源码、脚本、package.json或skills。

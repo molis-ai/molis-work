@@ -3105,8 +3105,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     const node = view.state.doc.nodeAt(pos);
     if (!node) return;
     reclaimPop();
-    pop.hidden = false;
-    pop.replaceChildren();
+    showPop();
 
     const iconHead = document.createElement("p");
     iconHead.className = "pages-menu-label";

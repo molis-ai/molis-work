@@ -247,7 +247,8 @@ test("W3-09-2-01: a real MCP tool hidden after plugin disable still reaches the 
   await home.revoke(clientId, project.project_id, [subject.create]);
   const denied = await mcp.handleMessage({ jsonrpc: "2.0", id: 4, method: "tools/call", params: {
     name: `molis_work_v1_action_${subject.create.capability_id}__v1`, arguments: input } });
-  assert.match(JSON.stringify(denied), /mcp\.tool_disabled/u);
+  // Removing the saved grant makes this dynamic tool unknown; no second Host row is made.
+  assert.match(JSON.stringify(denied), /mcp\.tool_unknown/u);
   assert.equal(home.host.callLog!.recent(100).filter(row => row.capability_id === subject.create.capability_id).length, 1, "revoked authority does not enter the Host a second time");
 });
 

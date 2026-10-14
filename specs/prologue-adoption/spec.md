@@ -1,10 +1,10 @@
 # Prologue 采用：能力接入与 TaskBoard 统一协作
 
-> 远端接续请先读文末 **§7「远端交接（2026-10-13，当前接续入口）」**——分支和 PR、已完成与没完成、下一步、跨线依赖、决策、工作规则、已知问题和复现命令都在那里；正文里的旧绝对路径、旧工作树、旧授权语句都是历史记录，以 §7 为准。
+> **当前接续入口是 §6.0b「现状核对（2026-10-14）」**：原 23 项与 24、25 项逐项对照 Molis main 与 Prologue main 的真实代码和测试，列出已实现、部分、未做、暂缓与依据，以及文中写了完成但代码不符的地方。§7（2026-10-13 晚）的分支、决策、工作规则、已知问题和复现命令仍有效，其中进度句以 §6.0b 为准；正文里的旧绝对路径、旧工作树、旧授权语句都是历史记录。
 
-> 2026-10-13 晚已与 main（#471 Computer Use、#472 旧采用树）对账：实现以 main 为准，#408 只留 main 没有的部分；Molis 依赖换成过渡包。对账记录见 §6.0a，接续入口见 §7。
+> 2026-10-13 晚已与 main（#471 Computer Use、#472 旧采用树）对账：实现以 main 为准，#408 只留 main 没有的部分；Molis 依赖换成过渡包。对账记录见 §6.0a。
 
-状态：执行中（2026-10-14：窗口图、节点标识和完成判定已收进 [采用合同闭环](../archive/adoption-contract-loop/spec.md)，判定为已实现。本份剩下的仍未做：S1–S3 适配、PA-22/PA-23 证据、安全登记与本文；Molis 依赖是过渡包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz`（Prologue `release/molis-interim-p1-cu-image` `923e5a40`，在 `08b84296` 上接 main 的窗口图 `d8c96e29`；`08b84296` 的两个父提交 `95cd901d`、`d4908c11` 在 Prologue main，用户 2026-10-13 决定留在 P2 之前）；A0 工程通过；A1 改为核对 #472（缺口见 §5.6a）；P1 冻结；P2a–P2g、S4 已在 Prologue main（#7–#16），不在本包，随 P3 第二次换包；P2h 在做（未提交），P2i、P3–P6、A2–A5 未开始；W4-06 仍是 P3 硬前置）
+状态：执行中（2026-10-14：#408、#491 已合 main；Molis 依赖仍是过渡包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz`（Prologue `923e5a40`，两个父提交在 Prologue main，用户 2026-10-13 决定）；A0 工程通过；A1 核对已合（#491），剩换模型后撤权与「从断点继续」两处（§5.6a，前者随 P3 接 SDK 的 `beforeAccept`）；P1 冻结；P2a–P2j、S4 与换模型验收复查（#24）都在 Prologue main `b01067b4`，合入后补跑见 §6.0b；P3–P6、A2（写后诊断）、A3 的结构化一半未做；W4-06（#498）是 P3 硬前置）
 
 目标完成等级：Prologue **完整采用范围内部完整**——§2 原 1–23 项与存储/预算等既有决定逐项完成采用、验证或按已定边界不做；新增 24/25 项使 Coding 与个人助理共用协作事实及外部条件等待。需要接入的路径在真实执行、界面、权限及异常恢复中可顺畅试用。A0 只是当前基础切片，不是整线完成定义。工程通过、真实产品实操、用户本人验收分别记录。A0 基础采用已完成（工程通过），当前在做 P2 SDK 机制（见 §7.1、§7.5）。授权和工作规则以 §7.8 为准：可推送自己的分支（先跑 secrets 检查、用 SSH 地址）；Molis 侧只往交接 PR #408 提交，Prologue 侧每刀单独 PR；不自己合并、不改真实 Home 或安装版。
 
@@ -749,6 +749,51 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 两处不归本线、已报统筹：
 - `docs/system/SECURITY-INVARIANTS.md` 里「Computer Use 不在 main」一条已过时（Computer Use 线）；
 - `specs/repository-anti-corruption/dependencies-and-sdk-plan.md` §4.3 需要记过渡包这个例外（防腐线）。
+
+### 6.0b 现状核对（2026-10-14，当前接续入口）
+
+对照原始需求（2026-10-02 评估的 23 项，要求「每项都有明确处理结果、核心路径内部完整」）与本文，按 Molis `origin/main` `393e8958` 与 Prologue main `b01067b4` 的真实代码和测试逐项核过。只读源码与用例，没有为这次核对重跑测试；「证据」列的用例是 main 上已有、在 §6.0a 的对账树或各 PR 上跑过的。三级证据照旧分开：下表所有项的真实产品实操与用户验收都是**未做**（本机无模型 Key，隔离 Home 里没人走过）。
+
+| # | 项 | 结果 | 依据（main 上的位置、用例、PR） | 剩下的 / 去处 |
+| --- | --- | --- | --- | --- |
+| 1 | 思考覆盖输出预算 | 已实现 | `horizontal/agent-host/src/adapters/prologue-run-params.ts`：显式 `max_output_tokens` 优先，没给才用思考上限；`tests/model-thinking.test.ts`（PA-22）；#472 | — |
+| 2 | 模型派出前授权 | 已实现，证据缺一处 | 灵光、Form、Dataset、PPT 的 `actions.ts` 都把 `caller.beforeEffect` 作为 `beforeDispatch` 交给 Host（`87cbaf85`）；`tests/action-before-effect.test.ts` 对 Form、Dataset、灵光、Pages、Cognia 各测撤权 / 停用 / 取消时 `dispatched === 0` 且库不变 | **PPT 不在这条用例的循环里**：评估点名的四条路径之一没有「零派出」的断言（代码有）。补一行用例，归 A5 |
+| 3 | 新状态与事件 | 已实现（让出投影随 P3） | `prologue-stream.ts` 认 `sleeping`、`turn-changes`、`model-switched`，不再计入 `unknown_frames`；合同 `sleeping_until`、`turn_changes`、`model_switch`；`tests/prologue-stream.test.ts`（PA-24 新帧）| `completed{yielded}` 现在不会出现（`yield` 被拒，见 13）；P3 接通让出时投影成「在等」而不是「完成」 |
+| 4 | 工具副作用分类 | 已实现 | `prologue-action-gateway.ts`：`suggest`、委派 start/follow/stop、记忆 remember/forget/propose 都是 `mutate-external`；`prologue-action-tools.ts` 只在 `operation=query` 且 `actionEffect=read` 时给 `safe-read`；`tests/assistant-business-gateway.test.ts`、`tests/agent-action-tools-prologue.test.ts`（PA-22） | — |
+| 5 | 修改回执与微压缩 | 已实现（Molis 侧只有间接证据） | SDK `agent/core/loop-tools.ts` 由工具登记的 `effectKind` 推出 `rereadable`，只有 `safe-read` 能被换成「需要就再调」，`rereadable: false` 的不收（`c4b9fde3`，在过渡包里）；配合第 4 项，Molis 改东西的工具回执都不收；SDK `context-micro-compaction` 用例 | **文中 §6.0 写「`prologue-stream` 证明修改回执不被压」不准**：`tests/prologue-stream.test.ts` 不测压缩。Molis 侧没有「真实网关 + 压缩后的请求里回执还在」的用例；A5 补一条请求级断言 |
+| 6 | 推理力度 | 已实现 | `prologue-frozen.ts` 每轮冻结、不支持就发出前拒绝；`tests/prologue-model-controls.test.ts`、`tests/coding-model-controls.e2e.test.ts`（PA-24）；#472、#491 | — |
+| 7 | 运行中换模型 | 部分 | `prologue-model-switch.ts`；拒绝分支（提示缓存跨格式、目标没标力度、模型不可用、思考切到无思考）、停止时零请求、冷读都有用例（#491） | §5.6a 缺口 3（申请换模型后撤权）：SDK 的 `switchModel` 已有同步 `beforeAccept`（Prologue #24，在 `b01067b4`），过渡包没有，**P3 换包时在 `prologue-model-switch.ts` 接上并补用例**；缺口 6（从断点继续后重新解析模型与凭据）未做；视觉、Runtime 不支持切换两个分支无用例（造不出来，见 §5.6a） |
+| 8 | 逐轮变更 | 已实现 | `prologue-stream.ts` 的 `turn-changes` 投影、重放不重复；Coding `turn-changes-client.ts`；`tests/coding-timeline.e2e.test.ts`（PA-24） | — |
+| 9 | 写后诊断 | **未做** | main 上没有按文件的检查器接入（`diagnose` 只出现在 Coding 方法名与开发者诊断页） | A2：检查器输入 / 输出与用例先写进本文，再实现 |
+| 10 | 文字增量、停止与错误 | 已实现 | 灵光 `client.ts` 的 `?stream=1` 逐行读、`reply-stream.ts`；阶段名已从宿主挪回插件（采用合同闭环）；`tests/lingguang-plugin.e2e.test.ts` 的「边写边出、Stop 不保存、字留在框里」 | — |
+| 11 | 结构化生成 | **未做** | `apps/local-host/src/alchemist-prologue.ts` 仍把 JSON Schema 写进提示词再解码；共享端口的 `structured` 没有 Alchemist 调用方 | A3 的结构化一半 |
+| 12 | 变化等待 | 已实现（协作视图的版本随 P3） | 助理 `assistant/assistant-wait.ts` + 工作台 `assistant-follow.ts` 的长请求（取代 1.2 秒轮询）；Schedule 用 `adapter.observe`（`schedule-task-runner.ts`）；`tests/assistant-work-wait.test.ts`、`tests/schedule-task-runner.test.ts` | 等待 / 接续进 `runViewVersion` 随 P3 |
+| 13 | Coding 子代理让出与续做 | 部分：按 A0 边界拒绝 | `prologue-subagents.ts` 的 `subagentYieldGuard` 在派出前拒绝 `yield`；`tests/prologue-adoption-guard.test.ts`（PA-23、S-23）。SDK 正式路径（P2i：让出 = 派出 + 这一步等孩子那一步 + 收工，接续经 App 起跑）已在 Prologue main | **P3**：`collaborationHost.startContinuation`、删 `subagentYieldGuard`、PA-08 / PA-11 接替 PA-23 的证明 |
+| 14 | 助理委派交回与续做 | 部分：私有实现在 main（X6 欠账） | `apps/local-host/src/assistant/assistant-delegation.ts` 的 `handed_back_run` / `hand_back_held`、按结果键自启（#472）；`tests/assistant-delegation-handback.test.ts` 等五个用例 | **P4 助理那一半**（W5-10 形状），清单见 §7.5 第 5 条；P3 先给协作口与接续 |
+| 15 | 休眠 | 投影已实现；工具暂不开放 | 投影见第 3 项；各角色的 `host_tools` 是显式名单（`plugins/native/coding/src/roles.ts`、助理角色），都不含 `sleep` | 暂缓，依据：短等待已有 `await-commands` / `command-output`，跨重启与未来时刻的跟进走 Schedule 与跟进；没有哪个角色要在同一 Run 里睡。有具体场景再按 §4.7 开 |
+| 16 | 会话条目 | 未做，归回执线 | main 上没有 `session.appendEntry` 的调用方 | 回执线「会话条目端口」，W4-06 之后接；本线只在 P3 提供 Board 引用 |
+| 17 | 记忆边界 | 已实现（SDK 自动生效） | `tests/prologue-memory-boundary.test.ts`（S-13） | — |
+| 18 | 写前密钥扫描 | 已实现 | `plugins/native/coding/src/timeline-words.ts` 把 `WORKSPACE_SECRET_DETECTED` 写成「没有写入」的人话；`tests/coding-timeline.e2e.test.ts` | — |
+| 19 | 副本血缘 | 暂缓 | main 上没有 `copyOf` 调用方 | 依据 §4.7：不是统一协作的完成条件，不新增入口；Coding 隔离工作区若要解释来源再开 |
+| 20 | 租约排队 | 暂缓 | 没有用 SDK 的租约排队 | 依据 §4.7：没有找到「短暂锁竞争导致失败」的入口；内容冲突仍靠版本检查 |
+| 21 | 企业网络（Host 代理与 CA） | 暂缓 | 没有接 Node Host 的代理 / 额外 CA 设置；`node-model-dns.ts` 只在有代理环境变量时改走 HTTPS 解析名字，不是这项 | 依据 §4.7：没有企业网络需求与验收环境 |
+| 22 | 审计导出 | 暂缓 | 没有用 SDK 的审计 exporter | 依据 §4.7：没有排障需求；开发者诊断页读 Runtime 自己的回执 |
+| 23 | 点名扩权 | 已实现 | `horizontal/agent-host/src/reviews.ts` 与审查卡如实显示 `grants`、含扩权的不给「记住」；`tests/agent-review-surface.test.ts`、`tests/agent-review-standing.test.ts`（S-22） | — |
+| 24 | TaskBoard 统一协作 | 部分：SDK 完成，Molis 未接 | P1 合同（Prologue #6，§4.6.9）；P2a–P2j 在 Prologue main（#7–#22，证据在合同的「P2 进度」）；合入后补跑见下 | **P3–P6** |
+| 25 | 外部条件等待 | 部分：SDK 完成，Molis 未接 | P2j：`conditionCheckers`、`config.waits.external`、队列道 `prologue:wait-check`、零模型计数（`taskboard-external-checks*`） | **P3** 建 `prologue-checkers.ts`（`molis.action-query`、`molis.file-present`）；**P4** 迁助理 `watchJob` / `checkJob` |
+| — | 存储写声明 | 已实现 | `tests/prologue-storage-claims.test.ts`、SDK `host-storage-concurrency.live` | — |
+| — | 墙钟预算 | 已实现 | `tests/agent-budget-prologue.test.ts` | — |
+
+**文中写了完成、但和代码或证据不符的地方**（本节之前的段落不改写，以这里为准）：
+
+1. 开头状态句与 §7.1、§7.4、§7.5 写「P2h 在做、P2i 未开始、#408 待合」。实际：P2h（#19）、P2i（#21）、P2j（#22）与换模型验收复查（#24）都在 Prologue main；#408 于 2026-10-14 01:35Z、#491 于 05:51Z 合进 Molis main。状态句已改。
+2. §6.0 与 §6.0a 把「修改回执不被压成可重做观察」的证据记成 `context-micro-compaction` + `prologue-stream`；后者不测压缩。实现是对的（第 5 项），Molis 侧的请求级证据是缺的。
+3. §2 第 2 项写「核对 Host 侧转发与撤权零派出的测试证据」；PPT 没有这条证据（第 2 项）。
+4. §0.2 第 13 项与 §4.6.6 提到 Coding 的 `yield-wait.ts`、`round-report.ts`：main 上没有这两个文件（10-13 已作废的在途改动）。P4 要退出的是 Coding 的 `waits.ts` 与 `last-start:*` / `wake-note:*` 存储（§4.6.9）。
+5. §5.6a 缺口 3 原写「没有用例」；现在 SDK 一侧已有 `beforeAccept`，缺的是 Molis 接线，放进 P3。
+6. §3.1 表里的 `onYieldSettled`、`SubagentRequest.yield`、`SubagentWake` 在 P2i 已从 SDK 删掉；P3 的 Molis 一侧不能再引用它们。
+
+**Prologue main 合入后的补跑**（§7.4 第 3 条、合同 P2i / P2j「验证」行）：对 `b01067b4`（P2j 之后又合了 #24）跑 `prologue-verify.sh`（build dist → `tsc` → SDK 全量，两个 worker，不跑 `desktop-computer-use.live` → 干净 `git archive` 打包 → 空目录跑全部 `*-consumer.mjs` → 对 P2h 的包再跑一遍）。P2h 的包取自 P2h 合并前的验证目录（`4416fc09` 打出，1,163,878 字节，SHA-256 `7e728f4a…`；与 #19 的 head `0bfb0e47` 比，`packages/sdk/src` 与 `package.json` 没有差别）。结果记在合同的 P2i、P2j「验证」行，经 Prologue docs PR 进 main。
 
 ### 6.1 当前记录
 

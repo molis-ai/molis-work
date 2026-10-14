@@ -73,8 +73,8 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
   const fixedCell = (record) => {
     const node = document.createElement("span");
     node.className = "mw-status mw-status--plain feed-entry-status";
-    if (record.publication_pending) { node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
-    else if (record.artifact_version > 0) { node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
+    if (record.publication_pending) { node.dataset.mwState = "unsaved"; node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
+    else if (record.artifact_version > 0) { node.dataset.mwState = "saved"; node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
     else node.setAttribute("aria-hidden", "true");
     return node;
   };
@@ -136,7 +136,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
   const paintStatus = (record) => {
     if (selected && selected.id === record.id) publishContext();
     const ready = record.status === "ready";
-    statusEl.className = "mw-status mw-status--" + (saveError ? "blocked" : ready ? "done" : "quiet");
+    statusEl.className = "mw-status mw-status--" + (saveError ? "blocked" : ready ? "done" : "quiet"); statusEl.dataset.mwState = saveError ? "failed" : saveRun ? "saving" : editRev > savedRev ? "unsaved" : busy ? "running" : "saved";
     statusEl.textContent = saveError ? L("保存失败") : saveRun ? L("保存中") : editRev > savedRev ? L("尚未保存") : busy ? L("处理中") : L("已保存");
     const pending = bench.querySelector("[data-dataset-publication-note]");
     pending.hidden = !record.publication_pending;

@@ -89,10 +89,11 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
         row.querySelectorAll("[data-feed-read-state]").forEach((label) => { label.textContent = L("已读"); });
         const readMark = row.querySelector(".feed-entry-status:has([data-feed-read-state])");
         if (readMark) {
+          const ring = readMark.querySelector("[data-mw-state]"); if (ring) ring.dataset.mwState = "read";
           readMark.classList.remove("mw-status--attention");
           readMark.classList.add("mw-status--quiet");
         }
-        detail?.querySelectorAll("[data-feed-read-state]").forEach((label) => { label.textContent = L("已读"); });
+        detail?.querySelectorAll("[data-feed-read-state]").forEach((label) => { label.textContent = L("已读"); label.dataset.mwState = "read"; });
         if (status?.dataset.feedReadError === "true") {
           status.hidden = true;
           delete status.dataset.feedReadError;

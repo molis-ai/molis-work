@@ -1,3 +1,4 @@
+import { renderStateRing, type StateRingState } from "@molis-ai/molis-work-design-system";
 import type {
   AgentReviewDocument,
   AgentReviewReceipt,
@@ -164,15 +165,15 @@ function readable(document: AgentReviewDocument): boolean {
   }
 }
 
-const PHASE_MARK: Record<AgentReviewPhase, { icon: string; tone: string; label: string }> = {
-  reconcile: { icon: "alert", tone: "blocked", label: "结果待核对，不能重复执行" },
-  pending: { icon: "circle-alert", tone: "attention", label: "等你决定" },
-  approved: { icon: "clock", tone: "progress", label: "已批准，执行结果待确认" },
-  done: { icon: "check", tone: "done", label: "已完成" },
-  failed: { icon: "alert", tone: "blocked", label: "已批准，但执行未完成" },
-  rejected: { icon: "x", tone: "blocked", label: "已拒绝" },
-  cancelled: { icon: "status-cancelled", tone: "idle", label: "已撤回" },
-  expired: { icon: "clock", tone: "idle", label: "已过期" },
+const PHASE_MARK: Record<AgentReviewPhase, { state: StateRingState; tone: string; label: string }> = {
+  reconcile: { state: "verify", tone: "blocked", label: "结果待核对，不能重复执行" },
+  pending: { state: "approval", tone: "attention", label: "等你决定" },
+  approved: { state: "waiting", tone: "progress", label: "已批准，执行结果待确认" },
+  done: { state: "done", tone: "done", label: "已完成" },
+  failed: { state: "failed", tone: "blocked", label: "已批准，但执行未完成" },
+  rejected: { state: "cancelled", tone: "blocked", label: "已拒绝" },
+  cancelled: { state: "cancelled", tone: "idle", label: "已撤回" },
+  expired: { state: "stale", tone: "idle", label: "已过期" },
 };
 
 export function renderAgentReviewSurface(model: AgentReviewSurfaceModel): string {
@@ -213,7 +214,7 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
   const labelClass = document.kind === "command" || document.kind === "text-edit" ? "agent-review-title agent-review-title--code" : "agent-review-title";
   return `<article class="agent-review-row" data-agent-review-item="${p.escape(row.request.review_id)}" data-agent-review-phase="${phase}">
     ${history ? '<details data-review-detail="history"><summary>' : ""}<header class="agent-review-head">
-      <span class="mw-status" data-tone="${mark.tone}">${p.icon(mark.icon)}${p.escape(mark.label)}</span>
+      <span class="mw-status" data-tone="${mark.tone}">${renderStateRing({ state: mark.state })}${p.escape(mark.label)}</span>
       <span class="${labelClass}">${p.escape(label)}</span><span class="agent-review-plugin">${p.escape(row.request.plugin_id)}</span>
       <time>${p.escape(p.formatDate(row.request.requested_at))}</time>
     </header>${history ? "</summary>" : ""}

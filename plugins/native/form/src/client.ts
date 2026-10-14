@@ -60,8 +60,8 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   const fixedCell = (record) => {
     const node = document.createElement("span");
     node.className = "mw-status mw-status--plain feed-entry-status";
-    if (record.publication_pending) { node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
-    else if (record.artifact_version > 0) { node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
+    if (record.publication_pending) { node.dataset.mwState = "unsaved"; node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
+    else if (record.artifact_version > 0) { node.dataset.mwState = "saved"; node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
     else node.setAttribute("aria-hidden", "true");
     return node;
   };
@@ -133,7 +133,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   const paintCollect = (record) => {
     const collecting = record.status === "published";
     const state = bench.querySelector("[data-form-collect-state]");
-    if (state) { state.textContent = L(COLLECT[record.status] || COLLECT.draft); state.className = "form-collect-state mw-status mw-status--" + (collecting ? "done" : "quiet"); }
+    if (state) { state.dataset.mwState = collecting ? "doing" : record.status === "closed" ? "stopped" : "idle"; state.textContent = L(COLLECT[record.status] || COLLECT.draft); state.className = "form-collect-state mw-status mw-status--" + (collecting ? "done" : "quiet"); }
     const start = bench.querySelector("[data-form-publish]");
     if (start) { start.hidden = collecting; start.textContent = record.status === "closed" ? L("重新开始收集") : L("开始收集"); }
     const fill = bench.querySelector("[data-form-fill]");
@@ -238,7 +238,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const paintStatus = (record) => {
-    statusEl.className = "mw-status mw-status--" + (saveError ? "blocked" : "quiet");
+    statusEl.className = "mw-status mw-status--" + (saveError ? "blocked" : "quiet"); statusEl.dataset.mwState = saveError ? "failed" : savePromise ? "saving" : editRev > savedRevision ? "unsaved" : busy ? "running" : "saved";
     statusEl.textContent = saveError ? L("保存失败") : savePromise ? L("保存中") : editRev > savedRevision ? L("尚未保存") : busy ? L("处理中") : L("已保存");
     paintCollect(record);
     if (sel && sel.id === record.id) publishContext();
@@ -520,7 +520,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       const published = record.status === "published";
       const status = document.createElement("span");
       status.className = "mw-status mw-status--plain mw-status--" + (published ? "progress" : "quiet") + " feed-entry-status";
-      status.textContent = published ? L("正在收集") : record.status === "closed" ? L("已停止收集") : L("未开始收集");
+      status.dataset.mwState = published ? "doing" : record.status === "closed" ? "stopped" : "idle"; status.textContent = published ? L("正在收集") : record.status === "closed" ? L("已停止收集") : L("未开始收集");
       row.append(
         leading,
         textCell("plugin-stage-fact", (record.questions || []).length + " " + L("题")),

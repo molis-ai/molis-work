@@ -52,10 +52,15 @@ test('real browser creates a Feed → Shelf action workflow, maps fields, and wr
   await click(`input[name=start][value="${item.item_id}"]`);
   await click('[data-wf-dialog-submit]');
   await waitFor("document.querySelector('[data-wf-action=continue]')");
+  // RING-07: current human-led station is static doing; future station waits.
+  await waitFor("document.querySelector('.wf-vstep.is-current .mw-state-ring')?.dataset.mwState === 'doing'");
+  assert.equal(await evaluate("document.querySelector('.wf-vstep.is-pending .mw-state-ring')?.dataset.mwState"), 'waiting');
   await click('[data-wf-action=continue]');
   await waitFor("document.querySelector('[data-wf-manual]')");
   await click('[data-wf-action=handoff-submit]');
   await waitFor("document.querySelector('[data-wf-view]')?.textContent.includes('已走完')");
+  await waitFor("[...document.querySelectorAll('.wf-vstep .mw-state-ring')].length === 2 && [...document.querySelectorAll('.wf-vstep .mw-state-ring')].every(node => node.dataset.mwState === 'done')");
+  assert.equal(await evaluate("document.querySelector('.wf-vlink__label .mw-state-ring')?.dataset.mwState"), 'done');
   const shelf = openShelfStore(b.homeDirectory, { disabled: true });
   const saved = shelf.snapshot().materials.filter(row => row.name.includes('端到端工作流验证'));
   assert.equal(saved.length, 1);

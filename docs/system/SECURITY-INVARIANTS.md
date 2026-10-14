@@ -63,7 +63,7 @@ node scripts/run-tests.mjs tests/security-invariants-local-entry.test.ts   # 单
 - **“是不是本机”在两处不是共用那一份**：桌面壳的 Rust（`apps/desktop/adapters/tauri/src/main.rs`、`context_directories.rs`）是另一种语言；OAuth 代理 Worker（`apps/local-host/cloudflare/worker.ts`）单独用 `wrangler` 打包部署，今天不引用工作区里的任何包，部署步骤（`apps/local-host/cloudflare/README.md`）也不先构建，而 `contracts` 的子路径只导出构建产物。Worker 的那份与共用的那份等价，由 `tests/connector-oauth-broker.test.ts` 逐个写法比对钉住；要合成一份，先要让 Worker 的部署带上构建步骤（它是线上服务，由用户决定）。
 - **`/locale`、`/health` 等 GET 路由没有“只读”断言**：S-03 保证的是变更不绕过令牌，GET 路由是否真的只读靠评审；页面 HTML 里内嵌控制令牌是设计（只给回环 `Host`，S-02），没有跨域读的头（宿主不发 `Access-Control-Allow-*`，见 S-03 的测试）。
 - **控制令牌文件已存在但权限过宽时不会收紧**：新文件是 0600（S-06），旧文件（别的版本或手工放的）原样沿用。处理需要用户定：沿用并收紧权限、或换新令牌（换新令牌会让常驻服务与 MCP 进程重连）。
-- **提示注入的标记中和随当前包验证**：SDK 对 pinned memory 伪标记的中和（Prologue `f40af26c`）在当前 vendored 包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu.tgz` 里，S-13 的 `tests/prologue-memory-boundary.test.ts` 对这份包断言拒绝（`pnpm test:security`）。换包时同一条用例必须在新包上再过一次。进度见 [采用 spec](../../specs/prologue-adoption/spec.md) §6。
+- **提示注入的标记中和随当前包验证**：SDK 对 pinned memory 伪标记的中和（Prologue `f40af26c`）在当前 vendored 包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz` 里，S-13 的 `tests/prologue-memory-boundary.test.ts` 对这份包断言拒绝（`pnpm test:security`）。换包时同一条用例必须在新包上再过一次。进度见 [采用 spec](../../specs/prologue-adoption/spec.md) §6。
 - **五处公网地址实现仍是五份**：S-10 用同一张表钉住了行为，没有合成一份：Jelly 与插件创作台各有自己认可的 `198.18.0.0/15` 例外（用户 2026-09-27 的决定），AnySearch 用 `BlockList`，RSS 在插件包内。合成一份要先决定放在哪（`contracts` 的纯函数不能引 `node:net`）。
 - **Seatbelt 沙箱用例永远不会在 Linux 上跑**：S-15 里读写、起进程、直连网络被拒的断言只在 macOS 上有；Linux 上的沙箱继任者属于 C 端就绪方案的 D4。
 - **Computer Use 不在 main**：站点策略与逐步确认的 S-16 目前只覆盖侧栏浏览器。

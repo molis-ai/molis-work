@@ -52,7 +52,6 @@ export const CODING_STYLES = `
 .coding-outline-row > .coding-board-key { flex:none; min-width:0; }
 .coding-outline-mark { flex:none; display:grid; place-items:center; width:14px; height:14px; color:var(--faint); }
 .coding-outline-mark svg { width:12px; height:12px; }
-.coding-outline-mark .coding-board-pulse { margin:0; }
 .coding-outline-mark[data-tone="done"], .coding-outline-mark[data-tone="accepted"] { color:var(--green); }
 .coding-outline-mark[data-tone="blocked"] { color:var(--red); }
 .coding-outline-mark[data-tone="attention"] { color:var(--amber); }
@@ -111,8 +110,6 @@ export const CODING_STYLES = `
 .coding-board-state[data-tone="progress"] { color:var(--blue); }
 .coding-board-state[data-tone="ready"] { color:var(--ink-soft, var(--ink)); }
 .coding-board-state[data-tone="quiet"], .coding-board-state[data-tone="idle"] { color:var(--faint); }
-.coding-board-pulse { flex:none; width:8px; height:8px; margin:0 4px; border-radius:50%; background:currentColor; box-shadow:0 0 0 0 color-mix(in srgb, currentColor 40%, transparent); animation: none; }
-@keyframes coding-board-pulse { 0% { box-shadow:0 0 0 0 color-mix(in srgb, currentColor 45%, transparent); } 70% { box-shadow:0 0 0 5px transparent; } 100% { box-shadow:0 0 0 0 transparent; } }
 .coding-board-progress { display:inline-flex; align-items:center; gap:8px; min-width:0; color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .coding-board-progress.is-empty { visibility:hidden; }
 .coding-board-progress > i { flex:none; width:34px; height:2px; overflow:hidden; background:var(--line-strong, var(--line)); }
@@ -172,7 +169,6 @@ export const CODING_STYLES = `
   .coding-board-entry { grid-template-columns:minmax(0,1fr) auto auto; height:auto; min-height:32px; row-gap:0; }
   .coding-board-progress, .coding-board-deps, .coding-board-agent, .coding-board-time { display:none; }
 }
-@media (prefers-reduced-motion: reduce) { .coding-board-pulse { animation:none; } }
 .coding-artifact-row { width:100%; cursor:pointer; }
 [data-coding-artifact-list] .mw-empty { padding:16px 8px; }
 .coding-faces { display:flex; gap:4px; padding:0 4px 8px; }
@@ -519,7 +515,6 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-tool-state[data-tone=failed] { color:var(--red); }
 .coding-tool-state[data-tone=retry] { color:var(--muted); }
 .coding-tool-state[data-tone=unknown] { color:var(--amber); }
-.coding-spinner { width:12px; height:12px; flex:none; border-radius:50%; border:1.5px solid color-mix(in srgb, var(--muted) 30%, transparent); border-top-color:var(--ink); animation:coding-spin 640ms var(--ease-quint) infinite; }
 .coding-inline-review { max-width:76ch; margin:0 auto 16px; animation:coding-rise 250ms var(--ease-quint); }
 .coding-inline-review .agent-review { padding:0; border:0; }
 .coding-inline-review [data-agent-review-item]:not([data-agent-review-phase=pending]) { display:none; }
@@ -532,7 +527,6 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-run-footer[data-state=waiting] .coding-live { color:var(--amber); }
 .coding-live-time { font-variant-numeric:tabular-nums; color:var(--faint); }
 .coding-live-quiet { margin:8px 0 0 16px; color:var(--muted); font-size:12px; line-height:1.5; }
-.coding-pulse { width:8px; height:8px; border-radius:50%; background:var(--blue); box-shadow:0 0 0 0 color-mix(in srgb, var(--blue) 45%, transparent); animation: none; }
 .coding-run-card { padding:12px 16px; border:1px solid var(--line); border-radius:12px; background:var(--paper); animation:coding-rise 250ms var(--ease-quint); }
 .coding-run-card header { display:flex; align-items:center; gap:8px; }
 .coding-run-card header strong { font-weight:500; font-size:13px; color:var(--ink); }
@@ -549,11 +543,9 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-run-files code { color:var(--ink); background:none; padding:0; }
 .coding-run-actions { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 0 32px; }
 .coding-run-actions .mw-btn { height:28px; min-height:28px; font-size:12px; gap:8px; }
-@keyframes coding-spin { to { transform:rotate(360deg); } }
 @keyframes coding-shimmer { from { background-position:200% 0; } to { background-position:-200% 0; } }
-@keyframes coding-pulse { 0% { box-shadow:0 0 0 0 color-mix(in srgb, var(--blue) 45%, transparent); } 100% { box-shadow:0 0 0 8px transparent; } }
 @keyframes coding-rise { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
-@media (prefers-reduced-motion: reduce) { .coding-spinner, .coding-pulse, .coding-tools-summary.is-live > span:last-child, .coding-run-footer[data-state=live] .coding-live-text, .coding-tool-list, .coding-inline-review, .coding-run-card { animation:none; } }
+@media (prefers-reduced-motion: reduce) { .coding-tools-summary.is-live > span:last-child, .coding-run-footer[data-state=live] .coding-live-text, .coding-tool-list, .coding-inline-review, .coding-run-card { animation:none; } }
 
 /* A new session opens like a blank page: the question, the composer, and a few ways in. */
 .coding-dialogue:has([data-coding-welcome]) .coding-turns { display:flex; flex-direction:column; justify-content:flex-end; }
@@ -596,9 +588,7 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-head-actions .coding-results-toggle { height:28px; min-height:28px; padding:0 12px; gap:8px; font-size:12px; color:var(--muted); }
 .coding-head-actions .coding-results-toggle svg { width:16px; height:16px; }
 .coding-phase { display:inline-flex; align-items:center; gap:8px; height:24px; padding:0 12px; border-radius:999px; font-size:12px; background:color-mix(in srgb, var(--blue) 10%, transparent); color:var(--blue-dark, var(--blue)); }
-.coding-phase::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; animation: none; }
 .coding-phase[data-phase=awaiting-review], .coding-phase[data-phase=awaiting-input] { background:color-mix(in srgb, var(--amber) 14%, transparent); color:var(--amber); }
-.coding-phase[data-phase=awaiting-review]::before, .coding-phase[data-phase=awaiting-input]::before { animation:none; }
 
 /* Composer: the task first, then mode, model and send; context lives behind "+". */
 .coding-composer-shell { border-radius:16px !important; transition:border-color 130ms var(--ease-quint), box-shadow 130ms var(--ease-quint); }
@@ -652,7 +642,6 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-change-counts ins { color:var(--green); text-decoration:none; }
 .coding-change-counts del { color:var(--red); text-decoration:none; }
 .coding-change-state { flex:none; display:inline-flex; align-items:center; gap:4px; min-width:5.5em; font-size:11px; color:var(--muted); }
-.coding-change-state::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
 .coding-change-state[data-tone=done] { color:var(--green); }
 .coding-change-state[data-tone=failed] { color:var(--red); }
 .coding-change-state[data-tone=attention] { color:var(--amber); }
@@ -708,7 +697,6 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-facts-head { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
 .coding-result .coding-facts-head h3 { margin:0; flex:1 1 auto; }
 .coding-facts-phase { display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--muted); }
-.coding-facts-phase::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
 .coding-facts-phase[data-tone=done] { color:var(--green); }.coding-facts-phase[data-tone=failed] { color:var(--red); }.coding-facts-phase[data-tone=live] { color:var(--blue); }
 .coding-facts-round { font-size:11px; color:var(--faint); }
 .coding-facts dl { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:8px 16px; margin:0; font-size:13px; }
@@ -732,13 +720,11 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
   .coding-outcome .mw-btn,.coding-command > summary { min-height:44px; }
 }
 
-/* Session rows carry their state as a dot: live work pulses, anything waiting on the person is amber. */
+/* Session rows use the shared state ring; labels retain the session's own state. */
 .coding-session-state { display:inline-flex; align-items:center; gap:4px; }
-.coding-session-state:is([data-state=running],[data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval],[data-state=failed],[data-state=reconcile-required])::before { content:""; flex:none; width:6px; height:6px; border-radius:50%; background:currentColor; }
 .coding-session-state[data-state=running] { color:var(--blue); }
 .coding-session-state:is([data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval]) { color:var(--amber); }
 .coding-session-state:is([data-state=failed],[data-state=reconcile-required]) { color:var(--red); }
-@media (prefers-reduced-motion:no-preference) { .coding-session-state[data-state=running]::before { animation: none; } }
 
 /* Streaming caret: sits after the last line the model has written so far. */
 .coding-turn.is-writing > :last-child::after,.coding-turn.is-writing:not(:has(> *))::after { content:""; display:inline-block; width:.45em; height:1.05em; margin-left:4px; vertical-align:-.15em; border-radius:1px; background:var(--ink); opacity:.55; }

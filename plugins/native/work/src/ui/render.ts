@@ -41,7 +41,7 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
     const status = renderStatusMark({
       label: sessionStateLabel(item.state),
       tone: item.state === "archived" ? "quiet" : "idle",
-      icon: item.state === "archived" ? "archive" : "ready",
+      state: item.state === "archived" ? "archived" : "ready",
       plain: true,
       className: "mw-dir-row__status",
     });

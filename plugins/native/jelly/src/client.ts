@@ -84,7 +84,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const matches = (record, body = '') => (!filterCategory || record.category_id === filterCategory) && (!query || (record.title + ' ' + body).toLowerCase().includes(query.toLowerCase()));
   const empty = (title, message, label) => '<div class="jelly-empty">' + glyph(view === 'calendar' ? 'calendar' : view === 'notes' ? 'note' : 'idea') + '<h2>' + tx(title) + '</h2><p>' + tx(message) + '</p>' + (label ? btn(label,'data-jelly-new','plus') : '') + '</div>';
   const download = (filename, body, type) => { const url=URL.createObjectURL(new Blob([body],{type})); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); };
-  const setStatus = (value) => { $('[data-jelly-save-status]').textContent=L(value); };
+  const setStatus = (value) => { const status=$('[data-jelly-save-status]');status.textContent=L(value);status.dataset.mwState=({'已保存':'saved','正在编辑':'unsaved','正在保存':'saving','保存失败，编辑已保留':'failed'})[value]||'verify'; };
   const closeWorkspace = () => { selected=null; dirty=false; root.dataset.expanded='false'; workspace.hidden=true; documentEl.replaceChildren(); root.removeAttribute('data-assistant-context'); };
   const openGeneric = (title, html, ok, submit, cleanup) => {
     const dialog=$('[data-jelly-dialog]');

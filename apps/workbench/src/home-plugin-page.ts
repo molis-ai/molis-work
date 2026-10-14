@@ -1,4 +1,4 @@
-import { escapeHtml, renderIconSprite, SELECT_MENU_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, renderIconSprite, SELECT_MENU_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { renderWorkbenchDocument } from "./document-shell.js";
 import type { BuiltinPluginEntry } from "./builtin-plugins.js";
@@ -41,7 +41,7 @@ export function renderHomePluginPage(entry: BuiltinPluginEntry, html: string | n
     </style>`, body_html: `${renderIconSprite()}
     ${side && html ? "" : `<header>${side ? "" : `<a class="mw-btn mw-btn--ghost" href="/">${escapeHtml(L("返回个人空间与项目"))}</a>`}<strong>${name}</strong>
       <button class="mw-btn mw-btn--ghost" type="button" data-home-lifecycle="${retry ? "retry" : html ? "disable" : "enable"}">${escapeHtml(L(retry ? "重试启动" : html ? "停用插件" : "启用插件"))}</button></header>`}
-    <main class="home-plugin-main">${html ?? `<div class="mw-empty" role="alert"><h1>${name} ${escapeHtml(L("暂不可用"))}</h1><p>${escapeHtml(L(message ?? "插件已停用"))}</p></div>`}</main>
+    <main class="home-plugin-main">${html ?? `<div class="mw-empty" role="alert"><h1 data-mw-state="${retry ? "unavailable" : "disabled"}">${name} ${escapeHtml(L("暂不可用"))}</h1><p>${escapeHtml(L(message ?? "插件已停用"))}</p></div>`}</main>
     <p role="status" data-home-status hidden></p>
     <dialog class="mw-dialog home-model-settings" data-home-model-settings aria-labelledby="home-model-title">
       <div class="mw-dialog__shell mw-form"><header class="mw-form__header"><h2 id="home-model-title">${escapeHtml(L("模型设置"))}</h2><button class="mw-btn mw-btn--ghost" type="button" data-home-model-back hidden>${escapeHtml(L("返回模型设置"))}</button><button class="mw-btn mw-btn--ghost" type="button" data-home-model-close autofocus>${escapeHtml(L("关闭"))}</button></header>

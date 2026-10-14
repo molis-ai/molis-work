@@ -1,5 +1,20 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  // The Assistant's question and action cards, drawn on the Host (A1, H2).
+  "时刻（24 小时制）": "Time (24-hour)",
+  "将使用这些内容": "What will be used",
+  "选一个": "Pick one",
+  "或者写下回答": "Or write an answer",
+  "选填": "Optional",
+  "这一题需要回答": "This question needs an answer",
+  "这一题只能选一项": "Pick only one option here",
+  "选项已经变化，请重新选择": "The options changed; pick again",
+  "同一项选了两次": "The same option was picked twice",
+  "这一题不能写其他答案": "This question takes only the options shown",
+  "回答太长了": "The answer is too long",
+  "这一题的回答不能提交，请改一下": "This answer cannot be sent; please change it",
+  "打开「{title}」": "Open “{title}”",
+  "这一轮做出的结果": "What this round made",
   "个人工具": "Personal tools",
   "正在加载…": "Loading…",
   "设置加载失败，当前输入已保留，请重试。": "Settings could not load. Your input is preserved. Please retry.",

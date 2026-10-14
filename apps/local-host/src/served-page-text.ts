@@ -1,4 +1,5 @@
 import { transformSync } from "esbuild";
+
 /**
  * Comments in the shared workbench sheet are notes for people reading the source. The browser does not apply them,
  * and the page asset budget only falls (decision #17), so they are not sent. A comment becomes one space: dropping it
@@ -76,19 +77,14 @@ export function dedentServedCss(source: string): string {
   return out;
 }
 
-/**
- * A parser removes comments and whitespace without changing literal text or automatic semicolon boundaries. When shorter, that
- * is what is sent: it is the same program, and the names stay (tests match them). A text that is not a program, or a
- * rewrite that comes out longer, keeps the original program.
- */
+/** Compact the original program with its binding names and literal text intact; parse failure leaves it unchanged. */
 export function tightenServedJs(source: string): string {
-  const prepared = source;
   try {
-    const minified = transformSync(prepared, { loader: "js", minifyWhitespace: true, legalComments: "none", charset: "utf8" }).code;
-    return Buffer.byteLength(minified) < Buffer.byteLength(prepared) ? minified : prepared;
+    const minified = transformSync(source, { loader: "js", minifyWhitespace: true, minifySyntax: true, legalComments: "none", charset: "utf8" }).code;
+    return Buffer.byteLength(minified) < Buffer.byteLength(source) ? minified : source;
   } catch {
-    // Preserve the original bytes when the parser cannot establish a valid JavaScript program.
-    return prepared;
+    // Non-program asset fixtures keep their exact content, as does any script the parser cannot handle.
+    return source;
   }
 }
 

@@ -313,3 +313,8 @@ export const createInteractionClient = (root: HTMLElement, host: InteractionClie
   assembleInteractionClient(interactionFields, interactionCalendar, root, host);
 /** The same client as a script expression, for a browser factory that cannot import: `(…)(root, host)`. */
 export const INTERACTION_CLIENT_SCRIPT = `((fields, calendar, assemble) => (root, host) => assemble(fields, calendar, root, host))(${interactionFields.toString()}, ${interactionCalendar.toString()}, ${assembleInteractionClient.toString()})`;
+/**
+ * The same client without the calendar popover (about a third of the script), for a page whose cards draw no calendar:
+ * a date is typed, its weekday still shows. A page takes the full script in the change that opens a calendar on it.
+ */
+export const INTERACTION_CLIENT_SCRIPT_TYPED_DATES = `((fields, assemble) => (root, host) => assemble(fields, () => ({ click: () => false, key: () => false, focusOut() {}, close() {} }), root, host))(${interactionFields.toString()}, ${assembleInteractionClient.toString()})`;

@@ -149,7 +149,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       ? '<button class="mw-btn mw-btn--ghost global-search-ask" type="button" data-global-search-ask>' + escapeHtml(L("问助理：") + "“" + query.trim() + "”") + "</button>" : "";
     hits = ordered.flatMap((group) => group.items);
     if (hits.length && (selected < 0 || selected >= hits.length)) selected = explicit ? hits.length - 1 : 0;
-    if(statusLine){const text=statusText();if(typeof text==="string")statusLine.textContent=text;else molisWorkRequest.show(statusLine,text);statusLine.hidden=!text;}
+    if(statusLine){const text=statusText();if(typeof text==="string")statusLine.textContent=text;else molisWorkRequest.show(statusLine,text);statusLine.hidden=!text;if (notice) statusLine.removeAttribute("data-mw-state"); else if (remote.status === "error") statusLine.dataset.mwState = "failed"; else if (!input.value.trim()) statusLine.removeAttribute("data-mw-state"); else if (remote.status === "loading" && !remote.hits.length) statusLine.dataset.mwState = "running"; else if (remote.sources.some(source => source.state === "indexing")) statusLine.dataset.mwState = "indexing"; else if (remote.sources.some(source => ["failed", "stale", "unavailable"].includes(source.state))) statusLine.dataset.mwState = "partial"; else statusLine.removeAttribute("data-mw-state"); }
     paintScopes();
     if (!ordered.length) {
       const waiting = query.trim() && remote.status !== "done" && remote.status !== "error";

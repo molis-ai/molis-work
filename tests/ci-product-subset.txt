@@ -411,6 +411,7 @@ tests/work-placement.test.ts
 tests/work-session-ui.test.ts
 tests/work-terminal-client.test.ts
 tests/workbench-asset-cache.test.ts
+tests/served-script-text.test.ts
 tests/workbench-local-links.test.ts
 tests/workbench-ui-platform.test.ts
 tests/workflow-content-actions.test.ts

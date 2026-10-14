@@ -19,7 +19,8 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
   document.body.append(live);
   const basisOf = (out, rulesOnly) => {
     const judgment = out.judgment, fallback = out.receipt.fallback;
-    return { text: rulesOnly ? L("按规则 · 判断中") : fallback === "timeout" ? L("判断超时 · 按规则") : fallback === "failed" ? L("判断失败 · 按规则")
+    return { state: rulesOnly ? "running" : fallback === "unconfigured" ? "unavailable" : fallback === "timeout" ? "interrupted" : fallback === "failed" ? "failed" : "ready",
+      text: rulesOnly ? L("按规则 · 判断中") : fallback === "timeout" ? L("判断超时 · 按规则") : fallback === "failed" ? L("判断失败 · 按规则")
         : judgment && judgment.basis === "jev" ? "Jev" : L("按规则"),
       title: judgment ? (judgment.model || "Jev") + " · " + Math.round(judgment.latency_ms) + "ms"
         : fallback === "unconfigured" ? L("未接判断模型：只按选区形状排序") : L("规则排序：只看选区形状，不看含义") };
@@ -68,7 +69,7 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
     // The owner moved what it reported (a scroll): the toolbar follows without asking anything again.
     reanchor() { if (!this.frame) toolbar.place(); },
     // The judgment did not come: the basis note says so (the rules' actions stay).
-    judgeFailed() { if (this.view) { this.view.basis = { text: L("判断失败 · 按规则"), title: "" }; this.push(); } },
+    judgeFailed() { if (this.view) { this.view.basis = { state: "failed", text: L("判断失败 · 按规则"), title: "" }; this.push(); } },
     push(summon) {
       if (!this.view) return;
       const frame = bus.source && bus.source.frame;

@@ -31,7 +31,7 @@ export const WORKFLOW_SAVE_SCRIPT = String.raw`
     mode ||= edit?.error ? 'error' : edit?.pending ? 'saving' : 'saved';
     const el = root.dataset.wfMode === 'workflow' && view.querySelector('[data-wf-save-state]');
     if (!el) return;
-    el.dataset.state = mode; el.title = edit?.error || '';
+    el.dataset.state = mode; el.dataset.mwState = mode === 'saving' ? 'saving' : 'saved'; el.title = edit?.error || '';
     el.innerHTML = mode === 'error' ? tx('保存失败') + ' <button type="button" class="mw-btn mw-btn--link" data-wf-action="retry-save"' + (edit?.pending ? ' disabled' : '') + '>' + tx('重试') + '</button>'
       : mode === 'saving' ? '<span class="mw-spinner" aria-hidden="true"></span><span>' + tx('正在保存…') + '</span>' : ico('check') + '<span>' + tx('已保存') + '</span>';
   }

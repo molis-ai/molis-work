@@ -43,6 +43,7 @@ for (const width of [1440, 390]) {
       await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
       const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
       const screenshot = async (state: string) => writeFile(new URL(`pages-publication-${state}-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+      await waitFor("document.querySelector('.pages-doc-row .feed-entry-status .mw-state-ring')?.dataset.mwState === 'unsaved'"); // RING-07: a pending publication is not active saving.
       await screenshot("pending");
       await click('[data-pages-artifact-bar]');
       await waitFor("document.querySelector('[data-pages-note]').textContent.includes('已恢复上次成果') && document.querySelector('[data-pages-artifact-bar]').textContent === '再存一个固定版本'");
@@ -52,6 +53,7 @@ for (const width of [1440, 390]) {
       assert.equal(JSON.parse(artifact.payload_json).title, "已确认的发布快照");
       assert.equal(project.db.prepare("SELECT COUNT(*) AS n FROM library_artifact_versions WHERE artifact_id = ?").get(final.artifact_id)!.n, 1);
       assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+      await waitFor("document.querySelector('.pages-doc-row .feed-entry-status .mw-state-ring')?.dataset.mwState === 'saved'"); // RING-07
       await screenshot("recovered");
     } finally { db.close(); pages.close(); }
   });

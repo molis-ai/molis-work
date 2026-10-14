@@ -228,3 +228,22 @@ test("命令里混有像工具调用标记的文本时，审查卡提醒一句�
   assert.equal(leakedMarkup("run </invoke> now"), true);
   for (const clean of ["npm test", "node --version", "git log --oneline -3", "echo 'a < b > c'", "grep -n '<div' src/a.html"]) assert.equal(leakedMarkup(clean), false, clean);
 });
+
+// RING-07: decisions and effects have separate, explicit states.
+test("RING-07 review rings distinguish approval, pending effect, success, failure and uncertain result", () => {
+  const cases: Array<[AgentReviewRow, string]> = [
+    [row(), "approval"], [row({ receipt: receipt() }), "waiting"],
+    [row({ receipt: receipt({ effect_settled: true }) }), "done"],
+    [row({ receipt: receipt({ effect_error: "磁盘只读" }) }), "failed"],
+    [row({ receipt: receipt({ effect_uncertain: "回执不可读" }) }), "verify"],
+    [row({ receipt: receipt({ status: "rejected" }) }), "cancelled"],
+    [row({ receipt: receipt({ status: "cancelled" }) }), "cancelled"],
+    [row({ receipt: receipt({ status: "expired" }) }), "stale"],
+  ];
+  for (const [item, state] of cases) {
+    const html = renderAgentReviewSurface({ rows: [item], primitives: p });
+    assert.match(html, new RegExp(`data-mw-state="${state}"`));
+    assert.match(html, /data-ring-segments/);
+    assert.doesNotMatch(html, /data-icon="(?:clock|circle-alert|check|x|alert)"/);
+  }
+});

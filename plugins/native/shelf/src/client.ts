@@ -194,7 +194,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       '<span class="shelf-glyph tone-' + tone(item.kind, item.group) + '">' + glyphSvg(item.kind) + "</span>" +
       yieldName(item.name) +
       (item.group === "result" && !failed ? '<span class="shelf-when">' + escText(clockLabel(item.created_at)) + "</span>" : "") +
-      (failed ? '<span class="shelf-status" title="' + L("失败") + '" aria-label="' + L("失败") + '">' + opSvg("alert") + "</span>" : "") +
+      (failed ? '<span class="shelf-status" role="img" data-mw-state="failed" title="' + L("失败") + '" aria-label="' + L("失败") + '"></span>' : "") +
       '<span class="shelf-ops">' + copyOp + '<span class="shelf-op" role="button" tabindex="0" data-shelf-row-action="hide" aria-label="' + L("隐藏（列表拿掉，副本还在）") + '" title="' + L("隐藏（列表拿掉，副本还在）") + '"' + lock + '>' + opSvg("hide") + '</span><span class="shelf-op is-danger" role="button" tabindex="0" data-shelf-row-action="delete" aria-label="' + L("删除副本") + '" title="' + L("删除副本") + '"' + lock + '>' + opSvg("trash") + "</span></span></li>";
   };
   const childHtml = (folder, child) => {
@@ -440,7 +440,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
         const status = preview.querySelector("[data-shelf-edit-status]");
         if (status) {
           status.hidden = false;
-          status.textContent = L("副本未保存，输入已保留。请重试完成编辑或返回。") + " " + error.message;
+          status.dataset.mwState = "failed"; status.textContent = L("副本未保存，输入已保留。请重试完成编辑或返回。") + " " + error.message;
         }
       }
       throw error;

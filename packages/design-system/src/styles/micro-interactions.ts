@@ -4,22 +4,14 @@
  * React and no animation runtime, so each one is CSS driven by a few custom properties.
  *   Rubber Segment  → the segmented thumb travels and settles between slots.
  *   Glide Select    → the search highlight travels, so keyboard selection stays distinct from hover.
- *   Status Mark     → a focal Goal that is actually running shows an indeterminate arc.
  *   Row Yield       → a list title gives way at the squeeze edge; Shelf also lets hover actions take width.
  * Everything degrades to the current static presentation when the client script does not run,
- * and `prefers-reduced-motion` removes the travel and the arc rather than merely shortening them.
+ * and `prefers-reduced-motion` removes the travel rather than merely shortening them.
  */
 
 const SEGMENTED = ":is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group, .plugin-rail-items, .assistant-island-card)";
 const RAIL_SEGMENTED = ":is(.plugin-rail-items, .assistant-island-card)";
 const SEGMENT_CURRENT = ':is([aria-current="true"], [aria-current="page"], [aria-pressed="true"], .is-current, .is-active)';
-
-/** Statuses whose Goal is being worked on right now, per the shared status tone map. */
-const RUNNING_STATUS =
-  ":is(.goal-status--clarifying, .goal-status--executing, .goal-status--reviewing, .goal-status--revalidating, .goal-status--in_progress)";
-
-/** Where exactly one status describes the open Goal. Lists and cards keep their static mark. */
-const FOCAL_STATUS = ":is(.tui-owner-actions, .goal-node-toolbar, .reader-header, .frame-goal-heading, .goal-info-popover)";
 
 export const MICRO_INTERACTION_STYLES = `
   :root, body { --ease-settle: var(--ease-spring); }
@@ -113,7 +105,6 @@ export const MICRO_INTERACTION_STYLES = `
     background: var(--nav-hover);
   }
 
-  /* Status Mark: every state keeps its one fixed glyph everywhere; a running Goal does not trade it for a spinning arc. */
 
   /* Stages, menus and the assistant sheet share one 6px rise. Menus stay on the fast clock. */
   @keyframes creative-arrive {
@@ -131,8 +122,6 @@ export const MICRO_INTERACTION_STYLES = `
     body ${SEGMENTED}[data-seg-thumb][data-seg-ready]::before { transition: none; }
     body .global-search-body[data-search-glide][data-search-ready]::before { transition: none; }
     body.immersive-workbench :is(.tree-entry, .feed-stage-entry, .source-list-item, .goal-collection-fold > summary, .mw-dir-row, .mw-dir-row-wrap) { transition: none; }
-    body ${FOCAL_STATUS} .goal-status${RUNNING_STATUS} > svg { display: inline; }
-    body ${FOCAL_STATUS} .goal-status${RUNNING_STATUS}::before { content: none; animation: none; }
     .plugin-stage-workspace.is-arriving, .is-arriving,
     :is(.mw-menu, .mw-select-picker__menu, .assistant-composer):popover-open,
     .mw-select-picker__menu.is-open { animation: none; }

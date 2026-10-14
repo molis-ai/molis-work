@@ -1,7 +1,8 @@
 /** Native stage renderers. Values from models and sources are always escaped. Written without the client factory's two-space indent (see client-flows.ts). */
 export const ALCHEMIST_VIEWS = String.raw`
 const states={planned:'计划已保存',queued:'排队中',running:'进行中',completed:'已完成',partial:'部分完成',failed:'失败',cancelled:'已停止',interrupted:'已中断',not_started:'未开始',candidate:'候选',kept:'已保留',discarded:'已弃牌',exploring:'研究中',build:'去做',hold:'先放着',drop:'不做',active:'启用',archived:'已归档',disabled:'已停用',supported:'已支持',tentative:'暂定',disputed:'有争议',unknown:'未知'};
-const status=value=>'<span class="alc-state" data-state="'+esc(value)+'">'+tx(states[value]||value)+'</span>';
+const ringStates={planned:'saved',queued:'queued',running:'running',completed:'done',partial:'partial',failed:'failed',cancelled:'stopped',interrupted:'interrupted',not_started:'idle',exploring:'doing',archived:'archived',disabled:'disabled'};
+const status=value=>'<span class="alc-state" data-state="'+esc(value)+'"'+(ringStates[value]?' data-mw-state="'+ringStates[value]+'"':'')+'>'+tx(states[value]||value)+'</span>';
 const paraHtml=value=>'<p>'+esc(value||'')+'</p>';
 const bullets=values=>'<ul>'+values.map(value=>'<li>'+esc(value)+'</li>').join('')+'</ul>';
 const section=(title,value,block)=>'<section '+(block?'data-alc-block="'+esc(block)+'"':'')+'><h3>'+tx(title)+'</h3>'+(Array.isArray(value)?bullets(value):paraHtml(value))+'</section>';

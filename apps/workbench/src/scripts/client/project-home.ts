@@ -168,7 +168,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       : '';
     const moving = pick.status === "in_progress";
     const html = '<div class="home-focus__top"><span>' + ico("target") + esc(moving ? L("正在推进") : L("等你决定")) + '</span>' +
-      '<span class="home-focus__status' + (moving ? '' : ' is-attention') + '"><i></i>' + esc(moving ? L("进行中") : pick.status_label) + '</span></div>' +
+      '<span class="home-focus__status' + (moving ? '' : ' is-attention') + '" data-mw-state="' + (moving ? 'doing' : 'approval') + '">' + esc(moving ? L("进行中") : pick.status_label) + '</span></div>' +
       '<h2 id="home-focus-title">' + esc(pick.goal.title) + '</h2>' +
       (pick.goal.outcome ? '<p>' + esc(pick.goal.outcome) + '</p>' : '') +
       '<div class="home-focus__bottom"><button class="mw-btn mw-btn--primary" type="button" data-home-focus-open>' + esc(moving ? L("继续这个目标") : L("去做决定")) + ico("arrow") + '</button>' + progress + '</div>' +

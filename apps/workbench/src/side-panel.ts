@@ -64,7 +64,7 @@ html body.immersive-workbench[data-side-open=true] .side-panel{opacity:1;transfo
 :is(.side-panel-tab,.side-panel-close):hover{background:var(--nav-hover);color:var(--ink)}
 .side-panel-tab[aria-selected=true]{background:var(--nav-active);color:var(--ink)}
 .side-panel-tab:focus-visible,.side-panel-close:focus-visible{outline:2px solid var(--focus,var(--accent));outline-offset:-2px}
-:is(.side-panel-tab,[data-side-plugin-open])[data-side-busy]::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent)}[data-side-busy=attention]::after{background:var(--amber)}
+.side-busy-mark{display:inline-flex;flex:none;width:16px;height:16px}
 .side-panel-close{display:inline-grid;place-items:center;flex:none;width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
 .side-panel-close svg{width:16px;height:16px}
 .side-panel-body{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;animation:side-panel-body-in var(--dur-move) var(--ease-quint)}
@@ -95,7 +95,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * A Home tool (`data-side-plugin-open`, a tab with `data-side-keys`) is a switch: its button or chord, here or handed up
  * by a frame as `{ type: "molis:side-key", keys }`, opens it with the keyboard inside its document; pressed again from
  * inside, it closes. Tools with a chord load while the page is idle, so the first press shows a ready tool. A tab's own
- * document may report `{ type: "molis:side-status", status: "busy" | "attention" | "" }`: its tab and button carry a dot.
+ * document may report `{ type: "molis:side-status", status: "busy" | "attention" | "" }`: its tab and button carry a shared state ring.
  * `molis:side-open` { tab, view?, target?, focus? } · `molis:side-close` · `molis:side-toggle`. Same-origin frames post the same
  * `{ type: "molis:side-open", ... }`. Tab owners hear `molis:side-shown` { tab, target } when their tab shows.
  */
@@ -183,7 +183,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     if(event.data?.type==='molis:side-close'&&event.source&&event.source!==window){setOpen(false);return;}
     if(event.data?.type==='molis:side-key'&&event.source!==window){keyed(event.data.keys);return;}
     if(event.data?.type==='molis:side-status'){const body=[...panel.querySelectorAll('[data-side-body]')].find(body=>body.querySelector('iframe')?.contentWindow===event.source);
-      if(body)for(const mark of document.querySelectorAll('[data-side-tab="'+body.dataset.sideBody+'"],[data-side-plugin-open="'+body.dataset.sideBody.slice(7)+'"]'))event.data.status?mark.dataset.sideBusy=event.data.status:delete mark.dataset.sideBusy;return;}
+      if(body)for(const mark of document.querySelectorAll('[data-side-tab="'+body.dataset.sideBody+'"],[data-side-plugin-open="'+body.dataset.sideBody.slice(7)+'"]')){let ring=mark.querySelector('.side-busy-mark');if(event.data.status){mark.dataset.sideBusy=event.data.status;if(!ring){ring=document.createElement('i');ring.className='side-busy-mark';mark.append(ring);}ring.dataset.mwState=event.data.status==='attention'?'answer':'running';}else{delete mark.dataset.sideBusy;ring?.remove();}}return;}
     if(!frame||event.source!==frame.contentWindow)return;
     if(event.data?.type==='molis:im-close')setOpen(false);
     if(event.data?.type==='molis:im-ready')imVisible();

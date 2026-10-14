@@ -8,6 +8,13 @@ import type { ActionDefinition, ActionRegistryPort, SyncActionClient, ActionCall
 import { id, version, text, object, nullable, record, processRecord, reference, origin, array } from "./action-schemas.js";
 
 /** Created by the trusted Host for one installation; authors receive only the returned client. */
+/** What the person is told when a version cannot be used here, by the owner's reason. */
+const UNCONSUMABLE_MESSAGE: Readonly<Record<string, string>> = {
+  artifact_unavailable: "这一版成果已失效，不能再使用；请换一个可用的版本",
+  artifact_archived: "这一版成果已归档，不能再使用；请换一个可用的版本",
+  consumer_missing: "这个插件没有声明能使用这种成果",
+};
+
 export function createPluginArtifactClient(input: {
   api: ArtifactsApplicationApi;
   /** The process items store (specs/artifact-positioning A2): exchange data recorded apart from the 成果库. */
@@ -83,7 +90,8 @@ export function createPluginArtifactClient(input: {
       const compatibility = pinned ? api.query.consumptionCompatibility(project_id, reference, manifest.artifacts.consumes)
         : process.query.consumptionCompatibility(project_id, reference, manifest.process_items?.consumes ?? []);
       if (!compatibility.consumable) {
-        throw artifactsErrors.plugin_incompatible(compatibility.reason);
+        // The person reads this message wherever the consumer shows the owner's failure; the reason stays in the details.
+        throw artifactsErrors.plugin_incompatible(UNCONSUMABLE_MESSAGE[compatibility.reason] ?? "这一版成果不能在这里使用", { reason: compatibility.reason });
       }
       return artifact;
     },

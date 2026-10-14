@@ -11,6 +11,7 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalHost, MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 // specs/archive/work-placement AC6 through the whole stack: where things are, how they relate, what was copied or moved, and a
@@ -112,16 +113,24 @@ for (const operation of ["link", "convert"] as const) for (const stop of ["cance
     const project = await catalog.createProject({ display_name: "Target", actor_id: "web-user" });
     catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "web-user" }); catalog.close();
     const finished = Promise.withResolvers<void>(), originalRegistry = LocalHost.prototype.actionRegistry;
+    // The placement provider's own registration is kept so a replacement can withdraw it first (the kernel refuses a second
+    // registration of the same action).
+    let withdrawPlacement: (() => void) | undefined;
     t.mock.method(LocalHost.prototype, "actionRegistry", function (this: LocalHost<unknown>, ...args) {
       const registry = originalRegistry.apply(this, args);
-      return { ...registry, registerProvider: registration => registry.registerProvider({ ...registration, handlers: registration.handlers?.map(binding =>
-        binding.capability_id !== placementActions[operation].capability_id ? binding : { ...binding, handle: async (caller, input) => {
-          try { return await binding.handle(caller, input); } finally { finished.resolve(); }
-        } }) }) };
+      return { ...registry, registerProvider: registration => {
+        const remove = registry.registerProvider({ ...registration, handlers: registration.handlers?.map(binding =>
+          binding.capability_id !== placementActions[operation].capability_id ? binding : { ...binding, handle: async (caller, input) => {
+            try { return await binding.handle(caller, input); } finally { finished.resolve(); }
+          } }) });
+        if (registration.provider.provider_id === PLACEMENT_PROVIDER_ID && registration.provider.title !== "Replacement") withdrawPlacement = remove;
+        return remove;
+      } };
     });
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
-    t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let valid = true, holding = true;
+    // A failing step must not leave the owner reader held: closing the Host waits for it.
+    t.after(async () => { holding = false; release.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); });
     const reader = defineSubjectContextAction("fixture.clip.read", "fixture-clip", "Fixture", [], "home");
     host.actionRegistry().registerProvider({ provider: { provider_id: "fixture-clip", title: "Fixture", kind: "system" }, definitions: [reader],
       handlers: [{ ...reader, handle: async () => { if (holding) { entered.resolve(); await release.promise; }
@@ -134,13 +143,18 @@ for (const operation of ["link", "convert"] as const) for (const stop of ["cance
     const pending = host.homeActionClient().invoke(caller, definition, input), rejected = assert.rejects(pending);
     await entered.promise;
     if (stop === "cancel") controller.abort(); else if (stop === "revoke") valid = false;
-    else host.actionRegistry().registerProvider({ provider: { provider_id: PLACEMENT_PROVIDER_ID, title: "Replacement", kind: "system" }, definitions: [definition], handlers: [{ ...definition, handle: () => ({ key: "replacement" }) }] });
+    else {
+      assert.ok(withdrawPlacement, "the Host registered the placement provider through its action registry");
+      withdrawPlacement!();
+      host.actionRegistry().registerProvider({ provider: { provider_id: PLACEMENT_PROVIDER_ID, title: "Replacement", kind: "system" }, definitions: [definition], handlers: [{ ...definition, handle: () => ({ key: "replacement" }) }] });
+    }
     holding = false; release.resolve(); await Promise.all([rejected, finished.promise]);
     const database = new DatabaseSync(homeSqlitePath(home, "placement"));
     try {
       assert.equal((database.prepare("SELECT count(*) AS count FROM context_edges").get() as { count: number }).count, 0);
       assert.equal((database.prepare("SELECT count(*) AS count FROM placement_titles").get() as { count: number }).count, 0);
     } finally { database.close(); }
-    const ref = { project_id: project.project_id, storage_key: project.database_path };
-    await host.withProject(ref, runtime => { assert.equal(runtime.store.db.prepare("SELECT count(*) AS count FROM pages_documents").get()!.count, 0); });
+    // Pages keeps its documents in the Home's Pages store (openPagesStore), not in the project's database: no document was made.
+    const pages = openPagesStore(home);
+    try { assert.deepEqual(pages.list(project.project_id), []); } finally { pages.close(); }
   });

@@ -81,7 +81,7 @@ export interface CodingDiagram {
 }
 
 export class CodingDiagramError extends Error {
-  constructor(readonly code: "diagram.unknown_node" | "diagram.duplicate_node", message: string) {
+  constructor(readonly code: "coding.diagram.unknown_node" | "coding.diagram.duplicate_node", message: string) {
     super(message);
     this.name = "CodingDiagramError";
   }
@@ -99,7 +99,7 @@ export function inspectDiagram(diagram: CodingDiagram): CodingDiagramError[] {
   for (const node of diagram.nodes) {
     if (seen.has(node.node_id)) {
       errors.push(new CodingDiagramError(
-        "diagram.duplicate_node",
+        "coding.diagram.duplicate_node",
         `节点 id 重复：${node.node_id}`,
       ));
     }
@@ -109,7 +109,7 @@ export function inspectDiagram(diagram: CodingDiagram): CodingDiagramError[] {
     for (const endpoint of [edge.from, edge.to]) {
       if (!seen.has(endpoint)) {
         errors.push(new CodingDiagramError(
-          "diagram.unknown_node",
+          "coding.diagram.unknown_node",
           `连线指向不存在的节点：${endpoint}`,
         ));
       }

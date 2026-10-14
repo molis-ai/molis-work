@@ -2266,3 +2266,5 @@ R4b沿已接受owner规则准备Artifacts首片：Module产出的artifact.<原�
 R4a3 ac65c8789独立只读复核无新Blocker/P1：3,062份JS/TS/SQL无六类旧错码，实际路径/opaque/快照、repair/unlink补偿顺序与cause及Files/Git拒绝断言保留，静态证据不替代运行。R4b 2f6dc5def准备71错误literal/14file、两document工厂变artifacts.document，17文件合并改动中16JS/TS逆名后AST正文一致；API0差异、base health通过，9条boundary引用与真实Feed消费保持同一检查，仅错码名字同步，不放宽门禁。artifact.published、document.id/version、DOM及旧库保持；构建/真实运行/资源与组合全量仍待，不验收。
 
 W2-10 C #484已在2026-10-14T00:06:34Z合入main 5c66cf0ab607bf1550287942cbc6011e0559eaf7：精确head10a85e13b对齐b03a4e83，五必需检查+Product成功、freshsecrets05通过；Linux仍报告中。GitHub mergeState为UNSTABLE仅因Linux未结束，其余全部已完成SUCCESS；未忽略任何必需/产品失败。C新main03真实73/73和旧Darwin63独立证据保留，D同步后仍须实际新版回归，不据C合入关闭D/E或I8。
+
+R4c1先按既有登记Characters owner处理五种character错误（not_found/conflict/deleted/disabled/invalid）为characters.<原因>：Module和插件、HTTP状态比较及现行测试同片更新；角色身份、修订号、启停/删除状态、固定成果、授权和持久化业务事件保持。R4C1-01：真实更新冲突/停用/删除/导入输入拒绝仍阻止写入，owner码现行且原消息和事实不变；R4C1-02：producer和HTTP/测试消费者无旧码读取或alias，既有API/action形状无变化则不机械升版；R4C1-03：owner相关实跑/资源/健康与共享回归后验收。当前从main5c66隔离源码准备，不新增构建排队。

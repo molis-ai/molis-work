@@ -82,7 +82,7 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
       const githubSource = feed.getSource(DEMO_PROJECT_ID, github.source.source_id);
       // J3D-01/J3D-03: the internal deletion contract refuses before any facts change.
       const beforeBadDelete = feed.snapshot(DEMO_PROJECT_ID);
-      assert.throws(() => feed.deleteSource(DEMO_PROJECT_ID, githubSource.source_id, "invalid-history" as never), { code: "feed.contract_source_history_decision_required", kind: "internal" });
+      assert.throws(() => feed.retireSource(DEMO_PROJECT_ID, githubSource.source_id, "invalid-history" as never), { code: "feed.contract_source_history_decision_required", kind: "internal" });
       assert.deepEqual(feed.snapshot(DEMO_PROJECT_ID), beforeBadDelete);
       const replay = feed.ingestItem({
         source: githubSource,

@@ -256,7 +256,7 @@ const BROWSER_SCRIPT = /[\\/]client\.ts$/u;
 //   - a wiring mistake in the code (a route without its Host binding, a UI surface the plugin does not render): nobody can cause it by a request;
 //   - the failures of a run that already started (a due task, reminder or timed operation that cannot be carried out, a pull of the research library or a
 //     public feed that fails): they are recorded on the task, the job or the source run and never answered to a caller as they are;
-//   - a contract check the action's input schema has already passed (the history decision of a deletion).
+// The internal deletion contract is declared as internal, rather than exempted here.
 const STAYS_BARE: readonly RegExp[] = [
   /^`(?:Feed|Inbox|Schedule) route \$\{[^`]*没有 Host binding`/u, /^`(?:Feed|Inbox|Schedule) UI surface /u,
   /^"定时执行尚未登记本次持久记录"/u, /^"本次执行结果未知，不能自动重跑"/u, /^"定时操作已暂停、取消或改变"/u, /^"定时操作的安装身份已改变"/u, /^"本次定时执行已被处理"/u,

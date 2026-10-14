@@ -2931,6 +2931,57 @@ function dispatchList(
   return true;
 }
 
+function fillCalloutStyle(pop: HTMLElement, view: EditorView, pos: number, node: Node, anchor: HTMLElement, translate: PagesEditorMountOptions["translate"], hidePop: () => void): void {
+  const iconHead = document.createElement("p");
+  iconHead.className = "pages-menu-label";
+  iconHead.textContent = t(translate, "图标");
+  const grid = document.createElement("div");
+  grid.className = "pages-icon-grid";
+  const currentIcon = calloutIconFor(node.attrs.icon, node.attrs.tone);
+  PAGES_CALLOUT_ICONS.forEach((item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "pages-icon-pick" + (currentIcon === item.id ? " is-on" : "");
+    button.innerHTML = dsIcon(item.id);
+    const label = t(translate, item.label);
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    button.addEventListener("mousedown", (event) => event.preventDefault());
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      runBlockCommand(view, setCalloutStyle(pos, { icon: item.id }));
+      hidePop();
+    });
+    grid.append(button);
+  });
+
+  const toneHead = document.createElement("p");
+  toneHead.className = "pages-menu-label";
+  toneHead.textContent = t(translate, "颜色");
+  const strip = document.createElement("div");
+  strip.className = "pages-tone-strip";
+  const currentTone = safePagesCalloutTone(node.attrs.tone);
+  PAGES_TONES.forEach((tone) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "pages-tone" + (currentTone === tone.id ? " is-on" : "");
+    button.dataset.pagesTone = tone.id;
+    const label = t(translate, tone.label);
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    button.addEventListener("mousedown", (event) => event.preventDefault());
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      runBlockCommand(view, setCalloutStyle(pos, { tone: tone.id }));
+      hidePop();
+    });
+    strip.append(button);
+  });
+
+  pop.append(iconHead, grid, toneHead, strip);
+  placeOverlay(pop, anchor.getBoundingClientRect(), "below");
+}
+
 export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}): PagesEditorHandle {
   host.replaceChildren();
   const linkPreview = document.createElement("div");
@@ -3106,55 +3157,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     if (!node) return;
     reclaimPop();
     showPop();
-
-    const iconHead = document.createElement("p");
-    iconHead.className = "pages-menu-label";
-    iconHead.textContent = t(options.translate, "图标");
-    const grid = document.createElement("div");
-    grid.className = "pages-icon-grid";
-    const currentIcon = calloutIconFor(node.attrs.icon, node.attrs.tone);
-    PAGES_CALLOUT_ICONS.forEach((item) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "pages-icon-pick" + (currentIcon === item.id ? " is-on" : "");
-      button.innerHTML = dsIcon(item.id);
-      const label = t(options.translate, item.label);
-      button.setAttribute("aria-label", label);
-      button.title = label;
-      button.addEventListener("mousedown", (event) => event.preventDefault());
-      button.addEventListener("click", (event) => {
-        event.preventDefault();
-        runBlockCommand(view, setCalloutStyle(pos, { icon: item.id }));
-        hidePop();
-      });
-      grid.append(button);
-    });
-
-    const toneHead = document.createElement("p");
-    toneHead.className = "pages-menu-label";
-    toneHead.textContent = t(options.translate, "颜色");
-    const strip = document.createElement("div");
-    strip.className = "pages-tone-strip";
-    const currentTone = safePagesCalloutTone(node.attrs.tone);
-    PAGES_TONES.forEach((tone) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "pages-tone" + (currentTone === tone.id ? " is-on" : "");
-      button.dataset.pagesTone = tone.id;
-      const label = t(options.translate, tone.label);
-      button.setAttribute("aria-label", label);
-      button.title = label;
-      button.addEventListener("mousedown", (event) => event.preventDefault());
-      button.addEventListener("click", (event) => {
-        event.preventDefault();
-        runBlockCommand(view, setCalloutStyle(pos, { tone: tone.id }));
-        hidePop();
-      });
-      strip.append(button);
-    });
-
-    pop.append(iconHead, grid, toneHead, strip);
-    placeOverlay(pop, anchor.getBoundingClientRect(), "below");
+    fillCalloutStyle(pop, view, pos, node, anchor, options.translate, hidePop);
   };
 
   const openLink = (view: EditorView) => {

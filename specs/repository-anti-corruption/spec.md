@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 c761c7750已整合I3–I33、main774a A2、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建与96b登记失败已修，96c九项工程检查通过；97/98实际失败已逐项记录，SDK六种切换交错及send/Workflow通过；夹具修正2916及新main774a A2已纳入6b1，源码复查已接受，新增fixture真实字节解析已修；等Pages短窗结束后重新整建和定向回归。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
+状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133与W2-10 A1–A4/C/D已合；第4–6波和最终共享全量仍在途。当前main774acaf57；I8 ad0ca76fb已联合Pages7b611、I3–I33及正式CU-image+beforeAccept SDK，102b九项工程检查全通过。103普通99条97通过、浏览器20条19通过，新增真实线程撤权/停止竞态均通过；104 Host HTML五条四通过。四条旧预期/夹具问题已定位，105错误出口13/13通过，106浏览器两条定向复验2/2通过，107模块图边界/root类型/merge-base健康检查全通过；准备冻结同一head跑唯一共享全量。Prologue #20已推送并开PR，无GitHub CI；干净构建/打包与66项检查通过。维护八隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。完整未完范围及新旧证据见§12.4–12.11。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -1663,14 +1663,14 @@ Images 后台 job 未携带原 MCP 调用的持续授权，但 Prologue 手册�
 | RAC-07 [人工] 静态/API/资源预算入 CI，未来回放规则及工具 | 未通过 | 三类门禁与合同规则已有；创作台答卷回放不等于 W4-01 的插件版本回放 corpus，后者未交付 |
 | RAC-08 [人工] 术语表完成、能力机制收敛或获批计划 | 通过（计划分支） | 术语表与对外只走动作的获批计划存在；N-12 实现未完成，不能删掉 W3-07 余项 |
 | RAC-09 [人工] 主链文档一致、每能力一路、界面错误可追 | 未通过 | ActionService 与 call_id 已推进，管理旁路和 owner 错误仍在途；全能力与返回核查 W2-18-AC/W3-07/09 |
-| RAC-10 [人工] 巨大单元门禁缩小，测试内部引用下降且不新增 | 通过（现行只降口径） | 同口径 183→157、1,054→855；CI merge-base 不许增长。剩余巨大单元仍须原计划收口，目标不是强加 600 |
+| RAC-10 [人工] 巨大单元门禁缩小，测试内部引用下降且不新增 | 通过（现行只降口径） | 同口径 183→150、1,054→496（联合102b）；CI merge-base 不许增长。剩余巨大单元仍须原计划收口，目标不是强加 600 |
 | RAC-11 [人工] Skill/手册代表性场景及创作台验证 | 未验证 | 有离线 replay/历史验证，最终样板和手册未齐；W6-03 的场景走查与隔离 Home smoke 待做 |
 | RAC-12 [人工] 兼容逻辑清掉，保留机制逐项解释 | 未验证（已清理部分确认） | 0 就地补表与 9 个解释过的标记不证明无非标记兼容；结合 W1-18/旧入口核查与 W6-01 才可最终裁决 |
 | RAC-13 [人工] 每库一份当前 schema、错版明确拒绝 | 未验证（核心拒绝已确认） | baseline helper 与当前版本拒绝/数据不变测试有效；所有库的现行全集与登记门禁 W4-11 未交付 |
 | RAC-14 [人工] 在用 Home 按决定升级/重建并逐表一致 | 未通过最终状态 | 维护六/七结果仅覆盖其当时构建；维护八与新候选仍待做，同事无 Home 已由用户确认，不增加第二份迁移需求 |
 | RAC-15 [人工] 防兼容回流 CI、AGENTS/文档更新 | 通过（已实施清理范围） | merge-base 只降、schema/旧名/vendor/文档规则存在；后续实现改动仍须同步文档，不等于 RAC-12 全仓结论已证 |
 | RAC-16 [人工] 报告、附录 A、第一步每项有结论与证据 | 未通过完成态 | §12.2 已逐项裁决，仍多项在途/未验证；不能因有一个行号或 PR 链接就记已解决 |
-| RAC-17 [人工] 安全不变量测试、依赖/SDK方案用户确认 | 未通过 | 安全表/测试/CI、依赖与 SDK 方案已存在且经决定；本次 S-08/S-18 精确授权竞态未受现有测试守住，须先修并补真实交错回归。外部网络跳过与未采用的上游防护仍保留证据边界 |
+| RAC-17 [人工] 安全不变量测试、依赖/SDK方案用户确认 | 未通过 | 安全表/测试/CI、依赖与SDK方案已存在且经决定；S-08/S-18修复、原caller末等待撤权与真实线程reader等待后stop回归已在103通过，最终共同安全集与全量尚待。外部网络跳过、上游无CI及未采用的其他上游防护仍保留证据边界 |
 | RAC-18 [人工] 跨功能基线无退化，build/type/boundary/CI通过 | 未通过 | I6 预检通过、全量四失败；最终 main、真实模型场景与快照仍 W6-05。局部修后定向通过不能替代 |
 | RAC-19 [人工] 持续完成必要工作，不早停/无限扩重构 | 未通过整线收尾 | 原线程继续第 3–6 波及本次漏项；新建议无当前要求/证据则不扩入。本次只关闭已证实完成的审查与文档工作 |
 
@@ -2671,3 +2671,34 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 
 
 **Runtime model请求真实字节的夹具诊断。** Source c761c7750已修两处mock的JSON.parse(String(init.body))：正式SDK的模型请求是TextEncoder生成的Uint8Array，Node-outbound原样交给fetch；String(Uint8Array)为逗号数字而非JSON。activation mock在第一个start-command返回之前即抛错，graph mock也会在补plan_revision后继续失败，因此两者改为真实string/Uint8Array解码，原消息/任务图/用户verdict和固定报告断言保留。这是独立于method_owner的另一项已确认夹具根因，不是生产SDK未发审批；当前尚未重跑。0c49dc10c另把I6 number题的min/max改为15/120数值，实际SDK约束只收finite number；保原逐题拒绝和有效45续跑断言。Source独立复查接受6b1的8fixture/A2生产冲突，无新增阻塞。Root下一99整体/100七普通+六浏览器只已准备、未排队；Pages现有owner正在其获分配的短窗口，结束明确释放后串行接续。Prologue #20已ready for review、仍open，六项正式SDK模型切换消费证明写入PR，不称其周边11项全过或上游CI存在。
+
+
+**99已获串行窗口并冻结。** Pages原owner短构建/浏览器明确释放后，Root只启动既有99，Source c761c7750加Docs-only携唯一进度至1b782e042；实际包含main774a A2。源码/脚本/包/Skill冻结。新99开始，安装退出0，其余结果仍待；100七普通+六浏览器尚未开始，不重复已验send-intent/Workflow，也不据新Source猜通过。唯一SSOT开头已改已授权SDK/#20/正式换包，I8分支携带版同步，旧“等用户回答”不再作为当前决定。Pages51cbae80d已实际整建/boundary/health/逐项资源及其短回归通过的外线证据由其原owner保留，Root不累加成防腐整批。
+
+
+**99当前组合工程闭环，100真实回归已开始。** 当前main774a A2与c761夹具修正的联合Source，在1b782e042切点实际offline安装、整体build、根/全workspace类型、API、动作快照、actual-base健康、资源、边界九项全部退出0。健康仍150巨大单元/496内部引用/0混源/28错误子类/0非owner码，资源逐项只降，Root只提交两份实测派生表至b66ad829a、clean。100已在该head冻结实际7普通+6浏览器，file secret backend、原整机构建/浏览器锁；当前未归回，不记通过。100后纳Pages已验候选7b6115153进入同一共享核心组合，只该组合再整建并冻结一次全量，33共同路径不预判33冲突；保真正的caller权限、HTML投影、冻结发送、Pages草稿及现行错误/库版本拒绝，派生数值仍重建后生成。当前没有第二份全量或Pages队列。
+
+
+**100实际终态与101定向复验。** b66ad829a冻结组合实际7普通53条：51通过2失败0取消/跳过（125993ms）；6文件浏览器10/10通过0取消/跳过（60238ms）。I6真实number问卷错误/合法续跑、Coding九种取消/撤权/实际provider替换、后台命令read故障保原观察及恢复、激活无需页面的持久wait+四次连续owner read故障恢复（75491ms）均通过，Source判根因没有替代运行。两失败为fixture：observe终态不含异步补读的step_board，以及HTML settings路由先经web-goals-read共同403而非web-planning API400。9550194c6改为terminal后真实adapter.read取得图，原nodes/user verdict/immutable report/reopen断言保留；HTML仅改该403并断原code/reason/call_id，三个API400保留。已独立源核，101只选这两条实际失败复验，wrapper沿生产99构建与隔离Home，其他51普通/10浏览器保100有效证明，不相加宣称新整批或全量。101结果仍待。Pages最终7b6115153 clean、113文件，将在两条完成后纳同一联合分支；此时无第二份共享全量。
+
+
+**共享核心联合合并的冻结合同（102，尚未验收）。** 101两实际失败2/2、0skip/cancel后，Root沿9550194c6合Pages7b611，14真实冲突已记录，不复制两份全量。保Pages评论/thread_source/retainAuthority/Host HTML投影及Root owner错误/冻住发送/caller最终检查。kernel新上下文只复用唯一effectGuard，不复写beforeEffect；保注册token/原撤权与取消的lease检查。Assistant异步检查串联base、线程caller及stillCurrent，最终同步base/assertSendCurrent均保留，不覆盖旧guard；thread角色/冻结材料/不读记忆随Pages保留。新线程复用既定assistant scope/state/stale/needs_check分类及同一owner工厂，缺授权端口authority与空回复empty_reply按原invalid条件登记；不复活AssistantError/AssistantStoreError/MemoryError重写。HTML运行/诊断仍共同request helper；代码/富文本只Host绘制，复制/折叠/审查绑定保留。Pages没有onComment的编辑器fallback复用showPop/原anchorPop与intact核对，新侧栏onComment路径保留；补现有真实浏览器fallback范围映射/换文档拒绝断言。只这些必要合并与验收，阈值/formatter/读历史兼容/真实Home操作不扩入。候选源核、整体新构建/派生表/交集短验与最终共享全量尚未开始，不称联合完成。
+
+
+共享授权交点新增验收（102、未运行）：
+
+- PAS-10 S-18-102-01：真实ActionService的retained guard在权限验证等待后重查原caller同步权限，拒绝Promise；start handler结束后guard仍可用而beforeEffect保持过期，注册替换/取消原断言保留。
+- PAS-10 S-18-102-02：真实Host/Pages回复的最后一次权限等待中撤销原caller或替换writer，回复owner零写入；保fresh caller与retained同步断言，guard返回后继续等待不能绕过。
+- PAS-10 S-18-102-03：复用真实thread work，SDK已接受run后reader等待时stop，放行后最终thread仍stopped、无迟到评论，accepted run被明确停止；原attempt/state尾检及CAS不覆盖停止。
+- W2-18-PAGES-COMMENT-01：实际Chrome无onComment的编辑器评论弹层保映射锚点，只提交原range；换Doc后老按钮不写新文档。新侧栏onComment路径另沿原Pages真实回归。
+
+同一Source实现：RetainedActionAuthority是临时callable+assertCurrent，不持久化、不增权限、不延长handler.beforeEffect；AssistantCaller新增可信同步assertBeforeStart，仅串联base/caller/stillCurrent最终检查。当前Root仍14冲突已去marker但尚未stage/commit，辅助代码与回归正补，未启动构建或全量。
+
+
+**联合102源码合并与首轮实际构建。** 1ae8820cd已实际合Pages7b611至I8（14冲突的scoped remerge及新辅助文件/Caller尾检查已独立复查，无新增Source Blocker/P1），tree clean。保caller beforeStart/最终同步hook、retained callable+assertCurrent、线程状态尾检/CAS/stop收停、Host绘制及Root共同请求、frozen send、Pages普通评论映射锚点；84变更TS仅parse0，不称类型或Runtime通过。已有三个测试文件分别新增真实ActionService等权限后撤权/Promise拒绝，真实Host+SDK+Pages的reply末等待撤权/第二accepted run reader时stop，真实Chrome无onComment锚点移动/换Doc旧按钮拒绝。102 actual install0/build2，仅editor anchorPop返回null被新增port误写为undefined；其他检查未运行。98ecf5d04按现行null合同修正，Kernel手册写明retained断言须进入下游最后同步检查，S18与test:security加真实Thread回归；唯一102b冻结重跑，当前安装0、后续未归回，103/共同全量尚未开始。前次尝试生成补丁的exec JS SyntaxError在任何调用前发生，没有文件写入、不是生产失败。
+
+**联合102b工程与103/104真实运行（替代前述“未运行”状态）。** Source98ecf5d04、派生快照提交ad0ca76fb，离线安装、全仓构建、root/工作区类型、API、动作快照、merge-base健康更新、资源更新、boundary九项实际全部exit0。当前150巨大单元、496测试内部引用、0混合进程、28错误子类、0错误码形状/归属缺陷；29资源9,616,239字节，每项只减。API仅retained callable/assertCurrent合同及其消费声明，动作快照未变。103普通11文件99=97通过2失败/42.053秒，浏览器6文件20=19通过1失败/154.513秒，均0取消/跳过；PAS-10 S-18-102-01/02/03实际通过。104同一冻结source Host HTML两文件5=4通过1失败/18.697秒，S-24四项通过。raw结果在Root临时目录i8-joint-preflight102b-results.json、i8-ordinary103.log、i8-browser103.log、i8-host-html104.log；没有重新启动Claude merge-daemon，未启动共同全量。
+
+**四条实际失败的最小test-only修正。** MCP公共共同出口保code/isError/文案，字段由旧message改现行error；source检查从声明的esbuild browser入口计算相对模块图，再减去所有公共server出口及Host binding可达模块，仅不把browser-only裸Error称为HTTP500，其他错误类/mapper/裸owner码检查仍逐文件执行、共享/未引用模块继续受server检查。评论preview按生产collapsed caret设2和10，保原range映射、Prefix不纳入、换Doc老按钮零写入断言。Host review传输失败按唯一molisWorkRequest现行ui_host.outcome_unknown文案检查，保按钮恢复、真实reject零待办/approve一条待办等断言，不改生产出口。105错误出口整文件13/13通过、0取消/跳过、4.998秒；106只重验两个失败浏览器场景，结果待归回。已绿的103其余19浏览器不机械重跑。本次仅测试变更，不扩大门禁例外、阈值、模型主分支或真实Home授权。
+
+**106/107终态与共享全量准备。** 106两条真实Chrome失败场景2/2、0取消/跳过、18.719秒，评论原范围映射/Prefix不纳入/换Doc老按钮零写入，以及Host流式阅读、代码精确复制、折叠、命名对象、review断连恢复与真实reject0/approve1均实际成立。新增最小临时模块图证实browser-only被识别、共享server导出与Host消费同模块不会被免除；107该定向、root tsc与merge-base health全部exit0，不放宽门禁。代码仍沿102b已构建source，随后仅三测试及唯一进度spec变更；不为test-only重新构建。Root将同步spec至I8并冻结head，唯一共享全量108持全机build/browser两个名额，结束前不改源码、脚本、package.json或skills。

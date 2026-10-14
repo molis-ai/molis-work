@@ -576,7 +576,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         clearTimeout(saving);
         const button = card.querySelector("[type=submit]");
         if (button) button.disabled = true;
-        try { view = await api(path + "/answer", "POST", { ...held(), run_id: round.run_id, pending_revision: question.pending_revision }); render(); schedule(); }
+        try { view = await api(path + "/answer", "POST", { ...held(), run_id: round.run_id, pending_revision: question.pending_revision }); render(); poll(); }
         catch (error) { if (error.body?.details?.errors) client.showErrors(error.body.details.errors, { focus: true }); else showError(error); if (button) button.disabled = false; }
       },
     }, question.pending_id + question.pending_revision + question.answerable);
@@ -627,7 +627,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       try {
         // "redo" only asks: the Assistant re-reads and offers a fresh card; nothing runs in this one's place.
         const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/" + id, "POST", id === "run" ? { revision: card.revision, values: client.read() } : {});
-        if (id === "redo") { await refresh(); schedule(); return; }
+        if (id === "redo") { await reload(); poll(); return; }
         if (view && view.work.work_id === work.work_id) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one);
         if (next.status === "done") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: next.capability_id } }));
         render();

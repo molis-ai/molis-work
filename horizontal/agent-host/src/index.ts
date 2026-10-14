@@ -1,5 +1,6 @@
+import { isDeepStrictEqual } from "node:util";
 import { parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { parseExactActionReferences, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, parseExactActionReferences, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { importedCharacterInstructions } from "./character-import.js";
 import type {
   AgentManifest,
@@ -225,6 +226,10 @@ export interface AgentStartAuthority {
    * prompts from these; an adapter never invents one.
    */
   prompts?: readonly AgentPromptText[];
+  /** Optional effective snapshot already frozen by a trusted consumer. Compare
+   * synchronously with the actual resolution before any Runtime start. The
+   * consumer still rechecks its request and current snapshot at dispatch. */
+  expected_prompts?: readonly AgentPromptText[];
   skills?: readonly AgentSkillDefinition[];
   method_owner?: AgentSkillOwner;
   /**
@@ -251,6 +256,16 @@ export interface AgentStartAuthority {
 /** Looks up the text a registered prompt runs with now. Returns the prompt unchanged when the person has not edited it. */
 export interface AgentPromptResolver {
   effective(ownerId: string, prompt: AgentPromptText): AgentPromptText;
+}
+
+/** Resolve and verify as one synchronous boundary, before any Runtime start. */
+function effectiveAuthority(authority: AgentStartAuthority, owner: string, resolver?: AgentPromptResolver): AgentStartAuthority {
+  const resolved = resolver && authority.prompts?.length
+    ? { ...authority, prompts: authority.prompts.map(prompt => resolver.effective(owner, prompt)) } : authority;
+  if (resolved.expected_prompts && !isDeepStrictEqual(resolved.prompts ?? [], resolved.expected_prompts)) {
+    throw new ActionError("actions.configuration_changed", "有效 Agent 方法与调用方冻结的快照不同；本次没有启动 Runtime");
+  }
+  return resolved;
 }
 
 export class AgentHost implements AgentHostApi {
@@ -402,10 +417,7 @@ export class AgentHost implements AgentHostApi {
     request = { ...request, budget: parseAgentRunBudget(request.budget), execution_plan: freezeExecutionPlan(request) };
     // What runs is the registered prompt as the person left it: their version when they edited it, otherwise the
     // default. Same id and version either way — the frozen record says which, and no text widens what the role may do.
-    if (this.#prompts && authority.prompts?.length) {
-      const resolve = this.#prompts;
-      authority = { ...authority, prompts: authority.prompts.map(prompt => resolve.effective(request.plugin_id, prompt)) };
-    }
+    authority = effectiveAuthority(authority, request.plugin_id, this.#prompts);
     const adapter = this.adapter(runtimeId);
     const role = authority.manifest.roles.find((item) => item.role_id === request.role_id);
     if (!role) {

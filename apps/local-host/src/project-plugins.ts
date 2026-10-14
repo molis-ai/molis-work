@@ -1,3 +1,5 @@
+import { createCgsRuntimePlugin } from "@molis-ai/molis-work-plugin-cgs";
+import { creationPluginPorts } from "./creation-plugin-ports.js";
 import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { createCharactersPlugin } from "@molis-ai/molis-work-plugin-characters";
 import { charactersPluginPorts, codingCharacterPorts } from "./characters-host.js";
@@ -181,7 +183,11 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       },
       onWorkingTreeChanged: () => { platform.invalidateView(GIT_PLUGIN_ID); },
     };
+    const creationPorts = creationPluginPorts(ports);
     const entries: PluginPlatformEntry[] = [
+      { definition: createCgsRuntimePlugin(creationPorts), bundled: true,
+        releaseArtifact: nativePluginReleaseArtifact<typeof createCgsRuntimePlugin>(
+          "@molis-ai/molis-work-plugin-cgs", "createCgsRuntimePlugin", factory => factory(creationPorts)) },
       {
         definition: createCharactersPlugin(charactersPorts),
         bundled: true,

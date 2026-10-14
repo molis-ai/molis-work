@@ -2961,6 +2961,7 @@ export interface PluginRouteDeclaration {
     method: PluginRouteMethod;
     path: string;
     permission?: string;
+    max_body_bytes?: number;
 }
 
 export type PluginRouteMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";

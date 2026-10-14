@@ -24,6 +24,10 @@ export type UiCommandInputKind = (typeof UI_COMMAND_INPUT_KINDS)[number];
 
 export interface UiContribution<TModel = unknown> {
     readonly descriptor: UiContributionDescriptor;
+    readonly client?: {
+        readonly module_route: string;
+        readonly stylesheet_route?: string;
+    };
     render(request: UiRenderRequest<TModel>): string;
 }
 

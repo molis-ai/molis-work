@@ -1,0 +1,2 @@
+# Preserve the PDF fixture byte-for-byte; xref offsets are not text formatting.
+cgs-chinese-material.pdf binary

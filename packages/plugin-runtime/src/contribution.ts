@@ -61,6 +61,13 @@ function assertViews(manifest: PluginManifest, contribution: PluginAppContributi
       continue;
     }
     delivered.set(contributionId, true);
+    for (const routeId of view.client ? [view.client.module_route, view.client.stylesheet_route].filter(id => id !== undefined) : []) {
+      const route = manifest.routes?.find(item => item.route_id === routeId);
+      if (!route || route.method !== "GET" || /[:*?#]/u.test(route.path) || !route.path.startsWith("/") || route.path.startsWith("//")
+        || route.path.split("/").some(segment => segment === "." || segment === ".." || /%/u.test(segment))) {
+        problems.push(`视图 ${contributionId} 的客户端资源必须使用本插件声明的静态 GET 路由`);
+      }
+    }
   }
   for (const [contributionId, viewId] of expected) {
     if (!delivered.has(contributionId)) {

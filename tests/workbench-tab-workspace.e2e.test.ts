@@ -136,3 +136,30 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   await waitFor("document.querySelectorAll('.tab-item').length === 1 && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
 });
+
+// CGS-AS-02/08: Runtime apps have no baked-in search-row entry. The same
+// openRecord path used by the Assistant side panel must still select the work.
+test("CGS-AS-02 a Runtime record opens from its owner and assistant creation refreshes the visible library", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { command, sessionId, navigate, waitFor, evaluate, click, origin, projectId, homeDirectory, controlToken } = browser;
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "cgs", actor_id: "runtime-record-test" }); catalog.close();
+  const start = async (text: string) => {
+    const id = crypto.randomUUID();
+    const response = await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.cgs/works/start`, { method: "POST", headers: {
+      origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": crypto.randomUUID()
+    }, body: JSON.stringify({ request_id: id, text }) });
+    assert.equal(response.status, 200, await response.clone().text()); return id;
+  };
+  const id = await start("第一篇导航验收材料");
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=cgs&openRecord=${id}` }, sessionId));
+  await waitFor(`JSON.parse(document.querySelector('[data-work-surface=cgs]')?.dataset.assistantContext || '{}').object?.id === ${JSON.stringify(id)}`);
+  await click('[data-cgs-part=materials] summary');
+  assert.equal(await evaluate("document.querySelector('[data-cgs-field=source]').value"), "第一篇导航验收材料");
+  assert.equal(await evaluate("document.querySelector('[data-cgs-prompt]') === null"), true, "the assistant is the only composer");
+  await click('[data-cgs-action=back]');
+  const second = await start("第二篇来自个人助理");
+  await evaluate("window.dispatchEvent(new CustomEvent('molis:assistant-effect', { detail: { capability_id: 'cgs.work.start' } }))");
+  await waitFor(`document.querySelector('[data-cgs-open="${second}"]')`);
+  assert.equal(await evaluate("document.querySelector('[data-cgs-part=list-status]').textContent"), "2 份已保存作品");
+});

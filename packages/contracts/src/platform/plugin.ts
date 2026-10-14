@@ -173,6 +173,8 @@ export interface PluginRouteDeclaration {
   path: string;
   /** Permission the caller's session must hold. Omitted means the Plugin's own grants suffice. */
   permission?: string;
+  /** Optional UTF-8 JSON body budget; positive bytes, at most 14 MiB. Default 256,000; not for GET. */
+  max_body_bytes?: number;
 }
 
 export interface PluginManifest {

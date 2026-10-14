@@ -35,6 +35,15 @@ test("an ending that only announces the next step is recognised; results, questi
   }
 });
 
+test("long explanations cannot hide a closing promise, including a promised rewrite after an identifier correction", () => {
+  const explanation = "已读材料，需要保留作者原意。".repeat(60);
+  assert.equal(announcesWithoutActing(`${explanation}\n我先读一下它，再调用生成能力。`), true);
+  assert.equal(announcesWithoutActing("按规则把内部编号藏起来，只用人能看懂的标题和名称。我重写一下要发的话，并记一条长期偏好。"), true);
+  for (const closing of ["原稿已保存，请打开作品查看。", "需要你选择采用哪一份。", "无法继续，模型服务不可用。", "我重写了结尾，原意保留。", "要继续生成吗？"]) {
+    assert.equal(announcesWithoutActing(`${explanation}\n${closing}`), false, closing);
+  }
+});
+
 test("a reply that claims a memory was kept or forgotten is recognised; saying it was not is not a claim", () => {
   // Seen from MiniMax-M3: it listed the memories, then answered as if it had kept the new one.
   assert.equal(claimsMemoryChange("记下了：**Q4 plan 项目的周会固定在周三下午两点**。这条只在本项目里生效。"), "keep");

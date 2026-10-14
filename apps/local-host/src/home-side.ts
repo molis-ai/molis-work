@@ -65,3 +65,9 @@ export function projectFixtureEntries(homeDirectory: string | undefined): Plugin
     return { definition, ...(database ? { database } : {}) };
   });
 }
+
+/** The existing Home service, shared with its web and assistant entry points. */
+export function pluginAgentServiceFor(homeDirectory: string) {
+  const side = sides.get(path.resolve(homeDirectory));
+  return side ? ensureSystemAgentService(side.host, homeDirectory) : undefined;
+}

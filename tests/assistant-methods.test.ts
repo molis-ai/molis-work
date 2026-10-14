@@ -100,6 +100,7 @@ test("a round lists the methods its scope can use; one the person chose goes wit
     await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed"; }, "second round");
     const second = requests.at(-1)!;
     assert.ok(!second.includes("用户为这一轮选定的方法"), "a chosen method is for its own round only");
+    assert.ok(second.includes("assistant.methods.list"), "the preview explains how to discover methods beyond twenty");
     assert.ok(second.includes("可用的方法") && second.includes(PAGES_METHOD), "the round sees which methods it can read");
     assert.ok(second.includes("input 是对象，例如") && second.includes("method_id"), "and exactly how to read one (its input is an object)");
 

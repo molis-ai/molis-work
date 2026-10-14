@@ -11,6 +11,7 @@ const PACK_ID = "molis-action-gateway";
 const FIND_LIMIT = 8;
 
 type Gateway = NonNullable<AgentFrozenRole["action_gateway"]>;
+type CollectAfterDispatch = (result: Promise<string>) => string;
 interface CapabilityArgs { capability_id: string; version: number; provider_id: string; input?: unknown }
 
 const describe = (view: ActionView, direct = false) => {
@@ -90,6 +91,28 @@ function inputSchemaError(error: unknown, schema: ActionView["action"]["input_sc
   throw error;
 }
 
+function guardedRunner(run: (args: Record<string, unknown>, signal: AbortSignal, collect?: CollectAfterDispatch) => Promise<string>, runSignal?: AbortSignal): ToolRunner {
+  return async call => {
+    const abort = new AbortController();
+    const stop = () => abort.abort(new ActionError("actions.cancelled", "Agent action cancelled"));
+    const unsubscribe = call.abort?.subscribe(stop);
+    call.signal?.addEventListener("abort", stop, { once: true });
+    runSignal?.addEventListener("abort", stop, { once: true });
+    if (runSignal?.aborted || call.signal?.aborted || call.abort?.requested()) stop();
+    const cleanup = () => { unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); };
+    let collecting = false;
+    const collect: CollectAfterDispatch | undefined = call.afterDispatch ? result => {
+      collecting = true;
+      const completion = result.finally(cleanup);
+      completion.catch(() => undefined);
+      call.afterDispatch!(() => completion);
+      return "The operation was handed to its owner; collecting its result.";
+    } : undefined;
+    try { abort.signal.throwIfAborted(); return await run(call.args as Record<string, unknown>, abort.signal, collect); }
+    finally { if (!collecting) cleanup(); }
+  };
+}
+
 /**
  * The Host's action gateway as one SDK pack: three tools instead of one per action.
  *
@@ -100,16 +123,7 @@ function inputSchemaError(error: unknown, schema: ActionView["action"]["input_sc
 export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal) {
   // Capabilities this round has seen offered (found or used): one missing later was taken away, not guessed.
   const known = new Set<string>();
-  const guarded = (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>): ToolRunner => async call => {
-    const abort = new AbortController();
-    const stop = () => abort.abort(new ActionError("actions.cancelled", "Agent action cancelled"));
-    const unsubscribe = call.abort?.subscribe(stop);
-    call.signal?.addEventListener("abort", stop, { once: true });
-    runSignal?.addEventListener("abort", stop, { once: true });
-    if (runSignal?.aborted || call.signal?.aborted || call.abort?.requested()) stop();
-    try { abort.signal.throwIfAborted(); return await run(call.args as Record<string, unknown>, abort.signal); }
-    finally { unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
-  };
+  const guarded = (run: Parameters<typeof guardedRunner>[0]): ToolRunner => guardedRunner(run, runSignal);
   const current = async (args: CapabilityArgs, write: boolean): Promise<ActionView> => {
     const views = await gateway.client.discover();
     const view = views.find(row => row.capability_id === args.capability_id && row.version === args.version && row.provider.provider_id === args.provider_id);
@@ -121,30 +135,37 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     if (!write && !reads) throw new ActionError("actions.gateway_mismatch", `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`);
     return view;
   };
-  const invoke = async (args: CapabilityArgs, view: ActionView, signal: AbortSignal, write = false) => {
+  const invoke = async (args: CapabilityArgs, view: ActionView, signal: AbortSignal, write = false, collect?: CollectAfterDispatch) => {
     const schema = view.action.input_schema;
     // A change stops being waited on a little before the runtime's own deadline, so the round hears why in words.
     const local = new AbortController();
     const follow = () => local.abort(signal.reason);
     if (signal.aborted) follow(); else signal.addEventListener("abort", follow, { once: true });
-    const deadline = write && timeoutMs > 10_000 ? setTimeout(() => local.abort(new ActionError("actions.timeout", "ran out of time")), timeoutMs - 5_000) : undefined;
-    try {
-      const call = gateway.client.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
-        normalizedInput(view, args.input), local.signal);
-      call.catch(() => undefined);
-      // A change is not waited on past a stop or deadline: its owner may still finish it, so it ends as "not known".
-      const result = write ? await Promise.race([call, abortedBy(local.signal)]) : await call;
-      local.signal.throwIfAborted();
-      return JSON.stringify(result) ?? "null";
-    } catch (error) {
-      const code = (error as { code?: unknown })?.code;
-      // Sent to its owner and not finished (stopped or out of time), or finished with an unusable result: it may have
-      // happened. Said as such, so neither the person nor the model takes it for "nothing happened" and repeats it.
-      if (write && (local.signal.aborted || code === "actions.output_invalid_after_effect")) {
-        throw new ActionError("actions.outcome_unknown", `"${view.provider.title} · ${view.action.title}" was sent but did not finish (${local.signal.aborted ? "it ran out of time or was stopped" : "its result was invalid"}); it may or may not have taken effect. Do not submit it again: first read the object back with ${GATEWAY_TOOLS.read} and tell the person what actually happened.`);
-      }
-      inputSchemaError(error, schema);
-    } finally { clearTimeout(deadline); signal.removeEventListener("abort", follow); }
+    const limit = Math.min(timeoutMs, view.action.execution?.timeout_ms ?? 60_000);
+    const deadline = write ? setTimeout(() => local.abort(new ActionError("actions.timeout", "ran out of time")), limit > 10_000 ? limit - 5_000 : limit) : undefined;
+    const completion = (async () => {
+      try {
+        const call = gateway.client.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
+          normalizedInput(view, args.input), local.signal);
+        call.catch(() => undefined);
+        // A change is not waited on past a stop or deadline: its owner may still finish it, so it ends as "not known".
+        const result = write ? await Promise.race([call, abortedBy(local.signal)]) : await call;
+        local.signal.throwIfAborted();
+        return JSON.stringify(result) ?? "null";
+      } catch (error) {
+        const code = (error as { code?: unknown })?.code;
+        // Sent to its owner and not finished (stopped or out of time), or finished with an unusable result: it may have
+        // happened. Said as such, so neither the person nor the model takes it for "nothing happened" and repeats it.
+        if (write && (local.signal.aborted || code === "actions.output_invalid_after_effect")) {
+          throw new ActionError("actions.outcome_unknown", `"${view.provider.title} · ${view.action.title}" was sent but did not finish (${local.signal.aborted ? "it ran out of time or was stopped" : "its result was invalid"}); it may or may not have taken effect. Do not submit it again: first read the object back with ${GATEWAY_TOOLS.read} and tell the person what actually happened.`);
+        }
+        inputSchemaError(error, schema);
+      } finally { clearTimeout(deadline); signal.removeEventListener("abort", follow); }
+    })();
+    // The approved dispatch hands this call to the action owner, which checks authority again before effects.
+    // A declared concurrent operation may outlive the SDK dispatch permit; collect its already running call
+    // after that receipt closes. Its own deadline and cancellation listeners stay live until collection ends.
+    return write && view.action.scheduling === "concurrent" && limit > 60_000 && collect ? collect(completion) : await completion;
   };
   const executors: Record<string, ToolRunner> = {
     [GATEWAY_TOOLS.find]: guarded(async args => {
@@ -183,20 +204,22 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     }),
     ...delegationExecutors(gateway.client.delegate, guarded),
     ...memoryExecutors(gateway.client.memory, guarded),
-    [GATEWAY_TOOLS.change]: guarded(async (args, signal) => {
+    [GATEWAY_TOOLS.change]: guarded(async (args, signal, collect) => {
       if (!gateway.operate) throw new ActionError("actions.forbidden", "This role may only read.");
       const parsed = parseCapability(args);
       const view = await current(parsed, true);
-      return invoke(parsed, view, signal, true);
+      return invoke(parsed, view, signal, true, collect);
     }),
     // A change that says how it is undone, which the person lets run without asking: it runs now and can be taken back.
-    [GATEWAY_TOOLS.direct]: guarded(async (args, signal) => {
+    [GATEWAY_TOOLS.direct]: guarded(async (args, signal, collect) => {
       if (!gateway.operate) throw new ActionError("actions.forbidden", "This role may only read.");
       const parsed = parseCapability(args);
       const view = await current(parsed, true);
       if (!gateway.client.direct?.(view)) throw new ActionError("actions.gateway_mismatch", `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`);
-      const output = await invoke(parsed, view, signal, true);
-      return JSON.stringify({ result: JSON.parse(output), note: "It ran without a confirmation because it can be undone. Tell the person what changed and that they can undo it from this work's panel." });
+      const decorate = (output: string) => JSON.stringify({ result: JSON.parse(output), note: "It ran without a confirmation because it can be undone. Tell the person what changed and that they can undo it from this work's panel." });
+      let deferred = false;
+      const output = await invoke(parsed, view, signal, true, collect ? result => { deferred = true; return collect(result.then(decorate)); } : undefined);
+      return deferred ? output : decorate(output);
     }),
   };
   const capability = { type: "object", properties: {
@@ -204,7 +227,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     input: { type: ["object", "array", "string", "number", "boolean", "null"], description: "The capability's input as a JSON value (an object, not a string of JSON), shaped exactly by the input_schema find-capabilities returned; {} when that schema declares no properties." },
   }, required: ["capability_id", "version", "provider_id"] };
   const tool = (name: string, description: string, parameters: Record<string, unknown>, effectKind: "safe-read" | "mutate-external") => ({ executor: name,
-    registration: { name, version: "1", description, parameters, effectKind, gate: "broker" as const, timeoutMs, idempotency: "none" as const } });
+    registration: { name, version: "1", description, parameters, effectKind, gate: "broker" as const, timeoutMs: effectKind === "mutate-external" ? timeoutMs : Math.min(timeoutMs, 60_000), idempotency: "none" as const } });
   const suggest = { type: "object", properties: {
     title: { type: "string", description: "The button's words, verb first, at most 40 characters, e.g. \"加入计划（3 项）\"." },
     summary: { type: "string", description: "What clicking does in the person's words: which object, which key values, dates with their day and time zone." },
@@ -263,7 +286,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   const all = tools.map(one => one.registration.name);
   const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (name !== GATEWAY_TOOLS.direct || (gateway.operate && gateway.client.direct)) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate)
     && memoryToolOffered(name, gateway.client.memory));
-  const pack: ScenarioPack = { id: PACK_ID, version: "2.4.8", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
+  const pack: ScenarioPack = { id: PACK_ID, version: "2.4.9", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
   return { pack, executors, names, known };

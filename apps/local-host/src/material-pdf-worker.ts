@@ -1,11 +1,14 @@
 import { parentPort, workerData } from "node:worker_threads";
+import { fileURLToPath } from "node:url";
 import type { MaterialExtraction, MaterialLimits } from "@molis-ai/molis-work-contracts/services/materials";
 import { boundedMaterialText } from "./material-text.js";
 
 async function extract(bytes: Uint8Array, limits: MaterialLimits): Promise<MaterialExtraction> {
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const task = getDocument({ data: bytes, useSystemFonts: false, disableFontFace: true,
-    useWorkerFetch: false, isOffscreenCanvasSupported: false, verbosity: 0 });
+    useWorkerFetch: false, isOffscreenCanvasSupported: false, verbosity: 0,
+    cMapUrl: fileURLToPath(new URL("./cmaps/", import.meta.resolve("pdfjs-dist/package.json"))), cMapPacked: true,
+    standardFontDataUrl: fileURLToPath(new URL("./standard_fonts/", import.meta.resolve("pdfjs-dist/package.json"))) });
   try {
     const pdf = await task.promise, pages: MaterialExtraction["pages"] = [], issues: string[] = [];
     let text = "", truncated = pdf.numPages > limits.maxPages;

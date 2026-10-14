@@ -194,11 +194,11 @@ function projectRouteHooks(
       record.running = active?.status === "running";
       record.error = active?.message ?? undefined;
     },
-    async beforeDispatch(router) {
+    async beforeDispatch(router, execution) {
       // Existing workspace outputs need a settings refresh before their consumers
       // read them. Unrelated plugins must not cause Files reads or publications.
       if (!readsFilesOutputs(platform, pluginId)) return;
-      await router.dispatch({ method: "GET", pathname: `/api/plugins/${FILES_PLUGIN_ID}/state`, actor_id: ports.actorId, query: {} });
+      await router.dispatch({ method: "GET", pathname: `/api/plugins/${FILES_PLUGIN_ID}/state`, actor_id: ports.actorId, query: {}, execution });
       await platform.wiring.drain();
     },
     async afterDispatch(result) {

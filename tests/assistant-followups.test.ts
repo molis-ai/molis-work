@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import type { AssistantFollowUp } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantFollowUp, AssistantMethod } from "@molis-ai/molis-work-contracts/services/assistant";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantError, AssistantService, sameLocalTimeLater } from "../apps/local-host/src/assistant/assistant-service.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
-import { ASSISTANT_FOLLOW_UP_ACTIONS, registerAssistantRuleActions } from "../apps/local-host/src/assistant/assistant-rule-actions.js";
+import { ASSISTANT_FOLLOW_UP_ACTIONS, ASSISTANT_METHOD_ACTIONS, registerAssistantRuleActions } from "../apps/local-host/src/assistant/assistant-rule-actions.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -179,4 +179,36 @@ test("archiving a work puts its timed rounds away: queued times are cancelled, a
     assert.equal((await service.read(workId)).rounds.length, 2, "no timed round ran for the archived work");
     assert.equal(requests.length, 2);
   } finally { hold = null; release?.(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+
+test("CGS-AS-01 full method catalog pages past twenty and enforces live scope before reading", async () => {
+  const database = new DatabaseSync(":memory:"), store = new AssistantStore(database), actions = new ActionService();
+  let enabled = true, bodyReads = 0;
+  const methods = Array.from({ length: 27 }, (_, i) => ({ key: `io.test.methods/step-${i}`, owner_id: "io.test.methods", skill_id: `step-${i}`, name: `场景 ${i}`, summary: i === 26 ? "双平台素材准备" : "通用方法", version: 1, tools: ["read-capability"], source: { kind: "plugin" as const, plugin_id: "io.test.methods", plugin_version: "1.0.0", title: "测试套件" } }));
+  const service = new AssistantService(store, {
+    host: async () => { throw new Error("discovery must never invoke a model"); },
+    authority: async () => { throw new Error("discovery must never start an agent"); },
+    scopeActions: async () => ({ discover: async () => enabled ? [{ ...ASSISTANT_METHOD_ACTIONS.list, provider: { provider_id: "io.test.methods", kind: "plugin" as const, title: "测试套件" }, availability: { available: true as const } }] : [], invoke: async () => { throw new Error("read-only discovery"); } }),
+    methods: { list: () => methods, read: () => { bodyReads++; return { ...methods[26]!, body: "第 27 个方法的完整正文" }; } },
+  }, "catalog-author");
+  type MethodPage = { methods: AssistantMethod[]; total: number; next_offset: number | null };
+  const unregister = registerAssistantRuleActions(actions, () => service);
+  const caller = { actor_id: "catalog-author", audience: "agent" as const, project_id: null, permissions: [] };
+  try {
+    const first = await actions.invoke(caller, ASSISTANT_METHOD_ACTIONS.list, {}) as MethodPage;
+    assert.equal(first.methods.length, 20); assert.equal(first.total, 27); assert.equal(first.next_offset, 20); assert.equal(bodyReads, 0);
+    const second = await actions.invoke(caller, ASSISTANT_METHOD_ACTIONS.list, { offset: first.next_offset }) as MethodPage;
+    assert.equal(second.methods.length, 7); assert.equal(second.next_offset, null);
+    const found = await actions.invoke(caller, ASSISTANT_METHOD_ACTIONS.list, { query: "双平台" }) as MethodPage;
+    assert.equal(found.methods[0]!.method_id, "io.test.methods/step-26");
+    assert.equal((await actions.invoke(caller, ASSISTANT_METHOD_ACTIONS.read, { method_id: found.methods[0]!.method_id }) as AssistantMethod & { body: string }).body, "第 27 个方法的完整正文");
+    assert.equal(bodyReads, 1);
+    enabled = false;
+    assert.equal((await actions.invoke(caller, ASSISTANT_METHOD_ACTIONS.list, {}) as MethodPage).total, 0);
+    await assert.rejects(actions.invoke(caller, ASSISTANT_METHOD_ACTIONS.read, { method_id: found.methods[0]!.method_id }), /没有可用的方法/);
+    assert.equal(bodyReads, 1, "disabled methods are rejected before body access");
+    await assert.rejects(actions.invoke(caller, ASSISTANT_METHOD_ACTIONS.list, { offset: -1 }));
+    await assert.rejects(actions.invoke(caller, ASSISTANT_METHOD_ACTIONS.list, { limit: 51 }));
+  } finally { unregister(); database.close(); }
 });

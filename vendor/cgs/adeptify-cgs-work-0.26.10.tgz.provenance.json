@@ -1,0 +1,354 @@
+{
+  "schema_version": 1,
+  "version": "0.26.10",
+  "sources": [
+    {
+      "path": "src/infrastructure/creation-runtime/command.ts",
+      "sha256": "25585fb57386e1a3ca3295ae5d9e3830079106615508b97e9838c43a2af3f109"
+    },
+    {
+      "path": "src/domain/library.ts",
+      "sha256": "8e52252717e3f4f48fe81e4c464248ba82b53188e69398bf4c7aec87fede42cd"
+    },
+    {
+      "path": "src/domain/topic-review.ts",
+      "sha256": "8131ed68dbd00f7e663dabd436f8a52a49d4e42a09f63a221884ea650188f5c8"
+    },
+    {
+      "path": "src/domain/topics.ts",
+      "sha256": "d69ac1192058b0daeb4966d1aa7b99a68646edb64c524ba10ca9b657fd46c59f"
+    },
+    {
+      "path": "src/domain/creation-material-extraction.ts",
+      "sha256": "f018b8945af5e8b872471c728459493515ba6f4e5b4d4e0db18a9edf72e3c07d"
+    },
+    {
+      "path": "src/domain/creation-research.ts",
+      "sha256": "c077fc460dadb529b72334dfc9bf3e4da2e8eecd2d44e8e9dac57c1a863755e7"
+    },
+    {
+      "path": "src/domain/background-interview.ts",
+      "sha256": "b39bd157cd2746479361fbf6bc7ee8549ef932ec9211953f92ce51d149510ee8"
+    },
+    {
+      "path": "src/domain/creation.ts",
+      "sha256": "0e5b20f9cd54cb2b0aa9dbee5dc6b52b0f622de8c446d5dac4c4e4c83e4054aa"
+    },
+    {
+      "path": "src/domain/creation-artifacts.ts",
+      "sha256": "317b0b4d3cab4bc5b80bcfde66d4a67e0041df00f6dcc5b74411be5fa07c979d"
+    },
+    {
+      "path": "src/application/background-interview.ts",
+      "sha256": "c448a25606388f9c17c048694603a5f9a92bde8636b018f72362a23d5b645a4b"
+    },
+    {
+      "path": "web/creation-preferences.js",
+      "sha256": "2de7e471f9c2e77aad72e1b343fb735e006391510c00dc6709d6b19cb15af118"
+    },
+    {
+      "path": "web/creation-materials.js",
+      "sha256": "0edad931604ac2c257428480e0d4efb2bf269e4b34ea4f7e9d6fc98983fb418c"
+    },
+    {
+      "path": "src/application/creation-context.ts",
+      "sha256": "d74c80fab3347316e5b6331d7db3048abc64e40dd23aa728d3ca4cdfa906fc05"
+    },
+    {
+      "path": "web/creation-next-steps.js",
+      "sha256": "27c9fb6c46aeee27945531712a3173ed71c648720c21778658e1f44cb2abf66b"
+    },
+    {
+      "path": "web/creation-progress.js",
+      "sha256": "eb4e56d24d4c5a0a6988cc4895806cbeb4319a472f09dbb57c6c28314dccc6bd"
+    },
+    {
+      "path": "src/domain/material-library.ts",
+      "sha256": "8cccf802ead1e880fea89742a527346a6271b435af89f904874d5e34950d42ca"
+    },
+    {
+      "path": "src/domain/research-material-quality.ts",
+      "sha256": "7e8d05a32f0ce55f5088a6b9d8729316f14fa920736fe5e313be1790cf7bd77c"
+    },
+    {
+      "path": "src/infrastructure/creation-file-reader.ts",
+      "sha256": "724cde559ac963589f32b0f57517643d9f56aec0f546619706e599a5d1cefa73"
+    },
+    {
+      "path": "src/infrastructure/creation-public-fetch.ts",
+      "sha256": "bcf6f5e60892918564843072517ac18a64781f16ce54b43c412c48c061f1ecee"
+    },
+    {
+      "path": "src/infrastructure/creation-hls.ts",
+      "sha256": "c1431269715e734247816298a444821aa462ee67273b261638000af8208712a2"
+    },
+    {
+      "path": "src/infrastructure/creation-url-reader.ts",
+      "sha256": "d8879a5077bcba5a4842c865a775ff98df54ba4bf26463f5d0d344ad4b6b046f"
+    },
+    {
+      "path": "src/application/creation-material-library.ts",
+      "sha256": "8d3377b0e2a5957ebe0ef61ae35108c8e5e0b2439db02d5b8ae4fe9c80c8444a"
+    },
+    {
+      "path": "src/domain/creation-start.ts",
+      "sha256": "c7a5ec84ad0c2e67ded93c44eb5ea6bbc26452f5fff775bfb7af26777fb967bb"
+    },
+    {
+      "path": "src/application/creation-apply.ts",
+      "sha256": "5f0b99b41ad55fc414ed97b04abb335dc22cce1d42e398f0b6a6ff61de9d1183"
+    },
+    {
+      "path": "src/infrastructure/creation-provider.ts",
+      "sha256": "f6d8d7eda7009f77432d9eb1735bc08ee5796cba8201ac3d0b7baf30571d7179"
+    },
+    {
+      "path": "src/domain/creation-output-constraints.ts",
+      "sha256": "bb05bb38ad6a8a750f425da35ae81754782b994a525d7563a965d7255b1e70f0"
+    },
+    {
+      "path": "web/creation-cards.js",
+      "sha256": "acdc24c8b31efffefc329a304a42305fd826f487e571cbf2455d07a5a0b4ae8e"
+    },
+    {
+      "path": "src/application/creation-tools.ts",
+      "sha256": "10f80d458d6dd60e3320b0256b16eb64325b6eefe10b2bc4b2a278741efd634d"
+    },
+    {
+      "path": "src/application/creation-turn.ts",
+      "sha256": "90e6b89df10d26be232d374b92e66284d5df597e1514641e3b1860a7901d0aab"
+    },
+    {
+      "path": "src/domain/creation-model-receipt.ts",
+      "sha256": "ebc2ba5e2573cdfd2a716edda0632767c2bba1e3842c0ef75bbaee3014b9a2ef"
+    },
+    {
+      "path": "src/domain/creation-learning.ts",
+      "sha256": "f4b67a63fcdbb3f2bfd6dc922cbd18bb0da035adec73a44947812b2e065886e0"
+    },
+    {
+      "path": "src/application/creation-model.ts",
+      "sha256": "8a3792a98da949d3c9fc5dea21851b4fe6c1aeca057fda5ccbc20c0aa18554bc"
+    },
+    {
+      "path": "src/domain/creation-runtime.ts",
+      "sha256": "d624952bc78b8f1d63190f103b10f8da1a4d95916bb24ae47f1fde9e081ec2c6"
+    },
+    {
+      "path": "src/infrastructure/sel-acquisition.ts",
+      "sha256": "a52d26f28e09f470de214033e0456cfe88825b65b46917ee42d0ebd75e5c6d8c"
+    },
+    {
+      "path": "src/infrastructure/live-sel-public-search.ts",
+      "sha256": "7ca33686e2dc2603b5a310c30b86e41025f0036df73104802ab71c2282d9198f"
+    },
+    {
+      "path": "src/application/creation-research.ts",
+      "sha256": "b9ab4fa669a7f6a15259d4b8da9e593cf3a515a6eedfe9ba5a1e3deb173e5974"
+    },
+    {
+      "path": "src/application/creation-learning.ts",
+      "sha256": "4d0c32712d359f57b8d8f2b791e840462fb4521a117422fc53280ae807ad972e"
+    },
+    {
+      "path": "src/application/creation-execution.ts",
+      "sha256": "127a54159296205ad0519fb182bbb7f6858aa7976113d54a075393b2586f95c3"
+    },
+    {
+      "path": "src/application/creation-workspace.ts",
+      "sha256": "93cd189db36be69d292b3a1e1d203cd6381354980257e08b162631580ba24d29"
+    },
+    {
+      "path": "packages/cgs-core/index.ts",
+      "sha256": "63ded442d164a0488c83ee0e01432aa43353cee89355b09564e4299ebc9c842c"
+    },
+    {
+      "path": "src/storage/creation-state-codec.ts",
+      "sha256": "e02344fbdcd32c84b044f4798ecb8402f71d6ba8daf6b003ad1c48ca09191b9b"
+    },
+    {
+      "path": "packages/cgs-work/store.ts",
+      "sha256": "f831d25b6e7f267ad67bcf6d747a213f456cd2f7a758b709a3266c663257e44a"
+    },
+    {
+      "path": "packages/cgs-work/agent.ts",
+      "sha256": "29174271d5ccfac37c6b2f67e9bbae4eca21353ba61eed19d65df4b098c04a70"
+    },
+    {
+      "path": "packages/cgs-work/subject.ts",
+      "sha256": "8569ccb23a9fc0061eff09f69d7f4829f6d20f9ea41fc7c3217ce40ac2db51c9"
+    },
+    {
+      "path": "packages/cgs-work/background-interview.ts",
+      "sha256": "3647e5b1138ace02d6e56ee9ea373143780d27b211b929a660bca69ca93f43f0"
+    },
+    {
+      "path": "packages/cgs-work/proposal-receipt.ts",
+      "sha256": "09ce07b66b655d853ecfe7fb1a96480def0a5e5e1be4559682c443d214aa5b02"
+    },
+    {
+      "path": "packages/cgs-work/action.ts",
+      "sha256": "3a63ae437641e54002d940da0a9f8a73014f2ae100ffd44eb17bde8b20c2d9c2"
+    },
+    {
+      "path": "packages/cgs-work/assistant-actions.ts",
+      "sha256": "422d317ebf943178267c9254d7bf8ca70f23f5d8c5982084abd01a07e0e58f7d"
+    },
+    {
+      "path": "packages/cgs-work/index.ts",
+      "sha256": "82fec55b6e080fcefe5c7595215c7826d0ceab7b825a978247b9aedb92393450"
+    },
+    {
+      "path": "src/infrastructure/creation-export.ts",
+      "sha256": "bada622a80681bcfd49bf6ca322e0c892ac7a13049685192c4d28d560aa4e93c"
+    },
+    {
+      "path": "src/infrastructure/creation-original-preview.ts",
+      "sha256": "49e295502b81c620c2fe4cc482999445c89e388ab78490c02173a3e6b7349c52"
+    },
+    {
+      "path": "packages/cgs-work/native-files.ts",
+      "sha256": "286b03307228b07794cb74b9cacc478bddfe110f3f209f88dd8d30c3a67beb7f"
+    },
+    {
+      "path": "packages/cgs-work/host-materials.ts",
+      "sha256": "7252762071c8f8543b391553d264009128211f22388f8e8e57eb58367699ba46"
+    },
+    {
+      "path": "packages/cgs-work/creation-query.ts",
+      "sha256": "a2c48cff1cf173fc70f41f6e526cc1d86a13533a2eaa522d1d32bb01c136e885"
+    },
+    {
+      "path": "packages/cgs-work/run-receipt.ts",
+      "sha256": "96b2e32b5edb005d5de50cae6cf0357d85af6240fdffa438aa03bf7ffc764749"
+    },
+    {
+      "path": "packages/cgs-work/host-model.mjs",
+      "sha256": "fdeb176027237f0cd00319c2507aa86667b74538160c09de4417da6588fb09b2"
+    }
+  ],
+  "prompts": [
+    {
+      "prompt_id": "work-agent",
+      "version": 4,
+      "sha256": "6b06d0a9cda53f3e3d7bbacb8d25640ee341ef64ff159e401771ee0da97ed747"
+    },
+    {
+      "prompt_id": "editorial",
+      "version": 2,
+      "sha256": "2599a39cede328d4de4ce383a03017a18e3b8a21fcf1d9e0d2a01830dcc6c999"
+    },
+    {
+      "prompt_id": "manuscript",
+      "version": 4,
+      "sha256": "617d3653d9265585130a87650963c1ebc2c5f7f02629cf129711fafaa2afe769"
+    },
+    {
+      "prompt_id": "platforms",
+      "version": 2,
+      "sha256": "6eb4e80c4a7bd54fbc358354f62e7d0c5912c1402be4032af521a02ec9708b5c"
+    },
+    {
+      "prompt_id": "editor",
+      "version": 1,
+      "sha256": "c797109baf51f12b2cd6a3e27f7ccc49d80943c298342f96689f380ed2d68ed2"
+    },
+    {
+      "prompt_id": "learning",
+      "version": 1,
+      "sha256": "949084fa4a10a2a272cf841020b53cc13dc5d77c669a55bbe6e3db0ef360266b"
+    }
+  ],
+  "assistant_methods": [
+    {
+      "skill_id": "account-strategy",
+      "version": 1,
+      "sha256": "580b621e80916e75219c7045cc377a348b3debef0ae00ea0981a4b7e2966c8b5"
+    },
+    {
+      "skill_id": "material-capture",
+      "version": 1,
+      "sha256": "72a970c5d8439eb86d0f381bfd520888b8b6630c1f1c6ab142b81980cf504f0d"
+    },
+    {
+      "skill_id": "creation",
+      "version": 7,
+      "sha256": "a78abf1794558aa64a80657955d4a2e748f7e79a373e52e7a36538d71db8fce1"
+    },
+    {
+      "skill_id": "edit-review",
+      "version": 2,
+      "sha256": "17967a6689df45ae28c9c744bed8a8987c868e8e485d70dac6d8c5c2b98ca7d9"
+    },
+    {
+      "skill_id": "platform-adapt",
+      "version": 2,
+      "sha256": "5d99398d15336f25df3e6866c5d8ec8121e9f54748dcebdf8b225a6b37f7adf3"
+    },
+    {
+      "skill_id": "media-production",
+      "version": 1,
+      "sha256": "31a5abd2325ee9397ddf5eb946f0aaac0741b72fd14d00f0dd9e1d8a1fbe6d54"
+    },
+    {
+      "skill_id": "publishing-ops",
+      "version": 1,
+      "sha256": "5d899bb779fa46434d76fdbcf796a64487e785a1003407709ca029a5b72386e4"
+    }
+  ],
+  "assets": [
+    {
+      "path": "/assets/packages/cgs-ui/work-entry.js",
+      "sha256": "e8a071dc27efc3b422ceaad70ebfb5cf4b89a1ce5b86a2367e466c9bef7b9d34"
+    },
+    {
+      "path": "/assets/packages/cgs-ui/assistant-context.js",
+      "sha256": "53cc17be71965038bdce50d298f3c7ff2da56dbd49522581a2e6bd5c17bc1f91"
+    },
+    {
+      "path": "/assets/packages/cgs-ui/learning-panel.js",
+      "sha256": "8e4781ed5a78a68243622e5925af27fe6adada006179a4cca909fcb0970e6ce6"
+    },
+    {
+      "path": "/assets/packages/cgs-ui/view.js",
+      "sha256": "7b4e2f6d19262c78f767bd156add6f20e9e7f8c822a2f65d96e634bb85cbbb1f"
+    },
+    {
+      "path": "/assets/packages/cgs-ui/controller.js",
+      "sha256": "76680b56bec94f135f06b3d5f308fdb292402bf0f18e46ae1f77ef2ec2490075"
+    },
+    {
+      "path": "/assets/packages/cgs-ui/styles.css",
+      "sha256": "9c9550b49ec414945a49ad398ce881cc8d9883a5b367b9edbb6b83890f121182"
+    },
+    {
+      "path": "/assets/web/creation-artifacts.js",
+      "sha256": "df971c2ad6cd11a3834cabdc2da9614986442fe0e1dfc90a28763f9cb752b36f"
+    },
+    {
+      "path": "/assets/web/creation-comparison.js",
+      "sha256": "2d92e1a5a16d3db44e6bcd1ec5dbdab71477d7298070911960eeb6cfb4ed4249"
+    },
+    {
+      "path": "/assets/web/creation-preferences.js",
+      "sha256": "2de7e471f9c2e77aad72e1b343fb735e006391510c00dc6709d6b19cb15af118"
+    },
+    {
+      "path": "/assets/web/creation-materials.js",
+      "sha256": "0edad931604ac2c257428480e0d4efb2bf269e4b34ea4f7e9d6fc98983fb418c"
+    }
+  ],
+  "source": {
+    "commit": "6d2e5e688dffa4545aca237d13e1dc546c9f5ef2",
+    "dirty": false,
+    "kind": "git-archive",
+    "repository": "https://github.com/adeptify/content-growth-studio",
+    "note": "Built from exact committed sources with the existing lockfile installation."
+  },
+  "artifact": {
+    "file": "adeptify-cgs-work-0.26.10.tgz",
+    "bytes": 508754,
+    "sha256": "16c25387020d9086021137acb4787c0f6db2912167a03fc8a07e0713cc3eff64",
+    "integrity": "sha512-L0cqGEIi7QqYRhnRlPtOjARkV+uPBhpvraXaIXx6fIYXCDucTSdWpTR50Ud6zN8cY7v9e6nId7fvSuf/o5YOVw=="
+  }
+}

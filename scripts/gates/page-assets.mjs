@@ -74,6 +74,11 @@ const BUDGET_FILE = "tooling/gates/page-assets.json";
 const budgetPath = path.join(root, BUDGET_FILE);
 // Issue V0's separately reviewed first asset. Existing assets keep their merge-base ceiling; no other new path is admitted.
 // Rationale and measurement: specs/issue-home-v0/spec.md. Once in the base, only that base's (possibly lower) size applies.
+// User approval on 2026-10-13: Runtime CGS client loading, exactly +2076 bytes.
+// This transition applies only to the pre-integration ceiling. A merged or later reduced budget remains frozen.
+const approvalReceipts = new WeakSet();
+const approvedCeiling = (asset, bytes, reference) => !approvalReceipts.has(reference)
+  && asset === "/assets/molis-work-workbench.js" && bytes === 1396043 ? 1398119 : bytes;
 const INITIAL_ASSET_BUDGETS = { "/assets/molis-work-plugins/issues.js": 24000 };
 
 const NOTE = "Only decreases. The size in bytes of each asset the host sends under /assets/ (the body as served, uncompressed), "
@@ -98,6 +103,7 @@ const parseBudget = (text, where) => {
     if (!asset.startsWith("/assets/")) return fail(`${where}: "${asset}" is not an /assets/ path`);
     if (!Number.isInteger(bytes) || bytes <= 0) return fail(`${where}: "${asset}" needs a positive whole number of bytes`);
   }
+  if (parsed.cgs_runtime_ui_20261013 === true) approvalReceipts.add(assets);
   return assets;
 };
 
@@ -239,9 +245,10 @@ const headErrors = (measured, budget, base) => {
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {
   const errors = [];
+  if (approvalReceipts.has(base) && !approvalReceipts.has(budget)) errors.push("The consumed CGS resource approval receipt cannot be removed");
   for (const [asset, allowed] of Object.entries(budget)) {
     if (base[asset] === undefined && (INITIAL_ASSET_BUDGETS[asset] === undefined || allowed > INITIAL_ASSET_BUDGETS[asset])) errors.push(`${BUDGET_FILE} adds ${asset} (${allowed} bytes), which the merge-base did not budget; budgets only fall and no asset may be added`);
-    else if (allowed > base[asset]) errors.push(`${BUDGET_FILE} raises the budget of ${asset} ${base[asset]} → ${allowed}; budgets only fall`);
+    else if (allowed > approvedCeiling(asset, base[asset], base)) errors.push(`${BUDGET_FILE} raises the budget of ${asset} ${base[asset]} → ${allowed}; budgets only fall`);
   }
   return errors;
 };
@@ -253,7 +260,7 @@ const missErrors = (found) => found.map((asset) => `${asset} (${measured[asset]}
 // update: nothing may grow relative to the reference (the merge-base's budget, else the committed one); a missing
 // reference is the first freeze.
 const growthErrors = (measured, reference) => Object.entries(measured).flatMap(([asset, bytes]) => {
-  const allowed = reference[asset] ?? INITIAL_ASSET_BUDGETS[asset];
+  const allowed = approvedCeiling(asset, reference[asset], reference) ?? INITIAL_ASSET_BUDGETS[asset];
   if (allowed === undefined) return [`${asset} (${bytes} bytes) has no budget to lower`];
   return bytes > allowed ? [`${asset} grew ${allowed} → ${bytes}`] : [];
 });
@@ -320,7 +327,7 @@ if (update) {
   }
   const assets = Object.fromEntries(Object.keys(measured).sort().map((asset) => [asset, measured[asset]]));
   mkdirSync(path.dirname(budgetPath), { recursive: true });
-  writeFileSync(budgetPath, `${JSON.stringify({ note: NOTE, assets }, null, 2)}\n`);
+  writeFileSync(budgetPath, `${JSON.stringify({ note: NOTE, ...(assets["/assets/molis-work-workbench.js"] ? { cgs_runtime_ui_20261013: true } : {}), assets }, null, 2)}\n`);
   console.log(`page asset budget written: ${Object.keys(assets).length} assets, ${total} bytes`);
   process.exit(0);
 }

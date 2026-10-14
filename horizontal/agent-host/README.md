@@ -97,3 +97,7 @@ Prologue Node 接上宿主审查队列时声明子任务能力 `partial`。同�
 ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner 新记录的成功、失败或未知回执，重复 settle 与 Prologue 恢复历史不重复通知。监听错误不改写已提交 Effect，也不触发执行重试；消费者必须按项目过滤并自行释放。
 
 目录状态读取在冷会话上使用原加密启动索引、SDK 运行/未结束工作与 checkpoint 恢复检查，只回放最后一轮的过程，并从索引定位最近计划轮的步骤。它不保留历史正文或创建历史控制句柄；打开详情和开始新轮仍走完整恢复路径。不支持内部轻量读取口的 Runtime 保留原恢复行为。回归见 `tests/prologue-status-projection.test.ts` 与 `tests/prologue-recovery.test.ts`。
+
+执行收尾（CGS-EX-02）：长回复不能绕过末段的未执行承诺检查；改写内部编号仍须继续原请求，不能以说明改写替代执行，也不能重做成功写入。每种收尾问题仍只自动纠正一次，沿用运行时原有上限。重放没有原始原因时用中性提示，不声称此前没有执行；测试见 announce-guard、assistant-business-gateway、prologue-stream。
+
+业务网关的写操作等待动作声明的 execution.timeout_ms，未声明时为 60 秒，且不能突破运行时工具上限；读取工具仍为 60 秒。较长创作不再被统一 55 秒截止切断，取消继续传给所有者，结果不明先读回而不重发。声明并发且超过 60 秒的操作，先将调用交给 Action owner，再通过 SDK afterDispatch 收取结果，避免把等模型占用的时间算入派发凭证期限；收取期间保留取消监听和动作时限。assistant-business-gateway 的 61 秒集成用例、停止/撤权后拒绝落库与短上限拒绝用例覆盖 CGS-EX-02。

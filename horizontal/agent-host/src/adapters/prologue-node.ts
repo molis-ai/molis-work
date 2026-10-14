@@ -1152,7 +1152,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         ...(offer ? { offer: async (proposal: Parameters<typeof offer>[0]) => { const made = await offer(proposal); offersDone.offered += 1; return made; } } : {}),
       } } : input.action_gateway;
       const actionTools = none ? undefined : gatewayForRun
-        ? { ...prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal), scope: "gateway" }
+        ? { ...prologueActionGateway(gatewayForRun, runtime.tools.limits.maxTimeoutMs, actionController.signal), scope: "gateway" }
         : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
       if (input.action_gateway) {
         gatewayRuns.set(input.session_id, input.action_gateway);

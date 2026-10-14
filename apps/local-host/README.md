@@ -87,6 +87,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - 负责：本机唯一的组合根：数据库、Module、横向服务、插件、动作目录、安装器，以及 Web 与 MCP 网关。
 - 不负责：第二个业务协调者，或面向用户的外壳。
 - 公开入口：`@molis-ai/molis-work-app-local-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
+- 可信装配端口：公共根导出 `createMaterialExtractor`、`readMaterialDocuments`、`readMaterialWebsite` 和 `bindRegisteredAgentPrompts`，供外部原生插件由宿主装配；这不授予沙箱或网页新的权限。提示词绑定只读已登记定义，冻结后在模型派发和提交前复核；不另登记同名 Agent 或另起 Home 运行时。PDF 文字 worker 从 `pdfjs-dist` 包目录加载 CMap 和标准字体，支持依赖这些资源的中文文本层。
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
   - 产品版本在宿主代码里只有 `src/product-version.ts` 的 `PRODUCT_VERSION` 一处：Feed 的 User-Agent 与 `app.version`、搜索运行时的 `app.version`、MCP 客户端、Codex 会话传输的客户端版本都取它，不另写一份；发版脚本核对这一行（`docs/releases/POLICY.md` 第 1 节，`tests/verify-release-versions.test.ts`）。
@@ -176,3 +177,8 @@ Catalog 的异步 `commit` 只接收同步 owner 提交体：沿用当前连接�
 Home 插件动作的 JSON 请求按 UTF-8 字节计数，上限 12 MiB，以容纳受插件校验的图文输入；超限返回 413，错误 JSON 返回 400。其他调用 `readLocalWebBody` 的入口保留 256,000 字节上限。越界后停止累积请求内容，仍保留现有 Host、Origin、令牌和一次性键校验。验证见 `tests/issue-home-runtime.test.ts` 的跨入口图文用例。
 
 Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 Issue 已有图文输入上限一致；图片仍由 Runtime 实际接收，并检查所选模型的视觉能力，不截断附件或用文字替代图片。
+
+
+个人助理方法目录：`assistant.methods.list@1` 按当前工作的可用提供方检索、分页返回元数据；首页前二十项只是预览。`assistant.methods.read@1` 每次重新核对范围再读取正文，停用后不能继续读。相关用例在 `assistant-methods.test.ts` 与 `assistant-followups.test.ts`（CGS-AS-01）。
+
+个人助理续轮对象（CGS-EX-02）：每轮向对象所有者读取当前页对象；离开作品页后，唯一关联成果仍读回最新内容。相同 kind/id 去重，多个成果不猜目标。assistant-work-continuity.test.ts 覆盖作者手改后在下一轮可见。

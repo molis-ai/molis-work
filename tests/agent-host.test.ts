@@ -123,6 +123,19 @@ function startRequest(roleId: string, runtimeId = "prologue"): AgentStartRequest
 
 const authority = { manifest, authorizedDirectories: [DIRECTORY] };
 
+test("CGS-NW-04 a consumer's frozen effective prompts are checked before the Runtime can start", async () => {
+  const shipped = [{ prompt_id: "reader", version: 1, body: "shipped" }];
+  const host = new AgentHost({ reviews: new AgentReviewQueue(), prompts: { effective: (_owner, prompt) => ({ ...prompt, body: "edited since preflight", user_revision: 2 }) } });
+  const adapter = adapterFor({ runtimeId: "prologue", supported: ["read"] });
+  let starts = 0;
+  const start = adapter.start.bind(adapter); adapter.start = async (...args) => { starts++; return start(...args); };
+  host.register(adapter);
+  await assert.rejects(host.start("prologue", startRequest("reader"), {
+    ...authority, prompts: shipped, expected_prompts: shipped
+  }), error => error instanceof Error && "code" in error && error.code === "actions.configuration_changed");
+  assert.equal(starts, 0, "detect drift before any runtime request, not from its later receipt");
+});
+
 function prologueRig() {
   const stops: string[] = [];
   const steers: string[] = [];

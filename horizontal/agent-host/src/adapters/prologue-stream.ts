@@ -412,11 +412,11 @@ export function applyPrologueEvent(
         return true;
       }
       if (event.reason === "stop-held") {
-        // The round said what it would do and did nothing: the Host let it continue, once. Shown, not hidden.
+        // Replay lacks the original hold reason; the live adapter supplies it when known.
         closeStreaming(state);
         const sequence = state.next_sequence++;
-        state.activity.push({ call_id: `model-held-${sequence}`, name: "自动续做", target: "上一段只说了要做什么，没有实际执行",
-          state: "completed", summary: "这一轮只说明了接下来要做什么、没有调用工具，已让它接着实际去做（每轮最多一次）", at, sequence });
+        state.activity.push({ call_id: `model-held-${sequence}`, name: "自动续做", target: "上一段需要修正，已继续处理",
+          state: "completed", summary: "运行时要求修正上一段回答，已在同一轮继续处理；是否执行以具体操作回执为准", at, sequence });
         state.phase = "running";
         return true;
       }

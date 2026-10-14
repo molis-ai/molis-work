@@ -1,3 +1,4 @@
+import { cgsManifest, cgsPrompts, cgsMethods } from "@molis-ai/molis-work-plugin-cgs";
 import { CODING_WORKBENCH_SETUP_SCRIPT } from "./scripts/client/coding-setup.js";
 import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution } from "@molis-ai/molis-work-plugin-cognia";
 import { BUILDER_CHOICE_INSTRUCTIONS, builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
@@ -87,6 +88,7 @@ export interface BuiltinPluginEntry {
 
 /** Shared build composition for catalog and UI resources. */
 export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
+  { project_plugin_id: "cgs", manifest: cgsManifest, summary: "从想法、材料到作者确认的各平台稿。", agent: { prompts: cgsPrompts }, methods: cgsMethods },
   {
     project_plugin_id: "issues", manifest: issuesManifest, methods: issuesMethods, personal: true, summary: "记录、查看和整理自己的问题。",
     runtime: { scope: "home", create: createIssuesPlugin, database: ISSUES_DATABASE, package_name: "@molis-ai/molis-work-plugin-issues", factory_export: "createIssuesPlugin", keys: "Mod+Shift+I" },

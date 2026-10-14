@@ -381,12 +381,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
 
   /* ─── Showing a thing: the side panel previews it when it is there, otherwise it opens where it lives ─── */
-  // The side panel claims the request (preventDefault); unclaimed, the object opens in its own surface as before.
   const sidePanelHere = () => document.body.hasAttribute("data-side-open");
   const sidePreview = (target) => !document.dispatchEvent(new CustomEvent("molis:side-open", { detail: { tab: "files", target, focus: false }, cancelable: true }));
   const showObject = (object) => {
-    if (sidePreview({ subject: object.subject, title: object.title, open: object.open })) return;
-    if (object.open && host.openItem) host.openItem(object.open.surface, object.open.id, object.title);
+    if (object.relation !== "result" && sidePreview(object)) return;
+    if (object.open && host.openItem) { host.openItem(object.open.surface, object.open.id, object.title); setPanel(false); }
   };
 
   /* ─── Text: the model's words read as Markdown into text nodes — structure, never markup ─────────────── */

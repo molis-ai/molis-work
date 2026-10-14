@@ -20,10 +20,11 @@ const PLAN_LINE = /^(?:调用|读取|读回|查看|核对|检查|打开|创建|�
 
 export function announcesWithoutActing(text: string): boolean {
   const trimmed = text.trim();
-  if (!trimmed || trimmed.length > 600) return false;
+  if (!trimmed) return false;
   const closing = trimmed.split(/\n+/).map(line => line.trim()).filter(Boolean).at(-1) ?? "";
   if (/[？?]\s*$/.test(closing) || SETTLED.test(closing)) return false;
-  return INTENT.test(closing) || (!trimmed.includes("\n") && trimmed.length <= 90 && PLAN_LINE.test(trimmed));
+  return INTENT.test(closing) || /(?:^|[。，,；;：:！!\s])我重写(?![^。！!\n]*[了过])/.test(closing)
+    || (!trimmed.includes("\n") && trimmed.length <= 90 && PLAN_LINE.test(trimmed));
 }
 
 /** What the model reads when its announcement is held. */
@@ -155,5 +156,5 @@ export function mentionsInternalIds(text: string, capabilityIds: Iterable<string
 
 /** What the model reads when its reply showed internal identifiers. */
 export function internalIdsHeld(found: readonly string[]): string {
-  return `Your reply shows the person internal identifiers (${found.slice(0, 4).join(", ")}). Write it again naming things by their titles and names — the capability's title, the plugin, the document or project title — and leave the identifiers out. Keep one only if the person asked for that identifier itself.`;
+  return `Your reply shows the person internal identifiers (${found.slice(0, 4).join(", ")}). Use titles and names in the person's reply and leave identifiers out unless explicitly requested. This is a presentation correction, not a new task: continue the person's unfinished request with the tools, or report its actual result or blocker. Do not stop at announcing a rewrite, repeat a completed change, or create a memory unless the person asked to remember it.`;
 }

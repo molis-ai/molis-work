@@ -12,6 +12,21 @@ import {
 
 const AT = "2026-09-19T00:00:00.000Z";
 
+// CGS-EX-02: restart must not describe a wording correction as a failed write.
+test("a restored held answer preserves the successful action without inventing why it was held", () => {
+  const state = emptyPrologueStreamState();
+  apply(state,
+    { type: "tool-call", call: { id: "saved", name: "change-capability", input: {} } },
+    { type: "tool-result", callId: "saved", name: "change-capability", text: "作品已保存", outcome: "returned" },
+    { type: "model-response-repair", reason: "stop-held" },
+    { type: "completed" });
+  assert.equal(state.activity[0]?.state, "completed");
+  assert.equal(state.activity[0]?.output, "作品已保存");
+  assert.match(state.activity[1]?.target ?? "", /需要修正/);
+  assert.doesNotMatch(state.activity[1]?.summary ?? "", /没有调用工具|没有实际执行/);
+  assert.equal(state.phase, "completed");
+});
+
 test("supplements retain user wording and distinguish receipt, context inclusion and unconfirmed completion", () => {
   const state = emptyPrologueStreamState();
   apply(state, { type: "prompt", role: "user", text: "保留测试", steerId: "steer-1" },

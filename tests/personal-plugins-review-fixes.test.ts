@@ -55,7 +55,7 @@ import { RuntimeIntegrationService } from "../apps/local-host/src/installer/runt
 import { MolisWorkWebServiceManager } from "../apps/local-host/src/installer/web-service.ts";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/src/plugin-workbench.ts";
-import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/src/project-plugins.js";
+import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -470,6 +470,7 @@ test("HTTP 带着过期 updated_at 保存草稿会 409", async () => {
 
 test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", async () => {
   await withHome(async home => {
+    const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     const databasePath = join(home, "board.db");
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
@@ -495,6 +496,7 @@ test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", a
     } finally {
       await releaseProjectPlugins(store, DEMO_PROJECT_ID);
       store.close();
+      await host.close();
     }
   });
 });

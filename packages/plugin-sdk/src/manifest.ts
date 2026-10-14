@@ -314,6 +314,10 @@ function inspectRouteDeclarations(parsed: PluginManifest): string[] {
       continue;
     }
     seenIds.add(route.route_id);
+    if (route.max_body_bytes !== undefined && (!Number.isSafeInteger(route.max_body_bytes) || route.max_body_bytes <= 0
+      || route.max_body_bytes > 14 * 1024 * 1024 || route.method === "GET")) {
+      problems.push(`路由 ${route.route_id} 的请求预算必须是 1 至 14 MiB 的字节数，且不能用于 GET`);
+    }
     if (!ROUTE_METHODS.includes(route.method)) {
       problems.push(`路由 ${route.route_id} 的方法不合法`);
     }

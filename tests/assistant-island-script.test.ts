@@ -64,3 +64,16 @@ test("the bottom bar measures its line with its chips on it and folds parts off 
   assert.match(fit, /composer\.dataset\.measuring = "";[\s\S]*dataset\.crowded = step;[\s\S]*delete composer\.dataset\.measuring;/, "the typing rule is off from the first measurement to the last");
   assert.match(fit, /if \(matchMedia\("\(max-width: 600px\), \(pointer: coarse\)"\)\.matches\) for \(const step of \["choosers", "mark", "chips"\]\)/, "and the steps are the touch rules'");
 });
+
+// CGS-EX-01: execute the shipped handler, including a side panel that would claim every preview.
+test("result opens its owner directly while materials still preview in the side panel",()=>{
+ const source=ASSISTANT_ISLAND_FACTORY_SCRIPT.match(/const showObject = \(object\) => \{([\s\S]*?)\n  \};/)?.[1];assert.ok(source);
+ const opened: unknown[]=[];const previews: unknown[]=[];const panels: boolean[]=[];
+ const show=new Function('host','sidePreview','setPanel','object',source);
+ const host={openItem:(...args:unknown[])=>opened.push(args)}, preview=(object:unknown)=>{previews.push(object);return true;};
+ const object={relation:'result',subject:{kind:'cgs.work',id:'work-1'},title:'我的作品',open:{surface:'cgs',id:'work-1'}};
+ const panel=(open:boolean)=>panels.push(open);
+ show(host,preview,panel,object);assert.deepEqual(opened,[['cgs','work-1','我的作品']]);assert.equal(previews.length,0);assert.deepEqual(panels,[false]);
+ show(host,preview,panel,{...object,relation:'material'});assert.equal(opened.length,1);assert.equal(previews.length,1);assert.deepEqual(panels,[false]);
+ show({},preview,panel,object);assert.deepEqual(panels,[false], 'without navigation the conversation stays visible');
+});

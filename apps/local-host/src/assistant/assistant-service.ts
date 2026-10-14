@@ -2104,24 +2104,21 @@ export class AssistantService {
     }
     const objects = await this.workObjects(work);
     if (objects.length) out.push(...chunked({ ...base, title: "这项工作的对象" }, "objects", describeObjects(objects)));
-    // Work a professional Agent did for this work comes back here: its session, as its owner reports it.
-    for (const object of objects.filter(item => item.relation === "session" && item.state !== "missing")) {
-      const progress = await this.objectBackground(work, { kind: object.subject.kind, id: object.subject.id });
-      if (progress) out.push(...chunked({ ...base, title: `专业会话的进展：${object.title}` }, `session-${object.subject.id}`, progress));
+    // Current owner data, including a single result after leaving its page; never replay an old tool snapshot.
+    const backgrounds = objects.filter(item => item.state !== "missing" && (item.relation === "session" || item.relation === "result" && objects.filter(one => one.relation === "result" && one.state !== "missing").length === 1)).map(item => item.subject);
+    if (context?.object) backgrounds.push(context.object);
+    for (const [index, object] of backgrounds.entries()) {
+      if (backgrounds.findIndex(one => one.kind === object.kind && one.id === object.id) !== index) continue;
+      const current = await this.objectBackground(work, object);
+      if (current) out.push(...chunked({ ...base, title: "当前对象与成果（所有者提供）" }, `object-${object.kind}-${object.id}`, current));
     }
     out.push(...chunked({ ...base, title: "可用能力目录" }, "capabilities", offered.length ? this.directory(offered) : "本轮没有可用的业务能力。需要操作数据时，如实告诉用户缺少哪类能力或授权。"));
     // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
     const methods = work.executor.kind === "coding" ? [] : await this.methods(work).catch(() => [] as AssistantMethod[]);
     const chosen = new Set(materials.filter(item => item.kind === "method").map(item => item.method?.method_id));
     const listed = methods.filter(method => !chosen.has(method.method_id)).slice(0, 20);
-    if (listed.length) out.push(...chunked({ ...base, title: "可用的方法" }, "methods", [`插件提供的做事方法。某个方法适合这件事时，先用 read-capability 读取它的步骤再照着做，并告诉用户用了哪个方法；不适合就不用。读取时 capability_id 为 assistant.methods.read，version 为 1，provider_id 为 ${ASSISTANT_RULES_PROVIDER}，input 是对象，例如 {"method_id": "${listed[0]!.method_id}"}。`,
+    if (listed.length) out.push(...chunked({ ...base, title: "可用的方法" }, "methods", [`插件提供的做事方法（这里只预览前二十项）。需要查找完整目录，用 read-capability 调用 assistant.methods.list@1，provider_id 为 ${ASSISTANT_RULES_PROVIDER}，input 如 {"query":"创作","offset":0,"limit":20}，按 next_offset 续页。某个方法适合这件事时，先用 read-capability 读取它的步骤再照着做，并告诉用户用了哪个方法；不适合就不用。method_id 是方法编号，不是 capability_id；不得把含斜杠的方法编号当动作调用，也不要用 find-capabilities 搜索方法名。读取时 capability_id 固定为 assistant.methods.read，version 为 1，provider_id 为 ${ASSISTANT_RULES_PROVIDER}，input 是对象，例如 {"method_id": "${listed[0]!.method_id}"}。`,
       ...listed.map(method => `- 「${method.name}」（${method.plugin_title}，method_id ${method.method_id}，v${method.version}）：${method.summary}`)].join("\n")));
-    // The object the person is on, as its owner has it: where it stands and what it belongs to. The page's claim is
-    // only a pointer; this is read again from the owner, so a work started in the plugin continues with its background.
-    if (context?.object) {
-      const background = await this.objectBackground(work, context.object);
-      if (background) out.push(...chunked({ ...base, title: "当前对象（所有者提供）" }, "object", background));
-    }
     if (context) {
       const lines = [`页面：${context.source.title ?? context.source.surface}${context.source.plugin_id ? `（${context.source.plugin_id}）` : ""}`,
         context.object ? `正在看的对象：${context.object.title ?? context.object.id}（${context.object.kind}${context.object.version !== undefined ? `，版本 ${context.object.version}` : ""}）` : "",

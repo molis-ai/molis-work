@@ -57,10 +57,18 @@ export const ASSISTANT_FOLLOW_UP_ACTIONS = {
     { type: "object", additionalProperties: false, required: ["followup_id"], properties: { followup_id: { type: "string", title: "定时" } } }),
 } as const;
 
+/** A bounded metadata page; bodies are still read individually under live scope checks. */
+const methodList = define("assistant.methods.list", "query", "查找全部方法", "检索当前范围已启用插件提供的全部方法；首页只是前二十项。按 query 查找，next_offset 不为空时继续。正文另用 assistant.methods.read 读取。",
+  { type: "object", additionalProperties: false, properties: { query: { type: "string", maxLength: 200 }, offset: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: 50 } } });
+
 /** Reading a method a Plugin offers: how a round adopts one it found in its list of methods. */
 const methodRead = define("assistant.methods.read", "query", "读取方法", "读取插件提供的一个做事方法的完整步骤（method_id 见本轮“可用的方法”）。读了就按它做，并告诉用户用了哪个方法。",
   { type: "object", additionalProperties: false, required: ["method_id"], properties: { method_id: { type: "string", title: "方法", maxLength: 200 } } });
 export const ASSISTANT_METHOD_ACTIONS = {
+  list: { ...methodList, action: { ...methodList.action, output_schema: { type: "object", required: ["methods", "total", "next_offset"], additionalProperties: false, properties: {
+    methods: { type: "array", items: { type: "object", required: ["method_id", "plugin_id", "plugin_title", "name", "version", "summary"], additionalProperties: false, properties: {
+      method_id: { type: "string" }, plugin_id: { type: "string" }, plugin_title: { type: "string" }, name: { type: "string" }, version: { type: "integer" }, summary: { type: "string" } } } },
+    total: { type: "integer" }, next_offset: { type: ["integer", "null"] } } } } },
   read: { ...methodRead, action: { ...methodRead.action, output_schema: { type: "object", required: ["method_id", "name", "version", "body"], properties: {
     method_id: { type: "string" }, name: { type: "string" }, plugin_title: { type: "string" }, version: { type: "integer" }, body: { type: "string", title: "方法步骤" } } } } },
 } as const;
@@ -80,6 +88,15 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
       const value = input as { text: string; at: string; repeat?: "none" | "daily" | "weekly"; label: string };
       await service().saveFollowUp({ work_id: work, text: value.text, at: value.at, label: value.label, ...(value.repeat ? { repeat: value.repeat } : {}) });
       return { followups: service().followUps(work) };
+    } },
+    { capability_id: "assistant.methods.list", version: 1, handle: async (context, input) => {
+      const work = callingWork(context), { query = "", offset = 0, limit = 20 } = input as { query?: string; offset?: number; limit?: number };
+      const words = query.trim().toLocaleLowerCase().split(/\s+/u).filter(Boolean);
+      const methods = (await service().methods(work ? service().workRecord(work) : null)).filter(method => {
+        const text = [method.method_id, method.name, method.summary, method.plugin_title].join(" ").toLocaleLowerCase();
+        return words.every(word => text.includes(word));
+      });
+      return { methods: methods.slice(offset, offset + limit), total: methods.length, next_offset: offset + limit < methods.length ? offset + limit : null };
     } },
     { capability_id: "assistant.methods.read", version: 1, handle: async (context, input) => {
       const work = callingWork(context);

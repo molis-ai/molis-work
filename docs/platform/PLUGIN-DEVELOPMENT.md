@@ -336,3 +336,12 @@ Pages 的 prepareImport 是 Host 注入端口：公共 MaterialDocumentReader �
 Builder 的截图评审把 presentation、design、host、unverified 问题分开：只有截图/目标有效、呈现属性受支持的意见进入有限自动修订，其余显示为未自动修改。合同示例的本地空存储规则同时检查 output 与 includes/outputIncludes/expect，矛盾在设计阶段返回，不交给代码 Agent 制造假记录。
 
 工作台客户端首次打开时从原注册目录加载，UI 依赖由其 `clientAssets` 声明。Host 先保留原 surface 根、准备依赖，再调用 client factory；同一页面已打开的实例继续留存，隐藏只暂停其 UI 读取。客户端所需能力从注入的 Host 取，不依赖组合脚本的私有变量。设置与公共层叠沿现有 shell 提供。资源失败按钮只重载 UI，不能作为重新发出模型或副作用请求的依据。
+
+
+### Runtime HTTP 请求与文件结果
+
+宿主为匹配到的 Runtime 路由创建请求执行控制，绑定当前插件激活。HTTP 断开、插件停止/撤权或重启后，旧请求不能继续写入；动作仍须在异步等待之后调用 `beforeEffect()` 并检查业务版本。`bindPluginActionRoute` 将该控制交给已有 `actions.invoke`，业务 JSON 不能指定身份或执行控制。请求结束时控制失效；需要继续执行的后台任务使用正式任务合同，不能保留 HTTP 调用的授权。
+
+路由可声明 `max_body_bytes`，按 UTF-8 的实际字节限制 JSON 请求，默认 256,000，允许正整数字节且最高 14 MiB，GET 不允许声明。超限返回 413，非法 JSON/UTF-8 返回 400；这些请求不派给插件。上传错误只影响该请求，下一次有效请求仍可执行。此字段仅扩大已授权路由的有界载荷，不增加任何业务权限。现有路由不声明时保持原默认预算；消费者需要新版宿主与 SDK，旧宿主不能被视为支持该字段。
+
+`PluginRouteResponse.bytes` 通过原字节发送，保留 MIME、文件名和响应头，默认不缓存。请求有效性会在路由和 wiring 等待结束后再次核对，过期激活不能发出旧文件。验证见 `tests/runtime-plugin-http-discovery.test.ts` 的 HTTP-LIFETIME-01..04 回归与 `tests/plugin-manifest-v2.test.ts` 的预算声明回归。

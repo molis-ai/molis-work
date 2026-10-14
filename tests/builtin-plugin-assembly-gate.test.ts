@@ -25,6 +25,7 @@ const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
 /** Started by `createPluginPlatform` in `project-plugins.ts`; the package name proves it. */
 const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map([
+  ["cgs", "@molis-ai/molis-work-plugin-cgs"],
   ["characters", "@molis-ai/molis-work-plugin-characters"],
   ["shelf", "@molis-ai/molis-work-plugin-shelf"],
   ["coding", "@molis-ai/molis-work-plugin-coding"],

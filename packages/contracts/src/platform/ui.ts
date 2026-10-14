@@ -120,6 +120,10 @@ export interface UiMountResult {
 
 export interface UiContribution<TModel = unknown> {
   readonly descriptor: UiContributionDescriptor;
+  /** Native, trusted Plugin UI assets. IDs must redeem this Plugin's static GET routes.
+   * The module defaults to a mount(host) function; the Workbench supplies its existing
+   * scoped lifetime, route and request-header helpers. Not a sandbox code loader. */
+  readonly client?: { readonly module_route: string; readonly stylesheet_route?: string };
   render(request: UiRenderRequest<TModel>): string;
 }
 

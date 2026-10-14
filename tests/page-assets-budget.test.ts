@@ -394,9 +394,9 @@ const respell = (root: string, from: string, to: string) => {
   put(HOST_SOURCE, before.replace(from, to), root);
 };
 const dropBudgetEntry = (root: string, asset: string) => {
-  const budget = budgetOf(root);
-  delete budget[asset];
-  put(BUDGET, budgetText(budget), root);
+  const record = JSON.parse(read(BUDGET, root));
+  delete record.assets[asset];
+  put(BUDGET, JSON.stringify(record), root);
 };
 // A spelling the gate's reading of the source cannot see and that raises none of its other alarms: no "/assets/" text at all.
 const WORKBENCH_CSS_ROUTE = '"/assets/molis-work-workbench.css"';
@@ -588,4 +588,24 @@ test("Issue first asset has its own exact ceiling; increases and other plugin pa
   assert.equal(gate("--base", "main").code, 1);
   branch("existing-asset-still-frozen", () => { sizes[asset] = 24000; sizes["/assets/a.css"]++; putBudget(sizes); });
   assert.equal(gate("--base", "main").code, 1);
+});
+
+// CGS-NW-06: the user approved one exact resource transition, not a general budget increase.
+test("CGS-NW-06 approved workbench growth is bounded and a later lower baseline stays frozen", () => {
+  const dir = path.join(work, "cgs-approved"); mkdirSync(dir);
+  gitAt(dir, "init", "-q", "-b", "main");
+  const asset = "/assets/molis-work-workbench.js";
+  const putAt = (bytes: number, receipt = true) => put(BUDGET, JSON.stringify({ cgs_runtime_ui_20261013: receipt, assets: { [asset]: bytes, "/assets/other.js": 20 } }), dir);
+  const measured = path.join(work, "cgs-sizes.json");
+  const check = (bytes: number, other = 20) => { writeFileSync(measured, JSON.stringify({ [asset]: bytes, "/assets/other.js": other })); return run(dir, "--sizes", measured, "--base", "main"); };
+  putAt(1396043, false); gitAt(dir, "add", "."); gitAt(dir, "commit", "-qm", "baseline");
+  putAt(1398119); assert.equal(check(1398119).code, 0);
+  putAt(1398120); assert.equal(check(1398120).code, 1, "one extra byte is refused");
+  putAt(1398119); assert.equal(check(1398119, 21).code, 1, "other resources stay frozen");
+  gitAt(dir, "add", "."); gitAt(dir, "commit", "-qm", "approved");
+  putAt(1398000); gitAt(dir, "add", "."); gitAt(dir, "commit", "-qm", "smaller");
+  putAt(1398119); assert.equal(check(1398119).code, 1, "a new smaller baseline cannot regrow to the approved ceiling");
+  putAt(1396043); gitAt(dir, "add", "."); gitAt(dir, "commit", "-qm", "back to original number");
+  putAt(1398119); assert.equal(check(1398119).code, 1, "returning to the old number cannot reuse the approval");
+  putAt(1396043, false); assert.equal(check(1396043).code, 1, "the consumed receipt cannot be removed");
 });

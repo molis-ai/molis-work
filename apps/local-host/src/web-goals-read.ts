@@ -1,5 +1,5 @@
 import { builderWorkbenchPanel } from "./plugin-builder-surface.js";
-import { installedPluginStages } from "./plugin-builder/agent-surface.js";
+import { withAdditionalPluginStages } from "./runtime-plugin-workbench.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { availableProjectPluginIds, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { goalsActions, resolveGoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
@@ -138,10 +138,9 @@ export function createLocalGoalsReadHttp(ports: {
           const characterStage = await charactersWorkbenchPanel(surfacePorts);
           view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), characterStage.panel, await builderWorkbenchPanel(surfacePorts), ...await codingCompanionStages(surfacePorts, projectConfiguration.plugins)] };
           // Installed execution supplies rail entries and stages independently of opening the authoring studio.
-          const installed = await installedPluginStages({ store, projectId: options.projectId, homeDirectory, routePrefix: view.route_prefix,
+          view = await withAdditionalPluginStages(view, { store, projectId: options.projectId, homeDirectory, routePrefix: view.route_prefix,
             models: async () => await codingServices.execution?.models() ?? [], actorId: LOCAL_PERSON_ACTOR_ID, actions: codingServices.actions,
-            ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }).catch(() => []);
-          if (installed.length) view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.map(item => item.stage)], plugin_rail: installed.map(({ surface, label }) => ({ surface, label })) };
+            ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) });
           if (projectConfiguration.plugins.includes("coding")) {
             const stage = await codingWorkbenchPanel(surfacePorts);
             if (stage) view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), stage.panel] };

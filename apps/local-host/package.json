@@ -104,7 +104,8 @@
     "@molis-ai/molis-work-server": "workspace:*",
     "@molis-ai/molis-work-im-ui": "workspace:*",
     "fflate": "0.8.2",
-    "mammoth": "1.11.0"
+    "mammoth": "1.11.0",
+    "@molis-ai/molis-work-plugin-cgs": "workspace:*"
   },
   "molis-work": {
     "path": "apps/local-host",

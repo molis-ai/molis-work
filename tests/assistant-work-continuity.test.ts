@@ -93,7 +93,7 @@ test("a work keeps what it used and produced; an edit by hand shows as changed a
     () => reply({ name: "change-capability", input: { ...ref("fixture.notes.create"), input: { text: "Q4 draft" } } }),
     () => reply(undefined, "已新建笔记。"),
     // Second round: asked to continue. First without the version it read — refused before any review — then with it.
-    body => { assert.match(JSON.stringify(body), /这项工作的对象/); assert.match(JSON.stringify(body), /已被修改/); return reply({ name: "change-capability", input: { ...ref("fixture.notes.update"), input: { id: "n1", text: "Q4 draft + hand edit, shorter" } } }); },
+    body => { assert.match(JSON.stringify(body), /当前对象与成果/); assert.match(JSON.stringify(body), /Q4 draft \+ hand edit/); assert.match(JSON.stringify(body), /当前版本 2/); assert.match(JSON.stringify(body), /这项工作的对象/); assert.match(JSON.stringify(body), /已被修改/); return reply({ name: "change-capability", input: { ...ref("fixture.notes.update"), input: { id: "n1", text: "Q4 draft + hand edit, shorter" } } }); },
     body => { assert.match(JSON.stringify(body), /expected_version/); return reply({ name: "change-capability", input: { ...ref("fixture.notes.update"), input: { id: "n1", text: "Q4 draft + hand edit, shorter", expected_version: 2 } } }); },
     () => reply(undefined, "已在你的修改上继续。"),
   ]);

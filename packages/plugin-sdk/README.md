@@ -229,3 +229,5 @@ result_view: {
 ```
 
 工作流在成功返回后保存有界呈现和原结果；重开记录不会套用新版插件的声明。缺字段时省略对应正文或链接，无声明的旧记录只确认动作已返回，原数据可展开查看。声明不能将失败或仍在运行的工作声称为业务完成；例如启动任务的摘要应写“任务已启动”。对象页面仍负责当前读取权限、已删除对象和恢复。原生工作台插件可处理已有的 `molis-work:select-item` 事件打开准确对象，无需为每个结果增加 Host 分支。
+
+路由的 `max_body_bytes` 由 Manifest 解析验证：非 GET 路由可选声明 1 至 14 MiB 的 UTF-8 JSON 字节数，默认 256,000。HTTP 断开与插件激活失效的控制由 Host 生成，`bindPluginActionRoute` 通过已有 `actions.invoke(..., request.execution)` 保留它；详见 [Runtime HTTP 请求与文件结果](../../docs/platform/PLUGIN-DEVELOPMENT.md#runtime-http-请求与文件结果)。

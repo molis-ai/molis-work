@@ -1220,7 +1220,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   let cancelRecordJump = null;
   const openPluginRecord = (plugin, itemId) => {
     // A plugin with no search rows is still opened, and asked for the record by id below (the side panel's files).
-    const spec = SEARCH_ROWS.find(([id]) => id === plugin) || [plugin, '[data-record-row-none]', 'none'];
+    const spec = SEARCH_ROWS.find(([id]) => id === plugin) || [plugin, ':not(*)', ''];
     if (typeof itemId !== 'string' || !itemId) return;
     if (embedded) { notifyParent('workbench-pane-open', { plugin, recordId: itemId }); return; }
     cancelRecordJump?.();
@@ -1249,8 +1249,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   // Wait for the plugin to list the record, then choose it the way a person would.
   const jumpToRecord = (plugin, itemId, quiet) => {
-    const spec = SEARCH_ROWS.find(([id]) => id === plugin);
-    if (!spec) return;
+    const spec = SEARCH_ROWS.find(([id]) => id === plugin) || [plugin, ':not(*)', ''];
     cancelRecordJump?.();
     const pane = ops.focused(state), key = paneFrameKey(pane);
     const frame = key && panesEl.querySelector('iframe[data-pane-tab="' + CSS.escape(key) + '"]');

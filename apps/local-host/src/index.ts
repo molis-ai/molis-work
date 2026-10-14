@@ -232,3 +232,8 @@ export { AssistantService } from "./assistant/assistant-service.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { prologueMemoryBackend } from "./memory/memory-host.js";
+
+export { createMaterialExtractor } from "./material-extraction.js";
+export { readMaterialDocuments } from "./material-documents.js";
+export { readMaterialWebsite } from "./material-web.js";
+export { bindRegisteredAgentPrompts } from "./agent-definitions/registered-agent-prompts.js";

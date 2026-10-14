@@ -684,6 +684,25 @@ test("each kind of slip is held once per round and reads as what it was: a tool 
   } finally { await f.close(); }
 });
 
+test("a long plan followed by an identifier rewrite still executes the original request once", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply(undefined, `${"材料已读，需要保留原意。".repeat(65)}\n我先读一下，再调用 change-capability。`),
+    body => { assert.match(JSON.stringify(body), /continue the person's unfinished request/); return reply(undefined, "我重写一下要发的话，并记一条长期偏好。"); },
+    body => { assert.match(JSON.stringify(body), /called no tool, so nothing has happened yet/); return reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "original request" } } }); },
+    () => reply(undefined, "已保存笔记。"),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "保存一条笔记：original request", request_id: "req-00000104" }, { project_ref: f.project });
+    const asked = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    await f.service.decide(sent.work.work_id, { review_id: asked.reviews[0]!.review_id, decision: "approve" });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.equal(f.requests.length, 4);
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1);
+    assert.equal(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue").length, 2);
+    assert.equal(done.rounds[0]!.activity.filter(item => item.verb === "ended-on-promise").length, 0);
+  } finally { await f.close(); }
+});
+
 test("a reply that says a button is ready when none was made is held once; the button then exists (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply(undefined, "按钮准备好了，等你点：\n\n- 内容：喝水"),
@@ -742,6 +761,66 @@ test("a change its owner has not answered by the gateway's own deadline ends in 
     (error: any) => error.code === "actions.outcome_unknown" && /may or may not have taken effect/.test(error.message));
   assert.ok(Date.now() - started < 7_000, "well before the runtime's own limit");
   assert.equal(seen?.aborted, true, "the owner is told to stop");
+});
+
+// CGS-EX-02: a model-backed operation can legitimately exceed the old 55-second gateway deadline.
+test("a declared long operation survives the gateway and runtime deadlines and saves exactly once", { timeout: 80_000 }, async t => {
+  const slow: ActionDefinition = { ...write, capability_id: "fixture.long.write", action: { ...write.action, scheduling: "concurrent", execution: { timeout_ms: 75_000 } } };
+  let dispatched = 0;
+  const f = await fixture(t, [
+    () => reply({ name: "change-capability", input: { capability_id: slow.capability_id, version: 1, provider_id: "fixture.long", input: { text: "long result" } } }),
+    () => reply(undefined, "已保存。"),
+  ]);
+  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.long", kind: "plugin", title: "Long" }, definitions: [slow], handlers: [{ ...slow, async handle(context, input) {
+    dispatched++; await new Promise(resolve => setTimeout(resolve, 61_000)); await context.beforeEffect?.();
+    f.notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, "long"); return { saved: true };
+  } }] });
+  try {
+    const sent = await f.service.send({ text: "save the long result", request_id: "req-long-deadline" }, { project_ref: f.project });
+    const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    await new Promise(resolve => setTimeout(resolve, 62_000));
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.equal(dispatched, 1); assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1);
+    assert.equal(done.rounds[0]!.activity.find(item => item.verb === "change")?.state, "completed", JSON.stringify(done.rounds[0]!.activity));
+  } finally { await f.close(); }
+});
+
+// Collection is observation, but the owner must still refuse a stopped or revoked write before its effect.
+for (const reason of ["stop", "revoke"] as const) test(`a long operation collected after dispatch still refuses effects after ${reason}`, { timeout: 60_000 }, async t => {
+  const slow: ActionDefinition = { ...write, capability_id: "fixture.long.write", action: { ...write.action, scheduling: "concurrent", execution: { timeout_ms: 75_000 } } };
+  let finish!: () => void, entered!: () => void, writes = 0;
+  const gate = new Promise<void>(resolve => { finish = resolve; }), reached = new Promise<void>(resolve => { entered = resolve; });
+  const f = await fixture(t, [
+    () => reply({ name: "change-capability", input: { capability_id: slow.capability_id, version: 1, provider_id: "fixture.long", input: { text: "must not save" } } }),
+    () => reply(undefined, "没有保存。"),
+  ]);
+  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.long", kind: "plugin", title: "Long" }, definitions: [slow], handlers: [{ ...slow, async handle(context, input) {
+    entered(); await gate; await context.beforeEffect?.(); writes++;
+    f.notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, "long"); return { saved: true };
+  } }] });
+  try {
+    const sent = await f.service.send({ text: "save the long result", request_id: `req-long-${reason}` }, { project_ref: f.project });
+    const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    await reached;
+    if (reason === "stop") await f.service.control(sent.work.work_id, { kind: "stop" });
+    else f.store.setActionEnabled("web-user", actionKey({ capability_id: slow.capability_id, version: 1, provider_id: "fixture.long" }), false);
+    finish();
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["stopped", "completed", "failed"].includes(v.work.state) && !v.unsettled?.some(row => row.state === "pending") ? v : undefined; }, "refused and settled");
+    assert.notEqual(done.rounds[0]!.activity.find(item => item.verb === "change")?.state, "completed");
+    assert.equal(writes, 0); assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
+  } finally { finish(); await f.close(); }
+});
+
+test("a declared action deadline remains bounded by the gateway ceiling and cancellation", async () => {
+  const view = { capability_id: "fixture.notes.write", version: 1, operation: "command", provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, action: { ...write.action, execution: { timeout_ms: 1_000 } }, availability: { available: true } } as ActionView;
+  let observed: AbortSignal | undefined;
+  const client = { discover: async () => [view], invoke: (_ref: unknown, _input: unknown, signal?: AbortSignal) => { observed = signal; return new Promise(() => {}); } };
+  const { executors, pack } = prologueActionGateway({ client, operate: true } as never, 40);
+  assert.ok(pack.tools.every(tool => tool.registration.timeoutMs <= 40));
+  await assert.rejects(executors["change-capability"]!({ registration: pack.tools.find(tool => tool.registration.name === "change-capability")!.registration, args: { capability_id: view.capability_id, version: 1, provider_id: "fixture.notes", input: { text: "late" } } }), { code: "actions.outcome_unknown" });
+  assert.equal(observed?.aborted, true);
 });
 
 test("plain text or twice-encoded JSON for a capability whose one required field is text is that field; a mismatch shows what arrived (seen with MiniMax-M3)", async () => {

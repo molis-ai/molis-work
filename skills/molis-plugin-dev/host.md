@@ -110,6 +110,8 @@ Inbox 的 `GET/POST /api/inbox/pages` 由 Host 注入当前项目。POST 接收 
 
 已注册到当前项目 Runtime 的路由按 Manifest 和实际 contribution 自动分发，Web 外层和内部适配器均不再维护插件 ID 白名单。业务 HTTP 使用 `bindPluginActionRoute` 转调统一动作；生命周期仍由 supervisor 管理。新实例追加注册不应覆盖已有路由；停用后的请求不得重新启用实例。内置项目启用检查、控制令牌、origin 与一次性请求键继续生效。`/restart`、`/release-quarantine`、`/upgrade` 保留给 Host 生命周期，业务路由避开这些路径；不要在 Host 为新插件增加同名字段的结果加工。
 
+Runtime HTTP 的请求控制由 Host 绑定当前激活并经 `bindPluginActionRoute` 传给动作；HTTP 断开、请求结束或插件失效后，不保留旧请求的写入授权。异步等待后仍须 `beforeEffect()`。非 GET 路由可声明 `max_body_bytes`（正整数，最高 14 MiB，默认 256,000 个 UTF-8 字节），仅放宽载荷预算，不增加权限；超限 413、非法 JSON/UTF-8 400 均不派给处理器。文件结果通过 `PluginRouteResponse.bytes`、`mime`、`filename` 返回，宿主保留原字节并在返回前复核请求有效性。消费者需当前 Host 与 SDK，不能假定旧宿主认识新字段。
+
 `kind: "app"` 必须真的经 Plugin Runtime `start()`。今天：Coding、Files、Git、Diff、Text stats、Characters（Shelf 是 `native`，同样由监督器启动）。启动在 `apps/local-host/src/project-plugins.ts` 的监督器条目；`coding-surface.ts` 渲染 Coding 族与 Characters 的工作面（Shelf 的由 workbench 渲染），并把 `/api/plugins/<plugin_id>/` 转给运行中的插件（`handleCodingPluginHttp`）。
 
 `start(context)` 返回 `kind: "app"`，并且：

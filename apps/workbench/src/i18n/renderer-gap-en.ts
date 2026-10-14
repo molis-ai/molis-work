@@ -1,5 +1,9 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  "插件界面资源不属于当前插件": "The UI resource does not belong to this plugin",
+  "重新加载页面": "Reload page",
+  "如果依赖资源也加载失败，请先保留其他页面未保存的内容，再重新加载": "If a dependency also failed to load, save unsaved work on other pages before reloading",
+
   "个人工具": "Personal tools",
   "正在加载…": "Loading…",
   "设置加载失败，当前输入已保留，请重试。": "Settings could not load. Your input is preserved. Please retry.",

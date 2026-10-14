@@ -13,6 +13,14 @@ import { createMaterialExtractor, extractMaterial, readMaterialHtml } from "../a
 import { extractJellyMaterial } from "../apps/local-host/src/jelly-native-material.js";
 import { prepareContextDocuments } from "../apps/local-host/src/context-onboarding-documents.js";
 
+test("CGS-NW-05: Chinese PDF text uses packaged CMaps instead of being mistaken for a scan", async () => {
+  const result = await extractMaterial({ file_name: "作者材料.pdf",
+    bytes: readFileSync(new URL("./fixtures/cgs-chinese-material.pdf", import.meta.url)) });
+  assert.match(result.text, /更清晰的判断/);
+  assert.equal(result.pages.length, 2);
+  assert.equal(result.coverage.status, "sufficient");
+});
+
 function pdf(texts: string[]): Buffer {
   const objects = ["<< /Type /Catalog /Pages 2 0 R >>", `<< /Type /Pages /Kids [${texts.map((_, i) => `${4 + i * 2} 0 R`).join(" ")}] /Count ${texts.length} >>`, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
   texts.forEach((text, index) => {

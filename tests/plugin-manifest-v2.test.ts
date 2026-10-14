@@ -272,3 +272,16 @@ test("embedded plugin dependencies are explicit v2 IDs, not implicit grants or s
     assert.throws(() => parsePluginManifest(input), PluginManifestError);
   }
 });
+
+test("HTTP-LIFETIME-03 route JSON budgets are explicit, bounded and cannot apply to GET", () => {
+  const manifest = v2Manifest();
+  const route = { route_id: "upload", method: "POST", path: "/upload" };
+  for (const max_body_bytes of [1, 500_000, 14 * 1024 * 1024]) {
+    assert.equal(parsePluginManifest({ ...manifest, routes: [{ ...route, max_body_bytes }] }).routes?.[0]?.max_body_bytes, max_body_bytes);
+  }
+  for (const max_body_bytes of [0, -1, 1.5, 14 * 1024 * 1024 + 1, "500000", null]) {
+    assert.throws(() => parsePluginManifest({ ...manifest, routes: [{ ...route, max_body_bytes }] }), /请求预算/);
+  }
+  assert.throws(() => parsePluginManifest({ ...manifest, routes: [{ ...route, method: "GET", max_body_bytes: 1 }] }), /请求预算/);
+  assert.equal(parsePluginManifest({ ...manifest, routes: [route] }).routes?.[0]?.max_body_bytes, undefined);
+});

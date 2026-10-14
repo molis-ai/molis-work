@@ -143,6 +143,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `plugins/native/files` | 工作区文件树与阅读：取有界文本快照与选区（`app`，Coding 家族） | Runtime 托管；目录与文件由 Host 经项目工作区设置能力读取，插件把结果变成树、预览和过程项（集合描述、`before`/`after` 文本快照、用户选中的文字） | `partial` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/git` | Git 工作区变更、提交草稿与被接受的变更集（`app`，Coding 家族） | Runtime 托管；`git` 由 Host 运行，插件解析 porcelain v1、把每处改动发布为可对比的变更集，并保管“是否接受一次 Coding Run 的改动”这个决定（决定由人做） | `partial` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/diff` | 对比界面：同一处理三种输入（`app`，Coding 家族） | Runtime 托管；输入是 Files 的两个快照、Coding Run 准备的变更集、Git 工作区里的改动；变更集过程项类型 `diff.changeset.v1` 按这个消费者定义 | `partial` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212、@jingxusandra-gif |
+| `plugins/native/cgs` | 作者作品、材料范围、候选版本和精确确认 | 项目 Runtime；业务实现由 CGS 固定发行包提供；Host 负责权限和执行 | `partial` | `specs/cgs-formal-integration/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/text-stats` | 对已取得的文件快照数字符、UTF-8 字节和行（`app`，Coding 家族） | Runtime 托管；消费一个文件快照输入；两个查询动作（`text-stats.state` 读取已固定快照的统计，`text-stats.count` 统计给定文本），没有输出端口、事件和存储 | `partial` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/issues` | 个人问题的原始描述、类型、上下文与版本 | Home Runtime 托管；业务表 `{home}/issues/issues.db`；页面、助理、MCP 共用 `issues.*`，项目切换不分库；连接和授权由 Host 提供 | `partial` | `specs/issue-home-v0/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/images` | 个人生图与项目生成记录 | 见下文「图片生成插件」；生成经 Prologue | `partial` | `specs/archive/images-plugin/spec.md` | 内置插件：@yijunw0212 |

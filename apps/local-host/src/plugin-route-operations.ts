@@ -1,8 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginExecutionControl, PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRouteRouter } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginPlatform } from "./plugin-platform.js";
-import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
+import { sendLocalWebJson } from "./web-http.js";
+import { dispatchPluginHttpRequest, sendPluginHttpResponse } from "./plugin-http-transport.js";
 
 /**
  * What the instance that owns a Runtime plugin's routes adds around the shared operations. The operations know no plugin and no
@@ -13,7 +14,7 @@ export interface RuntimePluginRouteHooks {
   /** Runs after a restart or a release-quarantine ran, before its answer is sent. */
   restarted?(): void;
   /** Runs before the plugin's route is dispatched, with the router that will dispatch it. */
-  beforeDispatch?(router: PluginRouteRouter): Promise<void>;
+  beforeDispatch?(router: PluginRouteRouter, execution: PluginExecutionControl): Promise<void>;
   /** Runs after the plugin answered, before the answer is sent; may reshape `result.body`. */
   afterDispatch?(result: PluginRouteResponse): Promise<void>;
 }
@@ -60,14 +61,9 @@ export async function dispatchRuntimePluginRoute(
     return true;
   }
   if (!router.match(request.method ?? "GET", url.pathname)) return false;
-  await hooks.beforeDispatch?.(router);
-  const result = await router.dispatch({
-    method: request.method ?? "GET", pathname: url.pathname, actor_id: actorId,
-    query: Object.fromEntries(url.searchParams),
-    ...(["GET", "HEAD"].includes(request.method ?? "GET") ? {} : { body: await readLocalWebBody(request) }),
-  });
+  const result = await dispatchPluginHttpRequest(request, response, url, platform, pluginId, actorId,
+    async execution => { await hooks.beforeDispatch?.(router, execution); }, hooks.afterDispatch);
   if (!result) return false;
-  await hooks.afterDispatch?.(result);
-  sendLocalWebJson(response, result.status, result.body);
+  sendPluginHttpResponse(response, result);
   return true;
 }

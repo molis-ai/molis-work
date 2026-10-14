@@ -346,7 +346,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   // should be a decision somebody made, not something that arrives with a merge.
   assert.deepEqual([...PROJECT_SCOPED_PLUGIN_IDS].sort(),
     // The workspace Plugin was retired: browsing roots come from project settings actions (action-architecture migration).
-    ["artifacts", "coding", "diff", "feed", "files", "git", "goals", "inbox", "schedule", "sessions",
+    ["artifacts", "cgs", "coding", "diff", "feed", "files", "git", "goals", "inbox", "schedule", "sessions",
       "text-stats"]);
   assert.deepEqual(
     railEntries(["coding"]).map((entry) => [entry.id, entry.label, entry.glyph]),

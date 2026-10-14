@@ -183,7 +183,7 @@ test("Web relations and rules use live action policy for writes and selected pag
     assert.equal((await write("/api/goals/parent/relations", relation, "web-add", false)).status, 403);
     denied.add(goalsActions.relationAdd.capability_id);
     const blocked = await write("/api/goals/parent/relations", relation, "web-add");
-    assert.equal(blocked.status, 400); assert.match(await blocked.text(), /Configuration disabled/);
+    assert.equal(blocked.status, 403); assert.match(await blocked.text(), /Configuration disabled/);
     assert.deepEqual(await snapshot(), before);
     denied.clear();
     const added = await write("/api/goals/parent/relations", relation, "web-add"); assert.equal(added.status, 200, await added.clone().text());
@@ -192,13 +192,13 @@ test("Web relations and rules use live action policy for writes and selected pag
     const row = (await actions.invoke(goalsActions.relations, { goal_id: "parent" })).relations.find(r => r.relation_id === relation_id)!;
     assert.equal(row.from_goal_id, "child"); assert.equal(row.to_goal_id, "parent"); assert.equal(row.created_by, "web-user");
     denied.add(goalsActions.relationDeactivate.capability_id);
-    assert.equal((await write(`/api/relations/${relation_id}/deactivate`, { reason: "Remove" }, "web-remove")).status, 400);
+    assert.equal((await write(`/api/relations/${relation_id}/deactivate`, { reason: "Remove" }, "web-remove")).status, 403);
     assert.equal((await actions.invoke(goalsActions.relations, {})).relations.find(r => r.relation_id === relation_id)?.state, "active");
     denied.clear();
     assert.equal((await write(`/api/relations/${relation_id}/deactivate`, { reason: "Remove" }, "web-remove")).status, 200);
     const policy = { scope: "project_default", policy: { human_approval: true }, user_confirmed: true, idempotency_key: "web-policy", actor_id: "forged" };
     denied.add(goalsActions.policySave.capability_id);
-    assert.equal((await write("/api/policy-bindings", policy, "web-policy")).status, 400);
+    assert.equal((await write("/api/policy-bindings", policy, "web-policy")).status, 403);
     denied.clear();
     const saved = await write("/api/policy-bindings", policy, "web-policy"); assert.equal(saved.status, 200, await saved.clone().text());
     assert.equal((await actions.invoke(goalsActions.policyHistory, {})).bindings.at(-1)?.created_by, "web-user");

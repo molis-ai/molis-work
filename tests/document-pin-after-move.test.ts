@@ -97,9 +97,9 @@ for (const kind of kinds) {
       await f.a.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: "pb" });
       await f.b.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: "pa" });
     };
-    const pin = async (client: typeof f.a, title: string) => { await edit(title); return await client.invoke(kind.promote, { id }) as any; };
+    const pin = async (client: typeof f.a, title: string) => { const edited = await edit(title); return await client.invoke(kind.promote, { id, expected_version: edited.version }) as any; };
 
-    assert.deepEqual([(await agent.invoke(kind.promote, { id }) as any).artifact.version], [1], "the Agent pins it first");
+    assert.deepEqual([(await agent.invoke(kind.promote, { id, expected_version: created[kind.record].version }) as any).artifact.version], [1], "the Agent pins it first");
     // Away and back: the record counts no fixed version, the 成果库 holds the Agent's. The person's pin goes on from it.
     await away();
     const person = await pin(f.a, "Second");

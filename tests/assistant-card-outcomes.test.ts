@@ -41,15 +41,15 @@ for (const outcome of ["invalid-output", "unknown", "before-effect"] as const) {
         authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "Project" }, "web-user");
     };
     let assistant = service();
-    const placed = await assistant.offerFromPage({ message_id: "receipt-page-0001", source: { surface: "fixture", title: "Receipts" },
+    const placed = await assistant.offers.offerFromPage({ message_id: "receipt-page-0001", source: { surface: "fixture", title: "Receipts" },
       card: { title: "Save receipt", summary: "Save this receipt", reference: { capability_id: definition.capability_id, version: 1,
         provider_id: "fixture.receipts" }, input: {} } }, { project_ref: project });
-    const first = await assistant.runCard(placed.work_id, placed.card.card_id, { revision: placed.card.revision });
+    const first = await assistant.offers.runCard(placed.work_id, placed.card.card_id, { revision: placed.card.revision });
     assert.equal(first.status, outcome === "before-effect" ? "failed" : "unknown");
     assert.equal(receipts.prepare("SELECT COUNT(*) AS count FROM receipts").get()!.count, outcome === "before-effect" ? 0 : 1);
     if (outcome !== "before-effect") assert.match(first.outcome ?? "", /结果未确认.*不会自动重试/);
     db.close(); db = new DatabaseSync(file); assistant = service();
-    const second = await assistant.runCard(placed.work_id, placed.card.card_id, { revision: first.revision });
+    const second = await assistant.offers.runCard(placed.work_id, placed.card.card_id, { revision: first.revision });
     assert.equal(second.status, first.status);
     assert.equal(calls, outcome === "before-effect" ? 2 : 1);
     assert.equal(receipts.prepare("SELECT COUNT(*) AS count FROM receipts").get()!.count, outcome === "before-effect" ? 0 : 1);

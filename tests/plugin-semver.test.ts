@@ -43,8 +43,8 @@ test("W1-18-SEMVER-01 Runtime upgrades a hyphenated prerelease and refuses an un
     const upgraded = await runtime.upgrade({ install_id: installId, definition: newer });
     assert.equal(upgraded.install.version, "1.0.0-alpha-b");
     assert.equal(upgraded.install.state, "running");
-    await assert.rejects(runtime.upgrade({ install_id: installId, definition: newer }), { code: "plugin_upgrade_required" });
-    await assert.rejects(runtime.upgrade({ install_id: installId, definition: original }), { code: "plugin_upgrade_required" });
+    await assert.rejects(runtime.upgrade({ install_id: installId, definition: newer }), { code: "plugin.upgrade_required" });
+    await assert.rejects(runtime.upgrade({ install_id: installId, definition: original }), { code: "plugin.upgrade_required" });
     assert.deepEqual(starts, ["1.0.0-alpha-a", "1.0.0-alpha-b"]);
     assert.equal(runtime.get(installId).version, "1.0.0-alpha-b");
   } finally { await runtime.stop(installId); }

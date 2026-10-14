@@ -299,9 +299,9 @@ test("the 成果 browser's route failures carry a code and the status of their k
   const badId = await edge.send("GET", "/artifacts/%E0%A4%A/versions/1", { headers: { "x-molis-work-fragment": "artifact-workbench" } });
   assert.deepEqual([badId.status, badId.body], [400, { error: "成果 ID 编码无效", code: "artifacts.reference_invalid" }]);
   const artifactsErrors = declared(artifactsPlugin, "artifactsErrors");
-  assert.deepEqual(Object.keys(artifactsErrors).sort(), ["continue_unavailable", "file_missing", "reference_invalid", "version_not_found", "workspace_unconfirmed"]);
+  assert.deepEqual(Object.keys(artifactsErrors).sort(), ["continue_unavailable", "file_missing", "plugin_denied", "plugin_incompatible", "reference_invalid", "version_not_found", "workspace_unconfirmed"]);
   const status = (reason: string) => actionHttpStatus(artifactsErrors[reason]!("x"));
-  assert.deepEqual(["reference_invalid", "version_not_found", "file_missing", "continue_unavailable", "workspace_unconfirmed"].map(status), [400, 404, 404, 400, 409]);
+  assert.deepEqual(["reference_invalid", "version_not_found", "file_missing", "continue_unavailable", "workspace_unconfirmed", "plugin_denied", "plugin_incompatible"].map(status), [400, 404, 404, 400, 409, 403, 400]);
 });
 
 /**

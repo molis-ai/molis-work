@@ -56,35 +56,47 @@ for (const failure of ["before-artifact", "after-artifact", "after-association"]
   });
 }
 
-test("old interrupted publication without a snapshot recovers the original owned Artifact and preserves newer draft edits", async t => {
+test("W1-18-PIN-CURRENT-01: an untracked Artifact head without a snapshot advances without overwriting the original version or the current draft", async t => {
   const f = await fixture(t);
-  const original = (await f.bound.invoke(pagesActions.create, { title: "Before migration", body: body("Already published"), goal_id: "old-goal" })).document;
+  const original = (await f.bound.invoke(pagesActions.create, { title: "Existing pin", body: body("Already published"), goal_id: "old-goal" })).document;
+  // No numeric source revision: the actual line-head adapter reports null, but there is no durable pending intent.
   await f.host.withProject(f.ref, runtime => registerPagesArtifactVersion(runtime.coordinator, "p", "p", "owner")({ project_id: "p", page_id: original.id,
     title: original.title, body: original.body, goal_id: "old-goal", version: 1 }));
   const edited = (await f.bound.invoke(pagesActions.update, { id: original.id, body: body("New unpublished work"), goal_id: "new-goal" })).document;
   assert.equal(edited.publication_pending, undefined);
   const result = await f.bound.invoke(pagesActions.promote, { id: original.id, expected_version: edited.version });
-  assert.equal(result.recovered, true); assert.equal(result.artifact.version, 1); assert.equal(result.document.goal_id, "new-goal");
+  assert.equal(result.recovered, false); assert.equal(result.artifact.version, 2); assert.equal(result.document.goal_id, "new-goal");
+  assert.equal(result.document.publication_pending, undefined);
   assert.deepEqual(result.document.body, body("New unpublished work"));
   await f.host.withProject(f.ref, runtime => {
     const versions = runtime.coordinator.artifacts.query.listArtifactVersions("p", result.artifact.artifact_id);
-    assert.equal(versions.length, 1); assert.equal(versions[0]!.created_by, "owner");
-    assert.deepEqual((versions[0]!.payload as any).body, body("Already published"));
+    assert.equal(versions.length, 2);
+    const first = versions.find(version => version.version === 1)!, next = versions.find(version => version.version === 2)!;
+    assert.equal(first.created_by, "owner"); assert.equal(first.owner_actor_id, LOCAL_PERSON_ACTOR_ID);
+    assert.deepEqual(first.payload, { title: original.title, page_id: original.id, goal_id: "old-goal", body: body("Already published") });
+    assert.equal(next.created_by, "owner"); assert.equal(next.owner_actor_id, LOCAL_PERSON_ACTOR_ID);
+    assert.deepEqual(next.payload, { title: original.title, page_id: original.id, goal_id: "new-goal", body: body("New unpublished work") });
   });
 });
 
-test("an interrupted publication without a snapshot is finished by whichever actor pins next: the version is the person's, its producer stays recorded", async t => {
+test("W1-18-PIN-CURRENT-01: another actor explicitly pins the next version when no publication snapshot is pending", async t => {
   const f = await fixture(t);
-  const original = (await f.bound.invoke(pagesActions.create, { title: "Before migration", body: body("Already published"), goal_id: "old-goal" })).document;
+  const original = (await f.bound.invoke(pagesActions.create, { title: "Existing pin", body: body("Already published"), goal_id: "old-goal" })).document;
   await f.host.withProject(f.ref, runtime => registerPagesArtifactVersion(runtime.coordinator, "p", "p", "owner")({ project_id: "p", page_id: original.id,
     title: original.title, body: original.body, goal_id: "old-goal", version: 1 }));
   const result = await f.client.invoke({ ...f.caller, actor_id: "another-actor" }, pagesActions.promote, { id: original.id });
-  assert.equal(result.recovered, true); assert.equal(result.artifact.version, 1);
+  assert.equal(result.recovered, false); assert.equal(result.artifact.version, 2);
+  assert.equal(result.document.publication_pending, undefined);
   await f.host.withProject(f.ref, runtime => {
     const versions = runtime.coordinator.artifacts.query.listArtifactVersions("p", result.artifact.artifact_id);
-    assert.equal(versions.length, 1, "finishing it writes no second version");
-    assert.equal(versions[0]!.created_by, "owner", "who produced it stays recorded");
-    assert.equal(versions[0]!.owner_actor_id, LOCAL_PERSON_ACTOR_ID, "a pinned document belongs to the person, not to the actor that pinned it");
+    assert.equal(versions.length, 2);
+    const first = versions.find(version => version.version === 1)!, next = versions.find(version => version.version === 2)!;
+    assert.equal(first.created_by, "owner", "the original producer stays recorded");
+    assert.equal(next.created_by, "another-actor", "the explicit new pin records its own producer");
+    for (const version of versions) {
+      assert.equal(version.owner_actor_id, LOCAL_PERSON_ACTOR_ID, "both pinned versions belong to the person");
+      assert.deepEqual(version.payload, { title: original.title, page_id: original.id, goal_id: "old-goal", body: body("Already published") });
+    }
   });
 });
 

@@ -381,8 +381,8 @@ test("the rules page suggests behaviors by the real page rule: destination, vers
   assert.equal(script.split(from).length, 2, "start anchor appears exactly once");
   assert.equal(script.split(to).length, 2, "end anchor appears exactly once");
   const rule = script.slice(script.indexOf(from), script.indexOf(to));
-  const build = (selected: Record<string, unknown> | undefined, catalog: FunctionAuthoringCatalog) => new Function("L", "catalog", "sel", "selectedDestId",
-    rule + "\nreturn { suggestedBehaviors, destOf };")((value: string) => value, catalog, selected, () => selected?.scene_id ?? "") as {
+  const build = (selected: Record<string, unknown> | undefined, catalog: FunctionAuthoringCatalog) => new Function("L", "cat", "sel", "destKey",
+    rule + "\nreturn { suggestedBehaviors: hints, destOf };")((value: string) => value, catalog, selected, () => selected?.scene_id ?? "") as {
     suggestedBehaviors: (destinationId: string, kinds: string[]) => { behavior_id: string; title: string; action_ref?: { capability_id: string } }[];
     destOf: (id: string) => { behavior_ids: string[] } | null;
   };
@@ -421,27 +421,27 @@ test("the rules page suggests behaviors by the real page rule: destination, vers
 });
 
 test("Functions client clears leftover preview text when switching records and hides Noul section chrome", () => {
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const switching = sel\?\.id !== record\.id/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const switching = sel\?\.id !== rec\.id/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions\/catalog/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-destination/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-source/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /agent\.mcp/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /if \(switching\) previewInput\.value = record\.last_preview\?\.input \|\| ""/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /if \(switching\) previewInput\.value = rec\.last_preview\?\.input \|\| ""/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaHead\.hidden = kind === "noul"/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /addChoiceRow/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /scene_map/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-map/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /select\.className = "mw-select"/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /select\.className = "mw-input"/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /suggestedBehaviors/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaFollowContext/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const hints =/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const followContext =/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /syncCriteriaPanel/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /matchesSubjects/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /if \(event\.target\.matches\("\[data-functions-source\]"\)\)/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /syncCriteriaPanel\(\);/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaForDestination/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /subject_kinds: dest\?\.subject_kinds/);
-  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /selected = record;\s*records = records\.some/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /sel = rec;\s*records = records\.some/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/inbox\/judgment|\/api\/home\/dock-judgment/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /row\.project_id \? " · " \+ row\.project_id/);
 });
@@ -457,8 +457,8 @@ test("system judgment editor and connection settings render without plugin contr
   assert.doesNotMatch(stage, /mw-btn--secondary"[^>]*data-functions-new/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /plugin-stage-kind/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /kindChip\(record\.primitive \|\| "choice"/);
-  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /kind \+ " · " \+ record\.function_key/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /kindChip\(rec\.primitive \|\| "choice"/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /kind \+ " · " \+ rec\.function_key/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /mw-status--plain feed-entry-status/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /className = "functions-row/);
   assert.match(stage, /data-functions-destinations/);

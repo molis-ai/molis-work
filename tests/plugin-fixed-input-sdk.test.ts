@@ -126,8 +126,8 @@ test("W2-18-FIXED-INPUT-01, W2-18-FIXED-INPUT-02: real library bindings reach SD
         source_plugin_id: SOURCE, source_port: "after", origin: "user" });
     }
     assertRead(started.clients, ordinary, "ordinary\n"); assertRows(await readDiff(project), "ordinary");
-    assert.throws(() => bind(project!, PROBE, "after", ordinary), { code: "port_artifact_invalid" }, "a process item cannot be a library binding");
-    assert.throws(() => bind(project!, PROCESS_ONLY, "after", first), { code: "port_artifact_invalid" }, "port type alone does not declare library consumption");
+    assert.throws(() => bind(project!, PROBE, "after", ordinary), { code: "plugin.port_artifact_invalid" }, "a process item cannot be a library binding");
+    assert.throws(() => bind(project!, PROCESS_ONLY, "after", first), { code: "plugin.port_artifact_invalid" }, "port type alone does not declare library consumption");
     assert.equal(graph.view().plugins.find(plugin => plugin.plugin_id === PROCESS_ONLY)!.ports.find(port => port.port === "after")!.artifact, undefined);
 
     for (const pluginId of [PROBE, DIFF_PLUGIN_ID]) bind(project, pluginId, "after", first);
@@ -155,9 +155,9 @@ test("W2-18-FIXED-INPUT-01, W2-18-FIXED-INPUT-02: real library bindings reach SD
     const denied = started.clients.get(PROBE)!;
     assert.notEqual(denied, oldProbe, "the denied client belongs to a fresh activation without a read grant");
     for (const inputs of [oldProbe, denied]) {
-      assert.throws(() => inputs.status(), { code: "plugin_grant_denied" });
-      assert.throws(() => inputs.reference("after"), { code: "plugin_grant_denied" });
-      assert.throws(() => inputs.read("after"), { code: "plugin_grant_denied" });
+      assert.throws(() => inputs.status(), { code: "plugin.grant_denied" });
+      assert.throws(() => inputs.reference("after"), { code: "plugin.grant_denied" });
+      assert.throws(() => inputs.read("after"), { code: "plugin.grant_denied" });
     }
     await project.platform.runtime.stop(installId);
     project.platform.runtime.grant(installId, ["artifact:read"]);
@@ -168,7 +168,7 @@ test("W2-18-FIXED-INPUT-01, W2-18-FIXED-INPUT-02: real library bindings reach SD
     await closeProject(project); project = undefined;
     project = openProject(databasePath); started = await startPlugins(project);
     assertRead(started.clients, first, "fixed\n"); assertRows(await readDiff(project), "fixed");
-    for (const inputs of oldClients.values()) assert.throws(() => inputs.reference("after"), { code: "plugin_grant_denied" });
+    for (const inputs of oldClients.values()) assert.throws(() => inputs.reference("after"), { code: "plugin.grant_denied" });
     assert.equal(project.platform.wiring.view().plugins.find(plugin => plugin.plugin_id === DIFF_PLUGIN_ID)!.ports.find(port => port.port === "after")!.artifact?.version, 1);
     project.artifacts.commands.markUnavailable({ project_id: DEMO_PROJECT_ID, actor_id: ACTOR, ...first, reason: "fixture content lost" });
     const diff = started.clients.get(DIFF_PLUGIN_ID)!;

@@ -127,10 +127,10 @@ test('W3-07-8-02 a real sandbox and production broker cannot acquire builtin Goa
     runner = await createSandboxRunner({ bundlePath, identity, grants: effects, contract: { version: 1, pluginId: identity.pluginId, revision: 'one', entities: [], pages: [], acceptance: [],
       operations: [{ id: 'run', kind: 'command', input: { type: 'object', additionalProperties: false, properties: { goal_id: { type: 'string' }, cursor: { type: 'integer', minimum: 0 } }, required: ['goal_id', 'cursor'] },
         output: { type: 'object', additionalProperties: false, properties: { listed: { type: 'boolean' }, denied: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { id: { type: 'string' }, code: { type: 'string' } }, required: ['id', 'code'] } } }, required: ['listed', 'denied'] },
-        effects, errors: [], examples: [{ input: { goal_id, cursor: initial.cursor }, output: { listed: true, denied: ids.map(id => ({ id, code: 'CAPABILITY_DENIED' })) } }] }] },
+        effects, errors: [], examples: [{ input: { goal_id, cursor: initial.cursor }, output: { listed: true, denied: ids.map(id => ({ id, code: 'plugin_builder.capability_denied' })) } }] }] },
       services: { capability: catalogCapabilities({ actions, catalog, live: item => item.installationId === identity.installationId }) } });
     const result = await runner.call('run', { goal_id, cursor: initial.cursor });
-    assert.deepEqual(result, { listed: true, denied: ids.map(id => ({ id, code: 'CAPABILITY_DENIED' })) }, 'the production broker refuses despite explicit sandbox declarations and grants');
+    assert.deepEqual(result, { listed: true, denied: ids.map(id => ({ id, code: 'plugin_builder.capability_denied' })) }, 'the production broker refuses despite explicit sandbox declarations and grants');
     assert.deepEqual(await host.withProject(ref, runtime => runtime.store.readEventsDescending(DEMO_PROJECT_ID)), initial.events);
   } finally { await runner?.stop(); await host.close(); await rm(directory, { recursive: true, force: true }); }
 });

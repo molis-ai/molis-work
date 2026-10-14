@@ -1126,7 +1126,7 @@ for (const stage of ["adopt", "connect"] as const) test(`a late ${stage} reset c
   const chosenReset = stage === 'adopt' ? 1 : 2;
   // This port deliberately ignores the optional checker: the workflow must still check after awaiting it.
   h.ports.resetPreview = async () => { if (++resets === chosenReset) { entered.resolve(); await release.promise; } };
-  const workflow = new AgentBuilderWorkflow(new AgentBuilderStore(memoryStorage()), h.ports);
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
   try {
     const created = workflow.create('A note keeper'), proposed = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(created.id, { action: 'choose', revision: proposed.revision, candidateId: proposed.candidates[0]!.id });

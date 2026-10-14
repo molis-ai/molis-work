@@ -88,7 +88,7 @@ test("W2-18-CATALOG-ERROR-01: every business-error family produces a closed fail
       let publicFailure: unknown;
       await assert.rejects(chain.sync.sync(source.source_id, { idempotencyKey: `catalog-closed-${index}` }), error => { publicFailure = error; return true; });
       const durable = chain.feed.getSource(DEMO_PROJECT_ID, source.source_id), snapshot = chain.feed.snapshot(DEMO_PROJECT_ID);
-      assert.deepEqual(durable.cursor, before); assert.equal(durable.last_error_code, fixture.auth ? "connector_needs_auth" : "connector_provider");
+      assert.deepEqual(durable.cursor, before); assert.equal(durable.last_error_code, fixture.auth ? "connector.needs_auth" : "connector.provider");
       assert.equal(snapshot.feed_items.some(item => item.source_id === source.source_id), false);
       assert.ok(snapshot.runs.some(run => run.source_id === source.source_id && run.outcome === "failed"));
       assert.equal(snapshot.inbox_entries.some(entry => entry.subject_type === "source_fault" && entry.subject_id === source.source_id), fixture.auth === true);

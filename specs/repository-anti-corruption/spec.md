@@ -2283,3 +2283,5 @@ R4c3a 09db92c77（Diff8词元/2TS）和R4c3b 9e72f8479（图6词元/2TS）源码
 R5首片仅侧栏Browser的三种page错误为browser.page_crashed/load_failed/blocked_scheme，owner表已有browser；同片更新HTTP/driver、BrowserProblemCode类型、真实测试和工作台崩溃/刷新比较。R5B-01：实测页面崩溃仍提示重载，加载失败仍给刷新，地址scheme/接管/禁用/网站权限/文件限制仍拒且无旧码alias；R5B-02：当前消费者/API同步，其他page.*能力/属性/夹具名称、消息/状态/URL/权限不变；R5B-03：源JS变长以局部变量等价缩短抵消，实测资源预算不增、现有真实浏览器和共享组合回归通过才验收。当前仅独立源码准备，I8/477冻树不改；不会用unsafe模板剥除或提高预算。
 
 R5B源码准备中复查发现撞名：已有browser.crashed是浏览器进程退出，不能给页面崩溃共用，否则stopped会误走重载而非重启。新页面码固定browser.page_crashed，现有进程码/恢复语义保持，API和模板比较同片同步；源逆名证明对同码已有producer也须保留，不只把新码全字逆回。这个候选缺陷在提交/运行验收前修正，不计已通过。
+
+W3-10-5现行程序形态接续：I8合入#411后绝对解析检查拒绝compactScript的split/map(trimStart)/filter/join，导致其父程序集无法展开、已有合法片段被误当完整程序。这不是增加raw fetch许可。BROWSER-FORMAT-01：语法限定该纯逐行formatter，静态计算实际输出并保留每片来源，不执行仓库函数；支持后父程序负责解析、片段不单独判坏，原分片raw-fetch归属/反射/替换/未知动态拒绝保持。BROWSER-FORMAT-02：合法formatter组合通过，新增片fetch及formatter改写仍失败且不能update洗基线；真实current程序展开/等价与既有门禁测试通过后才收口。不采用对未识别文本剥字面量的旧做法、不放宽任何数值或规则。

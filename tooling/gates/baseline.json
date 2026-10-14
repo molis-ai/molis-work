@@ -28,7 +28,7 @@
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
     "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 187,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
-      "lines": 292,
+      "lines": 291,
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
@@ -111,27 +111,27 @@
       "methods": 29
     },
     "class modules/goals/src/event-facts.ts#GoalEventFacts": {
-      "lines": 576,
+      "lines": 559,
       "methods": 35
     },
     "class modules/goals/src/event-state-effects.ts#GoalEventStateEffects": {
-      "lines": 539,
+      "lines": 534,
       "methods": 12
     },
-    "function modules/goals/src/event-state-effects.ts#recordTrustedDecision": 155,
+    "function modules/goals/src/event-state-effects.ts#recordTrustedDecision": 152,
     "class modules/goals/src/event-state-repository.ts#GoalEventStateRepository": {
       "lines": 408,
       "methods": 30
     },
     "class modules/goals/src/event-state.ts#GoalEventState": {
-      "lines": 365,
+      "lines": 351,
       "methods": 21
     },
     "class modules/goals/src/guidance-commands.ts#GuidanceCommands": {
-      "lines": 368,
+      "lines": 332,
       "methods": 3
     },
-    "function modules/goals/src/guidance-commands.ts#update": 201,
+    "function modules/goals/src/guidance-commands.ts#update": 177,
     "function modules/goals/src/lifecycle-archive.ts#setTrashed": 155,
     "class modules/private-work-context/src/project-binding-commands.ts#RuntimeProjectBindingCommands": {
       "lines": 333,
@@ -1410,7 +1410,7 @@
     "orderDependent": [],
     "nested": []
   },
-  "errorSubclassTotal": 77,
+  "errorSubclassTotal": 76,
   "errorSubclasses": {
     "apps/local-host/src/assistant/assistant-coding.ts": 1,
     "apps/local-host/src/browser/browser-host.ts": 1,
@@ -1438,7 +1438,6 @@
     "horizontal/runtime-host/src/adapters/codex-app-server.ts": 1,
     "modules/characters/src/service.ts": 1,
     "modules/context-ledger/src/service.ts": 1,
-    "modules/goals/src/errors.ts": 1,
     "modules/signals/src/index.ts": 1,
     "packages/contracts/src/modules/attention-resumption.ts": 1,
     "packages/contracts/src/modules/feed.ts": 1,

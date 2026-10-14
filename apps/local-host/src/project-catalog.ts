@@ -181,7 +181,6 @@ export class MolisWorkProjectCatalog {
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");
     this.projects = new ProjectsModule({
       db,
-      errorFactory: catalogFailure,
       // Which Plugins a project may enable comes from what this build ships, not
       // from a list compiled into Projects.
       plugins: BUILTIN_PLUGIN_REGISTRY,

@@ -6,7 +6,6 @@ import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { currentCallId, markCallRecorded, newCallId } from "@molis-ai/molis-work-kernel";
 import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { assertOwnedCatalog, assertCurrentCatalog } from "./catalog-schema.js";
-import { catalogFailure } from "./project-catalog-contract.js";
 import { actionGatewayHomeId } from "./action-gateway.js";
 import { postToResidentHost, residentHostOrigin } from "./resident-host-request.js";
 import type { GoalsManagementActions } from "./goals-actions.js";
@@ -21,7 +20,7 @@ export function catalogManagementProject(home: string, databasePath: string): { 
   try {
     assertOwnedCatalog(storage, path); assertCurrentCatalog(storage, path);
     const target = realpathSync(databasePath);
-    const matches = new ProjectsModule({ db: storage.db, errorFactory: catalogFailure }).query.listProjects()
+    const matches = new ProjectsModule({ db: storage.db }).query.listProjects()
       .filter(project => existsSync(project.database_path) && realpathSync(project.database_path) === target);
     if (matches.length > 1) throw new ActionError("actions.scope_mismatch", "这个数据库对应多个项目，不能选择管理调用范围");
     const project = matches[0];

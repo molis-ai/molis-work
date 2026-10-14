@@ -3,6 +3,8 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 
 import {
   createProjectsSchema,
@@ -10,17 +12,10 @@ import {
 } from "@molis-ai/molis-work-module-projects";
 import Database from "better-sqlite3";
 
-class ProjectsTestError extends Error {
-  constructor(readonly code: string, message: string) {
-    super(message);
-  }
-}
-
 function createModule(db: Database.Database): ProjectsModule {
   let sequence = 0;
   return new ProjectsModule({
     db,
-    errorFactory: (code, message) => new ProjectsTestError(code, message),
     now: () => `2026-09-02T00:00:${String(sequence).padStart(2, "0")}.000Z`,
     id: (prefix) => `${prefix}-${++sequence}`,
   });
@@ -72,15 +67,32 @@ test("Projects Module owns canonical project identity and workspace membership",
         user_confirmed: false,
       }),
       // R4A2-01: project membership owns this separate confirmation refusal.
-      (error: unknown) => error instanceof ProjectsTestError && error.code === "catalog.context.user_confirmation_required",
+      (error: unknown) => {
+        // I4-01: a missing user confirmation stays a Catalog input refusal, before facts change.
+        assert.ok(error instanceof ActionError);
+        assert.equal(error.code, "catalog.context.user_confirmation_required");
+        assert.equal(error.message, "只有用户明确确认后才能关联工作目录");
+        assert.equal(error.kind, "invalid");
+        assert.equal(actionHttpStatus(error), 400);
+        assert.equal(Object.hasOwn(error, "details"), false);
+        return true;
+      },
     );
+    assert.deepEqual(projects.query.workspaceProjectSelections(workspace.workspace_id),
+      [{ project_id: first.project_id, display_name: first.display_name }]);
     assert.throws(
       () => projects.lifecycle.prepareRecord({
         display_name: " ",
         projects_directory: directory,
         data_class: "user",
       }),
-      (error: unknown) => error instanceof ProjectsTestError && error.code === "catalog.invalid_name",
+      (error: unknown) => {
+        assert.ok(error instanceof ActionError);
+        assert.equal(error.code, "catalog.invalid_name");
+        assert.equal(error.message, "项目显示名称不能为空");
+        assert.equal(actionHttpStatus(error), 400);
+        return true;
+      },
     );
   } finally {
     db.close();

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { catalogErrors } from "./errors.js";
 
 import type {
   AddProjectPluginInput,
@@ -14,8 +15,6 @@ import { BUILTIN_PROJECT_PLUGIN_REGISTRY } from "@molis-ai/molis-work-contracts/
 
 import { ProjectsRepository, type StoredProjectDeletion } from "./repository.js";
 
-export type ProjectsErrorFactory = (code: string, message: string) => Error;
-
 export interface ProjectRecordDraftInput {
   project_id?: string;
   display_name: string;
@@ -26,7 +25,6 @@ export interface ProjectRecordDraftInput {
 export class ProjectService {
   constructor(
     private readonly repository: ProjectsRepository,
-    private readonly error: ProjectsErrorFactory,
     private readonly now: () => string,
     private readonly id: (prefix: string) => string,
     /** Which Plugins exist is a Host fact. Projects only validates against it. */
@@ -47,7 +45,7 @@ export class ProjectService {
   get(projectId: string): ProjectRecord {
     const normalized = this.requiredProjectId(projectId);
     const project = this.repository.getProject(normalized);
-    if (!project) throw this.error("catalog.project_not_found", `找不到 Molis Work 项目: ${normalized}`);
+    if (!project) throw catalogErrors.project_not_found(`找不到 Molis Work 项目: ${normalized}`);
     return project;
   }
 
@@ -101,7 +99,7 @@ export class ProjectService {
       });
     }
     if (!this.plugins.has(input.plugin_id)) {
-      throw this.error("catalog.plugin_not_found", "找不到这个插件");
+      throw catalogErrors.plugin_not_found("找不到这个插件");
     }
     return this.repository.transaction(() => {
       const at = this.now();
@@ -119,7 +117,7 @@ export class ProjectService {
     const actor = this.requiredActorId(input.actor_id);
     const personal = this.plugins.isPersonal?.(input.plugin_id) === true;
     if (!personal && !this.plugins.has(input.plugin_id)) {
-      throw this.error("catalog.plugin_not_found", "找不到这个插件");
+      throw catalogErrors.plugin_not_found("找不到这个插件");
     }
     return this.repository.transaction(() => {
       const stored = this.listPlugins(project.project_id);
@@ -210,7 +208,7 @@ export class ProjectService {
 
   getDeletion(deletionId: string): StoredProjectDeletion {
     const record = this.repository.getDeletion(deletionId);
-    if (!record) throw this.error("catalog.project_storage_invalid", "项目删除记录意外丢失");
+    if (!record) throw catalogErrors.project_storage_invalid("项目删除记录意外丢失");
     return record;
   }
 
@@ -238,19 +236,19 @@ export class ProjectService {
 
   requiredName(value: string): string {
     const name = value.trim();
-    if (!name) throw this.error("catalog.invalid_name", "项目显示名称不能为空");
+    if (!name) throw catalogErrors.invalid_name("项目显示名称不能为空");
     return name;
   }
 
   private requiredProjectId(value: string): string {
     const projectId = value.trim();
-    if (!projectId) throw this.error("catalog.project_not_found", "项目 ID 不能为空");
+    if (!projectId) throw catalogErrors.project_not_found("项目 ID 不能为空");
     return projectId;
   }
 
   private requiredActorId(value: string): string {
     const actorId = value.trim();
-    if (!actorId) throw this.error("catalog.context.user_confirmation_required", "项目操作必须记录执行者");
+    if (!actorId) throw catalogErrors.user_confirmation_required("项目操作必须记录执行者");
     return actorId;
   }
 }

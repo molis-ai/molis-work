@@ -75,7 +75,7 @@ Coding 页面 → plugins/native/coding/src/routes.ts
   → agent.run.start.v1 → AgentHost.start（horizontal/agent-host/src/index.ts）
       冻结角色（Manifest + BUILTIN_PLUGIN_AGENTS 的提示词正文）→ 核对目录授权 → 核对原会话归属（project/plugin/install/actor）
       → 解析 Character 固定版本 → 组装宿主工具与动作工具（精确引用）
-  → Prologue 适配器（adapters/prologue-node.ts）运行工具循环
+  → Prologue 适配器（adapters/prologue-node.ts 组合，adapters/prologue-run.ts 起跑）运行工具循环
       写文件/跑命令/调用写入动作 → AgentReviewQueue（reviews.ts）等人批准
   → 报告、变更集作为 Artifact 发布
   ← agent.run.wait.v1 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
@@ -219,7 +219,7 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
   | Shelf 的自动处理 | 600 秒、12000 个输出 token | `apps/local-host/src/shelf-ai.ts` |
   | Cognia 与 Alchemist | 180 秒（Alchemist 4096 个输出 token） | `apps/local-host/src/cognia-prologue.ts`、`apps/local-host/src/alchemist-prologue.ts` |
   | 项目上手 | 180 秒 | `apps/local-host/src/context-onboarding-service.ts` |
-  | Agent 轮次的每次模型调用 | 默认 180 秒；预算里的 `max_duration_ms` 优先 | `horizontal/agent-host/src/adapters/prologue-node.ts`（`MODEL_CALL_TIMEOUT_MS`） |
+  | Agent 轮次的每次模型调用 | 默认 180 秒；预算里的 `max_duration_ms` 优先 | `horizontal/agent-host/src/adapters/prologue-run.ts`（`MODEL_CALL_TIMEOUT_MS`） |
   | 创作台的角色 | designer 600 秒、coder 300 秒 | `horizontal/agent-host/src/adapters/plugin-builder.ts`（`MODEL_CALL_LIMIT_MS`） |
 - **恢复**：Agent 会话用 `agent.session.recovery.v1` / `agent.session.recover.v1`；长任务靠持久记录与幂等键（`request_id`），重试不重复调用模型、不重复写入。
 

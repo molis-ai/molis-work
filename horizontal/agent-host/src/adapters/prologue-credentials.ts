@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ExactRef } from "@prologue/sdk";
-import type { PrologueNodeAdapterOptions } from "./prologue-node.js";
+import type { PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 
 /** Prologue's own credential store, as much of it as this bridge needs. */
 export interface PrologueCredentialHost {

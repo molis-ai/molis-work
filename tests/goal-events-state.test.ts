@@ -3113,3 +3113,25 @@ test("the management caller factory acts as the person on this machine, builds t
   await management.invoke(goalsActions.treeRead, { actor_id: "x" } as never);
   assert.equal(seen.length, 1);
 });
+
+
+test("R-GOALS-OWNER-02: create-intent rejects unpermitted fields before facts or an idempotency receipt, then the same intent succeeds once", () => {
+  const data = fixture();
+  try {
+    const input = { project_id: BOARD, title: "合法意图", actor_id: "runtime-1", actor_kind: "runtime" as const, idempotency_key: "intent-owner-rejection" };
+    const before = data.store.snapshot(BOARD), events = data.store.readEventsDescending(BOARD);
+    const unpermitted = { ...input, injected_identity: "another-person" };
+    assert.throws(() => data.app.goalEvents.createIntent(unpermitted),
+      { code: "goals.intent.unexpected_field", kind: "invalid", message: "不能使用未许可字段：injected_identity", details: { fields: ["injected_identity"] } });
+    assert.deepEqual(data.store.snapshot(BOARD), before);
+    assert.deepEqual(data.store.readEventsDescending(BOARD), events);
+    const created = data.app.goalEvents.createIntent(input);
+    assert.equal(created.replayed, false);
+    const after = data.store.snapshot(BOARD), afterEvents = data.store.readEventsDescending(BOARD);
+    const replay = data.app.goalEvents.createIntent(input);
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.goal.goal_id, created.goal.goal_id);
+    assert.deepEqual(data.store.snapshot(BOARD), after);
+    assert.deepEqual(data.store.readEventsDescending(BOARD), afterEvents);
+  } finally { close(data); }
+});

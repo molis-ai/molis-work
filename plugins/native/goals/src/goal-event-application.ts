@@ -1,4 +1,4 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash } from "node:crypto";
 import {
   goalEventWorkStatuses,
@@ -363,10 +363,12 @@ const CREATE_INTENT_KEYS = new Set([
   "requirements", "source_kind",
 ]);
 
+const intentErrors = defineErrorCodes("goals.intent", { unexpected_field: "invalid" });
+
 function assertCreateIntentKeys(input: CreateGoalIntentInput): void {
   const unexpected = Object.keys(input).filter((key) => !CREATE_INTENT_KEYS.has(key));
   if (unexpected.length) {
-    throw new ActionError("mcp.unexpected_field", `不能使用未许可字段：${unexpected.join("、")}`, { details: { fields: unexpected } });
+    throw intentErrors.unexpected_field(`不能使用未许可字段：${unexpected.join("、")}`, { details: { fields: unexpected } });
   }
 }
 

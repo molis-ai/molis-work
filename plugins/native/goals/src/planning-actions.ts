@@ -1,8 +1,10 @@
-import { ActionError, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineErrorCodes, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalsPlanningApi, PlanningMethodPack, ResolvedPlanningMethodPack, SaveProjectPlanningMethodInput } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction, goalActor } from "./action-contract.js";
 import { identifier, count, boolean, object, array } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { planningMethodInputSchema, planningMethodSchema, planningMethodSummarySchema, planningCompositionSchema, planningImpactSchema, planningGraphIssueSchema, planningSavedSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+
+const planningErrors = defineErrorCodes("goals.planning", { method_not_found: "invalid" });
 
 /** What `goals.planning.read` returns: the methods in effect for the project and the composition the project enabled. */
 export interface GoalPlanningComposition {
@@ -42,14 +44,14 @@ export function createGoalsPlanningActionHandlers(ports: GoalsPlanningActionPort
     { ...goalsPlanningActions.planningRead, handle: (_caller, input) => {
       const methods = planning.effectiveMethods(projectId), wanted = (input as { method_ids?: string[] }).method_ids;
       const missing = (wanted ?? []).filter(id => !methods.some(method => method.method_id === id));
-      if (missing.length) throw new ActionError("planning_method.not_found", `找不到规划方法：${missing.join("、")}`);
+      if (missing.length) throw planningErrors.method_not_found(`找不到规划方法：${missing.join("、")}`);
       return { methods: wanted ? wanted.map(id => methods.find(method => method.method_id === id)!) : methods, composition: planning.projectComposition(projectId) };
     } },
     { ...goalsPlanningActions.planningSave, handle: (caller, input) => planning.saveProjectMethod({ ...input as SaveInput, project_id: projectId, actor_id: goalActor(caller).actor_id }) },
     { ...goalsPlanningActions.planningApply, handle: (caller, input) => {
       const { method_id, user_confirmed } = input as ApplyInput;
       const source = ports.baseMethods().find(method => method.method_id === method_id && method.scope !== "project");
-      if (!source) throw new ActionError("planning_method.not_found", "找不到可选的规划方法");
+      if (!source) throw planningErrors.method_not_found("找不到可选的规划方法");
       const { scope: _scope, created_at: _created, updated_at: _updated, overridden_scopes: _overrides, ...method } = source as ResolvedPlanningMethodPack;
       return planning.saveProjectMethod({ project_id: projectId, actor_id: goalActor(caller).actor_id, user_confirmed, method: { ...method, enabled: true } });
     } },

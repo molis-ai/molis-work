@@ -33,7 +33,11 @@ test("planning actions preserve complete methods, project versions, live policy 
     await assert.rejects(bound.invoke( goalsActions.planningApply, { method_id, user_confirmed: false }));
     await assert.rejects(bound.invoke( goalsActions.planningApply, { method_id, user_confirmed: true, actor_id: "forged" } as never), { code: "actions.input_invalid" });
     await assert.rejects(actions.invoke({ ...caller, permissions: ["goals:read"] }, goalsActions.planningApply, { method_id, user_confirmed: true }), { code: "actions.forbidden" });
-    await assert.rejects(bound.invoke( goalsActions.planningApply, { method_id: "missing", user_confirmed: true }), { code: "planning_method.not_found" });
+    // R-GOALS-OWNER-01: both owner refusals leave the effective methods and composition intact.
+    await assert.rejects(bound.invoke(goalsActions.planningRead, { method_ids: ["missing"] }),
+      { code: "goals.planning.method_not_found", kind: "invalid", message: "找不到规划方法：missing" });
+    await assert.rejects(bound.invoke(goalsActions.planningApply, { method_id: "missing", user_confirmed: true }),
+      { code: "goals.planning.method_not_found", kind: "invalid", message: "找不到可选的规划方法" });
     assert.deepEqual(await bound.invoke( goalsActions.planningRead, {}), initial);
     const applied = await bound.invoke( goalsActions.planningApply, { method_id, user_confirmed: true });
     assert.equal(applied.method.scope, "project");

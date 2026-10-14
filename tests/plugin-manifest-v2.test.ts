@@ -99,7 +99,7 @@ function rejects(mutate: (manifest: Record<string, unknown>) => void, needle: st
     () => parsePluginManifest(input),
     (error: unknown) =>
       error instanceof PluginManifestError
-      && error.code === "plugin_declaration_invalid"
+      && error.code === "plugin.declaration_invalid"
       && error.message.includes(needle),
     `期望因为 ${needle} 被拒绝`,
   );
@@ -134,11 +134,11 @@ test("v1 Manifest cannot silently carry v2 declarations", () => {
   assert.throws(
     () => parsePluginManifest(v1),
     (error: unknown) => error instanceof PluginManifestError
-      && error.code === "plugin_declaration_invalid" && error.message.includes("ports"),
+      && error.code === "plugin.declaration_invalid" && error.message.includes("ports"),
   );
   assert.throws(
     () => parsePluginManifest({ ...v1, ports: undefined, kind: "app" }),
-    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin_manifest_invalid",
+    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin.manifest_invalid",
   );
 });
 

@@ -82,7 +82,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     const oldConsumerClient = consumer.client;
     await runtime.reportCrash(consumer.installId);
     assert.throws(() => oldConsumerClient.read(value), (error: unknown) => error instanceof PluginRuntimeError
-      && error.code === "plugin_grant_denied");
+      && error.code === "plugin.grant_denied");
     await runtime.recover(consumer.installId);
     assert.deepEqual(consumer.client.read(value), first.artifact);
     assert.throws(() => oldConsumerClient.read(value), PluginRuntimeError,
@@ -97,7 +97,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     const before = store.snapshot(DEMO_PROJECT_ID);
     const versions = api.query.listArtifactVersions(DEMO_PROJECT_ID, value.artifact_id);
     assert.throws(() => noRead.client.read(value), (error: unknown) => error instanceof PluginRuntimeError
-      && error.code === "plugin_grant_denied");
+      && error.code === "plugin.grant_denied");
     assert.throws(() => wrongSchema.client.read(value), (error: unknown) => error instanceof PluginArtifactAccessError
       && error.code === "plugin_artifact_incompatible");
     // A personal 成果 belongs to the Home's person whoever produced it: another actor's installation reads it by type, not by being its producer.
@@ -110,7 +110,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     await runtime.uninstall(producer.installId);
     assert.deepEqual(consumer.client.read(value), first.artifact, "uninstall preserves exchanged content");
     assert.throws(() => producer.client.publish({ ...value, version: 3 }),
-      (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin_grant_denied");
+      (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin.grant_denied");
     assert.deepEqual(api.query.listArtifactVersions(DEMO_PROJECT_ID, value.artifact_id), versions,
       "a retained client cannot keep writing after uninstall");
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }

@@ -376,7 +376,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       ? this.#fail(pluginId, installId, code, message) : { plugin_id: pluginId, status: "failed", install_id: installId, code, message };
     if (!entry) return refuse(null, "plugin_unknown", "没有登记过这个插件");
     if (entry.definition.manifest.plugin_id !== pluginId) {
-      return refuse(null, "plugin_definition_conflict", "升级目标的 Plugin ID 不匹配");
+      return refuse(null, "plugin.definition_conflict", "升级目标的 Plugin ID 不匹配");
     }
     let candidateContract: PluginEventContract;
     try {
@@ -387,7 +387,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     const current = this.#runtime.list().find(record => record.plugin_id === pluginId
       && record.publisher_signature === entry.definition.manifest.publisher.signature
       && record.state !== "uninstalled");
-    if (!current) return refuse(null, "plugin_definition_missing", "找不到当前安装版本");
+    if (!current) return refuse(null, "plugin.definition_missing", "找不到当前安装版本");
     // Switching a plugin off and on is the person's call: a new version moves the installation and never starts it.
     const off = current.state === "disabled";
     if (!prior && !off) return refuse(null, "plugin_unknown", "没有登记过这个插件");
@@ -459,13 +459,13 @@ export class PluginSupervisor implements PluginHostLifecycle {
     const epoch = this.#epochs.get(pluginId) ?? 0;
     const installId = state?.install_id ?? null;
     if (releaseQuarantine && installId === null) {
-      return { plugin_id: pluginId, install_id: null, status: "failed", code: "plugin_state_invalid", message: "没有可解除隔离的插件安装" };
+      return { plugin_id: pluginId, install_id: null, status: "failed", code: "plugin.state_invalid", message: "没有可解除隔离的插件安装" };
     }
     if (installId !== null) {
       const record = this.#runtime.get(installId);
       try {
         if (releaseQuarantine && record.state !== "quarantined") {
-          return { plugin_id: pluginId, install_id: installId, code: "plugin_state_invalid", message: "只有 quarantined Plugin 可以显式解除隔离", status: "failed" };
+          return { plugin_id: pluginId, install_id: installId, code: "plugin.state_invalid", message: "只有 quarantined Plugin 可以显式解除隔离", status: "failed" };
         }
         if (record.state === "running") await this.#runtime.stop(installId);
         if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {
@@ -501,7 +501,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
 
     const repository = this.#releaseArtifacts;
     if (!repository) {
-      throw codedError("plugin_release_store_unavailable", "Native 插件需要恢复已安装版本，但 Runtime 发行物存储未装配");
+      throw codedError("plugin.release_store_unavailable", "Native 插件需要恢复已安装版本，但 Runtime 发行物存储未装配");
     }
     const artifacts = repository.list(manifest.plugin_id, manifest.publisher.signature);
     const exact = artifacts.filter(artifact => artifact.version === installed.version

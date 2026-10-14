@@ -51,7 +51,7 @@ function refusal(input: unknown): { code: string; message: string } | null {
   }
 }
 function assertRefused(input: unknown, problems: string[]): void {
-  assert.deepEqual(refusal(input), { code: "plugin_declaration_invalid", message: problems.join(SEPARATOR) });
+  assert.deepEqual(refusal(input), { code: "plugin.declaration_invalid", message: problems.join(SEPARATOR) });
 }
 
 test("a type with every action it can name, produced and consumed, parses", () => {
@@ -152,9 +152,9 @@ test("the artifact problems come after the ones the other declarations raise, in
 test("declarations that are not what the shape rules expect do not make the check throw", () => {
   for (const actions of [undefined, [], {}, [null], [5], [{ capability_id: preview.capability_id, version: 1 }], [{ ...preview, action: null }]]) {
     const verdict = refusal(declarationManifest({ ...(actions === undefined ? {} : { actions }), artifacts: { produces: [noteType()], consumes: [] } }));
-    assert.equal(verdict?.code, "plugin_declaration_invalid", JSON.stringify(actions));
+    assert.equal(verdict?.code, "plugin.declaration_invalid", JSON.stringify(actions));
   }
-  assert.equal(refusal(declarationManifest({ artifacts: { produces: [noteType({ preview: null, pin: 1, compare: [], continue: "x" })], consumes: [] }, actions: ALL }))?.code, "plugin_declaration_invalid");
+  assert.equal(refusal(declarationManifest({ artifacts: { produces: [noteType({ preview: null, pin: 1, compare: [], continue: "x" })], consumes: [] }, actions: ALL }))?.code, "plugin.declaration_invalid");
 });
 
 // ---- (d) schema_version 1 cannot declare actions, so it cannot produce a type -------------------------------------------
@@ -186,7 +186,7 @@ function definitionOf(manifest: Record<string, unknown>): PluginDefinition {
 test("Runtime refuses to install a plugin whose type has no preview, and installs one that has", () => {
   const unreadable = definitionOf(declarationManifest({ artifacts: { produces: [{ artifact_type_id: TYPE_ID, schema_version: 1, title: "笔记" }], consumes: [] } }));
   assert.throws(() => new PluginRuntime().install({ definition: unreadable, deployment: "local" }),
-    (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin_manifest_invalid" && error.message.includes(`成果类型 ${KEY} 缺少预览动作（preview）`));
+    (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin.manifest_invalid" && error.message.includes(`成果类型 ${KEY} 缺少预览动作（preview）`));
   const note = artifactPreview(ID, TYPE_ID);
   const readable = definitionOf(declarationManifest({ actions: [note.definition], artifacts: { produces: [note.type], consumes: [] } }));
   assert.equal(new PluginRuntime().install({ definition: readable, deployment: "local" }).install.plugin_id, ID);

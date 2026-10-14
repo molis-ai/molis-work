@@ -366,7 +366,7 @@ test("following a bundled build never changes the deployment of an installation"
     const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
     const installed = runtime.install({ definition: definition("1.0.0", [], undefined, undefined, { entrypoints }), deployment: "local", bundled: true }).install;
     assert.throws(() => runtime.install({ definition: definition("0.3.0", [], undefined, undefined, { entrypoints }), deployment: "server", bundled: true }),
-      (error: unknown) => (error as { code?: string }).code === "plugin_state_invalid" && /部署环境/.test((error as Error).message));
+      (error: unknown) => (error as { code?: string }).code === "plugin.state_invalid" && /部署环境/.test((error as Error).message));
     assert.deepEqual(runtime.get(installed.install_id), installed, "the refused follow left the record as it was");
   } finally {
     db.close();
@@ -491,9 +491,9 @@ test("PluginRuntime.install without bundled refuses a lower version, a higher ve
       catch (error) { return (error as { code?: string }).code; }
     };
     runtime.install({ definition: definition("0.3.0", [], undefined, undefined, { build: "A" }), deployment: "local" });
-    assert.equal(refusal(definition("0.2.0", [])), "plugin_upgrade_required", "a lower version is not an install over this one");
-    assert.equal(refusal(definition("0.4.0", [])), "plugin_upgrade_required", "a higher one needs the declaration, or the person's confirmation in the market");
-    assert.equal(refusal(definition("0.3.0", [], undefined, undefined, { build: "B" })), "plugin_definition_conflict");
+    assert.equal(refusal(definition("0.2.0", [])), "plugin.upgrade_required", "a lower version is not an install over this one");
+    assert.equal(refusal(definition("0.4.0", [])), "plugin.upgrade_required", "a higher one needs the declaration, or the person's confirmation in the market");
+    assert.equal(refusal(definition("0.3.0", [], undefined, undefined, { build: "B" })), "plugin.definition_conflict");
     assert.equal(runtime.list()[0]?.version, "0.3.0", "nothing moved");
     assert.equal(runtime.list()[0]?.manifest_digest, pluginManifestDigest(definition("0.3.0", [], undefined, undefined, { build: "A" }).manifest));
   } finally {
@@ -508,7 +508,7 @@ test("PluginRuntime.install refuses the same version with another Manifest, and 
     const buildA = definition("0.3.0", [], undefined, undefined, { build: "A" });
     runtime.install({ definition: buildA, deployment: "local" });
     assert.throws(() => runtime.install({ definition: definition("0.3.0", [], undefined, undefined, { build: "B" }), deployment: "local" }),
-      (error: unknown) => (error as { code?: string }).code === "plugin_definition_conflict" && /请递增版本/.test((error as Error).message));
+      (error: unknown) => (error as { code?: string }).code === "plugin.definition_conflict" && /请递增版本/.test((error as Error).message));
     // The one way through is the Manifest naming its own version as a compatible source (the Manifest contract allows exactly that).
     const declared = definition("0.3.0", [], undefined, { compatible_from_versions: ["0.3.0"] }, { build: "B" });
     assert.doesNotThrow(() => runtime.install({ definition: declared, deployment: "local" }));
@@ -557,7 +557,7 @@ test("a same-version declaration lets the changed build run without touching the
     const extraPermission = { permission: "artifact:write", required: true, reason: "写入结果" } as const;
     const widened = await startWith(definition("0.3.0", started, undefined, declaration, { build: "D", permissions: [permission, extraPermission] }), "native-D");
     assert.deepEqual(widened.report.running, [], "a Manifest that needs another grant does not start without a version bump");
-    assert.equal(widened.report.failed[0]?.code, "plugin_state_invalid");
+    assert.equal(widened.report.failed[0]?.code, "plugin.state_invalid");
     assert.ok(!started.includes("0.3.0 D"));
   } finally {
     db.close();

@@ -334,8 +334,8 @@ test('a reinstall that cannot read the data an uninstall kept is refused until t
     await installed.lifecycle('uninstall', fixture.release, { keepData: true });
     const v3 = { ...fixture.release, version: 3 }; only(installed, v3);   // the earlier releases are gone, so v3 does not say it reads their data
     assert.ok(await kept() > 0);
-    await assert.rejects(installed.lifecycle('install', v3, { consent: true }), (error: { code?: string; message: string }) => error.code === 'plugin_kept_data_incompatible' && /放弃/.test(error.message));
-    await assert.rejects(installed.lifecycle('install', v3, { consent: true, discardKeptData: false }), (error: { code?: string }) => error.code === 'plugin_kept_data_incompatible');
+    await assert.rejects(installed.lifecycle('install', v3, { consent: true }), (error: { code?: string; message: string }) => error.code === 'plugin.kept_data_incompatible' && /放弃/.test(error.message));
+    await assert.rejects(installed.lifecycle('install', v3, { consent: true, discardKeptData: false }), (error: { code?: string }) => error.code === 'plugin.kept_data_incompatible');
     assert.deepEqual(installed.records(), [], 'a refused install changes nothing');
     assert.ok(await kept() > 0, 'and the data is still there');
 
@@ -372,7 +372,7 @@ test('an install that fails over kept data puts the uninstalled record back exac
     assert.deepEqual(row(installed), before, 'same version, digest, installation generation and kept-data flag');
     assert.deepEqual(await rows(), data, 'and the same data');
     assert.deepEqual(installed.records(), []);
-    await assert.rejects(installed.lifecycle('install', v3, { consent: true }), (error: { code?: string }) => error.code === 'plugin_kept_data_incompatible', 'a plain retry is asked again, not let through');
+    await assert.rejects(installed.lifecycle('install', v3, { consent: true }), (error: { code?: string }) => error.code === 'plugin.kept_data_incompatible', 'a plain retry is asked again, not let through');
 
     // The same for an install that is allowed over the data: it fails, and the record and the data stay what the uninstall left.
     const v2 = { ...fixture.release, version: 2 }; only(installed, fixture.release, v2);   // v2 names v1 as an earlier release, so it declares it can read v1's data

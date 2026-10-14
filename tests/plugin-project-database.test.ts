@@ -292,7 +292,7 @@ test("the library needs the grants the entry's declaration names: without storag
     try {
       const refused = await optionalStorage.platform.start([{ definition: unstorable.definition, database: DECLARATION }]);
       assert.deepEqual(refused.running, []);
-      assert.deepEqual(refused.failed.map(entry => entry.code), ["plugin_grant_denied"]);
+      assert.deepEqual(refused.failed.map(entry => entry.code), ["plugin.grant_denied"]);
       assert.equal(unstorable.started.length, 0, "the plugin was never given the chance to start without its library");
     } finally { optionalStorage.store.close(); }
 
@@ -300,9 +300,9 @@ test("the library needs the grants the entry's declaration names: without storag
     try {
       assert.deepEqual((await narrow.platform.start([{ definition: held.definition, database: DECLARATION }])).running, [held.id], "the required permission is enough to start");
       const database = held.database();
-      assert.throws(() => database.get("SELECT 1"), { code: "plugin_grant_denied" });
-      assert.throws(() => database.all("SELECT 1"), { code: "plugin_grant_denied" });
-      await assert.rejects(noteInto(database, "held back"), { code: "plugin_grant_denied" });
+      assert.throws(() => database.get("SELECT 1"), { code: "plugin.grant_denied" });
+      assert.throws(() => database.all("SELECT 1"), { code: "plugin.grant_denied" });
+      await assert.rejects(noteInto(database, "held back"), { code: "plugin.grant_denied" });
       assert.deepEqual(rows(directory, LIBRARY), [], "the write that was refused left nothing");
     } finally { narrow.store.close(); }
 

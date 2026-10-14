@@ -90,7 +90,7 @@ test("declared SDK dependency inspection uses the live Host registry without ope
   const raw = host.client(reference("a"));
   const client = createPluginCapabilityClient({ ...filesManifest, plugin_id: "io.molis.work.example.dependency", capabilities: { provides: [], consumes: [definition.capability_id] } }, raw, () => active);
   try {
-    assert.deepEqual(client.availability({ ...definition, capability_id: "undeclared" }), { available: false, code: "plugin_capability_denied", reason: "插件未声明消费此宿主能力" });
+    assert.deepEqual(client.availability({ ...definition, capability_id: "undeclared" }), { available: false, code: "plugin.capability_denied", reason: "插件未声明消费此宿主能力" });
     assert.equal(client.availability(definition).available, false);
     const stop = host.register(definition, () => { calls++; return 3; });
     assert.deepEqual(client.availability(definition), { available: true });

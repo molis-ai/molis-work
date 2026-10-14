@@ -40,12 +40,12 @@ test("real CLI creates, packs, signs and verifies a Plugin while rejecting tampe
     assert.equal(readFileSync(signed, "utf8"), untouched);
     const wrong = generateKeyPairSync("ed25519");
     assert.throws(() => verifyPluginPackage(data, wrong.publicKey), (error: unknown) => error instanceof PluginPackageError
-      && error.code === "plugin_signer_mismatch");
+      && error.code === "plugin.signer_mismatch");
 
     const tampered = structuredClone(data);
     tampered.payload.files.find((file: { path: string }) => file.path === "index.mjs").content_base64 = Buffer.from("throw new Error('changed')").toString("base64");
     assert.throws(() => verifyPluginPackage(tampered, keys.publicKey), (error: unknown) => error instanceof PluginPackageError
-      && error.code === "plugin_signature_invalid");
+      && error.code === "plugin.signature_invalid");
     const changedManifest = structuredClone(data);
     changedManifest.payload.manifest.name = "Changed outer manifest";
     assert.throws(() => parsePluginPackage(changedManifest), PluginPackageError, "outer Manifest cannot differ from imported manifest.json");

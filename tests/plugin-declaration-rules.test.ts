@@ -519,44 +519,44 @@ test("a v1 Manifest is refused for each v2 block, naming the first block it carr
 
 // ---- (e) the shape checks that run before any declaration is read ---------------------------------------------------------
 
-type ManifestCode = "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid";
+type ManifestCode = "plugin.manifest_invalid" | "plugin.entrypoint_missing" | "plugin.permission_invalid" | "plugin.declaration_invalid";
 const SHAPE_RULES: ReadonlyArray<{ rule: string; input: unknown; code: ManifestCode; message: string }> = [
-  { rule: "not an object", input: null, code: "plugin_manifest_invalid", message: "Manifest 必须为对象" },
-  { rule: "an array", input: [], code: "plugin_manifest_invalid", message: "Manifest 必须为对象" },
-  { rule: "no publisher", input: declarationManifest({ publisher: undefined }), code: "plugin_manifest_invalid", message: "publisher 必须为对象" },
-  { rule: "schema_version 3", input: declarationManifest({ schema_version: 3, host_api_version: 3 }), code: "plugin_manifest_invalid", message: "Plugin Manifest schema_version 必须是 1 或 2，且 host_api_version 与之相同" },
-  { rule: "a host_api_version that differs", input: declarationManifest({ host_api_version: 1 }), code: "plugin_manifest_invalid", message: "Plugin Manifest schema_version 必须是 1 或 2，且 host_api_version 与之相同" },
-  { rule: "a plugin id outside the namespace", input: declarationManifest({ plugin_id: "io.example.thing" }), code: "plugin_manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
-  { rule: "a version that is not SemVer", input: declarationManifest({ version: "1.0" }), code: "plugin_manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
-  { rule: "a numeric prerelease with a leading zero", input: declarationManifest({ version: "1.0.0-01" }), code: "plugin_manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
-  { rule: "a blank name", input: declarationManifest({ name: " " }), code: "plugin_manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
-  { rule: "an empty signature", input: declarationManifest({ publisher: { publisher_id: "molis", signature: "" } }), code: "plugin_manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
-  { rule: "an unknown kind", input: declarationManifest({ kind: "service" }), code: "plugin_manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
-  { rule: "an app on schema_version 1", input: declarationManifest({ kind: "app", schema_version: 1, host_api_version: 1 }), code: "plugin_manifest_invalid", message: "app Plugin 必须使用 schema_version 2" },
-  { rule: "no entrypoint", input: declarationManifest({ entrypoints: [] }), code: "plugin_entrypoint_missing", message: "Plugin 至少需要一个 entrypoint" },
-  { rule: "an entrypoint for an unknown deployment", input: declarationManifest({ entrypoints: [{ deployment: "edge", entrypoint: "./entry.mjs" }] }), code: "plugin_entrypoint_missing", message: "同一部署环境只能声明一个有效 entrypoint" },
-  { rule: "two entrypoints for one deployment", input: declarationManifest({ entrypoints: [{ deployment: "local", entrypoint: "./a.mjs" }, { deployment: "local", entrypoint: "./b.mjs" }] }), code: "plugin_entrypoint_missing", message: "同一部署环境只能声明一个有效 entrypoint" },
-  { rule: "permissions that are not a list", input: declarationManifest({ permissions: {} }), code: "plugin_permission_invalid", message: "Plugin permissions 必须为数组" },
-  { rule: "a permission without a reason", input: declarationManifest({ permissions: [{ permission: "artifact:read", required: true }] }), code: "plugin_permission_invalid", message: "Plugin permission 必须唯一并说明用途及是否必需" },
-  { rule: "a permission whose required is not a boolean", input: declarationManifest({ permissions: [{ permission: "artifact:read", required: "yes", reason: "x" }] }), code: "plugin_permission_invalid", message: "Plugin permission 必须唯一并说明用途及是否必需" },
-  { rule: "a permission twice", input: declarationManifest({ permissions: [ARTIFACT_PERMISSIONS[0], ARTIFACT_PERMISSIONS[0]] }), code: "plugin_permission_invalid", message: "Plugin permission 必须唯一并说明用途及是否必需" },
-  { rule: "surface:browser without origins", input: declarationManifest({ permissions: [{ permission: "surface:browser", required: false, reason: "Show a site" }] }), code: "plugin_permission_invalid", message: "surface:browser 的 origins 必须列出完整的网站来源（如 https://example.com），不带路径、查询串或片段" },
-  { rule: "surface:browser with an origin that has a path", input: declarationManifest({ permissions: [{ permission: "surface:browser", required: false, reason: "Show a site", origins: ["https://example.com/docs"] }] }), code: "plugin_permission_invalid", message: "surface:browser 的 origins 必须列出完整的网站来源（如 https://example.com），不带路径、查询串或片段" },
-  { rule: "origins on another permission", input: declarationManifest({ permissions: [{ ...ARTIFACT_PERMISSIONS[0], origins: ["https://example.com"] }] }), code: "plugin_permission_invalid", message: "只有 surface:browser 可以列出 origins" },
-  { rule: "no capabilities object", input: declarationManifest({ capabilities: undefined }), code: "plugin_manifest_invalid", message: "capabilities 必须为对象" },
-  { rule: "capabilities.provides that is not a list of strings", input: declarationManifest({ capabilities: { provides: "x", consumes: [] } }), code: "plugin_manifest_invalid", message: "capabilities.provides 必须为非空字符串数组（可为空数组）" },
-  { rule: "capabilities.consumes with a blank entry", input: declarationManifest({ capabilities: { provides: [], consumes: [" "] } }), code: "plugin_manifest_invalid", message: "capabilities.consumes 必须为非空字符串数组（可为空数组）" },
-  { rule: "artifacts.produces that is not a list", input: declarationManifest({ artifacts: { produces: "x", consumes: [] } }), code: "plugin_manifest_invalid", message: "artifacts.produces 必须为数组" },
-  { rule: "an artifact type without an id", input: declarationManifest({ artifacts: { produces: [{ schema_version: 1 }], consumes: [] } }), code: "plugin_manifest_invalid", message: "类型必须声明 type ID 与正整数 schema_version" },
-  { rule: "an artifact type with schema_version 0", input: declarationManifest({ artifacts: { produces: [], consumes: [{ artifact_type_id: "example.input", schema_version: 0 }] } }), code: "plugin_manifest_invalid", message: "类型必须声明 type ID 与正整数 schema_version" },
-  { rule: "process_items that are not an object", input: declarationManifest({ process_items: "x" }), code: "plugin_manifest_invalid", message: "process_items 必须为对象" },
-  { rule: "a process item type with schema_version 0", input: declarationManifest({ process_items: { produces: [{ artifact_type_id: "example.item", schema_version: 0 }], consumes: [] } }), code: "plugin_manifest_invalid", message: "类型必须声明 type ID 与正整数 schema_version" },
-  { rule: "ui that is not an object", input: declarationManifest({ ui: "x" }), code: "plugin_manifest_invalid", message: "ui 必须为对象" },
-  { rule: "ui.contributions that is not a list of strings", input: declarationManifest({ ui: { contributions: [1] } }), code: "plugin_manifest_invalid", message: "ui.contributions 必须为非空字符串数组（可为空数组）" },
-  { rule: "embedded plugins naming itself", input: declarationManifest({ ui: { contributions: [], embedded_plugins: [DECLARATION_PLUGIN_ID] } }), code: "plugin_manifest_invalid", message: "ui.embedded_plugins 必须为不含自身、重复项或首尾空白的 Plugin ID" },
-  { rule: "embedded plugins listing one twice", input: declarationManifest({ ui: { contributions: [], embedded_plugins: ["io.molis.work.other", "io.molis.work.other"] } }), code: "plugin_manifest_invalid", message: "ui.embedded_plugins 必须为不含自身、重复项或首尾空白的 Plugin ID" },
-  { rule: "embedded plugins naming something that is not a plugin id", input: declarationManifest({ ui: { contributions: [], embedded_plugins: ["other"] } }), code: "plugin_manifest_invalid", message: "ui.embedded_plugins 必须为不含自身、重复项或首尾空白的 Plugin ID" },
-  { rule: "a declaration problem is its own code", input: declarationManifest({ routes: [route({ method: "TRACE" })] }), code: "plugin_declaration_invalid", message: "路由 example.list 的方法不合法" },
+  { rule: "not an object", input: null, code: "plugin.manifest_invalid", message: "Manifest 必须为对象" },
+  { rule: "an array", input: [], code: "plugin.manifest_invalid", message: "Manifest 必须为对象" },
+  { rule: "no publisher", input: declarationManifest({ publisher: undefined }), code: "plugin.manifest_invalid", message: "publisher 必须为对象" },
+  { rule: "schema_version 3", input: declarationManifest({ schema_version: 3, host_api_version: 3 }), code: "plugin.manifest_invalid", message: "Plugin Manifest schema_version 必须是 1 或 2，且 host_api_version 与之相同" },
+  { rule: "a host_api_version that differs", input: declarationManifest({ host_api_version: 1 }), code: "plugin.manifest_invalid", message: "Plugin Manifest schema_version 必须是 1 或 2，且 host_api_version 与之相同" },
+  { rule: "a plugin id outside the namespace", input: declarationManifest({ plugin_id: "io.example.thing" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
+  { rule: "a version that is not SemVer", input: declarationManifest({ version: "1.0" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
+  { rule: "a numeric prerelease with a leading zero", input: declarationManifest({ version: "1.0.0-01" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
+  { rule: "a blank name", input: declarationManifest({ name: " " }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
+  { rule: "an empty signature", input: declarationManifest({ publisher: { publisher_id: "molis", signature: "" } }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
+  { rule: "an unknown kind", input: declarationManifest({ kind: "service" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
+  { rule: "an app on schema_version 1", input: declarationManifest({ kind: "app", schema_version: 1, host_api_version: 1 }), code: "plugin.manifest_invalid", message: "app Plugin 必须使用 schema_version 2" },
+  { rule: "no entrypoint", input: declarationManifest({ entrypoints: [] }), code: "plugin.entrypoint_missing", message: "Plugin 至少需要一个 entrypoint" },
+  { rule: "an entrypoint for an unknown deployment", input: declarationManifest({ entrypoints: [{ deployment: "edge", entrypoint: "./entry.mjs" }] }), code: "plugin.entrypoint_missing", message: "同一部署环境只能声明一个有效 entrypoint" },
+  { rule: "two entrypoints for one deployment", input: declarationManifest({ entrypoints: [{ deployment: "local", entrypoint: "./a.mjs" }, { deployment: "local", entrypoint: "./b.mjs" }] }), code: "plugin.entrypoint_missing", message: "同一部署环境只能声明一个有效 entrypoint" },
+  { rule: "permissions that are not a list", input: declarationManifest({ permissions: {} }), code: "plugin.permission_invalid", message: "Plugin permissions 必须为数组" },
+  { rule: "a permission without a reason", input: declarationManifest({ permissions: [{ permission: "artifact:read", required: true }] }), code: "plugin.permission_invalid", message: "Plugin permission 必须唯一并说明用途及是否必需" },
+  { rule: "a permission whose required is not a boolean", input: declarationManifest({ permissions: [{ permission: "artifact:read", required: "yes", reason: "x" }] }), code: "plugin.permission_invalid", message: "Plugin permission 必须唯一并说明用途及是否必需" },
+  { rule: "a permission twice", input: declarationManifest({ permissions: [ARTIFACT_PERMISSIONS[0], ARTIFACT_PERMISSIONS[0]] }), code: "plugin.permission_invalid", message: "Plugin permission 必须唯一并说明用途及是否必需" },
+  { rule: "surface:browser without origins", input: declarationManifest({ permissions: [{ permission: "surface:browser", required: false, reason: "Show a site" }] }), code: "plugin.permission_invalid", message: "surface:browser 的 origins 必须列出完整的网站来源（如 https://example.com），不带路径、查询串或片段" },
+  { rule: "surface:browser with an origin that has a path", input: declarationManifest({ permissions: [{ permission: "surface:browser", required: false, reason: "Show a site", origins: ["https://example.com/docs"] }] }), code: "plugin.permission_invalid", message: "surface:browser 的 origins 必须列出完整的网站来源（如 https://example.com），不带路径、查询串或片段" },
+  { rule: "origins on another permission", input: declarationManifest({ permissions: [{ ...ARTIFACT_PERMISSIONS[0], origins: ["https://example.com"] }] }), code: "plugin.permission_invalid", message: "只有 surface:browser 可以列出 origins" },
+  { rule: "no capabilities object", input: declarationManifest({ capabilities: undefined }), code: "plugin.manifest_invalid", message: "capabilities 必须为对象" },
+  { rule: "capabilities.provides that is not a list of strings", input: declarationManifest({ capabilities: { provides: "x", consumes: [] } }), code: "plugin.manifest_invalid", message: "capabilities.provides 必须为非空字符串数组（可为空数组）" },
+  { rule: "capabilities.consumes with a blank entry", input: declarationManifest({ capabilities: { provides: [], consumes: [" "] } }), code: "plugin.manifest_invalid", message: "capabilities.consumes 必须为非空字符串数组（可为空数组）" },
+  { rule: "artifacts.produces that is not a list", input: declarationManifest({ artifacts: { produces: "x", consumes: [] } }), code: "plugin.manifest_invalid", message: "artifacts.produces 必须为数组" },
+  { rule: "an artifact type without an id", input: declarationManifest({ artifacts: { produces: [{ schema_version: 1 }], consumes: [] } }), code: "plugin.manifest_invalid", message: "类型必须声明 type ID 与正整数 schema_version" },
+  { rule: "an artifact type with schema_version 0", input: declarationManifest({ artifacts: { produces: [], consumes: [{ artifact_type_id: "example.input", schema_version: 0 }] } }), code: "plugin.manifest_invalid", message: "类型必须声明 type ID 与正整数 schema_version" },
+  { rule: "process_items that are not an object", input: declarationManifest({ process_items: "x" }), code: "plugin.manifest_invalid", message: "process_items 必须为对象" },
+  { rule: "a process item type with schema_version 0", input: declarationManifest({ process_items: { produces: [{ artifact_type_id: "example.item", schema_version: 0 }], consumes: [] } }), code: "plugin.manifest_invalid", message: "类型必须声明 type ID 与正整数 schema_version" },
+  { rule: "ui that is not an object", input: declarationManifest({ ui: "x" }), code: "plugin.manifest_invalid", message: "ui 必须为对象" },
+  { rule: "ui.contributions that is not a list of strings", input: declarationManifest({ ui: { contributions: [1] } }), code: "plugin.manifest_invalid", message: "ui.contributions 必须为非空字符串数组（可为空数组）" },
+  { rule: "embedded plugins naming itself", input: declarationManifest({ ui: { contributions: [], embedded_plugins: [DECLARATION_PLUGIN_ID] } }), code: "plugin.manifest_invalid", message: "ui.embedded_plugins 必须为不含自身、重复项或首尾空白的 Plugin ID" },
+  { rule: "embedded plugins listing one twice", input: declarationManifest({ ui: { contributions: [], embedded_plugins: ["io.molis.work.other", "io.molis.work.other"] } }), code: "plugin.manifest_invalid", message: "ui.embedded_plugins 必须为不含自身、重复项或首尾空白的 Plugin ID" },
+  { rule: "embedded plugins naming something that is not a plugin id", input: declarationManifest({ ui: { contributions: [], embedded_plugins: ["other"] } }), code: "plugin.manifest_invalid", message: "ui.embedded_plugins 必须为不含自身、重复项或首尾空白的 Plugin ID" },
+  { rule: "a declaration problem is its own code", input: declarationManifest({ routes: [route({ method: "TRACE" })] }), code: "plugin.declaration_invalid", message: "路由 example.list 的方法不合法" },
 ];
 
 function parseFailure(input: unknown): { code: string; message: string } | null {
@@ -617,6 +617,6 @@ const UPGRADES: ReadonlyArray<{ rule: string; version: string; compatibility: un
 for (const { rule, version, compatibility, message } of UPGRADES) {
   test(`upgrade compatibility: ${rule}`, () => {
     const failure = parseFailure(declarationManifest({ version, upgrade_compatibility: compatibility }));
-    assert.deepEqual(failure, message === null ? null : { code: "plugin_manifest_invalid", message });
+    assert.deepEqual(failure, message === null ? null : { code: "plugin.manifest_invalid", message });
   });
 }

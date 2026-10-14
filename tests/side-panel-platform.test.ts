@@ -195,7 +195,7 @@ test("a Plugin names the websites it uses in the side panel browser as exact ori
   assert.deepEqual(browserSiteDeclarations(parsePluginManifest(manifest([sites]))), ["https://shop.example.com", "http://localhost:8080"]);
   assert.deepEqual(browserSiteDeclarations(parsePluginManifest(manifest([]))), []);
   const refused = (origins: unknown, permission = "surface:browser") => assert.throws(() => parsePluginManifest(manifest([{ ...sites, permission, origins }])),
-    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin_permission_invalid", JSON.stringify(origins));
+    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin.permission_invalid", JSON.stringify(origins));
   // A path, a query, a fragment or another scheme would say less than the site it allows; none, or origins on another permission, say nothing.
   for (const origins of [["https://shop.example.com/orders"], ["https://shop.example.com/?token=x"], ["https://shop.example.com#top"], ["file:///etc"], ["shop.example.com"], [], undefined]) refused(origins);
   refused(["https://shop.example.com"], "artifact:write");

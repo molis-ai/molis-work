@@ -26,7 +26,7 @@ test("public Manifest parser preserves author declarations and rejects unsupport
   const input = manifest();
   assert.deepEqual(parsePluginManifest(input), input);
   assert.throws(() => parsePluginManifest({ ...input, host_api_version: 2 }),
-    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin_manifest_invalid"
+    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin.manifest_invalid"
       && error.message.includes("host_api_version"));
 });
 
@@ -68,10 +68,10 @@ test("wire Manifest rejects missing shapes, invalid permissions and incompatible
   }
   assert.throws(() => parsePluginManifest({ ...manifest(), permissions: [
     { permission: "artifact:write", reason: "write", required: "yes" },
-  ] }), (error: unknown) => error instanceof PluginManifestError && error.code === "plugin_permission_invalid");
+  ] }), (error: unknown) => error instanceof PluginManifestError && error.code === "plugin.permission_invalid");
   assert.throws(() => parsePluginManifest({ ...manifest(), entrypoints: [
     { deployment: "local", entrypoint: "./a.mjs" }, { deployment: "local", entrypoint: "./b.mjs" },
-  ] }), (error: unknown) => error instanceof PluginManifestError && error.code === "plugin_entrypoint_missing");
+  ] }), (error: unknown) => error instanceof PluginManifestError && error.code === "plugin.entrypoint_missing");
 });
 
 test("real Plugin CLI validates in a clean directory without executing entrypoint or modifying input", () => {
@@ -91,7 +91,7 @@ test("real Plugin CLI validates in a clean directory without executing entrypoin
     writeFileSync(manifestPath, JSON.stringify({ ...manifest(), host_api_version: 2 }));
     const incompatible = invoke("validate", manifestPath);
     assert.equal(incompatible.status, 1);
-    assert.equal(JSON.parse(incompatible.stderr).code, "plugin_manifest_invalid");
+    assert.equal(JSON.parse(incompatible.stderr).code, "plugin.manifest_invalid");
     assert.equal(incompatible.stdout, "");
     writeFileSync(manifestPath, "{invalid");
     assert.equal(invoke("validate", manifestPath).status, 1);

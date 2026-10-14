@@ -3,14 +3,14 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPackageBundle, PluginPackagePayload, PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export class PluginPackageError extends Error {
-  constructor(readonly code: "plugin_package_invalid" | "plugin_signature_invalid" | "plugin_signer_mismatch", message: string) {
+  constructor(readonly code: "plugin.package_invalid" | "plugin.signature_invalid" | "plugin.signer_mismatch", message: string) {
     super(message); this.name = "PluginPackageError";
   }
 }
 
 export function pluginPublisherIdentity(key: KeyObject | string | Buffer): string {
   const publicKey = typeof key === "object" && "type" in key && key.type === "public" ? key as KeyObject : createPublicKey(key);
-  if (publicKey.asymmetricKeyType !== "ed25519") throw new PluginPackageError("plugin_signature_invalid", "Plugin 签名只接受 Ed25519 公钥");
+  if (publicKey.asymmetricKeyType !== "ed25519") throw new PluginPackageError("plugin.signature_invalid", "Plugin 签名只接受 Ed25519 公钥");
   return "ed25519:sha256:" + createHash("sha256").update(publicKey.export({ type: "spki", format: "der" })).digest("hex");
 }
 
@@ -18,7 +18,7 @@ export function assertPluginPackagePath(value: string): void {
   if (typeof value !== "string" || !value || value.includes("\\") || value.includes("\0")
     || value.startsWith("/") || /^[a-zA-Z]:/u.test(value)
     || value.split("/").some(part => !part || part === "." || part === "..")) {
-    throw new PluginPackageError("plugin_package_invalid", "包内文件必须使用不含目录跳转的相对路径");
+    throw new PluginPackageError("plugin.package_invalid", "包内文件必须使用不含目录跳转的相对路径");
   }
 }
 
@@ -66,21 +66,21 @@ export function pluginPackageSigningBytes(payload: PluginPackagePayload): Buffer
 export function signPluginPackage(input: PluginPackageBundle, signer: PluginPackageSigner): PluginPackageBundle {
   const bundle = parsePluginPackage(input);
   if (bundle.payload.manifest.publisher.signature !== signer.publisher_identity) {
-    throw new PluginPackageError("plugin_signer_mismatch", "Manifest 发布者身份与签名密钥不匹配");
+    throw new PluginPackageError("plugin.signer_mismatch", "Manifest 发布者身份与签名密钥不匹配");
   }
   const signature = Buffer.from(signer.sign(pluginPackageSigningBytes(bundle.payload)));
-  if (signature.length !== 64) throw new PluginPackageError("plugin_signature_invalid", "签名 Adapter 未返回 Ed25519 签名");
+  if (signature.length !== 64) throw new PluginPackageError("plugin.signature_invalid", "签名 Adapter 未返回 Ed25519 签名");
   return { payload: bundle.payload, signature: { algorithm: "ed25519", value_base64: signature.toString("base64") } };
 }
 
 export function verifyPluginPackage(input: unknown, trustedKey: KeyObject | string | Buffer): PluginPackageBundle {
   const bundle = parsePluginPackage(input);
-  if (!bundle.signature) throw new PluginPackageError("plugin_signature_invalid", "未签名开发包不是已验证发行物");
+  if (!bundle.signature) throw new PluginPackageError("plugin.signature_invalid", "未签名开发包不是已验证发行物");
   if (bundle.payload.manifest.publisher.signature !== pluginPublisherIdentity(trustedKey)) {
-    throw new PluginPackageError("plugin_signer_mismatch", "发行物不是由指定的可信公钥发布");
+    throw new PluginPackageError("plugin.signer_mismatch", "发行物不是由指定的可信公钥发布");
   }
   if (!verify(null, pluginPackageSigningBytes(bundle.payload), trustedKey, Buffer.from(bundle.signature.value_base64, "base64"))) {
-    throw new PluginPackageError("plugin_signature_invalid", "Plugin 内容或签名已改变");
+    throw new PluginPackageError("plugin.signature_invalid", "Plugin 内容或签名已改变");
   }
   return bundle;
 }
@@ -96,4 +96,4 @@ function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) invalid("Plugin package 必须为对象");
   return value as Record<string, unknown>;
 }
-function invalid(message: string): never { throw new PluginPackageError("plugin_package_invalid", message); }
+function invalid(message: string): never { throw new PluginPackageError("plugin.package_invalid", message); }

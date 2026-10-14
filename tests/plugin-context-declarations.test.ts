@@ -133,7 +133,7 @@ test("W1-04: entries that are not shaped like actions or views are reported by t
   // A null or a number among the actions, ahead of and after the ones the declarations point at.
   for (const stray of [null, 5, "action", [], {}]) {
     const actions = [stray, withPrepare, prepare, reader, stray, itemReader] as Part[];
-    assert.equal(refused(manifest(actions)), "plugin_declaration_invalid", JSON.stringify(stray));
+    assert.equal(refused(manifest(actions)), "plugin.declaration_invalid", JSON.stringify(stray));
   }
   // A reader that lists its kinds in the wrong shape owns no kind, so the append to its object is told so.
   for (const kinds of ["example_doc", null, 7, { 0: "example_doc" }, [7]]) {

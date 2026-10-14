@@ -168,7 +168,7 @@ export interface PluginCapabilityPort {
 }
 
 export class PluginCapabilityAccessError extends Error {
-  readonly code = "plugin_capability_denied";
+  readonly code = "plugin.capability_denied";
   constructor(message: string) {
     super(message);
     this.name = "PluginCapabilityAccessError";
@@ -189,7 +189,7 @@ export function createPluginCapabilityClient(
   return {
     availability(capability) {
       if (!isActive()) return { available: false, code: "actions.provider_stopped", reason: "此插件实例已停止" };
-      if (!allowed.has(capability.capability_id)) return { available: false, code: "plugin_capability_denied", reason: "插件未声明消费此宿主能力" };
+      if (!allowed.has(capability.capability_id)) return { available: false, code: "plugin.capability_denied", reason: "插件未声明消费此宿主能力" };
       return port.availability?.(capability, { consumer: "plugin" }) ?? { available: false, code: "actions.dependency_unknown", reason: "宿主未提供依赖状态检查" };
     },
     async invoke<Input, Output>(

@@ -1,22 +1,22 @@
 export class PluginRuntimeError extends Error {
   constructor(
     readonly code:
-      | "plugin_manifest_invalid"
-      | "plugin_definition_missing"
-      | "plugin_definition_conflict"
-      | "plugin_entrypoint_missing"
-      | "plugin_grant_denied"
-      | "plugin_state_invalid"
-      | "plugin_install_replaced"
-      | "plugin_executor_failed"
-      | "plugin_contribution_kind_invalid"
-      | "plugin_contribution_unredeemed"
-      | "plugin_quarantined"
-      | "plugin_upgrade_required"
-      | "plugin_kept_data_incompatible"
-      | "plugin_upgrade_validation_missing"
-      | "plugin_upgrade_validation_failed"
-      | "plugin_upgrade_rollback_failed",
+      | "plugin.manifest_invalid"
+      | "plugin.definition_missing"
+      | "plugin.definition_conflict"
+      | "plugin.entrypoint_missing"
+      | "plugin.grant_denied"
+      | "plugin.state_invalid"
+      | "plugin.install_replaced"
+      | "plugin.executor_failed"
+      | "plugin.contribution_kind_invalid"
+      | "plugin.contribution_unredeemed"
+      | "plugin.quarantined"
+      | "plugin.upgrade_required"
+      | "plugin.kept_data_incompatible"
+      | "plugin.upgrade_validation_missing"
+      | "plugin.upgrade_validation_failed"
+      | "plugin.upgrade_rollback_failed",
     message: string,
   ) {
     super(message);

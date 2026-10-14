@@ -164,7 +164,7 @@ test("legacy plugin IDs are rejected", () => {
   };
   assert.throws(
     () => parsePluginManifest(manifest),
-    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin_manifest_invalid",
+    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin.manifest_invalid",
   );
   assert.equal(parsePluginManifest({ ...manifest, plugin_id: "io.molis.work.example.notes" }).plugin_id, "io.molis.work.example.notes");
 });

@@ -15,7 +15,7 @@ export function createActivationContext(record: PluginInstanceRecord, definition
     grants,
     requireGrant(permission: string) {
       if (!active || !grants.includes(permission)) {
-        throw new PluginRuntimeError("plugin_grant_denied", `Plugin 没有 ${permission} grant`);
+        throw new PluginRuntimeError("plugin.grant_denied", `Plugin 没有 ${permission} grant`);
       }
     },
   });

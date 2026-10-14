@@ -66,7 +66,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     let undone: unknown;
     if (attempt) {
       try { await platform.runtime.abandonInstall(record, attempt.earlier); } catch (failure) {
-        if ((failure as { code?: unknown } | null)?.code === 'plugin_install_replaced') return false;
+        if ((failure as { code?: unknown } | null)?.code === 'plugin.install_replaced') return false;
         undone = failure;
       }
     }

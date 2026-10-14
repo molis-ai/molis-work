@@ -43,7 +43,7 @@ test("Plugin private storage persists opaque values, isolates signatures and rej
     assert.equal(other.storage.get("../../outside"), null);
     other.storage.set("../../outside", "different publisher");
     assert.throws(() => denied.storage.get("../../outside"), (error: unknown) => error instanceof PluginRuntimeError
-      && error.code === "plugin_grant_denied");
+      && error.code === "plugin.grant_denied");
     assert.throws(() => denied.storage.set("../../outside", "overwrite"), PluginRuntimeError);
     assert.equal(original.storage.get("../../outside"), value);
     await original.runtime.uninstall(original.installId);
@@ -172,7 +172,7 @@ test("failed candidate startup restores private data and leaves the previous ins
 
     const failedUpgrade = await supervisor.upgrade(oldManifest.plugin_id, target);
     assert.equal(failedUpgrade.status, "failed");
-    assert.equal(failedUpgrade.code, "plugin_executor_failed");
+    assert.equal(failedUpgrade.code, "plugin.executor_failed");
     assert.equal(runtime.get(installed.install_id).version, "1.0.0");
     assert.equal(runtime.get(installed.install_id).state, "running");
     assert.equal(supervisor.state(oldManifest.plugin_id)?.status, "running", "failed update does not hide the restored old plugin");

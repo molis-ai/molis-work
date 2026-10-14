@@ -204,7 +204,7 @@ test("PluginRuntime.install with bundled records every declared permission whate
     const definition = build("1.0.0", [REQUIRED, OPTIONAL]);
     assert.deepEqual(other.install({ definition, deployment: "local", grants: [REQUIRED.permission] }).install.grants, [REQUIRED.permission], "any other plugin gets what it was given");
     assert.throws(() => other.install({ definition, deployment: "local", grants: declared }),
-      (error: unknown) => (error as { code?: string }).code === "plugin_state_invalid", "and a repeated install that names other grants is still a silent grant change");
+      (error: unknown) => (error as { code?: string }).code === "plugin.state_invalid", "and a repeated install that names other grants is still a silent grant change");
   });
 
 // Every permission without asking is for code the Host ships. Sandboxed code is generated or installed from outside and runs in
@@ -216,7 +216,7 @@ test("a sandboxed definition is never granted everything because an entry calls 
     const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
     for (const grants of [undefined, [], [REQUIRED.permission], [OPTIONAL.permission, REQUIRED.permission]]) {
       assert.throws(() => runtime.install({ definition: sandboxed, deployment: "local", bundled: true, ...(grants ? { grants } : {}) }),
-        (error: unknown) => (error as { code?: string }).code === "plugin_grant_denied", `grants ${JSON.stringify(grants)}`);
+        (error: unknown) => (error as { code?: string }).code === "plugin.grant_denied", `grants ${JSON.stringify(grants)}`);
     }
     assert.deepEqual(runtime.list(), []);
     // Not bundled, with the grants the person confirmed: unchanged, and it holds exactly those.
@@ -226,7 +226,7 @@ test("a sandboxed definition is never granted everything because an entry calls 
     try {
       const report = await host.platform.start([{ definition: sandboxed, bundled: true, grants: [REQUIRED.permission] }]);
       assert.deepEqual(report.running, []);
-      assert.deepEqual(report.failed.map(failure => failure.code), ["plugin_grant_denied"]);
+      assert.deepEqual(report.failed.map(failure => failure.code), ["plugin.grant_denied"]);
       assert.deepEqual(host.platform.runtime.list(), [], "nothing was installed, so nothing holds a permission");
     } finally { host.store.close(); }
   }));

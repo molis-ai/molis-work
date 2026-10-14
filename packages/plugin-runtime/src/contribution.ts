@@ -13,7 +13,7 @@ import type {
 
 export class PluginContributionError extends Error {
   constructor(
-    readonly code: "plugin_contribution_kind_invalid" | "plugin_contribution_unredeemed",
+    readonly code: "plugin.contribution_kind_invalid" | "plugin.contribution_unredeemed",
     message: string,
   ) {
     super(message);
@@ -29,13 +29,13 @@ export function viewContributionId(manifest: PluginManifest, viewId: string): st
 function assertKind(manifest: PluginManifest, contribution: PluginContribution): void {
   if (manifest.kind === "integration" && contribution.kind !== "integration") {
     throw new PluginContributionError(
-      "plugin_contribution_kind_invalid",
+      "plugin.contribution_kind_invalid",
       "Integration Plugin 必须返回 Integration contribution",
     );
   }
   if (manifest.kind === "app" && contribution.kind !== "app") {
     throw new PluginContributionError(
-      "plugin_contribution_kind_invalid",
+      "plugin.contribution_kind_invalid",
       "app Plugin 必须返回 app contribution",
     );
   }
@@ -131,7 +131,7 @@ export function assertContributionMatchesManifest(
     ...assertHandlers(manifest, contribution),
   );
   if (problems.length > 0) {
-    throw new PluginContributionError("plugin_contribution_unredeemed", problems.join("；"));
+    throw new PluginContributionError("plugin.contribution_unredeemed", problems.join("；"));
   }
 }
 

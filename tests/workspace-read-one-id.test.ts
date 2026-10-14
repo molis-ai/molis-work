@@ -100,7 +100,7 @@ test("a Runtime plugin reaches a Host action only when its Manifest consumes it:
     assert.equal(reads.host, 1);
     // Listed but not granted: the action is not usable, and the kernel refuses the call.
     const withoutGrant = contexts.get("ungranted")!.services!.actions!;
-    await assert.rejects(withoutGrant.invoke(readFile, query), { code: "plugin_grant_denied" });
+    await assert.rejects(withoutGrant.invoke(readFile, query), { code: "plugin.grant_denied" });
     assert.deepEqual(await withoutGrant.discover(), [], "its own action needs the read permission it was never granted");
     assert.equal(reads.host, 1);
 

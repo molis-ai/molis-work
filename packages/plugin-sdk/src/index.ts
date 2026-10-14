@@ -64,10 +64,10 @@ export const packageDescriptor = {
 export class PluginDefinitionError extends Error {
   constructor(
     readonly code:
-      | "plugin_manifest_invalid"
-      | "plugin_entrypoint_missing"
-      | "plugin_permission_invalid"
-      | "plugin_declaration_invalid",
+      | "plugin.manifest_invalid"
+      | "plugin.entrypoint_missing"
+      | "plugin.permission_invalid"
+      | "plugin.declaration_invalid",
     message: string,
   ) {
     super(message);
@@ -86,7 +86,7 @@ export function definePollingIntegrationPlugin(input: {
   now?: () => Date;
 }): PluginDefinition {
   if (input.manifest.kind !== "integration") {
-    throw new PluginDefinitionError("plugin_manifest_invalid", "Polling Provider 必须声明为 Integration Plugin");
+    throw new PluginDefinitionError("plugin.manifest_invalid", "Polling Provider 必须声明为 Integration Plugin");
   }
   return definePlugin({
     manifest: input.manifest,

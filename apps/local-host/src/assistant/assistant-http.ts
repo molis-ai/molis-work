@@ -146,15 +146,8 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
     async handle({ method, pathname, body }) {
       const { service, store } = assistantServiceFor(ports);
       const parts = pathname.slice("/api/assistant/".length).split("/").map(decodeURIComponent);
-      if (parts.length === 2 && parts[0] === "threads" && ports.projectRef) {
-        const action = parts[1] === "start" ? assistantThreadActions.start : parts[1] === "status" ? assistantThreadActions.status
-          : parts[1] === "retry" ? assistantThreadActions.retry : parts[1] === "stop" ? assistantThreadActions.stop : null;
-        if (action && (method === "POST" || method === "GET" && parts[1] === "status")) {
-          const input = method === "GET" ? { target: { provider_id: url.searchParams.get("provider_id"), subject_kind: url.searchParams.get("subject_kind"), subject_id: url.searchParams.get("subject_id"), thread_id: url.searchParams.get("thread_id") } } : body;
-          const result = await ports.localHost.actionClient(ports.projectRef).invoke(await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS), action, input);
-          return { status: 200, body: parts[1] === "status" ? { status: result } : result };
-        }
-      }
+      const thread = await handleThreadHttp(parts, method, url, body, ports);
+      if (thread) return thread;
       if (method === "GET" && parts.length === 1 && parts[0] === "works") return { status: 200, body: { works: await service.list() } };
       // The works that relate to one object here: for that object's own page ("belongs to …", continue it).
       if (method === "GET" && parts.length === 1 && parts[0] === "related") {
@@ -295,4 +288,16 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       return { status: 500, body: { error: error instanceof Error ? error.message : "助理暂时无法完成，输入已保留", code: "assistant.failed" } };
     },
   });
+}
+
+/** Thread requests keep the page's trusted project and pass through the common action gateway. */
+async function handleThreadHttp(parts: string[], method: "GET" | "POST", url: URL, body: Record<string, unknown>,
+  ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }) {
+  if (parts.length !== 2 || parts[0] !== "threads" || !ports.projectRef) return null;
+  const action = parts[1] === "start" ? assistantThreadActions.start : parts[1] === "status" ? assistantThreadActions.status
+    : parts[1] === "retry" ? assistantThreadActions.retry : parts[1] === "stop" ? assistantThreadActions.stop : null;
+  if (!action || method === "GET" && parts[1] !== "status") return null;
+  const input = method === "GET" ? { target: { provider_id: url.searchParams.get("provider_id"), subject_kind: url.searchParams.get("subject_kind"), subject_id: url.searchParams.get("subject_id"), thread_id: url.searchParams.get("thread_id") } } : body;
+  const result = await ports.localHost.actionClient(ports.projectRef).invoke(await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS), action, input);
+  return { status: 200, body: parts[1] === "status" ? { status: result } : result };
 }

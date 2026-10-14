@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 028769de4已整合I3–I33、当前main、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建的unused-import失败已修，96b运行中，97/98真实Runtime/浏览器证明未补。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
+状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 028769de4已整合I3–I33、当前main、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建与96b登记失败已修，96c九项工程检查通过；97在冻结head82d8运行，98真实页面证明待补，新main774a须随后整合。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2656,3 +2656,6 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 
 
 **组合96b终态与96c重新冻结。** 96b九步中八步实际退出0，仅boundary退出1：登记表仍点旧CU-image文件名。不是资源、类型或错误owner失败。健康对main merge-base实测150巨大单元、496内部测试引用、0混源、28错误子类、0错误形状、0非owner码、57owner；29资源合计9,866,161字节，workbench1,100,249/pages48,801/editor707,935，均通过只降门禁。workbench比main只减471字节，不能作为Pages13,712字节的独立donor证明。82d8ff56a仅同步SDK登记文件名、提交这两份实测派生表，并补同一问卷用例最终正文DOM/无assistant-problem/原question-call tool_result精确答案断言。96c已冻结该head重跑，无新SDK版本或门禁阈值改动；96b不记全通过，97/98仍未运行。
+
+
+**96c工程闭环（实际通过，非最终全量）。** frozen head82d8ff56a、比较main9abcb9636，offline/install、whole build、根types、workspace-types、API、actions、actual-base health、assets、boundary九步全部退出0；原始结果i8-joint-preflight96c-results.json与各96c日志已核，代码树clean。71包/1991源码/8501imports/246依赖边/61合同子路径，正式SDK路径与登记已通过边界，不再留下外部file临时例外。97已在该冻结head启动（25普通+2浏览器），98四文件随后，结果未归回不记通过。远端main随后核得774acaf57（#496 A2 shared question card，13:25:42Z合入，29文件与助理/Coding问卷路径有交集），本轮不取消或改树；须在结束后纳入新main，当前证据仍只支持9ab组合，不称最新main最终证明。

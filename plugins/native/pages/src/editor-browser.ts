@@ -2931,7 +2931,7 @@ function dispatchList(
   return true;
 }
 
-function fillCalloutStyle(pop: HTMLElement, view: EditorView, pos: number, node: Node, anchor: HTMLElement, translate: PagesEditorMountOptions["translate"], hidePop: () => void): void {
+function fillCalloutStyle(pop: HTMLElement, view: EditorView, at: () => ReturnType<typeof resolvePagesFrozen>, node: Node, anchor: HTMLElement, translate: PagesEditorMountOptions["translate"], hidePop: () => void): void {
   const iconHead = document.createElement("p");
   iconHead.className = "pages-menu-label";
   iconHead.textContent = t(translate, "图标");
@@ -2949,7 +2949,8 @@ function fillCalloutStyle(pop: HTMLElement, view: EditorView, pos: number, node:
     button.addEventListener("mousedown", (event) => event.preventDefault());
     button.addEventListener("click", (event) => {
       event.preventDefault();
-      runBlockCommand(view, setCalloutStyle(pos, { icon: item.id }));
+        const target = at(); if (!target?.intact) return;
+        runBlockCommand(view, setCalloutStyle(target.from, { icon: item.id }));
       hidePop();
     });
     grid.append(button);
@@ -2972,7 +2973,8 @@ function fillCalloutStyle(pop: HTMLElement, view: EditorView, pos: number, node:
     button.addEventListener("mousedown", (event) => event.preventDefault());
     button.addEventListener("click", (event) => {
       event.preventDefault();
-      runBlockCommand(view, setCalloutStyle(pos, { tone: tone.id }));
+        const target = at(); if (!target?.intact) return;
+        runBlockCommand(view, setCalloutStyle(target.from, { tone: tone.id }));
       hidePop();
     });
     strip.append(button);
@@ -3157,7 +3159,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     if (!node) return;
     reclaimPop();
     showPop();
-    fillCalloutStyle(pop, view, pos, node, anchor, options.translate, hidePop);
+    fillCalloutStyle(pop, view, anchorPop(pos, pos + node.nodeSize), node, anchor, options.translate, hidePop);
   };
 
   const openLink = (view: EditorView) => {

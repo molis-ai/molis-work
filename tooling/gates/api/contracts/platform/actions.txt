@@ -462,7 +462,7 @@ export interface ActionErrorOptions {
 
 export interface ActionExecutionContext extends ActionCallContext {
     readonly beforeEffect: () => Promise<void>;
-    readonly retainAuthority?: (references: readonly ActionReference[]) => () => Promise<void>;
+    readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
 }
 
 export interface ActionExecutionPolicy {
@@ -2192,6 +2192,11 @@ export interface PlacementResult {
     subject: ActionSubject;
     project_id: string;
     revision: string;
+}
+
+export interface RetainedActionAuthority {
+    (): Promise<void>;
+    readonly assertCurrent: () => void;
 }
 
 export declare const SEARCH_ENTRIES_INPUT_SCHEMA: {

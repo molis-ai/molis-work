@@ -173,7 +173,7 @@ export const PAGES_IMPORT_CLIENT_SCRIPT = String.raw`
     if (projectId() !== importProject || routePrefix() !== importPrefix) {
       importMessage(L("项目已切换，请在目标项目重新打开导入。"), true); return;
     }
-    if (importFinished[0]) { try { const left = blankLeaving(); await openCreated(importFinished[0]); importDialog.close(); void dropBlank(left); } catch (error) { importMessage(error.message || L("保存失败"), true); } }
+    if (importFinished[0]) { try { const left = blankLeaving(); void dropBlank(left); await openCreated(importFinished[0]); importDialog.close(); } catch (error) { importMessage(error.message || L("保存失败"), true); } }
   });
 `;
 

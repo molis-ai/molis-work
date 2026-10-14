@@ -777,8 +777,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!body || !(body.template_id || body.body || body.title)) fresh.set(payload.document.id, { title: payload.document.title, version: payload.document.version });
     storeDocument(payload.document); placed({ verb: "created", title: payload.document.title || L("无标题"), object: { kind: "pages_document", id: payload.document.id } });
     await loadList();
-    if (editorEpoch === epoch) { await openCreated(payload.document); titleInput.focus(); titleInput.select(); }
     void dropBlank(left);
+    if (editorEpoch === epoch) { await openCreated(payload.document); titleInput.focus(); titleInput.select(); }
   };
   const toggleStar = async (id) => {
     const record = records.find((item) => item.id === id);

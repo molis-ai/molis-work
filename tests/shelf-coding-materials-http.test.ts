@@ -123,7 +123,11 @@ test("Shelf project material confirms current full bytes, preserves original ver
     assert.equal(restoredChoices.find((item: any) => item.reference.version === 2).source, "Shelf 材料输入");
     assert.equal((await start([save.body.reference])).status, 200); assert.equal(starts[2].text_materials?.[0]?.text, original);
     artifacts().commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", ...save.body.reference });
-    assert.equal((await start([save.body.reference])).status, 400); assert.equal(starts.length, 3);
+    // ARTACC-02/ARTACC-03: actual owner archival reaches the current SDK refusal and Coding recovery message.
+    const archived = await start([save.body.reference]);
+    assert.equal(archived.status, 400);
+    assert.equal(archived.body.error, "材料已归档、不可用或类型不兼容，请移除后重新选择");
+    assert.equal(starts.length, 3);
     refused(await request(output, { reference: save.body.reference, expected_reference: saved2.body.reference }), "shelf.invalid");
     assert.deepEqual((await request(output)).body.reference, saved2.body.reference);
     assert.equal((await request(coding + "/materials")).body.materials.filter((item: any) => !item.error).length, 1);

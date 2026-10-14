@@ -29,9 +29,13 @@ export function createPluginArtifactClient(input: {
     }
     context.requireGrant(permission);
   }
+  const denied = (reason: string): ActionAvailability => {
+    const error = artifactsErrors.plugin_denied(reason);
+    return { available: false, code: error.code, kind: error.kind, reason: error.message };
+  };
   const available = (permission: string): ActionAvailability => {
     try { requirePermission(permission); return { available: true }; }
-    catch (error) { return { available: false, code: "artifacts.plugin_denied", reason: (error as Error).message }; }
+    catch (error) { return denied((error as Error).message); }
   };
   const declares = (list: PluginManifest["artifacts"]["produces"] | undefined, value: { artifact_type_id: string; schema_version: number }) =>
     (list ?? []).some(type => type.artifact_type_id === value.artifact_type_id && type.schema_version === value.schema_version);
@@ -111,7 +115,7 @@ export function createPluginArtifactClient(input: {
     provider: { provider_id: providerId, title: `${manifest.name} · 成果 SDK`, kind: "system", project_id: input.actions.project_id },
     definitions: [read, publish, recordItem],
     availability: call => call.actor_id === actor_id && call.plugin_install_id === context.install_id
-      ? { available: true } : { available: false, code: "artifacts.plugin_denied", reason: "成果 SDK 属于其他安装实例或用户" },
+      ? { available: true } : denied("成果 SDK 属于其他安装实例或用户"),
     handlers: [
       { ...read, execution: "sync", availability: () => available("artifact:read"), handle: (_call, value) => operations.read(value as Parameters<PluginArtifactClient["read"]>[0]) },
       { ...publish, execution: "sync", availability: () => available("artifact:write"), handle: (_call, value) => operations.publish(value as PluginArtifactPublishInput) },

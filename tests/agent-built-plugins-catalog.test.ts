@@ -147,7 +147,7 @@ test('an action that only answers its own installation is on the board but not o
   const own = goals('sdk.artifacts.install-1.read', 'query');
   actions.registry.registerProvider({ provider: { provider_id: 'sdk.artifacts.install-1', title: 'Text stats · 成果 SDK', kind: 'system', project_id: 'p' },
     definitions: [{ ...own, provider_id: 'sdk.artifacts.install-1', action: { ...own.action, audiences: ['plugin'] } }],
-    availability: call => call.plugin_install_id === 'install-1' ? { available: true } : { available: false, code: 'artifacts.plugin_denied', reason: '成果 SDK 属于其他安装实例或用户' },
+    availability: call => call.plugin_install_id === 'install-1' ? { available: true } : { available: false, code: 'artifacts.plugin_denied', kind: 'forbidden', reason: '成果 SDK 属于其他安装实例或用户' },
     handlers: [{ capability_id: own.capability_id, version: 1, handle: () => ({ recorded: true }) }] });
   const entry = (await capabilityCatalog(actions, 'web-user')).find(item => item.id === 'sdk.artifacts.install-1.read')!;
   assert.equal(entry.offered, false); assert.equal(entry.installed, true); assert.match(entry.reason!, /只对它自己/);

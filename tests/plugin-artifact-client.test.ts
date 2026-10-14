@@ -1,3 +1,4 @@
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
@@ -73,7 +74,13 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     assert.ok(read, "the SDK operation must exist in the same Kernel directory");
     assert.deepEqual(await actions.client.invoke(caller, { ...read, provider_id: read.provider.provider_id }, { artifact_id: value.artifact_id, version: 1 }), first.artifact);
     assert.deepEqual(actions.registry.discover({ ...caller, audience: "mcp" }), [], "producer-bound SDK calls are not public MCP tools");
-    await assert.rejects(actions.client.invoke({ ...caller, plugin_install_id: producer.installId }, read, { artifact_id: value.artifact_id, version: 1 }));
+    // ARTACC-01/ARTACC-02: the real Kernel carries the declared forbidden kind through provider availability.
+    const wrongInstall = actions.registry.discover({ ...caller, plugin_install_id: producer.installId }).find(action => action.capability_id === read.capability_id)?.availability;
+    assert.ok(wrongInstall && !wrongInstall.available);
+    assert.equal(wrongInstall.code, "artifacts.plugin_denied");
+    assert.equal(wrongInstall.kind, "forbidden");
+    await assert.rejects(actions.client.invoke({ ...caller, plugin_install_id: producer.installId }, read, { artifact_id: value.artifact_id, version: 1 }),
+      (error: unknown) => error instanceof ActionError && error.code === "artifacts.plugin_denied" && error.kind === "forbidden" && actionHttpStatus(error) === 403);
     await assert.rejects(actions.client.invoke(caller, read, { artifact_id: value.artifact_id, version: 1, actor_id: "forged" }));
     assert.equal(producer.client.publish(value).replayed, true);
     producer.client.publish({ ...value, version: 2, content: { kind: "inline", payload: { title: "Second" } } });
@@ -93,6 +100,9 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     const denied = actions.registry.discover({ ...caller, plugin_install_id: noRead.installId })
       .find(action => action.provider.provider_id === `sdk.artifacts.${noRead.installId}` && action.operation === "query");
     assert.equal(denied?.availability.available, false, "directory reflects the actual Runtime grant");
+    assert.ok(denied && !denied.availability.available);
+    assert.equal(denied.availability.code, "artifacts.plugin_denied");
+    assert.equal(denied.availability.kind, "forbidden");
     const wrongSchema = await author("wrong-schema", { schema: 2 });
     const otherUser = await author("other-user", { actor: "other" });
     const before = store.snapshot(DEMO_PROJECT_ID);

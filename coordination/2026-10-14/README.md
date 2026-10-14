@@ -38,11 +38,35 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
 | 跨插件 AI 交互（交互线） | `specs/ai-interaction-experience/spec.md` | §17 分片表、§20.13（A1+H2）、§20.14（A2） |
 | 情境动作（情境线） | `specs/context-program/spec.md`（总纲） | §16.4、§20（当前接续入口）、§20.11（W2 用例） |
 
-## 2. 现在的状态（2026-10-14 17:00 UTC 写，17:40 UTC 更新：P2i、P2j 已合进 Prologue main，W4-06 开了 PR #498）
+## 2. 现在的状态（2026-10-14 18:40 UTC，新主会话接手后更新）
 
-**Molis main = `774acaf5`。**
+**会话（10-14 11:20 PDT 起）**：
 
-10-13 以来四线合进 main 的 PR：
+| 角色 | 会话 | 工作树 |
+| --- | --- | --- |
+| 主会话（统筹） | 「统筹 \| Molis Work四线统筹主会话」`local_7207c245-d21c-46be-b897-b5267cf14585` | 本分支 `.claude/worktrees/coord-handoff-1014` |
+| 采用线 | 「采用线 \| Prologue 完整采用」`local_45fecdfc-1a50-48c9-be97-e2de2dddb97b` | `.claude/worktrees/line-adoption`；Prologue `~/code/prologue-p2j` |
+| 回执线 | 「回执线 \| AI 输入回执」`local_718de54b-ab9e-4e4e-9a8f-9d453bf38be8` | `.claude/worktrees/line-receipts` |
+| 交互线 | 「交互线 \| 跨插件 AI 交互」`local_0947140d-645a-4a48-80e1-567fd046acf2` | `.claude/worktrees/line-interaction` |
+| 情境线 | 「情境线 \| 情境动作与助理动作整合」`local_5d1ec72a-374a-4f4b-ace1-71d06e379da9` | `.claude/worktrees/line-contextual` |
+
+每条线的第一件事是**对照原始需求核对真实实现**（逐项标已实现并给证据、部分、未做），写进本线需求书、摘要发主会话。原始需求的出处：
+
+- 采用：主检出里未入库的 `docs/reviews/prologue-molis-work-assessment-2026-10-02.md`（23 项），以及旧会话 `local_323bc7cc…` 的第一条消息。
+- 回执：旧会话 `local_65cdec5e…` 的第一条消息。
+- 交互：旧会话 `local_92f3d1d6…` 的第一条消息。
+- 情境：总纲 §13 对照表，设计会话 `local_d2f8f2cf…`。
+
+10-06 的四个旧会话 `[CC][1]`–`[CC][4]` 只有开头的需求，第一轮就撞了周限额，没有往下做；之后的进展全在 10-13、10-14 的统筹里。
+
+**新需求（用户 10-14 原话，交情境线）**：「个人助理动作推荐，动作指引与个人助理对话界面的整合和交互优化，这个新的优化需求，请与情景动作这个线一起做掉，现在的这几部分自成一派，动线和使用体验很不好。」主会话定的分工：
+
+- 助理面板里推荐动作、操作卡、问卷卡与对话的**布局与动线**归情境线。它先走查、出整合方案和高保真切片，再和 W3（助理与落点、助理面板作为位置）合在一起做。
+- 这些东西的**合同**与 Coding 侧呈现仍归交互线（H3、H4 照做）。改合同经主会话。
+- 回执线的 1e（助理工作视图里的输入回执）排在情境线的助理整合之后。1a 抽出的边界要能被新布局直接复用。
+- Codex 的草稿 PR #489（Pages 评论侧栏、助理展开成主区标签）先于情境线的助理整合合入，情境线在它之上做。
+
+**Molis main = `393e8958`。** 10-14 以来四线合进 main 的：
 
 - #408：采用线对账，过渡 SDK 包进 main。
 - #409：回执阶段 1 第一片。
@@ -50,34 +74,46 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
 - #411：情境 W1/W2。
 - #487：settings-assistant 的 fetch 修复。
 - #491：采用 A1 核对。
-- #492：交互 A1+H2，合并提交 `34d0d1fc`。
-- #494：情境 W2-02/05/08 用例与浮条章节，合并提交 `5ba2fa92`。
-- #496：交互 A2，合并提交 `774acaf5`。
+- #492：交互 A1+H2（`34d0d1fc`）。
+- #494：情境 W2 用例与浮条章节（`5ba2fa92`）。
+- #496：交互 A2（`774acaf5`）。
 
-别人同期合进来、和这几条线有交集的：
+别人同期合进来的：
 
-- #488：状态环。A2 并 main 时，把它放到了共享问卷卡上。
+- #488：状态环（A2 把它放到了共享问卷卡上）。
+- #490：防腐进度对账。
+- #497：测试并行运行器（每个文件一个 Home），阻塞 CI 拆成并行作业。
+- #499：截图直接拖入 Issue。
 - 窗口图过渡包：现在 vendored 的是 `prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz`。
 
-**Prologue main = `70ea93d6`**，P2a–P2j、S1–S4、Computer Use、H16、窗口图都在，**P2 全部完成**。最近合的：
+**Prologue main = `b01067b4`**：P2a–P2j、S1–S4、Computer Use、H16、窗口图都在，**P2 全部完成**。最近合的：
 
-- #16 P2g；
-- #17 H16；
-- #18 窗口图；
-- #19 P2h（等待：条件组、四态、`board-wait`）；
-- #21 P2i（接续），合并提交 `71a06a94`；
-- #22 P2j（外部条件与检查器），合并提交 `70ea93d6`。
+- #19 P2h；
+- #21 P2i（`71a06a94`）；
+- #22 P2j（`70ea93d6`）；
+- #24 模型切换接受时核对调用方权限（`b01067b4`）。
 
-#21、#22 合并时没跑最终 head 上的 SDK 全量和干净包消费者检查（整机构建时段一直被占；用户 10-14 让 Prologue 改动直接进 main），PR 正文写明了「合入后在 main 上补跑」。补跑已排在构建锁后面（`prologue-verify.sh ~/code/prologue-p2j main-70ea93d6 <P2h 的包>`，`~/code/prologue-p2j` 现在停在 `origin/main`）；结果见 §3.1 第 1 条。
+#21、#22 合并时没在最终 head 上跑 SDK 全量和干净包消费者检查。**合入后的补跑还没跑**（上一个会话没排上构建锁），已交给采用线，对 `b01067b4` 跑。
 
-**在途（都已推送，没有只在本机的东西）**：
+**在途**：
 
-| 线 | 仓库 / 分支 | head | 状态 | 本机工作树 |
-| --- | --- | --- | --- | --- |
-| 采用 W4-06 | Molis `refactor/w4-06-prologue-node`，PR #498（草稿） | `6660b62a`（已并 main `cbbeada4`） | 类型检查无错；`check-health-gates --base origin/main` 过，`prologue-node.ts` 的三个巨大单元消失、没有新的；本地快查、巨大单元清单、防腐 spec、四份文档已跟着改。CI 在跑；本地构建与相关用例排在构建锁后面 | `.claude/worktrees/line-adoption-w406` |
+| 线 | 仓库 / 分支 | head | 状态 |
+| --- | --- | --- | --- |
+| 采用 W4-06 | Molis `refactor/w4-06-prologue-node`，PR #498（已转 ready） | `21d3853f`（并了 main `393e8958`） | **由一个 Codex 线程收尾**：它 10-14 11:15 从 `~/.codex/worktrees/pr498-prologue-split` 推了同步，11:22 把 `pr498-build-20261014` 排进构建锁。采用线不碰这个分支；Codex 停下，主会话再交给采用线。CI 在跑；上一轮必需检查全绿，Product subset（不挡合并）红过一次，原因待看。合入后主会话通知采用线（P3 变基）和回执线（接会话条目端口） |
+| 别人：Pages 与助理主区 | Molis `feature/pages-assistant-integration`，PR #489（草稿，DIRTY，约 100 个文件） | `78c37fe9` | Codex 的。11:17 把 `pages-489-final-build` 排进构建锁。和情境线、回执线 1e 都有重叠，见上 |
+| 别人：情境总纲设计稿 | `feature/context-toolbar`，PR #180（10-09 以来没动，DIRTY） | `7748613e` | 情境线核对内容是否已由 #411、#494 带进 main，是的话由主会话关掉 |
 
-- P2i、P2j 已合（见上），工作树 `~/code/prologue-p2i` 可以删；远端分支 `feature/p2i-continuation`、`feature/p2j-checkers` 留着没删。
-- 以 GitHub 为准：`gh pr view 498`，`gh pr list --repo molis-ai/prologue`。
+- `~/code/prologue-p2i` 可以删；远端分支 `feature/p2i-continuation`、`feature/p2j-checkers` 留着。
+- 以 GitHub 为准：`gh pr list`，`gh pr list --repo molis-ai/prologue`。
+
+**构建锁（18:30 UTC）**：
+
+- 防腐 Codex 的 108 全量 08:39 PDT 起占着构建锁和浏览器锁。它在串行跑 976 个文件，到了第 940 个左右。
+- `work-placement-restart.test.ts` 曾静止约 40 分钟，后来自己超时往下走了，不是卡死。
+- 排队：Codex `pages-489-final-build` → Codex `pr498-build`。Codex 的锁脚本每秒轮询，`build-lock.sh` 每 15 秒，所以 Codex 的会先拿到。
+- 各线排在后面；不需要构建的部分先做。
+
+**提交身份**：仓库级的 `jing xu` 配置已经不在了，现在用全局的 `yijunw0212`（10-14 的提交都是它）。主会话没改配置。
 
 **已知的既有失败（不是四线引入）**：
 
@@ -90,10 +126,10 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
 ### 3.1 采用线（关键路径）
 
 1. **P2i、P2j 已合（#21、#22），P2 全部完成。剩合入后的补跑**：
-   - 对 Prologue main `70ea93d6` 跑 `prologue-verify.sh`（SDK 全量 + 干净包消费者，含新的 `taskboard-continuations-consumer.mjs`、`taskboard-checks-consumer.mjs`），放在构建锁下。若本会话没跑完，接手的人重跑：`$L prologue-main-verify zsh coordination/2026-10-14/tools/prologue-verify.sh ~/code/prologue-p2j main-70ea93d6 <P2h 的包>`。
+   - 对 Prologue main（10-14 起是 `b01067b4`，含 #24）跑 `prologue-verify.sh`（SDK 全量 + 干净包消费者，含新的 `taskboard-continuations-consumer.mjs`、`taskboard-checks-consumer.mjs`），放在构建锁下。若本会话没跑完，接手的人重跑：`$L prologue-main-verify zsh coordination/2026-10-14/tools/prologue-verify.sh ~/code/prologue-p2j main-b01067b4 <P2h 的包>`。
    - 过了：在合同 `docs/slices/taskboard-collaboration.md` 的 P2i、P2j 进度条「验证」行补上结果（直接进 Prologue main）。
    - 不过：先分清是不是 dist 没构建、是不是 `desktop-computer-use.live`（排除）；产品失败就在 Prologue 开修复 PR。全量里若只有公开面快照不同，对照 P2i/P2j 新加的公开类型核一遍再 `-u`。
-2. P3 用的包从 `70ea93d6`（或补跑修复之后的 main）打。
+2. P3 用的包从 `b01067b4`（或补跑修复之后的 main）打。
 3. **W4-06**（Molis，P3 的硬前置，也是回执线「会话条目端口」的前置）：
    - **做了什么**：把 1,551 行的 `prologue-node.ts`（`initializePrologueNodeAdapter` 1,281 行，内嵌 `startAgentRun` 406 行）拆成：
      - `prologue-node-kit.ts`：选项、各轮内存状态、共用工具；
@@ -192,6 +228,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
 
 剩下的：
 
+- **新需求（用户 10-14）：个人助理的动作推荐、动作指引与对话界面整合**，分工见 §2。先走查，再出整合方案和高保真切片，然后与 W3 合做。
 - **W3 起**：按总纲第 9 节分期——中枢接右栏、助理与落点、Pages 的落点、右栏改版。每步先对照 §18.2、§19.5 的门禁。
 - **要先问用户的**：
   - 两组真实 Jev 评估、桌面原生拖出（要真实凭据或真实环境）。

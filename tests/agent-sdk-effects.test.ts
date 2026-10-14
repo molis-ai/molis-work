@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
-import { AgentHost, createPrologueNodeAdapter, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
+import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
 import { agentHostCapabilities as agent, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
@@ -33,7 +33,7 @@ test("I6-02: a real Node questionnaire refusal preserves each problem and the pe
     return cogniaModelResponse("安排已确认。");
   });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.question-errors-test", appVersion: "1.0.0" },
-    storageRoot: join(home, "sdk"), questionTypes: ["choice", "number"],
+    storageRoot: join(home, "sdk"), questionTypes: ["choice", "number"], reviewQueue: new AgentReviewQueue(),
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
     resolveCredential: () => "fixture-only",
   });

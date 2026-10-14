@@ -95,7 +95,10 @@ test("project planning HTTP reads, adopts and saves through current action polic
     // R-GOALS-OWNER-01: the project apply HTTP edge keeps its original 404 refusal.
     const missing = await request(path + "/apply", { method_id: "missing", user_confirmed: true });
     assert.equal(missing.status, 404);
-    assert.deepEqual(await missing.json(), { error: "找不到可选的规划方法" });
+    const missingBody = await missing.json() as { error: string; call_id: string };
+    assert.equal(missingBody.error, "找不到可选的规划方法");
+    assert.match(missingBody.call_id, /^[0-9a-f-]{36}$/, "the actual owner refusal retains its operation number");
+    assert.deepEqual(Object.keys(missingBody).sort(), ["call_id", "error"]);
     assert.deepEqual(await (await request(path)).json(), original);
     assert.equal((await request(path + "/apply", apply, false)).status, 403);
     denied.add(goalsActions.planningRead.capability_id);

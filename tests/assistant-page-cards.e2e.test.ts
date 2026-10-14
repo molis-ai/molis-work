@@ -25,11 +25,11 @@ test("W2-18-PAGE-CARDS-01: both page cards remain visible and executing or ignor
     finally { store.close(); }
   };
   assert.ok(!savedTodos().includes("执行第一张页面卡"), "placing a card performs no business action");
-  await browser.click(`[data-assistant-thread] > [data-card="${first.card.card_id}"] .assistant-card-actions .mw-btn--primary`);
+  await browser.click(`[data-assistant-thread] > [data-card="${first.card.card_id}"] [data-ix-action="run"]`);
   await browser.waitFor(`document.querySelector('[data-assistant-thread] > [data-card="${first.card.card_id}"]')?.dataset.status === 'done'`);
   assert.deepEqual(await cards(), [[first.card.card_id, "done"], [second.card.card_id, "ready"]], "executing the first leaves the second ready");
   assert.equal(savedTodos().filter(title => title === "执行第一张页面卡").length, 1);
-  await browser.click(`[data-assistant-thread] > [data-card="${second.card.card_id}"] .assistant-card-actions .mw-btn--secondary`);
+  await browser.click(`[data-assistant-thread] > [data-card="${second.card.card_id}"] [data-ix-action="dismiss"]`);
   await browser.waitFor(`!document.querySelector('[data-assistant-thread] > [data-card="${second.card.card_id}"]')`);
   assert.deepEqual((await readWork(browser, first.work_id)).cards.map(card => [card.card_id, card.status]), [[first.card.card_id, "done"], [second.card.card_id, "dismissed"]]);
   assert.ok(!savedTodos().includes("忽略第二张页面卡"), "ignoring the second performs no business action");

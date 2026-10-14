@@ -48,7 +48,7 @@ test("Coding stops hidden polling and releases every client listener before the 
   await click('[data-coding-directory-back]');
   await waitFor("codingRoot.dataset.codingDetail === 'false'");
   await click(`[data-coding-session="${id}"]`);
-  await waitFor(`codingRequests.some(request=>request.path.includes('/sessions/${id}?window=1'))`);
+  await waitFor(`codingRequests.some(request=>request.path.includes('/sessions/${id}?window=6'))`);
   await evaluate("window.effectReads=codingRequests.length");
   await evaluate(`window.dispatchEvent(new CustomEvent('molis:assistant-effect',{detail:{capability_id:'coding.sessions.update',session_id:${JSON.stringify(id)}}}))`);
   await pause(250);

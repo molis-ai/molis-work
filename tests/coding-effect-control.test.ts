@@ -30,16 +30,23 @@ for (const output of ["report", "changeset", "plan"] as const) for (const stop o
     const privateStorage = new SqlitePluginPrivateStorage(store.db), artifacts = new ArtifactsModule({ db: store.db, homeOwner: "web-user", appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
     const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
     const target = output === "report" ? "coding.reports.save" : output === "changeset" ? "coding.changesets.save" : "coding.plans.save";
-    const completed = Promise.withResolvers<void>(); let production: ActionHandlerBinding | undefined;
+    const completed = Promise.withResolvers<void>(); let production: ActionHandlerBinding | undefined, unregisterProduction: (() => void) | undefined;
+    let releaseRead = () => {};
     const register = service.registerProvider.bind(service);
-    t.mock.method(service, "registerProvider", registration => register({ ...registration, handlers: registration.handlers?.map(binding => {
-      if (binding.capability_id !== target) return binding; production = binding;
-      return { ...binding, handle: async (caller, input) => { try { return await binding.handle(caller, input); } finally { completed.resolve(); } } };
-    }) }));
+    t.mock.method(service, "registerProvider", registration => {
+      let captured = false;
+      const unregister = register({ ...registration, handlers: registration.handlers?.map(binding => {
+        if (binding.capability_id !== target) return binding;
+        captured = true; production ??= binding;
+        return { ...binding, handle: async (caller, input) => { try { return await binding.handle(caller, input); } finally { completed.resolve(); } } };
+      }) });
+      if (captured) unregisterProduction ??= unregister;
+      return unregister;
+    });
     const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: null,
       actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID }, capabilities: local.client(reference), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
     await platform.start([{ definition: createCodingPlugin({ execution: { sessions, goalTitle: () => undefined, ready: async () => {}, models: async () => [{ provider_id: "fixture", model_id: "fixture", label: "Fixture" }] } }), grants: ["goals:read", "goals:write", "artifact:read", "artifact:write", "storage:private", "workspace:read"] }]);
-    t.after(async () => { await platform.closeCoordination(); for (const id of platform.supervisor.enabledPluginIds()) { const active = platform.supervisor.state(id); platform.supervisor.revoke(id); if (active?.install_id) await platform.runtime.stop(active.install_id); }
+    t.after(async () => { releaseRead(); await platform.closeCoordination(); for (const id of platform.supervisor.enabledPluginIds()) { const active = platform.supervisor.state(id); platform.supervisor.revoke(id); if (active?.install_id) await platform.runtime.stop(active.install_id); }
       await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
     t.mock.method(globalThis, "fetch", async () => cogniaModelResponse(JSON.stringify({ title: "Fixture plan", steps: [{ title: "Read fixture", acceptance: "Keep source" }], blockers: "", change_reason: "" })));
     const router = platform.router(), path = "/api/plugins/io.molis.work.coding/sessions/app";
@@ -52,16 +59,24 @@ for (const output of ["report", "changeset", "plan"] as const) for (const stop o
       if (Date.now() >= deadline) throw new Error("the accepted planning follow did not finish"); await new Promise(resolve => setTimeout(resolve, 20));
     }
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), read = adapter.read.bind(adapter); let holding = true, valid = true;
+    releaseRead = () => { holding = false; release.resolve(); };
     t.mock.method(adapter, "read", async (...args) => { const result = await read(...args); if (holding) { entered.resolve(); await release.promise; } return result; });
     const controller = new AbortController(), assert_current = () => { controller.signal.throwIfAborted(); if (!valid) throw new ActionError("actions.forbidden", "original invocation revoked"); };
     const before = sessions.plan(DEMO_PROJECT_ID, "app"), route = output === "plan" ? path + "/plan" : path + `/runs/${run.run_id}/${output}`;
     const pending = router.dispatch({ method: "POST", pathname: route, actor_id: "web-user", body: output === "plan" ? { run_id: run.run_id, expected_revision: 0 } : {},
       execution: { signal: controller.signal, beforeEffect: async () => { assert_current(); }, assert_authority_current: assert_current } });
-    await entered.promise;
-    if (stop === "cancel") controller.abort(); else if (stop === "revoke") valid = false;
-    else { assert.ok(production); service.registerProvider({ provider: { provider_id: platform.supervisor.state("io.molis.work.coding")!.install_id!, plugin_install_id: platform.supervisor.state("io.molis.work.coding")!.install_id!, title: "Replacement", kind: "plugin", project_id: DEMO_PROJECT_ID },
-      definitions: [service.discover({ actor_id: "web-user", project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"] }).find(row => row.capability_id === target)!], handlers: [{ ...production, handle: () => ({}) }] }); }
-    holding = false; release.resolve(); const result = await pending; await completed.promise;
+    try {
+      await entered.promise;
+      if (stop === "cancel") controller.abort(); else if (stop === "revoke") valid = false;
+      else {
+        assert.ok(production); assert.ok(unregisterProduction);
+        const definition = service.discover({ actor_id: "web-user", project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"] }).find(row => row.capability_id === target);
+        assert.ok(definition); unregisterProduction();
+        service.registerProvider({ provider: { provider_id: platform.supervisor.state("io.molis.work.coding")!.install_id!, plugin_install_id: platform.supervisor.state("io.molis.work.coding")!.install_id!, title: "Replacement", kind: "plugin", project_id: DEMO_PROJECT_ID },
+          definitions: [definition], handlers: [{ ...production, handle: () => ({}) }] });
+      }
+    } finally { releaseRead(); }
+    const result = await pending; await completed.promise;
     assert.ok(result && result.status >= 400, JSON.stringify(result)); assert.deepEqual(sessions.plan(DEMO_PROJECT_ID, "app"), before);
     assert.equal(store.db.prepare("SELECT count(*) AS count FROM library_artifact_versions").get()!.count, 0);
     assert.equal(store.db.prepare("SELECT count(*) AS count FROM process_item_versions").get()!.count, 0);

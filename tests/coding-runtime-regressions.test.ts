@@ -119,7 +119,7 @@ test("a real inserted SDK step and its verdict are saved in a fixed report that 
   t.mock.method(globalThis, "fetch", async () => cogniaModelResponse(JSON.stringify({ title: "One step", steps: [{ title: "Read", acceptance: "Record evidence" }], blockers: "", change_reason: "" })));
   const planning = await start(fixture, "A", "Plan this task.", "plan");
   body(await fixture.call("/sessions/A/plan", { run_id: planning.run_id, expected_revision: 0 }));
-  body(await fixture.call("/sessions/A/plan/confirm", { expected_revision: 1 }));
+  const confirmed = body<{ plan: { revision: number } }>(await fixture.call("/sessions/A/plan/confirm", { expected_revision: 1 }));
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let turn = 0, execution: AgentRunRef;
   t.after(() => release.resolve());
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
@@ -132,10 +132,12 @@ test("a real inserted SDK step and its verdict are saved in a fixed report that 
     }
     return cogniaModelResponse("Both steps are reported.");
   });
-  execution = body<Started>(await fixture.call("/sessions/A/runs", { ...configuration, task: "Execute the confirmed plan.", intent: "execute" })).run.ref;
-  await entered.promise; const initial = (await fixture.adapter.read(execution)).step_board!;
+  execution = body<Started>(await fixture.call("/sessions/A/runs", { ...configuration, task: "Execute the confirmed plan.", intent: "execute", plan_revision: confirmed.plan.revision })).run.ref;
+  const finished = settle(fixture, execution);
+  await Promise.race([entered.promise, finished.then(() => { throw new Error("SDK execution ended before the insertion barrier"); })]);
+  const initial = (await fixture.adapter.read(execution)).step_board!;
   await fixture.adapter.amendStepBoard!(execution, { kind: "insert", after: "step-1", title: "Inserted test", acceptance: "New evidence is recorded" }, initial.version);
-  release.resolve(); const final = await settle(fixture, execution), board = final.step_board!;
+  release.resolve(); const final = await finished, board = final.step_board!;
   assert.deepEqual(board.nodes.map(node => [node.id, node.state]), [["step-1", "succeeded"], ["user-1", "succeeded"]]);
   const evaluation = `/sessions/A/runs/${execution.run_id}/steps/user-1`;
   body(await fixture.call(evaluation, { action: "accepted", project_id: board.project_id, board_version: board.version, expected_revision: 0, notes: "Verified inserted evidence." }));

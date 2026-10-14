@@ -3,11 +3,11 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { definePlugin } from "../packages/plugin-sdk/src/index.js";
+import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionDefinition, ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { withFunctionsService } from "../apps/local-host/src/functions-host.js";
+import { withFunctionsService } from "../apps/local-host/dist/functions-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 

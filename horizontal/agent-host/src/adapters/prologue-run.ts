@@ -231,10 +231,8 @@ const handedSteps = (runtime: Runtime, session: ExactRef<"session">) => runtime.
  * What the round is given to read beside its task: the person's text materials, where its plan stands, and in a main
  * round what other sessions are doing, the messages left for it and the steps handed to it.
  */
-async function roundMaterials(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, none: boolean, plan: PrologueStartInput["provenance"]["frozen"]["execution_plan"]) {
+async function roundMaterials(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, none: boolean, plan: PrologueStartInput["provenance"]["frozen"]["execution_plan"], textResources: Array<{ ref: ExactRef<"resource">; as: "original" }>) {
   const { runtime, stepBoards, projectWork, messages } = deps;
-  const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
-  for (const material of input.text_materials ?? []) textResources.push({ ref: await stageTextResource(runtime, agentTextMaterialContent(material), "coding-material"), as: "original" });
   const continued = input.provenance.frozen.continues_step_board_of;
   // A continued plan keeps its graph — with every step a person inserted, skipped or reordered — rather than starting over.
   const stepBoard = plan ? continued ? await stepBoards.resume({ session_id: input.session_id, run_id: continued }) : await stepBoards.admit(plan, session.ref) : undefined;
@@ -565,9 +563,11 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   if (session === undefined) throw new Error("agent.session_unknown");
   const root = mode.none || mode.business ? undefined : await runtime.workspace.authorize({ path: input.root_path! });
   const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [], input.character.tools.map(prologueToolName), prologueToolName);
-  const plan = input.provenance.frozen.execution_plan;
-  const materials = await roundMaterials(deps, input, index, session, mode.none, plan);
+  const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
+  for (const material of input.text_materials ?? []) textResources.push({ ref: await stageTextResource(runtime, agentTextMaterialContent(material), "coding-material"), as: "original" });
   const { childRoots, childRoles, childInstructions } = await childSetup(deps, input);
+  const plan = input.provenance.frozen.execution_plan;
+  const materials = await roundMaterials(deps, input, index, session, mode.none, plan, textResources);
   const surface = await roundSurface(deps, input, index, session, mode.business);
   const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, plan, session, actionTools });
   // Exchange our reference for one Prologue can resolve, before the Run is started rather than when it first calls out.

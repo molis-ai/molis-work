@@ -6,6 +6,8 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+W4-06 / #498 合并验收补充（2026-10-14，待验证）：本次只拆分 Agent Host 内部组合，公开合同与启动副作用顺序保持原样。`W4-06-01`：携带确认计划的协调者请求若因子目录重叠而被拒绝，不能先建立计划图或启动模型；关闭并重开同一隔离运行时后仍无该计划图。恢复原先的「文本材料 → 子任务校验 → 计划与项目材料」顺序，使用 `tests/prologue-node-start-order.test.ts` 的真实 Host / 已打包 SDK 回归证明。整建后运行包要求与全部 `agent-*`、`prologue-*` 回归；不升级 SDK、不改公开接口或门禁。
+
 ## 0. 现场与范围
 
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。

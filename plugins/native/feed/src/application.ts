@@ -7,7 +7,7 @@ import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedOutRu
 import {
   type JudgmentRecord,
 } from "@molis-ai/molis-work-contracts/modules/functions";
-import { assertSourceHistoryDecision, callAttention, callFeed } from "./application-errors.js";
+import { assertSourceHistoryDecision, callAttention } from "./application-errors.js";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { feedItemRecord, sourceRunRecord } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
@@ -47,11 +47,11 @@ export class FeedApplication {
   }
 
   getItem(projectId: string, itemId: string): FeedItemRecord {
-    return feedItemRecord(callFeed(() => this.ports.feed.query.get(projectId, itemId)));
+    return feedItemRecord(this.ports.feed.query.get(projectId, itemId));
   }
 
   getFeedItem(projectId: string, itemId: string): FeedItemRecord {
-    return feedItemRecord(callFeed(() => this.ports.feed.query.get(projectId, itemId)));
+    return feedItemRecord(this.ports.feed.query.get(projectId, itemId));
   }
 
   findLinkedGoalItem(projectId: string, goalId: string, itemId?: string): FeedItemRecord | null {
@@ -256,7 +256,7 @@ export class FeedApplication {
     };
     material?: Omit<FeedMaterialRecord, "project_id" | "item_id" | "imported_at" | "updated_at">;
   }): { item: FeedItemRecord; created: boolean; updated: boolean } {
-    const result = callFeed(() => this.ports.feed.commands.ingest({
+    const result = this.ports.feed.commands.ingest({
       project_id: input.source.project_id,
       source_id: input.source.source_id,
       source_kind: input.source.kind,
@@ -277,7 +277,7 @@ export class FeedApplication {
       material: input.material ? {
         ...input.material,
       } : undefined,
-    }));
+    });
     const item = feedItemRecord(result.item);
     if (result.created || result.updated) {
       try {
@@ -382,22 +382,16 @@ export class FeedApplication {
     disposition: FeedItemDisposition,
     expectedRevision?: number,
   ): FeedItemRecord {
-    const item = callFeed(
-      () => this.ports.feed.commands.setDisposition(projectId, itemId, disposition, expectedRevision),
-    );
+    const item = this.ports.feed.commands.setDisposition(projectId, itemId, disposition, expectedRevision);
     return feedItemRecord(item);
   }
 
   restoreToFeed(projectId: string, itemId: string, expectedRevision?: number): FeedItemRecord {
-    return feedItemRecord(callFeed(
-      () => this.ports.feed.commands.restore(projectId, itemId, expectedRevision),
-    ));
+    return feedItemRecord(this.ports.feed.commands.restore(projectId, itemId, expectedRevision));
   }
 
   markRead(projectId: string, itemId: string): FeedItemRecord {
-    return feedItemRecord(callFeed(
-      () => this.ports.feed.commands.markRead(projectId, itemId),
-    ));
+    return feedItemRecord(this.ports.feed.commands.markRead(projectId, itemId));
   }
 
   linkGoal(
@@ -406,9 +400,7 @@ export class FeedApplication {
     goalId: string,
     disposition: "promoted" | "processing",
   ): FeedItemRecord {
-    const item = callFeed(
-      () => this.ports.feed.commands.linkGoal(projectId, itemId, goalId, disposition),
-    );
+    const item = this.ports.feed.commands.linkGoal(projectId, itemId, goalId, disposition);
     return feedItemRecord(item);
   }
 

@@ -1,34 +1,16 @@
-import { AttentionError, inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import { FeedError, feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { attentionErrors, inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { SourceHistoryDecision } from "./projection.js";
-
-/** The module's refusals, as Feed declares them; the message is the module's own. */
-const FEED_MODULE_FAILURES = {
-  feed_item_not_found: feedErrors.item_not_found,
-  feed_revision_conflict: feedErrors.revision_conflict,
-  feed_invalid_transition: feedErrors.invalid_transition,
-  // The module names this code in its type but nothing raises it; if it ever does, it is a transition the item cannot make.
-  feed_read_not_supported: feedErrors.invalid_transition,
-} as const satisfies Record<FeedError["code"], (message: string) => unknown>;
-
-/** A Feed module refusal reaches callers as Feed's own declared failure, with the same message. */
-export function callFeed<T>(operation: () => T): T {
-  try {
-    return operation();
-  } catch (error) {
-    if (error instanceof FeedError) throw FEED_MODULE_FAILURES[error.code](error.message);
-    throw error;
-  }
-}
 
 /** An Attention module refusal reaches callers as a declared failure: the Inbox's for a missing entry, Feed's for the rest. */
 export function callAttention<T>(operation: () => T): T {
   try {
     return operation();
   } catch (error) {
-    if (error instanceof AttentionError) {
-      throw error.code === "attention_entry_not_found" ? inboxErrors.entry_not_found(error.message)
-        : error.code === "attention_revision_conflict" ? feedErrors.revision_conflict(error.message)
+    if (error instanceof ActionError && error.code.startsWith("attention.") && Object.hasOwn(attentionErrors, error.code.slice("attention.".length))) {
+      throw error.code === "attention.entry_not_found" ? inboxErrors.entry_not_found(error.message)
+        : error.code === "attention.revision_conflict" ? feedErrors.revision_conflict(error.message)
           : feedErrors.invalid_transition(error.message);
     }
     throw error;

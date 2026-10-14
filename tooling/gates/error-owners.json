@@ -51,9 +51,10 @@
     },
     "attention": {
       "paths": [
-        "modules/attention-resumption/"
+        "modules/attention-resumption/",
+        "packages/contracts/src/modules/attention-errors.ts"
       ],
-      "reason": "The attention and resumption module: its attention_* codes become attention.*."
+      "reason": "The attention and resumption module: its attention_* codes become attention.*. The public Attention contract declares these refusals; Inbox errors remain owned by Inbox."
     },
     "browser": {
       "paths": [

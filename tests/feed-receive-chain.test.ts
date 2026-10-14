@@ -87,6 +87,30 @@ function connectorWith(driver: ConnectorDriver): ConnectorHost {
   return connector;
 }
 
+test("FAS-01: rejected Signal drafts leave records, revisions and events unchanged", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-signal-refusal-"));
+  const databasePath = join(directory, "molis-work.sqlite");
+  seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath);
+  try {
+    const signals = new SignalsModule(store.db);
+    const draft = { project_id: DEMO_PROJECT_ID, source_id: "fas-source", provider_dedupe_id: "fas-event", kind: "update",
+      occurred_at: "2026-09-02T08:00:00.000Z", observed_at: "2026-09-02T08:00:01.000Z", payload: { title: "Accepted event" },
+      raw_event_id: "fas-raw-event", adapter: { plugin_id: "io.molis.work.integration.fixture", version: "1.0.0" }, provenance: {} };
+    const accepted = signals.commands.submitDraft(draft);
+    const records = signals.query.list(DEMO_PROJECT_ID), events = signals.events.list(DEMO_PROJECT_ID);
+    const revisions = store.db.prepare("SELECT * FROM signal_revisions ORDER BY signal_id, revision").all();
+    assert.throws(() => signals.query.get(DEMO_PROJECT_ID, "missing-fas-signal"), (error: unknown) => error instanceof ActionError
+      && error.code === "signals.not_found" && error.message === "找不到这个 Signal" && actionHttpStatus(error) === 400);
+    assert.throws(() => signals.commands.submitDraft({ ...draft, kind: "" }), (error: unknown) => error instanceof ActionError
+      && error.code === "signals.invalid_draft" && error.message === "Signal Draft 缺少可信身份、时间或结构化内容" && actionHttpStatus(error) === 400);
+    assert.deepEqual(signals.query.list(DEMO_PROJECT_ID), records);
+    assert.deepEqual(signals.events.list(DEMO_PROJECT_ID), events);
+    assert.deepEqual(store.db.prepare("SELECT * FROM signal_revisions ORDER BY signal_id, revision").all(), revisions);
+    assert.deepEqual(signals.query.get(DEMO_PROJECT_ID, accepted.signal.signal_id), accepted.signal);
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
 test("J2A-01: the connector owner refuses missing, duplicate and revoked wiring, and rejects an invalid provider event", async () => {
   const connector = new ConnectorHost();
   let polls = 0;

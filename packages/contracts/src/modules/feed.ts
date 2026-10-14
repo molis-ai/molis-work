@@ -150,19 +150,7 @@ export interface FeedModuleDependencies {
   attention: AttentionApi;
 }
 
-export class FeedError extends Error {
-  constructor(
-    readonly code:
-      | "feed_item_not_found"
-      | "feed_revision_conflict"
-      | "feed_invalid_transition"
-      | "feed_read_not_supported",
-    message: string,
-  ) {
-    super(message);
-    this.name = "FeedError";
-  }
-}
+
 
 /**
  * Feed's own error codes, every one `feed.<reason>`. The kind is the sort of failure; the Host's edge turns it into the status

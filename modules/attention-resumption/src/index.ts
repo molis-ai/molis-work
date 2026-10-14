@@ -1,4 +1,4 @@
-import { AttentionError } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { attentionErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -59,7 +59,6 @@ export const ATTENTION_STATUS_TRANSITIONS: Readonly<
   dismissed: ["open"],
 };
 
-export { AttentionError } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 
 const INBOX_ENTRIES_COLUMNS = `
       project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
@@ -160,7 +159,7 @@ export class AttentionModule implements AttentionApi {
     const row = this.db.prepare(
       "SELECT * FROM inbox_entries WHERE project_id = ? AND entry_id = ?",
     ).get(projectId, entryId) as Row | undefined;
-    if (!row) throw new AttentionError("attention_entry_not_found", "找不到这个 Inbox Entry");
+    if (!row) throw attentionErrors.entry_not_found("找不到这个 Inbox Entry");
     return mapAttentionEntry(row);
   }
 
@@ -196,7 +195,7 @@ export class AttentionModule implements AttentionApi {
       assertReference(input.subject_type, input.subject_id);
       assertReason(input.subject_type, input.reason);
       if (!this.subjects.exists(input.project_id, input.subject_type, input.subject_id)) {
-        throw new AttentionError("attention_invalid_reference", referenceMessage(input.subject_type));
+        throw attentionErrors.invalid_reference(referenceMessage(input.subject_type));
       }
       const existing = this.db.prepare(`
         SELECT * FROM inbox_entries
@@ -250,7 +249,7 @@ export class AttentionModule implements AttentionApi {
     return this.db.transaction(() => {
       const current = this.get(projectId, entryId);
       if (expectedRevision != null && current.revision !== expectedRevision) {
-        throw new AttentionError("attention_revision_conflict", "这条 Inbox Entry 已经变化，请刷新后重试");
+        throw attentionErrors.revision_conflict("这条 Inbox Entry 已经变化，请刷新后重试");
       }
       assertTransition(current.status, status);
       if (current.status === status) return current;
@@ -336,7 +335,7 @@ export function assertAttentionEntryShape(entry: AttentionEntryRecord): void {
 
 function assertReference(subjectType: AttentionSubjectType, subjectId: string): void {
   if (!subjectId.trim() || !["feed_item", "goal_decision", "source_fault"].includes(subjectType)) {
-    throw new AttentionError("attention_invalid_reference", "Inbox Entry 必须引用一个有效对象");
+    throw attentionErrors.invalid_reference("Inbox Entry 必须引用一个有效对象");
   }
 }
 
@@ -346,7 +345,7 @@ function assertReason(subjectType: AttentionSubjectType, reason: AttentionReason
     : subjectType === "source_fault"
       ? reason === "source_fault"
       : reason === "goal_decision";
-  if (!valid) throw new AttentionError("attention_invalid_transition", referenceMessage(subjectType));
+  if (!valid) throw attentionErrors.invalid_transition(referenceMessage(subjectType));
 }
 
 function assertShape(entry: AttentionEntryRecord): void {
@@ -354,13 +353,13 @@ function assertShape(entry: AttentionEntryRecord): void {
   const forbidden = ["title", "summary", "body", "message", "content", "credential", "cursor"];
   for (const key of forbidden) {
     if (Object.hasOwn(entry, key)) {
-      throw new AttentionError("attention_invalid_reference", `Inbox Entry 不能复制 ${key}`);
+      throw attentionErrors.invalid_reference(`Inbox Entry 不能复制 ${key}`);
     }
   }
   for (const key of Object.keys(entry.detail)) {
     const normalized = key.toLowerCase();
     if (forbidden.some((token) => normalized.includes(token))) {
-      throw new AttentionError("attention_invalid_reference", `Inbox Entry detail 不能复制 ${key}`);
+      throw attentionErrors.invalid_reference(`Inbox Entry detail 不能复制 ${key}`);
     }
   }
 }
@@ -368,10 +367,7 @@ function assertShape(entry: AttentionEntryRecord): void {
 function assertTransition(from: AttentionStatus, to: AttentionStatus): void {
   if (from === to) return;
   if (!ATTENTION_STATUS_TRANSITIONS[from].includes(to)) {
-    throw new AttentionError(
-      "attention_invalid_transition",
-      `feed_contract_invalid_inbox_transition:${from}:${to}`,
-    );
+    throw attentionErrors.invalid_transition(`feed_contract_invalid_inbox_transition:${from}:${to}`);
   }
 }
 

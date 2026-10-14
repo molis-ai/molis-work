@@ -215,6 +215,19 @@ test("the Feed classifies a thrown failure by its new code, and a connector fail
   assert.equal(feedPlugin.toFeedPublicError({ code: "connector.rate_limited", message: "Retry later" }).category, "rate_limit");
 });
 
+test("FAS-01: Attention maps only its current declared refusals at the Feed edge", () => {
+  const cases = [
+    [attentionContracts.attentionErrors.revision_conflict("版本已变化"), "feed.revision_conflict", 409],
+    [attentionContracts.attentionErrors.invalid_reference("无效引用"), "feed.invalid_transition", 400],
+    [attentionContracts.attentionErrors.invalid_transition("无效状态"), "feed.invalid_transition", 400],
+  ] as const;
+  for (const [failure, code, status] of cases) assert.throws(() => feedPlugin.callAttention(() => { throw failure; }), (error: unknown) =>
+    error instanceof ActionError && error.code === code && error.message === failure.message && actionHttpStatus(error) === status);
+  for (const failure of [new ActionError("attention.unlisted", "外部原因"), new ActionError("actions.forbidden", "外部拒绝")]) {
+    assert.throws(() => feedPlugin.callAttention(() => { throw failure; }), (error: unknown) => error === failure);
+  }
+});
+
 test("the old error classes, the mappers and the old exports are gone", () => {
   const gone: Array<[string, Record<string, unknown>, string[]]> = [
     ["@molis-ai/molis-work-plugin-feed", feedPlugin as Record<string, unknown>, ["FeedStoreError", "feedRouteErrorResponse"]],
@@ -223,9 +236,9 @@ test("the old error classes, the mappers and the old exports are gone", () => {
     ["@molis-ai/molis-work-contracts/modules/feed", feedContracts as Record<string, unknown>, ["FeedDomainError"]],
   ];
   for (const [name, module, removed] of gone) for (const exported of removed) assert.equal(exported in module, false, `${name} no longer exports ${exported}`);
-  // The module errors stay what they were (their owners' slices rename them); the plugin turns them into its own declared codes where it calls the module.
-  assert.equal(typeof feedContracts.FeedError, "function");
-  assert.equal(typeof attentionContracts.AttentionError, "function");
+  // FAS-02: callers use the shared model and current owner declarations.
+  assert.equal("FeedError" in feedContracts, false);
+  assert.equal("AttentionError" in attentionContracts, false);
 });
 
 // ---- 5. nothing of the old shape is left --------------------------------------------------------------------------------------------------------------------

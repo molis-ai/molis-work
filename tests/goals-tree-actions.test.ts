@@ -41,7 +41,7 @@ test("tree actions preserve proposals, protected authority, atomic materializati
   try {
     const empty = await snapshot();
     // I5-01: real Host submission retains all provenance issues, and rejection writes no facts.
-    const invalidItem = { ...input.items[0]!, source_refs: [" "], confidence: -1 };
+    const invalidItem = { ...input.items[0]!, source_refs: [" "], reason: " " };
     const invalidInput = { ...input, items: [invalidItem], idempotency_key: "invalid-provenance" };
     const originalInvalid = structuredClone(invalidInput);
     await assert.rejects(bound.invoke(goalsActions.treeSubmit, invalidInput), (error: unknown) => {
@@ -49,13 +49,13 @@ test("tree actions preserve proposals, protected authority, atomic materializati
       assert.equal(error.code, "goals.goal_tree_proposal.source_required");
       assert.equal(error.kind, "invalid");
       assert.equal(actionHttpStatus(error), 400);
-      assert.equal(error.message, "items[0].source_refs: 第 1 个条目至少需要一个来源引用\nitems[0].confidence: 第 1 个条目的置信度必须在 0 到 1 之间");
+      assert.equal(error.message, "items[0].source_refs: 第 1 个条目至少需要一个来源引用\nitems[0].reason: 第 1 个条目必须说明业务理由");
       assert.equal(error.details?.path, "items[0].source_refs");
       assert.deepEqual(error.details?.issues, [
         { code: "goals.goal_tree_proposal.source_required", path: "items[0].source_refs",
           message: "第 1 个条目至少需要一个来源引用", expected: "包含真实来源的字符串数组，例如已保存的 Goal 事件 event_id" },
-        { code: "goals.goal_tree_proposal.confidence_invalid", path: "items[0].confidence",
-          message: "第 1 个条目的置信度必须在 0 到 1 之间", expected: "0 到 1 的数字" },
+        { code: "goals.goal_tree_proposal.reason_required", path: "items[0].reason",
+          message: "第 1 个条目必须说明业务理由", expected: "非空字符串" },
       ]);
       assert.equal(error.details?.recovery, "修正列出的字段后重试 goals.tree.submit；失败调用不会创建提案，无需切换接口。");
       return true;

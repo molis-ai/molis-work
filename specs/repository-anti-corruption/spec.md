@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，未达到整条防腐线完成标准（2026-10-13接续）。71包及#472增量源码审查已完成，整改和真实回归仍在。I4/I5的第五批既有修复已收入main，BL-133旧测试按用户决定修正；后续共享核心在I8组合收口，05实际658条中45失败、06定向106条中8失败，修后08冻结验证排队，未宣称全量通过。W2-10 A1–A4已合入，C #484已合入、D已准备，E绝对零候选待组合验证。错误统一H/R1–R3及权限、生命周期修复尚在候选，Work R4a三片仅源码/静态复核通过，实际运行待补。模型换模SDK上游提交与正式vendor替换仍等已有问题的用户回答；真实Home写入、维护八及他人成果清理遵守§1授权。第4–6波与最终真实场景、手册、度量和交付沿原路线继续，当前main和逐项证据见§10/§12，不以已审、已记、已合PR或静态通过冒充整线完成。
+状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 c761c7750已整合I3–I33、main774a A2、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建与96b登记失败已修，96c九项工程检查通过；97/98实际失败已逐项记录，SDK六种切换交错及send/Workflow通过；夹具修正2916及新main774a A2已纳入6b1，源码复查已接受，新增fixture真实字节解析已修；等Pages短窗结束后重新整建和定向回归。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -16,6 +16,7 @@
 
 | 日期 | 事项 | 选项 | 结论 | 说明 |
 | --- | --- | --- | --- | --- |
+| 2026-10-14 | 当前CU-image SDK的beforeAccept补丁、上游与正式vendor（用户原问题回复） | 只留临时包；提交上游并正式换包 | 允许提交上游并正式换包（推荐） | 范围为923e5a40 CU-image当前系谱上的最小同步beforeAccept补丁；允许提交/推送Prologue、开PR，经复查与验证后更新Molis正式vendored包及来源记录、删除被替换旧包。当前上游多一项公开API快照修正，补丁保留该修正；不扩大到P2/P3迁移、真实Home维护或他人成果清理。上游GitHub Actions未配置，须如实记录验证缺口，不能声称远端CI通过。 |
 | 2026-10-12 | 将复查推进到现有全部 71 包实际审完（用户后续明确要求） | 只核对要求与部分路径；逐包补齐全部现行代码、插件和组合路径 | 逐包继续到审完，必要修复归本 spec | 用户明确“把现有全部 71 个包逐包审完，补齐未审代码、插件和组合路径，不只核对要求和进度”。已启动 §12.7 的 9 个 `gpt-6.1-sol / max` 只读会话，按完整包边界互不重叠，现行五个缺陷沿原 owner 修复；所有结论由协调方核源码/证据后回写此 spec。阶段报告、首次扫描、派发、测试存在均不计已审完成。I6 冻结和机器验证队列不变。 |
 | 2026-10-12 | 复查后提高独立修复并发（用户在协调会话追加） | 原 writer 串行；按独立包新建 Codex 会话 | Dataset、Issue 各新建一个会话 | 用户明确现有 writer 较慢，可以新开提高并发；随后允许派发会话使用 `gpt-6.1-sol`、`max`。两个新会话已按此设置，文件边界与身份见 §12.6；这一决定覆盖本任务此前的单 writer 默认，仅允许互不冲突的实现并行。I6 受测树冻结、整机一个构建/一个浏览器批次、共享核心整合验证和唯一进度 spec 保持。没有扩大真实 Home、发布或他人成果清理授权。 |
 | 2026-10-12 | G3 记忆错误的 kind（日常取舍，沿用统一错误模型） | 保留 Host 重写和默认400；由 owner 分类并贯通共同出口 | 由 owner 分类 | 实际源码中两个 HTTP 入口的 limit/conflict 都是400，Assistant 重写后的 forbidden 也是400。按现有拒绝条件，待本人处理的建议达到上限、预览后事实改变均用 conflict→409；forbidden/scope→forbidden、not_found→not_found，invalid/off维持invalid。Assistant 的权限拒绝400→403、两个入口的状态冲突400→409明确记为分类修正；Memory主人原码、文案、拒绝与无写入语义保留，Host旧assistant码重写删除；不把状态变化说成旧行为未变。图片 expired 的410→404已由原方案接受。 |
@@ -1499,6 +1500,7 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 | W3-02-G4-04 | MCP授权设置经共同SDK保留code/message/details/availability.kind；with先核全套授权再一次提交，拒绝不写任何grant、不调用业务handler。真实owner409及平台404/403/503按已接受kind，无kind的fixture仍400；失效provider可撤销、GET missing业务200、method405及精确project/provider/version合同不变。 |
 | W3-02-G4-05 | Work各HTTP异常走共同SDK；scope/not_found/conflict由真实owner定型，public context中旧classifyError移除/改接同步唯一web-panel消费者。workspace.change_rolled_back/recovery_required owner为unavailable，Host project-workspace-actions不再重建丢kind，最终503及恢复事实不变；projects.workspace_not_found仍404/原消息。Session发送sent201、failed409、其它202（含uncertain）、handoff未送达502/原error_message、picker取消200/busy409/unavailable503都是现行业务结果，保留，不能改为throw。 |
 | W3-02-G4-06 | F1/Home的唯一shared operations及controls/hooks/readBody/取消/revision/卸载边界保留；仅真正抛出的失败经SDK，不改restart/upgrade409、not-running503等supervisor结果。Work未知异常按共同500/actions.execution_failed保留实际消息，原状态查询与草稿保留证明结果未知恢复，不加自动重发。实际HTTP、必要Browser/Work公开路径与安全拒绝证明完整后再协调整合，API/动作/资产均按实测记录。 |
+| W3-02-G4-ANSWER-01 | 真实助理页面经Host与SDK原问卷拒绝未知选项，共同HTTP信封的details.errors仍映射到q0行内错误、焦点及保留选择；拒绝不完成原等待、不发第二次模型请求。本人修正后重交同一pending/run，成功继续原工作且不重复新建轮次。既有assistant-page-written浏览器用例追加真实Runtime拒绝/恢复，不用假拒绝或仅检查源码字符串。 |
 
 本节的Browser64MB409、recovery原409与Work未知共同出口取舍保留现行业务并采用已接受的共同分类，不追加产品语义变化。允许路径按真实owner/消费者扩到Work workspace-actions与Host project-workspace-actions、Agent reviews/prologue-git及必要busy raiser；不增公开测试口、重复码表、兼容读或预算。当前只读计划核到必要调用链，尚未实施或运行；全部Session/Agent raiser与浏览器失败路径仍须在实际片中按影响面验证，不把部分源码阅读记成工程通过。
 
@@ -2273,3 +2275,399 @@ R4c2沿登记Agent owner仅迁Molis自有inference错误到agent.inference.<原�
 
 C #484合入后的Codex合规复查按系统整理§1–15：§1–7没有新增生产身份/能力/owner/生命周期路径，包导入迁移保留实际定义及私有构建副本，除Keychain夹具外AST测试正文一致；§8/13未新增模型/SDK调用，文档仅现行构建前提；§9真实新main浏览器73/73保留范围；§10单Home/文件Secret和假Keychain隔离，唯一fixture Host供网页与动作共用、原locked读取/0provider/0Keychain/不改密文断言全部保持，未碰真Home；§11/12/14与Darwin干净基线及真实失败/重跑证据对照，不改产品语义或吞断言；§15仅本片可收口，D/E/I8和维护/后续路线不关闭。未发现该片新增必须处理P1。
 R4c1 67081873c（41错误词元/6TS）独立只读无新Blocker/P1，旧5码无残留、API0及health通过；R4c2 bd56ef174（22错误词元/8TS+现行文档/fixture说明）将Molis自有推理码和image_比较归agent.inference，逆名AST8/8同、API0/health通过，SDK原生错误与真实拒绝身份标记/模型回执保持。R4c2仍未运行；D现行5c66同步7cf62dc67，整树与c816d570e一致，42非浏览器+2浏览器新版driver仅准备未启动。I8和#477原等待进程保持，不新增同一构建。
+
+R4c3按现行实现收窄旧计划：kernel.capability_*由packages/kernel自己的类生产、owner表已登记kernel，Coding只是消费，保持；Jelly b23旧生产前缀已随早前F片清掉，不重复迁移。仅Diff的三种unified拒绝→diff.unified.<原因>，Coding图的unknown_node/duplicate_node→coding.diagram.<原因>，对应真实消费同步。R4C3-01：实际hunk解析仍拒坏头/数量不符/空片，图仍拒重复与未知节点，输入/输出和事实不变；R4C3-02：错误语境/API或测试消费者现行，kernel自有码、图节点/关系、SQL业务type保持；R4C3-03：真实Diff/图定向、资源/门禁与共享回归后验收。首片只Diff，图另片，一题一个PR。
+
+R4c3a 09db92c77（Diff8词元/2TS）和R4c3b 9e72f8479（图6词元/2TS）源码准备、逆名AST一致、API0/base health通过；统筹独立只读无新增Blocker/P1，Diff comparison消费按类和原message显示unavailable，图结构及coding.diagram.v1成果类型保持。Kernel自己的三码与Jelly现行prefix已按代码核验保持；这两片仍未构建/运行/资源验证。R4c2 bd56ef174独立只读亦无新Blocker/P1：包含fixture说明共9TS，现行image_消费、singleHome拒绝、SDK原生code/status透传和dispatch-refusal机制保持。只读源码接受不升级到产品验收。
+
+维护八仅准备只读演练：现行Home登记路径及目录克隆确认40份SQLite（含18项目库）共1,138,073,600字节，全部SQLite只读backup逐库一致，非整Home原子快照；不改原行、不读Keychain/明文凭据、不碰历史调用日志。最初全Home递归元数据读取被自身确切pid53964/53947终止，改按现有登记及克隆Catalog列路径，未动其他进程；系统Python readonly在Catalog backup/clone查询失败，当前Node SQLite readOnly成功接续，保留失败日志。仅克隆中已统计94个scalar error-code列：已准备R1–R4映射命中0行，另21行暂不改；58个JSON/自由文案候选字段仍需追到真实producer，J/R5/R6映射亦未全，不能称维护八完成或请求改真库。克隆与scalar-count02证据在当前私有会话临时目录；实际维护按§1等全部rename合入、演练完整、展示条数并得到最终窗口决定后执行。
+
+R5首片仅侧栏Browser的三种page错误为browser.page_crashed/load_failed/blocked_scheme，owner表已有browser；同片更新HTTP/driver、BrowserProblemCode类型、真实测试和工作台崩溃/刷新比较。R5B-01：实测页面崩溃仍提示重载，加载失败仍给刷新，地址scheme/接管/禁用/网站权限/文件限制仍拒且无旧码alias；R5B-02：当前消费者/API同步，其他page.*能力/属性/夹具名称、消息/状态/URL/权限不变；R5B-03：源JS变长以局部变量等价缩短抵消，实测资源预算不增、现有真实浏览器和共享组合回归通过才验收。当前仅独立源码准备，I8/477冻树不改；不会用unsafe模板剥除或提高预算。
+
+R5B源码准备中复查发现撞名：已有browser.crashed是浏览器进程退出，不能给页面崩溃共用，否则stopped会误走重载而非重启。新页面码固定browser.page_crashed，现有进程码/恢复语义保持，API和模板比较同片同步；源逆名证明对同码已有producer也须保留，不只把新码全字逆回。这个候选缺陷在提交/运行验收前修正，不计已通过。
+
+W3-10-5现行程序形态接续：I8合入#411后绝对解析检查拒绝compactScript的split/map(trimStart)/filter/join，导致其父程序集无法展开、已有合法片段被误当完整程序。这不是增加raw fetch许可。BROWSER-FORMAT-01：语法限定该纯逐行formatter，静态计算实际输出并保留每片来源，不执行仓库函数；支持后父程序负责解析、片段不单独判坏，原分片raw-fetch归属/反射/替换/未知动态拒绝保持。BROWSER-FORMAT-02：合法formatter组合通过，新增片fetch及formatter改写仍失败且不能update洗基线；真实current程序展开/等价与既有门禁测试通过后才收口。不采用对未识别文本剥字面量的旧做法、不放宽任何数值或规则。
+
+I8组合增长按实际职责修复：Pages的callout图标/颜色菜单在同一模块提取私有函数，mount继续持有文档弹层生命周期，不新增公开API或资源额度；W2-18-PAGES-CALLOUT-01：A文档弹层关闭/切B后旧按钮不能更改B，B重新打开的按钮仍可正常保存。Schedule旧提醒测试不再import宿主私有reminder adapter，沿真实Host已注册Schedule/Reminder动作验当前安装、200条限额、跨项目、重新安装/原子回滚与拒绝码；W2-18-SCHEDULE-01/02的真实后台timer、等待handler、close/delete撤销及0迟到Todo/收据断言完整保持，registerHostWakeup既有私有引用保留，文件私有引用总数不增。仅重写测试入口，不为门禁新增测试出口、阈值或第二套生产规则。新构建、定向和组合全量未运行。
+
+2026-10-13接续实际：I8 08构建/类型通过，10文件85条中83通过、2失败、0skip/cancel；MCP最后撤 grant 的当前合同返回unknown，SDK nested测试原barrier在实际note写入前未进入，按真实origin beforeEffect修正，尚待重跑。R4八片已收入5bf77084c，main408同步为27f93778e，模型接受点和采用线steer返回处理/安全表/测试清单均保留。现行正式interim SDK安装09完成，但整体build09明确TS2554（switchModel只认单参数），不能把采用线正式包当成接受点修复已交付；此前独立候选仅临时manifest/lock引用，正式上游/vendor决定仍待。浏览器格式化门禁format17实际40/40，但只读复核补出spread赋值仍可能剪枝，修后format18及后续完整health待；format16相对旧f47完整health通过，496内部import/0混载，新main后重新量。Pages与Schedule源修复已保存e61d0a592/f53a0a620，真实运行未记通过。#408已由采用线合入，#477根会话同步当前main283371d23、freshsecrets通过后推送，等新CI，未合。
+
+I8当前资源10实际相对main1a9416ec：共享六客户端各+32、Alchemist+161、Dataset+364、PPT+77、Shelf+482、Todo+117、Workflows+3480、Workbench+2520；更小项待同片下降快照，增长项未update放行。后续仅等价局部标识/重复代码整理和真实资源重测，不改build flags/unsafe程序剥字面量/额度。boundary当前除临SDK未获批路径外，Goals action-only新增SDK依赖未补登记与README；待补现行依赖事实，不给临时SDK改登记。定向10未结束，期间Source/scripts/package/skills冻结。
+
+R5下一片按实际owner表限定installer：安装源/真实Home文件检查、release冲突、uninstall计划和常驻服务计划错误当前共42site/10producer，旧source/home/release/version/uninstall/service统一为installer.<旧前缀>.<原因>保留区别；类型union、当前测试/CLI消费同片更新，不改路径、预览/确认/拒绝、发布物、版本、清理次序与Service生效语义。R5I-01：实际隔离安装、缺文件/旧构建拒绝、冲突/过期计划、purge确认和service失败仍不写不该写的文件/不启停他人进程；R5I-02：现行错误词元无旧alias、API仅真实变化同步，AST逆名后行为一致；R5I-03：安装/service定向与current构建、门禁及共享全量通过后验收。只准备独立Source，不写真实Home、不改正式SDK、不另启Agent/全量。
+
+I8定向10实际394条381通过13失败（0skip/cancel），42格式门禁与Pages callout A→B通过；失败核因后收口：Pages合并后client三处workbench自由引用未随bench改名，导致5真实页面用例打不开；R4动态document错误模板消费漏改；resident成功query无durable row，旧测试误读独立feed.sources.tick，invalid-envelope测试同样不能要求整Home空日志；纯typed无projects:settings不能获得选目录动作。测试改走现行合法入口并仍保留拒绝/0handler/精确操作编号与owner事实。Schedule真实close用例确认旧Feed timer跨多个await重新打开已释放项目：生命周期 AbortController必须在服务/项目关闭前abort、读授权每个await后复查并在后续invoke前复查，后台只用已装配的项目actionClient(false)，不再激活释放实例；W2-18-SCHEDULE-02继续要求released instance gone与0late effect/receipt。R5新增回归fixture误用不存在的page.detach导致cleanup异常，已核仅终止Root自己的泄露Chrome62469与测试child62361，记录该文件失败，改用attach返回解除函数后严格单slot重跑。独立D运行和其他会话进程未中断。
+
+Schedule关闭复核补齐实际入口边界：actionClient(false)仍经prepareHomeActions及LocalHost.withRuntime，不代表不激活。信号须在withPreparedActions等待前后、MolisWorkLocalHost.inspect/prepareProjectPlugins的各等待后、LocalHost.inspect/scene/actionClient进入withRuntime前后检查；用已有真实homePlugins.ready受控等待制造内部prepare→closeProject→release，证明原项目仍不存在及0owner副作用。拒绝的是已取消的原调用，不给未取消的新调用加禁区、不变更权限或新增全局closing状态。
+
+当前main b15ba0b1a已合#477（exact283371d23、5必需+Product成功/freshsecrets227行、02:01:04UTC），#478已与它对账15bf76753，唯一构建driver排队；后续#479–481仍按堆叠顺序验证。I8同步9733efee7保留#477控制v2完整schema；R5I source8516经独立只读17TS86literal逆名一致/API0/health后收入13c041592，运行待。I8生命期修复d135与目标交错4c31独立只读无P1；abf0内联单次私有转发使Host类未增长，health12相对b15通过，正式boundary仍仅tmpSDK路径待许可（未为它改登记）。维护八按真实Alchemist producer补只读studio.sqlite，当前41库；JSON明示37槽2码值、0坏JSON，只有条数不出payload，未改原行/clone行/调用日志，未完成J/R6映射。
+
+R5M仅现行模型连接owner model_provider：model-provider.invalid/unknown→model_provider.invalid/unknown，供应商连接字段、凭据引用、校验/保存/撤权语义、模型参数与SDK原生码保持；R5M-01：实际连接缺凭据/非法协议地址/模型与thinking拒绝仍不覆盖已有连接，正常保存读取保持；R5M-02：类型和现行消费者同片无旧别名，AST逆名一致/API按实际同步；R5M-03：隔离连接/模型设置定向、门禁与共享组合回归后验收。I8 11b排队时只准备独立Source，无并发Agent或真实连接写入。
+
+资源预算收口单独机械片（从I8 abf0c414d固定Source）：仅浏览器factory局部变量/函数用短而明确的名字，字符串、DOM属性、API字段/对象keys、文案、条件/控制流与调用参数不变；跨分片共用标识在同片同步。ASSET-TRIM-01：逆名后的实际JS AST与原程序集一致，短名无既有绑定碰撞，不把属性key当变量改、不借build选项/额外inline资源/unsafe文本剥除绕额度；ASSET-TRIM-02：实际served各路径不超过最新main额度，只下降快照并跑已有选择器、插件客户端与相关工作流/内容/UI回归。暂在独立树准备，I8 11b冻树不改，不能把源码字节减少当成真实资源通过。
+
+资源片Workflows沿现有formatter只删行首空格/tab，替代仅删两个空格；采用已被门禁支持的确切pattern。完整静态拼装的真实factory前后各1程序、0解析错误，含字符串/正则/模板内容的JS AST逐项相同，真实程序少3466字节；不是按未识别文本剥字面量，也未放开formatter接受范围。与局部标识机械片同组验当前字节及动态行为，资源门禁实际尚待。
+
+I8 14完成后解冻：147条141通过6失败；gateway拒绝夹具引用fixture内部look自由变量是测试错误，按返回的saveView/lookView过滤精确操作，0handler/0该操作行保持。Pages真实DOM选区尚未被ProseMirror读入便发Input.insertText，导致Prefix实际追加在旧末尾；修正夹具同步真实selection与编辑器state，再测完整持久化位置，不改期望。Actions选择同样需真实聚焦/选区同步；Browser crash已实际区分page/process，但侧栏未选择浏览器tab使实际按钮hidden，改真实打开再点，恢复消息/真实reload/restart断言保持。S6无评审与管理MCP错误需先取实际run/reply诊断，不增等待或放宽结果。Functions实际入capabilities并不入workbench，Workflows缩行首源码3466字节在served再次格式化后没有额外节省，不作为真实预算通过。五份Coding共同输出+32已只读拆分为Source+10、移除旧unsafe剥除保留模板空格+22，应等价整理局部factory而非恢复剥除。
+
+R6从现行main b15ba0b1隔离准备IM owner片：server自己产生的identity/continuity/server错误→im.<原family>.<原因>，已是im.*保持；Goals或Host回包错误原owner透传，不能全字迁“continuity”业务事件、设备身份字段、路由及SQL。R6-01：真实跨设备/IM身份拒绝、撤权取消、原幂等/冲突/无迟到副作用与原status/message保持，现行consumer仅认新owner码；R6-02：生产及当前测试/类型/API同片同步，AST逆名正文一致、不留读旧码alias；R6-03：隔离HTTP/CLI/IM/存储真实定向、health/边界/资源和共享组合回归后验收。2026-10-11 Q-c已选择维护八一次性改库，源码片只备完整映射/统计合同；历史调用日志不读不改，原库写入仍等全部改名合入、clone演练/条数和最终窗口，不借此提前动真实Home。
+
+J1按已有plugin owner表分小片接续：Runtime/Manifest自己的plugin_<原因>→plugin.<原因>；事件/订阅/port/input-group细分另片，不全局改业务表名、动作id或第三方错误。J1A-01：现行安装/启停/升级/撤权/隔离拒绝返回同一原因的新owner码，原grant、状态机、回滚、消息和无副作用保持；J1A-02：Runtime错误规范化使用已存在的ACTION_ERROR_CODE现行格式，只有现行owner码透传，无码/driver码归plugin原故障fallback；生产consumer/API和测试同步，无旧underscore读取兼容；J1A-03：安装/升级/生命周期真实用例、公共API/health/边界/资源与共享组合回归后验收。将已存last_error_code的完整map交维护八，历史日志和原Home不读写。此片不并入后续I错误类工厂转换，不混淆改名与删类两个根因。
+
+W2-10 D #486在2026-10-14T02:54:06Z合入main 6588ee531c2f89bae87105b1d12d799cf3f4168d；精确head c1d3f000b、基点b15，5必需+Product完成SUCCESS、freshsecrets04扫描835相关行通过（publish03原证据保持），Linux仍报告中。未据D关闭E/I8共享全量。#478现行同步b6350551b相对60b生产/脚本/package/skills零变化，health03/freshsecrets05通过，新CI已触发；第一次误推Root新建分支feat/lingguang-insert-selection-locked，确认exactoid后带lease删掉，只推真正PR源feat/lingguang-reply-preview，未动别人分支或主树。#479实际2/2+health01/secrets01通过，仍待parent序列。
+
+资源第二片ca313bc88的独立只读review发现P1：document全局被当局部缩到docEl导致Workflow启动ReferenceError；已保存6afccfc1b恢复16引用，不新增alias。独立checker全展开359、42受影响完整组合，literal/regex/template/property key与真实声明绑定验证：其余35组合沿第一次有效证据、修后7Workflow组合定向全部通过，未剩P1。Root首次proof错误Source谓词、缓存循环JSON和raw未实际应用映射的逆名导致各工具证明失败，均未据它验收；独立绑定证据经实际diff核对接受。第二片现行Sourceworkbench省2922、Workflow1979、Coding共同timeline省50，真实served/动态仍待。R6 e9eef4758经独立5TS/43literal/28map逆名、全源码旧码0/API61快照匹配/healthowner下降38，无P1，仍仅Source接受。
+
+J1B仅Plugin Event Bus及port/input-group真实生产码归plugin：event_*、subscriber_*、port_*、input_group_*分别保留family为plugin.<原原因>；J1A已经改完的plugin_前缀不重复。J1B-01：事件发布拒绝、订阅撤权、未知结果隔离及显式恢复仍保留游标/安装世代/0迟到副作用，现行owner码从原类/回包贯通；J1B-02：端口/输入组仍拒不匹配、过期输入与外部固定成果，原版/对象与SQL/业务事件名不变；同词payload_invalid只在PluginEventDeliveryFailure合同和生产消费里迁，不改其他owner的同词码；J1B-03：类型API、实际producer/consumer无旧alias、原正文逆名一致，现有事件恢复/连接和共享全量/资源/门禁通过后验收。持久cursor/error字段完整映射交维护八，历史日志保持。这份Source依赖J1A c4205ad21，不提前运行或合并。
+
+J1C处理监督器自己的启动/撤销/发行物缺失与依赖诊断九码：静态capability/port/dependency诊断是Plugin Runtime装配的事实，归plugin.<原原因>，不改真正缺能力的合同名或动作。J1C-01：实际监督器只启动依赖满足且未停用的实例，循环/optional/self/port诊断、显式恢复与发行物缺失给现行owner码，装配顺序/隔离/授权/版本保持；J1C-02：仅生产码与类型/当前consumer同片迁，原正文和SQL一致、API按实际更新，不兼容读旧码；J1C-03：依赖解析、停用/升级/发行物真实回归及共享组合/health/边界/资源后验收。J1C依赖J1B，仍与真正模型、外部driver错误码保持各自owner。
+
+J2首片只ConnectorHost五种唯一connector_错误→connector.<原因>，连接存储/MCP的invalid等同词另按类范围处理。J2A-01：真实driver缺失/重复、连接撤销、超时和失败仍保持原拒绝、receipt/RawEvent校验与timeout清理，当前消费者比较新owner码；J2A-02：producer及当前consumer无旧码alias，AST逆名正文与公开合同保持、API按实际同步；J2A-03：Feed接收链、ConnectorHost/Runtime真实定向与组合回归/边界/health后验收。类仍保留至I统一工厂，不改OAuth、凭据、协议参数、授权和真实连接，不把source存量/裸driver错误当此五码全字改。
+
+接续Source候选尚未运行：J1A c4205ad21的独立复核抓到Studio模板内consumer漏迁，已用1e0a396a1/45954dfbf修正e.code、既有discard实操编号与局部apply闭包，现行51file；旧词元AST扫描不能证明模板consumer齐全，保留该失败而非称首次通过。J1B abb135aca为14TS102literal/25码、3API及baseline18file，正文逆名同/API只更新plugin/events/wiring错误union、healthshape/owner进一步下降39，未用payload_invalid只合同位置归名，没有虚称producer。J1C 09b2e433a为7TS34literal/9码、API0/health通过，已串行带入Studio两修复成为c739e5531；返回对象code门禁看不全，所以这片不虚称指标下降。J2A fc35ce07e为5码19literal、public driver缺失/重复/坏RawEvent/revoke后0poll真实断言准备，3file/API0/health下降10；全部仍待新整体构建/运行，不提前发表为完成。统筹传达用户优先次序#487→Grok Computer Use→Codex内各PR：#486已在此前合入，Root此后暂缓#478–481/#490/新片的main合入，CI与现有回归继续，不中断其他进程；Grok具体标识待统筹定位。
+
+J2B只ConnectorConnectionError四个bare码改connector.connection.<原因>（invalid/not_found/service_mismatch/disconnected），生产构造、类union及按该类识别的两个HTTP/动作消费同步。J2B-01：实际连接不存在/选错服务/无效或断开凭据仍拒绝，404与400及原message/secret引用/无覆盖保持；J2B-02：只在本类错误语境迁同词，disconnected状态、invalid输入标记及其他owner的not_found不改，API按实际更新，不读旧bare码；J2B-03：真实隔离连接创建/撤销/持久化/HTTP与组合回归、类型/health/边界后验收。与MCP错误分成独立片，防止两处disconnected失去区别；本片不读真实凭据/Keychain，来源存量码的维护八独立演练。
+
+J2C只McpConnectionError四码改connector.mcp.<原因>（configuration/authorization/disconnected/provider），按类构造、union和真正HTTP错误消费迁，不改OAuth code字段/授权状态/模型provider id。J2C-01：服务地址/凭据/授权state拒绝与实际MCP重连仍按原status/message生效，authorization依旧401、provider/配置400，外部ActionError事实与模型授权检查保持；J2C-02：内外各错误语境现行同步，不改disconnected连接业务值、不读旧bare码alias，API按实际更新；J2C-03：隔离本机MCP/OAuth/目录与真实重连用例、构建/类型/health/边界及组合后验收。Http把actions.reauthorize映射为本入口授权码的已有行为保留，仅结果码归当前owner；不借此新增产品授权或远端连接。J2C依赖J2B。
+
+J3A首片只SourcesError三种source_错误→sources.<原因>，Module/contract与按类比较的Feed/Host消费者同片迁，Feed自己的feed.source_*保持，connector_disconnected持久状态码留下一实际归属片。J3A-01：真实来源不存在、计划无效、非法转换仍拒绝，删除历史处理/Source事件/同步撤权与回执不变，Feed现行出口仍是既有feed owner码；J3A-02：Sources真实producer及consumer仅认新码、public union/API同片同步，AST正文/SQL/状态不变且不留alias；J3A-03：Feed/Sources真实定向、shared构建/类型/边界/health与组合全量后验收。不能把source_not_found工厂方法名当错码全字迁，不动真实Home。
+
+J3B只ListenerHostError四类listener_码→listener.<原因>，租约/Connector失败/RawEvent投递失败及隔离consumer同步。J3B-01：真实隔离/租约占用/中断与重试仍拒绝同一错误，游标/已有Signal收据/撤权后0写入/恢复不重复保持；J3B-02：contract union、生产与测试现行同步、AST原正文和SQL保持，不改表名/phase及其他owner外部码；J3B-03：Listener真实生产链和重开回归、API/health/边界及共享组合后验收。persisted动态connector_*与process_interrupted两SQL写点另片按实际producer处理，不用本四码冒充全部存量维护；本片依J3A且不写真库。
+
+J4按登记scheduler owner迁Scheduler自己的五个schedule_*错误为scheduler.<原因>；Schedule插件的schedule.job_*保持，边界仍将Scheduler拒绝转成本插件同一既有动作错码。J4-01：真实handler缺失、job不存在、无效输入、最短间隔/路径拒绝仍无越权/迟到副作用，job状态/租约/取消/重开和原消息保持；J4-02：producer/classunion/currentconsumer与诊断测试同片迁，typed capability和持久业务状态不改，API按实际同步、无旧码alias；J4-03：Scheduler identity/Timer/Reminder/操作与shared组合回归、构建/类型/API/health/边界后验收。源码改名不冒充Schema升级或原库维护。
+
+J5A先Alchemist domain四类（候选牌、机会、记忆规则、批注/改写提案）的UPPER拒绝码为alchemist.<原码小写>，唯一producer及真正server/client/test消费同片更新；状态/事件type/成果ID/Zod custom码不改。J5A-01：真实候选牌重复保留/恢复、机会非法转换、规则/引用和已处理提案仍拒绝，不重复建Idea/版本/事件，用户文案及原中文恢复说明保持；内部super(code)的机器message随码改为现行词元，不能宣称这个字段字节未变；J5A-02：类别码/error.message条件消费者同片现行，原业务AST/SQL/成本与模型派发保持、类型API按实际同步且不留旧码alias；J5A-03：Alchemist真实动作/重开/UI及shared回归、health/边界/资源后验收。研究执行、HTTP body/422分类与类收敛按下一独立片处理；存量map进入维护八演练，原库与历史日志不动。
+
+J5A源码保存`d2031d2ed`：15个封闭domain码，17TS最初47 literal及两裸字典键同片改为alchemist现行owner。原中文提示/409拒绝由真实workspaceProblems消费，裸key漏改已修；既有production action二次apply/resolve断言现行code和准确中文，重复Idea/版本、规则/机会状态约束保持。完整3101 JS/TS/SQL旧15码raw0、public API变化0、health03相对当时main通过。源码逆名仅证明原47 literal逻辑，新增字典键与动作断言另复核；包内Vitest/隔离Host与共享组合尚未运行，不记J5完成。J3B现有真实lease/quarantine回归补验收编号`79e05aef8`，没有新副作用或弱化断言。
+
+远端PR排程按用户经统筹确认：#487优先，之后Grok负责#479–481及Computer Use后续，Codex新PR排后。#478实际由其他执行方于2026-10-14T03:26:21Z先合（merge5dcdc3045），本线未执行这次merge且不撤销其成果。#487新head abe06ff检查仍在，旧head的成功不能沿用；#479已由Grok更新597bf044并转main，本线独立d0b66候选不推送覆盖。已存在唯一I8非浏览器15与浏览器16队列继续等待，不重复启动、不停止他人全量。
+
+J5A只读复核确认family-prefix遗漏：OpportunityTransitionError新message不再匹配旧OPPORTUNITY_，原adapter会丢失原因。`c4024320b`改为按真实domain类透传现行message，尚有producer的repository NOT_FOUND类仍保留；既有production opportunitySave后第二次save断言准确owner/code及原中文，真实pulseReports读取对象不变，再继续原convert幂等验证。源码候选无新增兼容、API变化0；实际build/Host/Vitest运行待，不能据此提前验收。
+
+J3C收口运行及存储producer：ConnectorPollResult现行六种failure产生的运行码改为connector.<failure>，保留failure枚举/receipt结构不变；Listener自己恢复进程中断→listener.process_interrupted，Sources连接状态写点→sources.connector_disconnected。只改真实错误列与现行工作台rate-limit消费，原业务phase/outcome/status、事件type、凭据引用和历史SQL夹具不改。J3C-01：原拉取失败保留checkpoint、重试时间/Inbox去噪及准确owner码，真实连接断开/恢复保持Sources状态与错误列，Listener重开中断恢复仍只发生一次；J3C-02：动态六码、生产SQL两个中断写点与currentconsumer/文档/测试同步，公开API按实际更新，无旧读取alias；J3C-03：真实Feed/Connector/Listener/Sources隔离重开链、构建/类型/API/health/边界/资源和shared回归后验收。已存行维护八仍在克隆列条数/演练，原库与历史调用日志不动；此片依J3A/B且后续合并服从487与Grok优先。
+
+J3C源码`9e376f3bb`保存14文件，六码动态producer、两SQL中断写点和Sources断开列已迁现行owner，工作台只按connector.rate_limited读retry_after_at，原其他业务枚举/row状态/receipt不改；真实Listener失败/持久化/回放/重开与现有connection断开恢复断言已备。public API01匹配61快照2329声明、health01相对当前main通过，仍未build或运行、只读复核待。维护八仅扩大只读克隆统计：41库99scalar错误列，包含新候选映射后已知旧码拟改6行、其他15行暂不动，58JSON/自由字段仍须producer确认；原行/clone行写入0，调用日志未读改。这是候选条数，不是最终真库方案或维护完成。
+
+J3D仅收Feed本身剩余固定码：演示种子写入及首页消费的auth_required→feed.auth_required，fixture结果记录→feed.fixture_not_live，publicError fallback→feed.unknown，删源已过schema的内部合同拒绝→feed.contract_source_history_decision_required。J3D-01：现有demo来源/故障与首页去重的已知提示保持，真实fixture同步保留既有last_outcome completed与非空非live错误标记，不能据它宣称真实Provider完成；无code publicError仍原unknown分类/安全消息，删源内部校验仍拒绝且0删除；J3D-02：只在错误词元语境迁，reauth_required连接状态与所有事件/业务名保持，测试历史旧码禁回流列表不改成现行码；J3D-03：现有Feed/首页/seed/删除真实回归、类型/API/health/边界/资源及shared组合完成后验收。此片沿J3C独立Source树继续，当前不写真Home、不同步正式SDK。
+
+J3D源码`8b040a4be`保存7文件，四码8 literal及当前内部拒绝regex同步；现有Home fault去重AC与publicError未分类失败的准确fallback断言保留原语义，public API不变、health01当前main通过；只读复核与实际构建/运行待。维护JSON06仅克隆中37个明示producer槽的2个text码值，候选映射命中1值、0坏JSON；unknown07只将15标量未匹配行对照现行源码词元，3行reconciliation_required为真实Feed错误列却与外部outcome同词，不能全字改状态。
+
+J3后续源核发现必须区分外部现行码与平台错误：intelligence-client0.2.2现行receipt/StopReason及其错误对象用bare闭集码，Molis source-sync-result 与 connector-sync 的旧safe-code正则却丢弃现行点连接owner码、fallback自写provider_interrupted/provider_failed。公开来源持久码与RSS分类/消息按实际producer边界另片收口；原外部receipt/outcome/预算与SDK词元不能全字替换或当作历史读取兼容。当前只读调用链和包公开types已核，无该片生产编辑，待补完整验收与统一转换取舍后执行；存库现行unknown码不能为满足raw0清掉。
+
+J3E按R4C2已接受外部SDK词元边界继续：保留intelligence-client现行bare receipt/StopReason/错误码，原RSS针对其feed_parse_failed等分类与安全中文仍认当前外部合同；只修Molis旧safe-code正则丢弃已现行点连接owner码以及自己生成的provider_interrupted/provider_failed/reconciliation_required/cancelled错误词元。J3E-01：真实公共来源或账号同步发生现行owner拒绝时，run/source错误码准确保留，权限/取消后的0迟到写与原可恢复语义不变；J3E-02：未知/不安全外部值仍采用原安全fallback且Molis自生成码变feed.<原因>，result.outcome/外部receipt/stopReason保持不变；J3E-03：真实RSS/公开/Connector失败、恢复/幂等与shared组合回归、类型/API/health/边界后验收。唯一共同安全提码由Feed私有helper负责，公开API无新增；外部码原样保留不是历史兼容，维护八只迁确切Molis自写fallback映射，不迁外部现行码。
+
+#487于2026-10-14T03:50:10Z合入703bd996a：精确abe06、Verify/Package boundaries/Secret/Rust-Swift/Shell-Python及Product全部SUCCESS，MERGEABLE、最新main5dcdc祖先、fresh secrets02四新增行干净；检查树只settings-assistant及实际资源预算两文件，无生产冲突。Grok随后负责479–481/CU，本线后续PR继续让序。
+
+J3D只读复核发现内部合同bare new Error迁为点码后撞现有“owner失败必须声明”断言，采用已有feedErrors增加contract_source_history_decision_required/internal：保持原内部500且现行码不再fallback，真实删源坏合同仍0删除；HTTP输入已有schema拒绝不变，精确声明/status/API和现有业务测试同步，不放宽STAYS_BARE或owner未声明断言。
+
+J3D内部合同复核修正`a7cdfa252`及`15a6e0818`使用现有feedErrors/internal、原500及准确生产retireSource0事实变化断言，移除其bare豁免、保留无声明owner gate；API02仅modules/feed现行reason新增1，health02通过。此前8b040状态仅Source候选，新片实际build/合同/运行尚待。J3E源码`ef4bef707`后夹具端口补齐：只共用Feed安全提码、现行owner点码保留、原外部bare码/Receipt/StopReason不改，fallback点码独立；真实公开来源与Connector恢复用例准备，API01/health01已过，未运行，不能称外部网络验证。
+
+J6先沙箱自身固定拒绝码：实际SandboxError构造、Host给worker的固定SDK错误和worker自己的固定安全拒绝→sandbox.<原码小写>，仍由现有SandboxError携带trusted outcome unknown。J6-01：真实Seatbelt/IPC/queue/network/schema/timeout取消拒绝及0越界文件/网络/后续副作用保持，Host trusted unknown仍隔离、worker错误不获unknown身份；J6-02：仅沙箱自有码与现行consumer比较/测试预期迁，第三方插件contract.operations.errors的自有码及errors.example不能全字替换，native系统/private DNS sentinel另属本来边界保留；若同一旧词元也用于插件自定error，按实际raiser/consumer定域。J6-03：现有macOS真隔离、队列/撤权/取消/安全及明确网络回归，API/health/边界/资源和shared组合通过后验收。Studio正用的安全adapter同片消费更新、相关replay按项目必跑，不增加生产错误类/SDK/vendor依赖或放宽门禁；源码准备不当安全实操通过。
+
+J6源核细化owner：仅packages/plugin-sandbox内部固定码归sandbox；Studio adapter同类拒绝按现行登记归plugin_builder，installed-plugin-host固定拒绝归host，GONE消费真实sandbox码。SandboxError是传输类不是事实owner，不能因同一类把Host错误改成sandbox以违反owner表。Agent prologue-mcp及external-mcp-dispatch的CANCELLED是SDK现行外部码保持；测试worker forge payload保留故意伪码，真正声明插件errors保持其自有码，不把消息信任/未知outcome边界改成兼容。
+
+J6源码`cf94badd1`固定15文件：39Sandbox内部码与Host/Studio分别按sandbox/host/plugin_builder造错，13TS173 literal；GONE现行consumer同步，Prologue SDK CANCELLED及DNS PRIVATE_ADDRESS内部sentinel保持。原trusted outcome unknown/不确定后0fallback写入保留；真实worker伪造旧码负例外新增准确现行sandbox.service_timeout负例，二者都无unknown且plugin_error，不借旧码回归漏掉现行forge。API01公开61/2329匹配、health02相对actualmain703通过，shape/owner分别降低120/116，不改任何gate规则或阈值。只读审查在途，macOS真实Seatbelt/IPC/network/撤权/重开与Studio replay未运行，不记安全或J6完成。
+
+J5B沿已接受改名只收Alchemist七个服务封闭错误类的固定码：CancelLensRunError/ResearchPlanError/DecisionServiceError/IdeaActionError/OpportunityActionError/StartLensRunError/StartPulseRunError实际枚举与造错迁alchemist.<原码小写>（原同词共owner保持），当前service/query/domain/client/test消费者同步。J5B-01：真实research计划/预算/模型选择、当前Idea版本/正式决定、候选missing/已保留、取消及机会不存在的拒绝仍保留中文/status/成本与0重复事实；J5B-02：状态gate对象code可跟随错误码但业务reason/outcome/event/SDK字面量不改，by-prefix按本类或现行完整码收口，裸workspaceProblems键及原NOT_FOUND消息分类逐项同步；J5B-03：Alchemist各真实动作/计划/决定/取消/持久化与API/health/资源/组合回归完成后验收。Job执行/SourceHttp/通用OperationError广码及HTTP422收敛下片，先不新建类或fallback兼容、不改已有运行记录行。
+
+J5B生产scope已按实际七类闭集补全：new literal17码之外，DecisionServiceError的动态gate.code还有三个真实union/对象码，总20码75 literal。当前Opportunity repository通过确切三个现行message识别，domain类仍本类识别，不保留已迁旧prefix；Pulse classifyError尚有其他现行PULSE_* producer，只新增本片确切两码保留现行原因。workspaceProblems目前没有PULSE_REPORT_NOT_FOUND键，本片不新增无效status分支，原其它未迁upper NOT_FOUND按现行分类保持，避免扩大语义。
+
+J5C收Alchemist其余自有运行/HTTP输入/Job/SourceHttp/复用及裸内部合同码，固定自有UPPER词元与自有动态RESEARCH_SEARCH_映射为alchemist.<原码小写>；不改外部SDK或搜索供应商原码、模型协议/error_code字段、Job.kind/业务phase/event及用户中文。J5C-01：原真实取消/租约/重开中断、来源网络/解码/大小拒绝、复用权限/版本和HTTP input仍同原因且0追加事实/0重复收费，machine message/code及job_events.payload_json.errorCode现行一致；J5C-02：仅生产造错、状态gate/code字段与本类消费者迁，prefix/regex/字典key/status按完整当前映射同步，原未参与错误的常量/文案不改，不读取旧码兼容；J5C-03：Alchemist native Vitest/真实Host/生命周期/网络边界与API/health/资源/组合回归后验收。HTTP body和422按原已接受共同错误模型下一I片收敛，J5C不顺手改status/API schema；新源码映射为维护八候选，克隆先辨外部producer再演练，真库仍待窗口。
+
+J5C只读producer辨别：OPENAI_*与OPENAI_HTTP_*及REAL_RESEARCH_RUNTIME_DISABLED仅有Alchemist两个classifyError旧读取点；现行Host Prologue调用链、当前正式包636 JS/TS及本地Prologue均无producer，独立复核确认已退休adapter残留。本片删除该旧读取分支，沿当前alchemist.ai_runtime_failed/research_runtime_failed处理未知失败，不增加历史compat。HTTP method HEAD/OPTIONS/PATCH/POST、NOT_FOUND后缀分类及PULSE_/REUSE_消费者前缀不当固定错误字面量改名；需要随本次自有producer迁移的prefix只在具体classify路径处理。
+
+J5B源码`f363fe95e`/`061498455`20码75literal保存18文件，API01不变、health01通过；独立只读核真实domain gate动态码、repo/adapter、原中文与404/409/422保持，无P1。实际actions二次决定仍精确原因与中文且真实decisionList只有原ID一行；未运行，不记验收。J5C源码`b84066395`保存53文件：93固定自有码212literal/key，加实际Host动态search码、prefix/regex/status consumer，Job scalar与camelCase JSON payload同码断言、客户端无模型提示及结构化输出预算原断言保持。退休OpenAI分支删除，已有历史运行报告/归档JSON不篡改；API02与health03通过，资源仅local binding三引用等价抵增长，实际byte/build/Vitest/Host/UI尚待，只读复核在途。J6 `cf94badd1`源码独立复核接受，无P1；真实macOS安全回归仍待，不把Source接受记安全验证。
+
+J7A仅Host尾部两个现行固定码：登记catalog owner的project-database.ts恢复错schema→catalog.project_recovery_unsupported_schema；Host自身ProjectDeletedDeferred代码字段→host.project_deleted_deferred。J7A-01：现有existingOnly恢复拒绝不改user_version/表/原字节，缺库原IO仍拒绝；项目删除owner不可在本进程清理时仍按原pending/elsewhere留收据，不能改成失败或提前删除；J7A-02：现行producer与真实consumer/测试精确码同步，构造message字段若原同code则随当前词元，classes/其他owner字面量不改，无读取alias；J7A-03：真实错版库与删除/常驻服务/CLI-MCP重开回归、API/health/boundary/shared通过后验收。Deferred是原跨进程控制状态类，I片按真实语义裁决去留，不能仅为类数量把它变一般错误。两码不涉及真实Home维护写入或架构迁移。
+
+J7A候选`677faee30`三TS三literal及原错版库AC/快查基线保存，API01不变、health01通过；只读复核与真实回归仍待。当前所有J/R候选尚未在I8统一整建或真实运行，不把单片源码与静态通过混称整线完成。
+
+J5C与J7A独立复核收口：J5C b840/096无P1，51TS中40独立逆码AST同，动态search/prefix/NOT_FOUND/status及退休adapter删除另逐项核，当前client两个完整String.raw逆三绑定/目标regex后字节同、源码共减4；仍不替代served预算或运行。J7A677/7c55错版拒绝只读路径与原Deferred instanceof/elsewhere均核，shapeOf只证明schema形状，不能写成独立字节实测。维护统计08初把auth_required当唯一映射，但它也是当前外部intelligence码；09已剔除这条全列映射，保留6已知候选/15其他，须基于确切seed/source producer再决定，未写任何原/clone行。
+
+W3-02-I1按原I路线先收成果/过程项owner工厂：modules/artifacts的闭合集合从自定义ArtifactsError及可注入errorFactory改为contracts现有defineErrorCodes("artifacts.artifact", …)，直接声明全部现行19个原因，Host两处装配不再选择错误类型。为使结构片不附带未经裁决的响应变化，本片沿实际当前共同出口的invalid→400分类；not_found/conflict/forbidden等分类改进不得以重构名义静默加入。I1-01：公开ArtifactsModule与ProcessItemsModule真实注册、冲突、授权拒绝、状态修改只抛共同ActionError，现行code/原中文/details/400保持；原拒绝后的版本、事件、owner事实不变，幂等重放不追加。I1-02：删除类、factory类型/default及options注入，所有当前调用方与测试同片更新，模块入口无历史alias或Host重建，公开接口的删除在PR说明；不动表schema/业务type/合同版本。I1-03：整体构建后执行artifacts-module、artifacts-actions、plugin-artifact-client、personal-artifact-owner及过程项实际回归，health/boundary/API/动作/资源与共享全量通过才验收。先在未受测独立源码树准备，I8诊断15/16受测树保持冻结；本段计划不是运行通过。
+
+I1候选bd028a283（main703+既有R4b命名片fd7e）保存9文件净删14行：Artifacts闭合19个原因由本包defineErrorCodes，类/工厂及注入接口删除，两Host装配不再选择错误；现行所有kind沿invalid保持400。原真实注册、不同内容拒绝、坏digest及未授权共享用例继续检查共同body精确码，拒绝后原版本/事件逐行不变；API01 61/2329不变，health01 merge-base比较通过且Error subclasses84→83。源码独立复核在途，实际工程、Host/ProcessItems回归未运行；Source统计不抵I1-03。
+
+W3-02-K1按原K路线先收六个server副本：workbench renderer/document-shell/Feed/Inbox/Schedule projection及desktop capsule，全部已有design-system依赖，公共html.escapeHtml先补单引号为&#039;并将输入签名对齐实际unknown/String(value??"")，才移除副本用包出口。K1-01：&、<、>、双引号、单引号按同一函数转义，攻击片段落在文字与单双引号属性值时不产生新标签/属性，原正常文字和属性DOM值保持（单引号实体编码变换沿原计划）。K1-02：六副本删除，真实public render路径与空值/数值/布尔保持，不处理结构化safeJson，不新增helper或依赖；Work server两个&#39;副本及Goals history新回调另片，Pages/Work/搜索浏览器副本仍按W5-04，不将未处理说成全归零。K1-03：整建后primitives、workbench-ui-platform、capsule、visual-foundation、Feed/Inbox/Schedule真实相关回归，实际served资源全预算不增长；API/health/boundary及共享全量后验收。I8受测冻结不改，本片在独立树只准备Source。
+
+I1 bd028独立复核Source接受，无Blocker/P1：三生产文件26 raiser、19原因的code/message/details逐序同，事务/拒绝/SQL不变，原HTTP未分类invalid同当前显式invalid；shape本片不变，owner计数下降含带入R4b，不误归改类。K1 46f31a658六server副本删除、公共单引号先补，11文件净删11行，API01不变/health01通过，只读复核在途，真实构建/DOM及资源测量未做。Work/Goals与browser副本余项保持，不把六副本称全仓归零。
+
+诊断15/16已实际结束（非通过）：非浏览器18条16通过2失败，浏览器11条9通过2失败，均0skip/cancel。gateway fixture返回值修正和browser真实选择tab已通过；余Pages两项是测试访问pmViewDesc.view.state不存在，旧undefined==undefined并非View复用证据，改确切DOM身份及真实箭头按键同步，保留同文档映射锚点/两个精确unchecked任务和更改后拒绝SQL断言。管理MCP新取reply证实已有Board二次初始化应拒绝，本夹具对齐Catalog实际person/title/key作幂等重放成功与0重复事实；S6 provider请求0，旧诊断GET不存在，改现行session GET取run状态，不加超时或放宽审批。18与独立Pages19定向实际在跑，受测树各冻结，未计修复完成。K1 Source独立复核无Blocker/P1，六消费者AST去函数/import后相同；DOM/served/工程仍待。
+
+21真实Pages/PPT/Lingguang8条全部通过，0skip/cancel：同编辑器DOM身份、A→B零写、同文档原锚点映射、精确两unchecked任务一次插入与改变frozen拒绝实际SQL均过。20实际6条5通过1S6失败：管理四条含真实常驻alias/幂等重放/编号/原拒绝及S5完整材料持久化重开通过；S6新增诊断证实provider仍0。进一步读当前安装SDK：anthropic-compatible将body TextEncoder.encode为Uint8Array，node-outbound原样送fetch，问题是夹具仅认string而非Request本身；22以标准Request(input,init).text()统一读取现行BodyInit，精确endpoint/noexternal约束保持。既有19新树缺dist是0业务环境失败，不能抵21。未把S6或整建/共享全量记通过。#479由Grok于04:32UTC已合964841211，后续480/481/CU继续在前。
+
+W3-02-K2接K1，仅Work server UI的ui/render嵌套函数及ui/terminal副本使用既有design-system出口；两处原&#39;改共同&#039;，DOM文本/属性值等价，方法/信任槽/模板控制保持。K2-01：真实Work会话标题/内容和Terminal Goal标题中的五字符不产生标签/属性，原文字保持；K2-02：删除两副本且不加依赖/浏览器打包耦合，原terminal/client浏览器副本仍待W5-04；K2-03：整建后work-session-ui、work-terminal-client、相关实际页面/公共预算/共享回归通过。Goals history新callback目前无design-system依赖，独立按现行声明边界处理，不为删副本夹带新插件互依赖。
+
+24实际S6全链1/1通过，0skip/cancel：正确BodyInit与SDK wire read→write→三轮受控模型、本人口审批后效果settled、盘字节与index、Coding固定变更、Git暂存审批与最终index、两份固定Diff逐字均保持。前23因把Host read-file许可当wire名仍失败，最终当前映射read-file→read已核production，不绕过SDK观察保护。七个test/fixture修正保存f4f94a4de，tmpSDK不提交。K2 a65c533独立Source复核接受，真实工程/预算待组合。
+
+I8组合25已启动，当前2e3c4d9bc同步main964并顺序纳R6/J1–J7/I1/K1/K2；878改动TS parse0。真实冲突保留全部本线新安全和生命周期条件：Plugin wiring manifest读取权限、已抽出升级清理屏障、Scheduler独立fire/close拒绝、Alchemist life取消与actor-actions，Artifact仅删两注入，settings共同request.show保留编号，不恢复旧内联实现。四cross-entry scheduler旧断言同步当前owner码。派生baseline/API/actions/资源按最终Source测量重算，未接受任何数字增长；36现存定向文件随后运行，install已frozenoffline成功，整建/实际资源/运行/共享全量未记通过。受测树再次冻结，SDK正式上游/vendor仍待原问题回答。
+
+W3-02-I2接原I收Governance工厂，依赖R3现行Goals码，范围仅governance-collaboration、一个Host装配与现行两测试。保留已登记Goals owner（不改提案事实），Goals tree提案/事件决定/request的现行原因用defineErrorCodes声明invalid，原共同HTTP400保持；state-machine遗漏的governance.transition_invalid沿现行owner表迁为goals.governance.transition_invalid，状态转移拒绝/详情/消息不变，完整消费者同片更新，不添加gate例外。删除GovernanceError/factory/options及内部helper参数，无alias。Provenance多问题聚合用明确有限原因对应的owner raiser，原排序/消息/完整details.issues/path/recovery原样，不放成任意字符串工厂。I2-01：真实来源输入与可信用户来源拒绝精确code/message/details、输入不变、0无授权决定写入、原幂等拒绝及事务不变；I2-02：全现行consumer更新共同ActionError，Host不再选类型，公开模块删除工厂声明说明影响；I2-03：整建后governance-collaboration-module、governance-provenance、goal-events-state、goal-tree-event-flow及可信身份/approval真实相关回归与共享全量通过。先独立树准备Source，I8冻结保持。
+
+25整体build/API/actions/health及实际29资源预算通过（10013459 bytes，全部较main不增长）；typecheck:all在boundary阶段失败、尚未到workspace:typecheck，单独boundary同样失败。原因除独立tmpSDK路径外，Artifact旧结构规则只读service/registration完整码词元，不认识I1点属性raiser；不得改弱gate或加假注释。I1补充沿闭合owner声明改为完整现行code作raiser键（一个明确有限表，从既有defineErrorCodes返回函数连接），生产调用artifactErrors["artifacts.artifact.<原因>"]，code/message/kind/details完全相同，门禁看到真实调用码。不恢复任意code工厂、不改gate/config或填无效文字。此实际边界问题修后再整建/类型/预算/定向运行。
+
+I2候选2d2db17bb/0f9a39169保存13文件净删2行，十原因四族invalid声明，工厂类/类型/options与Host治理注入删，Provenance四有限原因保留完整聚合详情。实际owner门禁发现旧governance.transition_invalid不能移入新owner文件，已按登记Goals统一为goals.governance.transition_invalid及唯一消费者，未加例外/放松规则；API02不变、health02通过83类。独立只读复核在途，含原默认空details与Host实际合同判定，工程/真实可信决定/幂等与整合运行未记通过。
+
+W3-02-I3按原I收Goals核心错误工厂，依赖H/R1–R3。当前AST221调用含138固定原因、13处动态code流，范围Goals模块及唯一Host Goals装配、三个现行测试；固定原因按真实family声明，三个现行stale_version conflict保留409，其他沿现行invalid400，不按名字猜类别。删GoalsCommandError/GoalsErrorFactory/options与Host注入；owner固定throw直接用闭合raiser，原配置/报告/状态辅助接口的内部错误委托改为同owner静态调用，不从宿主传工厂；公开validateRelationGraph hook的输入错误仍以共同ActionError携原code/message，不未经决定收窄原公开code:string合同。I3-01：真实命令/事件、版本冲突/请求重放/规划/关系拒绝、消息/显式详情/409与400保持，SQL、事件type、事务及可信决定顺序不变；I3-02：无类/factory/alias，当前instanceof消费者只改共同类，标准闭合集合不会放未知码兜底；I3-03：整建与README现行命令/查询/事件/规划、完整用户身份、HTTP/MCP拒绝及共享全量通过。任何不同kind的动态调用先追实际来源，不能让同一码跨出口分类变更；此处方案不是运行完成。
+
+26整合真实完成：build、root tsc、workspace:typecheck、API、actions、29实发资源与health全部0，完整boundary仍仅tmpSDK路径失败；不能称typecheck:all或完整boundary绿。36文件342条340通过1新断言误报1网络skip，0cancel，实际macOS Seatbelt环境/文件/子进程/IPC/预算拒绝已运行。K1 no-onerror正则匹配了quoted title内编码文字，精确安全HTML实际已证；改body完整字符串与无真实img断言，同片K1后补28和真实pinnedHTTPS 13/13通过0skip，registryHTTP200。26错误把含openGoalBrowser的普通Schedule文件当非browser，漏持browser锁；此执行遗漏保留，27按真实锁重跑该文件与Pages/side-panel/AlchemistUI组合；29真正Chrome DOM属性/文字/无事件注入另私有脚本排在同锁。已验证其他定向不机械重复，完整security49文件30实际在跑。I2 0f9候选Source独立接受无P1，显式详情完整、未提供时遵共同optional合同不附details（原Host同样无{}），不增广泛空详情；实际运行仍待。
+
+27按真实browser锁完成22/22、0skip/cancel（122175ms），Schedule关闭交错、Pages/PPT/灵光及Browser crash/AlchemistUI原路径都过；29实际Chrome DOM验证public helper/document title/文本和单双引号属性读回原值、0img/0event属性、未执行攻击通过。安全30完整300条298通过2管理fixture失败、0skip/cancel（182768ms），保留原失败，不能称安全全绿。首正例/末alias仍随机新初始化已有Board，按真实catalog操作重放修；input.actor_id在initialize经ActionService闭合schema拒绝，已留下当前人拒绝诊断，内层gateway返回编号而非transport未进入时0编号。434e7dc7f保留原Origin/token/key/closedtransport全部0事实拒绝矩阵，改合法重放成功及精确actions.input_invalid/原编号/唯一失败行；31实际定向在跑，可信actor和完整零事实另核。不改产品schema拒绝次序、不丢诊断或弱化权限。
+
+32真实安全管理四条再次通过0skip/cancel（5835ms），增强可信actor精确LOCAL_PERSON_ACTOR_ID及幂等重放facts完全不增，原安全矩阵和取消/断连保持；独立Source复核4e13无P1。I2以6cd33032b/4b288纳I8，actual完整模块与独立候选同，Host只删治理注入；测试Goals前缀按I8完整R3既有事实保持，未带回独立候选旧测试词元。33整体build/root tsc/API/actions/health/资源已0，真实治理、HTTP状态/可信身份、树物化rollback与provenance正在回归，未出完整footer不记整批通过。
+
+33 I2组合实际全部通过：整体build/root tsc/API/actions/health/29资源预算及十文件95/95真实回归，0skip/cancel（56240ms），包含HTTP配置/决定/收尾、当前轮次与agreement授权范围、tree提交/物化原子rollback、可信输入聚合、CLI/管理MCP真实Host重开、动作拒绝有编号与0事实、管理取消/断连。现行无详情遵共同optional、显式详情与消息保留实际成立；健康Error subclasses77，shape28/owner49均只降。该组合无boundary重跑，26-source已证唯一临时SDK路径缺口仍在；共享全量与最终I3及原路线完成尚待，不把95通过作为整线结束。
+
+I3当前AST分类补齐：138固定throw码、28确切传给校验helper的原因共166，183候选中的17个completionUnmet/PlanningGraph数据式结果码不声明成错误。34个同owner辅助函数的error参数位置已逐一登记，调用按TypeScript解析声明定位删除，不能仅按requiredText同名替换。公开validateRelationGraph hook仍code:string，两个真实边界改new ActionError(issue.code,issue.message)不强制kind，平台conflict/forbidden按原公共表分类；内部已证三stale冲突409不改，其他固定owner现行400保持。I3已写入独立候选：166个确切原因连到同owner声明，34个helper的工厂参数按解析声明删除，Goals类/工厂/Host注入已移除；当前仅源码候选，不能记整建或真实回归通过。
+
+最新远端现场（05:07UTC已核）：其他执行方将#410合入d53062a23，Grok#480 exact536仍OPEN、#481仍叠分支，未遵全部Grok后再Codex的优先先后；Root未执行此合并、不回滚他人成果，统筹已知。33验证基线964841211仍是明确范围，须在d530组合上核交互差异与资产/相关回归后才能写为最新main证据，不能把33搬为新基线通过。
+
+I3源码候选现已形成：公开validateRelationGraph仍code:string并沿公共平台分类，三个版本冲突显式conflict，其余沿现行invalid；移除GoalEventConcerns仅为错误注入而留下的无用context，事实写入仍由原core负责。当前源码映射141个公开入口，Goals及依赖TypeScript诊断均0；API快照匹配，health基于main964通过，错误类77/owner未归属50，不能把较新d530视为已验证。现有公共命令测试补精确消息/400/无details及平台hook 409/403与0事件/0关系变更，版本配置、closure和agreement现有回归补kind及原详情；整建、实际运行和最终共享全量仍待。删除模块公开GoalsCommandError/GoalsErrorFactory，以及resolvePlanningEventAdoption第三工厂参数，是当前无兼容期的接口移除，现有消费者同步共同类，最终PR须说明调用方影响。
+
+I3固定7beb4e3e0经独立只读复核接受，无Blocker/P1；主执行纳入当前main d530组合40b601a5f，Governance既有删除保留。24b1d7fb2同步新Agent问卷合同时同时保留requireSynchronous、memoryExecutionControl与原select aria要求，派生baseline重新量，API无差异。37批以严格build单名额排队，整体build/双类型/快照/健康/资源/17文件真实回归尚未开始或完成；临时SDK包路径仍独立未提交，完整boundary不足不隐去。
+
+W3-02-I4接续Projects错误工厂，沿原I获批方向，依赖当前catalog owner码及共同模型，范围modules/projects、Host project-catalog/management-action-client及两现行公共模块测试。移除ProjectsErrorFactory及其必填options、ProjectService/WorkspaceService注入参数；真实8个现行catalog原因由实际owner defineErrorCodes，追当前Host catalogFailure：project_not_found为not_found404，其余七个invalid400，不按名字猜HTTP分类，不增新owner/别名/任意未知码fallback。I4-01：项目/目录确认、缺项和无效输入精确code/message/原404或400保持，事务、数据库、事件、删除receipt及权限顺序不变；I4-02：公共调用方同步删工厂，未知码不兜底、无新增兼容；I4-03：README现行Projects模块、目录关联/删除、原HTTP/MCP公开路径与最终整体build/回归通过。先独立Source候选，I8冻结期间不改受测树，最终PR说明公开模块options与构造参数移除；此计划不记实现完成。
+
+I4分类核对更正：Host现行catalogErrors明确project_not_found为not_found404；独立模块过去自注入plain测试错误没有分类，不作为Host合同。候选纠正这一声明并补公共getProject缺项精确404/code/message，不把一开始的invalid假设带入运行；其余实际七个既有invalid400不变。
+
+I4独立候选已写入，Project/Workspace服务16真实抛错点归八个现行原因，两个Host装配与现行测试删除工厂。source-types38b映射142个公开入口，模块及依赖均0诊断，API38当前62快照/2412声明匹配；health38相对d530通过。project_not_found分类更正单独保存，正式只读复核以完整clean头为准，不接受遗漏的早期4ec单头；工程build/运行仍未验证。
+
+W3-02-I5沿同一错误工厂收口，范围Goals插件的结构提案Query/Submission/Input/Normalizer/Decision/Check/FactMaterializer/Followup/DecisionPlan与唯一Host GoalsTree装配，依赖R3及I3。静态owner raiser替换固定和已溯源有限code参数，不改提案内容、排序、SQL、事件type、trusted authority、provenance聚合、事务和物化partial/rollback协议；现行Host沿ActionError默认invalid400，平台code分类与显式details仍原样，isDomainError识别端口改共同ActionError时保持错误聚合策略。I5-01：公开树提交/决定/检查精确错误码消息与details、拒绝0事实和原事务回滚；I5-02：factory及error识别注入无剩余、所有公共consumer同步共同错误、不保留旧类/别名/读取兼容；I5-03：插件README必跑、结构提案真实Host/HTTP/MCP及可信身份完整回归、资源预算和最终共享全量。未溯源动态code不盲改；先Source候选，I8冻结不动，完成PR说明公开构造端口移除。
+
+I4完整d7a51fee0独立Source接受，无Blocker/P1；16个原抛错码/消息与两Service其他AST逐字保持，8分类逐项对当前catalogFailure，Host移除两处Projects注入、其他工厂保留。定向运行待README五文件及公开HTTP/MCP实际组合，Source不记完成态。I5 AST现93个原工厂调用、55固定码、10动态处，内部字符串helper参数及三planning cycle、四provenance与本地affected issue原因逐一溯源；materialization识别仍仅共同ActionError，不把所有带code的外来Error吞成领域冲突。
+
+I5候选5d30e5133已保存14文件338/-281：93工厂调用改83闭合现行owner原因，五family；删除Host全部Tree工厂与三个识别端口，实际catch仍共同ActionError分类，provenance原开放issues数组完整保留。source-types39c当前142映射0插件/依赖诊断，API39匹配62/2412，health39相对d530通过150巨大/76错误类/owner49；现行Host树action聚合拒绝测试已增强，但未运行。独立Source复核在途，不记整建、资源或运行通过。
+
+W3-02-I6收AgentHost/AgentReview/PrologueAdapter/PrologueApproval四个封闭code/message类，沿现行owner码声明common ActionError，不改审核归属、过期、standing-rule、Pending精确版本、记忆/文档控制与模型派出次序，PrologueInference带status/execution及外部SDK错误下片另追。I6-01：现行码与中文消息、无显式kind时实际共同HTTP400分类保持，审批拒绝/过期/断连/撤权0效果及真实重启恢复不变；I6-02：四类/导出与现行instanceof/import均同步共同类，不alias，公开PrologueAdapter新增question problems逐项信息完整保留顶层供现行消费者，另在details中带同一信息供共同出口；I6-03：README必跑及pending/approval/review/模型切换与真实安全相关回归、API/health/assets/build和最终共享全量。question类型与外部questionnaire错误词元不改，SDK正式vendor仍待用户原问题，I8当前冻结不动。
+
+I5完整dc0c402c0独立Source接受，无Blocker/P1。新真实action聚合测试首稿confidence=-1会先被现行schema拒绝，复核后改空白source_refs+reason，达到真正owner两issues路径；不改schema或弱化断言。83声明/93raiser及其余生产AST保持，原partial/whole/rollback与可信授权不变，尚待运行。
+
+最新main d530的问卷依赖与此前防腐临时beforeAccept SDK不相容：40b实际TypeScript31诊断来自SDK缺validateQuestionnaireAnswer与typed Pending/optional indexes。只读解包现行入库08b84296 interim SDK后，问卷诊断全部消失，仅剩既有switchModel第二beforeAccept参数1诊断；证明需要把原9行验权补丁合在现行interim基础上，不能把旧SDK候选的历史运行外推到新main。I6实际168造错迁18现行原因/四类删除，health40相对d530通过72错误类，API40匹配；当前完整类型/整建/运行未通过。联合SDK只在新隔离本地副本准备，原Prologue树/上游/vendor/真Home均不写；正式提交、推送及vendor替换继续等已有用户问题。
+
+W3-02-I7先收Scheduler单一封闭错误类，依赖J4现行scheduler码。范围contracts/services/scheduler、服务本体、Schedule插件现行映射/取消missing处理与两测试；删ScheduleError公开类/导出，五既有scheduler原因在合同同subpath声明共同错误（跨服务/插件共享，不开新subpath）。服务原无kind400保持；Schedule动作原映射仍job_not_found404、其余job_invalid400，以共同ActionError且完整scheduler有限原因识别，不把其他owner错误误映射。I7-01：叫醒缺handler/间隔/路径/缺job精确code/message，关闭/删除/撤权/重启和原持久调度次序不变；I7-02：无类/alias，实际producer与consumer同步，外来owner失败仍原样；I7-03：README三文件与真实reminder/operation恢复、现行错误出口parity、API/health/build/资源及共享全量。不放松计时或新增持久状态，I8冻结不动。
+
+I6生产78a4a42fb独立Source接受，无Blocker/P1；新增真实Node问卷回归6b17c9fb3已保存，验证逐题problems与共同出口details同义、拒绝待答不关闭、有效答案继续，实际运行等待联合SDK。I7候选dcc672861已保存9文件57/-49，五同subpath原因保持服务原invalid400与插件原404/400映射；源码142公开映射0诊断，API42只改scheduler快照，health42相对d530通过75类。两片Source/实际运行证据不能混称全线完成，正式SDK仍未获上游/vendor批准。
+
+W3-02-I8-LEDGER接原错误类收口，仅ContextLedger service/materialization的封闭四原因及公开导出/现行消费者；沿真实无kind400保持，不改权限authorize/ref/scope/版本/固定物化事务，安全拒绝0记录保持。LEDGER-01：真实访问拒绝、scope/精确引用与幂等key冲突code/message/400、原存储0变化与重复无新增保持；LEDGER-02：类/导出删除、同owner defineErrorCodes，无读取别名/兼容或新状态；LEDGER-03：README必跑与固定输入/跨owner物化现行回归及共享build/API/health。独立树准备，不改被冻结I8组合。
+
+I6补测6b17c9fb3经独立Source接受，已对真实SDK typed schema/string界限、choice默认required与number范围、实际Node answerPending控制路径核对；设计可达，但尚无运行结果。I7dcc672861同样Source接受，八造错、五reason、完整有限本域判断/两cancel及外来失败透传核实；实际README/恢复/整建待。SDK41在干净08b基点的新隔离树精确应用原beforeAccept补丁，原树与上游/vendor未改，已排同构建锁，尚未构建。
+
+W3-02-I9-CHAR沿已有R4c仅收Characters模块service/open的五现行原因类，公开导出和三现行instanceof消费者同步共同ActionError。kind沿目前统一动作出口默认invalid400，现行插件HTTP自己的characters.conflict409/not_found404映射在本片保持，后续统一出口另按原W3-02收；不借类收口更改已有状态。CHAR-01：个人owner隔离、wrong schema原库不写、revision CAS/发布/导入固定来源精确code/message和原事实保持；CHAR-02：无类/alias、消息不改、闭合五reason同owner，不动数据库升级兼容或真实Home；CHAR-03：README四文件及真实发布/导入/Agent启动相关回归、build/API/health/assets与共享全量。独立准备，不动冻结I8或任何产品功能。
+
+Ledger完整98ab2fab4独立Source接受，无Blocker/P1，六造错及其余ref/授权/事务路径保持；源码142映射0诊断、API43匹配、health43相对d530通过75类，仅局部候选。SDK联合副本说明已改为当前08基点41排队未运行，旧62/62证据明确归d490历史，不能当当前组合验收。Characters新候选发现现行schema拒绝测试尚有旧character.invalid，沿R4c已accepted改名同步characters.invalid，保留原字节与mode不变全部断言，不改生产库。
+
+W3-02-I10-DIFF/CODING沿既有R4c收UnifiedDiffError与CodingDiagramError，只动各自parser/inspect及公开导出和精确consumer，不互相import插件实现。DIFF-01：三个diff.unified原因/中文/count与hunk解析次序保持，comparison只接受本域三个码给原详细文案，外来错误仍原通用文案；DIFF-02：两个coding.diagram原因，原inspect返回错误数组按共同ActionError[]保留code/message/顺序，不变成throw或另种结果；DIFF-03：相关现行diff/coding-artifacts测试/真实固定changeset呈现、README受影响回归及build/API/health/assets/共享全量通过。两域无旧alias/fallback或新数据，现行invalid400保持；候选Source与最终运行分开。
+
+37验证队列已在未取得锁、未安装/构建/测试状态撤销：确切自有wrapper9062仍queued，install/results均不存在，foreign receipts-full-suite仍持锁；只TERM该自有排队进程，退出143，不中断他人回归或操作他人锁。已证旧SDK与新问卷31类型失配，不重复已知失败整建。改为41联合08 SDK先构建/回归/pack，再把已接受I3–I7/Ledger/CHAR及Diff/Diagram集中一次新整建；当前I8 Source解冻可串行整合，未称37通过。
+
+CHAR完整952d7548b及DIFF/CODING8a6c97ce5独立Source接受，无Blocker/P1，均纳I8到07f96f313。CHAR五原因/16消息及wrong-schema拒绝原字节/mode保持；新跨actor拒绝对照前置持久快照可发现误写。DIFF三码、Diagram两码/错误数组与自域catch保持，原unused错误类型未alias。DIFF源码类型0/all0；Coding自身0、全图2诊断是临时tree缺已有lucide链接（包/lock/icons原样），须完整离线安装整建后再证。此阶段已接受Source累计纳入，不把health46早于CHAR/DIFF的70类刻度当当前67类实测，随后整建统一重算。
+
+W3-02-I11-BIND收Runtime项目关联三文件的错误工厂及Host唯一接线，不删归属事实。11现行原因由模块owner声明：work.context九码现invalid400，catalog.invalid_name400/project_not_found404按当前catalogFailure原分类；删RuntimeProjectBindingErrorFactory/type及validation/setup ports.error/commands ctor注入，保留workspace规范化/transaction/provision原功能端口。BIND-01：现行确认/稳定identity/幂等key/重绑/异步准备确认code/message、原目录/项目/Session关联0越权/0重复事实；BIND-02：公开调用方删工厂，无类/alias/读取兜底，不把catalog事实rename到Work；BIND-03：README现行目录/关联/删除/HTTP/MCP回归与build/API/health/assets及共享全量。普通Source独立准备，真实Home仍0写入。
+
+W3-02-I12-SESSION收contracts/private-work-context现行PrivateWorkContextError与MolisWorkSessionError兼容别名，以及模块/Work插件67个现行造错和相关consumer。16现行work.session原因由同subpath静态声明invalid，原默认400保持，消息/事实/SQL/confirmation/幂等/密文数据不变；HTTP已同时认ActionError的路径删重复类判断，membership原特殊503仅以共同类+完整16本域码识别保留，Handoff持久失败同样仅认本域码、外来仍identity_conflict。SESSION-01：真实Session关联/版本/发送尝试/恢复/隐私拒绝原code/message和0无授权写入/无重复发送；SESSION-02：类/别名与现行导出/import/instanceof全清，无读取旧码路径，业务session/handoff事件type不改；SESSION-03：README与公开HTTP/MCP/handoff重启/多owner事务及schema拒绝回归、API/build/health/assets/共享全量。对外部Runtime原native_error不盲改，纯领域识别不等于所有ActionError。
+
+BIND完整61952ddb3独立Source接受，26抛错/11声明逐项对原factory，Host恰删三注入，原交易/provision/normalize未动；真实重绑拒绝快照可发现写入，types48b/依赖0、API48匹配、health48基于d530实际67类/owner46。已纳I8到7abf5f7dd，后统一测量不复用46旧刻度。Session166341aab+994f060ad候选删类/兼容别名及67造错，confirmation精确中文/原400/0Session增强已保存；types模块0、Work6诊断/全图8仅borrowed xterm/lucide链接未安装，不记整包通过。API49改唯一private-work-context快照、health49实际66类，Source独立复核在途。
+
+当前远端main又由外部#491合为2768dd71b，Root未执行merge；比d530新增六文件，模型切换对prompt_cache=off不强制同格式判断及其真实消费者回归。I8同步该main时模型切换helper有一处冲突，须同时保新prompt_cache=off判断、本线beforeAccept同步拒绝与I6共同错误，实际解后再保存；最终联合SDK/整建/回归须针对此新基线，不把d530的Source/旧运行直接贴为最新main。#480新1ffc全必需/产品绿但BEHIND于491，仍Grok负责同步与优先链，Root未替合。
+
+W3-02-I13-SOURCES/LISTENER沿J3收两服务错误类，仅既有三sources原因、四listener原因与真实producer/识别consumer。同subpath声明invalid，原无kind400保持；类/导出/instanceof移共同模型，本域识别取共同类+完整有限码表，外部connector报告原details/error_code与safeErrorCode不变。SOURCE-01：来源not_found/无效schedule/transition与Listener lease、delivery/quarantine/connector failure精确code/message、恢复/重启/原RawEvent持久化与0重复作用；SOURCE-02：不保旧class/alias、类属性仅code/message不动DB结构/事件/RSS外部码；SOURCE-03：README并集feed-receive-chain/feed-sources/feed/plugin-runtime-integration和Connector公共真实链、API/build/health/资源及共享全量。独立Source准备，先前用户存储码维护决策仍要求clone演练和真实Home窗口另决定。
+
+
+BIND归属复开：完整已跟踪候选在当前2768基线被health51拒绝，Work新文件重复声明catalog两码；此前health48不证明当前完整候选合规，独立Source接受撤回该归属结论。BIND-02补具体方案：Projects现行八原因的唯一声明移到公开contracts/modules/projects，Projects及Work消费同一projectCatalogErrors，删模块内部声明文件与Work重复声明；当前未有owner的该合同文件补归Catalog，按既有主人表允许的正向归属补全，不改门禁脚本/阈值/平台例外。404/400、每个理由、事务及确认不变，新增公共声明更新API快照；固定完整candidate后重跑Source类型/health，再由共同构建与真实绑定拒绝证明。无新增factory或跨Module实现依赖。
+
+BIND-02同片补Host四个重复根原因：project-catalog-contract复用共享invalid_name/project_not_found/plugin_not_found/project_storage_invalid，Host其他十三原因原表保持。catalogFailure只接受原来的十七个root理由，不能把context子域键扩成root别名或改外来错误；Panel既有端口不在本片删除。完整声明与识别表分别核对，不把Projects+Work收口夸成所有Catalog入口都已迁完。
+
+
+BIND归属修复7129fd22a完整已跟踪候选通过Source类型0/all0、API52b/c匹配62/2413及health52c；独立复核接受，纳I8为2618d8e4f。此前api52的pnpm自动重装/无TTY失败保留，不能记为API通过。Session208完整Source接受且纳2be6c8d29；Sources/Listener516a46bf2的10文件完整Source接受，API53/health53当前2768通过，纳461003570。三片运行均仍待，临时SDKpkg/lock未提交。SDK41旧自身wrapper32071未取得锁时已撤销143，替代一份同driver队列27691，显式禁pnpm默认自动重装borrowed依赖；不改门禁、foreign全量未中断，41仍无build/test/pack结果。
+
+W3-02-I14-FEED/ATTENTION/SIGNALS接既有R/J的余项：Feed三真实生产原因直接用既有feedErrors，删FeedError、旧四原因转换表及已无作用的callFeed，现行纯表达式调用直接执行；read_not_supported无人产生不声明死原因。Attention四原因改现行attention.*，唯一声明在该域新合同内部文件并由既有attention-resumption subpath导出，文件正向归Attention；现有Inbox声明的事实owner保持。Feed callAttention只认共同类+完整四原因，仍缺项→inbox404、版本冲突→feed409、其他本域→feed400，外域原样抛出。Signals两原因改signals.*，唯一当地声明，数据/RawEvent/adapter/provenance/幂等及SQL不改。FAS-01：真实缺项/版本冲突/无效draft或reference精确原文与产品HTTP/MCP分类，拒绝前后持久化/事件不变；FAS-02：三类/旧导出/旧生产码与死原因兜底清掉，无旧读取兼容、无新厂或跨Module实现；FAS-03：三Module README回归、Feed/Inbox链及schema/API/build/health/assets、共享全量。新增合同仅现行raiser，旧存量码仍维护八按克隆演练处理，真实Home零写入。
+
+
+FAS完整272eb4d80已接受：5 Feed/8 Attention/2 Signals造错与7表达式展开逐项保持业务/文案，API54两快照62/2410、三Module source-types54全0；health54当前2768全tracked实测61类/13形状/31非owner，无gate放宽。Feed插件仍4/6未安装borrowed依赖诊断，不报完整类型通过。真实错误及持久化测试已写而尚未运行，与源码接受区分；已纳I8，最终新SDK整建回归待办。
+
+W3-02-I15-WORKSPACE收WorkspaceArtifactError、Files再导出FilePathError别名与Work补偿MolisWorkWorkspaceActionError。WSERR-01：公开路径/ref/payload每个现行work.workspace四原因/中文、拒绝条件保持；Files reading-position仅识别原四域共同错误，其余仍抛，不放宽路径安全断言。WSERR-02：Work两补偿原因共用模型，四处repair/unlink拒绝保留原目录事务/恢复顺序与原cause对象及非枚举性质；Host去已无作用的changing转换和纯表达式wrapper，不改Action服务授权/beforeEffect/审计。WSERR-03：类及旧别名/export/consumer清掉，现行kind默认400统一invalid；workspace-directory/files/reading-position及Work/合同README并集、真实目录拒绝和恢复/API/build/health/assets/共享全量。共同metadata保留既有cause，不引入额外兼容/factory/schema。
+
+
+W3-02-I16-PLUGIN-RUNTIME/SDK延续J1与I统一错误模型：Runtime六类、SDK Manifest/Definition两类共89真实构造、26现行plugin原因，码/理由/拒绝/生命周期/数据不变，原默认分类保invalid400，不按词猜403。共享唯一声明放新合同内部plugin-errors并由既有platform/plugin导出，正向归Plugin；SDK仍仅依赖contracts，Runtime/CLI各用公开合同，无private依赖。PRERR-01：包签名/路径、Manifest声明、grants/storage/事件兑现拒绝有精确code/message与0未授权效果，重启/停用/升级/隔离终态和原保存code一致；PRERR-02：去八类及旧公开出口，Runtime启动catch仅认原16完整码（外域保持原安全generic），SDK仅认原Manifest四码；原兑现路径本已接全部ActionError，删重复类判断，不扩大其他catch。两动态处按原有限条件/四码查同一声明，无猜测或兜底；PRERR-03：README并集/真实SDK作者样板与Runtime生命周期、类型/API/health/资源/最终共享全量。合同PluginEventError/PluginWiringError的detail与公共payload另片处理，不在这里机械丢元数据。
+
+
+I15 Workspace完整c587 Source正式接受，37parser与四补偿构造、cause identity/非枚举及原回滚顺序已复核；实际Files55类型own/all0、Work6/all8借用依赖缺失，API55/health55已证，纳I8为8e0b70701，运行待办。I16核心63165e309的35文件Source复核接受，四包types56全0、API56/health56已证；两处现行公开文档追加1602b22c4说明共同ActionError与公开pluginErrors，文档后完整头复核在途，实际SDK作者/Runtime回归仍未运行。
+
+W3-02-I17-SYSTEM收Kernel注册器、Host运行生命周期、ModelProvider与ProjectRecovery四类。SYSERR-01：Kernel三个原因、Host四原因与真实ModelProvider.invalid拒绝维持原码/理由/default400，不额外声明无人产生的ModelProvider.unknown；typed settlement只认共同类+精确kernel.capability_missing，仍包装actions.dependency_missing、原message/cause/503与调用记录一次不变。SYSERR-02：Recovery唯一catalog.project_recovery_unsupported_schema共享Catalog当前声明，消息仍原code；readonly检查、错版零写与关闭顺序不变；其他三域各有当前闭集声明，无旧class/alias/export或读取兼容。SYSERR-03：Kernel/local-host/model-provider-store/project-database-baseline与URL安全现行回归、README/API/build/health/资源及最终共享全量；真实Home/密钥仍不读取或写入。本片仅错误模型，不改注册/host生命周期/供应商secret引用规则。
+
+
+SDK41联合候选原始证据闭合：当前08b84296f81df1bd5f3429c2dc2997d18b72473a+beforeAccept副本build/tests/pack均0，Vitest 8files114/114无TypeError；实际tgz SHA256 660540fc6a711af5b03cf0e1beae02467b0ad2cb7913148479aa4b0b9045596d。旧d490的62条只作历史，不混记。Root仅把I8两个未提交pkg/lock临时依赖转向该包，58批同锁offline lock+frozen install/整体build/types/API/actions/health/实测资源准备一次验证；正式上游提交/vendor替换仍等原授权问题，不能因此称已正式交付。foreign receipts全量实测6240中6226通过/5失败/9跳过/0取消113分钟，不作为本线运行证据；其结束后Root41按锁取得名额，无foreign kill/reset。
+
+I16最终1602完整Source接受，37路径逐blob与I8 c4a2f27a0一致；I17 a2f43ad9d完整14文件正式Source接受，26处原文/条件，Host旧安全四声明保持只加Lifecycle四项，typed缺项原503/cause/一次结算与Recovery错版零写保留。Kernel57b全0，Host8文件scope0/all321依赖环境，不称完整Host类型通过；API57匹配、health57实测47类/13形状/31非owner。Root修正未提交时自身覆盖Host已有表的机械错误并保留失败/修正事实；当前Source有自有借用Kernel node_modules链接未提交，不称整个树clean。两片已串行纳入I8，58新组合FROZEN待整建与真实40文件59批，不复用旧运行证明。
+
+
+58批实际offline lock与frozen install通过，整体build仅GoalTree工厂删除遗留goal-project-application首行ActionError unused（TS6133），后续未执行；原失败保留。05ae79141只删此唯一无用import，60批真实整体build/root types/全workspace types/API/actions/health/29资源实测均0；新SDK和最新2768源码组合已获工程证据。boundary60退出1仅临时SDK路径inventory不匹配，不放宽规则。实测47类/13形状/31非owner、资源29项10013459字节未变；派生baseline仅下降保存2ade1c638，pkg/lock两临时文件未提交。59真实40文件单一browser名额队列已单次启动，I8持续FROZEN，实际结果待收，首40不能代替全部README/最终共享全量。
+
+W3-02-I18-INSTALLER接J6/I统一错误模型，收Home install、Web service、Runtime integration、Uninstall四类；现行owner码/原文/defaultinvalid400保持，不因conflict等词猜状态。INSERR-01：preview后执行/replay、snapshot-stale/confirmation/来源与payload拒绝、卸载逐步失败及receipt/幂等和真实临时Home恢复不变，拒绝0越权写/不吞外部错误。INSERR-02：各真实有限码按现行installer family唯一当地声明，去四类/publicexport及相关消费者；config parser只认原RuntimeIntegration五码，release-file验证只认原Home七码，其余照原抛出，无旧值读取/alias/factory。INSERR-03：install/service/runtime-integration/uninstall/release现行README并集真实回归、API/build/types/health/assets及最终全量；只用临时Home，真实安装/Home/Keychain与仓库vendor不上手。本片不改安装路径、源校验或打包协议，所有影响依赖当前I8共同工程基线。
+
+
+I18完整2c804f093/8629a17eb Source接受：53构造/21真实码七family，Home七码/Runtime五码有限识别与原有限动态索引保持，plan_invalid无producer不声明；24文件既有真实preview stale/回滚/receipt/用户库保留断言有效，补INSERR编号不新增镜像测试。API61/health61实测43类；Installer31文件scope0/all299依赖环境，未构建运行、尚未纳冻结I8。59 browser仍单份23941等foreign a1-full-suite，62纯Node40单份38826也按现行排时段规则等build名额；均未有runtime日志/结果，不能记已执行。
+
+W3-02-I19-CONNECTOR收ConnectorHost、ConnectionStore及MCP connection三类，OAuth的serviceId和CLI无code异常另片按真实边界保留，不机械归并。CONERR-01：driver缺失/重复、连接错服务/撤权、timeout/真实MCP provider与入站合同拒绝码/原文/default400保持；Caller/URL/secret引用/beforeDispatch/inspection和0副作用拒绝、当前provider code/provenance不变。CONERR-02：共用现行连接服务合同唯一声明，三类/旧导出清掉；所有consumer逐个保原有限三域码（images、alchemist/feed/type-safe、HTTP和动作gateway各自映射），MCP原已接所有ActionError的分支删重复类，不吞外域Common。CONERR-03：Connector/MCP/URL安全与撤权真实用例、README与API/build/health/资源和共享全量；当前真实Home/Keychain仍不读写，外部OAuth原协议不改。
+
+
+I19复核复开：9c842c712未接受，Common转换后两条既有MCP边界提前匹配造成实际差距。HTTP通用ActionError先命中新connector.mcp.authorization使原401变400；safeError早透传新connector.connection四码而原来应掩为固定MCP provider文案，可能泄露连接细节。按CONERR-01/02保原消费合同：HTTP优先MCP四码，保authorization401/其余400；safeError先掩Connection四码，已合法跨域ActionError如取消/撤权仍原样；HTTP直接收到新Connection/ConnectorHost有限域时也按原通用MCP文案。补已有真实web server隔离Home回归：过期/无效授权POST401、缺连接inspect400/provider固定文案/0新连接，避免仅测试formatter。冻结I8不改，本片在Source树修复并重核完整diff/门禁后再接受。
+
+
+I19最终36ee3701a完整Source接受，401与原Connection细节掩码差距已关闭源码复核；合法跨域Common取消/撤权保留，新增真实HTTP fixture每POST fresh一次性操作键确保可达，运行仍未做。API64/health64已证40类/13形状/31非owner；当前只tracked clean，自有借用Kernel链接未提交。下一合法解冻纳I18完整8629与I19三提交，不重复原有效检查或把新测试源码当通过。
+
+W3-02-I20-UI-HOST按既有W3-02十一kind/owner码决定（原设计§8列为日常取舍）收两类与五裸拒绝码，owner沿现行登记ui_host不改归属。UIERR-01：真实Contribution重复/缺项、无效surface/slot与停止/未授权PluginUi的拒绝条件、文案、注册/撤销次序和0外域注销保持；当前owner码ui_host.contribution_conflict/not_found/slot_incompatible/surface_invalid/plugin_denied。UIERR-02：去两类/旧出口与当前裸producer/consumer，唯一当地声明；明确分类修正：原裸码在SDK通用出口为不识别500，现按真实原因分别conflict409/not_found404/invalid400/forbidden403，保拒绝而非沿未知故障掩码。这些是统一模型的预期变化，不以全绿改断言；原类身份用具体当前code与kind及HTTP状态断言取代。UIERR-03：ui-host README、workbench-ui/feed/inbox/schedule/global-settings/plugin-host-executor现行真实mount/unregister/revoke测试、Source/API/build/health/资源和最终共享全量。只改UI注册合同错误，不改布局/挂载位置/用户权限、不开新状态或compat。
+
+
+I20完整df34bf3ea Source接受：9文件两类10构造、五裸码/旧出口清掉，当前ui_host owner原样；types65全0、API无变、health65实测38类/7形状/25非owner。明确分类修正409/404/400/403为统一模型既有决定；实际UiHost duplicate/missing/slot/surface测试查code/kind/派生status与registry不变，PluginUi两个拒绝case只断言code+forbidden及原UI列表，不能写成已实测HTTP403；未运行或纳冻结I8。
+
+W3-02-I21-GIT-WORKTREE收Host GitWorktreeError唯一闭集，不动WorkspaceGit的结果outcome专有边界或Git/过滤器/工作树协议。GITERR-01：真实git执行失败/授权仓库根/原起点和path、owned/writer分支、不接管外来目录/符号链接、dirty拒绝与重试保持当前git.*码、原文和defaultinvalid400，拒绝前后不创建/删除外域目录、原提交与登记不变。GITERR-02：去类及导出，五现行原因当地唯一声明，ENOENT/普通失败按原两分支，唯一not_owned捕获只认Common精确git.worktree_not_owned。GITERR-03：writer目录真实Git/恢复/SDK假设与security目录边界现行回归、README/工程/API/health/资源和全量；真实用户工作树/branch不清理、不跑真实Home。
+
+
+62真实终态40文件235条：230通过/5失败/0skip/cancel，207173ms，失败全为Coding state参数less读取未捕获current actions.dependency_missing；5历史/demo回归断言有效，未加allowlist。沿实际链 confirmed：无workspacesFor的合法Host不注册browsing-workspace，Coding注释承诺sessions仍可用、workspace null/list[]；typed settlement已统一旧Kernel缺项，Coding unlessMissing残留旧kernel码未同步。READFIX-01：仅该消费者改认现行actions.dependency_missing，其他权限/不可用错误仍抛；直接Kernel与cause测试正确保旧事实kernel.capability_missing，不全局改名/双码兼容。READFIX-02：原5fixture读真实恢复、Coding字段null/[]和非缺项拒绝，以及新main共同构建/实际回归证明。
+
+Root仅撤销未开始的59自有queue23941（原driver/无log-results/foreign holder验证后143），62已终态，I8合法解冻；不把59撤队列算测试。共享origin/main已推进46cb083ee：Grok480实际08:22:49Z合入，Root未merge该PR，CU后续仍遵守其优先链。本线合main63文件时只prologue控制端口一冲突：保main steer.source/key、保本线beforeModelSwitch/beforeAccept；门禁JSON取main后必须实测重生成。Source I18–I21已纳I8当前13beb75a6，无冲突/未运行；SDK仅保存/恢复临时两个文件不提交，main未更换SDK。新组合及READFIX需要一次新整建，不以2768的60/62证据贴作46cb最终通过。
+
+2026-10-14锁文件与当前整合核实：I18 Installer、I19 Connector三次修正、I20 UI Host及I21 Git已串行纳I8，53路径中52逐blob一致，index唯main新增desktopTaskComplete/type导出保留两边；只读Source复核接受，实际新组合回归待办。READFIX-01修正coding.state可选workspace依赖原kernel码消费为现行actions.dependency_missing，保原五条历史读取fixture；READFIX-02新增真实Host拒绝用例核forbidden/connection_unavailable的原code/message及实际读取次数，未运行不记通过。
+
+67批只排队无log/results；复查实际pkg1+/1-、lock9+/888-，大批Biome/esbuild/tauri/rolldown/lightningcss等optional条目已在保存patch前被裁掉，不能归因67执行，也不能称只有SDK替换。精确核本人wrapper73666/只有sleep子进程与foreign a1 holder23912后撤本人未开始队列，exit143，未触foreign。污染证据保留私有临时目录；从042ff HEAD恢复全部非SDK条目，只重放SDK41路径和由实际tgz计算的integrity，实际pkg1+/1-、lock5+/5-。新68删lock-only步骤，仅frozen offline install并核lock原文未改，再整建/根与workspace类型/快照/health-base/assets-base/boundary；单份已排队、尚无结果，I8源码保持冻结。SDK两临时文件不提交，不触vendor/真实Home。
+
+W3-02-I22-ALCHEMIST-STATE收六个有限错误类：OpportunityAction/Transition、StartPulseRun、StartLensRun、CancelLensRun、IdeaCardTransition。ALCERR-01：全部现行alchemist码、原机器文案、Opportunity真实事务/复用、卡片转换与Pulse/Lens取消顺序保持；businessError按原有限六域作原中文/404/409/default409映射（领域Common kind=invalid的通用400与此HTTP适配器原default409分开），已保留IdeaActionError的already_kept.details（ideaId/recovery）不从裸code猜来源。ALCERR-02：六类/旧局部导出与测试class身份去掉，16真实原因在插件当地唯一声明；只消费各原闭集，不把外域Common纳成成功或改写原失败，原Error.message机会三值映射仍有限。ALCERR-03：Alchemist现行README真实动作/HTTP/生命周期/生产Host与包内领域、jobs、db回归，统一构建/types/API/health与最终共享全量。Decision/ResearchPlan/IdeaAction重叠码及Operation.status/details有真实边界，Calibration/Memory校准裸异常、动态Job/SourceHTTP另片处理，本片不新origin标记、不改HTTP协议/模型或研究行为。
+
+I22 Source候选fbb9e5dfa2d246610f86abbaff20fd6c980eb291，11文件六类/16原因，原八机会域与中文映射有限；already_kept.metadata只在保留IdeaActionError域读取，不从code猜出处。API69与源匹配62/2410、health69 merge-base2768通过31类/7形状/25非owner。types69初始missingzod71/73诊断保留，借用自己Alchemist依赖后69b own0/all2；外包环境诊断不是全量类型通过。新增真实无来源409/无run记录、missingCancel404用例未运行，I8冻结未纳本片，只读Source复核待收。
+
+I22新增测试409修正：只读复核发现无启用来源由businessError创建AlchemistOperationError，现行constructor默认status=409，HTTP优先读取它；领域Common invalid通用400不能贴到这条适配路径。修正仅新增断言400→409及spec，不改生产默认或原测试；新的真实拒绝用例仍未运行。
+
+68批实际离线frozen install、整建、root/workspace types、API、actions、health-base与assets-base全部退出0；lock仍精确五行SDK差异，63 API文件2414声明一致，资源29项10013384字节，health实际37类/7形状/25非owner。boundary唯一失败仍临时SDK dependency inventory不匹配，不放宽，正式SDK/vendor待决；派生门禁按实测下降保存，SDK两文件不提交。I22最终8859 Source独立复核接受，未纳冻结I8。第一组当前main40纯Node文件70在build排他名额下单次启动，修后235组与READFIX新增拒绝实际结果待收；不能预记全绿或当含Grok493候选。
+
+W3-02-I23-CODING-STORE只收CodingStore单类/现行两原因；CDSTORE-01：真实SQLite重复创建不覆盖、缺会话拒绝、归档不能二次改且原runtime引用/计划保存/重开保持，现行coding.session_unknown/session_duplicate和原文不变。CDSTORE-02：唯一当地声明、删除旧class公开出口与class消费者；routes原session_unknown404映射不动，领域默认invalid400与路由状态分开。CDSTORE-03：Coding README并集及真实Store/计划/动作HTTP，统一API/health/build及共享全量；不改用户工作区、Runtime或会话接受语义。
+
+I23 Source14affe5a8候选四文件/一类/两现行原因，原routes404规则未改；Source71 scoped Coding own0/all2、API62/2410一致、health实际30类/7形状/25非owner。真实Store重复、归档和重开等用例未运行，只读复核待收；I8仍冻结、未纳。
+
+W3-02-I24-BROWSER-HOST只收BrowserError，不改带method诊断的技术CDP边界。BROWERR-01：五个真实raised浏览器码、原文、启动失败/浏览器目录争用/已接管与停用助理浏览器的拒绝、UI恢复problem(code,message)保持；原Browser HTTP已识别域409、普通外部异常500保持。BROWERR-02：当地唯一声明五真实原因/Common kind=invalid，去class与constructor；startup/HTTP有限识别原BrowserProblemCode七值（不为只作为state的两个crash值添加无producer raiser），未知外域Common仍走原fallback，不改全局HTTP mapper。BROWERR-03：真实Chrome启动/页面与浏览器崩溃/侧栏driver/上传/接管恢复及README并集，Source工程/类型/API/health与当前main组合构建、回归和共享全量；只用临时profile/Home，不操控用户浏览器或后台任务。
+
+70批实际完成：当前7ac8d4991/main46cb+SDK41组合40纯Node文件236/236，fail/skip/cancel均0、161005ms，原62的五条v35历史/demo读取失败已在同一组真正恢复，READFIX原外域拒绝新case实际通过；不代表含Grok493或最终共享全量。I23 14affe Source独立接受，未纳I8。72批当前40文件在build与单个browser严格名额下一次启动，含Installer/service/runtime integration/uninstall/release、Connector/MCP及真实HTTP新case、UI Host/客户端/Feed/Inbox/Schedule和Git/writer真实路径；尚无footer、不预记通过。I8继续冻结，I22–I24后续Source树独立推进，不能混用接受与当前运行。
+
+72批实际终态：40文件404条，401通过/3失败，0skip/cancel，193609ms，exit1。CONERR新增HTTP fixture的controlToken仅26字，当前Host最少32，未触及业务401/400；PRERR新增Runtime fixture grants=[]但probeManifest required network:probe，start在grant检查拒绝，未触及三个预期start异常。第三条旧Shelf无settings目录测试仍期待读取兼容，现行readCurrentCatalog明确拒绝；依既有现行格式/不留兼容决定，改为断言shelf.invalid_file、原文件逐字节不变，并另验干净当前库的原wheel/hotkey默认。INTEGRATION-FIX72-01：只修新fixture为真实合法token/显式原required grant，不改安全入口、Runtime识别/错误预期或生产权限；INTEGRATION-FIX72-02：不恢复Shelf fallback，不删除旧输入测试，保缺字段拒绝/原内容及正常当前默认行为。先三文件真实重跑，其余401条保留当前main组合有效证据。SourceI22–I24仍未纳I8。
+
+74三文件实际28/28、0fail/skip/cancel、5836ms，三个72失败已关闭真实路径（Source复查接受27d34）；原失败日志保留。I24完整0d2f Source独立接受，73初次漏blocked_scheme已修为五真实原因，73b scope0/all223、API无变、health实际29类/7形状/25非owner。I22–I24四提交已串行纳I8 1b6f94232810a1e64b903b8471a374af15865336，需新组合整建和实际Alchemist/Store/Browser回归，不把Source<30或旧68/70/72/74直接贴为本组合通过。
+
+W3-02-I25-ARTIFACT-ACCESS收唯一PluginArtifactAccessError与7不成形producer码。ARTACC-01：Manifest声明/安装实例和actor、类型schema/ID冲突、读取与写/记录的拒绝条件、文案及权限撤销/卸载后的0新增、固定成果与过程项读取隔离不变。ARTACC-02：按已定主人前缀，将两裸码改为artifacts.plugin_denied（forbidden403）、artifacts.plugin_incompatible（invalid400），在既有本插件errors.ts唯一声明；availability同一现行码、不留旧alias/class/export，与所有生产/fixture消费者同片改。平台grant原plugin.grant_denied仍原样，不把它混成artifact拒绝。ARTACC-03：Artifacts README、真实PluginArtifactClient/Runtime/Store与目录availability用例、公共合同/API/health/工程及共享全量。HTTP分类为统一十一kind既有决定，不增permission/state/业务数据；当前读取错误显示与原Owner文案保持，真实Home历史码待维护八按原不写调用日志合同处理。
+
+I25补实际Coding消费者：materials.readMaterial原比较bare plugin_artifact_incompatible，同片改当前artifacts.plugin_incompatible，原中文恢复提示/不触模型保持；已有真实Shelf固定原文→Coding SDK模型路径补same-project schema_version2拒绝400/精确原提示/0新模型请求，不用自造error formatter代替端到端。Artifact README旧码同步，全Source/测试当前bare码/class引用去掉；Source76/76b Artifact与Coding own0/all2、API62/2410无变，health76实际28类/形状0/非owner18，新增Coding检查及Root共同构建运行待收。
+
+I25复核复开808f：两处availability只给当前owner code不带kind，ActionService.assertAvailable只传value.kind，owner声明不会自动查询，故wrong-install仍回invalid400；需由同一artifactsErrors.plugin_denied声明取code/kind/message，两个availability共用，不重复分类。新增schema_version2材料参数不可达：materialSelection及SDK read只消费id/version，实际record.schema决定兼容性，不能篡改引用协议让测试成立。撤该新增case，保原BOM/CRLF/固定/foreign断言，增强已有真实archiveVersion→Coding start400/0starts用例的精确恢复文案。ARTACC原403分类与现行引用/读取协议不变；Source接受撤回待修与实跑。
+
+I25修正5f28a6a77：同一owner factory的code/kind/message经denied helper带到两处availability，不新增平台分类或输入协议；真实Kernel wrong-install/目录断言forbidden与SDK派生403，原noRead直接grant code/kind仍保留。S5 schema2新增不可达case撤掉，原固定/foreign文件逐blob恢复；已有真正archiveVersion→SDK→Coding路径增强400/原中文/0新starts。77 Artifact与Coding各own0/all2，health28/形状0/非owner18通过，API76有效；最终Source复核待收，未纳I8或运行。#494实际main5ba仅Skill/test/spec；Grok493已自行同步新29ca并监控CI38548314953，Root不重复抢分支/任务/全量；其旧绿不能当新组合通过。
+
+I25完整5f28 Source独立接受（八路径），两个P1修正以实际生产读取/Kernel路径复核，不能写成已实测HTTP403；串行纳I8并同步仅Skill/test/spec的main5ba，当前冻结b703e20a1879f8992fd128cc181386c864ea5903。SDK临时pkg1+/1-与lock5+/5-精确范围再核，新78 frozen install/整建/全types/快照/health/assets/boundary单份已开始，当前结果待收；未采用仍在Grok493上的CU-image包，不替正式beforeAccept/vendor待决做授权。
+
+78当前5ba+I3–I25组合实际frozen install、整建、根/workspace类型、API/actions、health-base/assets-base全0，boundary唯一tmpSDKinventory不符未关闭。工程实测28类/形状0/非owner18、29资源10013384字节；派生baseline下降保存566ab4e8a。79首40必跑文件含Alchemist/Coding/Artifacts、真实archive与Kernel forbiddens/客户端已单次排队，当前持build等A2释放browser，未有测试log/results；80也只排队，尚未真实开始；80仅另两Store/真实侧栏浏览器文件及Alchemist包内Vitest，在同名额后单份排队，不并发构建/浏览器。当前源码持续冻结，不含随后#492 main34d生产变化或Grok493新包，不能贴为最新远端组合通过。
+
+W3-02-I26-RUNTIME-DIAGNOSTICS统一Runtime Host自己生产的现行有限读取诊断名，不改变Codex协议、请求生命周期或截断行为。RTDIAG-01：原response_too_large拒绝与operation_failed读取失败改当前主人runtime_host.*，消息、outcome(status unknown)、保最后事实与Work显示同样限制说明保持；不得把超限当空成功或启动真实Codex会话。RTDIAG-02：有限Transport ctor/type/消费者及公开RuntimeSessionAdapterResult failed诊断枚举同片更新，无旧码alias/读取compat，既有class数据结构不动。RTDIAG-03：真实隔离子进程大行/EPIPE/恢复、CodexSession未知事实保留、Work HTTP/README，API/health/build/类型与最终组合。只改两现行诊断值，外部厂商动态错误与其他owner不全局重命名；维护八旧值映射按原数据计划。
+
+79/80状态核实：wrapper74617/76022仍只等待浏览器名额，A2活holder74357/74362未释放；此前“已运行”措辞不能代替真实日志，已纠正。原队列保留，不重起、不动foreign。78已结束工程结果有效，I8源继续冻结。
+
+I26 Source721f082de7fed9fc2ad7efb24e7b19bafdd8e08c七文件只两诊断枚举前缀/完整consumer及transport原真实拒绝测试与公开快照；81 Contracts/RuntimeHost各0/all0，Work own0/all2，API单行新枚举后匹配，health28/形状0/非owner17。Source复核待收、不纳I8，不把Node type/gate退出当实际Codex读取回归通过。
+
+W3-02-I27-HOST-WIRING收四处Host自身Catalog/工作区装配失败的错owner producer，不改模块数据主人。HOSTOWN-01：注入Catalog缺失、选择不在当前真实verified列表、Catalog/Session目录均未找到工作区时，按Host自身服务理由host.catalog_unavailable/workspace_unavailable/workspace_not_found；原条件、原文/defaultinvalid通用400、beforeEffect/同步授权复查/目录与关联事务保持。Work HTTP仅原not-found404比较同步新码，其他状态不动。HOSTOWN-02：既有hostErrors声明只追加三真实原因，个人规划availability从同一原错误对象取code/kind/message，拒绝入口不用另一个owner的码；生产/现行消费及固定预期同片更新，不添兼容alias、统一placeholder或日志重写。HOSTOWN-03：真实个人规划Catalog缺失/恢复、项目setting/工作区绑定repair/unlink/Host与Work HTTP拒绝及README，Source/build/API/health/最终组合。当前存量码若需改写只在维护八拷贝演练，不写真Home；不改正在冻结I8或外方工作树。
+
+I26完整721f082 Source独立接受：反向归一两诊断字面量后完整生产AST语义一致，原超限/未知/重启断言保留；真正公开名称RuntimeSessionAdapterResult failed union，文档对齐。仍未纳I8冻结源，待实际SDK/Work/child回归。
+
+I27 Source候选dc6821d43dfc9862cfa45a038e85c77aaef113c7七文件：既有Host声明保全八字段，仅追加三invalid，四装配/查找拒绝归Host原消息及个人availability metadata保持；Work404当前码同步，原其他status不变。82 scopedapp0/all299、Work own0/all2、API无變、health28/形状0/错owner13，原真实恢复测试仍未运行，Source复核待收、未纳I8。
+
+W3-02-I28-CONNECTOR-ACCOUNT统一实际账号读取失败为connector.account五现行原因（unknown/disconnected/needs_auth/configuration/unavailable），不是动作ID重命名。CONACC-01：原连接解析错误四值有限捕获、账号身份/授权/厂商原消息、OAuth单次刷新与错误fallback、actor/secret不进入结果的条件和defaultinvalid400保持。CONACC-02：当地唯一五码声明、raw plural connectors.*错误去掉，现行消费者/真实ActionClient预期同片更新；connectors.account.read@1、权限/connectors provider来源和输入输出完全保持，不抹外服务data错误或碰真实密钥。CONACC-03：真实隔离Host/连接Store、账号动作/MCP与Catalog来源/URL拒绝/README、Source/build/types/API/health与最终组合；只能用测试credential替身，不发真实账号请求。
+
+79运行状态实质变化：A2活进程已自行结束，03:45:32 browser.lock由本线74637取得，driver86574及79真实日志出现并更新；未取消79/80、未kill任何进程，原队列继续，不能把此前等待时间算测试运行。I28 Source候选04a9e2ec3b6e2f1c09b79dec2b1312a60789af2d两文件、五当前Connector account原因与原动作/权限/provider不变；83 scopeapp0/all223、API一致、health28/形状0/非owner10，当前只Source候选。
+
+79真实终态40文件182=159pass/23fail，0skip/cancel，193885ms。17失败共用两旧fixture仍调用已删LocalHost.registerCapability，未触及预期效果/恢复业务；其余6分别Coding Runtime capability查无definition、client lifecycle hidden click、SDK messagewait B waits timeout、MCP unavailable旧预期、Alchemist pulse提示代码静态regex、Shelf archived输出当前Artifacts owner码与旧Shelf wrapper预期。不能记回归通过，先核每条真实边界，禁止改生产来迎合旧夹具/regex。80两文件Store/真实Browser与Alchemist包内Vitest实际退出0，完整footer数字随后核。FIX79-01：原注册fixture改当前公开LocalHost.register，同形handler/AgentHost/真实SDK/Barriers保持，17原拒绝与持久化断言不动；FIX79其余按原因另补，不全局放宽时限/隐藏/MCP权限或跳过用例。
+
+FIX79-01已改两个fixture当前LocalHost.register并保存126874360，84两文件真实17条仍全失败：setup越过旧API后platform未running、第一请求503 actions.plugin_unavailable。不是效果业务断言失败，先沿supervisor/start实际record诊断，不恢复已删接口/弱化取消断言。80精确footer：两个root文件9/9，Alchemist25文件81/81，无skip/cancel。Coding control新version断言用的route-actions key应coding.control-run，capability_id仍coding.runs.control@2；只修lookup不改合同。W3-09-2既定按MCP名称调用未在tools/list可用的动作应actions.mcp_unavailable，实际action-tools.callTool只拒没view、不拒view.availability=false；按现行目录同一availability补此缺口，输入/output/授权/Agent与workflow直接invoke仍actions.connection_required不变，保现有真实model-unavailable断言。需要源变更后整体构建再定向回归与共享全量，不以改旧预期绕过该协议缺陷。
+
+84夹具setup深一层查明：实际supervisor failed/plugin.grant_denied，消息缺goals:read、goals:write、workspace:read，runtime record仍installed；之前17均503 actions.plugin_unavailable不证明产品恢复缺陷。18e4d15fd只给fixture显式既有Manifest必需权限，加MCP现行availability gate并改control route-key查找，保持owner/版本2/输入/模型barriers/所有原拒绝断言。85新整体build队列/实际阶段等原始结果（源变更必须整建），Root在b5ba组合保持冻结；#493已由原线10:52:01Z合f90bf70，Root没有替合/抢它分支；新CU-image SDK组合尚未纳本线，原beforeAccept正式SDK问题独立待答。
+
+FIX79 MCP判断纠正：上条按10-09旧测试推定协议缺陷不成立。唯一总spec§1 2026-10-10已定“原因与码与页面一致、外部工具记一行”，既有725879ff1/W3-09-2-01要求精确授权暂不可用仍由Host结算，tools/list隐藏而callByName保原owner拒绝+可信编号。Source复核拒绝18e4新availability早退gate，它会回归并抹掉诊断；已仅撤此自加行，更新model-unavailable旧预期及comment为Host connection_required，保真实W3-09-2及零模型副作用断言。86自身尚未开始，核唯一queue及只有sleep/无log-results后仅撤本人wrapper，未触foreign；85旧工程证据包含此错误gate不能记为新修正证据。下一整体build再跑MCP新现行用例/缺模型与修好的17Fixture真实业务，不重启重复driver，不问已决定问题。
+
+17夹具已查明缺必需grant并修6项，诊断one-off cleanup安装未running时stop报state_invalid只为诊断脚本失败，不计产品stop缺陷。86单份队列未启动就验证取消，exit143，状态不能写成回归执行/通过；恢复正确MCP gate后Source再次改变，下一整建必须用新源码。当前RootHEAD2f7662527、tempSDK五行，Src未含接受I26–I28、新main f90；此前85错误MCPgate工程日志保留。
+
+FIX79 Shelf输出旧预期：runtime-actions.refused本已明确Common ActionError原样穿透、普通错误才shelf.invalid。I25当前Artifacts同一拒绝已识别Common，真实400+artifact_archived原文与owner code artifacts.plugin_incompatible正确穿透；按既定统一码/跨入口合同只更新原archived选择输出case当前code，status/旧引用/expected_reference/没有覆盖原输出/后续列表全保。不恢复旧bare-class generic wrapper或扩大读取compat。
+
+FIX79-LIFETIME：current create已auto-select并codingDetail=true，旧测试随后点击隐藏directory row；新fixture通过真正可见directory-back→等待detail=false→点原row，保单次create/request/effect与卸载全部断言，生产不改。NETWORK-PULSE-01：原句/英文/匿名账号与HTML默认hidden静态断言全保，删失效的源码实现regex，将等价更强的实际可见性断言移入既有Chrome Alchemist client完整HTTP/SQLite测试；点击pulse/ideas/decisions/directions现行collection，唯pulse notice可见，不放宽timeout或跳过UI。这些四test文件尚未运行，不把修好源码记通过。
+
+
+**W3-02 Goals错误余项 I29（准备，未运行）。** 规划动作两个实际拒绝planning_method.not_found改为本插件唯一声明goals.planning.method_not_found；创建意图白名单拒绝mcp.unexpected_field改为goals.intent.unexpected_field，MCP传输自己拒绝未许可字段的mcp.unexpected_field保持。不是全局字符串替换。R-GOALS-OWNER-01：实际planning read/apply缺方法分别保原文案、动作kind invalid/默认400；项目apply HTTP现有特判404保留，规划版本和组合不变；R-GOALS-OWNER-02：真实Host的GoalEventApplication.createIntent在schema之外直接拒绝未许可字段（动作schema的actions.input_invalid仍保留）保details.fields、invalid/400、事件/Goal/关系和幂等状态不变，正常及重试路径保持。生产方各声明一次、不引入旧码alias或读取兼容；既有真实Host动作测试补编号与拒绝数据断言。Source类型/API/merge-base健康与纳I8后真实回归分开验收。
+
+
+**W3-02 Kernel缺Session错误 I30（准备，未运行）。** 已区分两个同名历史码的真正拒绝：Kernel action-authorship检查authorship:session且trusted runtime_session_missing，文案是缺稳定Session；Host mcp-event-identity检查runtime_id，文案是缺可信Runtime。只将Kernel声明/生产与五个实测其路径的测试期望改为kernel.runtime_identity_missing invalid；Host的mcp.runtime_identity_missing保持，不能全仓替换。R-KERNEL-OWNER-01：直接、nested wrapper、workflow与Feed promotion/offer/Gateway在缺Session时保原文案/400、zero handler与zero记录；补有效Session后原作者与合法执行保持。只有现行码改归属，无身份兜底、读取兼容、权限/schema或状态机变化；Source与整建后实际回归分别记录。
+
+
+I29 Source df02dd098e12cf12e14b9c98cb81ec53480865be已准备四文件36+/6-；Goals源码类型own/all0、API62文件2410声明无变，merge-base健康通过（本Source parent dc6821，只含I27，28类/0形状/10非owner）。独立复核在途，真实运行未做，尚未纳I8。I30首次Source类型89失败仅六条缺AJV借用依赖；补自己树的kernel node_modules软链再做89b，不能将首次失败记通过。隔离SDK新候选923e5a40（含#493 CU-image）加原beforeAccept最小补丁已只在新临时工作树准备，未build/pack、未推上游/替vendor；唯一87仍未启动，不重复排新构建。
+
+
+I29首轮Source复核拒绝两个P1：factory第二参本为details却沿用ActionError options导致details多包一层；web-planning旧码比较遗漏会丢原404。已传原始fields并同片同步唯一HTTP消费者，新真实HTTP missing apply断言404/原文案/项目读取不变，原断言不放宽。更正同段原状态描述，不把首轮静态通过当接受或运行通过。I30 Source89b补自己借用AJV链后own/all0，API无变/健康通过；先修正I29再继续，未纳I8。
+
+
+**W3-02 MCP两个错误归属 I31（准备，未运行）。** MCP适配自己的URL构造失败web.url_invalid改为mcp.url_invalid，自己的Runtime Goal Tree批准入口拒绝goals.goal_tree_proposal.runtime_decide_unsupported改为mcp.runtime_decide_unsupported；它们不属于Web页面或Goals领域。原createError端口与Host共同ActionError适配保留，同一拒绝条件、原文案/details、默认invalid/400、调用顺序保持，管理路径和真正Goals错误不动。R-MCP-OWNER-01：公开MCP URL呈现真实无效base拒绝/合法地址成功；公开dispatch Runtime批准拒绝原文案且零业务invoke，management真实同动作授权/拒绝原有测试保持。Source类型/API/健康与I8整建运行分别记录；无工具名/schema/受众/身份/日志合同改变，无旧码alias。
+
+
+I29最终e8b0e1efd关闭两个P1后已独立Source接受；90实际Goals/Kernel源码own/all均0、健康通过class28/shape0/owner9。I30实际3bc3ba3a6六文件14+/7-已提交，现有协调会话只读复核在途，真实回归仍待整建。#488已由其负责人合入，协调会话核GitHub主线f6f2ce47d8b35265479c800a7222675335e5b28f、其当前435所有必需CI成功；#489由Pages唯一owner接formatter/资源/最终共享全量。Root I8仍b33/5ba，未静默把新main或Source结果当组合证据。
+
+
+**W3-02 Installed Plugin四个技术拒绝归属 I32（准备，未运行）。** installed-plugin-host已归Plugin安装域，四个执行安装身份或模型caller缺失/失效拒绝的host.capability_denied改为现行plugin.capability_denied。只改四个码字面量；SandboxError保留：runner.ts只将该技术类的code/message交回沙箱，并据其可信outcome判未知结果，换成普通ActionError会丢失原回执，不能为清类而改这个IPC合同。现行plugin.capability_denied已在公开Plugin唯一错误声明中为invalid，无新alias、声明、factory、读取兼容或宽松异常映射；原条件、文案、SandboxError身份与outcome/默认状态保持。R-INSTALLED-OWNER-01：AST实际生产四点只改owner前缀，shared Sandbox runner已知拒绝/未知结果、installed-plugin-host真实停用/关闭/重启/模型声明与零业务效果相关回归保持，merge-base健康不增且该域wrong-owner清零。改名属机械代码归属修正，不新增仅测试包装的自证用例；Source与I8整建实际回归分记。
+
+
+I30 3bc3ba3a6已独立Source接受，文档c82a96e61补两处Kernel缺稳定Session码；I31 93bdb31a7四文件29+/5-，Source MCP own/all0、API无变，初次91健康因旧CALL-CHAINS死引用失败、91b更正同片文档后通过（class28/shape0/owner7），独立复核在途。I32 installed-plugin-host单文件四码机械归属修正4+/4-：Source92 scoped1file0/all223（不是全Host0），API62/2410无变、健康通过class28/shape0/owner6。I32 parent04a已含I28但未纳I29–I31，因此该数字不可与另一Source的7直接当Root组合数；纳全片后再实量。Source parent含I26的误写已纠正。唯一87仍排A2，SDK新候选88尚未build/pack。
+
+
+**维护八隔离演练（准备）。** 41库只读原克隆保持不写；从中仅对已核607映射实际命中的三个项目库另建可写临时演练副本，原Home仍不读写，Keychain/原调用日志不读。当前确定六个scalar旧码和一个source_fault JSON槽需要改名，十五个unknown scalar及另一个unknown JSON槽保持原样。演练只应用现有已核owner映射：检查真实SQLite失败回滚、合法更新、二次运行零修改，逐行对照目标表除既定字段外完全不变，逐表schema/行数及integrity保持。将“原只读克隆零写入”和“新演练副本七字段更新”分别记录；这是准备真实Home操作的证据，不是授权、同步备份或已维护真实Home。完整当前Source额外映射/部署后的窗口仍待另验与原待决。
+
+
+维护八93实际演练成功：三个新临时可写副本分别1/4/2行，共七处（六scalar+一producer限定JSON），每库注入第一次更新后的失败都真实ROLLBACK恢复目标表；成功提交后逐行与仅错误槽变化的独立expected相等，schema/各非调用日志表行数/SQLite integrity保持；二次运行每库0变化。原Home0写、受保护只读克隆0写、Keychain与历史调用日志正文未读/改。未知十五scalar及一个JSON值由完整目标行对照证明未动。不是跨库同步快照、不是已维护真实Home；额外Source映射及部署后原窗口仍待最终决定/实核。I31/I32已独立Source接受，92 scoped0/all223和91/92不同分支wrong-owner数按各自上下文保留。
+
+
+**Coding等待状态 I33（根因假设/准备）。** 79的B waits超时与现行startRound顺序存在明确交错：follow在两次await beforeWrite、await startDelegation和setState running/last-start存储之前启动；立即结束且已park的Run可能先写queued，迟到的发送回执随后改回running，同时wake可先读缺失origin_task。87仍待实际诊断trace，先在另一Source准备最小顺序修正，不能预记证实。R-CODING-RECEIPT-01：先完成原调用复查及running/last-start原收口，再启动activation follower；即时terminal/parked回执仍最终queued，wake原任务、重复唤醒/重启/撤回与cancel原断言保持；不延长超时、不给mock加延迟/跳过。R-CODING-RECEIPT-02：原取消/撤权/停用beforeEffect仍先于这些调用方记录，拒绝不写调用方偏好/起始状态；已接受的Run由activation独立跟踪其状态，Run事实仍由Agent owner；必须与17项真实Coding效果控制一起在新整体构建后验证。Root受测I8暂不改，直到87终结。
+
+
+I33 Source候选已准备3+/1-：仅将同一follow移到原last-start写完后，并在原即时waitRun回归加验收编号注释。Source94 Coding自身0/all2（全程序两条未借用依赖不计全绿）、merge-base健康通过，API未改；不是Root I8当前改动，也不是87实际证实/运行通过。下一步87取状态trace后按原因裁决，再统一纳已接受I26–I32、main f6与新隔离SDK；遵守唯一构建队列，不重复启动。
+
+
+I33首个fcd345dc3仅移末尾候选被Source复核拒绝P1：start成功后原收尾fence仍可拒绝，若直接末尾注册则后台跟踪丢失。已在同一Source将原post-start收口包try/finally，成功收口后或拒绝收口后才注册同一activation follower；原beforeWrite两栅栏、delegate顺序、调用方保存均保留。原coding-session-follow补cancel首栅栏与revoke第二栅栏两个真实router/SQLite交错，调用方拒绝/未写private起始偏好与running，activation仍须消费running→review→completed并发终态事件；原activation stop晚响应拒绝完整保留。94原类型/健康不能关闭这反例；修正后94c与新运行另计；94b修改脚本因重复变量SyntaxError未执行，无源码变化，其检查不计修正证据，仍不改受测Root I8。
+
+
+I33最终674a8a321（含fcd的顺序候选修正）已独立Source接受：两post-start fence+原caller收口逐句保持，try/finally使已接受Run的activation跟踪不因caller拒绝而丢失；源类型94c自身0/all2与健康通过，实际message-wait/session-follow/effect矩阵仍未跑。原Src三片I29–32与补文档均Source接受。#495原6dd全部CI通过且固定head密钥扫描干净，但精确head合并被保护拒绝“未同步main”；未合入/未绕过保护，Root已expected_head update-branch，等新CI。下一受测组合须新main/新CU-image隔离SDK，而不是旧85。
+
+
+**Source错误归属共同集成95。** 自有w3-binding另分支owner-convergence-source将已接受I26–I33串行纳为8c7d367e0，未触受测I8。实际health95对merge-base2768通过：28错误子类、0坏形状、0非owner错误码，当前声明57owner/62API文件2410项；原Source的7/6不是相加，现以共同实量0确认。Coding Source自身0/all2已展开核明：两条均来自未借用的design-system lucide依赖及其关联unknown类型，非新Coding错误，不能当全树类型0。Root新main整体工程仍待；未为等队列重复构建。#495新head9dff18ef9a567786b3a555f9a79b28f64cd9989b已有新CI在跑，原6dd通过不能替新head。
+
+
+#495实际合入：2026-10-14T12:36:37Z，head9dff18ef9、merge9abcb963646c5964fae1b542a93de4de403734d4。同步main后新head五必需检查+Product实际SUCCESS，固定head本地scanner对f6f2 merge-base八新增行无secret；沿§1已记录原merge-seq门槛合并，Linux probe仍报告运行，不声称通过。没有admin、删除分支、修改原作者本地树或重启其会话。#489仍Pages唯一owner在途。Source95b补自有Source树缺失lucide依赖链接后，Coding/Goals/Kernel/MCP四包源码各own/all0；这是旧main2768分叉的已接受Source集成8c7d，不是Root I8最新main整建/最终全量。
+
+
+**W4-11后续开工证据（只读准备，未实现）。** 当前storage/home-sqlite.ts仍19名PERSONAL_HOME_SQLITE_STORES，installer/uninstall.ts的purge另外手列projects/backups/logs/sessions/shelf/runtime目录；home-store-baselines测试又单独列18库基线，尚无共同全集。现行contracts/platform/plugin-database.ts已定义可信Host入口PluginDatabaseDeclaration（store_name/version/schema/read_permission/write_permission），plugin-platform与home-plugins从该入口提供database；Manifest和动作参数不能选择Home数据库。W4-11须复用这一信任边界，由storage提供通用登记/枚举、owner提供自身schema与位置，Host提供平台库/组合和真实Home，不能在storage import插件/Module实现或另造可让外部插件指定任意Home路径的Manifest入口。现有单库baseline拒错版、schema fixtures与已接受#20 purge全集决定保留；新登记实际接入baseline/purge/维护后才验收，W5-16一致快照仍需常驻Host协调暂停，不能把93的三个隔离副本演练称该功能。当前只完成必要路径读取，优先兑现已协调SDK88/I8验证窗口。
+
+
+87真实终结：1条0pass/1fail/0skip，17.57秒；诊断B会话state=running但SDK的w1.state=waiting存在，与I33原顺序覆盖竞态一致，不能当修复后通过。已按精确备份恢复临时diagnostic test。新923+beforeAccept隔离SDK88实际build/tests/pack均0，11文件206/206且无类型错误，SHA256 317d097a1e44f84e501413283bdfa94c4b43ee4ac86a689957b9b83d2853597c，尚未正式上游/换vendor；已在候选具体可审后弹窗询问当前正式上游/换包/删旧vendor授权，未回复不依赖它执行。Root保存仅pkg1/lock5临时patch、恢复自身pkg/lock后merge main9ab，出现27冲突，I8仍merge进行中；96/97未启动，SDK短段已结束并释放名额，已协调Pages可先build/资源、共享全量再排。冲突须保main的AssistantOffers/shared-card新路径与状态展示，并保Root共同错误、原caller lifetime和单请求Helper/异步保存；不能整块ours/theirs或手合派生baseline/assets。
+
+
+I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定已解决。保main AssistantOffers/cardView/shared question/card路径，删除Root旧重复service helper，fail端口复用assistantErrors现行分类；question拒绝用details.errors，经统一requestError.body送字段提示。保Rootcomposer冻结intent/重试身份、完整failure诊断；stale card redo由main Host负责，原send-count按实际3→2而冻结body断言保留。状态环以原Root局部JS标识符映射main新片，保读失败/晚回执护栏；Goals SDK/design deps与lock/registry取并集。served-page-text为main唯一formatter；baseline/assets取main待真实整建派生，不手合。I8新临时SDK88脚本首尝试YAML quoted key锚点未命中，只写pkg；修quoted anchor后实际仅pkg1+/1-、lock5+/5-，无optional节点删除。整合只读再发现新main问题提交/redo的schedule/refresh与Root已定义poll/reload不符，已最小修正；Workflow新helper error状态环改failed，保存失败文案保留，真实拒绝/恢复路径需再验。新的96/97仍未开始，等待Pages15文件短回归释放名额。
+
+
+**2026-10-14：当前CU-image同步接受检查正式换包与组合96。** 上游Prologue #20已推送，head4007a93c/baseb88，4文件47+/2-，密钥扫描47行无发现，独立源码复查无阻塞；当前上游确未配置GitHub Actions，不称远端CI通过。从该head干净git archive执行sdk-formal-acceptance90：offline安装、整体SDK build、公开API/控制五文件66/66、pack全退出0且无类型错误；产物1,123,719字节、SHA-256 317d097a1e44f84e501413283bdfa94c4b43ee4ac86a689957b9b83d2853597c，与88候选逐字节相同。Root按授权在9ed906929正式替换vendor、删除旧CU-image tgz和两来源文件；旧1,123,638字节/SHA b45753fa/gitBlob 0d38581afa4d457b1d1b540126571017dae6b7af/来源923e5a40已入历史记录。25个历史源码提交对上游main c5d35d7f实际逐项核祖先，只有08b和923两个过渡提交不在main，如实记录。96 actual install0/build1，仅main Offers抽离合并后的五个未使用import；后续未运行。028769de4删除这五import并修正式包引用为../../vendor（相对路径已实测存在）；96b当时install/build/根types/workspace-types/API/actions已退出0，健康/资源/边界仍运行、97/98未开始。新真实问卷纠错测试与Workflow CAS Ring断言已写入，98实际验证及整线§12.4仍待。原Home零写入。
+
+
+**组合96b终态与96c重新冻结。** 96b九步中八步实际退出0，仅boundary退出1：登记表仍点旧CU-image文件名。不是资源、类型或错误owner失败。健康对main merge-base实测150巨大单元、496内部测试引用、0混源、28错误子类、0错误形状、0非owner码、57owner；29资源合计9,866,161字节，workbench1,100,249/pages48,801/editor707,935，均通过只降门禁。workbench比main只减471字节，不能作为Pages13,712字节的独立donor证明。82d8ff56a仅同步SDK登记文件名、提交这两份实测派生表，并补同一问卷用例最终正文DOM/无assistant-problem/原question-call tool_result精确答案断言。96c已冻结该head重跑，无新SDK版本或门禁阈值改动；96b不记全通过，97/98仍未运行。
+
+
+**96c工程闭环（实际通过，非最终全量）。** frozen head82d8ff56a、比较main9abcb9636，offline/install、whole build、根types、workspace-types、API、actions、actual-base health、assets、boundary九步全部退出0；原始结果i8-joint-preflight96c-results.json与各96c日志已核，代码树clean。71包/1991源码/8501imports/246依赖边/61合同子路径，正式SDK路径与登记已通过边界，不再留下外部file临时例外。97已在该冻结head启动（25普通+2浏览器），98四文件随后，结果未归回不记通过。远端main随后核得774acaf57（#496 A2 shared question card，13:25:42Z合入，29文件与助理/Coding问卷路径有交集），本轮不取消或改树；须在结束后纳入新main，当前证据仍只支持9ab组合，不称最新main最终证明。
+
+
+**97夹具死锁的实际处置（不记通过）。** 冻结82d8组合已开始实际Runtime回归，coding-effect-control的report cancel/revoke两项通过后，replace分支在原动作仍注册时重复registerProvider，被Kernel按原合同拒绝；异常绕过人为SDK-read屏障的release，30秒test timeout后的local.close又等待该operationTail，导致file子进程不结束。已只读核test62–65/Kernel重复注册拒绝，并sample确认该精确子进程26194事件等待（非忙循环）；核parent26129及准确文件后仅SIGTERM本人子进程，driver继续其余文件。该文件计失败，原日志和sample/处置记录保留。后续修fixture保存原disposer、先取definition再真实撤销/注册，finally释放屏障；不放宽Kernel、不改生产语义或跳过9种业务组合。当前受测树仍冻结，修复及重跑在97/98结束后进行。runtime97-head原base774a仅为共享tracking ref开始观察值，另记录实际sourceMergeBase9ab，测试未包含A2。
+
+
+**97/98短段终态与后续修正（真实运行）。** 97普通实际188：183通过、4失败、1取消、0跳过（495393ms）；含被精确终止的effect-control文件失败，其他三Coding Runtime及Goal HTTP细项保原栈。97两文件浏览器2条：1通过1失败、0取消/跳过，Coding正常打开错误地等旧window=1，真实打开窗为6；effect事件仍1，不能全局替换。98生产Node/SDK11条：10通过1失败、0取消/跳过；W2-18-MODEL-SWITCH六种configuration/credential/actual SDK acceptance的取消/撤权全部通过，唯一独立问卷operate角色fixture未接审批入口。98四文件浏览器13条：11通过2失败、0取消/跳过；send-intent五条及Workflows五条（真实CAS failed→saved）全通过，两个失败为page-card旧CSS selector及choice tool_result错误期待type。真实问卷已走到最后形状断言，不能据此记case通过。Root已关闭原两session并明确释放名额，Pages后续短构建交由其原owner协调；没有Root新队列。2916f1bbe只修8个现行fixture/断言：真实注册disposer与finally/cleanup释放barrier、method_owner可信上下文、SDK问卷审批queue、confirmed plan真实revision显式传入并观察失败、Host共享卡run/dismiss、choice结果形状、Coding正常读取6而effect保1，以及Goal404原文案+call_id。原零副作用/持久化/重启/graph/report约束保留；这些修正尚未运行。正把远端774a A2纳入I8，有5处合并冲突，待逐项保留共同错误、共享interaction与新questionAnswer，不称新组合验证通过。
+
+
+**774a A2合并源码完成，未运行。** Root 6b1dd019c合并远端774acaf57，29个主线文件保留。5冲突逐项裁决：HTTP用现行plugin-SDK questionAnswer但保assistantErrors.invalid与details.errors；island保frozen-send、沿main host.interaction不重复内嵌client；初始化共享interaction并保Root原api属性；健康/资源两派生表用main占位、待实测更新，不手合数字。无新运行或第二构建队列，当前构建窗口归Pages原owner。2916f1bbe的fixture修正及该合并须源核、整建、定向实跑后才验收；不能把96c的旧9ab证明称新774a证明。后台命令三失败继续独立定位，已确认method_owner缺失只解释state400、显式confirmed plan_revision缺失解释graph barrier超时，approval未出现尚未关闭。
+
+
+**Runtime model请求真实字节的夹具诊断。** Source c761c7750已修两处mock的JSON.parse(String(init.body))：正式SDK的模型请求是TextEncoder生成的Uint8Array，Node-outbound原样交给fetch；String(Uint8Array)为逗号数字而非JSON。activation mock在第一个start-command返回之前即抛错，graph mock也会在补plan_revision后继续失败，因此两者改为真实string/Uint8Array解码，原消息/任务图/用户verdict和固定报告断言保留。这是独立于method_owner的另一项已确认夹具根因，不是生产SDK未发审批；当前尚未重跑。0c49dc10c另把I6 number题的min/max改为15/120数值，实际SDK约束只收finite number；保原逐题拒绝和有效45续跑断言。Source独立复查接受6b1的8fixture/A2生产冲突，无新增阻塞。Root下一99整体/100七普通+六浏览器只已准备、未排队；Pages现有owner正在其获分配的短窗口，结束明确释放后串行接续。Prologue #20已ready for review、仍open，六项正式SDK模型切换消费证明写入PR，不称其周边11项全过或上游CI存在。

@@ -645,7 +645,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         if (next.status === "done") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: next.capability_id } }));
         render();
         // A card set aside leaves the list: focus moves to the next card, or back to the input when none is left.
-        if (hadFocus) (node.isConnected ? node.querySelector("[data-ix-actions] button, [data-ix-operation]") : (neighbour && neighbour.isConnected && neighbour.querySelector("button")) || input)?.focus();
+        if (hadFocus) (node.isConnected ? node.querySelector("[data-ix-action], [data-ix-operation]") : (neighbour && neighbour.isConnected && neighbour.querySelector("button")) || input)?.focus();
       } catch (error) { showProblem({ message: error.message }); lock(false); if (hadFocus) button.focus(); }
     } });
   };
@@ -1344,7 +1344,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     node.removeAttribute("data-flash"); void node.offsetWidth; node.setAttribute("data-flash", "");
     setTimeout(() => node.removeAttribute("data-flash"), 700);
     // The card's own decision first (允许执行, 回答, the action), not a copy button inside the code it shows.
-    (node.querySelector('.assistant-card-actions button:not([disabled]), [data-ix-actions] button:not([disabled]), [data-ix-focus]')
+    (node.querySelector('.assistant-card-actions button:not([disabled]), [data-ix-action]:not([disabled]), [data-ix-focus]')
       || node.querySelector("button:not([disabled]):not(.assistant-code-copy):not(.assistant-code-more), input, select, textarea"))?.focus({ preventScroll: true });
   };
   const nextStep = (work) => {

@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { actionEffect, actionFieldInput, actionFieldValue, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { AgentActionOffer, AgentStartAuthority } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AssistantCard, AssistantContextSnapshot, AssistantPageCardInput, AssistantPreparedCard, AssistantScope } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { allowsNull, assistantCardHtml, cardInputValues, cardView, plainObject, type SchemaProperties } from "./assistant-card-view.js";
@@ -244,6 +245,14 @@ export class AssistantOffers {
     const card = this.ports.store.card(work.work_id, cardId);
     if (!["ready", "needs-input", "failed", "stale"].includes(card.status)) return cardView(card);
     return cardView(this.ports.store.updateCard(card, card.revision, { status: "dismissed" }));
+  }
+
+  /** A suggestion whose moment has passed, or about an object changed by hand since, is not offered any more. */
+  async sweep(work: StoredWork): Promise<void> {
+    for (const card of this.ports.store.cards(work.work_id).filter(item => item.status === "ready" || item.status === "needs-input")) {
+      const moved = this.outdated(card, card.input, false) ?? (card.target ? await this.targetMoved(work, card) : null);
+      if (moved) { try { this.ports.store.updateCard(card, card.revision, { status: "stale", outcome: moved }); } catch { /* Clicked meanwhile: that click decides. */ } }
+    }
   }
 
   private outdated(card: StoredCard, input: unknown, edited: boolean): string | null {

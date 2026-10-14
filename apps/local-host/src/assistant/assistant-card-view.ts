@@ -75,6 +75,8 @@ export function instantIn(day: string, time: string, zone: string | undefined): 
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day.trim()), clock = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
   if (!match || !clock) return null;
   const wanted = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(clock[1]), Number(clock[2]));
+  // Date.UTC rolls a 25th hour or a 32nd day over into the next one: a value that does not read back as written names nothing.
+  if (new Date(wanted).toISOString().slice(0, 16) !== `${match[1]}-${match[2]}-${match[3]}T${clock[1]!.padStart(2, "0")}:${clock[2]}`) return null;
   let at = wanted;
   for (let step = 0; step < 2; step += 1) at += wanted - wallClock(at, zone).utc;
   return Number.isFinite(at) && wallClock(at, zone).utc === wanted ? new Date(at).toISOString() : null;
@@ -97,14 +99,20 @@ export function cardInputValues(values: unknown, zone: string | undefined): Reco
   }));
 }
 
+/** The weekday beside a day, as the page's client writes it while the person types. */
+const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"] as const;
+const weekdayOf = (day: string, say: (text: string, values?: Record<string, string | number>) => string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(Date.parse(`${day}T12:00:00Z`)) ? say(WEEKDAYS[new Date(`${day}T12:00:00Z`).getUTCDay()]!) : "";
+
 /** One field the person may still change: picked from its choices, a day typed, a moment as a day and a time in their zone. */
 function cardField(field: AssistantCard["fields"][number], question: string | undefined, say: (text: string, values?: Record<string, string | number>) => string, zone: string | undefined): InteractionField {
   const label = question ?? say(field.label);
   if (field.options) return { id: field.key, label, control: { kind: "choice", options: field.options.map(option => ({ value: option.value, label: option.label, selected: option.value === field.raw })) } };
-  if (field.input === "date") return { id: field.key, label, control: { kind: "date", value: field.raw ?? "" } };
+  if (field.input === "date") return { id: field.key, label, control: { kind: "date", value: field.raw ?? "", weekday: weekdayOf(field.raw ?? "", say) } };
   if (field.input === "datetime") {
     const at = Date.parse(field.raw ?? ""), clock = wallClock(Number.isFinite(at) ? at : Date.now(), zone);
     return { id: field.key, label, control: { kind: "datetime", date: Number.isFinite(at) ? clock.day : "", time: Number.isFinite(at) ? clock.time : "", zone: clock.offset,
+      weekday: Number.isFinite(at) ? weekdayOf(clock.day, say) : "",
       dateLabel: say("日期"), timeLabel: say("时刻（24 小时制）") } };
   }
   return { id: field.key, label, control: { kind: "text", value: field.value, multiline: field.value.includes("\n") || field.value.length > 60 } };
@@ -120,6 +128,7 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
   const editable = open ? card.fields.filter(field => field.editable) : [];
   const shown = card.fields.filter(field => !editable.includes(field));
   const state = STATUS[card.status];
+  const actions = open ? [{ id: "run", label: card.status === "failed" ? `${say("再试一次")}：${card.title}` : card.title, variant: "primary" as const }, { id: "dismiss", label: say("忽略") }] : [];
   const origin = card.from ? say("来自「{title}」页面", { title: card.from.title || card.from.surface })
     + (card.source_object?.title ? ` · ${say("选中自《{title}》", { title: card.source_object.title })}` : "") : "";
   return renderInteractionOperation({
@@ -127,8 +136,9 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
     badge: { label: say(EFFECT[card.effect]), tone: card.effect === "irreversible" ? "failed" : "quiet" },
     target: { prefix: card.provider, label: card.capability_title }, ...(origin ? { about: origin } : {}), impact: card.summary,
     ...(editable.length ? { fields: editable.map(field => cardField(field, asked(field.key), say, zone)) } : {}),
-    ...(shown.length ? { preview: { title: say("将使用这些内容"), rows: shown.map((field): [string, string] => [asked(field.key) ?? say(field.label), field.value]) } } : {}),
-    ...(open ? { actions: [{ id: "run", label: card.status === "failed" ? `${say("再试一次")}：${card.title}` : card.title, variant: "primary" as const }, { id: "dismiss", label: say("忽略") }] } : {}),
+    // The buttons come after everything that would run: under the exact values when there are any, else under the fields.
+    ...(shown.length ? { preview: { title: say("将使用这些内容"), rows: shown.map((field): [string, string] => [asked(field.key) ?? say(field.label), field.value]), ...(actions.length ? { actions } : {}) } }
+      : actions.length ? { actions } : {}),
     ...((state && !open) || card.outcome ? { status: { text: (state ? say(state) : "") + (card.outcome ? `${state ? "：" : ""}${card.outcome}` : ""), busy: card.status === "running",
       ...(card.status === "failed" ? { tone: "failed" as const } : ["unknown", "stale", "needs-input"].includes(card.status) ? { tone: "waiting" as const } : {}) } } : {}),
     ...(card.status === "stale" ? { recovery: [{ id: "redo", label: say("请助理按最新状态重新准备") }] } : {}),

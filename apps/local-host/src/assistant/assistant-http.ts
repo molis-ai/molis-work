@@ -4,7 +4,7 @@ import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AssistantPageCardInput, AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
-import { dispatchNativePluginJsonHttp, writeNativePluginJsonResponse } from "../native-plugin-http.js";
+import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativePluginJsonResponse } from "../native-plugin-http.js";
 import { L } from "../web-locale.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
@@ -141,7 +141,6 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
   return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/assistant", maxBodyBytes: url.pathname.endsWith("/api/assistant/attachments") ? 11_500_000 : 400_000,
     async handle({ method, pathname, body }) {
       const { service, store } = assistantServiceFor(ports);
-      const drafts = questionDrafts(store);
       const parts = pathname.slice("/api/assistant/".length).split("/").map(decodeURIComponent);
       if (method === "GET" && parts.length === 1 && parts[0] === "works") return { status: 200, body: { works: await service.list() } };
       // The works that relate to one object here: for that object's own page ("belongs to …", continue it).
@@ -250,27 +249,10 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materialImage(workId, parts[3]!) } };
       if (method !== "POST") return null;
       if (parts.length === 3 && parts[2] === "control") return { status: 200, body: await service.control(workId, body as never) };
-      // The question card sends what its fields hold; it becomes the Runtime's answer here, and its draft goes once it is taken.
-      if (parts.length === 3 && parts[2] === "answer") {
-        const answer = body.values === undefined ? {} : assistantAnswerFrom(body.values);
-        if (!answer) throw new AssistantError("assistant.invalid", "请先回答再提交");
-        const view = await service.answer(workId, { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
-          ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
-          ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer });
-        drafts.drop(workId, String(body.pending_id ?? ""));
-        return { status: 200, body: view };
-      }
-      if (parts.length === 3 && parts[2] === "question-draft") { drafts.save(workId, String(body.pending_id ?? ""), body.values); return { status: 200, body: { ok: true } }; }
+      const interaction = await interactionRoute(workId, parts, body, service, store, ports.projectRef);
+      if (interaction) return interaction;
       if (parts.length === 3 && parts[2] === "draft") return { status: 200, body: { work: service.saveDraft(workId, body.draft as string) } };
       if (parts.length === 3 && parts[2] === "rename") return { status: 200, body: { work: await service.rename(workId, Number(body.revision), String(body.title ?? "")) } };
-      if (parts.length === 5 && parts[2] === "cards" && parts[4] === "run") return { status: 200, body: await service.offers.runCard(workId, parts[3]!, { revision: Number(body.revision), values: body.values }) };
-      if (parts.length === 5 && parts[2] === "cards" && parts[4] === "dismiss") return { status: 200, body: service.offers.dismissCard(workId, parts[3]!) };
-      // A card that went stale is prepared again only when asked: the request goes in as the page's words, nothing runs in its place.
-      if (parts.length === 5 && parts[2] === "cards" && parts[4] === "redo") {
-        const card = service.offers.card(workId, parts[3]!);
-        return { status: 200, body: await service.send({ work_id: workId, request_id: randomUUID(), text: L("建议「{title}」没有执行：{why}。请读取最新状态，按现在的情况重新准备这一项的操作卡。",
-          { title: card.title, why: card.outcome || L("数据在建议之后变化了") }) }, ports.projectRef ? { project_ref: ports.projectRef } : {}, "page") };
-      }
       if (parts.length === 3 && parts[2] === "mode") return { status: 200, body: await service.setExecutorMode(workId, String(body.mode ?? "")) };
       if (parts.length === 3 && parts[2] === "take-back") return { status: 200, body: await service.takeBack(workId) };
       if (parts.length === 4 && parts[2] === "undo") return { status: 200, body: await service.undo(workId, parts[3]!) };
@@ -284,23 +266,55 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       return null;
     },
     // Questions, cards and the next steps go out drawn, in the person's language (the page only binds them).
-    write(response, result) {
-      const { service, store } = assistantServiceFor(ports);
-      drawAssistantReply(result.body, { say: L, card: card => service.offers.html(card, L),
-        drafts: workId => { try { return questionDrafts(store).read(workId); } catch { return {}; } } });
-      writeNativePluginJsonResponse(response, result);
-    },
+    write: (response, result) => writeDrawn(ports, response, result),
     mapError(error) {
-      // A questionnaire answer the Runtime refused: each question's reason, beside its field.
-      const refused = error as { code?: string; message?: string; problems?: unknown };
-      if (refused?.code === "agent.answer_invalid") return { status: 400, body: { error: refused.message, code: refused.code, ...(Array.isArray(refused.problems) ? { errors: questionErrors(refused.problems, L) } : {}) } };
       if (error instanceof AssistantError) {
         const status = error.code === "assistant.not_found" ? 404 : error.code === "assistant.expired" ? 410 : error.code === "assistant.scope" ? 403
           : ["assistant.conflict", "assistant.pending_request", "assistant.busy", "assistant.stale", "assistant.state", "assistant.needs_check"].includes(error.code) ? 409 : 400;
-        return { status, body: { error: error.message, code: error.code, ...(error.action ? { action: error.action } : {}), ...(error.work ? { work: error.work } : {}) } };
+        return { status, body: { error: error.message, code: error.code, ...(error.action ? { action: error.action } : {}), ...(error.work ? { work: error.work } : {}), ...("errors" in error ? { errors: error.errors } : {}) } };
       }
       if (error instanceof AssistantStoreError) return { status: error.code === "assistant.not_found" ? 404 : 409, body: { error: error.message, code: error.code } };
       return { status: 500, body: { error: error instanceof Error ? error.message : "助理暂时无法完成，输入已保留", code: "assistant.failed" } };
     },
   });
+}
+
+/** A reply with its questions, cards and next steps drawn (the page only binds them). */
+function writeDrawn(ports: AssistantHttpPorts, response: ServerResponse, result: NativePluginJsonResult): void {
+  const { service, store } = assistantServiceFor(ports);
+  drawAssistantReply(result.body, { say: L, card: card => service.offers.html(card, L),
+    drafts: workId => { try { return questionDrafts(store).read(workId); } catch { return {}; } } });
+  writeNativePluginJsonResponse(response, result);
+}
+
+/**
+ * The question card's and the action cards' own routes (specs/ai-interaction-experience A1, H2): an answer as the card's
+ * fields hold it, a half-written answer kept with the work, a card run, set aside or asked to be prepared again.
+ */
+async function interactionRoute(workId: string, parts: string[], body: Record<string, unknown>, service: AssistantService, store: AssistantStore,
+  projectRef: LocalHostProjectReference | undefined): Promise<NativePluginJsonResult | null> {
+  const drafts = questionDrafts(store);
+  // The card sends what its fields hold; it becomes the Runtime's answer here, and its draft goes once the answer is taken.
+  if (parts.length === 3 && parts[2] === "answer") {
+    const answer = body.values === undefined ? {} : assistantAnswerFrom(body.values);
+    if (!answer) throw new AssistantError("assistant.invalid", "请先回答再提交");
+    const view = await service.answer(workId, { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
+      ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
+      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }).catch((error: { code?: string; message?: string; problems?: unknown }) => {
+      // A questionnaire answer the Runtime refused: each question's reason goes beside its own field.
+      if (error?.code !== "agent.answer_invalid") throw error;
+      throw Object.assign(new AssistantError("assistant.invalid", String(error.message)), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, L) } : {});
+    });
+    drafts.drop(workId, String(body.pending_id ?? ""));
+    return { status: 200, body: view };
+  }
+  if (parts.length === 3 && parts[2] === "question-draft") { drafts.save(workId, String(body.pending_id ?? ""), body.values); return { status: 200, body: { ok: true } }; }
+  if (parts.length !== 5 || parts[2] !== "cards") return null;
+  if (parts[4] === "run") return { status: 200, body: await service.offers.runCard(workId, parts[3]!, { revision: Number(body.revision), values: body.values }) };
+  if (parts[4] === "dismiss") return { status: 200, body: service.offers.dismissCard(workId, parts[3]!) };
+  // A stale card is prepared again only when asked: the request goes in as the page's words, nothing runs in its place.
+  if (parts[4] !== "redo") return null;
+  const card = service.offers.card(workId, parts[3]!);
+  return { status: 200, body: await service.send({ work_id: workId, request_id: randomUUID(), text: L("建议「{title}」没有执行：{why}。请读取最新状态，按现在的情况重新准备这一项的操作卡。",
+    { title: card.title, why: card.outcome || L("数据在建议之后变化了") }) }, projectRef ? { project_ref: projectRef } : {}, "page") };
 }

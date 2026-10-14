@@ -11,7 +11,7 @@ import { actionEffect, actionResultSubject, isSubjectReader, type ActionSubjectC
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
-  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantMemory, type AssistantMemoryCandidate, type AssistantMemoryPrefs, type AssistantMethod, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
+  type AssistantActivity, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantMemory, type AssistantMemoryCandidate, type AssistantMemoryPrefs, type AssistantMethod, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover, type AssistantMaterialText,
   type AssistantDiagnostics, type AssistantRoundDiagnostics,
@@ -768,12 +768,7 @@ export class AssistantService {
     const memory_candidates = await this.memoryCandidates(work.work_id);
     const { changes: memory_changes } = await this.memoryTrail(work, rounds, this.store.rounds(work.work_id), assistant?.memory ?? new Map()).catch(() => ({ changes: [] as MemoryChange[] }));
     const usage = work.executor.kind === "coding" ? null : await this.workUsage(work).catch(() => null);
-    // A suggestion about an object the person has since changed or removed by hand is not offered any more.
-    // A suggestion whose moment has passed, or about an object changed by hand since, is not offered any more.
-    for (const card of this.store.cards(work.work_id).filter(item => item.status === "ready" || item.status === "needs-input")) {
-      const moved = this.outdated(card, card.input, false) ?? (card.target ? await this.targetMoved(work, card) : null);
-      if (moved) { try { this.store.updateCard(card, card.revision, { status: "stale", outcome: moved }); } catch { /* Clicked meanwhile: that click decides. */ } }
-    }
+    await this.offers.sweep(work);
     return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
       cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}),
       ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(undoable.length ? { undoable } : {}), ...(memory_candidates.length ? { memory_candidates } : {}), ...(memory_changes.length ? { memory_changes } : {}),

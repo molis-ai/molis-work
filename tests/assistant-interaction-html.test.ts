@@ -8,6 +8,8 @@ import {
 
 // The Assistant's questions, action cards and next steps are drawn on the Host with the design system's shared parts
 // (specs/ai-interaction-experience A1, H2); the page only binds them. `say` stands in for the request's translation.
+/** The opening tag of the option with this value inside the field with this id, whatever order its attributes are written in. */
+const optionTag = (html: string, field: string, value: string) => html.slice(html.indexOf(`data-ix-field="${field}"`)).match(new RegExp(`<button[^>]*data-ix-option="${value}"[^>]*>`))?.[0] ?? "";
 const say = (text: string, values?: Record<string, string | number>) => Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
 
 const questionnaire: AgentPendingQuestion = {
@@ -64,14 +66,16 @@ test("AC-23: an open card is the shared operation card: the fields the person ma
     { key: "remind_at", label: "提醒", value: "", editable: true, raw: "2026-10-20T16:30:00.000Z", input: "datetime" },
   ]), missing: [{ field: "due", question: "哪天截止？" }] }, say, "America/Los_Angeles");
   assert.match(html, /data-ix-operation="card-1"/);
-  assert.match(html, /data-ix-field="list"[\s\S]*data-ix-option="inbox" role="radio" aria-checked="true"/, "a declared choice is picked, its current value selected");
+  assert.match(optionTag(html, "list", "inbox"), /role="radio" aria-checked="true"/, "a declared choice is picked, its current value selected");
+  assert.match(optionTag(html, "list", "work"), /aria-checked="false"/);
   assert.match(html, /<label id="card-1-due-label" for="card-1-due">哪天截止？<\/label>/, "a missing field is asked by its question");
   assert.match(html, /data-ix-field="due"[\s\S]*value="2026-10-20"/);
   assert.match(html, /data-ix-part="date"[^>]*value="2026-10-20"|value="2026-10-20"[^>]*data-ix-part="date"/, "a moment shows its day in the person's zone");
   assert.match(html, /value="09:30"/, "and its time there");
   assert.match(html, /GMT-7/, "and the zone it is read in");
   assert.match(html, /data-ix-preview[\s\S]*<dt>标题<\/dt><dd>报销<\/dd>/, "what the person cannot change shows as exactly what runs");
-  assert.match(html, /data-ix-action="run"[\s\S]*data-ix-action="dismiss"/);
+  assert.match(html, /data-ix-preview[\s\S]*data-ix-preview-actions[\s\S]*data-ix-action="run"[\s\S]*data-ix-action="dismiss"/, "run and set aside sit under everything that would run");
+  assert.match(html, /data-ix-weekday aria-hidden="true">周二</, "a day shows its weekday from the start");
   assert.match(html, /会修改，可在原处撤回/, "its effect is named");
 });
 
@@ -91,6 +95,8 @@ test("AC-23: a card's controls come back as the strings its input takes; a momen
   assert.deepEqual(cardInputValues({ list: ["work"], due: "2026-10-21", remind_at: { date: "2026-10-21", time: "09:30" }, note: { picked: [] }, cleared: { date: "", time: "" } }, "America/Los_Angeles"),
     { list: "work", due: "2026-10-21", remind_at: "2026-10-21T16:30:00.000Z", note: "", cleared: "" });
   assert.equal(cardInputValues({ at: { date: "2026-10-21", time: "25:00" } }, "UTC").at, "2026-10-21 25:00", "a time that names nothing goes as written, so the input's check says why");
+  assert.equal(instantIn("2026-02-30", "09:00", "UTC"), null, "nor does a day the month does not have");
+  assert.equal(instantIn("2026-10-21", "9:05", "UTC"), "2026-10-21T09:05:00.000Z", "an hour may be written with one digit");
   assert.equal(instantIn("2026-03-08", "02:30", "America/Los_Angeles"), null, "a time the clock skips names no instant");
   assert.equal(instantIn("2026-11-01", "12:00", "America/Los_Angeles"), "2026-11-01T20:00:00.000Z");
   assert.deepEqual(cardInputValues(["x"], "UTC"), {});
@@ -116,7 +122,8 @@ test("AC-21, AC-23: a reply's views and cards are drawn wherever it carries them
   const reply = { version: "v1", view: waiting };
   drawAssistantReply(reply, { say, drafts: () => ({ "pending-1": { q1: ["1"] } }), card: shown => `<card ${shown.card_id}>` });
   const drawn = waiting.rounds[0]!.awaiting_input[0] as AgentPendingQuestion & { html?: string };
-  assert.match(drawn.html ?? "", /data-ix-field="q1"[\s\S]*data-ix-option="1" aria-pressed="true"/, "the question is drawn with its draft");
+  assert.match(optionTag(drawn.html ?? "", "q1", "1"), /aria-pressed="true"/, "the question is drawn with its draft");
+  assert.match(optionTag(drawn.html ?? "", "q1", "0"), /aria-pressed="false"/);
   assert.equal((waiting.cards[0] as AssistantCard & { html?: string }).html, "<card card-1>");
   assert.equal((waiting as AssistantWorkView & { next_html?: string }).next_html, "", "no steps while the round waits on the person");
   const single = { work_id: "w1", card: card("done") };

@@ -15,7 +15,8 @@ import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 // W2-18-ALL-03 / S6: actual SDK edit -> its human approval -> real Git approval/index -> fixed Coding/Git Diff reads.
 test("S6 Coding writes the actual workspace through the installed SDK, Git stages only its approved revision, and Diff reads the same fixed bytes", { timeout: 60_000 }, async t => {
   const before = "Original tracked line\n", after = "SDK authored line 🌲\nKeep this exact final line\n";
-  const f = await codingProductHost(t, (_request, turn) => turn === 1 ? codingToolResponse("write", { path: "note", text: after }) : cogniaModelResponse("The reviewed edit is complete."));
+  const f = await codingProductHost(t, (_request, turn) => turn === 1 ? codingToolResponse("read", { path: "note" })
+    : turn === 2 ? codingToolResponse("write", { path: "note", text: after }) : cogniaModelResponse("The reviewed edit is complete."));
   const git = async (...args: string[]) => (await promisify(execFile)("git", ["-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", ...args], {
     cwd: f.directory, env: { ...process.env, GIT_DIR: undefined, GIT_WORK_TREE: undefined, GIT_INDEX_FILE: undefined },
   })).stdout;
@@ -31,7 +32,10 @@ test("S6 Coding writes the actual workspace through the installed SDK, Git stage
   while (!reviewId) {
     const reviews = await f.call<{ reviews: Array<{ request: { review_id: string; kind: string } }> }>(project, "/api/agent/reviews?status=pending");
     reviewId = reviews.body.reviews.find(row => row.request.kind === "text-edit")?.request.review_id ?? "";
-    if (Date.now() > deadline) assert.fail("the actual SDK write did not request its human review");
+    if (Date.now() > deadline) {
+      const state = await f.call(project, coding + `/sessions/${session.body.session.session_id}`);
+      assert.fail("the actual SDK write did not request its human review: " + JSON.stringify({ state, reviews: reviews.body, providerRequests: f.requests.length }));
+    }
     if (!reviewId) await new Promise(resolve => setTimeout(resolve, 20));
   }
   assert.equal(await readFile(join(f.directory, "note"), "utf8"), before, "SDK preparation cannot write before approval");
@@ -42,7 +46,7 @@ test("S6 Coding writes the actual workspace through the installed SDK, Git stage
   const settled = await f.call<{ reviews: Array<{ request: { review_id: string }; receipt: { effect_settled: boolean; effect_error: string | null } }> }>(project, "/api/agent/reviews");
   const receipt = settled.body.reviews.find(row => row.request.review_id === reviewId)?.receipt;
   assert.deepEqual([receipt?.effect_settled, receipt?.effect_error], [true, null]);
-  assert.equal(f.requests.length, 2); assert.equal(await readFile(join(f.directory, "note"), "utf8"), after);
+  assert.equal(f.requests.length, 3); assert.equal(await readFile(join(f.directory, "note"), "utf8"), after);
   assert.equal(await git("show", ":note"), before, "the SDK writer did not stage its file");
   const fixedCoding = await f.call<{ reference: ArtifactReference; change: CodingChangeSet }>(project, coding + `/sessions/${session.body.session.session_id}/runs/${run.ref.run_id}/changeset`, {});
   assert.equal(fixedCoding.status, 200, JSON.stringify(fixedCoding.body)); assert.ok(fixedCoding.body.reference);

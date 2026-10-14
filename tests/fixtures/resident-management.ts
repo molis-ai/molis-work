@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { TestContext } from "node:test";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost, type MolisWorkLocalHostOptions, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
@@ -13,7 +14,7 @@ export const FORGED_CALL = "11111111-2222-4333-8444-555555555555";
 export async function residentManagement(t: TestContext, options: MolisWorkLocalHostOptions = {}) {
   const home = await mkdtemp(join(tmpdir(), "resident-management-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-  const project = await catalog.createProject({ display_name: "常驻管理", actor_id: "test-user" });
+  const project = await catalog.createProject({ display_name: "常驻管理", actor_id: LOCAL_PERSON_ACTOR_ID });
   const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const opened: string[] = [];
   const host = createMolisWorkLocalHost({ ...options, homeDirectory: home, onRuntimeOpen: ref => { opened.push(ref.storage_key); options.onRuntimeOpen?.(ref); } });

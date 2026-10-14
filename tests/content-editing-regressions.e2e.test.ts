@@ -20,14 +20,23 @@ const typeEnd = async (b: Browser, text: string) => {
   await b.evaluate(`(() => { const editor=document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus(); const range=document.createRange(); range.selectNodeContents(editor);range.collapse(false); const selection=getSelection();selection.removeAllRanges();selection.addRange(range); })()`);
   await b.command("Input.insertText", { text }, b.sessionId);
 };
+const key = async (b: Browser, key: string, code: string, windowsVirtualKeyCode: number) => {
+  await b.command("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode }, b.sessionId);
+  await b.command("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode }, b.sessionId);
+};
+const syncCaret = async (b: Browser, atStart = false) => {
+  await key(b, atStart ? "ArrowRight" : "ArrowLeft", atStart ? "ArrowRight" : "ArrowLeft", atStart ? 39 : 37);
+  await key(b, atStart ? "ArrowLeft" : "ArrowRight", atStart ? "ArrowLeft" : "ArrowRight", atStart ? 37 : 39);
+};
 const holdTimers = (b: Browser) => b.evaluate(`(() => { const original=window.setTimeout, held=[]; window.setTimeout=(fn,delay,...args)=>{const id=original(fn,delay===400?60000:delay,...args);if(delay===400)held.push(id);return id;}; window.restoreContentTimers=()=>{window.setTimeout=original;held.forEach(clearTimeout);}; })()`);
 const holdReply = (b: Browser, path: string) => b.evaluate(`(() => { const original=window.fetch;let held=false; window.fetch=async (url,options)=>{const response=await original(url,options);if(!held&&options?.method==='POST'&&new URL(url,location.href).pathname.endsWith(${JSON.stringify(path)})){held=true;window.heldContentPayload=await response.clone().json();await new Promise(resolve=>window.releaseContentReply=resolve);}return response;};window.restoreContentFetch=()=>{window.fetch=original;}; })()`);
 const chooseActions = async (b: Browser) => {
-  await b.evaluate(`(() => { const p=document.querySelector('[data-pages-editor] .ProseMirror p'); const range=document.createRange();range.selectNodeContents(p);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange')); })()`);
-  await b.waitFor("document.querySelector('[data-assistant-context-actions] [data-more]')");
-  await b.click("[data-assistant-context-actions] [data-more]");
-  await b.waitFor("[...document.querySelectorAll('[data-assistant-context-actions] button,.context-actions-menu button')].some(button=>button.textContent.includes('拆成行动项'))");
-  await b.evaluate("[...document.querySelectorAll('[data-assistant-context-actions] button,.context-actions-menu button')].find(button=>button.textContent.includes('拆成行动项')).click()");
+  await b.evaluate(`(() => { const editor=document.querySelector('[data-pages-editor] .ProseMirror'),p=editor.querySelector('p');editor.focus();const range=document.createRange();range.selectNodeContents(p);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange')); })()`);
+  await b.waitFor("!getSelection().isCollapsed && getSelection().toString() === document.querySelector('[data-pages-editor] .ProseMirror p').textContent");
+  await b.waitFor("document.querySelector('.mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away]) [data-more]')");
+  await b.click(".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away]) [data-more]");
+  await b.waitFor("[...document.querySelectorAll('.mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away]) button,.mw-ctx-menu button')].some(button=>button.textContent.includes('拆成行动项'))");
+  await b.evaluate("[...document.querySelectorAll('.mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away]) button,.mw-ctx-menu button')].find(button=>button.textContent.includes('拆成行动项')).click()");
   await b.waitFor("document.querySelector('.pages-pop:not([hidden]) textarea')");
 };
 
@@ -111,12 +120,12 @@ test("W2-18-PAGES-TRANSIENT-01: delayed image/popup on A cannot write B; a read 
   const store = openPagesStore(b.homeDirectory);
   const [a, c] = (() => { try { return [store.create({ project_id: b.projectId!, title: "A", body: { type: "doc", content: [paragraph("A text"), { type: "task_card", attrs: { title: "A task", status: "todo", description: "A only", due: "" } }] } }), store.create({ project_id: b.projectId!, title: "B", body: { type: "doc", content: [paragraph("Original anchor"), paragraph("Later caret")] } })]; } finally { store.close(); } })();
   await open(b, "pages", a.id);
-  await b.evaluate(`(() => { window.contentView=document.querySelector('.ProseMirror').pmViewDesc.view; const original=FileReader.prototype.readAsDataURL;FileReader.prototype.readAsDataURL=function(file){this.onloadend=()=>window.contentReadDone=true;window.releaseContentRead=()=>original.call(this,file);};window.restoreContentRead=()=>FileReader.prototype.readAsDataURL=original; })()`);
+  await b.evaluate(`(() => { window.contentEditor=document.querySelector('.ProseMirror'); const original=FileReader.prototype.readAsDataURL;FileReader.prototype.readAsDataURL=function(file){this.onloadend=()=>window.contentReadDone=true;window.releaseContentRead=()=>original.call(this,file);};window.restoreContentRead=()=>FileReader.prototype.readAsDataURL=original; })()`);
   const paste = () => b.evaluate(`(() => { window.contentReadDone=false;const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jM1sAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const data=new DataTransfer();data.items.add(new File([bytes],'fixture.png',{type:'image/png'}));document.querySelector('.ProseMirror').dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:data}));})()`);
   await paste(); await b.waitFor("typeof window.releaseContentRead === 'function'");
   await b.click(`button[data-page-id="${c.id}"]`);
   await b.waitFor("document.querySelector('.ProseMirror').textContent.includes('Original anchor')");
-  assert.equal(await b.evaluate("window.contentView === document.querySelector('.ProseMirror').pmViewDesc.view"), true);
+  assert.equal(await b.evaluate("window.contentEditor === document.querySelector('.ProseMirror')"), true);
   await b.evaluate("window.releaseContentRead()"); await b.waitFor("window.contentReadDone === true");
   assert.deepEqual(readPage(b, c.id), c);
   await b.click(`button[data-page-id="${a.id}"]`); await b.waitFor("document.querySelector('.pages-card--task')");
@@ -124,10 +133,13 @@ test("W2-18-PAGES-TRANSIENT-01: delayed image/popup on A cannot write B; a read 
   await b.click(`button[data-page-id="${c.id}"]`); await b.waitFor("!document.querySelector('.pages-pop[data-open=card]')");
   assert.deepEqual(readPage(b, c.id), c);
   await b.evaluate(`(() => { const editor=document.querySelector('.ProseMirror'),text=editor.querySelector('p').firstChild;editor.focus();const range=document.createRange();range.setStart(text,text.length);range.collapse(true);getSelection().removeAllRanges();getSelection().addRange(range);})()`);
+  await syncCaret(b);
   await paste();
   await b.evaluate(`(() => { const editor=document.querySelector('.ProseMirror'),text=editor.querySelector('p').firstChild;editor.focus();const range=document.createRange();range.setStart(text,0);range.collapse(true);getSelection().removeAllRanges();getSelection().addRange(range);})()`);
+  await syncCaret(b, true);
   await b.command("Input.insertText", { text: "Prefix " }, b.sessionId);
   await b.evaluate(`(() => { const editor=document.querySelector('.ProseMirror'),text=editor.querySelectorAll('p')[1].firstChild;const range=document.createRange();range.setStart(text,text.length);range.collapse(true);getSelection().removeAllRanges();getSelection().addRange(range);})()`);
+  await syncCaret(b);
   await b.evaluate("window.releaseContentRead()");
   await b.waitFor("document.querySelector('.ProseMirror img') && document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
   const saved = nodeFromUnknown(readPage(b, c.id).body);

@@ -42,14 +42,16 @@ test("W3-07-7-03 CLI and management MCP reuse the resident project and its actua
   const listed = await mcp.handleMessage({ id: 2, method: "tools/list" }) as { result: { tools: { name: string }[] } };
   assert.ok(listed.result.tools.some(tool => tool.name === "molis_work_v1_initialize"), "management discovery does not require a Runtime gateway grant");
   const reply = await mcp.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_initialize",
-    arguments: { database_path: alias, project_id: env.project.project_id, title: "现行目标库", idempotency_key: "resident-mcp" },
+    arguments: { database_path: alias, project_id: env.project.project_id, title: env.project.display_name, idempotency_key: `project-catalog-create-${env.project.project_id}` },
     _meta: { call_id: FORGED_CALL, "molis-work/callId": FORGED_CALL } } }) as { result: McpToolResult };
-  assert.notEqual(reply.result.isError, true);
+  assert.notEqual(reply.result.isError, true, JSON.stringify(reply.result));
+  const replay = JSON.parse(reply.result.content.find(block => block.type === "text")!.text);
+  assert.equal(replay.replayed, true, "management replays the Catalog initialization rather than creating a second Board");
   oneRecord(env.host, env.project.project_id, reply.result._meta?.["molis-work/callId"], "goals.board.initialize");
   assert.deepEqual(env.host.callLog!.find(FORGED_CALL), []);
   assert.deepEqual(fallbackOpened, [], "neither entry opens another project executor");
   assert.deepEqual(env.opened, [env.reference.storage_key], "the resident reuses its already-open catalog path");
-  const direct = await env.post({ ...env.body(), database_path: alias });
+  const direct = await env.post({ ...env.body({ title: env.project.display_name, idempotency_key: `project-catalog-create-${env.project.project_id}` }), database_path: alias });
   assert.equal(direct.status, 200, "the gateway also canonicalizes an alias supplied directly");
 });
 

@@ -38,8 +38,9 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
     const url = input instanceof Request ? input.url : String(input);
     if (url.startsWith("http://127.0.0.1:")) return originalFetch(input, init);
     assert.equal(url, endpoint, "no external provider is contacted");
-    assert.ok(init?.body && typeof init.body === "string");
-    const request = JSON.parse(init.body) as CodingProviderRequest; requests.push(request);
+    const body = input instanceof Request ? await input.clone().text() : await new Request(input, init).text();
+    assert.ok(body, "the SDK sends the actual model request body");
+    const request = JSON.parse(body) as CodingProviderRequest; requests.push(request);
     return respond(request, requests.length);
   });
   const host = new MolisWorkLocalHost({ homeDirectory: home,

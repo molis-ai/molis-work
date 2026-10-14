@@ -61,6 +61,8 @@ test("R5B-01/03: real page and browser process crashes retain their distinct rec
   })();` }, ui.sessionId);
   await ui.navigate(() => ui.command("Page.navigate", { url: `${ui.origin}/projects/${ui.projectId}/` }, ui.sessionId));
   await ui.waitFor("window.browserRecoverySocket?.readyState===1 && document.querySelector('[data-browser]')");
+  await ui.click('[data-side-tab="browser"]');
+  await ui.waitFor("document.querySelector('[data-side-tab=browser]').getAttribute('aria-selected')==='true'");
   const home = await mkdtemp(join(tmpdir(), "browser-recovery-owner-")), site = await serve();
   const browsers = new BrowserHost({ homeDirectory: home });
   const page = browsers.page("recovery");

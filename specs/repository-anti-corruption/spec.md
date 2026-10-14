@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 b66ad829a已整合I3–I33、main774a A2、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建与96b登记失败已修，96c九项工程检查通过；97/98实际失败已逐项记录，SDK六种切换交错及send/Workflow通过；夹具修正2916及新main774a A2已纳入6b1，源码复查已接受，新增fixture真实字节解析已修；99当前组合九项工程检查通过，100真实定向回归已开始；最终共享全量仍待。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
+状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 98ecf5d04已联合整合Pages与I3–I33、main774a A2、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建与96b登记失败已修，96c九项工程检查通过；97/98实际失败已逐项记录，SDK六种切换交错及send/Workflow通过；夹具修正2916及新main774a A2已纳入6b1，源码复查已接受，新增fixture真实字节解析已修；99/100/101防腐+A2旧组合工程及必要定向回归已补，Pages联合1ae/98ec的102b工程与103交集验证进行中；最终共享全量仍待。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2693,3 +2693,6 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 - W2-18-PAGES-COMMENT-01：实际Chrome无onComment的编辑器评论弹层保映射锚点，只提交原range；换Doc后老按钮不写新文档。新侧栏onComment路径另沿原Pages真实回归。
 
 同一Source实现：RetainedActionAuthority是临时callable+assertCurrent，不持久化、不增权限、不延长handler.beforeEffect；AssistantCaller新增可信同步assertBeforeStart，仅串联base/caller/stillCurrent最终检查。当前Root仍14冲突已去marker但尚未stage/commit，辅助代码与回归正补，未启动构建或全量。
+
+
+**联合102源码合并与首轮实际构建。** 1ae8820cd已实际合Pages7b611至I8（14冲突的scoped remerge及新辅助文件/Caller尾检查已独立复查，无新增Source Blocker/P1），tree clean。保caller beforeStart/最终同步hook、retained callable+assertCurrent、线程状态尾检/CAS/stop收停、Host绘制及Root共同请求、frozen send、Pages普通评论映射锚点；84变更TS仅parse0，不称类型或Runtime通过。已有三个测试文件分别新增真实ActionService等权限后撤权/Promise拒绝，真实Host+SDK+Pages的reply末等待撤权/第二accepted run reader时stop，真实Chrome无onComment锚点移动/换Doc旧按钮拒绝。102 actual install0/build2，仅editor anchorPop返回null被新增port误写为undefined；其他检查未运行。98ecf5d04按现行null合同修正，Kernel手册写明retained断言须进入下游最后同步检查，S18与test:security加真实Thread回归；唯一102b冻结重跑，当前安装0、后续未归回，103/共同全量尚未开始。前次尝试生成补丁的exec JS SyntaxError在任何调用前发生，没有文件写入、不是生产失败。

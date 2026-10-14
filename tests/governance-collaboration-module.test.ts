@@ -133,6 +133,7 @@ test("Governance decision provenance and target-owner materialization share one 
     assert.equal(persisted?.decisions[0]?.message_ref, "message-test");
     assert.equal(persisted?.items[0]?.state, "applied");
     assert.equal(deriveGoalTreeProposalState(persisted?.items ?? []), "approved");
+    // I2-01: the real state transition is refused by the shared owner model.
     assert.throws(
       () => governance.records.transitionGoalTreeItem({
         proposal_id: proposalId,

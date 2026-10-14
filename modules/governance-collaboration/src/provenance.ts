@@ -7,7 +7,6 @@ import type {
 
 /** Confirmation provenance belongs to Governance; a locator is not automatically a Ledger edge. */
 export class GovernanceProvenance implements GovernanceProvenanceApi {
-
   normalizeProposalSource(input: Pick<GoalTreeProposalItemProvenanceInput, "source_refs" | "reason" | "confidence" | "requires_user_confirmation">,
     index: number): Pick<GoalTreeProposalItemRecord, "source_refs" | "reason" | "confidence"> & { requires_user_confirmation: true } {
     const path = `items[${index}]`;

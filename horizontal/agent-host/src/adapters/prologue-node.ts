@@ -18,7 +18,6 @@ import { createApprovals, createPendingPort, createReviewMemory, restoreReviewHi
 import { createPrologueSchedule } from "./prologue-schedule.js";
 import { createSessionIndexStore } from "./prologue-session-index.js";
 import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
-import { subagentYieldGuard } from "./prologue-subagents.js";
 import { createPrologueSurfaces, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { PrologueAgentAdapter } from "./prologue.js";
@@ -114,7 +113,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const schedule = createPrologueSchedule();
   // Bound after the runtime exists; the redactor it is given reaches it only when a screenshot is taken.
   let surfaceHost: PrologueSurfaces | undefined;
-  const runtime = await createNodeRuntime(options, host, schedule.run, () => surfaceHost);
+  const state = createRoundState();
+  const runtime = await createNodeRuntime(options, host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) });
   surfaceHost = options.surfaces ? createPrologueSurfaces(() => runtime, options.surfaces, ref => readResourceText(runtime, ref)) : undefined;
   // Sites the person allowed earlier, as approvals the person can take back at once (not as rules fixed at start).
   if (surfaceHost && options.reviewQueue) for (const entry of options.surfaces!.siteDecisions()) if (entry.decision === "allow") surfaceHost.decide(entry);
@@ -131,7 +131,6 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),
   });
-  const state = createRoundState();
   const index = createSessionIndexStore(host, options.app.appId);
   const surfaces = () => surfaceHost;
   const platformMemory = createPrologueMemory(runtime);
@@ -153,7 +152,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const recovery = createPrologueRecovery({ runtime, index, state, checkpoints });
   const readQuestion = questionReader(runtime);
   const port = createNodePort({ runtime, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork,
-    messages, waitsPort, checkpoints, approvals, refuseYield: subagentYieldGuard(runtime), schedule, recovery, readQuestion,
+    messages, waitsPort, checkpoints, approvals, schedule, recovery, readQuestion,
     shutdown: async () => {
       mcpLibrary.dispose();
       await closeInference();

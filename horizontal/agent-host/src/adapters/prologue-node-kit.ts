@@ -86,6 +86,8 @@ export interface RoundState {
   readonly liveSessions: Map<string, string>;
   /** Main rounds registered as project work: which item, in which project and directory. */
   readonly runWork: Map<string, { project: string; id: string; session: ExactRef<"session">; directory: string }>;
+  /** Each running round's own pre-dispatch check, asked again before every child it dispatches. */
+  readonly dispatchChecks: Map<string, () => Promise<void>>;
 }
 
 export function createRoundState(): RoundState {
@@ -94,7 +96,7 @@ export function createRoundState(): RoundState {
     gatewayHooks: new Set(), heldLabels: new Map(), memoryRounds: new Map(), offerRounds: new Map(), changeRounds: new Map(),
     stopGuards: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), runSessions: new Map(),
     runRefs: new Map(), reviewEffects: new Map(), deadlines: new Map(), commandEvents: new Map(), subagentBridgeErrors: new Map(),
-    liveSessions: new Map(), runWork: new Map(),
+    liveSessions: new Map(), runWork: new Map(), dispatchChecks: new Map(),
   };
 }
 

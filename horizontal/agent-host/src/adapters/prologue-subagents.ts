@@ -56,20 +56,3 @@ export function verifySubagentStart(runtime: Runtime, roles: ReadonlyMap<string,
   };
 }
 export function exactCharacterKey(ref: ExactRef<"character">): string { return ref.id; }
-
-/**
- * Handing the wake-up to subtasks (dispatch-subagent `yield`) would restart the session outside the Host's own start: no
- * start record, no dispatch check, no review bridge. Until that is wired, a yield is refused before it runs (one hook
- * per session, the session's own).
- */
-export function subagentYieldGuard(runtime: Pick<Runtime, "hooks">): (sessionId: string) => void {
-  const guarded = new Set<string>();
-  return sessionId => {
-    if (guarded.has(sessionId)) return;
-    guarded.add(sessionId);
-    runtime.hooks.register({ id: `molis-subagent-yield-${sessionId}`, event: "tool-before", forSession: sessionId, handler: async context =>
-      context.toolName === "dispatch-subagent" && (context.input as { yield?: unknown } | undefined)?.yield === true
-        ? { kind: "deny" as const, why: "this work cannot hand its wake-up to subtasks (yield). Dispatch without yield (background: true), then wait with await-subagents" }
-        : { kind: "allow" as const } });
-  };
-}

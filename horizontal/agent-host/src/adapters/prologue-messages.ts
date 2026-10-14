@@ -7,8 +7,6 @@ export interface MessageSessions {
   title(project: string, sessionId: string): Promise<string>;
   /** Tell a round that is running right now; false when the session has no live round. */
   steer(sessionId: string, text: string): Promise<boolean>;
-  /** Other sessions of the project whose work under way names the same files as this session's. */
-  overlapping(sessionId: string): Promise<string[]>;
 }
 
 /** A notice goes to this many sessions at most at once (the person's decision). */
@@ -17,14 +15,14 @@ export const MAX_BROADCAST = 5;
 const OPEN = ["queued", "delivered", "accepted"];
 
 /**
- * Messages between sessions of one project, on the SDK's envelopes. The model sends with `session-send`; this seam
- * checks the recipient is another session of the same project, hands each message to the recipient's live round or
- * keeps it for its next round, and treats an answer as the end of the request it answers. Every message is recorded
+ * Messages between sessions of one project, on the SDK's envelopes. The model sends with `session-send`, and the SDK
+ * lets an agents' letter go only between neighbouring steps of one task graph (P2g: a round and its subtasks, or
+ * subtasks of one round); this seam hands each message to the recipient's live round or keeps it for its next round,
+ * and treats an answer as the end of the request it answers. Every message is recorded
  * and stays readable and cancellable by the person; a message is data for its recipient, never an instruction or an
  * approval.
  */
 export function createSessionMessages(runtime: Runtime, sessions: MessageSessions) {
-  const hook = "molis-session-messages";
   const now = async () => (await runtime.readClock()).wallTimeMs;
   const words = async (envelope: Envelope, project: string) => {
     const from = await sessions.title(project, envelope.from.id);
@@ -42,44 +40,12 @@ export function createSessionMessages(runtime: Runtime, sessions: MessageSession
     const answered = new Set(runtime.delivery.list({ from: { kind: "session", id: sessionId, revision: 1 } as ExactRef<"session"> }).flatMap(envelope => envelope.inReplyTo ? [envelope.inReplyTo.id] : []));
     return to.filter(envelope => envelope.audience !== "people" && ["request", "handoff"].includes(envelope.kind) && ["delivered", "accepted"].includes(envelope.state) && !answered.has(envelope.ref.id));
   };
-  runtime.hooks.register({ id: hook, event: "tool-before", blocking: true, handler: async context => {
-    if (context.toolName !== "session-send") return { kind: "allow" };
-    const deny = (why: string) => ({ kind: "deny" as const, why });
-    const input = context.input as { to?: unknown; recipients?: unknown; kind?: unknown; inReplyTo?: unknown } | undefined;
-    const sender = context.origin?.session ? await sessions.owner(context.origin.session) : undefined;
-    if (!sender || sender.subtask) return deny("只有项目里的会话本身能给别的会话发信，子任务不能");
-    if (!["request", "notice", "reply", "handoff"].includes(String(input?.kind))) return deny("kind 只能是 request、notice、reply 或 handoff");
-    // A notice to the sessions whose work overlaps this one's ("overlapping"), or to several named ones: at most five.
-    if (input?.to === "overlapping" || Array.isArray(input?.recipients)) {
-      if (input.kind !== "notice") return deny("一次发给多个会话的只能是通知（kind 写 notice）");
-      const named = input.to === "overlapping" ? await sessions.overlapping(context.origin!.session!) : (input.recipients as unknown[]).map(String);
-      if (!named.length) return deny("现在没有和你范围重叠、还在进行或等待中的会话");
-      if (named.length > MAX_BROADCAST) return deny(`一次最多发给 ${MAX_BROADCAST} 个会话`);
-      for (const one of named) {
-        const other = one === context.origin!.session ? undefined : await sessions.owner(one);
-        if (!other || other.subtask || other.project !== sender.project) return deny("只能发给同一个项目里的其他会话");
-        await runtime.sessions.open(other.ref);
-      }
-      const { to: _to, ...rest } = input;
-      return input.to === "overlapping" ? { kind: "rewrite", input: { ...rest, recipients: named }, why: "范围重叠的会话" } : { kind: "allow" };
-    }
-    if (typeof input?.to !== "string" || input.to === context.origin!.session) return deny("收信的必须是项目里另一个会话（用它的 session id）");
-    const recipient = await sessions.owner(input.to);
-    if (!recipient || recipient.subtask || recipient.project !== sender.project) return deny("只能发给同一个项目里的另一个会话");
-    if (input.inReplyTo !== undefined) {
-      let answered: Envelope | undefined;
-      try { answered = runtime.delivery.get({ kind: "envelope", id: String(input.inReplyTo), revision: 1 } as ExactRef<"envelope">); } catch { answered = undefined; }
-      if (!answered || answered.to.id !== context.origin!.session || answered.from.id !== input.to) return deny("inReplyTo 必须是那个会话发给你的信");
-    }
-    // The recipient has to be known to the runtime before an envelope can reach it.
-    await runtime.sessions.open(recipient.ref);
-    return { kind: "allow" };
-  } });
   const unsubscribe = runtime.delivery.subscribe(event => {
     if (event.type !== "sent") return;
     const envelope = event.envelope;
-    // A message for people is theirs to take up: no round hears it, and an answer to it settles nothing on its own.
-    if (envelope.audience === "people") return;
+    // A message for people is theirs to take up: no round hears it, and an answer to it settles nothing on its own. What
+    // the Runtime writes back itself (a subtask's report, what a wait brought) it hands over itself.
+    if (envelope.audience === "people" || envelope.kind === "inject") return;
     void (async () => {
       const recipient = await sessions.owner(envelope.to.id);
       if (!recipient) return;
@@ -190,6 +156,6 @@ export function createSessionMessages(runtime: Runtime, sessions: MessageSession
       runtime.delivery.cancel(envelope.ref);
       await runtime.delivery.flush();
     },
-    close() { runtime.hooks.unregister(hook); unsubscribe(); },
+    close() { unsubscribe(); },
   };
 }

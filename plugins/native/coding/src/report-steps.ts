@@ -32,6 +32,7 @@ export function codingReportStepsMarkdown(run: AgentRunView, evidence: CodingRep
   const states: Record<AgentStepBoard["nodes"][number]["state"], string> = {
     "not-started": "等待前置步骤", ready: "待执行", running: "模型报告执行中",
     succeeded: "模型报告成功", failed: "模型报告失败", cancelled: "模型报告取消", blocked: "模型报告阻塞",
+    waiting: "在等别的步骤", "needs-reconciliation": "重启后需要核对",
   };
   const board = evidence.board;
   const sections = ["## 计划步骤与用户评价",

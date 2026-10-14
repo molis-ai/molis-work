@@ -82,7 +82,7 @@ test("a coordinator hands a step to a subtask: only the subtask reports on it, t
       system = JSON.stringify(body.system); opening = messages; board = system.match(/任务图：([^。]+)。/)![1]!;
       const character = system.match(/molis-child-[a-z0-9-]+@\d+/)![0];
       return response("", { name: "dispatch-subagent", input: { instruction: "CHILD_TWO 改 b.ts，完成条件：b 的测试通过。", tools: ["read", "search", "context-remaining", "write", "edit", "run-command"],
-        character, workspace: "writer-0", idempotencyKey: "two", background: true, claims: { board, nodes: ["step-2"] } } });
+        character, workspace: "writer-0", idempotencyKey: "two", background: true, node: "step-2" } });
     }
     if (turn === 2) { subagent = messages.match(/sub-[a-z0-9-]+/)![0]; return response("", { name: "board-read", input: { board } }); }
     if (turn === 3) return report("step-2", "running", "我自己来做 b");
@@ -107,7 +107,7 @@ test("a coordinator hands a step to a subtask: only the subtask reports on it, t
     assert.match(opening, /任务图现状（第 1 版/);
     assert.match(opening, /step-2「改 b\.ts」可开始（ready），负责：本会话/);
     assert.doesNotMatch(system, /任务图现状（第/);
-    assert.match(system, /claims/);
+    assert.match(system, /dispatch-subagent 里写 node: 步骤编号/);
     assert.match(system, /比之前对话里的说法新/);
     // While the subtask held step-2 the coordinator could not report on it.
     assert.match(refused, /TASKBOARD_NOT_ASSIGNED/);

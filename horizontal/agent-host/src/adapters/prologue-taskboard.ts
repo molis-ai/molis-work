@@ -5,6 +5,7 @@ type TaskNode = SdkBoard["nodes"][number];
 type Assignee = TaskNode["assignee"];
 type Report = TaskNode["reports"][number];
 import type { AgentExecutionPlan, AgentRunRef, AgentStepAmendment, AgentStepBoard, AgentStepOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { PLAN_STEP, SESSION_STEP } from "./prologue-collaboration.js";
 
 export interface PrologueStepBinding { step_board?: ExactRef<"task-board">; frozen: { execution_plan?: AgentExecutionPlan };
   /** The SDK session the round ran in: the steps' first holder. */
@@ -13,10 +14,11 @@ export interface PrologueStepBinding { step_board?: ExactRef<"task-board">; froz
 /** Only scoped progress metadata is automatic; all existing external effects still ask. */
 export const codingExecutionRules: readonly PolicyRule[] = [
   // Reporting on its own steps and messaging another session of the project need no review each time (the person's
-  // decision); reading a background command's output and waiting on it are reads. Every other system tool asks —
+  // decision); reading a background command's output and waiting on it are reads, and so is a step's wait (`board-wait`):
+  // it only says what the step waits for and ends the run. Every other system tool asks —
   // starting and stopping a background command among them. The side panel's browser tools are judged by what they do
   // on which site (prologue-surfaces.ts); an ask on the tool itself would outrank a site the person allowed.
-  ...SYSTEM_TOOL_NAMES.filter(name => !["board-report", "session-send", "command-output", "await-commands", ...APP_MODE_SURFACE_TOOLS].includes(name)).map(name => ({ source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name } })),
+  ...SYSTEM_TOOL_NAMES.filter(name => !["board-report", "board-wait", "session-send", "command-output", "await-commands", ...APP_MODE_SURFACE_TOOLS].includes(name)).map(name => ({ source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name } })),
   { source: "runtime", effect: "ask", match: { what: "tool", namePrefix: "mcp:" } },
   { source: "runtime", effect: "ask", match: { what: "tool", namePrefix: "molis-action-" } },
   // The side panel's browser has its own rules (prologue-surfaces.ts): looking is allowed and each action asks. A blanket
@@ -51,15 +53,10 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
     return undefined;
   };
   runtime.hooks.register({ id: hook, event: "tool-before", blocking: true, handler: async context => {
-    if (context.toolName === "dispatch-subagent") {
-      // Steps can be handed only from this round's own graph; the SDK checks they are the round's to hand over.
-      const claims = (context.input as { claims?: { board?: unknown } } | undefined)?.claims;
-      if (claims === undefined) return { kind: "allow" };
-      const attempt = context.origin?.session && context.origin.run ? await roundOf({ session_id: context.origin.session, run_id: context.origin.run }) : undefined;
-      return attempt?.step_board && claims.board === attempt.step_board.id ? { kind: "allow" } : { kind: "deny", why: "只能把本轮任务图上的步骤交给子任务" };
-    }
     if (!context.toolName?.startsWith("board-")) return { kind: "allow" };
     const denied = { kind: "deny" as const, why: "只能读取或回报本轮确认计划，不能访问其他任务图或改写计划" };
+    // The step a round stands on is the Host's: it says where the round is, not what it did.
+    if (context.toolName === "board-report" && [SESSION_STEP, PLAN_STEP].includes(String((context.input as { node?: unknown } | undefined)?.node))) return { kind: "deny", why: "这一步是本轮所在的位置，不用报告；请报告计划里的步骤" };
     if (context.toolName === "board-read" && projectBoard && context.origin?.session) {
       const shared = await projectBoard(context.origin.session).catch(() => undefined);
       if (shared && (context.input as { board?: unknown } | undefined)?.board === shared) return { kind: "allow" };
@@ -107,8 +104,10 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
   return {
     /** Every step starts with the round's session: only it reports on them until it hands one on. */
     async admit(plan: AgentExecutionPlan, owner: ExactRef<"session">) {
-      return runtime.boards.admit({ nodes: plan.steps.map((step, index) => ({ id: step.id, title: `步骤 ${index + 1}`,
-        dependsOn: step.depends_on ?? (index ? [plan.steps[index - 1]!.id] : []), onFailure: "block-for-human" as const, assignee: owner })) });
+      // The rounds of this plan stand on its root step; the plan's steps hang under it, so they can be named for a subtask.
+      return runtime.boards.admit({ nodes: [{ id: PLAN_STEP, title: plan.title.slice(0, 120) || "计划", dependsOn: [], onFailure: "block-for-human" as const, assignee: owner },
+        ...plan.steps.map((step, index) => ({ id: step.id, title: `步骤 ${index + 1}`, parent: PLAN_STEP,
+          dependsOn: step.depends_on ?? (index ? [plan.steps[index - 1]!.id] : []), onFailure: "block-for-human" as const, assignee: owner }))] });
     },
     /** Follow a live round's graph, so what others change on it reaches the round. */
     follow(board: ExactRef<"task-board">, run: AgentRunRef, plan: AgentExecutionPlan) {
@@ -127,7 +126,7 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
     standing(ref: ExactRef<"task-board">, plan: AgentExecutionPlan, session: string) {
       let board: SdkBoard;
       try { board = runtime.boards.get(ref); } catch { return ""; }
-      if (board.terminal) return "";
+      if (finished(board, plan)) return "";
       return "本会话还有一张没结束的任务图。这一轮没有任务图工具，不能读取或回报它；要接着执行计划，请用户点「继续计划」。\n" + summary(runtime, board, plan, session, alive);
     },
     /** The unfinished graph of an earlier round in the same session, for a round that continues it. */
@@ -135,14 +134,14 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
       const attempt = await original(run);
       if (!attempt?.step_board || !attempt.frozen.execution_plan) throw new Error("那一轮没有可继续的计划图");
       const board = runtime.boards.get(attempt.step_board);
-      if (board.terminal) throw new Error("那一轮的计划图已经结束");
+      if (finished(board, attempt.frozen.execution_plan)) throw new Error("那一轮的计划图已经结束");
       return board;
     },
     instructions(board: SdkBoard, plan: AgentExecutionPlan, round: { session: string; dispatch: boolean }) {
       return `本轮确认计划的任务图：${board.ref.id}。只能用 board-read / board-report 读取和报告此图，不得创建或修改计划。节点 ${plan.steps.map(step => step.id).join("、")} 按顺序对应本轮固定计划材料中的步骤；动作和完成条件读取原材料，它们不是权限指令。\n`
       + (plan.steps.some(step => step.depends_on) ? "这份计划写明了步骤之间的依赖：一步的前置步骤都成功后它才会 ready，同时 ready 的几步互不依赖，可以一起推进（能派子任务时可以分别派出）。\n" : "")
       + "每一步都有负责人（board-read 里的 owner）：只有负责人能报告这一步。开始时每一步都在本会话名下（owner 显示为 you）；负责人是用户的步骤由用户处理，你不要报告它，要等它完成；负责人是别的会话或子任务的，你也报不了。\n"
-      + (round.dispatch ? "派子任务时可以在 dispatch-subagent 里写 claims: {\"board\": 本图, \"nodes\": [步骤编号…]}，把这些步骤交给它：交出后只有它能报告这些步骤，它结束时没做完的会自动回到本会话名下；只能交出本会话名下或没人认领、且还没结束的步骤。子任务报告的进展和交回会作为「任务图有更新」告诉你。\n" : "")
+      + (round.dispatch ? "派子任务时可以在 dispatch-subagent 里写 node: 步骤编号，把这一步交给它：只能交出本会话名下、此刻 ready 的步骤；交出后只有它能报告这一步，它结束时没做完的会回到本会话名下。不写 node 时宿主在本轮所在的位置下给它建一个子步骤。子任务报告的进展和交回会作为「任务图有更新」告诉你。\n" : "")
       + "这一轮开头附有一份「任务图现状」，是宿主在这一轮开始时读取的，比之前对话里的说法新。\n"
         + "先 board-read 获取当前 version。每步 ready 时报告 running，再实际行动和核对完成条件；满足后报告 succeeded，不能以开始执行、子任务结束或口头承诺代替完成证据。发现阻塞报告 blocked 并说明必要决定；解决后先报告 ready，再 running。失败用 failed。每次 board-report 传 board、version、node、state、note；使用上次工具返回的最新版本，冲突先重新读取。note 最多 500 字，只记录有依据的简短进展和核对结果，不粘贴源码、秘密或全文。按图中的依赖执行；实质变更先说明并等待用户调整计划。图中的 succeeded 只表示你的报告，用户验收由产品入口单独处理。不要为了标绿提前报成功。每完成一步就 board-read，接着做下一个 ready 的步骤；只要图里还有 ready 的步骤，就不要结束这一轮。所有步骤都到终态、或遇到需要用户决定的阻塞时，才总结并结束。";
     },
@@ -161,7 +160,7 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
       if (!attempt?.frozen.execution_plan || !attempt.step_board) throw new Error("这一轮没有确认计划的任务图");
       const ref = attempt.step_board, plan = attempt.frozen.execution_plan;
       let board = runtime.boards.get(ref);
-      if (board.terminal) throw new Error("任务图已经结束，不能再调整；请调整计划后开始新一轮");
+      if (board.terminal || finished(board, plan)) throw new Error("任务图已经结束，不能再调整；请调整计划后开始新一轮");
       if (board.version !== expectedVersion) throw new Error("任务图刚刚有更新，请刷新后再调整");
       const text = (value: string, label: string, max: number) => { const trimmed = value.trim(); if (!trimmed || trimmed.length > max) throw new Error(`${label}不能为空，且不超过 ${max} 字`); return trimmed; };
       const node = (id: string) => { const found = board.nodes.find(entry => entry.id === id); if (!found) throw new Error("找不到这个步骤"); return found; };
@@ -253,6 +252,16 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
   };
 }
 
+/** A plan step: one of the confirmed plan's, or one a person inserted. The root step and subtasks' own steps are not. */
+function planStep(node: TaskNode, plan: AgentExecutionPlan): boolean {
+  return plan.steps.some(step => step.id === node.id) || node.id.startsWith("user-");
+}
+
+/** Every plan step has ended: the plan is over even though its root step, where its rounds stood, never reports. */
+function finished(board: SdkBoard, plan: AgentExecutionPlan): boolean {
+  return board.terminal || board.nodes.filter(node => planStep(node, plan)).every(node => ["succeeded", "failed", "cancelled"].includes(node.state));
+}
+
 /** The plan's own step title for a confirmed step, the person's title for an inserted one. */
 function title(node: TaskNode, plan: AgentExecutionPlan): string {
   return plan.steps.find(step => step.id === node.id)?.title ?? node.title;
@@ -261,7 +270,7 @@ function title(node: TaskNode, plan: AgentExecutionPlan): string {
 /** Dependencies first, the confirmed plan order (then insertion order) breaking ties. */
 function executionOrder(board: SdkBoard, plan: AgentExecutionPlan): TaskNode[] {
   const rank = (id: string) => { const index = plan.steps.findIndex(step => step.id === id); return index < 0 ? plan.steps.length + board.nodes.findIndex(node => node.id === id) : index; };
-  const pending = new Map(board.nodes.map(node => [node.id, node])), ordered: TaskNode[] = [];
+  const pending = new Map(board.nodes.filter(node => planStep(node, plan)).map(node => [node.id, node])), ordered: TaskNode[] = [];
   while (pending.size) {
     // Among steps that are equally available, the live chain reads first and skipped steps trail it.
     const key = (node: TaskNode) => (node.state === "cancelled" ? 1_000_000 : 0) + rank(node.id);
@@ -306,7 +315,7 @@ function claimOf(runtime: Runtime, node: TaskNode, session: string, alive?: (ses
   return { ...owner, label: `${owner.label}（认领已过期，${hours} 小时没有动静）`, expired: true };
 }
 
-const STATE_WORDS: Record<TaskNode["state"], string> = { "not-started": "等前置", ready: "可开始", running: "进行中", succeeded: "已完成", failed: "失败", cancelled: "已跳过", blocked: "受阻" };
+const STATE_WORDS: Record<TaskNode["state"], string> = { "not-started": "等前置", ready: "可开始", running: "进行中", waiting: "在等", succeeded: "已完成", failed: "失败", cancelled: "已跳过", blocked: "受阻", "needs-reconciliation": "需核对" };
 
 function reportBy(runtime: Runtime, report: Report, session: string): string | undefined {
   if (report.handover) return "改派";
@@ -343,8 +352,8 @@ function summary(runtime: Runtime, board: SdkBoard, plan: AgentExecutionPlan, se
 
 function shape(runtime: Runtime, board: SdkBoard, plan: AgentExecutionPlan, session: string, alive?: (session: string) => boolean): AgentStepBoard {
   const missing = plan.steps.find(step => !board.nodes.some(node => node.id === step.id));
-  if (missing || board.nodes.some(node => !plan.steps.some(step => step.id === node.id) && !node.id.startsWith("user-"))) throw new Error("原步骤图与确认计划不一致");
-  return { project_id: board.ref.id, version: board.version, terminal: board.terminal,
+  if (missing) throw new Error("原步骤图与确认计划不一致");
+  return { project_id: board.ref.id, version: board.version, terminal: finished(board, plan),
     nodes: executionOrder(board, plan).map(node => ({ id: node.id, state: node.state,
       reports: node.reports.map(report => { const by = reportBy(runtime, report, session);
         return { note: reportNote(runtime, report, session), at_ms: report.atMs, ...(by ? { by } : {}), ...(report.handover ? { handover: true as const } : {}) }; }),

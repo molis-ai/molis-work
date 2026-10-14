@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AgentSessionMessage, AgentWait } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentCollaborationWait } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { delegationStateOf, delegationViewOf, isDelegation, letterBody } from "../plugins/native/coding/src/delegation-view.js";
-import { holdReason, waitViewOf, wakeBodyOf, waitingFor } from "../plugins/native/coding/src/waits.js";
+import { holdReason, openWait, waitViewOf, wakeBodyOf, waitingFor, type CodingWaitView } from "../plugins/native/coding/src/waits.js";
 
 const letter = (overrides: Partial<AgentSessionMessage>): AgentSessionMessage => ({
   message_id: "m1", audience: "people", kind: "request", from_session: "rt-a", to_session: "rt-b", body: JSON.stringify({ title: "写报告", task: "整理" }),
@@ -38,24 +39,36 @@ test("the delegation view names both ends as this project's sessions and counts 
   assert.deepEqual(letterBody(letter({ body: "not json" })), {});
 });
 
-const wait = (overrides: Partial<AgentWait>): AgentWait => ({
-  wait_id: "w1", session_id: "rt-a", by: "model", on: [{ kind: "command" }], waiting_on: "构建", reason: "等构建结束", state: "fired", created_at_ms: Date.UTC(2026, 8, 28, 2), ...overrides,
-} as AgentWait);
+const command = { kind: "command" as const, ref: "task-1", label: "后台命令 构建结束", last: { status: "satisfied" as const, at: "2026-09-28T03:00:00.000Z" } };
+const view = (wait: Partial<AgentCollaborationWait>, continuation?: Partial<NonNullable<CodingWaitView["continuation"]>>): CodingWaitView => ({
+  session_id: "rt-a",
+  wait: { wait_id: "w1", session_id: "rt-a", board_id: "b1", node_id: "session", by: "agent", reason: "等构建结束", mode: "all", until: "success", on_failure: "block",
+    deadline_at: "2026-10-05T02:00:00.000Z", conditions: [command], state: "satisfied", created_at: "2026-09-28T02:00:00.000Z", ...wait },
+  ...(continuation ? { continuation: { board_id: "b1", node_id: "session", session_id: "rt-a", request_key: "b1.w1", state: "eligible", auto: true, ...continuation } } : {}),
+});
 
-test("a fired wait wakes the next round with what happened and the original task", () => {
-  const woke = wakeBodyOf(wait({ fired: { kind: "command", outcome: "succeeded", text: "ok", at_ms: Date.UTC(2026, 8, 28, 3) } } as never), { actor_id: "web-user", origin_task: "修复登录", model: "m" });
+test("a wait that is over goes on to the next round with how things stand and the original task", () => {
+  const woke = wakeBodyOf(view({}, {}), { actor_id: "web-user", origin_task: "修复登录", model: "m" });
   assert.equal((woke as Record<string, unknown>).model, "m");
   assert.equal((woke as Record<string, unknown>).actor_id, undefined);
-  assert.match(String((woke as Record<string, unknown>).task), /后台命令结束了（成功）[\s\S]*请接着完成原来的任务：修复登录/);
-  assert.match(String((wakeBodyOf(wait({}), {}, true) as Record<string, unknown>).task), /你决定不再等构建/);
-  const app = wakeBodyOf(wait({ by: "app", data: { app: { body: { task: "下一件" } }, work_id: "work-1" } } as never), {});
+  assert.match(String((woke as Record<string, unknown>).task), /后台命令 构建结束已经有了结果[\s\S]*请接着完成原来的任务：修复登录/);
+  assert.match(String((wakeBodyOf(view({ state: "waiting" }), {}, true) as Record<string, unknown>).task), /你决定不再等后台命令 构建结束/);
+  // A round the person queued behind another goes on as they sent it, taking over its project work item.
+  const app = wakeBodyOf(view({ by: "app" }, {}), {}, false, { body: { task: "下一件" }, work_id: "work-1" });
   assert.deepEqual(app, { task: "下一件", queued_work_id: "work-1" });
 });
 
-test("a withdrawn reply or an unfinished app wait is held for the person; the page shows what it waits for", () => {
-  assert.match(holdReason(wait({ on: [{ kind: "envelope" }], fired: { kind: "envelope", outcome: "withdrawn", text: "", at_ms: 0 } } as never)) ?? "", /请求已撤回或过期/);
-  assert.match(holdReason(wait({ by: "app", fired: { kind: "app", outcome: "not-done", text: "", at_ms: 0 } } as never)) ?? "", /没有完成/);
-  assert.equal(holdReason(wait({ fired: { kind: "command", outcome: "succeeded", text: "", at_ms: 0 } } as never)), undefined);
-  assert.equal(waitingFor(wait({ on: [{ kind: "envelope" }] } as never)), "reply");
-  assert.deepEqual(waitViewOf(wait({}), "等你决定"), { wait_id: "w1", after_title: "构建", waiting_for: "command", reason: "等构建结束", at: "2026-09-28T02:00:00.000Z", note: "等你决定" });
+test("a wait that did not succeed, or needs checking after a restart, is held for the person; the page shows what it waits for", () => {
+  assert.match(holdReason(view({ state: "failed", by: "app" }, { state: "blocked" })) ?? "", /没有完成/);
+  assert.match(holdReason(view({ state: "expired", conditions: [{ ...command, kind: "envelope", label: "会话「A」的答复" }] }, { state: "blocked" })) ?? "", /会话「A」的答复等到期限也没有结果/);
+  assert.match(holdReason(view({ state: "needs-reconciliation" }, { state: "needs-reconciliation" })) ?? "", /重启后结果需要核对/);
+  assert.match(holdReason(view({}, { auto: false })) ?? "", /等你决定/);
+  assert.equal(holdReason(view({}, {})), undefined);
+  assert.equal(waitingFor(view({ conditions: [{ ...command, kind: "envelope" }] }).wait), "reply");
+  assert.equal(waitingFor(view({ by: "app" }).wait), "work");
+  // Over and taken up (or given up), it no longer holds the session.
+  assert.equal(openWait(view({}, { state: "started" })), undefined);
+  assert.equal(openWait(view({ state: "cancelled" }, { state: "cancelled" })), undefined);
+  assert.ok(openWait(view({ state: "waiting" }, { state: "armed" })));
+  assert.deepEqual(waitViewOf(view({ state: "waiting" }), "等你决定"), { wait_id: "w1", after_title: "后台命令 构建结束", waiting_for: "command", reason: "等构建结束", at: "2026-09-28T02:00:00.000Z", note: "等你决定" });
 });

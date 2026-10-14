@@ -37,7 +37,7 @@ export function createNodeProjectWork(options: PrologueNodeAdapterOptions, host:
   }, runId => state.runWork.has(runId));
 }
 
-/** Messages between sessions, parked sessions and background commands, and the rounds' step boards. */
+/** Messages between sessions, waits and background commands, and the rounds' step boards. */
 export function createNodeCoordination(runtime: Runtime, index: SessionIndexStore, state: RoundState, projectWork: ReturnType<typeof createProjectWork>) {
   /** Tell a session's main round that is running now; false when it has none. */
   const steerSession = async (sessionId: string, text: string) => {
@@ -49,24 +49,19 @@ export function createNodeCoordination(runtime: Runtime, index: SessionIndexStor
   const messages = createSessionMessages(runtime, {
     async owner(sessionId) {
       const saved = await index.read(sessionId).catch(() => undefined);
-      return saved ? { project: saved.owner.project_id, ref: saved.ref, subtask: Boolean(saved.parent_run) } : undefined;
+      if (saved) return { project: saved.owner.project_id, ref: saved.ref, subtask: Boolean(saved.parent_run) };
+      // A subtask with nothing for the Host to review keeps no index of its own: it is its parent's.
+      const child = runtime.subagents.list().find(one => one.session.id === sessionId);
+      const parent = child && await index.read(child.parentSession.id).catch(() => undefined);
+      return parent ? { project: parent.owner.project_id, ref: child!.session, subtask: true } : undefined;
     },
     async title(project, sessionId) {
       const listed = (await projectWork.read(project).catch(() => ({ items: [] }))).items.find(item => item.session_id === sessionId);
       return listed?.title ?? (await index.read(sessionId).catch(() => undefined))?.title ?? sessionId;
     },
     steer: (sessionId, text) => steerSession(sessionId, text),
-    async overlapping(sessionId) {
-      // The files this session's round under way names or wrote, against the other work under way in its directory.
-      const saved = await index.read(sessionId).catch(() => undefined);
-      if (!saved) return [];
-      const project = saved.owner.project_id, mine = (await projectWork.read(project)).items.find(item => item.session_id === sessionId && item.state === "running");
-      if (!mine) return [];
-      const seen = await projectWork.read(project, { session_id: sessionId, directory: mine.directory, paths: mine.paths });
-      return [...new Set(seen.overlaps.map(overlap => overlap.work.session_id))];
-    },
   });
-  /** Parked sessions and background commands; a wait that fires while its session runs a round is told to that round. */
+  /** The project's waits and continuations, and background commands (the SDK hands a wait that is over to a live round). */
   const waitsPort = createPrologueWaits(runtime, {
     project: async sessionId => (await index.read(sessionId).catch(() => undefined))?.owner.project_id,
     title: async sessionId => {
@@ -74,7 +69,6 @@ export function createNodeCoordination(runtime: Runtime, index: SessionIndexStor
       if (!saved) return sessionId;
       return (await projectWork.read(saved.owner.project_id).catch(() => ({ items: [] }))).items.find(item => item.session_id === sessionId)?.title ?? saved.title;
     },
-    steer: (sessionId, text) => steerSession(sessionId, text),
   });
   const stepBoards = createPrologueTaskBoards(runtime, async run => {
     const saved = await index.read(run.session_id), attempt = saved?.attempts.find(attempt => attempt.run_id === run.run_id);

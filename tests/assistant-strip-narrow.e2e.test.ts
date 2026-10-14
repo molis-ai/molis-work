@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { assistantCardHtml, assistantQuestionHtml, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { assistantCardHtml, agentQuestionHtml, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 
 /** One streamed model turn: a tool call, or plain text. */
 function turn(tool?: { name: string; input: unknown }, text = "好的。"): string {
@@ -83,7 +83,7 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
 
   // RING-07 RING-08: actual Host markup under the live Assistant's styles; model-driven question submission is covered separately.
-  const html = assistantQuestionHtml({ pending_id: "ring-question", kind: "clarify", prompt: "继续整理？", options: [], allows_free_text: true }, text => text)
+  const html = agentQuestionHtml({ pending_id: "ring-question", kind: "clarify", prompt: "继续整理？", options: [], allows_free_text: true }, text => text)
     + assistantCardHtml({ card_id: "ring-action", revision: 1, run_id: "ring-run", title: "新建待办", summary: "保存结果", provider: "待办", capability_title: "新建待办", capability_id: "todo.items.create",
       effect: "irreversible", fields: [], missing: [], status: "unknown", created_at: "", updated_at: "" }, text => text);
   await evaluate(`(() => { const sample = document.createElement('section'); sample.id = 'ring-host-sample'; sample.innerHTML = ${JSON.stringify(html)};

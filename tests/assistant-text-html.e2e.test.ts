@@ -73,7 +73,7 @@ test("PAS-15: Host text streams, keeps reading state, copies exact code, opens n
       await evaluate(`(() => { const original=window.fetch;window.restoreReviewFetch=()=>{window.fetch=original};window.fetch=(url,init)=>String(url).includes('/reviews/') ? new Promise((resolve,reject)=>{window.failReview=()=>reject(new Error('review transport unavailable'))}) : original(url,init);document.querySelector('[data-assistant-decision=reject]').click(); })()`);
       assert.equal(await evaluate("[...document.querySelectorAll('[data-review] .assistant-card-actions button')].every(button=>button.disabled)"), true);
       await evaluate("window.failReview()");
-      await waitFor("document.querySelector('.assistant-problem')?.textContent.includes('连接中断，结果未知；再次发送不会重复提交') && [...document.querySelectorAll('[data-review] .assistant-card-actions button')].every(button=>!button.disabled)");
+      await waitFor("document.querySelector('.assistant-problem')?.textContent.includes('不知道这次操作有没有完成，请刷新后核对') && [...document.querySelectorAll('[data-review] .assistant-card-actions button')].every(button=>!button.disabled)");
       await evaluate("window.restoreReviewFetch()");
     }
     await evaluate(`document.querySelector('[data-assistant-decision=${decision}]').click()`);

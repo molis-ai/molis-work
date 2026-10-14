@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -289,9 +289,9 @@ test("MCP action port: a Pages failure comes out as its own code and message, no
   const call = async (action: ActionDefinition<never, unknown>, args: Record<string, unknown>) => {
     const reply = await handleMcpMessage({ id: 1, method: "tools/call", params: { name: actionMcpToolName(action), arguments: args } }, ports);
     const result = reply!.result as { isError: boolean; content: Array<{ text: string }> };
-    return { isError: result.isError, ...(result.isError ? JSON.parse(result.content[0]!.text) as { code: string; message: string } : {}) };
+    return { isError: result.isError, ...(result.isError ? JSON.parse(result.content[0]!.text) as { code: string; error: string } : {}) };
   };
-  assert.deepEqual(await call(pagesActions.get, { id: "no-such-document" }), { isError: true, code: "pages.not_found", message: "找不到这篇文档" });
+  assert.deepEqual(await call(pagesActions.get, { id: "no-such-document" }), { isError: true, code: "pages.not_found", error: "找不到这篇文档" });
   const document = store.create({ project_id: "a", title: "原稿" });
   const stale = await call(pagesActions.update, { id: document.id, title: "改过", expected_version: document.version + 5 });
   assert.deepEqual([stale.isError, stale.code], [true, "pages.conflict"]);
@@ -311,6 +311,42 @@ function filesOf(owner: Owner): string[] {
   const host = join(REPOSITORY, "apps", "local-host", "src");
   return [...sourceFiles(join(REPOSITORY, "plugins", "native", owner, "src")),
     ...readdirSync(host).filter(name => HOST_FILES[owner].some(pattern => pattern.test(name))).map(name => join(host, name))];
+}
+
+// A compiled browser module may also serve the Host. Only modules reachable from the declared browser entry and
+// unreachable from every public server export and Host binding are browser-only; moving one into a server path brings
+// its bare Errors back under the assertion below. Unreferenced files remain checked.
+function localModules(roots: readonly string[]): Set<string> {
+  const pending = [...roots], found = new Set<string>();
+  while (pending.length) {
+    const path = pending.pop()!;
+    if (found.has(path) || !existsSync(path)) continue;
+    found.add(path);
+    const file = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true);
+    const follow = (node: ts.Node): void => {
+      const specifier = ts.isImportDeclaration(node) || ts.isExportDeclaration(node) ? node.moduleSpecifier
+        : ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || ts.isIdentifier(node.expression) && node.expression.text === "require") ? node.arguments[0] : undefined;
+      if (specifier && ts.isStringLiteral(specifier) && specifier.text.startsWith(".")) {
+        const target = join(dirname(path), specifier.text.replace(/\.js$/u, ".ts"));
+        if (existsSync(target)) pending.push(target);
+      }
+      ts.forEachChild(node, follow);
+    };
+    follow(file);
+  }
+  return found;
+}
+function browserOnlyModules(directory: string, hostFiles: readonly string[]): Set<string> {
+  const pkg = JSON.parse(readFileSync(join(directory, "package.json"), "utf8")) as {
+    scripts: { build?: string }; exports: Record<string, string | { import?: string }>;
+  };
+  const entry = pkg.scripts.build?.match(/\besbuild\s+(\S+)[^&]*--platform=browser/u)?.[1];
+  if (!entry) return new Set();
+  const serverRoots = Object.values(pkg.exports).map(value => typeof value === "string" ? value : value.import ?? "")
+    .filter(path => path.startsWith("./dist/")).map(path => join(directory, path.replace(/^\.\/dist\//u, "src/").replace(/\.js$/u, ".ts")));
+  serverRoots.push(...hostFiles);
+  const server = localModules(serverRoots);
+  return new Set([...localModules([join(directory, entry)])].filter(path => !server.has(path)));
 }
 
 // The plugin client files hold the page's scripts as template strings; the only bare Errors allowed elsewhere are the two sentences that report a
@@ -337,11 +373,32 @@ test("the owner-error check ignores browser script text but detects executable t
   assert.deepEqual(bareServerErrors('throw new Error("没有 Host binding");'), []);
 });
 
+test("the owner-error check keeps shared browser modules covered when a server export or Host binding consumes them", async t => {
+  const directory = await mkdtemp(join(tmpdir(), "document-error-browser-graph-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await mkdir(join(directory, "src"));
+  await writeFile(join(directory, "package.json"), JSON.stringify({ scripts: { build: "esbuild src/browser.ts --bundle --platform=browser" }, exports: { ".": { import: "./dist/server.js" } } }));
+  await writeFile(join(directory, "src/browser.ts"), 'import "./only-browser.js"; import "./shared.js";');
+  await writeFile(join(directory, "src/only-browser.ts"), 'throw new Error("browser input");');
+  await writeFile(join(directory, "src/shared.ts"), 'throw new Error("server input");');
+  await writeFile(join(directory, "src/server.ts"), 'export * from "./shared.js";');
+  const onlyBrowser = join(directory, "src/only-browser.ts"), shared = join(directory, "src/shared.ts");
+  const modules = browserOnlyModules(directory, []);
+  assert.equal(modules.has(onlyBrowser), true);
+  assert.equal(modules.has(shared), false, "a transitive server export keeps the same browser module covered");
+  assert.deepEqual(bareServerErrors(readFileSync(shared, "utf8")), ['"server input"']);
+  const host = join(directory, "host.ts");
+  await writeFile(host, 'import "./src/only-browser.js";');
+  assert.equal(browserOnlyModules(directory, [host]).has(onlyBrowser), false, "a Host import brings a browser module under the server check");
+});
+
 test("no document plugin keeps an error class, a route-error mapper, or a raise of its own code outside its declarations", async () => {
   for (const owner of OWNERS) {
     const spec = SPECS[owner];
     const module = await import(spec.pkg) as Record<string, unknown>;
     for (const name of spec.removed) assert.equal(name in module, false, `${spec.pkg} no longer exports ${name}`);
+    const directory = join(REPOSITORY, "plugins", "native", owner);
+    const browserOnly = browserOnlyModules(directory, filesOf(owner).filter(path => !path.startsWith(join(directory, "src") + "/")));
     for (const file of filesOf(owner)) {
       const source = readFileSync(file, "utf8");
       const where = relative(REPOSITORY, file);
@@ -350,7 +407,7 @@ test("no document plugin keeps an error class, a route-error mapper, or a raise 
       assert.doesNotMatch(source, new RegExp(String.raw`new\s+\w*Error\(\s*"${owner}\.[a-z_]+"`, "u"), `${where}: ${owner}.* raised without the declaration (it would answer 400 whatever its kind)`);
       assert.doesNotMatch(source, /Object\.assign\(new Error\(/u, `${where}: an Error given a code afterwards`);
       // Parse actual server expressions: quoted browser scripts are data, but interpolations execute here.
-      const bare = bareServerErrors(source);
+      const bare = browserOnly.has(file) ? [] : bareServerErrors(source);
       assert.deepEqual(bare, [], `${where}: a bare new Error( is a caller-visible 500; raise ${spec.declarations}.<reason>(...) (or a platform code) instead`);
     }
   }

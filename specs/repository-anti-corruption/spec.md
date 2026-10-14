@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 6b1dd019c已整合I3–I33、main774a A2、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建与96b登记失败已修，96c九项工程检查通过；97/98实际失败已逐项记录，SDK六种切换交错及send/Workflow通过；夹具修正2916及新main774a A2已纳入6b1，待源核/重新整建及定向回归。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
+状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 c761c7750已整合I3–I33、main774a A2、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建与96b登记失败已修，96c九项工程检查通过；97/98实际失败已逐项记录，SDK六种切换交错及send/Workflow通过；夹具修正2916及新main774a A2已纳入6b1，源码复查已接受，新增fixture真实字节解析已修；等Pages短窗结束后重新整建和定向回归。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2668,3 +2668,6 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 
 
 **774a A2合并源码完成，未运行。** Root 6b1dd019c合并远端774acaf57，29个主线文件保留。5冲突逐项裁决：HTTP用现行plugin-SDK questionAnswer但保assistantErrors.invalid与details.errors；island保frozen-send、沿main host.interaction不重复内嵌client；初始化共享interaction并保Root原api属性；健康/资源两派生表用main占位、待实测更新，不手合数字。无新运行或第二构建队列，当前构建窗口归Pages原owner。2916f1bbe的fixture修正及该合并须源核、整建、定向实跑后才验收；不能把96c的旧9ab证明称新774a证明。后台命令三失败继续独立定位，已确认method_owner缺失只解释state400、显式confirmed plan_revision缺失解释graph barrier超时，approval未出现尚未关闭。
+
+
+**Runtime model请求真实字节的夹具诊断。** Source c761c7750已修两处mock的JSON.parse(String(init.body))：正式SDK的模型请求是TextEncoder生成的Uint8Array，Node-outbound原样交给fetch；String(Uint8Array)为逗号数字而非JSON。activation mock在第一个start-command返回之前即抛错，graph mock也会在补plan_revision后继续失败，因此两者改为真实string/Uint8Array解码，原消息/任务图/用户verdict和固定报告断言保留。这是独立于method_owner的另一项已确认夹具根因，不是生产SDK未发审批；当前尚未重跑。0c49dc10c另把I6 number题的min/max改为15/120数值，实际SDK约束只收finite number；保原逐题拒绝和有效45续跑断言。Source独立复查接受6b1的8fixture/A2生产冲突，无新增阻塞。Root下一99整体/100七普通+六浏览器只已准备、未排队；Pages现有owner正在其获分配的短窗口，结束明确释放后串行接续。Prologue #20已ready for review、仍open，六项正式SDK模型切换消费证明写入PR，不称其周边11项全过或上游CI存在。

@@ -92,7 +92,8 @@ test("a failed SDK background read preserves the last actual command observation
 test("Coding activation resumes a persisted SDK wait without opening a page and keeps retrying transient owner failures", { timeout: 100_000 }, async t => {
   const fixture = await codingSdkRuntime(t); fixture.create("A"); let turn = 0; const requests: string[] = [];
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
-    const messages = JSON.stringify(JSON.parse(String(init.body)).messages); requests.push(messages); turn++;
+    const wire = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
+    const messages = JSON.stringify(JSON.parse(wire).messages); requests.push(messages); turn++;
     if (turn === 1) return codingToolResponse("start-command", { executable: process.execPath, argv: ["-e", "setTimeout(()=>{},30000)"] });
     if (turn === 2) { const task = messages.match(/started (\S+) in the background/)?.[1]; assert.ok(task); return codingToolResponse("await-commands", { handles: [task], park: true, reason: "Wait for the controlled command." }); }
     return cogniaModelResponse(turn === 3 ? "Parked without polling." : "WOKE_FROM_PERSISTED_COMMAND");
@@ -123,7 +124,8 @@ test("a real inserted SDK step and its verdict are saved in a fixed report that 
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let turn = 0, execution: AgentRunRef;
   t.after(() => release.resolve());
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
-    turn++; const request = JSON.parse(String(init.body)), project = JSON.stringify(request.system).match(/任务图：([^。]+)。/)?.[1]; assert.ok(project);
+    const wire = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
+    turn++; const request = JSON.parse(wire), project = JSON.stringify(request.system).match(/任务图：([^。]+)。/)?.[1]; assert.ok(project);
     if (turn === 1) return codingToolResponse("board-read", { board: project });
     if (turn === 2) { entered.resolve(); await release.promise; return codingToolResponse("board-read", { board: project }); }
     if (turn < 7) {

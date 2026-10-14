@@ -1,3 +1,4 @@
+import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import type {
   FeedUiEntry,
   FeedUiItem,
@@ -270,14 +271,6 @@ const feedUiPrimitives: FeedUiPrimitives = {
   },
 };
 
-function escapeHtml(value: unknown): string {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
 
   return { buildFeedNativePluginModel, renderFeedNativePluginSurface, renderFeedNativePluginPersistedDetail };
 }

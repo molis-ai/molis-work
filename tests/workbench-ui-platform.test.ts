@@ -38,6 +38,15 @@ test("Workbench owns the document shell and escapes document metadata", () => {
   assert.match(html, /<main data-workbench-main>真实页面<\/main>/);
 });
 
+// K1-01: the real document shell uses the shared escaping for metadata and body attributes.
+test("K1-01 document metadata keeps hostile markup inside its text and attribute values", () => {
+  const value = `O'Reilly & </title><img src=x onerror="alert(1)">`;
+  const html = renderWorkbenchDocument({ lang: "en", title: value, head_html: "", body_attributes: { title: value }, body_html: "<main>safe</main>" });
+  assert.match(html, /<title>O&#039;Reilly &amp; &lt;\/title&gt;&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;<\/title>/);
+  assert.match(html, /<body title="O&#039;Reilly &amp; &lt;\/title&gt;&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;">/);
+  assert.doesNotMatch(html, /<img|<body[^>]*\sonerror=/);
+});
+
 test("UI Host mounts only declared Plugin surfaces into compatible Workbench slots", () => {
   const contribution: UiContribution<{ title: string }> = {
     descriptor: {

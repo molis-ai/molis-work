@@ -87,6 +87,7 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home /tmp/m
 - 公开入口：`@molis-ai/molis-work-design-system`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/ui`。
 - 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 服务端 HTML 的文字和属性值使用本包 `escapeHtml`，先处理 `&`，并覆盖单双引号；受信 HTML 槽与 JSON 脚本编码由各自合同处理。
   - 生产只从包名（或 `/floating`）导入，不深入 `src/`；改源码后编进 `dist`，预览和测试读的是包导出。`/floating` 必须保持叶子：不 import 任何东西、不碰 Node（`tests/design-system-floating.test.ts` 看住）。
   - 改共享控件先看规格板 `/__ui/catalog`。
   - 禁止系统色盘、系统日期/时间弹出、`alert`/`confirm`/`prompt` 与未换肤的 `range`。

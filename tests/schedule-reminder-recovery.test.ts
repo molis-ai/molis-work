@@ -14,6 +14,7 @@ import { LocalActionGatewayClient, MolisWorkLocalHost, molisWorkHostProjectRefer
 import { todoActions, TODO_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-todo";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { currentCallId } from "@molis-ai/molis-work-kernel";
 
 const pluginId = "io.molis.work.test.reminder";
 function installation(generation = "original"): PluginInstanceRecord {
@@ -350,17 +351,23 @@ test("W2-18-SCHEDULE-02: a source tick waiting inside Home preparation cannot re
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const served = await serveTestHost(null, { home, host });
   const project = await served.createProject("Prepare wait");
+  await host.withProject(project.reference, () => undefined);
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert.deepEqual(host.status().projects.map(row => row.project_id), [project.project_id], "only the target runtime was opened");
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let operation: string | undefined;
   const plugins = host.homePlugins; assert.ok(plugins);
   await plugins.ready();
   const original = plugins.ready.bind(plugins); let waiting = true;
-  t.mock.method(plugins, "ready", async () => { if (waiting) { entered.resolve(); await release.promise; } return original(); });
+  t.mock.method(plugins, "ready", async () => { if (waiting) { operation = currentCallId(); entered.resolve(); await release.promise; } return original(); });
   try {
-    t.mock.timers.tick(30_000); await entered.promise;
-    await host.closeProject(project.reference);
+    t.mock.timers.tick(30_000);
+    await Promise.race([entered.promise, new Promise((_, reject) => setTimeout(() => reject(new Error("target tick did not reach Home preparation")), 5_000))]);
+    assert.equal(typeof operation, "string", "the barrier is the target timer operation");
+    assert.equal(await host.closeProject(project.reference), true, "close released the actual target runtime");
     waiting = false; release.resolve();
     await new Promise(resolve => setTimeout(resolve, 50));
     assert.equal(host.status().projects.some(row => row.project_id === project.project_id), false, "the cancelled tick never opens a replacement instance");
-    assert.equal(host.callLog!.list(project.project_id).filter(row => row.capability_id === "feed.sources.tick").length, 0, "cancelled preparation wrote no source effect receipt");
+    assert.equal(host.callLog!.find(operation!).filter(row => row.project_id === project.project_id && row.capability_id === "feed.sources.tick").length, 0, "cancelled preparation wrote no source effect receipt");
   } finally { waiting = false; release.resolve(); await served.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

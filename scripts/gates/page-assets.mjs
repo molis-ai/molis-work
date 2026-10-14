@@ -72,10 +72,6 @@ const update = flags.has("--update"), report = flags.has("--report");
 const root = options.root ? path.resolve(options.root) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const BUDGET_FILE = "tooling/gates/page-assets.json";
 const budgetPath = path.join(root, BUDGET_FILE);
-// Issue V0's separately reviewed first asset. Existing assets keep their merge-base ceiling; no other new path is admitted.
-// Rationale and measurement: specs/issue-home-v0/spec.md. Once in the base, only that base's (possibly lower) size applies.
-const INITIAL_ASSET_BUDGETS = { "/assets/molis-work-plugins/issues.js": 24000 };
-
 const NOTE = "Only decreases. The size in bytes of each asset the host sends under /assets/ (the body as served, uncompressed), "
   + "measured from the built workspace by scripts/gates/page-assets.mjs. Lower it with "
   + "`node scripts/gates/page-assets.mjs --update --base origin/main` in the PR that shrinks an asset. CI compares this file with "
@@ -240,7 +236,7 @@ const headErrors = (measured, budget, base) => {
 const baseErrors = (budget, base) => {
   const errors = [];
   for (const [asset, allowed] of Object.entries(budget)) {
-    if (base[asset] === undefined && (INITIAL_ASSET_BUDGETS[asset] === undefined || allowed > INITIAL_ASSET_BUDGETS[asset])) errors.push(`${BUDGET_FILE} adds ${asset} (${allowed} bytes), which the merge-base did not budget; budgets only fall and no asset may be added`);
+    if (base[asset] === undefined) errors.push(`${BUDGET_FILE} adds ${asset} (${allowed} bytes), which the merge-base did not budget; budgets only fall and no asset may be added`);
     else if (allowed > base[asset]) errors.push(`${BUDGET_FILE} raises the budget of ${asset} ${base[asset]} → ${allowed}; budgets only fall`);
   }
   return errors;
@@ -253,9 +249,8 @@ const missErrors = (found) => found.map((asset) => `${asset} (${measured[asset]}
 // update: nothing may grow relative to the reference (the merge-base's budget, else the committed one); a missing
 // reference is the first freeze.
 const growthErrors = (measured, reference) => Object.entries(measured).flatMap(([asset, bytes]) => {
-  const allowed = reference[asset] ?? INITIAL_ASSET_BUDGETS[asset];
-  if (allowed === undefined) return [`${asset} (${bytes} bytes) has no budget to lower`];
-  return bytes > allowed ? [`${asset} grew ${allowed} → ${bytes}`] : [];
+  if (reference[asset] === undefined) return [`${asset} (${bytes} bytes) has no budget to lower`];
+  return bytes > reference[asset] ? [`${asset} grew ${reference[asset]} → ${bytes}`] : [];
 });
 
 // ---- the merge-base's budget -----------------------------------------------------------------------------------------

@@ -38,7 +38,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
 | 跨插件 AI 交互（交互线） | `specs/ai-interaction-experience/spec.md` | §17 分片表、§20.13（A1+H2）、§20.14（A2） |
 | 情境动作（情境线） | `specs/context-program/spec.md`（总纲） | §16.4、§20（当前接续入口）、§20.11（W2 用例） |
 
-## 2. 现在的状态（2026-10-14 17:00 UTC 写）
+## 2. 现在的状态（2026-10-14 17:00 UTC 写，17:40 UTC 更新：P2i、P2j 已合进 Prologue main，W4-06 开了 PR #498）
 
 **Molis main = `774acaf5`。**
 
@@ -59,23 +59,25 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
 - #488：状态环。A2 并 main 时，把它放到了共享问卷卡上。
 - 窗口图过渡包：现在 vendored 的是 `prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz`。
 
-**Prologue main = `c5d35d7f`**，P2a–P2h、S1–S4、Computer Use、H16、窗口图都在。最近合的：
+**Prologue main = `70ea93d6`**，P2a–P2j、S1–S4、Computer Use、H16、窗口图都在，**P2 全部完成**。最近合的：
 
 - #16 P2g；
 - #17 H16；
 - #18 窗口图；
-- #19 P2h（等待：条件组、四态、`board-wait`）。
+- #19 P2h（等待：条件组、四态、`board-wait`）；
+- #21 P2i（接续），合并提交 `71a06a94`；
+- #22 P2j（外部条件与检查器），合并提交 `70ea93d6`。
+
+#21、#22 合并时没跑最终 head 上的 SDK 全量和干净包消费者检查（整机构建时段一直被占；用户 10-14 让 Prologue 改动直接进 main），PR 正文写明了「合入后在 main 上补跑」。补跑已排在构建锁后面（`prologue-verify.sh ~/code/prologue-p2j main-70ea93d6 <P2h 的包>`，`~/code/prologue-p2j` 现在停在 `origin/main`）；结果见 §3.1 第 1 条。
 
 **在途（都已推送，没有只在本机的东西）**：
 
 | 线 | 仓库 / 分支 | head | 状态 | 本机工作树 |
 | --- | --- | --- | --- | --- |
-| 采用 P2i | Prologue `feature/p2i-continuation` | `5cad14e6` | 实现与用例完成；定向用例、13 个变异都过。**完整验证未跑**（等整机构建时段），没开 PR | `~/code/prologue-p2i` |
-| 采用 P2j | Prologue `feature/p2j-checkers`（叠在 P2i 上） | `e8c1881d` | 同上（14 个变异全红）；没开 PR | `~/code/prologue-p2j` |
-| 采用 W4-06 | Molis `refactor/w4-06-prologue-node` | `4c44afaf0` | **WIP**：代码已拆完，**还没构建、没类型检查、没跑用例、没过门禁** | `.claude/worktrees/line-adoption-w406` |
+| 采用 W4-06 | Molis `refactor/w4-06-prologue-node`，PR #498（草稿） | `6660b62a`（已并 main `cbbeada4`） | 类型检查无错；`check-health-gates --base origin/main` 过，`prologue-node.ts` 的三个巨大单元消失、没有新的；本地快查、巨大单元清单、防腐 spec、四份文档已跟着改。CI 在跑；本地构建与相关用例排在构建锁后面 | `.claude/worktrees/line-adoption-w406` |
 
-- 上表写于暂停前。若之后 P2i/P2j 的验证在本会话跑完、PR 已开或已合，以 Prologue 远端为准。
-- 查法：`gh pr list --repo molis-ai/prologue`，以及 `git log origin/main` 有没有带 `p2i` / `p2j` 的合并。
+- P2i、P2j 已合（见上），工作树 `~/code/prologue-p2i` 可以删；远端分支 `feature/p2i-continuation`、`feature/p2j-checkers` 留着没删。
+- 以 GitHub 为准：`gh pr view 498`，`gh pr list --repo molis-ai/prologue`。
 
 **已知的既有失败（不是四线引入）**：
 
@@ -87,19 +89,11 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
 
 ### 3.1 采用线（关键路径）
 
-1. **P2i 收尾**（Prologue）：
-   - 在 `~/code/prologue-p2i` 跑 `coordination/2026-10-14/tools/prologue-verify.sh ~/code/prologue-p2i p2i-1 <P2h 的包>`。要放在 `build-lock.sh` 下：用法见 §5。
-   - 包是验证脚本打的 `prologue-sdk-0.0.0-rc.1.tgz`。没有就先对 Prologue main 跑一遍脚本，得到它。
-   - 过了：
-     - 把结果写进合同「P2i」进度条的「验证」行（现在是「跑完补」）；
-     - 开 PR，PR 正文照 #19 的写法：内容、不含、对消费方的影响、验证、变异；
-     - 合并（用户授权：Prologue PR 验证过即由我们合，merge commit）。
-   - 全量里若只有公开面快照不同：对照 P2i 加的三个类型核一遍，再 `-u` 更新。
-2. **P2j 收尾**：
-   - P2i 合进 Prologue main 之后，在 `~/code/prologue-p2j` 合 `origin/main`；
-   - 跑验证（上一个包用 P2i 的），补「验证」行；
-   - 开 PR、合并。
-   - P2j 合完，**P2 全部完成**，P3 可以换包。
+1. **P2i、P2j 已合（#21、#22），P2 全部完成。剩合入后的补跑**：
+   - 对 Prologue main `70ea93d6` 跑 `prologue-verify.sh`（SDK 全量 + 干净包消费者，含新的 `taskboard-continuations-consumer.mjs`、`taskboard-checks-consumer.mjs`），放在构建锁下。若本会话没跑完，接手的人重跑：`$L prologue-main-verify zsh coordination/2026-10-14/tools/prologue-verify.sh ~/code/prologue-p2j main-70ea93d6 <P2h 的包>`。
+   - 过了：在合同 `docs/slices/taskboard-collaboration.md` 的 P2i、P2j 进度条「验证」行补上结果（直接进 Prologue main）。
+   - 不过：先分清是不是 dist 没构建、是不是 `desktop-computer-use.live`（排除）；产品失败就在 Prologue 开修复 PR。全量里若只有公开面快照不同，对照 P2i/P2j 新加的公开类型核一遍再 `-u`。
+2. P3 用的包从 `70ea93d6`（或补跑修复之后的 main）打。
 3. **W4-06**（Molis，P3 的硬前置，也是回执线「会话条目端口」的前置）：
    - **做了什么**：把 1,551 行的 `prologue-node.ts`（`initializePrologueNodeAdapter` 1,281 行，内嵌 `startAgentRun` 406 行）拆成：
      - `prologue-node-kit.ts`：选项、各轮内存状态、共用工具；
@@ -112,14 +106,12 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
      - `prologue-node-parts.ts`：项目工作、会话消息、等待、步骤图、推理与构建 Agent。
      - `prologue-node.ts` 只剩组合。
    - **行为应当不变**：代码基本是原样搬移，只把闭包里的共享状态改成显式参数。
+   - **已做**（PR #498）：类型检查（修了 7 处）；健康门禁对 merge-base 过；本地快查、`HUGE-CLASS-MIGRATION.md`、防腐 spec §4.5 行、`CALL-CHAINS`/`PROLOGUE-AI`/`HOME-DATA`/`PARALLEL-DEVELOPMENT` 的位置都改了。
    - **还要做的**：
-     1. 整体构建：`pnpm build`，在构建时段里做。
-     2. `pnpm --filter @molis-ai/molis-work-service-agent-host run typecheck`，或整体 `tsc`。修类型错：写的时候没编译过，按经验会有几处。
-     3. 跑 agent-host README「改动后必跑」那组，加上 `node scripts/affected-tests.mjs` 选出的用例：`prologue-*`、`agent-*`、Coding 与助理的浏览器用例。
-     4. `node scripts/check-health-gates.mjs --base origin/main`：每个新单元都必须低于阈值（函数 150 行、文件 800 行、类 300 行/25 个方法），被拆掉的巨大单元从基准里消失。`--update --base` 更新本地快查。
-     5. 在 `docs/system/HUGE-CLASS-MIGRATION.md` 把 `prologue-node.ts` 那一行改成已拆，在防腐 spec 里把 W4-06 记为完成，注明经采用线做。
-     6. 动的是共享核心，按规矩要跑全量，由主会话排进集成分支。
-     7. 开 PR；正文写清「搬移、行为不变」，并列出逐文件对应。
+     1. 等 CI（Verify、Package boundaries 必须过；Product subset 不挡合并，但里面有 agent-host 必跑那组的 6 个）。
+     2. 本地：构建锁下 `pnpm build` → `pnpm boundary:check` → `affected-tests.mjs` 选出的 21 个 + Coding/助理的 9 个非浏览器用例（`coding-background-wait`、`coding-collab-handoff`、`assistant-delegation-handback` 等）。脚本形态：本会话 scratchpad 的 `w406-verify.sh`。
+     3. 只动 agent-host 一个包，按 `PARALLEL-DEVELOPMENT.md` 第 6 节不算共享核心，不要求全量；合入后相关用例意外失败才补全量。
+     4. 把结果补进 PR 正文「验证」，转为 ready，CI 绿且与 main 同步就合。
    - 若类型错太多、搬移出了偏差：以 `origin/main` 的 `prologue-node.ts` 为准逐段对照。拆分方案本身不用重想。
 4. **P3：Molis 第二次换包**。范围见采用 spec §4.6：
    - **换包**：从 Prologue main 的具名提交重新打包，替换 `vendor/prologue-sdk/` 里的过渡包；`.sha256`、`.provenance.json`、`patch-history.json` 一起改，`pnpm health:check` 会核。

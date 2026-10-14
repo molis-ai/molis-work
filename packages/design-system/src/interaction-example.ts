@@ -49,6 +49,13 @@ export function renderInteractionExample(): string {
     ['执行中', renderInteractionNextSteps([{ id: 'card', label: '执行中…', source: '来自复盘安排操作卡', busy: true }])],
     ['完成后：一主一次', renderInteractionNextSteps([{ id: 'result', label: '打开结果', source: '来自复盘安排操作卡' }, { id: 'continue', label: '继续调整', source: '来自复盘安排操作卡', primary: false }])],
     ['记录变了：原位禁用', renderInteractionNextSteps([{ id: 'card', label: '预览参数', source: '来自复盘安排操作卡', disabled: true }])],
+    ['助理的下一步：三个加「还有 2 项」', renderInteractionNextSteps([
+      { id: 'card:run', label: '记成待办', source: '来自操作卡「记成待办：第二阶段定负责人」', primary: false, waiting: true, waitingLabel: '等你确认：' },
+      { id: 'question:choose:team', label: '团队', source: '来自问卷「跟进发给谁？」', primary: false },
+      { id: 'question:choose:boss', label: '只给经理', source: '来自问卷「跟进发给谁？」', primary: false },
+      { id: 'open', label: '打开「第二阶段定负责人」', source: '这一轮做出的结果', primary: false },
+      { id: 'retry', label: '用同样的话再试一次', source: '上一轮没做完', primary: false },
+    ], '下一步', { max: 3, more: count => `还有 ${count} 项` })],
   ].map(([label, body]) => card(label!, `<div class="mw-ix-composer-specimen">${body}<div class="mw-ix-composer-specimen__pill">${label === '问题收起时' ? renderInteractionComposerTarget('补充到问卷') : ''}<span>继续说…</span></div></div>`)).join('');
   return `<style>${INTERACTION_STYLES}
     .mw-ix-specimen { width: min(620px, 100%); }

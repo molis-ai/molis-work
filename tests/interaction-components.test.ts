@@ -66,6 +66,24 @@ test("AC-17 / AC-03: next steps show at most one primary and one secondary; a bu
   assert.match(html, /data-ix-step-id="continue" title="来自操作卡" data-secondary/);
   assert.match(renderInteractionNextSteps([{ id: "card", label: "执行中…", source: "s", busy: true }]), /data-busy aria-busy="true" disabled/);
 });
+test("FLOW-05 / AC-17: with a limit, next steps keep the caller's order, fold the rest into one button and mark what waits in words", () => {
+  const steps = [
+    { id: "a<1>", label: "确认 <卡>", source: "s1", primary: false, waiting: true, waitingLabel: "等你：" },
+    { id: "b", label: "团队", source: "s2", primary: false }, { id: "c", label: "只给经理", source: "s3", primary: false },
+    { id: "d", label: "打开结果", source: "s4" }, { id: "e", label: "再试一次", source: "s5" },
+  ];
+  const html = renderInteractionNextSteps(steps, "下一步", { max: 3, more: count => `还有 ${count} 项` });
+  assert.deepEqual([...html.matchAll(/data-ix-step-id="([^"]*)"/g)].map(match => match[1]), ["a&lt;1&gt;", "b", "c"], "the first three, in the caller's order, escaped once");
+  assert.match(html, /<button type="button" class="mw-ix-step mw-ix-steps__more" data-ix-steps-more="2" data-secondary>还有 2 项<\/button><\/div>$/);
+  assert.match(html, /data-ix-step-id="a&lt;1&gt;" title="s1" data-secondary data-waiting>[\s\S]*?<span class="mw-ix-step__waiting">等你：<\/span><span data-ix-step-label>确认 &lt;卡&gt;<\/span>/,
+    "the amber dot comes with words a screen reader reads");
+  assert.equal(html.match(/data-waiting/g)?.length, 1);
+  assert.doesNotMatch(renderInteractionNextSteps(steps.slice(1), "下一步", { max: 3, more: count => `还有 ${count} 项` }), /data-ix-steps-more/, "nothing folded, no more button");
+  // Without options the component draws exactly what it drew before.
+  const plain = [{ id: "result", label: "打开结果", source: "x" }, { id: "continue", label: "继续调整", source: "y", primary: false }];
+  assert.equal(renderInteractionNextSteps(plain, "接下来"), renderInteractionNextSteps(plain, "接下来", undefined));
+  assert.doesNotMatch(renderInteractionNextSteps(plain), /data-waiting|data-ix-steps-more|mw-ix-step__waiting/);
+});
 test("AC-17 / AC-06: the operation card states its target and version, the exact parameters, its status and result", () => {
   const html = renderInteractionOperation({ id: "op", kicker: "操作建议", title: "创建安排", badge: { label: "结果未知", tone: "waiting" },
     target: { prefix: "作用于", label: "内部试用", version: "版本 2", changed: true },

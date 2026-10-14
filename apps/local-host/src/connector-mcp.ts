@@ -111,7 +111,8 @@ function callbackOrigin(raw: string): string {
   return url.origin;
 }
 function safeError(error: unknown): ActionError {
-  if (error instanceof ActionError) return error;
+  const connectionRefusal = error instanceof ActionError && error.code.startsWith("connector.connection.") && Object.hasOwn(connectorErrors, error.code);
+  if (error instanceof ActionError && !connectionRefusal) return error;
   if (error instanceof UnauthorizedError) return connectorErrors["connector.mcp.authorization"]("MCP 需要重新授权，请检查账号权限或 OAuth 应用配置");
   return connectorErrors["connector.mcp.provider"]("MCP 连接失败，请检查服务地址、账号权限和 OAuth 应用配置后重试");
 }

@@ -301,3 +301,32 @@ test("managed Notion OAuth keeps workspace identity and the selected connection 
     rmSync(home, { recursive: true, force: true });
   }
 });
+
+// CONERR-01 / CONERR-02: real HTTP classification preserves authorization and masks private connection failures.
+test("MCP settings keep authorization at 401 and missing connections as safe provider failures", async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-mcp-refusal-"));
+  const prior = { home: process.env.MOLIS_WORK_HOME, backend: process.env.MOLIS_WORK_SECRET_BACKEND };
+  process.env.MOLIS_WORK_HOME = home; process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
+  const controlToken = "mcp-refusal-fixture-control";
+  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  const origin = "http://127.0.0.1:" + address.port;
+  const headers = { origin, "content-type": "application/json", "x-molis-work-control-token": controlToken };
+  try {
+    const before = withConnectorConnections(home, store => store.list());
+    const refused = await fetch(origin + "/api/settings/connectors/methods/mcp/complete", { method: "POST", headers,
+      body: JSON.stringify({ returned_url: origin + "/api/settings/connectors/methods/mcp/callback?state=missing-state&code=unused" }) });
+    assert.equal(refused.status, 401);
+    assert.deepEqual(await refused.json(), { error: "MCP 授权会话无效、已过期或已使用，请重新连接", code: "connector.mcp.authorization" });
+    const missing = await fetch(origin + "/api/settings/connectors/connections/missing-connection/mcp", { method: "POST", headers, body: JSON.stringify({ action: "inspect" }) });
+    assert.equal(missing.status, 400);
+    assert.deepEqual(await missing.json(), { error: "MCP 连接失败，请检查服务地址、账号权限和 OAuth 应用配置后重试", code: "connector.mcp.provider" });
+    assert.deepEqual(withConnectorConnections(home, store => store.list()), before);
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve())); resetSecretStoreCache();
+    if (prior.home === undefined) delete process.env.MOLIS_WORK_HOME; else process.env.MOLIS_WORK_HOME = prior.home;
+    if (prior.backend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior.backend;
+    rmSync(home, { recursive: true, force: true });
+  }
+});

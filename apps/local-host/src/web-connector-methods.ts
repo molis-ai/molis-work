@@ -79,14 +79,17 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
       connectorAuthorizationFailed(response, undefined, url.searchParams.get("error") === "access_denied");
       return true;
     }
-    if (error instanceof ActionError) {
+    const mcpRefusal = error instanceof ActionError && error.code.startsWith("connector.mcp.") && Object.hasOwn(connectorErrors, error.code);
+    if (mcpRefusal) {
+      sendLocalWebJson(response, error.code === "connector.mcp.authorization" ? 401 : 400, { error: error.message, code: error.code });
+      return true;
+    }
+    const serviceRefusal = error instanceof ActionError && Object.hasOwn(connectorErrors, error.code);
+    if (error instanceof ActionError && !serviceRefusal) {
       sendLocalWebJson(response, error.code === "actions.reauthorize" ? 401 : 400, { error: error.message, code: error.code === "actions.reauthorize" ? "connector.mcp.authorization" : error.code });
       return true;
     }
-    const known = (error instanceof ActionError && ["connector.mcp.configuration","connector.mcp.authorization","connector.mcp.disconnected","connector.mcp.provider"].includes(error.code));
-    sendLocalWebJson(response, known && error.code === "connector.mcp.authorization" ? 401 : 400, {
-      error: known ? error.message : "MCP 操作失败，请检查连接配置后重试", code: known ? error.code : "connector.mcp.provider",
-    });
+    sendLocalWebJson(response, 400, { error: "MCP 操作失败，请检查连接配置后重试", code: "connector.mcp.provider" });
   }
   return true;
 }

@@ -40,7 +40,7 @@ import * as schedulePlugin from "@molis-ai/molis-work-plugin-schedule";
 //   5. nothing of the old shape is left: no error class, no mapper, no bare `new Error(` for a caller's mistake, no owner code raised without its declaration,
 //      no old code name in the sources.
 //   6. the scheduler's own declared refusals leave every Schedule action as Schedule's declared failures: the five wrappers of the three action files
-//      (actions.ts `bind`, reminder-actions.ts, operation-actions.ts) are driven with the scheduler's real class and with the real scheduler, so deleting one of them,
+//      (actions.ts `bind`, reminder-actions.ts, operation-actions.ts) are driven with the scheduler's public raisers and with the real scheduler, so deleting one of them,
 //      which no static scan can see, turns a stale-job toggle into a 500 here.
 
 const REPOSITORY = join(dirname(fileURLToPath(import.meta.url)), "..");

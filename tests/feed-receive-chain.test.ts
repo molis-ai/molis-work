@@ -152,12 +152,13 @@ test("Listener persists a failed provider pull, retains the cursor and replays w
       assert.deepEqual(signals.query.list(DEMO_PROJECT_ID, sourceId), []);
     }
     const run = listener.listRuns(DEMO_PROJECT_ID)[0]!;
-    listener.saveRun({ ...run, phase: "running", outcome: null, error_code: null, completed_at: null });
+    const interrupted = { ...run, run_id: "interrupted-owner-run", operation_id: "interrupted-owner-operation", phase: "running" as const, outcome: null, error_code: null, completed_at: null };
+    listener.saveRun(interrupted);
     store.db.prepare("UPDATE listener_instances SET state = 'listening', lease_owner = ?, lease_expires_at = ? WHERE project_id = ? AND source_id = ?")
       .run("old-process", "2026-09-02T08:10:00.000Z", DEMO_PROJECT_ID, sourceId);
     const restarted = new ListenerHost(store.db, connectorWith(driver), new SignalsModule(store.db).commands);
     assert.equal(restarted.recoverInterruptedRuns(DEMO_PROJECT_ID), 1);
-    assert.equal(restarted.getRunByOperationId(DEMO_PROJECT_ID, run.operation_id)?.error_code, "listener.process_interrupted");
+    assert.equal(restarted.getRunByOperationId(DEMO_PROJECT_ID, interrupted.operation_id)?.error_code, "listener.process_interrupted");
     assert.equal(restarted.checkpoint(DEMO_PROJECT_ID, sourceId).last_error_code, "listener.process_interrupted");
     assert.equal(restarted.checkpoint(DEMO_PROJECT_ID, sourceId).state, "retry_wait");
     assert.equal(restarted.recoverInterruptedRuns(DEMO_PROJECT_ID), 0);

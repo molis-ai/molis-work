@@ -658,7 +658,7 @@ test("编辑器内核是 IIFE，不是 tsc 的 ESM", () => {
   assert.match(source, /data-pages-image/);
   assert.match(source, /insertImage/);
   assert.match(source, /acceptedImageFile/);
-  assert.match(source, /readClipboardImage/);
+  assert.match(source, /readPagesImage/); // the pasted or dropped image reader (readClipboardImage before 4f8eff62c)
   assert.match(source, /data-pages-columns/);
   assert.match(source, /addColumn/);
   assert.match(source, /moveColumnEdge/);

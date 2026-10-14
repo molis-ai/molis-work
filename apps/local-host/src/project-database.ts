@@ -36,7 +36,7 @@ function inspectExistingDatabase(path: string): string {
   const inspection = new LocalSqliteStorage(path, { readonly: true });
   try {
     const { user_version: version } = inspection.db.prepare("PRAGMA user_version").get() as { user_version: number };
-    if (version !== PROJECT_DATABASE_BASELINE.version) throw new ProjectRecoveryError("project_recovery_unsupported_schema");
+    if (version !== PROJECT_DATABASE_BASELINE.version) throw new ProjectRecoveryError("catalog.project_recovery_unsupported_schema");
     return path;
   } finally { inspection.close(); }
 }

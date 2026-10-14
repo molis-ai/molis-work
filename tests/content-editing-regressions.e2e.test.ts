@@ -31,6 +31,33 @@ const chooseActions = async (b: Browser) => {
   await b.waitFor("document.querySelector('.pages-pop:not([hidden]) textarea')");
 };
 
+test("W2-18-PAGES-CALLOUT-01: a callout popup belongs to its original document; the new document has working controls", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=pages` }, b.sessionId));
+  await b.waitFor("typeof window.MolisWorkPagesEditor?.mount === 'function'");
+  await b.evaluate(`(() => {
+    const api=window.MolisWorkPagesEditor, root=document.createElement('div'); root.id='callout-lifetime-fixture'; document.body.append(root);
+    window.calloutDoc = text => ({type:'doc',content:[{type:'callout',attrs:{tone:'cyan',icon:'info'},content:[{type:'paragraph',content:[{type:'text',text}]}]}]});
+    window.calloutEditor=api.mount(root,{doc:window.calloutDoc('Document A')});
+    root.querySelector('[data-pages-callout-pick]').click();
+    const popup=[...document.querySelectorAll('.pages-pop')].find(node=>!node.hidden && node.querySelector('.pages-icon-pick'));
+    window.oldCalloutIcon=popup.querySelector('[aria-label="星标"]')||popup.querySelector('.pages-icon-pick:last-child');
+    window.oldCalloutTone=popup.querySelector('[data-pages-tone="purple"]');
+    window.oldCalloutPopup=popup; api.setDoc(window.calloutEditor,window.calloutDoc('Document B'));
+  })()`);
+  const before = await b.evaluate("window.MolisWorkPagesEditor.getDoc(window.calloutEditor)");
+  assert.equal(await b.evaluate("window.oldCalloutPopup.hidden && window.oldCalloutPopup.childElementCount===0"), true);
+  await b.evaluate("window.oldCalloutIcon.click();window.oldCalloutTone.click()");
+  assert.deepEqual(await b.evaluate("window.MolisWorkPagesEditor.getDoc(window.calloutEditor)"), before, "the retained old handlers cannot change Document B");
+  await b.evaluate("document.querySelector('#callout-lifetime-fixture [data-pages-callout-pick]').click()");
+  await b.waitFor("[...document.querySelectorAll('.pages-pop')].some(node=>!node.hidden && node.querySelector('[data-pages-tone=purple]'))");
+  await b.evaluate("[...document.querySelectorAll('.pages-pop')].find(node=>!node.hidden && node.querySelector('[data-pages-tone=purple]')).querySelector('[data-pages-tone=purple]').click()");
+  const after = await b.evaluate<{ content: Array<{ attrs: { tone: string }; content: unknown }> }>("window.MolisWorkPagesEditor.getDoc(window.calloutEditor)");
+  assert.equal(after.content[0]!.attrs.tone, "purple");
+  assert.match(JSON.stringify(after.content[0]!.content), /Document B/);
+  await b.evaluate("window.MolisWorkPagesEditor.destroy(window.calloutEditor);document.querySelector('#callout-lifetime-fixture').remove()");
+});
+
 test("W2-18-PAGES-READONLY-01: real Back/import/publish/extract never save the empty placeholder; valid replacement reopens", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
   const foreign = { type: "doc" as const, content: [{ type: "foreign_node", content: [{ type: "text", text: "Unshowable original evidence" }] }] };

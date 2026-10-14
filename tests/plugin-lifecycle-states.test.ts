@@ -149,11 +149,11 @@ test("Supervisor switches the version of a plugin the Host switched off, keeps i
   starts.length = 0;
 
   const switched = await supervisor.upgrade(ID, v2);
-  assert.equal(switched.code, "plugin_revoked", "the plugin is still switched off");
+  assert.equal(switched.code, "plugin.revoked", "the plugin is still switched off");
   assert.equal(runtime.get(id).version, "2.0.0", "but the installation moved");
   assert.equal(runtime.get(id).state, "disabled");
   assert.equal(supervisor.manifest(ID)?.version, "2.0.0");
-  assert.equal(supervisor.state(ID)?.code, "plugin_revoked");
+  assert.equal(supervisor.state(ID)?.code, "plugin.revoked");
   assert.equal(supervisor.state(ID)?.install_id, id);
   assert.equal(supervisor.contribution(ID), null);
   assert.deepEqual(starts, []);
@@ -165,10 +165,10 @@ test("Supervisor switches the version of a plugin the Host switched off, keeps i
   starts.length = 0;
   const refused = await supervisor.upgrade(ID, probe("3.0.0", { starts, sandbox: true, compatible: ["2.0.0"], failValidation: true }));
   assert.equal(refused.code, "plugin.upgrade_validation_failed");
-  assert.equal(supervisor.state(ID)?.code, "plugin_revoked", "a failed switch leaves the plugin switched off, not failed");
+  assert.equal(supervisor.state(ID)?.code, "plugin.revoked", "a failed switch leaves the plugin switched off, not failed");
   assert.equal(runtime.get(id).version, "2.0.0");
   assert.equal(runtime.get(id).state, "disabled");
-  assert.equal((await supervisor.rollback(ID, v1)).code, "plugin_revoked", "rolling a switched-off plugin back is not refused either");
+  assert.equal((await supervisor.rollback(ID, v1)).code, "plugin.revoked", "rolling a switched-off plugin back is not refused either");
   assert.equal(runtime.get(id).version, "1.0.0");
   assert.equal(supervisor.manifest(ID)?.version, "1.0.0");
   assert.equal(runtime.get(id).state, "disabled");
@@ -192,14 +192,14 @@ test("Supervisor switches the version of a disabled install it has never been to
   const runtime = new PluginRuntime(repository), supervisor = new PluginSupervisor(runtime);
   assert.equal(supervisor.manifest(ID), undefined, "nothing was registered for it");
   const switched = await supervisor.upgrade(ID, v2);
-  assert.equal(switched.code, "plugin_revoked");
+  assert.equal(switched.code, "plugin.revoked");
   assert.equal(switched.install_id, id);
   assert.equal(runtime.get(id).version, "2.0.0");
   assert.equal(runtime.get(id).state, "disabled");
   assert.equal(supervisor.manifest(ID)?.version, "2.0.0", "it is registered now, so enable can find it");
   assert.equal(supervisor.contribution(ID), null);
   assert.deepEqual(starts, []);
-  assert.equal((await supervisor.rollback(ID, v1)).code, "plugin_revoked");
+  assert.equal((await supervisor.rollback(ID, v1)).code, "plugin.revoked");
   assert.equal(runtime.get(id).version, "1.0.0");
   assert.equal((await supervisor.enable(ID)).status, "running");
   assert.deepEqual(starts, ["1.0.0"]);

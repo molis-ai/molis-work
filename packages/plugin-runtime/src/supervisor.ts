@@ -86,7 +86,7 @@ function safeCode(error: unknown): string {
     const code = (error as { code?: unknown }).code;
     if (typeof code === "string" && /^[a-z][a-z0-9_.]{1,63}$/u.test(code)) return code;
   }
-  return "plugin_start_failed";
+  return "plugin.start_failed";
 }
 
 function safeMessage(error: unknown): string {
@@ -176,7 +176,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
         plugin_id: pluginId,
         status: "blocked",
         install_id: null,
-        code: diagnostic?.code ?? "dependency_unsatisfied",
+        code: diagnostic?.code ?? "plugin.dependency_unsatisfied",
         message: diagnostic?.message ?? "依赖未满足",
       });
     }
@@ -272,7 +272,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       this.#states.set(pluginId, {
         ...existing,
         status: "failed",
-        code: "plugin_revoked",
+        code: "plugin.revoked",
         message: "插件已撤销启用",
       });
     }
@@ -391,7 +391,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     // Switching a plugin off and on is the person's call: a new version moves the installation and never starts it.
     const off = current.state === "disabled";
     if (!prior && !off) return refuse(null, "plugin_unknown", "没有登记过这个插件");
-    if (this.#revoked.has(pluginId) && !off) return { plugin_id: pluginId, status: "failed", install_id: current.install_id, code: "plugin_revoked", message: "插件的停用还没有完成，请稍后再试" };
+    if (this.#revoked.has(pluginId) && !off) return { plugin_id: pluginId, status: "failed", install_id: current.install_id, code: "plugin.revoked", message: "插件的停用还没有完成，请稍后再试" };
     const activeContract = this.#contracts.get(pluginId);
     // Keep the candidate registered after a failed attempt so the same update
     // can be retried. The active contract is switched for startup validation,
@@ -531,7 +531,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
         // compatible release. If none can be loaded, the installed version stays blocked.
       }
     }
-    throw codedError("plugin_release_artifact_missing", `找不到 ${installed.version} 的可运行 Native 发行物；未启动不兼容的新版本`);
+    throw codedError("plugin.release_artifact_missing", `找不到 ${installed.version} 的可运行 Native 发行物；未启动不兼容的新版本`);
   }
 
   async #activate(pluginId: string): Promise<PluginSupervisorState> {
@@ -615,7 +615,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
         plugin_id: pluginId,
         status: "failed",
         install_id: resolvedId,
-        code: "plugin_revoked",
+        code: "plugin.revoked",
         message: "插件已撤销启用",
       };
     }
@@ -623,7 +623,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       plugin_id: pluginId,
       status: "failed",
       install_id: resolvedId,
-      code: "plugin_revoked",
+      code: "plugin.revoked",
       message: "插件已撤销启用",
     };
     this.#states.set(pluginId, state);

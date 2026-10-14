@@ -384,7 +384,7 @@ test("a bundled plugin that could not start on the new build still has no market
       assert.equal(restart.runtime.get(restart.installId).version, "1.0.0", "the record moves only when the build starts");
       if (bundled) {
         assert.deepEqual(restart.report.running, []);
-        assert.equal(restart.report.blocked[0]?.code, "capability_missing", "the build is blocked by a requirement nobody provides");
+        assert.equal(restart.report.blocked[0]?.code, "plugin.capability_missing", "the build is blocked by a requirement nobody provides");
         assert.deepEqual(restart.supervisor.upgradeCandidates(), [], "a bundled plugin follows the Host at start: the market has nothing to confirm for it");
       } else {
         assert.deepEqual(restart.supervisor.upgradeCandidates().map(candidate => [candidate.installed_version, candidate.target_version, candidate.mode]),
@@ -430,7 +430,7 @@ test("a Manifest below the installed version is not followed for a plugin that i
         assert.equal(started.at(-1), "1.44.0");
       } else {
         assert.deepEqual(report.running, []);
-        assert.equal(report.failed[0]?.code, "plugin_release_artifact_missing");
+        assert.equal(report.failed[0]?.code, "plugin.release_artifact_missing");
       }
     } finally {
       db.close();
@@ -474,7 +474,7 @@ test("a Manifest changed without a new version is not followed for a plugin that
         assert.equal(started.at(-1), "0.3.0 A");
       } else {
         assert.deepEqual(report.running, []);
-        assert.equal(report.failed[0]?.code, "plugin_release_artifact_missing");
+        assert.equal(report.failed[0]?.code, "plugin.release_artifact_missing");
       }
     } finally {
       db.close();

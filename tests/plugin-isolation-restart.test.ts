@@ -171,7 +171,7 @@ test("a Plugin blocked by an unsatisfied dependency never starts and is not repo
   assert.deepEqual(report.failed, []);
   assert.equal(report.blocked.length, 1);
   assert.equal(report.blocked[0]?.plugin_id, "io.molis.work.dependent");
-  assert.equal(report.blocked[0]?.code, "capability_missing");
+  assert.equal(report.blocked[0]?.code, "plugin.capability_missing");
   assert.equal(dependent.starts(), 0, "被阻塞的插件不应被执行");
 });
 

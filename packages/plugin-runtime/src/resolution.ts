@@ -13,11 +13,11 @@ import type {
  */
 
 export type PluginResolutionDiagnosticCode =
-  | "capability_missing"
-  | "capability_optional_missing"
-  | "capability_self_provided"
-  | "port_type_unsatisfiable"
-  | "dependency_cycle";
+  | "plugin.capability_missing"
+  | "plugin.capability_optional_missing"
+  | "plugin.capability_self_provided"
+  | "plugin.port_type_unsatisfiable"
+  | "plugin.dependency_cycle";
 
 export interface PluginResolutionDiagnostic {
   code: PluginResolutionDiagnosticCode;
@@ -109,7 +109,7 @@ export function resolvePluginActivation(input: PluginResolutionInput): PluginRes
       const selfProvided = (providersByCapability.get(key) ?? []).includes(manifest.plugin_id);
       if (selfProvided) {
         diagnostics.push({
-          code: "capability_self_provided",
+          code: "plugin.capability_self_provided",
           plugin_id: manifest.plugin_id,
           contract: key,
           message: `${manifest.plugin_id} 不能依赖自己提供的 Capability ${key}`,
@@ -118,7 +118,7 @@ export function resolvePluginActivation(input: PluginResolutionInput): PluginRes
       if (providers.length === 0) {
         if (requirement.optional === true) {
           diagnostics.push({
-            code: "capability_optional_missing",
+            code: "plugin.capability_optional_missing",
             plugin_id: manifest.plugin_id,
             contract: key,
             message: `可选依赖 ${key} 没有提供者：${manifest.plugin_id} 以降级方式运行`,
@@ -126,7 +126,7 @@ export function resolvePluginActivation(input: PluginResolutionInput): PluginRes
           continue;
         }
         diagnostics.push({
-          code: "capability_missing",
+          code: "plugin.capability_missing",
           plugin_id: manifest.plugin_id,
           contract: key,
           message: `必需依赖 ${key} 没有提供者：${requirement.reason}`,
@@ -145,7 +145,7 @@ export function resolvePluginActivation(input: PluginResolutionInput): PluginRes
       const key = portTypeKey(port.artifact_type_id, port.schema_version);
       if (!producedPortTypes.has(key)) {
         diagnostics.push({
-          code: "port_type_unsatisfiable",
+          code: "plugin.port_type_unsatisfiable",
           plugin_id: manifest.plugin_id,
           contract: key,
           message: `输入端口 ${port.port} 需要 ${key}，当前没有任何插件产出该类型`,
@@ -166,7 +166,7 @@ export function resolvePluginActivation(input: PluginResolutionInput): PluginRes
       const cycle = start >= 0 ? [...stack.slice(start), pluginId] : [pluginId, pluginId];
       for (const member of cycle) inCycle.add(member);
       diagnostics.push({
-        code: "dependency_cycle",
+        code: "plugin.dependency_cycle",
         plugin_id: pluginId,
         message: `依赖成环：${cycle.join(" → ")}`,
       });
@@ -198,7 +198,7 @@ export function resolvePluginActivation(input: PluginResolutionInput): PluginRes
         if (blocked.has(dependency)) {
           blocked.add(manifest.plugin_id);
           diagnostics.push({
-            code: "capability_missing",
+            code: "plugin.capability_missing",
             plugin_id: manifest.plugin_id,
             contract: dependency,
             message: `依赖的插件 ${dependency} 未能激活`,

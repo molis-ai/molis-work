@@ -101,7 +101,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       for (const secret of secrets) c.secrets.save(pluginId, secret);
       c.storage.set(APPROVED_KEY + pluginId, JSON.stringify(release.permissions));
       await platform.start([entry]);
-      const state = platform.supervisor.state(pluginId)?.code === 'plugin_revoked' ? await platform.supervisor.enable(pluginId) : platform.supervisor.state(pluginId);
+      const state = platform.supervisor.state(pluginId)?.code === 'plugin.revoked' ? await platform.supervisor.enable(pluginId) : platform.supervisor.state(pluginId);
       if (state?.status !== 'running') throw new Error('安装没有完成：' + (state?.message ?? '插件未能启动'));
       await c.expose(release); c.registerPrompts(release, 'enabled'); c.recoveryErrors.delete(pluginId);
     } catch (error) {

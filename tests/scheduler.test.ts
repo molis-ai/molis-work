@@ -195,7 +195,7 @@ test("未注册 handler 不能登记；tick 时缺失写下 plugin_unavailable",
       title: "没有人接",
       due_at: "2026-09-20T03:00:00.000Z",
     }),
-    (error: unknown) => error instanceof ScheduleError && error.code === "schedule_handler_missing",
+    (error: unknown) => error instanceof ScheduleError && error.code === "scheduler.handler_missing",
   );
   const job = schedule.register({
     plugin_id: "io.molis.work.test.owner",
@@ -224,7 +224,7 @@ test("绝对路径和 .. 的 object_ref 被拒", () => {
         title: "路径",
         due_at: "2026-09-20T03:00:00.000Z",
       }),
-      (error: unknown) => error instanceof ScheduleError && error.code === "schedule_path_refused",
+      (error: unknown) => error instanceof ScheduleError && error.code === "scheduler.path_refused",
       object_ref,
     );
   }
@@ -307,7 +307,7 @@ test("schedule.cancel, setEnabled and list reach only the invocation's plugin's 
   const mine = call(scheduleCapabilities.register, registration, as("io.molis.work.caller")) as { job_id: string };
   const theirs = call(scheduleCapabilities.register, { ...registration, object_ref: "theirs" }, as("io.molis.work.other")) as { job_id: string };
   const intruder = as("io.molis.work.other");
-  const refused = { code: "schedule_job_not_found" };
+  const refused = { code: "scheduler.job_not_found" };
   assert.throws(() => call(scheduleCapabilities.cancel, { job_id: mine.job_id, plugin_id: "io.molis.work.caller" }, intruder), refused);
   assert.throws(() => call(scheduleCapabilities.setEnabled, { job_id: mine.job_id, plugin_id: "io.molis.work.caller", enabled: false }, intruder), refused);
   assert.equal(schedule.get(mine.job_id)?.enabled, true);
@@ -326,7 +326,7 @@ test("no input shape moves a schedule.* call off the invocation's plugin", async
   for (const input of [[], "x", 7, null, undefined, asArray, asFunction]) {
     assert.deepEqual((call(scheduleCapabilities.list, input, intruder) as { jobs: unknown[] }).jobs, [], `list ${String(input)}`);
     for (const definition of [scheduleCapabilities.cancel, scheduleCapabilities.setEnabled, scheduleCapabilities.register]) {
-      assert.throws(() => call(definition, input, intruder), { code: "schedule_job_invalid" }, `${definition.capability_id} ${String(input)}`);
+      assert.throws(() => call(definition, input, intruder), { code: "scheduler.job_invalid" }, `${definition.capability_id} ${String(input)}`);
     }
   }
   assert.equal(schedule.get(mine.job_id)?.enabled, true);
@@ -339,10 +339,10 @@ test("a schedule.* call with no plugin identity, or from a stopped installation,
   const stopped = as("io.molis.work.caller", () => { throw new Error("此插件实例已停止"); });
   const hostOnly: Array<HostCapabilityInvocation | undefined> = [undefined, { beforeEffect: async () => {}, assertAuthorityCurrent: () => {} }, { consumer: "plugin", beforeEffect: async () => {}, assertAuthorityCurrent: () => {} }];
   for (const invocation of hostOnly) {
-    assert.throws(() => call(scheduleCapabilities.register, { ...registration, plugin_id: "io.molis.work.caller", object_ref: "second" }, invocation), { code: "schedule_job_invalid" });
-    assert.throws(() => call(scheduleCapabilities.cancel, { job_id: mine.job_id, plugin_id: "io.molis.work.caller" }, invocation), { code: "schedule_job_invalid" });
-    assert.throws(() => call(scheduleCapabilities.setEnabled, { job_id: mine.job_id, plugin_id: "io.molis.work.caller", enabled: false }, invocation), { code: "schedule_job_invalid" });
-    assert.throws(() => call(scheduleCapabilities.list, { plugin_id: "io.molis.work.caller" }, invocation), { code: "schedule_job_invalid" });
+    assert.throws(() => call(scheduleCapabilities.register, { ...registration, plugin_id: "io.molis.work.caller", object_ref: "second" }, invocation), { code: "scheduler.job_invalid" });
+    assert.throws(() => call(scheduleCapabilities.cancel, { job_id: mine.job_id, plugin_id: "io.molis.work.caller" }, invocation), { code: "scheduler.job_invalid" });
+    assert.throws(() => call(scheduleCapabilities.setEnabled, { job_id: mine.job_id, plugin_id: "io.molis.work.caller", enabled: false }, invocation), { code: "scheduler.job_invalid" });
+    assert.throws(() => call(scheduleCapabilities.list, { plugin_id: "io.molis.work.caller" }, invocation), { code: "scheduler.job_invalid" });
   }
   assert.throws(() => call(scheduleCapabilities.register, { ...registration, object_ref: "second" }, stopped), /已停止/);
   assert.throws(() => call(scheduleCapabilities.cancel, { job_id: mine.job_id }, stopped), /已停止/);

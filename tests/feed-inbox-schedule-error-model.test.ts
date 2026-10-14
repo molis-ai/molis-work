@@ -326,11 +326,11 @@ async function refusalOf(run: () => unknown): Promise<{ status: number; code: st
 }
 
 const SCHEDULER_REFUSALS: ReadonlyArray<readonly [ScheduleError["code"], string, string, number]> = [
-  ["schedule_job_not_found", "定时任务不存在", "schedule.job_not_found", 404],
-  ["schedule_job_invalid", "时间无效", "schedule.job_invalid", 400],
-  ["schedule_interval_too_short", "间隔不能短于 5 秒", "schedule.job_invalid", 400],
-  ["schedule_path_refused", "对象钥匙不能是文件路径", "schedule.job_invalid", 400],
-  ["schedule_handler_missing", "叫醒对象还没有提供执行接口", "schedule.job_invalid", 400],
+  ["scheduler.job_not_found", "定时任务不存在", "schedule.job_not_found", 404],
+  ["scheduler.job_invalid", "时间无效", "schedule.job_invalid", 400],
+  ["scheduler.interval_too_short", "间隔不能短于 5 秒", "schedule.job_invalid", 400],
+  ["scheduler.path_refused", "对象钥匙不能是文件路径", "schedule.job_invalid", 400],
+  ["scheduler.handler_missing", "叫醒对象还没有提供执行接口", "schedule.job_invalid", 400],
 ];
 
 test("the scheduler's refusals leave the Schedule, reminder and timed-operation actions as Schedule's own codes with the scheduler's message, at every wrapper", async () => {

@@ -7,8 +7,8 @@ export declare const MIN_SCHEDULE_INTERVAL_MS = 5000;
 export declare const SCHEDULE_LEASE_MS = 30000;
 
 export declare class ScheduleError extends Error {
-    readonly code: "schedule_job_invalid" | "schedule_handler_missing" | "schedule_job_not_found" | "schedule_interval_too_short" | "schedule_path_refused";
-    constructor(code: "schedule_job_invalid" | "schedule_handler_missing" | "schedule_job_not_found" | "schedule_interval_too_short" | "schedule_path_refused", message: string);
+    readonly code: "scheduler.job_invalid" | "scheduler.handler_missing" | "scheduler.job_not_found" | "scheduler.interval_too_short" | "scheduler.path_refused";
+    constructor(code: "scheduler.job_invalid" | "scheduler.handler_missing" | "scheduler.job_not_found" | "scheduler.interval_too_short" | "scheduler.path_refused", message: string);
 }
 
 export interface ScheduleJobRecord {

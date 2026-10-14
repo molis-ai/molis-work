@@ -21,5 +21,5 @@ export const scheduleErrors = defineErrorCodes("schedule", {
  */
 export function scheduleFailure(error: unknown): unknown {
   if (!(error instanceof ScheduleError)) return error;
-  return error.code === "schedule_job_not_found" ? scheduleErrors.job_not_found(error.message) : scheduleErrors.job_invalid(error.message);
+  return error.code === "scheduler.job_not_found" ? scheduleErrors.job_not_found(error.message) : scheduleErrors.job_invalid(error.message);
 }

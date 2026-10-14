@@ -53,7 +53,7 @@ export function createScheduleReminders(options: {
   };
   const cancelRecord = (record: ScheduleReminder) => {
     try { schedule.cancel(record.jobId, record.jobOwner); }
-    catch (error) { if (!(error instanceof ScheduleError) || error.code !== "schedule_job_not_found") throw error; }
+    catch (error) { if (!(error instanceof ScheduleError) || error.code !== "scheduler.job_not_found") throw error; }
     db.prepare("DELETE FROM schedule_plugin_reminders WHERE id = ?").run(record.id);
   };
   return {

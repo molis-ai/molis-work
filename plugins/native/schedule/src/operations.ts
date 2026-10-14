@@ -104,7 +104,7 @@ export function createScheduledOperations(options: {
   };
   const remove = (run: ScheduledOperation) => {
     try { schedule.cancel(run.jobId, run.jobOwner); }
-    catch (error) { if (!(error instanceof ScheduleError) || error.code !== "schedule_job_not_found") throw error; }
+    catch (error) { if (!(error instanceof ScheduleError) || error.code !== "scheduler.job_not_found") throw error; }
     db.prepare("DELETE FROM schedule_operation_occurrences WHERE project_id = ? AND operation_id = ?").run(projectId, run.id);
     db.prepare("DELETE FROM schedule_operations WHERE project_id = ? AND id = ?").run(projectId, run.id);
   };

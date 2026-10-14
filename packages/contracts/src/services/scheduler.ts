@@ -88,11 +88,11 @@ export interface ScheduleWakeupControl {
 export class ScheduleError extends Error {
   constructor(
     readonly code:
-      | "schedule_job_invalid"
-      | "schedule_handler_missing"
-      | "schedule_job_not_found"
-      | "schedule_interval_too_short"
-      | "schedule_path_refused",
+      | "scheduler.job_invalid"
+      | "scheduler.handler_missing"
+      | "scheduler.job_not_found"
+      | "scheduler.interval_too_short"
+      | "scheduler.path_refused",
     message: string,
   ) {
     super(message);

@@ -325,14 +325,14 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const groups = editor.tools(), key = focusShown.context_id + JSON.stringify(groups);
     if (key === toolsKey) return;
     toolsKey = key;
-    workbench.dispatchEvent(new CustomEvent("molis:context-tools", { bubbles: true, detail: { context_id: focusShown.context_id, groups } }));
+    bench.dispatchEvent(new CustomEvent("molis:context-tools", { bubbles: true, detail: { context_id: focusShown.context_id, groups } }));
   };
   const sendPanel = (detail) => {
     const event = new CustomEvent("molis:context-panel-open", { bubbles: true, cancelable: true, detail: { context_id: focusShown ? focusShown.context_id : "", ...detail } });
-    workbench.dispatchEvent?.(event);
+    bench.dispatchEvent?.(event);
     return event.defaultPrevented;
   };
-  workbench.addEventListener("molis:context-tool-invoke", (event) => {
+  bench.addEventListener("molis:context-tool-invoke", (event) => {
     const chosen = event.detail;
     if (editor && chosen && focusShown && chosen.context_id === focusShown.context_id) editor.runTool(chosen.id);
   });

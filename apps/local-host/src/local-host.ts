@@ -11,7 +11,7 @@ import type {
   LocalHostProjectReference,
   LocalHostStatus,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionService, CapabilityRegistry, bindCall, judgmentRecommendationKeys, refuseCall, startHandler, subjectOfferChoices, subjectOfferCompatibilityReason,
+import { ActionService, CapabilityRegistry, bindCall, judgmentRecommendationKeys, refuseCall, registeredActionMetadata, startHandler, subjectOfferChoices, subjectOfferCompatibilityReason,
   type CallContext, type CallDescription, type CallOutcome, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { settleTyped } from "./typed-call-settlement.js";
 import { typedCapabilityInvocation } from "./typed-capability-invocation.js";
@@ -96,6 +96,12 @@ function hostAuthorityContext(caller: ActionCallContext, current: () => boolean)
 /** The provider of the Host's own actions: a capability registered with an `action` and no provider of its own (the workspace reads, for one). */
 export const HOST_PROVIDER_ID = "platform";
 
+function assertSameIdentity(current: LocalHostProjectReference, next: LocalHostProjectReference): void {
+  if (current.project_id !== next.project_id || current.project_id !== next.project_id) {
+    throw hostErrors.project_identity_conflict(`同一 storage_key 不能映射到不同 Project: ${current.project_id} / ${next.project_id}`);
+  }
+}
+
 export class LocalHost<Runtime> {
   readonly instanceId: string;
   readonly capabilities = new CapabilityRegistry<ActionCallContext>();
@@ -177,6 +183,14 @@ export class LocalHost<Runtime> {
   }
 
   /** System capabilities share the registry but do not create a fictitious project Runtime. */
+  inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) {
+    this.assertRunning(); caller.signal?.throwIfAborted();
+    const project = reference ? normalizeReference(reference) : undefined;
+    if (caller.project_id !== (project?.project_id ?? null)) throw new ActionError("actions.scope_mismatch", "目录上下文与项目不一致");
+    if (project) this.assertCompatibleReference(project);
+    return registeredActionMetadata(this.capabilities, snapshotCaller(caller));
+  }
+
   async inspectActions(caller: ActionCallContext, reference?: LocalHostProjectReference): Promise<ActionView[]> {
     this.assertRunning();
     caller.signal?.throwIfAborted();
@@ -198,7 +212,9 @@ export class LocalHost<Runtime> {
     return {
       discover: async caller => this.discoverActions(contextFor(caller)),
       invoke: async (caller, capability, input) => {
-        const context = contextFor(caller);
+        let context: ActionCallContext;
+        try { context = contextFor(caller); }
+        catch (error) { return refuseCall(this.settled, caller, capability, error); }
         const descriptor = this.capabilities.descriptor(capability);
         return this.homeLine.run(() => this.actionService.invoke(context, capability, input), descriptor?.action?.scheduling === "concurrent" ? "concurrent" : step ? "step" : "serial");
       },
@@ -352,12 +368,14 @@ export class LocalHost<Runtime> {
         return this.discoverActions(bound);
       },
       invoke: async (caller, capability, input) => {
-        const bound = callerFor(caller);
-        await this.withRuntime(project, () => undefined);
-        caller.signal?.throwIfAborted();
+        let bound = caller;
+        try { bound = callerFor(caller); await this.withRuntime(project, () => undefined); caller.signal?.throwIfAborted(); this.assertRunning(); }
+        catch (error) { return refuseCall(this.settled, bound, capability, error); }
         const descriptor = this.capabilities.descriptor(capability, bound.project_id);
         if (!descriptor) return refuseCall(this.settled, bound, capability, new ActionError("actions.missing", "能力未注册或版本已失效"));
-        return this.enqueue(project, descriptor, bound, () => this.actionService.invoke(bound, capability, input), step);
+        let dispatched = false;
+        return this.enqueue(project, descriptor, bound, () => { dispatched = true; return this.actionService.invoke(bound, capability, input); }, step)
+          .catch(error => { if (dispatched) throw error; return refuseCall(this.settled, bound, capability, error); });
       },
     };
   }
@@ -601,7 +619,7 @@ export class LocalHost<Runtime> {
     }
     const existing = this.entries.get(normalized.storage_key);
     if (existing) {
-      this.assertSameIdentity(existing.reference, normalized);
+      assertSameIdentity(existing.reference, normalized);
       return existing;
     }
     const entry: RuntimeEntry<Runtime> = {
@@ -631,16 +649,7 @@ export class LocalHost<Runtime> {
       throw hostErrors.project_identity_conflict("同一 Project 不能同时使用两个存储位置");
     }
     const existing = this.entries.get(reference.storage_key);
-    if (existing) this.assertSameIdentity(existing.reference, reference);
-  }
-
-  private assertSameIdentity(
-    current: LocalHostProjectReference,
-    next: LocalHostProjectReference,
-  ): void {
-    if (current.project_id !== next.project_id || current.project_id !== next.project_id) {
-      throw hostErrors.project_identity_conflict(`同一 storage_key 不能映射到不同 Project: ${current.project_id} / ${next.project_id}`);
-    }
+    if (existing) assertSameIdentity(existing.reference, reference);
   }
 
   private assertRunning(): void {

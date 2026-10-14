@@ -6,6 +6,7 @@ import { workflowEventsFeedOptions } from "./workflow-feed-options.js";
 import { bindScheduleDeliveryFeed } from "./schedule-runtime.js";
 import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedulers.js";
 import { SessionRuntimeService } from "./session-runtime-resources.js";
+import { refuseCall, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { workActionProvider } from "./work-actions.js";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 import { projectWorkspaceActionProvider } from "./project-workspace-actions.js";
@@ -142,6 +143,11 @@ export class MolisWorkLocalHost {
   readonly search?: SearchHost;
   readonly placement?: PlacementHost;
   readonly homePlugins?: HomePluginHost;
+  private readonly settleAction: CallSettled = (caller, action, outcome) => {
+    this.callLog?.record(caller, action, outcome);
+    // Only a completed business command invalidates its views; a preparation refusal has no effect to refresh.
+    if (outcome.ok && action.operation === "command" && action.provider_id) { this.search?.changed(action.provider_id, caller.project_id); this.homePlugins?.invalidateView(action.provider_id); }
+  };
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     assertFixtureScopes(options.pluginFixtures, Boolean(options.homeDirectory));
@@ -150,11 +156,7 @@ export class MolisWorkLocalHost {
     if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);
     this.host = new LocalHost({
       instanceId: options.instanceId,
-      actionSettled: (caller, action, outcome) => {
-        this.callLog?.record(caller, action, outcome);
-        // Any successful command, from a page, the Assistant, a workflow or MCP, may change what search should find.
-        if (outcome.ok && action.operation === "command" && action.provider_id) { this.search?.changed(action.provider_id, caller.project_id); this.homePlugins?.invalidateView(action.provider_id); }
-      },
+      actionSettled: this.settleAction,
       actionProvidersChanged: provider => this.search?.providerChanged(provider),
       actionAvailability: options.actionAvailability,
       sceneAvailability: options.sceneAvailability,
@@ -328,20 +330,24 @@ export class MolisWorkLocalHost {
 
   /** `preparePlugins: false` is for Host callers of what the project registers when it opens (Goals): it starts no Runtime plugin and restores no external MCP first. */
   actionClient(reference: LocalHostProjectReference, preparePlugins = true): ActionClient {
-    const client = withPreparedActions(this.host.actionClient(reference), () => this.prepareHomeActions());
-    return !preparePlugins ? client : {
-      discover: async caller => { await this.prepareProjectPlugins(reference, caller); return client.discover(caller); },
-      invoke: async (caller, action, input) => { await this.prepareProjectPlugins(reference, caller); return client.invoke(caller, action, input); },
-    };
+    return withPreparedActions(this.host.actionClient(reference), async caller => {
+      if (preparePlugins) await this.prepareProjectPlugins(reference, caller);
+      caller.signal?.throwIfAborted();
+      await this.prepareHomeActions();
+    }, (caller, action, error) => refuseCall(this.settleAction, caller, action, error));
   }
 
   syncActionClient(reference: LocalHostProjectReference) { return this.host.syncActionClient(reference); }
 
   homeActionClient(): ActionClient {
-    return withPreparedActions(this.host.homeActionClient(), () => this.prepareHomeActions());
+    return withPreparedActions(this.host.homeActionClient(), () => this.prepareHomeActions(),
+      (caller, action, error) => refuseCall(this.settleAction, caller, action, error));
   }
 
   /** Local management inspects registered metadata without borrowing execution permissions. */
+  /** Registered declarations only: no Runtime preparation, availability policy or execution authority. */
+  inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) { return this.host.inspectActionMetadata(caller, reference); }
+
   async inspectActions(caller: ActionCallContext, reference?: LocalHostProjectReference) {
     caller.signal?.throwIfAborted();
     await this.prepareHomeActions();
@@ -358,12 +364,8 @@ export class MolisWorkLocalHost {
     caller.signal?.throwIfAborted();
     await this.agents?.service.restoreExternalMcp(reference);
     caller.signal?.throwIfAborted();
-    await this.host.withRuntime(reference, runtime => this.prepareInstalledPlugins(reference, runtime));
+    await this.host.withRuntime(reference, runtime => prepareInstalledPlugins({ host: this.host, options: this.options, agents: () => this.agents?.service }, reference, runtime));
     caller.signal?.throwIfAborted();
-  }
-
-  private prepareInstalledPlugins(reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Promise<void> {
-    return prepareInstalledPlugins({ host: this.host, options: this.options, agents: () => this.agents?.service }, reference, runtime);
   }
 
   private async prepareHomeActions(): Promise<void> {
@@ -393,7 +395,7 @@ export class MolisWorkLocalHost {
     reference: LocalHostProjectReference,
     operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>,
   ): Promise<Result> {
-    return this.host.withRuntime(reference, async runtime => { await this.prepareInstalledPlugins(reference, runtime); return operation(runtime); });
+    return this.host.withRuntime(reference, async runtime => { await prepareInstalledPlugins({ host: this.host, options: this.options, agents: () => this.agents?.service }, reference, runtime); return operation(runtime); });
   }
 
   closeProject(referenceOrStorageKey: LocalHostProjectReference | string): Promise<boolean> {

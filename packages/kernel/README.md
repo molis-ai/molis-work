@@ -106,3 +106,5 @@ AI来源（Agent、内置助理与外部MCP）的顶层command若声明版本字
 后台动作所有者可在处理器仍存活时调用 `ActionExecutionContext.retainAuthority(references)`，保留已有动作的授权和注册实例检查。返回的函数不延长 `beforeEffect`，不授予新能力；后台开始新调用之前应执行它，并在新调用的可信 `validate_authority` 中继续执行。原提供方重新注册、外部撤权或原入口取消均拒绝旧结果。它不持久化：宿主重启后恢复投递需要新的显式用户请求。验证：`node scripts/run-tests.mjs tests/action-retained-authority.test.ts`。
 
 返回的临时 `RetainedActionAuthority` 同时提供 `assertCurrent()`：新调用者须在 `validate_authority` 里执行原异步guard，并把它的同步断言与自己的断言合成到 `assert_authority_current`，覆盖下游最后一次权限等待；不复用已结束处理器的 `beforeEffect`。同步断言不得返回Promise。真实Host/Pages交错回归见 `tests/assistant-thread-reply.test.ts` 的S-18-102-02/03。
+
+`registeredActionMetadata` 只复制当前登记的动作声明，沿目录的同一项目与 audience 过滤，不调用提供方、处理器、依赖或 Host 可用性策略；结果没有 `availability`，不代表执行许可。常规目录在这份声明上继续执行原可见性与可用性检查。取消操作的诊断可借它命名，实际动作仍经完整调度与最终授权。

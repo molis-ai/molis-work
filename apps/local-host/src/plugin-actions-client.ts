@@ -62,9 +62,14 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
 }
 
 /** Lazily prepare system providers before either read-only discovery or execution. */
-export function withPreparedActions(client: ActionClient, prepare: () => Promise<void>): ActionClient {
+export function withPreparedActions(client: ActionClient, prepare: (caller: ActionCallContext) => Promise<void>,
+  refuse: (caller: ActionCallContext, reference: ActionReference, error: unknown) => Promise<never>): ActionClient {
   return {
-    discover: async caller => { caller.signal?.throwIfAborted(); await prepare(); caller.signal?.throwIfAborted(); return client.discover(caller); },
-    invoke: async (caller, capability, input) => { caller.signal?.throwIfAborted(); await prepare(); caller.signal?.throwIfAborted(); return client.invoke(caller, capability, input); },
+    discover: async caller => { caller.signal?.throwIfAborted(); await prepare(caller); caller.signal?.throwIfAborted(); return client.discover(caller); },
+    invoke: async (caller, capability, input) => {
+      try { caller.signal?.throwIfAborted(); await prepare(caller); caller.signal?.throwIfAborted(); }
+      catch (error) { return refuse(caller, capability, error); }
+      return client.invoke(caller, capability, input);
+    },
   };
 }

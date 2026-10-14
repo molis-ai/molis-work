@@ -129,6 +129,6 @@ export function settleCallSync<T>(settled: CallSettled | undefined, call: CallCo
 }
 
 /** A call turned away on the spot, before any dispatch, is settled like any other; it is named by the caller's reference alone. */
-export function refuseCall(settled: CallSettled | undefined, context: ActionCallContext, reference: ActionReference, error: Error): Promise<never> {
+export function refuseCall(settled: CallSettled | undefined, context: ActionCallContext, reference: ActionReference, error: unknown): Promise<never> {
   return settleCall(settled, bindCall(context), () => describeUnknown(reference), () => Promise.reject(error));
 }

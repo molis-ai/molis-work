@@ -330,7 +330,7 @@ test("an object no reader can read keeps the name its page gave it, not its iden
   } finally { await f.close(); }
 });
 
-test("a change the stop reaches before it is sent never runs, and the work says it did not run", { timeout: 60_000 }, async t => {
+test("PREP-108-04: a change the stop reaches before it is sent never runs, and the work says it did not run", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [() => reply(undefined, "好的。")]);
   try {
     const sent = await f.service.send({ text: "准备一下", request_id: "req-00000041" }, { project_ref: f.project });

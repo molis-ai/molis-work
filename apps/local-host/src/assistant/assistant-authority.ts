@@ -32,7 +32,7 @@ export function directEligible(view: ActionView, offered: readonly ActionView[],
  * default on 2026-09-28; each write still stops at a review of its exact parameters, and the grants are the Assistant's
  * own — separate from Coding's and external agents'.
  */
-export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectActions" | "actionClient" | "homeActionClient">, work: StoredWork, disabled: () => ReadonlySet<string>,
+export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectActions" | "inspectActionMetadata" | "actionClient" | "homeActionClient">, work: StoredWork, disabled: () => ReadonlySet<string>,
   /** Records a suggestion for the person, checked against the capabilities offered now. */
   offer?: (offer: AgentActionOffer, views: readonly ActionView[]) => Promise<{ offer_id: string }>,
   /** Told after a command succeeded, with the action as offered, so the work can keep a relation to what it changed. */
@@ -40,7 +40,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   /** Hands independent sub-tasks to separate works (absent for a delegated work: one level deep). */
   delegation?: AgentDelegation,
   /** Told of a change its owner was still running when the round stopped or ran out of time, to learn how it ended. */
-  unsettled?: (view: ActionView, call: Promise<unknown>) => void,
+  unsettled?: (view: Omit<ActionView, "availability">, call: Promise<unknown>) => void,
   /** Remember, list and forget for the person (absent when forming memories is switched off). */
   memory?: AgentMemoryTools,
   /** Changes the person wants confirmed each time even though they could be undone (action keys). */
@@ -55,7 +55,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   const base = (session?: string, signal?: AbortSignal): ActionCallContext => ({ actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: `assistant:${work.work_id}`, call_id: callId,
     ...(session ? { runtime_session_id: session } : {}), project_id: reference?.project_id ?? null, audience: "agent", permissions: [],
     page_context: pageContext?.(), ...(signal ? { signal } : {}) });
-  const accepted = (catalog: readonly ActionView[], caller: ActionCallContext) => {
+  const accepted = <View extends Omit<ActionView, "availability">>(catalog: readonly View[], caller: ActionCallContext) => {
     const off = disabled();
     // Memory reaches the Assistant through its own remember / list / forget tools (under its switches, no extra
     // confirmation); the directory's memory actions are for other Agents, so they are not offered here as well.
@@ -103,15 +103,32 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
         assertActionCommandInput(view, base(), input);
       },
       invoke: async (action, input, signal) => {
-        const caller = await context(validate, signal);
+        const stoppedBeforeDispatch = (view: Omit<ActionView, "availability">) => {
+          const refused = Promise.reject(new ActionError("actions.cancelled", "这一轮停止时它还没有发出，没有执行"));
+          refused.catch(() => undefined);
+          unsettled?.(view, refused);
+          return refused;
+        };
+        let caller: ActionCallContext;
+        try { caller = await context(validate, signal); }
+        catch (error) {
+          if (!signal?.aborted) throw error;
+          const cached = offered.find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
+          if (cached?.operation === "command") return await stoppedBeforeDispatch(cached);
+          // Naming a cancelled operation needs only registered metadata; it must not start a plugin or Runtime.
+          const metadataCaller = base(work.session_id ?? undefined);
+          let rows: readonly Omit<ActionView, "availability">[];
+          try { rows = accepted(localHost.inspectActionMetadata(metadataCaller, reference), metadataCaller); }
+          catch { throw error; /* An unavailable diagnostic name does not replace the original cancellation. */ }
+          const view = rows.find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
+          if (view?.operation === "command") return await stoppedBeforeDispatch(view);
+          throw error;
+        }
         const view = offered.find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
         // Stopped before it was sent (working out the person's grants takes a moment): it never reaches its owner, and
         // the work says it did not run rather than leaving it “not known” (seen live on a reversible Todo change).
         if (signal?.aborted && view && view.operation === "command") {
-          const refused = Promise.reject(new ActionError("actions.cancelled", "这一轮停止时它还没有发出，没有执行"));
-          refused.catch(() => undefined);
-          unsettled?.(view, refused);
-          return await refused;
+          return await stoppedBeforeDispatch(view);
         }
         if (view && view.operation === "command") dispatched?.(view);
         const call = service().invoke(caller, action, input);

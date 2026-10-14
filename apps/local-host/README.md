@@ -207,3 +207,5 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 子任务交回的自动续跑在当前父状态、最新已完成轮次与既有 `hand_back_held` 上核对。归档、停止正在准备的交回或本人开始新父轮，都使旧候选失效；原调用的同步 `assertBeforeStart` 与 owner 检查一并保留到实际 SDK 接受。拒绝不消费子任务的 `handed_back_run`，本人恢复后仍能核对这份结果。回归见 `tests/assistant-delegation.test.ts` 的 W2-18-HANDBACK-CURRENT-01/02；不将固定调用次数称为 SDK 接受点。
 
 插件消费动作时，`plugin-actions-client.ts` 从该项目真实目录解析唯一提供方并固定它，保留原声明、grant、实例取消与同步复查。Host 启动名单的实际内置 definition 通过 `plugin-entry-identity.ts` 给运行 caller 登记进程内资格；停止前及启动失败清理会撤销，复制对象、同名插件与 publisher 字符串不取得资格。原名单认可的 release restore 重新登记新 definition；Goals 的实际消费验收见防腐 spec §10.7。
+
+调度前的项目／Home 准备、范围拒绝、取消与关闭由同一 `refuseCall` / `settleCall` 记录一次未执行诊断，保留原错误与调用编号，不记输入或正文；本已取消的调用不启动插件。成功转发后继续由 ActionService 唯一结算。`inspectActionMetadata` 仅供宿主读取当前已登记声明，校验项目／存储身份，不启动 Runtime、不等可用性策略，也不提供执行授权；助理用它为冷调用的停止结果命名，正常授权与执行保留原 signal。回归见 `tests/action-call-log.test.ts` 的 PREP-108-01–04 与 `tests/assistant-business-gateway.test.ts` 的早停止持久结果。

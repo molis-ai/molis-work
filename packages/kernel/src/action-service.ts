@@ -1,6 +1,7 @@
 import { actionExecutionContext, visibleAction } from "./action-execution-context.js";
+import { registeredActionMetadata } from "./action-metadata.js";
 import {
-  ActionError, actionReachesAudience, requireSynchronous,
+  ActionError, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
   type ActionProvider, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort,
   type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView, type ActionSceneView,
@@ -188,17 +189,9 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   private directory(context: ActionCallContext, inspection: boolean): ActionView[] {
-    // Other projects' actions are dropped before anything is copied.
-    return this.registry.descriptors(d => !d.action_provider?.project_id || d.action_provider.project_id === context.project_id).flatMap(definition => {
-      const provider = definition.action_provider;
-      // A wait (following a live round) observes and is never an action; actions are queries or commands.
-      if (definition.operation === "wait") return [];
-      if (!definition.action || !provider || !context.actor_id
-        || (provider.project_id && provider.project_id !== context.project_id)
-        || !actionReachesAudience(definition.action, definition.capability_id, context.audience)) return [];
-      if (!inspection && !visibleAction(definition as ActionDefinition, provider, context)) return [];
-      return [{ capability_id: definition.capability_id, version: definition.version, operation: definition.operation,
-        action: definition.action, provider, availability: this.registry.availability(context, definition) }];
+    return registeredActionMetadata(this.registry, context).flatMap(metadata => {
+      if (!inspection && !visibleAction(metadata, metadata.provider, context)) return [];
+      return [{ ...metadata, availability: this.registry.availability(context, { ...metadata, action_provider: metadata.provider }) }];
     });
   }
 

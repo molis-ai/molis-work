@@ -49,7 +49,7 @@ test("the market pulse list says that collecting contacts Toolify, 观猹 and Gi
   assert.match(ALCHEMIST_EN[note] ?? "", /GitHub uses only the account you pick in Source settings/u);
   assert.match(ALCHEMIST_EN[note] ?? "", /Toolify, Watcha .*GitHub/u);
   assert.match(ALCHEMIST_EN[note] ?? "", /anonymously/u);
-  assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /\$\('\[data-alc-pulse-note\]'\)\.hidden=collection!=='pulse'/u, "shown only on the market pulse collection");
+  // NETWORK-PULSE-01: visible-only-on-pulse behavior runs through the actual Chrome client in alchemist-client-boundaries.e2e.
 });
 
 test("the source settings carry the GitHub account picker: its markup comes with the page in both languages, the accounts and the choice go through the actions", () => {

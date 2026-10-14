@@ -64,6 +64,12 @@ test("W2-18-ALCHEMIST-UI-01/02 and PARTIAL-01: object selection, unavailable pub
   const select = (id: string) => evaluate(`document.querySelector('[data-alchemist=workbench]').dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{itemId:${JSON.stringify(id)}}}))`);
   await browser.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/` }, sessionId);
   await waitFor("document.querySelector('[data-alc-open=direction]')");
+  // NETWORK-PULSE-01: the production collection controls show the network notice only for market pulse.
+  for (const collection of ["pulse", "ideas", "decisions", "directions"]) {
+    await evaluate(`document.querySelector('[data-alc-collection=${collection}]').click()`);
+    await waitFor(`document.querySelector('[data-alc-collection=${collection}]').getAttribute('aria-pressed')==='true'`);
+    assert.equal(await evaluate("document.querySelector('[data-alc-pulse-note]').hidden"), collection !== "pulse");
+  }
   await evaluate("document.querySelector('[data-alc-collection=ideas]').click();document.querySelector('[data-alc-search]').value='nothing matches';document.querySelector('[data-alc-search]').dispatchEvent(new Event('input'))");
   await select(direction.id);
   await waitFor(`JSON.parse(document.querySelector('[data-alchemist=workbench]').dataset.assistantContext).object?.id===${JSON.stringify(direction.id)}`);

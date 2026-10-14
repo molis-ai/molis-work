@@ -128,7 +128,8 @@ test("Shelf project material confirms current full bytes, preserves original ver
     assert.equal(archived.status, 400);
     assert.equal(archived.body.error, "材料已归档、不可用或类型不兼容，请移除后重新选择");
     assert.equal(starts.length, 3);
-    refused(await request(output, { reference: save.body.reference, expected_reference: saved2.body.reference }), "shelf.invalid");
+    // ARTACC-02: a recognized owner refusal keeps its current Artifacts code through the Shelf action.
+    refused(await request(output, { reference: save.body.reference, expected_reference: saved2.body.reference }), "artifacts.plugin_incompatible");
     assert.deepEqual((await request(output)).body.reference, saved2.body.reference);
     assert.equal((await request(coding + "/materials")).body.materials.filter((item: any) => !item.error).length, 1);
     for (const [filename, bytes] of [["binary.txt", Buffer.from([0xff, 0xfe, 1])], ["null.txt", Buffer.from("a\0b")], ["large.txt", Buffer.from("长".repeat(20_001))]] as const) {

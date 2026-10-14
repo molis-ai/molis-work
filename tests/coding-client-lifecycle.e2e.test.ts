@@ -44,6 +44,9 @@ test("Coding stops hidden polling and releases every client listener before the 
   await pause(100);
   assert.equal(await evaluate("codingRequests.filter(request=>request.method==='POST'&&request.path.endsWith('/sessions')).length"), 1, "one user click creates one session after remount");
   const id = await evaluate<string>("document.querySelector('[data-coding-session]').dataset.codingSession");
+  // FIX79-LIFETIME: create() already selects the detail; return through the real visible directory control.
+  await click('[data-coding-directory-back]');
+  await waitFor("codingRoot.dataset.codingDetail === 'false'");
   await click(`[data-coding-session="${id}"]`);
   await waitFor(`codingRequests.some(request=>request.path.includes('/sessions/${id}?window=1'))`);
   await evaluate("window.effectReads=codingRequests.length");

@@ -10,10 +10,81 @@ import { AgentHost, createPrologueNodeAdapter, registerAgentHostCapabilities } f
 import { agentHostCapabilities as agent, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
-import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
+import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
+import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
+
+test("I6-02: a real Node questionnaire refusal preserves each problem and the pending can still be answered", { timeout: 30_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "agent-question-errors-"));
+  let requests = 0;
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
+    const request = new Request(input, init);
+    assert.equal(new URL(request.url).pathname, "/v1/messages");
+    const body: { messages?: unknown } = JSON.parse(await request.text());
+    requests++;
+    if (requests === 1) return cogniaScriptedResponse({ name: "ask-user", input: { why: "确认本轮安排", questions: [
+      { id: "format", prompt: "如何沟通", options: [{ label: "一起复盘" }, { label: "异步审阅" }] },
+      { id: "minutes", type: "number", prompt: "安排多少分钟", min: "15", max: "120", integer: true },
+    ] } });
+    assert.equal(requests, 2, "only an accepted answer resumes the real SDK model call");
+    assert.match(JSON.stringify(body.messages), /45/);
+    return cogniaModelResponse("安排已确认。");
+  });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.question-errors-test", appVersion: "1.0.0" },
+    storageRoot: join(home, "sdk"), questionTypes: ["choice", "number"],
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+    resolveCredential: () => "fixture-only",
+  });
+  t.after(async () => { await adapter.close(); await rm(home, { recursive: true, force: true }); });
+  const owner = { project_id: "questions", plugin_id: "io.molis.work.test", install_id: "test", actor_id: "person" };
+  const session = await adapter.createSession({ ...owner, workspace: "business", title: "Questions" });
+  const role = { role_id: "helper", version: 1, workspace: "business" as const, execution: "operate" as const, prompts: [], host_tools: ["ask-user"] };
+  const handle = await adapter.start({ ...owner, session, workspace: "business", role_id: "helper", role, task: "确认安排" });
+  const deadline = Date.now() + 20_000;
+  let question;
+  for (;;) {
+    const view = await adapter.read(handle.ref);
+    question = view.awaiting_input.find(item => item.answerable && item.kind === "questionnaire");
+    if (question) break;
+    assert.ok(Date.now() < deadline, "the SDK did not reach the real questionnaire wait");
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.deepEqual(question.questions?.map(item => [item.id, item.type]), [["format", "choice"], ["minutes", "number"]]);
+  const expected = [{ question: 0, id: "format", reason: "required" }, { question: 1, id: "minutes", reason: "too-large" }];
+  await assert.rejects(adapter.control(handle.ref, { kind: "answer", pending_id: question.pending_id, pending_revision: question.pending_revision,
+    answers: [{ question: 0, indexes: [] }, { question: 1, value: 999 }],
+  }), (error: unknown) => {
+    assert.ok(error instanceof ActionError);
+    assert.equal(error.code, "agent.answer_invalid");
+    assert.equal(error.message, "有 2 道题的回答不能提交");
+    assert.equal(actionHttpStatus(error), 400);
+    assert.deepEqual((error as ActionError & { problems?: unknown }).problems, expected);
+    assert.deepEqual(error.details?.problems, expected);
+    assert.deepEqual(actionErrorBody(error).details?.problems, expected);
+    return true;
+  });
+  const stillWaiting = await adapter.read(handle.ref);
+  assert.equal(stillWaiting.phase, "awaiting-input");
+  assert.equal(stillWaiting.awaiting_input[0]?.pending_id, question.pending_id);
+  assert.equal(stillWaiting.awaiting_input[0]?.answerable, true);
+  assert.equal(requests, 1, "a rejected answer is not delivered to the SDK waiter");
+  await adapter.control(handle.ref, { kind: "answer", pending_id: question.pending_id, pending_revision: question.pending_revision,
+    answers: [{ question: 0, indexes: [0] }, { question: 1, value: 45 }],
+  });
+  for (;;) {
+    const view = await adapter.read(handle.ref);
+    if (["completed", "failed", "stopped", "cancelled"].includes(view.phase)) {
+      assert.equal(view.phase, "completed");
+      assert.deepEqual(view.awaiting_input, []);
+      break;
+    }
+    assert.ok(Date.now() < deadline, "the SDK did not resume after the valid answer");
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.equal(requests, 2);
+});
 
 // W2-18-CODING-EFFECT-01: queued SDK effects keep the original checker after a failed/returned preparation scope.
 test("an SDK effect queued by an invocation cannot lose its guard just because the wrapper returned", async t => {

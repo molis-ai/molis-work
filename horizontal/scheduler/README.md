@@ -36,7 +36,7 @@ pnpm --filter @molis-ai/molis-work-service-scheduler build
 已有行为示例与回归：[scheduler.test.ts](../../tests/scheduler.test.ts)、[schedule-plugin.test.ts](../../tests/schedule-plugin.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/scheduler.test.ts tests/schedule-plugin.test.ts
+node scripts/run-tests.mjs tests/scheduler.test.ts tests/schedule-plugin.test.ts
 ```
 
 ## 开发要求

@@ -41,7 +41,7 @@ pnpm --filter @molis-ai/molis-work-integration-github build
 已有行为示例与回归：[github-device-flow.test.ts](../../../tests/github-device-flow.test.ts)、[feed-connectors.test.ts](../../../tests/feed-connectors.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/github-device-flow.test.ts tests/feed-connectors.test.ts
+node scripts/run-tests.mjs tests/github-device-flow.test.ts tests/feed-connectors.test.ts
 ```
 
 这些测试使用隔离数据或注入端口；Provider/桌面相关测试的通过不等于真实账户连接、安装或发布验收。

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { classifyFile } from "../scripts/ci-linux-probe/select.mjs";
 import { BROWSER_SMOKES, datingProblems, dayNumber, LIST_FILE, parseList, parseQuarantine, QUARANTINE_FILE, QUARANTINE_LIMITS, readPlan, REQUIRED_ENTRIES, resolvePlan } from "../scripts/ci-product-subset/plan.mjs";
 import { productSubsetProblems } from "../scripts/gates/product-subset.mjs";
+import { blockingJobs, jobBlock } from "./fixtures/ci-workflow.js";
 
 // specs/repository-anti-corruption §4.7 (W2-16, decision #14): the rules the CI product subset's two files keep, as the health gate
 // and the runner both read them (scripts/ci-product-subset/plan.mjs). Each rule is mutation-verified here on small scratch
@@ -283,10 +284,9 @@ test("on this repository: the list and the quarantine file are valid, the i18n t
   assert.ok(smokes.length >= BROWSER_SMOKES.min && smokes.length <= BROWSER_SMOKES.max, smokes.map((item) => item.file).join(", "));
   assert.ok(plan.entries.length > 100, "the list is the user-flow part of the suite, not a handful of files");
   assert.ok(smokes.every((item) => /\.e2e\.test\.ts$/.test(item.file)), "the smokes are browser tests by name");
-  // No file of the list is also run by the blocking job: the subset adds to what that job checks. What the job runs is read from its
-  // steps in ci.yml and from the root package.json scripts those steps reach through `pnpm <script>` (blockingTestPatterns).
-  const workflow = readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
-  const blocking = workflow.slice(workflow.indexOf("  architecture-boundaries:"), workflow.indexOf("  secret-scan:"));
+  // No file of the list is also run by a blocking job (one that verify needs): the subset adds to what those jobs check. What they run is read
+  // from their steps in ci.yml and from the root package.json scripts those steps reach through `pnpm <script>` (blockingTestPatterns).
+  const blocking = blockingJobs().map((name) => jobBlock(name)).join("\n");
   const scripts = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")).scripts as Record<string, string>;
   const named = blockingTestFiles(blocking, scripts);
   assert.ok(named.length > 20, "the blocking job's test files were found");

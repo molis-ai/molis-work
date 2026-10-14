@@ -41,7 +41,7 @@ pnpm --filter @molis-ai/molis-work-module-governance-collaboration build
 当前树提案与事件决定可参考 [goal-tree-event-flow.test.ts](../../tests/goal-tree-event-flow.test.ts)、[goal-events-state.test.ts](../../tests/goal-events-state.test.ts)。完成仓库构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/goal-tree-event-flow.test.ts tests/goal-events-state.test.ts
+node scripts/run-tests.mjs tests/goal-tree-event-flow.test.ts tests/goal-events-state.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。

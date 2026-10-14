@@ -34,7 +34,7 @@ pnpm --filter @molis-ai/molis-work-integration-web-query build
 可参考 SDK/Runtime 公共链路的回归（该文件主要覆盖 GitHub Integration，并非本工厂的专项测试）：[plugin-runtime-integration.test.ts](../../../tests/plugin-runtime-integration.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/plugin-runtime-integration.test.ts
+node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts
 ```
 
 这些测试使用隔离数据或注入端口；Provider/桌面相关测试的通过不等于真实账户连接、安装或发布验收。

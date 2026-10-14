@@ -81,8 +81,8 @@ export interface SourcesApi {
 }
 
 export declare class SourcesError extends Error {
-    readonly code: "source_not_found" | "source_invalid_schedule" | "source_invalid_transition";
-    constructor(code: "source_not_found" | "source_invalid_schedule" | "source_invalid_transition", message: string);
+    readonly code: "sources.not_found" | "sources.invalid_schedule" | "sources.invalid_transition";
+    constructor(code: "sources.not_found" | "sources.invalid_schedule" | "sources.invalid_transition", message: string);
 }
 
 export declare function isAccountConnectorSyncKind(kind: string): kind is Extract<SourceSyncKind, "github" | "gmail" | "connector">;

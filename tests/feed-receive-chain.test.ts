@@ -103,6 +103,25 @@ test("J2A-01: the connector owner refuses missing, duplicate and revoked wiring,
   assert.equal(polls, 1, "a revoked connection cannot invoke its driver again");
 });
 
+test("J3A-01: Sources owner refusals leave both the source and its durable events unchanged", () => {
+  const directory = mkdtempSync(join(tmpdir(), "sources-owner-refusal-")), databasePath = join(directory, "project.sqlite");
+  seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath);
+  try {
+    const sourceId = createSource(store), sources = new SourcesModule(store.db);
+    const before = sources.query.get(DEMO_PROJECT_ID, sourceId), events = sources.events.list(DEMO_PROJECT_ID, sourceId);
+    assert.throws(() => sources.query.get(DEMO_PROJECT_ID, "missing-source"), { code: "sources.not_found", message: /找不到/ });
+    assert.throws(() => sources.commands.save({ ...before, schedule: { mode: "interval", enabled: true, interval_minutes: 1, next_pull_at: null } }), { code: "sources.invalid_schedule", message: /来源计划/ });
+    assert.deepEqual(sources.query.get(DEMO_PROJECT_ID, sourceId), before);
+    assert.deepEqual(sources.events.list(DEMO_PROJECT_ID, sourceId), events);
+    sources.commands.retire(DEMO_PROJECT_ID, sourceId, "retain_history");
+    const retired = sources.query.get(DEMO_PROJECT_ID, sourceId), history = sources.events.list(DEMO_PROJECT_ID, sourceId);
+    assert.throws(() => sources.commands.setEnabled(DEMO_PROJECT_ID, sourceId, true), { code: "sources.not_found" });
+    assert.deepEqual(sources.query.get(DEMO_PROJECT_ID, sourceId), retired);
+    assert.deepEqual(sources.events.list(DEMO_PROJECT_ID, sourceId), history);
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
 test("Listener refusal after accepting a Signal preserves that receipt but cannot mark delivery, advance cursor or write a failure; restart dedupes it", async () => {
   const directory = mkdtempSync(join(tmpdir(), "listener-effect-authority-")), databasePath = join(directory, "project.sqlite");
   seedDemoBoard(databasePath);

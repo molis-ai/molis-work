@@ -92,7 +92,7 @@ export interface SourcesApi {
 
 export class SourcesError extends Error {
   constructor(
-    readonly code: "source_not_found" | "source_invalid_schedule" | "source_invalid_transition",
+    readonly code: "sources.not_found" | "sources.invalid_schedule" | "sources.invalid_transition",
     message: string,
   ) {
     super(message);

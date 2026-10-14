@@ -64,7 +64,7 @@ export function createLocalFeedApplication(
           sources.query.get(projectId, subjectId);
           return true;
         } catch (error) {
-          if (error instanceof SourcesError && error.code === "source_not_found") return false;
+          if (error instanceof SourcesError && error.code === "sources.not_found") return false;
           throw error;
         }
       }

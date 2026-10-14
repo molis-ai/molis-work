@@ -72,7 +72,7 @@ export class FeedApplication {
     try {
       return this.sourceRecord(this.ports.sources.query.get(projectId, sourceId));
     } catch (error) {
-      if (error instanceof SourcesError && error.code === "source_not_found") {
+      if (error instanceof SourcesError && error.code === "sources.not_found") {
         throw feedErrors.source_not_found("找不到这个来源");
       }
       throw error;
@@ -119,7 +119,7 @@ export class FeedApplication {
     try {
       return this.sourceRecord(this.ports.sources.commands.setEnabled(projectId, sourceId, enabled));
     } catch (error) {
-      if (error instanceof SourcesError && error.code === "source_not_found") {
+      if (error instanceof SourcesError && error.code === "sources.not_found") {
         throw feedErrors.source_not_found("找不到这个来源");
       }
       throw error;

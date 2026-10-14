@@ -31,12 +31,14 @@ test("Session Registry keeps Molis Work, Runtime, surface and workspace identiti
         // SESSION-01: the public registry's confirmation refusal keeps its current common status.
         assert.ok(error instanceof ActionError);
         assert.equal(error.code, "work.session.confirmation_required");
+        assert.equal(error.message, "创建或改变 Session 关联前必须获得用户明确确认");
         assert.equal(error.kind, "invalid");
         assert.equal(actionHttpStatus(error), 400);
         assert.equal(Object.hasOwn(error, "details"), false);
         return true;
       },
     );
+    assert.deepEqual(registry.list(), [], "SESSION-01: refusal persists no Session");
 
     const first = registry.createSession({
       runtime_id: "codex",

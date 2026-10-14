@@ -102,7 +102,7 @@ test("Alchemist Pulse, cancellation and exports use real repositories and preser
   await call(a.pulseSourceUpdate, { sourceId: "github", enabled: false });
   await assert.rejects(call(a.pulseStart, { sourceIds: ["github"] }), { code: "alchemist.pulse_no_enabled_sources", message: "请至少启用一个市场来源。" });
   const noSources = await f.runtime.app.request("http://localhost/api/v1/pulse/runs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sourceIds: ["github"] }) });
-  assert.equal(noSources.status, 400);
+  assert.equal(noSources.status, 409);
   assert.deepEqual(await noSources.json(), { code: "alchemist.pulse_no_enabled_sources", message: "请至少启用一个市场来源。" });
   assert.equal((await call(a.pulseReports, {})).latestRun, undefined);
   const missingRun = await f.runtime.app.request("http://localhost/api/v1/runs/missing/cancel", { method: "POST" });

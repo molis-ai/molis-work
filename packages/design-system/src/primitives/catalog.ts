@@ -1,5 +1,6 @@
 import { renderCatalogExamples } from '../catalog-examples.js';
-import { icon, ICON_LIBRARY, PLUGIN_ICON, STATUS_ICON } from "../icons.js";
+import { icon, ICON_LIBRARY, PLUGIN_ICON } from "../icons.js";
+import { renderStateRingCatalog } from "./status-ring-catalog.js";
 import { renderProjectMonogram } from "../monogram.js";
 import {
   MW_ACTION_TONES,
@@ -210,14 +211,11 @@ function craftSection(): string {
 function iconInventorySection(): string {
   const PLUGIN_NAMES: Record<string, string> = { home: "项目首页", goals: "Goals", sessions: "Sessions", inbox: "Inbox", feed: "Feed", schedule: "Schedule", workflows: "工作流程", pages: "Pages", form: "Forms", dataset: "Dataset", ppt: "PPT", artifacts: "Artifacts", images: "图片", jelly: "Jelly", cognia: "Cognia", shelf: "Shelf", lingguang: "灵光", coding: "Coding", characters: "Characters", alchemist: "炼金术士", "plugin-builder": "插件创作", market: "插件市场", files: "Files", git: "Git", diff: "Diff", "text-stats": "Text stats" };
   const plugins = Object.entries(PLUGIN_ICON).map(([id, glyph]) => `<li>${icon(glyph)}<span><strong>${PLUGIN_NAMES[id] ?? id}</strong><code>${glyph}</code></span></li>`).join("");
-  const STATE_NAMES: Record<string, [string, string]> = { todo: ["待开始", "idle"], progress: ["进行中", "progress"], waiting: ["等待", "idle"], "needs-you": ["需要你", "attention"], blocked: ["受阻", "blocked"], done: ["完成", "done"], cancelled: ["取消", "idle"] };
-  const states = Object.entries(STATUS_ICON).map(([id, glyph]) => `<li><span class="mw-status mw-status--${STATE_NAMES[id]?.[1] ?? "idle"} mw-status--plain">${icon(glyph)}<span>${STATE_NAMES[id]?.[0] ?? id}</span></span><code>${glyph}</code></li>`).join("");
   const sizes = [[12, "2", "说明文字、计数旁"], [14, "2", "行内、菜单、按钮"], [16, "2", "按钮、行首、标签"], [20, "1.6", "Dock、常驻入口、空态纸张"]]
     .map(([size, stroke, use]) => `<li><span class="mw-icon-size" style="--s:${size}px">${icon("target")}</span><span><strong>${size}px</strong><small>描边 ${stroke} · ${use}</small></span></li>`).join("");
   return section("icon-inventory", "图标清单", `<p class="mw-catalog__hint">全站一套 Lucide 线性图标，24 栅格，不混填充图标。每个插件一个互不重复的图标，Dock、插件切换、标签、市场、空态与搜索用同一个；状态图标语义固定，颜色只来自状态色调。</p>
     <div class="mw-catalog__specimens">
       ${specimen("插件", `<ul class="mw-icon-inventory">${plugins}</ul>`)}
-      ${specimen("状态", `<ul class="mw-icon-inventory mw-icon-inventory--states">${states}</ul>`)}
       ${specimen("尺寸与描边", `<ul class="mw-icon-inventory mw-icon-inventory--sizes">${sizes}</ul>`)}
       ${specimen("空态纸张", `<div class="mw-craft-row"><div class="mw-empty"><span class="mw-empty__mark">${icon("clipboard")}</span><strong>还没有问卷</strong><p>新建一份，预览填写，再看结果。</p></div></div>`)}
       ${specimen("加载 · 超过 250ms 才出现", `<div class="mw-craft-row"><p class="mw-loading" role="status">正在读取问卷…</p></div><p class="mw-catalog__hint">结构已知的列表与卡片用静态占位（Skeleton）；结构未知或一次性的等待用这一行。</p>`)}
@@ -652,7 +650,7 @@ export function renderPrimitiveCatalog(): string {
     ${paletteSection()}
     ${typefaceSection()}
     ${iconSection()}
-    ${iconInventorySection()}
+    ${iconInventorySection()}${renderStateRingCatalog()}
     ${craftSection()}
     ${motionSection()}
     ${arrivalSection()}

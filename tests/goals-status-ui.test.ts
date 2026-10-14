@@ -3,24 +3,24 @@ import test from "node:test";
 import { createWorkbenchGoalsStatusRenderer, createWorkbenchGoalsFactorsRenderer } from "@molis-ai/molis-work-app-workbench";
 import { type GoalsFactorsPrimitives } from "@molis-ai/molis-work-plugin-goals";
 import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon, renderStateRing } from "@molis-ai/molis-work-design-system";
 
 const escapeHtml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 
 test("public status mounts prefer collection state, retain hooks and escape translated attributes", () => {
   const renderer = createWorkbenchGoalsStatusRenderer({ translate: L, escapeHtml, icon });
-    for (const [status, expectedIcon] of [["archived", "archive"], ["trashed", "trash"]] as const) {
+  for (const status of ["archived", "trashed"] as const) {
     const item = { status, display_status: "continue" as const };
     assert.match(renderer.renderVisibleGoalStatus(item), new RegExp("goal-status--" + status));
-    assert.equal(renderer.visibleGoalStatusIcon(item), icon(expectedIcon));
+    assert.equal(renderer.visibleGoalStatusIcon(item), renderStateRing({ state: status, size: 20 }));
   }
   const visible = renderer.renderVisibleGoalStatus({ status: "executing", display_status: "waiting_user" }, 'data-state="current"', 'data-label="current"');
   assert.match(visible, /goal-status--waiting_user/);
   assert.match(visible, /data-state="current"/);
   assert.match(visible, /data-label="current"/);
   assert.match(visible, /等你/);
-  // Every state has one fixed glyph (spec → 第三轮 · 状态图标): "needs you" is CircleUserRound, not the bare person.
-  assert.equal(renderer.visibleGoalStatusIcon({ status: "executing", display_status: "waiting_user" }), icon("status-needs-you"));
+  // RING-05: an answer is needed; this is not a running or completed Goal.
+  assert.equal(renderer.visibleGoalStatusIcon({ status: "executing", display_status: "waiting_user" }), renderStateRing({ state: "answer", size: 20 }));
   const untrusted = createWorkbenchGoalsStatusRenderer({ translate: () => 'Text "<unsafe>', escapeHtml, icon });
   const html = untrusted.renderStatus("waiting_for_human");
   assert.match(html, /title="Text &quot;&lt;unsafe&gt;"/);

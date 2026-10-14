@@ -1,3 +1,5 @@
+import { renderStateRing } from "./state-ring.js";
+import { STATE_RING_ICON_STATES } from "./state-ring-states.js";
 import {
   Activity,
   AlertTriangle,
@@ -349,6 +351,7 @@ export function renderIconSprite(): string {
 }
 
 export function icon(name: MolisWorkIcon, className = ""): string {
+  if (name in STATE_RING_ICON_STATES) return renderStateRing({ state: STATE_RING_ICON_STATES[name as keyof typeof STATE_RING_ICON_STATES], className });
   return `<svg${className ? ` class="${escapeAttribute(className)}"` : ""} aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 }
 

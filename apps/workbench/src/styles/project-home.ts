@@ -81,7 +81,6 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-focus__top > span:first-child { display: inline-flex; align-items: center; gap: 8px; }
   .immersive-home .home-focus__top svg { width: 14px; height: 14px; }
   .immersive-home .home-focus__status { display: inline-flex; align-items: center; gap: 8px; color: var(--accent); font-weight: var(--weight-control, 500); }
-  .immersive-home .home-focus__status i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
   .immersive-home .home-focus__status.is-attention { color: var(--amber); }
   .immersive-home .home-focus h2 {
     position: relative; z-index: 1; max-width: min(24ch, calc(100% - 200px)); margin: 0;

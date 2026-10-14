@@ -38,8 +38,8 @@ type Evaluate = <T>(expression: string) => Promise<T>;
 type Command = (method: string, params?: Record<string, unknown>, sessionId?: string) => Promise<unknown>;
 
 /** The toast's box, and where its glyph sits (the glyph hangs on the toast's left edge at a fixed offset from the top). */
-const toastBox = (evaluate: Evaluate, selector: string) => evaluate<{ x: number; right: number; h: number; glyphTop: number }>(`(() => { const el = document.querySelector(${JSON.stringify(selector)});
-  const b = el.getBoundingClientRect(); return { x: b.x, right: b.right, h: b.height, glyphTop: parseFloat(getComputedStyle(el, '::before').top) }; })()`);
+const toastBox = (evaluate: Evaluate, selector: string) => evaluate<{ x: number; right: number; h: number; glyphHeight: number; glyphTop: number }>(`(() => { const el = document.querySelector(${JSON.stringify(selector)});
+  const b = el.getBoundingClientRect(); return { x: b.x, right: b.right, h: b.height, glyphHeight: el.querySelector('.mw-state-ring').getBoundingClientRect().height, glyphTop: el.querySelector('.mw-state-ring').getBoundingClientRect().top - b.top }; })()`);
 
 /** The button as a finger meets it: its box, and what is under the middle of its top and bottom edges (its reach is real, not a measurement alone). */
 const reachOf = (evaluate: Evaluate, selector: string) => evaluate<{ w: number; h: number; top: boolean; bottom: boolean }>(`(() => { const el = document.querySelector(${JSON.stringify(selector)});
@@ -48,7 +48,7 @@ const reachOf = (evaluate: Evaluate, selector: string) => evaluate<{ w: number; 
 
 /** The message and the button of the toast as lines: how many lines the message takes, where the button's words sit against them, and how the button reads on the toast. */
 const toastLinesOf = (evaluate: Evaluate, toast: string) => evaluate<{ lines: number; textLeft: number; textBottom: number; buttonLeft: number; buttonTop: number; contrast: number; ink: string; ground: string }>(`(() => {
-  const toast = document.querySelector(${JSON.stringify(toast)}); const text = document.createRange(); text.selectNodeContents(toast.firstChild);
+  const toast = document.querySelector(${JSON.stringify(toast)}); const text = document.createRange(); text.selectNodeContents([...toast.childNodes].find(node => node.nodeType === Node.TEXT_NODE));
   const button = toast.querySelector('[data-molis-call-id]'); const words = document.createRange(); words.selectNodeContents(button);
   const channels = value => { const n = (value.match(/[\\d.]+/g) || []).map(Number); return value.startsWith('color(') ? n.slice(0, 3).map(v => v * 255) : n.slice(0, 3); };
   const luminance = value => { const [r, g, b] = channels(value).map(v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }); return .2126 * r + .7152 * g + .0722 * b; };
@@ -108,9 +108,12 @@ test("a failure the Host recorded shows its diagnostic ID, which copies whole an
   assert.equal(await evaluate("document.querySelector('[data-memory-settings] [data-memory-error]').hidden"), false);
   // The reason also shows where the person is (the toast), with the same button, and the toast does not run away from a pointer on it.
   await waitFor("!!document.querySelector('[data-toast].is-error [data-molis-call-id]')", 5_000);
+  // RING-07: the shared failure ring replaces the old background-image glyph.
+  await waitFor("document.querySelector('[data-toast].is-error > .mw-state-ring')?.dataset.mwState === 'failed'");
   const desktopToast = await toastBox(evaluate, "[data-toast].is-error");
   assert.ok(desktopToast.h < 60 && desktopToast.right <= 1440, `a desktop window keeps the message and the button on one line (${JSON.stringify(desktopToast)})`);
-  assert.ok(Math.abs((desktopToast.h - 16) / 2 - desktopToast.glyphTop) <= 1, `with the glyph centred on that line (${JSON.stringify(desktopToast)})`);
+  assert.ok(Math.abs((desktopToast.h - desktopToast.glyphHeight) / 2 - desktopToast.glyphTop) <= 1, `with the glyph centred on that line (${JSON.stringify(desktopToast)})`);
+  assert.ok(desktopToast.glyphHeight >= 20); // RING-08
   const desktopReach = await reachOf(evaluate, "[data-toast].is-error [data-molis-call-id]");
   assert.ok(desktopReach.h >= 32 && desktopReach.top && desktopReach.bottom, `and a pointer reaches the button over at least 32px (${JSON.stringify(desktopReach)})`);
 
@@ -226,7 +229,8 @@ test("the settings page opened on its own: its toast hangs on the right edge on 
   assert.ok(desktop.h < 60, `a desktop window keeps the message and the button on one line (${JSON.stringify(desktop)})`);
   assert.ok(Math.abs(desktop.right - (1440 - 22)) <= 1, `the toast hangs on the window's right edge, 22px in, as the page's own rule says, and is not a bar over its right half (${JSON.stringify(desktop)})`);
   assert.ok(desktop.right - desktop.x < 720, "as wide as its words");
-  assert.ok(Math.abs((desktop.h - 16) / 2 - desktop.glyphTop) <= 1, `with the glyph centred on that line (${JSON.stringify(desktop)})`);
+  assert.ok(Math.abs((desktop.h - desktop.glyphHeight) / 2 - desktop.glyphTop) <= 1, `with the glyph centred on that line (${JSON.stringify(desktop)})`);
+  assert.ok(desktop.glyphHeight >= 20); // RING-08
   const desktopReach = await reachOf(evaluate, button);
   assert.ok(desktopReach.h >= 32 && desktopReach.top && desktopReach.bottom, `and a pointer reaches the button over at least 32px (${JSON.stringify(desktopReach)})`);
 
@@ -243,8 +247,24 @@ test("the settings page opened on its own: its toast hangs on the right edge on 
     assert.ok(lines.lines >= 2 && lines.lines <= 3, `${scheme}: and wraps into lines of words (${lines.lines})`);
     assert.ok(lines.buttonTop >= lines.textBottom - 1 && Math.abs(lines.buttonLeft - lines.textLeft) <= 1, `${scheme}: with the button under the message, where the message starts`);
     assert.ok(lines.contrast >= 4.5, `${scheme}: in the toast's ink, ${lines.contrast}:1 (${lines.ink} on ${lines.ground})`);
+    // The toast reverses the page's surface; every state must remain visible there.
+    const ringContrast = await evaluate<number[]>(`(() => { const toast = document.querySelector('[data-settings-toast]');
+      const luminance = value => { const parts = (value.match(/[\\d.]+/g) || []).map(Number), channels = value.startsWith('color(') ? parts.slice(0, 3) : parts.slice(0, 3).map(v => v / 255);
+        const [r,g,b] = channels.map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4); return .2126*r + .7152*g + .0722*b; };
+      const svg = toast.querySelector('.mw-state-ring'), path = svg.querySelector('[data-ring-segments] path'); path.style.transition = 'none';
+      return ['neutral','success','danger'].map(tone => { path.dataset.ringTone = tone; const [hi,lo] = [luminance(getComputedStyle(path).stroke), luminance(getComputedStyle(toast).backgroundColor)].sort((a,b) => b-a); return (hi+.05)/(lo+.05); }); })()`);
+    assert.ok(ringContrast.every(value => value >= 3), `${scheme}: state strokes contrast against the toast: ${ringContrast}`);
     const target = await reachOf(evaluate, button);
     assert.ok(target.h >= 44 && target.w >= 44 && target.top && target.bottom, `${scheme}: the button is a 44px target a finger reaches (${JSON.stringify(target)})`);
     await phoneOf(command, sessionId, false);
   }
+  // RING-07 / RING-03: the fading toast must not leave an invisible animation running.
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
+  await show("检查隐藏时停止绘制");
+  await waitFor("document.querySelector('[data-settings-toast] .mw-state-ring')?.dataset.mwState === 'failed'");
+  await evaluate("document.querySelector('[data-settings-toast]').classList.remove('is-visible')");
+  await waitFor("getComputedStyle(document.querySelector('[data-settings-toast] .mw-state-ring')).visibility === 'hidden'");
+  const frozen = await evaluate(`(async () => { const ring = document.querySelector('[data-settings-toast] .mw-state-ring'); const before = ring.innerHTML;
+    await new Promise(resolve => setTimeout(resolve, 2200)); return before === ring.innerHTML; })()`);
+  assert.equal(frozen, true, "a hidden failure toast stops repainting");
 });

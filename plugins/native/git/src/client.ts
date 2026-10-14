@@ -54,7 +54,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
     }catch(error){if(active(epoch) && id===workspace)resultStatus.textContent='保存未完成：'+error.message;}
     finally{resultSaving=false;if(active(epoch) && id===workspace)resultSave.disabled=Boolean(resultRows.find(item=>item.result.review.review_id===resultChoice.value)?.saved);}
   });
-  function title(item){q('[data-git-kind]').textContent='固定差异';q('[data-git-title]').textContent=item.path.join('/');q('[data-git-scope]').textContent=(item.side==='index'?'已暂存 · HEAD → 暂存区':'未暂存 · 暂存区 → 工作区')+(item.previous_path?' · 原路径 '+item.previous_path.join('/'):'');}
+  function title(item){q('[data-git-scope]').dataset.mwState=item.side==='index'?'staged':'unstaged';q('[data-git-kind]').textContent='固定差异';q('[data-git-title]').textContent=item.path.join('/');q('[data-git-scope]').textContent=(item.side==='index'?'已暂存 · HEAD → 暂存区':'未暂存 · 暂存区 → 工作区')+(item.previous_path?' · 原路径 '+item.previous_path.join('/'):'');}
   async function fixed(item,serial,epoch){
     const value=await requestPlugin('diff','/state?artifact_id='+encodeURIComponent(item.reference.artifact_id)+'&version='+item.reference.version);
     if(serial!==ticket || !active(epoch))return;
@@ -83,7 +83,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
       const view=value.view;notice.textContent=view.phase==='ready'?[view.head,view.tracking,view.message].filter(Boolean).join(' · '):view.message;
       for(const [label,items,side] of [['冲突',view.conflicts,'worktree'],['已暂存',view.staged,'index'],['未暂存',view.changes,'worktree']]){
         if(!items.length)continue;
-        const group=document.createElement('section'),heading=document.createElement('h4');heading.textContent=label+' · '+items.length;group.append(heading);
+        const group=document.createElement('section'),heading=document.createElement('h4');heading.textContent=label+' · '+items.length;heading.dataset.mwState=label==='冲突'?'conflict':side==='index'?'staged':'unstaged';group.append(heading);
         for(const item of items){const button=document.createElement('button');button.type='button';button.className='mw-dir-row mw-dir-row--compact';button.dataset.gitPath=JSON.stringify([item.path,side]);button.classList.toggle('is-selected',Boolean(displayed && displayed.side===side && JSON.stringify(displayed.path)===JSON.stringify(item.path)));const copy=document.createElement('span');copy.className='mw-dir-row__copy';const headline=document.createElement('span');headline.className='mw-dir-row__headline';const name=document.createElement('strong');name.textContent=item.label;headline.append(name);copy.append(headline);button.append(copy);button.title=label+' · '+item.label;button.setAttribute('aria-label',label+'：'+item.label);lifetime.listen(button,'click',()=>void open(item.path,side,button));group.append(button);}
         list.append(group);
       }

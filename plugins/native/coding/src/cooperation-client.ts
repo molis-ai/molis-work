@@ -27,7 +27,7 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     backgroundSection.hidden=!commands.length;backgroundSection.replaceChildren();if(!commands.length)return;
     backgroundSection.append(el('h3','','后台命令'));const list=el('ol','coding-coop-mail coding-background-list');
     for(const task of commands.slice().reverse()){
-      const item=el('li'),head=el('div','coding-coop-head'),chip=el('span','mw-status mw-status--plain',TASK_STATE[task.state]||task.state);chip.dataset.tone=TASK_TONE[task.state]||'idle';item.dataset.state=task.state;
+      const item=el('li'),head=el('div','coding-coop-head'),chip=el('span','mw-status mw-status--plain',TASK_STATE[task.state]||task.state);chip.dataset.tone=TASK_TONE[task.state]||'idle';chip.dataset.mwState=task.state==='succeeded'?'done':task.state;item.dataset.state=task.state;
       head.append(el('code','coding-background-command',task.summary),chip);
       const line=el('p','coding-coop-line');line.append(el('span','coding-coop-note',(task.exit_code===undefined?'':'exit '+task.exit_code+' · ')+'开始于 '+time(task.started_at_ms)+(task.ended_at_ms?' · 结束于 '+time(task.ended_at_ms):'')));
       item.append(head,line);
@@ -42,7 +42,7 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     for(const receipt of delegation.receipts){const item=el('li');item.append(el('span','coding-coop-event',EVENT[receipt.event]||receipt.event),el('time','',time(receipt.at)));
       if(receipt.note)item.append(el('span','coding-coop-note',receipt.note));if(receipt.recorded_only)item.append(el('span','coding-coop-late','在结束之后到达，只记录'));list.append(item);}
     details.append(summary,list);return details;};
-  const stateChip=(delegation)=>{const chip=el('span','mw-status mw-status--plain',delegation.state_label);chip.dataset.tone=TONE[delegation.state]||'idle';return chip;};
+  const stateChip=(delegation)=>{const chip=el('span','mw-status mw-status--plain',delegation.state_label);chip.dataset.tone=TONE[delegation.state]||'idle';chip.dataset.mwState=({received:'approval',delivered:'approval',accepted:'ready',committing:'running',completed:'done',rejected:'cancelled',cancelled:'cancelled',failed:'failed'})[delegation.state]||'verify';return chip;};
   const sessionLink=(side)=>side?.title?button('「'+side.title+'」','ghost',()=>void openSession(side.session_id,side.title)):el('span','coding-coop-gone','已不存在的会话');
   const reasonForm=(label,confirm,handler)=>{const form=el('form','coding-coop-reason'),input=el('textarea','mw-textarea');input.rows=2;input.maxLength=2000;input.required=true;input.setAttribute('aria-label',label);input.placeholder=label;
     const send=el('button','mw-btn mw-btn--secondary',confirm);send.type='submit';form.append(input,send);lifetime.listen(form,'submit',event=>{event.preventDefault();if(input.value.trim())void handler(input.value.trim());});return form;};
@@ -88,7 +88,7 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       const item=el('li'),head=el('div','coding-coop-head'),line=el('p','coding-coop-line');item.dataset.state=message.state;
       // Ended because the receiving round failed, not withdrawn by anyone.
       const failed=message.state==='cancelled'&&(message.history||[]).some(entry=>entry.event==='failed');
-      const chip=el('span','mw-status mw-status--plain',failed?'对方那一轮失败，未答复':(MAIL_STATE[message.state]||message.state));chip.dataset.tone=failed?'blocked':(MAIL_TONE[message.state]||'idle');
+      const chip=el('span','mw-status mw-status--plain',failed?'对方那一轮失败，未答复':(MAIL_STATE[message.state]||message.state));chip.dataset.tone=failed?'blocked':(MAIL_TONE[message.state]||'idle');chip.dataset.mwState=failed?'failed':({queued:'queued',delivered:'waiting',accepted:'ready',completed:'round-ended',rejected:'cancelled',cancelled:'cancelled',expired:'stale'})[message.state]||'verify';
       head.append(el('strong','',(message.outgoing?'发出的':'收到的')+(MAIL_KIND[message.kind]||message.kind)+(message.await_reply?'（在等答复）':'')),chip);
       line.append(document.createTextNode(message.outgoing?'给':'来自'),message.peer?sessionLink(message.peer):el('span','',message.outgoing?'「'+message.to_title+'」':'「'+message.from_title+'」'),el('time','',time(message.sent_at_ms)));
       const body=el('details','coding-coop-task');body.append(el('summary','',message.body.split('\\n')[0].slice(0,80)),el('p','',message.body));

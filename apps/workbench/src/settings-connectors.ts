@@ -60,7 +60,7 @@ function renderConnectionRow(connection: ConnectorConnectionView, card: Connecto
   return `<div class="settings-connection-row" data-connection-row="${id}" data-connection-service="${serviceId}">
     ${renderConnectorMark(connection.service_id, escapeHtml)}
     <div class="settings-connection-row__identity"><strong>${name}</strong><small>${serviceTitle} · ${escapeHtml(connectionMethod(connection.auth_method, L))}${connection.account_label ? ` · ${escapeHtml(connection.account_label)}` : ""}</small>${connection.target_origin ? `<small>${escapeHtml(L("绑定地址"))} · ${escapeHtml(connection.target_origin)}</small>` : ""}</div>
-    <span class="settings-state settings-state--${state.tone}" data-connection-state>${escapeHtml(state.label)}</span>
+    <span class="settings-state settings-state--${state.tone}" data-connection-state data-mw-state="${connection.state === "reauth_required" ? "reauth" : connection.state === "connected" ? "saved" : "disconnected"}">${escapeHtml(state.label)}</span>
     ${inDetail ? `<div class="settings-connection-row__actions">
       ${connection.state !== "disconnected" && !["model-api", "image-api", "typesafe", "mcp-bearer"].includes(connection.service_id) ? `<button class="mw-btn mw-btn--secondary" type="button" data-connection-check="${id}">${L("检查连接")}</button><button class="mw-btn mw-btn--secondary" type="button" data-connection-preview="${id}">${L(connection.auth_method === "mcp" ? "查看可用工具" : "查看读取结果")}</button>` : ""}
       ${canManage && ["oauth", "mcp"].includes(connection.auth_method) ? `<button class="mw-btn mw-btn--secondary" type="button" data-connection-reauthorize="${id}" data-connection-method="${connection.auth_method}">${L(connection.auth_method === "mcp" ? "新增 MCP 授权" : "重新授权")}</button>` : ""}

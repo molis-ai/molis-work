@@ -1,4 +1,5 @@
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { STATE_RING_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -17,6 +18,7 @@ test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；�
     const page = await browser.page();
     const result = await page.evaluate<any>(`(async()=>{
       document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>';
+      ${STATE_RING_CLIENT_SCRIPT}
       const board=document.querySelector('[data-coding-board]'),went=[],amended=[];
       const names={builder:'构建者','coding-reviewer':'独立评审'};
       const api=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(board),board,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>names[id]||id,
@@ -31,9 +33,9 @@ test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；�
         taskboard_plans:[entry('r1'),entry('r2')],
         subagents:[{run_id:'r2',children:[{subagent_id:'c1',role_id:'coding-reviewer',role_name:'独立评审',task:'运行测试\\n并报告',state:'running',activity:[{at:new Date(t0+130000).toISOString()}],workspace_path:'/w'},
           {subagent_id:'c2',role_id:'coding-reviewer',role_name:'独立评审',task:'核对边界',state:'failed',activity:[],workspace_path:'/w'}]}]});
-      board.hidden=false;api.show();
+      board.hidden=false;api.show(); await Promise.resolve();
       const rows=[...board.querySelectorAll('.coding-board-entry')].map(entry=>({depth:Number(entry.parentElement.style.getPropertyValue('--board-depth')),
-        key:entry.querySelector('.coding-board-key')?.textContent,title:entry.querySelector('.coding-board-node strong').textContent,state:entry.querySelector('.coding-board-state').textContent,
+        key:entry.querySelector('.coding-board-key')?.textContent,title:entry.querySelector('.coding-board-node strong').textContent,state:entry.querySelector('.coding-board-state').textContent,ring:entry.querySelector('.coding-board-state .mw-state-ring')?.dataset.mwState,
         progress:entry.querySelector('.coding-board-progress:not(.is-empty) > span')?.textContent||'',deps:(entry.querySelector('.coding-board-deps > summary')||entry.querySelector('.coding-board-deps.is-note'))?.textContent||'',
         agent:entry.querySelector('.coding-board-agent').textContent,avatar:entry.querySelector('.coding-board-avatar').title,tools:entry.querySelectorAll('.coding-board-tools button').length}));
       const groups=[...board.querySelectorAll('.coding-board-fold > summary')].map(summary=>summary.textContent);
@@ -49,6 +51,7 @@ test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；�
     const [plan, ...planSteps] = result.rows.slice(0, 4);
     assert.equal(plan.state, "已确认"); assert.equal(planSteps.length, 3); assert.ok(planSteps.every((row: any) => row.depth === 1 && row.state === "待执行"));
     const rows = result.rows.slice(4);
+    assert.deepEqual(rows.map((row: { ring: string }) => row.ring), ["running", "done", "running", "running", "waiting", "failed"], "RING-07: actual shared SVGs replace every task state mark");
     assert.deepEqual(rows.map((row: any) => [row.depth, row.key]), [[0, "#1–2"], [1, "S1"], [1, "S2"], [2, "子任务"], [1, "S3"], [1, "子任务"]], "the child that started during S2 sits under it; one without a start time sits under the round");
     assert.equal(rows[0].progress, "1/3"); assert.equal(rows[0].state, "进行中");
     assert.equal(rows[1].state, "你已验收", "the person's acceptance shows over the model's report");
@@ -150,7 +153,7 @@ test("TaskBoard 大纲：左栏用同一棵树画紧凑的行；没有会话时�
         taskboard_plans:[{run_id:'r1',revision:1,plan,board:{project_id:'b1',version:2,terminal:false,nodes},verdicts:{}}],
         subagents:[{run_id:'r1',children:[{subagent_id:'c1',role_id:'coding-reviewer',role_name:'独立评审',task:'核对 b',state:'running',activity:[{at:new Date(t0+2500).toISOString()}],workspace_path:'/w'}]}]});
       const rows=[...outline.querySelectorAll('.coding-outline-row')].map(node=>({depth:Number(node.parentElement.style.getPropertyValue('--board-depth')),key:node.querySelector('.coding-board-key')?.textContent||'',
-        title:node.querySelector('strong').textContent,tone:node.querySelector('.coding-outline-mark').dataset.tone,who:node.querySelector('.coding-board-avatar')?.textContent||'',controls:node.querySelectorAll('button').length}));
+        title:node.querySelector('strong').textContent,tone:node.querySelector('.coding-outline-mark').dataset.tone,ring:node.querySelector('.coding-outline-mark').dataset.mwState,who:node.querySelector('.coding-board-avatar')?.textContent||'',controls:node.querySelectorAll('button').length}));
       const headings=[...outline.querySelectorAll('.mw-dir__heading')].map(node=>node.textContent.replace(/\\s+/g,''));
       outline.querySelector('[data-board-key="step-r1-step-2"]').click();
       const boardDrawn=board.querySelectorAll('.coding-board-entry').length;
@@ -159,6 +162,7 @@ test("TaskBoard 大纲：左栏用同一棵树画紧凑的行；没有会话时�
     assert.match(result.empty.status, /先在「会话」里打开一个会话/); assert.equal(result.empty.expand, true);
     assert.deepEqual(result.headings, ["执行1轮"]);
     assert.deepEqual(result.rows.map((row: any) => [row.depth, row.key, row.tone]), [[0, "#1", "progress"], [1, "S1", "done"], [1, "S2", "progress"], [2, "子任务", "progress"]], "rounds, steps and subtasks nest like the board");
+    assert.deepEqual(result.rows.map((row: { ring: string }) => row.ring), ["running", "done", "running", "running"], "RING-07: the compact outline uses the same state mapping");
     assert.equal(result.rows[1].who, "审", "who is on a step: the round's Character, as an avatar");
     assert.ok(result.rows.every((row: any) => row.controls === 0), "the outline carries no controls; the board does");
     assert.deepEqual(result.went, [{ kind: "step", run_id: "r1", step_id: "step-2" }]);

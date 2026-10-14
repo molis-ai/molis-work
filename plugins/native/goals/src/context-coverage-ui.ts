@@ -1,3 +1,4 @@
+import { renderStateRing } from "@molis-ai/molis-work-design-system";
 import type { GoalsContextItem, GoalsContextView, GoalsContextUiPrimitives } from "./context-ui-model.js";
 import { findGoalTreeItem as findGoalView, goalWorkSatisfied, partOfChildViews } from "./tree-presentation.js";
 import { sortGoalTreeItems as sortGoals } from "./tree-order.js";
@@ -18,7 +19,7 @@ function renderChildProgress(item: GoalsContextItem, view: GoalsContextView): st
 function renderContractCoverage(item: GoalsContextItem, view: GoalsContextView): string {
   const goal = item.goal;
   const satisfaction = goalWorkSatisfied(item)
-    ? `<p class="contract-scope-status">${icon("completed")}<strong>${L("本 Goal 已按自己的当前约定收尾")}</strong><span>${L("这只表示当前 Goal 自己的约定已满足，不自动等于父 Goal 已经完成。")}</span></p>`
+    ? `<p class="contract-scope-status">${renderStateRing({ state: "done" })}<strong>${L("本 Goal 已按自己的当前约定收尾")}</strong><span>${L("这只表示当前 Goal 自己的约定已满足，不自动等于父 Goal 已经完成。")}</span></p>`
     : "";
   const ownCoverage = goal.decomposition_state !== "closed_compound"
     ? ""

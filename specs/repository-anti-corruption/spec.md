@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133与W2-10 A1–A4/C/D已合；第4–6波和最终共享全量仍在途。当前main774acaf57；I8 ad0ca76fb已联合Pages7b611、I3–I33及正式CU-image+beforeAccept SDK，102b九项工程检查全通过。103普通99条97通过、浏览器20条19通过，新增真实线程撤权/停止竞态均通过；104 Host HTML五条四通过。四条旧预期/夹具问题已定位，105错误出口13/13通过，106浏览器两条定向复验2/2通过，107模块图边界/root类型/merge-base健康检查全通过；唯一共享全量108已冻结c2017a9ac运行，已出现新增失败，完整终态及逐条裁决尚待。Prologue #20已推送并开PR，无GitHub CI；干净构建/打包与66项检查通过。维护八隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。完整未完范围及新旧证据见§12.4–12.11。
+状态：已暂停后续推进（2026-10-14，用户在统筹会话明确要求暂停并写handoff）。已启动的108冻结全量保留运行，不自动接续109构建/回归；整条防腐任务未完成。暂停前进度：原I4/I5第五批、BL-133与W2-10 A1–A4/C/D已合；第4–6波和最终共享全量仍在途。当前main774acaf57；I8 ad0ca76fb已联合Pages7b611、I3–I33及正式CU-image+beforeAccept SDK，102b九项工程检查全通过。103普通99条97通过、浏览器20条19通过，新增真实线程撤权/停止竞态均通过；104 Host HTML五条四通过。四条旧预期/夹具问题已定位，105错误出口13/13通过，106浏览器两条定向复验2/2通过，107模块图边界/root类型/merge-base健康检查全通过；唯一共享全量108已冻结c2017a9ac运行，已出现新增失败，完整终态及逐条裁决尚待。Prologue #20已推送并开PR，无GitHub CI；干净构建/打包与66项检查通过。维护八隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。完整未完范围及新旧证据见§12.4–12.11。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2712,3 +2712,5 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 **108已实际启动（进行中）。** c2017a9ac395ed34708b330ffc3100704a631e54为clean冻结头，生产仍为102b已构建的同一联合source；同步唯一spec后merge-base健康检查再次exit0，随后node scripts/./run-tests.mjs在同一build/browser锁下跑全量。当前日志已经报告新增失败，不能称全量通过：两条AgentBuilder测试仍用已退役构造入口，管理MCP README装配清单断言与取消在dispatch前的诊断结算链路已找到源码线索，其余浏览器/真实Host组合等待完整栈后裁决。此处只记录正在运行与已发现问题，不替代最终footer、基线比对或修复后验证；受测树源码/脚本/package/skills未修改。独立进度分支已机械同步main774a，diff仍只有此spec，Root全量树保持clean。
 
 **109独立修复准备与进度PR归回（尚未运行）。** 108持续冻结c2017a9ac，独立109从main再ff该头，只由Root写入，未启第二构建/测试队列。e028ce555补调度前一次拒绝结算和取消命令声明-only命名，Root/协调只读源核接受；现有真实Host取消、等待中取消/open失败/close、原对象/编号、未知descriptor不泄另一项目标题与Runtime/Host snapshot/provider policy/handler五项零计数回归已准备，parse0不是类型或运行证明。随后23文件最小修正沿原合同：Builder和卡片owner入口、当前错误码/kind、MCP真实版本、编辑器边界stub及源码绑定名，保所有业务断言；Pages无pending null来源head按已接受W1-18-PIN-CURRENT生成第二版、保旧内容/各producer/person owner，正常三阶段pending恢复未改，删除陈旧说明。源核/22TS parse0与diff检查通过，正式构建/短验仍待108释放名额。#490 exact655866561全部七CI通过后于2026-10-14T16:57:16Z合入main cbbeada4e；该PR只补唯一spec，不能宣告候选代码已合入或整线完成。
+
+**暂停交接（2026-10-14T17:15Z）。** 用户明确暂停本线；新的修改、构建、验证排队与推送/合并均已停止。108原冻结树c201 clean、session6308仍跑完整回归，driver只有health→full两步，无自动后续任务；结果须恢复时先查原state/footer，不重复启动。109 HEAD39bfa481c仅保留pages-publication/ppt-mcp/project-deletion-service三文件未提交22+/10-，已交统筹汇入单份handoff；没有109构建或测试已排队。之后按用户明确恢复再推进§10.10、108失败裁决与原RAC/W4–6，不把暂停当完成。

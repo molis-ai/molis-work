@@ -4,7 +4,7 @@ import { SandboxError } from './schema.js';
 /** Values are host-resolved absolute paths; SBPL strings never contain caller expressions. */
 export function seatbeltProfile(paths: { node: string; worker: string; bundle: string }): string {
   const literal = (value: string) => JSON.stringify(realpathSync(value));
-  if (process.platform !== 'darwin') throw new SandboxError('UNSUPPORTED_PLATFORM', 'Generated plugins require macOS Seatbelt');
+  if (process.platform !== 'darwin') throw new SandboxError('sandbox.unsupported_platform', 'Generated plugins require macOS Seatbelt');
   return `(version 1)
 (deny default)
 (allow process-exec (literal ${literal(paths.node)}))

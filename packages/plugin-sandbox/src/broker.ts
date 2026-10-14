@@ -31,36 +31,36 @@ export class SandboxBroker {
     try { this.calls.consume(); assertJson(args); } catch (error) { return Promise.reject(error); }
     return this.queue.submit(async () => {
       signal.throwIfAborted();
-      const lifetime = createExecutionLifetime({ signal, timeout: { milliseconds: serviceTimeoutMs, reason: new SandboxError('SERVICE_TIMEOUT', 'Host service cancelled or timed out; its result may be unknown', 'unknown') } });
+      const lifetime = createExecutionLifetime({ signal, timeout: { milliseconds: serviceTimeoutMs, reason: new SandboxError('sandbox.service_timeout', 'Host service cancelled or timed out; its result may be unknown', 'unknown') } });
       const beforeEffect = async () => { lifetime.assertActive(); await guard?.(); lifetime.assertActive(); };
       const context: SandboxServiceContext = { identity: this.identity, signal: lifetime.signal, operationId: operation.id, beforeEffect };
       try {
         await lifetime.wait(beforeEffect());
         const result = await lifetime.wait(this.dispatch(context, operation.effects, method, args));
         await lifetime.wait(beforeEffect()); assertJson(result);
-        if (Buffer.byteLength(JSON.stringify(result)) > this.limits.messageBytes / 2) throw new SandboxError('RESPONSE_TOO_LARGE', 'Host service response exceeds channel limit');
+        if (Buffer.byteLength(JSON.stringify(result)) > this.limits.messageBytes / 2) throw new SandboxError('sandbox.response_too_large', 'Host service response exceeds channel limit');
         return result;
       } finally { lifetime.dispose(); }
     });
   }
   private async dispatch(context: SandboxServiceContext, effects: SandboxEffects, method: SandboxSdkMethod, args: SandboxJson[]): Promise<SandboxJson> {
     const permit = (key: keyof SandboxEffects, value: string) => {
-      if (!(effects[key] as string[] | undefined)?.includes(value) || !(this.grants[key] as string[] | undefined)?.includes(value)) throw new SandboxError('NOT_AUTHORIZED', `Undeclared or unapproved ${key}: ${value}`);
+      if (!(effects[key] as string[] | undefined)?.includes(value) || !(this.grants[key] as string[] | undefined)?.includes(value)) throw new SandboxError('sandbox.not_authorized', `Undeclared or unapproved ${key}: ${value}`);
     };
-    const count = (n: number) => { if (args.length !== n) throw new SandboxError('INVALID_REQUEST', 'Invalid SDK argument count'); };
+    const count = (n: number) => { if (args.length !== n) throw new SandboxError('sandbox.invalid_request', 'Invalid SDK argument count'); };
     const string = (index: number, max = 256) => {
       const value = args[index];
-      if (typeof value !== 'string' || value.length > max || value.includes('\0')) throw new SandboxError('INVALID_REQUEST', 'Invalid SDK string');
+      if (typeof value !== 'string' || value.length > max || value.includes('\0')) throw new SandboxError('sandbox.invalid_request', 'Invalid SDK string');
       return value;
     };
-    const missing = (): never => { throw new SandboxError('SERVICE_UNAVAILABLE', 'Host service is not connected'); };
+    const missing = (): never => { throw new SandboxError('sandbox.service_unavailable', 'Host service is not connected'); };
     if (method.startsWith('storage.')) {
       const write = method === 'storage.set' || method === 'storage.delete';
       permit('storage', write ? 'write' : 'read');
-      if (!['storage.get', 'storage.set', 'storage.delete', 'storage.list'].includes(method)) throw new SandboxError('INVALID_REQUEST', 'Unknown storage method');
+      if (!['storage.get', 'storage.set', 'storage.delete', 'storage.list'].includes(method)) throw new SandboxError('sandbox.invalid_request', 'Unknown storage method');
       count(method === 'storage.set' ? 2 : 1);
       const key = string(0);
-      if (method !== 'storage.list' && !key) throw new SandboxError('INVALID_REQUEST', 'Empty storage key');
+      if (method !== 'storage.list' && !key) throw new SandboxError('sandbox.invalid_request', 'Empty storage key');
       if (!this.services.storage) missing();
       return this.services.storage!.transaction(context, entries => {
         context.signal.throwIfAborted();
@@ -69,7 +69,7 @@ export class SandboxBroker {
         if (method === 'storage.set') {
           // Calculate before mutation: over-quota writes cannot partially alter the store.
           const next = new Map(entries); next.set(key, args[1]!);
-          if (Buffer.byteLength(JSON.stringify([...next])) > this.limits.storageBytes) throw new SandboxError('STORAGE_QUOTA', 'Private storage quota exceeded');
+          if (Buffer.byteLength(JSON.stringify([...next])) > this.limits.storageBytes) throw new SandboxError('sandbox.storage_quota', 'Private storage quota exceeded');
           entries.set(key, structuredClone(args[1]!));
         } else entries.delete(key);
         return null;
@@ -79,25 +79,25 @@ export class SandboxBroker {
       case 'artifacts.get': {
         count(1); permit('artifacts', 'read');
         const ref = args[0];
-        if (!ref || typeof ref !== 'object' || Array.isArray(ref) || Object.keys(ref).some(key => !['artifact_id', 'version'].includes(key)) || typeof ref.artifact_id !== 'string' || !ref.artifact_id || ref.artifact_id.length > 256 || !Number.isSafeInteger(ref.version) || (ref.version as number) < 1) throw new SandboxError('INVALID_REQUEST', 'Artifact reads require an exact artifact_id and positive version');
+        if (!ref || typeof ref !== 'object' || Array.isArray(ref) || Object.keys(ref).some(key => !['artifact_id', 'version'].includes(key)) || typeof ref.artifact_id !== 'string' || !ref.artifact_id || ref.artifact_id.length > 256 || !Number.isSafeInteger(ref.version) || (ref.version as number) < 1) throw new SandboxError('sandbox.invalid_request', 'Artifact reads require an exact artifact_id and positive version');
         return this.services.artifacts ? this.services.artifacts.get(context, ref as { artifact_id: string; version: number }) : missing();
       }
       case 'artifacts.put': count(1); permit('artifacts', 'write'); return this.services.artifacts ? this.services.artifacts.put(context, args[0]!) : missing();
       case 'capability.call': count(2); permit('capabilities', string(0)); return this.services.capability ? this.services.capability.call(context, string(0), args[1]!) : missing();
       case 'events.publish': count(2); permit('events', string(0)); this.events.consume(); if (!this.services.events) missing(); await this.services.events!.publish(context, string(0), args[1]!); return null;
-      case 'resource.read': count(1); permit('resources', string(0)); if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(string(0))) throw new SandboxError('INVALID_REQUEST', 'Resource must be a logical name'); return this.services.resource ? this.services.resource.read(context, string(0)) : missing();
+      case 'resource.read': count(1); permit('resources', string(0)); if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(string(0))) throw new SandboxError('sandbox.invalid_request', 'Resource must be a logical name'); return this.services.resource ? this.services.resource.read(context, string(0)) : missing();
       case 'network.request': {
         count(1);
         const request = args[0] as unknown as SandboxNetworkRequest;
-        if (!request || typeof request !== 'object' || Array.isArray(request) || typeof request.url !== 'string') throw new SandboxError('INVALID_REQUEST', 'Invalid network request');
+        if (!request || typeof request !== 'object' || Array.isArray(request) || typeof request.url !== 'string') throw new SandboxError('sandbox.invalid_request', 'Invalid network request');
         let domain: string;
-        try { domain = new URL(request.url).hostname; } catch { throw new SandboxError('INVALID_REQUEST', 'Invalid URL'); }
+        try { domain = new URL(request.url).hostname; } catch { throw new SandboxError('sandbox.invalid_request', 'Invalid URL'); }
         permit('networkDomains', domain);
-        if (request.secretRefs !== undefined && (!Array.isArray(request.secretRefs) || request.secretRefs.some(r => typeof r !== 'string'))) throw new SandboxError('INVALID_REQUEST', 'Invalid secret references');
+        if (request.secretRefs !== undefined && (!Array.isArray(request.secretRefs) || request.secretRefs.some(r => typeof r !== 'string'))) throw new SandboxError('sandbox.invalid_request', 'Invalid secret references');
         for (const ref of request.secretRefs ?? []) permit('secretRefs', ref);
         return this.services.network ? this.services.network.request(context, request, { domains: [domain], secretRefs: request.secretRefs ?? [] }) as unknown as Promise<SandboxJson> : missing();
       }
-      default: throw new SandboxError('INVALID_REQUEST', 'Unknown SDK method');
+      default: throw new SandboxError('sandbox.invalid_request', 'Unknown SDK method');
     }
   }
 }

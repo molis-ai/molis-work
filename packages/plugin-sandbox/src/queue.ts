@@ -8,10 +8,10 @@ export class BoundedQueue {
   constructor(private readonly capacity: number) {}
   submit<T>(run: () => Promise<T>): Promise<T> {
     if (this.closed) return Promise.reject(this.closed);
-    if (this.pending.length + Number(this.running) >= this.capacity) return Promise.reject(new SandboxError('QUEUE_FULL', 'Sandbox queue is full'));
+    if (this.pending.length + Number(this.running) >= this.capacity) return Promise.reject(new SandboxError('sandbox.queue_full', 'Sandbox queue is full'));
     return new Promise<T>((resolve, reject) => { this.pending.push({ run, resolve: resolve as (v: unknown) => void, reject }); void this.drain(); });
   }
-  close(error = new SandboxError('STOPPED', 'Sandbox stopped')): void {
+  close(error = new SandboxError('sandbox.stopped', 'Sandbox stopped')): void {
     this.closed = error;
     for (const job of this.pending.splice(0)) job.reject(error);
   }
@@ -33,7 +33,7 @@ export class RateBudget {
     const now = performance.now();
     this.tokens = Math.min(this.perMinute, this.tokens + (now - this.last) * this.perMinute / 60_000);
     this.last = now;
-    if (this.tokens < 1) throw new SandboxError('RATE_LIMIT', 'Sandbox rate limit exceeded');
+    if (this.tokens < 1) throw new SandboxError('sandbox.rate_limit', 'Sandbox rate limit exceeded');
     this.tokens -= 1;
   }
 }

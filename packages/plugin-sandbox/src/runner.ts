@@ -39,19 +39,19 @@ export interface SandboxCallControl {
 }
 
 export async function createSandboxRunner(options: SandboxRunnerOptions): Promise<SandboxRunner> {
-  if (process.platform !== 'darwin') throw new SandboxError('UNSUPPORTED_PLATFORM', 'Generated plugins require macOS Seatbelt');
+  if (process.platform !== 'darwin') throw new SandboxError('sandbox.unsupported_platform', 'Generated plugins require macOS Seatbelt');
   assertContract(options.contract); assertEffects(options.grants);
   const contract = structuredClone(options.contract), grants = structuredClone(options.grants);
   const identity = Object.freeze(structuredClone(options.identity));
-  if (identity.pluginId !== contract.pluginId || !identity.projectId || !identity.installationId || !['preview', 'installed'].includes(identity.namespace)) throw new SandboxError('INVALID_IDENTITY', 'Host identity does not match contract');
+  if (identity.pluginId !== contract.pluginId || !identity.projectId || !identity.installationId || !['preview', 'installed'].includes(identity.namespace)) throw new SandboxError('sandbox.invalid_identity', 'Host identity does not match contract');
   const limits = { ...DEFAULT_SANDBOX_LIMITS, ...options.limits };
-  for (const [key, value] of Object.entries(limits)) if (!Number.isSafeInteger(value) || value <= 0) throw new SandboxError('INVALID_LIMIT', `${key} must be a positive integer`);
-  if (limits.heapMb < 16 || limits.messageBytes > 1024 * 1024 || limits.rssMb < limits.heapMb) throw new SandboxError('INVALID_LIMIT', 'Invalid memory or channel bounds');
+  for (const [key, value] of Object.entries(limits)) if (!Number.isSafeInteger(value) || value <= 0) throw new SandboxError('sandbox.invalid_limit', `${key} must be a positive integer`);
+  if (limits.heapMb < 16 || limits.messageBytes > 1024 * 1024 || limits.rssMb < limits.heapMb) throw new SandboxError('sandbox.invalid_limit', 'Invalid memory or channel bounds');
   const source = await fs.open(options.bundlePath, constants.O_RDONLY | constants.O_NOFOLLOW);
   let bundle: Buffer;
   try {
     const stat = await source.stat();
-    if (!stat.isFile() || stat.size > limits.bundleBytes) throw new SandboxError('INVALID_BUNDLE', 'Bundle must be a bounded regular file');
+    if (!stat.isFile() || stat.size > limits.bundleBytes) throw new SandboxError('sandbox.invalid_bundle', 'Bundle must be a bounded regular file');
     // Bound the read itself, even if a concurrent builder grows the file after stat.
     const buffer = Buffer.alloc(Math.min(stat.size + 1, limits.bundleBytes + 1));
     let length = 0;
@@ -60,7 +60,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
       if (!bytesRead) break;
       length += bytesRead;
     }
-    if (length !== stat.size) throw new SandboxError('INVALID_BUNDLE', 'Bundle changed while being staged');
+    if (length !== stat.size) throw new SandboxError('sandbox.invalid_bundle', 'Bundle changed while being staged');
     bundle = buffer.subarray(0, length);
   } finally { await source.close(); }
   const directory = await fs.mkdtemp(join(tmpdir(), 'molis-plugin-sandbox-'));
@@ -96,65 +96,65 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
   const send = (message: SandboxHostMessage) => {
     if (stopped) throw stopped;
     const json = JSON.stringify(message) + '\n';
-    if (Buffer.byteLength(json) > limits.messageBytes || child.stdin.writableLength > limits.messageBytes * 2) throw new SandboxError('CHANNEL_LIMIT', 'Host channel buffer exceeded');
+    if (Buffer.byteLength(json) > limits.messageBytes || child.stdin.writableLength > limits.messageBytes * 2) throw new SandboxError('sandbox.channel_limit', 'Host channel buffer exceeded');
     child.stdin.write(json);
   };
   const receive = (value: unknown) => {
     assertJson(value);
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new SandboxError('PROTOCOL_ERROR', 'Invalid channel message');
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new SandboxError('sandbox.protocol_error', 'Invalid channel message');
     wire.consume();
     const message = value as unknown as SandboxWorkerMessage;
-    const exact = (keys: string[]) => { if (Object.keys(value).length !== keys.length || !keys.every(k => Object.hasOwn(value, k))) throw new SandboxError('PROTOCOL_ERROR', 'Unexpected message fields'); };
+    const exact = (keys: string[]) => { if (Object.keys(value).length !== keys.length || !keys.every(k => Object.hasOwn(value, k))) throw new SandboxError('sandbox.protocol_error', 'Unexpected message fields'); };
     if (message.type === 'ready') {
       exact(['type', 'operations']);
-      if (ready || !Array.isArray(message.operations) || JSON.stringify(message.operations) !== JSON.stringify(contract.operations.map(o => o.id).sort())) throw new SandboxError('CONTRACT_MISMATCH', 'Implemented operations differ from contract');
+      if (ready || !Array.isArray(message.operations) || JSON.stringify(message.operations) !== JSON.stringify(contract.operations.map(o => o.id).sort())) throw new SandboxError('sandbox.contract_mismatch', 'Implemented operations differ from contract');
       ready = true; clearTimeout(startup); readyResolve(); return;
     }
-    if (!ready || !active || typeof message.id !== 'string' || message.id.length > 128) throw new SandboxError('PROTOCOL_ERROR', 'Message has no active operation');
+    if (!ready || !active || typeof message.id !== 'string' || message.id.length > 128) throw new SandboxError('sandbox.protocol_error', 'Message has no active operation');
     const current = active;
     if (message.type === 'sdk') {
       exact(['type', 'id', 'callId', 'method', 'args']);
-      if (message.callId !== current.id || current.pendingSdk.has(message.id) || !Array.isArray(message.args) || typeof message.method !== 'string') throw new SandboxError('PROTOCOL_ERROR', 'Invalid SDK request');
-      if (current.pendingSdk.size >= limits.sdkQueue) throw new SandboxError('QUEUE_FULL', 'Too many outstanding SDK requests');
+      if (message.callId !== current.id || current.pendingSdk.has(message.id) || !Array.isArray(message.args) || typeof message.method !== 'string') throw new SandboxError('sandbox.protocol_error', 'Invalid SDK request');
+      if (current.pendingSdk.size >= limits.sdkQueue) throw new SandboxError('sandbox.queue_full', 'Too many outstanding SDK requests');
       current.pendingSdk.add(message.id);
       current.reenter(() => broker.invoke(current.operation, current.controller.signal, message.method, message.args, current.beforeEffect, current.serviceTimeoutMs)).then(
         result => { if (active === current && !stopped) send({ type: 'sdk-result', id: message.id, value: result }); },
         error => {
           if (error instanceof SandboxError && error.outcome === 'unknown') current.outcome.uncertain ??= error;
-          if (active === current && !stopped) send({ type: 'sdk-error', id: message.id, code: error instanceof SandboxError ? error.code : 'HOST_SERVICE_ERROR', message: error instanceof SandboxError ? error.message : 'Host service failed' });
+          if (active === current && !stopped) send({ type: 'sdk-error', id: message.id, code: error instanceof SandboxError ? error.code : 'sandbox.host_service_error', message: error instanceof SandboxError ? error.message : 'Host service failed' });
         },
-      ).catch(error => shutdown(error instanceof SandboxError ? error : new SandboxError('CHANNEL_ERROR', 'Failed to send SDK response'))).finally(() => current.pendingSdk.delete(message.id));
+      ).catch(error => shutdown(error instanceof SandboxError ? error : new SandboxError('sandbox.channel_error', 'Failed to send SDK response'))).finally(() => current.pendingSdk.delete(message.id));
       return;
     }
-    if (message.id !== current.id || current.pendingSdk.size) throw new SandboxError('PROTOCOL_ERROR', 'Result has wrong id or unawaited SDK calls');
+    if (message.id !== current.id || current.pendingSdk.size) throw new SandboxError('sandbox.protocol_error', 'Result has wrong id or unawaited SDK calls');
     if (message.type === 'result') {
       exact(['type', 'id', 'value']);
       try { assertMatches(current.operation.output, message.value); }
-      catch { throw new SandboxError('PROTOCOL_ERROR', 'Plugin result violates the operation output schema; effects may already have occurred', 'unknown'); }
+      catch { throw new SandboxError('sandbox.protocol_error', 'Plugin result violates the operation output schema; effects may already have occurred', 'unknown'); }
     }
     else if (message.type === 'error') {
       exact(['type', 'id', 'code', 'message']);
-      if (typeof message.code !== 'string' || typeof message.message !== 'string' || message.message.length > 2048) throw new SandboxError('PROTOCOL_ERROR', 'Invalid operation error');
-    } else throw new SandboxError('PROTOCOL_ERROR', 'Unknown message type');
+      if (typeof message.code !== 'string' || typeof message.message !== 'string' || message.message.length > 2048) throw new SandboxError('sandbox.protocol_error', 'Invalid operation error');
+    } else throw new SandboxError('sandbox.protocol_error', 'Unknown message type');
     current.controller.abort(); active = undefined;
     if (current.outcome.uncertain) current.reject(current.outcome.uncertain);
     else if (message.type === 'result') current.resolve(message.value);
-    else current.reject(new SandboxError(current.operation.errors.some(e => e.code === message.code) ? message.code : 'PLUGIN_ERROR', message.message));
+    else current.reject(new SandboxError(current.operation.errors.some(e => e.code === message.code) ? message.code : 'sandbox.plugin_error', message.message));
   };
   child.stdout.on('data', (chunk: Buffer) => {
     try {
       // Bound before concatenation, including a malicious stream without delimiters.
-      if (buffer.length + chunk.length > limits.messageBytes) throw new SandboxError('CHANNEL_LIMIT', 'Plugin channel buffer exceeded');
+      if (buffer.length + chunk.length > limits.messageBytes) throw new SandboxError('sandbox.channel_limit', 'Plugin channel buffer exceeded');
       buffer = Buffer.concat([buffer, chunk]);
       let index: number;
       while ((index = buffer.indexOf(10)) >= 0) { const line = buffer.subarray(0, index); buffer = buffer.subarray(index + 1); receive(JSON.parse(line.toString('utf8'))); }
-    } catch (error) { shutdown(error instanceof SandboxError ? error : new SandboxError('PROTOCOL_ERROR', 'Malformed plugin channel')); }
+    } catch (error) { shutdown(error instanceof SandboxError ? error : new SandboxError('sandbox.protocol_error', 'Malformed plugin channel')); }
   });
-  child.stderr.on('data', (chunk: Buffer) => { stderrBytes += chunk.length; if (stderrBytes > limits.messageBytes) shutdown(new SandboxError('CHANNEL_LIMIT', 'Plugin stderr exceeded limit')); });
-  child.stdin.on('error', () => shutdown(new SandboxError('CHANNEL_ERROR', 'Plugin channel closed')));
-  child.on('error', () => { exitResolve(); shutdown(new SandboxError('START_FAILED', 'Could not start sandbox process')); });
-  child.on('exit', () => { exitResolve(); shutdown(new SandboxError('PROCESS_EXIT', 'Sandbox process exited')); void cleanup().catch(() => {}); });
-  const startup = setTimeout(() => shutdown(new SandboxError('START_TIMEOUT', 'Sandbox startup timed out')), limits.startupTimeoutMs);
+  child.stderr.on('data', (chunk: Buffer) => { stderrBytes += chunk.length; if (stderrBytes > limits.messageBytes) shutdown(new SandboxError('sandbox.channel_limit', 'Plugin stderr exceeded limit')); });
+  child.stdin.on('error', () => shutdown(new SandboxError('sandbox.channel_error', 'Plugin channel closed')));
+  child.on('error', () => { exitResolve(); shutdown(new SandboxError('sandbox.start_failed', 'Could not start sandbox process')); });
+  child.on('exit', () => { exitResolve(); shutdown(new SandboxError('sandbox.process_exit', 'Sandbox process exited')); void cleanup().catch(() => {}); });
+  const startup = setTimeout(() => shutdown(new SandboxError('sandbox.start_timeout', 'Sandbox startup timed out')), limits.startupTimeoutMs);
   let sampling = false;
   const watchdog = setInterval(() => {
     if (sampling || stopped || !child.pid) return;
@@ -164,8 +164,8 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
       const parts = output.trim().split(/\s+/), rss = Number(parts[0]);
       const cpu = parts[1]?.split(':').map(Number) ?? [];
       const seconds = cpu.reduce((total, value) => total * 60 + value, 0);
-      if (rss > limits.rssMb * 1024) shutdown(new SandboxError('MEMORY_LIMIT', 'Sandbox resident memory exceeded'));
-      else if (seconds * 1000 > limits.cpuMs) shutdown(new SandboxError('CPU_LIMIT', 'Sandbox process CPU budget exceeded'));
+      if (rss > limits.rssMb * 1024) shutdown(new SandboxError('sandbox.memory_limit', 'Sandbox resident memory exceeded'));
+      else if (seconds * 1000 > limits.cpuMs) shutdown(new SandboxError('sandbox.cpu_limit', 'Sandbox process CPU budget exceeded'));
     });
   }, 200);
   try { await started; } catch (error) { await cleanup(); throw error; }
@@ -174,24 +174,24 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
     call(operationId, input, control) {
       try {
         const operation = contract.operations.find(o => o.id === operationId);
-        if (!operation) throw new SandboxError('UNKNOWN_OPERATION', 'Operation is outside this contract');
+        if (!operation) throw new SandboxError('sandbox.unknown_operation', 'Operation is outside this contract');
         assertMatches(operation.input, input);
-        if (Buffer.byteLength(JSON.stringify(input)) > limits.messageBytes / 2) throw new SandboxError('REQUEST_TOO_LARGE', 'Operation input exceeds channel limit');
+        if (Buffer.byteLength(JSON.stringify(input)) > limits.messageBytes / 2) throw new SandboxError('sandbox.request_too_large', 'Operation input exceeds channel limit');
         const operationTimeoutMs = control?.limits?.operationTimeoutMs ?? limits.operationTimeoutMs;
         const serviceTimeoutMs = control?.limits?.serviceTimeoutMs ?? limits.serviceTimeoutMs;
         for (const value of [operationTimeoutMs, serviceTimeoutMs]) {
-          if (!Number.isSafeInteger(value) || value <= 0 || value > 2_147_483_647) throw new SandboxError('INVALID_LIMIT', 'Call deadlines must be positive timer-safe integers');
+          if (!Number.isSafeInteger(value) || value <= 0 || value > 2_147_483_647) throw new SandboxError('sandbox.invalid_limit', 'Call deadlines must be positive timer-safe integers');
         }
         calls.consume(); const snapshot = structuredClone(input), reenter = AsyncResource.bind(<T>(run: () => T): T => run());
         const lifetime = createExecutionLifetime({ signal: control?.signal ? AbortSignal.any([control.signal, shutdownControl.signal]) : shutdownControl.signal });
         const queued = queue.submit(async () => {
           lifetime.assertActive();
           // The operation budget begins at the head of its queue and includes Host admission and result checks.
-          const execution = createExecutionLifetime({ signal: lifetime.signal, timeout: { milliseconds: operationTimeoutMs, reason: new SandboxError('OPERATION_TIMEOUT', `Operation ${operationId} timed out`) } });
+          const execution = createExecutionLifetime({ signal: lifetime.signal, timeout: { milliseconds: operationTimeoutMs, reason: new SandboxError('sandbox.operation_timeout', `Operation ${operationId} timed out`) } });
           const outcome: { uncertain?: SandboxError } = {};
           const assertActive = () => { execution.assertActive(); if (outcome.uncertain) throw outcome.uncertain; };
           const beforeEffect = async () => { assertActive(); await control?.beforeEffect?.(); assertActive(); };
-          const abort = () => shutdown(execution.signal.reason instanceof SandboxError ? execution.signal.reason : new SandboxError('CANCELLED', 'Sandbox invocation cancelled'));
+          const abort = () => shutdown(execution.signal.reason instanceof SandboxError ? execution.signal.reason : new SandboxError('sandbox.cancelled', 'Sandbox invocation cancelled'));
           execution.signal.addEventListener('abort', abort, { once: true });
           try {
             await execution.wait(beforeEffect());
@@ -199,7 +199,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
               if (stopped) { reject(stopped); return; }
               const id = randomUUID(), controller = new AbortController();
               active = { id, operation, serviceTimeoutMs, outcome, controller, beforeEffect, reenter, resolve, reject, pendingSdk: new Set() };
-              try { send({ type: 'call', id, operationId, input: snapshot }); } catch (error) { shutdown(error instanceof SandboxError ? error : new SandboxError('CHANNEL_ERROR', 'Failed to start operation')); }
+              try { send({ type: 'call', id, operationId, input: snapshot }); } catch (error) { shutdown(error instanceof SandboxError ? error : new SandboxError('sandbox.channel_error', 'Failed to start operation')); }
             }));
             await execution.wait(beforeEffect());
             return result;
@@ -209,6 +209,6 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
         return lifetime.wait(queued).catch(error => { throw stopped ?? error; }).finally(() => lifetime.dispose());
       } catch (error) { return Promise.reject(error); }
     },
-    async stop() { shutdown(new SandboxError('STOPPED', 'Sandbox stopped')); await cleanup(); },
+    async stop() { shutdown(new SandboxError('sandbox.stopped', 'Sandbox stopped')); await cleanup(); },
   };
 }

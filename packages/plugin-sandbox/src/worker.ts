@@ -12,7 +12,7 @@ const operations = (await import(bundleUrl)).operations as SandboxOperations;
 if (!operations || typeof operations !== 'object' || Object.values(operations).some(value => typeof value !== 'function')) throw new Error('Plugin must export operations');
 const rpc = (callId: string, method: SandboxSdkMethod, args: SandboxJson[]): Promise<SandboxJson> => {
   if (active !== callId) return Promise.reject(new Error('Operation is no longer active'));
-  if (pending.size >= 64) return Promise.reject(Object.assign(new Error('SDK queue is full'), { code: 'QUEUE_FULL' }));
+  if (pending.size >= 64) return Promise.reject(Object.assign(new Error('SDK queue is full'), { code: 'sandbox.queue_full' }));
   const id = `${callId}:${++sequence}`;
   return new Promise((resolve, reject) => { pending.set(id, { resolve, reject }); send({ type: 'sdk', id, callId, method, args }); });
 };
@@ -45,11 +45,11 @@ async function receive(message: SandboxHostMessage): Promise<void> {
   active = message.id;
   try {
     const value = await operations[message.operationId]!(message.input, sdk(message.id));
-    if (pending.size) throw Object.assign(new Error('Operation returned before awaiting all SDK calls'), { code: 'UNAWAITED_SDK' });
+    if (pending.size) throw Object.assign(new Error('Operation returned before awaiting all SDK calls'), { code: 'sandbox.unawaited_sdk' });
     send({ type: 'result', id: message.id, value });
   } catch (error) {
     const e = error as { code?: string; message?: string };
-    send({ type: 'error', id: message.id, code: typeof e?.code === 'string' ? e.code : 'PLUGIN_ERROR', message: typeof e?.message === 'string' ? e.message.slice(0, 2048) : 'Plugin operation failed' });
+    send({ type: 'error', id: message.id, code: typeof e?.code === 'string' ? e.code : 'sandbox.plugin_error', message: typeof e?.message === 'string' ? e.message.slice(0, 2048) : 'Plugin operation failed' });
   } finally {
     active = undefined;
     for (const call of pending.values()) call.reject(new Error('Operation completed'));

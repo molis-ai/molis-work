@@ -111,7 +111,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const assertInstalled = (identity: Readonly<SandboxIdentity>) => {
     const record = recordFor(identity.pluginId);
     if (closed || identity.namespace !== 'installed' || identity.projectId !== projectId || !record || record.install_id !== identity.installationId || record.state !== 'running') {
-      throw new SandboxError('CAPABILITY_DENIED', '插件的安装执行身份已失效');
+      throw new SandboxError('host.capability_denied', '插件的安装执行身份已失效');
     }
   };
   const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean): NonNullable<SandboxServices['capability']> =>
@@ -130,14 +130,14 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     link: pluginId => (options.routePrefix ?? '') + '/plugins/' + pluginId });
   const generate = options.generate ?? createPluginModelGeneration({ homeDirectory,
     declaredPrompts: async (pluginId, caller) => {
-      if (closed || caller?.project_id !== actions.project_id || !caller.plugin_install_id) throw new SandboxError('CAPABILITY_DENIED', '模型调用缺少当前项目的执行身份');
+      if (closed || caller?.project_id !== actions.project_id || !caller.plugin_install_id) throw new SandboxError('host.capability_denied', '模型调用缺少当前项目的执行身份');
       if (caller.plugin_install_id.startsWith(STABLE_PREVIEW)) {
         const build = releases.get(caller.plugin_install_id.slice(STABLE_PREVIEW.length));
-        if (!build?.directory || build.design?.contract.pluginId !== pluginId) throw new SandboxError('CAPABILITY_DENIED', '模型调用的试运行构建已失效');
+        if (!build?.directory || build.design?.contract.pluginId !== pluginId) throw new SandboxError('host.capability_denied', '模型调用的试运行构建已失效');
         return { kind: 'preview', prompts: readPluginPrompts(await buildSources(build.directory, build.directory + '.settled', build.design.contract.operations.length)).prompts };
       }
       const record = recordFor(pluginId), installed = releaseFor(pluginId);
-      if (!record || record.install_id !== caller.plugin_install_id || record.state !== 'running' || !installed) throw new SandboxError('CAPABILITY_DENIED', '模型调用的安装执行身份已失效');
+      if (!record || record.install_id !== caller.plugin_install_id || record.state !== 'running' || !installed) throw new SandboxError('host.capability_denied', '模型调用的安装执行身份已失效');
       return { kind: 'installed', registration: generatedRegistration(installed, releases.versions(installed.buildId), 'enabled', record.version) };
     },
     selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(homeDirectory)[0] ?? null; } });

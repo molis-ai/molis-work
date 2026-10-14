@@ -7,6 +7,8 @@ import test from "node:test";
 import { createDirectoryPicker, runDirectoryPickerCommand, type DirectoryPickerCommandResult } from "../apps/local-host/src/directory-picker.ts";
 import { handleWorkspaceHttp } from "../plugins/native/work/dist/http/workspaces.js";
 import type { WorkSessionHttpContext } from "@molis-ai/molis-work-plugin-work";
+import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 function commandResult(overrides: Partial<DirectoryPickerCommandResult> = {}): DirectoryPickerCommandResult {
   return { stdout: "", stderr: "", code: 0, ...overrides };
@@ -154,4 +156,19 @@ test("pick route reports the window result and does not open one without a proje
     { error: "这台电脑打不开目录选择窗口" },
   ]);
   assert.deepEqual(calls.slice(1).map((call) => call.status), [200, 200, 409, 503]);
+  // SESSION-02: only a declared Session failure keeps membership's existing 503 recovery response.
+  for (const [failure, expectedStatus] of [
+    [sessionErrors.invalid_input("关联恢复需要核对"), 503],
+    [new ActionError("actions.forbidden", "没有目录权限"), 400],
+    [new ActionError("work.session.unlisted", "不是声明中的 Session 原因"), 400],
+  ] as const) {
+    let invoked = 0;
+    await handleWorkspaceHttp({ ...base, projectOptions: project, method: "PATCH", pathname: "/api/workspaces/current/path",
+      readBody: async () => ({ workspace_path: "/tmp/next", user_confirmed: true }),
+      actions: { discover: async () => [], invoke: async () => { invoked++; throw failure; } },
+      pickDirectory: async () => ({ status: "cancelled" }),
+    });
+    assert.equal(invoked, 1);
+    assert.deepEqual(calls.at(-1), { status: expectedStatus, body: { error: failure.message } });
+  }
 });

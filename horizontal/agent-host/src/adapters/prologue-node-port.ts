@@ -317,4 +317,3 @@ export function directoriesIdle(runtime: Runtime, index: SessionIndexStore) {
     }
   };
 }
-

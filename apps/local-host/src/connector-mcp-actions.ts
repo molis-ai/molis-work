@@ -34,7 +34,7 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
   const withdraw = (connectionId: string) => { registered.get(connectionId)?.set.clear(); registered.delete(connectionId); };
 
   const failure = (error: unknown) => error instanceof McpConnectionError
-    ? new ActionError(error.code === "authorization" ? "actions.reauthorize" : "actions.connection_unavailable", error.message) : error;
+    ? new ActionError(error.code === "connector.mcp.authorization" ? "actions.reauthorize" : "actions.connection_unavailable", error.message) : error;
   function register(connectionId: string, tools: Seen[string]["tools"], resources = false) {
     const row = connection(connectionId);
     if (!row || row.auth_method !== "mcp" || (!tools.length && !resources)) { withdraw(connectionId); return; }

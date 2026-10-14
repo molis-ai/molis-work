@@ -2443,3 +2443,7 @@ I5完整dc0c402c0独立Source接受，无Blocker/P1。新真实action聚合测�
 最新main d530的问卷依赖与此前防腐临时beforeAccept SDK不相容：40b实际TypeScript31诊断来自SDK缺validateQuestionnaireAnswer与typed Pending/optional indexes。只读解包现行入库08b84296 interim SDK后，问卷诊断全部消失，仅剩既有switchModel第二beforeAccept参数1诊断；证明需要把原9行验权补丁合在现行interim基础上，不能把旧SDK候选的历史运行外推到新main。I6实际168造错迁18现行原因/四类删除，health40相对d530通过72错误类，API40匹配；当前完整类型/整建/运行未通过。联合SDK只在新隔离本地副本准备，原Prologue树/上游/vendor/真Home均不写；正式提交、推送及vendor替换继续等已有用户问题。
 
 W3-02-I7先收Scheduler单一封闭错误类，依赖J4现行scheduler码。范围contracts/services/scheduler、服务本体、Schedule插件现行映射/取消missing处理与两测试；删ScheduleError公开类/导出，五既有scheduler原因在合同同subpath声明共同错误（跨服务/插件共享，不开新subpath）。服务原无kind400保持；Schedule动作原映射仍job_not_found404、其余job_invalid400，以共同ActionError且完整scheduler有限原因识别，不把其他owner错误误映射。I7-01：叫醒缺handler/间隔/路径/缺job精确code/message，关闭/删除/撤权/重启和原持久调度次序不变；I7-02：无类/alias，实际producer与consumer同步，外来owner失败仍原样；I7-03：README三文件与真实reminder/operation恢复、现行错误出口parity、API/health/build/资源及共享全量。不放松计时或新增持久状态，I8冻结不动。
+
+I6生产78a4a42fb独立Source接受，无Blocker/P1；新增真实Node问卷回归6b17c9fb3已保存，验证逐题problems与共同出口details同义、拒绝待答不关闭、有效答案继续，实际运行等待联合SDK。I7候选dcc672861已保存9文件57/-49，五同subpath原因保持服务原invalid400与插件原404/400映射；源码142公开映射0诊断，API42只改scheduler快照，health42相对d530通过75类。两片Source/实际运行证据不能混称全线完成，正式SDK仍未获上游/vendor批准。
+
+W3-02-I8-LEDGER接原错误类收口，仅ContextLedger service/materialization的封闭四原因及公开导出/现行消费者；沿真实无kind400保持，不改权限authorize/ref/scope/版本/固定物化事务，安全拒绝0记录保持。LEDGER-01：真实访问拒绝、scope/精确引用与幂等key冲突code/message/400、原存储0变化与重复无新增保持；LEDGER-02：类/导出删除、同owner defineErrorCodes，无读取别名/兼容或新状态；LEDGER-03：README必跑与固定输入/跨owner物化现行回归及共享build/API/health。独立树准备，不改被冻结I8组合。

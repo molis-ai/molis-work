@@ -1,10 +1,9 @@
 import type { GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GovernanceDecisionApi, GoalTreeProposalItemRecord, ProposalAffectedObject } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { GoalTreeFactMaterializer } from "./goal-tree-fact-materializer.js";
 import { GoalTreeMaterializationConflicts } from "./goal-tree-materialization-conflicts.js";
 import { goalTreeMaterializationGroups } from "./goal-tree-materialization-order.js";
-
-interface MaterializationError extends Error { code: string; details?: Record<string, unknown> }
 
 /** Preview and confirmation consume the same materializers; preview never commits their changes. */
 export class GoalTreeMaterializationApplication {
@@ -13,7 +12,6 @@ export class GoalTreeMaterializationApplication {
     transactions: Pick<GovernanceDecisionApi, "previewMaterialization" | "previewMaterializationItem">;
     facts: GoalTreeFactMaterializer;
     conflicts: GoalTreeMaterializationConflicts;
-    isDomainError: (error: unknown) => error is MaterializationError;
   }) {}
 
   preflight(projectId: string, items: GoalTreeProposalItemRecord[], actorId: string, at: string): Map<string, Record<string, unknown>> {
@@ -33,7 +31,7 @@ export class GoalTreeMaterializationApplication {
               return { keep: true, value: undefined };
             });
           } catch (error) {
-            if (!this.ports.isDomainError(error)) throw error;
+            if (!(error instanceof ActionError)) throw error;
             conflicts.set(item.item_id, { code: error.code, message: error.message, ...(error.details ?? {}),
               recovery: this.recovery({ code: error.code }) });
           }

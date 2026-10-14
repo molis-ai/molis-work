@@ -1,3 +1,4 @@
+import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
 import { randomUUID } from "node:crypto";
 import type {
   GoalTreeProposalItemRecord,
@@ -57,17 +58,16 @@ const LARGE_GOAL_TREE_PROPOSAL_ITEM_COUNT = 5;
 
 /** Existing proposal wire normalization; no owner facts or user decisions are written here. */
 export class GoalTreeProposalNormalizer {
-  constructor(private readonly provenance: Pick<GovernanceProvenanceApi, "normalizeProposalSource">,
-    private readonly errorFactory: (code: string, message: string, details?: Record<string, unknown>) => Error) {}
+  constructor(private readonly provenance: Pick<GovernanceProvenanceApi, "normalizeProposalSource">) {}
 
-  private semanticText(value: unknown, code: string, message: string): string {
+  private semanticText(value: unknown, code: TreeErrorCode, message: string): string {
     const normalized = typeof value === "string" ? value.trim() : "";
-    if (!normalized) throw this.errorFactory(code, message);
+    if (!normalized) throw treeErrors[code](message);
     return normalized;
   }
   
-  private semanticTextList(value: unknown, code: string, message: string): string[] {
-    if (!Array.isArray(value)) throw this.errorFactory(code, message);
+  private semanticTextList(value: unknown, code: TreeErrorCode, message: string): string[] {
+    if (!Array.isArray(value)) throw treeErrors[code](message);
     return unique(value.map((item) => typeof item === "string" ? item.trim() : "").filter(Boolean));
   }
   
@@ -77,15 +77,12 @@ export class GoalTreeProposalNormalizer {
   ): GoalTreeProposalNarrative | null {
     if (narrative == null) {
       if (itemCount >= LARGE_GOAL_TREE_PROPOSAL_ITEM_COUNT) {
-        throw this.errorFactory(
-          "goals.goal_tree_proposal.narrative_required",
-          `包含 ${itemCount} 项变化的大型 Goal Tree 提案必须说明 why_now、problem、main_path、expected_effect 和 non_goals，让用户能在确认前理解“原问题 → 新链路 → 预期效果”；单纯 summary 不足以审批整份变更`,
-        );
+        throw treeErrors["goals.goal_tree_proposal.narrative_required"](`包含 ${itemCount} 项变化的大型 Goal Tree 提案必须说明 why_now、problem、main_path、expected_effect 和 non_goals，让用户能在确认前理解“原问题 → 新链路 → 预期效果”；单纯 summary 不足以审批整份变更`);
       }
       return null;
     }
     if (typeof narrative !== "object" || Array.isArray(narrative)) {
-      throw this.errorFactory("goals.goal_tree_proposal.narrative_invalid", "Goal Tree 提案的 narrative 必须是结构化对象");
+      throw treeErrors["goals.goal_tree_proposal.narrative_invalid"]("Goal Tree 提案的 narrative 必须是结构化对象");
     }
     const mainPath = this.semanticTextList(
       narrative.main_path,
@@ -93,10 +90,7 @@ export class GoalTreeProposalNormalizer {
       "Goal Tree 提案的 narrative.main_path 必须是按依赖顺序排列的非空文字数组",
     );
     if (mainPath.length === 0) {
-      throw this.errorFactory(
-        "goals.goal_tree_proposal.narrative_main_path_required",
-        "Goal Tree 提案必须至少说明一段变更后的主链路",
-      );
+      throw treeErrors["goals.goal_tree_proposal.narrative_main_path_required"]("Goal Tree 提案必须至少说明一段变更后的主链路");
     }
     return {
       why_now: this.semanticText(
@@ -129,10 +123,7 @@ export class GoalTreeProposalNormalizer {
   ): GoalTreeProposalItemExplanation | null {
     if (explanation == null) return null;
     if (typeof explanation !== "object" || Array.isArray(explanation)) {
-      throw this.errorFactory(
-        "goals.goal_tree_proposal.item_explanation_invalid",
-        `第 ${index + 1} 个条目的 explanation 必须是结构化对象`,
-      );
+      throw treeErrors["goals.goal_tree_proposal.item_explanation_invalid"](`第 ${index + 1} 个条目的 explanation 必须是结构化对象`);
     }
     return {
       problem: this.semanticText(
@@ -161,12 +152,12 @@ export class GoalTreeProposalNormalizer {
   private rejectUnknownKeys(
     value: Record<string, unknown>,
     allowed: Set<string>,
-    code: string,
+    code: TreeErrorCode,
     label: string,
   ): void {
     const unexpected = Object.keys(value).filter((key) => !allowed.has(key));
     if (unexpected.length) {
-      throw this.errorFactory(code, `${label}不能使用未许可字段：${unexpected.join("、")}`);
+      throw treeErrors[code](`${label}不能使用未许可字段：${unexpected.join("、")}`);
     }
   }
 
@@ -180,27 +171,21 @@ export class GoalTreeProposalNormalizer {
     supersedes_item_id?: string | null;
   } {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
-      throw this.errorFactory(
-        "goals.goal_tree_proposal.kind_invalid",
-        `第 ${itemIndex + 1} 个条目只能是 goal（create）或 relation（part_of/depends_on 的 create/deactivate）`,
-      );
+      throw treeErrors["goals.goal_tree_proposal.kind_invalid"](`第 ${itemIndex + 1} 个条目只能是 goal（create）或 relation（part_of/depends_on 的 create/deactivate）`);
     }
     const raw = item as Record<string, unknown>;
     this.rejectUnknownKeys(raw, GOAL_TREE_ITEM_KEYS, "goals.goal_tree_proposal.payload_unknown", `第 ${itemIndex + 1} 个条目`);
     if (raw.kind !== "goal" && raw.kind !== "relation") {
-      throw this.errorFactory(
-        "goals.goal_tree_proposal.kind_invalid",
-        `第 ${itemIndex + 1} 个条目只能是 goal（create）或 relation（part_of/depends_on 的 create/deactivate）`,
-      );
+      throw treeErrors["goals.goal_tree_proposal.kind_invalid"](`第 ${itemIndex + 1} 个条目只能是 goal（create）或 relation（part_of/depends_on 的 create/deactivate）`);
     }
     if (!raw.payload || typeof raw.payload !== "object" || Array.isArray(raw.payload)) {
-      throw this.errorFactory("goals.goal_tree_proposal.item_payload_invalid", `第 ${itemIndex + 1} 个条目必须带结构化内容`);
+      throw treeErrors["goals.goal_tree_proposal.item_payload_invalid"](`第 ${itemIndex + 1} 个条目必须带结构化内容`);
     }
     const payload = { ...raw.payload } as Record<string, unknown>;
     const envelope = this.writeItemEnvelope(raw, itemIndex);
     if (raw.kind === "goal") {
       if (raw.operation !== "create") {
-        throw this.errorFactory("goals.goal_tree_proposal.use_event_agree", "已有结果与要求请用事件约定修改，结构提案只创建新 Goal");
+        throw treeErrors["goals.goal_tree_proposal.use_event_agree"]("已有结果与要求请用事件约定修改，结构提案只创建新 Goal");
       }
       return {
         ...envelope,
@@ -210,7 +195,7 @@ export class GoalTreeProposalNormalizer {
       };
     }
     if (raw.operation !== "create" && raw.operation !== "deactivate") {
-      throw this.errorFactory("goals.goal_tree_proposal.item_operation_invalid", `第 ${itemIndex + 1} 个关系条目的操作无效`);
+      throw treeErrors["goals.goal_tree_proposal.item_operation_invalid"](`第 ${itemIndex + 1} 个关系条目的操作无效`);
     }
     if (raw.operation === "create") {
       return {
@@ -235,14 +220,14 @@ export class GoalTreeProposalNormalizer {
     supersedes_item_id?: string | null;
   } {
     if (Object.prototype.hasOwnProperty.call(raw, "item_id") && raw.item_id != null && typeof raw.item_id !== "string") {
-      throw this.errorFactory("goals.goal_tree_proposal.payload_shape_invalid", `第 ${itemIndex + 1} 个条目的 item_id 必须是字符串`);
+      throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`第 ${itemIndex + 1} 个条目的 item_id 必须是字符串`);
     }
     if (
       Object.prototype.hasOwnProperty.call(raw, "supersedes_item_id")
       && raw.supersedes_item_id != null
       && typeof raw.supersedes_item_id !== "string"
     ) {
-      throw this.errorFactory("goals.goal_tree_proposal.payload_shape_invalid", `第 ${itemIndex + 1} 个条目的 supersedes_item_id 必须是字符串或 null`);
+      throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`第 ${itemIndex + 1} 个条目的 supersedes_item_id 必须是字符串或 null`);
     }
     return {
       ...(typeof raw.item_id === "string" ? { item_id: raw.item_id } : {}),
@@ -258,31 +243,31 @@ export class GoalTreeProposalNormalizer {
     this.rejectUnknownKeys(payload, GOAL_TREE_GOAL_KEYS, "goals.goal_tree_proposal.payload_unknown", `第 ${itemIndex + 1} 个 Goal 条目`);
     const location = `第 ${itemIndex + 1} 个 Goal 条目`;
     if (!Object.prototype.hasOwnProperty.call(payload, "title")) {
-      throw this.errorFactory("goals.goal_tree_proposal.goal_title_required", `${location}需要标题`);
+      throw treeErrors["goals.goal_tree_proposal.goal_title_required"](`${location}需要标题`);
     }
     if (typeof payload.title !== "string") {
-      throw this.errorFactory("goals.goal_tree_proposal.payload_shape_invalid", `${location}的 title 必须是字符串`);
+      throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`${location}的 title 必须是字符串`);
     }
     if (!payload.title.trim()) {
-      throw this.errorFactory("goals.goal_tree_proposal.goal_title_required", `${location}需要标题`);
+      throw treeErrors["goals.goal_tree_proposal.goal_title_required"](`${location}需要标题`);
     }
     const result: GoalTreeGoalCreatePayload = { title: payload.title };
     for (const field of ["outcome", "why", "business_logic"] as const) {
       if (!Object.prototype.hasOwnProperty.call(payload, field)) continue;
       if (typeof payload[field] !== "string") {
-        throw this.errorFactory("goals.goal_tree_proposal.payload_shape_invalid", `${location}的 ${field} 必须是字符串`);
+        throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`${location}的 ${field} 必须是字符串`);
       }
       result[field] = payload[field];
     }
     if (Object.prototype.hasOwnProperty.call(payload, "priority")) {
       if (typeof payload.priority !== "number" || !Number.isFinite(payload.priority)) {
-        throw this.errorFactory("goals.goal_tree_proposal.payload_shape_invalid", `${location}的 priority 必须是数字`);
+        throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`${location}的 priority 必须是数字`);
       }
       result.priority = payload.priority;
     }
     if (Object.prototype.hasOwnProperty.call(payload, "goal_id")) {
       if (typeof payload.goal_id !== "string") {
-        throw this.errorFactory("goals.goal_tree_proposal.payload_shape_invalid", `${location}的 goal_id 必须是字符串`);
+        throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`${location}的 goal_id 必须是字符串`);
       }
       result.goal_id = payload.goal_id.trim() || `goal-${randomUUID()}`;
     } else {
@@ -292,33 +277,27 @@ export class GoalTreeProposalNormalizer {
       return result;
     }
     if (!Array.isArray(payload.requirements)) {
-      throw this.errorFactory("goals.goal_tree_proposal.payload_shape_invalid", `${location}的 requirements 必须是数组`);
+      throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`${location}的 requirements 必须是数组`);
     }
     result.requirements = payload.requirements.map((requirement, requirementIndex) => {
       if (!requirement || typeof requirement !== "object" || Array.isArray(requirement)) {
-        throw this.errorFactory("goals.goal_tree_proposal.payload_shape_invalid", `${location}的要求必须是对象`);
+        throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`${location}的要求必须是对象`);
       }
       const row = requirement as Record<string, unknown>;
       this.rejectUnknownKeys(row, GOAL_TREE_REQUIREMENT_KEYS, "goals.goal_tree_proposal.payload_unknown", `第 ${itemIndex + 1} 个 Goal 要求`);
       if (typeof row.statement !== "string" || !row.statement.trim()) {
-        throw this.errorFactory(
-          "goals.goal_tree_proposal.payload_shape_invalid",
-          `${location}的第 ${requirementIndex + 1} 条要求 statement 必须是非空字符串`,
-        );
+        throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`${location}的第 ${requirementIndex + 1} 条要求 statement 必须是非空字符串`);
       }
       const parsed: NonNullable<GoalTreeGoalCreatePayload["requirements"]>[number] = { statement: row.statement };
       if (Object.prototype.hasOwnProperty.call(row, "requirement_id")) {
         if (typeof row.requirement_id !== "string") {
-          throw this.errorFactory("goals.goal_tree_proposal.payload_shape_invalid", `${location}的 requirement_id 必须是字符串`);
+          throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`${location}的 requirement_id 必须是字符串`);
         }
         parsed.requirement_id = row.requirement_id;
       }
       if (Object.prototype.hasOwnProperty.call(row, "human_decision_required")) {
         if (typeof row.human_decision_required !== "boolean") {
-          throw this.errorFactory(
-            "goals.goal_tree_proposal.payload_shape_invalid",
-            `${location}的 human_decision_required 必须是布尔值 true 或 false`,
-          );
+          throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`${location}的 human_decision_required 必须是布尔值 true 或 false`);
         }
         parsed.human_decision_required = row.human_decision_required;
       }
@@ -329,14 +308,14 @@ export class GoalTreeProposalNormalizer {
 
   private relationReason(payload: Record<string, unknown>, location: string): string {
     if (typeof payload.reason !== "string" || !payload.reason.trim()) {
-      throw this.errorFactory("goals.goal_tree_proposal.relation_required", `${location}的 reason 必须是非空字符串`);
+      throw treeErrors["goals.goal_tree_proposal.relation_required"](`${location}的 reason 必须是非空字符串`);
     }
     return payload.reason;
   }
 
   private relationType(value: unknown, location: string): "part_of" | "depends_on" {
     if (value !== "part_of" && value !== "depends_on") {
-      throw this.errorFactory("goals.goal_tree_proposal.relation_type_invalid", `${location}的 type 只能是 part_of 或 depends_on`);
+      throw treeErrors["goals.goal_tree_proposal.relation_type_invalid"](`${location}的 type 只能是 part_of 或 depends_on`);
     }
     return value;
   }
@@ -351,13 +330,10 @@ export class GoalTreeProposalNormalizer {
       ...(typeof payload.reason !== "string" || !payload.reason.trim() ? ["reason"] : []),
     ];
     if (missing.length) {
-      throw this.errorFactory(
-        "goals.goal_tree_proposal.relation_required",
-        `${location}缺少字段：${missing.join("、")}。规范格式示例：{"from_goal_id":"child-goal","to_goal_id":"parent-goal","type":"part_of","reason":"组成父结果"}；part_of 方向是子 Goal → 父 Goal。`,
-      );
+      throw treeErrors["goals.goal_tree_proposal.relation_required"](`${location}缺少字段：${missing.join("、")}。规范格式示例：{"from_goal_id":"child-goal","to_goal_id":"parent-goal","type":"part_of","reason":"组成父结果"}；part_of 方向是子 Goal → 父 Goal。`);
     }
     if (typeof payload.from_goal_id !== "string" || typeof payload.to_goal_id !== "string") {
-      throw this.errorFactory("goals.goal_tree_proposal.payload_shape_invalid", `${location}的 from_goal_id 和 to_goal_id 必须是字符串`);
+      throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`${location}的 from_goal_id 和 to_goal_id 必须是字符串`);
     }
     return {
       from_goal_id: payload.from_goal_id,
@@ -378,7 +354,7 @@ export class GoalTreeProposalNormalizer {
     const hasEndpoints = hasFrom || hasTo || hasType;
     if (hasRelationId) {
       if (typeof payload.relation_id !== "string" || !payload.relation_id.trim()) {
-        throw this.errorFactory("goals.goal_tree_proposal.payload_shape_invalid", `${location}的 relation_id 必须是非空字符串`);
+        throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`${location}的 relation_id 必须是非空字符串`);
       }
       if (!hasEndpoints) {
         return { relation_id: payload.relation_id, reason };
@@ -390,13 +366,10 @@ export class GoalTreeProposalNormalizer {
       ...(!hasType ? ["type"] : []),
     ];
     if (missing.length) {
-      throw this.errorFactory(
-        "goals.goal_tree_proposal.relation_required",
-        `${location}停用关系需要 relation_id 和 reason，或完整的 from_goal_id、to_goal_id、type 和 reason`,
-      );
+      throw treeErrors["goals.goal_tree_proposal.relation_required"](`${location}停用关系需要 relation_id 和 reason，或完整的 from_goal_id、to_goal_id、type 和 reason`);
     }
     if (typeof payload.from_goal_id !== "string" || typeof payload.to_goal_id !== "string") {
-      throw this.errorFactory("goals.goal_tree_proposal.payload_shape_invalid", `${location}的 from_goal_id 和 to_goal_id 必须是字符串`);
+      throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`${location}的 from_goal_id 和 to_goal_id 必须是字符串`);
     }
     return {
       from_goal_id: payload.from_goal_id,
@@ -411,7 +384,7 @@ export class GoalTreeProposalNormalizer {
     items: GoalTreeProposalItemInput[],
   ): NormalizedGoalTreeProposalItem[] {
     if (!Array.isArray(items) || items.length === 0) {
-      throw this.errorFactory("goals.goal_tree_proposal.items_required", "一份 Goal Tree 提案至少需要一个变更条目");
+      throw treeErrors["goals.goal_tree_proposal.items_required"]("一份 Goal Tree 提案至少需要一个变更条目");
     }
     const ids = new Set<string>();
     const normalized = items.map((rawItem, index) => {
@@ -419,7 +392,7 @@ export class GoalTreeProposalNormalizer {
       const payload: Record<string, unknown> = { ...item.payload };
       const itemId = item.item_id?.trim() || `goal-tree-proposal-item-${randomUUID()}`;
       if (ids.has(itemId)) {
-        throw this.errorFactory("goals.goal_tree_proposal.item_id_duplicate", "同一份提案中的 item_id 不能重复");
+        throw treeErrors["goals.goal_tree_proposal.item_id_duplicate"]("同一份提案中的 item_id 不能重复");
       }
       ids.add(itemId);
       const issues: Array<{ code: string; path: string; message: string; expected?: string }> = [];
@@ -468,7 +441,8 @@ export class GoalTreeProposalNormalizer {
           message: `第 ${index + 1} 个条目必须标出受影响对象；无法从 payload 推导时提供 object_type/object_id` });
       }
       if (issues.length) {
-        throw this.errorFactory(issues[0]!.code, issues.map(issue => `${issue.path}: ${issue.message}`).join("\n"), {
+        // The provenance owner and the affected-object validation above produce this finite set.
+        throw treeErrors[issues[0]!.code as TreeErrorCode](issues.map(issue => `${issue.path}: ${issue.message}`).join("\n"), {
           path: issues[0]!.path, issues,
           recovery: "修正列出的字段后重试 goals.tree.submit；失败调用不会创建提案，无需切换接口。",
         });
@@ -486,23 +460,14 @@ export class GoalTreeProposalNormalizer {
     });
     for (const [index, item] of normalized.entries()) {
       if (items.length >= LARGE_GOAL_TREE_PROPOSAL_ITEM_COUNT && !item.explanation) {
-        throw this.errorFactory(
-          "goals.goal_tree_proposal.item_explanation_required",
-          `包含 ${items.length} 项变化的大型 Goal Tree 提案中，第 ${index + 1} 项必须用 explanation 说明主要问题、预期效果、非目标和与其他 change 的依赖`,
-        );
+        throw treeErrors["goals.goal_tree_proposal.item_explanation_required"](`包含 ${items.length} 项变化的大型 Goal Tree 提案中，第 ${index + 1} 项必须用 explanation 说明主要问题、预期效果、非目标和与其他 change 的依赖`);
       }
       for (const dependencyId of item.explanation?.depends_on_item_ids ?? []) {
         if (dependencyId === item.item_id) {
-          throw this.errorFactory(
-            "goals.goal_tree_proposal.item_dependency_self",
-            `第 ${index + 1} 个条目不能把自己列为语义依赖`,
-          );
+          throw treeErrors["goals.goal_tree_proposal.item_dependency_self"](`第 ${index + 1} 个条目不能把自己列为语义依赖`);
         }
         if (!ids.has(dependencyId)) {
-          throw this.errorFactory(
-            "goals.goal_tree_proposal.item_dependency_unknown",
-            `第 ${index + 1} 个条目引用了同一提案中不存在的依赖 item_id「${dependencyId}」`,
-          );
+          throw treeErrors["goals.goal_tree_proposal.item_dependency_unknown"](`第 ${index + 1} 个条目引用了同一提案中不存在的依赖 item_id「${dependencyId}」`);
         }
       }
     }

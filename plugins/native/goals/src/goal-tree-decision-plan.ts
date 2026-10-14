@@ -1,3 +1,4 @@
+import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
 import type { GoalsQueryApi, GoalsPlanningApi, PlanningGraphIssue } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalTreeProposalRecord, GoalTreeProposalItemRecord, GoalTreeProposalDecideInput, GoalTreeProposalDecisionAuthority } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalTreeQueryApplication } from "./goal-tree-query.js";
@@ -12,7 +13,6 @@ export class GoalTreeDecisionPlan {
     goals: { query: Pick<GoalsQueryApi, "getGoal" | "snapshot">; planning: Pick<GoalsPlanningApi, "effectiveMethods" | "projectComposition" | "proposalGraphIssues"> };
     query: GoalTreeQueryApplication; inputs: GoalTreeInputReader; normalizer: GoalTreeDecisionNormalizer;
     conflicts: GoalTreeMaterializationConflicts; materialization: GoalTreeMaterializationApplication;
-    errorFactory: (code: string, message: string, details?: Record<string, unknown>) => Error;
   }) {}
   abortWholeConfirmation(
     item: GoalTreeProposalItemRecord,
@@ -20,16 +20,12 @@ export class GoalTreeDecisionPlan {
   ): never {
     const detail = String(conflict.message ?? conflict.code ?? "当前事实与提案不一致");
     const recovery = String(conflict.recovery ?? this.ports.materialization.recovery(conflict));
-    throw this.ports.errorFactory(
-      "goals.goal_tree_proposal.whole_confirmation_conflict",
-      `整份提案中的条目「${item.item_id}」暂时不能采用：${detail}。本次整份确认没有写入任何变更；${recovery}`,
-      {
+    throw treeErrors["goals.goal_tree_proposal.whole_confirmation_conflict"](`整份提案中的条目「${item.item_id}」暂时不能采用：${detail}。本次整份确认没有写入任何变更；${recovery}`, {
         item_id: item.item_id,
         original_code: conflict.code ?? null,
         conflict,
         next_action: "check_and_revise",
-      },
-    );
+      });
   }
 
   prepare(input: GoalTreeProposalDecideInput, proposal: GoalTreeProposalRecord, authority: GoalTreeProposalDecisionAuthority) {
@@ -37,37 +33,26 @@ export class GoalTreeDecisionPlan {
     let decisions = this.ports.normalizer.normalizeDecisions(input.decisions, input.reason);
     if (wholeConfirmation) {
       if (decisions.length > 0) {
-        throw this.ports.errorFactory(
-          "goals.goal_tree_proposal.whole_confirmation_mixed",
-          "整份确认不能同时携带逐项决定；请二选一",
-        );
+        throw treeErrors["goals.goal_tree_proposal.whole_confirmation_mixed"]("整份确认不能同时携带逐项决定；请二选一");
       }
       if (proposal.state !== "pending") {
-        throw this.ports.errorFactory(
-          "goals.goal_tree_proposal.whole_confirmation_requires_pristine_proposal",
-          "这份提案已经有条目落地，不能再作为一份完整变更原子确认；请基于当前 Goal Tree 生成只包含未落地内容的修订提案",
-          {
+        throw treeErrors["goals.goal_tree_proposal.whole_confirmation_requires_pristine_proposal"]("这份提案已经有条目落地，不能再作为一份完整变更原子确认；请基于当前 Goal Tree 生成只包含未落地内容的修订提案", {
             proposal_id: proposal.proposal_id,
             state: proposal.state,
             next_action: "create_revision_from_current_tree",
-          },
-        );
+          });
       }
       if (
         authority.whole_confirmation_prompted !== true ||
         (authority.authority_source === "runtime_dialogue" &&
           authority.prompted_proposal_id !== proposal.proposal_id)
       ) {
-        throw this.ports.errorFactory(
-          "goals.goal_tree_proposal.whole_confirmation_ambiguous",
-          "简短确认只有在上一问明确点名这一整份提案时才能生效；请绑定准确的 Proposal ID，或逐项说明决定",
-          {
+        throw treeErrors["goals.goal_tree_proposal.whole_confirmation_ambiguous"]("简短确认只有在上一问明确点名这一整份提案时才能生效；请绑定准确的 Proposal ID，或逐项说明决定", {
             proposal_id: proposal.proposal_id,
             whole_confirmation_prompted: authority.whole_confirmation_prompted === true,
             prompted_proposal_id: authority.prompted_proposal_id ?? null,
             next_action: "bind_confirmation_to_exact_proposal_or_decide_items",
-          },
-        );
+          });
       }
       const existingConflict = proposal.items.find((item) => item.state === "conflict");
       if (existingConflict) {
@@ -86,26 +71,17 @@ export class GoalTreeDecisionPlan {
         .map((item) => ({ item_id: item.item_id, decision: "confirm" as const, reason: sharedReason, revised_item: null }));
     }
     if (decisions.length === 0) {
-      throw this.ports.errorFactory(
-        "goals.goal_tree_proposal.decisions_required",
-        "请至少决定一个 Goal Tree 条目，或在明确上下文中确认整份提案",
-      );
+      throw treeErrors["goals.goal_tree_proposal.decisions_required"]("请至少决定一个 Goal Tree 条目，或在明确上下文中确认整份提案");
     }
 
     const itemsById = new Map(proposal.items.map((item) => [item.item_id, item]));
     for (const decision of decisions) {
       const item = itemsById.get(decision.item_id);
       if (!item) {
-        throw this.ports.errorFactory(
-          "goals.goal_tree_proposal.decision_item_not_found",
-          `提案中不存在条目: ${decision.item_id}`,
-        );
+        throw treeErrors["goals.goal_tree_proposal.decision_item_not_found"](`提案中不存在条目: ${decision.item_id}`);
       }
       if (item.state !== "pending" && item.state !== "conflict") {
-        throw this.ports.errorFactory(
-          "goals.goal_tree_proposal.decision_item_closed",
-          `条目「${decision.item_id}」已经处理，不能再次决定`,
-        );
+        throw treeErrors["goals.goal_tree_proposal.decision_item_closed"](`条目「${decision.item_id}」已经处理，不能再次决定`);
       }
     }
 
@@ -126,9 +102,9 @@ export class GoalTreeDecisionPlan {
 
     return { decisions, itemsById, planningConflicts };
   }
-  private requiredText(value: string, code: string, message: string): string {
+  private requiredText(value: string, code: TreeErrorCode, message: string): string {
     const text = value.trim();
-    if (!text) throw this.ports.errorFactory(code, message);
+    if (!text) throw treeErrors[code](message);
     return text;
   }
 }

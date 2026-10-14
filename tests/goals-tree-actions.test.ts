@@ -8,7 +8,8 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { managementTreeAuthority, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalTreeProposalItemInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -39,6 +40,29 @@ test("tree actions preserve proposals, protected authority, atomic materializati
   const input = proposalInput("original");
   try {
     const empty = await snapshot();
+    // I5-01: real Host submission retains all provenance issues, and rejection writes no facts.
+    const invalidItem = { ...input.items[0]!, source_refs: [" "], confidence: -1 };
+    const invalidInput = { ...input, items: [invalidItem], idempotency_key: "invalid-provenance" };
+    const originalInvalid = structuredClone(invalidInput);
+    await assert.rejects(bound.invoke(goalsActions.treeSubmit, invalidInput), (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "goals.goal_tree_proposal.source_required");
+      assert.equal(error.kind, "invalid");
+      assert.equal(actionHttpStatus(error), 400);
+      assert.equal(error.message, "items[0].source_refs: 第 1 个条目至少需要一个来源引用\nitems[0].confidence: 第 1 个条目的置信度必须在 0 到 1 之间");
+      assert.equal(error.details?.path, "items[0].source_refs");
+      assert.deepEqual(error.details?.issues, [
+        { code: "goals.goal_tree_proposal.source_required", path: "items[0].source_refs",
+          message: "第 1 个条目至少需要一个来源引用", expected: "包含真实来源的字符串数组，例如已保存的 Goal 事件 event_id" },
+        { code: "goals.goal_tree_proposal.confidence_invalid", path: "items[0].confidence",
+          message: "第 1 个条目的置信度必须在 0 到 1 之间", expected: "0 到 1 的数字" },
+      ]);
+      assert.equal(error.details?.recovery, "修正列出的字段后重试 goals.tree.submit；失败调用不会创建提案，无需切换接口。");
+      return true;
+    });
+    assert.deepEqual(invalidInput, originalInvalid);
+    assert.deepEqual(await snapshot(), empty);
+    assert.deepEqual((await bound.invoke(goalsActions.treeRead, {})).proposals, []);
     const old = await host.withProject(ref, r => r.coordinator.goalTreeSubmission.submitGoalTreeProposal({ ...input,
       project_id: project.project_id, actor_id: caller.audit_actor_id!, submitted_session_id: caller.runtime_session_id }));
     assert.equal(old.proposal.submitted_session_id, "session");

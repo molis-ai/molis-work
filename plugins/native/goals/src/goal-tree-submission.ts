@@ -1,3 +1,4 @@
+import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { GoalsQueryApi, GoalsApplicationApi, GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GovernanceApplicationApi, GoalTreeProposalSubmitInput, GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
@@ -11,7 +12,6 @@ export interface GoalTreeSubmissionPorts {
   governance: Pick<GovernanceApplicationApi, "records" | "query" | "provenance">;
   query: GoalTreeQueryApplication;
   clock: () => Date;
-  errorFactory: (code: string, message: string, details?: Record<string, unknown>) => Error;
   attention?: Pick<GoalDecisionAttentionSync, "settleProposal">;
 }
 
@@ -19,7 +19,7 @@ export interface GoalTreeSubmissionPorts {
 export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationApi, "submitGoalTreeProposal"> {
   private readonly normalizer: GoalTreeProposalNormalizer;
   constructor(private readonly ports: GoalTreeSubmissionPorts) {
-    this.normalizer = new GoalTreeProposalNormalizer(ports.governance.provenance, ports.errorFactory);
+    this.normalizer = new GoalTreeProposalNormalizer(ports.governance.provenance);
   }
 
   submitGoalTreeProposal(
@@ -57,10 +57,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
       const currentCursor = this.ports.governance.query.eventCursor(input.project_id);
       const baseEventCursor = input.base_event_cursor ?? currentCursor;
       if (!Number.isInteger(baseEventCursor) || baseEventCursor < 0 || baseEventCursor > currentCursor) {
-        throw this.ports.errorFactory(
-          "goals.goal_tree_proposal.base_cursor_invalid",
-          "Goal Tree 提案的 base_event_cursor 必须是当前 Board 已观察到的事件游标",
-        );
+        throw treeErrors["goals.goal_tree_proposal.base_cursor_invalid"]("Goal Tree 提案的 base_event_cursor 必须是当前 Board 已观察到的事件游标");
       }
 
       let previous: GoalTreeProposalRecord | null = null;
@@ -70,41 +67,26 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
           proposal_id: supersedesProposalId,
         }).proposals[0] ?? null;
         if (!previous) {
-          throw this.ports.errorFactory(
-            "goals.goal_tree_proposal.not_found",
-            `找不到 Goal Tree 提案: ${supersedesProposalId}`,
-          );
+          throw treeErrors["goals.goal_tree_proposal.not_found"](`找不到 Goal Tree 提案: ${supersedesProposalId}`);
         }
         if (previous.state !== "pending") {
-          throw this.ports.errorFactory(
-            "goals.goal_tree_proposal.revision_not_pending",
-            "只能修订仍待用户决定的 Goal Tree 提案",
-          );
+          throw treeErrors["goals.goal_tree_proposal.revision_not_pending"]("只能修订仍待用户决定的 Goal Tree 提案");
         }
         if (previous.submitted_by !== actorId) {
-          throw this.ports.errorFactory(
-            "goals.goal_tree_proposal.revision_not_owner",
-            "只有原提案的当前 Runtime 可以创建它的修订版本",
-          );
+          throw treeErrors["goals.goal_tree_proposal.revision_not_owner"]("只有原提案的当前 Runtime 可以创建它的修订版本");
         }
       }
       const canonicalSupersedesProposalId = previous?.proposal_id ?? null;
       const effectiveRootGoalId = rootGoalId ?? previous?.root_goal_id ?? null;
       if (effectiveRootGoalId) this.requireGoalOnBoard(input.project_id, effectiveRootGoalId);
       if (!previous && items.some((item) => item.supersedes_item_id)) {
-        throw this.ports.errorFactory(
-          "goals.goal_tree_proposal.item_revision_without_proposal",
-          "条目要引用 supersedes_item_id 时，必须同时指定 supersedes_proposal_id",
-        );
+        throw treeErrors["goals.goal_tree_proposal.item_revision_without_proposal"]("条目要引用 supersedes_item_id 时，必须同时指定 supersedes_proposal_id");
       }
       if (previous) {
         const priorItemIds = new Set(previous.items.map((item) => item.item_id));
         for (const item of items) {
           if (item.supersedes_item_id && !priorItemIds.has(item.supersedes_item_id)) {
-            throw this.ports.errorFactory(
-              "goals.goal_tree_proposal.item_revision_unknown",
-              "修订条目只能引用被修订提案中的已有 item_id",
-            );
+            throw treeErrors["goals.goal_tree_proposal.item_revision_unknown"]("修订条目只能引用被修订提案中的已有 item_id");
           }
         }
       }
@@ -113,18 +95,14 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
         const existingItem = this.ports.governance.records.findGoalTreeItemOwner(item.item_id);
         if (!existingItem) continue;
         const conflictingProposalId = existingItem.proposal_id;
-        throw this.ports.errorFactory(
-          "goals.goal_tree_proposal.item_id_conflict",
-          `items[${index}].item_id=${item.item_id} 已被提案 ${conflictingProposalId} 使用；请为修订条目提供新的全局唯一 item_id，并用 supersedes_item_id 保留来源关联。`,
-          {
+        throw treeErrors["goals.goal_tree_proposal.item_id_conflict"](`items[${index}].item_id=${item.item_id} 已被提案 ${conflictingProposalId} 使用；请为修订条目提供新的全局唯一 item_id，并用 supersedes_item_id 保留来源关联。`, {
             path: `items[${index}].item_id`,
             received_value: item.item_id,
             conflicting_proposal_id: conflictingProposalId,
             conflicting_project_id: existingItem.project_id,
             next_action: "use_unique_item_id",
             recovery: "生成新的全局唯一 item_id；若这是对旧条目的修订，同时填写 supersedes_proposal_id 和 supersedes_item_id。失败调用不会创建 Proposal。",
-          },
-        );
+          });
       }
 
       const proposalId = `goal-tree-proposal-${randomUUID()}`;
@@ -185,19 +163,19 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
     return result;
   }
 
-  private requiredText(value: string, code: string, message: string): string {
+  private requiredText(value: string, code: TreeErrorCode, message: string): string {
     const text = value.trim();
-    if (!text) throw this.ports.errorFactory(code, message);
+    if (!text) throw treeErrors[code](message);
     return text;
   }
 
   private requireBoard(projectId: string): void {
-    if (!this.ports.goals.query.getBoard(projectId)) throw this.ports.errorFactory("goals.board.not_found", `这个项目还没有初始化目标资料库: ${projectId}`);
+    if (!this.ports.goals.query.getBoard(projectId)) throw treeErrors["goals.board.not_found"](`这个项目还没有初始化目标资料库: ${projectId}`);
   }
 
   private requireGoalOnBoard(projectId: string, goalId: string): GoalRecord {
     const goal = this.ports.goals.query.getGoal(projectId, goalId);
-    if (!goal) throw this.ports.errorFactory("goals.not_found", `Goal 不存在: ${goalId}`);
+    if (!goal) throw treeErrors["goals.not_found"](`Goal 不存在: ${goalId}`);
     return goal;
   }
 }

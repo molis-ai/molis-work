@@ -1,3 +1,4 @@
+import { treeErrors } from "./goal-tree-errors.js";
 import { goalRelationTypes, type CreateGoalInput, type GoalRelationRecord, type GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalTreeProposalItemRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
@@ -52,34 +53,19 @@ export class GoalTreeInputReader {
         !impactIfRejected ||
         !directionReason
       ) {
-        throw this.ports.errorFactory(
-          "goals.dependency_proposal.field_missing",
-          "Dependency Proposal 必须说明起点、前置 Goal、原因、拒绝影响和方向依据",
-        );
+        throw treeErrors["goals.dependency_proposal.field_missing"]("Dependency Proposal 必须说明起点、前置 Goal、原因、拒绝影响和方向依据");
       }
       if (action !== "add" && action !== "deactivate") {
-        throw this.ports.errorFactory(
-          "goals.dependency_proposal.action_invalid",
-          "依赖调整 action 必须是 add 或 deactivate",
-        );
+        throw treeErrors["goals.dependency_proposal.action_invalid"]("依赖调整 action 必须是 add 或 deactivate");
       }
       if (!validBases.has(basis)) {
-        throw this.ports.errorFactory(
-          "goals.dependency_proposal.basis_invalid",
-          "Dependency Proposal 的 basis 不在允许范围内",
-        );
+        throw treeErrors["goals.dependency_proposal.basis_invalid"]("Dependency Proposal 的 basis 不在允许范围内");
       }
       if (evidenceRefs.length === 0) {
-        throw this.ports.errorFactory(
-          "goals.dependency_proposal.evidence_required",
-          "Dependency Proposal 至少需要一个可查找的代码、文档、测试或 Contract 引用",
-        );
+        throw treeErrors["goals.dependency_proposal.evidence_required"]("Dependency Proposal 至少需要一个可查找的代码、文档、测试或 Contract 引用");
       }
       if (typeof confidence !== "number" || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
-        throw this.ports.errorFactory(
-          "goals.dependency_proposal.confidence_invalid",
-          "Dependency Proposal 的 confidence 必须是 0 到 1 之间的数字",
-        );
+        throw treeErrors["goals.dependency_proposal.confidence_invalid"]("Dependency Proposal 的 confidence 必须是 0 到 1 之间的数字");
       }
       return {
         ...normalized,
@@ -95,7 +81,6 @@ export class GoalTreeInputReader {
 
   constructor(private readonly ports: {
     commands: Pick<GoalsCommandApi, "validateGoalInput">;
-    errorFactory: (code: string, message: string) => Error;
   }) {}
 
   goalTreeCandidatePromotionRelations(
@@ -104,10 +89,7 @@ export class GoalTreeInputReader {
   ): Record<string, unknown>[] {
     if (payload.proposed_relations == null) return [];
     if (!Array.isArray(payload.proposed_relations)) {
-      throw this.ports.errorFactory(
-        "goals.goal_tree_proposal.candidate_relations_invalid",
-        "Candidate proposed_relations 必须是关系列表",
-      );
+      throw treeErrors["goals.goal_tree_proposal.candidate_relations_invalid"]("Candidate proposed_relations 必须是关系列表");
     }
     return payload.proposed_relations.map((value) => {
       const relation = this.goalTreePayloadRecord(value, "Candidate 关系");
@@ -125,10 +107,7 @@ export class GoalTreeInputReader {
 
   goalTreePayloadRecord(value: unknown, label: string): Record<string, unknown> {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw this.ports.errorFactory(
-        "goals.goal_tree_proposal.payload_shape_invalid",
-        `${label} 必须是结构化对象`,
-      );
+      throw treeErrors["goals.goal_tree_proposal.payload_shape_invalid"](`${label} 必须是结构化对象`);
     }
     return value as Record<string, unknown>;
   }
@@ -147,13 +126,13 @@ export class GoalTreeInputReader {
     const definitionState = raw.definition_state == null ? undefined : String(raw.definition_state);
     const decompositionState = raw.decomposition_state == null ? undefined : String(raw.decomposition_state);
     if (definitionState != null && definitionState !== "draft" && definitionState !== "accepted") {
-      throw this.ports.errorFactory("goals.goal_tree_proposal.goal_definition_invalid", "Goal definition_state 无效");
+      throw treeErrors["goals.goal_tree_proposal.goal_definition_invalid"]("Goal definition_state 无效");
     }
     if (
       decompositionState != null &&
       !["abstract", "frontier_open", "closed_leaf", "closed_compound"].includes(decompositionState)
     ) {
-      throw this.ports.errorFactory("goals.goal_tree_proposal.goal_decomposition_invalid", "Goal decomposition_state 无效");
+      throw treeErrors["goals.goal_tree_proposal.goal_decomposition_invalid"]("Goal decomposition_state 无效");
     }
     const acceptance = Array.isArray(raw.acceptance_criteria)
       ? raw.acceptance_criteria.map((criterion) => {
@@ -200,10 +179,7 @@ export class GoalTreeInputReader {
     const payload = this.goalTreePayloadRecord(item.payload, "Goal Tree 条目 payload");
     const target = String(payload.goal_id ?? goal.goal_id ?? "").trim();
     if (!target) {
-      throw this.ports.errorFactory(
-        "goals.goal_tree_proposal.goal_id_required",
-        "物化或更新 Goal 时需要稳定的 goal_id",
-      );
+      throw treeErrors["goals.goal_tree_proposal.goal_id_required"]("物化或更新 Goal 时需要稳定的 goal_id");
     }
     return target;
   }
@@ -214,7 +190,7 @@ export class GoalTreeInputReader {
     const source = payload.relations ?? payload.relation ?? payload;
     const values = Array.isArray(source) ? source : [source];
     if (values.length === 0) {
-      throw this.ports.errorFactory("goals.goal_tree_proposal.relations_required", "关系条目至少需要一条关系");
+      throw treeErrors["goals.goal_tree_proposal.relations_required"]("关系条目至少需要一条关系");
     }
     return values.map((value) => this.goalTreePayloadRecord(value, "关系"));
   }
@@ -232,7 +208,7 @@ export class GoalTreeInputReader {
   } {
     const action = String(relation.action ?? (item.operation === "deactivate" ? "deactivate" : "add"));
     if (action !== "add" && action !== "deactivate") {
-      throw this.ports.errorFactory("goals.goal_tree_proposal.relation_action_invalid", "关系条目的 action 必须是 add 或 deactivate");
+      throw treeErrors["goals.goal_tree_proposal.relation_action_invalid"]("关系条目的 action 必须是 add 或 deactivate");
     }
     const relationId = String(relation.relation_id ?? "").trim() || null;
     const fromGoalId = String(relation.from_goal_id ?? "").trim();
@@ -242,19 +218,16 @@ export class GoalTreeInputReader {
       ? rawType as GoalRelationRecord["type"]
       : null;
     if (type && !GOAL_RELATION_TYPES.has(type)) {
-      throw this.ports.errorFactory("goals.goal_tree_proposal.relation_type_invalid", "关系条目的 type 无效");
+      throw treeErrors["goals.goal_tree_proposal.relation_type_invalid"]("关系条目的 type 无效");
     }
     if (action === "add" && (!fromGoalId || !toGoalId || !type)) {
-      throw this.ports.errorFactory("goals.goal_tree_proposal.relation_required", "新增关系需要起点、终点和类型");
+      throw treeErrors["goals.goal_tree_proposal.relation_required"]("新增关系需要起点、终点和类型");
     }
     if (action === "deactivate" && !relationId && (!fromGoalId || !toGoalId || !type)) {
-      throw this.ports.errorFactory(
-        "goals.goal_tree_proposal.relation_required",
-        "停用关系需要 relation_id，或完整的起点、终点和类型",
-      );
+      throw treeErrors["goals.goal_tree_proposal.relation_required"]("停用关系需要 relation_id，或完整的起点、终点和类型");
     }
     if (fromGoalId && toGoalId && fromGoalId === toGoalId) {
-      throw this.ports.errorFactory("goals.goal_tree_proposal.relation_self_reference", "Goal 不能关联到自身");
+      throw treeErrors["goals.goal_tree_proposal.relation_self_reference"]("Goal 不能关联到自身");
     }
     return {
       action,

@@ -1,3 +1,4 @@
+import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
 import type { GoalTreeProposalDecisionAuthority, GoalTreeProposalItemDecisionInput, GovernanceProvenanceApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { GoalTreeProposalNormalizer, type NormalizedGoalTreeProposalItem } from "./proposal-normalizer.js";
 
@@ -11,32 +12,26 @@ export interface NormalizedGoalTreeProposalDecision {
 /** Trusted decision wire validation; no decision or owner facts are written. */
 export class GoalTreeDecisionNormalizer {
   private readonly items: GoalTreeProposalNormalizer;
-  constructor(provenance: GovernanceProvenanceApi, private readonly errorFactory: (code: string, message: string) => Error) {
-    this.items = new GoalTreeProposalNormalizer(provenance, errorFactory);
+  constructor(provenance: GovernanceProvenanceApi) {
+    this.items = new GoalTreeProposalNormalizer(provenance);
   }
-  private requiredText(value: string, code: string, message: string): string {
+  private requiredText(value: string, code: TreeErrorCode, message: string): string {
     const text = value.trim();
-    if (!text) throw this.errorFactory(code, message);
+    if (!text) throw treeErrors[code](message);
     return text;
   }
   normalizeAuthority(
     authority: GoalTreeProposalDecisionAuthority,
   ): GoalTreeProposalDecisionAuthority {
     if (!authority || authority.actor_kind !== "user") {
-      throw this.errorFactory(
-        "goals.goal_tree_proposal.user_authority_required",
-        "只有受信用户决定可以物化 Goal Tree 提案",
-      );
+      throw treeErrors["goals.goal_tree_proposal.user_authority_required"]("只有受信用户决定可以物化 Goal Tree 提案");
     }
     if (![
       "runtime_dialogue",
       "web",
       "management",
     ].includes(authority.authority_source)) {
-      throw this.errorFactory(
-        "goals.goal_tree_proposal.authority_source_invalid",
-        "Goal Tree 决定必须标明可审计的用户确认入口",
-      );
+      throw treeErrors["goals.goal_tree_proposal.authority_source_invalid"]("Goal Tree 决定必须标明可审计的用户确认入口");
     }
     return {
       actor_id: this.requiredText(
@@ -79,40 +74,25 @@ export class GoalTreeDecisionNormalizer {
         `第 ${index + 1} 个决定缺少 item_id`,
       );
       if (ids.has(itemId)) {
-        throw this.errorFactory(
-          "goals.goal_tree_proposal.decision_item_duplicate",
-          "同一次用户决定不能重复处理同一个提案条目",
-        );
+        throw treeErrors["goals.goal_tree_proposal.decision_item_duplicate"]("同一次用户决定不能重复处理同一个提案条目");
       }
       ids.add(itemId);
       if (!["confirm", "reject", "revise"].includes(decision.decision)) {
-        throw this.errorFactory(
-          "goals.goal_tree_proposal.decision_invalid",
-          `第 ${index + 1} 个条目的决定必须是 confirm、reject 或 revise`,
-        );
+        throw treeErrors["goals.goal_tree_proposal.decision_invalid"](`第 ${index + 1} 个条目的决定必须是 confirm、reject 或 revise`);
       }
       const reasonText = (decision.reason || fallbackReason || "").trim();
       if (!reasonText) {
-        throw this.errorFactory(
-          "goals.goal_tree_proposal.decision_reason_required",
-          `第 ${index + 1} 个条目的用户决定需要说明理由或修改意见`,
-        );
+        throw treeErrors["goals.goal_tree_proposal.decision_reason_required"](`第 ${index + 1} 个条目的用户决定需要说明理由或修改意见`);
       }
       const revisedItem = decision.revised_item
         ? this.items
           .normalizeGoalTreeProposalItems([decision.revised_item])[0] ?? null
         : null;
       if (decision.decision === "revise" && !revisedItem) {
-        throw this.errorFactory(
-          "goals.goal_tree_proposal.revision_item_required",
-          "修改条目时必须提供完整的新条目内容",
-        );
+        throw treeErrors["goals.goal_tree_proposal.revision_item_required"]("修改条目时必须提供完整的新条目内容");
       }
       if (decision.decision !== "revise" && revisedItem) {
-        throw this.errorFactory(
-          "goals.goal_tree_proposal.revision_item_unexpected",
-          "只有 revise 决定可以包含新的条目内容",
-        );
+        throw treeErrors["goals.goal_tree_proposal.revision_item_unexpected"]("只有 revise 决定可以包含新的条目内容");
       }
       return {
         item_id: itemId,

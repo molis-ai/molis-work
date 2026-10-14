@@ -138,7 +138,6 @@ export class GoalProjectApplication {
     this.goalTree = new GoalTreeQueryApplication({
       goals: this.goalsModule.query,
       governance: this.governance,
-      errorFactory: (code, message) => new ActionError(code, message),
     });
     const attention = new AttentionModule(this.store.db, {
       exists: (projectId, subjectType, subjectId) => subjectType === "goal_decision"
@@ -166,15 +165,12 @@ export class GoalProjectApplication {
     this.goalTreeSubmission = new GoalTreeSubmissionApplication({
       goals: { query: this.goalsModule.query, commands: this.goals.commands, planning: this.goals.planning },
       governance: this.governance, query: this.goalTree, clock: this.clock,
-      errorFactory: (code, message, details) => new ActionError(code, message, { details }),
       attention: this.goalDecisionAttention,
     });
-    this.goalTreeInputs = new GoalTreeInputReader({ commands: this.goals.commands,
-      errorFactory: (code, message) => new ActionError(code, message) });
+    this.goalTreeInputs = new GoalTreeInputReader({ commands: this.goals.commands });
     this.goalTreeFacts = new GoalTreeFactMaterializer(
       { commands: this.goals.commands, query: this.goalsModule.query },
       this.goalTreeInputs,
-      (code, message, details) => new ActionError(code, message, { details }),
       (input) => this.goalEvents.createIntent(input),
     );
     this.goalTreeConflicts = new GoalTreeMaterializationConflicts({ query: this.goalsModule.query, planning: this.goals.planning },
@@ -182,13 +178,11 @@ export class GoalProjectApplication {
     this.goalTreeMaterialization = new GoalTreeMaterializationApplication({
       goals: this.goalsModule.query, transactions: this.governance.decisions, facts: this.goalTreeFacts,
       conflicts: this.goalTreeConflicts,
-      isDomainError: (error): error is ActionError => error instanceof ActionError,
     });
-    this.goalTreeDecisionInputs = new GoalTreeDecisionNormalizer(this.governance.provenance,
-      (code, message) => new ActionError(code, message));
+    this.goalTreeDecisionInputs = new GoalTreeDecisionNormalizer(this.governance.provenance);
     this.goalTreeDecisionFollowup = new GoalTreeDecisionFollowup({
       goals: { query: this.goalsModule.query, planning: this.goals.planning }, governance: this.governance,
-      query: this.goalTree, inputs: this.goalTreeInputs, errorFactory: (code, message) => new ActionError(code, message),
+      query: this.goalTree, inputs: this.goalTreeInputs,
     });
     this.goalQueries = new GoalReadApplication(goalsModule.query, {
       now: () => this.clock(),
@@ -199,15 +193,11 @@ export class GoalProjectApplication {
       goals: { ...this.goals, query: this.goalsModule.query }, governance: this.governance, query: this.goalTree,
       inputs: this.goalTreeInputs, normalizer: this.goalTreeDecisionInputs, conflicts: this.goalTreeConflicts,
       materialization: this.goalTreeMaterialization, followup: this.goalTreeDecisionFollowup, clock: this.clock,
-      errorFactory: (code, message, details) => new ActionError(code, message, { details }),
-      isDomainError: (error): error is ActionError => error instanceof ActionError,
       attention: this.goalDecisionAttention,
     });
     this.goalTreeCheck = new GoalTreeCheckApplication({
       goals: { query: this.goalsModule.query, planning: this.goals.planning }, governance: this.governance,
       query: this.goalTree, materialization: this.goalTreeMaterialization, clock: this.clock,
-      errorFactory: (code, message, details) => new ActionError(code, message, { details }),
-      isDomainError: (error): error is ActionError => error instanceof ActionError,
     });
   }
 

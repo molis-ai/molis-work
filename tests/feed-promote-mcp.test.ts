@@ -1,3 +1,4 @@
+// R-KERNEL-OWNER-01: this refusal comes from session authorship in the Kernel; missing Runtime identity remains an MCP refusal.
 import { managementGoals } from "./goal-management-caller.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import assert from "node:assert/strict";
@@ -20,7 +21,7 @@ const CLIENT = "runtime:codex";
 
 const PREPARE = "molis_work_v1_action_home.actions.prepare__v1";
 const EXECUTE = "molis_work_v1_action_home.actions.execute__v1";
-const refusedWithoutSession = (error: unknown) => error instanceof ActionError && error.code === "mcp.runtime_identity_missing" && /稳定 Session/.test(error.message);
+const refusedWithoutSession = (error: unknown) => error instanceof ActionError && error.code === "kernel.runtime_identity_missing" && error.kind === "invalid" && /稳定 Session/.test(error.message);
 
 /** A project with one Feed item, every Goals action granted to the client, and the promotion and the Home's offers granted besides. */
 async function fixture() {

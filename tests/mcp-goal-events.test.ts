@@ -1,3 +1,4 @@
+// R-KERNEL-OWNER-01: this refusal comes from session authorship in the Kernel; missing Runtime identity remains an MCP refusal.
 import { managementGoals } from "./goal-management-caller.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { rejectSessionReportIndex } from "./fixtures/session-secondary-failure.js";
@@ -311,7 +312,7 @@ test("missing stable Session identity rejects event writes with no Goal or event
         title: "不应写入", idempotency_key: "missing-session",
       }),
       (error: unknown) => error instanceof ActionError
-        && error.code === "mcp.runtime_identity_missing"
+        && error.code === "kernel.runtime_identity_missing" && error.kind === "invalid"
         && /稳定 Session/.test(error.message),
     );
     const after = await managementGoals(host.actionClient(reference, false), project.project_id).invoke(goalsActions.snapshot, {});

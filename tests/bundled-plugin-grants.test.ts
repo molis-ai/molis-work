@@ -94,7 +94,7 @@ test("a start of the same build whose record holds fewer permissions completes t
     const second = hostProcess(directory);
     try {
       const report = await second.platform.start([{ definition: build("1.0.0", [REQUIRED, OPTIONAL]), bundled: true }]);
-      assert.deepEqual(report.failed, [], "plugin_state_invalid would be the refusal of a changed grant by a repeated install");
+      assert.deepEqual(report.failed, [], "plugin.state_invalid would be the refusal of a changed grant by a repeated install");
       assert.deepEqual(report.running, [PLUGIN_ID]);
       assert.deepEqual(second.grants(), [OPTIONAL.permission, REQUIRED.permission]);
       assert.deepEqual(await second.availability(), { available: true });
@@ -159,7 +159,7 @@ test("a permission a newer bundled build no longer declares is dropped, and the 
 
 // The list a Supervisor entry names for itself is not looked at when the entry is bundled: a first install that honoured it would be a
 // narrower record than the rule leaves, the next start would widen it (recordToFollow), and the start after that would meet a repeated
-// install whose own list differs from the record and refuse it as a silent grant change (plugin_state_invalid).
+// install whose own list differs from the record and refuse it as a silent grant change (plugin.state_invalid).
 test("a bundled entry that names fewer grants than its Manifest declares is installed with every declared permission", withDirectory(async directory => {
   const first = hostProcess(directory);
   try {
@@ -181,7 +181,7 @@ test("a bundled entry that names fewer grants than its Manifest declares starts 
     } finally { host.store.close(); }
   }
   const every = { failed: [], running: [PLUGIN_ID], grants: [OPTIONAL.permission, REQUIRED.permission] };
-  assert.deepEqual(outcomes, [every, every, every, every, every], "a repeated install is not a silent grant change (plugin_state_invalid), whichever start it is");
+  assert.deepEqual(outcomes, [every, every, every, every, every], "a repeated install is not a silent grant change (plugin.state_invalid), whichever start it is");
 }));
 
 test("PluginRuntime.install with bundled records every declared permission whatever grants it is given, and installing again replays; without bundled it records what it is given",

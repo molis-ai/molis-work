@@ -53,7 +53,7 @@ export function defaultGrants(manifest: PluginManifest, installs: readonly Plugi
  * has nothing to go back to and is marked uninstalled with nothing kept). Only the installation `installed` names, while
  * the row still holds it, is undone. A row another install has replaced is not touched, and neither is one that is
  * uninstalled at the attempt's own installation generation: the install did not do that, so someone else did, and
- * their choice about the kept data stands. Both refuse with `plugin_install_replaced`, so the caller leaves everything
+ * their choice about the kept data stands. Both refuse with `plugin.install_replaced`, so the caller leaves everything
  * that belongs to the newer install or to that choice alone. A row back at `earlier` already is what this asks for.
  */
 export function abandonRefusal(current: PluginInstanceRecord, installed: PluginInstanceRecord, earlier?: PluginInstanceRecord): PluginRuntimeError | undefined {

@@ -2,7 +2,7 @@
 // A1/A4b/A7). Until now only the built-in plugins were held to it, and only by a test (`artifact-type-gate`); a Manifest parsed
 // anywhere else - a Runtime install, a generated plugin, the CLI, the sample - could produce a type nobody could read. The rule is
 // now part of Manifest parsing, so every route that reads a Manifest applies it. It adds no error code: the author gets
-// `plugin_declaration_invalid` with the problems joined, like every other declaration rule.
+// `plugin.declaration_invalid` with the problems joined, like every other declaration rule.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";

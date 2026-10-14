@@ -240,7 +240,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     const gone = await fetch(origin + pluginHref);
     assert.notEqual(gone.status, 200, 'an uninstalled plugin page is not served');
 
-    // The uninstall kept v1's data and only v2 is left to install: it does not say it can read that data, so the person is asked.
+    // J1A-01: The uninstall kept v1's data and only v2 is left to install: it does not say it can read that data, so the person is asked.
     const shelf = JSON.parse(installedOwner.storage.get('plugin-builder:agent-built:v1')!) as { releases: Array<{ version: number }> };
     installedOwner.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ ...shelf, releases: shelf.releases.filter(release => release.version === 2) }));
     await page.command('Page.reload');

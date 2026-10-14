@@ -101,7 +101,7 @@ function mcpSources(value: unknown): AgentMcpSourceRef[] {
 }
 /** A capability this host does not offer reads as nothing chosen; any other failure is still a failure. */
 const unlessMissing = <T>(call: Promise<T>, fallback: T): Promise<T> =>
-  call.catch((error: unknown) => { if ((error as { code?: unknown })?.code === "kernel.capability_missing") return fallback; throw error; });
+  call.catch((error: unknown) => { if ((error as { code?: unknown })?.code === "actions.dependency_missing") return fallback; throw error; });
 /** A delegation's letters are the people's to answer, at their pace: they are kept a year before they lapse. */
 const DELEGATION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 /** A person's plan change, checked before it reaches the Host. */

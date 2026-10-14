@@ -10,9 +10,9 @@ import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalHost, LocalHostError } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { CapabilityRegistryError } from "@molis-ai/molis-work-kernel";
+
 
 import {
   createMolisWorkLocalHost,
@@ -62,12 +62,12 @@ test("Local Host discovers one runtime and serializes typed capabilities", async
   assert.equal(host.status().projects.length, 1);
   await assert.rejects(
     () => first.invoke(missing, undefined),
-    (error: unknown) => error instanceof ActionError && error.code === "actions.dependency_missing" && error.cause instanceof CapabilityRegistryError
+    (error: unknown) => error instanceof ActionError && error.code === "actions.dependency_missing" && (error.cause instanceof ActionError && ["kernel.capability_invalid","kernel.capability_duplicate","kernel.capability_missing"].includes(error.cause.code))
       && error.message === error.cause.message,
   );
   assert.throws(
     () => host.client({ ...reference, project_id: "project-2" }),
-    (error: unknown) => error instanceof LocalHostError && error.code === "host.project_identity_conflict",
+    (error: unknown) => (error instanceof ActionError && ["host.closed","host.project_invalid","host.project_identity_conflict","host.project_closing"].includes(error.code)) && error.code === "host.project_identity_conflict",
   );
   await host.close();
   assert.equal(closeCount, 1);
@@ -103,7 +103,7 @@ test("a held wait runs beside the project's queue: a later read or command is no
   release();
   assert.equal(await following, "changed");
   await assert.rejects(client.invoke({ ...bump, operation: "wait" } as HostCapabilityDefinition<void, number>, undefined),
-    (error: unknown) => error instanceof ActionError && error.code === "actions.dependency_missing" && error.cause instanceof CapabilityRegistryError
+    (error: unknown) => error instanceof ActionError && error.code === "actions.dependency_missing" && (error.cause instanceof ActionError && ["kernel.capability_invalid","kernel.capability_duplicate","kernel.capability_missing"].includes(error.cause.code))
       && error.message === error.cause.message);
   await host.close();
 });

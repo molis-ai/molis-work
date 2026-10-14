@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -6,12 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { KeychainUnavailableError } from "@molis-ai/molis-work-storage";
 
-import {
-  ModelProviderError,
-  ModelProviderStore,
-  createModelProviderTables,
-  type ModelSecretPort,
-} from "@molis-ai/molis-work-app-local-host";
+import { ModelProviderStore, createModelProviderTables, type ModelSecretPort } from "@molis-ai/molis-work-app-local-host";
 
 /** C6 的存储层：记录进目录库，密钥在服务连接里，记录只带连接的引用。 */
 
@@ -133,16 +129,19 @@ test("不合法的 id、格式和空 Base URL 都被挡住", async () => {
   const item = await fixture();
   try {
     const base = { display_name: "x", base_url: "https://x.test", api_format: "anthropic-messages", credential_ref: REF } as const;
+    // SYSERR-01: invalid provider configuration does not save or alter a provider.
+    const before = item.store.list();
     assert.throws(() => item.store.upsert({ ...base, provider_id: "Bad Id" }),
-      (error: unknown) => error instanceof ModelProviderError && error.code === "model_provider.invalid");
+      (error: unknown) => (error instanceof ActionError && ["model_provider.invalid"].includes(error.code)) && error.code === "model_provider.invalid");
     assert.throws(() => item.store.upsert({ ...base, provider_id: "ok", api_format: "grpc" as never }),
-      (error: unknown) => error instanceof ModelProviderError);
+      (error: unknown) => (error instanceof ActionError && ["model_provider.invalid"].includes(error.code)));
     assert.throws(() => item.store.upsert({ ...base, provider_id: "ok", base_url: "   " }),
-      (error: unknown) => error instanceof ModelProviderError);
+      (error: unknown) => (error instanceof ActionError && ["model_provider.invalid"].includes(error.code)));
     const { credential_ref: _, ...withoutKey } = base;
     assert.throws(() => item.store.upsert({ ...withoutKey, provider_id: "nokey" }),
-      (error: unknown) => error instanceof ModelProviderError && error.code === "model_provider.invalid", "新供应商必须指向一条连接的密钥");
+      (error: unknown) => (error instanceof ActionError && ["model_provider.invalid"].includes(error.code)) && error.code === "model_provider.invalid", "新供应商必须指向一条连接的密钥");
     assert.equal(item.store.get("nokey"), null);
+    assert.deepEqual(item.store.list(), before);
   } finally {
     item.db.close();
     await rm(item.directory, { recursive: true, force: true });

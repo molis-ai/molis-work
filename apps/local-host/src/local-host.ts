@@ -1,3 +1,4 @@
+import { hostErrors } from "./host-errors.js";
 import { withSceneConfigurationActions } from "./scene-configuration-actions.js";
 import { HomeLine } from "./home-line.js";
 import { randomUUID } from "node:crypto";
@@ -42,18 +43,7 @@ export interface LocalHostOptions<Runtime> {
 /** How long one queued project operation may hold everything else of the project before the log names it. */
 const HELD_IN_LINE_WARN_MS = 20_000;
 
-export class LocalHostError extends Error {
-  constructor(
-    readonly code:
-      | "host.closed"
-      | "host.project_invalid"
-      | "host.project_identity_conflict"
-      | "host.project_closing",
-    message: string,
-  ) {
-    super(message);
-  }
-}
+
 
 interface RuntimeEntry<Runtime> {
   reference: LocalHostProjectReference;
@@ -71,7 +61,7 @@ function normalizeReference(reference: LocalHostProjectReference): LocalHostProj
     storage_key: reference.storage_key.trim(),
   };
   if (!normalized.project_id || !normalized.storage_key) {
-    throw new LocalHostError("host.project_invalid", "Local Host Project reference 不能为空");
+    throw hostErrors.project_invalid("Local Host Project reference 不能为空");
   }
   return normalized;
 }
@@ -164,7 +154,7 @@ export class LocalHost<Runtime> {
     return { registerProvider: (registration: ActionProviderRegistration) => {
       this.assertRunning();
       if (entry && (entry.state === "closing" || this.entries.get(entry.reference.storage_key) !== entry)) {
-        throw new LocalHostError("host.project_closing", "能力来源所属项目已关闭");
+        throw hostErrors.project_closing("能力来源所属项目已关闭");
       }
       if (registration.provider.project_id && registration.provider.project_id !== project?.project_id) {
         throw new ActionError("actions.scope_mismatch", "能力来源不能注册到其他项目");
@@ -320,7 +310,7 @@ export class LocalHost<Runtime> {
     return { invokeSync: (caller, capability, input) => {
       this.assertRunning();
       if (entry.state !== "ready" || this.entries.get(project.storage_key) !== entry) {
-        throw new LocalHostError("host.project_closing", "同步能力需要已打开且仍有效的项目运行环境");
+        throw hostErrors.project_closing("同步能力需要已打开且仍有效的项目运行环境");
       }
       if (caller.project_id !== project.project_id) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
       if (caller.audience !== "plugin") throw new ActionError("actions.forbidden", "同步入口只接受可信插件 SDK 上下文");
@@ -607,7 +597,7 @@ export class LocalHost<Runtime> {
     const normalized = normalizeReference(reference);
     this.assertCompatibleReference(normalized);
     if (this.closingKeys.has(normalized.storage_key)) {
-      throw new LocalHostError("host.project_closing", "这个 Project 的 Local Host runtime 正在关闭");
+      throw hostErrors.project_closing("这个 Project 的 Local Host runtime 正在关闭");
     }
     const existing = this.entries.get(normalized.storage_key);
     if (existing) {
@@ -638,7 +628,7 @@ export class LocalHost<Runtime> {
     this.assertRunning();
     const sameProject = [...this.entries.values()].find(entry => entry.reference.project_id === reference.project_id);
     if (sameProject && sameProject.reference.storage_key !== reference.storage_key) {
-      throw new LocalHostError("host.project_identity_conflict", "同一 Project 不能同时使用两个存储位置");
+      throw hostErrors.project_identity_conflict("同一 Project 不能同时使用两个存储位置");
     }
     const existing = this.entries.get(reference.storage_key);
     if (existing) this.assertSameIdentity(existing.reference, reference);
@@ -649,14 +639,11 @@ export class LocalHost<Runtime> {
     next: LocalHostProjectReference,
   ): void {
     if (current.project_id !== next.project_id || current.project_id !== next.project_id) {
-      throw new LocalHostError(
-        "host.project_identity_conflict",
-        `同一 storage_key 不能映射到不同 Project: ${current.project_id} / ${next.project_id}`,
-      );
+      throw hostErrors.project_identity_conflict(`同一 storage_key 不能映射到不同 Project: ${current.project_id} / ${next.project_id}`);
     }
   }
 
   private assertRunning(): void {
-    if (this.state !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
+    if (this.state !== "running") throw hostErrors.closed("Local Host 已关闭");
   }
 }

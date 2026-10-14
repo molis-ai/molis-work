@@ -5,6 +5,10 @@ import { defineErrorCodes } from "@molis-ai/molis-work-plugin-sdk";
  * themselves, outside any one plugin. The kind is the sort of failure, and every edge turns it into the status (SDK `actionHttpStatus`).
  */
 export const hostErrors = defineErrorCodes("host", {
+  closed: "invalid",
+  project_invalid: "invalid",
+  project_identity_conflict: "invalid",
+  project_closing: "invalid",
   /**
    * A request to the local web host failed its Host, Origin or control-token check. One code for every one of those checks, so the answer
    * never says which check failed (docs/system/SECURITY-INVARIANTS.md S-02, S-03, S-05).

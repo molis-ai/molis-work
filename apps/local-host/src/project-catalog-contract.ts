@@ -15,6 +15,7 @@ export function isOwnedCatalogOwner(owner: string | null | undefined): boolean {
  * replaced answered at every edge.
  */
 const hostCatalogErrors = defineErrorCodes("catalog", {
+  project_recovery_unsupported_schema: "invalid",
   unknown_database: "invalid",
   unsupported_schema: "invalid",
   reader_too_old: "invalid",

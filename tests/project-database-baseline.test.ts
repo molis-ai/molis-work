@@ -53,7 +53,7 @@ test("a project database at another version, or with tables but no version, is r
       const before = shapeOf(path);
       assert.throws(() => new LocalProjectDatabase(path), (error: unknown) => error instanceof SqliteSchemaVersionError && error.path === path);
       // J7A-01/J7A-02: recovery refuses the current owner code and preserves the database shape.
-      assert.throws(() => new LocalProjectDatabase(path, { existingOnly: true }), { code: "catalog.project_recovery_unsupported_schema" });
+      assert.throws(() => new LocalProjectDatabase(path, { existingOnly: true }), { code: "catalog.project_recovery_unsupported_schema", message: "catalog.project_recovery_unsupported_schema", kind: "invalid" });
       assert.deepEqual(shapeOf(path), before, "nothing is upgraded in place");
     }
   } finally { rmSync(directory, { recursive: true, force: true }); }

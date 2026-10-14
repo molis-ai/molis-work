@@ -9,7 +9,7 @@ import os from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { ModelProviderError, ModelProviderStore, createModelProviderTables, readProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { ModelProviderStore, createModelProviderTables, readProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { isLoopbackHostname, isLoopbackHttpOrigin, isLoopbackHttpUrl, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
@@ -62,7 +62,7 @@ test("S-09 a model provider's address is HTTPS or plain HTTP on the local machin
     for (const base_url of ["https://models.example/v1", "http://localhost:11434/v1", "http://127.0.0.1:11434/v1", "http://[::1]:11434/v1"]) assert.doesNotThrow(() => store.check(input(base_url)), base_url);
     for (const base_url of ["http://models.example/v1", "http://127.0.0.1.evil.example/v1", "http://0.0.0.0:11434/v1", "ftp://127.0.0.1/", "https://user:pass@models.example/v1", "http://user@localhost:11434/v1",
       "https://models.example/v1?key=secret", "https://models.example/v1#fragment", "file:///etc/passwd", "not a url"]) {
-      assert.throws(() => store.check(input(base_url)), (error: unknown) => error instanceof ModelProviderError, base_url);
+      assert.throws(() => store.check(input(base_url)), (error: unknown) => (error instanceof ActionError && ["model_provider.invalid"].includes(error.code)), base_url);
     }
   } finally { db.close(); }
 });

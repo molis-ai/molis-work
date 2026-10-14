@@ -194,14 +194,7 @@ export {
   readGitStatus,
   type GitStatusResult,
 } from "./git-status.js";
-export {
-  ModelProviderError,
-  ModelProviderStore,
-  createModelProviderTables,
-  type ModelProviderSqlite,
-  type ModelProviderStoreOptions,
-  type ModelSecretPort,
-} from "./model-provider-store.js";
+export { ModelProviderStore, createModelProviderTables, type ModelProviderSqlite, type ModelProviderStoreOptions, type ModelSecretPort } from "./model-provider-store.js";
 export { MINIMAX_ANTHROPIC_BASE_URL, MODEL_PROVIDER_TEMPLATES, modelProviderTemplate } from "./model-provider-templates.js";
 export {
   composeAgentHost,

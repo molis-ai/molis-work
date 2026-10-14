@@ -1,5 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { CapabilityRegistryError, settleCall, type CallContext, type CallDescription, type CallSettled } from "@molis-ai/molis-work-kernel";
+import { settleCall, type CallContext, type CallDescription, type CallSettled } from "@molis-ai/molis-work-kernel";
 
 /** What a settlement needs of a typed capability; deliberately not a `HostCapabilityDefinition`, which only the registry takes. */
 interface TypedReference {
@@ -23,7 +23,7 @@ export function settleTyped<T>(settled: CallSettled | undefined, caller: CallCon
   const invoke = async () => {
     try { return await run(); }
     catch (error) {
-      if (error instanceof CapabilityRegistryError && error.code === "kernel.capability_missing") {
+      if (error instanceof ActionError && error.code === "kernel.capability_missing") {
         throw new ActionError("actions.dependency_missing", error.message, { cause: error });
       }
       throw error;

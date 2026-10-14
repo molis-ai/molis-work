@@ -1,3 +1,4 @@
+import { hostErrors } from "./host-errors.js";
 import { informationActionProvider } from "./information-actions.js";
 import { bindHomeSide, releaseHomeSide, type PluginFixture } from "./home-side.js";
 import { homeActionProvider } from "./home-actions.js";
@@ -43,7 +44,7 @@ import { ensureProjectPluginActions, prepareInstalledPlugins } from "./project-p
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
-import { LocalHost, LocalHostError, type LocalHostOptions } from "./local-host.js";
+import { LocalHost, type LocalHostOptions } from "./local-host.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { registerProjectCapabilities } from "./project-capabilities.js";
@@ -276,7 +277,7 @@ export class MolisWorkLocalHost {
 
   /** A borrowed Web transport keeps the shared connection alive until its external Host closes. */
   ensureWebCatalog(home: string, open: Parameters<typeof createWebCatalogAccess>[1]) {
-    if (this.closing || this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
+    if (this.closing || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     const canonicalHome = path.resolve(home);
     if (this.options.homeDirectory && path.resolve(this.options.homeDirectory) !== canonicalHome || this.webCatalog && this.webCatalog.home !== canonicalHome) {
       throw new ActionError("actions.home_mismatch", "项目目录与 Host 必须属于同一个 Home");
@@ -286,7 +287,7 @@ export class MolisWorkLocalHost {
 
   /** Platform startup injects the existing Catalog owner before accepting requests. */
   configurePersonalPlanning(home: string, withCatalog: LocalWebCatalogRunner): void {
-    if (this.closing || this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
+    if (this.closing || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     const canonicalHome = path.resolve(home);
     if (this.personalPlanningHome && this.personalPlanningHome !== canonicalHome) throw new ActionError("actions.scope_mismatch", "不能把个人规划服务绑定到其他 Home");
     this.personalPlanningHome = canonicalHome;
@@ -297,7 +298,7 @@ export class MolisWorkLocalHost {
 
   /** A transport borrows this service; only the Host owns its lifetime. */
   ensureAgentService(homeDirectory: string, create: () => AgentHostComposition): AgentHostComposition {
-    if (this.closing || this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
+    if (this.closing || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     const home = path.resolve(homeDirectory);
     if (this.options.homeDirectory && path.resolve(this.options.homeDirectory) !== home || this.agents && this.agents.home !== home) {
       throw new ActionError("actions.home_mismatch", "Agent 服务与 Host 必须属于同一个 Home");
@@ -366,7 +367,7 @@ export class MolisWorkLocalHost {
   }
 
   private async prepareHomeActions(): Promise<void> {
-    if (this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
+    if (this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     // The Home keeps its failed ready promise; unrelated providers remain available while its HTTP entry reports that failure.
     await this.homePlugins?.ready().catch(() => undefined);
     this.systemFunctions?.refresh();

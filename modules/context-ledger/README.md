@@ -39,7 +39,7 @@ pnpm --filter @molis-ai/molis-work-module-context-ledger build
 已有行为示例与回归：[context-ledger.test.ts](../../tests/context-ledger.test.ts)、[handoff-ledger.test.ts](../../tests/handoff-ledger.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/context-ledger.test.ts tests/handoff-ledger.test.ts
+node scripts/run-tests.mjs tests/context-ledger.test.ts tests/handoff-ledger.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。

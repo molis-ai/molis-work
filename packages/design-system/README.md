@@ -77,7 +77,7 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 
 ```bash
 ./node_modules/.bin/tsc -p packages/design-system
-node --import tsx --test --test-concurrency=1 tests/primitives.test.ts tests/visual-foundation.test.ts tests/coss-control-language.test.ts
+node scripts/run-tests.mjs tests/primitives.test.ts tests/visual-foundation.test.ts tests/coss-control-language.test.ts
 ```
 
 隔离预览（不要动用户 4180）：

@@ -87,7 +87,7 @@ pnpm test:run tests/artifact-browser.test.ts tests/plugin-artifact-client.test.t
 文档导入回归：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/artifact-document-import.test.ts tests/document-import-providers.test.ts tests/catalog-connectors.test.ts tests/artifact-browser.test.ts tests/artifacts-module.test.ts tests/plugin-artifact-client.test.ts
+node scripts/run-tests.mjs tests/artifact-document-import.test.ts tests/document-import-providers.test.ts tests/catalog-connectors.test.ts tests/artifact-browser.test.ts tests/artifacts-module.test.ts tests/plugin-artifact-client.test.ts
 ```
 
 2026-09-22 本地验证：全构建、相关类型检查与上述回归通过；浏览器使用中文 Markdown 文件走通主工作台入口、文件选择、保存、正文读取、重复导入复用、服务重启恢复和缺少凭据后的恢复操作，矮窗口可滚动到提交按钮。在线文档 API 只核对了官方文档并通过模拟响应测试；真实 Notion、飞书、Lark、Google 账号联调及用户验收仍为 `UNVERIFIED`。正文当前是保留换行的安全文本预览，不提供完整 Markdown 富文本排版。

@@ -7,6 +7,7 @@ import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 import { runFile } from "../scripts/ci-linux-probe/run.mjs";
 import { failing, FAILING, STATUSES, summaryMarkdown, totals } from "../scripts/ci-product-subset/report.mjs";
+import { blockingJobs, blockingTestRuns, jobBlock, workflow } from "./fixtures/ci-workflow.js";
 
 // specs/repository-anti-corruption §4.7 (W2-16, decision #14): the runner of the CI product subset (scripts/ci-product-subset.mjs)
 // and the job that calls it. Each rule is mutation-verified here on scratch repositories of small fake test files: what counts and
@@ -421,15 +422,6 @@ test("only a counted file with a failing result fails the subset; a quarantined 
 // which leaves the required check as it is. Until then these lines of .github/workflows/ci.yml must stay as they are; carrying the
 // decision out means changing the first of the two tests below in the same pull request (the second, the blocking job running the
 // subset's own rules, stays true after the join).
-const workflow = readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
-const jobBlock = (name: string) => {
-  const lines = workflow.split("\n");
-  const start = lines.findIndex((line) => line === `  ${name}:`);
-  assert.notEqual(start, -1, `ci.yml has a job ${name}`);
-  const length = lines.slice(start + 1).findIndex((line) => /^  [A-Za-z0-9_-]+:\s*$/.test(line));
-  return lines.slice(start, length === -1 ? undefined : start + 1 + length).join("\n");
-};
-
 test("ci.yml: the product subset is an ubuntu job that cannot fail the workflow, that Verify does not wait for yet, and that is stopped by its own time limit", () => {
   const job = jobBlock("product-subset");
   assert.match(job, /^    runs-on: ubuntu-latest$/m);
@@ -458,6 +450,8 @@ test("ci.yml: the product subset is an ubuntu job that cannot fail the workflow,
   assert.match(jobBlock("verify"), /^    name: Verify$/m, "the required check keeps its name");
 });
 
-test("ci.yml: the blocking job runs the subset's own rules", () => {
-  assert.match(jobBlock("architecture-boundaries"), /run: node scripts\/run-tests\.mjs tests\/ci-product-subset\.test\.ts tests\/ci-product-subset-plan\.test\.ts$/m);
+test("ci.yml: a blocking job runs the subset's own rules", () => {
+  for (const file of ["tests/ci-product-subset.test.ts", "tests/ci-product-subset-plan.test.ts"]) {
+    assert.ok(blockingTestRuns().some((words) => words.includes(file)), `a job that verify needs (${blockingJobs().join(", ")}) runs ${file}`);
+  }
 });

@@ -2260,3 +2260,5 @@ R4a2按事实owner收口同词context错误：私人工作绑定产出的context
 R4a3按已登记Work owner承接Workspace句柄/文件快照校验与Session目录更新回滚的错误：只将workspace.invalid_ref/handle_not_opaque/invalid_path/invalid_payload/change_rolled_back/recovery_required及实际消费者变成work.workspace.*，字段、opaque句柄、安全路径、内容、事务回滚/重试不变。R4A3-01：真实校验仍拒绝路径泄露、越界及错误载荷，目录变更失败仍回滚或明确恢复失败，返回现行owner码；R4A3-02：公开错误union/API及现行比较同步、workspace.name等业务键和历史SQL保持；R4A3-03：真实生产路径与现有断言、资源/门禁及组合全量通过后验收。与前两片共享组合一次验证，不新增测试专用API。
 
 R4a1 b4153282b经统筹独立只读复核：3,099份跟踪JS/TS/SQL未剩21种完整旧错误token，22TS逆名AST一致，HTTP状态/交接SQL/回执与业务词元保持，无新Blocker/P1。R4a2 19a2a9568准备15TS/78词元，独立只读同样无新Blocker/P1，剩25个context业务词元保持；API仅app-host错误union同步，health通过，补工厂透传说明不改行为。R4a3 ac65c8789准备5TS/51错误词元，逆名AST一致、API仅workspace-artifacts错误union、health通过；真实目录回滚/路径拒绝断言保留。三片均未构建或真实运行，不能据静态复核验收。
+
+R4b沿已接受owner规则准备Artifacts首片：Module产出的artifact.<原因>→artifacts.artifact.<原因>，成果文档导入的document.<原因>→artifacts.document.<原因>，已是artifacts.*的现行码保持。生产工厂、HTTP/动作消费者及测试/活文档同片更新；artifact.*业务事件/引用路径、document.id/version合同示例、导入文档类型和历史数据不迁。R4B-01：实际成果注册/导入拒绝使用现行owner码，原消息/kind/details、权限、幂等与读回保持；R4B-02：只迁错误语境，完整消费者与工厂类型API同步，业务与SQL保持；R4B-03：owner真实定向、资源/健康/边界与共享组合全量通过才验收。当前排队期间仅准备源码，不另起构建。

@@ -426,19 +426,20 @@ test("Functions client clears leftover preview text when switching records and h
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-destination/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-source/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /agent\.mcp/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /if \(switching\) previewInput\.value = rec\.last_preview\?\.input \|\| ""/);
+  // The preview box ([data-functions-preview-input]) is sampleText in the client.
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /if \(switching\) sampleText\.value = rec\.last_preview\?\.input \|\| ""/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaHead\.hidden = kind === "noul"/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /addChoiceRow/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const addChoice = \(key, description\) =>/); // the choice rows (shortened from addChoiceRow, fa63ade24)
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /scene_map/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-map/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /select\.className = "mw-select"/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /select\.className = "mw-input"/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const hints =/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const followContext =/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /syncCriteriaPanel/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const syncPanel = \(\) =>/); // the criteria panel sync (shortened from syncCriteriaPanel, fa63ade24)
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /matchesSubjects/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /if \(event\.target\.matches\("\[data-functions-source\]"\)\)/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /syncCriteriaPanel\(\);/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /syncPanel\(\);/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaForDestination/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /subject_kinds: dest\?\.subject_kinds/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /sel = rec;\s*records = records\.some/);

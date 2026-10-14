@@ -62,7 +62,8 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /data-lingguang-back[\s\S]{0,400}await loadList\(\)/);
   // Alchemist Studio is not a list-and-editor plugin; its content re-render keeps the reader's scroll position.
-  assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /const scroll=content\.scrollTop;render\w+\([^)]*\);content\.scrollTop=scroll;/);
+  // (Its main pane is mainEl and the redraws are paintStudy / paintDir.)
+  assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /const scroll=mainEl\.scrollTop;paint\w+\([^)]*\);mainEl\.scrollTop=scroll;/);
 });
 
 test("Functions 静默刷新当前草稿时不重挂编辑器，保存失败保留表单", () => {

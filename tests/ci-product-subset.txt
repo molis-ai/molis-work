@@ -67,7 +67,6 @@ tests/agent-pending-questions.test.ts
 tests/agent-plugin-identity.test.ts
 tests/agent-prompt-layers.test.ts
 tests/agent-review-http.test.ts
-tests/agent-review-standing.test.ts
 tests/agent-review-surface.test.ts
 tests/agent-run-wait.test.ts
 tests/agent-start-authority.test.ts
@@ -291,6 +290,7 @@ tests/prologue-start-refusal.test.ts
 tests/prologue-status-projection.test.ts
 tests/prologue-step-amend.test.ts
 tests/prologue-stop-review.test.ts
+tests/prologue-storage-claims.test.ts
 tests/prologue-stream.test.ts
 tests/prologue-subagent-turns.test.ts
 tests/prologue-subagents.test.ts

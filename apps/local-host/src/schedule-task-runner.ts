@@ -107,7 +107,8 @@ export function createHostScheduledTaskRunner(options: {
           let settled = false, stop = () => {};
           const finish = (outcome: () => void) => { if (settled) return; settled = true; clearTimeout(timer); control?.signal.removeEventListener("abort", aborted); queueMicrotask(stop); outcome(); };
           const timer = setTimeout(() => finish(() => reject(new Error("到点执行超时"))), Math.max(0, deadline - Date.now()));
-          const aborted = () => finish(() => reject(control!.signal.reason ?? new Error("到点执行已取消")));
+          // An aborted signal always carries its reason (an AbortError when the caller gave none).
+          const aborted = () => finish(() => reject(control!.signal.reason));
           control?.signal.addEventListener("abort", aborted, { once: true });
           stop = adapter.observe(handle.ref, current => {
             if (settled) return;

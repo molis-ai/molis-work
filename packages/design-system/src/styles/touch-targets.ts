@@ -60,7 +60,7 @@ export const TOUCH_TARGET_STYLES = `
     ${ASSIST} .assistant-tabbar { height: 50px; gap: 0; }
     ${ASSIST} :is(.assistant-tab, .assistant-tab-new) { height: 44px; margin-bottom: 0; }
     ${ASSIST} .assistant-works { top: 52px; }
-    ${ASSIST} :is(.assistant-choice-row, .assistant-code-head) { min-height: 44px; }
+    ${ASSIST} .assistant-code-head { min-height: 44px; }
     ${ASSIST} .assistant-link { padding-block: 15px; }
     ${ASSIST} .assistant-inline-object { position: relative; min-width: 44px; justify-content: center; }
     ${ASSIST} .assistant-inline-object::after { content: ""; position: absolute; inset: -12px -2px; }

@@ -140,7 +140,7 @@ test("durable interrupted prefix retains content, settled tools and one closed q
     try {
       const { latest_run: view } = await adapter.readSession({ session_id: ref.session_id, runtime_id: "prologue" });
       assert.equal(view?.phase, closed ? "failed" : "reconcile-required");
-      assert.deepEqual(view?.turns.find(turn => turn.text === "不要改动测试")?.steer, { id: "steer-1", state: "unconfirmed" });
+      assert.deepEqual(view?.turns.find(turn => turn.text === "不要改动测试")?.steer, { id: "steer-1", state: "unread" });
       assert.deepEqual(view?.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text), ["读取文件后再问你。", "已显示但尚未收尾的正文。"]);
       assert.equal(view?.activity.find(activity => activity.call_id === "read-1")?.state, "completed");
       assert.equal(view?.activity.find(activity => activity.call_id === "ask-1")?.state, "unknown");

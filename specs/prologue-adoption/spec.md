@@ -4,7 +4,7 @@
 
 > 2026-10-13 晚已与 main（#471 Computer Use、#472 旧采用树）对账：实现以 main 为准，#408 只留 main 没有的部分；Molis 依赖换成过渡包。对账记录见 §6.0a，接续入口见 §7。
 
-状态：执行中（2026-10-13 晚：#408 已与 main 对账，实现以 main 为准，只留 S1–S3 适配、PA-22/PA-23 证据、安全登记与本文；Molis 依赖换成过渡包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu.tgz`（Prologue `release/molis-interim-p1-cu-2` `08b84296`，两个父提交 `95cd901d`、`d4908c11` 在 Prologue main，用户 2026-10-13 决定）；A0 工程通过；A1 改为核对 #472（缺口见 §5.6a）；P1 冻结；P2a–P2g、S4 已在 Prologue main（#7–#16），不在本包，随 P3 第二次换包；P2h 在做（未提交），P2i、P3–P6、A2–A5 未开始；W4-06 仍是 P3 硬前置）
+状态：执行中（2026-10-13 晚：#408 已与 main 对账，实现以 main 为准，只留 S1–S3 适配、PA-22/PA-23 证据、安全登记与本文；Molis 依赖换成过渡包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz`（Prologue `release/molis-interim-p1-cu-image` `923e5a40`，在 `08b84296` 上接 main 的窗口图 `d8c96e29`；`08b84296` 的两个父提交 `95cd901d`、`d4908c11` 在 Prologue main，用户 2026-10-13 决定留在 P2 之前）；A0 工程通过；A1 改为核对 #472（缺口见 §5.6a）；P1 冻结；P2a–P2g、S4 已在 Prologue main（#7–#16），不在本包，随 P3 第二次换包；P2h 在做（未提交），P2i、P3–P6、A2–A5 未开始；W4-06 仍是 P3 硬前置）
 
 目标完成等级：Prologue **完整采用范围内部完整**——§2 原 1–23 项与存储/预算等既有决定逐项完成采用、验证或按已定边界不做；新增 24/25 项使 Coding 与个人助理共用协作事实及外部条件等待。需要接入的路径在真实执行、界面、权限及异常恢复中可顺畅试用。A0 只是当前基础切片，不是整线完成定义。工程通过、真实产品实操、用户本人验收分别记录。A0 基础采用已完成（工程通过），当前在做 P2 SDK 机制（见 §7.1、§7.5）。授权和工作规则以 §7.8 为准：可推送自己的分支（先跑 secrets 检查、用 SSH 地址）；Molis 侧只往交接 PR #408 提交，Prologue 侧每刀单独 PR；不自己合并、不改真实 Home 或安装版。
 
@@ -129,7 +129,7 @@ SDK 按四层装配：**不可关闭的边界**是身份、权限只收窄、协
 
 ### 3.2 包与集成顺序
 
-**现行（2026-10-13 晚）**：Molis 依赖过渡包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu.tgz`，来源 Prologue `release/molis-interim-p1-cu-2` 的合并提交 `08b84296` = merge(`95cd901d`, `d4908c11`)。`95cd901d` 是 `82488fa0`（PR #6，P1 文档）加输入回执第三刀的修正 H16（名单里没有 `acknowledge-inputs` 就不写编号说明，PR #17）；`d4908c11` 是桌面 Computer Use（PR #15）。两个父提交都在 Prologue main 上，合并提交本身不在。为什么不用 main 末端：P2d 让没绑节点的跑看不到 `dispatch-subagent` 与 `board-*`，并删了 `claims`；Molis 在 P3 之前还在用它们，X6 又不许留兼容路径（用户 2026-10-13 决定用过渡包）。第二次换包放在 P3 的同一个改动里，从 Prologue main 的具名提交打，带 P2a–P2g、S4 及之后的 P2h、P2i，并在那次改动里做 Molis 默认路径验证。来源与重建见 [vendor README](../../vendor/prologue-sdk/README.md)。下面两段是 10-11、10-12 的记录。
+**现行（2026-10-14）**：Molis 依赖过渡包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz`，来源 Prologue `release/molis-interim-p1-cu-image` 的 `923e5a40`（在 `08b84296` 上接 main 的 `d8c96e29`，树不够时只把这一步的窗口图交回，并接受节点标识）。`08b84296` = merge(`95cd901d`, `d4908c11`)。`95cd901d` 是 `82488fa0`（PR #6，P1 文档）加输入回执第三刀的修正 H16（名单里没有 `acknowledge-inputs` 就不写编号说明，PR #17）；`d4908c11` 是桌面 Computer Use（PR #15）。两个父提交都在 Prologue main 上，合并提交本身不在。为什么不用 main 末端：P2d 让没绑节点的跑看不到 `dispatch-subagent` 与 `board-*`，并删了 `claims`；Molis 在 P3 之前还在用它们，X6 又不许留兼容路径（用户 2026-10-13 决定用过渡包）。第二次换包放在 P3 的同一个改动里，从 Prologue main 的具名提交打，带 P2a–P2g、S4 及之后的 P2h、P2i，并在那次改动里做 Molis 默认路径验证。来源与重建见 [vendor README](../../vendor/prologue-sdk/README.md)。下面两段是 10-11、10-12 的记录。
 
 旧采用树的在途包来自 `c4b9fde3`，含微压缩、独占写声明、App 接手 yield 三项增强。当前 A0 新实现树仍保留主线 `side-panel-memory` 包及依赖，实际来源见 [vendor README](../../vendor/prologue-sdk/README.md)；组合源码不等于已换包。`c4b9fde3 + S1` 的组合包尚未构建，包、锁文件、来源记录与默认消费路径均待构建时段完成。
 
@@ -579,6 +579,15 @@ main 已满足（证据是 main 的用例，在对账后的树上重跑，结果
 4. 带着未生效的切换停止一轮：不向新模型发任何请求、结束的视图去掉 `requested`，没有断言。
 5. 冷读：关掉再打开适配器后，运行视图仍显示 `model_switch.now` 与开跑模型，没有断言。
 6. §4.3「从断点继续」后重新解析模型与凭据、不悄悄换模型：没有覆盖换过模型之后的情形。
+
+**2026-10-13 晚的进展（分支 `feature/prologue-adoption-a1-checks`）：**
+
+- 缺口 1 已补：`prologue-model-controls` 的 6 条、`coding-model-controls.e2e`、`prologue-stream` 里新帧那一条与 `coding-timeline.e2e` 的逐轮变更段都写了 PA-24。
+- 缺口 2 补了三个分支，各自断言拒绝之后什么都不变，也没有请求发到别的模型：提示缓存跨接口格式、目标模型没标力度、模型不可用。另外两个没补：视觉要在开跑时带图片，没有 Runtime 支持切换的场景用真实 Node 适配器造不出来。
+- 补用例时修了一个真缺陷：`prompt_cache` 的取值是 `"off" | "best-effort" | "required"`，原判断只看真假，提示缓存明确关掉的一轮也被拒绝换到别的接口格式。现在只有开着缓存才拒绝，两边各有一条用例。
+- 缺口 4 已补：申请换模型之后停止这一轮，新模型零请求，结束的视图不再显示 `requested`。
+- 缺口 5 已补：申请换模型、下一次模型调用换成新模型之后结束这一轮，关掉适配器再重开，结束的视图仍显示 `model_switch: { now }`、开跑模型与那一条换模型活动。（更正：第一次写这条用例时让第一次调用直接收尾，这一轮只调了一次模型，换模型根本没生效，看起来像冷读丢了；用例改成第一次调用要一个工具、逼出第二次调用之后，冷读是对的。不是产品缺陷。）
+- 缺口 3（申请换模型后撤权）、缺口 6（从断点继续之后的模型与凭据）没做。
 
 PA-12 仍未完成：写后诊断（第 9 项，A2）与 Alchemist 的结构化生成（第 11 项，A3）都还没有实现。另记：`prologue-frozen.ts` 的 `throw new Error("思考力度只能是快速、平衡或深入")` 是普通 Error，归错误模型 W3-02-G。
 

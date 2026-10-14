@@ -17,7 +17,7 @@ import { renderChoice } from "./primitives/field.js";
 import { type AttrValue, cx, escapeHtml, renderAttrs } from "./primitives/html.js";
 
 export type InteractionTone = "waiting" | "progress" | "done" | "failed" | "quiet";
-export interface InteractionBadge { label: string; tone: InteractionTone; state?: StateRingState }
+export interface InteractionBadge { label: string; tone: InteractionTone; /** null for descriptions that do not express a state (such as an effect). */ state?: StateRingState | null }
 /** A button on an interaction part. `id` becomes `data-ix-action`; `attrs` lets the caller keep its own hooks. */
 export interface InteractionAction {
   id: string;
@@ -63,6 +63,7 @@ export interface InteractionQuestionView {
   /** Scopes element ids; unique on the page. */
   id: string;
   kicker: string;
+  state?: StateRingState;
   title: string;
   badge?: InteractionBadge;
   /** The earlier input this question is about, in the caller's words. */
@@ -83,12 +84,16 @@ export interface InteractionQuestionView {
 export interface InteractionOperationView {
   id: string;
   kicker: string;
+  state?: StateRingState;
   title: string;
   badge?: InteractionBadge;
   target: { prefix: string; label: string; version?: string; changed?: boolean };
   about?: string;
   evidence?: InteractionEvidence;
   impact?: string;
+  /** Values the person may still change before it runs (the card's own client reads them like a questionnaire's). */
+  fields?: InteractionField[];
+  optionalLabel?: string;
   actions?: InteractionAction[];
   preview?: { title: string; rows: Array<[string, string]>; note?: string; actions?: InteractionAction[] };
   status?: { text: string; tone?: "failed" | "waiting"; busy?: boolean };
@@ -111,7 +116,7 @@ export function renderInteractionAction(action: InteractionAction): string {
 const actionRow = (actions: InteractionAction[] | undefined, hook: string, end = false) =>
   actions?.length ? `<div class="${cx("mw-ix-actions", end && "mw-ix-actions--end")}" ${hook}>${actions.map(renderInteractionAction).join("")}</div>` : "";
 export function renderInteractionBadge(badge: InteractionBadge | undefined): string {
-  return badge ? `<span class="mw-ix-badge" data-ix-badge data-tone="${badge.tone}">${renderStateRing({ state: badge.state ?? ({ quiet: "idle", waiting: "answer", progress: "doing", done: "done", failed: "failed" } as const)[badge.tone] })}${esc(badge.label)}</span>` : `<span class="mw-ix-badge" data-ix-badge></span>`;
+  return badge ? `<span class="mw-ix-badge" data-ix-badge data-tone="${badge.tone}">${badge.state === null ? "" : renderStateRing({ state: badge.state ?? ({ quiet: "idle", waiting: "answer", progress: "doing", done: "done", failed: "failed" } as const)[badge.tone] })}${esc(badge.label)}</span>` : `<span class="mw-ix-badge" data-ix-badge></span>`;
 }
 function rows(pairs: Array<[string, string]>): string {
   return pairs.map(([label, value]) => `<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`).join("");
@@ -182,8 +187,8 @@ export function renderInteractionField(scope: string, field: InteractionField, o
       ${field.hint ? `<p class="mw-ix-hint" id="${esc(fieldId(scope, field.id, "hint"))}">${esc(field.hint)}</p>` : ""}<p class="mw-ix-error" id="${esc(fieldId(scope, field.id, "error"))}" data-ix-error${field.error ? "" : " hidden"}>${esc(field.error ?? "")}</p></div>
   </div>`;
 }
-const heading = (scope: string, view: { kicker: string; title: string; badge?: InteractionBadge; about?: string }, glyph: MolisWorkIcon, extra = "") =>
-  `<header class="mw-ix-head"><div class="mw-ix-heading"><span class="mw-ix-kicker">${icon(glyph)}<span data-ix-kicker>${esc(view.kicker)}</span></span><h3 id="${esc(`${scope}-title`)}">${esc(view.title)}</h3>${view.about ? `<p class="mw-ix-about" data-ix-about>${esc(view.about)}</p>` : ""}</div>${renderInteractionBadge(view.badge)}${extra}</header>`;
+const heading = (scope: string, view: { kicker: string; title: string; state?: StateRingState; badge?: InteractionBadge; about?: string }, glyph: MolisWorkIcon, extra = "") =>
+  `<header class="mw-ix-head"><div class="mw-ix-heading"><span class="mw-ix-kicker">${view.state ? renderStateRing({ state: view.state }) : icon(glyph)}<span data-ix-kicker>${esc(view.kicker)}</span></span><h3 id="${esc(`${scope}-title`)}">${esc(view.title)}</h3>${view.about ? `<p class="mw-ix-about" data-ix-about>${esc(view.about)}</p>` : ""}</div>${renderInteractionBadge(view.badge)}${extra}</header>`;
 const targetLine = (t: { prefix: string; label: string; version?: string; changed?: boolean }) =>
   `<p class="mw-ix-target">${icon("target")}<span>${esc(t.prefix)}</span><strong>${esc(t.label)}</strong>${t.version ? `<span class="mw-ix-version" data-ix-version${t.changed ? " data-changed" : ""}>${esc(t.version)}</span>` : ""}</p>`;
 const evidenceBlock = (evidence: InteractionEvidence | undefined) => evidence?.rows.length
@@ -209,7 +214,7 @@ export function renderInteractionOperation(view: InteractionOperationView): stri
   const result = view.result ? `<section class="mw-ix-result" data-ix-result tabindex="-1" aria-labelledby="${esc(`${scope}-result`)}"><span class="mw-ix-result__mark">${renderStateRing({ state: "done" })}</span><div class="mw-ix-result__body"><h4 id="${esc(`${scope}-result`)}">${esc(view.result.title)}</h4><p>${esc(view.result.body)}</p>${
     actionRow(view.result.actions, "")}${view.result.details ? `<div class="mw-ix-result__details" data-ix-result-details><h5>${esc(view.result.details.title)}</h5><p data-ix-result-text>${esc(view.result.details.body)}</p></div>` : ""}</div></section>` : "";
   return `<article class="mw-ix-card mw-ix-operation" data-ix-operation="${esc(scope)}" tabindex="-1" aria-labelledby="${esc(`${scope}-title`)}">${heading(scope, view, "zap")}${target}${
-    view.impact ? `<p class="mw-ix-impact">${icon("info")}<span>${esc(view.impact)}</span></p>` : ""}${actionRow(view.actions, "data-ix-actions")}${preview}${status}${actionRow(view.recovery, "data-ix-recovery")}${result}${evidenceBlock(view.evidence)}</article>`;
+    view.impact ? `<p class="mw-ix-impact">${icon("info")}<span>${esc(view.impact)}</span></p>` : ""}${view.fields?.length ? `<div class="mw-ix-fields" data-ix-fields>${view.fields.map(field => renderInteractionField(scope, field, view.optionalLabel)).join("")}</div>` : ""}${actionRow(view.actions, "data-ix-actions")}${preview}${status}${actionRow(view.recovery, "data-ix-recovery")}${result}${evidenceBlock(view.evidence)}</article>`;
 }
 /** Next steps beside a composer: at most one primary and one secondary; a busy step shows its progress. */
 export function renderInteractionNextSteps(steps: InteractionNextStep[], label = "下一步"): string {

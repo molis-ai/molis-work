@@ -7,6 +7,7 @@ import { ComputerDriver, type AppState, type DeskContext, type Target } from "./
 import type { ComputerRecords } from "./computer-records.js";
 import type { ComputerSettings } from "./computer-settings.js";
 import { type HelperConnection, type HelperEvent, type HelperStatus } from "./helper-connection.js";
+import { desktopRoundOutcome } from "./task-outcome.js";
 
 /** The helper methods the desk calls. A real connection satisfies this, and a test can stand in without starting one. */
 export type ComputerHelper = Pick<HelperConnection, "on" | "ensure" | "call" | "status" | "unsupported" | "problem" | "ready">;
@@ -46,6 +47,9 @@ export class ComputerDesk implements DeskContext {
   private context: { readonly run_id: string | null; readonly project_id: string | null; readonly goal: string } | null = null;
   /** When the last action reached the screen. Null until one does, so a confirm with nothing injected is the person's. */
   private lastInjectAt: number | null = null;
+  /** The window title last read this round, and files this round handed over, took out, or saw as the document. */
+  private seenTitle = "";
+  private readonly seenFiles: string[] = [];
   private readonly unsubscribe: () => void;
   private readonly surfaceDriver: ComputerDriver;
 
@@ -70,6 +74,8 @@ export class ComputerDesk implements DeskContext {
   pendingPersonMove = (): boolean => Date.now() - this.lastPersonMove < ComputerDriver.settleMs;
   recordStep = (step: Parameters<ComputerRecords["step"]>[1], png?: Uint8Array): void => { if (this.lease?.record_id) this.options.records.step(this.lease.record_id, step, png); };
   noteInjected = (): void => { this.lastInjectAt = Date.now(); };
+  noteWindow = (title: string): void => { this.seenTitle = title.trim(); };
+  noteFile = (name: string): void => { const base = name.trim(); if (base && !this.seenFiles.includes(base)) this.seenFiles.push(base); };
 
   mark = (summary: string, point: { x: number; y: number } | null): void => {
     if (this.mode !== "assistant") return;
@@ -153,8 +159,15 @@ export class ComputerDesk implements DeskContext {
     const record = this.lease.record_id ? this.options.records.get(this.lease.record_id) : null;
     if (record) {
       const unfinished = record.steps.filter(step => step.kind === "refused" || step.kind === "failed" || step.kind === "declined").map(step => step.summary);
-      this.options.records.finish(record.id, { outcome: outcome?.outcome ?? "completed", conclusion: outcome?.conclusion ?? "", unfinished });
+      const judged = desktopRoundOutcome(record.goal, {
+        ...(this.seenTitle ? { windowTitle: this.seenTitle } : {}),
+        files: [...this.seenFiles],
+        record: record.steps.map(step => step.summary),
+      }, outcome);
+      this.options.records.finish(record.id, { outcome: judged.outcome, conclusion: judged.conclusion, unfinished });
     }
+    this.seenTitle = "";
+    this.seenFiles.length = 0;
     this.lease = null;
     this.lastInjectAt = null;
     this.targetApp = null;
@@ -211,6 +224,8 @@ export class ComputerDesk implements DeskContext {
       const record = this.options.records.start({ session_id: sessionId, run_id: this.context?.run_id ?? null, project_id: this.context?.project_id ?? null, goal: this.context?.goal ?? "" });
       this.lease = { session_id: sessionId, record_id: record.id };
       this.lastInjectAt = null;
+      this.seenTitle = "";
+      this.seenFiles.length = 0;
       this.context = null;
       this.targetApp = null;
       this.mode = "assistant";

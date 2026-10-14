@@ -5,10 +5,8 @@ import type {
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { renderButton, renderTextarea, renderStatusMark, renderDirectoryRow, renderDirectoryPanel, renderDirectoryHeading, renderSidebar } from "@molis-ai/molis-work-design-system";
-import type {
-  AgentPendingQuestion,
-  AgentRunUsage,
-} from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type { CodingIdentityView } from "./identity.js";
 import {
   filterSessions,

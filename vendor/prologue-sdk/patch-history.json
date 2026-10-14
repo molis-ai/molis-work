@@ -11,10 +11,11 @@
     "repository": "https://github.com/molis-ai/prologue",
     "checkedOn": "2026-10-13",
     "mainHead": "b219d8592d6eae6de56dda3a7ebbb616bdd862f8",
-    "statement": "下面 commitsChecked 里的每个 Prologue 提交（各项的基线、提交，以及来源里写出的提交链）都是上游 main 头的祖先（git merge-base --is-ancestor；2026-10-08 核对 4f7110fe；2026-10-12 PR #4、#5 合并后上游 main 头是 f5ef12e6，`c4b9fde3` 随 a13bf067 进入 main，复核同样成立）。远端特性分支已不能当定位点，所以按提交号定位，不按分支名。2026-10-13 对 `b219d859` 复核：`f5ef12e6`（PR #5）、`d4908c11`（随 PR #15 `a47eb26d`）同样是祖先。当前包的来源 `08b84296` 不在 main 上（过渡包，用户 2026-10-13 决定），它的两个父提交在，见它的 provenance。",
+    "statement": "下面 commitsChecked 里除 `08b84296` 以外的每个 Prologue 提交（各项的基线、提交，以及来源里写出的提交链）都是上游 main 头的祖先（git merge-base --is-ancestor；2026-10-08 核对 4f7110fe；2026-10-12 PR #4、#5 合并后上游 main 头是 f5ef12e6，`c4b9fde3` 随 a13bf067 进入 main，复核同样成立）。远端特性分支已不能当定位点，所以按提交号定位，不按分支名。2026-10-13 对 `b219d859` 复核：`f5ef12e6`（PR #5）、`d4908c11`（随 PR #15 `a47eb26d`）同样是祖先。`08b84296` 是已换掉的过渡包来源，不在 main 上（用户 2026-10-13 决定），它的两个父提交在。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
+      "08b84296f81df1bd5f3429c2dc2997d18b72473a",
       "18a1c827c933eb22624a6904b71d704945567682",
       "22a1be0866eaa6241c49038aee51860226c73037",
       "46d8092e6057370012e8148c792d587f62a01275",
@@ -620,6 +621,14 @@
       "gitBlob": "40ef235087c15abd8c3e3b86c165d7720879f892",
       "commit": "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
       "description": "提交 `c4b9fde3`（A0 的三项 SDK 增强）。只在旧采用分支 `feat/prologue-adoption` 的 `77fde104` 上提交过，随 #472 进入 main 的历史，从未是 main 第一父链上的依赖；computer-use 包含它。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-interim-p1-cu.tgz",
+      "bytes": 1119945,
+      "sha256": "860081e2c480bc10821fe4dfc75d0ff164eadb35269f1b83c97c42c07f750eca",
+      "gitBlob": "d727e547543bf88deebe5a8e8c77ac5671de9394",
+      "commit": "08b84296f81df1bd5f3429c2dc2997d18b72473a",
+      "description": "提交 `08b84296`（分支 `release/molis-interim-p1-cu-2`，merge `95cd901d` 与 `d4908c11`；合并提交不在 Prologue main，两个父提交在）。2026-10-13 起是 main 的依赖（用户决定：P3 之前不用带 P2d 的 main 末端）。2026-10-14 被 interim-p1-cu-image 换掉：同一基线接上能在一步里收下窗口图的 `d8c96e29`。"
     }
   ],
   "notes": [

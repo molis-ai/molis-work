@@ -71,7 +71,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.recordOffer(work, offer, views),
+    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user", options.now);
@@ -500,7 +500,7 @@ test("background work a round or a card starts is followed through the plugin's 
     state = "running";
     await f.service.send({ work_id: sent.work.work_id, text: "给我一个再研究一次的按钮", request_id: "req-00000036" }, {});
     const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 3 && v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
-    const ran = await f.service.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
+    const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
     assert.deepEqual([ran.status, ran.outcome], ["running", "已开始，后台进行中"]);
     const cardJob = f.store.jobs("web-user", sent.work.work_id).find(item => item.card_id === ran.card_id)!;
     state = "failed";
@@ -531,7 +531,7 @@ test("running a card whose action starts a background job follows that job once,
   try {
     const sent = await f.service.send({ text: "给我一个研究按钮", request_id: "req-00000037" }, { project_ref: f.project });
     const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
-    const ran = await f.service.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
+    const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
     assert.deepEqual([ran.status, ran.outcome, next], ["running", "已开始，后台进行中", 1]);
     // One start, one followed job: it belongs to the card, and the work lists it once.
     const jobs = f.store.jobs("web-user", sent.work.work_id);
@@ -583,17 +583,17 @@ test("a suggested action becomes a card that runs exactly what it shows, once, a
     assert.deepEqual(ready.fields, [{ key: "text", label: "内容", value: "会后发纪要", editable: true }]);
     assert.equal(asking.status, "needs-input");
     // The person adjusts the editable field and clicks: exactly that runs, once.
-    const ran = await f.service.runCard(sent.work.work_id, ready.card_id, { revision: ready.revision, values: { text: "会后 24 小时内发纪要" } });
+    const ran = await f.service.offers.runCard(sent.work.work_id, ready.card_id, { revision: ready.revision, values: { text: "会后 24 小时内发纪要" } });
     assert.equal(ran.status, "done");
-    const again = await f.service.runCard(sent.work.work_id, ready.card_id, { revision: ready.revision, values: { text: "twice" } });
+    const again = await f.service.offers.runCard(sent.work.work_id, ready.card_id, { revision: ready.revision, values: { text: "twice" } });
     assert.equal(again.status, "done", "a second click reports the first outcome");
     assert.deepEqual(JSON.parse(JSON.stringify(f.notes.prepare("SELECT body FROM notes").all())), [{ body: "会后 24 小时内发纪要" }]);
     // Only the declared fields can change, and a missing one must be given.
-    await assert.rejects(f.service.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision }), /笔记写什么/);
-    await assert.rejects(f.service.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision, values: { other: "x" } }), /不能在这里修改/);
+    await assert.rejects(f.service.offers.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision }), /笔记写什么/);
+    await assert.rejects(f.service.offers.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision, values: { other: "x" } }), /不能在这里修改/);
     // Switched off after it was suggested: the card says so and runs nothing else in its place.
     f.store.setActionEnabled("web-user", actionKey({ capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" }), false);
-    const stale = await f.service.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision, values: { text: "late" } });
+    const stale = await f.service.offers.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision, values: { text: "late" } });
     assert.equal(stale.status, "stale");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1);
   } finally { await f.close(); }
@@ -612,8 +612,8 @@ test("a moment on a card is picked, not typed: the field says so, the exact inst
     const card = done.cards[0]!;
     assert.equal(card.status, "needs-input");
     assert.deepEqual(card.fields.find(field => field.key === "remind_at"), { key: "remind_at", label: "提醒时间", value: "", editable: true, input: "datetime" });
-    await assert.rejects(f.service.runCard(sent.work.work_id, card.card_id, { revision: card.revision, values: { remind_at: "" } }), /什么时候提醒你/);
-    const ran = await f.service.runCard(sent.work.work_id, card.card_id, { revision: card.revision, values: { remind_at: "2026-10-01T01:00:00.000Z" } });
+    await assert.rejects(f.service.offers.runCard(sent.work.work_id, card.card_id, { revision: card.revision, values: { remind_at: "" } }), /什么时候提醒你/);
+    const ran = await f.service.offers.runCard(sent.work.work_id, card.card_id, { revision: card.revision, values: { remind_at: "2026-10-01T01:00:00.000Z" } });
     assert.equal(ran.status, "done");
     assert.deepEqual(f.seen, [{ text: "给财务回邮件", remind_at: "2026-10-01T01:00:00.000Z" }], "the exact instant runs");
     const shown = ran.fields.find(field => field.key === "remind_at");
@@ -645,7 +645,7 @@ test("a suggestion whose moment has passed, or that counted days from another da
     view = await f.service.read(sent.work.work_id);
     assert.equal(view.cards[1]!.status, "stale");
     assert.match(view.cards[1]!.outcome ?? "", /2026-10-01 准备的/);
-    const clicked = await f.service.runCard(sent.work.work_id, view.cards[1]!.card_id, { revision: view.cards[1]!.revision });
+    const clicked = await f.service.offers.runCard(sent.work.work_id, view.cards[1]!.card_id, { revision: view.cards[1]!.revision });
     assert.equal(clicked.status, "stale");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "neither ran");
   } finally { await f.close(); }
@@ -810,7 +810,7 @@ test("a card a page prepared from the person's selection is checked like the Ass
   const source = { surface: "pages", title: "Pages" };
   try {
     const before = f.requests.length;
-    const placed = await f.service.offerFromPage({ message_id: "page-message-0001", source, card }, { project_ref: f.project });
+    const placed = await f.service.offers.offerFromPage({ message_id: "page-message-0001", source, card }, { project_ref: f.project });
     assert.equal(f.requests.length, before, "no model round starts");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "nothing runs before the click");
     assert.deepEqual([placed.card.status, placed.card.effect, placed.card.from, placed.card.source_object?.id], ["ready", "write", source, "doc-7"]);
@@ -818,24 +818,24 @@ test("a card a page prepared from the person's selection is checked like the Ass
     assert.equal(view.work.title, "记到笔记");
     assert.deepEqual(view.objects.map(object => [object.relation, object.subject.kind, object.subject.id, object.recorded_revision]), [["origin", "pages_document", "doc-7", "3"]]);
     // The same message delivered again shows the same card; nothing new is placed.
-    const again = await f.service.offerFromPage({ message_id: "page-message-0001", source, card }, { project_ref: f.project });
+    const again = await f.service.offers.offerFromPage({ message_id: "page-message-0001", source, card }, { project_ref: f.project });
     assert.deepEqual([again.work_id, again.card.card_id], [placed.work_id, placed.card.card_id]);
     assert.equal((await f.service.read(placed.work_id)).cards.length, 1);
     // A page cannot place what the Assistant may not do, nor an input the capability would refuse.
-    await assert.rejects(f.service.offerFromPage({ message_id: "page-message-0002", source, card: { ...card, input: { text: 42 } } }, { project_ref: f.project }));
+    await assert.rejects(f.service.offers.offerFromPage({ message_id: "page-message-0002", source, card: { ...card, input: { text: 42 } } }, { project_ref: f.project }));
     f.store.setActionEnabled("web-user", actionKey(card.reference), false);
-    await assert.rejects(f.service.offerFromPage({ message_id: "page-message-0003", source, card }, { project_ref: f.project }), (error: unknown) => error instanceof AssistantError && error.code === "assistant.action_revoked");
+    await assert.rejects(f.service.offers.offerFromPage({ message_id: "page-message-0003", source, card }, { project_ref: f.project }), (error: unknown) => error instanceof AssistantError && error.code === "assistant.action_revoked");
     f.store.setActionEnabled("web-user", actionKey(card.reference), true);
-    await assert.rejects(f.service.offerFromPage({ message_id: "x", source, card }, { project_ref: f.project }), /页面消息标识无效/);
+    await assert.rejects(f.service.offers.offerFromPage({ message_id: "x", source, card }, { project_ref: f.project }), /页面消息标识无效/);
     // The click runs exactly what the card shows, once.
-    const ran = await f.service.runCard(placed.work_id, placed.card.card_id, { revision: placed.card.revision });
+    const ran = await f.service.offers.runCard(placed.work_id, placed.card.card_id, { revision: placed.card.revision });
     assert.equal(ran.status, "done");
     assert.deepEqual(JSON.parse(JSON.stringify(f.notes.prepare("SELECT body FROM notes").all())), [{ body: "会后 24 小时内发纪要" }]);
     // Continuing the work, the round hears the selection.
     await f.service.send({ work_id: placed.work_id, text: "再帮我想两条类似的", request_id: "req-00000071" }, {});
     await until(async () => (await f.service.read(placed.work_id)).work.state === "completed", "round");
     // Placed into a work that already has rounds, a page's card still belongs to no round: it came from the page.
-    const second = await f.service.offerFromPage({ message_id: "page-message-0004", source, card, work_id: placed.work_id }, { project_ref: f.project });
+    const second = await f.service.offers.offerFromPage({ message_id: "page-message-0004", source, card, work_id: placed.work_id }, { project_ref: f.project });
     assert.equal(second.card.run_id, null);
     assert.equal(placed.card.run_id, null);
   } finally { await f.close(); }

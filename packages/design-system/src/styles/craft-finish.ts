@@ -851,34 +851,14 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-card-kicker { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 500; }
   ${ASSIST} .assistant-card-kicker .assistant-glyph-icon svg { width: 14px; height: 14px; }
   ${ASSIST} .assistant-card-kicker.is-attention { color: var(--tone-attention, #b7791f); }
-  ${ASSIST} .assistant-card-kicker.is-done { color: var(--tone-done, #3a8f5c); }
   ${ASSIST} .assistant-card-kicker.is-blocked { color: var(--tone-blocked, var(--danger)); }
   ${ASSIST} .assistant-card-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 0 8px; border-radius: 999px; background: var(--wash); color: var(--ink-soft); font-size: 11px; line-height: 20px; white-space: nowrap; }
   ${ASSIST} .assistant-card-badge .assistant-glyph-icon svg { width: 12px; height: 12px; }
-  ${ASSIST} .assistant-card-badge.is-blocked { background: color-mix(in srgb, var(--tone-blocked, #c53030) 12%, transparent); color: var(--tone-blocked, var(--danger)); }
   ${ASSIST} .assistant-card .assistant-card-title { color: var(--ink); font-size: 13px; font-weight: 600; line-height: 1.45; }
-  ${ASSIST} .assistant-card-summary { color: var(--ink-soft); }
-  ${ASSIST} .assistant-card-meta { color: var(--muted); font-size: 11px; }
-  ${ASSIST} .assistant-card-origin { display: flex; align-items: center; gap: 5px; margin: 2px 0 0; color: var(--muted); font-size: 12px; }
-  ${ASSIST} .assistant-card-origin .assistant-glyph-icon { flex: none; }
   ${ASSIST} .assistant-card-hint { margin: -2px 0 0; color: var(--faint); font-size: 11px; }
   ${ASSIST} .assistant-card:has(.assistant-card-kicker.is-attention) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone-attention, #c27c0e) 40%, var(--line)); }
-  ${ASSIST} .assistant-card-status.is-done { color: var(--tone-done, #3a8f5c); }
-  ${ASSIST} .assistant-card-status.is-blocked { color: var(--tone-blocked, var(--danger)); }
-  ${ASSIST} .assistant-card-status.is-attention { color: var(--tone-attention, #b7791f); }
-  ${ASSIST} .assistant-fields dd.is-asked :is(input, select, textarea) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone-attention, #c27c0e) 45%, var(--line)); }
   ${ASSIST} .assistant-field-label { margin: 0 0 4px; color: var(--muted); font-size: 11px; }
   ${ASSIST} .assistant-field-code .assistant-code { margin: 0; }
-  ${ASSIST} .assistant-choices { display: flex; flex-wrap: wrap; gap: 6px; }
-  ${ASSIST} .assistant-choices.is-stacked { flex-direction: column; }
-  ${ASSIST} .assistant-choice { min-height: 32px; padding: 6px 12px; border: 0; border-radius: 9px; background: var(--wash); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
-    box-shadow: inset 0 0 0 1px var(--line); transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
-  ${ASSIST} .assistant-choice:hover:not(:disabled) { background: var(--nav-active); box-shadow: inset 0 0 0 1px var(--line-strong); }
-  ${ASSIST} .assistant-choice:active:not(:disabled) { transform: scale(.98); }
-  ${ASSIST} .assistant-choice:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
-  ${ASSIST} .assistant-choice-row { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 4px 8px; border-radius: 8px; cursor: pointer; }
-  ${ASSIST} .assistant-choice-row:hover { background: var(--nav-hover); }
-  ${ASSIST} .assistant-choice-row:has(input:checked) { background: var(--nav-active); }
   ${ASSIST} .assistant-problem .assistant-card-kicker { margin-bottom: -2px; }
   /* What a message carried: chips with their kind; an object opens where it lives. */
   ${ASSIST} .assistant-attachments { align-self: flex-end; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 85%; margin-top: -4px; }
@@ -894,16 +874,6 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-activity .assistant-glyph-icon svg { width: 13px; height: 13px; }
   ${ASSIST} .assistant-activity .assistant-state-ring { width: 20px; height: 20px; }
   ${ASSIST} .assistant-activity[data-state="unknown"] { color: var(--tone-attention, #b7791f); }
-  /* After the last round: what to do next, pointed at directly. */
-  ${ASSIST} .assistant-next-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
-  ${ASSIST} .assistant-next-label { color: var(--faint); font-size: 11px; }
-  ${ASSIST} .assistant-next-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 28px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--paper); color: var(--ink); font: inherit; font-size: 12px;
-    box-shadow: 0 0 0 1px var(--line-strong); cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
-  ${ASSIST} .assistant-next-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  ${ASSIST} .assistant-next-chip:hover { background: var(--nav-hover); }
-  ${ASSIST} .assistant-next-chip:active { transform: scale(.97); }
-  ${ASSIST} .assistant-next-chip:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
-  ${ASSIST} .assistant-next-chip .assistant-glyph-icon svg { width: 14px; height: 14px; color: var(--muted); }
   /* Pressing gives a little everywhere in the panel, the same 130ms spring as the bar. */
   ${ASSIST} :is(.assistant-side-action, .assistant-segment, .assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-control, .assistant-start, .assistant-copy, .assistant-tab-close):active:not(:disabled) { transform: scale(.94); }
   ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-tab-close, .assistant-tab-main) { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
@@ -979,19 +949,8 @@ const CRAFT_BASE_STYLES = `
   /* What needs the person: a question to answer, or an exact effect to allow. */
   ${ASSIST} .assistant-card { display: flex; flex-direction: column; gap: 8px; padding: 12px 12px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line-strong); }
   ${ASSIST} .assistant-card-title { margin: 0; font-weight: 500; color: var(--ink); }
-  ${ASSIST} .assistant-card--action { box-shadow: 0 0 0 1px var(--line-strong); }
-  ${ASSIST} .assistant-card--action[data-status="done"] { box-shadow: 0 0 0 1px var(--line); }
-  ${ASSIST} .assistant-card--action :is(input.mw-input, textarea.mw-input) { width: 100%; font: inherit; font-size: 12px; }
-  ${ASSIST} .assistant-card-status { margin: 0; font-size: 12px; color: var(--muted); }
-  ${ASSIST} .assistant-card--action[data-status="failed"] .assistant-card-status { color: var(--danger); }
-  ${ASSIST} .assistant-card--action[data-status="unknown"] .assistant-card-status { color: var(--ink); }
   ${ASSIST} .assistant-card p { margin: 0; }
   ${ASSIST} .assistant-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-  ${ASSIST} .assistant-answer { display: flex; gap: 8px; }
-  ${ASSIST} .assistant-answer .mw-input { flex: 1; min-width: 0; }
-  ${ASSIST} .assistant-questionnaire { display: flex; flex-direction: column; gap: 8px; }
-  ${ASSIST} .assistant-questionnaire fieldset { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; border: 0; }
-  ${ASSIST} .assistant-questionnaire legend { padding: 0; margin-bottom: 4px; font-weight: 500; }
   ${ASSIST} .assistant-fields { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 12px; }
   ${ASSIST} .assistant-fields dt { color: var(--muted); }
   ${ASSIST} .assistant-fields dd { margin: 0; max-height: 200px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -1573,7 +1532,6 @@ const CRAFT_BASE_STYLES = `
   /* ─── Goal canvas ─── */
   /* The canvas is plain paper: nodes and their links are the only marks on it. */
   ${WORKBENCH} :is(.goal-canvas-viewport, .goal-frame-canvas) { background-color: var(--paper); background-image: none; }
-  ${WORKBENCH} .momentum-map.graph-stage { background: var(--paper); }
   ${WORKBENCH} .goal-canvas-viewport.is-panning { cursor: grabbing; }
   ${WORKBENCH} [data-graph-node] {
     border-radius: var(--r-card); box-shadow: none; border-color: var(--line);

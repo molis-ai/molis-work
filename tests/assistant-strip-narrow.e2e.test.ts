@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { assistantCardHtml, assistantQuestionHtml, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 
 /** One streamed model turn: a tool call, or plain text. */
 function turn(tool?: { name: string; input: unknown }, text = "好的。"): string {
@@ -81,4 +81,22 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   assert.equal(await evaluate(`document.querySelector('${strip} [data-assistant-control=pause]').hidden`), true);
   await waitFor("document.querySelector('.assistant-round-status[data-phase=paused] .mw-state-ring')?.dataset.mwState === 'paused'"); // RING-07
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+
+  // RING-07 RING-08: actual Host markup under the live Assistant's styles; model-driven question submission is covered separately.
+  const html = assistantQuestionHtml({ pending_id: "ring-question", kind: "clarify", prompt: "继续整理？", options: [], allows_free_text: true }, text => text)
+    + assistantCardHtml({ card_id: "ring-action", revision: 1, run_id: "ring-run", title: "新建待办", summary: "保存结果", provider: "待办", capability_title: "新建待办", capability_id: "todo.items.create",
+      effect: "irreversible", fields: [], missing: [], status: "unknown", created_at: "", updated_at: "" }, text => text);
+  await evaluate(`(() => { const sample = document.createElement('section'); sample.id = 'ring-host-sample'; sample.innerHTML = ${JSON.stringify(html)};
+    document.querySelector('[data-assistant-thread]').append(sample); })()`);
+  for (const width of [800, 390]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
+    for (const state of ["answer", "verify"]) {
+      const selector = `#ring-host-sample .mw-ix-kicker .mw-state-ring[data-mw-state="${state}"]`;
+      await evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({ block: 'center' })`);
+      assert.ok(await evaluate(`(() => { const ring = document.querySelector(${JSON.stringify(selector)}), box = ring.getBoundingClientRect();
+        return box.width >= 20 && box.height >= 20 && box.left >= 0 && box.right <= innerWidth && getComputedStyle(ring).display !== 'none'; })()`), `${state} at ${width}px`);
+    }
+  }
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+  await evaluate("document.getElementById('ring-host-sample').remove()");
 });

@@ -2,10 +2,10 @@
   "giantUnits": 155,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2543,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2282,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1985,
-      "methods": 118
+      "lines": 1830,
+      "methods": 112
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 280,
@@ -57,7 +57,7 @@
     "file apps/workbench/src/i18n/en.ts": 3324,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 355,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2803,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2655,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 1020,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 2049,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
@@ -70,11 +70,11 @@
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 170,
     "file horizontal/agent-host/src/adapters/prologue-node.ts": 1552,
-    "function horizontal/agent-host/src/adapters/prologue-node.ts#initializePrologueNodeAdapter": 1281,
+    "function horizontal/agent-host/src/adapters/prologue-node.ts#initializePrologueNodeAdapter": 1280,
     "function horizontal/agent-host/src/adapters/prologue-node.ts#startAgentRun": 406,
-    "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 212,
+    "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 202,
     "function horizontal/agent-host/src/adapters/prologue-taskboard.ts#createPrologueTaskBoards": 220,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 999,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 995,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
       "lines": 623,
       "methods": 18
@@ -166,15 +166,15 @@
       "methods": 35
     },
     "function modules/shelf/src/store.ts#runJob": 199,
-    "file packages/contracts/src/services/agent-host.ts": 1656,
+    "file packages/contracts/src/services/agent-host.ts": 1632,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
-    "file packages/design-system/src/primitives/catalog.ts": 945,
+    "file packages/design-system/src/primitives/catalog.ts": 947,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
     "file packages/design-system/src/styles/calm-desktop.ts": 1392,
-    "file packages/design-system/src/styles/craft-finish.ts": 2223,
-    "file packages/design-system/src/styles/momentum.ts": 1154,
-    "file packages/design-system/src/styles/personal-workbench-v3.ts": 1300,
-    "file packages/design-system/src/styles/primitives.ts": 1268,
+    "file packages/design-system/src/styles/craft-finish.ts": 2194,
+    "file packages/design-system/src/styles/momentum.ts": 872,
+    "file packages/design-system/src/styles/personal-workbench-v3.ts": 1301,
+    "file packages/design-system/src/styles/primitives.ts": 1276,
     "file packages/im-ui/src/browser/controller.ts": 966,
     "function packages/im-ui/src/browser/controller.ts#startIm": 957,
     "function packages/im-ui/src/views.ts#createViews": 164,
@@ -215,7 +215,7 @@
     "file plugins/native/coding/src/client.ts": 1656,
     "file plugins/native/coding/src/routes.ts": 1523,
     "function plugins/native/coding/src/routes.ts#codingRouteBindings": 1347,
-    "file plugins/native/coding/src/styles.ts": 837,
+    "file plugins/native/coding/src/styles.ts": 851,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
@@ -265,7 +265,7 @@
     },
     "function plugins/native/work/src/actions.ts#createWorkActionHandlers": 169,
     "function plugins/native/work/src/http/panels.ts#handleWorkPanelHttp": 163,
-    "function plugins/native/work/src/terminal/client.ts#startWorkTerminalClient": 434,
+    "function plugins/native/work/src/terminal/client.ts#startWorkTerminalClient": 438,
     "function plugins/native/work/src/terminal/panels.ts#createTerminalPanels": 365,
     "function plugins/native/work/src/ui/render.ts#renderWorkSessionSurface": 350,
     "function plugins/native/workflows/src/actions.ts#createWorkflowsActionHandlers": 268,

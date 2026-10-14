@@ -189,10 +189,12 @@ export class LocalHost<Runtime> {
   /** System capabilities share the registry but do not create a fictitious project Runtime. */
   async inspectActions(caller: ActionCallContext, reference?: LocalHostProjectReference): Promise<ActionView[]> {
     this.assertRunning();
+    caller.signal?.throwIfAborted();
     const project = reference ? normalizeReference(reference) : undefined;
     if (caller.project_id !== (project?.project_id ?? null)) throw new ActionError("actions.scope_mismatch", "目录上下文与项目不一致");
     const bound = snapshotCaller(caller);
     if (project) await this.withRuntime(project, () => undefined);
+    caller.signal?.throwIfAborted();
     return this.projectActionViews(bound, this.actionService.inspect(bound));
   }
 
@@ -217,10 +219,12 @@ export class LocalHost<Runtime> {
     const project = reference ? normalizeReference(reference) : undefined;
     const prepare = async (caller: ActionCallContext): Promise<ActionCallContext> => {
       this.assertRunning();
+      caller.signal?.throwIfAborted();
       if (caller.project_id !== (project?.project_id ?? null)) throw new ActionError("actions.scope_mismatch", "场景上下文与项目不一致");
       const bound = hostAuthorityContext(snapshotCaller(caller), () => this.state === "running"
         && (!project || !this.closingKeys.has(project.storage_key)) && this.executionScope.getStore()?.entry.state !== "closing");
       if (project) await this.withRuntime(project, () => undefined);
+      caller.signal?.throwIfAborted();
       return bound;
     };
     const scenes = async (caller: ActionCallContext, judgment?: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference) => {
@@ -346,6 +350,7 @@ export class LocalHost<Runtime> {
     const project = normalizeReference(reference);
     const callerFor = (caller: ActionCallContext) => {
       this.assertCompatibleReference(project);
+      caller.signal?.throwIfAborted();
       if (caller.project_id !== project.project_id) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
       return snapshotCaller(caller);
     };
@@ -353,11 +358,13 @@ export class LocalHost<Runtime> {
       discover: async caller => {
         const bound = callerFor(caller);
         await this.withRuntime(project, () => undefined);
+        caller.signal?.throwIfAborted();
         return this.discoverActions(bound);
       },
       invoke: async (caller, capability, input) => {
         const bound = callerFor(caller);
         await this.withRuntime(project, () => undefined);
+        caller.signal?.throwIfAborted();
         const descriptor = this.capabilities.descriptor(capability, bound.project_id);
         if (!descriptor) return refuseCall(this.settled, bound, capability, new ActionError("actions.missing", "能力未注册或版本已失效"));
         return this.enqueue(project, descriptor, bound, () => this.actionService.invoke(bound, capability, input), step);

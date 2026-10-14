@@ -5,11 +5,14 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 
 /** Only the authenticated local-user transport uses this adapter; it is not an Agent/MCP grant resolver. */
 export async function localWebActionContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
-  builtinPermissions: readonly string[]): Promise<ActionCallContext> {
-  const base: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions };
+  builtinPermissions: readonly string[], signal?: AbortSignal): Promise<ActionCallContext> {
+  signal?.throwIfAborted();
+  const base: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions, signal };
   // Inspection activates the actual project providers. Metadata alone never supplies a grant.
   const catalog = await host.inspectActions(base, reference);
+  signal?.throwIfAborted();
   const installed = reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list()) : [];
+  signal?.throwIfAborted();
   const grants = new Map(installed.filter(row => row.state === "running").map(row => [row.install_id, row]));
   for (const record of host.homePlugins?.installations() ?? []) if (record.state === "running") grants.set(record.install_id, record);
   // The installation a provider's grants come from is the one its registration names, not whatever its provider id looks like:
@@ -30,6 +33,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   // Inspect actual registrations using installed grants, then accept only the matching running owner.
   const candidates = [...new Set([...builtinPermissions, ...[...grants.values()].flatMap(row => row.grants)])];
   const scenes = await host.sceneClient(reference).discoverScenes({ ...base, permissions: candidates });
+  signal?.throwIfAborted();
   const scenePermissions = scenes.flatMap(view => {
     const install = installOf(view.provider);
     if (!scopeMatches(view.provider, view.definition.scope) || view.provider.kind !== "plugin"

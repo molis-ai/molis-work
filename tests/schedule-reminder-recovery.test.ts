@@ -342,3 +342,25 @@ for (const disposition of ["service", "project", "delete"] as const) test(`W2-18
   } finally { stop(); released.resolve(); await served.close(); await host.close(); if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous;
     resetSecretStoreCache(); await rm(home, { recursive: true, force: true }); }
 });
+
+
+test("W2-18-SCHEDULE-02: a source tick waiting inside Home preparation cannot reopen a project after close", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "schedule-prepare-stop-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const served = await serveTestHost(null, { home, host });
+  const project = await served.createProject("Prepare wait");
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const plugins = host.homePlugins; assert.ok(plugins);
+  await plugins.ready();
+  const original = plugins.ready.bind(plugins); let waiting = true;
+  t.mock.method(plugins, "ready", async () => { if (waiting) { entered.resolve(); await release.promise; } return original(); });
+  try {
+    t.mock.timers.tick(30_000); await entered.promise;
+    await host.closeProject(project.reference);
+    waiting = false; release.resolve();
+    await new Promise(resolve => setTimeout(resolve, 50));
+    assert.equal(host.status().projects.some(row => row.project_id === project.project_id), false, "the cancelled tick never opens a replacement instance");
+    assert.equal(host.callLog!.list(project.project_id).filter(row => row.capability_id === "feed.sources.tick").length, 0, "cancelled preparation wrote no source effect receipt");
+  } finally { waiting = false; release.resolve(); await served.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
+});

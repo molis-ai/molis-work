@@ -34,6 +34,7 @@ export function bindProjectSchedulers(host: MolisWorkLocalHost, composition: Com
   return async () => {
     if (state.composition !== composition) return;
     state.composition = undefined;
+    for (const { scheduler } of composition.runtimes.values()) scheduler.close?.();
     composition.runtimes.clear();
     await Promise.all([...state.projects.values()].map(({ runtime }) => closeHostSchedule(runtime.store.db)));
   };
@@ -43,6 +44,7 @@ export function bindProjectSchedulers(host: MolisWorkLocalHost, composition: Com
 export async function closeProjectSchedulers(host: MolisWorkLocalHost, runtime: MolisWorkProjectRuntime, reference: LocalHostProjectReference): Promise<void> {
   const state = owners.get(host);
   state?.projects.delete(reference.storage_key);
+  state?.composition?.runtimes.get(reference.storage_key)?.scheduler.close?.();
   state?.composition?.runtimes.delete(reference.storage_key);
   await closeHostSchedule(runtime.store.db);
 }

@@ -6,7 +6,7 @@ import { createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actio
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
-import { bindLocalWebActions } from "./local-web-actions.js";
+import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { feedPull } from "./web-view.js";
 
@@ -46,6 +46,13 @@ export function projectFeedOptions(host: MolisWorkLocalHost, reference: LocalHos
 export function createProjectFeedScheduler(host: MolisWorkLocalHost, runtime: MolisWorkProjectRuntime, reference: LocalHostProjectReference) {
   const feed = createLocalFeedApplication(runtime.store.db, projectFeedOptions(host, reference));
   feed.recoverInterruptedSourceRuns(reference.project_id);
-  const actions = bindLocalWebActions(host, reference, LOCAL_OWNER_PERMISSIONS);
-  return { tick: () => feedPull(() => actions.invoke(feedSourceActions.tick, {})) };
+  const lifetime = new AbortController(), actions = host.actionClient(reference, false);
+  return {
+    close: () => lifetime.abort(),
+    tick: () => feedPull(async () => {
+      const caller = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS, lifetime.signal);
+      lifetime.signal.throwIfAborted();
+      return actions.invoke(caller, feedSourceActions.tick, {});
+    }),
+  };
 }

@@ -342,16 +342,23 @@ export class MolisWorkLocalHost {
 
   /** Local management inspects registered metadata without borrowing execution permissions. */
   async inspectActions(caller: ActionCallContext, reference?: LocalHostProjectReference) {
+    caller.signal?.throwIfAborted();
     await this.prepareHomeActions();
+    caller.signal?.throwIfAborted();
     if (reference) await this.prepareProjectPlugins(reference, caller);
+    caller.signal?.throwIfAborted();
     return this.host.inspectActions(caller, reference);
   }
 
   private async prepareProjectPlugins(reference: LocalHostProjectReference, caller: ActionCallContext): Promise<void> {
+    caller.signal?.throwIfAborted();
     if (caller.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
     await this.ensureProjectPluginActions(reference);
+    caller.signal?.throwIfAborted();
     await this.agents?.service.restoreExternalMcp(reference);
+    caller.signal?.throwIfAborted();
     await this.host.withRuntime(reference, runtime => this.prepareInstalledPlugins(reference, runtime));
+    caller.signal?.throwIfAborted();
   }
 
   private prepareInstalledPlugins(reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Promise<void> {

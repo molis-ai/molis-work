@@ -246,7 +246,7 @@ const FILES = {
 const OLD_CODES = ["feed_item_not_found", "inbox_entry_not_found", "feed_source_not_found", "feed_out_rule_not_found", "feed_revision_conflict", "feed_invalid_transition", "feed_read_not_supported",
   "feed_source_connection_changed", "feed_source_sync_interrupted", "feed_source_idempotency_required", "feed_source_idempotency_conflict", "feed_source_paused", "feed_out_rule_invalid",
   "feed_source_not_syncable", "feed_source_invalid_state", "feed_source_query_invalid", "feed_source_invalid_configuration", "feed_source_definition_unavailable", "feed_source_use_catalog",
-  "feed_source_invalid_schedule", "feed_source_configuration_changed", "feed_source_changed", "feed_source_wrong_sync_kind", "connector_wrong_sync_kind", "connector.needs_auth",
+  "feed_source_invalid_schedule", "feed_source_configuration_changed", "feed_source_changed", "feed_source_wrong_sync_kind", "connector_wrong_sync_kind", "connector_needs_auth",
   "invalid_custom_rss_url", "invalid_youtube_channel", "inbox_source_use_youtube_channel", "inbox_source_use_official_reddit",
   "schedule_task_invalid", "schedule_task_not_found"];
 // A plugin client file is the page's own script, a template string that runs in the browser; it never raises an action's failure.

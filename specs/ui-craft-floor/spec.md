@@ -63,7 +63,7 @@ UI 切片的完成条件包括工艺，不只功能：
 
 ```
 pnpm --filter @molis-ai/molis-work-design-system build
-node --import tsx --test --test-concurrency=1 tests/primitives.test.ts tests/visual-foundation.test.ts
+node scripts/run-tests.mjs tests/primitives.test.ts tests/visual-foundation.test.ts
 ```
 
 ## 假设与开放问题

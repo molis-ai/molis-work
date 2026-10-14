@@ -103,6 +103,6 @@ W4-08 给记忆、放置、搜索加同类规则时，可以在同一个模块�
 
 ## 验证
 
-`node scripts/run-tests.mjs tests/doc-reference-gates.test.ts`（CI 里单独一步跑）。每条规则在临时仓库里被故意违反一次，门禁必须变红；还有「合法写法不误报」与「变小时通过」的用例。
+`node scripts/run-tests.mjs tests/doc-reference-gates.test.ts`（CI 里 `gates` 作业的「Gate rules reject what they claim to」一步跑）。每条规则在临时仓库里被故意违反一次，门禁必须变红；还有「合法写法不误报」与「变小时通过」的用例。
 
-页面事件门禁另有 `node scripts/run-tests.mjs tests/dom-events-contract.test.ts`（CI 里单独一步，步骤名「Page event gate rejects what it claims to」；它 import 构建出的 contracts，要在 `pnpm workspace:verify` 或 `pnpm build` 之后跑）：登记对照合同里已有的事件常量，门禁对照真实的树，每条规则都有突变用例（在内存里的真实树上或临时仓库里违反一次，必须变红），包括登记的形状（名字、载荷、含义、主人的字段、前缀）、扫哪些根目录和文件类型，以及构造函数与监听器带 TypeScript 类型实参的写法；报告在真实树上的每一条发现都写在 UI Platform 的「现状与例外」里（按事件名和文件名核对，新的死路或被主人以外的文件发的公告没人记录就会变红）。
+页面事件门禁另有 `node scripts/run-tests.mjs tests/dom-events-contract.test.ts`（CI 里 `architecture-boundaries` 作业的「Build rules reject what they claim to」一步；它 import 构建出的 contracts，要在 `pnpm workspace:verify` 或 `pnpm build` 之后跑）：登记对照合同里已有的事件常量，门禁对照真实的树，每条规则都有突变用例（在内存里的真实树上或临时仓库里违反一次，必须变红），包括登记的形状（名字、载荷、含义、主人的字段、前缀）、扫哪些根目录和文件类型，以及构造函数与监听器带 TypeScript 类型实参的写法；报告在真实树上的每一条发现都写在 UI Platform 的「现状与例外」里（按事件名和文件名核对，新的死路或被主人以外的文件发的公告没人记录就会变红）。

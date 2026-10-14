@@ -5,7 +5,7 @@
 - 一条不变量的测试必须断言**拒绝**（状态码、错误码、没有被写的记录），不能只证明正常路径能走通。
 - 表由门禁看住：`pnpm health:check` 的 `security invariants` 规则（`scripts/gates/security-invariants.mjs`）检查每一行点名的测试文件存在、每一个「标题片段」（一个文件后面可以连写几个，一个都不漏）确在文件里、「CI 里跑」一列的文件确实被 CI 跑到，每个 `tests/security-invariants-*.test.ts` 都被某一行点名。改了测试名就改这里。
 - CI 里跑的集合是根 `package.json` 的 `test:security`，加上 `test:contracts` 里已有的几条（动作网关、`beforeEffect`、MCP 授权）。CI 是 Linux：只在 macOS 上能跑的（Seatbelt 沙箱、真 Chrome）和较重的整机用例列在「只在本机跑」一列，等 Linux 探针（`linux-probe`，决定 #14）确认能过后再移进 CI 一列（W2-16）。
-- **这一步现在不挡合并**：`ci.yml` 的 `Security invariants` 一步带 `continue-on-error: true`（红了在步骤上显示失败，作业与 `Verify` 仍是绿的）。理由是决定 #14（先不挡产品用例，约两周后并入）：`test:security` 里有产品用例（目标树与决定动作、侧栏、记忆等），新写的 7 个 `security-invariants-*` 文件（含起启动器和整机的）也还没在 Linux 上跑过；`linux-probe` 作业会把它们跑进它的报告。探针连续两周没有这些文件的失败后，去掉 `continue-on-error`，这一步才挡合并（和 W2-16 一起做）。合并前至少要看到这个 PR 的 CI 里这一步在 Linux 上是绿的。
+- **这一步现在不挡合并**：`ci.yml` 的 `security-invariants` 作业（「Security invariants (not required yet)」）带 `continue-on-error: true`，不在 `Verify` 的 `needs` 里（红了在作业上显示失败，`Verify` 仍是绿的；单独一个作业，也不拖长挡合并的作业）。理由是决定 #14（先不挡产品用例，约两周后并入）：`test:security` 里有产品用例（目标树与决定动作、侧栏、记忆等），新写的 7 个 `security-invariants-*` 文件（含起启动器和整机的）也还没在 Linux 上跑过；`linux-probe` 作业会把它们跑进它的报告。探针连续两周没有这些文件的失败后，把它加进 `Verify` 的 `needs`、去掉 `continue-on-error`，它才挡合并（和 W2-16 一起做）。合并前至少要看到这个 PR 的 CI 里这一步在 Linux 上是绿的。
 - 范围外：Computer Use 还没进 main（只有分支 `docs/computer-use-goal` 上的 spec），它的站点策略与确认节奏等功能落地时再加一行。
 
 ## 1. 表

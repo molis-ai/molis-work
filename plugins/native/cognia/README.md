@@ -26,7 +26,7 @@ Verification:
 
 ```sh
 pnpm --filter @molis-ai/molis-work-plugin-cognia typecheck
-node --import tsx --test --test-concurrency=1 tests/cognia-*.test.ts tests/context-onboarding.test.ts
+node scripts/run-tests.mjs tests/cognia-*.test.ts tests/context-onboarding.test.ts
 pnpm boundary:check
 ```
 

@@ -33,6 +33,8 @@ Tauri 工程、配置和资源已集中在本包的 `src-tauri/`，启动占位�
 
 桌面 Rust 入口为 `adapters/tauri/src/main.rs`，`src-tauri/Cargo.toml` 指向它。仓库根运行 `pnpm desktop` 启动开发版，`pnpm desktop:build:macos` 构建 App/DMG；后者会准备本地 Runtime 资源，但不会自动安装应用。
 
+主窗口将系统文件拖放交给 WebKit 的 HTML5 拖放处理（`dragDropEnabled: false`），由页面现有的 drop 入口接收图片与文件；不得让 Tauri 的原生拖放接管后丢弃事件。胶囊与 Shelf 的原生拖拽路径不变。macOS 截图浮动缩略图、Finder 图片以及保存后重开需要用实际 App 验证，浏览器用例不能替代。
+
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
@@ -45,7 +47,7 @@ pnpm --filter @molis-ai/molis-work-app-desktop build
 已有行为示例与回归：[desktop-tui.test.ts](../../tests/desktop-tui.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/desktop-tui.test.ts
+node scripts/run-tests.mjs tests/desktop-tui.test.ts
 ```
 
 这些测试使用隔离数据或注入端口；Provider/桌面相关测试的通过不等于真实账户连接、安装或发布验收。

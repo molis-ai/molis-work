@@ -145,7 +145,7 @@ export class FeedConnectorSync {
       ...this.ports.sourceMetadata(latest, cursor),
       last_sync_at: completedAt,
       last_outcome: "completed",
-      last_error_code: mode === "live" ? null : "fixture_not_live",
+      last_error_code: mode === "live" ? null : "feed.fixture_not_live",
       updated_at: completedAt,
     });
     this.ports.appendEvent(this.projectId, source.source_id, "feed_connector.sync_completed", `${source.name} 同步完成：新增 ${listenerResult.created_count}，去重 ${listenerResult.deduped_count}`, {

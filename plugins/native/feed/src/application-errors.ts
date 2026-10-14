@@ -37,7 +37,7 @@ export function callAttention<T>(operation: () => T): T {
 
 export function assertSourceHistoryDecision(value: unknown): asserts value is SourceHistoryDecision {
   if (value !== "retain_history" && value !== "delete_local_history") {
-    throw new Error("feed_contract_source_history_decision_required");
+    throw new Error("feed.contract_source_history_decision_required");
   }
 }
 
@@ -66,7 +66,7 @@ export function toFeedPublicError(error: unknown): FeedPublicError {
   const value = error && typeof error === "object" ? error as { code?: unknown; message?: unknown; details?: unknown } : {};
   // A failure the provider reported carries the provider's own code in its details; that is the code a run and a source fault store.
   const reported = value.details && typeof value.details === "object" ? (value.details as { error_code?: unknown }).error_code : undefined;
-  const code = typeof reported === "string" && reported ? reported : typeof value.code === "string" && value.code ? value.code : "feed_unknown";
+  const code = typeof reported === "string" && reported ? reported : typeof value.code === "string" && value.code ? value.code : "feed.unknown";
   const message = typeof value.message === "string" && value.message
     ? value.message.slice(0, 400)
     : "信息流操作失败";

@@ -68,7 +68,7 @@ export function seedDemoPluginSurfaces(databasePath: string, projectId = DEMO_PR
       status: "disconnected",
       last_sync_at: AT.gmail,
       last_outcome: "failed",
-      last_error_code: "auth_required",
+      last_error_code: "feed.auth_required",
       config: { scope: "in:inbox" },
     }, projectId);
 
@@ -164,7 +164,7 @@ export function seedDemoPluginSurfaces(databasePath: string, projectId = DEMO_PR
       subjectId: gmail.source_id,
       reason: "source_fault",
       detail: {
-        error_code: "auth_required",
+        error_code: "feed.auth_required",
         user_action: "连接 Gmail 后重新同步。未授权前只保留这条故障引用。",
       },
     });

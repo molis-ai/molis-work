@@ -126,7 +126,9 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
   }
 });
 
+// J3D-01/J3D-03: an unknown thrown failure retains the safe fallback and category.
 test("public errors expose only stable category, retryability and user action", () => {
+  assert.deepEqual(toFeedPublicError(new Error("Unclassified failure")), { code: "feed.unknown", category: "unknown", retryable: false, user_action: "contact_support", safe_message: "Unclassified failure" });
   assert.deepEqual(toFeedPublicError({ code: "connector.needs_auth", message: "Reconnect GitHub" }), {
     code: "connector.needs_auth",
     category: "auth",

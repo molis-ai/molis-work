@@ -320,7 +320,7 @@ export class ListenerHost implements ListenerHostApi {
       }
       if (this.hasQuarantinedDelivery(input.project_id, input.source_id, input.operation_id)) {
         throw new ListenerHostError(
-          "listener_delivery_quarantined",
+          "listener.delivery_quarantined",
           "Raw Event 已隔离，必须先处理或替换 Adapter，不能继续拉取 Provider",
         );
       }
@@ -366,7 +366,7 @@ export class ListenerHost implements ListenerHostApi {
         }
         if (delivery.state === "quarantined") {
           throw new ListenerHostError(
-            "listener_delivery_quarantined",
+            "listener.delivery_quarantined",
             "Raw Event 已隔离，必须先处理或替换 Adapter，cursor 不会推进",
           );
         }
@@ -391,7 +391,7 @@ export class ListenerHost implements ListenerHostApi {
       return { ...completed, replayed: false, accepted };
     } catch (error) {
       await beforeEffect();
-      const code = error instanceof ListenerHostError ? error.code : "listener_connector_failed";
+      const code = error instanceof ListenerHostError ? error.code : "listener.connector_failed";
       const interruptedAt = this.now().toISOString();
       this.saveRun({
         ...run,
@@ -405,11 +405,11 @@ export class ListenerHost implements ListenerHostApi {
         input.source_id,
         code,
         null,
-        code === "listener_delivery_quarantined" ? "quarantined" : "retry_wait",
+        code === "listener.delivery_quarantined" ? "quarantined" : "retry_wait",
       );
       throw new ListenerHostError(
-        code === "listener_delivery_quarantined" ? code : code === "listener_delivery_failed" ? code : "listener_connector_failed",
-        code === "listener_delivery_quarantined"
+        code === "listener.delivery_quarantined" ? code : code === "listener.delivery_failed" ? code : "listener.connector_failed",
+        code === "listener.delivery_quarantined"
           ? "Raw Event 多次转换失败，已隔离等待处理"
           : "Listener 没有取得可信终态，可使用同一 operation_id 安全重试",
       );
@@ -467,14 +467,14 @@ export class ListenerHost implements ListenerHostApi {
       `).run(
         quarantined ? "quarantined" : "retry_wait",
         nextAttempt,
-        quarantined ? "listener_delivery_quarantined" : "listener_delivery_failed",
+        quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed",
         at,
         delivery.project_id,
         delivery.source_id,
         delivery.event.raw_event_id,
       );
       throw new ListenerHostError(
-        quarantined ? "listener_delivery_quarantined" : "listener_delivery_failed",
+        quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed",
         "Raw Event 尚未得到 Signal Receipt，cursor 不会推进",
       );
     }
@@ -538,7 +538,7 @@ export class ListenerHost implements ListenerHostApi {
       SELECT * FROM listener_deliveries
       WHERE project_id = ? AND source_id = ? AND raw_event_id = ?
     `).get(projectId, sourceId, rawEventId) as Row | undefined;
-    if (!row) throw new ListenerHostError("listener_delivery_failed", "Raw Event 没有先持久化");
+    if (!row) throw new ListenerHostError("listener.delivery_failed", "Raw Event 没有先持久化");
     return mapDelivery(row);
   }
 
@@ -557,7 +557,7 @@ export class ListenerHost implements ListenerHostApi {
         AND (lease_owner IS NULL OR lease_owner = ? OR lease_expires_at <= ?)
     `).run(operationId, expiresAt, at.toISOString(), projectId, sourceId, operationId, at.toISOString());
     if (Number(result.changes) !== 1) {
-      throw new ListenerHostError("listener_lease_busy", "这个 Source 已有 Listener 正在处理");
+      throw new ListenerHostError("listener.lease_busy", "这个 Source 已有 Listener 正在处理");
     }
   }
 
@@ -704,7 +704,7 @@ function assertRunTransition(
     terminal: [],
   };
   if (!allowed[current].includes(next)) {
-    throw new ListenerHostError("listener_delivery_failed", `Listener Run 不能从 ${current} 变成 ${next}`);
+    throw new ListenerHostError("listener.delivery_failed", `Listener Run 不能从 ${current} 变成 ${next}`);
   }
 }
 

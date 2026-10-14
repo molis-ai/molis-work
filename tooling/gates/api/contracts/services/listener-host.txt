@@ -32,8 +32,8 @@ export interface ListenerHostApi {
 }
 
 export declare class ListenerHostError extends Error {
-    readonly code: "listener_lease_busy" | "listener_delivery_failed" | "listener_delivery_quarantined" | "listener_connector_failed";
-    constructor(code: "listener_lease_busy" | "listener_delivery_failed" | "listener_delivery_quarantined" | "listener_connector_failed", message: string);
+    readonly code: "listener.lease_busy" | "listener.delivery_failed" | "listener.delivery_quarantined" | "listener.connector_failed";
+    constructor(code: "listener.lease_busy" | "listener.delivery_failed" | "listener.delivery_quarantined" | "listener.connector_failed", message: string);
 }
 
 export interface ListenerRunReceipt extends ListenerRunRecord {

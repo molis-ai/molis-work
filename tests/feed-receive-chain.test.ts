@@ -193,7 +193,7 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
           adapter: adapter("two"),
         }),
         (error: unknown) => error instanceof ListenerHostError
-          && error.code === "listener_delivery_failed",
+          && error.code === "listener.delivery_failed",
       );
       assert.deepEqual(firstListener.checkpoint(DEMO_PROJECT_ID, sourceId).cursor, {});
       assert.equal(firstSignals.query.list(DEMO_PROJECT_ID, sourceId).length, 1);
@@ -312,7 +312,7 @@ test("Listener lease prevents two callers from consuming one Source concurrently
           operation_id: "fd1-lease-second",
           adapter: adapter(),
         }),
-        (error: unknown) => error instanceof ListenerHostError && error.code === "listener_lease_busy",
+        (error: unknown) => error instanceof ListenerHostError && error.code === "listener.lease_busy",
       );
       releasePoll?.();
       assert.equal((await first).outcome, "completed");
@@ -366,13 +366,13 @@ test("repeated Adapter failure quarantines the Raw Event without polling past it
       });
 
       await assert.rejects(run(), (error: unknown) => error instanceof ListenerHostError
-        && error.code === "listener_delivery_failed");
+        && error.code === "listener.delivery_failed");
       await assert.rejects(run(), (error: unknown) => error instanceof ListenerHostError
-        && error.code === "listener_delivery_quarantined");
+        && error.code === "listener.delivery_quarantined");
       assert.equal(listener.checkpoint(DEMO_PROJECT_ID, sourceId).state, "quarantined");
       assert.deepEqual(listener.checkpoint(DEMO_PROJECT_ID, sourceId).cursor, {});
       await assert.rejects(run(), (error: unknown) => error instanceof ListenerHostError
-        && error.code === "listener_delivery_quarantined");
+        && error.code === "listener.delivery_quarantined");
       assert.equal(polls, 1, "quarantined delivery must block further Provider polling");
     } finally {
       store.close();

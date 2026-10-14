@@ -74,10 +74,10 @@ export interface ListenerHostApi {
 export class ListenerHostError extends Error {
   constructor(
     readonly code:
-      | "listener_lease_busy"
-      | "listener_delivery_failed"
-      | "listener_delivery_quarantined"
-      | "listener_connector_failed",
+      | "listener.lease_busy"
+      | "listener.delivery_failed"
+      | "listener.delivery_quarantined"
+      | "listener.connector_failed",
     message: string,
   ) {
     super(message);

@@ -26,7 +26,7 @@ test("I6-02: a real Node questionnaire refusal preserves each problem and the pe
     requests++;
     if (requests === 1) return cogniaScriptedResponse({ name: "ask-user", input: { why: "确认本轮安排", questions: [
       { id: "format", prompt: "如何沟通", options: [{ label: "一起复盘" }, { label: "异步审阅" }] },
-      { id: "minutes", type: "number", prompt: "安排多少分钟", min: "15", max: "120", integer: true },
+      { id: "minutes", type: "number", prompt: "安排多少分钟", min: 15, max: 120, integer: true },
     ] } });
     assert.equal(requests, 2, "only an accepted answer resumes the real SDK model call");
     assert.match(JSON.stringify(body.messages), /45/);

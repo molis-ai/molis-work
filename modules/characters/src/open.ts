@@ -6,7 +6,7 @@ import { CharactersRepository } from "./repository.js";
 
 /** Installation-level personal drafts. No production credential store is opened. */
 export function openCharacters(homeDirectory: string, actorId: string): { service: CharactersService; close(): void } {
-  if (!actorId.trim() || actorId.length > 200) throw new CharacterError("character.invalid", "角色库缺少有效所有者");
+  if (!actorId.trim() || actorId.length > 200) throw new CharacterError("characters.invalid", "角色库缺少有效所有者");
   const directory = join(homeDirectory, "characters");
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const filename = join(directory, "characters.sqlite"), db = new DatabaseSync(filename);
@@ -15,7 +15,7 @@ export function openCharacters(homeDirectory: string, actorId: string): { servic
     const version = (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
     const initialized = db.prepare("SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 1").get();
     if (version !== 1 && (version !== 0 || initialized)) {
-      throw new CharacterError("character.invalid", `角色库版本不符：${filename}；期望版本 1，实际版本 ${version}。原库已保留，请恢复当前版本的库。`);
+      throw new CharacterError("characters.invalid", `角色库版本不符：${filename}；期望版本 1，实际版本 ${version}。原库已保留，请恢复当前版本的库。`);
     }
     if (version === 0) db.exec(`CREATE TABLE character_drafts (
       character_id TEXT PRIMARY KEY,

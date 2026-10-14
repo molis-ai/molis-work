@@ -79,7 +79,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
         updated_at: draft.updated_at, content: "context" as const, open: { surface: "characters", id: draft.character_id } })), input)),
       bindOwnerPluginAction(context, a.subject, input => {
         const draft = ports.drafts.get(input.subject_id);
-        if (!draft || draft.state === "tombstoned") throw new ActionError("character.not_found", "角色已删除");
+        if (!draft || draft.state === "tombstoned") throw new ActionError("characters.not_found", "角色已删除");
         return subjectContext({ subject: { kind: "character", id: draft.character_id }, revision: String(draft.revision), title: draft.title || "未命名角色",
           content: draft.instructions, goal_ids: [], session_id: null, open: { surface: "characters", id: draft.character_id } });
       }),
@@ -98,7 +98,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       }),
       bindOwnerPluginAction(context, a.publish, async (input, beforeWrite) => {
         const draft = ports.drafts.get(input.id);
-        if (!draft || draft.revision !== input.expected_revision) throw Object.assign(new Error("草稿已变化，请重新读取后发布"), { code: "character.conflict" });
+        if (!draft || draft.revision !== input.expected_revision) throw Object.assign(new Error("草稿已变化，请重新读取后发布"), { code: "characters.conflict" });
         await validateActions(draft.action_tools);
         await beforeWrite();
         const result = ports.publish(input.id, input.expected_revision, content => {
@@ -160,7 +160,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
         return { status: 200, body: await context.services.actions.invoke(definition, input(request), request.execution) };
       } catch (error) {
         const code = (error as { code?: string }).code;
-        const status = code === "character.conflict" ? 409 : code === "character.not_found" || code === "actions.missing" ? 404
+        const status = code === "characters.conflict" ? 409 : code === "characters.not_found" || code === "actions.missing" ? 404
           : code === "actions.forbidden" || code === "actions.owner_mismatch" ? 403 : 400;
         return { status, body: { error: error instanceof Error ? error.message : "角色操作失败", ...(code ? { code } : {}) } };
       }

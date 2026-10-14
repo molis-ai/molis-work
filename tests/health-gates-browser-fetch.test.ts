@@ -178,3 +178,69 @@ test("W3-10-5-01: a serialized literal computed property still identifies fetch"
   const result = gate("--base", "main"); assert.equal(result.code, 1, result.out);
   assert.match(result.out, /raw fetch calls in a browser program.*0 → 1/);
 });
+
+
+test("BROWSER-FORMAT-01/02: the current line compactor expands joined fragments and preserves the new fetch owner", () => {
+  reset();
+  put("plugins/native/alpha/src/format.ts", 'export const compactScript = source => source.split("\\n").map(line => line.trimStart()).filter(line => line && !line.startsWith("//")).join("\\n");\n');
+  put("plugins/native/alpha/src/open.ts", "export const OPEN_SCRIPT = `(() => {\n  const text = 'a  b';\n`;\n");
+  put("plugins/native/alpha/src/close.ts", "export const CLOSE_SCRIPT = `  void text;\n})();`;\n");
+  put("plugins/native/alpha/src/joined.ts", "import {compactScript} from './format.js';import {OPEN_SCRIPT} from './open.js';import {CLOSE_SCRIPT} from './close.js';export const CLIENT_SCRIPT = compactScript([OPEN_SCRIPT,CLOSE_SCRIPT].join(''));\n");
+  assert.equal(gate("--update").code, 0); commit("compacted base"); git("branch", "-f", "compact-base", "HEAD");
+  put("plugins/native/alpha/src/close.ts", "export const CLOSE_SCRIPT = `  fetch('/new');\n})();`;\n"); commit("new raw fetch");
+  const before = read("tooling/gates/baseline.json"), result = gate("--update", "--base", "compact-base");
+  assert.equal(result.code, 1, result.out); assert.match(result.out, /raw fetch calls.*close\.ts 0 → 1/);
+  assert.doesNotMatch(result.out, /browser program parse failed/); assert.equal(read("tooling/gates/baseline.json"), before);
+});
+
+test("BROWSER-FORMAT-02: whitespace inside the compactor's string argument is syntax data and cannot identify another formatter", () => {
+  reset();
+  put("plugins/native/alpha/src/new.ts", String.raw`const compact = source => source.split("\n").map(line => line.trimStart()).filter(line => line && !line.startsWith("/ /" )).join("\n");export const CLIENT_SCRIPT = compact("fetch(\'/x\');");`);
+  commit("different filter"); const result = gate("--base", "main");
+  assert.equal(result.code, 1, result.out); assert.match(result.out, /cannot statically expand browser program/);
+});
+
+
+test("BROWSER-FORMAT-01/02: mapped string and function parts serialize their actual syntax without running the module", () => {
+  reset();
+  put("plugins/native/alpha/src/functions.ts", "throw new Error('must never execute');export function draw(){fetch('/new');}\n");
+  put("plugins/native/alpha/src/mapped.ts", String.raw`import {draw} from './functions.js';export const CLIENT_SCRIPT = ['const GAP=8;',draw].map(part=>typeof part==='string'?part:part.toString().replace(/^[ \t]+/gm,'')).join('\n');`);
+  commit("mapped function"); const result = gate("--base", "main");
+  assert.equal(result.code, 1, result.out); assert.match(result.out, /raw fetch calls.*functions\.ts 0 → 1/);
+  assert.doesNotMatch(result.out, /cannot statically expand|must never execute/);
+});
+
+test("BROWSER-FORMAT-02: mapped array elements share the actual joined program scope", () => {
+  reset();
+  put("plugins/native/alpha/src/mapped.ts", String.raw`export const CLIENT_SCRIPT = ['const key="fetch";', 'globalThis[key]("/x");'].map(part=>part).join('\n');`);
+  commit("mapped cross-element alias"); const result = gate("--base", "main");
+  assert.equal(result.code, 1, result.out); assert.match(result.out, /raw fetch calls.*mapped\.ts 0 → 1/);
+  assert.doesNotMatch(result.out, /cannot statically expand/);
+});
+
+test("BROWSER-FORMAT-02: a numeric mapped value takes the non-string branch", () => {
+  reset();
+  put("plugins/native/alpha/src/mapped.ts", String.raw`export const CLIENT_SCRIPT = [1].map(part=>typeof part==='string'?'void 0':"fetch('/x');").join('\n');`);
+  commit("mapped numeric conditional"); const result = gate("--base", "main");
+  assert.equal(result.code, 1, result.out); assert.match(result.out, /raw fetch calls.*mapped\.ts 0 → 1/);
+  assert.doesNotMatch(result.out, /cannot statically expand/);
+});
+
+for (const source of [
+  String.raw`['a','b'].map(()=>'void 0').join(';fetch("/x");')`,
+  String.raw`['a','b'].flatMap(()=>'void 0').join(';fetch("/x");')`,
+  String.raw`['void 0','void 0'].join(flag ? ';' : ';fetch("/x");')`,
+  String.raw`['a','b'].map(part=>'void 0').join(flag ? ';' : ';fetch("/x");')`,
+]) test(`BROWSER-FORMAT-02: every actual join separator branch is scanned: ${source}`, () => {
+  reset(); put("plugins/native/alpha/src/mapped.ts", `export const CLIENT_SCRIPT = ${source};`);
+  commit("joined separator call"); const result = gate("--base", "main");
+  assert.equal(result.code, 1, result.out); assert.match(result.out, /raw fetch calls.*mapped\.ts 0 → 1/);
+  assert.doesNotMatch(result.out, /cannot statically expand/);
+});
+
+test("BROWSER-FORMAT-02: a reassigned local type cannot prune a browser program branch", () => {
+  reset(); put("plugins/native/alpha/src/mapped.ts", String.raw`let part='a';part=1;export const CLIENT_SCRIPT=typeof part==='string'?'void 0;':'fetch("/x");';`);
+  commit("reassigned conditional input"); const result = gate("--base", "main");
+  assert.equal(result.code, 1, result.out); assert.match(result.out, /raw fetch calls.*mapped\.ts 0 → 1/);
+  assert.doesNotMatch(result.out, /cannot statically expand/);
+});

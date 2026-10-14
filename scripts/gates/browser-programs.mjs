@@ -36,6 +36,28 @@ const FORMATTING_PATTERNS = new Map([
   ["/^[ \\t]+/gm", /^[ \t]+/gm], ["/^  /gm", /^  /gm],
   [String.raw`/^[ \t]*(?:\/\/[^\n]*|\/\*(?:(?!\*\/)[\s\S])*\*\/[ \t]*)\n/gm`, /^[ \t]*(?:\/\/[^\n]*|\/\*(?:(?!\*\/)[\s\S])*\*\/[ \t]*)\n/gm],
 ]);
+// Recognize only the pure line compactor used by current program producers; do not execute repository functions.
+const lineCompactor = (target, body) => {
+  if (target.parameters.length !== 1 || !ts.isIdentifier(target.parameters[0].name)) return false;
+  const argument = target.parameters[0].name.text;
+  if (!body) return false;
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.Standard, body.getText());
+  let text = "", token;
+  while ((token = scanner.scan()) !== ts.SyntaxKind.EndOfFileToken) text += scanner.getTokenText();
+  return text === `${argument}.split("\\n").map(line=>line.trimStart()).filter(line=>line&&!line.startsWith("//")).join("\\n")`;
+};
+const compactLines = (parts) => {
+  const text = textOf(parts), kept = []; let offset = 0;
+  for (const line of text.split("\n")) {
+    const trimmed = line.trimStart(), padding = line.length - trimmed.length;
+    if (trimmed && !trimmed.startsWith("//")) {
+      if (kept.length) kept.push(...sliceParts(parts, offset - 1, offset));
+      kept.push(...sliceParts(parts, offset + padding, offset + line.length));
+    }
+    offset += line.length + 1;
+  }
+  return kept;
+};
 const sliceParts = (parts, begin, end) => {
   let offset = 0; const result = [];
   for (const part of parts) {
@@ -82,6 +104,20 @@ export function browserPrograms(snapshot, isSource) {
     if (!returns.length) return null;
     return returns.flatMap((item) => evaluate(item.expression, next));
   };
+  const staticValue = (expression, env, immutableOnly = false) => {
+    let value = unwrap(expression); const seen = new Set();
+    while (value && ts.isIdentifier(value)) {
+      const binding = graph.lookup(value); if (!binding || seen.has(binding.node)) break;
+      seen.add(binding.node);
+      const argument = env.get(binding.node);
+      if (argument) { value = unwrap(argument.node); env = argument.env; }
+      else if (binding.value && (!immutableOnly || graph.isFunction(binding.value)
+        || ts.isVariableDeclaration(binding.node) && ts.isVariableDeclarationList(binding.node.parent)
+          && (binding.node.parent.flags & ts.NodeFlags.Const) !== 0)) value = unwrap(binding.value);
+      else break;
+    }
+    return value;
+  };
   const evaluate = (expression, env = new Map()) => {
     const node = unwrap(expression); if (!node) return [[]];
     if (literal(node)) return [[piece(node, node.text)]];
@@ -104,7 +140,17 @@ export function browserPrograms(snapshot, isSource) {
       return evaluateProperty(node.name.text, node, env);
     }
     if (graph.isFunction(node)) return stringifyFunction(node);
-    if (ts.isConditionalExpression(node)) return [...evaluate(node.whenTrue, env), ...evaluate(node.whenFalse, env)];
+    if (ts.isConditionalExpression(node)) {
+      const condition = unwrap(node.condition);
+      if (ts.isBinaryExpression(condition) && condition.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken
+        && ts.isTypeOfExpression(condition.left) && ts.isStringLiteral(condition.right) && condition.right.text === "string") {
+        const value = staticValue(condition.left.expression, env, true);
+        if (value && (ts.isStringLiteralLike(value) || ts.isTemplateExpression(value))) return evaluate(node.whenTrue, env);
+        if (value && (graph.isFunction(value) || ts.isNumericLiteral(value)
+          || [ts.SyntaxKind.TrueKeyword, ts.SyntaxKind.FalseKeyword, ts.SyntaxKind.NullKeyword].includes(value.kind))) return evaluate(node.whenFalse, env);
+      }
+      return [...evaluate(node.whenTrue, env), ...evaluate(node.whenFalse, env)];
+    }
     if (ts.isBinaryExpression(node)) {
       if (node.operatorToken.kind === ts.SyntaxKind.PlusToken) return combine(evaluate(node.left, env), evaluate(node.right, env));
       if ([ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(node.operatorToken.kind)) return [...evaluate(node.left, env), ...evaluate(node.right, env)];
@@ -128,20 +174,20 @@ export function browserPrograms(snapshot, isSource) {
       if (ts.isPropertyAccessExpression(node.expression)) {
         const method = node.expression.name.text, receiver = unwrap(node.expression.expression);
         if (method === "toString") {
-          const binding = graph.lookup(receiver), target = unwrap(binding?.value ?? receiver);
+          const target = staticValue(receiver, env);
           if (!target || !graph.isFunction(target)) return fail(node, "toString receiver is not a declared function");
-          dependencies.add(binding?.node ?? target);
+          dependencies.add(graph.lookup(receiver)?.node ?? target);
           return stringifyFunction(target);
         }
         if (method === "join") {
           const value = ts.isArrayLiteralExpression(receiver) ? receiver : unwrap(graph.lookup(receiver)?.value);
           if (ts.isCallExpression(receiver) && ts.isPropertyAccessExpression(receiver.expression)
-            && ["map", "flatMap"].includes(receiver.expression.name.text)) return evaluateArrayCallback(receiver, env);
+            && ["map", "flatMap"].includes(receiver.expression.name.text)) return evaluateArrayCallback(receiver, env, node);
           if (!value || !ts.isArrayLiteralExpression(value)) return fail(node, "join receiver is not a static array");
-          const separator = node.arguments.length ? textOf(evaluate(node.arguments[0], env)[0]) : ",";
+          const separators = node.arguments.length ? evaluate(node.arguments[0], env) : [[piece(node, ",")]];
           let result = [[]];
           for (const [index, item] of value.elements.entries()) {
-            if (index) result = combine(result, [[piece(node, separator)]]);
+            if (index) result = combine(result, separators);
             result = combine(result, evaluate(item, env));
           }
           return result;
@@ -160,6 +206,7 @@ export function browserPrograms(snapshot, isSource) {
         // Compiler indentation compaction preserves the program's statements. Keep the unformatted syntax.
         const body = target.body && ts.isBlock(target.body) && target.body.statements.length === 1 && ts.isReturnStatement(target.body.statements[0])
           ? target.body.statements[0].expression : target.body;
+        if (body && lineCompactor(target, body) && node.arguments[0]) return evaluate(node.arguments[0], env).map(compactLines);
         if (body && indentationOnly(body) && target.parameters.length === 1 && ts.isIdentifier(body.expression.expression)
           && body.expression.expression.text === browserName(target.parameters[0].name)) return evaluate(node.arguments[0], env);
         const result = evaluateFunction(binding, node.arguments, env); if (result) return result;
@@ -189,8 +236,19 @@ export function browserPrograms(snapshot, isSource) {
     } finally { propertyStack.delete(name); }
     return result.length ? uniqueVariants(result) : fail(node, `cycle at property ${name}`);
   };
-  const evaluateArrayCallback = (node, env) => {
+  const evaluateArrayCallback = (node, env, joined) => {
     const callback = node.arguments[0]; if (!callback || !graph.isFunction(callback)) return fail(node, "array callback is not declared syntax");
+    const receiver = staticValue(node.expression.expression, env), parameter = callback.parameters[0];
+    if (receiver && ts.isArrayLiteralExpression(receiver) && !ts.isBlock(callback.body)) {
+      const separators = joined.arguments.length ? evaluate(joined.arguments[0], env) : [[piece(joined, ",")]];
+      let result = [[]];
+      for (const [index, item] of receiver.elements.entries()) {
+        if (index) result = combine(result, separators);
+        const next = new Map(env); if (parameter) next.set(parameter, { node: item, env });
+        result = combine(result, evaluate(callback.body, next));
+      }
+      return result;
+    }
     const values = [];
     const visit = (at) => {
       if (ts.isCallExpression(at) && ts.isPropertyAccessExpression(at.expression) && at.expression.name.text === "push") values.push(...at.arguments);

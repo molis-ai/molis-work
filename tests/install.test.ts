@@ -159,6 +159,7 @@ async function withTemporaryDirectory<T>(run: (directory: string) => Promise<T>)
   }
 }
 
+// INSERR-01 / INSERR-02: installer refusal and recovery assertions keep the current owner codes and persisted state.
 test("source and built CLI without --source use the product root even from another directory", async () => {
   await withTemporaryDirectory(async (directory) => {
     const productRoot = process.cwd();

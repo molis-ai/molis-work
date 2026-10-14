@@ -39,6 +39,7 @@ async function fixture() {
   return { directory, userHome, home, userProject, demo: demo.project, service };
 }
 
+// INSERR-01 / INSERR-02: installer refusal and recovery assertions keep the current owner codes and persisted state.
 test("safe uninstall preview is read-only and confirmation preserves every user project", async () => {
   const item = await fixture();
   try {

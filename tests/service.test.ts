@@ -111,6 +111,7 @@ async function makeOwnedConfigNeedRepair(item: Awaited<ReturnType<typeof fixture
   return { outdatedPlist, outdatedReceiptText };
 }
 
+// INSERR-01 / INSERR-02: installer refusal and recovery assertions keep the current owner codes and persisted state.
 test("Web self-restart keeps the job loaded and defers its single kickstart until after the response", async (t) => {
   const item = await fixture(); t.after(() => rm(item.directory, { recursive: true, force: true }));
   const install = await item.manager.prepare("install");

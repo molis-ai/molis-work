@@ -455,6 +455,9 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 | D15 | 样式怎样只带用到的（2026-10-14，本线定） | `INTERACTION_STYLES` 拆成七段：问卷、日期、数字与日历、对象行、操作卡、下一步、留痕（出处、字段提示、回填与刷新标记、已答摘要、版本、结果、输入框标记）；工作台与项目选择页只带前四段（问卷、日期、操作卡、下一步），设置页不带。脚本用不带日历的 `INTERACTION_CLIENT_SCRIPT_TYPED_DATES`，日期手输、星期照显 | 项目选择页也挂助理岛（`arrival/chooser.ts`），所以 `arrival.css` 也要带，§20.11 说「只进 workbench.css」不对；日历按需等有日期题时再带 |
 | D16 | 旧皮肤抵字节删哪些（2026-10-14，本线定，用户已准 (b′)） | 只删 `momentum.ts` 里每个选择器都含 `.momentum-*` 类的 140 条规则（加 `craft-finish` 里一条同类）：逐个类核过，非样式源码里没有任何标记或脚本画出这些类（现在的推进态势画 `goal-canvas-*` 类与 `[data-goal-momentum]` 钩子）；只钉这些死规则文字的断言随之删去，「Goal 编号留在节点上」改到现行的 `.goal-canvas-node small` 上断言 | 一整族删干净比挑够数更好核；其余候选（`personal-*`、`desktop-*` 等）留给防腐 W5-05 |
 | D17 | `assistant-base` 升版放在哪一片（2026-10-14，本线定） | 不在 A1：助理声明 `["choice"]`，但 Coding 仍是空，交集为空，模型拿到的仍是纯选择题；提示词这时讲带类型的题与 `reference` 题，就是在讲模型没有的工具。改到让交集非空的那一片（A2）一起升 | 提示词与工具形状同步 |
+| D18 | 问卷卡与「读回答」各放哪（2026-10-14，本线定） | 卡由宿主画，放在 `apps/local-host/src/agent-question-card.ts`（助理与 Coding 的问题都在宿主那一层附 HTML，同一个函数）；把卡里的字段读成运行的回答放在插件开发包 `questionAnswer`（宿主的助理 HTTP 用它，Coding 的页面脚本把它按文本嵌入，与嵌入代码高亮同法） | 两边各写一份就是同一个事实的两个主人；读回答要同时在宿主和页面里用，按 AGENTS 的规矩，作者和平台共用、会运行的工具放在插件开发包里。代价：改插件开发包算共享核心，要跑全量 |
+| D19 | 共享客户端只在一处（2026-10-14，本线定） | `workbench.js` 的初始化里定义一次，经宿主对象交给助理岛与所有延迟加载的插件客户端（Coding 拿到的是 `host.interaction`）；项目选择页内联一份给它自己的岛 | 不在 5 个 Coding 系插件包里各嵌一份；岛也不再自带一份（A1 时嵌在岛里） |
+| D20 | 带类型的选择题开放（2026-10-14，本线定，按 D8） | 助理与 Coding 都声明 `choice`，宿主给 Runtime `askUserQuestionTypes: ["choice"]`；`assistant-base` 升到 25、`coding-base` 升到 10，各加一句怎样写选项说明、推荐与选填；ISSUE-34 改为断言带类型的合同（缺 `label` 的选项被拒并说明，只纠正一次） | 两个界面都画得了带类型的选择题，按 D8 就在同一个改动里开放；其他题型等两边都画得了再开 |
 
 ## 17. 分期与 PR 序列
 
@@ -926,6 +929,17 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
 验收：新测试 `tests/assistant-interaction-html.test.ts`（AC-21、AC-23）；改动的断言（预期变化，不是放宽）：`interaction-components` AC-17 改成断言采用后的状态（D15）、`coss-control-language` 的 44 px 一条改到共享部件、`visual-foundation` 去掉钉死规则文字的断言（D16）、`assistant-page-written.e2e` 的失效卡改成库里真有的卡、`agent-typed-questions` 的助理题型。
 
 没做：A2（Coding）、`assistant-base` 升版（D17）、H3/H4、S1；日期题与日历（等有日期题时随那一片带）。
+
+### 20.14 A2（2026-10-14，分支 `feature/ai-interaction-a2`，从 `34d0d1fc` 起）
+
+- **Coding 的问卷卡换成共享的那张**：宿主在 `coding-surface.ts` 附 HTML 时改用 `agentQuestionHtml`（与助理同一个函数，D18）；Coding 插件删掉自己的 `renderPendingQuestionCard` 与卡片样式（只留一条让卡在线程里保持阅读宽度）。
+- **Coding 页面脚本接共享客户端**：`host.interaction` 绑定卡片，草稿用 `client.read()` 存进会话（`question_drafts`）、用 `client.write()` 还原，提交用插件开发包的 `questionAnswer` 读成回答；不能回答时禁用字段并在卡底说明原因。
+- **共享客户端只在 `workbench.js` 里一份**（D19）。
+- **开放带类型的选择题**（D20）。
+- 字节（门禁实测，对照 merge-base `34d0d1fc`）：5 个 Coding 系插件包各 −798；`workbench.css`、`settings.css` 各 −752；`workbench.js` −14。
+- 并入 main `9abcb963`（含 #488 状态环）：宿主问卷卡的标题环随 `answer`/`unavailable` 走（原来画在助理那份 `assistantQuestionHtml` 与 Coding 自己的卡上，现在画在共享的 `agentQuestionHtml` 上，Coding 页面在这一轮结束时把环切到 `unavailable`）；`assistant-strip-narrow.e2e` 的 RING-07 样例改用 `agentQuestionHtml`。并入后对照 merge-base `9abcb963`：5 个 Coding 系插件包各 −826，`workbench.css`、`settings.css` 各 −752，`workbench.js` −14。
+- 全量回归（并入 main 之前的 `1c7051a5`）：6261 条，6250 通过，9 跳过，2 失败——都是 main 上已知的 `touch-targets.e2e` 两条（亮、暗各一）。并入 main 之后重跑了相关单测 107 条与浏览器用例 8 条（`coding-question-card`、`issue-clarification-page`、`assistant-strip-narrow`、`coding-state-rings`、`assistant-page-written`），全部通过。
+- 用例：新 `tests/coding-question-card.e2e.test.ts`（AC-22：带类型的合同、推荐与说明、不预选、草稿随会话、回答到达模型、卡换成回执）；`coding-question-card.test.ts` 的规则（不预选、无忽略、无多余输入框、无空选项组、各卡 id 不串、转义）改到共享卡上，「没有问题时什么都不画」随列表渲染函数一起删掉（宿主按每个等待中的问题附一张卡）；`agent-typed-questions`、`issue-clarification-page` 的 ISSUE-34 按 D20 改。
 
 ### 20.12 C1+H1（`c50a5534`）重做时与 main 的碰撞（2026-10-13，只读核对，没有合并）
 

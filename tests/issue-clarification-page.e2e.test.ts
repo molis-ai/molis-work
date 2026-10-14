@@ -60,10 +60,15 @@ for (const question of ["correct-once", "never-correct"] as const) {
     assert.equal(asks.length, 2, "one failed attempt plus one correction, never six repeated failures");
     assert.equal(asks.filter(action => action.state === "failed").length, question === "correct-once" ? 1 : 2);
     const wire = requests as Array<{ tools: Array<{ name: string; input_schema: { properties: { questions: { items: { properties: { options: unknown } } } } } }>; messages: unknown }>;
+    // Both surfaces draw typed choice questions (ai-interaction A1, A2), so the model is offered that contract: options are objects with a label.
     assert.deepEqual(wire[0]!.tools.find(tool => tool.name === "ask-user")!.input_schema.properties.questions.items.properties.options, {
-      type: "array", items: { type: "string" }, description: "Frozen choices. The answer is taken from these labels.",
-    }, "the model really receives a string-array contract, not the display question shape");
-    assert.match(JSON.stringify(wire[1]!.messages), /Question options are plain labels/);
+      type: "array", description: "choice only. Frozen choices; the answer is taken from these labels.",
+      items: { type: "object", properties: { label: { type: "string" },
+        description: { type: "string", description: "How this choice differs. For the recommended one, say why." },
+        recommended: { type: "boolean", description: "Your recommendation. It is not a choice: the person still picks." },
+        default: { type: "boolean", description: "Prefill this choice in the form. Not an answer." } }, required: ["label"], additionalProperties: false },
+    }, "the model really receives the typed choice contract the surfaces draw");
+    assert.match(JSON.stringify(wire[1]!.messages), /options each need a .{0,6}label/, "an option without a label is refused with the reason");
     assert.match(JSON.stringify(wire[1]!.messages), /description.*补充具体问题后再生成/, "provider parsing retains the original malformed object, without silently converting it");
     assert.equal(requests.length, 2, "no third model call after the second failed receipt or while awaiting input");
     assert.equal(view!.cards.length, 0);

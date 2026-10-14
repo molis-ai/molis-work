@@ -4,9 +4,8 @@ import type {
   UiContributionDescriptor,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { renderButton, renderTextarea, renderStatusMark, renderDirectoryRow, renderDirectoryPanel, renderDirectoryHeading, renderSidebar } from "@molis-ai/molis-work-design-system";
+import { renderButton, renderDirectoryRow, renderDirectoryPanel, renderDirectoryHeading, renderSidebar } from "@molis-ai/molis-work-design-system";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type { CodingIdentityView } from "./identity.js";
 import {
   filterSessions,
@@ -569,59 +568,6 @@ export function renderPendingReviewCard(model: CodingReviewCardModel): string {
     <a class="mw-button mw-button--primary" href="${p.escape(model.review_href)}" data-coding-review-open>${p.escape("查看并处理")}</a>
     <p class="coding-review-note">${p.escape("在你批准之前，这些操作不会发生。批准在宿主的审查面里做。")}</p>
   </aside>`;
-}
-
-export interface CodingQuestionCardModel {
-  readonly questions: readonly AgentPendingQuestion[];
-  readonly primitives: CodingUiPrimitives;
-}
-
-/**
- * The card that asks the user a question the Run stopped on.
- *
- * Three rules from the design, each load-bearing:
- *
- * - **Nothing is pre-selected.** No option carries `checked`, because a
- *   pre-filled answer is an answer the user did not give, and the Run would act
- *   on it.
- * - **Leaving is not cancelling.** There is no dismiss control; the question
- *   stays until it is answered or the Run ends.
- * - **Free text is offered only when the Runtime accepts it**, so the form
- *   never invites an answer that would be thrown away.
- */
-export function renderPendingQuestionCard(model: CodingQuestionCardModel): string {
-  const { primitives: p } = model;
-  if (model.questions.length === 0) return "";
-  return model.questions.map((question) => {
-    const name = `coding-answer-${question.pending_id}`;
-    const disabled = question.answerable === false;
-    const options = question.options.map((option, index) => `<label class="coding-question-option">
-      <input type="radio" name="${p.escape(name)}" value="${p.escape(option.value)}" id="${p.escape(`${name}-${index}`)}"${disabled ? " disabled" : ""}>
-      <span>${p.escape(option.label)}</span>
-    </label>`).join("");
-    const freeText = question.allows_free_text
-      ? `<label class="coding-question-text" for="${p.escape(`${name}-text`)}">
-          <span>${p.escape(question.options.length === 0 ? "你的回答" : "或者自己写")}</span>
-          ${renderTextarea({ id: `${name}-text`, rows: 2, disabled, attrs: { "data-coding-answer-text": question.pending_id } })}
-        </label>`
-      : "";
-    const questionnaire = (question.questions ?? []).map(item => `<fieldset class="coding-question-options" data-question-index="${item.index}"${disabled ? " disabled" : ""}>
-      <legend>${p.escape(item.prompt)}</legend>
-      ${item.multiple ? `<p class="coding-question-hint">${p.escape("可选择多项")}</p>` : ""}
-      ${item.options.map(option => `<label class="coding-question-option"><input type="${item.multiple ? "checkbox" : "radio"}" name="${p.escape(`${name}-${item.index}`)}" value="${option.index}"><span>${p.escape(option.label)}</span></label>`).join("")}
-      ${item.allow_other ? `<label class="coding-question-text"><span>${p.escape("其他说明（可选）")}</span>${renderTextarea({ rows: 2, disabled, attrs: { "data-question-other": item.index, maxlength: 500 } })}</label>` : ""}
-    </fieldset>`).join("");
-    return `<form class="coding-question-card" data-coding-question="${p.escape(question.pending_id)}" data-pending-revision="${question.pending_revision ?? ""}">
-      ${renderStatusMark({ label: disabled ? "问题不可回答" : "需要你回答", tone: disabled ? "quiet" : "attention", state: disabled ? "unavailable" : "answer", plain: true, labelAttrs: { "data-question-label": "" } })}
-      <p class="coding-question-prompt">${p.escape(question.prompt)}</p>
-      ${options === "" ? "" : `<fieldset class="coding-question-options"><legend class="mw-visually-hidden">${p.escape(question.prompt)}</legend>${options}</fieldset>`}
-      ${freeText}
-      ${questionnaire}
-      <p class="coding-question-hint" data-question-hint>${p.escape(disabled ? "保留原问题与未提交内容，便于核对；这不表示答案已交付。" : "回答用于继续这一轮任务；离开会话不会取消等待。")}</p>
-      <p data-question-status role="status" aria-live="polite">${p.escape(question.unavailable_reason ?? "")}</p>
-      ${renderButton({ label: "提交回答", type: "submit", variant: "primary", disabled, attrs: { "data-coding-answer-submit": question.pending_id } })}
-    </form>`;
-  }).join("");
 }
 
 export interface CodingReportModel {

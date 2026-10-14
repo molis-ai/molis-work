@@ -1,6 +1,6 @@
 import { renderInteractionNextSteps, type InteractionNextStep, type InteractionValues } from "@molis-ai/molis-work-design-system";
 import type { AssistantCard, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
-import { assistantQuestionHtml } from "./assistant-questions.js";
+import { agentQuestionHtml } from "../agent-question-card.js";
 
 /**
  * What follows the latest round, under it: open what it made (two at most), or send the same words again when it failed.
@@ -29,7 +29,7 @@ export function drawAssistantReply(body: unknown, ports: { say: (text: string, v
   for (const candidate of [body, (body as { view?: unknown } | null)?.view]) {
     if (isView(candidate)) {
       const drafts = ports.drafts(candidate.work.work_id);
-      for (const round of candidate.rounds) for (const question of round.awaiting_input) Object.assign(question, { html: assistantQuestionHtml(question, ports.say, drafts[question.pending_id]) });
+      for (const round of candidate.rounds) for (const question of round.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, ports.say, drafts[question.pending_id]) });
       candidate.cards.forEach(drawCard);
       const steps = assistantNextSteps(candidate, ports.say);
       Object.assign(candidate, { next_html: steps.length ? renderInteractionNextSteps(steps, ports.say("接下来")) : "" });

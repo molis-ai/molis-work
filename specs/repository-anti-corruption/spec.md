@@ -2466,4 +2466,4 @@ W3-02-I12-SESSION收contracts/private-work-context现行PrivateWorkContextError�
 
 BIND完整61952ddb3独立Source接受，26抛错/11声明逐项对原factory，Host恰删三注入，原交易/provision/normalize未动；真实重绑拒绝快照可发现写入，types48b/依赖0、API48匹配、health48基于d530实际67类/owner46。已纳I8到7abf5f7dd，后统一测量不复用46旧刻度。Session166341aab+994f060ad候选删类/兼容别名及67造错，confirmation精确中文/原400/0Session增强已保存；types模块0、Work6诊断/全图8仅borrowed xterm/lucide链接未安装，不记整包通过。API49改唯一private-work-context快照、health49实际66类，Source独立复核在途。
 
-当前远端main又由外部#491合为2768dd71b，Root未执行merge；比d530新增六文件，模型切换对prompt_cache=off不强制同格式判断及其真实消费者回归。I8已同步该main、保留I6共同错误，无源码冲突；最终联合SDK/整建/回归须针对此新基线，不把d530的Source/旧运行直接贴为最新main。#480新1ffc全必需/产品绿但BEHIND于491，仍Grok负责同步与优先链，Root未替合。
+当前远端main又由外部#491合为2768dd71b，Root未执行merge；比d530新增六文件，模型切换对prompt_cache=off不强制同格式判断及其真实消费者回归。I8同步该main时模型切换helper有一处冲突，须同时保新prompt_cache=off判断、本线beforeAccept同步拒绝与I6共同错误，实际解后再保存；最终联合SDK/整建/回归须针对此新基线，不把d530的Source/旧运行直接贴为最新main。#480新1ffc全必需/产品绿但BEHIND于491，仍Grok负责同步与优先链，Root未替合。

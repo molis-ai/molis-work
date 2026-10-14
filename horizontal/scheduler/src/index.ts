@@ -559,7 +559,7 @@ function jobIdOf(input: unknown): string {
   return job_id;
 }
 
-/** The one place a refused input becomes a `schedule_job_invalid` error; the throw sites read as `throw invalid("...")`. */
+/** The one place a refused input becomes a `scheduler.job_invalid` error; the throw sites read as `throw invalid("...")`. */
 function invalid(message: string): ScheduleError {
   return new ScheduleError("scheduler.job_invalid", message);
 }

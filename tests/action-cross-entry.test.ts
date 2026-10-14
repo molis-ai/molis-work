@@ -123,14 +123,14 @@ test("W3-09-1-01 T4: the actual typed service records refusals, requires its ori
   const changed = t.mock.method(home.host.search!, "changed");
   const directId = newCallId();
   await withCallId(directId, () => assert.rejects(home.host.client(project.reference).invoke(scheduleCapabilities.cancel, { job_id: "missing" }),
-    { code: "schedule_job_invalid", message: "插件身份无效" }));
+    { code: "scheduler.job_invalid", message: "插件身份无效" }));
   const direct = row(home, directId, scheduleCapabilities.cancel.capability_id);
-  assert.deepEqual([direct.path, direct.actor_id, direct.ok, direct.code], ["typed", "local-host", false, "schedule_job_invalid"]);
+  assert.deepEqual([direct.path, direct.actor_id, direct.ok, direct.code], ["typed", "local-host", false, "scheduler.job_invalid"]);
   const native = client, missingId = newCallId();
   await withCallId(missingId, () => assert.rejects(native.invoke(scheduleCapabilities.cancel, { job_id: "missing" }),
-    { code: "schedule_job_not_found", message: "定时任务不存在" }));
+    { code: "scheduler.job_not_found", message: "定时任务不存在" }));
   const missing = row(home, missingId, scheduleCapabilities.cancel.capability_id);
-  assert.deepEqual([missing.path, missing.ok, missing.code], ["typed", false, "schedule_job_not_found"]);
+  assert.deepEqual([missing.path, missing.ok, missing.code], ["typed", false, "scheduler.job_not_found"]);
   const readId = newCallId();
   assert.deepEqual(await withCallId(readId, () => native.invoke(scheduleCapabilities.list, {})), { jobs: [] });
   assert.deepEqual(home.host.callLog!.find(readId), [], "a successful typed query is not a platform command");

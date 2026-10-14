@@ -247,6 +247,7 @@ export { ComputerRecords } from "./computer/computer-records.js";
 export { ComputerDesk } from "./computer/computer-desk.js";
 export { ComputerSettings } from "./computer/computer-settings.js";
 export { ComputerDriver, type DeskContext } from "./computer/computer-driver.js";
+export { desktopTaskComplete, type DesktopTaskFacts, type DesktopTaskWanted } from "./computer/task-outcome.js";
 export { helperFailure, isRefused } from "./computer/computer-errors.js";
 export {
   COMPUTER_RECORD_SOURCE_ID,

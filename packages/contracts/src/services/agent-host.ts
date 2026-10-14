@@ -697,7 +697,7 @@ export type AgentRunControl =
   | { kind: "stop" }
   | { kind: "cancel" }
   /** Append an instruction to the running task. Never a new Run. */
-  | { kind: "steer"; text: string }
+  | import("./agent-inputs.js").AgentSteerControl
   /**
    * Send this Run's later model calls to another configured model, from its next model call. History, tools,
    * permissions and budget stay as they are; refused when the model cannot carry what the Run was started with.
@@ -722,8 +722,8 @@ export interface AgentTurnView {
   at: string | null;
   /** Relative presentation order within this Run, reconstructed from its events. */
   sequence?: number;
-  /** Run-owned supplemental input; applied means context inclusion, not compliance. */
-  steer?: { id: string; state: "received" | "applied" | "unconfirmed" };
+  /** Run-owned supplemental input, from the run's ledger: applied is context inclusion; read is a kept reply made with it, not compliance; unread is the round ending before that. */
+  steer?: { id: string; state: "received" | "applied" | "read" | "unread" | "withdrawn" };
 }
 
 export type AgentToolActivityState = "started" | "completed" | "failed" | "unknown";

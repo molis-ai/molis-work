@@ -72,7 +72,7 @@
     "file horizontal/agent-host/src/adapters/prologue-node.ts": 1552,
     "function horizontal/agent-host/src/adapters/prologue-node.ts#initializePrologueNodeAdapter": 1280,
     "function horizontal/agent-host/src/adapters/prologue-node.ts#startAgentRun": 406,
-    "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 212,
+    "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 202,
     "function horizontal/agent-host/src/adapters/prologue-taskboard.ts#createPrologueTaskBoards": 220,
     "file horizontal/agent-host/src/adapters/prologue.ts": 995,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {

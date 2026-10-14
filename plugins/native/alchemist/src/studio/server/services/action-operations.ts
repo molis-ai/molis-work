@@ -5,12 +5,8 @@ import type { AlchemistPulseGithubPort } from "../sources/pulse-github-port.js";
 import { deriveDirectionTitle } from "../../shared/contracts/direction.js";
 import { IdeaActionError } from "./idea-card-actions.js";
 import { ResearchPlanError } from "./create-research-plan.js";
-import { StartLensRunError } from "./start-lens-run.js";
-import { IdeaCardTransitionError } from "../../domain/discovery/idea-card.js";
 import { createWorkspaceOperations } from "./workspace-operations.js";
 import { DecisionServiceError } from "./decision-workspace.js";
-import { OpportunityActionError } from "./opportunity-actions.js";
-import { StartPulseRunError } from "./start-pulse-run.js";
 import { AlchemistOperationError } from "./action-error.js";
 export { AlchemistOperationError } from "./action-error.js";
 
@@ -124,16 +120,16 @@ function businessError(error: unknown): never {
   if (error instanceof DecisionServiceError) throw new AlchemistOperationError(error.code,
     error.code === "alchemist.idea_version_not_found" ? "没有找到这个 Idea 版本。" : error.code === "alchemist.decision_already_exists" ? "这个 Idea 版本已经有正式决定。"
       : error.code === "alchemist.decision_version_not_current" ? "旧 Idea 版本只能回看。" : "两条兼容研究材料尚未齐全。", error.code === "alchemist.idea_version_not_found" ? 404 : 409);
-  if (error instanceof OpportunityActionError) throw new AlchemistOperationError(error.message, error.message === "alchemist.opportunity_not_found" ? "没有找到这个机会方向。" : "这个机会当前无法执行该动作。", error.message === "alchemist.opportunity_not_found" ? 404 : 409);
-  if (error instanceof StartPulseRunError) throw new AlchemistOperationError(error.message, "请至少启用一个市场来源。");
-  if (error instanceof IdeaActionError || error instanceof IdeaCardTransitionError) {
-    if (error.code === "alchemist.idea_card_already_kept") throw new AlchemistOperationError(error.code, "这张候选牌已经形成 Idea，不会重复创建版本。", 409, { recovery: "打开已有 Idea 继续查看。", ideaId: error.ideaId });
+  if (error instanceof ActionError && ["alchemist.opportunity_not_found", "alchemist.opportunity_direction_not_found", "alchemist.pulse_report_not_found", "alchemist.opportunity_action_failed", "alchemist.opportunity_already_converted", "alchemist.opportunity_cannot_be_saved", "alchemist.opportunity_cannot_be_dismissed", "alchemist.opportunity_cannot_be_converted"].includes(error.code)) throw new AlchemistOperationError(error.message, error.message === "alchemist.opportunity_not_found" ? "没有找到这个机会方向。" : "这个机会当前无法执行该动作。", error.message === "alchemist.opportunity_not_found" ? 404 : 409);
+  if (error instanceof ActionError && error.code === "alchemist.pulse_no_enabled_sources") throw new AlchemistOperationError(error.message, "请至少启用一个市场来源。");
+  if (error instanceof IdeaActionError || (error instanceof ActionError && ["alchemist.idea_card_not_candidate", "alchemist.idea_card_not_discarded"].includes(error.code))) {
+    if (error instanceof IdeaActionError && error.code === "alchemist.idea_card_already_kept") throw new AlchemistOperationError(error.code, "这张候选牌已经形成 Idea，不会重复创建版本。", 409, { recovery: "打开已有 Idea 继续查看。", ideaId: error.ideaId });
     if (error.code === "alchemist.idea_card_not_candidate" || error.code === "alchemist.idea_card_not_discarded") throw new AlchemistOperationError(error.code, "这张牌的状态已经改变，请刷新后重试。");
     throw new AlchemistOperationError(error.code, error.code === "alchemist.idea_version_not_found" ? "没有找到这个 Idea 版本。" : "没有找到这张候选牌。", 404);
   }
   if (error instanceof ResearchPlanError) throw new AlchemistOperationError(error.code,
     error.code === "alchemist.idea_version_not_found" ? "只有正式 Idea 版本可以开始研究。" : error.code === "alchemist.runtime_model_not_found" ? "没有找到所选模型。" : "预算上限无效。", error.code === "alchemist.idea_version_not_found" ? 404 : 422);
-  if (error instanceof StartLensRunError) throw new AlchemistOperationError(error.code, "这份研究计划无法启动。");
+  if (error instanceof ActionError && ["alchemist.research_plan_not_found", "alchemist.research_plan_mismatch", "alchemist.lens_run_exists"].includes(error.code)) throw new AlchemistOperationError(error.code, "这份研究计划无法启动。");
   if (error instanceof Error) {
     const message = workspaceProblems[error.message];
     if (message) throw new AlchemistOperationError(error.message, message, error.message.endsWith("_not_found") ? 404 : 409);

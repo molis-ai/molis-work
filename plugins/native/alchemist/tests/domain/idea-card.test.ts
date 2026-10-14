@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   discardCard,
   type IdeaCard,
-  IdeaCardTransitionError,
   restoreCard,
 } from "../../src/studio/domain/discovery/idea-card";
 
@@ -45,12 +44,12 @@ describe("Idea Card state transitions", () => {
     expect(restoreCard(discarded)).toEqual(candidate);
   });
 
-  // J5A-01/J5A-02: the same rejected transition uses the current owner code.
+  // ALCERR-01/ALCERR-02 (J5A-01/J5A-02): the same rejected transition uses the current owner code.
   it("rejects discarding a card that is no longer a candidate", () => {
     const discarded = discardCard(candidate, "2026-07-31T00:01:00.000Z");
 
     expect(() => discardCard(discarded, "2026-07-31T00:02:00.000Z")).toThrowError(
-      new IdeaCardTransitionError("alchemist.idea_card_not_candidate"),
+      expect.objectContaining({ code: "alchemist.idea_card_not_candidate", message: "alchemist.idea_card_not_candidate", kind: "invalid" }),
     );
   });
 });

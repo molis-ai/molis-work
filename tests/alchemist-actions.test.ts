@@ -101,12 +101,19 @@ test("Alchemist Pulse, cancellation and exports use real repositories and preser
   assert.ok((await call(a.pulseSources, {})).sources.some(item => item.sourceId === "github"));
   await call(a.pulseSourceUpdate, { sourceId: "github", enabled: false });
   await assert.rejects(call(a.pulseStart, { sourceIds: ["github"] }), { code: "alchemist.pulse_no_enabled_sources", message: "请至少启用一个市场来源。" });
+  const noSources = await f.runtime.app.request("http://localhost/api/v1/pulse/runs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sourceIds: ["github"] }) });
+  assert.equal(noSources.status, 400);
+  assert.deepEqual(await noSources.json(), { code: "alchemist.pulse_no_enabled_sources", message: "请至少启用一个市场来源。" });
+  assert.equal((await call(a.pulseReports, {})).latestRun, undefined);
+  const missingRun = await f.runtime.app.request("http://localhost/api/v1/runs/missing/cancel", { method: "POST" });
+  assert.equal(missingRun.status, 404);
+  assert.deepEqual(await missingRun.json(), { code: "alchemist.lens_run_not_found", message: "没有找到这次研究。" });
   await call(a.pulseSourceUpdate, { sourceId: "github", enabled: true });
   const pulse = await call(a.pulseStart, { sourceIds: ["github"] }); await f.runtime.runPending();
   assert.equal((await call(a.runEvents, { id: pulse.run.jobId })).status, "completed");
   const reports = await call(a.pulseReports, {}); assert.equal(reports.latestRun!.id, pulse.run.id); assert.ok(reports.reports[0]!.signals.length);
   const opportunity = reports.reports[0]!.opportunities[0]!;
-  // J5A-01/J5A-02: the domain refusal must survive the repository and operation adapters.
+  // ALCERR-01/ALCERR-03 (J5A-01/J5A-02): the domain refusal must survive the repository and operation adapters.
   const saved = (await call(a.opportunitySave, { id: opportunity.id })).opportunity;
   assert.equal(saved.status, "saved_for_later");
   await assert.rejects(call(a.opportunitySave, { id: opportunity.id }), { code: "alchemist.opportunity_cannot_be_saved", message: "这个机会当前无法执行该动作。" });

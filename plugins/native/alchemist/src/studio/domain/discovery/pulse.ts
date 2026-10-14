@@ -1,3 +1,4 @@
+import { alchemistStateErrors } from "../../errors.js";
 import type { RunStage, RunStatus } from "../kernel/run.js";
 import type { PulseSourceId, SourceCollectionResult } from "./source.js";
 
@@ -96,10 +97,6 @@ export function inspectPulseCoverage(
   };
 }
 
-export class OpportunityTransitionError extends Error {
-  readonly name = "OpportunityTransitionError";
-}
-
 type OpportunityAction =
   | { action: "save_for_later"; now: string }
   | { action: "dismiss"; now: string }
@@ -107,22 +104,22 @@ type OpportunityAction =
 
 export function transitionOpportunity(opportunity: Opportunity, action: OpportunityAction): Opportunity {
   if (opportunity.status === "converted_to_direction") {
-    throw new OpportunityTransitionError("alchemist.opportunity_already_converted");
+    throw alchemistStateErrors.opportunity_already_converted("alchemist.opportunity_already_converted");
   }
   if (action.action === "save_for_later") {
     if (opportunity.status !== "new") {
-      throw new OpportunityTransitionError("alchemist.opportunity_cannot_be_saved");
+      throw alchemistStateErrors.opportunity_cannot_be_saved("alchemist.opportunity_cannot_be_saved");
     }
     return { ...opportunity, status: "saved_for_later", savedAt: action.now };
   }
   if (action.action === "dismiss") {
     if (opportunity.status !== "new" && opportunity.status !== "saved_for_later") {
-      throw new OpportunityTransitionError("alchemist.opportunity_cannot_be_dismissed");
+      throw alchemistStateErrors.opportunity_cannot_be_dismissed("alchemist.opportunity_cannot_be_dismissed");
     }
     return { ...opportunity, status: "dismissed", dismissedAt: action.now };
   }
   if (opportunity.status !== "new" && opportunity.status !== "saved_for_later") {
-    throw new OpportunityTransitionError("alchemist.opportunity_cannot_be_converted");
+    throw alchemistStateErrors.opportunity_cannot_be_converted("alchemist.opportunity_cannot_be_converted");
   }
   return {
     ...opportunity,

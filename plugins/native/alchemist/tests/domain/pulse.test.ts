@@ -36,7 +36,7 @@ describe("Market Pulse domain", () => {
         status: "error",
         requestUrl: "https://watcha.cn/api/v2/hot/products",
         fetchedAt: "2026-07-31T00:00:00.000Z",
-        errorCode: "SOURCE_TIMEOUT",
+        errorCode: "alchemist.source_timeout",
         signals: [],
       },
     ];

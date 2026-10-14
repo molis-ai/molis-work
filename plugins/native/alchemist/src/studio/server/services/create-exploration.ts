@@ -55,8 +55,8 @@ export function createExplorationService(dependencies: CreateExplorationDependen
     reuseExisting?: boolean;
   }): { runId: string; jobId?: string; reused?: boolean } => {
     const direction = dependencies.directions.get(input.directionId);
-    if (!direction) throw new Error("DIRECTION_NOT_FOUND");
-    if (direction.status === "archived") throw new Error("DIRECTION_ARCHIVED");
+    if (!direction) throw new Error("alchemist.direction_not_found");
+    if (direction.status === "archived") throw new Error("alchemist.direction_archived");
     if (input.reuseExisting) {
       const existing = dependencies.explorations.getLatestForDirection(direction.id);
       if (existing && !["failed", "cancelled"].includes(existing.status)) {

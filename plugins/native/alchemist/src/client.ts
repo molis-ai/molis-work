@@ -25,7 +25,7 @@ const base=host.route('/api/alchemist/studio/api/v1');
 const headers=()=>typeof molisWorkControlHeaders==='function'?molisWorkControlHeaders():{'content-type':'application/json'};
 async function api(path,body,method,signal=body===undefined?viewAbort:undefined){const response=await life.fetch(base+path,{signal,method:method||(body===undefined?'GET':'POST'),headers:headers(),...(body===undefined?{}:{body:JSON.stringify(body)})});const result=await response.json().catch(()=>({}));life.assertCurrent(signal);if(!response.ok)throw new Error(result.message||result.error||L('炼金术士请求失败'));return result;}
 const modelLink=()=>'<a class="mw-btn mw-btn--ghost" href="/settings/models">'+tx('打开模型设置')+'</a>';
-const noModelRun=run=>/RUNTIME_(NOT_CONFIGURED|MODEL_UNAVAILABLE)/.test(run?.errorCode),noModel=()=>runtime.configured?'':'<div class="alc-warning">'+tx('还没有可用模型。连接模型后再试，已有的内容不会丢失。')+' '+modelLink()+'</div>';
+const noRun=run=>/alchemist\.runtime_(not_configured|model_unavailable)/.test(run?.errorCode),noModel=()=>runtime.configured?'':'<div class="alc-warning">'+tx('还没有可用模型。连接模型后再试，已有的内容不会丢失。')+' '+modelLink()+'</div>';
 const notice=(text,retry=false)=>{if(!life.alive)return;const el=$('notice');el.hidden=!text;$('action=reload',el).hidden=!retry;el.querySelector('span').textContent=text||'';};
 const formError=text=>{if(!life.alive)return;const el=$('form-error');el.hidden=!text;el.textContent=text||'';};
 const failed=e=>{if(life.visible&&e.name!=='AbortError')notice(e.message,true);};

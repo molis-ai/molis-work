@@ -50,7 +50,7 @@ describe('revocable source projections and final-dispatch business guards',{time
   const {method,privateRef}=await seed();const gate=barrier();const before=f.requests.length;
   f.beforeDispatch(async(stage)=>{if(stage===phase){gate.enter();await gate.waiting}});
   const operation=f.call(a.reuseAssess,{intent:'assess',directionId:f.direction.id,references:[privateRef],methodIds:[method.id]});
-  const rejected=expect(operation).rejects.toMatchObject({code:phase==='prepare'?'REUSE_SOURCE_UNAVAILABLE':'REUSE_METHOD_CHANGED'});
+  const rejected=expect(operation).rejects.toMatchObject({code:phase==='prepare'?'alchemist.reuse_source_unavailable':'alchemist.reuse_method_changed'});
   await gate.entered;if(phase==='prepare')f.denyReference(privateRef);else await f.call(a.playbookDisable,{id:method.id});gate.release();await rejected;
   expect(f.requests.length).toBe(before);
  });
@@ -58,7 +58,7 @@ describe('revocable source projections and final-dispatch business guards',{time
   const {reuse}=await seed();const {plan}=await f.plan(reuse);const gate=barrier(),before=f.requests.length;
   f.beforeDispatch(async(stage)=>{if(stage==='credentials'){gate.enter();await gate.waiting}});
   const operation=f.run(plan.id);await gate.entered;f.allowWrite(false);gate.release();const result=await operation;
-  expect(result.workspace.lenses.market_space.run?.errorCode).toBe('REUSE_ACCESS_DENIED');expect(f.requests.length).toBe(before);
+  expect(result.workspace.lenses.market_space.run?.errorCode).toBe('alchemist.reuse_access_denied');expect(f.requests.length).toBe(before);
   expect((await f.call(a.reuseReceipt,{planId:plan.id})).receipt).toBeNull();
  });
  it('keeps the same source guard on the correction request and does not count it as sent',async()=>{
@@ -66,7 +66,7 @@ describe('revocable source projections and final-dispatch business guards',{time
   f.transformOutput((input,text)=>input.operationId.endsWith(':cross_checking')?'invalid JSON':text);
   f.beforeDispatch(async(stage,input)=>{if(stage==='prepare'&&input.operationId.endsWith(':format_correction')){gate.enter();await gate.waiting}});
   const operation=f.run(plan.id);await gate.entered;f.denyReference(privateRef);gate.release();const result=await operation;
-  expect(result.workspace.lenses.market_space.run?.errorCode).toBe('REUSE_SOURCE_UNAVAILABLE');expect(f.requests.length-before).toBe(1);
+  expect(result.workspace.lenses.market_space.run?.errorCode).toBe('alchemist.reuse_source_unavailable');expect(f.requests.length-before).toBe(1);
   expect((await f.call(a.reuseReceipt,{planId:plan.id})).receipt).toBeNull();
  });
  it('rechecks caller authority after asynchronous source reads at dispatch',async()=>{
@@ -75,7 +75,7 @@ describe('revocable source projections and final-dispatch business guards',{time
   f.beforeDispatch(async(stage)=>{if(stage==='credentials')f.host.readArtifact=async(caller,ref)=>{
     const artifact=await read(caller,ref);f.allowWrite(false);return artifact;
   }});
-  await expect(f.call(a.reuseAssess,{intent:'assess',directionId:f.direction.id,references:[privateRef],methodIds:[method.id]})).rejects.toMatchObject({code:'REUSE_ACCESS_DENIED'});
+  await expect(f.call(a.reuseAssess,{intent:'assess',directionId:f.direction.id,references:[privateRef],methodIds:[method.id]})).rejects.toMatchObject({code:'alchemist.reuse_access_denied'});
   expect(f.requests.length).toBe(before);
  });
  it('preserves an existing research dispatch guard instead of replacing it',async()=>{

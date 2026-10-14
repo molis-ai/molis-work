@@ -56,7 +56,7 @@ export class HostResearchRuntimeAdapter implements ResearchExecutionRuntimePort 
         capturedAt: input.now, contentHash: `sha256:${createHash("sha256").update(`${url.href}\n${excerpt}`).digest("hex")}` });
       if (evidence.length === 16) break;
     }
-    if (!evidence.length) throw new Error("RESEARCH_NO_SOURCES");
+    if (!evidence.length) throw new Error("alchemist.research_no_sources");
     return evidence;
   }
 

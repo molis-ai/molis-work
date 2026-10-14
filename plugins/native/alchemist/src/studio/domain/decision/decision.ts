@@ -69,7 +69,7 @@ export function createDecision(
 ): Decision {
   const gate = inspectDecisionGate(input);
   if (!gate.ready) throw new Error(gate.code);
-  if (input.reason.trim().length === 0) throw new Error("DECISION_REASON_REQUIRED");
+  if (input.reason.trim().length === 0) throw new Error("alchemist.decision_reason_required");
   const marketReport = input.marketReport as LensReport;
   const costReport = input.costReport as LensReport;
   return {

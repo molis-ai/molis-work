@@ -92,7 +92,7 @@ export class SqliteCalibrationRepository {
 
   markAnnotationResolved(id: string, now: string): Annotation {
     const annotation = this.getAnnotation(id);
-    if (!annotation) throw new Error("ANNOTATION_NOT_FOUND");
+    if (!annotation) throw new Error("alchemist.annotation_not_found");
     const resolved = resolveAnnotation(annotation, now);
     const result = this.database
       .prepare("UPDATE annotations SET status = 'resolved', resolved_at = ? WHERE id = ? AND status = 'open'")
@@ -153,7 +153,7 @@ export class SqliteCalibrationRepository {
 
   markProposalApplied(id: string, now: string): ActionProposal {
     const stored = this.getProposal(id);
-    if (!stored) throw new Error("ACTION_PROPOSAL_NOT_FOUND");
+    if (!stored) throw new Error("alchemist.action_proposal_not_found");
     const applied = applyActionProposal(stored.proposal, now);
     const result = this.database
       .prepare(

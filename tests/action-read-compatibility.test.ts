@@ -19,7 +19,7 @@ const needsNothing = (view: ActionView) => view.operation === "query"
 // These fixtures deliberately contain neither model settings nor a managed workspace.
 // Match the exact capability/version AND code; unknown exceptions still fail the gate.
 const unavailableInFixture: Record<string, string> = {
-  "alchemist.runtime.verify@1": "RUNTIME_NOT_CONFIGURED",
+  "alchemist.runtime.verify@1": "alchemist.runtime_not_configured",
   "git.operations@1": "actions.dependency_missing",
   "git.pr-support@1": "actions.dependency_missing",
   "git.results@1": "actions.dependency_missing",

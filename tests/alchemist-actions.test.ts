@@ -27,7 +27,7 @@ test("Alchemist unified operations preserve direction → cards → research →
   await f.api(`/directions/${direction.id}`, "PATCH", { title: "修改后的方向", description: "让独立创始人整理访谈中的真实证据" });
   assert.equal((await call(a.bootstrap, {})).directions[0]!.title, "修改后的方向");
   await call(a.directionStatus, { id: direction.id, status: "archived" });
-  await assert.rejects(call(a.explorationStart, { id: direction.id }), { code: "DIRECTION_ARCHIVED" });
+  await assert.rejects(call(a.explorationStart, { id: direction.id }), { code: "alchemist.direction_archived" });
   await call(a.directionStatus, { id: direction.id, status: "active" });
   const receipt = await call(a.explorationStart, { id: direction.id }); await f.runtime.runPending();
   assert.equal((await call(a.explorationStart, { id: direction.id, reuseExisting: true })).runId, receipt.runId);
@@ -50,8 +50,8 @@ test("Alchemist unified operations preserve direction → cards → research →
   assert.match(ideaContext.revision, /^1:/);
   assert.match(ideaContext.content, /第 1 版/);
   assert.deepEqual(ideaContext.open, { surface: "alchemist", id });
-  await assert.rejects(call(a.directionContext, { subject_id: "missing" }), { code: "DIRECTION_NOT_FOUND" });
-  await assert.rejects(call(a.ideaContext, { subject_id: "missing" }), { code: "IDEA_NOT_FOUND" });
+  await assert.rejects(call(a.directionContext, { subject_id: "missing" }), { code: "alchemist.direction_not_found" });
+  await assert.rejects(call(a.ideaContext, { subject_id: "missing" }), { code: "alchemist.idea_not_found" });
   assert.equal((await call(a.models, {})).models[0]!.id, f.model.id);
   await call(a.settingsUpdate, { modelId: f.model.id, modelPolicy: "fixed", defaultBudgets: { marketSpace: { kind: "calls", limit: 3 }, buildCost: { kind: "calls", limit: 3 } } });
   assert.equal((await call(a.settingsVerify, {})).configured, true); assert.equal((await call(a.settingsGet, {})).modelId, f.model.id);
@@ -154,7 +154,7 @@ test("Alchemist Kernel validates authority and schemas before side effects; HTTP
   assert.equal((await f.call(a.bootstrap, {})).directions.length, 0);
   const { direction } = await f.call(a.directionCreate, { description: "一个用于验证路径覆盖防护的方向" });
   assert.equal((await f.runtime.app.request(`http://localhost/api/v1/directions/${direction.id}`, { method: "PATCH", body: JSON.stringify({ id: "another", description: "无法覆盖这个路径的方向" }) })).status, 400);
-  await assert.rejects(f.call(a.researchPlan, { id: "missing", lens: "market_space", ideaVersion: 1, modelPolicy: "fixed", budget: { kind: "calls", limit: 3 } }), { code: "RESEARCH_PLAN_INVALID" });
+  await assert.rejects(f.call(a.researchPlan, { id: "missing", lens: "market_space", ideaVersion: 1, modelPolicy: "fixed", budget: { kind: "calls", limit: 3 } }), { code: "alchemist.research_plan_invalid" });
   const aborted = new AbortController(); aborted.abort();
   await assert.rejects(f.service.invoke({ ...f.caller, signal: aborted.signal }, a.directionCreate, { description: "取消后不得产生新方向记录" }));
   assert.equal((await f.call(a.bootstrap, {})).directions.length, 1);

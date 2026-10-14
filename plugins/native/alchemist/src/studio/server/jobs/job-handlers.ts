@@ -108,7 +108,7 @@ async function handleBrainstormJob(
   let parsedInput: DiscoveryBrainstormJobInput | undefined;
   try {
     parsedInput = discoveryInputSchema.parse(job.input);
-    if ((job.checkpoint as { stage?: string } | undefined)?.stage === "generating") throw new Error("AI_CALL_INTERRUPTED");
+    if ((job.checkpoint as { stage?: string } | undefined)?.stage === "generating") throw new Error("alchemist.ai_call_interrupted");
     if (control.isCancelled()) return;
     control.commit(() => dependencies.explorations.markRunning(parsedInput!.explorationRunId, dependencies.clock.now()));
     const checkpoint = job.checkpoint
@@ -124,7 +124,7 @@ async function handleBrainstormJob(
     ));
   } catch (error) {
     if (control.isCancelled()) return;
-    const code = error instanceof ZodError ? "AI_OUTPUT_INVALID" : classifyError(error);
+    const code = error instanceof ZodError ? "alchemist.ai_output_invalid" : classifyError(error);
     if (parsedInput) {
       control.commit(() => dependencies.explorations.saveFailure(parsedInput!.explorationRunId, code, dependencies.clock.now()));
     }
@@ -151,7 +151,7 @@ async function generateCheckpoint(
     parse: (value) => explorationGenerationSchema.parse(value),
     signal: control.signal,
   });
-  if (control.isCancelled()) throw new JobExecutionError("JOB_CANCELLED");
+  if (control.isCancelled()) throw new JobExecutionError("alchemist.job_cancelled");
   const validated = explorationGenerationSchema.parse(generation.value);
   const now = dependencies.clock.now();
   const checkpoint: ExplorationCheckpoint = {
@@ -174,15 +174,8 @@ async function generateCheckpoint(
 
 function classifyError(error: unknown): string {
   if (error instanceof Error) {
-    if (["EXPLORATION_RESULT_CONFLICT", "AI_CALL_INTERRUPTED", "AI_OUTPUT_INVALID", "RUNTIME_NOT_CONFIGURED", "RUNTIME_MODEL_UNAVAILABLE", "RUNTIME_SHUTDOWN"].includes(error.message)) return error.message;
-    if (
-      ["OPENAI_TIMEOUT", "OPENAI_NETWORK_FAILED", "OPENAI_AUTH_FAILED", "OPENAI_RATE_LIMITED"].includes(
-        error.message,
-      ) ||
-      /^OPENAI_HTTP_\d+$/.test(error.message)
-    ) {
-      return error.message;
-    }
+    if (["alchemist.exploration_result_conflict", "alchemist.ai_call_interrupted", "alchemist.ai_output_invalid", "alchemist.runtime_not_configured", "alchemist.runtime_model_unavailable", "alchemist.runtime_shutdown"].includes(error.message)) return error.message;
+
   }
-  return "AI_RUNTIME_FAILED";
+  return "alchemist.ai_runtime_failed";
 }

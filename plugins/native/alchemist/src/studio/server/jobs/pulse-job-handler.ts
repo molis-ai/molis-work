@@ -44,7 +44,7 @@ async function handlePulseJob(
   try {
     input = inputSchema.parse(job.input);
     let run = dependencies.repository.getRun(input.pulseRunId);
-    if (!run || run.jobId !== job.id) throw new Error("PULSE_RUN_INPUT_INVALID");
+    if (!run || run.jobId !== job.id) throw new Error("alchemist.pulse_run_input_invalid");
     control.commit(() => dependencies.repository.updateRun(run!.id, {
       status: "running",
       stage: run!.stage,
@@ -89,7 +89,7 @@ async function handlePulseJob(
     if (checkpoint.stage === "collecting_complete") {
       const collections = dependencies.repository.listSourceCollections(run.id);
       if (!collections.some((collection) => collection.status === "completed")) {
-        throw new Error("PULSE_ALL_SOURCES_FAILED");
+        throw new Error("alchemist.pulse_all_sources_failed");
       }
       const synthesis = await dependencies.synthesizer.synthesize({
         run,
@@ -155,14 +155,14 @@ async function collectSafely(
   try {
     return await source.collect(query);
   } catch {
-    return missingAdapter(source.sourceId, new Date().toISOString(), "SOURCE_ADAPTER_FAILED");
+    return missingAdapter(source.sourceId, new Date().toISOString(), "alchemist.source_adapter_failed");
   }
 }
 
 function missingAdapter(
   sourceId: PulseSourceId,
   now: string,
-  errorCode = "SOURCE_ADAPTER_MISSING",
+  errorCode = "alchemist.source_adapter_missing",
 ): SourceCollectionResult {
   return {
     sourceId,
@@ -186,7 +186,7 @@ function parseCheckpoint(value: unknown): PulseCheckpoint | undefined {
   ) {
     return value as PulseCheckpoint;
   }
-  throw new Error("PULSE_CHECKPOINT_INVALID");
+  throw new Error("alchemist.pulse_checkpoint_invalid");
 }
 
 function saveStage(
@@ -198,6 +198,6 @@ function saveStage(
 }
 
 function classifyError(error: unknown): string {
-  if (error instanceof Error && (error.message.startsWith("PULSE_") || error.message === "alchemist.pulse_report_not_found" || error.message === "alchemist.pulse_no_enabled_sources")) return error.message;
-  return "PULSE_RUNTIME_FAILED";
+  if (error instanceof Error && (error.message.startsWith("alchemist.pulse_") || error.message === "alchemist.pulse_report_not_found" || error.message === "alchemist.pulse_no_enabled_sources")) return error.message;
+  return "alchemist.pulse_runtime_failed";
 }

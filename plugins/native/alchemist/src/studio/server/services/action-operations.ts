@@ -26,7 +26,7 @@ type Implementations = { [K in Exclude<AlchemistOperationName, AlchemistHomeOper
 function implementations(d: ApiDependencies): Implementations {
   const direction = (id: string) => {
     const value = d.directions.get(id);
-    if (!value || value.workspaceId !== d.workspaceId) throw new AlchemistOperationError("DIRECTION_NOT_FOUND", "没有找到这个方向。", 404);
+    if (!value || value.workspaceId !== d.workspaceId) throw new AlchemistOperationError("alchemist.direction_not_found", "没有找到这个方向。", 404);
     return value;
   };
   return {
@@ -66,12 +66,12 @@ function implementations(d: ApiDependencies): Implementations {
       title: input.title ?? deriveDirectionTitle(input.description), description: input.description, updatedAt: d.clock.now() }) }),
     directionStatus: input => ({ direction: d.directions.setStatus(direction(input.id).id, input.status, d.clock.now()) }),
     explorationStart: input => {
-      if (direction(input.id).status === "archived") throw new AlchemistOperationError("DIRECTION_ARCHIVED", "请先恢复方向，再继续炼化。");
+      if (direction(input.id).status === "archived") throw new AlchemistOperationError("alchemist.direction_archived", "请先恢复方向，再继续炼化。");
       return d.createExploration({ directionId: input.id, reuseExisting: input.reuseExisting ?? false });
     },
     explorationGet: input => {
       const exploration = d.explorations.get(input.id);
-      if (!exploration) throw new AlchemistOperationError("EXPLORATION_NOT_FOUND", "没有找到这次炼化。", 404);
+      if (!exploration) throw new AlchemistOperationError("alchemist.exploration_not_found", "没有找到这次炼化。", 404);
       return { direction: direction(exploration.directionId), exploration };
     },
     cardGet: input => d.ideaCardActions.getCandidateBrief(input.id),
@@ -111,13 +111,13 @@ function implementations(d: ApiDependencies): Implementations {
 }
 
 const inputProblems: Partial<Record<AlchemistOperationName, [string, string]>> = {
-  conversationSend: ["CONVERSATION_MESSAGE_INVALID", "消息或当前讨论上下文不完整。"], decisionCreate: ["DECISION_INVALID", "请选择决定并写下理由。"],
-  annotationsList: ["ANNOTATION_QUERY_INVALID", "注释目标不完整。"], annotationCreate: ["ANNOTATION_INVALID", "请保留引用，并另行写下评论。"],
-  playbookPropose: ["PLAYBOOK_PROPOSAL_INVALID", "方法变化、正反例和作用域需要由你明确填写。"], tasteCreate: ["TASTE_RULE_INVALID", "请完整写下偏好及其适用范围。"],
-  pulseSourceUpdate: ["PULSE_SOURCE_INVALID", "来源设置不完整。"], pulseStart: ["PULSE_RUN_INVALID", "脉搏运行参数不完整。"],
-  directionCreate: ["DIRECTION_INPUT_INVALID", "请更完整地描述你想探索的方向。"], directionUpdate: ["DIRECTION_INPUT_INVALID", "方向内容无效。"], directionStatus: ["DIRECTION_INPUT_INVALID", "方向状态无效。"],
-  researchPlan: ["RESEARCH_PLAN_INVALID", "研究计划参数不完整。"], researchStart: ["LENS_RUN_INVALID", "启动研究所需信息不完整。"],
-  settingsUpdate: ["RUNTIME_SETTINGS_INVALID", "模型选择或调用上限不完整。"], workspaceExport: ["EXPORT_FORMAT_INVALID", "请选择 JSON 或 ZIP。"],
+  conversationSend: ["alchemist.conversation_message_invalid", "消息或当前讨论上下文不完整。"], decisionCreate: ["alchemist.decision_invalid", "请选择决定并写下理由。"],
+  annotationsList: ["alchemist.annotation_query_invalid", "注释目标不完整。"], annotationCreate: ["alchemist.annotation_invalid", "请保留引用，并另行写下评论。"],
+  playbookPropose: ["alchemist.playbook_proposal_invalid", "方法变化、正反例和作用域需要由你明确填写。"], tasteCreate: ["alchemist.taste_rule_invalid", "请完整写下偏好及其适用范围。"],
+  pulseSourceUpdate: ["alchemist.pulse_source_invalid", "来源设置不完整。"], pulseStart: ["alchemist.pulse_run_invalid", "脉搏运行参数不完整。"],
+  directionCreate: ["alchemist.direction_input_invalid", "请更完整地描述你想探索的方向。"], directionUpdate: ["alchemist.direction_input_invalid", "方向内容无效。"], directionStatus: ["alchemist.direction_input_invalid", "方向状态无效。"],
+  researchPlan: ["alchemist.research_plan_invalid", "研究计划参数不完整。"], researchStart: ["alchemist.lens_run_invalid", "启动研究所需信息不完整。"],
+  settingsUpdate: ["alchemist.runtime_settings_invalid", "模型选择或调用上限不完整。"], workspaceExport: ["alchemist.export_format_invalid", "请选择 JSON 或 ZIP。"],
 };
 
 function businessError(error: unknown): never {
@@ -136,11 +136,11 @@ function businessError(error: unknown): never {
   if (error instanceof StartLensRunError) throw new AlchemistOperationError(error.code, "这份研究计划无法启动。");
   if (error instanceof Error) {
     const message = workspaceProblems[error.message];
-    if (message) throw new AlchemistOperationError(error.message, message, error.message.endsWith("NOT_FOUND") ? 404 : 409);
+    if (message) throw new AlchemistOperationError(error.message, message, error.message.endsWith("_not_found") ? 404 : 409);
     if (error.message === "alchemist.idea_version_not_found") throw new AlchemistOperationError(error.message, "没有找到这个 Idea 版本。", 404);
-    if (error.message === "JOB_NOT_FOUND") throw new AlchemistOperationError("RUN_NOT_FOUND", "没有找到这次运行。", 404);
-    if (["RUNTIME_MODEL_UNAVAILABLE", "RUNTIME_NOT_CONFIGURED"].includes(error.message)) throw new AlchemistOperationError(error.message,
-      error.message === "RUNTIME_MODEL_UNAVAILABLE" ? "所选模型已不可用，请重新选择；系统不会自动换模型。" : "请在 Molis Work 全局设置中配置模型，再回来重试。");
+    if (error.message === "alchemist.job_not_found") throw new AlchemistOperationError("alchemist.run_not_found", "没有找到这次运行。", 404);
+    if (["alchemist.runtime_model_unavailable", "alchemist.runtime_not_configured"].includes(error.message)) throw new AlchemistOperationError(error.message,
+      error.message === "alchemist.runtime_model_unavailable" ? "所选模型已不可用，请重新选择；系统不会自动换模型。" : "请在 Molis Work 全局设置中配置模型，再回来重试。");
   }
   throw error;
 }
@@ -156,7 +156,7 @@ export function createAlchemistOperationExecutor(dependencies: ApiDependencies):
       if (!operation || definition.version !== operation.definition.version) throw new ActionError("actions.missing", "没有这个炼金术士能力版本。");
       const parsed = operation.input.safeParse(input);
       if (!parsed.success) {
-        const [code, message] = inputProblems[operation.name] ?? ["ALCHEMIST_INPUT_INVALID", "操作参数不完整或格式无效。"];
+        const [code, message] = inputProblems[operation.name] ?? ["alchemist.alchemist_input_invalid", "操作参数不完整或格式无效。"];
         throw new AlchemistOperationError(code, message, 400);
       }
       let result: unknown;
@@ -174,10 +174,10 @@ export function createAlchemistOperationExecutor(dependencies: ApiDependencies):
 }
 
 const workspaceProblems: Record<string, string> = {
-  ANNOTATION_NOT_FOUND: "没有找到这条注释。", "alchemist.annotation_already_resolved": "这条注释已经解决。", ANNOTATION_TARGET_NOT_FOUND: "注释目标版本已不可用。",
-  ACTION_PROPOSAL_NOT_FOUND: "没有找到这条校准提案。", "alchemist.action_proposal_not_pending": "这条校准提案已经处理。", ACTION_PROPOSAL_UNSUPPORTED: "这类提案目前无法应用。",
-  PLAYBOOK_REQUIRES_LENS_REPORT: "研究方法校准需要来自研究报告。", PLAYBOOK_REQUIRES_MARKET_SPACE: "研究方法校准需要来自市场空间研究。",
-  IDEA_NOT_FOUND: "没有找到这个 Idea。", TASTE_RULE_NOT_FOUND: "没有找到这条 Taste。", PLAYBOOK_RULE_NOT_FOUND: "没有找到这条校准规则。", PULSE_SOURCE_NOT_FOUND: "没有找到这个市场来源。",
+  "alchemist.annotation_not_found": "没有找到这条注释。", "alchemist.annotation_already_resolved": "这条注释已经解决。", "alchemist.annotation_target_not_found": "注释目标版本已不可用。",
+  "alchemist.action_proposal_not_found": "没有找到这条校准提案。", "alchemist.action_proposal_not_pending": "这条校准提案已经处理。", "alchemist.action_proposal_unsupported": "这类提案目前无法应用。",
+  "alchemist.playbook_requires_lens_report": "研究方法校准需要来自研究报告。", "alchemist.playbook_requires_market_space": "研究方法校准需要来自市场空间研究。",
+  "alchemist.idea_not_found": "没有找到这个 Idea。", "alchemist.taste_rule_not_found": "没有找到这条 Taste。", "alchemist.playbook_rule_not_found": "没有找到这条校准规则。", "alchemist.pulse_source_not_found": "没有找到这个市场来源。",
 };
 
 /** What the Host lends the actions beyond the project's studio. */
@@ -199,7 +199,7 @@ function homeImplementations(ports: AlchemistActionPorts): { [K in AlchemistHome
   return {
     pulseGithub: () => ports.pulseGithub?.read() ?? { accounts: [], selectedConnectionId: null },
     pulseGithubSelect: input => {
-      if (!ports.pulseGithub) throw new AlchemistOperationError("PULSE_GITHUB_UNAVAILABLE", "这里不能选择 GitHub 账号。");
+      if (!ports.pulseGithub) throw new AlchemistOperationError("alchemist.pulse_github_unavailable", "这里不能选择 GitHub 账号。");
       ports.pulseGithub.select(input.connectionId);
       return { selectedConnectionId: ports.pulseGithub.read().selectedConnectionId };
     },

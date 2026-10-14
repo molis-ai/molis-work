@@ -22,7 +22,7 @@ export function createApp(dependencies?: ApiDependencies, actions?: AlchemistAct
   if (dependencies || actions) {
     registerAlchemistActionRoutes(app, actions ?? createAlchemistOperationExecutor(dependencies!));
     app.all("/api/*", (context) =>
-      context.json({ code: "API_ROUTE_NOT_FOUND", message: "没有这个本地 API。" }, 404),
+      context.json({ code: "alchemist.api_route_not_found", message: "没有这个本地 API。" }, 404),
     );
   }
 

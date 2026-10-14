@@ -10,7 +10,7 @@ import type { AlchemistEffectControl } from "./action-operations.js";
 
 export async function sendConversationMessage(dependencies: ApiDependencies, input: AlchemistOperationInput<"conversationSend">, signal?: AbortSignal, control?: AlchemistEffectControl) {
     const object = resolveContext(input.context, dependencies);
-    if (object === undefined) throw new AlchemistOperationError("CONVERSATION_CONTEXT_NOT_FOUND", "当前讨论对象已不可读取，请重新选择。", 404);
+    if (object === undefined) throw new AlchemistOperationError("alchemist.conversation_context_not_found", "当前讨论对象已不可读取，请重新选择。", 404);
     const history = dependencies.conversations.list(dependencies.workspaceId)
       .filter(item => contextKey(item.context) === contextKey(input.context) && item.responseState === "complete")
       .slice(-20).map(item => ({ role: item.author, text: item.body }));

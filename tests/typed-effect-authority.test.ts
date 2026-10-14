@@ -27,8 +27,8 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
   let originChecked = false, held = true;
   const home = await openTestHome(t, { catalogPolicy: false, host: { actionAvailability: async (caller, view) => {
     // Hold the downstream Goals policy only after the actual originating execution's async check completed.
-    // Discovery/permission inspectors have no pinned allowed_actions and cannot enter this barrier.
-    if (held && originChecked && view.capability_id === "goals.note"
+    // SDK discovery pins the consumed action too, but only the actual invoke has a dispatcher-issued call_id.
+    if (held && originChecked && caller.call_id && view.capability_id === "goals.note"
       && caller.allowed_actions?.some(reference => reference.capability_id === "goals.note")) {
       entered.resolve(); await release.promise;
     }
@@ -50,11 +50,11 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
   }, async start(context) {
     assert.ok(context.services?.actions);
     const actions = context.services.actions;
-    return { kind: "app", actions: [{ ...origin, handle: caller => actions.invoke(goalsActions.note, progress, {
-      signal: caller.signal,
-      beforeEffect: async () => { await caller.beforeEffect(); originChecked = true; },
-      assert_authority_current: () => { caller.assert_authority_current(); },
-    }) }, { ...peer, handle: () => true }] };
+    return { kind: "app", actions: [{ ...origin, handle: async caller => {
+      await caller.beforeEffect(); originChecked = true;
+      return actions.invoke(goalsActions.note, progress, { signal: caller.signal, beforeEffect: caller.beforeEffect,
+        assert_authority_current: () => { caller.assert_authority_current(); } });
+    } }, { ...peer, handle: () => true }] };
   } };
   const actions = { registry: home.host.actionRegistry(project.reference), client: home.host.actionClient(project.reference, false), project_id: project.project_id };
   const runtime = await home.host.withProject(project.reference, owner => new PluginRuntime(undefined, new PluginHostExecutor({

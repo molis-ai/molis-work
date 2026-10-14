@@ -22,13 +22,13 @@
     "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 539,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 183,
     "class apps/local-host/src/local-host.ts#LocalHost": {
-      "lines": 554,
+      "lines": 551,
       "methods": 23
     },
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
     "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 187,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
-      "lines": 291,
+      "lines": 289,
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
@@ -80,7 +80,7 @@
     },
     "function horizontal/agent-host/src/index.ts#start": 255,
     "class horizontal/listener-host/src/index.ts#ListenerHost": {
-      "lines": 373,
+      "lines": 361,
       "methods": 18
     },
     "file horizontal/memory/src/service.ts": 1260,
@@ -134,15 +134,15 @@
     "function modules/goals/src/guidance-commands.ts#update": 177,
     "function modules/goals/src/lifecycle-archive.ts#setTrashed": 155,
     "class modules/private-work-context/src/project-binding-commands.ts#RuntimeProjectBindingCommands": {
-      "lines": 333,
+      "lines": 310,
       "methods": 12
     },
     "class modules/private-work-context/src/session-handoffs.ts#SessionHandoffRepository": {
-      "lines": 325,
+      "lines": 313,
       "methods": 14
     },
     "class modules/private-work-context/src/session-records.ts#SessionRecordRepository": {
-      "lines": 320,
+      "lines": 317,
       "methods": 15
     },
     "class modules/private-work-context/src/session-registry.ts#MolisWorkSessionRegistry": {
@@ -180,7 +180,7 @@
       "methods": 23
     },
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
-      "lines": 644,
+      "lines": 638,
       "methods": 30
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
@@ -216,7 +216,7 @@
       "methods": 28
     },
     "class plugins/native/feed/src/application.ts#FeedApplication": {
-      "lines": 503,
+      "lines": 493,
       "methods": 44
     },
     "file plugins/native/form/src/client.ts": 930,
@@ -1409,7 +1409,7 @@
     "orderDependent": [],
     "nested": []
   },
-  "errorSubclassTotal": 70,
+  "errorSubclassTotal": 47,
   "errorSubclasses": {
     "apps/local-host/src/assistant/assistant-coding.ts": 1,
     "apps/local-host/src/browser/browser-host.ts": 1,
@@ -1422,35 +1422,15 @@
     "apps/local-host/src/installer/runtime-integration-contract.ts": 1,
     "apps/local-host/src/installer/uninstall-contract.ts": 1,
     "apps/local-host/src/installer/web-service-contract.ts": 1,
-    "apps/local-host/src/local-host.ts": 1,
-    "apps/local-host/src/model-provider-store.ts": 1,
-    "apps/local-host/src/project-database.ts": 1,
     "apps/local-host/src/project-deleted-deferred.ts": 1,
     "apps/local-host/src/workspace-git.ts": 1,
     "horizontal/agent-host/src/inference.ts": 1,
     "horizontal/connector-host/src/connection-store.ts": 1,
     "horizontal/connector-host/src/index.ts": 1,
     "horizontal/runtime-host/src/adapters/codex-app-server.ts": 1,
-    "modules/characters/src/service.ts": 1,
-    "modules/signals/src/index.ts": 1,
-    "packages/contracts/src/modules/attention-resumption.ts": 1,
-    "packages/contracts/src/modules/feed.ts": 1,
-    "packages/contracts/src/modules/private-work-context.ts": 1,
-    "packages/contracts/src/modules/sources.ts": 1,
-    "packages/contracts/src/modules/workspace-artifacts.ts": 1,
     "packages/contracts/src/platform/plugin-events.ts": 1,
     "packages/contracts/src/platform/plugin-wiring.ts": 1,
-    "packages/contracts/src/services/listener-host.ts": 1,
-    "packages/kernel/src/index.ts": 1,
-    "packages/plugin-runtime/src/contribution.ts": 1,
-    "packages/plugin-runtime/src/errors.ts": 1,
-    "packages/plugin-runtime/src/event-contract.ts": 1,
-    "packages/plugin-runtime/src/package-verification.ts": 1,
-    "packages/plugin-runtime/src/private-storage.ts": 1,
-    "packages/plugin-runtime/src/services.ts": 1,
     "packages/plugin-sandbox/src/schema.ts": 1,
-    "packages/plugin-sdk/src/index.ts": 1,
-    "packages/plugin-sdk/src/manifest.ts": 1,
     "packages/storage/src/adapters/file-secret-store.ts": 1,
     "packages/storage/src/sqlite-baseline.ts": 1,
     "packages/ui-host/src/index.ts": 1,
@@ -1470,23 +1450,17 @@
     "plugins/native/alchemist/src/studio/server/services/start-pulse-run.ts": 1,
     "plugins/native/alchemist/src/studio/server/sources/http-source-client.ts": 1,
     "plugins/native/artifacts/src/plugin-client.ts": 1,
-    "plugins/native/coding/src/artifacts.ts": 1,
     "plugins/native/coding/src/store.ts": 1,
-    "plugins/native/diff/src/unified.ts": 1,
     "plugins/native/git/src/status.ts": 1,
     "plugins/native/plugin-builder/src/agent-authoring.ts": 1,
-    "plugins/native/work/src/workspace-actions.ts": 1,
     "plugins/official-integrations/catalog/src/http.ts": 1,
     "plugins/official-integrations/catalog/src/notion-oauth.ts": 1,
     "plugins/official-integrations/github/src/provider.ts": 1,
     "server/src/errors.ts": 1,
     "server/src/im/errors.ts": 1
   },
-  "errorCodeShapeTotal": 28,
+  "errorCodeShapeTotal": 13,
   "errorCodeShape": {
-    "modules/attention-resumption/src/index.ts": 8,
-    "modules/feed/src/index.ts": 5,
-    "modules/signals/src/index.ts": 2,
     "packages/ui-host/src/index.ts": 6,
     "plugins/native/artifacts/src/plugin-client.ts": 7
   },
@@ -1518,7 +1492,7 @@
     "server/src/http.ts": 2,
     "server/src/identity.ts": 3
   },
-  "errorCodeOwnerTotal": 49,
+  "errorCodeOwnerTotal": 31,
   "errorCodeOwner": {
     "apps/local-host/src/connector-account-actions.ts": 3,
     "apps/local-host/src/installed-plugin-host.ts": 4,
@@ -1529,11 +1503,6 @@
     "apps/mcp/src/goal-presentation.ts": 1,
     "apps/mcp/src/tool-dispatch.ts": 1,
     "horizontal/runtime-host/src/adapters/codex-app-server.ts": 1,
-    "modules/attention-resumption/src/index.ts": 8,
-    "modules/feed/src/index.ts": 5,
-    "modules/private-work-context/src/project-binding-commands.ts": 1,
-    "modules/private-work-context/src/project-binding-validation.ts": 2,
-    "modules/signals/src/index.ts": 2,
     "packages/kernel/src/action-authorship.ts": 1,
     "packages/ui-host/src/index.ts": 6,
     "plugins/native/artifacts/src/plugin-client.ts": 7,

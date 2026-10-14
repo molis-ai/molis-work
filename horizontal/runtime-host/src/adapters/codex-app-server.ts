@@ -21,7 +21,7 @@ interface PendingRequest {
 }
 
 export class CodexAppServerTransportError extends Error {
-  constructor(readonly code: "runtime.response_too_large", message: string) {
+  constructor(readonly code: "runtime_host.response_too_large", message: string) {
     super(message);
     this.name = "CodexAppServerTransportError";
   }
@@ -159,7 +159,7 @@ export class CodexAppServerTransport implements RuntimeSessionTransport {
     const maxBytes = Math.max(1_024, this.options.maxResponseLineBytes ?? DEFAULT_MAX_RESPONSE_LINE_BYTES);
     if (this.stdoutBytes + segment.length > maxBytes) {
       this.failProtocolLine(child, new CodexAppServerTransportError(
-        "runtime.response_too_large",
+        "runtime_host.response_too_large",
         "Codex Session 内容超过安全读取上限；Molis Work 已停止本次读取。",
       ));
       return false;

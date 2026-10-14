@@ -111,7 +111,8 @@ test("Codex transport bounds a JSONL response and restarts after rejecting the o
       transport.request("oversized", {}),
       (error: unknown) => {
         assert.ok(error instanceof CodexAppServerTransportError);
-        assert.equal(error.code, "runtime.response_too_large");
+        // RTDIAG-01/RTDIAG-02: the same real protocol limit refuses with its owner's current diagnostic.
+        assert.equal(error.code, "runtime_host.response_too_large");
         assert.match(error.message, /安全读取上限/);
         return true;
       },

@@ -20,4 +20,7 @@ export const hostErrors = defineErrorCodes("host", {
   project_reference_not_found: "not_found",
   /** The file a `project://` reference names is over the size the Host opens. */
   project_reference_too_large: "too_large",
+  catalog_unavailable: "invalid",
+  workspace_unavailable: "invalid",
+  workspace_not_found: "invalid",
 });

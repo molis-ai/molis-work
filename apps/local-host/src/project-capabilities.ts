@@ -1,3 +1,4 @@
+import { hostErrors } from "./host-errors.js";
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -56,7 +57,7 @@ export function registerProjectCapabilities(
     });
     host.register(projectSettingsCapabilities.selectBrowsingWorkspace, async (runtime, [workspaceId], invocation) => {
       const workspaces = await list(runtime);
-      if (!workspaces.some(item => item.workspace_id === workspaceId && item.realpath_verified)) throw new ActionError("projects.workspace_unavailable", "请选择当前项目已关联且可用的工作目录");
+      if (!workspaces.some(item => item.workspace_id === workspaceId && item.realpath_verified)) throw hostErrors.workspace_unavailable("请选择当前项目已关联且可用的工作目录");
       await invocation.beforeEffect?.();
       invocation.assertAuthorityCurrent();
       return new ProjectBrowsingSettings(runtime.store.db).select(runtime.project_id, workspaceId, workspaces);

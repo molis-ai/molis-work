@@ -12,7 +12,7 @@ const actions = (context: WorkSessionHttpContext) => {
 /** The same answers the page had before: unknown folder 404, a change that had to roll back or needs recovery 503. */
 function respondMembershipError(context: WorkSessionHttpContext, error: unknown): void {
   const code = error instanceof ActionError ? error.code : "";
-  context.respond(code === "projects.workspace_not_found" ? 404
+  context.respond(code === "host.workspace_not_found" ? 404
     : (error instanceof ActionError && code.startsWith("work.session.") && Object.hasOwn(sessionErrors, code.slice("work.session.".length)))
       || code.startsWith("workspace.") || code === "actions.service_unavailable" || code === "actions.unredeemed" ? 503 : 400,
   { error: error instanceof Error ? error.message : String(error) });

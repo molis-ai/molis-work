@@ -266,7 +266,7 @@ export class MolisWorkLocalHost {
       this.placement = createPlacementHost({ homeDirectory: home, registry: this.host.actionRegistry(),
         projects: async () => this.catalogRunner ? this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects()) : null,
         ensurePersonalSpace: async () => {
-          if (!this.catalogRunner) throw new ActionError("placement.catalog_unavailable", "项目目录尚未就绪，请稍后重试");
+          if (!this.catalogRunner) throw hostErrors.catalog_unavailable("项目目录尚未就绪，请稍后重试");
           return this.catalogRunner({ homeDirectory: home }, catalog => catalog.ensurePersonalSpace());
         },
         open: async project => { const value = reference(project); await this.withProject(value, () => undefined); return value; },

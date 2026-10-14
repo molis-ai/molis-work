@@ -1,3 +1,4 @@
+import { hostErrors } from "./host-errors.js";
 import { ActionError, type ActionCallContext, type ActionHandlerBinding, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectWorkspaceActions as a } from "@molis-ai/molis-work-contracts/modules/projects";
 import { repairProjectWorkspace, sessionWorkspaceId, unlinkProjectWorkspace, type ProjectWorkspaceActionRecord } from "@molis-ai/molis-work-plugin-work";
@@ -34,7 +35,7 @@ export function projectWorkspaceActionProvider(projectId: string, sessions: Sess
       if (!normalized || listed.some(workspace => workspace.canonical_path === normalized.canonical_path)) continue;
       if (sessionWorkspaceId(normalized.canonical_path, normalize) === workspaceId) return { id: workspaceId, path: normalized.canonical_path, projectLinked: false };
     }
-    throw new ActionError("projects.workspace_not_found", "找不到当前 Project 的这条工作目录");
+    throw hostErrors.workspace_not_found("找不到当前 Project 的这条工作目录");
   };
 
   const handlers: ActionHandlerBinding[] = [

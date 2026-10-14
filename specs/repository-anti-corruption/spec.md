@@ -2280,4 +2280,6 @@ R4c3a 09db92c77（Diff8词元/2TS）和R4c3b 9e72f8479（图6词元/2TS）源码
 
 维护八仅准备只读演练：现行Home登记路径及目录克隆确认40份SQLite（含18项目库）共1,138,073,600字节，全部SQLite只读backup逐库一致，非整Home原子快照；不改原行、不读Keychain/明文凭据、不碰历史调用日志。最初全Home递归元数据读取被自身确切pid53964/53947终止，改按现有登记及克隆Catalog列路径，未动其他进程；系统Python readonly在Catalog backup/clone查询失败，当前Node SQLite readOnly成功接续，保留失败日志。仅克隆中已统计94个scalar error-code列：已准备R1–R4映射命中0行，另21行暂不改；58个JSON/自由文案候选字段仍需追到真实producer，J/R5/R6映射亦未全，不能称维护八完成或请求改真库。克隆与scalar-count02证据在当前私有会话临时目录；实际维护按§1等全部rename合入、演练完整、展示条数并得到最终窗口决定后执行。
 
-R5首片仅侧栏Browser的三种page错误为browser.crashed/load_failed/blocked_scheme，owner表已有browser；同片更新HTTP/driver、BrowserProblemCode类型、真实测试和工作台崩溃/刷新比较。R5B-01：实测页面崩溃仍提示重载，加载失败仍给刷新，地址scheme/接管/禁用/网站权限/文件限制仍拒且无旧码alias；R5B-02：当前消费者/API同步，其他page.*能力/属性/夹具名称、消息/状态/URL/权限不变；R5B-03：源JS变长以局部变量等价缩短抵消，实测资源预算不增、现有真实浏览器和共享组合回归通过才验收。当前仅独立源码准备，I8/477冻树不改；不会用unsafe模板剥除或提高预算。
+R5首片仅侧栏Browser的三种page错误为browser.page_crashed/load_failed/blocked_scheme，owner表已有browser；同片更新HTTP/driver、BrowserProblemCode类型、真实测试和工作台崩溃/刷新比较。R5B-01：实测页面崩溃仍提示重载，加载失败仍给刷新，地址scheme/接管/禁用/网站权限/文件限制仍拒且无旧码alias；R5B-02：当前消费者/API同步，其他page.*能力/属性/夹具名称、消息/状态/URL/权限不变；R5B-03：源JS变长以局部变量等价缩短抵消，实测资源预算不增、现有真实浏览器和共享组合回归通过才验收。当前仅独立源码准备，I8/477冻树不改；不会用unsafe模板剥除或提高预算。
+
+R5B源码准备中复查发现撞名：已有browser.crashed是浏览器进程退出，不能给页面崩溃共用，否则stopped会误走重载而非重启。新页面码固定browser.page_crashed，现有进程码/恢复语义保持，API和模板比较同片同步；源逆名证明对同码已有producer也须保留，不只把新码全字逆回。这个候选缺陷在提交/运行验收前修正，不计已通过。

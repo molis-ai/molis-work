@@ -32,8 +32,17 @@ test("W3-07-9-01: the assembled Host registers only the remaining internal servi
     await host.withProject(ref, () => undefined);
     assert.deepEqual(keys(workspaceEntries), [], "all five workspace entries already carry action metadata");
     assert.deepEqual(keys(host.status().capabilities), keys(internalServices));
-    for (const definition of workspaceEntries) assert.equal(host.client(ref).availability(definition).available, true, definition.capability_id);
-    const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" as const, audience: "management" as const,
+    for (const definition of workspaceEntries) {
+      const allowed = definition !== projectSettingsCapabilities.selectBrowsingWorkspace;
+      assert.equal(host.client(ref).availability(definition).available, allowed, definition.capability_id);
+    }
+    const user = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" as const, audience: "user" as const,
+      project_id: ref.project_id, permissions: ["goals:read", "goals:write", "projects:settings"] };
+    const workspaceDirectory = await host.actionClient(ref).discover(user);
+    for (const definition of workspaceEntries) assert.ok(workspaceDirectory.some(row => row.capability_id === definition.capability_id), definition.capability_id);
+    await host.actionClient(ref).invoke(user, projectSettingsCapabilities.selectBrowsingWorkspace, [workspace.workspace_id]);
+    assert.equal((await host.actionClient(ref).invoke(user, projectSettingsCapabilities.browsingWorkspace, []))?.workspace_id, workspace.workspace_id);
+    const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" as const, audience: "user" as const,
       project_id: ref.project_id, permissions: ["goals:read", "goals:write"] };
     const directory = await host.actionClient(ref).discover(caller);
     for (const definition of Object.values(goalPluginActions)) {

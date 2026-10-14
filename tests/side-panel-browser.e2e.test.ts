@@ -65,8 +65,9 @@ test("R5B-01/03: real page and browser process crashes retain their distinct rec
   const browsers = new BrowserHost({ homeDirectory: home });
   const page = browsers.page("recovery");
   const listener: BrowserListener = { state: () => undefined, frame: () => undefined };
+  let detach = () => {};
   try {
-    page.attach(listener, { width: 800, height: 600, dpr: 1 });
+    detach = page.attach(listener, { width: 800, height: 600, dpr: 1 });
     await until(() => page.snapshot().status, value => value === "ready", "owned page startup");
     await page.navigate(site.origin);
     await until(() => page.snapshot(), value => value.url.startsWith(site.origin) && !value.loading, "owned page loaded");
@@ -99,7 +100,7 @@ test("R5B-01/03: real page and browser process crashes retain their distinct rec
     await until(() => page.snapshot(), value => value.status === "ready" && value.url.startsWith(site.origin) && !value.loading, "browser restart recovery");
     assert.notEqual((await browsers.browser()).child.pid, running.child.pid);
   } finally {
-    page.detach(listener); await browsers.close();
+    detach(); await browsers.close();
     await new Promise<void>(resolve => site.server.close(() => resolve()));
     await rm(home, { recursive: true, force: true });
   }

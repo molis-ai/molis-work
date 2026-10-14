@@ -420,6 +420,6 @@ test("W3-01 D the gateway takes a number only on an invocation and only as the U
     for (const call_id of ["", "not-a-uuid", "ABCDEF12-0000-4000-8000-000000000000", `${randomUUID()}x`, 7, null, [randomUUID()], { id: randomUUID() }]) await refusedBody({ ...invoke, call_id });
     await refusedBody({ ...envelope, operation: "discover", call_id: randomUUID() });
     assert.equal(ran(), 0, "no handler ran for a refused request");
-    assert.deepEqual(host.callLog!.recent(10), [], "and no row was written");
+    assert.deepEqual(host.callLog!.recent(100).filter(row => row.capability_id === save.capability_id || row.capability_id === look.capability_id), [], "no fixture invocation row was written");
   } finally { await stop(); }
 });

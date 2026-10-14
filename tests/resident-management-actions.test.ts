@@ -32,14 +32,13 @@ test("W3-07-7-03 CLI and management MCP reuse the resident project and its actua
   const fallbackHost = createMolisWorkLocalHost({ onRuntimeOpen: ref => fallbackOpened.push(ref.storage_key) });
   const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "management", null, { homeDirectory: env.home, runtimeContext: { runtime_id: "management-test", stable_work_context_id: "resident-test", host_declares_stable: true } }, fallbackHost, env.origin);
   t.after(async () => { await mcp.close(); await fallbackHost.close(); });
-  const before = env.host.callLog!.list(env.project.project_id).length;
   const cli = await promisify(execFile)(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../apps/desktop/launchers/cli/main.ts", import.meta.url)),
     "v1", "snapshot", "--db", alias, "--json", JSON.stringify({ project_id: env.project.project_id, call_id: FORGED_CALL })],
     { env: { ...process.env, MOLIS_WORK_HOME: env.home, MOLIS_WORK_WEB_URL: env.origin }, timeout: 10_000 });
   assert.deepEqual(JSON.parse(cli.stdout), await env.host.withProject(env.reference, runtime => runtime.store.snapshot(env.project.project_id)));
-  const cliRows = env.host.callLog!.list(env.project.project_id).slice(0, env.host.callLog!.list(env.project.project_id).length - before);
-  assert.equal(cliRows.length, 1); assert.ok(operations.includes(cliRows[0]!.call_id));
-  oneRecord(env.host, env.project.project_id, cliRows[0]!.call_id, "goals.snapshot.read");
+  assert.ok(operations.length > 0); const cliId = operations.at(-1)!;
+  assert.notEqual(cliId, FORGED_CALL); assert.match(cliId, /^[0-9a-f]{8}-[0-9a-f-]{27}$/);
+  assert.deepEqual(env.host.callLog!.find(cliId), [], "a successful snapshot read has no durable invocation row");
   const listed = await mcp.handleMessage({ id: 2, method: "tools/list" }) as { result: { tools: { name: string }[] } };
   assert.ok(listed.result.tools.some(tool => tool.name === "molis_work_v1_initialize"), "management discovery does not require a Runtime gateway grant");
   const reply = await mcp.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_initialize",

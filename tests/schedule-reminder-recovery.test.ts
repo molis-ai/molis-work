@@ -38,7 +38,7 @@ const confirmation = (view: ScheduleJobView) => ({ job_id: view.job_id,
 async function reminderHost(path: string, projectId = "p", clock?: () => Date) {
   const host = new MolisWorkLocalHost({ clock, completeText: null });
   const reference = molisWorkHostProjectReference({ databasePath: path, projectId });
-  const runtime = await host.withProject(reference, value => value);
+  const runtime = await host.withProject(reference, value => { if (clock) scheduleServiceFor(value.store.db, clock); return value; });
   const client = host.actionClient(reference);
   const owner = bindActionClient(client, () => ({ actor_id: "owner", project_id: projectId, audience: "user", permissions: SCHEDULE_ACTION_PERMISSIONS }));
   const plugin = bindActionClient(client, () => ({ actor_id: `plugin:${pluginId}`, project_id: projectId, audience: "plugin", permissions: [], plugin_install_id: installation().install_id }));
@@ -98,7 +98,7 @@ test("W3-02-E: a plugin whose installation is not running cannot set or cancel a
 
 test("reminder recovery after a reinstall rechecks current consent, commits atomically and preserves cadence across restart", async () => {
   const home = await mkdtemp(join(tmpdir(), "reminder-recover-")), path = join(home, "project.db"); seedDemoBoard(path, "p");
-  const clock = new Date("2026-09-27T02:00:00.000Z"), at = "2026-09-27T01:00:00.000Z";
+  const clock = new Date(), at = new Date(clock.getTime() - 3_600_000).toISOString();
   let f = await reminderHost(path, "p", () => clock); let store = f.store;
   try {
     const repository = new SqlitePluginRuntimeRepository(store.db); repository.save(installation());
@@ -142,7 +142,7 @@ test("reminder recovery after a reinstall rechecks current consent, commits atom
     assert.ok(items.every(item => item.summary === "复习 <今天> 的笔记" && item.url === "/original-link"));
     assert.equal(getScheduleReminder(store.db, onceId), null);
     assert.equal(getScheduleReminder(store.db, dailyId)?.installationGeneration, "reinstalled");
-    assert.equal(reopened.get(daily.job_id)?.next_due_at, "2026-09-28T01:00:00.000Z");
+    assert.equal(reopened.get(daily.job_id)?.next_due_at, new Date(Date.parse(at) + 86_400_000).toISOString());
     assert.equal(reopened.get(daily.job_id)?.last_wakeup?.status, "ok");
   } finally { await f.host.close(); await rm(home, { recursive: true, force: true }); }
 });

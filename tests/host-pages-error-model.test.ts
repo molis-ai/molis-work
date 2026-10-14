@@ -319,7 +319,7 @@ test("the import's failures are declared, each with the status of its kind: 415 
   assert.deepEqual(Object.keys(documentErrors).sort(), Object.keys(DOCUMENT_STATUS).sort(), "documentErrors declares exactly the codes the import itself raises");
   for (const [reason, status] of Object.entries(DOCUMENT_STATUS)) {
     const error = documentErrors[reason]!(`document ${reason}`);
-    assert.deepEqual([error.code, actionHttpStatus(error)], [`document.${reason}`, status], reason);
+    assert.deepEqual([error.code, actionHttpStatus(error)], [`artifacts.document.${reason}`, status], reason);
   }
   const edge = await artifactEdge(t, { current: undefined });
   const notJson = await edge.send("POST", "/api/artifacts/import", { headers: { "content-type": "application/json" }, body: "{broken" });

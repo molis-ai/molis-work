@@ -71,20 +71,7 @@ export interface UninstallReceipt {
   updated_at: string;
 }
 
-export class MolisWorkUninstallError extends Error {
-  constructor(
-    readonly code:
-      | "installer.uninstall.plan_missing"
-      | "installer.uninstall.plan_stale"
-      | "installer.uninstall.conflict"
-      | "installer.uninstall.purge_confirmation_required"
-      | "installer.uninstall.step_failed",
-    message: string,
-  ) {
-    super(message);
-    this.name = "MolisWorkUninstallError";
-  }
-}
+
 
 
 export interface UninstallProjectAccess {

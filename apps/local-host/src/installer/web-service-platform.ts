@@ -1,3 +1,5 @@
+import { installerErrors } from "./errors.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
@@ -5,7 +7,7 @@ import { createConnection } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { SERVICE_LABEL, MolisWorkWebServiceError, type MolisWorkWebServiceManagerOptions, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection, type WebServiceReceipt } from "./web-service-contract.js";
+import { SERVICE_LABEL, type MolisWorkWebServiceManagerOptions, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection, type WebServiceReceipt } from "./web-service-contract.js";
 import { resolveConfiguredHome } from "../product-home.js";
 const execFileAsync = promisify(execFile);
 
@@ -160,8 +162,8 @@ export async function molisWorkWebPortCheck(): Promise<boolean> {
   });
 }
 
-export function commandError(action: string, result: { code: number; stderr: string }): MolisWorkWebServiceError {
-  return new MolisWorkWebServiceError("installer.service.command_failed", `launchctl ${action}失败（${result.code}）：${result.stderr.trim() || "未知错误"}`);
+export function commandError(action: string, result: { code: number; stderr: string }): ActionError {
+  return installerErrors["installer.service.command_failed"](`launchctl ${action}失败（${result.code}）：${result.stderr.trim() || "未知错误"}`);
 }
 
 export function errorMessage(error: unknown): string {

@@ -1,10 +1,10 @@
 export { installMolisWorkHome } from "./installer/home.js";
-export { MolisWorkHomeInstallError } from "./installer/home-contract.js";
+
 export type { MolisWorkHomeInstallOptions, MolisWorkHomeInstallResult, MolisWorkHomeInstallStatus, MolisWorkHomeInstallStep } from "./installer/home-contract.js";
 export { computeBuildSourceDigest, writeMolisWorkBuildManifest, digestPaths } from "./installer/fingerprint.js";
 export type { MolisWorkBuildManifest } from "./installer/fingerprint.js";
 export { RuntimeIntegrationService } from "./installer/runtime-integration.js";
-export { RuntimeIntegrationError, SUPPORTED_RUNTIME_IDS, isSupportedRuntimeId } from "./installer/runtime-integration-contract.js";
+export { SUPPORTED_RUNTIME_IDS, isSupportedRuntimeId } from "./installer/runtime-integration-contract.js";
 export type { SupportedRuntimeId, RuntimeIntegrationAction, RuntimeConnectionState, RuntimeIntegrationDetection, RuntimeIntegrationChange, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResultStatus, RuntimeIntegrationResult, RuntimeIntegrationValidationContext, RuntimeIntegrationServiceOptions } from "./installer/runtime-integration-contract.js";
 export { openWorkSessionRegistry } from "./session-registry.js";
 export { RuntimeSessionHost } from "./runtime-session.js";
@@ -37,9 +37,9 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export * from "./local-host.js";
 export { MolisWorkWebServiceManager } from "./installer/web-service.js";
-export { MolisWorkWebServiceError, type MolisWorkWebServiceAction, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection, type MolisWorkWebServicePlan, type MolisWorkWebServiceResult, type MolisWorkWebServiceManagerOptions } from "./installer/web-service-contract.js";
+export { type MolisWorkWebServiceAction, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection, type MolisWorkWebServicePlan, type MolisWorkWebServiceResult, type MolisWorkWebServiceManagerOptions } from "./installer/web-service-contract.js";
 export { MolisWorkUninstallService } from "./installer/uninstall.js";
-export { MolisWorkUninstallError, type MolisWorkUninstallPlan, type MolisWorkUninstallResult, type MolisWorkUninstallServiceOptions, type MolisWorkUninstallChange, type UninstallProjectAccess } from "./installer/uninstall-contract.js";
+export { type MolisWorkUninstallPlan, type MolisWorkUninstallResult, type MolisWorkUninstallServiceOptions, type MolisWorkUninstallChange, type UninstallProjectAccess } from "./installer/uninstall-contract.js";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
 export { createMolisWorkRuntimePayload, type MolisWorkRuntimePayloadOptions } from "./installer/runtime-payload.js";
 export { createMolisWorkNpmPackageDirectory } from "./installer/npm-package.js";

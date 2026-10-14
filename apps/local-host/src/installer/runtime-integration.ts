@@ -1,8 +1,9 @@
+import { installerErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { validateMolisWorkMcpLauncher } from "@molis-ai/molis-work-app-mcp";
-import { INTEGRATION_OWNER, isOwnedInstallerOwner, isOwnedIntegrationOwner, RuntimeIntegrationError, integrationResult } from "./runtime-integration-contract.js";
+import { INTEGRATION_OWNER, isOwnedInstallerOwner, isOwnedIntegrationOwner, integrationResult } from "./runtime-integration-contract.js";
 import type { RuntimeIntegrationServiceOptions, PreparedPlan, RuntimeIntegrationDetection, SupportedRuntimeId, RuntimeIntegrationAction, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResult, RuntimeAdapter, RuntimeSnapshot, ConfigInspection, InstalledArtifacts, IntegrationReceipt, RuntimeConnectionState } from "./runtime-integration-contract.js";
 import { ADAPTERS, adapterFor } from "./runtime-config-adapters.js";
 import { applyRuntimeIntegration, serializeRuntimeConfirmation } from "./runtime-integration-apply.js";
@@ -265,7 +266,7 @@ export class RuntimeIntegrationService {
       }
       return receipt;
     } catch {
-      throw new RuntimeIntegrationError("installer.receipt_invalid", `Molis Work 接入收据无法解析: ${filePath}`);
+      throw installerErrors["installer.receipt_invalid"](`Molis Work 接入收据无法解析: ${filePath}`);
     }
   }
 

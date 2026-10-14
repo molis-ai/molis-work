@@ -1,7 +1,8 @@
+import { installerErrors } from "./errors.js";
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { MolisWorkHomeInstallError } from "./home-contract.js";
+
 import { pathState } from "./home-files.js";
 import { inspectSource } from "./home-source.js";
 import { createRelease } from "./home-release.js";
@@ -18,9 +19,9 @@ export interface MolisWorkRuntimePayloadOptions {
 /** Packages the same self-contained release used by Home installation, without installing or starting it. */
 export async function createMolisWorkRuntimePayload(options: MolisWorkRuntimePayloadOptions): Promise<{ directory: string; version: string }> {
   const destination = path.resolve(options.destinationDirectory);
-  if (await pathState(destination)) throw new MolisWorkHomeInstallError("installer.source.invalid", `Runtime payload 输出已存在，不会覆盖: ${destination}`);
+  if (await pathState(destination)) throw installerErrors["installer.source.invalid"](`Runtime payload 输出已存在，不会覆盖: ${destination}`);
   const nodeExecutable = path.resolve(options.nodeExecutablePath);
-  if (!(await pathState(nodeExecutable))?.isFile()) throw new MolisWorkHomeInstallError("installer.source.invalid", `Runtime Node 不是文件: ${nodeExecutable}`);
+  if (!(await pathState(nodeExecutable))?.isFile()) throw installerErrors["installer.source.invalid"](`Runtime Node 不是文件: ${nodeExecutable}`);
   const source = await inspectSource(path.resolve(options.sourceDirectory), undefined);
   source.bundledNodePath = nodeExecutable;
   source.contentDigest = createHash("sha256").update(JSON.stringify({

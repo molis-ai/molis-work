@@ -64,13 +64,3 @@ export interface PreparedServicePlan {
   snapshotHash: string;
   expectedPlist: string;
 }
-
-export class MolisWorkWebServiceError extends Error {
-  constructor(
-    readonly code: "installer.service.unsupported" | "installer.service.conflict" | "installer.service.plan_missing" | "installer.service.plan_stale" | "installer.service.command_failed",
-    message: string,
-  ) {
-    super(message);
-    this.name = "MolisWorkWebServiceError";
-  }
-}

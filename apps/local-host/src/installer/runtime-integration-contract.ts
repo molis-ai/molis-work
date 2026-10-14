@@ -166,19 +166,3 @@ export interface PreparedPlan {
   artifacts: InstalledArtifacts | null;
   receipt: IntegrationReceipt | null;
 }
-
-export class RuntimeIntegrationError extends Error {
-  constructor(
-    readonly code:
-      | "installer.unsupported"
-      | "installer.installation_invalid"
-      | "installer.config_invalid"
-      | "installer.plan_invalid"
-      | "installer.receipt_invalid",
-    message: string,
-  ) {
-    super(message);
-    this.name = "RuntimeIntegrationError";
-  }
-}
-

@@ -1,5 +1,6 @@
+import { installerErrors } from "./errors.js";
 import { promises as fs, type Stats } from "node:fs";
-import { INTEGRATION_OWNER, RuntimeIntegrationError, integrationResult } from "./runtime-integration-contract.js";
+import { INTEGRATION_OWNER, integrationResult } from "./runtime-integration-contract.js";
 import type { IntegrationReceipt, PreparedPlan, RuntimeIntegrationPlan, RuntimeIntegrationResult } from "./runtime-integration-contract.js";
 import { fileModeOrUndefined, replaceTextFile, replaceSkillLink, removeExpectedSkillLink, restoreSkillSnapshot,
   restoreTextSnapshot, textWriteMatches, skillWriteMatches, writeAtomic } from "./runtime-installation-files.js";
@@ -45,7 +46,7 @@ export async function applyRuntimeIntegration(prepared: PreparedPlan, ports: App
       configMutated = true;
     } else if (prepared.nextConfigText != null) configIdentity = await fs.lstat(configPath);
     if (plan.action === "connect") {
-      if (!prepared.artifacts) throw new RuntimeIntegrationError("installer.installation_invalid", "Molis Work 安装不可用");
+      if (!prepared.artifacts) throw installerErrors["installer.installation_invalid"]("Molis Work 安装不可用");
       skillIdentity = await replaceSkillLink(skillPath, prepared.artifacts.skillSourcePath, ports.homeDirectory);
       skillMutated = prepared.beforeSkill.state !== "current";
     } else {
@@ -58,7 +59,7 @@ export async function applyRuntimeIntegration(prepared: PreparedPlan, ports: App
       throw new Error("Runtime 配置或 Skill 在验证期间发生了变化");
     }
     if (plan.action === "connect") {
-      if (!prepared.artifacts) throw new RuntimeIntegrationError("installer.installation_invalid", "Molis Work 安装不可用");
+      if (!prepared.artifacts) throw installerErrors["installer.installation_invalid"]("Molis Work 安装不可用");
       const inspection = prepared.adapter.inspectConfig(prepared.nextConfigText,
         prepared.adapter.desiredConnection(prepared.artifacts, ports.homeDirectory));
       if (!inspection.entryFingerprint) throw new Error("无法生成 Molis Work 配置所有权指纹");

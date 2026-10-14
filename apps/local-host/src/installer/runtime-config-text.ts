@@ -1,8 +1,10 @@
+import { installerErrors } from "./errors.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash } from "node:crypto";
-import { RuntimeIntegrationError } from "./runtime-integration-contract.js";
+
 
 function invalidToml(): never {
-  throw new RuntimeIntegrationError("installer.config_invalid", "TOML 配置包含无效或有歧义的 Molis Work 表，原文件未修改");
+  throw installerErrors["installer.config_invalid"]("TOML 配置包含无效或有歧义的 Molis Work 表，原文件未修改");
 }
 
 /** TOML keys are semantic segments: quoted dots are part of a key, whitespace around actual dots is not. */
@@ -62,7 +64,7 @@ function tomlHeaders(contents: string, family: readonly string[]) {
       const keys = end < 0 ? [] : [...table, ...tomlKeyPath(line.slice(0, end))];
       if (end >= 0 && (belongs(keys) || keys.every((part, at) => family[at] === part)) && !belongs(table)) {
         // An inline/dotted definition cannot safely be rewritten as our separate table family.
-        throw new RuntimeIntegrationError("installer.config_invalid", "Molis Work MCP 已以点分或内联键定义，本次不追加重复表；原文件未修改");
+        throw installerErrors["installer.config_invalid"]("Molis Work MCP 已以点分或内联键定义，本次不追加重复表；原文件未修改");
       }
     }
     for (let at = 0; at < line.length; at++) {
@@ -166,7 +168,7 @@ export function scanJsonString(contents: string, start: number): number {
     }
     if (character === '"') return index + 1;
   }
-  throw new RuntimeIntegrationError("installer.config_invalid", "JSON 字符串没有结束");
+  throw installerErrors["installer.config_invalid"]("JSON 字符串没有结束");
 }
 
 export function scanJsonValue(contents: string, start: number): number {
@@ -191,7 +193,7 @@ export function scanJsonValue(contents: string, start: number): number {
         if (stack.length === 0) return index + 1;
       }
     }
-    throw new RuntimeIntegrationError("installer.config_invalid", "JSON 值没有结束");
+    throw installerErrors["installer.config_invalid"]("JSON 值没有结束");
   }
   let index = start;
   while (index < contents.length && !/[\s,}]/.test(contents[index])) index += 1;
@@ -204,7 +206,7 @@ export function parseJsonObject(contents: string, label: string): Record<string,
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
     return parsed as Record<string, unknown>;
   } catch {
-    throw new RuntimeIntegrationError("installer.config_invalid", `${label}不是有效 JSON，不会修改`);
+    throw installerErrors["installer.config_invalid"](`${label}不是有效 JSON，不会修改`);
   }
 }
 
@@ -212,7 +214,7 @@ export function parseJsoncObject(contents: string, label: string): Record<string
   try {
     return parseJsonObject(contents, label);
   } catch (error) {
-    if (!(error instanceof RuntimeIntegrationError)) throw error;
+    if (!((error instanceof ActionError && ["installer.unsupported","installer.installation_invalid","installer.config_invalid","installer.plan_invalid","installer.receipt_invalid"].includes(error.code)))) throw error;
     return parseJsonObject(stripJsonc(contents), label);
   }
 }

@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -5,7 +6,7 @@ import { chmod, copyFile, lstat, mkdtemp, mkdir, readFile, readlink, realpath, r
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MolisWorkHomeInstallError, installMolisWorkHome } from "@molis-ai/molis-work-app-local-host";
+import { installMolisWorkHome } from "@molis-ai/molis-work-app-local-host";
 import { writeMolisWorkBuildManifest } from "@molis-ai/molis-work-app-local-host";
 
 const execFileAsync = promisify(execFile);
@@ -231,7 +232,7 @@ test("home install rejects a source missing the plugin-dev skill", async () => {
     await assert.rejects(
       () => installMolisWorkHome({ homeDirectory: join(directory, "home", ".molis-work"), sourceDirectory: source }),
       (error: unknown) =>
-        error instanceof MolisWorkHomeInstallError &&
+        (error instanceof ActionError && ["installer.home.not_directory","installer.source.invalid","installer.source.asset_missing","installer.source.build_stale","installer.version.invalid","installer.home.unknown_file","installer.release.conflict"].includes(error.code)) &&
         error.code === "installer.source.asset_missing" &&
         /skills\/molis-plugin-dev\/SKILL\.md/.test(error.message),
     );
@@ -304,7 +305,7 @@ test("repository sources require a current build fingerprint and local install a
     await assert.rejects(
       () => installMolisWorkHome({ homeDirectory: home, sourceDirectory: source }),
       (error: unknown) =>
-        error instanceof MolisWorkHomeInstallError
+        (error instanceof ActionError && ["installer.home.not_directory","installer.source.invalid","installer.source.asset_missing","installer.source.build_stale","installer.version.invalid","installer.home.unknown_file","installer.release.conflict"].includes(error.code))
         && error.code === "installer.source.build_stale"
         && /pnpm install:local/.test(error.message),
     );
@@ -348,7 +349,7 @@ test("workspace source changes reject an old build before touching the installed
       const original = await readFile(changedInput, "utf8");
       await writeFile(changedInput, original + "\n// changed source input\n");
       await assert.rejects(installMolisWorkHome({ homeDirectory: home, sourceDirectory: source }),
-        (error: unknown) => error instanceof MolisWorkHomeInstallError && error.code === "installer.source.build_stale");
+        (error: unknown) => (error instanceof ActionError && ["installer.home.not_directory","installer.source.invalid","installer.source.asset_missing","installer.source.build_stale","installer.version.invalid","installer.home.unknown_file","installer.release.conflict"].includes(error.code)) && error.code === "installer.source.build_stale");
       assert.equal(await readFile(installationPath, "utf8"), before);
       assert.equal(await readFile(installed.launchers.cli, "utf8"), launcherBefore);
       await writeFile(changedInput, original);
@@ -458,7 +459,7 @@ test("home install refuses to overwrite unknown launcher files", async () => {
 
     await assert.rejects(
       () => installMolisWorkHome({ homeDirectory: home, sourceDirectory: source }),
-      (error: unknown) => error instanceof MolisWorkHomeInstallError && error.code === "installer.home.unknown_file",
+      (error: unknown) => (error instanceof ActionError && ["installer.home.not_directory","installer.source.invalid","installer.source.asset_missing","installer.source.build_stale","installer.version.invalid","installer.home.unknown_file","installer.release.conflict"].includes(error.code)) && error.code === "installer.home.unknown_file",
     );
     assert.equal(await readFile(unknownLauncher, "utf8"), "user launcher");
   });
@@ -486,7 +487,7 @@ test("home install rejects dependency links that would escape the installed rele
     await assert.rejects(
       () => installMolisWorkHome({ homeDirectory: join(directory, "home", ".molis-work"), sourceDirectory: source }),
       (error: unknown) =>
-        error instanceof MolisWorkHomeInstallError &&
+        (error instanceof ActionError && ["installer.home.not_directory","installer.source.invalid","installer.source.asset_missing","installer.source.build_stale","installer.version.invalid","installer.home.unknown_file","installer.release.conflict"].includes(error.code)) &&
         error.code === "installer.source.invalid" &&
         /指向安装 release 外部/.test(error.message),
     );
@@ -610,7 +611,7 @@ test("home install rejects a declared production dependency that cannot be resol
     await assert.rejects(
       () => installMolisWorkHome({ homeDirectory: join(directory, "home", ".molis-work"), sourceDirectory: source }),
       (error: unknown) =>
-        error instanceof MolisWorkHomeInstallError &&
+        (error instanceof ActionError && ["installer.home.not_directory","installer.source.invalid","installer.source.asset_missing","installer.source.build_stale","installer.version.invalid","installer.home.unknown_file","installer.release.conflict"].includes(error.code)) &&
         error.code === "installer.source.asset_missing" &&
         /missing-fixture-dependency/.test(error.message),
     );
@@ -788,7 +789,7 @@ test("home install fails when a workspace package is missing declared files or u
     await assert.rejects(
       () => installMolisWorkHome({ homeDirectory: join(directory, "home-missing"), sourceDirectory: missing.source }),
       (error: unknown) =>
-        error instanceof MolisWorkHomeInstallError
+        (error instanceof ActionError && ["installer.home.not_directory","installer.source.invalid","installer.source.asset_missing","installer.source.build_stale","installer.version.invalid","installer.home.unknown_file","installer.release.conflict"].includes(error.code))
         && error.code === "installer.source.asset_missing"
         && /Missing release asset in fixture-desktop: methods/.test(error.message),
     );
@@ -807,7 +808,7 @@ test("home install fails when a workspace package is missing declared files or u
     await assert.rejects(
       () => installMolisWorkHome({ homeDirectory: join(directory, "home-globs"), sourceDirectory: globs.source }),
       (error: unknown) =>
-        error instanceof MolisWorkHomeInstallError
+        (error instanceof ActionError && ["installer.home.not_directory","installer.source.invalid","installer.source.asset_missing","installer.source.build_stale","installer.version.invalid","installer.home.unknown_file","installer.release.conflict"].includes(error.code))
         && error.code === "installer.source.invalid"
         && /Unsupported release files entry in fixture-desktop: dist\/\*\*/.test(error.message),
     );

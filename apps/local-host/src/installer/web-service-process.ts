@@ -1,4 +1,5 @@
-import { MolisWorkWebServiceError } from "./web-service-contract.js";
+import { installerErrors } from "./errors.js";
+
 import { WebServiceEnvironment, commandError, delay, launchAgentProcessId } from "./web-service-platform.js";
 
 /** Owns launchctl transitions and process-identity readiness, not install files or confirmation. */
@@ -52,10 +53,7 @@ export class WebServiceProcess {
       status = await this.environment.launchctl(["print", this.environment.serviceTarget()]);
     }
     if (status.code === 0) {
-      throw new MolisWorkWebServiceError(
-        "installer.service.command_failed",
-        "launchctl 停止超时：旧 Molis Work Web 服务仍在卸载中，请稍后重试",
-      );
+      throw installerErrors["installer.service.command_failed"]("launchctl 停止超时：旧 Molis Work Web 服务仍在卸载中，请稍后重试");
     }
   }
 
@@ -66,10 +64,7 @@ export class WebServiceProcess {
       status = await this.environment.launchctl(["print", this.environment.serviceTarget()]);
     }
     if (launchAgentProcessId(status) == null) {
-      throw new MolisWorkWebServiceError(
-        "installer.service.command_failed",
-        `launchctl 启动后未进入运行状态（${status.code}）：${status.stderr.trim() || "请查看 Molis Work Web 错误日志"}`,
-      );
+      throw installerErrors["installer.service.command_failed"](`launchctl 启动后未进入运行状态（${status.code}）：${status.stderr.trim() || "请查看 Molis Work Web 错误日志"}`);
     }
   }
 
@@ -86,10 +81,7 @@ export class WebServiceProcess {
         await delay(this.environment.transitionDelayMilliseconds);
       }
     }
-    throw new MolisWorkWebServiceError(
-      "installer.service.command_failed",
-      `Molis Work Web 已有 LaunchAgent 进程，但当前实例的进程身份健康检查仍未通过；请查看错误日志：${this.environment.stderrLog}`,
-    );
+    throw installerErrors["installer.service.command_failed"](`Molis Work Web 已有 LaunchAgent 进程，但当前实例的进程身份健康检查仍未通过；请查看错误日志：${this.environment.stderrLog}`);
   }
 
   async restoreRunningState(): Promise<void> {
@@ -101,9 +93,6 @@ export class WebServiceProcess {
 
   async assertPortAvailable(): Promise<void> {
     if (!await this.environment.portCheck()) return;
-    throw new MolisWorkWebServiceError(
-      "installer.service.conflict",
-      "127.0.0.1:4173 已有进程监听；Molis Work 不会接管、终止或随机改用其他端口",
-    );
+    throw installerErrors["installer.service.conflict"]("127.0.0.1:4173 已有进程监听；Molis Work 不会接管、终止或随机改用其他端口");
   }
 }

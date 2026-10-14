@@ -1,7 +1,8 @@
+import { installerErrors } from "./errors.js";
 import { promises as fs } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { MolisWorkHomeInstallError } from "./home-contract.js";
+
 import type { RuntimeDependencyPackage } from "./home-contract.js";
 
 export async function collectRuntimeDependencies(
@@ -38,10 +39,7 @@ export async function collectRuntimeDependencies(
       resolvedPackageJson = await fs.realpath(await resolveDependencyPackageJson(candidate.name, candidate.fromPackageJson));
     } catch (error) {
       if (candidate.optional) continue;
-      throw new MolisWorkHomeInstallError(
-        "installer.source.asset_missing",
-        `Molis Work 安装源缺少运行时依赖 ${candidate.name}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw installerErrors["installer.source.asset_missing"](`Molis Work 安装源缺少运行时依赖 ${candidate.name}: ${error instanceof Error ? error.message : String(error)}`);
     }
     let metadata: {
       name?: unknown;
@@ -52,18 +50,12 @@ export async function collectRuntimeDependencies(
     try {
       metadata = JSON.parse(await fs.readFile(resolvedPackageJson, "utf8")) as typeof metadata;
     } catch {
-      throw new MolisWorkHomeInstallError(
-        "installer.source.invalid",
-        `运行时依赖 package.json 无法解析: ${resolvedPackageJson}`,
-      );
+      throw installerErrors["installer.source.invalid"](`运行时依赖 package.json 无法解析: ${resolvedPackageJson}`);
     }
     const name = String(metadata.name ?? candidate.name);
     const version = String(metadata.version ?? "").trim();
     if (name !== candidate.name || !version) {
-      throw new MolisWorkHomeInstallError(
-        "installer.source.invalid",
-        `运行时依赖身份无效: ${candidate.name} (${resolvedPackageJson})`,
-      );
+      throw installerErrors["installer.source.invalid"](`运行时依赖身份无效: ${candidate.name} (${resolvedPackageJson})`);
     }
     const directory = path.dirname(resolvedPackageJson);
     const existing = packages.get(name);
@@ -71,10 +63,7 @@ export async function collectRuntimeDependencies(
       if (existing.version !== version) {
         const parent = byDirectory.get(path.dirname(candidate.fromPackageJson));
         if (!parent) {
-          throw new MolisWorkHomeInstallError(
-            "installer.source.invalid",
-            `运行时依赖存在无法平铺的版本冲突: ${name}@${existing.version} / ${name}@${version}`,
-          );
+          throw installerErrors["installer.source.invalid"](`运行时依赖存在无法平铺的版本冲突: ${name}@${existing.version} / ${name}@${version}`);
         }
         const nests = parent.nests ?? [];
         if (!nests.some((item) => item.name === name && item.version === version)) {

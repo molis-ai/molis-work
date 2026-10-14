@@ -1,13 +1,14 @@
+import { installerErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
-import { MolisWorkHomeInstallError, isOwnedInstaller, isOwnedLauncherText } from "./home-contract.js";
+import { isOwnedInstaller, isOwnedLauncherText } from "./home-contract.js";
 import type { TextMutation, InstallManifest } from "./home-contract.js";
 
 export async function ensureDirectory(directory: string): Promise<void> {
   const state = await pathState(directory);
   if (state?.isDirectory()) return;
   if (state) {
-    throw new MolisWorkHomeInstallError("installer.home.not_directory", `Molis Work 安装路径不是目录: ${directory}`);
+    throw installerErrors["installer.home.not_directory"](`Molis Work 安装路径不是目录: ${directory}`);
   }
   await fs.mkdir(directory, { recursive: true });
 }
@@ -19,7 +20,7 @@ export async function writeOwnedText(filePath: string, content: string, mutation
     previous != null
     && !isOwnedLauncherText(previous)
   ) {
-    throw new MolisWorkHomeInstallError("installer.home.unknown_file", `不会覆盖未知用户文件: ${filePath}`);
+    throw installerErrors["installer.home.unknown_file"](`不会覆盖未知用户文件: ${filePath}`);
   }
   mutations.push({ filePath, previous });
   await writeAtomic(filePath, content, 0o755);
@@ -35,7 +36,7 @@ export async function replaceOwnedJson(
   if (previous != null) {
     const parsed = parseJson(previous, filePath);
     if (!isOwnedInstaller(parsed.installer)) {
-      throw new MolisWorkHomeInstallError("installer.home.unknown_file", `不会覆盖未知用户文件: ${filePath}`);
+      throw installerErrors["installer.home.unknown_file"](`不会覆盖未知用户文件: ${filePath}`);
     }
   }
   mutations.push({ filePath, previous });
@@ -47,7 +48,7 @@ export async function readOwnedJson<T extends { installer: string }>(filePath: s
   if (text == null) return null;
   const parsed = parseJson(text, filePath) as T;
   if (!isOwnedInstaller(parsed.installer)) {
-    throw new MolisWorkHomeInstallError("installer.home.unknown_file", `不会读取或覆盖未知用户文件: ${filePath}`);
+    throw installerErrors["installer.home.unknown_file"](`不会读取或覆盖未知用户文件: ${filePath}`);
   }
   return parsed;
 }
@@ -76,7 +77,7 @@ export async function readText(filePath: string, code: "installer.source.asset_m
   try {
     return await fs.readFile(filePath, "utf8");
   } catch {
-    throw new MolisWorkHomeInstallError(code, `Molis Work 安装源缺少文件: ${filePath}`);
+    throw installerErrors[code](`Molis Work 安装源缺少文件: ${filePath}`);
   }
 }
 
@@ -98,7 +99,7 @@ export function parseJson(text: string, filePath: string): Record<string, unknow
   try {
     return JSON.parse(text) as Record<string, unknown>;
   } catch {
-    throw new MolisWorkHomeInstallError("installer.release.conflict", `Molis Work 安装文件无法解析: ${filePath}`);
+    throw installerErrors["installer.release.conflict"](`Molis Work 安装文件无法解析: ${filePath}`);
   }
 }
 

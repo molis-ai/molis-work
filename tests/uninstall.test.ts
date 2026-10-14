@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -8,7 +9,7 @@ import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { installMolisWorkHome } from "@molis-ai/molis-work-app-local-host";
 import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkUninstallError } from "@molis-ai/molis-work-app-local-host";
+
 import { createDesktopUninstallService as createLocalUninstallService } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkWebServiceManager } from "@molis-ai/molis-work-app-local-host";
 
@@ -141,7 +142,7 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
         decision: "confirmed",
         purge_confirmation: { home_directory: item.home, user_project_count: 0 },
       }),
-      (error: unknown) => error instanceof MolisWorkUninstallError
+      (error: unknown) => (error instanceof ActionError && ["installer.uninstall.plan_missing","installer.uninstall.plan_stale","installer.uninstall.conflict","installer.uninstall.purge_confirmation_required","installer.uninstall.step_failed"].includes(error.code))
         && error.code === "installer.uninstall.purge_confirmation_required",
     );
     assert.equal((await stat(item.userProject.database_path)).isFile(), true);
@@ -174,7 +175,7 @@ test("changed owned files block uninstall and a failed service step leaves a rec
     assert.equal(plan.status, "conflict");
     await assert.rejects(
       () => conflict.service.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof MolisWorkUninstallError && error.code === "installer.uninstall.conflict",
+      (error: unknown) => (error instanceof ActionError && ["installer.uninstall.plan_missing","installer.uninstall.plan_stale","installer.uninstall.conflict","installer.uninstall.purge_confirmation_required","installer.uninstall.step_failed"].includes(error.code)) && error.code === "installer.uninstall.conflict",
     );
     assert.equal(await readFile(launcher, "utf8"), "user replacement\n");
     assert.equal((await stat(conflict.userProject.database_path)).isFile(), true);
@@ -221,7 +222,7 @@ test("changed owned files block uninstall and a failed service step leaves a rec
     const plan = await service.prepare();
     await assert.rejects(
       () => service.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof MolisWorkUninstallError && error.code === "installer.uninstall.step_failed",
+      (error: unknown) => (error instanceof ActionError && ["installer.uninstall.plan_missing","installer.uninstall.plan_stale","installer.uninstall.conflict","installer.uninstall.purge_confirmation_required","installer.uninstall.step_failed"].includes(error.code)) && error.code === "installer.uninstall.step_failed",
     );
     const receipt = JSON.parse(await readFile(service.receiptPath, "utf8")) as { state: string; error: string };
     assert.equal(receipt.state, "failed");

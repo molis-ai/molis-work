@@ -1,5 +1,6 @@
+import { installerErrors } from "./errors.js";
 import path from "node:path";
-import { RuntimeIntegrationError } from "./runtime-integration-contract.js";
+
 import type { RuntimeAdapter, SupportedRuntimeId, DesiredConnection, ConfigInspection } from "./runtime-integration-contract.js";
 import { tomlString, extractTomlFamily, normalizeBlock, digest, replaceTomlFamily, parseJsonObject, objectOrEmpty, canonicalJson, replaceTopLevelJsonProperty, parseJsoncObject } from "./runtime-config-text.js";
 
@@ -116,7 +117,7 @@ export function restartInstructionsFor(displayName: string): readonly string[] {
 
 export function adapterFor(runtimeId: SupportedRuntimeId): RuntimeAdapter {
   const adapter = ADAPTERS.find((candidate) => candidate.id === runtimeId);
-  if (!adapter) throw new RuntimeIntegrationError("installer.unsupported", `尚未支持 Runtime: ${runtimeId}`);
+  if (!adapter) throw installerErrors["installer.unsupported"](`尚未支持 Runtime: ${runtimeId}`);
   return adapter;
 }
 

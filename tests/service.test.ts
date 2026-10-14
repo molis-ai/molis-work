@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -5,11 +6,7 @@ import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import {
-  MolisWorkWebServiceError,
-  MolisWorkWebServiceManager,
-  type MolisWorkWebServiceManagerOptions,
-} from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkWebServiceManager, type MolisWorkWebServiceManagerOptions } from "@molis-ai/molis-work-app-local-host";
 
 async function fixture() {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-web-service-"));
@@ -231,7 +228,7 @@ test("start waits for the Web health endpoint and never reports a process-only s
     const install = await unavailable.manager.prepare("install");
     await assert.rejects(
       () => unavailable.manager.confirm({ plan_id: install.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof MolisWorkWebServiceError
+      (error: unknown) => (error instanceof ActionError && ["installer.service.unsupported","installer.service.conflict","installer.service.plan_missing","installer.service.plan_stale","installer.service.command_failed"].includes(error.code))
         && error.code === "installer.service.command_failed"
         && /健康检查仍未通过/.test(error.message),
     );
@@ -256,7 +253,7 @@ test("an occupied Web port blocks install before persistent files or launchctl m
       assert.match(plan.message, /4173|端口|监听/);
       await assert.rejects(
         () => item.manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-        (error: unknown) => error instanceof MolisWorkWebServiceError
+        (error: unknown) => (error instanceof ActionError && ["installer.service.unsupported","installer.service.conflict","installer.service.plan_missing","installer.service.plan_stale","installer.service.command_failed"].includes(error.code))
           && error.code === "installer.service.conflict",
       );
       assert.equal(await exists(item.manager.plistPath), false);
@@ -299,7 +296,7 @@ test("a port occupied after preview still blocks confirm before mutations", asyn
 
     await assert.rejects(
       () => item.manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof MolisWorkWebServiceError
+      (error: unknown) => (error instanceof ActionError && ["installer.service.unsupported","installer.service.conflict","installer.service.plan_missing","installer.service.plan_stale","installer.service.command_failed"].includes(error.code))
         && error.code === "installer.service.conflict",
     );
 
@@ -332,7 +329,7 @@ test("owned repair and unhealthy restart detect an external listener before boot
       assert.equal(plan.status, "conflict");
       await assert.rejects(
         () => item.manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-        (error: unknown) => error instanceof MolisWorkWebServiceError
+        (error: unknown) => (error instanceof ActionError && ["installer.service.unsupported","installer.service.conflict","installer.service.plan_missing","installer.service.plan_stale","installer.service.command_failed"].includes(error.code))
           && error.code === "installer.service.conflict",
       );
       assert.equal(
@@ -380,7 +377,7 @@ test("install rejects another process health response and rolls back only its ow
 
     await assert.rejects(
       () => item.manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof MolisWorkWebServiceError
+      (error: unknown) => (error instanceof ActionError && ["installer.service.unsupported","installer.service.conflict","installer.service.plan_missing","installer.service.plan_stale","installer.service.command_failed"].includes(error.code))
         && error.code === "installer.service.command_failed"
         && /实例|进程|健康/.test(error.message),
     );
@@ -425,7 +422,7 @@ test("install does not report success when final owned-instance verification is 
 
     await assert.rejects(
       () => item.manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof MolisWorkWebServiceError
+      (error: unknown) => (error instanceof ActionError && ["installer.service.unsupported","installer.service.conflict","installer.service.plan_missing","installer.service.plan_stale","installer.service.command_failed"].includes(error.code))
         && error.code === "installer.service.command_failed"
         && /实例|运行状态/.test(error.message),
     );
@@ -457,7 +454,7 @@ test("needs_repair rejects restart and points to the configuration-writing insta
     assert.match(restart.message, /restart/);
     await assert.rejects(
       () => item.manager.confirm({ plan_id: restart.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof MolisWorkWebServiceError
+      (error: unknown) => (error instanceof ActionError && ["installer.service.unsupported","installer.service.conflict","installer.service.plan_missing","installer.service.plan_stale","installer.service.command_failed"].includes(error.code))
         && error.code === "installer.service.conflict",
     );
     assert.equal(
@@ -500,7 +497,7 @@ test("a failed owned repair restores the prior files and running state", async (
       const repair = await item.manager.prepare("install");
       await assert.rejects(
         () => item.manager.confirm({ plan_id: repair.plan_id, decision: "confirmed" }),
-        (error: unknown) => error instanceof MolisWorkWebServiceError
+        (error: unknown) => (error instanceof ActionError && ["installer.service.unsupported","installer.service.conflict","installer.service.plan_missing","installer.service.plan_stale","installer.service.command_failed"].includes(error.code))
           && error.code === "installer.service.command_failed",
       );
 
@@ -532,7 +529,7 @@ test("failed start and restart restore the prior launchctl running state", async
         const action = await item.manager.prepare(previouslyRunning ? "restart" : "start");
         await assert.rejects(
           () => item.manager.confirm({ plan_id: action.plan_id, decision: "confirmed" }),
-          (error: unknown) => error instanceof MolisWorkWebServiceError
+          (error: unknown) => (error instanceof ActionError && ["installer.service.unsupported","installer.service.conflict","installer.service.plan_missing","installer.service.plan_stale","installer.service.command_failed"].includes(error.code))
             && error.code === "installer.service.command_failed",
         );
 
@@ -651,7 +648,7 @@ test("unknown or changed LaunchAgents are never overwritten or removed", async (
     assert.equal(remove.status, "conflict");
     await assert.rejects(
       () => item.manager.confirm({ plan_id: remove.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof MolisWorkWebServiceError && error.code === "installer.service.conflict",
+      (error: unknown) => (error instanceof ActionError && ["installer.service.unsupported","installer.service.conflict","installer.service.plan_missing","installer.service.plan_stale","installer.service.command_failed"].includes(error.code)) && error.code === "installer.service.conflict",
     );
     assert.equal(await readFile(item.manager.plistPath, "utf8"), "user changed this plist\n");
   } finally {
@@ -667,7 +664,7 @@ test("stale plans and failed launchctl installs leave no owned service files", a
     await writeFile(item.manager.plistPath, "external plist\n");
     await assert.rejects(
       () => item.manager.confirm({ plan_id: stale.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof MolisWorkWebServiceError && error.code === "installer.service.plan_stale",
+      (error: unknown) => (error instanceof ActionError && ["installer.service.unsupported","installer.service.conflict","installer.service.plan_missing","installer.service.plan_stale","installer.service.command_failed"].includes(error.code)) && error.code === "installer.service.plan_stale",
     );
   } finally {
     await rm(item.directory, { recursive: true, force: true });
@@ -686,7 +683,7 @@ test("stale plans and failed launchctl installs leave no owned service files", a
     const plan = await manager.prepare("install");
     await assert.rejects(
       () => manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof MolisWorkWebServiceError && error.code === "installer.service.command_failed",
+      (error: unknown) => (error instanceof ActionError && ["installer.service.unsupported","installer.service.conflict","installer.service.plan_missing","installer.service.plan_stale","installer.service.command_failed"].includes(error.code)) && error.code === "installer.service.command_failed",
     );
     await assert.rejects(stat(manager.plistPath));
     await assert.rejects(stat(manager.receiptPath));

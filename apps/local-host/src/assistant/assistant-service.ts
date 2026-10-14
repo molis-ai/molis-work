@@ -1107,7 +1107,7 @@ export class AssistantService {
       const latest = await this.latestRun(host, work).catch(() => null);
       if (latest && latest.ref.run_id === review.run.run_id && !isTerminalAgentPhase(latest.phase)) {
         const why = input.note ? `，理由：${String(input.note).slice(0, 500)}` : "";
-        await host.adapter(RUNTIME).control(latest.ref, { kind: "steer", text: `（Molis 转告）用户拒绝了这次修改「${describeReview(review.document).summary}」${why}。它没有执行。不要换别的能力做同一件事；需要时问用户想怎么做。` }).catch(() => undefined);
+        await host.adapter(RUNTIME).control(latest.ref, { kind: "steer", source: "host", text: `（Molis 转告）用户拒绝了这次修改「${describeReview(review.document).summary}」${why}。它没有执行。不要换别的能力做同一件事；需要时问用户想怎么做。` }).catch(() => undefined);
       }
     }
     return this.read(workId);

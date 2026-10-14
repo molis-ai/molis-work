@@ -1,0 +1,3723 @@
+{
+ "source": {
+  "prologue": "37427d0997151322e05e260cdceb9a77b24260e1",
+  "dirty": false,
+  "recordedAt": "2026-10-12T12:15:37.874Z",
+  "script": "scripts/input-receipts-slice/record.mts"
+ },
+ "flavor": "coding",
+ "scenes": [
+  {
+   "id": "main",
+   "label": "运行中补充、说明与第一轮的结论",
+   "runs": [
+    {
+     "label": "第一轮",
+     "events": [
+      {
+       "type": "prompt",
+       "role": "system",
+       "text": "Today's date on this machine is 2026-10-12.",
+       "atMs": 1791813660000
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "给登录接口补失败路径测试",
+       "atMs": 1791813660000
+      },
+      {
+       "type": "text-delta",
+       "text": "我先读 login 的处理函数和现有测试，再写失败路径。"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "先别动登录页的样式",
+       "atMs": 1791813730000,
+       "steerId": "steer-3-9pn6g",
+       "key": "in-0"
+      },
+      {
+       "type": "steer-withdrawn",
+       "steerId": "steer-3-9pn6g"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "别改现有 fixture，新建一个",
+       "atMs": 1791813750000,
+       "steerId": "steer-4-4nnk3",
+       "key": "in-1"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "顺便把注册接口也覆盖一下",
+       "atMs": 1791813765000,
+       "steerId": "steer-5-1n88l",
+       "key": "in-2"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "测试改用 vitest",
+       "atMs": 1791813780000,
+       "steerId": "steer-6-4bl4t",
+       "key": "in-3"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+       "atMs": 1791813795000,
+       "steerId": "steer-7-4s3pc",
+       "source": "app",
+       "key": "host-1"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-1",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 766
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 32
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-4-4nnk3"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-5-1n88l"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-6-4bl4t"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-7-4s3pc"
+      },
+      {
+       "type": "tool-call",
+       "call": {
+        "id": "ack-1",
+        "name": "acknowledge-inputs",
+        "input": {
+         "items": [
+          {
+           "input": "steer-4-4nnk3",
+           "treatment": "apply-now",
+           "kind": "constraint",
+           "impacts": [
+            "approach",
+            "outputs"
+           ],
+           "note": "新建 login-failure.json，不动 login.json"
+          },
+          {
+           "input": "steer-5-1n88l",
+           "treatment": "new-task",
+           "kind": "request",
+           "impacts": [
+            "scope"
+           ],
+           "note": "提议新增一步：注册接口失败路径测试，待你确认"
+          },
+          {
+           "input": "steer-6-4bl4t",
+           "treatment": "not-adopted",
+           "kind": "request",
+           "impacts": [
+            "approach"
+           ],
+           "note": "仓库统一用 node:test，scripts/run-tests.mjs 不认 vitest"
+          }
+         ]
+        }
+       }
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-2",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1092
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 214
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-read",
+       "steerIds": [
+        "steer-4-4nnk3",
+        "steer-5-1n88l",
+        "steer-6-4bl4t",
+        "steer-7-4s3pc"
+       ],
+       "callId": "lab-2"
+      },
+      {
+       "type": "inputs-acknowledged",
+       "callId": "lab-2",
+       "toolCallId": "ack-1",
+       "items": [
+        {
+         "steerId": "steer-4-4nnk3",
+         "treatment": "apply-now",
+         "kind": "constraint",
+         "targets": [],
+         "impacts": [
+          "approach",
+          "outputs"
+         ],
+         "note": "新建 login-failure.json，不动 login.json"
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "treatment": "new-task",
+         "kind": "request",
+         "targets": [],
+         "impacts": [
+          "scope"
+         ],
+         "note": "提议新增一步：注册接口失败路径测试，待你确认"
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "treatment": "not-adopted",
+         "kind": "request",
+         "targets": [],
+         "impacts": [
+          "approach"
+         ],
+         "note": "仓库统一用 node:test，scripts/run-tests.mjs 不认 vitest"
+        }
+       ]
+      },
+      {
+       "type": "tool-result",
+       "callId": "ack-1",
+       "name": "acknowledge-inputs",
+       "text": "Recorded your statement for steer-4-4nnk3 (apply-now), steer-5-1n88l (new-task), steer-6-4bl4t (not-adopted). This is your declaration, not a record that anything happened.",
+       "outcome": "returned"
+      },
+      {
+       "type": "text-delta",
+       "text": "步骤 2 正在写测试文件，下面是本轮的进展。"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "这步可以批准，但以后改 fixture 前先问我",
+       "atMs": 1791813860000,
+       "steerId": "steer-8-3cgdh",
+       "key": "in-4"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "报告里也写上耗时",
+       "atMs": 1791813872000,
+       "steerId": "steer-9-9u8h5",
+       "key": "in-5"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "把那个慢的用例也处理掉",
+       "atMs": 1791813885000,
+       "steerId": "steer-a-6imlv",
+       "key": "in-6"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-3",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1515
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 30
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-8-3cgdh"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-9-9u8h5"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-a-6imlv"
+      },
+      {
+       "type": "tool-call",
+       "call": {
+        "id": "ack-2",
+        "name": "acknowledge-inputs",
+        "input": {
+         "items": [
+          {
+           "input": "steer-8-3cgdh",
+           "treatment": "later-step",
+           "kind": "constraint",
+           "impacts": [
+            "constraint"
+           ],
+           "note": "以后每次改 fixture 前先问你"
+          },
+          {
+           "input": "steer-a-6imlv",
+           "treatment": "needs-clarification",
+           "kind": "request",
+           "impacts": [
+            "scope"
+           ],
+           "note": "你指的是 login-timeout 还是 signup-slow？"
+          }
+         ]
+        }
+       }
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-4",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1752
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 157
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-read",
+       "steerIds": [
+        "steer-8-3cgdh",
+        "steer-9-9u8h5",
+        "steer-a-6imlv"
+       ],
+       "callId": "lab-4"
+      },
+      {
+       "type": "inputs-acknowledged",
+       "callId": "lab-4",
+       "toolCallId": "ack-2",
+       "items": [
+        {
+         "steerId": "steer-8-3cgdh",
+         "treatment": "later-step",
+         "kind": "constraint",
+         "targets": [],
+         "impacts": [
+          "constraint"
+         ],
+         "note": "以后每次改 fixture 前先问你"
+        },
+        {
+         "steerId": "steer-a-6imlv",
+         "treatment": "needs-clarification",
+         "kind": "request",
+         "targets": [],
+         "impacts": [
+          "scope"
+         ],
+         "note": "你指的是 login-timeout 还是 signup-slow？"
+        }
+       ]
+      },
+      {
+       "type": "tool-result",
+       "callId": "ack-2",
+       "name": "acknowledge-inputs",
+       "text": "Recorded your statement for steer-8-3cgdh (later-step), steer-a-6imlv (needs-clarification). This is your declaration, not a record that anything happened.",
+       "outcome": "returned"
+      },
+      {
+       "type": "text-delta",
+       "text": "失败路径测试写完了：错误密码、被锁账号、过期令牌各一条，检查已跑过。"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-5",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 2104
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 34
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "completed"
+      }
+     ],
+     "projections": [
+      {
+       "at": 1,
+       "receipts": []
+      },
+      {
+       "at": 4,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 5,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 6,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 7,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 8,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 9,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 11,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 12,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 13,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 14,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "applied",
+         "applied": true
+        }
+       ]
+      },
+      {
+       "at": 17,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        }
+       ]
+      },
+      {
+       "at": 18,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "approach",
+           "outputs"
+          ],
+          "note": "新建 login-failure.json，不动 login.json",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增一步：注册接口失败路径测试，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "approach"
+          ],
+          "note": "仓库统一用 node:test，scripts/run-tests.mjs 不认 vitest",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        }
+       ]
+      },
+      {
+       "at": 21,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "approach",
+           "outputs"
+          ],
+          "note": "新建 login-failure.json，不动 login.json",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增一步：注册接口失败路径测试，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "approach"
+          ],
+          "note": "仓库统一用 node:test，scripts/run-tests.mjs 不认 vitest",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-3cgdh",
+         "text": "这步可以批准，但以后改 fixture 前先问我",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 22,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "approach",
+           "outputs"
+          ],
+          "note": "新建 login-failure.json，不动 login.json",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增一步：注册接口失败路径测试，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "approach"
+          ],
+          "note": "仓库统一用 node:test，scripts/run-tests.mjs 不认 vitest",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-3cgdh",
+         "text": "这步可以批准，但以后改 fixture 前先问我",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-9-9u8h5",
+         "text": "报告里也写上耗时",
+         "source": "person",
+         "atMs": 1791813872000,
+         "key": "in-5",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 23,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "approach",
+           "outputs"
+          ],
+          "note": "新建 login-failure.json，不动 login.json",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增一步：注册接口失败路径测试，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "approach"
+          ],
+          "note": "仓库统一用 node:test，scripts/run-tests.mjs 不认 vitest",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-3cgdh",
+         "text": "这步可以批准，但以后改 fixture 前先问我",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-9-9u8h5",
+         "text": "报告里也写上耗时",
+         "source": "person",
+         "atMs": 1791813872000,
+         "key": "in-5",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-a-6imlv",
+         "text": "把那个慢的用例也处理掉",
+         "source": "person",
+         "atMs": 1791813885000,
+         "key": "in-6",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 25,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "approach",
+           "outputs"
+          ],
+          "note": "新建 login-failure.json，不动 login.json",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增一步：注册接口失败路径测试，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "approach"
+          ],
+          "note": "仓库统一用 node:test，scripts/run-tests.mjs 不认 vitest",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-3cgdh",
+         "text": "这步可以批准，但以后改 fixture 前先问我",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-9-9u8h5",
+         "text": "报告里也写上耗时",
+         "source": "person",
+         "atMs": 1791813872000,
+         "key": "in-5",
+         "state": "accepted",
+         "applied": false
+        },
+        {
+         "steerId": "steer-a-6imlv",
+         "text": "把那个慢的用例也处理掉",
+         "source": "person",
+         "atMs": 1791813885000,
+         "key": "in-6",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 26,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "approach",
+           "outputs"
+          ],
+          "note": "新建 login-failure.json，不动 login.json",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增一步：注册接口失败路径测试，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "approach"
+          ],
+          "note": "仓库统一用 node:test，scripts/run-tests.mjs 不认 vitest",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-3cgdh",
+         "text": "这步可以批准，但以后改 fixture 前先问我",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-9-9u8h5",
+         "text": "报告里也写上耗时",
+         "source": "person",
+         "atMs": 1791813872000,
+         "key": "in-5",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-a-6imlv",
+         "text": "把那个慢的用例也处理掉",
+         "source": "person",
+         "atMs": 1791813885000,
+         "key": "in-6",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 27,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "approach",
+           "outputs"
+          ],
+          "note": "新建 login-failure.json，不动 login.json",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增一步：注册接口失败路径测试，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "approach"
+          ],
+          "note": "仓库统一用 node:test，scripts/run-tests.mjs 不认 vitest",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-3cgdh",
+         "text": "这步可以批准，但以后改 fixture 前先问我",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-9-9u8h5",
+         "text": "报告里也写上耗时",
+         "source": "person",
+         "atMs": 1791813872000,
+         "key": "in-5",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-a-6imlv",
+         "text": "把那个慢的用例也处理掉",
+         "source": "person",
+         "atMs": 1791813885000,
+         "key": "in-6",
+         "state": "applied",
+         "applied": true
+        }
+       ]
+      },
+      {
+       "at": 30,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "approach",
+           "outputs"
+          ],
+          "note": "新建 login-failure.json，不动 login.json",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增一步：注册接口失败路径测试，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "approach"
+          ],
+          "note": "仓库统一用 node:test，scripts/run-tests.mjs 不认 vitest",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-3cgdh",
+         "text": "这步可以批准，但以后改 fixture 前先问我",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-4"
+        },
+        {
+         "steerId": "steer-9-9u8h5",
+         "text": "报告里也写上耗时",
+         "source": "person",
+         "atMs": 1791813872000,
+         "key": "in-5",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-4"
+        },
+        {
+         "steerId": "steer-a-6imlv",
+         "text": "把那个慢的用例也处理掉",
+         "source": "person",
+         "atMs": 1791813885000,
+         "key": "in-6",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-4"
+        }
+       ]
+      },
+      {
+       "at": 31,
+       "receipts": [
+        {
+         "steerId": "steer-3-9pn6g",
+         "text": "先别动登录页的样式",
+         "source": "person",
+         "atMs": 1791813730000,
+         "key": "in-0",
+         "state": "withdrawn",
+         "applied": false
+        },
+        {
+         "steerId": "steer-4-4nnk3",
+         "text": "别改现有 fixture，新建一个",
+         "source": "person",
+         "atMs": 1791813750000,
+         "key": "in-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "approach",
+           "outputs"
+          ],
+          "note": "新建 login-failure.json，不动 login.json",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-5-1n88l",
+         "text": "顺便把注册接口也覆盖一下",
+         "source": "person",
+         "atMs": 1791813765000,
+         "key": "in-2",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "提议新增一步：注册接口失败路径测试，待你确认",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-6-4bl4t",
+         "text": "测试改用 vitest",
+         "source": "person",
+         "atMs": 1791813780000,
+         "key": "in-3",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "not-adopted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "approach"
+          ],
+          "note": "仓库统一用 node:test，scripts/run-tests.mjs 不认 vitest",
+          "callId": "lab-2",
+          "toolCallId": "ack-1"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-7-4s3pc",
+         "text": "任务图有更新：步骤 3「跑检查」改为等你确认",
+         "source": "app",
+         "atMs": 1791813795000,
+         "key": "host-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        },
+        {
+         "steerId": "steer-8-3cgdh",
+         "text": "这步可以批准，但以后改 fixture 前先问我",
+         "source": "person",
+         "atMs": 1791813860000,
+         "key": "in-4",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-4",
+         "handling": {
+          "treatment": "later-step",
+          "kind": "constraint",
+          "targets": [],
+          "impacts": [
+           "constraint"
+          ],
+          "note": "以后每次改 fixture 前先问你",
+          "callId": "lab-4",
+          "toolCallId": "ack-2"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-9-9u8h5",
+         "text": "报告里也写上耗时",
+         "source": "person",
+         "atMs": 1791813872000,
+         "key": "in-5",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-4"
+        },
+        {
+         "steerId": "steer-a-6imlv",
+         "text": "把那个慢的用例也处理掉",
+         "source": "person",
+         "atMs": 1791813885000,
+         "key": "in-6",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-4",
+         "handling": {
+          "treatment": "needs-clarification",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "你指的是 login-timeout 还是 signup-slow？",
+          "callId": "lab-4",
+          "toolCallId": "ack-2"
+         },
+         "handlingRevisions": 1
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "第二轮",
+     "events": [
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "继续把登录接口的失败路径测试写完",
+       "atMs": 1791814020000
+      },
+      {
+       "type": "text-delta",
+       "text": "好的，继续写。"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "还是用 vitest，请提出迁移步骤并写清代价",
+       "atMs": 1791814032000,
+       "steerId": "steer-c-odix",
+       "about": "steer-6-4bl4t",
+       "key": "fix-1"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-6",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 2997
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 25
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-c-odix"
+      },
+      {
+       "type": "tool-call",
+       "call": {
+        "id": "ack-3",
+        "name": "acknowledge-inputs",
+        "input": {
+         "items": [
+          {
+           "input": "steer-c-odix",
+           "treatment": "new-task",
+           "kind": "correction",
+           "impacts": [
+            "approach",
+            "scope"
+           ],
+           "note": "按你的纠正处理：提议「迁移测试框架」一步，并写清代价（改 scripts/run-tests.mjs、约 40 个文件）"
+          }
+         ]
+        }
+       }
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-7",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 3090
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 119
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-read",
+       "steerIds": [
+        "steer-c-odix"
+       ],
+       "callId": "lab-7"
+      },
+      {
+       "type": "inputs-acknowledged",
+       "callId": "lab-7",
+       "toolCallId": "ack-3",
+       "items": [
+        {
+         "steerId": "steer-c-odix",
+         "treatment": "new-task",
+         "kind": "correction",
+         "targets": [],
+         "impacts": [
+          "approach",
+          "scope"
+         ],
+         "note": "按你的纠正处理：提议「迁移测试框架」一步，并写清代价（改 scripts/run-tests.mjs、约 40 个文件）"
+        }
+       ]
+      },
+      {
+       "type": "tool-result",
+       "callId": "ack-3",
+       "name": "acknowledge-inputs",
+       "text": "Recorded your statement for steer-c-odix (new-task). This is your declaration, not a record that anything happened.",
+       "outcome": "returned"
+      },
+      {
+       "type": "text-delta",
+       "text": "失败路径测试写完了：错误密码、被锁账号、过期令牌各一条，检查已跑过。"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-8",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 3283
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 34
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "completed"
+      }
+     ],
+     "projections": [
+      {
+       "at": 1,
+       "receipts": []
+      },
+      {
+       "at": 3,
+       "receipts": [
+        {
+         "steerId": "steer-c-odix",
+         "text": "还是用 vitest，请提出迁移步骤并写清代价",
+         "source": "person",
+         "atMs": 1791814032000,
+         "key": "fix-1",
+         "about": "steer-6-4bl4t",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 5,
+       "receipts": [
+        {
+         "steerId": "steer-c-odix",
+         "text": "还是用 vitest，请提出迁移步骤并写清代价",
+         "source": "person",
+         "atMs": 1791814032000,
+         "key": "fix-1",
+         "about": "steer-6-4bl4t",
+         "state": "applied",
+         "applied": true
+        }
+       ]
+      },
+      {
+       "at": 8,
+       "receipts": [
+        {
+         "steerId": "steer-c-odix",
+         "text": "还是用 vitest，请提出迁移步骤并写清代价",
+         "source": "person",
+         "atMs": 1791814032000,
+         "key": "fix-1",
+         "about": "steer-6-4bl4t",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-7"
+        }
+       ]
+      },
+      {
+       "at": 9,
+       "receipts": [
+        {
+         "steerId": "steer-c-odix",
+         "text": "还是用 vitest，请提出迁移步骤并写清代价",
+         "source": "person",
+         "atMs": 1791814032000,
+         "key": "fix-1",
+         "about": "steer-6-4bl4t",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-7",
+         "handling": {
+          "treatment": "new-task",
+          "kind": "correction",
+          "targets": [],
+          "impacts": [
+           "approach",
+           "scope"
+          ],
+          "note": "按你的纠正处理：提议「迁移测试框架」一步，并写清代价（改 scripts/run-tests.mjs、约 40 个文件）",
+          "callId": "lab-7",
+          "toolCallId": "ack-3"
+         },
+         "handlingRevisions": 1
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "checkpoints": [
+    {
+     "id": "settled",
+     "label": "第一轮结束",
+     "run": 0,
+     "at": 35
+    },
+    {
+     "id": "corrected",
+     "label": "你坚持采纳之后",
+     "run": 1,
+     "at": 13
+    }
+   ]
+  },
+  {
+   "id": "stopped-carry",
+   "label": "一轮被停下，留下没读到的输入",
+   "runs": [
+    {
+     "label": "被停下的一轮",
+     "events": [
+      {
+       "type": "prompt",
+       "role": "system",
+       "text": "Today's date on this machine is 2026-10-12.",
+       "atMs": 1791814200000
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "把登录页的校验提示改成中文",
+       "atMs": 1791814200000
+      },
+      {
+       "type": "text-delta",
+       "text": "我先看一下。"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "提示里的邮箱格式也一起检查",
+       "atMs": 1791814240000,
+       "steerId": "steer-3-8wu1n",
+       "key": "q-1"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-1",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 767
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 25
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-3-8wu1n"
+      },
+      {
+       "type": "text-delta",
+       "text": "正在处理第一条……"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "加一条空密码的用例",
+       "atMs": 1791814255000,
+       "steerId": "steer-4-8bizs",
+       "key": "q-2"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-2",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 853
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 22
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "cancelled"
+      }
+     ],
+     "projections": [
+      {
+       "at": 1,
+       "receipts": []
+      },
+      {
+       "at": 4,
+       "receipts": [
+        {
+         "steerId": "steer-3-8wu1n",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 6,
+       "receipts": [
+        {
+         "steerId": "steer-3-8wu1n",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "applied",
+         "applied": true
+        }
+       ]
+      },
+      {
+       "at": 8,
+       "receipts": [
+        {
+         "steerId": "steer-3-8wu1n",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-4-8bizs",
+         "text": "加一条空密码的用例",
+         "source": "person",
+         "atMs": 1791814255000,
+         "key": "q-2",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 10,
+       "receipts": [
+        {
+         "steerId": "steer-3-8wu1n",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "unread",
+         "applied": true,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        },
+        {
+         "steerId": "steer-4-8bizs",
+         "text": "加一条空密码的用例",
+         "source": "person",
+         "atMs": 1791814255000,
+         "key": "q-2",
+         "state": "unread",
+         "applied": false,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "带上排着的输入",
+     "events": [
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "继续改登录页的提示",
+       "atMs": 1791814360000
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "提示里的邮箱格式也一起检查",
+       "atMs": 1791814360000,
+       "steerId": "steer-3-8wu1n",
+       "key": "q-1",
+       "carried": {
+        "from": "2-7xg7e"
+       }
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "加一条空密码的用例",
+       "atMs": 1791814360000,
+       "steerId": "steer-4-8bizs",
+       "key": "q-2",
+       "carried": {
+        "from": "2-7xg7e"
+       }
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "收尾时把改动清单列出来",
+       "atMs": 1791814360000,
+       "steerId": "input-5-9tvov",
+       "key": "q-3",
+       "carried": {}
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-3-8wu1n"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-4-8bizs"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "input-5-9tvov"
+      },
+      {
+       "type": "tool-call",
+       "call": {
+        "id": "ack-q",
+        "name": "acknowledge-inputs",
+        "input": {
+         "items": [
+          {
+           "input": "steer-3-8wu1n",
+           "treatment": "apply-now",
+           "kind": "supplement",
+           "impacts": [
+            "scope"
+           ],
+           "note": "按你补充的先检查邮箱格式"
+          },
+          {
+           "input": "steer-4-8bizs",
+           "treatment": "later-step",
+           "kind": "request",
+           "impacts": [
+            "acceptance"
+           ],
+           "note": "排在当前这一步之后"
+          },
+          {
+           "input": "input-5-9tvov",
+           "treatment": "noted",
+           "kind": "request",
+           "impacts": [],
+           "note": "收尾时列出来"
+          }
+         ]
+        }
+       }
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-3",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1300
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 180
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-read",
+       "steerIds": [
+        "steer-3-8wu1n",
+        "steer-4-8bizs",
+        "input-5-9tvov"
+       ],
+       "callId": "lab-3"
+      },
+      {
+       "type": "inputs-acknowledged",
+       "callId": "lab-3",
+       "toolCallId": "ack-q",
+       "items": [
+        {
+         "steerId": "steer-3-8wu1n",
+         "treatment": "apply-now",
+         "kind": "supplement",
+         "targets": [],
+         "impacts": [
+          "scope"
+         ],
+         "note": "按你补充的先检查邮箱格式"
+        },
+        {
+         "steerId": "steer-4-8bizs",
+         "treatment": "later-step",
+         "kind": "request",
+         "targets": [],
+         "impacts": [
+          "acceptance"
+         ],
+         "note": "排在当前这一步之后"
+        },
+        {
+         "steerId": "input-5-9tvov",
+         "treatment": "noted",
+         "kind": "request",
+         "targets": [],
+         "impacts": [],
+         "note": "收尾时列出来"
+        }
+       ]
+      },
+      {
+       "type": "tool-result",
+       "callId": "ack-q",
+       "name": "acknowledge-inputs",
+       "text": "Recorded your statement for steer-3-8wu1n (apply-now), steer-4-8bizs (later-step), input-5-9tvov (noted). This is your declaration, not a record that anything happened.",
+       "outcome": "returned"
+      },
+      {
+       "type": "text-delta",
+       "text": "登录页的校验提示已改成中文，邮箱格式和空密码也检查了。"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-4",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1567
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 32
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "completed"
+      }
+     ],
+     "projections": [
+      {
+       "at": 1,
+       "receipts": []
+      },
+      {
+       "at": 2,
+       "receipts": [
+        {
+         "steerId": "steer-3-8wu1n",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "accepted",
+         "applied": false,
+         "carried": {
+          "from": "2-7xg7e"
+         }
+        }
+       ]
+      },
+      {
+       "at": 3,
+       "receipts": [
+        {
+         "steerId": "steer-3-8wu1n",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "accepted",
+         "applied": false,
+         "carried": {
+          "from": "2-7xg7e"
+         }
+        },
+        {
+         "steerId": "steer-4-8bizs",
+         "text": "加一条空密码的用例",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-2",
+         "state": "accepted",
+         "applied": false,
+         "carried": {
+          "from": "2-7xg7e"
+         }
+        }
+       ]
+      },
+      {
+       "at": 4,
+       "receipts": [
+        {
+         "steerId": "steer-3-8wu1n",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "accepted",
+         "applied": false,
+         "carried": {
+          "from": "2-7xg7e"
+         }
+        },
+        {
+         "steerId": "steer-4-8bizs",
+         "text": "加一条空密码的用例",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-2",
+         "state": "accepted",
+         "applied": false,
+         "carried": {
+          "from": "2-7xg7e"
+         }
+        },
+        {
+         "steerId": "input-5-9tvov",
+         "text": "收尾时把改动清单列出来",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-3",
+         "state": "accepted",
+         "applied": false,
+         "carried": {}
+        }
+       ]
+      },
+      {
+       "at": 5,
+       "receipts": [
+        {
+         "steerId": "steer-3-8wu1n",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "applied",
+         "applied": true,
+         "carried": {
+          "from": "2-7xg7e"
+         }
+        },
+        {
+         "steerId": "steer-4-8bizs",
+         "text": "加一条空密码的用例",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-2",
+         "state": "accepted",
+         "applied": false,
+         "carried": {
+          "from": "2-7xg7e"
+         }
+        },
+        {
+         "steerId": "input-5-9tvov",
+         "text": "收尾时把改动清单列出来",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-3",
+         "state": "accepted",
+         "applied": false,
+         "carried": {}
+        }
+       ]
+      },
+      {
+       "at": 6,
+       "receipts": [
+        {
+         "steerId": "steer-3-8wu1n",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "applied",
+         "applied": true,
+         "carried": {
+          "from": "2-7xg7e"
+         }
+        },
+        {
+         "steerId": "steer-4-8bizs",
+         "text": "加一条空密码的用例",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-2",
+         "state": "applied",
+         "applied": true,
+         "carried": {
+          "from": "2-7xg7e"
+         }
+        },
+        {
+         "steerId": "input-5-9tvov",
+         "text": "收尾时把改动清单列出来",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-3",
+         "state": "accepted",
+         "applied": false,
+         "carried": {}
+        }
+       ]
+      },
+      {
+       "at": 7,
+       "receipts": [
+        {
+         "steerId": "steer-3-8wu1n",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "applied",
+         "applied": true,
+         "carried": {
+          "from": "2-7xg7e"
+         }
+        },
+        {
+         "steerId": "steer-4-8bizs",
+         "text": "加一条空密码的用例",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-2",
+         "state": "applied",
+         "applied": true,
+         "carried": {
+          "from": "2-7xg7e"
+         }
+        },
+        {
+         "steerId": "input-5-9tvov",
+         "text": "收尾时把改动清单列出来",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-3",
+         "state": "applied",
+         "applied": true,
+         "carried": {}
+        }
+       ]
+      },
+      {
+       "at": 10,
+       "receipts": [
+        {
+         "steerId": "steer-3-8wu1n",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "read",
+         "applied": true,
+         "carried": {
+          "from": "2-7xg7e"
+         },
+         "readBy": "lab-3"
+        },
+        {
+         "steerId": "steer-4-8bizs",
+         "text": "加一条空密码的用例",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-2",
+         "state": "read",
+         "applied": true,
+         "carried": {
+          "from": "2-7xg7e"
+         },
+         "readBy": "lab-3"
+        },
+        {
+         "steerId": "input-5-9tvov",
+         "text": "收尾时把改动清单列出来",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-3",
+         "state": "read",
+         "applied": true,
+         "carried": {},
+         "readBy": "lab-3"
+        }
+       ]
+      },
+      {
+       "at": 11,
+       "receipts": [
+        {
+         "steerId": "steer-3-8wu1n",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-1",
+         "state": "read",
+         "applied": true,
+         "carried": {
+          "from": "2-7xg7e"
+         },
+         "readBy": "lab-3",
+         "handling": {
+          "treatment": "apply-now",
+          "kind": "supplement",
+          "targets": [],
+          "impacts": [
+           "scope"
+          ],
+          "note": "按你补充的先检查邮箱格式",
+          "callId": "lab-3",
+          "toolCallId": "ack-q"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "steer-4-8bizs",
+         "text": "加一条空密码的用例",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-2",
+         "state": "read",
+         "applied": true,
+         "carried": {
+          "from": "2-7xg7e"
+         },
+         "readBy": "lab-3",
+         "handling": {
+          "treatment": "later-step",
+          "kind": "request",
+          "targets": [],
+          "impacts": [
+           "acceptance"
+          ],
+          "note": "排在当前这一步之后",
+          "callId": "lab-3",
+          "toolCallId": "ack-q"
+         },
+         "handlingRevisions": 1
+        },
+        {
+         "steerId": "input-5-9tvov",
+         "text": "收尾时把改动清单列出来",
+         "source": "person",
+         "atMs": 1791814360000,
+         "key": "q-3",
+         "state": "read",
+         "applied": true,
+         "carried": {},
+         "readBy": "lab-3",
+         "handling": {
+          "treatment": "noted",
+          "kind": "request",
+          "targets": [],
+          "impacts": [],
+          "note": "收尾时列出来",
+          "callId": "lab-3",
+          "toolCallId": "ack-q"
+         },
+         "handlingRevisions": 1
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "checkpoints": [
+    {
+     "id": "stopped",
+     "label": "停下之后",
+     "run": 0,
+     "at": 10,
+     "queue": {
+      "carry": "ask",
+      "queued": [
+       {
+        "inputId": "steer-3-8wu1n",
+        "text": "提示里的邮箱格式也一起检查",
+        "source": "person",
+        "key": "q-1",
+        "atMs": 1791814240000,
+        "from": {
+         "run": "2-7xg7e",
+         "applied": true,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        }
+       },
+       {
+        "inputId": "steer-4-8bizs",
+        "text": "加一条空密码的用例",
+        "source": "person",
+        "key": "q-2",
+        "atMs": 1791814255000,
+        "from": {
+         "run": "2-7xg7e",
+         "applied": false,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        }
+       },
+       {
+        "inputId": "input-5-9tvov",
+        "text": "收尾时把改动清单列出来",
+        "source": "person",
+        "key": "q-3",
+        "atMs": 1791814300000
+       }
+      ],
+      "settled": []
+     }
+    },
+    {
+     "id": "carried",
+     "label": "带到下一轮之后",
+     "run": 1,
+     "at": 15,
+     "queue": {
+      "carry": "ask",
+      "queued": [],
+      "settled": [
+       {
+        "inputId": "steer-3-8wu1n",
+        "outcome": "carried",
+        "run": "6-7wmwm",
+        "atMs": 1791814360000
+       },
+       {
+        "inputId": "steer-4-8bizs",
+        "outcome": "carried",
+        "run": "6-7wmwm",
+        "atMs": 1791814360000
+       },
+       {
+        "inputId": "input-5-9tvov",
+        "outcome": "carried",
+        "run": "6-7wmwm",
+        "atMs": 1791814360000
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "stopped-withdraw",
+   "label": "一轮被停下，留下没读到的输入",
+   "runs": [
+    {
+     "label": "被停下的一轮",
+     "events": [
+      {
+       "type": "prompt",
+       "role": "system",
+       "text": "Today's date on this machine is 2026-10-12.",
+       "atMs": 1791814200000
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "把登录页的校验提示改成中文",
+       "atMs": 1791814200000
+      },
+      {
+       "type": "text-delta",
+       "text": "我先看一下。"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "提示里的邮箱格式也一起检查",
+       "atMs": 1791814240000,
+       "steerId": "steer-3-7nqhl",
+       "key": "q-1"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-1",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 767
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 25
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-3-7nqhl"
+      },
+      {
+       "type": "text-delta",
+       "text": "正在处理第一条……"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "加一条空密码的用例",
+       "atMs": 1791814255000,
+       "steerId": "steer-4-5m9lr",
+       "key": "q-2"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-2",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 853
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 22
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "cancelled"
+      }
+     ],
+     "projections": [
+      {
+       "at": 1,
+       "receipts": []
+      },
+      {
+       "at": 4,
+       "receipts": [
+        {
+         "steerId": "steer-3-7nqhl",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 6,
+       "receipts": [
+        {
+         "steerId": "steer-3-7nqhl",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "applied",
+         "applied": true
+        }
+       ]
+      },
+      {
+       "at": 8,
+       "receipts": [
+        {
+         "steerId": "steer-3-7nqhl",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-4-5m9lr",
+         "text": "加一条空密码的用例",
+         "source": "person",
+         "atMs": 1791814255000,
+         "key": "q-2",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 10,
+       "receipts": [
+        {
+         "steerId": "steer-3-7nqhl",
+         "text": "提示里的邮箱格式也一起检查",
+         "source": "person",
+         "atMs": 1791814240000,
+         "key": "q-1",
+         "state": "unread",
+         "applied": true,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        },
+        {
+         "steerId": "steer-4-5m9lr",
+         "text": "加一条空密码的用例",
+         "source": "person",
+         "atMs": 1791814255000,
+         "key": "q-2",
+         "state": "unread",
+         "applied": false,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "checkpoints": [
+    {
+     "id": "stopped",
+     "label": "停下之后",
+     "run": 0,
+     "at": 10,
+     "queue": {
+      "carry": "ask",
+      "queued": [
+       {
+        "inputId": "steer-3-7nqhl",
+        "text": "提示里的邮箱格式也一起检查",
+        "source": "person",
+        "key": "q-1",
+        "atMs": 1791814240000,
+        "from": {
+         "run": "2-5ccps",
+         "applied": true,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        }
+       },
+       {
+        "inputId": "steer-4-5m9lr",
+        "text": "加一条空密码的用例",
+        "source": "person",
+        "key": "q-2",
+        "atMs": 1791814255000,
+        "from": {
+         "run": "2-5ccps",
+         "applied": false,
+         "endedBy": {
+          "state": "cancelled"
+         }
+        }
+       },
+       {
+        "inputId": "input-5-7a2iu",
+        "text": "收尾时把改动清单列出来",
+        "source": "person",
+        "key": "q-3",
+        "atMs": 1791814300000
+       }
+      ],
+      "settled": []
+     }
+    },
+    {
+     "id": "withdrawn",
+     "label": "全部撤回之后",
+     "run": 0,
+     "at": 10,
+     "queue": {
+      "carry": "ask",
+      "queued": [],
+      "settled": [
+       {
+        "inputId": "steer-3-7nqhl",
+        "outcome": "withdrawn",
+        "atMs": 1791814360000
+       },
+       {
+        "inputId": "steer-4-5m9lr",
+        "outcome": "withdrawn",
+        "atMs": 1791814360000
+       },
+       {
+        "inputId": "input-5-7a2iu",
+        "outcome": "withdrawn",
+        "atMs": 1791814360000
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "question",
+   "label": "有问题等回答时的补充",
+   "runs": [
+    {
+     "label": "等回答的一轮",
+     "events": [
+      {
+       "type": "prompt",
+       "role": "system",
+       "text": "Today's date on this machine is 2026-10-12.",
+       "atMs": 1791814500000
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "整理一下登录相关的测试",
+       "atMs": 1791814500000
+      },
+      {
+       "type": "tool-call",
+       "call": {
+        "id": "ask-1",
+        "name": "ask-user",
+        "input": {
+         "why": "要不要把 login-timeout 用例也一起处理？",
+         "questions": [
+          {
+           "prompt": "login-timeout 用例",
+           "options": [
+            {
+             "label": "一起处理"
+            },
+            {
+             "label": "先不动"
+            }
+           ]
+          }
+         ]
+        }
+       }
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-1",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1061
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 96
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "awaiting-input",
+       "pendingRef": {
+        "kind": "pending",
+        "id": "4-7068z",
+        "revision": 1
+       },
+       "kind": "questionnaire",
+       "why": "要不要把 login-timeout 用例也一起处理？",
+       "origin": {
+        "session": "1-3rg14",
+        "run": "2-9be87"
+       }
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "顺便看下报告的格式",
+       "atMs": 1791814530000,
+       "steerId": "steer-5-1b41l",
+       "key": "side-1"
+      },
+      {
+       "type": "tool-result",
+       "callId": "ask-1",
+       "name": "ask-user",
+       "text": "{\"kind\":\"questionnaire\",\"picked\":[{\"question\":0,\"labels\":[\"一起处理\"]}]}",
+       "outcome": "returned"
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-5-1b41l"
+      },
+      {
+       "type": "tool-call",
+       "call": {
+        "id": "ack-s",
+        "name": "acknowledge-inputs",
+        "input": {
+         "items": [
+          {
+           "input": "steer-5-1b41l",
+           "treatment": "noted",
+           "kind": "supplement",
+           "impacts": [],
+           "note": "记下了，写报告时会看"
+          }
+         ]
+        }
+       }
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-2",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1279
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 94
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-read",
+       "steerIds": [
+        "steer-5-1b41l"
+       ],
+       "callId": "lab-2"
+      },
+      {
+       "type": "inputs-acknowledged",
+       "callId": "lab-2",
+       "toolCallId": "ack-s",
+       "items": [
+        {
+         "steerId": "steer-5-1b41l",
+         "treatment": "noted",
+         "kind": "supplement",
+         "targets": [],
+         "impacts": [],
+         "note": "记下了，写报告时会看"
+        }
+       ]
+      },
+      {
+       "type": "tool-result",
+       "callId": "ack-s",
+       "name": "acknowledge-inputs",
+       "text": "Recorded your statement for steer-5-1b41l (noted). This is your declaration, not a record that anything happened.",
+       "outcome": "returned"
+      },
+      {
+       "type": "text-delta",
+       "text": "已整理完登录相关的测试。"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "lab-3",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 1430
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 27
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "completed"
+      }
+     ],
+     "projections": [
+      {
+       "at": 1,
+       "receipts": []
+      },
+      {
+       "at": 6,
+       "receipts": [
+        {
+         "steerId": "steer-5-1b41l",
+         "text": "顺便看下报告的格式",
+         "source": "person",
+         "atMs": 1791814530000,
+         "key": "side-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 8,
+       "receipts": [
+        {
+         "steerId": "steer-5-1b41l",
+         "text": "顺便看下报告的格式",
+         "source": "person",
+         "atMs": 1791814530000,
+         "key": "side-1",
+         "state": "applied",
+         "applied": true
+        }
+       ]
+      },
+      {
+       "at": 11,
+       "receipts": [
+        {
+         "steerId": "steer-5-1b41l",
+         "text": "顺便看下报告的格式",
+         "source": "person",
+         "atMs": 1791814530000,
+         "key": "side-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2"
+        }
+       ]
+      },
+      {
+       "at": 12,
+       "receipts": [
+        {
+         "steerId": "steer-5-1b41l",
+         "text": "顺便看下报告的格式",
+         "source": "person",
+         "atMs": 1791814530000,
+         "key": "side-1",
+         "state": "read",
+         "applied": true,
+         "readBy": "lab-2",
+         "handling": {
+          "treatment": "noted",
+          "kind": "supplement",
+          "targets": [],
+          "impacts": [],
+          "note": "记下了，写报告时会看",
+          "callId": "lab-2",
+          "toolCallId": "ack-s"
+         },
+         "handlingRevisions": 1
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "checkpoints": [
+    {
+     "id": "asked",
+     "label": "问题在等你回答",
+     "run": 0,
+     "at": 5,
+     "awaiting": true
+    },
+    {
+     "id": "waiting",
+     "label": "你补充了一句，问题还在等",
+     "run": 0,
+     "at": 6,
+     "awaiting": true
+    },
+    {
+     "id": "answered",
+     "label": "回答之后",
+     "run": 0,
+     "at": 16
+    }
+   ]
+  },
+  {
+   "id": "restart",
+   "label": "宿主被强杀后重启",
+   "runs": [
+    {
+     "label": "被强杀的一轮",
+     "events": [
+      {
+       "type": "prompt",
+       "role": "system",
+       "text": "Today's date on this machine is 2026-10-12.",
+       "atMs": 1791814279950
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "重构登录模块的错误处理",
+       "atMs": 1791814279950
+      },
+      {
+       "type": "text-delta",
+       "text": "我先看一下。"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "错误码别改名",
+       "atMs": 1791814280000,
+       "steerId": "steer-3-53tgh",
+       "key": "r-1"
+      },
+      {
+       "type": "usage-recorded",
+       "callId": "child-1",
+       "receipt": {
+        "input": {
+         "source": "estimated",
+         "tokens": 765
+        },
+        "output": {
+         "source": "estimated",
+         "tokens": 25
+        },
+        "cacheRead": {
+         "source": "unknown"
+        },
+        "cacheWrite": {
+         "source": "unknown"
+        },
+        "cost": {
+         "source": "unknown"
+        }
+       }
+      },
+      {
+       "type": "steer-applied",
+       "steerId": "steer-3-53tgh"
+      },
+      {
+       "type": "text-delta",
+       "text": "正在处理第一条……"
+      },
+      {
+       "type": "prompt",
+       "role": "user",
+       "text": "先别动 session 相关的文件",
+       "atMs": 1791814280088,
+       "steerId": "steer-4-9llsw",
+       "key": "r-2"
+      },
+      {
+       "type": "run-recovered",
+       "atMs": 1791814280181,
+       "transcript": "durable-prefix",
+       "operations": [],
+       "questions": []
+      },
+      {
+       "type": "failed",
+       "error": {
+        "name": "PrologueError",
+        "code": "RUN_INTERRUPTED",
+        "safeMessage": "This run was interrupted. Its persisted event prefix and verified operation outcomes were preserved; an unreported tail or usage may still be missing. No operation was replayed."
+       }
+      }
+     ],
+     "projections": [
+      {
+       "at": 1,
+       "receipts": []
+      },
+      {
+       "at": 4,
+       "receipts": [
+        {
+         "steerId": "steer-3-53tgh",
+         "text": "错误码别改名",
+         "source": "person",
+         "atMs": 1791814280000,
+         "key": "r-1",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 6,
+       "receipts": [
+        {
+         "steerId": "steer-3-53tgh",
+         "text": "错误码别改名",
+         "source": "person",
+         "atMs": 1791814280000,
+         "key": "r-1",
+         "state": "applied",
+         "applied": true
+        }
+       ]
+      },
+      {
+       "at": 8,
+       "receipts": [
+        {
+         "steerId": "steer-3-53tgh",
+         "text": "错误码别改名",
+         "source": "person",
+         "atMs": 1791814280000,
+         "key": "r-1",
+         "state": "applied",
+         "applied": true
+        },
+        {
+         "steerId": "steer-4-9llsw",
+         "text": "先别动 session 相关的文件",
+         "source": "person",
+         "atMs": 1791814280088,
+         "key": "r-2",
+         "state": "accepted",
+         "applied": false
+        }
+       ]
+      },
+      {
+       "at": 10,
+       "receipts": [
+        {
+         "steerId": "steer-3-53tgh",
+         "text": "错误码别改名",
+         "source": "person",
+         "atMs": 1791814280000,
+         "key": "r-1",
+         "state": "unread",
+         "applied": true,
+         "endedBy": {
+          "state": "failed",
+          "code": "RUN_INTERRUPTED"
+         }
+        },
+        {
+         "steerId": "steer-4-9llsw",
+         "text": "先别动 session 相关的文件",
+         "source": "person",
+         "atMs": 1791814280088,
+         "key": "r-2",
+         "state": "unread",
+         "applied": false,
+         "endedBy": {
+          "state": "failed",
+          "code": "RUN_INTERRUPTED"
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "checkpoints": [
+    {
+     "id": "killed",
+     "label": "宿主被强杀，重启前",
+     "run": 0,
+     "at": 8
+    },
+    {
+     "id": "recovered",
+     "label": "核对并收口之后",
+     "run": 0,
+     "at": 10,
+     "queue": {
+      "carry": "ask",
+      "queued": [
+       {
+        "inputId": "steer-3-53tgh",
+        "text": "错误码别改名",
+        "source": "person",
+        "key": "r-1",
+        "atMs": 1791814280000,
+        "from": {
+         "run": "2-3q691",
+         "applied": true,
+         "endedBy": {
+          "state": "failed",
+          "code": "RUN_INTERRUPTED"
+         }
+        }
+       },
+       {
+        "inputId": "steer-4-9llsw",
+        "text": "先别动 session 相关的文件",
+        "source": "person",
+        "key": "r-2",
+        "atMs": 1791814280088,
+        "from": {
+         "run": "2-3q691",
+         "applied": false,
+         "endedBy": {
+          "state": "failed",
+          "code": "RUN_INTERRUPTED"
+         }
+        }
+       }
+      ],
+      "settled": []
+     }
+    }
+   ]
+  }
+ ]
+}

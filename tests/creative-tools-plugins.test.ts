@@ -198,7 +198,7 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   // Form serialization and stale-response preservation are exercised in the actual browser.
   // Dataset save ordering and conflict preservation are exercised in the real browser tests.
   // PPT save ordering and conflict retention are verified through the real browser.
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /seq !== resultsSeq \|\| selected\?\.id !== id/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /seq !== resultsSeq \|\| sel\?\.id !== id/); // the open questionnaire is `sel` (fa63ade24)
   assert.match(fillEditorSource(FORM_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
   assert.match(fillEditorSource(DATASET_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
   assert.match(fillEditorSource(PPT_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
@@ -288,8 +288,9 @@ test("Dataset：删行丢掉，筛选藏着的行留下；工作台内联同一�
   assert.deepEqual(clearedFilterTooSoon.map((row) => row.id), ["shown"], "空筛选只能描述当前 DOM；隐藏行要用画出 DOM 时的旧筛选提交");
 
   assert.ok(DATASET_CLIENT_FACTORY_SCRIPT.includes(mergeDatasetDraftRows.toString()));
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /mergeDatasetDraftRows\(selected\?\.rows \|\| \[\], rowsFromDom\(\), columns, renderedFilter\)/);
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /let renderedFilter = ""/);
+  // The filter the rows were drawn with is filterSeen (renamed from renderedFilter).
+  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /mergeDatasetDraftRows\(selected\?\.rows \|\| \[\], rowsFromDom\(\), columns, filterSeen\)/);
+  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /let filterSeen = ""/);
   const changeStart = DATASET_CLIENT_FACTORY_SCRIPT.indexOf('addEventListener("change"');
   const changeEnd = DATASET_CLIENT_FACTORY_SCRIPT.indexOf("void loadList", changeStart);
   assert.ok(changeStart >= 0 && changeEnd > changeStart);

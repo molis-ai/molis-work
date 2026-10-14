@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { renderPendingQuestionCard, type CodingUiPrimitives } from "@molis-ai/molis-work-plugin-coding";
-import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 
 /** 设计 §6：单选/自由输入都支持，**不代填答案**，离开不等于取消。 */
 

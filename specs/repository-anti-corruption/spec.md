@@ -2683,3 +2683,13 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 
 
 **共享核心联合合并的冻结合同（102，尚未验收）。** 101两实际失败2/2、0skip/cancel后，Root沿9550194c6合Pages7b611，14真实冲突已记录，不复制两份全量。保Pages评论/thread_source/retainAuthority/Host HTML投影及Root owner错误/冻住发送/caller最终检查。kernel新上下文只复用唯一effectGuard，不复写beforeEffect；保注册token/原撤权与取消的lease检查。Assistant异步检查串联base、线程caller及stillCurrent，最终同步base/assertSendCurrent均保留，不覆盖旧guard；thread角色/冻结材料/不读记忆随Pages保留。新线程复用既定assistant scope/state/stale/needs_check分类及同一owner工厂，缺授权端口authority与空回复empty_reply按原invalid条件登记；不复活AssistantError/AssistantStoreError/MemoryError重写。HTML运行/诊断仍共同request helper；代码/富文本只Host绘制，复制/折叠/审查绑定保留。Pages没有onComment的编辑器fallback复用showPop/原anchorPop与intact核对，新侧栏onComment路径保留；补现有真实浏览器fallback范围映射/换文档拒绝断言。只这些必要合并与验收，阈值/formatter/读历史兼容/真实Home操作不扩入。候选源核、整体新构建/派生表/交集短验与最终共享全量尚未开始，不称联合完成。
+
+
+共享授权交点新增验收（102、未运行）：
+
+- PAS-10 S-18-102-01：真实ActionService的retained guard在权限验证等待后重查原caller同步权限，拒绝Promise；start handler结束后guard仍可用而beforeEffect保持过期，注册替换/取消原断言保留。
+- PAS-10 S-18-102-02：真实Host/Pages回复的最后一次权限等待中撤销原caller或替换writer，回复owner零写入；保fresh caller与retained同步断言，guard返回后继续等待不能绕过。
+- PAS-10 S-18-102-03：复用真实thread work，SDK已接受run后reader等待时stop，放行后最终thread仍stopped、无迟到评论，accepted run被明确停止；原attempt/state尾检及CAS不覆盖停止。
+- W2-18-PAGES-COMMENT-01：实际Chrome无onComment的编辑器评论弹层保映射锚点，只提交原range；换Doc后老按钮不写新文档。新侧栏onComment路径另沿原Pages真实回归。
+
+同一Source实现：RetainedActionAuthority是临时callable+assertCurrent，不持久化、不增权限、不延长handler.beforeEffect；AssistantCaller新增可信同步assertBeforeStart，仅串联base/caller/stillCurrent最终检查。当前Root仍14冲突已去marker但尚未stage/commit，辅助代码与回归正补，未启动构建或全量。

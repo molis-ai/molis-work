@@ -722,7 +722,7 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 - `pnpm test:security` 182 条 181 通过、0 失败（1 条跳过）；`pnpm test:contracts` 541/541。
 - `affected-tests` 选出的其余 104 个单元文件：1443 条，1442 通过、0 失败、1 跳过。
 - 浏览器一批 10/10：`coding-timeline`、`coding-model-controls`、`issue-assistant-repair-page`、`assistant-handback`、`assistant-follow-live`、`lingguang-plugin`。
-- 全量：换包改了每条 Agent 路径下的运行时，属于 §5.4 的共享核心阶段。`affected-tests` 没有建议全量（它看不到 vendored 包），统筹定在 #411 合入后、对 #408 的末端跑一次。
+- 全量：换包改了每条 Agent 路径下的运行时，属于 §5.4 的共享核心阶段（`affected-tests` 看不到 vendored 包，没有建议全量）。#411 合入后在 #408 的 `b1459770`（合 main `70c928ae`）上跑：`node scripts/run-tests.mjs`，约 112 分钟，6155 条，6143 通过、3 失败、9 跳过。3 条失败都在干净 main 上同样失败，与本线无关：`settings-requests-through-helper` 的 settings-assistant 一条（#471 在 `settings-assistant.ts` 直接 `fetch`）、`touch-targets.e2e` 的触屏窗口两条。#472 留下的 `feed-inbox-schedule-error-model` 在本线修过之后通过。之后再合 main `f47ee72c`（#476 文档、#484 测试迁移、#485 文档）：没有冲突，健康门禁通过；#484 改过的 30 个测试文件（19 个浏览器）在合并后的树上 135 条 133 通过、2 失败；失败的 `agent-action-selection.e2e` 与 `configured-text.e2e` 单独重跑 3/3 通过，判为同批浏览器负载下的时序。
 - 真实产品实操：未做（没有人在隔离 Home 里走过对账后的树）。真实模型：未跑（本机无 Key）。用户验收：未做。
 
 **D7 重新判定**（统筹，回执线生产接入的前置）：① 正式 SDK 来源，按用户 2026-10-13 的决定改为「推送的具名分支，父提交都在 Prologue main 上」，过渡包满足；② Molis 默认包路径验证在本次换包里做了（上面的证据）；③ #408 进 main：待合。三项都满足后由统筹通知回执线。

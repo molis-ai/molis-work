@@ -1,9 +1,11 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { CharacterError, openCharacters } from "@molis-ai/molis-work-module-characters";
+import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { parseCharacterContent, parseCharacterTools } from "@molis-ai/molis-work-contracts/modules/characters";
 
 const patch = { title: "核对者", instructions: "先核对证据，再给结论。\n保留未验证项。", host_tools: ["read-file", "search"] };
@@ -13,7 +15,7 @@ function home(t: { after(callback: () => void): void }) {
   t.after(() => { for (const handle of handles.reverse()) handle.close(); rmSync(directory, { recursive: true, force: true }); });
   return { directory, open(actor = "actor-a") { const handle = openCharacters(directory, actor); handles.push(handle); return handle.service; } };
 }
-const code = (expected: string) => (error: unknown) => error instanceof CharacterError && error.code === expected;
+const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
 
 test("personal Character drafts survive reopening, isolate actors and do not expose mutable stored objects", t => {
   const fixture = home(t), first = fixture.open(), other = fixture.open("actor-b");
@@ -27,7 +29,16 @@ test("personal Character drafts survive reopening, isolate actors and do not exp
   assert.deepEqual(reopened.get(created.character_id)?.host_tools, patch.host_tools);
   assert.deepEqual(other.list(), []);
   assert.equal(other.get(created.character_id), null);
-  assert.throws(() => other.update(created.character_id, 2, patch), code("characters.not_found"));
+  assert.throws(() => other.update(created.character_id, 2, patch), (error: unknown) => {
+    // CHAR-01: another actor still cannot see or modify this draft.
+    assert.ok(error instanceof ActionError);
+    assert.equal(error.code, "characters.not_found");
+    assert.equal(error.message, "找不到本人的角色");
+    assert.equal(error.kind, "invalid");
+    assert.equal(actionHttpStatus(error), 400);
+    return true;
+  });
+  assert.deepEqual(first.get(created.character_id), reopened.get(created.character_id));
 });
 
 test("stale windows cannot overwrite, disable or publish a newer Character draft", t => {

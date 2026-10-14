@@ -2,12 +2,7 @@ import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platf
 import type { CharacterImportSnapshot, CharacterImportSelection, CharacterContent, CharacterDraft, CharacterDraftPatch, CharacterState, CharactersCommand, CharactersQuery } from "@molis-ai/molis-work-contracts/modules/characters";
 import { parseCharacterContent, parseCharacterTools, selectCharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { CharactersRepository } from "./repository.js";
-
-export class CharacterError extends Error {
-  constructor(readonly code: "characters.not_found" | "characters.conflict" | "characters.deleted" | "characters.disabled" | "characters.invalid", message: string) {
-    super(message); this.name = "CharacterError";
-  }
-}
+import { characterErrors } from "./errors.js";
 
 export class CharactersService implements CharactersQuery, CharactersCommand {
   constructor(private readonly repository: CharactersRepository, private readonly actorId: string,
@@ -28,13 +23,13 @@ export class CharactersService implements CharactersQuery, CharactersCommand {
     existing?: { character_id: string; expected_revision: number }): { draft: CharacterDraft; replayed: boolean } {
     let selected: CharacterImportSnapshot;
     try { selected = selectCharacterImportSnapshot(snapshot, selection); }
-    catch (error) { throw new CharacterError("characters.invalid", (error as Error).message); }
+    catch (error) { throw characterErrors.invalid((error as Error).message); }
     const sameSource = (source: CharacterImportSnapshot | undefined) => source && source.runtime_id === selected.runtime_id
       && source.config_root === selected.config_root && source.project_root === selected.project_root;
     return this.repository.immediate(() => {
       if (existing) {
         const current = this.confirmed(existing.character_id, existing.expected_revision);
-        if (!sameSource(current.import_snapshot)) throw new CharacterError("characters.invalid", "更新来源与原角色不同，请创建新的导入角色");
+        if (!sameSource(current.import_snapshot)) throw characterErrors.invalid("更新来源与原角色不同，请创建新的导入角色");
         // The explicit confirmed revision authorizes replacing the imported package, not personal edits.
         return { draft: this.replace(current, { ...current, import_snapshot: selected }), replayed: false };
       }
@@ -53,20 +48,20 @@ export class CharactersService implements CharactersQuery, CharactersCommand {
     const current = this.confirmed(id, expectedRevision);
     if (!patch || typeof patch.title !== "string" || !patch.title.trim() || patch.title.length > 120
       || typeof patch.instructions !== "string" || patch.instructions.length > 20_000) {
-      throw new CharacterError("characters.invalid", "角色名称不能为空且最多 120 字符，指令最多 20000 字符");
+      throw characterErrors.invalid("角色名称不能为空且最多 120 字符，指令最多 20000 字符");
     }
     let host_tools: string[] | null;
     try { host_tools = parseCharacterTools(patch.host_tools); }
-    catch (error) { throw new CharacterError("characters.invalid", (error as Error).message); }
+    catch (error) { throw characterErrors.invalid((error as Error).message); }
     let action_tools = current.action_tools;
     try { if (patch.action_tools !== undefined) action_tools = patch.action_tools === null ? null : parseExactActionReferences(patch.action_tools); }
-    catch (error) { throw new CharacterError("characters.invalid", (error as Error).message); }
+    catch (error) { throw characterErrors.invalid((error as Error).message); }
     // Preserve instructions verbatim; editing an empty draft is valid, publishing it is not.
     return this.replace(current, { ...current, title: patch.title.trim(), instructions: patch.instructions, host_tools, ...(action_tools === undefined ? {} : { action_tools }) });
   }
 
   setState(id: string, expectedRevision: number, state: CharacterState): CharacterDraft {
-    if (!["active", "disabled", "tombstoned"].includes(state)) throw new CharacterError("characters.invalid", "角色状态无效");
+    if (!["active", "disabled", "tombstoned"].includes(state)) throw characterErrors.invalid("角色状态无效");
     const current = this.confirmed(id, expectedRevision);
     if (current.state === state) return current;
     return this.replace(current, { ...current, state });
@@ -75,7 +70,7 @@ export class CharactersService implements CharactersQuery, CharactersCommand {
   /** Disabled/deleted profiles cannot start new tasks; old frozen Runs need no lookup here. */
   requireActive(id: string): CharacterDraft {
     const current = this.current(id);
-    if (current.state !== "active") throw new CharacterError("characters.disabled", "角色已停用，请启用或明确选择其他角色");
+    if (current.state !== "active") throw characterErrors.disabled("角色已停用，请启用或明确选择其他角色");
     return current;
   }
 
@@ -94,34 +89,34 @@ export class CharactersService implements CharactersQuery, CharactersCommand {
         ...(current.action_tools === undefined ? {} : { action_tools: current.action_tools }),
         ...(current.import_snapshot ? { import_snapshot: current.import_snapshot } : {}),
         source: { owner_actor_id: current.owner_actor_id, draft_revision: current.revision } }); }
-      catch (error) { throw new CharacterError("characters.invalid", (error as Error).message); }
+      catch (error) { throw characterErrors.invalid((error as Error).message); }
       const result = publisher(content);
-      if (result && typeof result === "object" && "then" in result) throw new CharacterError("characters.invalid", "角色发布必须同步保存固定成果");
+      if (result && typeof result === "object" && "then" in result) throw characterErrors.invalid("角色发布必须同步保存固定成果");
       return result as T;
     });
   }
 
   private confirmed(id: string, expectedRevision: number): CharacterDraft {
     if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) {
-      throw new CharacterError("characters.invalid", "请提供已确认的角色修订号");
+      throw characterErrors.invalid("请提供已确认的角色修订号");
     }
     const current = this.current(id);
     if (current.revision !== expectedRevision) {
-      throw new CharacterError("characters.conflict", "角色在另一个窗口已改变，请重新读取后决定；当前修改尚未保存");
+      throw characterErrors.conflict("角色在另一个窗口已改变，请重新读取后决定；当前修改尚未保存");
     }
     return current;
   }
 
   private current(id: string): CharacterDraft {
     const current = this.get(id);
-    if (!current) throw new CharacterError("characters.not_found", "找不到本人的角色");
-    if (current.state === "tombstoned") throw new CharacterError("characters.deleted", "角色已删除，旧执行仍保留原版本，请另建角色");
+    if (!current) throw characterErrors.not_found("找不到本人的角色");
+    if (current.state === "tombstoned") throw characterErrors.deleted("角色已删除，旧执行仍保留原版本，请另建角色");
     return current;
   }
 
   private replace(current: CharacterDraft, next: CharacterDraft): CharacterDraft {
     next = { ...next, revision: current.revision + 1, updated_at: this.now() };
-    if (!this.repository.replace(current.revision, next)) throw new CharacterError("characters.conflict", "角色在另一个窗口已改变，当前修改尚未保存");
+    if (!this.repository.replace(current.revision, next)) throw characterErrors.conflict("角色在另一个窗口已改变，当前修改尚未保存");
     return next;
   }
 }

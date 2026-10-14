@@ -1,10 +1,11 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { CharacterError, openCharacters } from "@molis-ai/molis-work-module-characters";
+import { openCharacters } from "@molis-ai/molis-work-module-characters";
 
 test("W1-18-CHARACTER-SCHEMA-01 an empty Character store initializes once and current drafts reopen", () => {
   const home = mkdtempSync(join(tmpdir(), "character-baseline-"));
@@ -30,8 +31,8 @@ for (const version of [0, 2]) test(`W1-18-CHARACTER-SCHEMA-01 an existing versio
   db.close();
   const bytes = readFileSync(filename), mode = statSync(filename).mode;
   try {
-    assert.throws(() => openCharacters(home, "owner"), error => error instanceof CharacterError
-      && error.code === "character.invalid" && error.message.includes(filename) && error.message.includes(`实际版本 ${version}`));
+    assert.throws(() => openCharacters(home, "owner"), error => error instanceof ActionError
+      && error.code === "characters.invalid" && error.message.includes(filename) && error.message.includes(`实际版本 ${version}`));
     assert.deepEqual(readFileSync(filename), bytes);
     assert.equal(statSync(filename).mode, mode);
     const check = new DatabaseSync(filename);

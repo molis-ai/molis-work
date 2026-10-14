@@ -1,9 +1,10 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import { openCharacters, CharacterError } from "@molis-ai/molis-work-module-characters";
+import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { CHARACTER_IMPORT_LIMITS, parseCharacterImportSnapshot, parseCharacterContent, type CharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
 import { createCharacterDiscovery } from "../apps/local-host/src/character-import-discovery.js";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
@@ -13,7 +14,7 @@ function fixture(t: { after(callback: () => void): void }) {
   return { home, discover: createCharacterDiscovery({ userHome: home, env: { PATH: "" }, now: () => "2026-09-23T00:00:00Z" }) };
 }
 const all = (snapshot: CharacterImportSnapshot) => ({ rule_paths: snapshot.rules.map(rule => rule.path), skill_ids: snapshot.skills.map(skill => skill.id) });
-const errorCode = (code: string) => (error: unknown) => error instanceof CharacterError && error.code === code;
+const errorCode = (code: string) => (error: unknown) => error instanceof ActionError && error.code === code;
 
 test("discovery snapshots preserve original rules, resource paths and binary contents without executing files", t => {
   const { home, discover } = fixture(t), root = join(home, ".codex"), skill = join(root, "skills/check");

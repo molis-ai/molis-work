@@ -183,8 +183,10 @@ test("W3-02-G4-ANSWER-01: a real Runtime refusal shows the field error and a cor
   await click('[data-ix-question] [data-ix-field=q0] [data-ix-option="0"]');
   await click('[data-ix-question] [data-ix-action=answer]');
   await waitFor("window.__answerReceipts.length === 2 && window.__answerReceipts[1].status === 200", 15_000);
-  await waitFor("fetch(" + JSON.stringify(api) + ").then(r => r.json()).then(body => body.works[0].state === 'completed')", 15_000);
-  const done = await view(); assert.equal(done.work.work_id, waiting.work.work_id); assert.equal(done.rounds.length, 1);
+  let done = await view();
+  for (let attempt = 0; done.work.state !== "completed" && attempt < 150; attempt++) { await new Promise(resolve => setTimeout(resolve, 100)); done = await view(); }
+  assert.equal(done.work.state, "completed");
+  assert.equal(done.work.work_id, waiting.work.work_id); assert.equal(done.rounds.length, 1);
   assert.equal(done.rounds[0]!.run_id, round.run_id); assert.equal(done.rounds[0]!.awaiting_input.length, 0);
   assert.equal(requests.length, 2); assert.match(JSON.stringify(requests[1]), /周报/, "the corrected answer reaches the original provider continuation");
 });

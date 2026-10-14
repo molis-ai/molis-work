@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
 import type { WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
-import { compactServedText } from "./served-page-text.js";
+import { tightenServedJs, tightenServedCss } from "./served-page-text.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { currentLocale } from "./web-locale.js";
 
@@ -78,7 +78,8 @@ export function createLocalWebAssets(ports: {
             ? { body: fs.readFileSync(NOTO_SANS_SC_FONT_PATH), contentType: "font/woff2" }
         : null;
       if (!loaded) return false;
-      const body = compactServedText(loaded.body, loaded.contentType);
+      const body = loaded.contentType.startsWith("text/javascript") ? tightenServedJs(loaded.body.toString())
+        : loaded.contentType.startsWith("text/css") ? tightenServedCss(loaded.body.toString()) : loaded.body;
       asset = { body, contentType: loaded.contentType, etag: `"${createHash("sha256").update(body).digest("base64url")}"` };
       workbenchAssets.set(key, asset);
     }

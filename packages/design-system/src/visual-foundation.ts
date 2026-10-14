@@ -27,11 +27,8 @@ import { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
 import { PRIMITIVE_STYLES } from "./styles/primitives.js";
 import { ARRIVAL_COMPONENT_STYLES } from "./styles/arrival-components.js";
 
-/** Stable concatenation order preserves the existing cascade.
- * Coss + Primitive sit at the end of this bundle so Catalog/tests that only
- * consume VISUAL_FOUNDATION_STYLES still see mw-* rules. Workbench page sheets
- * concatenate them again after product CSS so the same overlay wins there too. */
-export const VISUAL_FOUNDATION_STYLES = [
+/** Shared foundation, before the control overlay. */
+const FOUNDATION_LAYERS = [
   "\n",
   FOUNDATION_STYLES,
   MOMENTUM_STYLES,
@@ -44,10 +41,12 @@ export const VISUAL_FOUNDATION_STYLES = [
   NAVIGATION_OWNERSHIP_STYLES,
   SOURCE_FEED_STYLES,
   DESKTOP_TITLEBAR_STYLES,
-  COSS_CONTROL_STYLES,
-  PRIMITIVE_STYLES,
-  ARRIVAL_COMPONENT_STYLES,
 ].join("");
+
+/** Complete pages place their control overlay after product CSS, exactly once. */
+export const VISUAL_FOUNDATION_PAGE_STYLES = FOUNDATION_LAYERS + ARRIVAL_COMPONENT_STYLES;
+/** Standalone consumers, including the catalog, retain the complete original cascade. */
+export const VISUAL_FOUNDATION_STYLES = FOUNDATION_LAYERS + COSS_CONTROL_STYLES + PRIMITIVE_STYLES + ARRIVAL_COMPONENT_STYLES;
 
 /** Theme preferences plus the measured micro-interactions; every page renderer inlines this. */
 export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `${PREFERENCE_CLIENT_SCRIPT}${MICRO_INTERACTION_CLIENT_SCRIPT}${SELECT_MENU_CLIENT_SCRIPT}${CRAFT_FINISH_CLIENT_SCRIPT}`;

@@ -56,3 +56,5 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 评论回归：`node scripts/run-tests.mjs tests/pages-comments.test.ts tests/assistant-thread-reply.test.ts tests/pages-assistant-surfaces.e2e.test.ts`。后两项分别经过真实 Host/Prologue（本机流式模型夹具）与真实浏览器。
+
+评论浏览器控制器位于现有 Pages 编辑器资源包。目录工厂用 getter 提供当前编辑器状态；侧栏文档在挂载前加载同一份已声明的客户端依赖，首次独立打开侧栏也可用。草稿键、所属插件请求、来源检查与上下文 epoch 保持不变（PAS-14）。

@@ -17,6 +17,11 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   const b = store.create({ project_id: projectId!, title: "另一个文档", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "此处不应出现前一篇的评论。" }] }] } });
   store.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  // PAS-14: the side document loads declared dependencies even when no editor has been opened.
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/side/pages/comments` }, sessionId));
+  await waitFor("typeof window.MolisWorkPagesEditor?.mountComments === 'function'");
+  assert.equal(await evaluate("document.querySelector('[data-comment-title]')?.textContent"), "选择一篇文档");
+  assert.equal(await evaluate("document.querySelectorAll('script[src=\"/assets/molis-work-pages-editor.js\"]').length"), 1);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${a.id}` }, sessionId));
   await waitFor("document.querySelector('[data-pages-title]')?.value === '讨论中的发布计划'");
   await click('[data-pages-comments-open]');
@@ -85,6 +90,10 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   await waitFor(`${side}?.querySelector('[data-comment-title]')?.textContent === '另一个文档'`);
   await evaluate("document.querySelector('[data-tab-pane=\"'+window.secondPane+'\"] [data-tab-pane-close]').click()");
   await waitFor(`${side}?.querySelector('[data-comment-title]')?.textContent === '讨论中的发布计划'`);
+  // A newly empty split pane has no Pages context, so the host can return to its general tool tab.
+  // Reopen the actual comment view before measuring it; a hidden iframe is not visual evidence.
+  await click('[data-side-tab="plugin:pages/comments"]');
+  await waitFor("document.querySelector('[data-side-body=\"plugin:pages/comments\"]')?.checkVisibility()");
   await edit("这是一条足够长的讨论，用于确认阅读历史时仍能继续回复。\n".repeat(32));
   await evaluate(`${side}.querySelector('[data-comment-send]').click()`);
   await waitFor(`${side}?.querySelector('[data-comment-messages]')?.textContent.includes('这是一条足够长的讨论')`);
@@ -97,7 +106,8 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
       assert.equal(await evaluate(`parseFloat(${side}.defaultView.getComputedStyle(${side}.querySelector('[data-comment-draft]')).fontSize)>=16`), true);
     }
     assert.equal(await evaluate(`${side}.documentElement.scrollWidth <= ${side}.defaultView.innerWidth`), true);
-    assert.equal(await evaluate(`(() => {const doc=${side},box=doc.querySelector('[data-comment-send]').getBoundingClientRect();return box.top>=0&&box.bottom<=doc.defaultView.innerHeight+1;})()`), true, 'PAS-06: a long thread never pushes Send out of the side viewport');
+    assert.equal(await evaluate(`(() => {const frame=document.querySelector('[data-side-body="plugin:pages/comments"] iframe'),doc=frame.contentDocument,button=doc.querySelector('[data-comment-send]'),box=button.getBoundingClientRect(),outer=frame.getBoundingClientRect(),x=box.x+box.width/2,y=box.y+box.height/2;return frame.checkVisibility()&&box.width>0&&box.height>0&&box.top>=0&&box.bottom<=doc.defaultView.innerHeight+1&&button.contains(doc.elementFromPoint(x,y))&&document.elementFromPoint(outer.x+x,outer.y+y)===frame;})()`), true, 'PAS-06: the visible long thread keeps Send inside its viewport and reachable through the frame');
+    assert.equal(await evaluate(`(() => {const doc=${side},pane=doc.querySelector('[data-comment-discussion]');pane.scrollTop=pane.scrollHeight;const bounds=pane.getBoundingClientRect(),last=doc.querySelector('[data-comment-messages] article:last-child'),box=last.getBoundingClientRect();return bounds.height>0&&box.bottom>bounds.top&&box.bottom<=bounds.bottom+1&&last.contains(doc.elementFromPoint(box.x+box.width/2,box.bottom-4));})()`), true, 'PAS-06: the latest long comment is reachable by scrolling the reading area');
     const output = reviewEvidenceUrl("pages-assistant-surfaces/");await mkdir(output, { recursive: true });
     await writeFile(new URL(`real-comments-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   }

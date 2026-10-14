@@ -1,13 +1,11 @@
 import { PAGES_LIST_ERROR_SCRIPT } from "./list-client.js";
-import { PAGES_COMMENT_SIDE_FACTORY } from "./comment-side-client.js";
-import { PAGES_COMMENT_EDITOR_SCRIPT } from "./comment-editor-client.js";
 import { PAGES_BLANK_CLIENT_SCRIPT } from "./blank-client.js";
 import { PAGES_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
 
 /** Pages workbench client: library, autosave, ProseMirror host. */
 export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
-  if (host.side) return (${PAGES_COMMENT_SIDE_FACTORY})(host);
+  if (host.side) return window.MolisWorkPagesEditor.mountComments({ ...host, controlHeaders: molisWorkControlHeaders });
   const workbench = document.querySelector("[data-pages=workbench]");
   if (!workbench) return;
   const list = workbench.querySelector("[data-pages=directory]");
@@ -645,7 +643,6 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     workbench.querySelectorAll(".pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu, .pages-block-ghost, .pages-drop-line").forEach((node) => { node.hidden = true; });
     sendPanel({ node: null });
   };
-  ${PAGES_COMMENT_EDITOR_SCRIPT}
   const loadList = async () => {
     const seq = ++listSeq;
     const payload = await request("GET", "/api/plugins/pages");
@@ -694,6 +691,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!selected) return;
     do { await save(); } while (selected && (saveTimer || dirty));
   };
+  const commentOpen = Editor.bindComments({ workbench, persistCurrent, showNote, translate: L, get selected() { return selected; }, get editor() { return editor; }, get unshowable() { return unshowable; }, get dirty() { return dirty || Boolean(saveTimer); } });
   // Showing the document already open here again (its item tab after the page's list, a reload's second request): the
   // workbench took its name off the surface when it hid it, so name it again with its version and title.
   const revealEditor = () => {

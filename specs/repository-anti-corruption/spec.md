@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，未达到整条防腐线完成标准（2026-10-14接续）。原I4/I5第五批与BL-133、W2-10 A1–A4/C/D已合，E及最终共享全量未完成。#477/#478/#487/#479已合；Grok优先链中#481已合到#480叠分支，#480最新1ffc仍待CI/合main，Computer Use后续仍由其负责，本线远端后置。I8最新40b601a5f已保留本线权限/生命周期并同步main d530、纳I3 Goals工厂删除，源码组合独立接受；37批整体构建/类型/资源与真实Goals回归在机器构建锁排队，未称新main运行通过。此前基线964的26–33证据已闭合定向：browser27为22/22、DOM29通过；security30为298/300，原两管理fixture修后31/32通过，不能称完整security一次全绿；I2组合33为95/95。I4 Projects、I5 GoalTree、I6 Agent四类及真实问卷补测、I7 Scheduler、Ledger源码候选已独立接受，Characters与Diff/Diagram在准备/复核，均待运行。当前临时SDK与新问卷不兼容，联合08b+beforeAccept本地副本41排队未运行；正式上游/vendor仍待原问题回答，完整boundary/typecheck:all未通过。维护八41库只读clone及已知候选仅统计、0写入，映射/演练/原库窗口仍待；第4–6波、最终场景、手册、度量和两份交付沿原路线继续。
+状态：执行中，整线未完成（2026-10-14接续）。原I4/I5第五批、BL-133和W2-10 A1–A4/C/D已合；E与最终共享全量未完成。Grok优先链中#481已合到#480叠分支，#480最新1ffc全必需及产品CI成功但落后main2768，Grok负责同步及Computer Use后续，本线远端后置。I8当前461003570已同步2768并纳已接受I3–I13共同错误、权限/生命周期和静态修复；37队列在未开始时撤销143，不再排队。联合08b+beforeAccept本地SDK41由唯一替代wrapper27691等构建锁，尚无构建/测试/pack结果；正式SDK上游/vendor仍待原问题回答。26–33旧964基线的真实定向结果保留，不能作为最新组合全绿；原security30为298/300，修后管理31/32为4/4，I2运行33为95/95。最新Source已接受与实际build/README回归、boundary/资源、最终全量分开；维护八41库只读克隆零写入，映射/演练及真实Home窗口待办。第4–6波、场景/手册/度量及两份最终汇报继续按§10/§12推进。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2469,3 +2469,13 @@ BIND完整61952ddb3独立Source接受，26抛错/11声明逐项对原factory，H
 当前远端main又由外部#491合为2768dd71b，Root未执行merge；比d530新增六文件，模型切换对prompt_cache=off不强制同格式判断及其真实消费者回归。I8同步该main时模型切换helper有一处冲突，须同时保新prompt_cache=off判断、本线beforeAccept同步拒绝与I6共同错误，实际解后再保存；最终联合SDK/整建/回归须针对此新基线，不把d530的Source/旧运行直接贴为最新main。#480新1ffc全必需/产品绿但BEHIND于491，仍Grok负责同步与优先链，Root未替合。
 
 W3-02-I13-SOURCES/LISTENER沿J3收两服务错误类，仅既有三sources原因、四listener原因与真实producer/识别consumer。同subpath声明invalid，原无kind400保持；类/导出/instanceof移共同模型，本域识别取共同类+完整有限码表，外部connector报告原details/error_code与safeErrorCode不变。SOURCE-01：来源not_found/无效schedule/transition与Listener lease、delivery/quarantine/connector failure精确code/message、恢复/重启/原RawEvent持久化与0重复作用；SOURCE-02：不保旧class/alias、类属性仅code/message不动DB结构/事件/RSS外部码；SOURCE-03：README并集feed-receive-chain/feed-sources/feed/plugin-runtime-integration和Connector公共真实链、API/build/health/资源及共享全量。独立Source准备，先前用户存储码维护决策仍要求clone演练和真实Home窗口另决定。
+
+
+BIND归属复开：完整已跟踪候选在当前2768基线被health51拒绝，Work新文件重复声明catalog两码；此前health48不证明当前完整候选合规，独立Source接受撤回该归属结论。BIND-02补具体方案：Projects现行八原因的唯一声明移到公开contracts/modules/projects，Projects及Work消费同一projectCatalogErrors，删模块内部声明文件与Work重复声明；当前未有owner的该合同文件补归Catalog，按既有主人表允许的正向归属补全，不改门禁脚本/阈值/平台例外。404/400、每个理由、事务及确认不变，新增公共声明更新API快照；固定完整candidate后重跑Source类型/health，再由共同构建与真实绑定拒绝证明。无新增factory或跨Module实现依赖。
+
+BIND-02同片补Host四个重复根原因：project-catalog-contract复用共享invalid_name/project_not_found/plugin_not_found/project_storage_invalid，Host其他十三原因原表保持。catalogFailure只接受原来的十七个root理由，不能把context子域键扩成root别名或改外来错误；Panel既有端口不在本片删除。完整声明与识别表分别核对，不把Projects+Work收口夸成所有Catalog入口都已迁完。
+
+
+BIND归属修复7129fd22a完整已跟踪候选通过Source类型0/all0、API52b/c匹配62/2413及health52c；独立复核接受，纳I8为2618d8e4f。此前api52的pnpm自动重装/无TTY失败保留，不能记为API通过。Session208完整Source接受且纳2be6c8d29；Sources/Listener516a46bf2的10文件完整Source接受，API53/health53当前2768通过，纳461003570。三片运行均仍待，临时SDKpkg/lock未提交。SDK41旧自身wrapper32071未取得锁时已撤销143，替代一份同driver队列27691，显式禁pnpm默认自动重装borrowed依赖；不改门禁、foreign全量未中断，41仍无build/test/pack结果。
+
+W3-02-I14-FEED/ATTENTION/SIGNALS接既有R/J的余项：Feed三真实生产原因直接用既有feedErrors，删FeedError、旧四原因转换表及已无作用的callFeed，现行纯表达式调用直接执行；read_not_supported无人产生不声明死原因。Attention四原因改现行attention.*，唯一声明在该域新合同内部文件并由既有attention-resumption subpath导出，文件正向归Attention；现有Inbox声明的事实owner保持。Feed callAttention只认共同类+完整四原因，仍缺项→inbox404、版本冲突→feed409、其他本域→feed400，外域原样抛出。Signals两原因改signals.*，唯一当地声明，数据/RawEvent/adapter/provenance/幂等及SQL不改。FAS-01：真实缺项/版本冲突/无效draft或reference精确原文与产品HTTP/MCP分类，拒绝前后持久化/事件不变；FAS-02：三类/旧导出/旧生产码与死原因兜底清掉，无旧读取兼容、无新厂或跨Module实现；FAS-03：三Module README回归、Feed/Inbox链及schema/API/build/health/assets、共享全量。新增合同仅现行raiser，旧存量码仍维护八按克隆演练处理，真实Home零写入。

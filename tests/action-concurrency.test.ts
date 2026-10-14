@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { setImmediate } from "node:timers/promises";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 const ref = { project_id: "a", storage_key: "memory:a" };
 const gate = () => { let resolve!: () => void; const promise = new Promise<void>(r => { resolve = r; }); return { promise, resolve }; };

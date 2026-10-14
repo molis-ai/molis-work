@@ -10,7 +10,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import { functionsActions, publishedFunctionAction, functionContextActions } from "@molis-ai/molis-work-module-functions";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FunctionRecord, FunctionsPrimitive, FunctionCriteria, TypeSafeProvider, TypeSafeEvaluateResult } from "@molis-ai/molis-work-contracts/modules/functions";
-import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/src/functions-host.ts";
+import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/functions-host.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 const caller: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: ["functions:invoke"] };
@@ -164,8 +164,8 @@ test("global HTTP published invocation uses the same system handler and separate
 test("system judgments use the selected TypeSafe account and a disconnected selection never falls back to an older key", async () => {
   const { resetSecretStoreCache, runWithMolisWorkHome, createLazyFileSecretStore } = await import("@molis-ai/molis-work-storage");
   const OLD_FIXED_SLOT = "plugin:io.molis.work.functions:typesafe"; // where the key lived before connections
-  const { withConnectorConnections } = await import("../apps/local-host/src/connector-connection-store.ts");
-  const { bindTypeSafeConnection } = await import("../apps/local-host/src/typesafe-connection.ts");
+  const { withConnectorConnections } = await import("@molis-ai/molis-work-app-local-host");
+  const { bindTypeSafeConnection } = await import("../apps/local-host/dist/typesafe-connection.js");
   const home = await mkdtemp(join(tmpdir(), "functions-account-"));
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";

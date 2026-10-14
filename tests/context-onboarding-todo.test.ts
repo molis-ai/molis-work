@@ -7,9 +7,9 @@ import { join } from "node:path";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { withContextJourneys } from "../apps/local-host/src/context-onboarding-store.js";
-import { adoptContextJourney, selectContextSources, startContextJourney, waitContextJourney } from "../apps/local-host/src/context-onboarding-service.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
+import { adoptContextJourney, selectContextSources, startContextJourney, waitContextJourney } from "../apps/local-host/dist/context-onboarding-service.js";
 
 const MAIL = "小王你好，请周五前发新版方案，预算等小李确认。另外，下周的团建改到周四，大家知悉。";
 const TODOS = JSON.stringify({

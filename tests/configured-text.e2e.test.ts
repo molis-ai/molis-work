@@ -5,7 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 // The same module the running Host uses: completions go through the Home Runtime that Host has bound.
 import { saveJellyModelSettings, readJellyModelSettings, createJellyCompletion } from "../apps/local-host/dist/jelly-model.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";

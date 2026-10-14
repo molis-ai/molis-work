@@ -4,9 +4,9 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from 'node:fs/promis
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
-import { MAX_OUTPUT_TOKENS, MODEL_CALL_LIMIT_MS, createRunRecordWriter, type BuilderAgentRecord, type PluginBuilderAgentOptions } from '../horizontal/agent-host/src/adapters/plugin-builder.js';
-import { createPrologueNodeAdapter } from '../horizontal/agent-host/src/adapters/prologue-node.js';
-import { AgentReviewQueue } from '../horizontal/agent-host/src/reviews.js';
+import { MAX_OUTPUT_TOKENS, MODEL_CALL_LIMIT_MS, createRunRecordWriter, type BuilderAgentRecord, type PluginBuilderAgentOptions } from '../horizontal/agent-host/dist/adapters/plugin-builder.js';
+import { createPrologueNodeAdapter } from '@molis-ai/molis-work-service-agent-host';
+import { AgentReviewQueue } from '@molis-ai/molis-work-service-agent-host';
 
 /**
  * The Builder agent runs on the Home Runtime; tests reach it the same way the product does. The product

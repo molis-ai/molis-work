@@ -4,7 +4,7 @@ import test from "node:test";
 
 import { DATASET_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-dataset";
 import { FORM_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-form";
-import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/functions/client.ts";
+import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/functions/client.js";
 import {
   INBOX_NATIVE_PLUGIN_ROUTES,
   InboxPluginRouteTable,
@@ -21,10 +21,10 @@ import {
   createScheduleRouteHandlers,
   scheduleActions,
 } from "@molis-ai/molis-work-plugin-schedule";
-import { CLIENT_EVENTS_PRIMARY_SCRIPT } from "../apps/workbench/src/scripts/client/events-primary.ts";
-import { CLIENT_EVENTS_SECONDARY_SCRIPT } from "../apps/workbench/src/scripts/client/events-secondary.ts";
-import { CLIENT_NAVIGATION_FEED_SCRIPT } from "../apps/workbench/src/scripts/client/navigation-feed.ts";
-import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/src/scripts/client/navigation-inbox.ts";
+import { CLIENT_EVENTS_PRIMARY_SCRIPT } from "../apps/workbench/dist/scripts/client/events-primary.js";
+import { CLIENT_EVENTS_SECONDARY_SCRIPT } from "../apps/workbench/dist/scripts/client/events-secondary.js";
+import { CLIENT_NAVIGATION_FEED_SCRIPT } from "../apps/workbench/dist/scripts/client/navigation-feed.js";
+import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/dist/scripts/client/navigation-inbox.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 
 const csrClients = {

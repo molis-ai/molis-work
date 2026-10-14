@@ -4,7 +4,7 @@ import test from "node:test";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { createLocalRuntime } from "../plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.js";
+import { createAlchemistStudioRuntime as createLocalRuntime } from "@molis-ai/molis-work-plugin-alchemist";
 import { alchemistActions } from "@molis-ai/molis-work-plugin-alchemist";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";

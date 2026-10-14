@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveModelHostname } from "../horizontal/agent-host/src/adapters/node-model-dns.js";
+import { resolveModelHostname } from "@molis-ai/molis-work-service-agent-host";
 
 test("没有显式代理或正常私网解析时，不以公共 DNS 绕过地址检查", async () => {
   for (const [addresses, hasProxy] of [[['198.18.0.10'], false], [['127.0.0.1'], true], [['10.2.0.1'], true]] as const) {

@@ -10,9 +10,9 @@ import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/pl
 import { LocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { expectingRefusal, recordedCallId, refusalExpected, withCallId, type CallContext } from "@molis-ai/molis-work-kernel";
 import { feedQueryActions as q, feedSourceActions as s } from "@molis-ai/molis-work-plugin-feed";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
-import { ActionCallLog } from "../apps/local-host/src/action-call-log.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
+import { ActionCallLog } from "../apps/local-host/dist/action-call-log.js";
 
 const PROJECT = "project-call-log";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

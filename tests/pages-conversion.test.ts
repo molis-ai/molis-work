@@ -3,12 +3,12 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import { Mark, Node } from "prosemirror-model";
 import { Command, EditorState, NodeSelection, TextSelection, Transaction } from "prosemirror-state";
-import { pagesSchema as s } from "../plugins/native/pages/src/schema.js";
-import { convertedBlocks, convertedNodes } from "../plugins/native/pages/src/convert.js";
+import { pagesSchema as s } from "@molis-ai/molis-work-plugin-pages";
+import { convertedBlocks, convertedNodes } from "@molis-ai/molis-work-plugin-pages";
 import {
   applyHeading, applyListSelection, deleteRow, deleteSpan, duplicateRow, duplicateSpan, linkAt, outdentListItem,
   setLink, turnBlockInto, turnRowInto, turnSpanInto,
-} from "../plugins/native/pages/src/commands.js";
+} from "@molis-ai/molis-work-plugin-pages";
 
 const localRequire = createRequire(new URL("../plugins/native/pages/package.json", import.meta.url));
 const { history, undo, redo } = localRequire("prosemirror-history");

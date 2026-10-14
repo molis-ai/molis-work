@@ -12,7 +12,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { gitActions } from "@molis-ai/molis-work-plugin-git";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { acquirePrologueStorageOwner } from "../horizontal/agent-host/src/adapters/prologue-storage-owner.js";
+import { acquirePrologueStorageOwner } from "../horizontal/agent-host/dist/adapters/prologue-storage-owner.js";
 
 const catalog = withMolisWorkProjectCatalog;
 

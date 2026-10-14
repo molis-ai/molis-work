@@ -3,16 +3,16 @@ import test from 'node:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
-import { seedDemoBoard, DEMO_PROJECT_ID } from '../apps/local-host/src/demo-seed.js';
-import { scheduleServiceFor } from '../apps/local-host/src/schedule-runtime.js';
-import { createLocalFeedApplication } from '../apps/local-host/src/feed-application.js';
+import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
+import { seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
+import { scheduleServiceFor } from '@molis-ai/molis-work-app-local-host';
+import { createLocalFeedApplication } from '@molis-ai/molis-work-app-local-host';
 import { createScheduleReminders, deliverScheduleReminder, getScheduleReminder, reminderActions, SCHEDULE_REMINDER_PROVIDER_ID } from '@molis-ai/molis-work-plugin-schedule';
 import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { studioStorage } from '../apps/local-host/src/plugin-builder/storage.js';
-import { deliverHostReminder, hostScheduleReminders } from '../apps/local-host/src/schedule-reminders.js';
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from '../apps/local-host/src/project-host.js';
+import { studioStorage } from '../apps/local-host/dist/plugin-builder/storage.js';
+import { deliverHostReminder, hostScheduleReminders } from '../apps/local-host/dist/schedule-reminders.js';
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from '@molis-ai/molis-work-app-local-host';
 
 function installation(install_id = 'install-1', plugin_id = 'io.molis.work.generated.a', installed_at = '2026-01-01T00:00:00.000Z'): PluginInstanceRecord {
   return { install_id, installation_generation: install_id + '@' + installed_at, plugin_id, version: '1.0.0', publisher_id: 'test', publisher_signature: 'test', manifest_digest: 'test',

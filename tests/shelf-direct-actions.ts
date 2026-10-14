@@ -1,5 +1,5 @@
 import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createShelfActionHandlers, type ShelfActionPorts } from "../plugins/native/shelf/src/actions.js";
+import { createShelfActionHandlers, type ShelfActionPorts } from "@molis-ai/molis-work-plugin-shelf";
 
 /** Browser boundary tests drive the plugin's own handlers over a fixture store; Host registration is covered by shelf-actions.test.ts. */
 export function directShelfActions(ports: ShelfActionPorts): BoundActionClient {

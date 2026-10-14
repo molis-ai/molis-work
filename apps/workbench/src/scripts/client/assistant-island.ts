@@ -1,4 +1,4 @@
-import { ASSISTANT_STAGE_FACTORY } from "./assistant-stage.js";
+import { ASSISTANT_STAGE_FACTORY, assistantElement } from "./assistant-stage.js";
 import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
 import { INTERACTION_CLIENT_SCRIPT_TYPED_DATES } from "@molis-ai/molis-work-design-system";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
@@ -207,12 +207,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     return result;
   };
-  const el = (tag, className, text) => {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined && text !== null) node.textContent = text;
-    return node;
-  };
+  const el = ${assistantElement.toString()};
   const stateLabel = (state) => L(STATE_LABELS[state] || state || ""); const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? L("个人")
     : title || (project && scope.project_id === project.id ? (project.title || L("本项目")) : L("另一个项目"));
@@ -2569,7 +2564,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (currentId) await refresh(); else render();
     } finally { busy = false; syncSend(); schedule(); }
   });
-  presentation = (${ASSISTANT_STAGE_FACTORY})({island,panel,input,current:currentWork,switchTo,showProblem,L});
+  presentation = (${ASSISTANT_STAGE_FACTORY})({island,panel,input,current:currentWork,switchTo,showProblem,L,el});
   /* ─── Head controls ────────────────────────────────────────────────────── */
   island.querySelector("[data-assistant-panel-close]")?.addEventListener("click", () => setPanel(false));
   island.querySelectorAll("[data-assistant-control]").forEach((button) => button.addEventListener("click", async () => {

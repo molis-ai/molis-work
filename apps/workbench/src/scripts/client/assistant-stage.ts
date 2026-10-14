@@ -1,12 +1,12 @@
 /** Reparents the one Assistant controller; tabs own presentation, never execution. */
-export const ASSISTANT_STAGE_FACTORY = String.raw`({island,panel,input,current,switchTo,showProblem,L})=>{
+export const ASSISTANT_STAGE_FACTORY = String.raw`({island,panel,input,current,switchTo,showProblem,L,el})=>{
   if(document.body.hasAttribute('data-pane-embedded'))return null;
   const home=document.createComment('assistant-home');island.before(home);
-  const launcher=document.createElement('button');launcher.type='button';launcher.className='mw-btn mw-btn--secondary assistant-stage-launcher';
+  const launcher=el('button','mw-btn mw-btn--secondary assistant-stage-launcher');launcher.type='button';
   launcher.textContent=L('助理');launcher.hidden=true;home.after(launcher);
   const expand=island.querySelector('[data-assistant-expand]');
   const retract=island.querySelector('[data-assistant-retract]');
-  const footer=document.createElement('div');footer.className='assistant-stage-footer';
+  const footer=el('div','assistant-stage-footer');
   const footerHomes=[...island.querySelectorAll(':scope > .assistant-popover,:scope > .assistant-context-actions,:scope > .assistant-offer,:scope > .assistant-composer')].map(node=>{const marker=document.createComment('assistant-footer-home');node.before(marker);return {node,marker};});
   const offsets=new Map();
   let staged=false,open=[],active=null,mounting=false,shownId=null,returning=false,dockedTab=null;
@@ -66,3 +66,10 @@ export const ASSISTANT_STAGE_FACTORY = String.raw`({island,panel,input,current,s
   }};
 }`;
 
+/** Shared by the Assistant's controller and its movable presentation. */
+export function assistantElement(tag: string, className?: string, text?: string | null): HTMLElement {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined && text !== null) node.textContent = text;
+  return node;
+}

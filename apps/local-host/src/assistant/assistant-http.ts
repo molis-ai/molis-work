@@ -261,12 +261,8 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 4 && parts[2] === "materials") return { status: 200, body: { material: service.material(workId, parts[3]!) } };
       if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materialImage(workId, parts[3]!) } };
       if (method !== "POST") return null;
-      const bound = store.get(WEB_ACTOR, workId);
-      if (bound.reply_target && !["rename", "archive", "recovery", "budget"].includes(parts[2] ?? "")) {
-        if (parts[2] !== "control" || body.kind !== "stop" || !bound.project_ref) throw new AssistantError("assistant.scope", "请回到原评论继续这项回复");
-        await ports.localHost.actionClient(bound.project_ref).invoke(await localWebActionContext(ports.localHost, bound.project_ref, LOCAL_OWNER_PERMISSIONS), assistantThreadActions.stop, { work_id: workId });
-        return { status: 200, body: await service.read(workId) };
-      }
+      const threadWork = await threadWorkRoute(workId, parts, body, ports);
+      if (threadWork) return threadWork;
       if (parts.length === 3 && parts[2] === "control") return { status: 200, body: await service.control(workId, body as never) };
       const interaction = await interactionRoute(workId, parts, body, service, store, ports.projectRef);
       if (interaction) return interaction;
@@ -308,6 +304,16 @@ async function handleThreadHttp(parts: string[], method: "GET" | "POST", url: UR
   const input = method === "GET" ? { target: { provider_id: url.searchParams.get("provider_id"), subject_kind: url.searchParams.get("subject_kind"), subject_id: url.searchParams.get("subject_id"), thread_id: url.searchParams.get("thread_id") } } : body;
   const result = await ports.localHost.actionClient(ports.projectRef).invoke(await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS), action, input);
   return { status: 200, body: parts[1] === "status" ? { status: result } : result };
+}
+
+/** Thread replies keep their original gateway authority even when stopped from the Assistant view. */
+async function threadWorkRoute(workId: string, parts: string[], body: Record<string, unknown>, ports: AssistantHttpPorts): Promise<NativePluginJsonResult | null> {
+  const { service, store } = assistantServiceFor(ports);
+  const bound = store.get(WEB_ACTOR, workId);
+  if (!bound.reply_target || ["rename", "archive", "recovery", "budget"].includes(parts[2] ?? "")) return null;
+  if (parts[2] !== "control" || body.kind !== "stop" || !bound.project_ref) throw new AssistantError("assistant.scope", "请回到原评论继续这项回复");
+  await ports.localHost.actionClient(bound.project_ref).invoke(await localWebActionContext(ports.localHost, bound.project_ref, LOCAL_OWNER_PERMISSIONS), assistantThreadActions.stop, { work_id: workId });
+  return { status: 200, body: await service.read(workId) };
 }
 
 /** A reply with its questions, cards and next steps drawn (the page only binds them). */

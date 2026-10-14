@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -21,7 +22,7 @@ import {
 } from "@molis-ai/molis-work-plugin-shelf";
 import { feedUiContribution } from "@molis-ai/molis-work-plugin-feed";
 import { inboxUiContribution } from "@molis-ai/molis-work-plugin-inbox";
-import { UiContributionError } from "@molis-ai/molis-work-ui-host";
+
 import {
   WORKBENCH_UI_SLOTS,
   createWorkbenchUiHost,
@@ -274,7 +275,7 @@ test("Shelf settings page has the drop wheel and Molis appearance does not", () 
         model: { settings: shelfSettings(), primitives },
       },
     }),
-    (error: unknown) => error instanceof UiContributionError && error.code === "ui_slot_incompatible",
+    (error: unknown) => error instanceof ActionError && error.code === "ui_host.slot_incompatible",
   );
 });
 

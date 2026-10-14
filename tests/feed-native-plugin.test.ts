@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -11,7 +12,7 @@ import {
   type FeedUiModel,
   type PersistedFeedDetailModel,
 } from "@molis-ai/molis-work-plugin-feed";
-import { UiContributionError, UiHost } from "@molis-ai/molis-work-ui-host";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { createWorkbenchFeedProjectionRenderer, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 
@@ -203,7 +204,7 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
   assert.deepEqual(host.list().map((item) => item.contribution_id), [FEED_UI_CONTRIBUTION_ID]);
   assert.throws(
     () => host.register(feedUiContribution),
-    (error) => error instanceof UiContributionError && error.code === "ui_contribution_conflict",
+    (error) => error instanceof ActionError && error.code === "ui_host.contribution_conflict",
   );
 
   const directory = host.render({

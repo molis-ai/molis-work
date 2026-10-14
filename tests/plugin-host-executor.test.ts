@@ -8,7 +8,7 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
-import { UiHost, PluginUiAccessError } from "@molis-ai/molis-work-ui-host";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -109,9 +109,10 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
     assert.equal(ui.mount({ slot: { slot_id: "main", version: 1, accepts: ["html"] },
       contribution: { contribution_id: "example.notes", surface: "main", model: null } }).html, "<p>Visit 1</p>");
     assert.deepEqual(old.artifacts.read({ artifact_id: "hosted-note", version: 1 })!.payload, { visits: 1 });
-    assert.throws(() => old.ui.unregister("another-plugin"), PluginUiAccessError);
+    // UIERR-01: an actual Plugin client cannot remove another owner or register undeclared content.
+    assert.throws(() => old.ui.unregister("another-plugin"), (error: unknown) => error instanceof ActionError && error.code === "ui_host.plugin_denied" && error.kind === "forbidden");
     assert.throws(() => old.ui.register({ descriptor: { contribution_id: "undeclared", plugin_id: id,
-      kind: "primary-page", label: "No", slots: [] }, render: () => "bad" }), PluginUiAccessError);
+      kind: "primary-page", label: "No", slots: [] }, render: () => "bad" }), (error: unknown) => error instanceof ActionError && error.code === "ui_host.plugin_denied" && error.kind === "forbidden");
     assert.equal(ui.list().length, 1);
     await runtime.reportCrash(installId);
     assert.deepEqual(ui.list(), []);

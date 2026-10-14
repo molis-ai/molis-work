@@ -1,3 +1,5 @@
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -14,7 +16,7 @@ import {
   renderMolisWorkPrimitiveCatalog,
   renderWorkbenchDocument,
 } from "@molis-ai/molis-work-app-workbench";
-import { UiContributionError, UiHost } from "@molis-ai/molis-work-ui-host";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
 
 test("Workbench owns the document shell and escapes document metadata", () => {
   const html = renderWorkbenchDocument({
@@ -64,6 +66,14 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
   };
   const host = new UiHost();
   host.register(contribution);
+  // UIERR-01 / UIERR-02: rejected duplicates and missing content preserve the current registry.
+  const before = host.list();
+  assert.throws(() => host.register(contribution), (error: unknown) => error instanceof ActionError
+    && error.code === "ui_host.contribution_conflict" && error.kind === "conflict" && actionHttpStatus(error) === 409);
+  assert.throws(() => host.render({ contribution_id: "missing-uierr", surface: "panel", model: { title: "Missing" } }), (error: unknown) => error instanceof ActionError
+    && error.code === "ui_host.contribution_not_found" && error.kind === "not_found" && actionHttpStatus(error) === 404);
+  assert.deepEqual(host.list(), before);
+
 
   const mounted = host.mount({
     slot: WORKBENCH_UI_SLOTS.main,
@@ -88,7 +98,7 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
         model: { title: "Wrong slot" },
       },
     }),
-    (error) => error instanceof UiContributionError && error.code === "ui_slot_incompatible",
+    (error) => error instanceof ActionError && error.code === "ui_host.slot_incompatible" && error.kind === "invalid" && actionHttpStatus(error) === 400,
   );
   assert.throws(
     () => host.mount({
@@ -99,7 +109,7 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
         model: { title: "Missing surface" },
       },
     }),
-    (error) => error instanceof UiContributionError && error.code === "ui_surface_invalid",
+    (error) => error instanceof ActionError && error.code === "ui_host.surface_invalid" && error.kind === "invalid" && actionHttpStatus(error) === 400,
   );
 });
 

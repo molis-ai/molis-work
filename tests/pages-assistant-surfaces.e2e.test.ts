@@ -9,6 +9,30 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 const side = `document.querySelector('[data-side-body="plugin:pages/comments"] iframe')?.contentDocument`;
 
+// PAS-14: the moved directory view still exposes failure, retries and recovers through the real Pages client.
+async function checkListRecovery(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>, pageId: string) {
+  const { command, sessionId, navigate, evaluate, waitFor, origin, projectId } = browser;
+  const { identifier } = await command<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", { source: `
+    const originalPagesFetch = window.fetch.bind(window);
+    window.pagesListFailure = '目录暂时离线';
+    window.restorePagesFetch = () => { window.fetch = originalPagesFetch; };
+    window.fetch = (...args) => new URL(String(args[0]), location.href).pathname.endsWith('/api/plugins/pages')
+      ? Promise.reject(new Error(window.pagesListFailure)) : originalPagesFetch(...args);
+  ` }, sessionId);
+  try {
+    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
+    await waitFor("document.querySelector('[data-pages-rows] [role=alert] p')?.textContent === '目录暂时离线'");
+    assert.equal(await evaluate("document.querySelector('[data-pages-empty]').hidden"), true);
+    assert.equal(await evaluate(`(() => {window.pagesListFailure='重试仍离线';const button=document.querySelector('[data-pages-rows] [role=alert] button');button.click();return button.disabled;})()`), true);
+    await waitFor("document.querySelector('[data-pages-rows] [role=alert] p')?.textContent === '重试仍离线' && document.querySelector('[data-pages-rows] [role=alert] button')?.disabled === false");
+    await evaluate("window.restorePagesFetch();document.querySelector('[data-pages-rows] [role=alert] button').click()");
+    await waitFor(`document.querySelector('button[data-page-id="${pageId}"]')`);
+    assert.equal(await evaluate("document.querySelector('[data-pages-rows] [role=alert]') === null"), true);
+  } finally {
+    await command("Page.removeScriptToEvaluateOnNewDocument", { identifier }, sessionId);
+  }
+}
+
 test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active document, preserves drafts and notes; one Assistant composer moves to a main tab and back", { timeout: 120000 }, async t => {
   const browser = await openGoalBrowser(t, true);if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
@@ -22,6 +46,7 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   await waitFor("typeof window.MolisWorkPagesEditor?.mountComments === 'function'");
   assert.equal(await evaluate("document.querySelector('[data-comment-title]')?.textContent"), "选择一篇文档");
   assert.equal(await evaluate("document.querySelectorAll('script[src=\"/assets/molis-work-pages-editor.js\"]').length"), 1);
+  await checkListRecovery(browser, a.id);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${a.id}` }, sessionId));
   await waitFor("document.querySelector('[data-pages-title]')?.value === '讨论中的发布计划'");
   await click('[data-pages-comments-open]');

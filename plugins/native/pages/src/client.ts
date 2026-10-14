@@ -1,4 +1,3 @@
-import { PAGES_LIST_ERROR_SCRIPT } from "./list-client.js";
 import { PAGES_BLANK_CLIENT_SCRIPT } from "./blank-client.js";
 import { PAGES_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
 
@@ -1131,7 +1130,6 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     if (handled) event.preventDefault();
   });
-  ${PAGES_LIST_ERROR_SCRIPT}
-  void loadList().catch((error) => { showNote(error.message || L("文档请求失败"), true); listFailed(error); });
+  void loadList().catch((error) => { showNote(error.message || L("文档请求失败"), true); window.MolisWorkPagesEditor.listFailed({empty,rowsEl,L,loadList},error); });
   void loadGoals();
 }`;

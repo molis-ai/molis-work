@@ -1,5 +1,6 @@
 export { mountComments } from "./comment-side-client.js";
 export { bindComments } from "./comment-editor-client.js";
+export { listFailed } from "./list-client.js";
 import { openEditorComment } from "./editor-comments.js";
 export { focusComment, commentBlock } from "./editor-comments.js";
 import { baseKeymap, chainCommands, setBlockType } from "prosemirror-commands";

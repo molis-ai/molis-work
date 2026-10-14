@@ -2645,3 +2645,6 @@ I33最终674a8a321（含fcd的顺序候选修正）已独立Source接受：两po
 
 
 87真实终结：1条0pass/1fail/0skip，17.57秒；诊断B会话state=running但SDK的w1.state=waiting存在，与I33原顺序覆盖竞态一致，不能当修复后通过。已按精确备份恢复临时diagnostic test。新923+beforeAccept隔离SDK88实际build/tests/pack均0，11文件206/206且无类型错误，SHA256 317d097a1e44f84e501413283bdfa94c4b43ee4ac86a689957b9b83d2853597c，尚未正式上游/换vendor；已在候选具体可审后弹窗询问当前正式上游/换包/删旧vendor授权，未回复不依赖它执行。Root保存仅pkg1/lock5临时patch、恢复自身pkg/lock后merge main9ab，出现27冲突，I8仍merge进行中；96/97未启动，SDK短段已结束并释放名额，已协调Pages可先build/资源、共享全量再排。冲突须保main的AssistantOffers/shared-card新路径与状态展示，并保Root共同错误、原caller lifetime和单请求Helper/异步保存；不能整块ours/theirs或手合派生baseline/assets。
+
+
+I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定已解决。保main AssistantOffers/cardView/shared question/card路径，删除Root旧重复service helper，fail端口复用assistantErrors现行分类；question拒绝用details.errors，经统一requestError.body送字段提示。保Rootcomposer冻结intent/重试身份、完整failure诊断；stale card redo由main Host负责，原send-count按实际3→2而冻结body断言保留。状态环以原Root局部JS标识符映射main新片，保读失败/晚回执护栏；Goals SDK/design deps与lock/registry取并集。served-page-text为main唯一formatter；baseline/assets取main待真实整建派生，不手合。I8新临时SDK88脚本首尝试YAML quoted key锚点未命中，只写pkg；修quoted anchor后实际仅pkg1+/1-、lock5+/5-，无optional节点删除。整合只读再发现新main问题提交/redo的schedule/refresh与Root已定义poll/reload不符，已最小修正；Workflow新helper error状态环改failed，保存失败文案保留，真实拒绝/恢复路径需再验。新的96/97仍未开始，等待Pages15文件短回归释放名额。

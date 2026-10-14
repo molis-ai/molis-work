@@ -2587,3 +2587,7 @@ FIX79-01已改两个fixture当前LocalHost.register并保存126874360，84两文
 FIX79 MCP判断纠正：上条按10-09旧测试推定协议缺陷不成立。唯一总spec§1 2026-10-10已定“原因与码与页面一致、外部工具记一行”，既有725879ff1/W3-09-2-01要求精确授权暂不可用仍由Host结算，tools/list隐藏而callByName保原owner拒绝+可信编号。Source复核拒绝18e4新availability早退gate，它会回归并抹掉诊断；已仅撤此自加行，更新model-unavailable旧预期及comment为Host connection_required，保真实W3-09-2及零模型副作用断言。86自身尚未开始，核唯一queue及只有sleep/无log-results后仅撤本人wrapper，未触foreign；85旧工程证据包含此错误gate不能记为新修正证据。下一整体build再跑MCP新现行用例/缺模型与修好的17Fixture真实业务，不重启重复driver，不问已决定问题。
 
 17夹具已查明缺必需grant并修6项，诊断one-off cleanup安装未running时stop报state_invalid只为诊断脚本失败，不计产品stop缺陷。86单份队列未启动就验证取消，exit143，状态不能写成回归执行/通过；恢复正确MCP gate后Source再次改变，下一整建必须用新源码。当前RootHEAD2f7662527、tempSDK五行，Src未含接受I26–I28、新main f90；此前85错误MCPgate工程日志保留。
+
+FIX79 Shelf输出旧预期：runtime-actions.refused本已明确Common ActionError原样穿透、普通错误才shelf.invalid。I25当前Artifacts同一拒绝已识别Common，真实400+artifact_archived原文与owner code artifacts.plugin_incompatible正确穿透；按既定统一码/跨入口合同只更新原archived选择输出case当前code，status/旧引用/expected_reference/没有覆盖原输出/后续列表全保。不恢复旧bare-class generic wrapper或扩大读取compat。
+
+FIX79-LIFETIME：current create已auto-select并codingDetail=true，旧测试随后点击隐藏directory row；新fixture通过真正可见directory-back→等待detail=false→点原row，保单次create/request/effect与卸载全部断言，生产不改。NETWORK-PULSE-01：原句/英文/匿名账号与HTML默认hidden静态断言全保，删失效的源码实现regex，将等价更强的实际可见性断言移入既有Chrome Alchemist client完整HTTP/SQLite测试；点击pulse/ideas/decisions/directions现行collection，唯pulse notice可见，不放宽timeout或跳过UI。这些四test文件尚未运行，不把修好源码记通过。

@@ -21,10 +21,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The blocking checks are jobs that run side by side and all feed `verify`: `gates` needs no build (the
-  # contracts package alone, for one gate test), `architecture-boundaries` builds the workspace and runs what needs the build.
-  # Each `node scripts/run-tests.mjs` with several files runs them a few at a time, each file with its own MOLIS_WORK_HOME
-  # (scripts/run-tests/pool.mjs, docs/system/PARALLEL-DEVELOPMENT.md §5); MOLIS_WORK_TEST_JOBS sets how many on these 4-core runners.
+  # The blocking checks are jobs that run side by side and all feed `verify`, each about five minutes: `gates` and
+  # `health-gate-rules` need no build (the contracts package alone, for one gate test), `architecture-boundaries` builds the
+  # workspace and runs what needs the build. Each `node scripts/run-tests.mjs` with several files runs them a few at a time, each
+  # file with its own MOLIS_WORK_HOME (scripts/run-tests/pool.mjs, docs/system/PARALLEL-DEVELOPMENT.md §5); MOLIS_WORK_TEST_JOBS
+  # sets how many on these 4-core runners. The runner starts the files that took longest last time first, from the durations it
+  # keeps in node_modules/.cache/molis-work-tests; the "Test durations" step carries that file from run to run (a job of main's
+  # runs seeds a pull request's), so a four-minute file does not start last.
   gates:
     name: Gates
     runs-on: ubuntu-latest
@@ -85,20 +88,57 @@ jobs:
         continue-on-error: true
         run: node scripts/check-spec-coverage.mjs
 
-      # tests/health-gates-errors.test.ts reads the error codes of the built contracts package; nothing else in this job needs a build.
+      - name: Test durations
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/molis-work-tests
+          key: test-durations-${{ github.job }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-
+
+      # Every gate above, and the runners and scanners of this workflow, is mutation-verified on a scratch repository: one
+      # violation added on a branch fails, and so does the same branch after `--update` rewrote the baseline (the package
+      # inventory; translations; release versions; the document and repository-shape rules; vendored package records; the numeric
+      # health gates are in `health-gate-rules`); a planted key is caught by the secret scan (the secret-scan job has no
+      # dependencies installed, so its rules are tested here); the Linux probe and the product subset runners keep their rules
+      # (they only report, or do not block yet: their own jobs below), and so does the parallel test runner every step here uses
+      # (scripts/run-tests/pool.mjs: caps, one Home per file, a failing file shown); the Cursor Skill links hold.
+      - name: Gate rules reject what they claim to
+        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts tests/translation-check.test.ts tests/package-inventory-gate.test.ts tests/vendor-provenance.test.ts tests/verify-release-versions.test.ts tests/secret-scan.test.ts tests/ci-linux-probe.test.ts tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts tests/run-tests-pool.test.ts tests/cursor-skill-links.test.ts
+
+  # The health gates' own rules (scripts/check-health-gates.mjs and scripts/gates/): each one is broken once on a scratch repository
+  # and must go red, and so must the same branch after `--update` rewrote the baseline. The glob takes every
+  # tests/health-gates-*.test.ts, so a new gate's test needs no edit here. Its own job because together they are the longest set.
+  health-gate-rules:
+    name: Health gate rules
+    runs-on: ubuntu-latest
+    env:
+      MOLIS_WORK_TEST_JOBS: 4
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # tests/health-gates-errors.test.ts reads the error codes of the built contracts package; nothing else here needs a build.
       - name: Build the contracts package
         run: pnpm --filter @molis-ai/molis-work-contracts run build
 
-      # Every gate above, and the runners and scanners of this workflow, is mutation-verified on a scratch repository: one
-      # violation added on a branch fails, and so does the same branch after `--update` rewrote the baseline (the health gates
-      # and every tests/health-gates-*.test.ts, so a new gate's test needs no edit here; the package inventory; translations;
-      # release versions; the document and repository-shape rules; vendored package records); a planted key is caught by the
-      # secret scan (the secret-scan job has no dependencies installed, so its rules are tested here); the Linux probe and the
-      # product subset runners keep their rules (they only report, or do not block yet: their own jobs below), and so does the parallel
-      # test runner every step here uses (scripts/run-tests/pool.mjs: caps, one Home per file, a failing file shown); the Cursor Skill
-      # links hold.
-      - name: Gate rules reject what they claim to
-        run: node scripts/run-tests.mjs tests/health-gates-*.test.ts tests/package-inventory-gate.test.ts tests/translation-check.test.ts tests/verify-release-versions.test.ts tests/doc-reference-gates.test.ts tests/vendor-provenance.test.ts tests/secret-scan.test.ts tests/ci-linux-probe.test.ts tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts tests/run-tests-pool.test.ts tests/cursor-skill-links.test.ts
+      - name: Test durations
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/molis-work-tests
+          key: test-durations-${{ github.job }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-
+
+      - name: Health gates reject what they claim to
+        run: node scripts/run-tests.mjs tests/health-gates-*.test.ts
 
   architecture-boundaries:
     name: Package boundaries
@@ -120,6 +160,13 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Test durations
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/molis-work-tests
+          key: test-durations-${{ github.job }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-
 
       # Boundary rules, then every workspace package built (`tsc` of each package also type-checks it, so a type error fails here).
       - name: Verify package contracts and boundaries
@@ -277,7 +324,7 @@ jobs:
 
   verify:
     name: Verify
-    needs: [gates, architecture-boundaries, secret-scan, native-checks, shell-checks]
+    needs: [gates, health-gate-rules, architecture-boundaries, secret-scan, native-checks, shell-checks]
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection.
     # The full product suite runs locally; the gates, package boundaries, the contract subset, the secret scan and the Rust, Swift and shell checks run here.
@@ -286,17 +333,19 @@ jobs:
       - name: Required package gate passed
         env:
           GATES_RESULT: ${{ needs.gates.result }}
+          HEALTH_GATE_RULES_RESULT: ${{ needs.health-gate-rules.result }}
           PACKAGE_BOUNDARIES_RESULT: ${{ needs.architecture-boundaries.result }}
           SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
           NATIVE_CHECKS_RESULT: ${{ needs.native-checks.result }}
           SHELL_CHECKS_RESULT: ${{ needs.shell-checks.result }}
         run: |
           test "$GATES_RESULT" = "success"
+          test "$HEALTH_GATE_RULES_RESULT" = "success"
           test "$PACKAGE_BOUNDARIES_RESULT" = "success"
           test "$SECRET_SCAN_RESULT" = "success"
           test "$NATIVE_CHECKS_RESULT" = "success"
           test "$SHELL_CHECKS_RESULT" = "success"
-          echo "Gates, package boundary, Contract, typecheck, build, action contract, secret scan, Rust, Swift and shell verification passed."
+          echo "Gates, health gate rules, package boundary, Contract, typecheck, build, action contract, secret scan, Rust, Swift and shell verification passed."
 
   # Security invariants (docs/system/SECURITY-INVARIANTS.md; specs/repository-anti-corruption §4.18): each one has a test that asserts the
   # refusal itself: a foreign Host, Origin, token or key; a socket without the token; an
@@ -326,6 +375,13 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Test durations
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/molis-work-tests
+          key: test-durations-${{ github.job }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-
 
       # The same packages the step had when it ran after `pnpm workspace:verify`.
       - name: Build

@@ -15,15 +15,17 @@ const scratch: string[] = [];
 const directory = () => { const made = mkdtempSync(path.join(tmpdir(), "molis-run-tests-pool-")); scratch.push(made); return made; };
 after(() => { for (const made of scratch) rmSync(made, { recursive: true, force: true }); });
 
-test("plan: the longest expected file starts first; a file with no recorded duration is guessed, longer for a browser file", () => {
+test("plan: the longest expected file starts first; a file with no recorded duration is guessed, longer for a browser file; ties keep the caller's order", () => {
   const entries = [
     { file: "tests/a.test.ts", browser: false },
     { file: "tests/b.e2e.test.ts", browser: true },
     { file: "tests/c.test.ts", browser: false },
+    { file: "tests/e.test.ts", browser: false },
     { file: "tests/d.test.ts", browser: false },
   ];
   const order = plan(entries, { "tests/a.test.ts": 3, "tests/c.test.ts": 120 }).map((entry) => entry.file);
-  assert.deepEqual(order, ["tests/c.test.ts", "tests/b.e2e.test.ts", "tests/d.test.ts", "tests/a.test.ts"]);
+  assert.deepEqual(order, ["tests/c.test.ts", "tests/b.e2e.test.ts", "tests/e.test.ts", "tests/d.test.ts", "tests/a.test.ts"]);
+  assert.deepEqual(Object.keys(plan(entries, {})[0]).sort(), ["browser", "expected", "file"]);
 });
 
 test("runQueue: never more than `jobs` files at once nor more than `browserJobs` browser files, and every file runs once", async () => {

@@ -29,11 +29,12 @@ export function writeDurations(file, durations) {
   renameSync(temporary, file);
 }
 
-/** The files in the order they start: longest expected first (ties by name), each marked browser or not. */
+/** The files in the order they start: longest expected first, ties in the order the caller named them, each marked browser or not. */
 export function plan(entries, durations) {
   const expected = (entry) => durations[entry.file] ?? GUESS_SECONDS[entry.browser ? "browser" : "other"];
-  return entries.map((entry) => ({ ...entry, expected: expected(entry) }))
-    .sort((a, b) => b.expected - a.expected || a.file.localeCompare(b.file));
+  return entries.map((entry, index) => ({ ...entry, expected: expected(entry), index }))
+    .sort((a, b) => b.expected - a.expected || a.index - b.index)
+    .map(({ index: _index, ...entry }) => entry);
 }
 
 /**

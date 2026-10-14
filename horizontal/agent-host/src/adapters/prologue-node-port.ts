@@ -8,7 +8,7 @@ import { createPrologueGitReviews } from "./prologue-git.js";
 import { MAX_BROADCAST } from "./prologue-messages.js";
 import { createPrologueSkillLibrary } from "./prologue-methods.js";
 import { workPaths } from "./prologue-project-work.js";
-import { answerProblems, projectQuestion, questionUnavailable } from "./prologue-questions.js";
+import { answerProblems, projectQuestion, questionUnavailable, refusedReferences } from "./prologue-questions.js";
 import type { createPrologueRecovery } from "./prologue-recovery.js";
 import { startPrologueRun, type RunDeps } from "./prologue-run.js";
 import type { createPrologueSchedule } from "./prologue-schedule.js";
@@ -280,7 +280,7 @@ export function questionReader(runtime: Runtime) {
 }
 
 /** The adapter's answer path: the original question, still open in a live run, answered in its own kind. */
-export function answerPending(deps: Pick<PortDeps, "runtime" | "host" | "state" | "readQuestion">): NonNullable<PrologueAdapterOptions["answerPending"]> {
+export function answerPending(deps: Pick<PortDeps, "runtime" | "host" | "state" | "readQuestion" | "index" | "options">): NonNullable<PrologueAdapterOptions["answerPending"]> {
   return async (run, answer) => {
     const { runtime } = deps;
     if (!Number.isInteger(answer.pending_revision) || answer.pending_revision! < 1) {
@@ -297,6 +297,9 @@ export function answerPending(deps: Pick<PortDeps, "runtime" | "host" | "state" 
       if (!answer.answers || answer.text !== undefined) throw new PrologueAdapterError("agent.answer_invalid", "请按原问卷逐题回答");
       const problems = answerProblems(pending.questions, answer.answers);
       if (problems.length) throw new PrologueAdapterError("agent.answer_invalid", `有 ${problems.length} 道题的回答不能提交`, problems);
+      // A picked object is used only while its owner still hands it to the session's owner (S-24).
+      const refused = await refusedReferences(deps.options.confirmReferences, (await deps.index.read(run.session_id).catch(() => undefined))?.owner, pending.questions, answer.answers);
+      if (refused.length) throw new PrologueAdapterError("agent.answer_invalid", "选的对象现在不能用，请重新选择", refused);
       await runtime.effects.pendings.answer(pending.ref, { kind: "questionnaire", answers: answer.answers }, now);
     }
   };

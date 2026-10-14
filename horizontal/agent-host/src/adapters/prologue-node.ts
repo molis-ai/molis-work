@@ -176,7 +176,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       return Boolean(guard?.writing && held?.has("announce") && announcesWithoutActing(text));
     },
     approvals,
-    answerPending: answerPending({ runtime, host, state, readQuestion }),
+    answerPending: answerPending({ runtime, host, state, readQuestion, index, options }),
   }), { inference, createBuilderAgent, gitReviews, diagnostics: () => runtimeDiagnostics(runtime),
     /** The person's standing site decisions for the side panel's browser, applied to the running runtime. */
     surfaces: surfaceHost ? { decide: (decision: Parameters<PrologueSurfaces["decide"]>[0]) => surfaceHost!.decide(decision) } : undefined,

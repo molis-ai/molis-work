@@ -50,6 +50,9 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         storageRoot: agentRuntimeDirectory(storageHome),
         // The question types every surface that shows a run's questions can draw (specs/ai-interaction-experience D8).
         questionTypes: hostQuestionTypes(),
+        // A picked object goes on only while its owner still hands it to the local person, read through search (S-24).
+        confirmReferences: async (sessionOwner, picked, kinds) => sessionOwner.actor_id === LOCAL_PERSON_ACTOR_ID && localHost.search
+          ? localHost.search.confirmReferences(sessionOwner.project_id, picked, kinds) : picked.map(() => false),
         // The side panel's browser and the desktop desk, when the server that owns them registered them for this Host
         // (specs/archive/side-panel P5, specs/computer-use).
         surfaces: {

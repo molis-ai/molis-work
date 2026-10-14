@@ -1,3 +1,4 @@
+import { PagesComments } from "./comments-store.js";
 import { extractFromPagesBody, unpublishedKnowledgePages } from "./extract.js";
 import { homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { realpathSync } from "node:fs";
@@ -51,7 +52,10 @@ const attemptKey = (record: Pick<PagesGenerationRecord, "project_id" | "request_
   `${record.project_id}\u0000${record.request_id}\u0000${record.updated_at}`;
 
 export class PagesStore {
-  constructor(private readonly db: DatabaseSync, private readonly attempts = new Map<string, boolean>()) {}
+  readonly comments: PagesComments;
+  constructor(private readonly db: DatabaseSync, private readonly attempts = new Map<string, boolean>()) {
+    this.comments = new PagesComments(db, (id, project) => this.get(id, project));
+  }
 
   /** Memory only: a refused call releases only this database's attempt, including after reopening its Store. */
   releaseGenerationAttempt(record: Pick<PagesGenerationRecord, "project_id" | "request_id" | "updated_at">): void {
@@ -340,12 +344,7 @@ export class PagesStore {
 
   /** Keep what an edit replaced, so it can be taken back while nothing changed since; returns the change's id. */
   keepChange(before: PagesRecord, after: PagesRecord): string {
-    const changeId = crypto.randomUUID();
-    const now = new Date();
-    this.db.prepare("DELETE FROM page_changes WHERE created_at < ?").run(new Date(now.getTime() - 14 * 24 * 3600_000).toISOString());
-    this.db.prepare("INSERT INTO page_changes(change_id, page_id, to_version, before_json, created_at) VALUES (?, ?, ?, ?, ?)")
-      .run(changeId, after.id, after.version, JSON.stringify({ title: before.title, body: before.body, folder_id: before.folder_id, starred: before.starred, goal_id: before.goal_id }), now.toISOString());
-    return changeId;
+    return keepPagesChange(this.db, before, after);
   }
 
   /** Take one kept edit back: the document returns to what it was before, only if no one changed it since. */
@@ -427,11 +426,20 @@ export class PagesStore {
   }
 }
 
+function keepPagesChange(db: DatabaseSync, before: PagesRecord, after: PagesRecord): string {
+    const changeId = crypto.randomUUID();
+    const now = new Date();
+    db.prepare("DELETE FROM page_changes WHERE created_at < ?").run(new Date(now.getTime() - 14 * 24 * 3600_000).toISOString());
+    db.prepare("INSERT INTO page_changes(change_id, page_id, to_version, before_json, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run(changeId, after.id, after.version, JSON.stringify({ title: before.title, body: before.body, folder_id: before.folder_id, starred: before.starred, goal_id: before.goal_id }), now.toISOString());
+    return changeId;
+}
+
 /**
  * The Pages store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version. Columns keep the order existing stores have them in.
  */
-export const PAGES_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const PAGES_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
   CREATE TABLE pages (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL DEFAULT '',
@@ -447,6 +455,7 @@ export const PAGES_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
     artifact_version INTEGER NOT NULL DEFAULT 0,
     publication_pending_json TEXT
   );
+  CREATE TABLE page_comments (page_id TEXT NOT NULL REFERENCES pages(id) ON DELETE CASCADE, thread_id TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(page_id,thread_id));
   CREATE TABLE folders (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL DEFAULT '',

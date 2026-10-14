@@ -11,7 +11,7 @@ import path from "node:path";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import { workspaceRefFor } from "./agent-host-composition.js";
 import { ensureSystemAgentService } from "./system-agent-service.js";
-import { createMolisWorkLocalHost } from "./project-host.js";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "./project-host.js";
 import { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import { resolveWebControlToken } from "./web-control-token.js";
@@ -238,7 +238,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     schedulerTimer.unref();
     // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
     // running is reported, never replayed late.
-    const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready,
+    const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready, projectReference: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
       projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }) }).service;
     // Timed rounds live in Prologue's durable queue: the Assistant becomes their runner as soon as the runtime is up.
     // With timed work waiting the runtime is started for it; otherwise the runner joins whenever something starts the

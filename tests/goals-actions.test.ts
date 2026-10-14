@@ -84,6 +84,14 @@ test("Goals actions keep the runtime author; the management caller and the first
 });
 
 test("official MCP launcher discovers granted Goals actions and writes into the shared Host", { timeout: 60_000 }, async t => {
+  const started = Date.now(), recent: string[] = []; let active = "create Home";
+  const traceAbort = () => t.diagnostic(`Goals MCP timed out or was interrupted at ${active}; elapsed=${Date.now() - started}ms; completed=${recent.join("; ")}`);
+  t.signal.addEventListener("abort", traceAbort, { once: true });
+  const step = async <T>(name: string, work: () => Promise<T>): Promise<T> => {
+    active = name; const began = Date.now(); const result = await work();
+    recent.push(`${name}=${Date.now() - began}ms`); if (recent.length > 6) recent.shift();
+    active = `after ${name}`; return result;
+  };
   const home = await mkdtemp(join(tmpdir(), "goals-actions-mcp-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "MCP Goals", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
@@ -92,9 +100,15 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
   // A Runtime write through MCP is recorded under the Session the launcher declares.
   const sessionActor = `${caller.actor_id}:goals-actions-session`;
   // The Host's own web server: the access settings the grants go through, and the gateway the MCP launcher reaches.
-  const served = await serveTestHost(t, { home, host });
+  const served = await step("Host HTTP startup", () => serveTestHost(t, { home, host }));
   const origin = served.origin;
   const sdk = new Client({ name: "untrusted-client-name", version: "1" });
+  // These wrappers forward every argument to the real methods; they only name a stalled stage.
+  const callTool = sdk.callTool.bind(sdk), listTools = sdk.listTools.bind(sdk), revoke = served.revoke.bind(served), grant = served.grant.bind(served);
+  t.mock.method(sdk, "callTool", (...args: Parameters<typeof sdk.callTool>) => step(`MCP ${args[0].name}`, () => callTool(...args)));
+  t.mock.method(sdk, "listTools", (...args: Parameters<typeof sdk.listTools>) => step("MCP tools/list", () => listTools(...args)));
+  t.mock.method(served, "grant", (...args: Parameters<typeof served.grant>) => step(`Host grant ${args[2].map(view => view.capability_id).join(",")}`, () => grant(...args)));
+  t.mock.method(served, "revoke", (...args: Parameters<typeof served.revoke>) => step(`Host revoke ${args[2].map(view => view.capability_id).join(",")}`, () => revoke(...args)));
   try {
     await withCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({
       context: { runtime_id: "goals-actions", stable_work_context_id: "goals-actions-session", host_declares_stable: true },
@@ -106,7 +120,7 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
       MOLIS_WORK_WORK_CONTEXT_ID: "goals-actions-session", MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
     }, stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", chunk => { errors += String(chunk); });
-    await sdk.connect(transport).catch(error => { throw new Error(String(error) + errors); });
+    await step("MCP initialize", () => sdk.connect(transport)).catch(error => { throw new Error(String(error) + errors); });
     const name = molisWorkActionToolName(goalsActions.create);
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), false);
     const views = (await host.inspectActions(caller, ref)).filter(view => Object.values(goalsActions).some(action => action.capability_id === view.capability_id));
@@ -115,7 +129,7 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     assert.deepEqual(views.map(view => view.capability_id).sort(), declaredForMcp.map(action => action.capability_id).sort());
     assert.equal(views.some(view => view.capability_id === goalsActions.decide.capability_id), false);
     // Every Goals action the declaration offers a model's client (the assertion above), saved through the access settings.
-    await grantGoalsMcp(served, project, caller.actor_id);
+    await step("Host grant Goals actions", () => grantGoalsMcp(served, project, caller.actor_id));
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), true);
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === molisWorkActionToolName(goalsActions.decide)), false);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(goalsActions.decide), arguments: { goal_id: "forged", idempotency_key: "forged",
@@ -377,7 +391,8 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
       assert.equal((await sdk.callTool({ name, arguments: payload })).isError, true);
     }
   } finally {
-    await sdk.close(); await served.close(); await host.close();
-    await rm(home, { recursive: true, force: true });
+    await step("MCP close", () => sdk.close()); await step("HTTP close", () => served.close()); await step("Host close", () => host.close());
+    await step("remove Home", () => rm(home, { recursive: true, force: true }));
+    t.signal.removeEventListener("abort", traceAbort);
   }
 });

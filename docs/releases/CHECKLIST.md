@@ -49,7 +49,7 @@
 | Images | `images/images.db` | 1 | `user_version` | `plugins/native/images/src/store.ts#IMAGES_STORE_BASELINE` | 拒绝 |
 | Jelly | `jelly/jelly.db` | 1 | `user_version` | `plugins/native/jelly/src/store.ts#JELLY_STORE_BASELINE` | 拒绝 |
 | 灵光 | `lingguang/lingguang.db` | 1 | `user_version` | `plugins/native/lingguang/src/store.ts#LINGGUANG_STORE_BASELINE` | 拒绝 |
-| Pages | `pages/pages.db` | 1 | `user_version` | `plugins/native/pages/src/store.ts#PAGES_STORE_BASELINE` | 拒绝 |
+| Pages | `pages/pages.db` | 2 | `user_version` | `plugins/native/pages/src/store.ts#PAGES_STORE_BASELINE` | 拒绝 |
 | PPT | `ppt/ppt.db` | 1 | `user_version` | `plugins/native/ppt/src/store.ts#PPT_STORE_BASELINE` | 拒绝 |
 | Todo | `todo/todo.db` | 1 | `user_version` | `plugins/native/todo/src/store.ts#TODO_STORE_BASELINE` | 拒绝 |
 | Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/store.ts#WORKFLOWS_STORE_BASELINE` | 拒绝 |
@@ -61,6 +61,7 @@
 | MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 2 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 读成空，所有 MCP 动作授权失效 |
 | 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝 |
 
+- Pages 评论线程将库基线从 1 改为 2，新增 `page_comments`，正文与块备注保持原结构。旧 Home 仍拒绝直接打开；真实 Home 尚未执行这一项维护，发布前须在副本演练并取得维护授权。实现与隔离验证见 [Pages 与助理规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
 - 「拒绝」是 `applySqliteBaseline` 的行为（`packages/storage/src/sqlite-baseline.ts`）：空文件建基线并写版本，版本相同照常打开，其他一律报错，带路径、找到的版本和期望的版本，不就地升级。目录库与会话库用自己的 meta 表，同样只认当前版本（`apps/local-host/src/catalog-schema.ts` 的 `assertCurrentCatalog`、`modules/private-work-context/src/session-schema.ts`）。
 - （实验插件已在 2026-10-10 删除，它的私有库不在上表里，Home 里残留的目录由第 4.3 节的维护六移出；下面是维护五当时的写法，作为历史保留。）实验插件私有库和炼金术士搜索缓存原来没有版本（`CREATE TABLE IF NOT EXISTS`，旧库和新库没有区别），路线图 W2-05（用户 2026-10-08 决定 #21）给它们各一份基线，版本 1。新建的文件带版本；已经存在的旧文件有表没有版本，新构建拒绝打开，所以真实 Home 的实验库要先盖版本 1：一次性维护 `tests/fixtures/store-maintenance-experiments-private-v1.sql`（炼金术士搜索库对应 `store-maintenance-alchemist-search-v1.sql`，对每个 `search.sqlite` 各跑一次；2026-10-08 的真实 Home 里没有这种文件），每份一个事务，库不是未盖版本且与基线逐项一致就整体回滚，只写 `PRAGMA user_version = 1`、不动任何表和行。窗口里用同目录的 `store-maintenance-run.sh` 跑（先演练再 `--apply`，会先整份备份），`store-maintenance-verify-open.mjs` 用新构建打开盖过的拷贝；逐步命令与演练记录见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的维护五。真实 Home 已于 2026-10-09 做完（维护五：`plugins/experiments/private.sqlite` 盖到 1，备份 `~/molis-work-backups/2026-10-09-before-maint5-r2`），这两份 SQL、两个脚本和演练用例 `tests/store-version-maintenance.test.ts` 随后删除；别的 Home 若还有未盖版本的文件，从 Git 历史取（`git show bccdcee17:tests/fixtures/store-maintenance-run.sh` 等）。「无」只留给没有任何版本标记的库，现在这张表里没有；表里的行由 `verify-release-versions.mjs` 对着基线常量核对。
 - 项目库 v7（2026-10-10，用户决定删除 Casebook）比 v6 少 Casebook 的 5 张表（`casebook_interaction_scopes`、`casebook_interaction_facts`、`casebook_goal_contexts`、`casebook_interaction_audit_keys`、`casebook_interaction_actions`），别的表没变。新构建拒绝 v6 的项目库，只认 6 的旧构建（Home 安装版、已开着的会话里的 MCP）拒绝 v7，所以带这一行的发布要先做真实 Home 的维护六，见第 4.3 节。

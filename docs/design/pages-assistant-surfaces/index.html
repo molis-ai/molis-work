@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Pages 与个人助理 · Molis Work 交互切片</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="icons" aria-hidden="true"></div>
+  <header class="windowbar">
+    <div class="brand"><span class="brand-mark">m</span><strong>Molis Work</strong><span class="slash">/</span><span>产品工作室</span></div>
+    <div class="preview-tools"><span class="preview-label">交互切片 · 示例数据 / 模拟 AI</span><button data-action="theme" class="icon-button" aria-label="切换明暗外观" title="切换明暗外观" data-icon="sun"></button><button data-action="lab" class="icon-button" aria-label="切片说明与状态演示" data-icon="sliders"></button></div>
+  </header>
+  <div class="desk" id="desk">
+    <main class="sheet" aria-label="主工作区">
+      <nav class="workspace-tabs" aria-label="主区标签" role="tablist" id="workspace-tabs"></nav>
+      <section id="pages-view" class="pages-view">
+        <aside class="directory" aria-label="Pages 文档目录">
+          <div class="directory-title"><span data-icon="note"></span><strong>Pages</strong></div>
+          <p class="directory-caption">产品工作室</p>
+          <button class="directory-item" data-doc="launch"><span data-icon="file"></span>第一次使用</button>
+          <button class="directory-item" data-doc="research"><span data-icon="file"></span>访谈观察</button>
+          <div class="directory-bottom"><span data-icon="folder"></span><span>个人文稿 · 2 篇</span></div>
+        </aside>
+        <div class="document-shell">
+          <div class="document-toolbar"><span id="breadcrumb"></span><div><span class="saved"><span class="tiny-dot"></span>示例文稿</span><button data-action="comment-page" aria-label="评论整篇 Page"><span data-icon="message"></span><span>评论</span><span id="comment-count" class="count"></span></button></div></div>
+          <div class="document-scroll" id="document-scroll"><article class="prose" id="prose"></article></div>
+          <div class="document-foot"><span>Pages</span><span>选中文字，或点击文中评论标记</span><span id="word-count"></span></div>
+        </div>
+      </section>
+      <div id="assistant-stage" hidden></div>
+    </main>
+    <div class="side-divider" id="divider" role="separator" aria-label="调整侧栏宽度" aria-orientation="vertical" tabindex="0"></div>
+    <aside class="side-sheet" id="side-sheet" aria-label="辅助侧栏">
+      <header class="side-tabs" role="tablist" aria-label="侧栏内容">
+        <button data-side="context" role="tab" id="context-tab"><span data-icon="message"></span><span>Pages</span></button>
+        <button data-side="discussion" role="tab"><span data-icon="messages"></span><span>讨论</span></button>
+        <button data-side="shelf" role="tab"><span data-icon="archive"></span><span>Shelf</span></button>
+        <button data-action="side-close" class="icon-button close-side" aria-label="收起侧栏" data-icon="x"></button>
+      </header>
+      <div class="side-content" id="side-content"></div>
+    </aside>
+  </div>
+  <div id="floating-home">
+    <section class="assistant-panel" id="assistant" aria-label="个人助理对话" hidden>
+      <header class="assistant-head"><span class="assistant-emblem" data-icon="sparkles"></span><div><strong>梳理发布方案</strong><small>个人助理 · 产品工作室</small></div><button data-action="assistant-place" class="icon-button" id="assistant-place" aria-label="在主区展开" title="在主区展开" data-icon="maximize"></button><button data-action="assistant-close" class="icon-button" aria-label="收起对话" title="收起对话" data-icon="x"></button></header>
+      <div class="assistant-context"><span data-icon="file"></span><span>第一次使用</span><span class="scope-label">本次会话引用 · 不随页面切换</span></div>
+      <div class="assistant-messages" id="assistant-messages"></div>
+      <form class="assistant-composer" id="assistant-form"><label for="assistant-input" class="sr-only">给个人助理的消息</label><textarea id="assistant-input" placeholder="继续聊聊发布方案…" rows="2"></textarea><div class="composer-bottom"><span id="assistant-status">模拟回复 · 不修改正文</span><button type="submit" class="primary icon-button" aria-label="发送给个人助理" data-icon="arrow-up"></button></div></form>
+    </section>
+  </div>
+  <footer class="dock">
+    <div class="dock-plugins"><span class="dock-mark">m</span><button class="dock-plugin active" data-doc="launch"><span data-icon="note"></span><span>Pages</span></button></div>
+    <button class="dock-composer" data-action="assistant-open"><span class="assistant-emblem" data-icon="sparkles"></span><span id="dock-hint">问问个人助理，或继续上次的工作…</span><kbd>⌘ J</kbd><span data-icon="arrow-up"></span></button>
+    <div class="dock-residents"><button data-action="shelf" class="icon-button" aria-label="打开 Shelf" data-icon="archive"></button><button data-action="side-toggle" class="icon-button" aria-label="切换侧栏" data-icon="sidebar"></button><span class="avatar">骏</span></div>
+  </footer>
+  <button id="selection-comment" class="selection-comment" data-action="comment-selection" hidden><span data-icon="message"></span>评论所选内容</button>
+  <section class="lab" id="lab" aria-label="切片说明与状态演示" hidden>
+    <header><strong>体验这三个变化</strong><button data-action="lab" class="icon-button" aria-label="关闭切片说明" data-icon="x"></button></header>
+    <p>1. 点击正文的浅铜色标记，在右侧接着讨论。</p><p>2. 点「@个人助理」，发送后切到另一篇 Page，再回来查看回复。</p><p>3. 打开底部助理，点展开图标，让同一对话进入主区标签。</p>
+    <label class="check-row"><input type="checkbox" id="fail-next">下一次评论 AI 回复模拟失败</label>
+    <p class="muted">正文为只读示例；选区、评论、备注和会话可操作。AI 使用本地预设回复，不连接模型或真实 Home。草稿只保存在本浏览器。刷新时未结束的模拟请求转为待重试。</p>
+    <button data-action="reset-demo">重置本切片的示例与草稿</button>
+  </section>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script src="./icons.js"></script>
+  <script src="./data.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

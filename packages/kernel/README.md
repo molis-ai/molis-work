@@ -98,3 +98,5 @@ node scripts/run-tests.mjs tests/local-host.test.ts
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
 `createExecutionLifetime` 统一进程内取消、时限和同步周期监测。实现在 `@molis-ai/molis-work-plugin-sdk`（`src/execution-lifetime.ts`）：外部作者装的只有 contracts 与 SDK，工具放在这里，SDK 不必依赖私有的 Kernel；内核、宿主、调度服务、Shelf 模块和沙箱都直接从 SDK 取同一份，内核自己不再转出。取消后停止监测，异步等待后调用 `assertActive()` 再进入原事务/版本校验；`dispose()` 在 finally 中释放资源并拒绝迟到回调。它不登记任务、不保存状态、不恢复或重试。Alchemist 用于租约续期，Images 用于持久取消检查及 180 秒时限。
+
+后台动作所有者可在处理器仍存活时调用 `ActionExecutionContext.retainAuthority(references)`，保留已有动作的授权和注册实例检查。返回的函数不延长 `beforeEffect`，不授予新能力；后台开始新调用之前应执行它，并在新调用的可信 `validate_authority` 中继续执行。原提供方重新注册、外部撤权或原入口取消均拒绝旧结果。它不持久化：宿主重启后恢复投递需要新的显式用户请求。验证：`node scripts/run-tests.mjs tests/action-retained-authority.test.ts`。

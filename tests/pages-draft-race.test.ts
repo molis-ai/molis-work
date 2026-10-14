@@ -146,8 +146,9 @@ test("Pages 切换文档会先保存离开的草稿，旧响应不能把新正�
     activeElement: null as FakeNode | null,
     body: { dataset: { routePrefix: "" } },
   };
-  const windowStub = {
+  const windowStub = { addEventListener: EventTarget.prototype.addEventListener.bind(new EventTarget()),
     MolisWorkPagesEditor: {
+      bindComments: () => async () => {},
       emptyDoc: () => "empty",
       mount: (_host: unknown, options: { doc: string; onChange: () => void }) => {
         editorBody = options.doc;
@@ -306,8 +307,9 @@ test("Pages 保存失败时不发布、不关闭、不切走草稿", async () =>
   };
   Object.assign(globalThis, {
     document: documentStub,
-    window: {
+    window: { addEventListener: EventTarget.prototype.addEventListener.bind(new EventTarget()),
       MolisWorkPagesEditor: {
+      bindComments: () => async () => {},
         emptyDoc: () => "empty",
         mount: (_host: unknown, options: { doc: string; onChange: () => void }) => {
           editorBody = options.doc;

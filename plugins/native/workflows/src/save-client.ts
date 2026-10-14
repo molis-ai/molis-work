@@ -5,15 +5,15 @@
 export const WORKFLOW_SAVE_SCRIPT = String.raw`
   const edits = new Map();
   const pendingEdits = new Map();
-  let saveQueue = Promise.resolve();
-  let saveTimer = 0;
-  const draftKey = () => memoryKey() + ':drafts';
+  let queue = Promise.resolve();
+  let saveId = 0;
+  const draftId = () => stateKey() + ':drafts';
   function retain() {
-    try { sessionStorage.setItem(draftKey(), JSON.stringify([...edits].filter(([, edit]) => Object.keys(edit.patch).length).map(([id, edit]) => [id, { flow: edit.flow, patch: edit.patch, error: edit.error }]))); }
+    try { sessionStorage.setItem(draftId(), JSON.stringify([...edits].filter(([, edit]) => Object.keys(edit.patch).length).map(([id, edit]) => [id, { flow: edit.flow, patch: edit.patch, error: edit.error }]))); }
     catch { /* The live editor still retains its draft if session storage is unavailable. */ }
   }
   try {
-    for (const [id, edit] of JSON.parse(sessionStorage.getItem(draftKey()) || '[]')) edits.set(id, { ...edit, pending: 0, error: edit.error || L('保存失败') });
+    for (const [id, edit] of JSON.parse(sessionStorage.getItem(draftId()) || '[]')) edits.set(id, { ...edit, pending: 0, error: edit.error || L('保存失败') });
   } catch { /* An unreadable saved draft does not prevent opening the stored workflow. */ }
   const draftOf = (flow) => {
     if (!edits.has(flow.workflow_id)) edits.set(flow.workflow_id, { flow, patch: {}, pending: 0, error: null });
@@ -26,8 +26,8 @@ export const WORKFLOW_SAVE_SCRIPT = String.raw`
     if (!edit.pending && row.revision >= edit.flow.revision) applyPatch(Object.assign(edit.flow, row), edit.patch);
     return edit.flow;
   }
-  function saveState(mode) {
-    const edit = state.workflow && edits.get(state.workflow.workflow_id);
+  function paintSave(mode) {
+    const edit = ui.workflow && edits.get(ui.workflow.workflow_id);
     mode ||= edit?.error ? 'error' : edit?.pending ? 'saving' : 'saved';
     const el = root.dataset.wfMode === 'workflow' && view.querySelector('[data-wf-save-state]');
     if (!el) return;
@@ -35,7 +35,7 @@ export const WORKFLOW_SAVE_SCRIPT = String.raw`
     el.innerHTML = mode === 'error' ? tx('保存失败') + ' <button type="button" class="mw-btn mw-btn--link" data-wf-action="retry-save"' + (edit?.pending ? ' disabled' : '') + '>' + tx('重试') + '</button>'
       : mode === 'saving' ? '<span class="mw-spinner" aria-hidden="true"></span><span>' + tx('正在保存…') + '</span>' : ico('check') + '<span>' + tx('已保存') + '</span>';
   }
-  function flushEdits() {
+  function flushSave() {
     const pending = [...pendingEdits.values()]; pendingEdits.clear();
     for (const edit of pending) { clearTimeout(edit.timer); saveFlow(edit.patch, edit.flow); }
   }
@@ -48,14 +48,14 @@ export const WORKFLOW_SAVE_SCRIPT = String.raw`
   const undos = [];
   const configured = (link) => link.kind !== 'manual' || Boolean(link.title_template || link.body_template || link.instructions);
   function undo() {
-    const flow = state.workflow; const last = undos.pop();
+    const flow = ui.workflow; const last = undos.pop();
     if (!flow || !last || last.id !== flow.workflow_id) { undos.length = 0; return false; }
     if (pop.matches(':popover-open')) pop.hidePopover();
     saveFlow({ chain: last.chain, undo: true }); toast(L('已撤回这次改动')); return true;
   }
-  function saveFlow(patch, flow = state.workflow) {
+  function saveFlow(patch, flow = ui.workflow) {
     if (!flow) return;
-    flushEdits();
+    flushSave();
     if (patch.chain && patch.undoable) {
       undos.push({ id: flow.workflow_id, chain: JSON.parse(JSON.stringify({ stations: flow.stations, links: flow.links })) });
       if (undos.length > 30) undos.shift();
@@ -64,35 +64,35 @@ export const WORKFLOW_SAVE_SCRIPT = String.raw`
     applyPatch(flow, patch);
     const body = JSON.parse(JSON.stringify({ ...(patch.chain ? { chain: patch.chain } : {}), ...(patch.title === undefined ? {} : { title: patch.title }) }));
     const edit = draftOf(flow); Object.assign(edit.patch, JSON.parse(JSON.stringify(body))); retain();
-    if (state.workflow === flow) {
-      paintFlow(); paintList();
+    if (ui.workflow === flow) {
+      drawFlow(); drawList();
       if (patch.announce) toast(patch.announce, '', { label: L('撤销'), run: undo });
       else if (lost > 0) toast(L('{count} 段交接变回了手动', { count: lost }), '', { label: L('撤销'), run: undo });
     }
-    if (edit.error) { if (state.workflow === flow) saveState(); return; }
+    if (edit.error) { if (ui.workflow === flow) paintSave(); return; }
     edit.pending += 1;
-    clearTimeout(saveTimer); saveTimer = setTimeout(() => { if (state.workflow === flow && edit.pending) saveState(); }, 260);
-    saveQueue = saveQueue.then(async () => {
+    clearTimeout(saveId); saveId = setTimeout(() => { if (ui.workflow === flow && edit.pending) paintSave(); }, 260);
+    queue = queue.then(async () => {
       try {
         if (edit.error) return;
-        const result = await api('/' + flow.workflow_id, { ...body, revision: flow.revision });
-        flow.revision = result.workflow.revision;
-        const row = state.workflows.find(item => item.workflow_id === flow.workflow_id);
-        if (row) { Object.assign(row, result.workflow); paintList(); }
+        const res = await api('/' + flow.workflow_id, { ...body, revision: flow.revision });
+        flow.revision = res.workflow.revision;
+        const row = ui.workflows.find(item => item.workflow_id === flow.workflow_id);
+        if (row) { Object.assign(row, res.workflow); drawList(); }
         if (edit.pending === 1) edit.patch = {};
-      } catch (error) {
-        edit.error = error.message; retain();
-        try { const result = await api('/' + flow.workflow_id); applyPatch(Object.assign(flow, result.workflow), edit.patch); }
+      } catch (err) {
+        edit.error = err.message; retain();
+        try { const res = await api('/' + flow.workflow_id); applyPatch(Object.assign(flow, res.workflow), edit.patch); }
         catch { /* Keep the original save error and local edits when the owner cannot be reloaded. */ }
-        if (state.workflow === flow) { paintFlow(); toast(error.message, 'error'); }
+        if (ui.workflow === flow) { drawFlow(); toast(err.message, 'error'); }
       } finally {
         edit.pending -= 1; retain();
-        if (state.workflow === flow) { clearTimeout(saveTimer); saveState(); publishCtx(); }
+        if (ui.workflow === flow) { clearTimeout(saveId); paintSave(); emitCtx(); }
       }
     });
   }
   function retrySave() {
-    const flow = state.workflow; const edit = flow && edits.get(flow.workflow_id);
+    const flow = ui.workflow; const edit = flow && edits.get(flow.workflow_id);
     if (!edit?.error || edit.pending) return;
     edit.error = null; saveFlow(edit.patch, flow);
   }

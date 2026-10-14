@@ -5,7 +5,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const LIST_TAB = "list";
   const CANVAS_TAB = "canvas";
   const KANBAN_TAB = "kanban";
-  const isBoardTab = (tab) => tab === LIST_TAB || tab === CANVAS_TAB || tab === KANBAN_TAB;
+  const boardTab = (tab) => tab === LIST_TAB || tab === CANVAS_TAB || tab === KANBAN_TAB;
   const tabsEl = document.querySelector(".immersive-titlebar [data-container-tabs]") || document.querySelector("[data-container-tabs]");
   const surfaceEl = document.querySelector("[data-goal-frame-surface]");
   const canvasEl = document.querySelector("[data-frame-canvas]");
@@ -17,22 +17,22 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const toRoute = typeof route === "function" ? route : (pathname) => pathname;
   const storageKey = () => "molis-work-frame-container:" + (getProjectId() || "board");
   const kindLabel = (kind) => ({ session: L("会话"), feed: "Feed", inbox: "Inbox", artifact: L("成果") }[kind] || kind);
-  let openFrames = [];
-  let activeTab = LIST_TAB;
-  let lastBoardView = LIST_TAB;
+  let openIds = [];
+  let curTab = LIST_TAB;
+  let lastBoard = LIST_TAB;
   let frames = {};
   let blockSeq = 1;
-  let suppressClick = false;
+  let ignoreClick = false;
   let ready = false;
-  const containerEnabled = () => document.body.dataset.boardView === "current" && Boolean(shell);
-  const isFrameTabActive = () => containerEnabled() && getSurface() === "goal" && !isBoardTab(activeTab);
-  const isKanbanTabActive = () => containerEnabled() && getSurface() === "goal" && activeTab === KANBAN_TAB;
-  const knownGoalIds = () => new Set(visibleGoals().map((item) => item.goal.goal_id));
+  const enabled = () => document.body.dataset.boardView === "current" && Boolean(shell);
+  const isFrameTabActive = () => enabled() && getSurface() === "goal" && !boardTab(curTab);
+  const isKanbanTabActive = () => enabled() && getSurface() === "goal" && curTab === KANBAN_TAB;
+  const knownIds = () => new Set(visibleGoals().map((item) => item.goal.goal_id));
   const goalTitle = (goalId) => visibleGoals().find((item) => item.goal.goal_id === goalId)?.goal.title || goalId;
   const loadedFrames = new Set();
   const savedFrames = new Map();
   const frameKey = (goalId) => storageKey() + ":goal:" + goalId;
-  const ensureFrame = (goalId) => {
+  const frameOf = (goalId) => {
     if (!loadedFrames.has(goalId)) {
       loadedFrames.add(goalId);
       try { const saved = localStorage.getItem(frameKey(goalId)); if (saved) frames[goalId] = JSON.parse(saved); } catch {}
@@ -47,41 +47,41 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   };
   const persist = () => {
     if (!ready) return;
-    if (!isBoardTab(activeTab)) {
-      const serialized = JSON.stringify(ensureFrame(activeTab));
-      if (serialized !== savedFrames.get(activeTab)) {
-        try { localStorage.setItem(frameKey(activeTab), serialized); savedFrames.set(activeTab, serialized); } catch {}
+    if (!boardTab(curTab)) {
+      const serialized = JSON.stringify(frameOf(curTab));
+      if (serialized !== savedFrames.get(curTab)) {
+        try { localStorage.setItem(frameKey(curTab), serialized); savedFrames.set(curTab, serialized); } catch {}
       }
     }
     if (window.parent !== window && new URLSearchParams(location.search).has("workbenchPane")) return;
-    try { localStorage.setItem(storageKey(), JSON.stringify({ openFrames, activeTab, lastBoardView, frames })); } catch {}
+    try { localStorage.setItem(storageKey(), JSON.stringify({ openFrames:openIds, activeTab:curTab, lastBoardView:lastBoard, frames })); } catch {}
   };
   const prune = () => {
-    const known = knownGoalIds();
+    const known = knownIds();
     if (!known.size) {
       if (!document.querySelector(".tree-node[data-select-goal]")) {
-        openFrames = [];
-        if (!isBoardTab(activeTab)) activeTab = lastBoardView;
+        openIds = [];
+        if (!boardTab(curTab)) curTab = lastBoard;
       }
       return;
     }
-    openFrames = openFrames.filter((id) => known.has(id));
+    openIds = openIds.filter((id) => known.has(id));
     Object.keys(frames).forEach((id) => { if (!known.has(id)) delete frames[id]; });
-    if (!isBoardTab(activeTab) && !openFrames.includes(activeTab)) activeTab = lastBoardView;
+    if (!boardTab(curTab) && !openIds.includes(curTab)) curTab = lastBoard;
   };
   const applySurface = () => {
     const onGoal = getSurface() === "goal";
-    const showFrame = onGoal && !isBoardTab(activeTab);
+    const showFrame = onGoal && !boardTab(curTab);
     shell.hidden = !onGoal || showFrame;
     const tabRoot = document.querySelector("[data-tab-workspace]");
     if (tabRoot) tabRoot.hidden = false;
     surfaceEl.hidden = !showFrame;
-    if (onGoal && !showFrame) shell.dataset.boardView = isBoardTab(activeTab) ? activeTab : LIST_TAB;
-    if (showFrame) renderFrame();
+    if (onGoal && !showFrame) shell.dataset.boardView = boardTab(curTab) ? curTab : LIST_TAB;
+    if (showFrame) drawFrame();
   };
-  const applyCamera = () => {
-    if (isBoardTab(activeTab)) return;
-    const camera = ensureFrame(activeTab).camera;
+  const setCamera = () => {
+    if (boardTab(curTab)) return;
+    const camera = frameOf(curTab).camera;
     worldEl.style.transform = "translate(" + camera.x + "px," + camera.y + "px) scale(" + camera.z + ")";
     if (zoomValue) zoomValue.textContent = Math.round(camera.z * 100) + "%";
   };
@@ -96,16 +96,16 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     retry.textContent = L("重试");
     body.replaceChildren(status, retry);
   };
-  const readingValue = (block, row, key, attr) => block.reading?.[key] || row?.dataset[attr] || "";
+  const readValue = (block, row, key, attr) => block.reading?.[key] || row?.dataset[attr] || "";
   const loadInboxBody = (body, block) => {
     const row = liveAssetRow(block);
     const article = document.createElement("article");
     article.className = "frame-reading";
     article.dataset.frameReading = "inbox";
-    const reason = readingValue(block, row, "reason", "frameReadingReason");
-    const relation = readingValue(block, row, "relation", "frameReadingRelation");
-    const next = readingValue(block, row, "next", "frameReadingNext");
-    const status = readingValue(block, row, "status", "frameReadingStatus");
+    const reason = readValue(block, row, "reason", "frameReadingReason");
+    const relation = readValue(block, row, "relation", "frameReadingRelation");
+    const next = readValue(block, row, "next", "frameReadingNext");
+    const status = readValue(block, row, "status", "frameReadingStatus");
     const copy = document.createElement("p");
     const parts = [];
     if (reason) parts.push(reason);
@@ -171,7 +171,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     article.append(list);
     body.replaceChildren(article);
   };
-  const fillBlockBody = async (article, block, force) => {
+  const fillBody = async (article, block, force) => {
     const body = article?.querySelector("[data-frame-block-body]");
     if (!body || !block) return;
     const stamp = block.kind + ":" + block.itemId;
@@ -201,12 +201,12 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     }
   };
   const renderTabs = () => {
-    if (knownGoalIds().size) prune();
+    if (knownIds().size) prune();
     tabsEl.hidden = true;
     const workspaceTabs = document.querySelector("[data-titlebar-tabs]");
     if (workspaceTabs) workspaceTabs.hidden = false;
     shell.querySelectorAll("[data-board-view-tab]").forEach((button) => {
-      const current = isBoardTab(activeTab) && button.dataset.boardViewTab === activeTab;
+      const current = boardTab(curTab) && button.dataset.boardViewTab === curTab;
       button.classList.toggle("is-current", current);
       button.setAttribute("aria-pressed", String(current));
       if (current) button.setAttribute("aria-current", "page");
@@ -217,7 +217,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     list.type = "button";
     list.className = "container-tab is-pinned";
     list.dataset.containerTab = LIST_TAB;
-    if (activeTab === LIST_TAB) list.setAttribute("aria-current", "page");
+    if (curTab === LIST_TAB) list.setAttribute("aria-current", "page");
     const listLabel = document.createElement("span");
     listLabel.textContent = L("列表");
     list.append(listLabel);
@@ -226,7 +226,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     canvas.type = "button";
     canvas.className = "container-tab is-pinned";
     canvas.dataset.containerTab = CANVAS_TAB;
-    if (activeTab === CANVAS_TAB) canvas.setAttribute("aria-current", "page");
+    if (curTab === CANVAS_TAB) canvas.setAttribute("aria-current", "page");
     const canvasLabel = document.createElement("span");
     canvasLabel.textContent = L("Goal 画布");
     canvas.append(canvasLabel);
@@ -235,18 +235,18 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     kanban.type = "button";
     kanban.className = "container-tab is-pinned";
     kanban.dataset.containerTab = KANBAN_TAB;
-    if (activeTab === KANBAN_TAB) kanban.setAttribute("aria-current", "page");
+    if (curTab === KANBAN_TAB) kanban.setAttribute("aria-current", "page");
     const kanbanLabel = document.createElement("span");
     kanbanLabel.textContent = L("看板");
     kanban.append(kanbanLabel);
     fragment.append(kanban);
-    openFrames.forEach((goalId) => {
+    openIds.forEach((goalId) => {
       const tab = document.createElement("div");
       tab.className = "container-tab";
       tab.dataset.containerTab = goalId;
       tab.setAttribute("role", "tab");
       tab.title = goalTitle(goalId);
-      if (activeTab === goalId) tab.setAttribute("aria-current", "page");
+      if (curTab === goalId) tab.setAttribute("aria-current", "page");
       const label = document.createElement("span");
       label.textContent = goalTitle(goalId);
       const close = document.createElement("button");
@@ -267,18 +267,18 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const goalId = event.key.slice((storageKey() + ":goal:").length);
     try {
       frames[goalId] = JSON.parse(event.newValue); savedFrames.set(goalId, event.newValue); loadedFrames.add(goalId);
-      if (activeTab === goalId && isFrameTabActive()) renderFrame();
+      if (curTab === goalId && isFrameTabActive()) drawFrame();
     } catch {}
   });
-  const renderFrame = () => {
-    if (isBoardTab(activeTab)) return;
-    const frame = ensureFrame(activeTab);
-    const item = visibleGoals().find((entry) => entry.goal.goal_id === activeTab);
-    surfaceEl.dataset.frameGoal = activeTab;
-    surfaceEl.querySelector('[data-frame-goal-title]').textContent = goalTitle(activeTab);
+  const drawFrame = () => {
+    if (boardTab(curTab)) return;
+    const frame = frameOf(curTab);
+    const item = visibleGoals().find((entry) => entry.goal.goal_id === curTab);
+    surfaceEl.dataset.frameGoal = curTab;
+    surfaceEl.querySelector('[data-frame-goal-title]').textContent = goalTitle(curTab);
     const status = item?.display_status || item?.status || "";
     const statusEl = surfaceEl.querySelector('[data-frame-goal-status]');
-    const source = document.querySelector('[data-goal-id="' + CSS.escape(activeTab) + '"] .goal-status');
+    const source = document.querySelector('[data-goal-id="' + CSS.escape(curTab) + '"] .goal-status');
     statusEl.className = source?.className || ("goal-status" + (status ? " goal-status--" + status : ""));
     statusEl.setAttribute("data-frame-goal-status", "");
     if (source) statusEl.innerHTML = source.innerHTML;
@@ -286,7 +286,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     statusEl.dataset.status = status;
     surfaceEl.querySelector('[data-frame-goal-outcome]').textContent = item?.goal.outcome || L("还没有写明预期结果，可在工作区补充。");
     surfaceEl.querySelector('[data-frame-empty]').hidden = frame.blocks.length > 0;
-    applyCamera();
+    setCamera();
     worldEl.replaceChildren();
     frame.blocks.forEach((block) => {
       const article = document.createElement("article");
@@ -316,23 +316,23 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       body.dataset.frameBlockBody = "";
       article.append(caption, handle, stamp, body);
       worldEl.append(article);
-      if (frame.expanded === block.id) void fillBlockBody(article, block);
+      if (frame.expanded === block.id) void fillBody(article, block);
     });
   };
   surfaceEl.querySelector('[data-frame-goal-work]')?.addEventListener('click', () => host.openGoalWork?.());
-  surfaceEl.querySelector('[data-frame-goal-locate]')?.addEventListener('click', () => locateGoal(activeTab));
+  surfaceEl.querySelector('[data-frame-goal-locate]')?.addEventListener('click', () => locateGoal(curTab));
   const sync = () => {
     renderTabs();
     applySurface();
   };
   const showBoard = (view) => {
-    if (!containerEnabled() || !isBoardTab(view)) return;
+    if (!enabled() || !boardTab(view)) return;
     shell.removeAttribute("data-goal-planning");
     shell.removeAttribute("data-goal-rules");
     shell.querySelectorAll("[data-open-work-planning], [data-open-work-rules]").forEach((row) => row.setAttribute("aria-pressed", "false"));
-    const already = activeTab === view && getSurface() === "goal";
-    lastBoardView = view;
-    activeTab = view;
+    const already = curTab === view && getSurface() === "goal";
+    lastBoard = view;
+    curTab = view;
     setWorkSurface("goal");
     host.activateGoalsMother?.();
     sync();
@@ -344,45 +344,45 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const showKanban = () => showBoard(KANBAN_TAB);
   const openFrame = (goalId) => host.openGoalTab?.(goalId);
   const showGoalFrame = (goalId) => {
-    if (!containerEnabled() || !goalId || !knownGoalIds().has(goalId)) return;
-    ensureFrame(goalId);
-    if (!openFrames.includes(goalId)) openFrames.push(goalId);
-    activeTab = goalId;
+    if (!enabled() || !goalId || !knownIds().has(goalId)) return;
+    frameOf(goalId);
+    if (!openIds.includes(goalId)) openIds.push(goalId);
+    curTab = goalId;
     setWorkSurface("goal");
     setWorkspaceMode("graph");
     sync();
     persist();
   };
   const closeFrame = (goalId) => {
-    openFrames = openFrames.filter((id) => id !== goalId);
-    if (activeTab === goalId) activeTab = lastBoardView;
+    openIds = openIds.filter((id) => id !== goalId);
+    if (curTab === goalId) curTab = lastBoard;
     host.activateGoalsMother?.();
     setWorkspaceMode("graph", false);
     sync();
     persist();
   };
   const restoreBoard = () => {
-    if (!containerEnabled()) return;
-    const previous = activeTab;
-    if (!isBoardTab(activeTab)) activeTab = lastBoardView;
+    if (!enabled()) return;
+    const previous = curTab;
+    if (!boardTab(curTab)) curTab = lastBoard;
     setWorkSurface("goal");
     sync();
-    if (previous !== activeTab) persist();
+    if (previous !== curTab) persist();
   };
   const releaseFrame = () => {
-    if (!containerEnabled()) return;
-    if (isBoardTab(activeTab)) {
+    if (!enabled()) return;
+    if (boardTab(curTab)) {
       applySurface();
       return;
     }
-    activeTab = lastBoardView;
+    curTab = lastBoard;
     sync();
     persist();
   };
   const locateGoal = (goalId) => {
-    if (!containerEnabled() || !goalId) return;
-    lastBoardView = CANVAS_TAB;
-    activeTab = CANVAS_TAB;
+    if (!enabled() || !goalId) return;
+    lastBoard = CANVAS_TAB;
+    curTab = CANVAS_TAB;
     host.activateGoalsMother?.();
     setDirectory("goals", true, false);
     setWorkSurface("goal");
@@ -432,7 +432,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   };
   const addBlock = (asset, clientX, clientY) => {
     if (!asset?.id || asset.kind === "goal") { rejectGoal(); return; }
-    const frame = ensureFrame(activeTab);
+    const frame = frameOf(curTab);
     const rect = canvasEl.getBoundingClientRect();
     const n = frame.blocks.length;
     const x = clientX == null ? 48 + (n % 3) * 260 : (clientX - rect.left - frame.camera.x) / frame.camera.z - 40;
@@ -449,22 +449,22 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       x: Math.max(16, x),
       y: Math.max(16, y),
     });
-    renderFrame();
+    drawFrame();
     persist();
   };
   const picker = surfaceEl.querySelector("[data-frame-picker]");
-  const pickerSearch = picker.querySelector("[data-frame-picker-search]");
+  const pickQuery = picker.querySelector("[data-frame-picker-search]");
   const pickerKind = picker.querySelector("[data-frame-picker-kind]");
   const pickerList = picker.querySelector("[data-frame-picker-list]");
-  let pickerAssets = [], pickerOpener = null;
-  const renderPicker = () => {
-    const query = pickerSearch.value.trim().toLocaleLowerCase();
-    const matches = pickerAssets.filter((asset) => (pickerKind.value === "all" || asset.kind === pickerKind.value) && (asset.title + " " + asset.caption).toLocaleLowerCase().includes(query));
+  let pickItems = [], pickerOpener = null;
+  const drawPicker = () => {
+    const query = pickQuery.value.trim().toLocaleLowerCase();
+    const matches = pickItems.filter((asset) => (pickerKind.value === "all" || asset.kind === pickerKind.value) && (asset.title + " " + asset.caption).toLocaleLowerCase().includes(query));
     pickerList.replaceChildren();
     if (!matches.length) {
       const empty = document.createElement("p");
       empty.className = "no-results";
-      empty.textContent = pickerAssets.length ? L("没有匹配的内容，试试其他关键词或来源。") : L("当前项目还没有可添加的内容。");
+      empty.textContent = pickItems.length ? L("没有匹配的内容，试试其他关键词或来源。") : L("当前项目还没有可添加的内容。");
       pickerList.append(empty);
     }
     for (const asset of matches) {
@@ -474,7 +474,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       const title = document.createElement("strong"), caption = document.createElement("small"), state = document.createElement("span");
       title.textContent = asset.title;
       caption.textContent = [kindLabel(asset.kind), asset.caption].filter(Boolean).join(" · ");
-      button.disabled = ensureFrame(activeTab).blocks.some((block) => block.kind === asset.kind && block.itemId === asset.id);
+      button.disabled = frameOf(curTab).blocks.some((block) => block.kind === asset.kind && block.itemId === asset.id);
       state.textContent = button.disabled ? L("已添加") : "+";
       state.setAttribute("aria-hidden", "true");
       button.append(title, caption, state);
@@ -495,12 +495,12 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       const asset = readAsset(row);
       if (asset?.id && ["feed", "inbox", "session", "artifact"].includes(asset.kind)) assets.set(asset.kind + ":" + asset.id, asset);
     });
-    pickerAssets = [...assets.values()];
-    pickerSearch.value = ""; pickerKind.value = "all";
-    renderPicker(); picker.showModal();
+    pickItems = [...assets.values()];
+    pickQuery.value = ""; pickerKind.value = "all";
+    drawPicker(); picker.showModal();
   }));
-  pickerSearch.addEventListener("input", renderPicker);
-  pickerKind.addEventListener("change", renderPicker);
+  pickQuery.addEventListener("input", drawPicker);
+  pickerKind.addEventListener("change", drawPicker);
   picker.querySelectorAll("[data-frame-picker-close]").forEach((button) => button.addEventListener("click", () => picker.close()));
   picker.addEventListener("close", () => pickerOpener?.focus({ preventScroll: true }));
   canvasEl.addEventListener("keydown", (event) => {
@@ -511,7 +511,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const routeAsset = (asset, clientX, clientY) => {
     if (!asset?.kind) return false;
     if (asset.kind === "goal") { locateGoal(asset.id); return true; }
-    if (isBoardTab(activeTab)) { rejectCanvas(); return true; }
+    if (boardTab(curTab)) { rejectCanvas(); return true; }
     addBlock(asset, clientX, clientY);
     return true;
   };
@@ -519,12 +519,12 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     try {
       const stored = JSON.parse(localStorage.getItem(storageKey()) || "null");
       if (stored && typeof stored === "object") {
-        openFrames = Array.isArray(stored.openFrames) ? stored.openFrames.map(String) : [];
-        lastBoardView = isBoardTab(stored.lastBoardView) ? stored.lastBoardView : LIST_TAB;
-        activeTab = isBoardTab(stored.activeTab) || openFrames.includes(stored.activeTab) ? stored.activeTab : lastBoardView;
+        openIds = Array.isArray(stored.openFrames) ? stored.openFrames.map(String) : [];
+        lastBoard = boardTab(stored.lastBoardView) ? stored.lastBoardView : LIST_TAB;
+        curTab = boardTab(stored.activeTab) || openIds.includes(stored.activeTab) ? stored.activeTab : lastBoard;
         frames = stored.frames && typeof stored.frames === "object" ? stored.frames : {};
       }
-    } catch { openFrames = []; activeTab = LIST_TAB; lastBoardView = LIST_TAB; frames = {}; }
+    } catch { openIds = []; curTab = LIST_TAB; lastBoard = LIST_TAB; frames = {}; }
     prune();
     ready = true;
     sync();
@@ -597,11 +597,11 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   });
   let pan = null;
   canvasEl.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0 || isBoardTab(activeTab)) return;
+    if (event.button !== 0 || boardTab(curTab)) return;
     if (event.target.closest("[data-frame-add-content], [data-frame-block-close], [data-frame-block-retry], [data-frame-block-body] a, [data-frame-block-body] button")) return;
     if (event.target.closest("[data-frame-block-body]")) return;
     const block = event.target.closest("[data-frame-block]");
-    const frame = ensureFrame(activeTab);
+    const frame = frameOf(curTab);
     pan = {
       id: event.pointerId,
       x: event.clientX,
@@ -620,7 +620,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const dx = event.clientX - pan.x, dy = event.clientY - pan.y;
     if (!pan.moved && Math.hypot(dx, dy) < 5) return;
     pan.moved = true;
-    const frame = ensureFrame(activeTab);
+    const frame = frameOf(curTab);
     if (pan.block) {
       const block = frame.blocks.find((item) => item.id === pan.block.dataset.frameBlock);
       if (block) {
@@ -631,31 +631,31 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     } else {
       frame.camera.x = pan.origin.x + dx;
       frame.camera.y = pan.origin.y + dy;
-      applyCamera();
+      setCamera();
     }
     canvasEl.classList.add("is-panning");
   });
   const finishPan = (event) => {
     if (!pan || pan.id !== event.pointerId) return;
-    suppressClick = pan.moved;
+    ignoreClick = pan.moved;
     const captured = pan.block || canvasEl;
     pan = null;
     if (captured.hasPointerCapture?.(event.pointerId)) captured.releasePointerCapture(event.pointerId);
     canvasEl.classList.remove("is-panning");
     persist();
-    setTimeout(() => { suppressClick = false; }, 0);
+    setTimeout(() => { ignoreClick = false; }, 0);
   };
   canvasEl.addEventListener("pointerup", finishPan);
   canvasEl.addEventListener("pointercancel", finishPan);
   canvasEl.addEventListener("click", (event) => {
-    if (suppressClick) { event.preventDefault(); event.stopPropagation(); return; }
+    if (ignoreClick) { event.preventDefault(); event.stopPropagation(); return; }
     const close = event.target.closest("[data-frame-block-close]");
     if (close) {
       event.preventDefault();
       event.stopPropagation();
-      const frame = ensureFrame(activeTab);
+      const frame = frameOf(curTab);
       frame.expanded = "";
-      renderFrame();
+      drawFrame();
       persist();
       return;
     }
@@ -663,24 +663,24 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     if (retry) {
       event.preventDefault();
       const article = retry.closest("[data-frame-block]");
-      const block = ensureFrame(activeTab).blocks.find((item) => item.id === article?.dataset.frameBlock);
-      if (article && block) void fillBlockBody(article, block, true);
+      const block = frameOf(curTab).blocks.find((item) => item.id === article?.dataset.frameBlock);
+      if (article && block) void fillBody(article, block, true);
       return;
     }
     if (event.target.closest("[data-frame-block-body] a, [data-frame-block-body] button, [data-feed-action], [data-inbox-action]")) return;
     const article = event.target.closest("[data-frame-block]");
-    if (!article || isBoardTab(activeTab)) return;
-    const frame = ensureFrame(activeTab);
+    if (!article || boardTab(curTab)) return;
+    const frame = frameOf(curTab);
     if (frame.expanded === article.dataset.frameBlock) return;
     frame.expanded = article.dataset.frameBlock;
-    renderFrame();
+    drawFrame();
     persist();
   });
   canvasEl.addEventListener("wheel", (event) => {
-    if (isBoardTab(activeTab)) return;
+    if (boardTab(curTab)) return;
     if (event.target.closest("[data-frame-block-body]")) return;
     event.preventDefault();
-    const frame = ensureFrame(activeTab);
+    const frame = frameOf(curTab);
     if (event.ctrlKey || event.metaKey) {
       const rect = canvasEl.getBoundingClientRect();
       const x = event.clientX - rect.left, y = event.clientY - rect.top;
@@ -692,15 +692,15 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       frame.camera.x -= event.deltaX || (event.shiftKey ? event.deltaY : 0);
       frame.camera.y -= event.shiftKey ? 0 : event.deltaY;
     }
-    applyCamera();
+    setCamera();
     persist();
   }, { passive: false });
   surfaceEl.addEventListener("click", (event) => {
     const zoom = event.target.closest("[data-frame-zoom]");
-    if (!zoom || isBoardTab(activeTab)) return;
-    const frame = ensureFrame(activeTab);
+    if (!zoom || boardTab(curTab)) return;
+    const frame = frameOf(curTab);
     frame.camera.z = Math.min(1.6, Math.max(0.4, frame.camera.z * (zoom.dataset.frameZoom === "in" ? 1.15 : .85)));
-    applyCamera();
+    setCamera();
     persist();
   });
   restore();

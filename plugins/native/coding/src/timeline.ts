@@ -63,7 +63,7 @@ export function createCodingTimeline(words: TimelineWords) {
    * pulls path/file_path/command/pattern/query from tool args, none of which board-report sets), so "later success"
    * cannot be matched on target and is matched by state alone.
    */
-  const conflictRetry = (item: TimelineActivity, items: TimelineActivity[]) => {
+  const wasRetry = (item: TimelineActivity, items: TimelineActivity[]) => {
     if (item.name !== "board-report" || item.state !== "failed") return false;
     if (!/TASKBOARD_CONFLICT/.test(item.output ?? "")) return false;
     const self = items.indexOf(item);
@@ -75,22 +75,22 @@ export function createCodingTimeline(words: TimelineWords) {
     return false;
   };
   /** Only side effects go through review; a read started alongside one is merely held until the round resumes. */
-  const APPROVABLE = new Set(["edit", "write", "run-command", "start-command", "command-stop", "dispatch-subagent", "steer-subagent"]);
+  const REVIEWED = new Set(["edit", "write", "run-command", "start-command", "command-stop", "dispatch-subagent", "steer-subagent"]);
   const outcome = (item: TimelineActivity, ended: boolean, waiting = false, items?: TimelineActivity[]) => {
     const code = exitCode(item);
     if (item.state === "started") return ended ? { tone: "unknown", label: "结果未返回" }
-      : waiting ? (APPROVABLE.has(item.name) ? { tone: "waiting", label: "等你批准" } : { tone: "held", label: "等待中" })
+      : waiting ? (REVIEWED.has(item.name) ? { tone: "waiting", label: "等你批准" } : { tone: "held", label: "等待中" })
       : { tone: "running", label: "进行中" };
     if (item.name === "reasoning" && item.state === "completed") return { tone: "quiet", label: "" };
     if (item.state === "failed") {
-      if (items && conflictRetry(item, items)) return { tone: "retry", label: "已重试" };
+      if (items && wasRetry(item, items)) return { tone: "retry", label: "已重试" };
       return { tone: "failed", label: "失败" };
     }
     if (item.state === "unknown") return { tone: "unknown", label: "结果未知" };
     if (code !== null) return code === 0 ? { tone: "ok", label: "exit 0" } : { tone: "failed", label: `exit ${code}` };
     return { tone: "ok", label: "" };
   };
-  const statusMark = (tone: string) => tone === "running" ? '<span class="coding-spinner" aria-hidden="true"></span>'
+  const mark = (tone: string) => tone === "running" ? '<span class="coding-spinner" aria-hidden="true"></span>'
     : tone === "quiet" ? "" : tone === "waiting" ? svg("clock") : tone === "held" ? svg("dot") : tone === "ok" ? svg("check") : tone === "failed" ? svg("x") : tone === "retry" ? svg("dot") : svg("circle-alert");
   const lines = (text: string, limit: number) => {
     const all = text.replace(/\n$/, "").split("\n");
@@ -100,30 +100,30 @@ export function createCodingTimeline(words: TimelineWords) {
     const hint = item.state === "failed" ? hintFor((item.output ?? "").trim()) : "";
     return hint ? `<p class="coding-tool-hint">${escape(hint)}</p>` : "";
   };
-  const rowHtml = (item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[]) => {
+  const drawRow = (item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[]) => {
     const kind = kindOf(item), result = outcome(item, ended, waiting, items);
     // Reasoning is prose, so its row previews the first line as text rather than as a code target.
-    const firstLine = item.name === "reasoning" ? (item.output ?? "").trim().split("\n")[0]!.slice(0, 140) : "";
+    const first = item.name === "reasoning" ? (item.output ?? "").trim().split("\n")[0]!.slice(0, 140) : "";
     // A wait the Run sleeps in says until when, in this machine's time.
     const until = item.name === "sleep-wait" && Number.isFinite(Date.parse(item.target)) ? `到 ${new Date(item.target).toLocaleTimeString()}` : "";
     const what = until ? `<span class="coding-tool-preview">${escape(until)}</span>`
-      : item.target ? `<code>${escape(item.target)}</code>` : firstLine ? `<span class="coding-tool-preview">${escape(firstLine)}</span>` : "";
+      : item.target ? `<code>${escape(item.target)}</code>` : first ? `<span class="coding-tool-preview">${escape(first)}</span>` : "";
     const output = (item.output ?? "").trim();
     const shown = output ? lines(output, item.name === "reasoning" ? 120 : 24) : null;
     const hidden = (shown?.hidden ?? 0) + (item.output_hidden_lines ?? 0);
     const body = shown ? `${toolHint(item)}<pre class="coding-tool-output">${escape(shown.text)}${hidden ? `\n… 另有 ${hidden} 行` : ""}${item.output_truncated ? "\n（输出已截断）" : ""}</pre>` : "";
-    const head = `<span class="coding-tool-icon">${svg(kind.icon)}</span><span class="coding-tool-verb">${escape(kind.verb)}</span>${what}<span class="coding-tool-state" data-tone="${result.tone}">${statusMark(result.tone)}${result.label ? `<span>${escape(result.label)}</span>` : ""}</span>`;
+    const head = `<span class="coding-tool-icon">${svg(kind.icon)}</span><span class="coding-tool-verb">${escape(kind.verb)}</span>${what}<span class="coding-tool-state" data-tone="${result.tone}">${mark(result.tone)}${result.label ? `<span>${escape(result.label)}</span>` : ""}</span>`;
     return body
       ? `<details class="coding-tool" data-tone="${result.tone}" data-kind="${escape(item.name)}" data-tool="${escape(item.call_id)}"><summary>${head}</summary>${body}</details>`
       : `<div class="coding-tool" data-tone="${result.tone}" data-kind="${escape(item.name)}" data-tool="${escape(item.call_id)}"><div class="coding-tool-head">${head}</div></div>`;
   };
   /** "读取 4 个文件 · 运行 3 条命令", or what is happening right now. */
-  const summaryText = (items: TimelineActivity[], ended: boolean, waiting: boolean) => {
+  const sumText = (items: TimelineActivity[], ended: boolean, waiting: boolean) => {
     const started = ended ? [] : [...items].reverse().filter(item => item.state === "started");
-    const running = (waiting ? started.find(item => APPROVABLE.has(item.name)) : undefined) ?? started[0];
+    const running = (waiting ? started.find(item => REVIEWED.has(item.name)) : undefined) ?? started[0];
     if (running) {
       const kind = kindOf(running), what = `${kind.verb}${running.target ? " " + running.target : ""}`;
-      return waiting ? (APPROVABLE.has(running.name) ? { live: false, waiting: true, text: `等你批准：${what}` } : { live: false, waiting: true, text: `暂停中：${what}` })
+      return waiting ? (REVIEWED.has(running.name) ? { live: false, waiting: true, text: `等你批准：${what}` } : { live: false, waiting: true, text: `暂停中：${what}` })
         : { live: true, waiting: false, text: `正在${what}` };
     }
     const counts = new Map<string, { kind: ReturnType<typeof kindOf>; targets: Set<string>; calls: number }>();
@@ -146,7 +146,7 @@ export function createCodingTimeline(words: TimelineWords) {
       detail.dataset.bound = "true";
       detail.addEventListener("toggle", () => { if (detail.dataset.rendering !== "true") opened.set(key, detail.open); });
     }
-    const summary = summaryText(items, ended, waiting);
+    const summary = sumText(items, ended, waiting);
     const signature = JSON.stringify([run.phase, latest, items.map(item => [item.call_id, item.state, item.target, (item.output ?? "").length, item.output_hidden_lines ?? 0])]);
     if (detail.dataset.signature !== signature) {
       detail.dataset.signature = signature;
@@ -157,7 +157,7 @@ export function createCodingTimeline(words: TimelineWords) {
       let list = detail.querySelector(".coding-tool-list");
       if (!list) { list = document.createElement("div"); list.className = "coding-tool-list"; detail.append(list); }
       const openRows = new Set([...list.querySelectorAll("details.coding-tool[open]")].map((node: Element) => node.dataset.tool));
-      list.innerHTML = items.map(item => rowHtml(item, ended, waiting, items)).join("");
+      list.innerHTML = items.map(item => drawRow(item, ended, waiting, items)).join("");
       list.querySelectorAll("details.coding-tool").forEach((node: Element) => { if (openRows.has(node.dataset.tool)) (node as Element).open = true; });
       detail.dataset.live = String(summary.live);
       const remembered = opened.get(key);

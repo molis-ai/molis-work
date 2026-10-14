@@ -18,9 +18,9 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) =>
   const embedded = window.parent !== window && document.body.hasAttribute("data-pane-embedded");
   const ownPane = embedded ? new URL(location.href).searchParams.get("workbenchPane") || "pane" : "main";
   const post=(path,body,signal)=>molisWorkRequest(host.route(path),{body,signal,fallback:L("暂时处理不了，请稍后重试")});
-  const requestId = () => (crypto.randomUUID ? crypto.randomUUID() : "cx-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
+  const newRequestId = () => (crypto.randomUUID ? crypto.randomUUID() : "cx-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   const quoted = (focus) => focus.targets.map((target) => target.text).join("\n\n").slice(0, 20000);
-  const assistantDetail = (focus, text) => ({ new: true, text, source: { surface: focus.plugin_id, title: focus.object.title || "" },
+  const assistantHint = (focus, text) => ({ new: true, text, source: { surface: focus.plugin_id, title: focus.object.title || "" },
     materials: [{ title: L("选中的内容") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) }] });
 
   const makeToolbar = ${CONTEXT_TOOLBAR_CLIENT_SCRIPT};
@@ -29,28 +29,28 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) =>
   const rectOf = (read) => () => {
     const screen = read().screen;
     if (screen && screen.rect) return screen.rect;
-    const selection = getSelection();
-    return selection && selection.rangeCount && !selection.isCollapsed ? selection.getRangeAt(0).getBoundingClientRect() : null;
+    const sel = getSelection();
+    return sel && sel.rangeCount && !sel.isCollapsed ? sel.getRangeAt(0).getBoundingClientRect() : null;
   };
 
   // In the document that owns the surface: hand the choice to the page. Nobody taking it means no page here can run
   // it yet; the Assistant then gets the words and the material, and the person sends it if they want.
   const deliver = (focus, candidate) => {
-    const id = requestId();
+    const id = newRequestId();
     const event = new CustomEvent("molis:assistant-context-action-chosen", { cancelable: true, detail: {
       plugin_id: focus.plugin_id, context_id: focus.context_id, key: candidate.key, offer_id: candidate.offer_id,
       apply: candidate.apply, intent: candidate.intent, title: candidate.title, object: focus.object, ...(candidate.scope ? { scope: candidate.scope } : {}),
       prepare: () => post("/api/contextual/prepare", { pane_id: ownPane, focus, key: candidate.key, request_id: id }),
     } });
     window.dispatchEvent(event);
-    return event.defaultPrevented ? null : assistantDetail(focus, L("请帮我处理这段内容：") + candidate.title);
+    return event.defaultPrevented ? null : assistantHint(focus, L("请帮我处理这段内容：") + candidate.title);
   };
 
   // Any surface that declares its object (data-assistant-context) gets a fragment context from a plain DOM selection,
   // so a plugin without an editor needs no code of its own (spec §10 P2 ②). Editors that report their own focus
   // (contenteditable, or data-surface-focus="own") and form fields are left to themselves.
   (() => {
-    let timer = 0, reported = null;
+    let timer = 0, seen = null;
     const hash = (text) => { let h = 0x811c9dc5; for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(36); };
     const isWord = (text) => { const t = text.trim(); return Boolean(t) && !/\s/.test(t) && (/[㐀-鿿]/.test(t) ? t.length <= 8 : t.length <= 32); };
     const roleOf = (node) => {
@@ -79,31 +79,31 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) =>
       return !el || Boolean(el.closest('[contenteditable=""], [contenteditable="true"], input, textarea, select, [data-surface-focus="own"], [data-assistant-island], .mw-ctx'));
     };
     const read = () => {
-      const selection = getSelection();
-      if (!selection || selection.isCollapsed || !selection.rangeCount || own(selection.anchorNode) || own(selection.focusNode)) return null;
-      const anchor = selection.anchorNode.nodeType === 1 ? selection.anchorNode : selection.anchorNode.parentElement;
+      const sel = getSelection();
+      if (!sel || sel.isCollapsed || !sel.rangeCount || own(sel.anchorNode) || own(sel.focusNode)) return null;
+      const anchor = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
       const root = anchor && anchor.closest("[data-assistant-context]");
-      if (!root || !root.contains(selection.focusNode)) return null;
+      if (!root || !root.contains(sel.focusNode)) return null;
       let context;
       try { context = JSON.parse(root.getAttribute("data-assistant-context") || "{}"); } catch { return null; }
       const object = context && context.object;
       if (!context.plugin_id || !object || typeof object.kind !== "string" || typeof object.id !== "string") return null;
-      const parts = selection.toString().split(/\n+/).map((part) => part.trim()).filter(Boolean);
+      const parts = sel.toString().split(/\n+/).map((part) => part.trim()).filter(Boolean);
       if (!parts.length) return null;
-      const role = roleOf(selection.anchorNode);
+      const role = roleOf(sel.anchorNode);
       const clip = (text) => text.length > 2000 ? { text: text.slice(0, 2000), truncated: true } : { text };
-      const granularity = parts.length > 1 ? "blocks" : isWord(parts[0]) ? "word" : "range";
+      const scale = parts.length > 1 ? "blocks" : isWord(parts[0]) ? "word" : "range";
       const targets = parts.slice(0, 8).map((part) => ({ kind: "text_range", role: parts.length > 1 ? "paragraph" : role, ...clip(part) }));
-      const heading_path = headingPath(root, selection.getRangeAt(0).startContainer);
+      const heading_path = headingPath(root, sel.getRangeAt(0).startContainer);
       return { root, focus: { context_id: "dom:" + context.plugin_id + ":" + object.id + ":" + hash(parts.join("\n")), plugin_id: context.plugin_id,
-        activity: "selecting", granularity, object: { kind: object.kind, id: object.id, ...(object.version !== undefined ? { version: object.version } : {}), ...(object.title ? { title: String(object.title) } : {}) },
+        activity: "selecting", granularity:scale, object: { kind: object.kind, id: object.id, ...(object.version !== undefined ? { version: object.version } : {}), ...(object.title ? { title: String(object.title) } : {}) },
         targets, surroundings: { heading_path }, ...(context.unsaved ? { unsaved: true } : {}),
         ...(context.goal && typeof context.goal.id === "string" && context.goal.id ? { goal: { id: context.goal.id, title: String(context.goal.title || "") } } : {}) } };
     };
     const flush = () => {
       const next = read();
-      if (next) { reported = next.root; next.root.dispatchEvent(new CustomEvent("molis:surface-focus", { bubbles: true, detail: next.focus })); }
-      else if (reported) { const root = reported; reported = null; if (root.isConnected) root.dispatchEvent(new CustomEvent("molis:surface-focus", { bubbles: true, detail: null })); }
+      if (next) { seen = next.root; next.root.dispatchEvent(new CustomEvent("molis:surface-focus", { bubbles: true, detail: next.focus })); }
+      else if (seen) { const root = seen; seen = null; if (root.isConnected) root.dispatchEvent(new CustomEvent("molis:surface-focus", { bubbles: true, detail: null })); }
     };
     document.addEventListener("selectionchange", () => { clearTimeout(timer); timer = setTimeout(flush, 120); });
   })();
@@ -116,25 +116,25 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) =>
     const read = (node) => { try { return JSON.parse(node.getAttribute("data-assistant-context") || "null"); } catch { return null; } };
     const namedItself = (context) => Boolean(context && context.object && context.named_by !== "workbench");
     document.addEventListener("molis-work:select-item", (event) => {
-      const surface = event.target;
-      if (!(surface instanceof Element) || !surface.hasAttribute("data-work-surface")) return;
+      const surf = event.target;
+      if (!(surf instanceof Element) || !surf.hasAttribute("data-work-surface")) return;
       const itemId = event.detail && typeof event.detail.itemId === "string" ? event.detail.itemId : "";
       // After the plugin's own handler, which may name the object itself.
       setTimeout(async () => {
         if (!itemId) {
-          const own = read(surface);
-          if (own && own.named_by === "workbench") { delete own.object; delete own.named_by; surface.setAttribute("data-assistant-context", JSON.stringify(own)); }
+          const own = read(surf);
+          if (own && own.named_by === "workbench") { delete own.object; delete own.named_by; surf.setAttribute("data-assistant-context", JSON.stringify(own)); }
           return;
         }
-        if (namedItself(read(surface))) return;
-        const entry = (await known())[surface.getAttribute("data-work-surface")];
+        if (namedItself(read(surf))) return;
+        const entry = (await known())[surf.getAttribute("data-work-surface")];
         // Read again: a plugin still loading the item (a reload) names it while the surfaces are read, and its naming stands.
-        const own = read(surface);
-        if (!entry || !surface.isConnected || namedItself(own)) return;
+        const own = read(surf);
+        if (!entry || !surf.isConnected || namedItself(own)) return;
         // The open tab's name, so the Assistant shows 「正在看：需求说明」 rather than the item's address.
         const tab = [...document.querySelectorAll(".tab-item[data-item-id]")].find((node) => node.dataset.itemId === itemId);
         const title = tab ? tab.getAttribute("title") || "" : "";
-        surface.setAttribute("data-assistant-context", JSON.stringify({ ...(own || {}), plugin_id: (own && own.plugin_id) || entry.plugin_id,
+        surf.setAttribute("data-assistant-context", JSON.stringify({ ...(own || {}), plugin_id: (own && own.plugin_id) || entry.plugin_id,
           object: { kind: entry.kind, id: itemId, ...(title ? { title } : {}) }, named_by: "workbench" }));
       }, 250);
     }, true);

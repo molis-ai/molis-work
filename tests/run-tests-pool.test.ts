@@ -114,3 +114,26 @@ test("options: a jobs count that is not a whole number of at least 1 is refused 
   assert.equal(fromEnvironment.status, 2);
   assert.match(fromEnvironment.stderr, /MOLIS_WORK_TEST_JOBS needs a whole number/);
 });
+
+test("--shard: the same list in n jobs gives every file to exactly one of them, and a shard with no file passes", () => {
+  const made = directory();
+  const seen = path.join(made, "seen");
+  const files = ["a", "b", "c", "d", "e"].map((name) => {
+    const file = path.join(made, `${name}.test.mjs`);
+    writeFileSync(file, `import test from "node:test";\nimport { appendFileSync } from "node:fs";\ntest(${JSON.stringify(name)}, () => { appendFileSync(${JSON.stringify(seen)}, ${JSON.stringify(`${name}\n`)}); });\n`);
+    return file;
+  });
+  const shard = (which: string, list = files) => spawnSync(process.execPath, [runner, "--shard", which, "--jobs", "2", ...list], { encoding: "utf8", timeout: 120_000 });
+  const first = shard("1/2"), second = shard("2/2");
+  assert.equal(first.status, 0, `${first.stdout}${first.stderr}`);
+  assert.equal(second.status, 0, `${second.stdout}${second.stderr}`);
+  assert.deepEqual(readFileSync(seen, "utf8").trim().split("\n").sort(), ["a", "b", "c", "d", "e"]);
+  const empty = shard("3/3", files.slice(0, 2));
+  assert.equal(empty.status, 0);
+  assert.match(empty.stdout, /shard 3\/3 of 2 files has no file/);
+  for (const wrong of ["0/2", "3/2", "two"]) {
+    const refused = shard(wrong);
+    assert.equal(refused.status, 2, wrong);
+    assert.match(refused.stderr, /--shard needs <k>\/<n>/);
+  }
+});

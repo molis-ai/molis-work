@@ -9,10 +9,12 @@ import { fileURLToPath } from "node:url";
 //   --browser-jobs <n>      of those, browser files at once (default: MOLIS_WORK_TEST_BROWSER_JOBS, else 2)
 //   --timeout-seconds <n>   per file when several run at once (default 1200)
 //   --verbose               print every file's output, not only the failing ones'
+//   --shard <k>/<n>         only every n-th file of the list, starting at the k-th (CI spreads one list over n jobs: the same
+//                           list in each job gives each file to exactly one of them)
 // Any other `--` option is handed to `node --test` (e.g. `--test-name-pattern=…`).
 // One file: one `node --test` process, as before. Several files: each file runs alone in its own process with its own
 // MOLIS_WORK_HOME and secret store (this script again, with that one file), several at once (scripts/run-tests/pool.mjs).
-const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [node --test options] [files…]";
+const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [--shard <k>/<n>] [node --test options] [files…]";
 const die = (message) => { console.error(`run-tests: ${message}\n${USAGE}`); process.exit(2); };
 const whole = (name, value, least) => {
   const number = Number(value);
@@ -20,7 +22,7 @@ const whole = (name, value, least) => {
   return number;
 };
 
-const options = { jobs: undefined, browserJobs: undefined, timeoutSeconds: 1200, verbose: false };
+const options = { jobs: undefined, browserJobs: undefined, timeoutSeconds: 1200, verbose: false, shard: undefined };
 const targets = [], testArgs = [];
 const args = process.argv.slice(2);
 for (let index = 0; index < args.length; index++) {
@@ -30,10 +32,21 @@ for (let index = 0; index < args.length; index++) {
   else if (name === "--browser-jobs") options.browserJobs = whole(name, value(), 1);
   else if (name === "--timeout-seconds") options.timeoutSeconds = whole(name, value(), 1);
   else if (name === "--verbose") options.verbose = true;
+  else if (name === "--shard") {
+    const shard = /^(\d+)\/(\d+)$/.exec(value() ?? "");
+    if (!shard || Number(shard[1]) < 1 || Number(shard[1]) > Number(shard[2])) die(`--shard needs <k>/<n> with 1 <= k <= n, not "${args[index]}"`);
+    options.shard = { index: Number(shard[1]) - 1, count: Number(shard[2]) };
+  }
   else if (name.startsWith("--")) testArgs.push(args[index]);
   else targets.push(args[index]);
 }
 if (!targets.length) targets.push(...(await readdir("tests")).filter(name => /\.test\.(ts|mjs)$/.test(name)).sort().map(name => `tests/${name}`));
+if (options.shard) {
+  const { index, count } = options.shard;
+  const mine = targets.filter((_, position) => position % count === index);
+  if (!mine.length) { console.log(`run-tests: shard ${index + 1}/${count} of ${targets.length} files has no file`); process.exit(0); }
+  targets.splice(0, targets.length, ...mine);
+}
 
 if (targets.length > 1) {
   const fromEnvironment = (name, fallback) => process.env[name] === undefined ? fallback : whole(name, process.env[name], 1);

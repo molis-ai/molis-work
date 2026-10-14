@@ -22,8 +22,8 @@ concurrency:
 
 jobs:
   # The blocking checks are jobs that run side by side and all feed `verify`, each about five minutes: `gates` and
-  # `health-gate-rules` need no build (the contracts package alone, for one gate test), `architecture-boundaries` builds the
-  # workspace and runs what needs the build. Each `node scripts/run-tests.mjs` with several files runs them a few at a time, each
+  # `health-gate-rules` need no build (the contracts package alone, for one gate test), `architecture-boundaries` and
+  # `action-contracts` each build the workspace and run what needs the build. Each `node scripts/run-tests.mjs` with several files runs them a few at a time, each
   # file with its own MOLIS_WORK_HOME (scripts/run-tests/pool.mjs, docs/system/PARALLEL-DEVELOPMENT.md §5); MOLIS_WORK_TEST_JOBS
   # sets how many on these 4-core runners. The runner starts the files that took longest last time first, from the durations it
   # keeps in node_modules/.cache/molis-work-tests; the "Test durations" step carries that file from run to run (a job of main's
@@ -92,8 +92,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules/.cache/molis-work-tests
-          key: test-durations-${{ github.job }}-${{ github.run_id }}
-          restore-keys: test-durations-${{ github.job }}-
+          key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
 
       # Every gate above, and the runners and scanners of this workflow, is mutation-verified on a scratch repository: one
       # violation added on a branch fails, and so does the same branch after `--update` rewrote the baseline (the package
@@ -107,10 +107,16 @@ jobs:
 
   # The health gates' own rules (scripts/check-health-gates.mjs and scripts/gates/): each one is broken once on a scratch repository
   # and must go red, and so must the same branch after `--update` rewrote the baseline. The glob takes every
-  # tests/health-gates-*.test.ts, so a new gate's test needs no edit here. Its own job because together they are the longest set.
+  # tests/health-gates-*.test.ts, so a new gate's test needs no edit here. Together they are the longest set, and each file already
+  # keeps more than one core busy (Biome, the TypeScript program of the API snapshot), so they are spread over two runners: each leg
+  # takes every second file of the same list (`--shard`), which gives every file to exactly one leg.
   health-gate-rules:
-    name: Health gate rules
+    name: Health gate rules (${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     env:
       MOLIS_WORK_TEST_JOBS: 4
     steps:
@@ -134,11 +140,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules/.cache/molis-work-tests
-          key: test-durations-${{ github.job }}-${{ github.run_id }}
-          restore-keys: test-durations-${{ github.job }}-
+          key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
 
       - name: Health gates reject what they claim to
-        run: node scripts/run-tests.mjs tests/health-gates-*.test.ts
+        run: node scripts/run-tests.mjs --shard ${{ matrix.shard }}/2 tests/health-gates-*.test.ts
 
   architecture-boundaries:
     name: Package boundaries
@@ -165,8 +171,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules/.cache/molis-work-tests
-          key: test-durations-${{ github.job }}-${{ github.run_id }}
-          restore-keys: test-durations-${{ github.job }}-
+          key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
 
       # Boundary rules, then every workspace package built (`tsc` of each package also type-checks it, so a type error fails here).
       - name: Verify package contracts and boundaries
@@ -204,11 +210,6 @@ jobs:
       - name: Build rules reject what they claim to
         run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts tests/dom-events-contract.test.ts tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts tests/shell-page-gate.test.ts tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts
 
-      # Action directory, Manifest and MCP grant contracts, and undeclared names in the assembled Workbench client;
-      # runs on the packages built above. The full product suite still runs locally (see the PR template).
-      - name: Action and plugin contracts
-        run: pnpm test:contracts
-
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests
         run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test
@@ -230,6 +231,40 @@ jobs:
           base="$(node scripts/ci-health-base.mjs)"
           pnpm studio:replay --base "$base"
           node scripts/run-tests.mjs tests/studio-replay.test.ts
+
+  # Action directory, Manifest and MCP grant contracts, and undeclared names in the assembled Workbench client, on a workspace build
+  # of their own (the same packages `pnpm workspace:verify` builds), beside `architecture-boundaries` so neither waits for the other.
+  # The full product suite still runs locally (see the PR template).
+  action-contracts:
+    name: Action and plugin contracts
+    runs-on: ubuntu-latest
+    env:
+      MOLIS_WORK_TEST_JOBS: 4
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test durations
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/molis-work-tests
+          key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
+
+      - name: Build
+        run: pnpm workspace:build
+
+      - name: Action and plugin contracts
+        run: pnpm test:contracts
 
   # No dependencies and no build: it reads git history only, so it starts at once and is cheap to keep on every change.
   secret-scan:
@@ -324,7 +359,7 @@ jobs:
 
   verify:
     name: Verify
-    needs: [gates, health-gate-rules, architecture-boundaries, secret-scan, native-checks, shell-checks]
+    needs: [gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks]
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection.
     # The full product suite runs locally; the gates, package boundaries, the contract subset, the secret scan and the Rust, Swift and shell checks run here.
@@ -335,6 +370,7 @@ jobs:
           GATES_RESULT: ${{ needs.gates.result }}
           HEALTH_GATE_RULES_RESULT: ${{ needs.health-gate-rules.result }}
           PACKAGE_BOUNDARIES_RESULT: ${{ needs.architecture-boundaries.result }}
+          ACTION_CONTRACTS_RESULT: ${{ needs.action-contracts.result }}
           SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
           NATIVE_CHECKS_RESULT: ${{ needs.native-checks.result }}
           SHELL_CHECKS_RESULT: ${{ needs.shell-checks.result }}
@@ -342,6 +378,7 @@ jobs:
           test "$GATES_RESULT" = "success"
           test "$HEALTH_GATE_RULES_RESULT" = "success"
           test "$PACKAGE_BOUNDARIES_RESULT" = "success"
+          test "$ACTION_CONTRACTS_RESULT" = "success"
           test "$SECRET_SCAN_RESULT" = "success"
           test "$NATIVE_CHECKS_RESULT" = "success"
           test "$SHELL_CHECKS_RESULT" = "success"
@@ -380,8 +417,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules/.cache/molis-work-tests
-          key: test-durations-${{ github.job }}-${{ github.run_id }}
-          restore-keys: test-durations-${{ github.job }}-
+          key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
 
       # The same packages the step had when it ran after `pnpm workspace:verify`.
       - name: Build

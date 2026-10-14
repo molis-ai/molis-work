@@ -145,7 +145,7 @@ A 和 E 同时管两种情形，也不靠每次发布补手工，还会让今天
 - 算出的值必须等于锁文件，所以改了清单、动作表或清单引进的 contracts 定义的合并，都必须同时更新锁文件，评审看得见；
 - 与合并基底的锁文件比：同一个插件摘要变了而版本没变就失败（做法和现有健康门禁一致：基底和头部各算一次，不读被改过的基线，`.github/workflows/ci.yml` 的 Health gates 一步，`scripts/ci-health-base.mjs` 选基底）。
 
-CI 的 `architecture-boundaries` 作业在 `pnpm test:contracts` 之前已经构建了包（`pnpm workspace:verify` 含 `workspace:build`），`tests/builtin-manifests-contract.test.ts` 已经在那一步里读 `BUILTIN_PLUGIN_CATALOG`，这 7 个清单都在其中（`apps/workbench/src/builtin-plugins.ts` 的 `:198-378` 之间），测试可以放在一起。它管不到的：不经这 7 个监督器条目的内置插件（旧装配）、非内置插件。成本：每个改清单的合并多改一个锁文件，并发的合并会在它上面冲突；Characters 并进宿主后删一行。它不替用户做 A 到 F 的选择，只解决「摘要变了版本没升」会被悄悄放过的问题。
+CI 的 `action-contracts` 作业在 `pnpm test:contracts` 之前已经构建了包（`pnpm workspace:build`），`tests/builtin-manifests-contract.test.ts` 已经在那一步里读 `BUILTIN_PLUGIN_CATALOG`，这 7 个清单都在其中（`apps/workbench/src/builtin-plugins.ts` 的 `:198-378` 之间），测试可以放在一起。它管不到的：不经这 7 个监督器条目的内置插件（旧装配）、非内置插件。成本：每个改清单的合并多改一个锁文件，并发的合并会在它上面冲突；Characters 并进宿主后删一行。它不替用户做 A 到 F 的选择，只解决「摘要变了版本没升」会被悄悄放过的问题。
 
 选定以后，0.3.0 的发布 PR 的顺序：
 

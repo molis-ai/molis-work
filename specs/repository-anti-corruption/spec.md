@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14接续）。原I4/I5第五批、BL-133和W2-10 A1–A4/C/D已合；E与最终共享全量未完成。Grok #480已实际合main46cb083ee，Computer Use后续优先链仍待协调，Root #488/#489/#490后置。I8当前1b6f94232已合46cb main并串行纳已接受I3–I24共同错误及READFIX。当前08b+beforeAccept临时SDK41实际8文件114/114及build/pack成功；正式上游/vendor仍待原问题回答。旧2768组合60批整建/类型/API/actions/health/资源通过，boundary仅临时SDK路径失败；不能证明新main组合。62真实40文件235条，230通过、5条coding.state缺依赖码消费失败；12f/042修后70已实际236/236，五失败关闭及新增拒绝通过。67等待队列未开始撤回143；恢复锁文件无关888行删除后只留SDK五行替换，新68整体工程与资源通过、boundary仅临时SDK路径；72的3失败经test-only修后三文件74实际28/28。I22–I24新源码接入后组合整建待办。26–33旧964基线证据保留，与最新组合分开。维护八41库只读克隆零写入，映射/演练及真实Home窗口待办；第4–6波、场景/手册/度量及两份最终汇报继续按§10/§12推进。
+状态：执行中，整线未完成（2026-10-14接续）。原I4/I5第五批、BL-133与W2-10 A1–A4/C/D已合；E、最终共享全量与第4–6波余项未完成。#493已由原负责人合入main f90bf70b5，#488→#489由现有owner接续，#490待同步。Root I8当前b33a7d187包含已接受I3–I25共同错误、READFIX及六处79批失败的修复准备；I26–I28源码已接受、尚未纳入组合。78批整体工程通过，boundary只因隔离SDK路径失败；79实际182条159通过23失败，80真实Store/Browser9/9与Alchemist81/81通过。17项Coding setup先修旧register接口，再补Manifest缺失的三项grant；其余旧测试按当前合同修正，运行待补。85构建包含后来撤回的MCP早退错误，不能作当前证明；86未启动已撤回。唯一87单文件等待诊断仍排在A2全量后，不能把空日志当运行。临时SDK41是08b+beforeAccept，114/114有效，但未包含#493新CU image；当前组合整建与隔离新SDK联验待做，正式上游/vendor仍待原问题回复。维护八41库只读克隆零写入；映射/演练及真实Home窗口待办。最终按§12.4逐条完成，不以源码审查或局部通过宣告整线完成。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2591,3 +2591,12 @@ FIX79 MCP判断纠正：上条按10-09旧测试推定协议缺陷不成立。唯
 FIX79 Shelf输出旧预期：runtime-actions.refused本已明确Common ActionError原样穿透、普通错误才shelf.invalid。I25当前Artifacts同一拒绝已识别Common，真实400+artifact_archived原文与owner code artifacts.plugin_incompatible正确穿透；按既定统一码/跨入口合同只更新原archived选择输出case当前code，status/旧引用/expected_reference/没有覆盖原输出/后续列表全保。不恢复旧bare-class generic wrapper或扩大读取compat。
 
 FIX79-LIFETIME：current create已auto-select并codingDetail=true，旧测试随后点击隐藏directory row；新fixture通过真正可见directory-back→等待detail=false→点原row，保单次create/request/effect与卸载全部断言，生产不改。NETWORK-PULSE-01：原句/英文/匿名账号与HTML默认hidden静态断言全保，删失效的源码实现regex，将等价更强的实际可见性断言移入既有Chrome Alchemist client完整HTTP/SQLite测试；点击pulse/ideas/decisions/directions现行collection，唯pulse notice可见，不放宽timeout或跳过UI。这些四test文件尚未运行，不把修好源码记通过。
+
+
+**W3-02 Goals错误余项 I29（准备，未运行）。** 规划动作两个实际拒绝planning_method.not_found改为本插件唯一声明goals.planning.method_not_found；创建意图白名单拒绝mcp.unexpected_field改为goals.intent.unexpected_field，MCP传输自己拒绝未许可字段的mcp.unexpected_field保持。不是全局字符串替换。R-GOALS-OWNER-01：实际planning read/apply缺方法分别保原文案、invalid/400、项目规划版本和组合不变；R-GOALS-OWNER-02：真实Host的GoalEventApplication.createIntent在schema之外直接拒绝未许可字段（动作schema的actions.input_invalid仍保留）保details.fields、invalid/400、事件/Goal/关系和幂等状态不变，正常及重试路径保持。生产方各声明一次、不引入旧码alias或读取兼容；既有真实Host动作测试补编号与拒绝数据断言。Source类型/API/merge-base健康与纳I8后真实回归分开验收。
+
+
+**W3-02 Kernel缺Session错误 I30（准备，未运行）。** 已区分两个同名历史码的真正拒绝：Kernel action-authorship检查authorship:session且trusted runtime_session_missing，文案是缺稳定Session；Host mcp-event-identity检查runtime_id，文案是缺可信Runtime。只将Kernel声明/生产与五个实测其路径的测试期望改为kernel.runtime_identity_missing invalid；Host的mcp.runtime_identity_missing保持，不能全仓替换。R-KERNEL-OWNER-01：直接、nested wrapper、workflow与Feed promotion/offer/Gateway在缺Session时保原文案/400、zero handler与zero记录；补有效Session后原作者与合法执行保持。只有现行码改归属，无身份兜底、读取兼容、权限/schema或状态机变化；Source与整建后实际回归分别记录。
+
+
+I29 Source df02dd098e12cf12e14b9c98cb81ec53480865be已准备四文件36+/6-；Goals源码类型own/all0、API62文件2410声明无变，merge-base健康通过（本Source parent dc6821，只含I27，28类/0形状/10非owner）。独立复核在途，真实运行未做，尚未纳I8。I30首次Source类型89失败仅六条缺AJV借用依赖；补自己树的kernel node_modules软链再做89b，不能将首次失败记通过。隔离SDK新候选923e5a40（含#493 CU-image）加原beforeAccept最小补丁已只在新临时工作树准备，未build/pack、未推上游/替vendor；唯一87仍未启动，不重复排新构建。

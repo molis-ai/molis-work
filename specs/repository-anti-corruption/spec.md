@@ -2273,3 +2273,5 @@ R4c2沿登记Agent owner仅迁Molis自有inference错误到agent.inference.<原�
 
 C #484合入后的Codex合规复查按系统整理§1–15：§1–7没有新增生产身份/能力/owner/生命周期路径，包导入迁移保留实际定义及私有构建副本，除Keychain夹具外AST测试正文一致；§8/13未新增模型/SDK调用，文档仅现行构建前提；§9真实新main浏览器73/73保留范围；§10单Home/文件Secret和假Keychain隔离，唯一fixture Host供网页与动作共用、原locked读取/0provider/0Keychain/不改密文断言全部保持，未碰真Home；§11/12/14与Darwin干净基线及真实失败/重跑证据对照，不改产品语义或吞断言；§15仅本片可收口，D/E/I8和维护/后续路线不关闭。未发现该片新增必须处理P1。
 R4c1 67081873c（41错误词元/6TS）独立只读无新Blocker/P1，旧5码无残留、API0及health通过；R4c2 bd56ef174（22错误词元/8TS+现行文档/fixture说明）将Molis自有推理码和image_比较归agent.inference，逆名AST8/8同、API0/health通过，SDK原生错误与真实拒绝身份标记/模型回执保持。R4c2仍未运行；D现行5c66同步7cf62dc67，整树与c816d570e一致，42非浏览器+2浏览器新版driver仅准备未启动。I8和#477原等待进程保持，不新增同一构建。
+
+R4c3按现行实现收窄旧计划：kernel.capability_*由packages/kernel自己的类生产、owner表已登记kernel，Coding只是消费，保持；Jelly b23旧生产前缀已随早前F片清掉，不重复迁移。仅Diff的三种unified拒绝→diff.unified.<原因>，Coding图的unknown_node/duplicate_node→coding.diagram.<原因>，对应真实消费同步。R4C3-01：实际hunk解析仍拒坏头/数量不符/空片，图仍拒重复与未知节点，输入/输出和事实不变；R4C3-02：错误语境/API或测试消费者现行，kernel自有码、图节点/关系、SQL业务type保持；R4C3-03：真实Diff/图定向、资源/门禁与共享回归后验收。首片只Diff，图另片，一题一个PR。

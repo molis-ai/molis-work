@@ -353,7 +353,7 @@ export class MolisWorkLocalHost {
   private async prepareProjectPlugins(reference: LocalHostProjectReference, caller: ActionCallContext): Promise<void> {
     caller.signal?.throwIfAborted();
     if (caller.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
-    await this.ensureProjectPluginActions(reference);
+    await ensureProjectPluginActions({ host: this.host, options: this.options, agents: () => this.agents?.service }, reference);
     caller.signal?.throwIfAborted();
     await this.agents?.service.restoreExternalMcp(reference);
     caller.signal?.throwIfAborted();
@@ -363,10 +363,6 @@ export class MolisWorkLocalHost {
 
   private prepareInstalledPlugins(reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Promise<void> {
     return prepareInstalledPlugins({ host: this.host, options: this.options, agents: () => this.agents?.service }, reference, runtime);
-  }
-
-  private ensureProjectPluginActions(reference: LocalHostProjectReference): Promise<unknown> {
-    return ensureProjectPluginActions({ host: this.host, options: this.options, agents: () => this.agents?.service }, reference);
   }
 
   private async prepareHomeActions(): Promise<void> {

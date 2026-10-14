@@ -13,6 +13,7 @@ import type { ContractDescriptor } from "../platform/package.js";
 import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
 import type { CharacterContent } from "../modules/characters.js";
 import type { AgentDocumentCapability, AgentMemoryExecutionControl, AgentMemoryCapability, AgentMemoryRecallFact, AgentRecalledMemory } from "./agent-host-memory.js";
+import type { AgentAnswerControl, AgentPendingQuestion } from "./agent-interaction.js";
 // Memory and documents through the runtime: declared beside this file, part of the same contract.
 export type { AgentMemoryExecutionControl, AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability } from "./agent-host-memory.js";
 
@@ -711,8 +712,7 @@ export type AgentRunControl =
    * question and closes it. Sending it as a free instruction would leave the
    * question open while the Run reads the text as unrelated guidance.
    */
-  | { kind: "answer"; pending_id: string; pending_revision?: number; text?: string;
-      answers?: ReadonlyArray<{ question: number; indexes: readonly number[]; other?: string }> };
+  | AgentAnswerControl;
 
 export type AgentTurnKind = "user" | "assistant" | "system" | "notice";
 
@@ -791,32 +791,6 @@ export interface AgentCommandOutput {
   timed_out?: boolean;
   cancelled?: boolean;
   stop_reason?: "cancelled" | "timed-out";
-}
-
-/**
- * A question the Run stopped on and is waiting for a person to answer.
- *
- * Options are what the Runtime offered. An empty list means free text only —
- * never a hidden default, because answering on the user's behalf is the one
- * thing a question surface must not do.
- */
-export interface AgentPendingQuestion {
-  pending_id: string;
-  pending_revision?: number;
-  /** Position of the original waiting event among this Run's visible entries. */
-  sequence?: number;
-  /** The Runtime's own category, e.g. a plan choice or a clarification. */
-  kind: string;
-  /** The question as the Runtime phrased it. Shown as-is. */
-  prompt: string;
-  options: ReadonlyArray<{ value: string; label: string }>;
-  /** Whether a written answer is accepted alongside, or instead of, the options. */
-  allows_free_text: boolean;
-  /** Frozen questionnaire read from its execution owner, never reconstructed from prose. */
-  questions?: ReadonlyArray<{ index: number; prompt: string;
-    options: ReadonlyArray<{ index: number; label: string }>; multiple: boolean; allow_other: boolean }>;
-  answerable?: boolean;
-  unavailable_reason?: string;
 }
 
 /** One step of a Run's own list, as the runtime keeps it. */
@@ -1340,7 +1314,9 @@ export type AgentHostErrorCode =
   | "agent.review_not_approved"
   // Approval bridge between a Runtime's pending effect and the queue
   | "agent.pending_unknown"
-  | "agent.pending_not_open";
+  | "agent.pending_not_open"
+  // An answer to a question the Runtime would not take; the problems name each question and why (agent-interaction)
+  | "agent.answer_invalid";
 
 export interface AgentHostApi {
   register(adapter: AgentRuntimeAdapter): void;

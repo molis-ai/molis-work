@@ -54,6 +54,7 @@ export { PrologueAgentAdapter, PrologueAdapterError, PROLOGUE_RUNTIME_ID } from 
 export { createPrologueNodeAdapter, SUBAGENT_DEFAULT_TURNS } from "./adapters/prologue-node.js";
 export { surfaceRules } from "./adapters/prologue-surfaces.js";
 export { screenModelMaterial } from "./adapters/prologue-screening.js";
+export { projectQuestion, answerProblems } from "./adapters/prologue-questions.js";
 export { createPluginBuilderAgent } from "./adapters/plugin-builder.js";
 export type { PluginBuilderAgentOptions, BuilderAgentRequest, BuilderAgentRecord, BuilderAgentActivity } from "./adapters/plugin-builder.js";
 export { resolveModelHostname } from "./adapters/node-model-dns.js";

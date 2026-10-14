@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { FOLLOW_UP_KIND, followUpTask, enqueueCurrentFollowUp, runDueFollowUp } from "./assistant-followups.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError, requireSynchronous, actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorBody, actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
@@ -2100,7 +2100,7 @@ export class AssistantService {
     return parts.join("\n\n").slice(0, MAX_TEXT);
   }
 
-  private freeTextQuestion(questions: readonly AgentPendingQuestion[]): AgentPendingQuestion | undefined {
+  private freeTextQuestion(questions: AgentRunView["awaiting_input"]): AgentRunView["awaiting_input"][number] | undefined {
     return questions.length === 1 && questions[0]!.allows_free_text && !questions[0]!.questions?.length ? questions[0] : undefined;
   }
 

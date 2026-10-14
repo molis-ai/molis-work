@@ -64,11 +64,11 @@
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 170,
     "file horizontal/agent-host/src/adapters/prologue-node.ts": 1551,
-    "function horizontal/agent-host/src/adapters/prologue-node.ts#initializePrologueNodeAdapter": 1266,
+    "function horizontal/agent-host/src/adapters/prologue-node.ts#initializePrologueNodeAdapter": 1265,
     "function horizontal/agent-host/src/adapters/prologue-node.ts#startAgentRun": 398,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 212,
     "function horizontal/agent-host/src/adapters/prologue-taskboard.ts#createPrologueTaskBoards": 220,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 994,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 990,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
       "lines": 615,
       "methods": 18
@@ -159,7 +159,7 @@
       "methods": 35
     },
     "function modules/shelf/src/store.ts#runJob": 199,
-    "file packages/contracts/src/services/agent-host.ts": 1654,
+    "file packages/contracts/src/services/agent-host.ts": 1630,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 947,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,

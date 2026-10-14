@@ -1,5 +1,6 @@
 import type { ContractDescriptor } from "../platform/package.js";
-import type { AgentPendingQuestion, AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
+import type { AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
+import type { AgentPendingQuestion } from "./agent-interaction.js";
 import type { MemoryChange, MemoryScope } from "./memory.js";
 
 /**

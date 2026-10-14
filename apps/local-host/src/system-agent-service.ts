@@ -2,6 +2,7 @@ import path from "node:path";
 import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { composeAgentHost, workspaceRefFor, type AgentHostCompositionOptions } from "./agent-host-composition.js";
+import { hostQuestionTypes } from "./agent-question-surfaces.js";
 import { createAgentConnectorPorts } from "./agent-connector-ports.js";
 import { openConfiguredModels } from "./configured-models.js";
 import { bindPrologueInference, bindPrologueBuilder } from "./prologue-inference-host.js";
@@ -47,6 +48,8 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         : workspaces.workspaceFor?.(projectId) ?? null,
       prologue: {
         storageRoot: agentRuntimeDirectory(storageHome),
+        // The question types every surface that shows a run's questions can draw (specs/ai-interaction-experience D8).
+        questionTypes: hostQuestionTypes(),
         // The side panel's browser and the desktop desk, when the server that owns them registered them for this Host
         // (specs/archive/side-panel P5, specs/computer-use).
         surfaces: {

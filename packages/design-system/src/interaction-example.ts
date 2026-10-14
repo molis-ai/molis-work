@@ -1,5 +1,6 @@
 import { renderInteractionComposerTarget, renderInteractionNextSteps, renderInteractionOperation, renderInteractionOptions, renderInteractionQuestion,
   type InteractionField, type InteractionOperationView } from './interaction.js';
+import { INTERACTION_CLIENT_SCRIPT } from './interaction-client.js';
 import { INTERACTION_STYLES } from './styles/interaction.js';
 
 const calendar = { months: [{ year: 2026, month: 9 }, { year: 2026, month: 10 }], today: '2026-10-12' };
@@ -55,7 +56,7 @@ export function renderInteractionExample(): string {
     .mw-ix-composer-specimen { display: flex; align-items: center; gap: 8px; width: min(560px, 100%); }
     .mw-ix-composer-specimen__pill { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 50px; padding: 0 14px; border-radius: var(--r-composer, 15px); background: var(--paper); box-shadow: var(--lift-2); color: var(--muted); }
   </style>
-  <p class="mw-catalog__hint">AI 发起交互时的共享部件：问卷（混合字段、推荐理由、逐字段错误、时长冲突确认）、选项组、操作卡（作用对象与版本、参数预览、状态、结果）、输入框旁的下一步。只做呈现，调用方把自己的记录转换成展示参数；示例内容固定，不连接任何服务。</p>
+  <p class="mw-catalog__hint">AI 发起交互时的共享部件：问卷（混合字段、推荐理由、逐字段错误、时长冲突确认）、选项组、操作卡（作用对象与版本、参数预览、状态、结果）、输入框旁的下一步。只做呈现，调用方把自己的记录转换成展示参数；示例内容固定，不连接任何服务；第一张问卷用共享的浏览器行为（选项、步进、日历、键盘、逐字段错误）真的可以操作。</p>
   <div class="mw-catalog__specimens">
     ${card('问卷 · 待答，带错误与冲突确认', question, true)}
     ${card('问卷 · 已交回', answered)}
@@ -68,5 +69,16 @@ export function renderInteractionExample(): string {
     ${card('操作卡 · 已完成', renderInteractionOperation(operation('ix-op-done', { badge: { label: '已完成', tone: 'done' }, result: { title: '复盘安排已准备好', body: '日程已创建；参数与回执在摘要里。', actions: [{ id: 'open', label: '打开摘要' }, { id: 'continue', label: '继续调整', variant: 'ghost' }] } })))}
     ${card('操作卡 · 对象改版后失效', renderInteractionOperation(operation('ix-op-stale', { badge: { label: '已失效', tone: 'quiet' }, target: { prefix: '作用于', label: '秋季工作台 · 内部试用', version: '版本 2', changed: true }, status: { text: '作用对象已改版，这组参数不能再执行。按新版本重新准备上面的问题。' } })))}
     ${steps}
-  </div>`;
+  </div>
+  <script>(()=>{const card=document.querySelector('[data-ix-question="ix-q-open"]');if(!card)return;
+    let errors={minutes:'请输入 15–120 之间的整数分钟。',materials:'请选择 1–2 份材料。'};
+    const client=(${INTERACTION_CLIENT_SCRIPT})(card,{
+      onChange:({field})=>{if(errors[field]){delete errors[field];client.showErrors(errors)}},
+      onAction:id=>{const notice=card.querySelector('[data-ix-notice]');if(id==='adopt'){client.write({minutes:'45'});delete errors.minutes;client.showErrors(errors)}if(id==='adopt'||id==='keep'){if(notice)notice.hidden=true}},
+      onSubmit:()=>{const v=client.read();const m=Number(v.minutes);errors={};
+        if(!Number.isInteger(m)||m<15||m>120)errors.minutes='请输入 15–120 之间的整数分钟。';
+        if(!v.materials.length||v.materials.length>2)errors.materials='请选择 1–2 份材料。';
+        client.showErrors(errors,{focus:true});
+        const note=card.querySelector('[data-ix-note]');if(note){note.textContent=Object.keys(errors).length?'还有 '+Object.keys(errors).length+' 项要修正，填写都在。':'没有问题；示例页不会真的提交。';note.dataset.tone=Object.keys(errors).length?'error':''}}
+    });})()</script>`;
 }

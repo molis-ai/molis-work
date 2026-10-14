@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，未达到整条防腐线完成标准（2026-10-14接续）。I4/I5与BL-133已合；W2-10 A1–A4/C/D已合（D #486 main6588），E与最终共享全量未完成。#477/#478/#487/#479已合，验收基线main964841211；外部#410已合d53062a23，尚待本线组合核对，Grok负责#480–481及Computer Use后续优先，本线不覆盖。I8 26已整合R6/J1–J7/I1/K1–K2，整体build、root/workspace类型、API、动作、29资源预算、health通过；36文件342条340通过1新测试误报1网络skip，误报及真实网络已后补28 13/13，六原失败已定向闭环，S6审批到Git/index/fixedDiff实际通过。完整boundary仅临时SDK路径未过、正式上游/vendor仍待原问题回答，不能称typecheck:all绿。浏览器27/真实DOM29与完整安全30在途，整合Source不得替最终共享全量；I2 Source接受、I3计划准备。维护八41库只读clone/37明示JSON槽统计与6已知候选，映射/演练/原库窗口仍待，第4–6波、最终场景、手册、度量和两份交付沿原路线继续。
+状态：执行中，未达到整条防腐线完成标准（2026-10-14接续）。原I4/I5第五批与BL-133、W2-10 A1–A4/C/D已合，E及最终共享全量未完成。#477/#478/#487/#479已合；Grok优先链中#481已合到#480叠分支，#480最新1ffc仍待CI/合main，Computer Use后续仍由其负责，本线远端后置。I8最新40b601a5f已保留本线权限/生命周期并同步main d530、纳I3 Goals工厂删除，源码组合独立接受；37批整体构建/类型/资源与真实Goals回归在机器构建锁排队，未称新main运行通过。此前基线964的26–33证据已闭合定向：browser27为22/22、DOM29通过；security30为298/300，原两管理fixture修后31/32通过，不能称完整security一次全绿；I2组合33为95/95。I4 Projects、I5 GoalTree、I6 Agent四类及真实问卷补测、I7 Scheduler、Ledger源码候选已独立接受，Characters与Diff/Diagram在准备/复核，均待运行。当前临时SDK与新问卷不兼容，联合08b+beforeAccept本地副本41排队未运行；正式上游/vendor仍待原问题回答，完整boundary/typecheck:all未通过。维护八41库只读clone及已知候选仅统计、0写入，映射/演练/原库窗口仍待；第4–6波、最终场景、手册、度量和两份交付沿原路线继续。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 

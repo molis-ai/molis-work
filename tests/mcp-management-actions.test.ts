@@ -5,10 +5,11 @@ import { join } from "node:path";
 import test, { mock, type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference, runV1Cli } from "@molis-ai/molis-work-app-local-host";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalEventDecisionResult } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalTreeProposalDecisionResult, GoalTreeApplicationApi } from "@molis-ai/molis-work-plugin-goals";
-import type { McpToolResult } from "@molis-ai/molis-work-app-mcp";
+import { dispatchMcpProjectTool, mcpWebUrl, type McpToolResult } from "@molis-ai/molis-work-app-mcp";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 
 const PROJECT = "management-actions", FORGED = "11111111-2222-4333-8444-555555555555";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -155,4 +156,27 @@ test("W3-07-4-01 / W3-07-4-02: pre-action refusals have no number or row; each a
   await refusal(management, "molis_work_v1_initialize", { title: "", idempotency_key: "invalid-init" }, "actions.input_invalid", "goals.board.initialize");
   await refusal(management, "molis_work_v1_event_decide", { ...event, conclusion: "" }, "actions.input_invalid", "goals.decisions.record");
   await refusal(management, "molis_work_v1_goal_tree_decide", { proposal_id: "absent", idempotency_key: "tree", confirm_all_pending: "yes" }, "actions.input_invalid", "goals.tree.decide");
+});
+
+
+test("R-MCP-OWNER-01: MCP presentation and Runtime approval refusals keep their message, transport status and zero dispatch", async () => {
+  const createError = (code: string, message: string, details?: Record<string, unknown>) => new ActionError(code, message, { details });
+  assert.throws(() => mcpWebUrl("/projects/example", "invalid-base", createError), error => {
+    assert.ok(error instanceof ActionError);
+    assert.equal(error.code, "mcp.url_invalid");
+    assert.equal(error.message, "无效的 Molis Work Web 地址: invalid-base");
+    assert.equal(actionHttpStatus(error), 400);
+    return true;
+  });
+  assert.equal(mcpWebUrl("/projects/example", "http://127.0.0.1:4173", createError), "http://127.0.0.1:4173/projects/example");
+  let invoked = 0;
+  await assert.rejects(dispatchMcpProjectTool({ project_id: "example", invoke: async () => { invoked++; throw new Error("must not dispatch"); } },
+    "molis_work_v1_goal_tree_decide", { project_id: "example" }, { audience: "runtime", createError }), error => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "mcp.runtime_decide_unsupported");
+      assert.equal(error.message, "Runtime 不能写入 Goal Tree 决定。请让用户在 Web 或管理入口批准已保存的提案。");
+      assert.equal(actionHttpStatus(error), 400);
+      return true;
+    });
+  assert.equal(invoked, 0);
 });

@@ -76,6 +76,13 @@ test("kanban localizes column labels without translating user titles or adding h
   assert.doesNotMatch(html, /Kanban|How to use|Click a card to open/);
 });
 
+test("Goal momentum canvas keeps each stable Goal id beside its node title", () => {
+  // Moved from the retired momentum skin's rule (.momentum-node > small) to the canvas that draws the nodes now.
+  const goalIdRule = GOAL_CANVAS_STYLES.match(/\.goal-canvas-node small \{([^}]*)\}/)?.[1] ?? "";
+  assert.match(goalIdRule, /text-overflow:\s*ellipsis/);
+  assert.doesNotMatch(goalIdRule, /display:\s*none/);
+});
+
 test("kanban CSS shares six columns on desktop and stacks groups when the pane is narrow", () => {
   assert.match(GOAL_CANVAS_STYLES, /flex: 1 1 0/);
   assert.match(GOAL_CANVAS_STYLES, /container: goal-board \/ inline-size/);

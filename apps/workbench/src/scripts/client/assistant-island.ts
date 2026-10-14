@@ -649,14 +649,16 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   /** A card no round proposed: a page put it in (it names the page in from), or its round is not one of this work's. */
   const pageCard = (card) => Boolean(card.from) || !card.run_id || !(view && view.rounds.some((round) => round.run_id === card.run_id));
+  // Both round cards and page cards use the same Host-drawn view without deleting chronological siblings.
+  const placeCard = (parent, work, card, put) => {
+    const node = keyed(parent, "data-card", card.card_id, () => el("div"));
+    renderCard(node, work, card);
+    (put || ((one) => parent.append(one)))(node);
+  };
   const renderCards = (parent, work, cards, put) => {
     const shown = cards.filter((card) => card.status !== "dismissed");
     [...parent.children].forEach((child) => { if (child.dataset.card && !shown.some((card) => card.card_id === child.dataset.card)) child.remove(); });
-    shown.forEach((card) => {
-      const node = keyed(parent, "data-card", card.card_id, () => el("div"));
-      renderCard(node, work, card);
-      (put || ((one) => parent.append(one)))(node);
-    });
+    shown.forEach((card) => placeCard(parent, work, card, put));
   };
   const FILE_GLYPH = [[/\.(png|jpe?g|gif|webp|heic|svg)$/i, "image"], [/\.(csv|tsv|xlsx?)$/i, "database"], [/\.(md|markdown|txt|log)$/i, "note"],
     [/\.(js|mjs|ts|tsx|py|json|ya?ml|html?|css|sh|go|rs|java|c|cpp|sql)$/i, "code"]];

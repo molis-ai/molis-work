@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { definePlugin } from "../packages/plugin-sdk/src/index.js";
+import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
 import { feedCaptureScene } from "@molis-ai/molis-work-plugin-feed";

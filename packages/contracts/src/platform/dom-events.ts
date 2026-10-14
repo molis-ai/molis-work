@@ -63,8 +63,12 @@ export const PAGE_STATE_OWNERS = {
     state: "The bottom Assistant: the Work it shows, the draft and the materials in its input, what waits on the person.",
   },
   "context-actions": {
-    files: ["apps/workbench/src/scripts/client/context-actions.ts"],
+    files: ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts"],
     state: "What the person has in hand on the focused surface, the ranked actions offered for it, and the starters offered for the open Work.",
+  },
+  "context-toolbar": {
+    files: ["packages/design-system/src/context-toolbar.ts"],
+    state: "The toolbar next to what the person has in hand, in the document that owns it: the tools a plugin offered for the open context, and the small form under it.",
   },
   placement: {
     files: ["apps/workbench/src/scripts/client/placement.ts"],
@@ -163,7 +167,7 @@ export interface DomEventDeclaration {
 }
 
 /**
- * Every page event, in name order: 47 names at the time of listing, 46 of them created with `new CustomEvent` (90 dispatch
+ * Every page event, in name order: 48 names at the time of listing, 47 of them created with `new CustomEvent` (90 dispatch
  * sites) and one, `molis:side-toggle`, only listened to so far. Who dispatches and who listens is not written down here:
  * `node scripts/gates/dom-events.mjs --report` computes both from the source, so it cannot go stale.
  */
@@ -302,19 +306,9 @@ export const DOM_EVENTS = [
     summary: "The Goal work mode changed. Nothing in the tree listens yet.",
   },
   {
-    name: "molis:assistant-context-action-choose", kind: "request", owner: "context-actions", on: "document",
-    detail: "{ context_id, key }; CONTEXT_ACTION_CHOOSE_EVENT (services/contextual)",
-    summary: "A surface's own menu picked a ranked action; the context row handles it as a click on itself.",
-  },
-  {
     name: "molis:assistant-context-action-chosen", kind: "announcement", owner: "context-actions", on: "window", cancelable: true,
     detail: "ContextActionChosen (services/contextual); CONTEXT_ACTION_CHOSEN_EVENT",
     summary: "The person chose a ranked action. The page that owns the context takes it with preventDefault(); if nobody does, the Assistant gets the words and the material, unsent.",
-  },
-  {
-    name: "molis:assistant-context-actions", kind: "announcement", owner: "context-actions", on: "document",
-    detail: "{ context_id, plan }; CONTEXT_ACTIONS_EVENT (services/contextual)",
-    summary: "The Host's ranked actions for the current context, for surfaces that show them in their own menu.",
   },
   {
     name: "molis:assistant-effect", kind: "announcement", owner: "assistant", on: "window",
@@ -350,6 +344,21 @@ export const DOM_EVENTS = [
     name: "molis:assistant-surface-changed", kind: "request", owner: "assistant", on: "window",
     detail: "{ plugin_id, object: { kind, id } }; ASSISTANT_SURFACE_CHANGED_EVENT (services/assistant)",
     summary: "A surface changed an object the Assistant may be showing (Coding's session settings); the Assistant reads its Work again.",
+  },
+  {
+    name: "molis:context-panel-open", kind: "request", owner: "context-toolbar", on: "element", bubbles: true, cancelable: true,
+    detail: "{ context_id, node, label, onClose?, keep? }",
+    summary: "A plugin asks the toolbar for a small form under it (a link's address, a comment): the toolbar places `node` below the bar, one at a time, takes the event with preventDefault(), and closes it on Esc, a click elsewhere or another context, calling onClose. `keep` leaves a result the person is waiting for where it is when the context changes. `node: null` takes it down. Not taken (no bar for that context): the plugin shows the form itself.",
+  },
+  {
+    name: "molis:context-tool-invoke", kind: "announcement", owner: "context-toolbar", on: "element", bubbles: true,
+    detail: "ContextToolInvoke (services/contextual)",
+    summary: "The person clicked one of a plugin's tools in the toolbar. Sent on the element that published the tools; the plugin runs it and publishes its tools again.",
+  },
+  {
+    name: "molis:context-tools", kind: "request", owner: "context-toolbar", on: "element", bubbles: true,
+    detail: "ContextTools (services/contextual)",
+    summary: "A plugin offers its tools for the context it names, as data (limits in CONTEXT_TOOL_LIMITS). The toolbar draws them at the left of the bar and ignores ones for another context.",
   },
   {
     name: "molis:placement-changed", kind: "announcement", owner: "placement", on: "window",

@@ -11,7 +11,7 @@ import { functionAuthoringActions as authoring, functionContextActions, function
 import { serveTestHost } from "./fixtures/test-home.js";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { functionsActionProvider } from "@molis-ai/molis-work-module-functions";
-import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/src/functions-host.js";
+import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/functions-host.js";
 
 const owner: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: ["functions:manage", "functions:invoke"] };
 

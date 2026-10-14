@@ -9,7 +9,7 @@ interface CommentPopupPorts {
   actions(translate: ((value: string) => string) | undefined, save: () => void, cancel: () => void): HTMLElement;
   hidePop(): void;
   applyComment(view: EditorView, from: number, to: number, text: string, id: string): void;
-  placeOverlay(element: HTMLElement, bounds: { left: number; right: number; top: number; bottom: number }, side: "below"): void;
+  placePop(bounds: { left: number; right: number; top: number; bottom: number }, side: "below", label: string): void;
 }
 
 export function openEditorComment(view: EditorView, options: CommentPopupPorts): void {
@@ -30,7 +30,7 @@ export function openEditorComment(view: EditorView, options: CommentPopupPorts):
     options.pop.append(area, options.actions(options.translate, () => {
       options.applyComment(view, found.from, found.to, area.value, found.id); options.hidePop();
     }, options.hidePop));
-    options.placeOverlay(options.pop, view.coordsAtPos(found.from), "below"); area.focus();
+    options.placePop(view.coordsAtPos(found.from), "below", options.translate?.("评论") ?? "评论"); area.focus();
   }
 
 /** Keep an existing annotation intact; ambiguous or empty blocks need an explicit text selection. */

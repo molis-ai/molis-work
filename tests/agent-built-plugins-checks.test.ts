@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { createBuildProject, buildManifest } from '../apps/local-host/src/plugin-builder/build-project.js';
 import { runPluginChecks } from '../apps/local-host/src/plugin-builder/build-checks.js';
 import type { BuildCheckOptions } from '../apps/local-host/src/plugin-builder/build-types.js';
-import type { SandboxPluginContract } from '../packages/contracts/src/platform/plugin-sandbox.js';
+import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 const mac = { skip: process.platform !== 'darwin' };
 function contract(): SandboxPluginContract { return { version: 1, pluginId: 'io.molis.work.generated.checks', revision: 'one', entities: [], pages: [], acceptance: [], operations: [

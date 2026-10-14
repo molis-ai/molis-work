@@ -204,43 +204,46 @@ describe("the records of this repository", () => {
   const file = (relative: string) => readFileSync(path.join(repoRoot, relative), "utf8");
   const json = (relative: string) => JSON.parse(file(relative));
   const folder = "vendor/prologue-sdk";
-  // The package agent-host depends on. It contains the desktop computer-use line and is rebuilt from upstream main before that line is published.
-  const current = "prologue-sdk-0.0.0-rc.1-computer-use.tgz";
+  const current = "prologue-sdk-0.0.0-rc.1-interim-p1-cu.tgz";
 
   test("every vendored archive matches its .sha256 and provenance", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("the current Prologue package is the one agent-host depends on, built from a recorded upstream commit without a patch", () => {
+  test("the current Prologue package is the one agent-host depends on, built without a patch from a pushed interim merge whose parents are upstream commits", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    assert.equal(provenance.source.commit, "d4908c118f7899d44e3d1975806797a05f0094b9");
+    assert.equal(provenance.source.commit, "08b84296f81df1bd5f3429c2dc2997d18b72473a");
+    // The user's 2026-10-13 interim rule (until Molis P3 takes P2): a pushed, named branch whose merge has only upstream main
+    // commits as parents, the H16 fix over PR #6's merge and Computer Use. The record must say exactly that.
+    assert.equal(provenance.source.inFlight.branch, "release/molis-interim-p1-cu-2");
+    assert.equal(provenance.source.inFlight.pushed, true);
+    assert.equal(provenance.source.inFlight.parentsOnUpstreamMain, true);
+    assert.deepEqual(provenance.source.inFlight.parents, ["95cd901d7777ae877f6b64e66ced42ee2ab8d9b1", "d4908c118f7899d44e3d1975806797a05f0094b9"]);
     assert.deepEqual(provenance.source.patches, []);
     assert.equal(provenance.source.dirty, false);
   });
 
-  test("only a patch a vendored provenance still names is left in vendor/prologue-sdk", () => {
-    // The current package was built without a patch. An older package may still name one it has not been told to delete.
-    const named = readdirSync(path.join(repoRoot, folder)).filter((name) => name.endsWith(".provenance.json"))
-      .map((name) => json(`${folder}/${name}`).alsoBuildableFrom?.patch?.file).filter((file): file is string => typeof file === "string").sort();
-    const patches = readdirSync(path.join(repoRoot, folder)).filter((name) => name.endsWith(".patch")).sort();
-    assert.deepEqual(patches, named);
+  test("only the patch the provenance names is left in vendor/prologue-sdk", () => {
+    const named = json(`${folder}/${current}.provenance.json`).alsoBuildableFrom?.patch?.file;
+    const patches = readdirSync(path.join(repoRoot, folder)).filter((name) => name.endsWith(".patch"));
+    assert.deepEqual(patches, named ? [named] : []);
   });
 
-  test("patch-history.json holds the 25 deleted patches and the 9 packages that never had one", () => {
+  test("patch-history.json holds the 26 deleted patches and the 14 packages that never had one", () => {
     const record = json(`${folder}/patch-history.json`);
-    assert.equal(record.patches.length, 25);
-    assert.equal(record.packagesWithoutPatch.length, 9);
-    assert.equal(record.patches.reduce((sum: number, patch: { bytes: number }) => sum + patch.bytes, 0), 2_566_805);
+    assert.equal(record.patches.length, 26);
+    assert.equal(record.packagesWithoutPatch.length, 14);
+    assert.equal(record.patches.reduce((sum: number, patch: { bytes: number }) => sum + patch.bytes, 0), 2_791_897);
     const kinds = record.patches.reduce((count: Record<string, number>, patch: { sourceKind: string }) => ({ ...count, [patch.sourceKind]: (count[patch.sourceKind] ?? 0) + 1 }), {});
-    assert.deepEqual(kinds, { "upstream-commit": 7, "uncommitted-worktree": 17, "molis-repo": 1 });
+    assert.deepEqual(kinds, { "upstream-commit": 8, "uncommitted-worktree": 17, "molis-repo": 1 });
     // Every patch made a package; the one the old README had no hash for (network-dispatch) is recorded with the hash its
     // README carried at d4a2f41b, which is also the SHA-256 of the tgz blob in that commit.
     const networkDispatch = record.patches.find((patch: { file: string }) => patch.file === "network-dispatch.patch");
     assert.equal(networkDispatch.package.sha256, "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e");
     assert.equal(networkDispatch.package.file, "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz");
-    assert.equal(record.upstream.commitsChecked.length, 19);
+    assert.equal(record.upstream.commitsChecked.length, 23);
     // The commit named for retrieval is one that is known to hold every patch; it is not "the last one" (every later commit
     // on main up to the deletion holds them too), so the key must not say so.
     assert.deepEqual(Object.keys(record.retrieval).filter((key) => /^last/i.test(key)), []);
@@ -251,7 +254,7 @@ describe("the records of this repository", () => {
   test("the README states what the records hold and no longer carries what they showed to be false", () => {
     const readme = file(`${folder}/README.md`);
     const record = json(`${folder}/patch-history.json`);
-    assert.ok(readme.includes("25 份补丁（合计 2,566,805 字节）"));
+    assert.ok(readme.includes("26 份补丁（合计 2,791,897 字节）"));
     assert.ok(readme.includes(`记录里写到的每个 Prologue 提交（${record.upstream.commitsChecked.length} 个）`));
     assert.ok(readme.includes(`\`${record.upstream.mainHead.slice(0, 8)}\``));
     assert.ok(readme.includes(json(`${folder}/${current}.provenance.json`).source.commit));

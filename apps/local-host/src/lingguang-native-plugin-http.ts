@@ -7,8 +7,11 @@ import { dispatchNativePluginJsonHttp, readNativePluginJsonBody, type NativePlug
 import { withRewrittenPluginApi } from "./native-plugin-api.js";
 
 export type LingguangHttpTransport = Pick<ActionCallContext, "signal" | "on_progress">;
-/** Reading a file or a page can take minutes (transcription): with `?stream=1` it reports progress line by line. */
-const STREAMED = new Set(["/api/lingguang/material", "/api/lingguang/source"]);
+/**
+ * Reading a file or a page can take minutes (transcription), and a reply is written while the model talks: with
+ * `?stream=1` these report progress line by line (a reply's text as a preview). Closing the request stops the call.
+ */
+const STREAMED = [/^\/api\/lingguang\/(?:material|source)$/u, /^\/api\/lingguang\/conversations\/[^/]+\/messages$/u];
 
 /** The caller binds the project from the scoped URL; this request's transport rides along. */
 export async function handleLingguangNativePluginHttp(request: IncomingMessage, response: ServerResponse, incomingUrl: URL,
@@ -21,12 +24,12 @@ export async function handleLingguangNativePluginHttp(request: IncomingMessage, 
     try { return await new LingguangPluginRouteTable(createLingguangRouteHandlers(await ports(input, { signal: controller.signal, on_progress: progress }))).handle(input); }
     finally { response.off("close", cancel); }
   };
-  if (request.method === "POST" && STREAMED.has(url.pathname) && url.searchParams.get("stream") === "1") {
+  if (request.method === "POST" && STREAMED.some(path => path.test(url.pathname)) && url.searchParams.get("stream") === "1") {
     const write = (value: unknown) => { if (!response.destroyed) response.write(JSON.stringify(value) + "\n"); };
     try {
       const body = await readNativePluginJsonBody(request, 36_000_000);
       response.writeHead(200, { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
-      write({ type: "progress", stage: "extracting", progress: 0 });
+      write({ type: "progress", stage: url.pathname.endsWith("/messages") ? "waiting" : "extracting", progress: 0 });
       const result = await handle({ method: "POST", pathname: url.pathname, query: url.searchParams, body }, progress => write({ type: "progress", ...progress }));
       if (result) write({ type: "result", result: result.body });
     } catch (error) {

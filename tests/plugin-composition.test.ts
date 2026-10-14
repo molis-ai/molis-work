@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validatePluginPresentation } from '../packages/design-system/src/plugin-presentation.js';
+import { validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import { readingContract, readingNodes, readingPresentation } from './fixtures/plugin-composition.js';
 import { sandboxedPluginDefinition } from '../apps/local-host/src/plugin-builder/installed.js';
 import { resolvePluginActivation } from '@molis-ai/molis-work-plugin-runtime';
-import { PLUGIN_PRESENTATION_CAPABILITY } from '../packages/design-system/src/plugin-presentation.js';
+import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
-import { acceptPresentation, presentationTask } from '../plugins/native/plugin-builder/src/agent-presentation.js';
+import { acceptPresentation, presentationTask } from '../plugins/native/plugin-builder/dist/agent-presentation.js';
 
 test('presentation references all parts exactly once and cannot acquire operations or scripts', () => {
   assert.equal(validatePluginPresentation(readingPresentation, readingNodes, readingContract), readingPresentation);

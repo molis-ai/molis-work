@@ -169,6 +169,7 @@ export interface UiViewDeclaration {
     readonly icon?: string;
     readonly accepts_objects?: boolean;
     readonly context_binding?: "focused-object";
+    readonly objects?: readonly string[];
     readonly order?: number;
 }
 

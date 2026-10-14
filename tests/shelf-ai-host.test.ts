@@ -10,12 +10,12 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { shelfActions as a, SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PLUGIN_ID, SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { createExtractablePdf, openShelfStore, SHELF_RECIPES } from "@molis-ai/molis-work-module-shelf";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
-import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
-import { agentDefinitionsFor } from "../apps/local-host/src/agent-definitions/agent-definitions.js";
-import { shelfAiPorts } from "../apps/local-host/src/shelf-ai.js";
-import { extractMaterial } from "../apps/local-host/src/material-extraction.js";
-import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-registrations.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
+import { shelfAiPorts } from "../apps/local-host/dist/shelf-ai.js";
+import { extractMaterial } from "../apps/local-host/dist/material-extraction.js";
+import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-registrations.js";
 
 type Request = { model: string; messages: any[] };
 async function fixture(run: (f: {

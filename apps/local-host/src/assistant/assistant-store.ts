@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { applySqliteBaseline, type openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
+import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
 import type { AssistantBackgroundJob, AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
@@ -73,6 +74,10 @@ export interface StoredWork extends Omit<AssistantWork, "state"> {
   project_ref?: LocalHostProjectReference;
   /** On a delegated work: follow-ups its delegating work sent it. */
   follow_ups?: number;
+  /** On a delegated work: its latest round whose result reached its delegating work (by checking, or at its next round). */
+  handed_back_run?: string;
+  /** On a delegating work: its round after which the person stopped it — what its sub-tasks hand back then does not move it on by itself. */
+  hand_back_held?: string;
 }
 
 /** A change that can be taken back: the public view plus the exact undo to run. */
@@ -160,10 +165,25 @@ export class AssistantStoreError extends Error {
 export class AssistantStore {
   /** What each work started from, used, produced and handed to: Context Ledger edges in this same database. */
   readonly relations: AssistantRelations;
+  /** Each finished round's reported usage. */
+  readonly usage: AssistantUsageLedger;
+
+  /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
+  readonly #changes = new Set<(workId: string) => void>();
 
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
     applySqliteBaseline(db, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
     this.relations = new AssistantRelations(db, now);
+    this.usage = new AssistantUsageLedger(db);
+  }
+
+  onChange(listener: (workId: string) => void): () => void {
+    this.#changes.add(listener);
+    return () => { this.#changes.delete(listener); };
+  }
+
+  #changed(workId: string): void {
+    for (const listener of this.#changes) { try { listener(workId); } catch { /* a listener never fails a write */ } }
   }
 
   create(input: { actor_id: string; title: string; scope: AssistantScope; scope_title?: string; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference; executor?: AssistantExecutor;
@@ -195,19 +215,21 @@ export class AssistantStore {
   }
 
   /** Optimistic: a caller holding an older revision gets a conflict instead of overwriting a newer change. */
-  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "follow_ups" | "delegated_by" | "budget_tokens" | "reply_target" | "thread_round">>, touch = true): StoredWork {
+  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "follow_ups" | "delegated_by" | "budget_tokens" | "handed_back_run" | "hand_back_held" | "reply_target" | "thread_round">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw new AssistantStoreError("assistant.conflict", "这项工作已在别处更新，请刷新后再改");
     const next: StoredWork = { ...current, ...patch, revision: current.revision + 1, updated_at: touch ? this.now().toISOString() : current.updated_at };
     const changed = this.db.prepare("UPDATE assistant_works SET revision=?, updated_at=?, archived=?, body=? WHERE work_id=? AND actor_id=? AND revision=?")
       .run(next.revision, next.updated_at, next.archived ? 1 : 0, JSON.stringify(next), workId, actorId, current.revision).changes;
     if (!changed) throw new AssistantStoreError("assistant.conflict", "这项工作已在别处更新，请刷新后再改");
+    this.#changed(workId);
     return next;
   }
 
   addRound(workId: string, round: StoredRound): void {
     const position = Number((this.db.prepare("SELECT COALESCE(MAX(position),0)+1 AS next FROM assistant_rounds WHERE work_id=?").get(workId) as { next: number }).next);
     this.db.prepare("INSERT INTO assistant_rounds(work_id,run_id,position,body) VALUES (?,?,?,?)").run(workId, round.run_id, position, JSON.stringify(round));
+    this.#changed(workId);
   }
 
   rounds(workId: string): StoredRound[] {
@@ -236,6 +258,7 @@ export class AssistantStore {
   addCard(card: StoredCard): StoredCard {
     this.db.prepare("INSERT INTO assistant_cards(card_id,work_id,revision,status,created_at,body) VALUES (?,?,?,?,?,?)")
       .run(card.card_id, card.work_id, card.revision, card.status, card.created_at, JSON.stringify(card));
+    this.#changed(card.work_id);
     return card;
   }
 
@@ -255,6 +278,7 @@ export class AssistantStore {
     const changed = this.db.prepare("UPDATE assistant_cards SET revision=?, status=?, body=? WHERE card_id=? AND revision=?")
       .run(next.revision, next.status, JSON.stringify(next), card.card_id, expected).changes;
     if (!changed) throw new AssistantStoreError("assistant.conflict", "这个建议已在别处处理，已刷新为最新状态");
+    this.#changed(card.work_id);
     return next;
   }
 
@@ -311,6 +335,7 @@ export class AssistantStore {
   saveFollowUp(actorId: string, followUp: AssistantFollowUp): void {
     this.db.prepare("INSERT INTO assistant_followups(followup_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(followup_id) DO UPDATE SET body=excluded.body")
       .run(followUp.followup_id, actorId, followUp.work_id, JSON.stringify(followUp));
+    this.#changed(followUp.work_id);
   }
 
   /** Changes left running when a round ended, newest last; `untold` only those the next round has not been told of. */
@@ -322,6 +347,7 @@ export class AssistantStore {
   saveUnsettled(actorId: string, change: AssistantUnsettledChange): void {
     this.db.prepare("INSERT INTO assistant_unsettled(change_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(change_id) DO UPDATE SET body=excluded.body")
       .run(change.change_id, actorId, change.work_id, JSON.stringify(change));
+    this.#changed(change.work_id);
   }
 
   removeFollowUp(actorId: string, followupId: string): boolean {
@@ -357,6 +383,7 @@ export class AssistantStore {
     const { told: _told, ...body } = job;
     this.db.prepare("INSERT INTO assistant_jobs(key,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET body=excluded.body")
       .run(job.key, actorId, job.work_id, JSON.stringify(body));
+    this.#changed(job.work_id);
   }
 
   undos(actorId: string, workId: string): StoredUndo[] {
@@ -365,6 +392,7 @@ export class AssistantStore {
 
   saveUndo(actorId: string, undo: StoredUndo): void {
     this.db.prepare("INSERT INTO assistant_undos(undo_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(undo_id) DO UPDATE SET body=excluded.body").run(undo.undo_id, actorId, undo.work_id, JSON.stringify(undo));
+    this.#changed(undo.work_id);
   }
 
   /** Capabilities (action keys) the person wants confirmed each time even though they could be undone. */
@@ -389,31 +417,6 @@ export class AssistantStore {
   discard(actorId: string, workId: string): void {
     if (this.rounds(workId).length) return;
     for (const table of ["works", "observed", "notices", "followups", "undos", "jobs", "unsettled"]) this.db.prepare(`DELETE FROM assistant_${table} WHERE actor_id=? AND work_id=?`).run(actorId, workId);
-  }
-
-  /** One finished round's reported usage, kept once. */
-  recordUsage(actorId: string, usage: { work_id: string; run_id: string; ended_at: string; input: number; output: number; cached: number }): void {
-    this.db.prepare("INSERT OR IGNORE INTO assistant_usage(run_id,actor_id,work_id,ended_at,input,output,cached) VALUES (?,?,?,?,?,?,?)")
-      .run(usage.run_id, actorId, usage.work_id, usage.ended_at, usage.input, usage.output, usage.cached);
-  }
-
-  /** Runs whose usage is already kept, among these. */
-  recordedRuns(runIds: readonly string[]): Set<string> {
-    if (!runIds.length) return new Set();
-    return new Set(this.db.prepare(`SELECT run_id FROM assistant_usage WHERE run_id IN (${runIds.map(() => "?").join(",")})`).all(...runIds).map(row => String(row.run_id)));
-  }
-
-  /** Kept usage of these works' rounds. */
-  usageOf(actorId: string, workIds: readonly string[]): { input: number; output: number; cached_input: number; rounds: number } {
-    if (!workIds.length) return { input: 0, output: 0, cached_input: 0, rounds: 0 };
-    const row = this.db.prepare(`SELECT COALESCE(SUM(input),0) AS input, COALESCE(SUM(output),0) AS output, COALESCE(SUM(cached),0) AS cached, COUNT(*) AS rounds FROM assistant_usage WHERE actor_id=? AND work_id IN (${workIds.map(() => "?").join(",")})`)
-      .get(actorId, ...workIds) as { input: number; output: number; cached: number; rounds: number };
-    return { input: Number(row.input), output: Number(row.output), cached_input: Number(row.cached), rounds: Number(row.rounds) };
-  }
-
-  usageSince(actorId: string, since: string): { input: number; output: number; cached_input: number; rounds: number } {
-    const row = this.db.prepare("SELECT COALESCE(SUM(input),0) AS input, COALESCE(SUM(output),0) AS output, COALESCE(SUM(cached),0) AS cached, COUNT(*) AS rounds FROM assistant_usage WHERE actor_id=? AND ended_at>=?").get(actorId, since) as { input: number; output: number; cached: number; rounds: number };
-    return { input: Number(row.input), output: Number(row.output), cached_input: Number(row.cached), rounds: Number(row.rounds) };
   }
 
   /** Rounds of this person's works started since then, with the work they belong to (most recent 500). */

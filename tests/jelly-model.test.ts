@@ -4,11 +4,11 @@ import { mkdtempSync, mkdirSync, readFileSync, existsSync, rmSync } from "node:f
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { LocalSqliteStorage, LocalCatalogMetadata, createFileSecretStore, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { ModelProviderStore, createModelProviderTables } from "../apps/local-host/src/model-provider-store.js";
-import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/src/project-catalog-contract.js";
-import { readJellyModelSettings, saveJellyModelSettings, createJellyCompletion } from "../apps/local-host/src/jelly-model.js";
-import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
-import { bindPrologueInference } from "../apps/local-host/src/prologue-inference-host.js";
+import { ModelProviderStore, createModelProviderTables } from "@molis-ai/molis-work-app-local-host";
+import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/dist/project-catalog-contract.js";
+import { readJellyModelSettings, saveJellyModelSettings, createJellyCompletion } from "../apps/local-host/dist/jelly-model.js";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
 
 type InferenceRequest = { protocol: string; endpoint: string; model: string; credential_ref: string; resolveCredential(ref: string): unknown };
 /** Model calls go through the Home's Prologue inference; stand in at that seam and report what reached it. */
@@ -96,7 +96,7 @@ test("Jelly rejects insecure configuration and unowned catalogs without mutating
 });
 
 test("Jelly model actions reuse the original provider and preference owners and discover live disablement", async t => {
-  const { MolisWorkLocalHost } = await import("../apps/local-host/src/project-host.js");
+  const { MolisWorkLocalHost } = await import("@molis-ai/molis-work-app-local-host");
   const { jellyActions, jellyServiceActions } = await import("@molis-ai/molis-work-plugin-jelly");
   const { bindActionClient } = await import("@molis-ai/molis-work-contracts/platform/actions");
   const home = homeFor(t);

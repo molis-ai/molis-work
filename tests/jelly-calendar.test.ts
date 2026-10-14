@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyJellyCalendarCommand as command, emptyJellyWorkspace, jellyOccurrences, jellyProgress, jellySchedulesOverlap, validateJellyWorkspace } from "../plugins/native/jelly/src/calendar.js";
-import { jellyAddDays, jellyDaysBetween, jellyWeekday } from "../plugins/native/jelly/src/calendar-validation.js";
-import type { JellyCommand, JellyWorkspace } from "../packages/contracts/src/modules/jelly.js";
+import { applyJellyCalendarCommand as command, emptyJellyWorkspace, jellyOccurrences, jellyProgress, jellySchedulesOverlap, validateJellyWorkspace } from "@molis-ai/molis-work-plugin-jelly";
+import { jellyAddDays, jellyDaysBetween, jellyWeekday } from "../plugins/native/jelly/dist/calendar-validation.js";
+import type { JellyCommand, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 const now = "2026-09-22T01:00:00.000Z";
 function apply(state: JellyWorkspace, value: JellyCommand) { assert.equal(command(state, value, now), true); }
 function create(state: JellyWorkspace, id: string, extra: Record<string, unknown> = {}) { apply(state, { type: "item.create", item: { id, title: id, start_date: "2026-09-22", ...extra } }); }

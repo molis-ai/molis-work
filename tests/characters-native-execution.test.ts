@@ -3,12 +3,12 @@ import test from "node:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { SessionTuiRecorder } from "@molis-ai/molis-work-plugin-work";
-import { attachMolisWorkPtySocket } from "../apps/local-host/src/pty-socket.ts";
+import { attachMolisWorkPtySocket } from "@molis-ai/molis-work-app-local-host";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
-import { characterNativeExecution, characterNativeArgs } from "../apps/local-host/src/character-native-execution.ts";
-import { openWorkSessionRegistry } from "../apps/local-host/src/session-registry.ts";
+import { characterNativeExecution, characterNativeArgs } from "../apps/local-host/dist/character-native-execution.js";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 
 test("native preparation saves exact files and provenance, validates directories and never relaunches a repeated request", async t => {
   const home = mkdtempSync(join(tmpdir(), "character-native-")); t.after(() => rmSync(home, { recursive: true, force: true }));

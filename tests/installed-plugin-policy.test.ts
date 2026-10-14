@@ -9,11 +9,11 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ArtifactsModule, ProcessItemsModule } from '@molis-ai/molis-work-module-artifacts';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
-import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
-import { createPluginPlatform } from '../apps/local-host/src/plugin-platform.js';
-import { sandboxedPluginDefinition } from '../apps/local-host/src/plugin-builder/installed.js';
-import { capabilityCatalog, catalogCapabilities } from '../apps/local-host/src/plugin-builder/catalog.js';
-import { exposedActionId, exposeInstalledPlugin } from '../apps/local-host/src/plugin-builder/exposed-actions.js';
+import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
+import { createPluginPlatform } from '@molis-ai/molis-work-app-local-host';
+import { sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
+import { capabilityCatalog, catalogCapabilities } from '../apps/local-host/dist/plugin-builder/catalog.js';
+import { exposedActionId, exposeInstalledPlugin } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
 
 const mac = { skip: process.platform !== 'darwin', timeout: 15_000 };
 async function fixture(t: TestContext) {

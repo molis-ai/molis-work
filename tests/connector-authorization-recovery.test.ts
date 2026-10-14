@@ -4,10 +4,10 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createConnectorAuthorizationMonitor } from "../apps/workbench/src/scripts/connector-authorization-monitor.ts";
-import { beginConnectorAuthorization, connectorAuthorizationStatus, finishConnectorAuthorization } from "../apps/local-host/src/connector-authorization-status.ts";
-import { startApiOAuth, completeApiOAuth } from "../apps/local-host/src/connector-api-oauth.ts";
-import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.ts";
+import { createConnectorAuthorizationMonitor } from "../apps/workbench/dist/scripts/connector-authorization-monitor.js";
+import { beginConnectorAuthorization, connectorAuthorizationStatus, finishConnectorAuthorization } from "../apps/local-host/dist/connector-authorization-status.js";
+import { startApiOAuth, completeApiOAuth } from "../apps/local-host/dist/connector-api-oauth.js";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 
 test("authorization receipts survive polling, distinguish denial and expiry, and cannot be overwritten by replay", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-authorization-recovery-"));

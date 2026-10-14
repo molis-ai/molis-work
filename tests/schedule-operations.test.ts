@@ -11,11 +11,11 @@ import { createScheduledOperationManagement, createScheduledOperations, getSched
   prepareScheduledOperation, reconcileScheduledOperations, runScheduledOperation, setScheduledOperationEnabled,
   SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP } from '@molis-ai/molis-work-plugin-schedule';
 import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
-import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
-import { seedDemoBoard } from '../apps/local-host/src/demo-seed.js';
-import { bindScheduleDeliveryFeed, scheduleServiceFor } from '../apps/local-host/src/schedule-runtime.js';
-import { bindInstalledOperationCaller, hostScheduledOperationManagement } from '../apps/local-host/src/schedule-operations.js';
-import { createLocalFeedApplication } from '../apps/local-host/src/feed-application.js';
+import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
+import { seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
+import { bindScheduleDeliveryFeed, scheduleServiceFor } from '../apps/local-host/dist/schedule-runtime.js';
+import { bindInstalledOperationCaller, hostScheduledOperationManagement } from '../apps/local-host/dist/schedule-operations.js';
+import { createLocalFeedApplication } from '@molis-ai/molis-work-app-local-host';
 
 const at = '2026-09-28T00:00:00.000Z', DAY = 86_400_000;
 const identity = { projectId: 'p', pluginId: 'io.molis.work.test.operations', installationId: 'installed' };

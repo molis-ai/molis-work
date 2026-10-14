@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { actionResultSubject, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { JELLY_ACTION_PERMISSIONS, jellyActions as actions, jellyCommandActions as commands, jellyServiceActions as services, openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
-import { assistantContributions } from "../apps/local-host/src/assistant/assistant-contributions.js";
-import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { assistantContributions } from "../apps/local-host/dist/assistant/assistant-contributions.js";
+import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 const day = "2026-09-25", tomorrow = "2026-09-26";
 const slot = { start_date: day, end_date: day, start_time: 540, end_time: 570 };
 function fixture(t: { after(fn: () => Promise<void>): void }, completeText: HostCompleteText | null = null) {

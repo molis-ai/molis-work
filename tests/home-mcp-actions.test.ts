@@ -11,11 +11,11 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
 import { feedSubjectAction, feedRuleActions, type FeedOutRuleRecord, type FeedRulePreview } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions, inboxNextScene } from "@molis-ai/molis-work-plugin-inbox";
-import { inboxSubjectAction } from "../plugins/native/inbox/src/content-actions.js";
-import { homeActions } from "../apps/local-host/src/home-actions.js";
-import type { HomeEventsResult } from "../apps/local-host/src/home-event-actions.js";
-import type { HomeActionOffers } from "../apps/local-host/src/home-offer-actions.js";
-import { withFunctionsService } from "../apps/local-host/src/functions-host.js";
+import { inboxSubjectAction } from "../plugins/native/inbox/dist/content-actions.js";
+import { homeActions } from "../apps/local-host/dist/home-actions.js";
+import type { HomeEventsResult } from "../apps/local-host/dist/home-event-actions.js";
+import type { HomeActionOffers } from "../apps/local-host/dist/home-offer-actions.js";
+import { withFunctionsService } from "../apps/local-host/dist/functions-host.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { functionContextActions } from "@molis-ai/molis-work-module-functions";
 import { sceneConfigurationActions, type ActionSceneTarget } from "@molis-ai/molis-work-contracts/platform/actions";

@@ -7,7 +7,7 @@ import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 import { DOM_EVENT_PREFIXES, DOM_EVENTS, PAGE_STATE_OWNERS } from "@molis-ai/molis-work-contracts/platform/dom-events";
 import { ASSISTANT_EFFECT_EVENT, ASSISTANT_MESSAGE_EVENT, ASSISTANT_SURFACE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/services/assistant";
-import { CONTEXT_ACTION_CHOOSE_EVENT, CONTEXT_ACTION_CHOSEN_EVENT, CONTEXT_ACTIONS_EVENT, PLACE_CHANGED_EVENT, SURFACE_FOCUS_EVENT } from "@molis-ai/molis-work-contracts/services/contextual";
+import { CONTEXT_ACTION_CHOSEN_EVENT, PLACE_CHANGED_EVENT, SURFACE_FOCUS_EVENT } from "@molis-ai/molis-work-contracts/services/contextual";
 import { DOM_EVENTS_CONTRACT, domEventProblems, domEventReport, formatDomEventReport, readRegistry } from "../scripts/gates/dom-events.mjs";
 
 // specs/repository-anti-corruption §4.8 (W2-13): every page event is registered in
@@ -46,8 +46,8 @@ const script = (body: string) => `export const ALPHA_SCRIPT = \`(host) => {\n${b
 
 test("the page events the other contracts already name are registered, under the same name", () => {
   const names = new Set<string>(DOM_EVENTS.map((event) => event.name));
-  for (const name of [ASSISTANT_EFFECT_EVENT, ASSISTANT_MESSAGE_EVENT, ASSISTANT_SURFACE_CHANGED_EVENT, CONTEXT_ACTION_CHOOSE_EVENT,
-    CONTEXT_ACTION_CHOSEN_EVENT, CONTEXT_ACTIONS_EVENT, PLACE_CHANGED_EVENT, SURFACE_FOCUS_EVENT]) {
+  for (const name of [ASSISTANT_EFFECT_EVENT, ASSISTANT_MESSAGE_EVENT, ASSISTANT_SURFACE_CHANGED_EVENT, CONTEXT_ACTION_CHOSEN_EVENT,
+    PLACE_CHANGED_EVENT, SURFACE_FOCUS_EVENT]) {
     assert.ok(names.has(name), `${name} is a constant in the contracts but not in DOM_EVENTS`);
   }
 });

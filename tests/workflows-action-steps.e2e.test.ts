@@ -1,9 +1,9 @@
-import { defineAction, definePlugin } from '../packages/plugin-sdk/src/index.js';
+import { defineAction, definePlugin } from '@molis-ai/molis-work-plugin-sdk';
 import { PluginRuntime, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import { bindActionClient } from '@molis-ai/molis-work-contracts/platform/actions';
 import { workflowsActions as w, WORKFLOWS_ACTION_PERMISSIONS } from '@molis-ai/molis-work-plugin-workflows';
-import { molisWorkHostProjectReference } from '../apps/local-host/src/project-host.js';
-import { NATIVE_CONTENT_PERMISSIONS } from '../apps/local-host/src/content-action-providers.js';
+import { molisWorkHostProjectReference } from '@molis-ai/molis-work-app-local-host';
+import { NATIVE_CONTENT_PERMISSIONS } from '../apps/local-host/dist/content-action-providers.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';

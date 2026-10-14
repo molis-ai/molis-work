@@ -26,15 +26,15 @@ import {
   WORKBENCH_UI_SLOTS,
   createWorkbenchUiHost,
   renderPluginSettingsContribution,
-} from "../apps/workbench/src/ui-composition.ts";
+} from "@molis-ai/molis-work-app-workbench";
 import {
   listPluginSettingsNavItems,
   findPluginSettingsNavItem,
   pluginSettingsNavItemsFrom,
   isHostGlobalSettingsSection,
-} from "../apps/workbench/src/plugin-settings-catalog.ts";
-import { renderAppearanceSettingsDocument } from "../apps/workbench/src/settings-appearance.ts";
-import { renderSettingsDirectorySection } from "../apps/workbench/src/settings-directory.ts";
+} from "../apps/workbench/dist/plugin-settings-catalog.js";
+import { renderAppearanceSettingsDocument } from "../apps/workbench/dist/settings-appearance.js";
+import { renderSettingsDirectorySection } from "../apps/workbench/dist/settings-directory.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { renderMolisWorkSettings } from "./workbench-renderer-fixture.js";
 

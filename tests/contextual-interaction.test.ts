@@ -18,13 +18,13 @@ import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { createContextualJudgmentService } from "../apps/local-host/src/contextual/judgment-service.js";
 import { handleContextualHttp, recallForJudgment, surfaceKinds } from "../apps/local-host/src/contextual/contextual-http.js";
 import { prepareSearchFragmentOffers, searchActions } from "@molis-ai/molis-work-contracts/services/search";
-import { lingguangActions, prepareLingguangFragmentOffers } from "../plugins/native/lingguang/src/actions.js";
-import { pagesSchema as s } from "../plugins/native/pages/src/schema.js";
+import { lingguangActions, prepareLingguangFragmentOffers } from "../plugins/native/lingguang/dist/actions.js";
+import { pagesSchema as s } from "@molis-ai/molis-work-plugin-pages";
 import {
   applyToPagesFrozen, freezePagesFocus, pagesFocusPlugin, readPagesFocus, releasePagesFrozen, resolvePagesFrozen,
-} from "../plugins/native/pages/src/focus.js";
-import { PAGES_FRAGMENT_CHOICES, preparePagesFragmentOffers } from "../plugins/native/pages/src/fragment-offers.js";
-import { pagesActions } from "../plugins/native/pages/src/actions.js";
+} from "../plugins/native/pages/dist/focus.js";
+import { PAGES_FRAGMENT_CHOICES, preparePagesFragmentOffers } from "../plugins/native/pages/dist/fragment-offers.js";
+import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 
 // ---- fixtures ----------------------------------------------------------------------------------------------------
 const provider = (provider_id: string, title: string) => ({ provider_id, title }) as ActionView["provider"];

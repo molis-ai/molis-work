@@ -41,6 +41,11 @@ export interface UiViewDeclaration {
   readonly accepts_objects?: boolean;
   /** A side view follows the focused stage object of its own plugin. Omitted means a persistent tool. */
   readonly context_binding?: "focused-object";
+  /**
+   * `side` views only: the object kinds this cell of the right panel shows, so what is picked up there is a known object.
+   * Each kind needs an object reader (`subject.read`) in the same Manifest (context-program §4).
+   */
+  readonly objects?: readonly string[];
   /** Lower sorts earlier inside its slot. Ties fall back to view_id order. */
   readonly order?: number;
 }

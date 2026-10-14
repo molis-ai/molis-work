@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EditorState } from 'prosemirror-state';
-import { pagesSchema as s } from '../plugins/native/pages/src/schema.js';
-import { rowGapAt } from '../plugins/native/pages/src/floating.js';
-import { dragRows, previewSpan } from '../plugins/native/pages/src/reorder.js';
-import { moveSpan } from '../plugins/native/pages/src/commands.js';
+import { pagesSchema as s } from '@molis-ai/molis-work-plugin-pages';
+import { rowGapAt } from '../plugins/native/pages/dist/floating.js';
+import { dragRows, previewSpan } from '@molis-ai/molis-work-plugin-pages';
+import { moveSpan } from '@molis-ai/molis-work-plugin-pages';
 
 const p = (text: string) => s.node('paragraph', null, [s.text(text)]);
 

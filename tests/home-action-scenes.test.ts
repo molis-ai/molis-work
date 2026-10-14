@@ -8,14 +8,14 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedAppli
   cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { definePlugin, defineSubjectContextAction, defineHomeEventsAction, defineSubjectOffersAction, subjectContext } from "../packages/plugin-sdk/src/index.js";
-import { liveHostFunctionAuthoringCatalog } from "../apps/local-host/src/behavior-catalog.js";
+import { definePlugin, defineSubjectContextAction, defineHomeEventsAction, defineSubjectOffersAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
+import { liveHostFunctionAuthoringCatalog } from "@molis-ai/molis-work-app-local-host";
 import { publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
 import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 import { HOME_DOCK_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
-import { withFunctionsService, withFunctionsServiceAsync, type FunctionsHostOptions } from "../apps/local-host/src/functions-host.js";
-import { homeActions, homeDockScene, homeDockBindingId, HOME_ACTION_PERMISSIONS, createHomeJudgmentTrigger } from "../apps/local-host/src/home-actions.js";
+import { withFunctionsService, withFunctionsServiceAsync, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { homeActions, homeDockScene, homeDockBindingId, HOME_ACTION_PERMISSIONS, createHomeJudgmentTrigger } from "../apps/local-host/dist/home-actions.js";
 
 test("Home scene uses original bindings and history, accepts unknown judgments, and never projects stale recommendations", async () => {
   const home = await mkdtemp(join(tmpdir(), "home-action-scene-"));

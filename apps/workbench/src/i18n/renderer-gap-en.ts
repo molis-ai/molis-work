@@ -343,6 +343,8 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "高级": "Advanced",
   "这个格式没有思考档可以打开。": "This format has no thinking level to turn on.",
   "开启后模型先思考再回答，用量和等待时间都会增加；思考过程会显示在每一轮里。": "When on, the model thinks before answering. Usage and waiting time both increase; the thinking appears in each round.",
+  "可调思考力度": "Reasoning effort",
+  "这个模型接受思考力度（快速 / 平衡 / 深入）时才勾上；勾上后 Coding 发送一轮时可以选力度": "Tick only when this model accepts a reasoning effort (quick / balanced / deep); Coding then lets each round choose one",
   "或填写新的 API Key": "Or enter a new API key",
   "只保存在本机，保存后不再显示。": "Stored only on this computer and not shown again after saving.",
   "填写新的 API Key": "Enter a new API key",

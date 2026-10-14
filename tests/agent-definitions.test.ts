@@ -13,11 +13,11 @@ import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-con
 import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { DEFAULT_JUDGMENT_WORDING, fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
-import { AgentDefinitions, agentDefinitionsFor, agentRegistration } from "../apps/local-host/src/agent-definitions/agent-definitions.js";
-import { builtinAgents, builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
-import { handleContextualHttp, judgmentWording, judgmentWordingRevision } from "../apps/local-host/src/contextual/contextual-http.js";
-import { bindPrologueInference } from "../apps/local-host/src/prologue-inference-host.js";
-import { ASSISTANT_PROMPTS } from "../apps/local-host/src/assistant/assistant-agent.js";
+import { AgentDefinitions, agentDefinitionsFor, agentRegistration } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
+import { builtinAgents, builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
+import { handleContextualHttp, judgmentWording, judgmentWordingRevision } from "../apps/local-host/dist/contextual/contextual-http.js";
+import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
+import { ASSISTANT_PROMPTS } from "../apps/local-host/dist/assistant/assistant-agent.js";
 
 const BASE_VERSION = ASSISTANT_PROMPTS.find(prompt => prompt.prompt_id === "assistant-base")!.version;
 

@@ -1,3 +1,4 @@
+// PA-22: base SDK adoption behavior and retained review/budget boundaries.
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -205,6 +206,21 @@ test("only an in-boundary command offers 'allow for this session', and a rule's 
   ruled.request.kind = "command";
   ruled.request.document = inside.request.document;
   assert.match(renderAgentReviewSurface({ rows: [ruled], primitives: p }), /按本会话规则批准 · alice 设定于/);
+});
+
+test("a command that names extra paths or the network shows exactly what it asks for and offers no session rule", () => {
+  const widened = row();
+  widened.request.kind = "command";
+  widened.request.document = { kind: "command", command: "npm", args: ["install"], cwd: ".", timeout_ms: 30000, escalate: false,
+    grants: { paths: [{ path: "/Users/me/.npmrc", access: "read" }, { path: "/tmp/cache", access: "write" }], network: true } };
+  const html = renderAgentReviewSurface({ rows: [widened], primitives: p });
+  assert.match(html, /data-agent-review-grants/);
+  assert.match(html, /读取<\/span> <code>\/Users\/me\/\.npmrc<\/code>/);
+  assert.match(html, /读写<\/span> <code>\/tmp\/cache<\/code>/);
+  assert.match(html, /联网/);
+  assert.match(html, /超出宿主执行边界/);
+  assert.doesNotMatch(html, /在宿主执行边界内/, "it does not say it stays inside the boundary");
+  assert.doesNotMatch(html, /data-agent-review-remember/, "the extra access is never remembered");
 });
 
 test("命令里混有像工具调用标记的文本时，审查卡提醒一句；正常命令不提醒", () => {

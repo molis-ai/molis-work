@@ -1,7 +1,7 @@
 {
   "schema": "prologue-sdk-patch-history-v1",
   "recordedOn": "2026-10-08",
-  "purpose": "已从 vendor/prologue-sdk/ 删除的 25 份历史补丁的记录（决定：specs/repository-anti-corruption/spec.md §1「Prologue SDK 收敛与私有包」，2026-10-08；方案：specs/repository-anti-corruption/dependencies-and-sdk-plan.md §4.5）。重建当前包用不着它们（见同目录的 provenance.json）。每一项记大小、SHA-256、git blob、基线、来源和它产出的包。",
+  "purpose": "已从 vendor/prologue-sdk/ 删除的 26 份历史补丁的记录（25 份 2026-10-08 删，side-panel-memory.patch 2026-10-12 经用户确认删）（决定：specs/repository-anti-corruption/spec.md §1「Prologue SDK 收敛与私有包」，2026-10-08；方案：specs/repository-anti-corruption/dependencies-and-sdk-plan.md §4.5）。重建当前包用不着它们（见同目录的 provenance.json）。每一项记大小、SHA-256、git blob、基线、来源和它产出的包。",
   "retrieval": {
     "commitWithAllPatches": "e4bdeb120259846cb94b7e99ddf215db1e91544c",
     "note": "这是一个已知齐全的 Molis 提交，不是「最后一个」：25 份补丁、side-panel-memory.patch 和带逐包验证记录的旧版 README 都在里面；main 上此后到删除这些补丁的那次合并之前的每个提交（2026-10-08 逐个核对了 e4bdeb12..ba223d95 的 133 个）也都有那 26 份补丁；更早的提交没有逐个核对。补丁和包按 gitBlob 取回，再用本文件的 SHA-256 核对。",
@@ -9,9 +9,9 @@
   },
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
-    "checkedOn": "2026-10-08",
-    "mainHead": "4f7110fe0a07ba13fb19025ceb496016ecc0f494",
-    "statement": "下面 commitsChecked 里的每个 Prologue 提交（各项的基线、提交，以及来源里写出的提交链）都是上游 main 头的祖先（git merge-base --is-ancestor；本机克隆的 origin/main 与 git ls-remote 一致）。远端已没有特性分支（git ls-remote 只列出 main 和三个 pull 引用），所以按提交号定位，不按分支名。",
+    "checkedOn": "2026-10-13",
+    "mainHead": "b219d8592d6eae6de56dda3a7ebbb616bdd862f8",
+    "statement": "下面 commitsChecked 里的每个 Prologue 提交（各项的基线、提交，以及来源里写出的提交链）都是上游 main 头的祖先（git merge-base --is-ancestor；2026-10-08 核对 4f7110fe；2026-10-12 PR #4、#5 合并后上游 main 头是 f5ef12e6，`c4b9fde3` 随 a13bf067 进入 main，复核同样成立）。远端特性分支已不能当定位点，所以按提交号定位，不按分支名。2026-10-13 对 `b219d859` 复核：`f5ef12e6`（PR #5）、`d4908c11`（随 PR #15 `a47eb26d`）同样是祖先。当前包的来源 `08b84296` 不在 main 上（过渡包，用户 2026-10-13 决定），它的两个父提交在，见它的 provenance。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -22,6 +22,7 @@
       "4b6cd9bcf772f2b73185d8858a3ab4c7c52aa962",
       "4d5f874d37287eb2cd87c10a5837013d922555f0",
       "52c49cf5095e67cd62f4db9e9c1d515afa68ddd8",
+      "55b0c85aed4a0cd9296a58180f99e31a419a9608",
       "6f530d5a818e0f7aecfb6322c5bfe22dbe7552ea",
       "8d590818e32534880984f9e84e1efd005caa105a",
       "93bbe1db280540361bf9f24be9e82589e8818e5c",
@@ -30,8 +31,11 @@
       "a8ac8e1eb7362a2189973cbe7aaa4f4624649ee0",
       "ac4d11350ab3b6848460d140230081a58cbb215f",
       "af7375c74a2e551184c443e2a5e06e105168fed3",
+      "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
       "c63ea1a16eec8d8217223db1624b2409a1a33d14",
-      "d2f5a05df6459440a253787e94ee6520f12d754d"
+      "d2f5a05df6459440a253787e94ee6520f12d754d",
+      "d4908c118f7899d44e3d1975806797a05f0094b9",
+      "f5ef12e6085c2865133b732ebc8ec235142685e1"
     ]
   },
   "patches": [
@@ -484,6 +488,24 @@
         "sha256": "a50e14cd8bd4afb2fa2f041e639855d21848ee4c9ffbe3c0a010b136e714f2fd",
         "gitBlob": "e55a0f3e577797288f76f34e82ab1522ef93a877"
       }
+    },
+    {
+      "file": "side-panel-memory.patch",
+      "bytes": 225092,
+      "sha256": "1f64a15ce9d5d90d0f4ace90211c147efdea189d225c9236fc138438e86c7c55",
+      "gitBlob": "97328ddcdc1987a6cd5d3e06e7bf8245fd74cfa9",
+      "diffEntries": 48,
+      "base": "af7375c74a2e551184c443e2a5e06e105168fed3",
+      "commit": "9fc3b17386419625a36359b74fb4789c17a3adc8",
+      "sourceKind": "upstream-commit",
+      "source": "molis-ai/prologue 提交 `9fc3b173`（基线 `af7375c7`）；补丁只含 `packages/sdk`，施加到基线后 `packages/sdk` 与 `9fc3b173` 逐文件相同（2026-10-08、2026-10-12 实测）。整棵树只差 `docs/slices` 下三份文档（bounded-run-results.md、network-dispatch-authority.md、resource-intake-limits.md），不在包内",
+      "summary": "side-panel-memory 包的重建补丁：平台记忆与侧栏界面控制两条线合成一个包。重建该包用不着它（直接检出 `9fc3b173` 即得逐字节相同的包）。该包 2026-09-30 起是 agent-host 的依赖，2026-10-11 被 A0 的 dirty 候选临时替换，2026-10-12 被从干净提交打出的 adoption-receipts-fields 正式替换；补丁同日经用户确认删除，包的 git blob 同在 `package` 里。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz",
+        "bytes": 953138,
+        "sha256": "942de9c594d8fc0bbb81d3b36d766761427ff51c2c4cee33aab342033c85846c",
+        "gitBlob": "432e002ac4670ca228de8956dde71849186480fd"
+      }
     }
   ],
   "packagesWithoutPatch": [
@@ -558,6 +580,46 @@
       "gitBlob": "5bf0ef21e9d925801fb87b46dc821f1de3304cdb",
       "commit": "8d590818e32534880984f9e84e1efd005caa105a",
       "description": "提交 `8d590818e32534880984f9e84e1efd005caa105a`。命令回执与超时反馈。"
+    },
+    {
+      "file": "prologue-sdk-a0-s1.tgz",
+      "bytes": 1064280,
+      "sha256": "71c25f85f15de3f918107080a468f0dc469e956d2b76b12987d2cf51087fb96b",
+      "gitBlob": "0c42199184bc49a0cb35a8b37bf31825308b1bec",
+      "commit": "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
+      "description": "A0 交接时的 dirty 候选（2026-10-11 打包，provenance 记 dirty:true）：`c4b9fde3` 加当时未提交的输入回执第一刀差异，只在采用分支 `feature/handoff-prologue-adoption` 上提交过（2a361f41），从未是 main 的依赖。那份差异随后提交为 Prologue `4acfb4459c21f96179490197f18a437c54503cb3`；正式包换成从具名提交重建的 adoption-receipts-fields，本包不能从任何具名提交逐字节重建。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz",
+      "bytes": 1076425,
+      "sha256": "646afefbd4225bfe8bf50892403962fa3e12711f1c45035cfb739e3b9bc8d34f",
+      "gitBlob": "f25ca5f4d66b0e1d8279e9f8867b52023571ad16",
+      "commit": "55b0c85aed4a0cd9296a58180f99e31a419a9608",
+      "description": "提交 `55b0c85a`（Prologue PR #4 合入 main 的合并提交；树与 PR head `a13bf067` 相同，两者与 `8db0d7d6` 打出逐字节相同的包）。A0 采用修正 + 输入回执第一刀 + 带类型的问卷，2026-10-12 正式依赖，同日被加入第二、三刀的 adoption-receipts-handling 换掉。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-adoption-receipts-handling.tgz",
+      "bytes": 1102754,
+      "sha256": "c474ee431a0c9594cbea60b339f966231b241f924c0651fef0eebf39f2e6339c",
+      "gitBlob": "84cb777f1773e894162452e98dfea86a85f0ae60",
+      "commit": "f5ef12e6085c2865133b732ebc8ec235142685e1",
+      "description": "提交 `f5ef12e6`（Prologue PR #5 合入 main 的合并提交；树与 PR head `87e063e8` 相同，两者打出逐字节相同的包）。在 adoption-receipts-fields 之上加输入回执第二、三刀；2026-10-12 起是采用交接分支 `feature/handoff-prologue-adoption`（#408）的依赖，从未是 main 的依赖；2026-10-13 被 interim-p1-cu 换掉。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-computer-use.tgz",
+      "bytes": 1074186,
+      "sha256": "0272431a46d0201dfc5aa4d12af648d8cc0f129a1eb1454a5123a8518826d282",
+      "gitBlob": "4a5830739970dcc48b2b870b1f5c9332716da46d",
+      "commit": "d4908c118f7899d44e3d1975806797a05f0094b9",
+      "description": "提交 `d4908c11`（分支 `feat/desktop-computer-use`：`c4b9fde3` 上的五个桌面 Computer Use 提交；2026-10-09 打包时 provenance 记 pushed:false，2026-10-13 推到远端并随 Prologue PR #15（`a47eb26d`）进 main）。#471（Molis `2cb35d4e`）起是 main 的依赖；2026-10-13 在 #408 与 main 对账时被 interim-p1-cu 换掉（以 `d4908c11` 为父，Computer Use 部分的源码相同）。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-molis-adoption.tgz",
+      "bytes": 1057983,
+      "sha256": "100aa5770b5e48844f770cba8a1bd3706f389673671956c84ab7375942919b01",
+      "gitBlob": "40ef235087c15abd8c3e3b86c165d7720879f892",
+      "commit": "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
+      "description": "提交 `c4b9fde3`（A0 的三项 SDK 增强）。只在旧采用分支 `feat/prologue-adoption` 的 `77fde104` 上提交过，随 #472 进入 main 的历史，从未是 main 第一父链上的依赖；computer-use 包含它。"
     }
   ],
   "notes": [

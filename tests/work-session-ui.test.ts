@@ -232,8 +232,8 @@ for (const scenario of ["success", "unsupported", "failure"] as const) {
 
 test("K2-01 Work terminal contribution escapes the actual Goal and child titles", () => {
   const hostile = `O'Reilly & <img src=x onerror="alert(1)">`;
-  const html = workTerminalUiContribution.render({ surface: "terminal", slot_id: "workbench.main", model: {
-    selected: { goal_id: "goal-k2", title: hostile, decomposition_state: "leaf", fulfillment_state: "unmet", statusHtml: "" },
+  const html = workTerminalUiContribution.render({ surface: "terminal", contribution_id: workTerminalUiContribution.descriptor.contribution_id, model: {
+    selected: { goal_id: "goal-k2", title: hostile, decomposition_state: "closed_leaf", fulfillment_state: "unmet", statusHtml: "" },
     children: [{ goal_id: "child-k2", title: hostile, statusLabel: "Ready", nextAction: "Read" }],
     cliAvailability: {}, text: value => value, icon,
   } });

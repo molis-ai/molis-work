@@ -7,7 +7,7 @@ import Database from "better-sqlite3";
 import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { SESSION_REGISTRY_SCHEMA_VERSION } from "../modules/private-work-context/src/session-schema.js";
+import { SESSION_REGISTRY_SCHEMA_VERSION } from "../modules/private-work-context/dist/session-schema.js";
 
 const access = { actor_id: "test-reader", scope: { kind: "personal", id: "private-work-context" } as const };
 

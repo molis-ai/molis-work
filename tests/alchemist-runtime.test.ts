@@ -4,8 +4,8 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createLocalRuntime, type LocalRuntime } from "../plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.js";
-import type { AlchemistAiPort } from "../plugins/native/alchemist/src/studio/server/runtime/host-port.js";
+import { createAlchemistStudioRuntime as createLocalRuntime, type AlchemistStudioRuntime as LocalRuntime } from "@molis-ai/molis-work-plugin-alchemist";
+import type { AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 
 const model = { id: "test-provider/test-model", label: "显式测试模型", runtimeLabel: "Prologue · 显式测试", costVisibility: "unobservable" as const };
 const generation = {

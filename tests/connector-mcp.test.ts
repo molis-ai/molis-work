@@ -13,19 +13,19 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { ListToolsRequestSchema, CallToolRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
-import { createConnectorMcpHost, MCP_SERVERS } from "../apps/local-host/src/connector-mcp.ts";
+import { createConnectorMcpHost, MCP_SERVERS } from "../apps/local-host/dist/connector-mcp.js";
 import { larkMcpLaunch } from "@molis-ai/molis-work-app-local-host";
-import { createAgentConnectorPorts } from "../apps/local-host/src/agent-connector-ports.ts";
-import { connectorAuthorizationStatus } from "../apps/local-host/src/connector-authorization-status.ts";
-import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.ts";
-import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/src/connector-protocol-store.ts";
-import { connectorMcpCapabilityId, connectorMcpResourceCapabilityId, createConnectorMcpDirectory, type ConnectorMcpTool } from "../apps/local-host/src/connector-mcp-actions.ts";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.ts";
-import { isMcpToolCapability } from "../apps/local-host/src/mcp-tool-actions.ts";
+import { createAgentConnectorPorts } from "../apps/local-host/dist/agent-connector-ports.js";
+import { connectorAuthorizationStatus } from "../apps/local-host/dist/connector-authorization-status.js";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/dist/connector-protocol-store.js";
+import { connectorMcpCapabilityId, connectorMcpResourceCapabilityId, createConnectorMcpDirectory, type ConnectorMcpTool } from "../apps/local-host/dist/connector-mcp-actions.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { isMcpToolCapability } from "../apps/local-host/dist/mcp-tool-actions.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
+import { createMcpActionGrant } from "../apps/local-host/dist/mcp-action-grants.js";
+import { writeMcpActionGrant } from "../apps/local-host/dist/mcp-settings-store.js";
 
 async function body(request: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];

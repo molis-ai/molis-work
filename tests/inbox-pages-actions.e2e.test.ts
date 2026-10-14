@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { createLocalFeedApplication } from "../apps/local-host/src/feed-application.js";
-import { createLocalFeedSourceService } from "../apps/local-host/src/feed-source-service.js";
+import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 

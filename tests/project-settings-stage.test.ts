@@ -4,9 +4,9 @@ import {
   isProjectSettingsWorkbenchPath,
   projectSettingsPageFromPath,
   projectSettingsPath,
-} from "../apps/workbench/src/project-settings-stage.ts";
-import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/settings-directory.ts";
-import { PROJECT_SETTINGS_PAGE_STYLES } from "../apps/workbench/src/styles/project-settings-page.ts";
+} from "../apps/workbench/dist/project-settings-stage.js";
+import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/settings-directory.js";
+import { PROJECT_SETTINGS_PAGE_STYLES } from "../apps/workbench/dist/styles/project-settings-page.js";
 import {
   renderMolisWorkProjectGuidanceSettings,
   renderMolisWorkSettings,

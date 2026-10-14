@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { describeSqliteSchema, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { PROJECT_DATABASE_BASELINE } from "../apps/local-host/src/project-database-schema.js";
+import { PROJECT_DATABASE_BASELINE } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };

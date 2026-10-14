@@ -3,7 +3,7 @@ import test from "node:test";
 import { createServer } from "node:http";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";

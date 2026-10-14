@@ -11,7 +11,7 @@ import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
+import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 
 test("Coding formal material routes preserve exact versions, resolve trusted bodies and reject unavailable sources before execution", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-materials-http-")), dbPath = join(root, "board.db");

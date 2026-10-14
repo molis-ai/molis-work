@@ -9,12 +9,12 @@ import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { createPrologueNodeAdapter } from '@molis-ai/molis-work-service-agent-host';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { resetSecretStoreCache } from '@molis-ai/molis-work-storage';
-import { withConnectorConnections } from '../apps/local-host/src/connector-connection-store.js';
-import { createPluginModelGeneration } from '../apps/local-host/src/plugin-builder/model.js';
-import { agentDefinitionsFor } from '../apps/local-host/src/agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../apps/local-host/src/agent-definitions/builtin-registrations.js';
-import type { ModelGenerateInput } from '../apps/local-host/src/plugin-builder/capabilities.js';
-import { registerPlatformCapabilities } from '../apps/local-host/src/plugin-builder/catalog.js';
+import { withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
+import { createPluginModelGeneration } from '../apps/local-host/dist/plugin-builder/model.js';
+import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
+import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
+import type { ModelGenerateInput } from '../apps/local-host/dist/plugin-builder/capabilities.js';
+import { registerPlatformCapabilities } from '../apps/local-host/dist/plugin-builder/catalog.js';
 
 async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), 'plugin-model-'));

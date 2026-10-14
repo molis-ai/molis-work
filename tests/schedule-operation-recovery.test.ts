@@ -8,10 +8,10 @@ import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platfo
 import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import { createScheduledOperations, saveScheduledOperation, getScheduledOperation, saveScheduledOperationOccurrence, listScheduledOperationOccurrences,
   scheduleActions, SCHEDULE_ACTION_PERMISSIONS, SchedulePluginRouteTable, createScheduleRouteHandlers, type ScheduledOperationView } from '@molis-ai/molis-work-plugin-schedule';
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from '../apps/local-host/src/project-host.js';
-import { seedDemoBoard } from '../apps/local-host/src/demo-seed.js';
-import { scheduleServiceFor } from '../apps/local-host/src/schedule-runtime.js';
-import { bindInstalledOperationCaller } from '../apps/local-host/src/schedule-operations.js';
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from '@molis-ai/molis-work-app-local-host';
+import { seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
+import { scheduleServiceFor } from '@molis-ai/molis-work-app-local-host';
+import { bindInstalledOperationCaller } from '../apps/local-host/dist/schedule-operations.js';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 
 const pluginId = 'io.molis.work.test.recovery';

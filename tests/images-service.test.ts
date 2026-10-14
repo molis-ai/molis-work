@@ -8,9 +8,9 @@ import { randomUUID } from "node:crypto";
 import test, { type TestContext } from "node:test";
 import { setImmediate } from "node:timers/promises";
 import type { ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
-import { ImagesService } from "../plugins/native/images/src/service.js";
-import { ImagesStore } from "../plugins/native/images/src/store.js";
-import type { ImageGeneration } from "../plugins/native/images/src/providers.js";
+import { ImagesService } from "@molis-ai/molis-work-plugin-images";
+import { ImagesStore } from "../plugins/native/images/dist/store.js";
+import type { ImageGeneration } from "@molis-ai/molis-work-plugin-images";
 
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==", "base64");
 const success = () => [{ bytes: PNG, mime: "image/png" }];

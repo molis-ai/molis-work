@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { pagesActions, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { registerPagesArtifactVersion } from "../apps/local-host/src/pages-artifact.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { registerPagesArtifactVersion } from "../apps/local-host/dist/pages-artifact.js";
 
 const body = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 async function fixture(t: any) {

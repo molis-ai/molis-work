@@ -11,7 +11,7 @@ import { promisify } from "node:util";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 
 const exec = promisify(execFile), hash = (value: string) => createHash("sha256").update(value).digest("hex");
 

@@ -1,5 +1,5 @@
 {
-  "giantUnits": 151,
+  "giantUnits": 150,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
     "file apps/local-host/src/assistant/assistant-service.ts": 2504,
@@ -63,22 +63,22 @@
     "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 188,
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 170,
-    "file horizontal/agent-host/src/adapters/prologue-node.ts": 1551,
+    "file horizontal/agent-host/src/adapters/prologue-node.ts": 1544,
     "function horizontal/agent-host/src/adapters/prologue-node.ts#initializePrologueNodeAdapter": 1265,
     "function horizontal/agent-host/src/adapters/prologue-node.ts#startAgentRun": 398,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 212,
     "function horizontal/agent-host/src/adapters/prologue-taskboard.ts#createPrologueTaskBoards": 220,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 990,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 969,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
-      "lines": 615,
+      "lines": 606,
       "methods": 18
     },
     "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 391,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
-      "lines": 396,
+      "lines": 384,
       "methods": 12
     },
-    "function horizontal/agent-host/src/index.ts#start": 267,
+    "function horizontal/agent-host/src/index.ts#start": 255,
     "class horizontal/listener-host/src/index.ts#ListenerHost": {
       "lines": 373,
       "methods": 18
@@ -221,12 +221,11 @@
     },
     "file plugins/native/form/src/client.ts": 930,
     "function plugins/native/goals/src/event-document-forms.ts#createEventDocumentForms": 348,
-    "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": 272,
-    "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": 246,
-    "function plugins/native/goals/src/goal-tree-submission.ts#submitGoalTreeProposal": 162,
+    "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": 269,
+    "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": 243,
     "function plugins/native/goals/src/momentum-view.ts#buildGoalMomentumView": 245,
     "class plugins/native/goals/src/proposal-normalizer.ts#GoalTreeProposalNormalizer": {
-      "lines": 453,
+      "lines": 417,
       "methods": 13
     },
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
@@ -1410,7 +1409,7 @@
     "orderDependent": [],
     "nested": []
   },
-  "errorSubclassTotal": 76,
+  "errorSubclassTotal": 70,
   "errorSubclasses": {
     "apps/local-host/src/assistant/assistant-coding.ts": 1,
     "apps/local-host/src/browser/browser-host.ts": 1,
@@ -1428,16 +1427,11 @@
     "apps/local-host/src/project-database.ts": 1,
     "apps/local-host/src/project-deleted-deferred.ts": 1,
     "apps/local-host/src/workspace-git.ts": 1,
-    "horizontal/agent-host/src/adapters/prologue-approvals.ts": 1,
-    "horizontal/agent-host/src/adapters/prologue.ts": 1,
-    "horizontal/agent-host/src/index.ts": 1,
     "horizontal/agent-host/src/inference.ts": 1,
-    "horizontal/agent-host/src/reviews.ts": 1,
     "horizontal/connector-host/src/connection-store.ts": 1,
     "horizontal/connector-host/src/index.ts": 1,
     "horizontal/runtime-host/src/adapters/codex-app-server.ts": 1,
     "modules/characters/src/service.ts": 1,
-    "modules/context-ledger/src/service.ts": 1,
     "modules/signals/src/index.ts": 1,
     "packages/contracts/src/modules/attention-resumption.ts": 1,
     "packages/contracts/src/modules/feed.ts": 1,
@@ -1447,7 +1441,6 @@
     "packages/contracts/src/platform/plugin-events.ts": 1,
     "packages/contracts/src/platform/plugin-wiring.ts": 1,
     "packages/contracts/src/services/listener-host.ts": 1,
-    "packages/contracts/src/services/scheduler.ts": 1,
     "packages/kernel/src/index.ts": 1,
     "packages/plugin-runtime/src/contribution.ts": 1,
     "packages/plugin-runtime/src/errors.ts": 1,

@@ -124,7 +124,7 @@ async function handlePulseJob(
     }
     if (checkpoint.stage === "ready_to_persist") {
       const report = dependencies.repository.getReport(checkpoint.reportId);
-      if (!report) throw new Error("PULSE_REPORT_NOT_FOUND");
+      if (!report) throw new Error("alchemist.pulse_report_not_found");
       control.commit(() => dependencies.repository.updateRun(run!.id, {
         status: report.status,
         stage: "synthesizing",
@@ -198,6 +198,6 @@ function saveStage(
 }
 
 function classifyError(error: unknown): string {
-  if (error instanceof Error && error.message.startsWith("PULSE_")) return error.message;
+  if (error instanceof Error && (error.message.startsWith("PULSE_") || error.message === "alchemist.pulse_report_not_found" || error.message === "alchemist.pulse_no_enabled_sources")) return error.message;
   return "PULSE_RUNTIME_FAILED";
 }

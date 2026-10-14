@@ -34,14 +34,14 @@ export function createOpportunityActions(dependencies: Dependencies): Opportunit
     },
     convert(id) {
       const opportunity = dependencies.pulse.getOpportunity(id);
-      if (!opportunity) throw new OpportunityActionError("OPPORTUNITY_NOT_FOUND");
+      if (!opportunity) throw new OpportunityActionError("alchemist.opportunity_not_found");
       if (opportunity.convertedDirectionId) {
         const direction = dependencies.directions.get(opportunity.convertedDirectionId);
-        if (!direction) throw new OpportunityActionError("OPPORTUNITY_DIRECTION_NOT_FOUND");
+        if (!direction) throw new OpportunityActionError("alchemist.opportunity_direction_not_found");
         return { opportunity, direction, created: false };
       }
       const report = dependencies.pulse.getReport(opportunity.reportId);
-      if (!report) throw new OpportunityActionError("PULSE_REPORT_NOT_FOUND");
+      if (!report) throw new OpportunityActionError("alchemist.pulse_report_not_found");
       try {
         return dependencies.database.transaction(() => {
           const now = dependencies.clock.now();
@@ -76,8 +76,8 @@ export function createOpportunityActions(dependencies: Dependencies): Opportunit
 function mapError(error: unknown): OpportunityActionError {
   if (error instanceof OpportunityActionError) return error;
   if (error instanceof OpportunityTransitionError) return new OpportunityActionError(error.message);
-  if (error instanceof Error && error.message.startsWith("OPPORTUNITY_")) {
+  if (error instanceof Error && ["alchemist.opportunity_not_found", "alchemist.opportunity_direction_not_found", "alchemist.opportunity_action_failed"].includes(error.message)) {
     return new OpportunityActionError(error.message);
   }
-  return new OpportunityActionError("OPPORTUNITY_ACTION_FAILED");
+  return new OpportunityActionError("alchemist.opportunity_action_failed");
 }

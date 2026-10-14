@@ -91,9 +91,9 @@ function implementations(d: ApiDependencies): Implementations {
     runCancel: input => {
       try { return { run: d.cancelLensRun(input.id) }; }
       catch (error) {
-        const code = error instanceof Error ? error.message : "LENS_RUN_NOT_CANCELLABLE";
-        if (!["LENS_RUN_NOT_FOUND", "LENS_RUN_NOT_CANCELLABLE"].includes(code)) throw error;
-        throw new AlchemistOperationError(code, code === "LENS_RUN_NOT_FOUND" ? "没有找到这次研究。" : "这次研究已经结束，不能再取消。", code === "LENS_RUN_NOT_FOUND" ? 404 : 409);
+        const code = error instanceof Error ? error.message : "alchemist.lens_run_not_cancellable";
+        if (!["alchemist.lens_run_not_found", "alchemist.lens_run_not_cancellable"].includes(code)) throw error;
+        throw new AlchemistOperationError(code, code === "alchemist.lens_run_not_found" ? "没有找到这次研究。" : "这次研究已经结束，不能再取消。", code === "alchemist.lens_run_not_found" ? 404 : 409);
       }
     },
     runEvents: input => {
@@ -122,22 +122,22 @@ const inputProblems: Partial<Record<AlchemistOperationName, [string, string]>> =
 
 function businessError(error: unknown): never {
   if (error instanceof DecisionServiceError) throw new AlchemistOperationError(error.code,
-    error.code === "IDEA_VERSION_NOT_FOUND" ? "没有找到这个 Idea 版本。" : error.code === "DECISION_ALREADY_EXISTS" ? "这个 Idea 版本已经有正式决定。"
-      : error.code === "DECISION_VERSION_NOT_CURRENT" ? "旧 Idea 版本只能回看。" : "两条兼容研究材料尚未齐全。", error.code === "IDEA_VERSION_NOT_FOUND" ? 404 : 409);
-  if (error instanceof OpportunityActionError) throw new AlchemistOperationError(error.message, error.message === "OPPORTUNITY_NOT_FOUND" ? "没有找到这个机会方向。" : "这个机会当前无法执行该动作。", error.message === "OPPORTUNITY_NOT_FOUND" ? 404 : 409);
+    error.code === "alchemist.idea_version_not_found" ? "没有找到这个 Idea 版本。" : error.code === "alchemist.decision_already_exists" ? "这个 Idea 版本已经有正式决定。"
+      : error.code === "alchemist.decision_version_not_current" ? "旧 Idea 版本只能回看。" : "两条兼容研究材料尚未齐全。", error.code === "alchemist.idea_version_not_found" ? 404 : 409);
+  if (error instanceof OpportunityActionError) throw new AlchemistOperationError(error.message, error.message === "alchemist.opportunity_not_found" ? "没有找到这个机会方向。" : "这个机会当前无法执行该动作。", error.message === "alchemist.opportunity_not_found" ? 404 : 409);
   if (error instanceof StartPulseRunError) throw new AlchemistOperationError(error.message, "请至少启用一个市场来源。");
   if (error instanceof IdeaActionError || error instanceof IdeaCardTransitionError) {
-    if (error.code === "IDEA_CARD_ALREADY_KEPT") throw new AlchemistOperationError(error.code, "这张候选牌已经形成 Idea，不会重复创建版本。", 409, { recovery: "打开已有 Idea 继续查看。", ideaId: error.ideaId });
+    if (error.code === "alchemist.idea_card_already_kept") throw new AlchemistOperationError(error.code, "这张候选牌已经形成 Idea，不会重复创建版本。", 409, { recovery: "打开已有 Idea 继续查看。", ideaId: error.ideaId });
     if (error.code === "alchemist.idea_card_not_candidate" || error.code === "alchemist.idea_card_not_discarded") throw new AlchemistOperationError(error.code, "这张牌的状态已经改变，请刷新后重试。");
-    throw new AlchemistOperationError(error.code, error.code === "IDEA_VERSION_NOT_FOUND" ? "没有找到这个 Idea 版本。" : "没有找到这张候选牌。", 404);
+    throw new AlchemistOperationError(error.code, error.code === "alchemist.idea_version_not_found" ? "没有找到这个 Idea 版本。" : "没有找到这张候选牌。", 404);
   }
   if (error instanceof ResearchPlanError) throw new AlchemistOperationError(error.code,
-    error.code === "IDEA_VERSION_NOT_FOUND" ? "只有正式 Idea 版本可以开始研究。" : error.code === "RUNTIME_MODEL_NOT_FOUND" ? "没有找到所选模型。" : "预算上限无效。", error.code === "IDEA_VERSION_NOT_FOUND" ? 404 : 422);
+    error.code === "alchemist.idea_version_not_found" ? "只有正式 Idea 版本可以开始研究。" : error.code === "alchemist.runtime_model_not_found" ? "没有找到所选模型。" : "预算上限无效。", error.code === "alchemist.idea_version_not_found" ? 404 : 422);
   if (error instanceof StartLensRunError) throw new AlchemistOperationError(error.code, "这份研究计划无法启动。");
   if (error instanceof Error) {
     const message = workspaceProblems[error.message];
     if (message) throw new AlchemistOperationError(error.message, message, error.message.endsWith("NOT_FOUND") ? 404 : 409);
-    if (error.message === "IDEA_VERSION_NOT_FOUND") throw new AlchemistOperationError(error.message, "没有找到这个 Idea 版本。", 404);
+    if (error.message === "alchemist.idea_version_not_found") throw new AlchemistOperationError(error.message, "没有找到这个 Idea 版本。", 404);
     if (error.message === "JOB_NOT_FOUND") throw new AlchemistOperationError("RUN_NOT_FOUND", "没有找到这次运行。", 404);
     if (["RUNTIME_MODEL_UNAVAILABLE", "RUNTIME_NOT_CONFIGURED"].includes(error.message)) throw new AlchemistOperationError(error.message,
       error.message === "RUNTIME_MODEL_UNAVAILABLE" ? "所选模型已不可用，请重新选择；系统不会自动换模型。" : "请在 Molis Work 全局设置中配置模型，再回来重试。");

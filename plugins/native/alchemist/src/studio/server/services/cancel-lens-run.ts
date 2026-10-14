@@ -21,15 +21,15 @@ export function createCancelLensRunService(dependencies: {
   return (jobId: string): LensRun => {
     const cancelled = dependencies.database.transaction(() => {
       const job = dependencies.jobs.get(jobId);
-      if (!job || job.kind !== RESEARCH_LENS_JOB) throw new CancelLensRunError("LENS_RUN_NOT_FOUND");
+      if (!job || job.kind !== RESEARCH_LENS_JOB) throw new CancelLensRunError("alchemist.lens_run_not_found");
       const input = inputSchema.safeParse(job.input);
-      if (!input.success) throw new CancelLensRunError("LENS_RUN_NOT_FOUND");
+      if (!input.success) throw new CancelLensRunError("alchemist.lens_run_not_found");
       const run = dependencies.research.getRun(input.data.lensRunId);
-      if (!run) throw new CancelLensRunError("LENS_RUN_NOT_FOUND");
+      if (!run) throw new CancelLensRunError("alchemist.lens_run_not_found");
       try {
         dependencies.jobs.cancel(jobId);
       } catch {
-        throw new CancelLensRunError("LENS_RUN_NOT_CANCELLABLE");
+        throw new CancelLensRunError("alchemist.lens_run_not_cancellable");
       }
       return dependencies.research.updateRun(run.id, {
         status: "cancelled",

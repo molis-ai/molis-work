@@ -65,7 +65,7 @@ export class SqliteIdeaRepository {
 
   keepCard(input: KeepIdeaCardInput): { idea: Idea; version: IdeaVersion } {
     const card = this.getCard(input.cardId);
-    if (!card) throw new Error("IDEA_CARD_NOT_FOUND");
+    if (!card) throw new Error("alchemist.idea_card_not_found");
     const formed = formIdeaFromCard(card, input);
 
     return this.database.transaction(() => {
@@ -217,7 +217,7 @@ export class SqliteIdeaRepository {
 
   discardCard(input: { cardId: string; activityId: string; now: string }): IdeaCard {
     const card = this.getCard(input.cardId);
-    if (!card) throw new Error("IDEA_CARD_NOT_FOUND");
+    if (!card) throw new Error("alchemist.idea_card_not_found");
     const discarded = discardCandidate(card, input.now);
     return this.database.transaction(() => {
       const update = this.database
@@ -234,7 +234,7 @@ export class SqliteIdeaRepository {
 
   restoreCard(input: { cardId: string; activityId: string; now: string }): IdeaCard {
     const card = this.getCard(input.cardId);
-    if (!card) throw new Error("IDEA_CARD_NOT_FOUND");
+    if (!card) throw new Error("alchemist.idea_card_not_found");
     const restored = restoreCandidate(card);
     return this.database.transaction(() => {
       const update = this.database

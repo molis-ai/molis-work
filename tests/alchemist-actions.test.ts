@@ -37,7 +37,7 @@ test("Alchemist unified operations preserve direction → cards → research →
   assert.equal((await call(a.cardDiscard, { id: second })).card.status, "discarded");
   assert.equal((await call(a.cardRestore, { id: second })).card.status, "candidate");
   const kept = await call(a.cardKeep, { id: exploration.cards[0]!.id }), id = kept.idea.id;
-  await assert.rejects(call(a.cardKeep, { id: exploration.cards[0]!.id }), { code: "IDEA_CARD_ALREADY_KEPT", details: { recovery: "打开已有 Idea 继续查看。", ideaId: id } });
+  await assert.rejects(call(a.cardKeep, { id: exploration.cards[0]!.id }), { code: "alchemist.idea_card_already_kept", details: { recovery: "打开已有 Idea 继续查看。", ideaId: id } });
   assert.equal((await call(a.cardGet, { id: exploration.cards[0]!.id })).kind, "idea_redirect");
   assert.equal((await call(a.ideaGet, { id, version: 1 })).version.content.title, "证据卡");
   // What search lists can be read back (contextual-interaction plugin-read audit): the direction with its kept Ideas, and the Idea's current version.
@@ -55,8 +55,9 @@ test("Alchemist unified operations preserve direction → cards → research →
   assert.equal((await call(a.models, {})).models[0]!.id, f.model.id);
   await call(a.settingsUpdate, { modelId: f.model.id, modelPolicy: "fixed", defaultBudgets: { marketSpace: { kind: "calls", limit: 3 }, buildCost: { kind: "calls", limit: 3 } } });
   assert.equal((await call(a.settingsVerify, {})).configured, true); assert.equal((await call(a.settingsGet, {})).modelId, f.model.id);
+  // J5B-01/J5B-02: a blocked decision keeps its cause and creates no decision.
   assert.equal((await call(a.decisionGet, { id, version: 1 })).gate.ready, false);
-  await assert.rejects(call(a.decisionCreate, { id, version: 1, outcome: "hold", reason: "等待材料" }), { code: "DECISION_REPORTS_INCOMPLETE" });
+  await assert.rejects(call(a.decisionCreate, { id, version: 1, outcome: "hold", reason: "等待材料" }), { code: "alchemist.decision_reports_incomplete", message: "两条兼容研究材料尚未齐全。" });
   for (const lens of ["market_space", "build_cost"] as const) {
     const { plan } = await call(a.researchPlan, { id, lens, ideaVersion: 1, modelPolicy: "fixed", modelId: f.model.id, budget: { kind: "calls", limit: 3 } });
     const { run } = await call(a.researchStart, { id, lens, planId: plan.id });
@@ -90,6 +91,7 @@ test("Alchemist unified operations preserve direction → cards → research →
   const { decision } = await call(a.decisionCreate, { id, version: 1, outcome: "hold", reason: "先补充用户访谈", revisitCondition: "三次独立访谈后" });
   assert.equal(decision.reportBindings.length, 2);
   assert.equal((await call(a.decisionGet, { id, version: 1 })).decision!.id, decision.id);
+  await assert.rejects(call(a.decisionCreate, { id, version: 1, outcome: "hold", reason: "不得重复决定" }), { code: "alchemist.decision_already_exists", message: "这个 Idea 版本已经有正式决定。" });
   const decisions = await call(a.decisionsList, {}); assert.equal(decisions.log[0]!.id, decision.id); assert.ok(decisions.activities.some(item => item.kind === "annotation.created"));
   assert.equal((await f.api(`/ideas/${id}/versions/1/decision`)).decision.id, decision.id);
 });
@@ -98,7 +100,7 @@ test("Alchemist Pulse, cancellation and exports use real repositories and preser
   const f = await fixture(t), call = f.call;
   assert.ok((await call(a.pulseSources, {})).sources.some(item => item.sourceId === "github"));
   await call(a.pulseSourceUpdate, { sourceId: "github", enabled: false });
-  await assert.rejects(call(a.pulseStart, { sourceIds: ["github"] }), { code: "PULSE_NO_ENABLED_SOURCES" });
+  await assert.rejects(call(a.pulseStart, { sourceIds: ["github"] }), { code: "alchemist.pulse_no_enabled_sources", message: "请至少启用一个市场来源。" });
   await call(a.pulseSourceUpdate, { sourceId: "github", enabled: true });
   const pulse = await call(a.pulseStart, { sourceIds: ["github"] }); await f.runtime.runPending();
   assert.equal((await call(a.runEvents, { id: pulse.run.jobId })).status, "completed");

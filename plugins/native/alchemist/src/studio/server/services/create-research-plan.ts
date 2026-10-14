@@ -18,7 +18,7 @@ export class ResearchPlanError extends Error {
   readonly name = "ResearchPlanError";
 
   constructor(
-    readonly code: "IDEA_VERSION_NOT_FOUND" | "RUNTIME_MODEL_NOT_FOUND" | "RESEARCH_BUDGET_INVALID",
+    readonly code: "alchemist.idea_version_not_found" | "alchemist.runtime_model_not_found" | "alchemist.research_budget_invalid",
   ) {
     super(code);
   }
@@ -48,16 +48,16 @@ export function createResearchPlanService(dependencies: Dependencies) {
   }, signal?: AbortSignal, control?: AlchemistEffectControl): Promise<ResearchPlan> => {
     const idea = dependencies.ideas.getIdea(input.ideaId);
     const version = dependencies.ideas.getVersion(input.ideaId, input.ideaVersion);
-    if (!idea || !version) throw new ResearchPlanError("IDEA_VERSION_NOT_FOUND");
+    if (!idea || !version) throw new ResearchPlanError("alchemist.idea_version_not_found");
     const models = await dependencies.runtime.listModels();
     const model =
       input.modelPolicy === "fixed" ? models.find((candidate) => candidate.id === input.modelId) : models[0];
-    if (!model) throw new ResearchPlanError("RUNTIME_MODEL_NOT_FOUND");
+    if (!model) throw new ResearchPlanError("alchemist.runtime_model_not_found");
     let budget: ResearchBudget;
     try {
       budget = assertValidBudget(input.budget);
     } catch {
-      throw new ResearchPlanError("RESEARCH_BUDGET_INVALID");
+      throw new ResearchPlanError("alchemist.research_budget_invalid");
     }
     const now = dependencies.clock.now();
     const reportId = input.lens === "market_space" ? dependencies.research.getLatestReport(marketLensCompatibilityKey(input.ideaId, input.ideaVersion))?.id : undefined;

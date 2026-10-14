@@ -13,7 +13,7 @@ export interface ResearchLensJobInput {
 
 export class StartLensRunError extends Error {
   readonly name = "StartLensRunError";
-  constructor(readonly code: "RESEARCH_PLAN_NOT_FOUND" | "RESEARCH_PLAN_MISMATCH" | "LENS_RUN_EXISTS") {
+  constructor(readonly code: "alchemist.research_plan_not_found" | "alchemist.research_plan_mismatch" | "alchemist.lens_run_exists") {
     super(code);
   }
 }
@@ -29,13 +29,13 @@ interface Dependencies {
 export function createStartLensRunService(dependencies: Dependencies) {
   return (input: { ideaId: string; lens: LensKind; planId: string }): LensRun => {
     const plan = dependencies.research.getPlan(input.planId);
-    if (!plan) throw new StartLensRunError("RESEARCH_PLAN_NOT_FOUND");
+    if (!plan) throw new StartLensRunError("alchemist.research_plan_not_found");
     if (plan.key.ideaId !== input.ideaId || plan.key.lens !== input.lens) {
-      throw new StartLensRunError("RESEARCH_PLAN_MISMATCH");
+      throw new StartLensRunError("alchemist.research_plan_mismatch");
     }
     const now = dependencies.clock.now();
     return dependencies.database.transaction(() => {
-      if (dependencies.research.getRunForPlan(plan.id)) throw new StartLensRunError("LENS_RUN_EXISTS");
+      if (dependencies.research.getRunForPlan(plan.id)) throw new StartLensRunError("alchemist.lens_run_exists");
       const runId = dependencies.idFactory.next("lens_run");
       const job = dependencies.jobs.enqueue({
         kind: RESEARCH_LENS_JOB,

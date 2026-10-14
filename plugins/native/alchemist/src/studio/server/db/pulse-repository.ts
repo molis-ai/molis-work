@@ -498,7 +498,7 @@ export class SqlitePulseRepository {
 
   private requireOpportunity(id: string): Opportunity {
     const opportunity = this.getOpportunity(id);
-    if (!opportunity) throw new Error("OPPORTUNITY_NOT_FOUND");
+    if (!opportunity) throw new Error("alchemist.opportunity_not_found");
     return opportunity;
   }
 }

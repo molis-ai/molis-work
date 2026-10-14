@@ -34,7 +34,7 @@ export function createStartPulseRunService(dependencies: Dependencies) {
     const sourceIds = input.sourceIds
       ? input.sourceIds.filter((sourceId) => enabledSourceIds.includes(sourceId))
       : enabledSourceIds;
-    if (sourceIds.length === 0) throw new StartPulseRunError("PULSE_NO_ENABLED_SOURCES");
+    if (sourceIds.length === 0) throw new StartPulseRunError("alchemist.pulse_no_enabled_sources");
     const now = dependencies.clock.now();
     const periodStart = new Date(Date.parse(now) - 7 * 24 * 60 * 60 * 1_000).toISOString();
     return dependencies.database.transaction(() => {

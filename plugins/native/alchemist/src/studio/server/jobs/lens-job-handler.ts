@@ -68,13 +68,13 @@ async function handleLensJob(
     const plan = dependencies.repository.getPlan(input.planId);
     if (!run || !plan || run.planId !== plan.id) throw new Error("LENS_RUN_INPUT_INVALID");
     const ideaVersion = dependencies.ideas.getVersion(plan.key.ideaId, plan.key.ideaVersion);
-    if (!ideaVersion) throw new Error("IDEA_VERSION_NOT_FOUND");
+    if (!ideaVersion) throw new Error("alchemist.idea_version_not_found");
     await dependencies.workReuse?.validate(plan, control.signal);
     if (control.isCancelled()) return;
     // A crash after dispatch can have incurred a charge even without a result.
     // Retain the marker and fail visibly; a fresh user-approved plan is required.
     if ((job.checkpoint as { stage?: string } | undefined)?.stage === "call_dispatched") throw new Error("RESEARCH_CALL_INTERRUPTED");
-    if (plan.budget.kind !== "calls" || !Number.isInteger(plan.budget.limit) || plan.budget.limit < 1) throw new Error("RESEARCH_BUDGET_INVALID");
+    if (plan.budget.kind !== "calls" || !Number.isInteger(plan.budget.limit) || plan.budget.limit < 1) throw new Error("alchemist.research_budget_invalid");
     control.commit(() => dependencies.repository.updateRun(run.id, {
       status: "running",
       stage: run.stage,
@@ -110,7 +110,7 @@ async function handleLensJob(
         beginCall(control, "cross_checking", 2, plan.budget.limit, checkpoint);
         let callsUsed = 2;
         const beforeCorrection = plan.budget.limit >= 4 ? async () => {
-          if (callsUsed !== 2) throw new Error("RESEARCH_BUDGET_INVALID");
+          if (callsUsed !== 2) throw new Error("alchemist.research_budget_invalid");
           await dependencies.workReuse?.validate(plan, control.signal);
           beginCall(control, "cross_checking_format_correction", 3, plan.budget.limit, checkpoint!);
           callsUsed = 3;
@@ -186,7 +186,7 @@ function runtimeInput(plan: ResearchPlan, ideaVersion: IdeaVersion, dependencies
 
 function beginCall(control: JobHandlerControl, operation: string, callsUsed: number, limit: number, previous: LensExecutionCheckpoint): void {
   control.signal.throwIfAborted();
-  if (callsUsed > limit) throw new Error("RESEARCH_BUDGET_INVALID");
+  if (callsUsed > limit) throw new Error("alchemist.research_budget_invalid");
   control.saveCheckpoint({ stage: "call_dispatched", operation, callsUsed, previous }, { type: "call_started", payload: { operation, callsUsed, limit } });
 }
 
@@ -203,7 +203,7 @@ function classifyError(error: unknown): string {
     const hostCode = (error as Error & { code?: unknown }).code;
     if (typeof hostCode === "string" && hostCode.startsWith("REUSE_")) return hostCode;
     if (typeof hostCode === "string" && (hostCode === "RESEARCH_NO_SOURCES" || /^RESEARCH_SEARCH_[A-Z0-9_]{1,80}$/u.test(hostCode))) return hostCode;
-    if (["LENS_RUN_INPUT_INVALID", "IDEA_VERSION_NOT_FOUND", "AI_OUTPUT_INVALID", "RESEARCH_CALL_INTERRUPTED", "RESEARCH_NO_SOURCES", "RESEARCH_BUDGET_INVALID", "RUNTIME_MODEL_UNAVAILABLE", "RUNTIME_NOT_CONFIGURED", "RUNTIME_SHUTDOWN"].includes(error.message)) {
+    if (["LENS_RUN_INPUT_INVALID", "alchemist.idea_version_not_found", "AI_OUTPUT_INVALID", "RESEARCH_CALL_INTERRUPTED", "RESEARCH_NO_SOURCES", "alchemist.research_budget_invalid", "RUNTIME_MODEL_UNAVAILABLE", "RUNTIME_NOT_CONFIGURED", "RUNTIME_SHUTDOWN"].includes(error.message)) {
       return error.message;
     }
     if (

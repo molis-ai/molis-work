@@ -430,7 +430,7 @@ export class SqliteResearchRepository {
 
   private requireRun(id: string): LensRun {
     const run = this.getRun(id);
-    if (!run) throw new Error("LENS_RUN_NOT_FOUND");
+    if (!run) throw new Error("alchemist.lens_run_not_found");
     return run;
   }
 }

@@ -13,11 +13,11 @@ export class IdeaActionError extends Error {
 
   constructor(
     readonly code:
-      | "IDEA_CARD_NOT_FOUND"
-      | "IDEA_CARD_ALREADY_KEPT"
+      | "alchemist.idea_card_not_found"
+      | "alchemist.idea_card_already_kept"
       | "alchemist.idea_card_not_candidate"
       | "alchemist.idea_card_not_discarded"
-      | "IDEA_VERSION_NOT_FOUND",
+      | "alchemist.idea_version_not_found",
     readonly ideaId?: string,
   ) {
     super(code);
@@ -36,7 +36,7 @@ export function createIdeaCardActions(dependencies: IdeaCardActionDependencies) 
   const getIdeaVersionView = (ideaId: string, versionNumber: number) => {
     const idea = dependencies.ideas.getIdea(ideaId);
     const version = dependencies.ideas.getVersion(ideaId, versionNumber);
-    if (!idea || !version) throw new IdeaActionError("IDEA_VERSION_NOT_FOUND");
+    if (!idea || !version) throw new IdeaActionError("alchemist.idea_version_not_found");
     const sourceCard = requireCard(dependencies.ideas, version.sourceCardId);
     const model: IdeaBriefModel = {
       kind: "idea",
@@ -66,7 +66,7 @@ export function createIdeaCardActions(dependencies: IdeaCardActionDependencies) 
         return { kind: "idea_redirect", ideaId: card.keptIdeaId, version: 1 };
       }
       const direction = dependencies.directions.get(card.directionId);
-      if (!direction) throw new IdeaActionError("IDEA_CARD_NOT_FOUND");
+      if (!direction) throw new IdeaActionError("alchemist.idea_card_not_found");
       return {
         kind: "candidate",
         model: {
@@ -82,7 +82,7 @@ export function createIdeaCardActions(dependencies: IdeaCardActionDependencies) 
     keep(cardId: string) {
       const card = requireCard(dependencies.ideas, cardId);
       if (card.status === "kept") {
-        throw new IdeaActionError("IDEA_CARD_ALREADY_KEPT", card.keptIdeaId);
+        throw new IdeaActionError("alchemist.idea_card_already_kept", card.keptIdeaId);
       }
       if (card.status !== "candidate") throw new IdeaActionError("alchemist.idea_card_not_candidate");
       const now = dependencies.clock.now();
@@ -120,7 +120,7 @@ export type IdeaCardActions = ReturnType<typeof createIdeaCardActions>;
 
 function requireCard(ideas: SqliteIdeaRepository, cardId: string): IdeaCard {
   const card = ideas.getCard(cardId);
-  if (!card) throw new IdeaActionError("IDEA_CARD_NOT_FOUND");
+  if (!card) throw new IdeaActionError("alchemist.idea_card_not_found");
   return card;
 }
 

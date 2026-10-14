@@ -1236,7 +1236,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 - FLOW-01：下一步只是同一条记录的另一个入口——做的事和卡上的主按钮、题上的选项完全一样，走同一个 `runCard` / 回答路径，带同一个 `revision` / `pending_revision`，不另写执行路径。
 - FLOW-02：点选项直接交回答，只在这几条同时成立时：这一组只有这一道题、单选、没有别的必填题；否则只给「去回答（N 题）」，把人带到卡上。
 - FLOW-03：`needs-input` 的卡，或者卡上有没交的改动时，下一步只把人带到卡上，不直接执行。
-- FLOW-04：`stale`、`running`、`done`、`dismissed` 的卡不进下一步。
+- FLOW-04：`stale`、`running`、`done`、`dismissed` 的卡不进下一步；`failed` 与 `unknown`（结果未知）的卡只带到卡上，`unknown` 是去核对，绝不在下一步里重跑（交互 spec §7.2：结果未知时不能靠重试把副作用悄悄再做一遍）。
 - FLOW-05：同一件事只出现一次。
 
 统筹转来的补充要求（同日，W3-A1 一并做）：
@@ -1245,7 +1245,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 - **派生**：待确认的副作用只把人带到复核卡，不在下一步里批准。派生函数放宿主层、通用名字，签名 `(questions, cards, reviews, follow-ups) → InteractionNextStep[]`，Coding（H4）直接用，不经过助理专用的东西——放在 `apps/local-host/src/agent-next-steps.ts`（与共享问卷卡 `agent-question-card.ts` 同层），`assistant-view-html.ts` 调它。
 - **执行**：替人选中选项时，像人点一样在卡上点那个选项（共享客户端的 `onChange` 照常存草稿），再点卡的提交；不直接改 `checked`。
 
-派生仍是 `assistant-view-html.ts` 里的纯函数，从记录推出、不另存；输入是问题与卡片的视图，不读助理工作的私有字段，交互线 H4 做 Coding 的下一步时直接复用。
+派生仍是从记录推出、不另存的纯函数；`interactionNextSteps` 与 `card:` / `question:` 这套 step id 交互线 H4 直接用，改形状先经统筹；输入是问题与卡片的视图，不读助理工作的私有字段，交互线 H4 做 Coding 的下一步时直接复用。
 
 ### 21.4 波次（并进第 9 节 W3）
 

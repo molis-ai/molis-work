@@ -98,7 +98,7 @@ test("without a model the Assistant is told which Alchemist actions cannot run, 
     assert.ok(!before.available && before.code === "actions.connection_required" && /模型/.test(before.reason), `${action.capability_id}: ${JSON.stringify(before)}`);
   }
   await assert.rejects(f.project(AGENT).invoke(alchemistActions.reuseAssess, { intent: "x", references: [], methodIds: [] } as never), { code: "actions.connection_required" });
-  // Workflows and plugins are told the same; an MCP client does not see the tool at all, so a call by its name gets the "not listed" answer.
+  // W3-09-2-01: discovery hides unavailable tools; an authorized named call still gets the Host-owned reason and is recorded once.
   for (const audience of ["workflow", "plugin", "mcp"] as const) for (const action of NEEDS_MODEL) {
     const state = await f.availability(action.capability_id, audience);
     assert.ok(!state.available && state.code === "actions.connection_required", `${action.capability_id} for ${audience}`);
@@ -109,7 +109,7 @@ test("without a model the Assistant is told which Alchemist actions cannot run, 
   for (const action of NEEDS_MODEL) {
     const name = actionMcpToolName({ ...action, version: 1 });
     assert.ok(!names.includes(name), `${name} is left out of tools/list`);
-    await assert.rejects(gone.callTool(name, {}), { code: "actions.mcp_unavailable" });
+    await assert.rejects(gone.callTool(name, {}), { code: "actions.connection_required" });
   }
   assert.ok(names.includes(actionMcpToolName({ ...alchemistActions.pulseStart, version: 1 })), "the market pulse needs no model and stays listed");
   f.configureModel();

@@ -7,6 +7,8 @@ export interface MessageSessions {
   title(project: string, sessionId: string): Promise<string>;
   /** Tell a round that is running right now; false when the session has no live round. */
   steer(sessionId: string, text: string): Promise<boolean>;
+  /** Other sessions of the project whose work under way names the same files as this session's. */
+  overlapping(sessionId: string): Promise<string[]>;
 }
 
 /** A notice goes to this many sessions at most at once (the person's decision). */
@@ -15,14 +17,17 @@ export const MAX_BROADCAST = 5;
 const OPEN = ["queued", "delivered", "accepted"];
 
 /**
- * Messages between sessions of one project, on the SDK's envelopes. The model sends with `session-send`, and the SDK
- * lets an agents' letter go only between neighbouring steps of one task graph (P2g: a round and its subtasks, or
- * subtasks of one round); this seam hands each message to the recipient's live round or keeps it for its next round,
- * and treats an answer as the end of the request it answers. Every message is recorded
+ * Messages between sessions of one project, on the SDK's envelopes. The model sends with `session-send`; the SDK lets an
+ * agents' letter go only between neighbouring steps of one task graph (P2g), and the sessions of a project are
+ * neighbours on its work board (each has its block under the project's root; a round's subtasks hang under its block).
+ * This seam says plainly what goes nowhere (to itself, to another project), turns "the sessions whose work overlaps" into
+ * names, hands each message to the recipient's live round or keeps it for its next round, and treats an answer as the
+ * end of the request it answers. Every message is recorded
  * and stays readable and cancellable by the person; a message is data for its recipient, never an instruction or an
  * approval.
  */
 export function createSessionMessages(runtime: Runtime, sessions: MessageSessions) {
+  const hook = "molis-session-messages";
   const now = async () => (await runtime.readClock()).wallTimeMs;
   const words = async (envelope: Envelope, project: string) => {
     const from = await sessions.title(project, envelope.from.id);
@@ -40,6 +45,26 @@ export function createSessionMessages(runtime: Runtime, sessions: MessageSession
     const answered = new Set(runtime.delivery.list({ from: { kind: "session", id: sessionId, revision: 1 } as ExactRef<"session"> }).flatMap(envelope => envelope.inReplyTo ? [envelope.inReplyTo.id] : []));
     return to.filter(envelope => envelope.audience !== "people" && ["request", "handoff"].includes(envelope.kind) && ["delivered", "accepted"].includes(envelope.state) && !answered.has(envelope.ref.id));
   };
+  runtime.hooks.register({ id: hook, event: "tool-before", blocking: true, handler: async context => {
+    if (context.toolName !== "session-send" || !context.origin?.session) return { kind: "allow" };
+    const deny = (why: string) => ({ kind: "deny" as const, why });
+    const input = context.input as { to?: unknown; recipients?: unknown; kind?: unknown } | undefined;
+    const sender = await sessions.owner(context.origin.session);
+    if (!sender) return deny("这个会话不属于任何项目，不能发信");
+    const elsewhere = async (id: string) => { const other = id === context.origin!.session ? undefined : await sessions.owner(id); return !other || other.project !== sender.project; };
+    // A notice to the sessions whose work overlaps this one's ("overlapping"), or to several named ones: at most five.
+    if (input?.to === "overlapping" || Array.isArray(input?.recipients)) {
+      if (input.kind !== "notice") return deny("一次发给多个会话的只能是通知（kind 写 notice）");
+      const named = input.to === "overlapping" ? await sessions.overlapping(context.origin.session) : (input.recipients as unknown[]).map(String);
+      if (!named.length) return deny("现在没有和你范围重叠、还在进行或等待中的会话");
+      if (named.length > MAX_BROADCAST) return deny(`一次最多发给 ${MAX_BROADCAST} 个会话`);
+      for (const one of named) if (await elsewhere(one)) return deny("只能发给同一个项目里的其他会话");
+      const { to: _to, ...rest } = input;
+      return input.to === "overlapping" ? { kind: "rewrite", input: { ...rest, recipients: named }, why: "范围重叠的会话" } : { kind: "allow" };
+    }
+    if (typeof input?.to !== "string" || await elsewhere(input.to)) return deny("收信的必须是同一个项目里另一个会话（用它的 session id）");
+    return { kind: "allow" };
+  } });
   const unsubscribe = runtime.delivery.subscribe(event => {
     if (event.type !== "sent") return;
     const envelope = event.envelope;
@@ -156,6 +181,6 @@ export function createSessionMessages(runtime: Runtime, sessions: MessageSession
       runtime.delivery.cancel(envelope.ref);
       await runtime.delivery.flush();
     },
-    close() { unsubscribe(); },
+    close() { runtime.hooks.unregister(hook); unsubscribe(); },
   };
 }

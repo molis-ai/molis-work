@@ -60,6 +60,15 @@ export function createNodeCoordination(runtime: Runtime, index: SessionIndexStor
       return listed?.title ?? (await index.read(sessionId).catch(() => undefined))?.title ?? sessionId;
     },
     steer: (sessionId, text) => steerSession(sessionId, text),
+    async overlapping(sessionId) {
+      // The files this session's round under way names or wrote, against the other work under way in its directory.
+      const saved = await index.read(sessionId).catch(() => undefined);
+      if (!saved) return [];
+      const project = saved.owner.project_id, mine = (await projectWork.read(project)).items.find(item => item.session_id === sessionId && item.state === "running");
+      if (!mine) return [];
+      const seen = await projectWork.read(project, { session_id: sessionId, directory: mine.directory, paths: mine.paths });
+      return [...new Set(seen.overlaps.map(overlap => overlap.work.session_id))];
+    },
   });
   /** The project's waits and continuations, and background commands (the SDK hands a wait that is over to a live round). */
   const waitsPort = createPrologueWaits(runtime, {

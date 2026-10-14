@@ -19,10 +19,11 @@ import { inlineMethods } from "./prologue-methods.js";
 import { projectWorkDigest, workPaths, type createProjectWork } from "./prologue-project-work.js";
 import { withInteractionRepairLimit } from "./prologue-questions.js";
 import { runModelParams } from "./prologue-run-params.js";
-import { collaborates, eligibleContinuation, PLAN_STEP, readyStep, SESSION_STEP, sessionBoard } from "./prologue-collaboration.js";
+import { collaborates, eligibleContinuation, planPrefix, readyStep, sessionBlock } from "./prologue-collaboration.js";
+import type { PlanPlace } from "./prologue-plan-steps.js";
 import { exactCharacterKey, verifySubagentStart, type PrologueSubagentRoot } from "./prologue-subagents.js";
 import { DESKTOP_GUIDANCE, SURFACE_GUIDANCE, type PrologueSurfaces } from "./prologue-surfaces.js";
-import type { createPrologueTaskBoards } from "./prologue-taskboard.js";
+import { placeOf, type createPrologueTaskBoards } from "./prologue-taskboard.js";
 import type { createPrologueWaits } from "./prologue-waits.js";
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
 import type { PrologueRuntimePort, PrologueStartInput } from "./prologue.js";
@@ -220,20 +221,33 @@ async function childSetup(deps: RunDeps, input: PrologueStartInput) {
   return { childRoots, childRoles, childInstructions };
 }
 
+/** The project's work board, where every session of the project has its block (the user's B, 2026-10-14). */
+const projectBoardOf = async (deps: RunDeps, index: SessionIndex) => ({ kind: "task-board", id: await deps.projectWork.projectId(index.owner.project_id), revision: 1 }) as ExactRef<"task-board">;
+
+/** Steps another session handed to this one and not yet done: on the project's board, held by it, outside its own block. */
+const handedSteps = (runtime: Runtime, board: ExactRef<"task-board">, session: ExactRef<"session">, block: string) => runtime.boards.get(board).nodes
+  .filter(node => node.assignee?.kind === "session" && node.assignee.id === session.id && node.id !== block && !node.id.startsWith(`${block}.`)
+    && !["succeeded", "failed", "cancelled"].includes(node.state) && node.reports.some(report => report.handover?.to?.kind === "session" && report.handover.to.id === session.id));
+
 /**
  * What the round is given to read beside its task: the person's text materials, where its plan stands, and in a main
- * round what other sessions are doing and the messages left for it.
+ * round what other sessions are doing, the messages left for it and the steps handed to it.
  */
 async function roundMaterials(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, none: boolean, plan: PrologueStartInput["provenance"]["frozen"]["execution_plan"], textResources: Array<{ ref: ExactRef<"resource">; as: "original" }>) {
   const { runtime, stepBoards, projectWork, messages } = deps;
   const continued = input.provenance.frozen.continues_step_board_of;
-  // A continued plan keeps its graph — with every step a person inserted, skipped or reordered — rather than starting over.
-  const stepBoard = plan ? continued ? await stepBoards.resume({ session_id: input.session_id, run_id: continued }) : await stepBoards.admit(plan, session.ref) : undefined;
-  // A round without a plan of its own still starts knowing where the session's unfinished graph stands.
-  const earlier = plan ? undefined : [...index.attempts].reverse().find(attempt => attempt.step_board && attempt.frozen.execution_plan);
-  // The graph as it stands travels with this round's task, where it reads as newer than the conversation before it.
-  const digest = plan && stepBoard ? stepBoards.digest(stepBoard, plan, session.ref.id)
-    : earlier ? stepBoards.standing(earlier.step_board!, earlier.frozen.execution_plan!, session.ref.id) : "";
+  // A confirmed plan's steps go under the session's block on the project's board; a continued plan keeps its steps —
+  // with every step a person inserted, skipped or reordered — rather than starting over.
+  let stepBoard: PlanPlace | undefined;
+  if (plan && continued) stepBoard = await stepBoards.resume({ session_id: input.session_id, run_id: continued });
+  else if (plan) {
+    const board = await projectBoardOf(deps, index), block = await sessionBlock(runtime, board, session.ref, input.session_title ?? index.title);
+    stepBoard = await stepBoards.admit(plan, session.ref, { board, block, prefix: planPrefix(block, index.attempts.filter(attempt => attempt.step_prefix).length + 1) });
+  }
+  // A round without a plan of its own still starts knowing where the session's unfinished plan stands.
+  const earlier = plan ? undefined : [...index.attempts].reverse().map(placeOf).find(Boolean);
+  // The plan as it stands travels with this round's task, where it reads as newer than the conversation before it.
+  const digest = stepBoard ? stepBoards.digest(stepBoard, session.ref.id) : earlier ? stepBoards.standing(earlier, session.ref.id) : "";
   if (digest) textResources.push({ ref: await stageTextResource(runtime, digest, "coding-board-digest"), as: "original" });
   // What other sessions in the project are doing, and where it overlaps this round, as the round starts.
   const project = index.owner.project_id, workText = `${input.task}\n${(plan?.steps ?? []).map(step => `${step.title}\n${step.acceptance}`).join("\n")}`;
@@ -241,32 +255,36 @@ async function roundMaterials(deps: RunDeps, input: PrologueStartInput, index: S
   if (!none && input.root_path && !index.parent_run) {
     try {
       const seen = await projectWork.read(project, { session_id: session.ref.id, directory: input.root_path, paths: scopePaths });
-      const note = projectWorkDigest(await projectWork.projectId(project), seen.items, session.ref.id, seen.overlaps);
+      const note = projectWorkDigest(await projectWork.projectId(project), seen.items, session.ref.id, seen.overlaps, input.character.tools.includes("session-send"));
       if (note) textResources.push({ ref: await stageTextResource(runtime, note, "coding-project-work"), as: "original" });
     } catch { /* the project's list is a courtesy to the round; a failed read leaves it out rather than stopping the round */ }
     // Messages other sessions left for this one while it was not running.
     const inbox = await messages.inbox(session.ref.id, project).catch(() => "");
     if (inbox) textResources.push({ ref: await stageTextResource(runtime, inbox, "coding-session-inbox"), as: "original" });
+    // Steps other sessions handed to this one and not yet done: where they are, so this round can go on with them.
+    const board = await projectBoardOf(deps, index).catch(() => undefined);
+    const handed = board ? handedSteps(runtime, board, session.ref, `s-${session.ref.id}`) : [];
+    if (handed.length) textResources.push({ ref: await stageTextResource(runtime, ["别的会话交给你、还没做完的步骤（项目任务图上现在归你）：",
+      ...handed.map(node => `- 任务图 ${board!.id}：${node.id}「${node.title.slice(0, 60)}」（${node.state}）`),
+      "用 board-read / board-report（board 写上面的任务图编号）处理这些步骤；做完后在交接信上答复对方。"].join("\n"), "coding-handed-steps"), as: "original" });
   }
   return { textResources, stepBoard, project, scopePaths };
 }
 
 /**
- * Where a round that works with others stands (specs/prologue-adoption §4.6.10): a continuation of this session that may
- * go on now (the round takes it up, under its request key), else the plan's root step, else the session's own step. A
- * subtask session and a round that does not collaborate stand nowhere.
+ * Where a round that works with others stands (specs/prologue-adoption §4.6.10, the user's B): on its session's block
+ * on the project's work board — under the continuation's request key when one of this session's may go on now, so the
+ * round takes it up. A subtask session and a round that does not collaborate stand nowhere.
  */
-async function roundBinding(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, stepBoard: Awaited<ReturnType<typeof roundMaterials>>["stepBoard"]) {
+async function roundBinding(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, stepBoard: PlanPlace | undefined) {
   const { runtime } = deps;
   if (index.parent_run || !collaborates(input.character.tools.map(prologueToolName), Boolean(stepBoard))) return undefined;
-  const own = await sessionBoard(runtime, session.ref);
-  const plans = [...new Set(index.attempts.flatMap(attempt => attempt.step_board ? [attempt.step_board.id] : []))];
-  const boards = [own, ...(stepBoard ? [stepBoard.ref] : []), ...plans.map(id => ({ kind: "task-board", id, revision: 1 }) as ExactRef<"task-board">)];
-  const ready = eligibleContinuation(runtime, session.ref, boards);
+  const board = stepBoard?.ref ?? await projectBoardOf(deps, index);
+  const block = stepBoard?.block ?? await sessionBlock(runtime, board, session.ref, input.session_title ?? index.title);
+  const ready = eligibleContinuation(runtime, session.ref, [board]);
   if (ready) return { board: ready.board, node: ready.node, requestKey: ready.requestKey };
-  const at = stepBoard ? { board: stepBoard.ref.id, node: PLAN_STEP } : { board: own.id, node: SESSION_STEP };
-  await readyStep(runtime, at.board, at.node, index.owner.actor_id ?? "user");
-  return at;
+  await readyStep(runtime, board.id, block, index.owner.actor_id ?? "user");
+  return { board: board.id, node: block };
 }
 
 /**
@@ -291,7 +309,7 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
   const { mode: { none, business }, surface, plan, stepBoard, session, childRoles } = parts;
   const instructions = await stageInstructions(runtime, [input.character.instructions, parts.childInstructions, ...parts.methods,
     ...(surface.surfaces.includes("browser") ? [SURFACE_GUIDANCE] : []), ...(surface.surfaces.includes("desktop") ? [DESKTOP_GUIDANCE] : []), ...(surface.note ? [`## 界面控制\n${surface.note}`] : []),
-    ...(plan && stepBoard ? [stepBoards.instructions(stepBoard, plan, { session: session.ref.id, dispatch: childRoles.size > 0 })] : []), (none || business ? "" : await deps.checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
+    ...(stepBoard ? [stepBoards.instructions(stepBoard, { dispatch: childRoles.size > 0 })] : []), (none || business ? "" : await deps.checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
   if (!none && !business) {
     await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
     await mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
@@ -483,7 +501,7 @@ async function afterStart(deps: RunDeps, input: PrologueStartInput, index: Sessi
   state.runSessions.set(started.run.ref.id, session.ref.id); state.runRefs.set(started.run.ref.id, started.run.ref); if (surfaceHost) surfaceHost.noteRun(session.ref.id, started.run.ref.id);
   state.activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state) && !at.stopping(),
     steer: async text => { await started.control.steer({ text, source: "app" }); } });
-  if (at.plan && at.stepBoard) deps.stepBoards.follow(at.stepBoard.ref, { session_id: session.ref.id, run_id: started.run.ref.id }, at.plan);
+  if (at.stepBoard) deps.stepBoards.follow(at.stepBoard, { session_id: session.ref.id, run_id: started.run.ref.id });
   // A main round is work under way in its project until it ends; a subtask's work is its parent's.
   if (!at.none && input.root_path && !index.parent_run) {
     try {
@@ -500,7 +518,7 @@ function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard
   const { state } = deps;
   const surfaceHost = deps.surfaces();
   actionController.abort(); state.actionControllers.delete(started.run.ref.id); state.dispatchChecks.delete(started.run.ref.id);
-  if (stepBoard) deps.stepBoards.unfollow(stepBoard.ref.id);
+  if (stepBoard) deps.stepBoards.unfollow(started.run.ref.id);
   if (state.liveSessions.get(session.ref.id) === started.run.ref.id) state.liveSessions.delete(session.ref.id);
   // The side panel stops saying the Assistant is using the page the moment its round is over, and this run's app approvals are dropped.
   if (surfaceHost) { void surfaceHost.release(session.ref.id).catch(() => undefined); surfaceHost.releaseRun(started.run.ref); } state.runRefs.delete(started.run.ref.id);
@@ -585,7 +603,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
   const attemptIndex = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
     ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
-    ...(materials.stepBoard ? { step_board: materials.stepBoard.ref } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}) });
+    ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}) });
   const dispatchGuard = async () => {
     await input.beforeDispatch?.();
     if (!mode.none && !mode.business) {

@@ -9,12 +9,11 @@ import type { CollaborationHost, ExactRef, Runtime } from "@prologue/sdk";
 /** Tools a run may use only bound to a step (the SDK's bound-only tools, and `await-commands` for its `park` form). */
 export const COLLABORATION_TOOLS: readonly string[] = ["dispatch-subagent", "board-plan", "board-revise", "board-report", "board-wait", "session-send", "session-inject", "await-commands"];
 
-/** The step a session's rounds stand on when they have no confirmed plan; the person and the model never report it. */
-export const SESSION_STEP = "session";
-/** The step a confirmed plan's rounds stand on; the plan's steps hang under it. */
-export const PLAN_STEP = "plan";
-/** Finished steps a session's standing board keeps (its subtasks' steps); older ones are let go. */
-const SESSION_BOARD_KEEPS = 40;
+/** The project's root on its work board: every session's block hangs under it, so the blocks are siblings (P2g). */
+export const PROJECT_STEP = "project";
+/** A session's block on the project's board: its rounds stand on it; its plans' steps and its subtasks' steps hang under it. */
+export const blockId = (session: ExactRef<"session">) => `s-${session.id}`;
+export const isBlock = (id: string) => /^s-[^.]+$/.test(id);
 
 const boardRef = (id: string) => ({ kind: "task-board", id, revision: 1 }) as ExactRef<"task-board">;
 const HUMAN_STEP_NOTE = "用户开始了新的一轮";
@@ -25,14 +24,27 @@ export function collaborates(tools: readonly string[], planned: boolean): boolea
 }
 
 /**
- * The session's own standing board, admitted once: the key makes every later admit return the same board (the SDK
- * keeps the key with the board across restarts), so nothing about it is stored in the Host's index.
+ * The session's block on the project's work board (the user's B, 2026-10-14): the project's root is put on the board the
+ * first time it is needed, and the session's block under it, held by the session. A board starts empty (it holds the
+ * project's work under way), so both are added, not admitted; adding a step that hangs under the root compares nothing
+ * else on the board (P2k), and two sessions adding theirs at once both land.
  */
-export async function sessionBoard(runtime: Runtime, session: ExactRef<"session">): Promise<ExactRef<"task-board">> {
-  const admitted = await runtime.boards.admit({ idempotencyKey: `molis-session-board:${session.id}`, standing: { keepFinished: SESSION_BOARD_KEEPS },
-    nodes: [{ id: SESSION_STEP, title: "会话", dependsOn: [], onFailure: "block-for-human", assignee: session }] });
-  return admitted.ref;
+export async function sessionBlock(runtime: Runtime, board: ExactRef<"task-board">, session: ExactRef<"session">, title: string): Promise<string> {
+  const block = blockId(session);
+  const ensure = async (id: string, node: Parameters<Runtime["boards"]["addNode"]>[0]["node"]) => {
+    if (runtime.boards.get(board).nodes.some(one => one.id === id)) return;
+    await runtime.boards.addNode({ ref: board, expectedVersion: runtime.boards.get(board).version, node }).catch((error: unknown) => {
+      // Another round put it there first.
+      if (!runtime.boards.get(board).nodes.some(one => one.id === id)) throw error;
+    });
+  };
+  await ensure(PROJECT_STEP, { id: PROJECT_STEP, title: "项目", dependsOn: [], onFailure: "block-for-human" });
+  await ensure(block, { id: block, title: title.slice(0, 120) || "会话", dependsOn: [], parent: PROJECT_STEP, onFailure: "block-for-human", assignee: session });
+  return block;
 }
+
+/** The prefix of a new plan's steps in the session's block: the plan's number in the session. */
+export const planPrefix = (block: string, nth: number) => `${block}.p${nth}`;
 
 /** A continuation of this session that may go on now, on any of the boards it stands on: the next round takes it up. */
 export function eligibleContinuation(runtime: Runtime, session: ExactRef<"session">, boards: readonly ExactRef<"task-board">[]): { board: string; node: string; requestKey: string } | undefined {

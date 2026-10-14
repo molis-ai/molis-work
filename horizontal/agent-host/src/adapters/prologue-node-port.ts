@@ -3,7 +3,7 @@ import { DEFAULT_CONTEXT_WINDOW_TOKENS, createRuntime, type ExactRef, type Queue
 import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
-import { createCollaborationHost, readyStep, SESSION_STEP, sessionBoard, type DispatchChecks } from "./prologue-collaboration.js";
+import { createCollaborationHost, readyStep, sessionBlock, type DispatchChecks } from "./prologue-collaboration.js";
 import { createPrologueDocuments } from "./prologue-documents.js";
 import { createPrologueGitReviews } from "./prologue-git.js";
 import { MAX_BROADCAST } from "./prologue-messages.js";
@@ -145,9 +145,11 @@ function projectWorkPort(deps: PortDeps): NonNullable<PrologueRuntimePort["proje
       const target = (await projectWork.read(project)).items.find(work => work.work_id === input.after);
       let armed: { waitId: string; already: boolean };
       try {
-        const own = await sessionBoard(deps.runtime, index.ref);
-        await readyStep(deps.runtime, own.id, SESSION_STEP, actorId);
-        armed = await deps.waitsPort.queueBehind(index.ref, { board: own.id, node: SESSION_STEP }, { board: await projectWork.projectId(project), node: input.after },
+        // The project's work board holds both: the session's block, and the work it waits for.
+        const board = { kind: "task-board", id: await projectWork.projectId(project), revision: 1 } as ExactRef<"task-board">;
+        const block = await sessionBlock(deps.runtime, board, index.ref, index.title);
+        await readyStep(deps.runtime, board.id, block, actorId);
+        armed = await deps.waitsPort.queueBehind(index.ref, { board: board.id, node: block }, { board: board.id, node: input.after },
           `等「${(target?.title ?? input.after).slice(0, 40)}」那一轮完成后再开始`);
       } catch (error) {
         // That work's session is already waiting on this one: they would wait on each other for ever.

@@ -111,7 +111,7 @@ export interface PrologueControlPort {
   stop(reason: "stopped" | "cancelled"): void | Promise<void>;
   pause(): void;
   resume(): void;
-  steer(input: { text: string }): void | Promise<void>;
+  steer(input: { text: string; source?: "person" | "app"; key?: string }): void | Promise<void>;
   /** Later model calls of this Run go to this target, from its next model boundary. Absent where the runtime cannot. */
   switchModel?(target: Pick<PrologueModelConfiguration, "protocol" | "endpoint" | "model" | "credential_ref">): Promise<void>;
   subscribe(listener: () => void): () => void;
@@ -743,7 +743,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         record.control.resume();
         break;
       case "steer":
-        await record.control.steer({ text: control.text });
+        await record.control.steer({ text: control.text, ...(control.source === "host" ? { source: "app" as const } : {}), ...(control.key ? { key: control.key } : {}) });
         break;
       case "switch-model":
         await switchRunModel({ record, selection: control, configure: this.#ports.modelConfiguration, defaultWindow: this.#runtime.defaultContextWindowTokens,

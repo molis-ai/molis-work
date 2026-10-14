@@ -1224,7 +1224,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
                   host_tools: [...role.host_tools], text_materials: [], skills: [], mcp_tools: [], mcp_sources: [], budget: null,
                   prompts: role.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: prompt.layer ?? "role" })) } }] });
             runRoots.set(childRun.run_id, granted.rootRef);
-            activeRuns.set(childRun.run_id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: async text => { await observed.control.steer({ text }); } });
+            activeRuns.set(childRun.run_id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: async text => { await observed.control.steer({ text, source: "app" }); } });
             const bridgeFailed = async () => {
               const reason = "子任务的宿主审查或归属记录失败，已停止执行；请核对原工具结果后继续";
               const errors = subagentBridgeErrors.get(observed.parentRun.id) ?? {};
@@ -1313,7 +1313,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       // A round is live until it ends: before its first model event it is still "prepared", and it hears a steer then too.
       runSessions.set(started.run.ref.id, session.ref.id); runRefs.set(started.run.ref.id, started.run.ref); if (surfaceHost) surfaceHost.noteRun(session.ref.id, started.run.ref.id);
       activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state) && stopping === undefined,
-        steer: async text => { await started.control.steer({ text }); } });
+        steer: async text => { await started.control.steer({ text, source: "app" }); } });
       if (plan && stepBoard) stepBoards.follow(stepBoard.ref, { session_id: session.ref.id, run_id: started.run.ref.id }, plan);
       // A main round is work under way in its project until it ends; a subtask's work is its parent's.
       if (!none && input.root_path && !index.parent_run) {

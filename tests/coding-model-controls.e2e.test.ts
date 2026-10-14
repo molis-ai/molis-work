@@ -22,7 +22,7 @@ function turn(text: string, tool?: { name: string; input: object }): string {
 // specs/prologue-adoption §4.3: the composer offers a reasoning effort only for a model marked as taking one and sends it
 // with the round; while the round runs, choosing another model offers to switch the round to it from its next model call,
 // and the note under the composer says what the round really uses.
-test("the composer sends a chosen reasoning effort and switches a running round to another model from its next call", { timeout: 180_000 }, async t => {
+test("PA-24: the composer sends a chosen reasoning effort and switches a running round to another model from its next call", { timeout: 180_000 }, async t => {
   const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
   const { runWithMolisWorkHome, resetSecretStoreCache } = await import("@molis-ai/molis-work-storage");
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";

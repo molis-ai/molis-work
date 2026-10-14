@@ -233,7 +233,7 @@ test("terminal events close the streamed text and set an honest phase", () => {
   assert.equal(cancelled.phase, "cancelled");
 });
 
-test("the runtime's newer frames are read, not counted as unknown: sleeping, per-turn changes, a model switch", () => {
+test("PA-24: the runtime's newer frames are read, not counted as unknown: sleeping, per-turn changes, a model switch", () => {
   const state = emptyPrologueStreamState();
   const until = Date.parse("2026-10-09T10:00:00Z");
   apply(state, { type: "text-delta", text: "等构建跑完再看。" }, { type: "agent-control", state: "sleeping", untilMs: until });

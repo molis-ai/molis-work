@@ -123,12 +123,6 @@ export interface MolisWorkRuntimeContextUnbindResult {
     changed: boolean;
 }
 
-export declare class PrivateWorkContextError extends Error {
-    readonly code: PrivateWorkContextErrorCode;
-    constructor(code: PrivateWorkContextErrorCode, message: string);
-}
-// exported from this entry as "MolisWorkSessionError"
-
 export interface NormalizedRuntimeWorkContext {
     runtime_id: string;
     stable_work_context_id: string | null;
@@ -154,13 +148,6 @@ export interface PrivateWorkContextApplicationApi {
     query: WorkSessionQueryApi;
     commands: WorkSessionCommandApi;
 }
-
-export declare class PrivateWorkContextError extends Error {
-    readonly code: PrivateWorkContextErrorCode;
-    constructor(code: PrivateWorkContextErrorCode, message: string);
-}
-
-export type PrivateWorkContextErrorCode = "work.session.message_content_unavailable" | "work.session.message_conflict" | "work.session.message_target_changed" | "work.session.message_unavailable" | "work.session.message_not_found" | "work.session.message_attempt_changed" | "work.session.not_found" | "work.session.confirmation_required" | "work.session.identity_conflict" | "work.session.runtime_mismatch" | "work.session.correlation_invalid" | "work.session.invalid_input" | "work.session.handoff_not_found" | "work.session.handoff_invalid_state" | "work.session.registry_unknown" | "work.session.registry_reader_too_old";
 
 export type PrivateWorkContextJsonValue = null | boolean | number | string | PrivateWorkContextJsonValue[] | {
     [key: string]: PrivateWorkContextJsonValue;
@@ -499,6 +486,25 @@ export declare const modulesPrivateWorkContextContract: {
     readonly maturity: "partial";
     readonly ssot: "docs/modules/private-work-context.md";
 };
+
+export declare const sessionErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly message_content_unavailable: "invalid";
+    readonly message_conflict: "invalid";
+    readonly message_target_changed: "invalid";
+    readonly message_unavailable: "invalid";
+    readonly message_not_found: "invalid";
+    readonly message_attempt_changed: "invalid";
+    readonly not_found: "invalid";
+    readonly confirmation_required: "invalid";
+    readonly identity_conflict: "invalid";
+    readonly runtime_mismatch: "invalid";
+    readonly correlation_invalid: "invalid";
+    readonly invalid_input: "invalid";
+    readonly handoff_not_found: "invalid";
+    readonly handoff_invalid_state: "invalid";
+    readonly registry_unknown: "invalid";
+    readonly registry_reader_too_old: "invalid";
+}>;
 
 export declare function sessionMessagePrompt(record: Pick<SessionMessageRecord, "text" | "context">): string;
 

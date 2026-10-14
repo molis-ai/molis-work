@@ -1,13 +1,10 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { RuntimeHostApi } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SessionDirectoryService } from "./directory.js";
-import {
-  MolisWorkSessionError,
-  type MolisWorkSessionHandoffRecord,
-  type MolisWorkSessionRecord,
-  type SessionHandoffResult,
-} from "./types.js";
+import { type MolisWorkSessionHandoffRecord, type MolisWorkSessionRecord, type SessionHandoffResult } from "./types.js";
 
 /** Send/recovery orchestration only; the Session module owns every persisted transition. */
 export class SessionHandoffDelivery {
@@ -70,7 +67,8 @@ export class SessionHandoffDelivery {
       } catch (error) {
         const failed = this.registry.markHandoffFailed({
           package_id: handoff.package_id,
-          error_code: error instanceof MolisWorkSessionError ? error.code : "work.session.identity_conflict",
+          error_code: error instanceof ActionError && error.code.startsWith("work.session.")
+            && Object.hasOwn(sessionErrors, error.code.slice("work.session.".length)) ? error.code : "work.session.identity_conflict",
           error_message: error instanceof Error ? error.message : String(error),
           retryable: false,
         });
@@ -206,7 +204,7 @@ export class SessionHandoffDelivery {
     if (handoff.destination_session_id) {
       const current = this.registry.get(handoff.destination_session_id);
       if (current.native_runtime_session_id === nativeSessionId) return current;
-      throw new MolisWorkSessionError("work.session.identity_conflict", "Handoff 已连接另一个目标 Runtime Session");
+      throw sessionErrors.identity_conflict("Handoff 已连接另一个目标 Runtime Session");
     }
     const existing = this.registry.findByNativeRuntimeSession(handoff.target_runtime_id, nativeSessionId);
     if (existing) {
@@ -214,10 +212,7 @@ export class SessionHandoffDelivery {
         existing.session_id !== handoff.source_session_id
         && existing.metadata.handoff_package_id === handoff.package_id
       ) return existing;
-      throw new MolisWorkSessionError(
-        "work.session.identity_conflict",
-        "目标 Runtime 返回的不是一条新的 Session；Molis Work 没有覆盖现有 Session 关系",
-      );
+      throw sessionErrors.identity_conflict("目标 Runtime 返回的不是一条新的 Session；Molis Work 没有覆盖现有 Session 关系");
     }
     return this.registry.createSession({
       runtime_id: handoff.target_runtime_id,

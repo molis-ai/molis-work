@@ -1,9 +1,9 @@
+import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import path from "node:path";
 import type Database from "better-sqlite3";
 import type {
   MolisWorkSessionRecord,
 } from "./contract-aliases.js";
-import { MolisWorkSessionError } from "./errors.js";
 
 export const SESSION_REGISTRY_OWNER = "molis-work-session-registry-v1";
 export const SESSION_REGISTRY_SCHEMA_VERSION = 7;
@@ -77,17 +77,14 @@ export function validateSessionRegistryMeta(db: Database.Database): void {
     | { value?: unknown }
     | undefined)?.value;
   if (!isOwnedSessionRegistry(owner)) {
-    throw new MolisWorkSessionError("work.session.registry_unknown", "不会复用未知 Session Registry 数据库");
+    throw sessionErrors.registry_unknown("不会复用未知 Session Registry 数据库");
   }
   const version = Number((db.prepare("SELECT value FROM session_meta WHERE key = 'schema_version'").get() as
     | { value?: unknown }
     | undefined)?.value);
   // Only the current schema is read: older registries are not upgraded in place (no compatibility path).
   if (version !== SESSION_REGISTRY_SCHEMA_VERSION) {
-    throw new MolisWorkSessionError(
-      "work.session.registry_reader_too_old",
-      `Session Registry schema=${version}，当前只读 ${SESSION_REGISTRY_SCHEMA_VERSION}`,
-    );
+    throw sessionErrors.registry_reader_too_old(`Session Registry schema=${version}，当前只读 ${SESSION_REGISTRY_SCHEMA_VERSION}`);
   }
 }
 
@@ -167,7 +164,6 @@ export function mapSession(row: Record<string, unknown>): MolisWorkSessionRecord
   };
 }
 
-
 export function parseMetadata(value: unknown): Record<string, unknown> {
   try {
     const parsed = JSON.parse(String(value ?? "{}")) as unknown;
@@ -183,7 +179,7 @@ export function optionalText(value: unknown): string | null {
 
 export function requiredText(value: unknown, message: string): string {
   const text = optionalText(value);
-  if (!text) throw new MolisWorkSessionError("work.session.invalid_input", message);
+  if (!text) throw sessionErrors.invalid_input(message);
   return text;
 }
 
@@ -191,24 +187,21 @@ export function optionalAbsolutePath(value: unknown): string | null {
   const text = optionalText(value);
   if (!text) return null;
   if (!path.isAbsolute(text)) {
-    throw new MolisWorkSessionError("work.session.invalid_input", "Session 工作目录必须是绝对路径");
+    throw sessionErrors.invalid_input("Session 工作目录必须是绝对路径");
   }
   return path.resolve(text);
 }
 
 export function requireConfirmation(value: boolean): void {
   if (value !== true) {
-    throw new MolisWorkSessionError(
-      "work.session.confirmation_required",
-      "创建或改变 Session 关联前必须获得用户明确确认",
-    );
+    throw sessionErrors.confirmation_required("创建或改变 Session 关联前必须获得用户明确确认");
   }
 }
 
 export function correlationTtl(value: number | undefined): number {
   if (value == null) return DEFAULT_CORRELATION_TTL_SECONDS;
   if (!Number.isSafeInteger(value) || value <= 0 || value > 24 * 60 * 60) {
-    throw new MolisWorkSessionError("work.session.invalid_input", "correlation TTL 必须是 1 秒到 24 小时之间的整数");
+    throw sessionErrors.invalid_input("correlation TTL 必须是 1 秒到 24 小时之间的整数");
   }
   return value;
 }

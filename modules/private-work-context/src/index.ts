@@ -8,7 +8,7 @@ export {
   createRuntimeContextSuggestionRejectionTable,
   type RuntimeContextSetupRequestRecord,
 } from "./context-bindings.js";
-export { MolisWorkSessionError, PrivateWorkContextError } from "./errors.js";
+
 export {
   MolisWorkSessionRegistry,
   type MolisWorkSessionRegistryOptions,

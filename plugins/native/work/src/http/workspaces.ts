@@ -1,6 +1,7 @@
-import { PrivateWorkContextError as MolisWorkSessionError } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+
 import type { WorkSessionHttpContext } from "./types.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { workActions } from "../actions.js";
 import { projectWorkspaceActions } from "@molis-ai/molis-work-contracts/modules/projects";
 
@@ -12,7 +13,8 @@ const actions = (context: WorkSessionHttpContext) => {
 function respondMembershipError(context: WorkSessionHttpContext, error: unknown): void {
   const code = error instanceof ActionError ? error.code : "";
   context.respond(code === "projects.workspace_not_found" ? 404
-    : error instanceof MolisWorkSessionError || code.startsWith("workspace.") || code === "actions.service_unavailable" || code === "actions.unredeemed" ? 503 : 400,
+    : (error instanceof ActionError && code.startsWith("work.session.") && Object.hasOwn(sessionErrors, code.slice("work.session.".length)))
+      || code.startsWith("workspace.") || code === "actions.service_unavailable" || code === "actions.unredeemed" ? 503 : 400,
   { error: error instanceof Error ? error.message : String(error) });
 }
 
@@ -137,7 +139,7 @@ export async function handleWorkspaceHttp(context: WorkSessionHttpContext): Prom
       context.respond(201, await context.actions.invoke(workActions.create, { runtime_id: runtimeId, action: "create", current_goal_id: currentGoalId,
         workspace_id: current.id, workspace_path: current.path, title: typeof body.title === "string" && body.title.trim() ? body.title.trim() : null }));
     } catch (error) {
-      context.respond(error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
+      context.respond(error instanceof ActionError ? 400 : 503, {
         error: error instanceof Error ? error.message : String(error),
       });
     }

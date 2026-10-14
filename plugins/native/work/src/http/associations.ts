@@ -1,5 +1,5 @@
 import type { WorkSessionHttpContext } from "./types.js";
-import { MolisWorkSessionError } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workActions } from "../actions.js";
 
@@ -43,7 +43,7 @@ export async function handleSessionAssociationHttp(context: WorkSessionHttpConte
       // The page checks the project list and current Goal tree it shows; the registered action performs the change.
       respond(200, await requireActions(context).invoke(workActions.associations, { session_id: sessionId, project_id: targetProjectId, current_goal_id: goalId, workspace_path: workspacePath }));
     } catch (error) {
-      respond(error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
+      respond(error instanceof ActionError ? 400 : 503, {
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -66,7 +66,7 @@ export async function handleSessionAssociationHttp(context: WorkSessionHttpConte
       }
       respond(200, await requireActions(context).invoke(workActions.archive, { session_id: sessionId, archived: body.archived }));
     } catch (error) {
-      respond(error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
+      respond(error instanceof ActionError ? 400 : 503, {
         error: error instanceof Error ? error.message : String(error),
       });
     }

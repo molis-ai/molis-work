@@ -88,6 +88,7 @@ QA 工具只写系统临时目录中的专用子目录；启动前核对真实�
 
 - 负责：共享的身份、设备、项目访问、HTTP/SSE 与接续回执，以及群聊（IM）领域（`src/im`）。它是在用、还会迭代的业务功能，按 Module 规则检查，不算平台包（2026-10-08 决定第 4 项）。
 - 不负责：Goal 或 Artifact 事实、模型执行、独立的 App 启动器。
+- 错误由 `im` 归属：设备身份、接续与传输分别使用 `im.identity.*`、`im.continuity.*`、`im.server.*`，群聊保留 `im.*`。来自 Goals 或 Host 的拒绝保留原提供方的错误码；历史持久码按防腐维护八一次性处理，不在读取时改写。
 - 公开入口：`@molis-ai/molis-work-server`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：Module 只依赖合同与平台包，不依赖 Horizontal Service、App 或 Plugin（[包边界规则](../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
 - 不变量：

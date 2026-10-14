@@ -24,11 +24,11 @@ async function fixture() {
         scope_id TEXT NOT NULL, kind TEXT NOT NULL, entity_id TEXT NOT NULL, thread_id TEXT);`);
     const active = (session: ImSession) => {
       const current = db.prepare("SELECT * FROM mw_sessions WHERE id = ? AND revoked = 0 AND expires_at > ?").get(session.id, Date.now()) as ImSession | undefined;
-      if (!current || current.member_id !== session.member_id) throw new ImError("identity.unauthenticated", "会话失效", 401);
+      if (!current || current.member_id !== session.member_id) throw new ImError("im.identity.unauthenticated", "会话失效", 401);
     };
     const identity: ImIdentity = {
       member: session => session.member_id ? db.prepare("SELECT id, display_name FROM mw_members WHERE id = ?").get(session.member_id) as ImMember : null,
-      requireMember(session) { active(session); const member = this.member(session); if (!member) throw new ImError("identity.unauthenticated", "请设置名字", 401); return member; },
+      requireMember(session) { active(session); const member = this.member(session); if (!member) throw new ImError("im.identity.unauthenticated", "请设置名字", 401); return member; },
       name(session, value) {
         active(session);
         // The real shared Identity uses its own better-sqlite3 transaction.

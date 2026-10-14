@@ -4,7 +4,7 @@ import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkLocalHost, runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import { residentManagement } from "./fixtures/resident-management.js";
 
@@ -23,8 +23,10 @@ test("S-03/S-07 W3-07-7-02 management HTTP refuses missing Origin, foreign Origi
   }
   const replayInput = { title: env.project.display_name, idempotency_key: `project-catalog-create-${env.project.project_id}` };
   const key = randomUUID(), body = env.body(replayInput);
-  assert.equal((await env.post(body, { "x-molis-work-idempotency-key": key })).status, 200);
+  const replay = await env.post(body, { "x-molis-work-idempotency-key": key });
+  assert.equal(replay.status, 200); assert.equal((replay.body.result as { replayed: boolean }).replayed, true);
   const accepted = await env.facts(), other = env.body();
+  assert.deepEqual(accepted, original, "a replay adds no second Board or event");
   assert.equal((await env.post(other, { "x-molis-work-idempotency-key": key })).status, 409);
   assert.deepEqual(env.host.callLog!.find(other.call_id), []);
   assert.deepEqual(await env.facts(), accepted);
@@ -55,7 +57,7 @@ test("S-07 W3-07-7-02 management HTTP keeps its body closed, trusts the catalog 
   assert.equal(refused.body.call_id, identity.call_id, "an action schema refusal has its original findable operation number");
   const diagnostic = env.host.callLog!.find(identity.call_id);
   assert.equal(diagnostic.length, 1);
-  assert.deepEqual([diagnostic[0]!.capability_id, diagnostic[0]!.ok, diagnostic[0]!.code], ["goals.board.initialize", false, "actions.input_invalid"]);
+  assert.deepEqual([diagnostic[0]!.capability_id, diagnostic[0]!.actor_id, diagnostic[0]!.ok, diagnostic[0]!.code], ["goals.board.initialize", LOCAL_PERSON_ACTOR_ID, false, "actions.input_invalid"]);
   assert.deepEqual(await env.facts(), original);
   const alias = join(env.home, "same-owner.db"); await symlink(env.project.database_path, alias);
   assert.equal((await env.post({ ...env.body({ title: env.project.display_name, idempotency_key: `project-catalog-create-${env.project.project_id}` }), database_path: alias })).status, 200);

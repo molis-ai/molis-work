@@ -270,6 +270,7 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
   }
 });
 
+// J3B-01/J3B-02: the real lease refusal retains its current owner code.
 test("Listener lease prevents two callers from consuming one Source concurrently", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-fd1-lease-"));
   try {
@@ -325,6 +326,7 @@ test("Listener lease prevents two callers from consuming one Source concurrently
   }
 });
 
+// J3B-01/J3B-03: repeated delivery failure preserves the cursor and blocks further polling.
 test("repeated Adapter failure quarantines the Raw Event without polling past it", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-fd1-quarantine-"));
   try {

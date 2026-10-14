@@ -461,7 +461,6 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
   history = "digest"; historyReason = "完整的对话历史已放不进模型窗口";
   run = await start("digest");
     }
-    follow(context.services!.capabilities!, ports ?? execution, record.session_id, session, run.ref, workspace.workspace_id);
     await beforeWrite(); beforeWrite.assert_current();
     if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);
     // A session created for a delegation starts its work when its person sends a round: that is its acceptance.
@@ -481,6 +480,8 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       ...(effort ? { reasoning_effort: effort } : {}),
       workspace_id: body.workspace_id, actor_id: actorId,
       origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
+    // R-CODING-RECEIPT-01: an immediate terminal/wait receipt must follow, never precede, the saved start state and origin task.
+    follow(context.services!.capabilities!, ports ?? execution, record.session_id, session, run.ref, workspace.workspace_id);
     return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
   ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
   };

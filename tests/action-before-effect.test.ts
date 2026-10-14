@@ -1,4 +1,4 @@
-import { defineAction } from "../packages/plugin-sdk/src/actions.js";
+import { defineAction } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";

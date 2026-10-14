@@ -1,6 +1,6 @@
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { AgentPromptRegistration, AgentRoleRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { COGNIA_EVIDENCE_PROMPT, CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, INFORMATION_PLANNER, MEMORY_EXTRACT, MEMORY_TIDY, ONBOARDING_NOTES, ONBOARDING_PROPOSAL } from "./system-prompts.js";
+import { COGNIA_EVIDENCE_PROMPT, CONTEXTUAL_DRAFT, CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, INFORMATION_PLANNER, MEMORY_EXTRACT, MEMORY_TIDY, ONBOARDING_NOTES, ONBOARDING_PROPOSAL } from "./system-prompts.js";
 import { BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-builder";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
@@ -11,7 +11,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
  */
 export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [
   ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.instructions ?? []), ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER, MEMORY_EXTRACT, MEMORY_TIDY,
-  CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE,
+  CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, CONTEXTUAL_DRAFT,
 ];
 
 /**

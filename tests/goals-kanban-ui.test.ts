@@ -5,7 +5,7 @@ import { createWorkbenchGoalsMomentumRenderer, createWorkbenchLocale, createWork
 import { GOAL_DISPLAY_STATUSES, GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT, GOALS_MOMENTUM_UI_CONTRIBUTION_ID, type GoalsMomentumItem, type GoalsMomentumBoardView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { icon } from "@molis-ai/molis-work-design-system";
-import { GOAL_CANVAS_STYLES } from "../apps/workbench/src/styles/goal-canvas.ts";
+import { GOAL_CANVAS_STYLES } from "../apps/workbench/dist/styles/goal-canvas.js";
 
 const localeStore = new AsyncLocalStorage<WebLocale>();
 const runWithLocale = <T,>(locale: WebLocale, fn: () => T) => localeStore.run(locale, fn);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { convertImportContent, MAX_IMPORT_CONTENT_BYTES } from "../plugins/native/pages/src/import-content.js";
-import { pagesSchema } from "../plugins/native/pages/src/schema.js";
+import { convertImportContent, MAX_IMPORT_CONTENT_BYTES } from "../plugins/native/pages/dist/import-content.js";
+import { pagesSchema } from "@molis-ai/molis-work-plugin-pages";
 import type { Node } from "prosemirror-model";
 
 function convert(content: string, format: "markdown" | "html" | "text" | "csv" = "markdown", name = "导入文档.md") {

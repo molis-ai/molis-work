@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CHARACTERS_ACTIONS, charactersActions as c } from "@molis-ai/molis-work-plugin-characters";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 
 test("Character management is redeemed by the project Runtime and bound to the person who owns the drafts", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "characters-actions-"));

@@ -6,9 +6,9 @@ import { join } from "node:path";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, MEMORY_GATE_RULE, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
-import { prologueMemoryBackend } from "../apps/local-host/src/memory/memory-host.js";
-import { learnFromWork } from "../apps/local-host/src/memory/memory-learning.js";
-import { MEMORY_EXTRACT } from "../apps/local-host/src/agent-definitions/system-prompts.js";
+import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import { learnFromWork } from "../apps/local-host/dist/memory/memory-learning.js";
+import { MEMORY_EXTRACT } from "../apps/local-host/dist/agent-definitions/system-prompts.js";
 
 async function memoryHome(t: { after(fn: () => Promise<void> | void): void }) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-learning-"));

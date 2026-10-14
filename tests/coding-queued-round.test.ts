@@ -10,7 +10,7 @@ import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentWait } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 // The surface and its release from the same module: a second copy would not know the plugin this one started.
-import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/src/coding-surface.js";
+import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/dist/coding-surface.js";
 
 test("a round told to wait for another session's work is parked on it, starts on its own when that work is done, waits for the person when it is not, and can be given up", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-queued-")), dbPath = join(root, "board.db");

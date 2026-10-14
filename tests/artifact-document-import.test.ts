@@ -12,7 +12,7 @@ import {
   type ArtifactDocumentImportPorts, type ImportedArtifactDocument,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { importLocalArtifactDocument } from "../apps/local-host/src/artifact-document-import.js";
+import { importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
 
 const controlToken = "artifact-import-test-control-token-0123456789";
 const markdown = "# 导入验收\n\n保留中文正文和 **Markdown**。\n\n<script>importAttack()</script>\n";

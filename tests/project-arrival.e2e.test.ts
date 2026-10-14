@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { PROJECT_ARRIVAL_RELATIVE_PATH } from "../apps/local-host/src/project-arrival.js";
+import { PROJECT_ARRIVAL_RELATIVE_PATH } from "../apps/local-host/dist/project-arrival.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean } from "./fixtures/layout-audit.js";
 import { renderMolisWorkProjectIndex } from "./workbench-renderer-fixture.js";

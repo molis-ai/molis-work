@@ -10,7 +10,7 @@ import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentWait } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 // The surface and its release from the same module: a second copy would not know the plugin this one started.
-import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/src/coding-surface.js";
+import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/dist/coding-surface.js";
 
 test("a round that ends parked on an answer or a background command waits as the SDK keeps it, wakes with what happened, keeps waiting across a restart, and can be given up", { timeout: 60_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-message-wait-")), dbPath = join(root, "board.db");

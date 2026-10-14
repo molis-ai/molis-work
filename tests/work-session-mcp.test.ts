@@ -10,10 +10,10 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workActions, WORK_ACTION_PERMISSIONS, type WorkSessionDirectory, type PublicSessionContent } from "@molis-ai/molis-work-plugin-work";
-import { DesktopPanelService } from "../apps/desktop/src/panels.js";
-import { createDesktopPanelTables, SqliteDesktopPanelRepository } from "../apps/desktop/src/adapters/sqlite-panels.js";
-import { MolisWorkProjectCatalog } from "../apps/local-host/src/project-catalog.js";
-import type { LocalWebCatalogRunner } from "../apps/local-host/src/web-project-settings.js";
+import { DesktopPanelService } from "../apps/desktop/dist/panels.js";
+import { createDesktopPanelTables, SqliteDesktopPanelRepository } from "../apps/desktop/dist/adapters/sqlite-panels.js";
+import { MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
+import type { LocalWebCatalogRunner } from "../apps/local-host/dist/web-project-settings.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { serveTestHost } from "./fixtures/test-home.js";
 

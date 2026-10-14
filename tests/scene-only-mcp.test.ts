@@ -8,7 +8,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { ActionError, sceneConfigurationActions, type ActionDefinition, type ActionSceneBinding, type ActionSceneTarget } from "@molis-ai/molis-work-contracts/platform/actions";
-import { definePlugin } from "../packages/plugin-sdk/src/index.js";
+import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 

@@ -18,9 +18,10 @@ function rejected(value: unknown): void {
   assert.throws(() => assertActionInput(schema, value), (error: unknown) => error instanceof ActionError && error.code === "actions.input_invalid");
 }
 
-test("coding.runs.control stays version 1 for the person at this computer", () => {
+// ADOPT-CONTROL-V2-01: current schema and callers use a new shape under a new action version.
+test("coding.runs.control uses version 2 and remains exclusive to the person at this computer", () => {
   assert.equal(control.definition.capability_id, "coding.runs.control");
-  assert.equal(control.definition.version, 1);
+  assert.equal(control.definition.version, 2);
   assert.deepEqual(control.definition.action.audiences, ["user"]);
 });
 

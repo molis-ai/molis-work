@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { bindActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";

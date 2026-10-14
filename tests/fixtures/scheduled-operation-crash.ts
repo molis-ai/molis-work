@@ -1,4 +1,4 @@
-import { LocalProjectDatabase } from '../../apps/local-host/src/project-database.js';
+import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { createScheduleService, PluginWakeupIndex } from '@molis-ai/molis-work-service-scheduler';
 import { SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, prepareScheduledOperation, runScheduledOperation } from '@molis-ai/molis-work-plugin-schedule';
 

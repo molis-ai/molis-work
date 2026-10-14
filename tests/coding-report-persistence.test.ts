@@ -9,7 +9,7 @@ import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore, CODING_REPORT_TYPE, CODING_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
+import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 
 test("formal report routes freeze real Artifact versions, distinguish missing/failed evidence, and reopen without a runtime", async () => {
   const dir = mkdtempSync(join(tmpdir(), "coding-report-"));

@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
-import { defineAction, definePlugin } from "../packages/plugin-sdk/src/index.js";
+import { defineAction, definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSceneBinding,
   type ActionSceneDefinition, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";

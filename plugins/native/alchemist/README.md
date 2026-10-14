@@ -42,6 +42,7 @@ AI 固定指令统一定义于 `src/prompts.ts`，由共同目录登记 `ALCHEMI
   - 可信调用者身份保留到对象、任务与 Prologue 会话；对话发送与复用适用性判断声明 `scheduling: "concurrent"`，等模型不占项目串行队列。
   - 包内还有 vitest 用例：`pnpm --filter @molis-ai/molis-work-plugin-alchemist test`。
   - 项目被删除时宿主关闭并移出该项目的工作室（含 worker 与搜索库），再删除 `alchemist/projects/<项目>` 目录，同 id 的项目重建后从空开始。
+- 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-alchemist run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host.test.ts tests/alchemist-host-lifecycle.test.ts tests/alchemist-runtime.test.ts tests/alchemist-mcp.test.ts tests/project-deletion-studios.test.ts tests/alchemist-pulse-github.test.ts tests/model-unavailable-declarations.test.ts tests/network-notices.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[specs/archive/alchemist-plugin/spec.md](../../../specs/archive/alchemist-plugin/spec.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

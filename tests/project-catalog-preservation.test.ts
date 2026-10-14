@@ -8,7 +8,7 @@ import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import type { ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { CatalogCommit } from "../apps/local-host/src/catalog-commit.js";
+import type { CatalogCommit } from "../apps/local-host/dist/catalog-commit.js";
 
 async function withHome(run: (home: string) => Promise<void>) {
   const home = await fs.mkdtemp(join(tmpdir(), "molis-catalog-preservation-"));

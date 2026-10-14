@@ -42,11 +42,12 @@ export function stopRunning() {
 }
 
 // One attempt: the whole process group is killed on timeout and again after the run, so a server a test left behind cannot
-// keep the job alive.
-export function runOnce(root, file, timeoutMs) {
+// keep the job alive. The probe and the subset hand the tests `testEnvironment()`; the local parallel run of
+// scripts/run-tests.mjs hands its own environment (a live opt-in stays on) and the `node --test` flags it was given.
+export function runOnce(root, file, timeoutMs, { environment = testEnvironment(), testArgs = [] } = {}) {
   return new Promise((resolve) => {
     const started = Date.now();
-    const child = spawn(process.execPath, [RUNNER, file], { cwd: root, env: testEnvironment(), detached: true, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(process.execPath, [RUNNER, ...testArgs, file], { cwd: root, env: environment, detached: true, stdio: ["ignore", "pipe", "pipe"] });
     let tail = "";
     const keep = (chunk) => { tail = (tail + chunk).slice(-TAIL_BYTES); };
     child.stdout.setEncoding("utf8").on("data", keep);

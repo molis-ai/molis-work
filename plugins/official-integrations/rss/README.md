@@ -42,7 +42,7 @@ pnpm --filter @molis-ai/molis-work-integration-rss build
 已有行为示例与回归：[feed-sources.test.ts](../../../tests/feed-sources.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/feed-sources.test.ts
+node scripts/run-tests.mjs tests/feed-sources.test.ts
 ```
 
 这些测试使用隔离数据或注入端口；Provider/桌面相关测试的通过不等于真实账户连接、安装或发布验收。

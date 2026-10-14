@@ -13,7 +13,7 @@ Functions 只经动作工具对外：查询遵守公共能力及逐客户端撤�
 ```bash
 pnpm --filter @molis-ai/molis-work-module-functions typecheck
 pnpm --filter @molis-ai/molis-work-module-functions build
-node --import tsx --test --test-concurrency=1 tests/functions-system-capability.test.ts
+node scripts/run-tests.mjs tests/functions-system-capability.test.ts
 ```
 
 - Status: `partial`

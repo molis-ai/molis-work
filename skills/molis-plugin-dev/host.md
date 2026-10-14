@@ -155,7 +155,7 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 
 - `node scripts/workspace-packages.mjs` 无错误。
 - 类型：`pnpm --filter @molis-ai/molis-work-plugin-<id> typecheck`
-- 定向测试：`node --import tsx --test --test-concurrency=1 tests/<id>-*.test.ts`
+- 定向测试：`node scripts/run-tests.mjs tests/<id>-*.test.ts`
 - 点名插件名单的测试仍过。
 - 真开 Workbench：插件切换或底栏常驻入口出现、点进主路径、刷新后状态还在、增删后列表自己更新且不整页闪白。
 

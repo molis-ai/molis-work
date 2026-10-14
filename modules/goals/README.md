@@ -43,7 +43,7 @@ pnpm --filter @molis-ai/molis-work-module-goals build
 已有行为示例与回归：[goals-command-module.test.ts](../../tests/goals-command-module.test.ts)、[goals-query-module.test.ts](../../tests/goals-query-module.test.ts)、[goal-events.test.ts](../../tests/goal-events.test.ts)、[goal-events-state.test.ts](../../tests/goal-events-state.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/goals-command-module.test.ts tests/goals-query-module.test.ts tests/goal-events.test.ts tests/goal-events-state.test.ts
+node scripts/run-tests.mjs tests/goals-command-module.test.ts tests/goals-query-module.test.ts tests/goal-events.test.ts tests/goal-events-state.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。

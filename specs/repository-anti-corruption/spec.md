@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，未达到整条防腐线完成标准（2026-10-14接续）。I4/I5与BL-133已合入；W2-10 A1–A4/C已合，D的42文件108条（107通过1显式网络后补7/7）与浏览器5/5完成，#486已合main 6588ee531；E与I8共享全量未完成。#477/#478已合，#478由其他执行方于03:26UTC合入5dcdc3045；#487当前abe06新CI等待，Grok负责#479–481及Computer Use后续，本线不推覆盖。R6/J1–J4/J5A仅源码及静态复核，运行仍待。I8 14整体build/types/API/actions/health通过，19文件定向147条141通过6失败、0skip/cancel，Schedule关闭交错和禁止迟到副作用通过。七资源路径增长待等价整理；boundary仅独立临时SDK路径，正式上游/vendor问题仍待回答。维护八41库只读clone及明示JSON37槽统计，完整映射/演练/原库窗口待；第4–6波及最终场景、手册、度量、两份交付沿原路线继续。
+状态：执行中，未达到整条防腐线完成标准（2026-10-14接续）。I4/I5与BL-133已合入；W2-10 A1–A4/C已合，D的42文件108条（107通过1显式网络后补7/7）与浏览器5/5完成，#486已合main 6588ee531；E与I8共享全量未完成。#477/#478已合，#478由其他执行方于03:26UTC合入5dcdc3045；#487精确abe06五必需+Product通过/freshsecrets后已合703bd996a，Grok负责#479–481及Computer Use后续，本线不推覆盖。R6/J1–J4/J5A仅源码及静态复核，运行仍待。I8 14整体build/types/API/actions/health通过，19文件定向147条141通过6失败、0skip/cancel，Schedule关闭交错和禁止迟到副作用通过。七资源路径增长待等价整理；boundary仅独立临时SDK路径，正式上游/vendor问题仍待回答。维护八41库只读clone及明示JSON37槽统计，完整映射/演练/原库窗口待；第4–6波及最终场景、手册、度量、两份交付沿原路线继续。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2345,3 +2345,23 @@ J5A只读复核确认family-prefix遗漏：OpportunityTransitionError新message�
 J3C收口运行及存储producer：ConnectorPollResult现行六种failure产生的运行码改为connector.<failure>，保留failure枚举/receipt结构不变；Listener自己恢复进程中断→listener.process_interrupted，Sources连接状态写点→sources.connector_disconnected。只改真实错误列与现行工作台rate-limit消费，原业务phase/outcome/status、事件type、凭据引用和历史SQL夹具不改。J3C-01：原拉取失败保留checkpoint、重试时间/Inbox去噪及准确owner码，真实连接断开/恢复保持Sources状态与错误列，Listener重开中断恢复仍只发生一次；J3C-02：动态六码、生产SQL两个中断写点与currentconsumer/文档/测试同步，公开API按实际更新，无旧读取alias；J3C-03：真实Feed/Connector/Listener/Sources隔离重开链、构建/类型/API/health/边界/资源和shared回归后验收。已存行维护八仍在克隆列条数/演练，原库与历史调用日志不动；此片依J3A/B且后续合并服从487与Grok优先。
 
 J3C源码`9e376f3bb`保存14文件，六码动态producer、两SQL中断写点和Sources断开列已迁现行owner，工作台只按connector.rate_limited读retry_after_at，原其他业务枚举/row状态/receipt不改；真实Listener失败/持久化/回放/重开与现有connection断开恢复断言已备。public API01匹配61快照2329声明、health01相对当前main通过，仍未build或运行、只读复核待。维护八仅扩大只读克隆统计：41库99scalar错误列，包含新候选映射后已知旧码拟改6行、其他15行暂不动，58JSON/自由字段仍须producer确认；原行/clone行写入0，调用日志未读改。这是候选条数，不是最终真库方案或维护完成。
+
+J3D仅收Feed本身剩余固定码：演示种子写入及首页消费的auth_required→feed.auth_required，fixture结果记录→feed.fixture_not_live，publicError fallback→feed.unknown，删源已过schema的内部合同拒绝→feed.contract_source_history_decision_required。J3D-01：现有demo来源/故障与首页去重的已知提示保持，真实fixture同步保留既有last_outcome completed与非空非live错误标记，不能据它宣称真实Provider完成；无code publicError仍原unknown分类/安全消息，删源内部校验仍拒绝且0删除；J3D-02：只在错误词元语境迁，reauth_required连接状态与所有事件/业务名保持，测试历史旧码禁回流列表不改成现行码；J3D-03：现有Feed/首页/seed/删除真实回归、类型/API/health/边界/资源及shared组合完成后验收。此片沿J3C独立Source树继续，当前不写真Home、不同步正式SDK。
+
+J3D源码`8b040a4be`保存7文件，四码8 literal及当前内部拒绝regex同步；现有Home fault去重AC与publicError未分类失败的准确fallback断言保留原语义，public API不变、health01当前main通过；只读复核与实际构建/运行待。维护JSON06仅克隆中37个明示producer槽的2个text码值，候选映射命中1值、0坏JSON；unknown07只将15标量未匹配行对照现行源码词元，3行reconciliation_required为真实Feed错误列却与外部outcome同词，不能全字改状态。
+
+J3后续源核发现必须区分外部现行码与平台错误：intelligence-client0.2.2现行receipt/StopReason及其错误对象用bare闭集码，Molis source-sync-result 与 connector-sync 的旧safe-code正则却丢弃现行点连接owner码、fallback自写provider_interrupted/provider_failed。公开来源持久码与RSS分类/消息按实际producer边界另片收口；原外部receipt/outcome/预算与SDK词元不能全字替换或当作历史读取兼容。当前只读调用链和包公开types已核，无该片生产编辑，待补完整验收与统一转换取舍后执行；存库现行unknown码不能为满足raw0清掉。
+
+J3E按R4C2已接受外部SDK词元边界继续：保留intelligence-client现行bare receipt/StopReason/错误码，原RSS针对其feed_parse_failed等分类与安全中文仍认当前外部合同；只修Molis旧safe-code正则丢弃已现行点连接owner码以及自己生成的provider_interrupted/provider_failed/reconciliation_required/cancelled错误词元。J3E-01：真实公共来源或账号同步发生现行owner拒绝时，run/source错误码准确保留，权限/取消后的0迟到写与原可恢复语义不变；J3E-02：未知/不安全外部值仍采用原安全fallback且Molis自生成码变feed.<原因>，result.outcome/外部receipt/stopReason保持不变；J3E-03：真实RSS/公开/Connector失败、恢复/幂等与shared组合回归、类型/API/health/边界后验收。唯一共同安全提码由Feed私有helper负责，公开API无新增；外部码原样保留不是历史兼容，维护八只迁确切Molis自写fallback映射，不迁外部现行码。
+
+#487于2026-10-14T03:50:10Z合入703bd996a：精确abe06、Verify/Package boundaries/Secret/Rust-Swift/Shell-Python及Product全部SUCCESS，MERGEABLE、最新main5dcdc祖先、fresh secrets02四新增行干净；检查树只settings-assistant及实际资源预算两文件，无生产冲突。Grok随后负责479–481/CU，本线后续PR继续让序。
+
+J3D只读复核发现内部合同bare new Error迁为点码后撞现有“owner失败必须声明”断言，采用已有feedErrors增加contract_source_history_decision_required/internal：保持原内部500且现行码不再fallback，真实删源坏合同仍0删除；HTTP输入已有schema拒绝不变，精确声明/status/API和现有业务测试同步，不放宽STAYS_BARE或owner未声明断言。
+
+J3D内部合同复核修正`a7cdfa252`及`15a6e0818`使用现有feedErrors/internal、原500及准确生产retireSource0事实变化断言，移除其bare豁免、保留无声明owner gate；API02仅modules/feed现行reason新增1，health02通过。此前8b040状态仅Source候选，新片实际build/合同/运行尚待。J3E源码`ef4bef707`后夹具端口补齐：只共用Feed安全提码、现行owner点码保留、原外部bare码/Receipt/StopReason不改，fallback点码独立；真实公开来源与Connector恢复用例准备，API01/health01已过，未运行，不能称外部网络验证。
+
+J6先沙箱自身固定拒绝码：实际SandboxError构造、Host给worker的固定SDK错误和worker自己的固定安全拒绝→sandbox.<原码小写>，仍由现有SandboxError携带trusted outcome unknown。J6-01：真实Seatbelt/IPC/queue/network/schema/timeout取消拒绝及0越界文件/网络/后续副作用保持，Host trusted unknown仍隔离、worker错误不获unknown身份；J6-02：仅沙箱自有码与现行consumer比较/测试预期迁，第三方插件contract.operations.errors的自有码及errors.example不能全字替换，native系统/private DNS sentinel另属本来边界保留；若同一旧词元也用于插件自定error，按实际raiser/consumer定域。J6-03：现有macOS真隔离、队列/撤权/取消/安全及明确网络回归，API/health/边界/资源和shared组合通过后验收。Studio正用的安全adapter同片消费更新、相关replay按项目必跑，不增加生产错误类/SDK/vendor依赖或放宽门禁；源码准备不当安全实操通过。
+
+J6源核细化owner：仅packages/plugin-sandbox内部固定码归sandbox；Studio adapter同类拒绝按现行登记归plugin_builder，installed-plugin-host固定拒绝归host，GONE消费真实sandbox码。SandboxError是传输类不是事实owner，不能因同一类把Host错误改成sandbox以违反owner表。Agent prologue-mcp及external-mcp-dispatch的CANCELLED是SDK现行外部码保持；测试worker forge payload保留故意伪码，真正声明插件errors保持其自有码，不把消息信任/未知outcome边界改成兼容。
+
+J6源码`cf94badd1`固定15文件：39Sandbox内部码与Host/Studio分别按sandbox/host/plugin_builder造错，13TS173 literal；GONE现行consumer同步，Prologue SDK CANCELLED及DNS PRIVATE_ADDRESS内部sentinel保持。原trusted outcome unknown/不确定后0fallback写入保留；真实worker伪造旧码负例外新增准确现行sandbox.service_timeout负例，二者都无unknown且plugin_error，不借旧码回归漏掉现行forge。API01公开61/2329匹配、health02相对actualmain703通过，shape/owner分别降低120/116，不改任何gate规则或阈值。只读审查在途，macOS真实Seatbelt/IPC/network/撤权/重开与Studio replay未运行，不记安全或J6完成。

@@ -1496,11 +1496,10 @@
     "server/src/errors.ts": 1,
     "server/src/im/errors.ts": 1
   },
-  "errorCodeShapeTotal": 424,
+  "errorCodeShapeTotal": 414,
   "errorCodeShape": {
     "apps/local-host/src/connector-mcp.ts": 40,
     "apps/local-host/src/installed-plugin-host.ts": 4,
-    "apps/local-host/src/model-provider-store.ts": 10,
     "apps/local-host/src/plugin-builder/catalog.ts": 3,
     "apps/local-host/src/plugin-builder/installed.ts": 3,
     "apps/local-host/src/plugin-builder/network.ts": 14,
@@ -1591,7 +1590,7 @@
     "server/src/http.ts": 2,
     "server/src/identity.ts": 3
   },
-  "errorCodeOwnerTotal": 1013,
+  "errorCodeOwnerTotal": 1003,
   "errorCodeOwner": {
     "apps/local-host/src/artifact-document-import.ts": 6,
     "apps/local-host/src/browser/browser-host.ts": 2,
@@ -1613,7 +1612,6 @@
     "apps/local-host/src/installer/web-service-platform.ts": 1,
     "apps/local-host/src/installer/web-service-process.ts": 4,
     "apps/local-host/src/installer/web-service.ts": 5,
-    "apps/local-host/src/model-provider-store.ts": 10,
     "apps/local-host/src/personal-planning-actions.ts": 1,
     "apps/local-host/src/plugin-builder/catalog.ts": 3,
     "apps/local-host/src/plugin-builder/installed.ts": 3,

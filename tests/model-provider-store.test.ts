@@ -134,14 +134,14 @@ test("不合法的 id、格式和空 Base URL 都被挡住", async () => {
   try {
     const base = { display_name: "x", base_url: "https://x.test", api_format: "anthropic-messages", credential_ref: REF } as const;
     assert.throws(() => item.store.upsert({ ...base, provider_id: "Bad Id" }),
-      (error: unknown) => error instanceof ModelProviderError && error.code === "model-provider.invalid");
+      (error: unknown) => error instanceof ModelProviderError && error.code === "model_provider.invalid");
     assert.throws(() => item.store.upsert({ ...base, provider_id: "ok", api_format: "grpc" as never }),
       (error: unknown) => error instanceof ModelProviderError);
     assert.throws(() => item.store.upsert({ ...base, provider_id: "ok", base_url: "   " }),
       (error: unknown) => error instanceof ModelProviderError);
     const { credential_ref: _, ...withoutKey } = base;
     assert.throws(() => item.store.upsert({ ...withoutKey, provider_id: "nokey" }),
-      (error: unknown) => error instanceof ModelProviderError && error.code === "model-provider.invalid", "新供应商必须指向一条连接的密钥");
+      (error: unknown) => error instanceof ModelProviderError && error.code === "model_provider.invalid", "新供应商必须指向一条连接的密钥");
     assert.equal(item.store.get("nokey"), null);
   } finally {
     item.db.close();

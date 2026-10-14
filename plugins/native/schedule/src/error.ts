@@ -1,5 +1,5 @@
-import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ScheduleError } from "@molis-ai/molis-work-contracts/services/scheduler";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { schedulerErrors } from "@molis-ai/molis-work-contracts/services/scheduler";
 
 /**
  * Schedule's own error codes, every one `schedule.<reason>`. The kind is the sort of failure; the Host's edge turns it into the status
@@ -20,6 +20,7 @@ export const scheduleErrors = defineErrorCodes("schedule", {
  * has no record of is not found, every other refusal (an interval that is too short, a path it refuses, no handler) is a request that cannot be done.
  */
 export function scheduleFailure(error: unknown): unknown {
-  if (!(error instanceof ScheduleError)) return error;
+  if (!(error instanceof ActionError) || !error.code.startsWith("scheduler.")
+    || !Object.hasOwn(schedulerErrors, error.code.slice("scheduler.".length))) return error;
   return error.code === "scheduler.job_not_found" ? scheduleErrors.job_not_found(error.message) : scheduleErrors.job_invalid(error.message);
 }

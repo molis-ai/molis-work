@@ -2,11 +2,11 @@ import { randomUUID } from "node:crypto";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 
 import type { HostCapabilityDefinition, HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   MIN_SCHEDULE_INTERVAL_MS,
   SCHEDULE_LEASE_MS,
-  ScheduleError,
+  schedulerErrors,
   scheduleCapabilities,
   type ScheduleJobRecord,
   type ScheduleRecurrence,
@@ -36,7 +36,6 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export {
   MIN_SCHEDULE_INTERVAL_MS,
   SCHEDULE_LEASE_MS,
-  ScheduleError,
   scheduleCapabilities,
 };
 export type {
@@ -91,7 +90,7 @@ export class PluginWakeupIndex {
   async invoke(input: ScheduleWakeupInput, control: ScheduleWakeupControl): Promise<ScheduleWakeupReply | void> {
     const handler = this.handlers.get(wakeupKey(input.plugin_id, input.capability_id));
     if (!handler) {
-      throw new ScheduleError("scheduler.handler_missing", "叫醒对象还没有提供执行接口");
+      throw schedulerErrors.handler_missing("叫醒对象还没有提供执行接口");
     }
     control.beforeEffect();
     return handler.handle(input, control);
@@ -199,7 +198,7 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
     const dueAt = normalizeDueAt(input.due_at);
     const recurrence = normalizeRecurrence(input.recurrence);
     if (!wakeupIndex.has(pluginId, capabilityId)) {
-      throw new ScheduleError("scheduler.handler_missing", "叫醒对象还没有提供执行接口");
+      throw schedulerErrors.handler_missing("叫醒对象还没有提供执行接口");
     }
     const clock = iso(now());
     const existing = db.prepare(
@@ -349,14 +348,14 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
   function readOwned(jobId: string, pluginId?: string): JobRow {
     const row = db.prepare("SELECT * FROM schedule_jobs WHERE job_id = ?").get(jobId) as JobRow | undefined;
     if (!row || (pluginId && row.plugin_id !== pluginId)) {
-      throw new ScheduleError("scheduler.job_not_found", "定时任务不存在");
+      throw schedulerErrors.job_not_found("定时任务不存在");
     }
     return row;
   }
 
   function mustRead(jobId: string): ScheduleJobRecord {
     const record = get(jobId);
-    if (!record) throw new ScheduleError("scheduler.job_not_found", "定时任务不存在");
+    if (!record) throw schedulerErrors.job_not_found("定时任务不存在");
     return record;
   }
 
@@ -459,14 +458,14 @@ async function fireScheduleWakeup(db: ScheduleSqliteDatabase, job: JobRow, at: D
     let detail: string | null = null;
     try {
       if (!wakeupIndex.has(job.plugin_id, job.capability_id)) {
-        throw new ScheduleError("scheduler.handler_missing", "叫醒对象还没有提供执行接口");
+        throw schedulerErrors.handler_missing("叫醒对象还没有提供执行接口");
       }
       const reply = await lifetime.wait(wakeupIndex.invoke(input, control));
       control.beforeEffect();
       detail = reply?.detail?.slice(0, 500) ?? null;
       status = reply?.status ?? "ok";
     } catch (error) {
-      const code = error instanceof ScheduleError ? error.code : "";
+      const code = error instanceof ActionError && error.code.startsWith("scheduler.") && Object.hasOwn(schedulerErrors, error.code.slice("scheduler.".length)) ? error.code : "";
       status = code === "scheduler.handler_missing" ? "plugin_unavailable" : "failed";
       detail = (error instanceof Error ? error.message : String(error)).slice(0, 500);
     }
@@ -560,8 +559,8 @@ function jobIdOf(input: unknown): string {
 }
 
 /** The one place a refused input becomes a `scheduler.job_invalid` error; the throw sites read as `throw invalid("...")`. */
-function invalid(message: string): ScheduleError {
-  return new ScheduleError("scheduler.job_invalid", message);
+function invalid(message: string): ActionError {
+  return schedulerErrors.job_invalid(message);
 }
 
 function wakeupKey(pluginId: string, capabilityId: string): string {
@@ -602,7 +601,7 @@ function normalizeRecurrence(value: ScheduleRecurrence | undefined): ScheduleRec
     throw invalid("重复方式无效");
   }
   if (value.interval_ms < MIN_SCHEDULE_INTERVAL_MS) {
-    throw new ScheduleError("scheduler.interval_too_short", "间隔不能短于 5 秒");
+    throw schedulerErrors.interval_too_short("间隔不能短于 5 秒");
   }
   return { kind: "interval", interval_ms: value.interval_ms };
 }
@@ -618,7 +617,7 @@ function normalizeObjectRef(value: string): string {
     || trimmed.includes("..")
     || /^[a-zA-Z]:[\\/]/.test(trimmed)
   ) {
-    throw new ScheduleError("scheduler.path_refused", "对象钥匙不能是文件路径");
+    throw schedulerErrors.path_refused("对象钥匙不能是文件路径");
   }
   return trimmed;
 }

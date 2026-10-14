@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import test from "node:test";
 import Database from "better-sqlite3";
@@ -8,7 +10,6 @@ import { join } from "node:path";
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   MIN_SCHEDULE_INTERVAL_MS,
-  ScheduleError,
   scheduleCapabilities,
 } from "@molis-ai/molis-work-contracts/services/scheduler";
 import {
@@ -195,8 +196,17 @@ test("未注册 handler 不能登记；tick 时缺失写下 plugin_unavailable",
       title: "没有人接",
       due_at: "2026-09-20T03:00:00.000Z",
     }),
-    (error: unknown) => error instanceof ScheduleError && error.code === "scheduler.handler_missing",
+    (error: unknown) => {
+      // I7-01: missing handler remains the Scheduler's current 400 and creates no job.
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "scheduler.handler_missing");
+      assert.equal(error.message, "叫醒对象还没有提供执行接口");
+      assert.equal(error.kind, "invalid");
+      assert.equal(actionHttpStatus(error), 400);
+      return true;
+    },
   );
+  assert.deepEqual(schedule.list(), [], "I7-01: rejected registration persists no job");
   const job = schedule.register({
     plugin_id: "io.molis.work.test.owner",
     capability_id: "test.wakeup",
@@ -224,7 +234,7 @@ test("绝对路径和 .. 的 object_ref 被拒", () => {
         title: "路径",
         due_at: "2026-09-20T03:00:00.000Z",
       }),
-      (error: unknown) => error instanceof ScheduleError && error.code === "scheduler.path_refused",
+      (error: unknown) => error instanceof ActionError && error.code === "scheduler.path_refused",
       object_ref,
     );
   }

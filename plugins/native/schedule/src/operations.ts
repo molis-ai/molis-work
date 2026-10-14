@@ -1,8 +1,8 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { randomUUID } from "node:crypto";
-import { ScheduleError, type ScheduleJobRecord, type ScheduleRegisterInput, type ScheduleWakeupControl, type ScheduleWakeupInput, type ScheduleWakeupReply } from "@molis-ai/molis-work-contracts/services/scheduler";
+import { type ScheduleJobRecord, type ScheduleRegisterInput, type ScheduleWakeupControl, type ScheduleWakeupInput, type ScheduleWakeupReply } from "@molis-ai/molis-work-contracts/services/scheduler";
 import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import type { ScheduleTaskDatabase } from "./tasks.js";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { scheduleErrors } from "./error.js";
 import { SCHEDULE_PLUGIN_ID } from "./manifest.js";
 
@@ -104,7 +104,7 @@ export function createScheduledOperations(options: {
   };
   const remove = (run: ScheduledOperation) => {
     try { schedule.cancel(run.jobId, run.jobOwner); }
-    catch (error) { if (!(error instanceof ScheduleError) || error.code !== "scheduler.job_not_found") throw error; }
+    catch (error) { if (!(error instanceof ActionError) || error.code !== "scheduler.job_not_found") throw error; }
     db.prepare("DELETE FROM schedule_operation_occurrences WHERE project_id = ? AND operation_id = ?").run(projectId, run.id);
     db.prepare("DELETE FROM schedule_operations WHERE project_id = ? AND id = ?").run(projectId, run.id);
   };

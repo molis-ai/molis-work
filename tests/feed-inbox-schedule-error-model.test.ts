@@ -19,7 +19,7 @@ import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import * as attentionContracts from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import * as feedContracts from "@molis-ai/molis-work-contracts/modules/feed";
 import { ActionError, type ActionExecutionContext, type ActionHandlerBinding, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ScheduleError } from "@molis-ai/molis-work-contracts/services/scheduler";
+import { schedulerErrors } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { PluginWakeupIndex, createScheduleService } from "@molis-ai/molis-work-service-scheduler";
 import { actionErrorResponse, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import * as feedPlugin from "@molis-ai/molis-work-plugin-feed";
@@ -39,7 +39,7 @@ import * as schedulePlugin from "@molis-ai/molis-work-plugin-schedule";
 //   4. the Feed connector failure keeps the provider's own code in details, and the codes the Feed classifies a failure by are the new ones;
 //   5. nothing of the old shape is left: no error class, no mapper, no bare `new Error(` for a caller's mistake, no owner code raised without its declaration,
 //      no old code name in the sources.
-//   6. the scheduler's own refusals (its `ScheduleError`) leave every Schedule action as Schedule's declared failures: the five wrappers of the three action files
+//   6. the scheduler's own declared refusals leave every Schedule action as Schedule's declared failures: the five wrappers of the three action files
 //      (actions.ts `bind`, reminder-actions.ts, operation-actions.ts) are driven with the scheduler's real class and with the real scheduler, so deleting one of them,
 //      which no static scan can see, turns a stale-job toggle into a 500 here.
 
@@ -325,7 +325,7 @@ async function refusalOf(run: () => unknown): Promise<{ status: number; code: st
   return assert.fail("the action was expected to refuse");
 }
 
-const SCHEDULER_REFUSALS: ReadonlyArray<readonly [ScheduleError["code"], string, string, number]> = [
+const SCHEDULER_REFUSALS: ReadonlyArray<readonly [`scheduler.${keyof typeof schedulerErrors}`, string, string, number]> = [
   ["scheduler.job_not_found", "定时任务不存在", "schedule.job_not_found", 404],
   ["scheduler.job_invalid", "时间无效", "schedule.job_invalid", 400],
   ["scheduler.interval_too_short", "间隔不能短于 5 秒", "schedule.job_invalid", 400],
@@ -335,7 +335,7 @@ const SCHEDULER_REFUSALS: ReadonlyArray<readonly [ScheduleError["code"], string,
 
 test("the scheduler's refusals leave the Schedule, reminder and timed-operation actions as Schedule's own codes with the scheduler's message, at every wrapper", async () => {
   for (const [schedulerCode, message, code, status] of SCHEDULER_REFUSALS) {
-    const refuse = (): never => { throw new ScheduleError(schedulerCode, message); };
+    const refuse = (): never => { throw schedulerErrors[schedulerCode.slice("scheduler.".length) as keyof typeof schedulerErrors](message); };
     const jobs = schedulePlugin.createScheduleActionHandlers(SCHEDULE_PROJECT, schedulePorts({ setEnabled: refuse }));
     const reminders = schedulePlugin.createReminderActionHandlers(SCHEDULE_PROJECT, { add: refuse, cancel: refuse });
     const operations = schedulePlugin.createScheduledOperationActionHandlers(SCHEDULE_PROJECT, { add: refuse, cancel: refuse });

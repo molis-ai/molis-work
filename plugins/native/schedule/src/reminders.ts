@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
-import { ScheduleError, type ScheduleJobRecord, type ScheduleRegisterInput, type ScheduleWakeupControl, type ScheduleWakeupInput } from "@molis-ai/molis-work-contracts/services/scheduler";
-import type { ScheduleTaskDatabase } from "./tasks.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { randomUUID } from "node:crypto";
+import { type ScheduleJobRecord, type ScheduleRegisterInput, type ScheduleWakeupControl, type ScheduleWakeupInput } from "@molis-ai/molis-work-contracts/services/scheduler";
+import type { ScheduleTaskDatabase } from "./tasks.js";
 import { scheduleErrors } from "./error.js";
 import { SCHEDULE_PLUGIN_ID } from "./manifest.js";
 
@@ -53,7 +53,7 @@ export function createScheduleReminders(options: {
   };
   const cancelRecord = (record: ScheduleReminder) => {
     try { schedule.cancel(record.jobId, record.jobOwner); }
-    catch (error) { if (!(error instanceof ScheduleError) || error.code !== "scheduler.job_not_found") throw error; }
+    catch (error) { if (!(error instanceof ActionError) || error.code !== "scheduler.job_not_found") throw error; }
     db.prepare("DELETE FROM schedule_plugin_reminders WHERE id = ?").run(record.id);
   };
   return {

@@ -1516,6 +1516,12 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 
 唯一writer已从cb460固定base开独立PR4源码树，按PR4→5→H接续，仅改源码，不构建/改I6/碰真实Home。实际MCP旧client.withScope在tree载荷校验前已绑定项目；新的Host.withProject还会prepareInstalledPlugins，不能替代它。PR4只保留原client.withScope空回调预打开及精确AST约束，三个Goals管理业务全部经unprepared factory/action port，保留真实身份拒绝顺序与原IO边界，不新增插件预准备或业务行；工程与回归须等I6释放机器构建窗口。
 
+### 10.10 调度前拒绝的共同结算（108新失败，待修）
+
+现象：action-call-log 的早取消命令需要留下原操作编号的一行“未执行”，而 MolisWorkLocalHost 的项目插件准备、withPreparedActions 的Home准备、LocalHost 的caller/signal/runtime检查在ActionService结算之前就可能抛错；原取消/范围/关闭拒绝必须保留。新失败与源码已定位，完整108栈及基线仍待，不以定位替代修复验收。最小方案只把准备阶段的拒绝交给现有bindCall/refuseCall/settleCall及同一Host记录hook，成功转发保持原ActionService唯一结算；不启动本已取消调用的插件、不写业务事实、不在下游已结算后再记录一次，保原error、caller和call_id。Assistant在计算目录之前已取消或期间取消时也须保原not-run结果跟踪，不能只把异常预期放宽为AbortError。
+
+验收沿现有S-12/S-18与action-call-log/assistant-change-outcomes，不增重复测试系统：PREP-108-01验证项目/Home准备、直接LocalHost早取消与等待后取消各留一次可查诊断，只有身份/动作/结果/错误码、没有输入或正文、业务handler零执行；PREP-108-02验证scope/closed/准备失败原拒绝和原对象/编号保留；PREP-108-03验证成功及handler内失败仍由原链记录一次，正常重新授权/重试可执行；PREP-108-04验证助理not-run持久化及后续读取、撤权等待零effect且原unknown无重复副作用。必要编号补进实际现有测试名/注释。修后整体构建、root/工作区类型、health对merge-base、相关真实Host用例与原安全/权限用例；按最终影响面决定共同补验，未解决的新业务失败继续独立归因。无需真实Home写入或改变拒绝语义。
+
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 
 用户更正：上一轮逻辑复查只查了 Goal 的完成规则与写进 Goal 的管理门。本轮按事实主人分 8 个区（插件基座、动作服务与授权、成果库/放置/上下文账本、搜索/记忆/助理、个人插件、文稿与数据插件、工作流插件、Coding/创作台/炼金术士），只读查逻辑缺陷，每区一个对抗核验者逐条复现或驳回（复现脚本在会话临时目录 `logic-review/`）。

@@ -1239,6 +1239,12 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 - FLOW-04：`stale`、`running`、`done`、`dismissed` 的卡不进下一步。
 - FLOW-05：同一件事只出现一次。
 
+统筹转来的补充要求（同日，W3-A1 一并做）：
+
+- **部件**：`renderInteractionNextSteps(steps, label, options?)`，`options = { max?, more?(n) }`；不传时行为一字不变（一主一次）；传 `max` 时按调用方的顺序取前 `max` 个，其余合成一个挂 `data-ix-steps-more` 的「还有 N 项」，文字由调用方给。`InteractionNextStep` 加 `waiting`（琥珀点，`data-waiting`）与 `waitingLabel`（读屏读得到的文字，调用方给）。样式进 `INTERACTION_STYLES` 的「下一步」段；组件板加样张（三个按钮、一个等你、「还有 2 项」）；单测断言默认不变与新标记、转义。
+- **派生**：待确认的副作用只把人带到复核卡，不在下一步里批准。派生函数放宿主层、通用名字，签名 `(questions, cards, reviews, follow-ups) → InteractionNextStep[]`，Coding（H4）直接用，不经过助理专用的东西——放在 `apps/local-host/src/agent-next-steps.ts`（与共享问卷卡 `agent-question-card.ts` 同层），`assistant-view-html.ts` 调它。
+- **执行**：替人选中选项时，像人点一样在卡上点那个选项（共享客户端的 `onChange` 照常存草稿），再点卡的提交；不直接改 `checked`。
+
 派生仍是 `assistant-view-html.ts` 里的纯函数，从记录推出、不另存；输入是问题与卡片的视图，不读助理工作的私有字段，交互线 H4 做 Coding 的下一步时直接复用。
 
 ### 21.4 波次（并进第 9 节 W3）

@@ -63,12 +63,13 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   await size(1280, 800);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
+  // Public DOM hooks survive minification; the checks below exercise each behavior in the served page.
   const client = await (await fetch(`${origin}/assets/molis-work-workbench.js`)).text();
-  assert.match(client, /isEmbedded/);
-  assert.match(client, /syncInboxRowTab/);
-  assert.match(client, /placeLayoutMenu/);
+  assert.match(client, /data-pane-embedded/);
+  assert.match(client, /data-inbox-row/);
+  assert.match(client, /workspace-layout-menu/);
   const stylesheet = await (await fetch(`${origin}/assets/molis-work-workbench.css`)).text();
-  assert.match(stylesheet, /\[data-inbox-workbench\] \.inbox-reference-detail > \.feed-detail-header h1 \{ width: 100%; max-width: none; \}/);
+  assert.match(stylesheet, /\[data-inbox-workbench\]\s*\.inbox-reference-detail\s*>\s*\.feed-detail-header h1\s*\{\s*width:\s*100%;\s*max-width:\s*none;?\s*\}/);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal'");
   await click("[data-tab-split]");

@@ -74,3 +74,7 @@ description: How to add or change an AI capability in Molis Work — anything th
 
 
 Shelf 的自动 recipe 是共享 Prologue 消费者：固定指令登记在插件 prompts.ts，模型选择与人工终端 engine 分离。调模型的 Action 声明 `model:invoke` 和 metered；本机提取是另一个不要模型、成本 none 的 Action，两条路不合成一个能走两边的入口（Shelf 的 `shelf.jobs.generate` 与 `shelf.jobs.extract` 就这样分，它们的权限、成本和调用链以 `docs/platform/PROLOGUE-AI.md` §11 为准，这里不复述）。保留完整执行回执的 reported/estimated/unknown，JSON 解码读取 SDK 的 ok/value，领域约束再校验。材料部分覆盖进入最终结果说明；最终业务提交仍复查原调用、材料 hash 和可信 Host 返回的模型配置校验，不让最后一次 await 留出失效结果写入窗口。
+
+评论内显式召唤个人助理时，复用宿主的原线程回复服务和同一个 Prologue，不新建第二个执行引擎。插件拥有消息与锚点，并声明用户专属的线程上下文查询与回复命令；宿主冻结该轮目标、材料和受限角色，最终回复从可信调用上下文交给所有者。普通评论不启动模型。模型完成而投递失败时只重投递；停止、撤权或原注册实例变化后拒绝迟到写入。后台使用 dispatcher 在原处理器存活时保留的授权检查，不保存已经结束的 beforeEffect。重启后的投递由新的显式请求恢复，不自动再调模型。实现入口为 `apps/local-host/src/assistant/assistant-threads.ts`，协议与验证边界见 [统一规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
+
+评论入口明确带入未保存正文时，使用 `AssistantThreadDraft` 随该轮发起请求交给 owner 校验版本；只存入该轮材料并标出草稿，不替用户保存正文。默认仍等待保存，未持久化的新锚点必须先保存。

@@ -27,7 +27,7 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 
 控件标本：开发预览打开 `/__ui/catalog`（不进用户导航），真实底栏标本在 `/__ui/catalog/bar`。变体、状态、浅深色、密度、打开后的菜单、组合（列表+详情、工具栏+筛选、带错误的表单、对话框里的菜单、长内容嵌套滚动、窄屏与密度）和动效以组件板为准，不要在业务 CSS 里重画一套。改共享控件必须先看这块板。已经达到产品美学要求的共享控件、状态变体或微动效要补进 `src/primitives/catalog.ts`；草稿和产品专属编排不必塞进去，但进产品主链前不得带着系统下拉等 OS 控件。
 
-页面仍注入 `THEME_BOOTSTRAP_SCRIPT`、`VISUAL_FOUNDATION_STYLES`（含 `PRIMITIVE_STYLES`）、`TYPEFACE_STYLES` 和 `renderIconSprite()`。三张产品表在 [apps/workbench/src/page-assets.ts](../../apps/workbench/src/page-assets.ts) 再把 Coss / Primitive / Typeface 挂到页面 CSS 之后，最后接 `CRAFT_FINISH_STYLES`（Soft Workbench 终层），让 `mw-*` 和终层盖住中间插入的产品规则。对照装配入口 [apps/workbench/src/renderer.ts](../../apps/workbench/src/renderer.ts)。
+页面仍注入 `THEME_BOOTSTRAP_SCRIPT`、基础样式、`TYPEFACE_STYLES` 和 `renderIconSprite()`。规格板等独立消费者使用完整的 `VISUAL_FOUNDATION_STYLES`（含 Coss / Primitive）；三张产品表在 [apps/workbench/src/page-assets.ts](../../apps/workbench/src/page-assets.ts) 使用不含这两层的 `VISUAL_FOUNDATION_PAGE_STYLES`，只在原来的页面 CSS 末尾覆盖位置装配一次 Coss / Primitive / Typeface，最后接 `CRAFT_FINISH_STYLES`（Soft Workbench 终层），让 `mw-*` 和终层盖住中间插入的产品规则。对照装配入口 [apps/workbench/src/renderer.ts](../../apps/workbench/src/renderer.ts)。
 
 ## 文件
 

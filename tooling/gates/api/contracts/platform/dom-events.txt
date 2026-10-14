@@ -159,6 +159,28 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ root }";
     readonly summary: "A settings page was placed into the settings area; page scripts bind to root.";
 }, {
+    readonly name: "molis-work:system-view-changed";
+    readonly kind: "announcement";
+    readonly owner: "tab-workspace";
+    readonly on: "document";
+    readonly detail: "{ active: { owner, id, tab_id } | null, open: Array<{ owner, id, tab_id }> }";
+    readonly summary: "System view owners mount their existing controller into the focused system tab and retain hidden state.";
+}, {
+    readonly name: "molis-work:system-view-close";
+    readonly kind: "request";
+    readonly owner: "tab-workspace";
+    readonly on: "document";
+    readonly detail: "{ owner, id }";
+    readonly summary: "Close the presentation of a system object without stopping its work.";
+}, {
+    readonly name: "molis-work:system-view-open";
+    readonly kind: "request";
+    readonly owner: "tab-workspace";
+    readonly on: "document";
+    readonly cancelable: true;
+    readonly detail: "{ owner, id, title }";
+    readonly summary: "Focus or open one system-owned object in the common tab layout.";
+}, {
     readonly name: "molis-work:terminal-theme-change";
     readonly kind: "announcement";
     readonly owner: "preferences";
@@ -304,6 +326,20 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "none";
     readonly summary: "Close the side panel.";
 }, {
+    readonly name: "molis:side-context-command";
+    readonly kind: "announcement";
+    readonly owner: "side-panel";
+    readonly on: "document";
+    readonly detail: "{ context_epoch, context: { plugin_id, pane_id, tab_id, view_id, object_ref, revision, unsaved }, command }";
+    readonly summary: "A mounted contextual side view asks its current stage owner to focus an anchor or prepare a comment. UI context carries no authority.";
+}, {
+    readonly name: "molis:side-context-result";
+    readonly kind: "request";
+    readonly owner: "side-panel";
+    readonly on: "document";
+    readonly detail: "{ type, object_id, request_id, notes?, version?, saved?, error? }";
+    readonly summary: "The currently bound editor answers its contextual side view; the shell checks mounted source and object identity.";
+}, {
     readonly name: "molis:side-open";
     readonly kind: "request";
     readonly owner: "side-panel";
@@ -370,11 +406,11 @@ export type DomEventTarget = "window" | "document" | "element";
 
 export declare const PAGE_STATE_OWNERS: {
     readonly "side-panel": {
-        readonly files: readonly ["apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts"];
+        readonly files: readonly ["apps/workbench/src/side-panel-context.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts"];
         readonly state: "Whether the right-hand panel is open, which tab it shows and what that tab was asked to show (a file, a web page, the browser held by the person or by a Work). The last tab is kept in localStorage as molis:side-tab.";
     };
     readonly assistant: {
-        readonly files: readonly ["apps/workbench/src/scripts/client/assistant-island.ts"];
+        readonly files: readonly ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-stage.ts"];
         readonly state: "The bottom Assistant: the Work it shows, the draft and the materials in its input, what waits on the person.";
     };
     readonly "context-actions": {
@@ -390,7 +426,7 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "Where the objects on the page live (project, personal, Home) and the shared dialogs that use, move, copy or convert them.";
     };
     readonly "tab-workspace": {
-        readonly files: readonly ["apps/workbench/src/scripts/client/tab-workspace.ts"];
+        readonly files: readonly ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/system-tabs.ts"];
         readonly state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show.";
     };
     readonly "settings-directory": {

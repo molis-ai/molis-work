@@ -1,3 +1,5 @@
+import { threadReplyMaterials } from "./assistant-thread-types.js";
+import { assistantFailure } from "./assistant-error.js";
 import { isDeepStrictEqual } from "node:util";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -23,12 +25,12 @@ import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from ".
 import { identity } from "./assistant-relations.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, type DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
-import { AssistantStoreError, typedTexts, type AssistantStore, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
-import { assistantMemoryTools } from "./assistant-memory-tools.js";
+import { typedTexts, type AssistantStore, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
+import { assistantCandidate, assistantMemoryTools } from "./assistant-memory-tools.js";
 import { randomUUID } from "node:crypto";
-import type { MemoryCandidate, MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import { MemoryError, type MemoryCaller, type MemoryService } from "@molis-ai/molis-work-service-memory";
-import { CodingExecutor, CodingUnavailable, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
+import { CodingExecutor, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 
 const RUNTIME = "prologue";
@@ -42,6 +44,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ROUND_TURNS = 24;
 /** The directory lists at most this many; the gateway itself searches all of them. */
 const MAX_ACTION_TOOLS = 1000;
+
 
 export class AssistantError extends Error {
   constructor(readonly code: string, message: string, readonly work?: AssistantWork, readonly action?: string) {
@@ -77,6 +80,9 @@ export interface AssistantServicePorts {
 /** Where a Send came from: the page's own project, when there is one. Only used to scope a new work. */
 export interface AssistantCaller {
   project_ref?: LocalHostProjectReference;
+  /** Set by the discussion controller, never read from HTTP input. */
+  thread_request?: string;
+  beforeStart?: () => Promise<void>;
 }
 
 /** A due time later than this (Molis Work was not running) is reported as missed, not run late. */
@@ -587,7 +593,7 @@ export class AssistantService {
    */
   async saveFollowUp(input: { work_id: string; text: string; at: string; repeat?: AssistantFollowUp["repeat"]; label: string; time_zone?: string }): Promise<AssistantFollowUp> {
     const work = this.store.get(this.actorId, String(input?.work_id ?? ""));
-    if (work.archived) throw new AssistantError("assistant.state", "这项工作已归档，不能再给它加定时");
+    if (work.reply_target || work.archived) throw new AssistantError("assistant.state", "评论回复或已归档工作不能添加定时");
     const text = typeof input.text === "string" ? input.text.trim().slice(0, 4000) : "";
     const label = typeof input.label === "string" ? input.label.trim().slice(0, 120) : "";
     if (!text || !label) throw new AssistantError("assistant.invalid", "定时要写明到时让助理做什么，以及一句说法");
@@ -835,6 +841,7 @@ export class AssistantService {
    */
   async handover(workId: string, input: AssistantHandover): Promise<AssistantWorkView> {
     let work = this.store.get(this.actorId, workId);
+    if (work.reply_target) throw new AssistantError("assistant.scope", "请回到原评论继续这项回复");
     if (input?.to !== "coding" && input?.to !== "assistant") throw new AssistantError("assistant.invalid", "只能交给 Coding Agent 或助理");
     const state = await this.stateSafely(work);
     if (["running", "waiting-input", "waiting-review", "paused"].includes(state)) throw new AssistantError("assistant.state", "这一轮还没有结束：结束或停止后再转交");
@@ -911,18 +918,19 @@ export class AssistantService {
     try {
       const created = !input.work_id;
       work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, input.executor);
+      if (work.reply_target && caller.thread_request !== work.thread_round?.attempt_id) throw new AssistantError("assistant.scope", "请在原评论内继续这项讨论");
       if (created && input.coding_session_id) work = await this.adoptCodingSession(work, input.coding_session_id);
       work = await this.chooseCharacter(work, input.character);
       if (materials.some(item => item.reference)) materials = await this.readReferences(work, materials);
       if (materials.some(item => item.kind === "method")) materials = await this.chosenMethods(work, materials);
       this.linkSent(work, materials, created ? context : null);
-      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by);
+      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, caller.beforeStart);
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
     } catch (error) {
       this.store.releaseRequest(this.actorId, input.request_id);
       // Nothing the person typed is lost: an unsent message stays as the work's draft.
-      if (work) {
+      if (work && !work.reply_target) {
         const kept = this.store.update(this.actorId, work.work_id, null, { draft: text }, false);
         const failure = error instanceof AssistantError ? error : this.explain(error);
         throw new AssistantError(failure.code, failure.message, this.publicWork(kept, await this.stateSafely(kept)), failure.action);
@@ -1641,14 +1649,16 @@ export class AssistantService {
     return this.result(work, "started", run?.ref.run_id ?? "");
   }
 
-  private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"]): Promise<AssistantSendResult> {
+  private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], beforeStart?: () => Promise<void>): Promise<AssistantSendResult> {
     if (work.executor.kind === "coding") return this.codingDispatch(work, text, materials, context, mode, writtenBy);
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     const authority = await this.ports.authority(work);
+    if (beforeStart) authority.beforeStart = beforeStart;
+    const role = work.reply_target ? "thread-reply" : ASSISTANT_ROLE_ID;
     if (!work.session_id) {
       const session = await host.createSession(RUNTIME, { project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID,
-        actor_id: this.actorId, title: work.title, workspace: "business", role_id: ASSISTANT_ROLE_ID }, authority);
+        actor_id: this.actorId, title: work.title, workspace: "business", role_id: role }, authority);
       work = this.store.update(this.actorId, work.work_id, null, { session_id: session.session_id });
     }
     const session = await adapter.readSession(sessionRef(work));
@@ -1680,19 +1690,19 @@ export class AssistantService {
     this.chosenMemory.delete(work.work_id); this.recalled.delete(work.work_id);
     let prepared: RoundMaterials, handle: Awaited<ReturnType<AgentHost["start"]>>;
     try {
-      await this.memoryForRound(work, text, context);
-      prepared = await this.roundMaterials(work, materials, context, offered);
+      if (!work.reply_target) await this.memoryForRound(work, text, context);
+      prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.roundMaterials(work, materials, context, offered);
       handle = await host.start(RUNTIME, {
         project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
-        session: sessionRef(work), role_id: ASSISTANT_ROLE_ID, workspace: "business", task: text,
-        action_gateway: true,
+        session: sessionRef(work), role_id: role, workspace: "business", task: text,
+        action_gateway: !work.reply_target,
         text_materials: prepared.materials,
         // Pictures the person added: the runtime shows them to the model in this round (refused if the model cannot see).
         ...(materials.some(item => item.kind === "image") ? { image_materials: materials.filter(item => item.kind === "image" && item.image)
           .map(item => ({ material_id: item.material_id, title: item.title, resource: { id: item.image!.resource_id, revision: item.image!.revision }, media_type: item.image!.media_type })) } : {}),
         history: "session", budget: { max_turns: ROUND_TURNS, ...(left === undefined ? {} : { max_total_tokens: left }) }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
         // The project's side panel browser is the person's work surface: a work delegated in the background never drives it.
-        ...(work.delegated_by ? { browser: false as const } : {}),
+        ...(work.delegated_by || work.reply_target ? { browser: false as const } : {}),
         // The chosen Character really carries the round: the Host freezes its exact version or refuses, never another.
         ...(work.character ? { character: { artifact_id: work.character.artifact_id, version: work.character.version } } : {}),
       }, authority);
@@ -1703,6 +1713,7 @@ export class AssistantService {
       this.recalled.delete(work.work_id); this.chosenMemory.delete(work.work_id); this.starting.delete(work.work_id);
       throw error;
     }
+    await beforeStart?.();
     this.store.markTold(this.actorId, prepared.told); this.delegations.markHandedBack(prepared.handedBack);
     this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}), ...(work.character ? { character: { ...work.character } } : {}),
       ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(this.recalled.get(work.work_id) ? { memory_receipt: this.recalled.get(work.work_id)! } : {}) });
@@ -2224,20 +2235,14 @@ export class AssistantService {
   }
 
   private publicWork(work: StoredWork, state: AssistantWorkState): AssistantWork {
-    const { actor_id: _actor, project_ref: _ref, handover_brief: _brief, handed_back_run: _handed, hand_back_held: _held, question_drafts: _drafts, ...rest } = work;
+    const { actor_id: _actor, project_ref: _ref, handover_brief: _brief, handed_back_run: _handed, hand_back_held: _held, question_drafts: _drafts, thread_round: _thread, ...rest } = work;
     return { ...rest, state };
   }
 
   /** A runtime failure in words the person can act on; codes stay for the surface. */
   private explain(error: unknown): AssistantError {
-    if (error instanceof AssistantStoreError) return new AssistantError(error.code, error.message);
-    if (error instanceof CodingUnavailable) return new AssistantError("assistant.coding_unavailable", error.message, undefined, error.action);
-    const code = (error as { code?: string })?.code ?? "";
-    const message = error instanceof Error ? error.message : String(error);
-    if (code === "agent.model_not_configured" || /没有配置可用的模型/.test(message)) return new AssistantError("assistant.model_missing", "还没有配置可用的模型，助理无法开始工作", undefined, "打开模型设置");
-    if (code === "agent.session_busy") return new AssistantError("assistant.busy", message);
-    if (code === "agent.storage_busy") return new AssistantError("assistant.runtime_busy", "Agent 执行服务正由另一个进程使用，稍后再试", undefined, "关闭另一个正在运行的 Molis 服务后重试");
-    return new AssistantError(code || "assistant.failed", message || "这次没有完成");
+    const failure = assistantFailure(error);
+    return new AssistantError(failure.code, failure.message, undefined, failure.action);
   }
 }
 
@@ -2263,13 +2268,6 @@ async function whereNow(work: StoredWork, actions: PersonActions | null, subject
 function recoveryView(report: AgentRecoveryReport): AssistantRecovery {
   return { blockers: [...report.blockers], rounds: report.runs.filter(run => !run.subagent).map(run => ({ run_id: run.run_id, version: run.version, can_close: run.can_close,
     blockers: [...run.blockers], operations: run.operations.map(operation => ({ summary: operation.summary, outcome: operation.outcome })) })) };
-}
-
-/** A platform memory candidate as the Assistant's work view has always shown it. */
-function assistantCandidate(candidate: MemoryCandidate): AssistantMemoryCandidate {
-  return { candidate_id: candidate.candidate_id, work_id: candidate.work?.work_id ?? "", work_title: candidate.work?.title ?? "", scope: candidate.scope,
-    ...(candidate.project_id ? { project_id: candidate.project_id } : {}), text: candidate.text, why: candidate.why, applies: candidate.applies.task ?? "",
-    state: candidate.state, created_at: candidate.created_at, ...(candidate.memory_id ? { memory_id: candidate.memory_id } : {}) };
 }
 
 /** The memory service's refusals, in the Assistant's own error words and codes. */

@@ -1,3 +1,5 @@
+import type { MemoryCandidate } from "@molis-ai/molis-work-contracts/services/memory";
+import type { AssistantMemoryCandidate } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MemoryError, type MemoryCaller, type MemoryService } from "@molis-ai/molis-work-service-memory";
 import type { StoredWork } from "./assistant-store.js";
@@ -58,4 +60,11 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
       catch (error) { if (error instanceof MemoryError && error.code === "memory.not_found") return { forgotten: false }; throw asAssistantError(error); }
     } }),
   };
+}
+
+/** A platform memory candidate as the Assistant's work view has always shown it. */
+export function assistantCandidate(candidate: MemoryCandidate): AssistantMemoryCandidate {
+  return { candidate_id: candidate.candidate_id, work_id: candidate.work?.work_id ?? "", work_title: candidate.work?.title ?? "", scope: candidate.scope,
+    ...(candidate.project_id ? { project_id: candidate.project_id } : {}), text: candidate.text, why: candidate.why, applies: candidate.applies.task ?? "",
+    state: candidate.state, created_at: candidate.created_at, ...(candidate.memory_id ? { memory_id: candidate.memory_id } : {}) };
 }

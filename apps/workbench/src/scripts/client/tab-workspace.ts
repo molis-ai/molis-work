@@ -1,3 +1,4 @@
+import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
 import { pluginSearchRows } from "../../plugin-workbench.js";
 import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs, pluginTabTitles } from "../../plugin-catalog.js";
@@ -202,7 +203,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const topLevelSurface = plugin => {
     const surface = findTopLevelSurface(plugin); host.prepareSurface?.(surface); return surface;
   };
-  const rootForTab = (tab) => supportsGoalFrames() && tab?.plugin === "goals" && tab.kind === "item" && tab.goalView !== "work"
+  const systemTabs = (${SYSTEM_TABS_FACTORY})({getState:()=>state,ops,apply:()=>apply(),persist,close:(pane,id)=>closeTabBack(pane,id),embedded});
+  const rootForTab = (tab) => tab?.kind === "system" ? systemTabs.root(tab) : supportsGoalFrames() && tab?.plugin === "goals" && tab.kind === "item" && tab.goalView !== "work"
     ? document.querySelector("[data-goal-frame-surface]") : tab ? topLevelSurface(tab.plugin) : null;
   const titleForItem = (plugin, itemId, fallback) => {
     if (plugin === "goals") return visibleGoals()?.find((item) => item.goal.goal_id === itemId)?.goal.title || fallback || itemId;
@@ -295,7 +297,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (had) notePlace();
   };
   const applyTabContent = (tab, keepFrame) => {
-    if (!tab) return;
+    if (!tab || tab.kind === "system") return;
     declareGoal(tab.plugin === "goals" && tab.kind === "item" ? tab.itemId : null, tab.title);
     selectItem(topLevelSurface(tab.plugin), tab.kind === "item" ? tab.itemId : null);
     if (tab.plugin === "goals" && tab.kind === "item" && tab.itemId) {
@@ -356,24 +358,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   /* What each plugin's surface last showed: its own page ("page") or one of its tabs ("tab:<id>"). Returning to the
      same thing keeps it as it was, down to where it was scrolled. */
   const surfaceShows = new Map();
-  const scrollMemory = new WeakMap();
-  const rememberScroll = (node) => {
-    const offsets = [];
-    for (const element of [node, ...node.querySelectorAll("*")]) {
-      if (element.scrollTop > 0 || element.scrollLeft > 0) offsets.push([element, element.scrollTop, element.scrollLeft]);
-    }
-    if (offsets.length) scrollMemory.set(node, offsets); else scrollMemory.delete(node);
-  };
-  const restoreScroll = (node) => {
-    const offsets = scrollMemory.get(node);
-    if (!offsets) return;
-    scrollMemory.delete(node);
-    requestAnimationFrame(() => offsets.forEach(([element, top, left]) => {
-      if (!node.contains(element)) return;
-      element.scrollTop = top;
-      element.scrollLeft = left;
-    }));
-  };
+  const {rememberScroll,restoreScroll} = (${SCROLL_MEMORY_FACTORY})();
   const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + L("关闭分栏") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + L("拆到左侧") + '"></button><button type="button" data-tab-edge="right" aria-label="' + L("拆到右侧") + '"></button><button type="button" data-tab-edge="top" aria-label="' + L("拆到上方") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + L("拆到下方") + '"></button></div>';
   const tabLabel = (tab) => {
     if (tab.plugin === "home") return document.body.dataset.projectId === "personal" ? L("个人首页") : L("项目首页");
@@ -431,7 +416,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     close.title = L("关闭标签") + " · " + tabLabel(tab);
     close.tabIndex = selected ? 0 : -1;
     close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
-    trigger.innerHTML = iconMarkup(tab.plugin);
+    trigger.innerHTML = tab.kind === "system" ? '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-sparkles"></use></svg>' : iconMarkup(tab.plugin);
     name.className = "tab-item-name";
     trigger.append(name);
     button.append(trigger);
@@ -691,6 +676,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const collectMounted = () => [
     ...pool.querySelectorAll(":scope > [data-work-surface], :scope > [data-goal-canvas-shell], :scope > [data-goal-frame-surface], :scope > [data-document-pane]"),
     ...panesEl.querySelectorAll("[data-tab-pane-body] > [data-work-surface], [data-tab-pane-body] > [data-goal-canvas-shell], [data-tab-pane-body] > [data-goal-frame-surface], [data-tab-pane-body] > [data-document-pane]"),
+    ...document.querySelectorAll("[data-system-tab]"),
     ...(exclusiveEl ? [...exclusiveEl.children] : []),
   ];
   const findSplit = (node, id) => !node || node.paneId ? null : node.id === id ? node : findSplit(node.children[0], id) || findSplit(node.children[1], id);
@@ -953,7 +939,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const KEPT_PANE_FRAMES = 4;
   const paneFrameKey = (pane) => {
     const tab = pane.tabs.find((item) => item.id === pane.activeTabId);
-    if (tab) return tab.id;
+    if (tab) return tab.kind === "system" ? null : tab.id;
     return pane.viewPlugin ? pane.id + ":view" : null;
   };
   const apply = () => {
@@ -1013,7 +999,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
     const focusedTab = ops.activeTab(state);
     const focusedView = ops.focused(state)?.viewPlugin;
-    if (focusedTab) {
+    if (focusedTab && focusedTab.kind !== "system") {
       const surface = pluginSurface(focusedTab.plugin);
       if (getSurface() !== surface) setWorkSurface(surface, false, false);
       if (!["settings", "project-settings"].includes(document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory)) {
@@ -1150,7 +1136,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     } finally {
       applying = false;
       rememberTab(ops.focused(state));
-      announcePlace();
+      announcePlace(); systemTabs.sync();
       persistHistory();
       syncHistoryButtons();
       markCoverOpeners();

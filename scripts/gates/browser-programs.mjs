@@ -109,6 +109,7 @@ export function browserPrograms(snapshot, isSource) {
     while (value && ts.isIdentifier(value)) {
       const binding = graph.lookup(value); if (!binding || seen.has(binding.node)) break;
       seen.add(binding.node);
+      if (immutableOnly && reassigned(binding.node)) return undefined;
       const argument = env.get(binding.node);
       if (argument) { value = unwrap(argument.node); env = argument.env; }
       else if (binding.value && (!immutableOnly || graph.isFunction(binding.value)
@@ -117,6 +118,24 @@ export function browserPrograms(snapshot, isSource) {
       else break;
     }
     return value;
+  };
+  const reassigned = (declaration) => {
+    let changed = false;
+    const assigned = (target) => {
+      target = unwrap(target); if (!target) return;
+      if (ts.isIdentifier(target) && graph.lookup(target)?.node === declaration) changed = true;
+      else if (ts.isArrayLiteralExpression(target) || ts.isObjectLiteralExpression(target)) ts.forEachChild(target, assigned);
+      else if (ts.isPropertyAssignment(target) || ts.isShorthandPropertyAssignment(target)) assigned(ts.isPropertyAssignment(target) ? target.initializer : target.name);
+      else if (ts.isSpreadElement(target) || ts.isSpreadAssignment(target)) assigned(target.expression);
+    };
+    const visit = (at) => {
+      if (ts.isBinaryExpression(at) && at.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && at.operatorToken.kind <= ts.SyntaxKind.LastAssignment) assigned(at.left);
+      if ((ts.isPrefixUnaryExpression(at) || ts.isPostfixUnaryExpression(at))
+        && [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(at.operator)) assigned(at.operand);
+      if (ts.isForInStatement(at) || ts.isForOfStatement(at)) assigned(at.initializer);
+      ts.forEachChild(at, visit);
+    };
+    visit(declaration.getSourceFile()); return changed;
   };
   const evaluate = (expression, env = new Map()) => {
     const node = unwrap(expression); if (!node) return [[]];

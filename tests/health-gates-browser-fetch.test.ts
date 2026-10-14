@@ -244,3 +244,15 @@ test("BROWSER-FORMAT-02: a reassigned local type cannot prune a browser program 
   assert.equal(result.code, 1, result.out); assert.match(result.out, /raw fetch calls.*mapped\.ts 0 → 1/);
   assert.doesNotMatch(result.out, /cannot statically expand/);
 });
+
+for (const source of [
+  String.raw`function format(part){part=1;return typeof part==='string'?'void 0;':'fetch("/x");';} export const CLIENT_SCRIPT=format('a');`,
+  String.raw`function part(){};part='a';export const CLIENT_SCRIPT=typeof part==='string'?'fetch("/x");':'void 0;';`,
+  String.raw`function format(part){[...part]=[1];return typeof part==='string'?'void 0;':'fetch("/x");';} export const CLIENT_SCRIPT=format('a');`,
+  String.raw`function format(part){({...part}={value:1});return typeof part==='string'?'void 0;':'fetch("/x");';} export const CLIENT_SCRIPT=format('a');`,
+]) test("BROWSER-FORMAT-02: reassigned parameters and function declarations cannot prune a program branch", () => {
+  reset(); put("plugins/native/alpha/src/mapped.ts", source);
+  commit("reassigned declared input"); const result = gate("--base", "main");
+  assert.equal(result.code, 1, result.out); assert.match(result.out, /raw fetch calls.*mapped\.ts 0 → 1/);
+  assert.doesNotMatch(result.out, /cannot statically expand/);
+});

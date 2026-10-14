@@ -736,7 +736,8 @@ test("a change its owner has not answered by the gateway's own deadline ends in 
   const { executors } = prologueActionGateway({ client, operate: true } as never, 10_500);
   const started = Date.now();
   await assert.rejects((executors["change-capability"] as any)({ args: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "x" } } }),
-    (error: any) => error.code === "actions.outcome_unknown" && /may or may not have taken effect/.test(error.message));
+    // What the model sees (GATEWAY-MODEL-CODE-01): the SDK's tool error, carrying the owner's code and words at its start.
+    (error: any) => error.code === "HOST_RESPONSE_INVALID" && /^actions\.outcome_unknown: /.test(error.message) && /may or may not have taken effect/.test(error.message));
   assert.ok(Date.now() - started < 7_000, "well before the runtime's own limit");
   assert.equal(seen?.aborted, true, "the owner is told to stop");
 });

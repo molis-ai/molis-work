@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，未达到整条防腐线完成标准（2026-10-13接续）。I4/I5既有修复与BL-133已合入；W2-10 A1–A4/C已合入，D与E待当前组合收口。I8 08实际85条83通过2失败，相关修复、R4八片与R5 Browser收入组合；同步#408正式采用包后build09确认缺少模型接受点回调，临时候选build/types10通过，43文件定向10运行中。formatter拒绝42/42且独立只读复核通过，当前health通过、API0变化，资源预算有增长及boundary缺项待修，未宣称整合全量通过。#477已同步#408并推送，等当前CI；SDK独立候选的上游/vendor仍等已发问题回答。维护八仅40库只读clone/scalar统计，JSON/其余映射与原库窗口未完成；第4–6波及最终真实场景、手册、度量与两份交付沿原路线继续。
+状态：执行中，未达到整条防腐线完成标准（2026-10-14接续）。I4/I5与BL-133已合入；W2-10 A1–A4/C已合，D的42文件108条（107通过1显式网络后补7/7）与浏览器5/5完成，#486等CI；E与I8共享全量未完成。#477已合main b15ba0b1；#478定向72/72、构建/边界/health通过等CI，#479定向2/2通过。I8 14整体build/types/API/actions/health通过，19文件定向147条141通过6失败、0skip/cancel，Schedule关闭交错和禁止迟到副作用通过。七资源路径增长待等价整理；boundary仅独立临时SDK路径，正式上游/vendor问题仍待回答。维护八41库只读clone及明示JSON37槽统计，完整映射/演练/原库窗口待；第4–6波及最终场景、手册、度量、两份交付沿原路线继续。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2297,3 +2297,21 @@ R5下一片按实际owner表限定installer：安装源/真实Home文件检查�
 I8定向10实际394条381通过13失败（0skip/cancel），42格式门禁与Pages callout A→B通过；失败核因后收口：Pages合并后client三处workbench自由引用未随bench改名，导致5真实页面用例打不开；R4动态document错误模板消费漏改；resident成功query无durable row，旧测试误读独立feed.sources.tick，invalid-envelope测试同样不能要求整Home空日志；纯typed无projects:settings不能获得选目录动作。测试改走现行合法入口并仍保留拒绝/0handler/精确操作编号与owner事实。Schedule真实close用例确认旧Feed timer跨多个await重新打开已释放项目：生命周期 AbortController必须在服务/项目关闭前abort、读授权每个await后复查并在后续invoke前复查，后台只用已装配的项目actionClient(false)，不再激活释放实例；W2-18-SCHEDULE-02继续要求released instance gone与0late effect/receipt。R5新增回归fixture误用不存在的page.detach导致cleanup异常，已核仅终止Root自己的泄露Chrome62469与测试child62361，记录该文件失败，改用attach返回解除函数后严格单slot重跑。独立D运行和其他会话进程未中断。
 
 Schedule关闭复核补齐实际入口边界：actionClient(false)仍经prepareHomeActions及LocalHost.withRuntime，不代表不激活。信号须在withPreparedActions等待前后、MolisWorkLocalHost.inspect/prepareProjectPlugins的各等待后、LocalHost.inspect/scene/actionClient进入withRuntime前后检查；用已有真实homePlugins.ready受控等待制造内部prepare→closeProject→release，证明原项目仍不存在及0owner副作用。拒绝的是已取消的原调用，不给未取消的新调用加禁区、不变更权限或新增全局closing状态。
+
+当前main b15ba0b1a已合#477（exact283371d23、5必需+Product成功/freshsecrets227行、02:01:04UTC），#478已与它对账15bf76753，唯一构建driver排队；后续#479–481仍按堆叠顺序验证。I8同步9733efee7保留#477控制v2完整schema；R5I source8516经独立只读17TS86literal逆名一致/API0/health后收入13c041592，运行待。I8生命期修复d135与目标交错4c31独立只读无P1；abf0内联单次私有转发使Host类未增长，health12相对b15通过，正式boundary仍仅tmpSDK路径待许可（未为它改登记）。维护八按真实Alchemist producer补只读studio.sqlite，当前41库；JSON明示37槽2码值、0坏JSON，只有条数不出payload，未改原行/clone行/调用日志，未完成J/R6映射。
+
+R5M仅现行模型连接owner model_provider：model-provider.invalid/unknown→model_provider.invalid/unknown，供应商连接字段、凭据引用、校验/保存/撤权语义、模型参数与SDK原生码保持；R5M-01：实际连接缺凭据/非法协议地址/模型与thinking拒绝仍不覆盖已有连接，正常保存读取保持；R5M-02：类型和现行消费者同片无旧别名，AST逆名一致/API按实际同步；R5M-03：隔离连接/模型设置定向、门禁与共享组合回归后验收。I8 11b排队时只准备独立Source，无并发Agent或真实连接写入。
+
+资源预算收口单独机械片（从I8 abf0c414d固定Source）：仅浏览器factory局部变量/函数用短而明确的名字，字符串、DOM属性、API字段/对象keys、文案、条件/控制流与调用参数不变；跨分片共用标识在同片同步。ASSET-TRIM-01：逆名后的实际JS AST与原程序集一致，短名无既有绑定碰撞，不把属性key当变量改、不借build选项/额外inline资源/unsafe文本剥除绕额度；ASSET-TRIM-02：实际served各路径不超过最新main额度，只下降快照并跑已有选择器、插件客户端与相关工作流/内容/UI回归。暂在独立树准备，I8 11b冻树不改，不能把源码字节减少当成真实资源通过。
+
+资源片Workflows沿现有formatter只删行首空格/tab，替代仅删两个空格；采用已被门禁支持的确切pattern。完整静态拼装的真实factory前后各1程序、0解析错误，含字符串/正则/模板内容的JS AST逐项相同，真实程序少3466字节；不是按未识别文本剥字面量，也未放开formatter接受范围。与局部标识机械片同组验当前字节及动态行为，资源门禁实际尚待。
+
+I8 14完成后解冻：147条141通过6失败；gateway拒绝夹具引用fixture内部look自由变量是测试错误，按返回的saveView/lookView过滤精确操作，0handler/0该操作行保持。Pages真实DOM选区尚未被ProseMirror读入便发Input.insertText，导致Prefix实际追加在旧末尾；修正夹具同步真实selection与编辑器state，再测完整持久化位置，不改期望。Actions选择同样需真实聚焦/选区同步；Browser crash已实际区分page/process，但侧栏未选择浏览器tab使实际按钮hidden，改真实打开再点，恢复消息/真实reload/restart断言保持。S6无评审与管理MCP错误需先取实际run/reply诊断，不增等待或放宽结果。Functions实际入capabilities并不入workbench，Workflows缩行首源码3466字节在served再次格式化后没有额外节省，不作为真实预算通过。五份Coding共同输出+32已只读拆分为Source+10、移除旧unsafe剥除保留模板空格+22，应等价整理局部factory而非恢复剥除。
+
+R6从现行main b15ba0b1隔离准备IM owner片：server自己产生的identity/continuity/server错误→im.<原family>.<原因>，已是im.*保持；Goals或Host回包错误原owner透传，不能全字迁“continuity”业务事件、设备身份字段、路由及SQL。R6-01：真实跨设备/IM身份拒绝、撤权取消、原幂等/冲突/无迟到副作用与原status/message保持，现行consumer仅认新owner码；R6-02：生产及当前测试/类型/API同片同步，AST逆名正文一致、不留读旧码alias；R6-03：隔离HTTP/CLI/IM/存储真实定向、health/边界/资源和共享组合回归后验收。2026-10-11 Q-c已选择维护八一次性改库，源码片只备完整映射/统计合同；历史调用日志不读不改，原库写入仍等全部改名合入、clone演练/条数和最终窗口，不借此提前动真实Home。
+
+J1按已有plugin owner表分小片接续：Runtime/Manifest自己的plugin_<原因>→plugin.<原因>；事件/订阅/port/input-group细分另片，不全局改业务表名、动作id或第三方错误。J1A-01：现行安装/启停/升级/撤权/隔离拒绝返回同一原因的新owner码，原grant、状态机、回滚、消息和无副作用保持；J1A-02：Runtime错误规范化使用已存在的ACTION_ERROR_CODE现行格式，只有现行owner码透传，无码/driver码归plugin原故障fallback；生产consumer/API和测试同步，无旧underscore读取兼容；J1A-03：安装/升级/生命周期真实用例、公共API/health/边界/资源与共享组合回归后验收。将已存last_error_code的完整map交维护八，历史日志和原Home不读写。此片不并入后续I错误类工厂转换，不混淆改名与删类两个根因。
+
+W2-10 D #486在2026-10-14T02:54:06Z合入main 6588ee531c2f89bae87105b1d12d799cf3f4168d；精确head c1d3f000b、基点b15，5必需+Product完成SUCCESS、freshsecrets04扫描835相关行通过（publish03原证据保持），Linux仍报告中。未据D关闭E/I8共享全量。#478现行同步b6350551b相对60b生产/脚本/package/skills零变化，health03/freshsecrets05通过，新CI已触发；第一次误推Root新建分支feat/lingguang-insert-selection-locked，确认exactoid后带lease删掉，只推真正PR源feat/lingguang-reply-preview，未动别人分支或主树。#479实际2/2+health01/secrets01通过，仍待parent序列。
+
+资源第二片ca313bc88的独立只读review发现P1：document全局被当局部缩到docEl导致Workflow启动ReferenceError；已保存6afccfc1b恢复16引用，不新增alias。独立checker全展开359、42受影响完整组合，literal/regex/template/property key与真实声明绑定验证：其余35组合沿第一次有效证据、修后7Workflow组合定向全部通过，未剩P1。Root首次proof错误Source谓词、缓存循环JSON和raw未实际应用映射的逆名导致各工具证明失败，均未据它验收；独立绑定证据经实际diff核对接受。第二片现行Sourceworkbench省2922、Workflow1979、Coding共同timeline省50，真实served/动态仍待。R6 e9eef4758经独立5TS/43literal/28map逆名、全源码旧码0/API61快照匹配/healthowner下降38，无P1，仍仅Source接受。

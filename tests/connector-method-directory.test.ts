@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CATALOG_CONNECTORS } from "../plugins/official-integrations/catalog/src/catalog.ts";
-import { OFFICIAL_CONNECTOR_METHODS, officialMethodsFor } from "../plugins/official-integrations/catalog/src/methods.ts";
+import { CATALOG_CONNECTORS } from "@molis-ai/molis-work-integration-catalog";
+import { OFFICIAL_CONNECTOR_METHODS, officialMethodsFor } from "@molis-ai/molis-work-integration-catalog";
 import { HOST_CONNECTOR_DIRECTORY, listConnectorSettingsCards } from "../apps/local-host/src/connector-directory.ts";
 import { renderConnectorsSettings } from "../apps/workbench/src/settings-connectors.ts";
 import { recommendedMethod, renderConnectorSetup } from "../apps/workbench/src/settings-connector-guide.ts";

@@ -8,8 +8,8 @@ import { MemoryService, characterOwner, type MemoryCaller } from "@molis-ai/moli
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions, type MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
-import { prologueMemoryBackend } from "../apps/local-host/src/memory/memory-host.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 
 async function memoryHome(t: { after(fn: () => Promise<void> | void): void }) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-scopes-"));

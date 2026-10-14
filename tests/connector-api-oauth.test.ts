@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
-import { connectorMethodsFor } from "../apps/local-host/src/host-connector-methods.ts";
+import { connectorMethodsFor } from "../apps/local-host/dist/host-connector-methods.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createServer } from "node:http";
-import { startApiOAuth, completeApiOAuth, resolveApiOAuthToken, apiOAuthContext } from "../apps/local-host/src/connector-api-oauth.ts";
-import { inspectApiConnection } from "../apps/local-host/src/connector-access.ts";
-import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/src/connector-protocol-store.ts";
-import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.ts";
-import { createCatalogProvider, catalogWhoami } from "../plugins/official-integrations/catalog/src/provider.ts";
-import { handleConnectorApiMethodsHttp } from "../apps/local-host/src/web-connector-api-methods.ts";
-import { handleConnectorConnectionsHttp } from "../apps/local-host/src/web-connector-connections.ts";
+import { startApiOAuth, completeApiOAuth, resolveApiOAuthToken, apiOAuthContext } from "../apps/local-host/dist/connector-api-oauth.js";
+import { inspectApiConnection } from "../apps/local-host/dist/connector-access.js";
+import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/dist/connector-protocol-store.js";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { createCatalogProvider, catalogWhoami } from "@molis-ai/molis-work-integration-catalog";
+import { handleConnectorApiMethodsHttp } from "../apps/local-host/dist/web-connector-api-methods.js";
+import { handleConnectorConnectionsHttp } from "../apps/local-host/dist/web-connector-connections.js";
 import { alchemistPulseGithub } from "@molis-ai/molis-work-app-local-host";
 
 const origin = "http://localhost:19358";

@@ -6,8 +6,8 @@ import { join } from "node:path";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
-import { connectorAccountActions, CONNECTOR_ACCOUNT_PERMISSIONS } from "../apps/local-host/src/connector-account-actions.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { connectorAccountActions, CONNECTOR_ACCOUNT_PERMISSIONS } from "../apps/local-host/dist/connector-account-actions.js";
 
 test("a connected account is read through one registered connector action; connecting grants nothing else", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "connector-account-"));

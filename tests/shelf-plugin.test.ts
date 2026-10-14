@@ -1,4 +1,4 @@
-import { extractMaterial } from "../apps/local-host/src/material-extraction.js";
+import { extractMaterial } from "../apps/local-host/dist/material-extraction.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";

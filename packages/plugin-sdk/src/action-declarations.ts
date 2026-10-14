@@ -6,6 +6,7 @@ import {
   SUBJECT_OFFERS_INPUT_SCHEMA, SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_SCHEMA, SUBJECT_OFFERS_OUTPUT_TYPE,
   WORKFLOW_CONTENT_SCHEMAS, validActionExecutionPolicy, validActionResultView, type WorkflowContentStation,
 } from "@molis-ai/molis-work-contracts/platform/actions";
+import { contextDeclarationProblems } from "./context-declarations.js";
 import {
   fileSourceDeclarationProblems, fragmentOfferDeclarationProblems, placementDeclarationProblems, searchSourceDeclarationProblems,
 } from "./source-declarations.js";
@@ -48,6 +49,7 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...placementDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...workflowContentProblems(key, raw.operation, action),
     ...operationKindProblems(key, raw.operation, action),
+    ...contextDeclarationProblems(key, raw.operation, action),
   ];
 }
 

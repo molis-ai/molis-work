@@ -7,8 +7,8 @@ import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionAudien
 import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
 import { formActions as actions, FORM_ACTION_PERMISSIONS, FORM_ANSWER_FORMAT, FormPluginRouteTable, createFormRouteHandlers, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 async function fixture(t: test.TestContext, completeText: HostCompleteText | null = null) {
   const home = await mkdtemp(join(tmpdir(), "form-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });

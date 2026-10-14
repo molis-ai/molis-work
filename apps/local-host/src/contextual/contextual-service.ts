@@ -1,7 +1,8 @@
 import { isDeepStrictEqual } from "node:util";
 import { assertActionInput, subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 import { ActionError, SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, type ActionAvailability, type ActionCallContext, type ActionClient,
-  type ActionReference, type ActionView, type SubjectActionOffer, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+  type ActionReference, type ActionView, type FragmentOffersInput, type SubjectActionOffer, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 
 /**
  * The one place that prepares what can be done with an object (specs/archive/contextual-interaction §6.4.3): the context row,
@@ -21,6 +22,20 @@ export interface PreparedSubjectOffer extends SubjectActionOffer { source: Actio
 export interface PreparedSubjectOffers { offers: PreparedSubjectOffer[]; issues: string[]; sources: ActionReference[] }
 
 export const sameReference = (a: ActionReference, b: ActionReference) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
+
+/**
+ * What a provider's fragment-offers query is asked for one focus: the selected parts (at most eight, the ones chosen first), or, for a
+ * whole-object action (整篇), the object itself so the provider reads its own current content.
+ */
+export function fragmentOffersInput(focus: SurfaceFocus, requestId: string, whole = false): FragmentOffersInput {
+  const { object } = focus;
+  return { request_id: requestId, fragment: { object,
+    granularity: whole ? "object" : focus.granularity as FragmentOffersInput["fragment"]["granularity"],
+    targets: whole ? [{ kind: "object", role: "object", ref: object, text: (focus.granularity === "object" ? focus.targets[0]?.text : undefined) || object.title || object.id }]
+      : focus.targets.slice(0, 8).map(({ kind, role, ref, text, truncated }) => ({ kind, ...(role ? { role } : {}), ...(ref ? { ref } : {}), text, ...(truncated ? { truncated } : {}) })),
+    ...(focus.surroundings?.heading_path.length ? { heading_path: focus.surroundings.heading_path } : {}),
+    ...(focus.goal ? { goal: { id: focus.goal.id, title: focus.goal.title } } : {}) } };
+}
 
 /** The directory as one caller sees it. */
 export const callerDirectory = (client: ActionClient, caller: ActionCallContext): ContextualDirectory =>

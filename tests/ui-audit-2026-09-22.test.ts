@@ -7,7 +7,7 @@ import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/src/scripts/cl
 import { GLOBAL_SEARCH_FACTORY_SCRIPT, takeSearchHits } from "../apps/workbench/src/scripts/client/global-search.ts";
 import { TAB_WORKSPACE_FACTORY_SCRIPT, placeLayoutMenu } from "../apps/workbench/src/scripts/client/tab-workspace.ts";
 import { pluginSearchRows } from "../apps/workbench/src/plugin-workbench.ts";
-import { MICRO_INTERACTION_CLIENT_SCRIPT } from "../packages/design-system/src/styles/micro-interactions.ts";
+import { MICRO_INTERACTION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 
 test("plugin list split keeps the embedded pane on its restored plugin", () => {
   const source = readFileSync(new URL("../apps/workbench/src/scripts/client/initialization.ts", import.meta.url), "utf8");

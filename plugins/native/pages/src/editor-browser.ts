@@ -112,7 +112,8 @@ import { calloutIconFor, PAGES_CALLOUT_ICONS, safePagesCalloutTone } from "./cal
 import { highlightRanges } from "./code-highlight.js";
 import { PAGES_CODE_LANGUAGES, safePagesLanguage } from "./code-language.js";
 import { findHits, replaceAllFindHits, replaceFindHit, stepFindHit } from "./find.js";
-import { placeFloating, rowGapAt, scrollChildIntoView, scrollShouldFollow, type FloatingAnchor } from "./floating.js";
+import { followScroll, pinAt, placeOverlay, type FloatingAnchor } from "@molis-ai/molis-work-design-system/floating";
+import { rowGapAt, scrollChildIntoView } from "./floating.js";
 import { markdownLooksStructured, nodesForSpanPaste, pasteMarkdown, pastePlain, pasteUrl } from "./paste-markdown.js";
 import { nodesToMarkdown } from "./to-markdown.js";
 import { pasteHtml, type PasteLeaf } from "./paste-html.js";
@@ -128,9 +129,30 @@ export { applyToPagesFrozen, clearPagesCompare, freezePagesFocus, readPagesFocus
 
 export interface PagesEditorHandle {
   readonly view: EditorView;
-  readonly toolbar: HTMLElement;
-  /** Run a writing command on the current selection from outside the editor (the context bar); see `PagesCommandPreset`. */
+  /** Takes down what the editor put around itself (the link and comment previews, the popup, its listeners). */
+  readonly release: () => void;
+  /** Run a writing command on the current selection from outside the editor (the context toolbar); see `PagesCommandPreset`. */
   readonly runCommand?: (command: string, style: string | undefined, preset?: PagesCommandPreset) => Promise<void>;
+  /** The tools the context toolbar draws for the selection, with their pressed state. */
+  readonly tools: () => PagesToolGroup[];
+  /** The person clicked a tool in the toolbar. */
+  readonly runTool: (id: string) => void;
+  /** Where the selection is on screen, for the toolbar to sit next to. */
+  readonly screen: () => { left: number; right: number; top: number; bottom: number };
+}
+
+export interface PagesToolItem {
+  readonly id: string;
+  readonly label: string;
+  readonly glyph?: string;
+  readonly icon?: string;
+  readonly pressed?: boolean;
+  readonly opens?: "panel";
+}
+export interface PagesToolGroup {
+  readonly id: string;
+  readonly collapse: "never" | "overflow";
+  readonly items: readonly PagesToolItem[];
 }
 
 /**
@@ -148,15 +170,6 @@ export interface PagesCommandPreset {
   readonly scope?: "object";
 }
 
-/**
- * What the writing menu lists: exactly the context row's plan for what is in hand (specs/archive/contextual-interaction §6.4.1)
- * — the row's actions first, in its order, then the same groups as its “更多”. The menu keeps no list of its own.
- */
-export interface PagesMenuActions {
-  /** `kind` names another plugin's action, as the row does. */
-  readonly groups: readonly { readonly title: string; readonly items: readonly { readonly key: string; readonly title: string; readonly hint: string; readonly emphasis?: boolean; readonly kind?: string }[] }[];
-}
-
 export interface PagesListItem {
   readonly id: string;
   readonly title: string;
@@ -169,20 +182,18 @@ export interface PagesEditorMountOptions {
   pages?: () => readonly PagesListItem[];
   onOpenPage?: (id: string) => void;
   runAi?: (input: { command: string; text: string; style?: string }) => Promise<{ text: string }>;
-  /**
-   * Hands the selection to the resident Assistant: `suggest` puts it into the Assistant's input for the person to send;
-   * `delegate` is the person asking, here and now, for the Assistant to take it on with the request they typed.
-   */
-  askAssistant?: (input: { mode: "suggest" | "delegate"; request: string; selection: string }) => void;
   onCreateFromAi?: (input: { title: string; text: string }) => Promise<void>;
   /** What the person has in hand, whenever it changes (specs/archive/contextual-interaction §4.1); `null` is the page as a whole. */
   onFocus?: (focus: PagesFocus | null) => void;
-  /** The writing menu's actions for what is in hand; `null` while the row is still preparing them. */
-  menuActions?: () => PagesMenuActions | null;
-  /** Called whenever `menuActions` has something new, so an open menu fills in; returns a stop function. */
-  watchMenuActions?: (listener: () => void) => () => void;
-  /** A menu choice runs through the context row, exactly like a click there. */
-  chooseMenuAction?: (key: string) => void;
+  /** The tools or their pressed state may have changed (after every transaction); the surface asks `tools()`. */
+  onTools?: () => void;
+  /** Where the selection is on screen may have changed (a scroll, a resize): the surface reports its focus again. */
+  onScreen?: () => void;
+  /**
+   * Hands the context toolbar a small form to draw under itself (`node: null` takes it down). True when the toolbar took it; false
+   * when there is no toolbar to show it (a whole-document action started from the Assistant), and the editor shows it itself.
+   */
+  openPanel?: (panel: { node: HTMLElement | null; label?: string; onClose?: () => void; keep?: boolean }) => boolean;
   /** Extra ProseMirror plugins from the embedding surface, added after the editor's own. */
   plugins?: readonly Plugin[];
 }
@@ -310,50 +321,6 @@ function overlayRoot(): HTMLElement {
   return document.querySelector("[data-pages-stage-workspace]")
     ?? document.querySelector("[data-pages=workbench]")
     ?? document.body;
-}
-
-/**
- * Put a fixed overlay at viewport coordinates. Inside the workbench a pane can itself be the box fixed positioning is
- * measured from (it would shift the overlay by the pane's offset onto the text it belongs above): measure where it
- * landed and correct by the difference. The element must be shown when this runs.
- */
-function pinAt(el: HTMLElement, left: number, top: number): void {
-  el.style.left = left + "px";
-  el.style.top = top + "px";
-  const box = el.getBoundingClientRect();
-  const dx = Math.round(box.left - left), dy = Math.round(box.top - top);
-  if (dx || dy) { el.style.left = left - dx + "px"; el.style.top = top - dy + "px"; }
-}
-
-function placeOverlay(el: HTMLElement, anchor: FloatingAnchor, mode: "below" | "above" | "beside"): void {
-  const stage = el.closest("[data-pages-stage-workspace]")?.getBoundingClientRect();
-  const left = Math.max(0, stage?.left ?? 0);
-  const top = Math.max(0, stage?.top ?? 0);
-  const width = Math.min(window.innerWidth, stage?.right ?? window.innerWidth) - left;
-  const height = Math.min(window.innerHeight, stage?.bottom ?? window.innerHeight) - top;
-  // Fit the stage, but never grow past the overlay's own CSS cap (the slash menu stays a compact scroller).
-  el.style.maxWidth = ""; el.style.maxHeight = "";
-  const declared = getComputedStyle(el);
-  const cap = (value: string) => { const px = parseFloat(value); return Number.isFinite(px) ? px : Infinity; };
-  el.style.maxWidth = Math.max(0, Math.min(width - 16, cap(declared.maxWidth))) + "px";
-  el.style.maxHeight = Math.max(0, Math.min(height - 16, cap(declared.maxHeight))) + "px";
-  const box = el.getBoundingClientRect();
-  const spot = placeFloating(
-    { left: anchor.left - left, right: anchor.right - left, top: anchor.top - top, bottom: anchor.bottom - top },
-    { width: box.width, height: box.height },
-    { width, height },
-    mode,
-  );
-  pinAt(el, left + spot.left, top + spot.top);
-}
-
-function followScroll(panel: Element, run: () => void): () => void {
-  const onScroll = (event: Event) => {
-    if (!scrollShouldFollow(event.target, panel)) return;
-    run();
-  };
-  document.addEventListener("scroll", onScroll, true);
-  return () => document.removeEventListener("scroll", onScroll, true);
 }
 
 function keepSelectedVisible(menu: HTMLElement): void {
@@ -1605,7 +1572,7 @@ function hoverHandlePlugin(translate: Translate | undefined, onNote: (index: num
       const onMove = (event: MouseEvent) => {
         if (event.buttons || drag) return;
         const target = event.target as HTMLElement | null;
-        if (target?.closest(".pages-slash, .pages-format-bar, .pages-link-preview, .pages-comment-preview, .pages-pop, .pages-more-menu, .pages-create-menu")) {
+        if (target?.closest(".pages-slash, .mw-ctx, .mw-ctx-menu, .mw-ctx-panel, .pages-link-preview, .pages-comment-preview, .pages-pop, .pages-more-menu, .pages-create-menu")) {
           if (menu.hidden) setHover(-1, false);
           return;
         }
@@ -2987,9 +2954,6 @@ function dispatchList(
 
 export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}): PagesEditorHandle {
   host.replaceChildren();
-  const toolbar = document.createElement("div");
-  toolbar.className = "pages-format-bar";
-  toolbar.hidden = true;
   const linkPreview = document.createElement("div");
   linkPreview.className = "pages-link-preview";
   linkPreview.hidden = true;
@@ -3009,40 +2973,24 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   commentEdit.type = "button";
   commentEdit.textContent = t(options.translate, "编辑");
   commentPreview.append(commentText, commentEdit);
-  const buttons: Array<{ name: string; label: string; icon?: string; gap?: boolean; run?: (state: EditorState, dispatch?: (tr: Transaction) => void) => boolean; action?: string }> = [
-    { name: "strong", label: t(options.translate, "加粗"), run: commandToggle("strong") },
-    { name: "em", label: t(options.translate, "斜体"), run: commandToggle("em") },
-    { name: "underline", label: t(options.translate, "下划线"), run: commandToggle("underline") },
-    { name: "strike", label: t(options.translate, "删除线"), run: commandToggle("strike") },
-    { name: "code", label: t(options.translate, "代码"), icon: "code", run: commandToggle("code") },
-    { name: "h1", label: t(options.translate, "标题 1"), gap: true, run: headingCommand(1) },
-    { name: "h2", label: t(options.translate, "标题 2"), run: headingCommand(2) },
-    { name: "h3", label: t(options.translate, "标题 3"), run: headingCommand(3) },
-    { name: "ul", label: t(options.translate, "无序列表"), icon: "rows", gap: true, run: (state, dispatch) => dispatchList(state, dispatch, "bullet_list") },
-    { name: "ol", label: t(options.translate, "有序列表"), icon: "list-ordered", run: (state, dispatch) => dispatchList(state, dispatch, "ordered_list") },
-    { name: "task", label: t(options.translate, "清单"), icon: "check", run: (state, dispatch) => dispatchList(state, dispatch, "task_list") },
-    { name: "tone", label: t(options.translate, "颜色"), gap: true, action: "tone" },
-    { name: "link", label: t(options.translate, "链接"), icon: "link", action: "link" },
-    { name: "comment", label: t(options.translate, "评论"), icon: "message", action: "comment" },
-    { name: "ai", label: "AI", icon: "sparkles", action: "ai" },
+  // The tools the context toolbar draws (context-toolbar §3: an editor's own commands, not actions). `group` is how they sit on the bar.
+  const toolDefs: Array<{ id: string; group: "marks" | "blocks" | "insert"; label: string; glyph?: string; icon?: string; run?: (state: EditorState, dispatch?: (tr: Transaction) => void) => boolean; panel?: "tone" | "link" | "comment" }> = [
+    { id: "strong", group: "marks", label: t(options.translate, "加粗"), glyph: "B", run: commandToggle("strong") },
+    { id: "em", group: "marks", label: t(options.translate, "斜体"), glyph: "I", run: commandToggle("em") },
+    { id: "underline", group: "marks", label: t(options.translate, "下划线"), glyph: "U", run: commandToggle("underline") },
+    { id: "strike", group: "marks", label: t(options.translate, "删除线"), glyph: "S", run: commandToggle("strike") },
+    { id: "code", group: "marks", label: t(options.translate, "代码"), icon: "code", run: commandToggle("code") },
+    { id: "h1", group: "blocks", label: t(options.translate, "标题 1"), glyph: "H1", run: headingCommand(1) },
+    { id: "h2", group: "blocks", label: t(options.translate, "标题 2"), glyph: "H2", run: headingCommand(2) },
+    { id: "h3", group: "blocks", label: t(options.translate, "标题 3"), glyph: "H3", run: headingCommand(3) },
+    { id: "ul", group: "blocks", label: t(options.translate, "无序列表"), icon: "rows", run: (state, dispatch) => dispatchList(state, dispatch, "bullet_list") },
+    { id: "ol", group: "blocks", label: t(options.translate, "有序列表"), icon: "list-ordered", run: (state, dispatch) => dispatchList(state, dispatch, "ordered_list") },
+    { id: "task", group: "blocks", label: t(options.translate, "清单"), icon: "check", run: (state, dispatch) => dispatchList(state, dispatch, "task_list") },
+    { id: "tone", group: "insert", label: t(options.translate, "颜色"), glyph: "A", panel: "tone" },
+    { id: "link", group: "insert", label: t(options.translate, "链接"), icon: "link", panel: "link" },
+    { id: "comment", group: "insert", label: t(options.translate, "评论"), icon: "message", panel: "comment" },
   ];
-  const buttonEls = buttons.map((item) => {
-    if (item.gap) {
-      const gap = document.createElement("span");
-      gap.className = "pages-format-gap";
-      toolbar.append(gap);
-    }
-    const button = document.createElement("button");
-    button.type = "button";
-    button.dataset.mark = item.name;
-    button.setAttribute("aria-label", item.label);
-    button.title = item.label;
-    if (item.icon) button.innerHTML = dsIcon(item.icon);
-    else button.textContent = ({ strong: "B", em: "I", underline: "U", strike: "S", h1: "H1", h2: "H2", h3: "H3", tone: "A" } as Record<string, string>)[item.name] || item.label;
-    toolbar.append(button);
-    return { item, button };
-  });
-  overlayRoot().append(toolbar, linkPreview, commentPreview);
+  overlayRoot().append(linkPreview, commentPreview);
 
   const pop = document.createElement("div");
   pop.className = "pages-pop";
@@ -3052,16 +3000,38 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   // A writing request keeps its range frozen while the popup is open; closing the popup any way lets it go.
   let popToken: string | null = null;
   let popRequest = 0;
-  const hidePop = () => {
+  // The popup is a selection's form or result: the context toolbar draws it under itself when it can (`docked`); otherwise it sits in the stage.
+  let docked = false;
+  const hidePop = (fromPanel = false) => {
     const restoreFocus = pop.contains(document.activeElement);
     pop.hidden = true;
     pop.replaceChildren();
     popRequest += 1;
     if (popToken) { releasePagesFrozen(view, popToken); popToken = null; }
+    if (docked) { docked = false; pop.classList.remove("is-docked"); if (!fromPanel) options.openPanel?.({ node: null }); }
+    const stage = overlayRoot();
+    if (pop.parentElement !== stage) stage.append(pop);
     if (restoreFocus) view.focus();
+  };
+  // `keep`: a result the person is waiting for stays where it is when they select something else.
+  const placePop = (anchor: FloatingAnchor, mode: "above" | "below", label: string, keep = false) => {
+    pop.hidden = false;
+    docked = Boolean(options.openPanel?.({ node: pop, label, keep, onClose: () => hidePop(true) }));
+    pop.classList.toggle("is-docked", docked);
+    if (!docked) placeOverlay(pop, anchor, mode);
+  };
+  // A form that belongs to a block, not to a selection, takes the popup back to the stage.
+  const reclaimPop = () => {
+    if (!docked) return;
+    docked = false;
+    options.openPanel?.({ node: null });
+    pop.classList.remove("is-docked");
+    const stage = overlayRoot();
+    if (pop.parentElement !== stage) stage.append(pop);
   };
 
   const openNote = (view: EditorView, index: number) => {
+    reclaimPop();
     const node = view.state.doc.child(index);
     const pos = blockPos(view.state.doc, index);
     pop.hidden = false;
@@ -3095,7 +3065,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       applyComment(view, found.from, found.to, area.value, found.id);
       hidePop();
     }, hidePop));
-    placeOverlay(pop, view.coordsAtPos(found.from), "below");
+    placePop(view.coordsAtPos(found.from), "below", t(options.translate, "评论"));
     area.focus();
   };
 
@@ -3136,12 +3106,13 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       });
       pop.append(head, strip);
     });
-    placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below");
+    placePop(view.coordsAtPos(view.state.selection.from), "below", t(options.translate, "颜色"));
   };
 
   const openCalloutStyle = (view: EditorView, pos: number, anchor: HTMLElement) => {
     const node = view.state.doc.nodeAt(pos);
     if (!node) return;
+    reclaimPop();
     pop.hidden = false;
     pop.replaceChildren();
 
@@ -3240,88 +3211,9 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       row.prepend(remove);
     }
     pop.append(row);
-    placeOverlay(pop, view.coordsAtPos(found.from), "below");
+    placePop(view.coordsAtPos(found.from), "below", t(options.translate, "链接"));
     field.focus();
     field.select();
-  };
-
-  const openAi = (view: EditorView) => {
-    if (!options.runAi) return;
-    pop.hidden = false;
-    pop.replaceChildren();
-    const title = document.createElement("p");
-    title.textContent = t(options.translate, "写作");
-    // The same actions as the context row, in its order and groups (specs/archive/contextual-interaction §6.4.1); a choice
-    // runs through the row, which hands it back here to run on the frozen range.
-    const list = document.createElement("div");
-    list.className = "pages-ai-actions";
-    list.setAttribute("role", "menu");
-    pop.append(title, list);
-    const paint = (): boolean => {
-      const actions = options.menuActions?.() ?? null;
-      if (!actions || !actions.groups.length) {
-        const waiting = document.createElement("p");
-        waiting.className = "pages-ai-waiting";
-        waiting.textContent = t(options.translate, "正在准备可以做的事…");
-        list.replaceChildren(waiting);
-        return false;
-      }
-      list.replaceChildren(...actions.groups.flatMap((group) => {
-        const heading = group.title ? [Object.assign(document.createElement("p"), { className: "pages-ai-group", textContent: t(options.translate, group.title) })] : [];
-        return [...heading, ...group.items.map((item) => {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "mw-menu__item";
-          button.setAttribute("role", "menuitem");
-          button.title = item.hint;
-          if (item.emphasis) button.dataset.emphasis = "true";
-          button.innerHTML = `<span>${escapeHtml(item.title)}</span>${item.kind ? `<small class="pages-ai-kind">${escapeHtml(item.kind)}</small>` : ""}`;
-          // Its name is the action (and whose it is); the hint stays a description.
-          button.setAttribute("aria-label", item.kind ? `${item.title}（${item.kind}）` : item.title);
-          button.addEventListener("click", () => { hidePop(); options.chooseMenuAction?.(item.key); });
-          return button;
-        })];
-      }));
-      return true;
-    };
-    if (!paint() && options.watchMenuActions) {
-      const stop = options.watchMenuActions(() => {
-        if (pop.hidden || !pop.contains(list)) { stop(); return; }
-        if (paint()) { stop(); placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below"); }
-      });
-    }
-    if (options.askAssistant) {
-      const ask = options.askAssistant;
-      const selection = () => view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n");
-      const heading = document.createElement("p");
-      heading.textContent = t(options.translate, "助理");
-      const bring = document.createElement("button");
-      bring.type = "button";
-      bring.className = "mw-menu__item";
-      bring.innerHTML = `<span>${escapeHtml(t(options.translate, "带到助理（由你发送）"))}</span>`;
-      bring.addEventListener("click", () => { ask({ mode: "suggest", request: "", selection: selection() }); hidePop(); });
-      // Handing over needs the person's own words for what to do; submitting this form is their asking.
-      const form = document.createElement("form");
-      form.className = "pages-ask-assistant";
-      const field = document.createElement("input");
-      field.className = "mw-input";
-      field.placeholder = t(options.translate, "要助理做什么？");
-      field.setAttribute("aria-label", t(options.translate, "要助理做什么？"));
-      const submit = document.createElement("button");
-      submit.type = "submit";
-      submit.className = "mw-btn mw-btn--primary mw-btn--sm";
-      submit.textContent = t(options.translate, "交给助理");
-      form.append(field, submit);
-      form.addEventListener("submit", (event) => {
-        event.preventDefault();
-        const request = field.value.trim();
-        if (!request) { field.focus(); return; }
-        ask({ mode: "delegate", request, selection: selection() });
-        hidePop();
-      });
-      pop.append(heading, bring, form);
-    }
-    placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below");
   };
 
   // The candidate goes to the range the person asked about, frozen when they asked; if that text changed while the
@@ -3371,7 +3263,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       }
       hidePop();
     }, dismiss, command === "translate_new" ? t(options.translate, "存为新文档") : okLabel));
-    placeOverlay(pop, view.coordsAtPos((token ? resolvePagesFrozen(view, token)?.from : undefined) ?? view.state.selection.from), "below");
+    placePop(view.coordsAtPos((token ? resolvePagesFrozen(view, token)?.from : undefined) ?? view.state.selection.from), "below", t(options.translate, "候选"), true);
   };
 
   const runAiCommand = async (view: EditorView, command: string, style?: string, preset?: PagesCommandPreset) => {
@@ -3388,8 +3280,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
         popToken = null;
         popRequest += 1;
         pop.innerHTML = `<p class="pages-pop-error">${escapeHtml(t(options.translate, "选中的内容已经变了，请重新选择后再试。"))}</p>`;
-        pop.hidden = false;
-        placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below");
+        placePop(view.coordsAtPos(view.state.selection.from), "below", t(options.translate, "写作"));
         return;
       }
       // A comparison acts on the part selected last; the part set aside stays as it is.
@@ -3410,12 +3301,8 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     popToken = token;
     const request = ++popRequest;
     pop.innerHTML = `<p>${escapeHtml((preset?.title ? preset.title + " · " : "") + t(options.translate, "正在处理"))}</p>`;
-    if (preset) {
-      // Started from outside the editor (the context bar): the popup opens at the frozen range, in place of the format bar.
-      toolbar.hidden = true;
-      pop.hidden = false;
-      placeOverlay(pop, view.coordsAtPos(range?.from ?? view.state.selection.from), "below");
-    }
+    // Started from outside the editor (the context toolbar): the popup opens under the toolbar, or at the frozen range when there is none.
+    if (preset) placePop(view.coordsAtPos(range?.from ?? view.state.selection.from), "below", preset.title || t(options.translate, "写作"), true);
     try {
       // The exact command may come from the offer the Host prepared for this very selection.
       const actual: { command: string; style?: string; text?: string } = preset?.prepare ? await preset.prepare() : { command, style };
@@ -3637,35 +3524,27 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     ...(options.plugins ?? []),
   ];
 
-  // While the person is still dragging out a selection the bar stays away: it would cover the text being selected.
-  // It appears once the button is released (keyboard selection shows it at once).
-  let dragSelecting = false;
-  const placeToolbar = (current: EditorView) => {
-    const { from, to, empty } = current.state.selection;
-    if (dragSelecting || empty || !(current.state.selection instanceof TextSelection)) {
-      toolbar.hidden = true;
-      return;
-    }
-    const start = current.coordsAtPos(from);
-    const end = current.coordsAtPos(to);
-    toolbar.hidden = false;
-    const left = (start.left + end.left) / 2 - toolbar.offsetWidth / 2;
-    placeOverlay(toolbar, { left, right: left + toolbar.offsetWidth, top: start.top, bottom: end.bottom }, "above");
-    const list = listKindAt(current.state);
-    const heading = headingLevelAt(current.state);
-    buttonEls.forEach(({ item, button }) => {
-      const mark = pagesSchema.marks[item.name];
-      const listOn = (item.name === "ul" && list === "bullet_list")
-        || (item.name === "ol" && list === "ordered_list")
-        || (item.name === "task" && list === "task_list");
-      const headingOn = (item.name === "h1" && heading === 1)
-        || (item.name === "h2" && heading === 2)
-        || (item.name === "h3" && heading === 3);
-      const markOn = Boolean(mark) && markCovers(current.state.doc, from, to, item.name);
-      const active = listOn || headingOn || markOn;
-      button.classList.toggle("is-on", active);
-      if (item.run) button.setAttribute("aria-pressed", String(active));
-    });
+  // The tools as the toolbar draws them: the editor's commands, with whether each is on for the selection.
+  const toolGroups = (): PagesToolGroup[] => {
+    const { from, to } = view.state.selection;
+    const list = listKindAt(view.state), heading = headingLevelAt(view.state);
+    const on = (id: string) => (id === "ul" && list === "bullet_list") || (id === "ol" && list === "ordered_list") || (id === "task" && list === "task_list")
+      || (/^h[123]$/.test(id) && heading === Number(id.slice(1))) || (Boolean(pagesSchema.marks[id]) && markCovers(view.state.doc, from, to, id));
+    const group = (id: "marks" | "blocks" | "insert", collapse: "never" | "overflow"): PagesToolGroup => ({ id, collapse,
+      items: toolDefs.filter((tool) => tool.group === id).map((tool) => ({ id: tool.id, label: tool.label, ...(tool.glyph ? { glyph: tool.glyph } : {}),
+        ...(tool.icon ? { icon: tool.icon } : {}), ...(tool.run ? { pressed: on(tool.id) } : { opens: "panel" as const }) })) });
+    return [group("marks", "overflow"), group("blocks", "overflow"), group("insert", "never")];
+  };
+  const runTool = (id: string) => {
+    const tool = toolDefs.find((entry) => entry.id === id);
+    if (!tool) return;
+    if (tool.panel === "tone") openTone(view); else if (tool.panel === "link") openLink(view); else if (tool.panel === "comment") openComment(view);
+    else { tool.run?.(view.state, view.dispatch.bind(view)); view.focus(); }
+  };
+  const screen = () => {
+    const { from, to } = view.state.selection;
+    const a = view.coordsAtPos(from), b = view.coordsAtPos(to);
+    return { left: Math.min(a.left, b.left), right: Math.max(a.right, b.right), top: Math.min(a.top, b.top), bottom: Math.max(a.bottom, b.bottom) };
   };
 
   const placeLinkPreview = (current: EditorView) => {
@@ -3731,9 +3610,9 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     dispatchTransaction(tr) {
       const next = view.state.apply(tr);
       view.updateState(next);
-      placeToolbar(view);
       placeLinkPreview(view);
       placeCommentPreview(view);
+      options.onTools?.();
       if (tr.docChanged) options.onChange?.();
     },
     handleTextInput(current, _from, _to, text) {
@@ -3909,8 +3788,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       },
       blur: () => {
         window.setTimeout(() => {
-          if (!toolbar.contains(document.activeElement) && !linkPreview.contains(document.activeElement) && !commentPreview.contains(document.activeElement) && !pop.contains(document.activeElement) && document.activeElement !== view.dom) {
-            toolbar.hidden = true;
+          if (!linkPreview.contains(document.activeElement) && !commentPreview.contains(document.activeElement) && !pop.contains(document.activeElement) && document.activeElement !== view.dom) {
             linkPreview.hidden = true;
             commentPreview.hidden = true;
           }
@@ -3920,33 +3798,6 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     },
   });
 
-  toolbar.addEventListener("mousedown", (event) => event.preventDefault());
-  toolbar.addEventListener("click", (event) => {
-    event.preventDefault();
-    const target = (event.target as HTMLElement).closest("button");
-    const found = buttonEls.find((entry) => entry.button === target);
-    if (!found) return;
-    if (found.item.action === "tone") {
-      openTone(view);
-      return;
-    }
-    if (found.item.action === "link") {
-      openLink(view);
-      return;
-    }
-    if (found.item.action === "comment") {
-      openComment(view);
-      return;
-    }
-    if (found.item.action === "ai") {
-      openAi(view);
-      return;
-    }
-    found.item.run?.(view.state, view.dispatch.bind(view));
-    view.focus();
-  });
-
-  placeToolbar(view);
   placeLinkPreview(view);
   placeCommentPreview(view);
   linkPreview.addEventListener("mousedown", (event) => event.preventDefault());
@@ -3967,47 +3818,29 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   };
   document.addEventListener("keydown", onPopEscape, true);
   refreshToc(view, options.translate);
-  const onSelectStart = (event: PointerEvent) => { if (event.button === 0 && event.pointerType !== "touch") { dragSelecting = true; toolbar.hidden = true; } };
-  const onSelectEnd = () => {
-    if (!dragSelecting) return;
-    dragSelecting = false;
-    if (view.hasFocus()) placeToolbar(view);
-  };
-  view.dom.addEventListener("pointerdown", onSelectStart);
-  document.addEventListener("pointerup", onSelectEnd, true);
-  document.addEventListener("pointercancel", onSelectEnd, true);
   const reposition = () => {
     if (view.hasFocus()) {
-      placeToolbar(view);
       placeLinkPreview(view);
       placeCommentPreview(view);
     } else {
-      toolbar.hidden = true;
       linkPreview.hidden = true;
       commentPreview.hidden = true;
     }
+    // The toolbar follows the selection while a form it holds has the focus too.
+    options.onScreen?.();
   };
-  const stopScroll = followScroll(toolbar, reposition);
+  const stopScroll = followScroll(linkPreview, reposition);
   window.addEventListener("resize", reposition);
-  const originalDestroy = () => {
-    stopScroll();
-    window.removeEventListener("resize", reposition);
-    hidePop();
-    document.removeEventListener("keydown", onPopEscape, true);
-    view.dom.removeEventListener("pointerdown", onSelectStart);
-    document.removeEventListener("pointerup", onSelectEnd, true);
-    document.removeEventListener("pointercancel", onSelectEnd, true);
-    pop.remove();
-    linkPreview.remove();
-    commentPreview.remove();
-  };
-  const handle: PagesEditorHandle = { view, toolbar, runCommand: (command, style, preset) => runAiCommand(view, command, style, preset) };
-  const destroyToolbar = toolbar.remove.bind(toolbar);
-  handle.toolbar.remove = () => {
-    originalDestroy();
-    destroyToolbar();
-  };
-  return handle;
+  return { view, runCommand: (command, style, preset) => runAiCommand(view, command, style, preset), tools: toolGroups, runTool, screen,
+    release: () => {
+      stopScroll();
+      window.removeEventListener("resize", reposition);
+      hidePop();
+      document.removeEventListener("keydown", onPopEscape, true);
+      pop.remove();
+      linkPreview.remove();
+      commentPreview.remove();
+    } };
 }
 
 export function focusStart(handle: PagesEditorHandle): void {
@@ -4037,6 +3870,6 @@ export function setDoc(handle: PagesEditorHandle, value: unknown): void {
 }
 
 export function destroy(handle: PagesEditorHandle): void {
-  handle.toolbar.remove();
+  handle.release();
   handle.view.destroy();
 }

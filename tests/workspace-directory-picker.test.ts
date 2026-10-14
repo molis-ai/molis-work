@@ -5,8 +5,8 @@ import path from "node:path";
 import test from "node:test";
 
 import { createDirectoryPicker, type DirectoryPickerCommandResult } from "../apps/local-host/src/directory-picker.ts";
-import { handleWorkspaceHttp } from "../plugins/native/work/src/http/workspaces.ts";
-import type { WorkSessionHttpContext } from "../plugins/native/work/src/http/types.ts";
+import { handleWorkspaceHttp } from "../plugins/native/work/dist/http/workspaces.js";
+import type { WorkSessionHttpContext } from "@molis-ai/molis-work-plugin-work";
 
 function commandResult(overrides: Partial<DirectoryPickerCommandResult> = {}): DirectoryPickerCommandResult {
   return { stdout: "", stderr: "", code: 0, ...overrides };

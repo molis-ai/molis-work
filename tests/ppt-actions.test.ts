@@ -7,7 +7,7 @@ import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-c
 import { pptActions as actions, PPT_ACTION_PERMISSIONS, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "ppt-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });

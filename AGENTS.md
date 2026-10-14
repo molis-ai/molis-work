@@ -44,7 +44,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - 安装：`pnpm install --frozen-lockfile --offline`。单包构建写成 `pnpm --filter <包> run build`（`--filter` 在 `run` 前）。
 - 改过任何 `*/src`、`scripts`、`package.json` 后，跑全量前先整体 `pnpm build`：安装类测试比对源码与构建指纹。
 - 全量回归期间不要改源码、脚本、`package.json` 和 `skills/`（安装类测试会拷贝 `skills/` 并比较两次安装的内容；`docs/`、`specs/` 可以改）；也不要并发构建。
-- 跑测试：`node scripts/run-tests.mjs <文件…>`；浏览器用例需要本机 Chrome。判断是否自己引入的失败，用干净的基线工作树（`git worktree add --detach`）跑同一批文件对比。
+- 跑测试：`node scripts/run-tests.mjs <文件…>`；浏览器用例需要本机 Chrome。多个文件时每个文件一个进程、一份临时 Home，几份同时跑（`--jobs <n>` 或 `MOLIS_WORK_TEST_JOBS`，浏览器文件另有上限），失败的文件最后列出并给出重跑命令（`docs/system/PARALLEL-DEVELOPMENT.md` 第 5 节）。判断是否自己引入的失败，用干净的基线工作树（`git worktree add --detach`）跑同一批文件对比。
 - 按改动挑相关用例：`node scripts/affected-tests.mjs`（选法、全量条件和局限见 `docs/system/PARALLEL-DEVELOPMENT.md` 第 6.1 节）；它只给建议，命中全量条件由人决定，`--run` 也不启动全量。
 - 测试截图默认写入已忽略的 `.impeccable/qa/review/`；要刷新仓库里的评审截图才设 `MOLIS_WORK_REVIEW_EVIDENCE=1`，只覆盖已有的图：`.impeccable/` 里入库的文件数只许减少，新增图或新评审组会被 `pnpm health:check` 拦下。
 - 不为变绿而跳过、放宽或删除断言；先分清产品回归、预期变化、测试缺陷、环境与时序。

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { passed, writeReport } from "../scripts/ci-linux-probe/report.mjs";
 import { failureDetail, parseCounts, statusOf, testEnvironment } from "../scripts/ci-linux-probe/run.mjs";
 import { selectTests } from "../scripts/ci-linux-probe/select.mjs";
+import { blockingJobs, blockingTestRuns, jobBlock, workflow } from "./fixtures/ci-workflow.js";
 
 // specs/repository-anti-corruption §4.7 (W1-11, decision #14): the Linux probe that CI runs as a non-blocking job. Each rule is
 // mutation-verified here on a scratch repository of small fake test files: a file is excluded as a browser file by its name,
@@ -423,15 +424,6 @@ test("on this repository: no browser file is run, known darwin and live files ar
 
 // Decision #14: the probe informs and does not block, and its own rules are checked by the blocking job. It stays that way when the
 // product subset it led to joins Verify (tests/ci-product-subset.test.ts holds the same lines for that job).
-const workflow = readFileSync(fileURLToPath(new URL("../.github/workflows/ci.yml", import.meta.url)), "utf8");
-const jobBlock = (name: string) => {
-  const lines = workflow.split("\n");
-  const start = lines.findIndex((line) => line === `  ${name}:`);
-  assert.notEqual(start, -1, `ci.yml has a job ${name}`);
-  const length = lines.slice(start + 1).findIndex((line) => /^  [A-Za-z0-9_-]+:\s*$/.test(line));
-  return lines.slice(start, length === -1 ? undefined : start + 1 + length).join("\n");
-};
-
 test("ci.yml: the Linux probe is an ubuntu job that cannot fail the workflow and that Verify does not wait for", () => {
   const probeJob = jobBlock("linux-probe");
   assert.match(probeJob, /^    runs-on: ubuntu-latest$/m);
@@ -447,6 +439,6 @@ test("ci.yml: the Linux probe is an ubuntu job that cannot fail the workflow and
   assert.match(jobBlock("verify"), /^    name: Verify$/m, "the required check keeps its name");
 });
 
-test("ci.yml: the blocking job runs the probe's own rules", () => {
-  assert.match(jobBlock("architecture-boundaries"), /run: node scripts\/run-tests\.mjs tests\/ci-linux-probe\.test\.ts$/m);
+test("ci.yml: a blocking job runs the probe's own rules", () => {
+  assert.ok(blockingTestRuns().some((words) => words.includes("tests/ci-linux-probe.test.ts")), `a job that verify needs (${blockingJobs().join(", ")}) runs tests/ci-linux-probe.test.ts`);
 });

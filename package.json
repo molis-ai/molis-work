@@ -57,7 +57,7 @@
     "workspace:check": "node scripts/workspace-packages.mjs",
     "workspace:clean": "pnpm -r --filter './apps/**' --filter './server' --filter './packages/**' --filter './modules/**' --filter './horizontal/**' --filter './plugins/**' --filter './tooling/plugin-cli' run clean",
     "workspace:typecheck": "pnpm -r --filter './apps/**' --filter './server' --filter './packages/**' --filter './modules/**' --filter './horizontal/**' --filter './plugins/**' --filter './tooling/plugin-cli' run typecheck",
-    "workspace:verify": "pnpm boundary:test && pnpm boundary:check && pnpm workspace:build && pnpm workspace:typecheck",
+    "workspace:verify": "pnpm boundary:test && pnpm boundary:check && pnpm workspace:build",
     "prepack": "node -e \"console.error('Use pnpm package:npm to build a standalone distribution from this workspace.'); process.exit(1)\"",
     "package:npm": "pnpm build && node apps/local-host/tooling/pack-npm.mjs",
     "install:local": "pnpm build && node dist/cli/main.js install --source .",

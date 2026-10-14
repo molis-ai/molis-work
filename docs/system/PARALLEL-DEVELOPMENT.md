@@ -41,7 +41,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 | 公共合同（`packages/contracts/src/` 下） | `platform/plugin.ts`、`platform/actions.ts`、`services/agent-host.ts`、`services/assistant.ts` |
 | 登记与门禁 | `scripts/workspace-packages.mjs`、`scripts/check-package-boundaries.mjs`、根 `package.json` 与 `pnpm-lock.yaml`、`tooling/gates/baseline.json`、`.github/workflows/ci.yml`、`tests/ci-product-subset.txt`（CI 产品子集的清单，见下） |
 | 文档 | `AGENTS.md`、`DESIGN.md`、`docs/SSOT-MATRIX.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`skills/molis-plugin-dev/SKILL.md`、`specs/README.md`、`specs/BACKLOG.md`、`specs/repository-anti-corruption/spec.md` |
-| 巨大文件 | `apps/workbench/src/scripts/client/assistant-island.ts`、`horizontal/agent-host/src/adapters/prologue-node.ts`、`apps/local-host/src/assistant/assistant-service.ts`、`horizontal/agent-host/src/adapters/announce-guard.ts` |
+| 巨大文件 | `apps/workbench/src/scripts/client/assistant-island.ts`、`apps/local-host/src/assistant/assistant-service.ts`、`horizontal/agent-host/src/adapters/announce-guard.ts` |
 
 `apps/local-host/src/project-plugins.ts` 不到 7 次，但 `AGENTS.md` 把每个新内置插件的装配点指到它的监督器条目，按枢纽对待。`tests/ci-product-subset.txt`（2026-10-09 才有，谈不上次数）也按枢纽对待：它点名三百多个用例，其中任何一个改名或删除，都要在同一个 PR 里改它的那一行，不然 `pnpm health:check` 变红（见第 3 节）；一行一个文件，解冲突时两边的行都留。
 

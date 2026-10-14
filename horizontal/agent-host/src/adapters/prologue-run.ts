@@ -394,7 +394,7 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
 
 /** What the SDK is asked to start: the session, workspace, history, children, context, compaction, model and agent. */
 function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, parts: {
-  readonly session: Session; readonly root: { ref: ExactRef<"authorized-root"> } | undefined; readonly business: boolean; readonly credentialRef: string;
+  readonly session: Session; readonly root: { ref: ExactRef<"authorized-root"> } | undefined; readonly business: boolean; readonly credentialRef: ExactRef<"credential">;
   readonly childRoles: Map<string, ChildRole>; readonly childRoots: PrologueSubagentRoot[]; readonly runTools: string[];
   readonly character: { ref: ExactRef<"character"> }; readonly textResources: Array<{ ref: ExactRef<"resource">; as: "original" }>;
   readonly pinnedMemory: Awaited<ReturnType<RunDeps["platformMemory"]["refsFor"]>>;

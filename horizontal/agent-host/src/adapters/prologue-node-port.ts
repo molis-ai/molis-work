@@ -15,7 +15,7 @@ import type { createPrologueSchedule } from "./prologue-schedule.js";
 import { createPrologueSubagents } from "./prologue-subagents.js";
 import { surfaceRules, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { codingExecutionRules } from "./prologue-taskboard.js";
-import { PrologueAdapterError, type PrologueAgentAdapterPorts, type PrologueRuntimePort } from "./prologue.js";
+import { PrologueAdapterError, type PrologueAdapterOptions, type PrologueRuntimePort } from "./prologue.js";
 import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
 
@@ -101,7 +101,7 @@ export interface PortDeps extends RunDeps {
   readonly recovery: ReturnType<typeof createPrologueRecovery>;
   readonly checkpoints: ReturnType<typeof createPrologueCheckpoints> | undefined;
   readonly readQuestion: (run: AgentRunRef, id: string, revision: number) => ReturnType<Runtime["effects"]["pendings"]["read"]> extends Promise<infer P> ? Promise<NonNullable<P>> : never;
-  readonly shutdown: () => Promise<void>;
+  readonly shutdown: PrologueRuntimePort["shutdown"];
 }
 
 /** Marking a session as priority: the other sessions working on the same files are asked to give them up for now. */
@@ -280,7 +280,7 @@ export function questionReader(runtime: Runtime) {
 }
 
 /** The adapter's answer path: the original question, still open in a live run, answered in its own kind. */
-export function answerPending(deps: Pick<PortDeps, "runtime" | "host" | "state" | "readQuestion">): NonNullable<PrologueAgentAdapterPorts["answerPending"]> {
+export function answerPending(deps: Pick<PortDeps, "runtime" | "host" | "state" | "readQuestion">): NonNullable<PrologueAdapterOptions["answerPending"]> {
   return async (run, answer) => {
     const { runtime } = deps;
     if (!Number.isInteger(answer.pending_revision) || answer.pending_revision! < 1) {

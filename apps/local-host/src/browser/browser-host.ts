@@ -1,3 +1,4 @@
+import { browserErrors, isBrowserError } from "./errors.js";
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
@@ -39,10 +40,6 @@ interface Running {
 const MAX_CAPTURE_CHARS = 20_000;
 const DEFAULT_VIEWPORT: BrowserViewport = { width: 1024, height: 720, dpr: 1 };
 const SEARCH_URL = "https://www.bing.com/search?q=";
-
-export class BrowserError extends Error {
-  constructor(readonly code: BrowserProblemCode, message: string) { super(message); this.name = "BrowserError"; }
-}
 
 /** What the person typed into the address bar → where to go. Only web addresses load; other schemes are refused. */
 export function browserAddress(input: string): { url: string } | { blocked: string } {
@@ -99,14 +96,14 @@ export class BrowserHost {
 
   /** The running browser, started if needed. Failures become the page's problem, in the person's words. */
   async browser(): Promise<Running> {
-    if (this.closed) throw new BrowserError("browser.start_failed", "浏览器服务已经关闭");
+    if (this.closed) throw browserErrors.start_failed("浏览器服务已经关闭");
     if (this.current && !this.current.cdp.closed) return this.current;
     this.running ??= this.launch().then(running => {
       this.current = running; this.problem = null;
       return running;
     }, error => {
       this.running = null;
-      this.problem = error instanceof BrowserError ? { code: error.code, message: error.message } : { code: "browser.start_failed", message: "浏览器没有启动起来，请重试" };
+      this.problem = isBrowserError(error) ? { code: error.code, message: error.message } : { code: "browser.start_failed", message: "浏览器没有启动起来，请重试" };
       for (const page of this.pages.values()) page.hostChanged();
       throw error;
     });
@@ -139,7 +136,7 @@ export class BrowserHost {
 
   private async launch(): Promise<Running> {
     const located = (this.options.locate ?? locateBrowser)();
-    if (!located) throw new BrowserError("browser.not_found", "没有找到可用的浏览器。请安装 Google Chrome（或 Chromium、Microsoft Edge），然后重试。");
+    if (!located) throw browserErrors.not_found("没有找到可用的浏览器。请安装 Google Chrome（或 Chromium、Microsoft Edge），然后重试。");
     this.engine = located.name;
     for (const dir of [this.profile, this.downloadDir, this.uploadDir]) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     await this.stopLeftover();
@@ -164,7 +161,7 @@ export class BrowserHost {
     fs.writeFileSync(this.pidFile, String(child.pid ?? ""), { mode: 0o600 });
     const endpoint = await new Promise<string>((resolve, reject) => {
       let log = "";
-      const timer = setTimeout(() => fail(new BrowserError("browser.start_failed", "浏览器启动超时，请重试")), this.options.launchTimeoutMs ?? 20_000);
+      const timer = setTimeout(() => fail(browserErrors.start_failed("浏览器启动超时，请重试")), this.options.launchTimeoutMs ?? 20_000);
       const fail = (error: Error) => { clearTimeout(timer); child.kill("SIGKILL"); reject(error); };
       child.stderr!.setEncoding("utf8");
       child.stderr!.on("data", (chunk: string) => {
@@ -172,10 +169,10 @@ export class BrowserHost {
         const match = /DevTools listening on (ws:\/\/\S+)/u.exec(log);
         if (match) { clearTimeout(timer); resolve(match[1]!); }
       });
-      child.once("error", () => fail(new BrowserError("browser.start_failed", `${located.name} 没有启动起来`)));
+      child.once("error", () => fail(browserErrors.start_failed(`${located.name} 没有启动起来`)));
       child.once("exit", () => fail(/profile|SingletonLock|in use/iu.test(log)
-        ? new BrowserError("browser.profile_in_use", "浏览器资料正被另一个进程使用。请关闭另一个 Molis Work 窗口后重试。")
-        : new BrowserError("browser.start_failed", `${located.name} 启动后立刻退出了`)));
+        ? browserErrors.profile_in_use("浏览器资料正被另一个进程使用。请关闭另一个 Molis Work 窗口后重试。")
+        : browserErrors.start_failed(`${located.name} 启动后立刻退出了`)));
     });
     const cdp = await CdpConnection.open(endpoint);
     const running: Running = { child, cdp, engine: located.name, downloads: this.downloadDir };
@@ -624,7 +621,7 @@ export class BrowserPage {
   /** Give the page the files the person chose for its file chooser. Paths are under the Host's upload directory. */
   async chooseFiles(id: string, files: readonly string[]): Promise<void> {
     const chooser = this.fileChooser;
-    if (!chooser || chooser.id !== id || !this.connection) throw new BrowserError("browser.load_failed", "页面已经不再等待选择文件");
+    if (!chooser || chooser.id !== id || !this.connection) throw browserErrors.load_failed("页面已经不再等待选择文件");
     this.fileChooser = null; this.emit();
     await this.connection.send("DOM.setFileInputFiles", { files: [...files], backendNodeId: chooser.backendNodeId }, chooser.sessionId);
   }
@@ -667,7 +664,7 @@ export class BrowserPage {
   async evaluate(expression: string): Promise<unknown> {
     const top = await this.ensure();
     const result = await this.connection!.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }, top.sessionId) as { result?: { value?: unknown }; exceptionDetails?: unknown };
-    if (result.exceptionDetails) throw new BrowserError("browser.load_failed", "页面脚本出错");
+    if (result.exceptionDetails) throw browserErrors.load_failed("页面脚本出错");
     return result.result?.value;
   }
 

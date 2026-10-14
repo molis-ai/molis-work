@@ -277,3 +277,17 @@ test("sign-ins last: a site's cookies survive the browser closing, and a browser
     await rm(home, { recursive: true, force: true });
   }
 });
+
+test("BROWERR-01/BROWERR-02: no installed browser refuses with its current code and original message", async () => {
+  const home = await mkdtemp(join(tmpdir(), "browser-no-engine-"));
+  const browsers = new BrowserHost({ homeDirectory: home, locate: () => null });
+  try {
+    await assert.rejects(browsers.browser(), {
+      code: "browser.not_found", kind: "invalid",
+      message: "没有找到可用的浏览器。请安装 Google Chrome（或 Chromium、Microsoft Edge），然后重试。",
+    });
+  } finally {
+    await browsers.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});

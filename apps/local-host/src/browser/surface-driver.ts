@@ -1,7 +1,8 @@
+import { browserErrors } from "./errors.js";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceObservationKind } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
-import { browserAddress, BrowserError, shortcutCommands, type BrowserPage } from "./browser-host.js";
+import { browserAddress, shortcutCommands, type BrowserPage } from "./browser-host.js";
 
 /**
  * The side panel page as the Assistant sees and drives it (specs/archive/side-panel D05–D10). Prologue decides whether each
@@ -87,7 +88,7 @@ function keyOf(name: string): { key: string; code: string; keyCode: number; text
   if (/^[a-z]$/iu.test(name)) return { key: name, code: `Key${name.toUpperCase()}`, keyCode: name.toUpperCase().charCodeAt(0), text: name };
   if (/^\d$/u.test(name)) return { key: name, code: `Digit${name}`, keyCode: name.charCodeAt(0), text: name };
   if (/^F([1-9]|1[0-2])$/u.test(name)) return { key: name, code: name, keyCode: 111 + Number(name.slice(1)) };
-  throw new BrowserError("browser.load_failed", `认不出按键「${name}」`);
+  throw browserErrors.load_failed(`认不出按键「${name}」`);
 }
 
 /** Uploads come from a path Prologue has already checked against its floor table (never `.ssh` and the like). */
@@ -97,9 +98,9 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
   const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
   const releaseControl = () => { if (page.controlMode === "assistant") page.setControl({ mode: "person", work_id: null, activity: null }); };
   // The person turned the Assistant's use of the browser off: a round that already has the page stops looking and acting too.
-  const assertEnabled = () => { if (!enabled()) throw new BrowserError("browser.load_failed", "用户关掉了「允许助理使用侧栏浏览器」：不能再查看或操作这个页面。"); };
+  const assertEnabled = () => { if (!enabled()) throw browserErrors.load_failed("用户关掉了「允许助理使用侧栏浏览器」：不能再查看或操作这个页面。"); };
   const mark = (sessionId: string | null, summary: string, point: { x: number; y: number } | null) => {
-    if (page.controlMode === "taken-over") throw new BrowserError("browser.load_failed", "用户已接手这个页面，助理暂停操作。等用户交还后，先重新观察页面。");
+    if (page.controlMode === "taken-over") throw browserErrors.load_failed("用户已接手这个页面，助理暂停操作。等用户交还后，先重新观察页面。");
     page.setControl({ mode: "assistant", work_id: sessionId, activity: { summary, point, at: new Date().toISOString() } });
     clearTimeout(idle);
     idle = setTimeout(releaseControl, IDLE_RELEASE_MS);
@@ -132,7 +133,7 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
       await page.ensure();
       // A site the person blocked is not even looked at, from the moment they said so (Prologue's own deny rule joins
       // when the runtime next starts).
-      if (blocked(page.snapshot().origin)) throw new BrowserError("browser.load_failed", "用户禁止助理查看或操作这个网站。");
+      if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
       // Looking is the Assistant using the page too: the panel shows it (and opens itself) before any action.
       if (page.controlMode !== "taken-over") mark(context?.session_id ?? null, `正在查看 ${origin()}`, null);
       if (!page.snapshot().origin && kind !== "screenshot") {
@@ -180,7 +181,7 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
     async perform(action: HostSurfaceAction, context) {
       const sessionId = context.session_id;
       assertEnabled();
-      if (blocked(page.snapshot().origin)) throw new BrowserError("browser.load_failed", "用户禁止助理查看或操作这个网站。");
+      if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
       const session = await page.session();
       const send = (method: string, params: Record<string, unknown>) => session.send(method, params);
       switch (action.what) {
@@ -200,7 +201,7 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
           const parts = action.keys.flatMap(entry => entry.split("+")).map(part => part.trim()).filter(Boolean);
           const modifiers = parts.reduce((mask, part) => mask | (MODIFIERS[part.toLowerCase()] ?? 0), 0);
           const main = parts.filter(part => MODIFIERS[part.toLowerCase()] === undefined);
-          if (main.length > 1) throw new BrowserError("browser.load_failed", "一次只能按一个键（可以加 Ctrl、Shift 等修饰键）；按顺序按几个键请分几次做。");
+          if (main.length > 1) throw browserErrors.load_failed("一次只能按一个键（可以加 Ctrl、Shift 等修饰键）；按顺序按几个键请分几次做。");
           mark(sessionId, `在 ${origin()} 按下 ${parts.join(" + ")}`, null);
           const key = main.length ? keyOf(main[0]!) : keyOf(parts.at(-1) ?? "");
           const text = modifiers & (2 | 4) ? undefined : key.text;
@@ -219,7 +220,7 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
         }
         case "navigate": {
           const address = browserAddress(action.url);
-          if ("blocked" in address) throw new BrowserError("browser.blocked_scheme", `只能打开网页地址，不能打开「${address.blocked}:」`);
+          if ("blocked" in address) throw browserErrors.blocked_scheme(`只能打开网页地址，不能打开「${address.blocked}:」`);
           mark(sessionId, `打开 ${new URL(address.url).origin}`, null);
           await page.navigate(address.url);
           await settle();
@@ -233,14 +234,14 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
         case "upload": {
           const file = path.resolve(path.sep, ...action.from);
           const chooser = page.snapshot().file_chooser;
-          if (!chooser) throw new BrowserError("browser.load_failed", "网页现在没有在等待选择文件：先点击网页上的上传按钮。");
+          if (!chooser) throw browserErrors.load_failed("网页现在没有在等待选择文件：先点击网页上的上传按钮。");
           mark(sessionId, `向 ${origin()} 上传 ${path.basename(file)}`, null);
           await page.chooseFiles(chooser.id, [file]);
           await settle();
           return;
         }
         case "download": {
-          throw new BrowserError("browser.load_failed", "侧栏浏览器里的下载由用户在下载提示里保存；助理不能把文件存到本机指定位置。");
+          throw browserErrors.load_failed("侧栏浏览器里的下载由用户在下载提示里保存；助理不能把文件存到本机指定位置。");
         }
       }
     },

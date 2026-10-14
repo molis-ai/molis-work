@@ -1,9 +1,10 @@
+import { browserErrors, isBrowserError } from "./errors.js";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readNativePluginJsonBody, writeNativePluginJsonResponse } from "../native-plugin-http.js";
-import { BrowserError, type BrowserHost } from "./browser-host.js";
+import { type BrowserHost } from "./browser-host.js";
 import type { BrowserSiteDecisions } from "./browser-surfaces.js";
 
 /**
@@ -72,7 +73,7 @@ export async function handleBrowserHttp(request: IncomingMessage, response: Serv
         const name = String(file.name ?? "file").replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").slice(0, 200) || "file";
         const bytes = Buffer.from(String(file.data ?? ""), "base64");
         total += bytes.byteLength;
-        if (total > MAX_UPLOAD_BYTES) throw new BrowserError("browser.load_failed", "文件太大了（上限 64 MB）");
+        if (total > MAX_UPLOAD_BYTES) throw browserErrors.load_failed("文件太大了（上限 64 MB）");
         const target = path.join(dir, name);
         fs.writeFileSync(target, bytes, { mode: 0o600 });
         return target;
@@ -97,7 +98,7 @@ export async function handleBrowserHttp(request: IncomingMessage, response: Serv
     json(405, { error: "不支持这个请求" });
     return true;
   } catch (error) {
-    json(error instanceof BrowserError ? 409 : 500, { error: error instanceof Error ? error.message : String(error) });
+    json(isBrowserError(error) ? 409 : 500, { error: error instanceof Error ? error.message : String(error) });
     return true;
   }
 }

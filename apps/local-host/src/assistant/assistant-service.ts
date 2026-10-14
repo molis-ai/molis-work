@@ -3,7 +3,7 @@ import { FOLLOW_UP_KIND, followUpTask, enqueueCurrentFollowUp, runDueFollowUp } 
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, requireSynchronous, actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, actionEffect, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorBody, actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 import { describeReview } from "./assistant-review-words.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
@@ -25,7 +25,7 @@ import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from ".
 import { identity } from "./assistant-relations.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, type DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
-import { typedTexts, type AssistantStore, type StoredCard, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
+import { typedTexts, type AssistantStore, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { assistantMemoryTools } from "./assistant-memory-tools.js";
 import { randomUUID } from "node:crypto";

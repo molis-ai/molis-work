@@ -681,7 +681,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-interim-p1-cu-image-acceptance.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-interim-p1-cu-image-acceptance.tgz
         version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-interim-p1-cu-image-acceptance.tgz
       '@tauri-apps/api':
         specifier: 2.11.1

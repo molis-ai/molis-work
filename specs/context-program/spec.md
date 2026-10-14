@@ -971,7 +971,7 @@ W2 自己的验收（在 T01–T09 之外）：
   - 浏览器：浮条与情境用例在 10-13 早上的树上通过（20.3）；本轮跑了 `context-program-slice.e2e`（5/5）与 `goal-event-document.e2e`（3/3）。6 个分屏用例在全量里通过，不再是待查项。
 - **开发者实操、用户验收**：同 20.1，没有变化。
 - **20.4 里已经做完的**：第 1 条（W1-4 回归）、第 2 条（与 main 的冲突）、第 3 条（6 个分屏用例，全量里通过）、第 4 条（小批浏览器复跑，含在全量里）。
-- **还没做的**：W2-02、W2-05、W2-08 的用例和 `contextual.md` 的浮条章节（20.4 第 5、6 条）；W1-9 门禁 PR（要先问用户）；20.4 第 8 条的后续各项；真实 Jev 评估与桌面原生拖出（要用户授权）。
+- **还没做的**：W2-02、W2-05、W2-08 的用例和 `contextual.md` 的浮条章节（20.4 第 5、6 条，2026-10-14 在做，见 20.11）；20.4 第 8 条的后续各项；真实 Jev 评估与桌面原生拖出（要用户授权）。W1-9 **不需要门禁 PR**（见 20.4 第 7 条的更正）。
 - **下一步**：统筹按条件合 #411（`Verify` 绿、与 main 同步、secrets 与 health `--base` 过、证据入本文、读过 diff），然后从 20.5 第 4 步接着做。
 
 本节取代第 17 节。读它的人可能在另一台机器上，看不到本机的工作树、锁目录和别的会话：下面凡是本线要用的事实都写在这里，链接只是出处。本节写于用户 2026-10-13 的「先暂停一下」之后，所以「没做」里的事都等恢复通知再动。
@@ -1029,7 +1029,7 @@ W2 自己的验收（在 T01–T09 之外）：
 4. **小批浏览器用例复跑**：`contextual-interaction`、`context-toolbar`、`pages-actions`、`assistant-dock-ime`、`workbench-tab-workspace`、`workbench-deferred-clients`，确认「离开文档浮条与面板消失」的修复，并看 `assistant-dock-ime`（第一轮败，与底栏行无关，疑似负载）。
 5. **缺测试的验收编号**：W2-02（窗格里的浮条画在窗格自己的文档里；悬停或聚焦的按钮在判断到达时不移动；Esc 收起记「忽略」——需要一条分屏用例）、W2-05（⌘K 打开链接面板）、W2-08（开场建议选了动作后出错，经 `host.showToast` 显示）。W2-04 已改成「等着的结果不丢」（§19.8），对应用例在 `contextual-interaction.e2e`。
 6. **`skills/molis-plugin-dev/contextual.md` 的浮条章节**：给插件作者讲怎么发布工具、接收点击、请求面板、上报 `screen`。要点：根元素上派发 `molis:context-tools`（`{ context_id, groups }`）；点击回到同一个元素上的 `molis:context-tool-invoke`；`molis:context-panel-open` 可取消，浮条接住就 `preventDefault()`，没接住自己放表单，`node: null` 收起，等模型的结果带 `keep: true`；上报焦点时带 `screen: { rect }`（本文档视口坐标，纯数据，滚动后用同一个 `context_id` 再报）。样例：`plugins/native/pages/src/client.ts`。
-7. **W1-9 的门禁 PR**：让 API 快照门禁支持子路径（统筹已同意，要**单独**提 PR，因为改的是门禁本身；放宽或改门禁一律先问用户）。
+7. **W1-9 的门禁 PR**：~~让 API 快照门禁支持子路径~~。**更正（2026-10-14）**：不需要。快照工具按插件 SDK 的 `exports` 逐个子路径出快照，是通用的（19.8 的 W1-9 一行早已这样记）；W1-9 的页面端子路径随第一个收发方一起上，那时 `pnpm api:update` 就会多出它的快照文件。用户 10-13 同意的「单独的门禁 PR」因此不开。
 8. 还有（更靠后）：W1-8 的覆盖率门禁；SDK 页面端辅助函数；`attach` 的起草（W3）；段落把手入口（Pages 的 `renderMenu` 先要拆，排在 W7）；选区冻结（W2 决定 8 的原意，现在只做了「等着的结果不丢」）；右栏改版 W2'（side-shelf P1）、中枢接右栏与助理的 DOM 线（W3）、落点事件随 W3 登记。
 
 ### 20.5 下一步，按顺序
@@ -1096,3 +1096,12 @@ node scripts/run-tests.mjs tests/context-toolbar.e2e.test.ts tests/contextual-in
 W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <隔离标识> --port 4290`，端口 4290 写在本树未入库的 `.claude/launch.json`。产品里的浮条没有单独的预览入口：用 `tests/fixtures/goal-browser.ts` 的隔离 Home（`openGoalBrowser`），e2e 就是这样走的。
 
 **不用构建就能量页面字节**（构建要排锁，量一次要几分钟）：用一个 Node 加载钩子把 `.ts` 用 TypeScript 的 `transpileModule` 转成 JS、把 `@molis-ai/molis-work-*` 指到各包的 `src`，再 `import` 脚本模块、对导出的脚本字符串取 `Buffer.byteLength`。用 TypeScript 转译而不是 esbuild，因为页面程序里 `.toString()` 带进去的函数文本要和 `tsc` 的产出一致；量 HEAD 和工作树各一次比较。这样量出的数与构建后的 `page-assets.mjs` 一致（工作台脚本、`pages.js` 都对上了）。最终以构建后的 `page-assets.mjs` 为准。
+
+### 20.11 W2 的验收用例与浮条章节（2026-10-14，分支 `feature/context-w2-tests-docs`）
+
+- 新用例 `tests/context-toolbar-panes.e2e.test.ts`：
+  - **W2-02**：分屏后，窗格里的浮条画在窗格自己的文档里、在窗格之内，顶层文档不画；聚焦浮条上的按钮时窗格把「手在哪几个键上」报给顶层（`workbench-context-hold` 带 `pinned`），所以判断这时到达也不挪它们；Esc 收起，并按「忽略」上报（`/api/contextual/signal`），不记任何接受。「判断到达时不移动」本身要接判断（本机没有判断连接），这里证明的是窗格把保位报了上去。
+  - **W2-05**：浮条在时，⌘B 照常加粗、浮条上的加粗变为按下；⌘K 打开链接表单，停靠在浮条下面并拿到焦点（Linux 上是 Ctrl）。
+  - **W2-08**：开场建议里一个已经不在候选里的动作，选了以后用错误提示条说明原因。
+- `skills/molis-plugin-dev/contextual.md`：「六、浮条上的工具」写发布工具、接收点击、请求面板、报告 `screen`，原「还没有的」改为第七节（页面端辅助函数与落点）。
+- 结果：（运行后补）

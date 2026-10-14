@@ -60,8 +60,10 @@ test("AC-17: the contract's closed sets are the SDK's (19 reasons, six types)", 
 });
 
 test("AC-17: the Runtime is offered only the types every surface that draws questions can draw", () => {
-  assert.deepEqual(hostQuestionTypes(), ["choice"], "until a surface learns a type, the Runtime stays on choice");
-  assert.deepEqual(ASSISTANT_QUESTION_TYPES, ["choice"]); assert.deepEqual(CODING_QUESTION_TYPES, ["choice"]);
+  // Offering even "choice" puts the model on the typed form, which neither surface draws yet: the Host offers nothing and
+  // the Runtime keeps the plain question (the model-facing contract is guarded by issue-clarification-page ISSUE-34).
+  assert.deepEqual(hostQuestionTypes(), [], "until both surfaces draw the typed questionnaire, nothing is offered");
+  assert.deepEqual(ASSISTANT_QUESTION_TYPES, []); assert.deepEqual(CODING_QUESTION_TYPES, []);
   assert.deepEqual(hostQuestionTypes([["choice", "text", "date"], ["choice", "date"]]), ["choice", "date"]);
   assert.deepEqual(hostQuestionTypes([["choice", "text"], []]), [], "a surface that draws nothing leaves nothing to offer");
   assert.deepEqual(hostQuestionTypes([["choice", "text"]]), ["choice", "text"]);

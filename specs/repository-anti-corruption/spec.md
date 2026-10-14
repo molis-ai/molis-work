@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，未达到整条防腐线完成标准（2026-10-14接续）。I4/I5与BL-133已合入；W2-10 A1–A4/C已合，D的42文件108条（107通过1显式网络后补7/7）与浏览器5/5完成，#486等CI；E与I8共享全量未完成。#477已合main b15ba0b1；#478定向72/72、构建/边界/health通过等CI，#479定向2/2通过。I8 14整体build/types/API/actions/health通过，19文件定向147条141通过6失败、0skip/cancel，Schedule关闭交错和禁止迟到副作用通过。七资源路径增长待等价整理；boundary仅独立临时SDK路径，正式上游/vendor问题仍待回答。维护八41库只读clone及明示JSON37槽统计，完整映射/演练/原库窗口待；第4–6波及最终场景、手册、度量、两份交付沿原路线继续。
+状态：执行中，未达到整条防腐线完成标准（2026-10-14接续）。I4/I5与BL-133已合入；W2-10 A1–A4/C已合，D的42文件108条（107通过1显式网络后补7/7）与浏览器5/5完成，#486已合main 6588ee531；E与I8共享全量未完成。#477已合；#478定向72/72、构建/边界/health通过并同步6588的新CI进行中，#479定向2/2通过。I8 14整体build/types/API/actions/health通过，19文件定向147条141通过6失败、0skip/cancel，Schedule关闭交错和禁止迟到副作用通过。七资源路径增长待等价整理；boundary仅独立临时SDK路径，正式上游/vendor问题仍待回答。维护八41库只读clone及明示JSON37槽统计，完整映射/演练/原库窗口待；第4–6波及最终场景、手册、度量、两份交付沿原路线继续。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2315,3 +2315,5 @@ J1按已有plugin owner表分小片接续：Runtime/Manifest自己的plugin_<原
 W2-10 D #486在2026-10-14T02:54:06Z合入main 6588ee531c2f89bae87105b1d12d799cf3f4168d；精确head c1d3f000b、基点b15，5必需+Product完成SUCCESS、freshsecrets04扫描835相关行通过（publish03原证据保持），Linux仍报告中。未据D关闭E/I8共享全量。#478现行同步b6350551b相对60b生产/脚本/package/skills零变化，health03/freshsecrets05通过，新CI已触发；第一次误推Root新建分支feat/lingguang-insert-selection-locked，确认exactoid后带lease删掉，只推真正PR源feat/lingguang-reply-preview，未动别人分支或主树。#479实际2/2+health01/secrets01通过，仍待parent序列。
 
 资源第二片ca313bc88的独立只读review发现P1：document全局被当局部缩到docEl导致Workflow启动ReferenceError；已保存6afccfc1b恢复16引用，不新增alias。独立checker全展开359、42受影响完整组合，literal/regex/template/property key与真实声明绑定验证：其余35组合沿第一次有效证据、修后7Workflow组合定向全部通过，未剩P1。Root首次proof错误Source谓词、缓存循环JSON和raw未实际应用映射的逆名导致各工具证明失败，均未据它验收；独立绑定证据经实际diff核对接受。第二片现行Sourceworkbench省2922、Workflow1979、Coding共同timeline省50，真实served/动态仍待。R6 e9eef4758经独立5TS/43literal/28map逆名、全源码旧码0/API61快照匹配/healthowner下降38，无P1，仍仅Source接受。
+
+J1B仅Plugin Event Bus及port/input-group真实生产码归plugin：event_*、subscriber_*、port_*、input_group_*分别保留family为plugin.<原原因>；J1A已经改完的plugin_前缀不重复。J1B-01：事件发布拒绝、订阅撤权、未知结果隔离及显式恢复仍保留游标/安装世代/0迟到副作用，现行owner码从原类/回包贯通；J1B-02：端口/输入组仍拒不匹配、过期输入与外部固定成果，原版/对象与SQL/业务事件名不变；同词payload_invalid只在PluginEventDeliveryFailure合同和生产消费里迁，不改其他owner的同词码；J1B-03：类型API、实际producer/consumer无旧alias、原正文逆名一致，现有事件恢复/连接和共享全量/资源/门禁通过后验收。持久cursor/error字段完整映射交维护八，历史日志保持。这份Source依赖J1A c4205ad21，不提前运行或合并。

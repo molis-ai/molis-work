@@ -124,7 +124,7 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
   - 导航与区域从 Manifest 派生（`BUILTIN_PLUGIN_CATALOG`），不按插件名写分支。
   - 目录条目可标 `developer: true`（Text Stats，平台的最小参考插件和测试依托）：只在 Host 开着开发者模式时进插件选择器和市场（`pluginMarketCards({ developerMode })`、`renderPluginRail`/`renderPluginMarket` 的 `developerMode`，由页面视图的 `developer_mode` 传入）；仍然登记、仍可安装，项目里已经添加的照常显示、可移除（W2-18 决定 5，2026-10-09）。开发者模式只是 Host 进程的启动开关（`MOLIS_WORK_DEVELOPER_MODE=1`），不是用户设置，设置里没有开关（用户 2026-10-09 已定，见 `apps/local-host/README.md`）。
   - 目录条目的浏览器脚本发出去时，可经 `served` 去掉整行 `//` 注释、独占行的 `/* */` 注释和每行行首的缩进（页面资源预算只许减少；`/* */` 与代码共用一行的不动；脚本里有跨行字符串或模板时缩进是内容，不能用它）：作者在源码里保留注释和缩进，`tests/plugin-client-served.test.ts` 证明发出去的是同一段程序；用它的条目要进这个测试的名单。
-  - 构建末尾还通过 `scripts/compact-client-string.mjs` 去掉助理脚本和目录中 `clientFactory` 的 JavaScript 空白与注释；保留标识符、字符串内容、插件公开脚本导出和目录的其他字段。该脚本按构建后的目录派生目标，不维护第二份插件名单；一致性由 `tests/compact-client-string.test.ts` 与上述交付脚本测试验证。
+  - 构建末尾还通过 `scripts/compact-client-string.mjs` 压缩助理脚本、工作台主程序的交付副本和目录中 `clientFactory` 的 JavaScript 空白与注释，并做等价语法简化；保留标识符、字符串内容、公开脚本原文和目录的其他字段。该脚本按构建后的目录派生目标，不维护第二份插件名单；一致性由 `tests/compact-client-string.test.ts` 与上述交付脚本测试验证。
   - 内置 build 只在 `builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 绑定一次 Manifest、目录信息、Agent 正文与 UI/静态资源。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；新的内置插件只走 Plugin Runtime 装配，但仍在同一目录登记一条（该测试要求每个 Runtime 装配的 id 都有目录条目），所以目录本身不是冻结名单；`plugin-catalog.ts` 和 `plugin-workbench.ts` 派生相应投影。资源 order 保持 CSS 与客户端初始化顺序，不改变 Manifest 的导航 order。公共动作发现与授权仍归 Kernel/Host。
   - 插件的 Agent 提示词与方法正文随目录条目的 `agent` 声明，Manifest 只写声明。
   - 界面文字走 i18n，新增中文文案同时补英文，缺英文、词典没并进 `EN` 由 `pnpm health:check` 拦下（CI 里也跑；做法与稳定键的迁移见上节「界面文字」）；控件只用 design-system，不引入系统弹窗或原生下拉。

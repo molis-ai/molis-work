@@ -5,7 +5,7 @@ import { transform } from "esbuild";
 import ts from "typescript";
 
 // Browser programs are exported as strings, so normal module compilation cannot compact them.
-// Keep source and string contents intact; only strip JavaScript trivia in the built client.
+// Keep source, binding names and literal contents intact; compact only the built client.
 const [file, name, mode = "factory"] = process.argv.slice(2);
 if (!file || !name || !["factory", "program", "catalog"].includes(mode)) {
   throw new Error("usage: compact-client-string.mjs <built-module> <export> [factory|program|catalog]");
@@ -15,7 +15,7 @@ async function compact(value, factory = true) {
   if (typeof value !== "string") throw new Error(`Expected a client string: ${name}`);
   const prefix = "globalThis.__molisClient=";
   const result = await transform(factory ? `${prefix}${value};` : value, {
-    minifyWhitespace: true, target: "es2022", charset: "utf8", legalComments: "none",
+    minifyWhitespace: true, minifySyntax: true, target: "es2022", charset: "utf8", legalComments: "none",
   });
   const code = result.code.trim();
   if (factory && (!code.startsWith(prefix) || !code.endsWith(";"))) throw new Error(`Unexpected client factory output: ${name}`);

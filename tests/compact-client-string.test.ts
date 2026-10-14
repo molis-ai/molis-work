@@ -46,3 +46,32 @@ test("RING-06 delivery compaction derives factories from the catalog and keeps t
   assert.deepEqual(built.CATALOG[1], { project_plugin_id: "without-client", workbench: { contributions: [] } });
   assert.ok((await readFile(path, "utf8")).includes('export const SOURCE ='));
 });
+
+test("RING-06 program delivery keeps template text, return newlines and side-effect order", async t => {
+  const directory = await mkdtemp(join(tmpdir(), "molis-ring-program-build-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const path = join(directory, "program.mjs");
+  const source = `(() => {
+    function stopped() { return /* a newline is significant
+      */ host.effects.push("unreachable"); }
+    function step(value) { host.effects.push(value); return value; }
+    host.text = \`first \${step("one")}
+      second \${\`nested \${step("two")}\`}
+    \`;
+    host.matches = /a b\\/c/.test("a b/c");
+    host.stopped = stopped();
+    if (host.enabled) { step("enabled"); } else { step("disabled"); }
+  })();`;
+  await writeFile(path, `export const ORIGINAL = ${JSON.stringify(source)};\nexport const DELIVERY = ORIGINAL;`);
+  await run(process.execPath, [tool, path, "DELIVERY", "program"]);
+  const built = await import(pathToFileURL(path).href);
+  assert.equal(built.ORIGINAL, source);
+  for (const enabled of [true, false]) {
+    const host = { enabled, effects: [] };
+    Function("host", built.DELIVERY)(host);
+    assert.deepEqual(host, {
+      enabled, effects: ["one", "two", enabled ? "enabled" : "disabled"],
+      text: "first one\n      second nested two\n    ", matches: true, stopped: undefined,
+    });
+  }
+});

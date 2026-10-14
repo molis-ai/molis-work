@@ -29,7 +29,7 @@ import {
 } from "@molis-ai/molis-work-design-system";
 import { ARTIFACT_EMBED_STYLES, ARTIFACT_WORKBENCH_STYLES } from "./artifact-ui.js";
 import {
-  CLIENT_SCRIPT,
+  SERVED_CLIENT_SCRIPT as CLIENT_SCRIPT,
   MORE_STYLES,
   PROJECT_GUIDANCE_CLIENT_SCRIPT,
   PROJECT_GUIDANCE_SETTINGS_STYLES,

@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json && node ../../scripts/compact-client-string.mjs dist/scripts/client/assistant-island.js ASSISTANT_ISLAND_FACTORY_SCRIPT && node ../../scripts/compact-client-string.mjs dist/functions/client.js FUNCTIONS_CLIENT_FACTORY_SCRIPT && node ../../scripts/compact-client-string.mjs dist/builtin-plugins.js BUILTIN_PLUGIN_CATALOG catalog",
+    "build": "tsc -p tsconfig.json && node ../../scripts/compact-client-string.mjs dist/scripts/client/assistant-island.js ASSISTANT_ISLAND_FACTORY_SCRIPT && node ../../scripts/compact-client-string.mjs dist/functions/client.js FUNCTIONS_CLIENT_FACTORY_SCRIPT && node ../../scripts/compact-client-string.mjs dist/builtin-plugins.js BUILTIN_PLUGIN_CATALOG catalog && node ../../scripts/compact-client-string.mjs dist/browser-assets.js SERVED_CLIENT_SCRIPT program",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

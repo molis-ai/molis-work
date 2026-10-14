@@ -2639,3 +2639,6 @@ I33最终674a8a321（含fcd的顺序候选修正）已独立Source接受：两po
 
 
 #495实际合入：2026-10-14T12:36:37Z，head9dff18ef9、merge9abcb963646c5964fae1b542a93de4de403734d4。同步main后新head五必需检查+Product实际SUCCESS，固定head本地scanner对f6f2 merge-base八新增行无secret；沿§1已记录原merge-seq门槛合并，Linux probe仍报告运行，不声称通过。没有admin、删除分支、修改原作者本地树或重启其会话。#489仍Pages唯一owner在途。Source95b补自有Source树缺失lucide依赖链接后，Coding/Goals/Kernel/MCP四包源码各own/all0；这是旧main2768分叉的已接受Source集成8c7d，不是Root I8最新main整建/最终全量。
+
+
+**W4-11后续开工证据（只读准备，未实现）。** 当前storage/home-sqlite.ts仍19名PERSONAL_HOME_SQLITE_STORES，installer/uninstall.ts的purge另外手列projects/backups/logs/sessions/shelf/runtime目录；home-store-baselines测试又单独列18库基线，尚无共同全集。现行contracts/platform/plugin-database.ts已定义可信Host入口PluginDatabaseDeclaration（store_name/version/schema/read_permission/write_permission），plugin-platform与home-plugins从该入口提供database；Manifest和动作参数不能选择Home数据库。W4-11须复用这一信任边界，由storage提供通用登记/枚举、owner提供自身schema与位置，Host提供平台库/组合和真实Home，不能在storage import插件/Module实现或另造可让外部插件指定任意Home路径的Manifest入口。现有单库baseline拒错版、schema fixtures与已接受#20 purge全集决定保留；新登记实际接入baseline/purge/维护后才验收，W5-16一致快照仍需常驻Host协调暂停，不能把93的三个隔离副本演练称该功能。当前只完成必要路径读取，优先兑现已协调SDK88/I8验证窗口。

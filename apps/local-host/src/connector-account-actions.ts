@@ -25,7 +25,7 @@ export async function readConnectorAccount(home: string, connectionId: string): 
   let access: Awaited<ReturnType<typeof resolveApiConnection>>;
   try { access = await resolveApiConnection(home, connectionId); }
   catch (error) {
-    if (error instanceof ConnectorConnectionError && error.code === "not_found") throw new ActionError("connectors.unknown", "没有这条连接");
+    if (error instanceof ConnectorConnectionError && error.code === "connector.connection.not_found") throw new ActionError("connectors.unknown", "没有这条连接");
     throw new ActionError("connectors.disconnected", error instanceof Error ? error.message : "连接不可用");
   }
   const service = access.connection.service_id;

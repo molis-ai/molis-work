@@ -1496,7 +1496,7 @@
     "server/src/errors.ts": 1,
     "server/src/im/errors.ts": 1
   },
-  "errorCodeShapeTotal": 414,
+  "errorCodeShapeTotal": 389,
   "errorCodeShape": {
     "apps/local-host/src/connector-mcp.ts": 40,
     "apps/local-host/src/installed-plugin-host.ts": 4,
@@ -1504,9 +1504,7 @@
     "apps/local-host/src/plugin-builder/installed.ts": 3,
     "apps/local-host/src/plugin-builder/network.ts": 14,
     "apps/local-host/src/project-database.ts": 1,
-    "apps/local-host/src/web-connector-connections.ts": 1,
     "apps/local-host/src/web-connector-methods.ts": 3,
-    "horizontal/connector-host/src/connection-store.ts": 24,
     "horizontal/listener-host/src/index.ts": 5,
     "horizontal/scheduler/src/index.ts": 8,
     "modules/attention-resumption/src/index.ts": 8,
@@ -1589,7 +1587,7 @@
     "server/src/http.ts": 2,
     "server/src/identity.ts": 3
   },
-  "errorCodeOwnerTotal": 1003,
+  "errorCodeOwnerTotal": 978,
   "errorCodeOwner": {
     "apps/local-host/src/artifact-document-import.ts": 6,
     "apps/local-host/src/browser/browser-host.ts": 2,
@@ -1620,13 +1618,11 @@
     "apps/local-host/src/project-host.ts": 1,
     "apps/local-host/src/project-workspace-actions.ts": 1,
     "apps/local-host/src/prologue-inference-host.ts": 2,
-    "apps/local-host/src/web-connector-connections.ts": 1,
     "apps/local-host/src/web-connector-methods.ts": 3,
     "apps/mcp/src/goal-presentation.ts": 1,
     "apps/mcp/src/tool-dispatch.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-inference-materials.ts": 5,
     "horizontal/agent-host/src/adapters/prologue-inference.ts": 7,
-    "horizontal/connector-host/src/connection-store.ts": 24,
     "horizontal/listener-host/src/index.ts": 5,
     "horizontal/runtime-host/src/adapters/codex-app-server.ts": 1,
     "horizontal/scheduler/src/index.ts": 8,

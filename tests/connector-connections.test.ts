@@ -31,11 +31,13 @@ test("one service keeps two independent credentials and bindings never cross ser
     assert.notEqual(first.credential_ref, second.credential_ref);
     assert.equal(store.resolveToken(first.connection_id, "gmail"), "gmail-work-token");
     assert.equal(store.resolveToken(second.connection_id, "gmail"), "gmail-home-token");
-    assert.throws(() => store.resolveToken(first.connection_id, "github"), /不属于这个服务/);
+    assert.throws(() => store.resolveToken(first.connection_id, "github"), { code: "connector.connection.service_mismatch", message: /不属于这个服务/ });
     store.bind({ scopeId: "project-a", pluginId: "feed", slotId: "inbox", serviceId: "gmail", connectionId: second.connection_id });
     assert.equal(store.binding("project-a", "feed", "inbox")?.connection_id, second.connection_id);
     store.disconnect(first.connection_id);
     assert.equal(store.state(store.require(first.connection_id)), "disconnected");
+    // J2B-01: connection state stays a business value; the refusal carries its owner's current code.
+    assert.throws(() => store.resolveToken(first.connection_id, "gmail"), { code: "connector.connection.disconnected", message: /断开/ });
     assert.equal(store.resolveToken(second.connection_id, "gmail"), "gmail-home-token");
     assert.equal(JSON.stringify(store.list()).includes("gmail-home-token"), false);
   } finally { db.close(); }

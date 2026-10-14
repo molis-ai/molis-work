@@ -55,7 +55,7 @@ export async function handleConnectorConnectionsHttp(
     if (request.method === "POST" && collection) {
       const body = await readLocalWebBody(request);
       const service = HOST_CONNECTOR_DIRECTORY.find(entry => entry.connector_id === body.service_id);
-      if (!service?.method_options?.some(method => method.kind === "token" && method.support === "paste")) throw new ConnectorConnectionError("invalid", "此服务不提供可粘贴的 API 凭据，请使用列出的连接方式");
+      if (!service?.method_options?.some(method => method.kind === "token" && method.support === "paste")) throw new ConnectorConnectionError("connector.connection.invalid", "此服务不提供可粘贴的 API 凭据，请使用列出的连接方式");
       const connection = withConnectorConnections(homeDirectory, (store) => store.createToken({
         serviceId: body.service_id as string, displayName: body.display_name as string,
         token: body.token as string,
@@ -86,7 +86,7 @@ export async function handleConnectorConnectionsHttp(
     sendJson(response, 405, { error: "不支持的连接操作" });
   } catch (error) {
     const known = error instanceof ConnectorConnectionError;
-    sendJson(response, known && error.code === "not_found" ? 404 : 400, {
+    sendJson(response, known && error.code === "connector.connection.not_found" ? 404 : 400, {
       error: known ? error.message : "连接操作失败，请检查本机凭据存储和输入",
       ...(known ? { code: error.code } : {}),
     });

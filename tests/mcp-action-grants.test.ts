@@ -4,9 +4,9 @@ import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { createMcpActionGrant, resolveMcpActionContext, assertMcpActionAuthority } from "../apps/local-host/src/mcp-action-grants.js";
-import { parseMcpToolPreference, readMcpToolPreference, writeMcpActionGrant, mcpToolPreferencePath } from "../apps/local-host/src/mcp-settings-store.js";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { createMcpActionGrant, resolveMcpActionContext, assertMcpActionAuthority } from "../apps/local-host/dist/mcp-action-grants.js";
+import { parseMcpToolPreference, readMcpToolPreference, writeMcpActionGrant, mcpToolPreferencePath } from "../apps/local-host/dist/mcp-settings-store.js";
 
 const caller: ActionCallContext = { actor_id: "runtime:client-a", project_id: "a", audience: "mcp", permissions: [] };
 function view(scope: "home" | "project" = "project", version = 1, provider = "unknown-plugin"): ActionView {

@@ -8,6 +8,7 @@ import { createFeedSourceSyncGuard } from "./source-sync-guard.js";
 import type { FeedConnectorSyncPorts, FeedConnectorListener, ConnectorSyncMode } from "./connector-sync-ports.js";
 import { normalizeIdempotencyKey, stableId } from "./source-input.js";
 import { toFeedPublicError } from "./application-errors.js";
+import { safeErrorCode } from "./source-sync-result.js";
 
 export class FeedConnectorSync {
   private readonly feed: FeedApplication;
@@ -75,7 +76,7 @@ export class FeedConnectorSync {
     } catch (error) {
       await beforeEffect();
       const updatedAt = new Date().toISOString();
-      const errorCode = error instanceof ListenerHostError ? error.code : safeConnectorErrorCode(error);
+      const errorCode = error instanceof ListenerHostError ? error.code : safeErrorCode(error);
       await this.ports.reportCrash(source.source_id, errorCode);
       await beforeEffect();
       const latest = this.feed.getSource(this.projectId, sourceId);
@@ -201,13 +202,4 @@ export class FeedConnectorSync {
     }
   }
 
-}
-
-function safeConnectorErrorCode(error: unknown): string {
-  const code = error && typeof error === "object" && "code" in error
-    ? (error as { code?: unknown }).code
-    : undefined;
-  return typeof code === "string" && /^[a-z][a-z0-9_]{1,63}$/u.test(code)
-    ? code
-    : "provider_interrupted";
 }

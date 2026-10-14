@@ -937,6 +937,8 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
 - **共享客户端只在 `workbench.js` 里一份**（D19）。
 - **开放带类型的选择题**（D20）。
 - 字节（门禁实测，对照 merge-base `34d0d1fc`）：5 个 Coding 系插件包各 −798；`workbench.css`、`settings.css` 各 −752；`workbench.js` −14。
+- 并入 main `9abcb963`（含 #488 状态环）：宿主问卷卡的标题环随 `answer`/`unavailable` 走（原来画在助理那份 `assistantQuestionHtml` 与 Coding 自己的卡上，现在画在共享的 `agentQuestionHtml` 上，Coding 页面在这一轮结束时把环切到 `unavailable`）；`assistant-strip-narrow.e2e` 的 RING-07 样例改用 `agentQuestionHtml`。并入后对照 merge-base `9abcb963`：5 个 Coding 系插件包各 −826，`workbench.css`、`settings.css` 各 −752，`workbench.js` −14。
+- 全量回归（并入 main 之前的 `1c7051a5`）：6261 条，6250 通过，9 跳过，2 失败——都是 main 上已知的 `touch-targets.e2e` 两条（亮、暗各一）。并入 main 之后重跑了相关单测 107 条与浏览器用例 8 条（`coding-question-card`、`issue-clarification-page`、`assistant-strip-narrow`、`coding-state-rings`、`assistant-page-written`），全部通过。
 - 用例：新 `tests/coding-question-card.e2e.test.ts`（AC-22：带类型的合同、推荐与说明、不预选、草稿随会话、回答到达模型、卡换成回执）；`coding-question-card.test.ts` 的规则（不预选、无忽略、无多余输入框、无空选项组、各卡 id 不串、转义）改到共享卡上，「没有问题时什么都不画」随列表渲染函数一起删掉（宿主按每个等待中的问题附一张卡）；`agent-typed-questions`、`issue-clarification-page` 的 ISSUE-34 按 D20 改。
 
 ### 20.12 C1+H1（`c50a5534`）重做时与 main 的碰撞（2026-10-13，只读核对，没有合并）

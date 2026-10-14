@@ -368,7 +368,7 @@ const intentErrors = defineErrorCodes("goals.intent", { unexpected_field: "inval
 function assertCreateIntentKeys(input: CreateGoalIntentInput): void {
   const unexpected = Object.keys(input).filter((key) => !CREATE_INTENT_KEYS.has(key));
   if (unexpected.length) {
-    throw intentErrors.unexpected_field(`不能使用未许可字段：${unexpected.join("、")}`, { details: { fields: unexpected } });
+    throw intentErrors.unexpected_field(`不能使用未许可字段：${unexpected.join("、")}`, { fields: unexpected });
   }
 }
 

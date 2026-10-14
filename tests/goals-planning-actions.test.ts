@@ -92,6 +92,11 @@ test("project planning HTTP reads, adopts and saves through current action polic
     const original = await (await request(path)).json() as { methods: Array<Record<string, unknown>> };
     const source = original.methods.find(m => m.method_id === "domain-software-development")!;
     const apply = { method_id: source.method_id, user_confirmed: true };
+    // R-GOALS-OWNER-01: the project apply HTTP edge keeps its original 404 refusal.
+    const missing = await request(path + "/apply", { method_id: "missing", user_confirmed: true });
+    assert.equal(missing.status, 404);
+    assert.deepEqual(await missing.json(), { error: "找不到可选的规划方法" });
+    assert.deepEqual(await (await request(path)).json(), original);
     assert.equal((await request(path + "/apply", apply, false)).status, 403);
     denied.add(goalsActions.planningRead.capability_id);
     assert.equal((await request(path)).status, 400);

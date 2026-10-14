@@ -2636,3 +2636,6 @@ I33最终674a8a321（含fcd的顺序候选修正）已独立Source接受：两po
 
 
 **Source错误归属共同集成95。** 自有w3-binding另分支owner-convergence-source将已接受I26–I33串行纳为8c7d367e0，未触受测I8。实际health95对merge-base2768通过：28错误子类、0坏形状、0非owner错误码，当前声明57owner/62API文件2410项；原Source的7/6不是相加，现以共同实量0确认。Coding Source自身0/all2已展开核明：两条均来自未借用的design-system lucide依赖及其关联unknown类型，非新Coding错误，不能当全树类型0。Root新main整体工程仍待；未为等队列重复构建。#495新head9dff18ef9a567786b3a555f9a79b28f64cd9989b已有新CI在跑，原6dd通过不能替新head。
+
+
+#495实际合入：2026-10-14T12:36:37Z，head9dff18ef9、merge9abcb963646c5964fae1b542a93de4de403734d4。同步main后新head五必需检查+Product实际SUCCESS，固定head本地scanner对f6f2 merge-base八新增行无secret；沿§1已记录原merge-seq门槛合并，Linux probe仍报告运行，不声称通过。没有admin、删除分支、修改原作者本地树或重启其会话。#489仍Pages唯一owner在途。Source95b补自有Source树缺失lucide依赖链接后，Coding/Goals/Kernel/MCP四包源码各own/all0；这是旧main2768分叉的已接受Source集成8c7d，不是Root I8最新main整建/最终全量。

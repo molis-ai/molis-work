@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14接续）。原I4/I5第五批、BL-133与W2-10 A1–A4/C/D已合；E、最终共享全量与第4–6波余项未完成。#493、#488、#495已合入main 9abcb9636，#489由Pages现有owner接续，#490待同步。Root I8当前371d9da0d已纳入I3–I33共同错误、79批失败修复及当前main，合并后四处源码问题已修复并接受只读复查；新组合96/97与真实问卷纠错浏览器回归未运行。87实际复现B等待状态被running覆盖，I33修复仍待Runtime证明。当前CU-image SDK88的构建、打包及206/206回归通过；用户已授权上游提交/PR及复查验证后正式换包、删除被替换旧包，上游4007a93c最小补丁已推送并开Prologue #20，源码复查无阻塞，新头public-surface四项通过。上游未配置GitHub CI，消费端验证仍待补。维护八41库只读克隆零写入，三份新演练副本实际更新7条、回滚/幂等/完整性通过；原Home没有写入，真实维护窗口仍待决定。最终按§12.4逐条完成，不以源码审查或局部通过宣告整线完成。
+状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133及W2-10 A1–A4/C/D已合；E与第4–6波、最终共享全量仍在途。当前main 9abcb9636已含#493/#488/#495，Pages #489预算由现owner接续。Root I8 028769de4已整合I3–I33、当前main、正式CU-image+beforeAccept SDK；Prologue #20上游源码复查、干净归档构建和66项公开API/控制检查通过，上游无GitHub CI。96首次整建的unused-import失败已修，96b运行中，97/98真实Runtime/浏览器证明未补。维护八三份隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。详细新旧证据及未完成范围见§12.4–12.11，不以局部工程通过宣告整线完成。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2650,3 +2650,6 @@ I33最终674a8a321（含fcd的顺序候选修正）已独立Source接受：两po
 
 
 I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定已解决。保main AssistantOffers/cardView/shared question/card路径，删除Root旧重复service helper，fail端口复用assistantErrors现行分类；question拒绝用details.errors，经统一requestError.body送字段提示。保Rootcomposer冻结intent/重试身份、完整failure诊断；stale card redo由main Host负责，原send-count按实际3→2而冻结body断言保留。状态环以原Root局部JS标识符映射main新片，保读失败/晚回执护栏；Goals SDK/design deps与lock/registry取并集。served-page-text为main唯一formatter；baseline/assets取main待真实整建派生，不手合。I8新临时SDK88脚本首尝试YAML quoted key锚点未命中，只写pkg；修quoted anchor后实际仅pkg1+/1-、lock5+/5-，无optional节点删除。整合只读再发现新main问题提交/redo的schedule/refresh与Root已定义poll/reload不符，已最小修正；Workflow新helper error状态环改failed，保存失败文案保留，真实拒绝/恢复路径需再验。新的96/97仍未开始，等待Pages15文件短回归释放名额。
+
+
+**2026-10-14：当前CU-image同步接受检查正式换包与组合96。** 上游Prologue #20已推送，head4007a93c/baseb88，4文件47+/2-，密钥扫描47行无发现，独立源码复查无阻塞；当前上游确未配置GitHub Actions，不称远端CI通过。从该head干净git archive执行sdk-formal-acceptance90：offline安装、整体SDK build、公开API/控制五文件66/66、pack全退出0且无类型错误；产物1,123,719字节、SHA-256 317d097a1e44f84e501413283bdfa94c4b43ee4ac86a689957b9b83d2853597c，与88候选逐字节相同。Root按授权在9ed906929正式替换vendor、删除旧CU-image tgz和两来源文件；旧1,123,638字节/SHA b45753fa/gitBlob 0d38581afa4d457b1d1b540126571017dae6b7af/来源923e5a40已入历史记录。25个历史源码提交对上游main c5d35d7f实际逐项核祖先，只有08b和923两个过渡提交不在main，如实记录。96 actual install0/build1，仅main Offers抽离合并后的五个未使用import；后续未运行。028769de4删除这五import并修正式包引用为../../vendor（相对路径已实测存在）；96b当时install/build/根types/workspace-types/API/actions已退出0，健康/资源/边界仍运行、97/98未开始。新真实问卷纠错测试与Workflow CAS Ring断言已写入，98实际验证及整线§12.4仍待。原Home零写入。

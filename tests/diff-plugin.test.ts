@@ -195,11 +195,12 @@ test("重命名式多文件变更列出全部文件，只渲染选中的那个",
 test("hunk 头声明的行数必须和实际行数对得上", () => {
   assert.throws(
     () => parseUnifiedDiff("@@ -1,5 +1,5 @@\n a\n"),
-    (error: unknown) => error instanceof UnifiedDiffError && error.code === "unified.count_mismatch",
+    // R4C3-01: inconsistent hunk counts still refuse before the parsed rows are used.
+    (error: unknown) => error instanceof UnifiedDiffError && error.code === "diff.unified.count_mismatch",
   );
   assert.throws(
     () => parseUnifiedDiff("not a diff"),
-    (error: unknown) => error instanceof UnifiedDiffError && error.code === "unified.no_hunks",
+    (error: unknown) => error instanceof UnifiedDiffError && error.code === "diff.unified.no_hunks",
   );
 });
 

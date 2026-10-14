@@ -24,7 +24,7 @@ export interface UnifiedHunk {
 }
 
 export class UnifiedDiffError extends Error {
-  constructor(readonly code: "unified.no_hunks" | "unified.bad_header" | "unified.count_mismatch", message: string) {
+  constructor(readonly code: "diff.unified.no_hunks" | "diff.unified.bad_header" | "diff.unified.count_mismatch", message: string) {
     super(message);
     this.name = "UnifiedDiffError";
   }
@@ -56,7 +56,7 @@ export function parseUnifiedDiff(diff: string): UnifiedHunk[] {
     const sawAfter = current.rows.filter((row) => row.kind !== "delete").length;
     if (sawBefore !== expectedBefore || sawAfter !== expectedAfter) {
       throw new UnifiedDiffError(
-        "unified.count_mismatch",
+        "diff.unified.count_mismatch",
         `hunk 行数与 @@ 头不一致：声明 ${expectedBefore}/${expectedAfter}，实际 ${sawBefore}/${sawAfter}`,
       );
     }
@@ -76,7 +76,7 @@ export function parseUnifiedDiff(diff: string): UnifiedHunk[] {
       close();
       const header = HEADER.exec(line);
       if (header === null) {
-        throw new UnifiedDiffError("unified.bad_header", `读不懂的 hunk 头：${line.slice(0, 80)}`);
+        throw new UnifiedDiffError("diff.unified.bad_header", `读不懂的 hunk 头：${line.slice(0, 80)}`);
       }
       current = {
         header,
@@ -109,7 +109,7 @@ export function parseUnifiedDiff(diff: string): UnifiedHunk[] {
   }
   close();
   if (hunks.length === 0) {
-    throw new UnifiedDiffError("unified.no_hunks", "这段 diff 里没有可读的 hunk");
+    throw new UnifiedDiffError("diff.unified.no_hunks", "这段 diff 里没有可读的 hunk");
   }
   return hunks;
 }

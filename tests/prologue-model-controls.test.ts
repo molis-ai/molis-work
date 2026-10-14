@@ -39,9 +39,10 @@ async function fixture(t: import("node:test").TestContext, models: Record<string
     requests.push({ body, key: headers.get("x-api-key") ?? headers.get("authorization") });
     return reply(body, requests.length);
   });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.model-controls-test", appVersion: "1.0.0" }, storageRoot: join(root, "sdk"), reviewQueue: new AgentReviewQueue(),
+  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.model-controls-test", appVersion: "1.0.0" }, storageRoot: join(root, "sdk"), reviewQueue: new AgentReviewQueue(),
     modelConfiguration: async selection => models[selection?.model_id ?? "small"] ?? null,
     resolveCredential: ref => `secret-of-${ref}` });
+  const adapter = await open();
   const owner = { project_id: "test", plugin_id: "io.molis.work.coding", install_id: "test", actor_id: "web-user" };
   const directory = { canonical_path: root, realpath_verified: true };
   const session = await adapter.createSession({ ...owner, directory, title: "Model controls" });
@@ -55,7 +56,7 @@ async function fixture(t: import("node:test").TestContext, models: Record<string
     }
   };
   t.after(async () => { await adapter.close(); await rm(root, { recursive: true, force: true }); });
-  return { adapter, requests, start, settle };
+  return { adapter, requests, start, settle, reopen: open };
 }
 
 const model = (name: string, extra: Partial<PrologueModelConfiguration> = {}): PrologueModelConfiguration =>
@@ -164,3 +165,27 @@ test("PA-24: stopping a round with a switch asked for sends nothing to the new m
   assert.equal(view.model_switch, undefined, "a request that never took effect is not shown on the ended round");
   assert.deepEqual(f.requests.map(request => request.body.model), ["small"], "nothing went to the new model");
 });
+
+test("PA-24: after a restart the ended round still shows the model it switched to and the one it started with", { timeout: 30_000 }, async t => {
+  const answered = Promise.withResolvers<void>();
+  const f = await fixture(t, { small: model("small"), large: model("large", { endpoint: "https://1.1.1.2/v1/messages" }) },
+    async (_body, nth) => {
+      // The switch takes effect at the next model call, so the first call asks for a tool and the round makes a second one.
+      if (nth === 1) { await answered.promise; return sse("", { name: "read", input: { path: "notes.md" } }); }
+      return sse("Release notes go in CHANGELOG.md.");
+    });
+  const handle = await f.start();
+  for (let i = 0; i < 200 && f.requests.length < 1; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  await f.adapter.control(handle.ref, { kind: "switch-model", provider_id: "p", model_id: "large" });
+  answered.resolve();
+  assert.deepEqual((await f.settle(handle.ref)).model_switch, { now: "large" });
+  await f.adapter.close();
+  const reopened = await f.reopen();
+  try {
+    const view = await reopened.read(handle.ref);
+    assert.deepEqual(view.model_switch, { now: "large" }, "read cold from the ledger after a restart");
+    assert.equal(view.frozen.model_id, "small", "and the round still records what it started with");
+    assert.ok(view.activity.some(item => item.name === "model-switch" && item.target === "small → large"));
+  } finally { await reopened.close(); }
+});
+

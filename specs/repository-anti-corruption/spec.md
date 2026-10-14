@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14接续）。原I4/I5第五批、BL-133和W2-10 A1–A4/C/D已合；E与最终共享全量未完成。Grok优先链中#481已合到#480叠分支，#480最新1ffc全必需及产品CI成功但落后main2768，Grok负责同步及Computer Use后续，本线远端后置。I8已同步2768并串行纳已接受I3–I17共同错误、权限/生命周期和静态修复；37队列在未开始时撤销143，不再排队。联合08b+beforeAccept本地SDK41已实际build/tests/pack成功，8文件114/114；已用于I8临时依赖的58批离线安装整建，实际结果待收；正式SDK上游/vendor仍待原问题回答。26–33旧964基线的真实定向结果保留，不能作为最新组合全绿；原security30为298/300，修后管理31/32为4/4，I2运行33为95/95。最新Source已接受与实际build/README回归、boundary/资源、最终全量分开；维护八41库只读克隆零写入，映射/演练及真实Home窗口待办。第4–6波、场景/手册/度量及两份最终汇报继续按§10/§12推进。
+状态：执行中，整线未完成（2026-10-14接续）。原I4/I5第五批、BL-133和W2-10 A1–A4/C/D已合；E与最终共享全量未完成。Grok #480已实际合main46cb083ee，Computer Use后续优先链仍待协调，Root #488/#489/#490后置。I8当前042ff96aa已合此main并串行纳已接受I3–I21共同错误及READFIX。当前08b+beforeAccept临时SDK41实际8文件114/114及build/pack成功；正式上游/vendor仍待原问题回答。旧2768组合60批整建/类型/API/actions/health/资源通过，boundary仅临时SDK路径失败；不能证明新main组合。62真实40文件235条，230通过、5条coding.state缺依赖码消费失败；12f/042已修及补拒绝测试，修后尚未运行。67等待队列未开始撤回143；恢复锁文件无关888行删除后只留SDK五行替换，新68正在等名额，源码冻结。26–33旧964基线证据保留，与最新组合分开。维护八41库只读克隆零写入，映射/演练及真实Home窗口待办；第4–6波、场景/手册/度量及两份最终汇报继续按§10/§12推进。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2497,3 +2497,35 @@ W3-02-I17-SYSTEM收Kernel注册器、Host运行生命周期、ModelProvider与Pr
 SDK41联合候选原始证据闭合：当前08b84296f81df1bd5f3429c2dc2997d18b72473a+beforeAccept副本build/tests/pack均0，Vitest 8files114/114无TypeError；实际tgz SHA256 660540fc6a711af5b03cf0e1beae02467b0ad2cb7913148479aa4b0b9045596d。旧d490的62条只作历史，不混记。Root仅把I8两个未提交pkg/lock临时依赖转向该包，58批同锁offline lock+frozen install/整体build/types/API/actions/health/实测资源准备一次验证；正式上游提交/vendor替换仍等原授权问题，不能因此称已正式交付。foreign receipts全量实测6240中6226通过/5失败/9跳过/0取消113分钟，不作为本线运行证据；其结束后Root41按锁取得名额，无foreign kill/reset。
 
 I16最终1602完整Source接受，37路径逐blob与I8 c4a2f27a0一致；I17 a2f43ad9d完整14文件正式Source接受，26处原文/条件，Host旧安全四声明保持只加Lifecycle四项，typed缺项原503/cause/一次结算与Recovery错版零写保留。Kernel57b全0，Host8文件scope0/all321依赖环境，不称完整Host类型通过；API57匹配、health57实测47类/13形状/31非owner。Root修正未提交时自身覆盖Host已有表的机械错误并保留失败/修正事实；当前Source有自有借用Kernel node_modules链接未提交，不称整个树clean。两片已串行纳入I8，58新组合FROZEN待整建与真实40文件59批，不复用旧运行证明。
+
+
+58批实际offline lock与frozen install通过，整体build仅GoalTree工厂删除遗留goal-project-application首行ActionError unused（TS6133），后续未执行；原失败保留。05ae79141只删此唯一无用import，60批真实整体build/root types/全workspace types/API/actions/health/29资源实测均0；新SDK和最新2768源码组合已获工程证据。boundary60退出1仅临时SDK路径inventory不匹配，不放宽规则。实测47类/13形状/31非owner、资源29项10013459字节未变；派生baseline仅下降保存2ade1c638，pkg/lock两临时文件未提交。59真实40文件单一browser名额队列已单次启动，I8持续FROZEN，实际结果待收，首40不能代替全部README/最终共享全量。
+
+W3-02-I18-INSTALLER接J6/I统一错误模型，收Home install、Web service、Runtime integration、Uninstall四类；现行owner码/原文/defaultinvalid400保持，不因conflict等词猜状态。INSERR-01：preview后执行/replay、snapshot-stale/confirmation/来源与payload拒绝、卸载逐步失败及receipt/幂等和真实临时Home恢复不变，拒绝0越权写/不吞外部错误。INSERR-02：各真实有限码按现行installer family唯一当地声明，去四类/publicexport及相关消费者；config parser只认原RuntimeIntegration五码，release-file验证只认原Home七码，其余照原抛出，无旧值读取/alias/factory。INSERR-03：install/service/runtime-integration/uninstall/release现行README并集真实回归、API/build/types/health/assets及最终全量；只用临时Home，真实安装/Home/Keychain与仓库vendor不上手。本片不改安装路径、源校验或打包协议，所有影响依赖当前I8共同工程基线。
+
+
+I18完整2c804f093/8629a17eb Source接受：53构造/21真实码七family，Home七码/Runtime五码有限识别与原有限动态索引保持，plan_invalid无producer不声明；24文件既有真实preview stale/回滚/receipt/用户库保留断言有效，补INSERR编号不新增镜像测试。API61/health61实测43类；Installer31文件scope0/all299依赖环境，未构建运行、尚未纳冻结I8。59 browser仍单份23941等foreign a1-full-suite，62纯Node40单份38826也按现行排时段规则等build名额；均未有runtime日志/结果，不能记已执行。
+
+W3-02-I19-CONNECTOR收ConnectorHost、ConnectionStore及MCP connection三类，OAuth的serviceId和CLI无code异常另片按真实边界保留，不机械归并。CONERR-01：driver缺失/重复、连接错服务/撤权、timeout/真实MCP provider与入站合同拒绝码/原文/default400保持；Caller/URL/secret引用/beforeDispatch/inspection和0副作用拒绝、当前provider code/provenance不变。CONERR-02：共用现行连接服务合同唯一声明，三类/旧导出清掉；所有consumer逐个保原有限三域码（images、alchemist/feed/type-safe、HTTP和动作gateway各自映射），MCP原已接所有ActionError的分支删重复类，不吞外域Common。CONERR-03：Connector/MCP/URL安全与撤权真实用例、README与API/build/health/资源和共享全量；当前真实Home/Keychain仍不读写，外部OAuth原协议不改。
+
+
+I19复核复开：9c842c712未接受，Common转换后两条既有MCP边界提前匹配造成实际差距。HTTP通用ActionError先命中新connector.mcp.authorization使原401变400；safeError早透传新connector.connection四码而原来应掩为固定MCP provider文案，可能泄露连接细节。按CONERR-01/02保原消费合同：HTTP优先MCP四码，保authorization401/其余400；safeError先掩Connection四码，已合法跨域ActionError如取消/撤权仍原样；HTTP直接收到新Connection/ConnectorHost有限域时也按原通用MCP文案。补已有真实web server隔离Home回归：过期/无效授权POST401、缺连接inspect400/provider固定文案/0新连接，避免仅测试formatter。冻结I8不改，本片在Source树修复并重核完整diff/门禁后再接受。
+
+
+I19最终36ee3701a完整Source接受，401与原Connection细节掩码差距已关闭源码复核；合法跨域Common取消/撤权保留，新增真实HTTP fixture每POST fresh一次性操作键确保可达，运行仍未做。API64/health64已证40类/13形状/31非owner；当前只tracked clean，自有借用Kernel链接未提交。下一合法解冻纳I18完整8629与I19三提交，不重复原有效检查或把新测试源码当通过。
+
+W3-02-I20-UI-HOST按既有W3-02十一kind/owner码决定（原设计§8列为日常取舍）收两类与五裸拒绝码，owner沿现行登记ui_host不改归属。UIERR-01：真实Contribution重复/缺项、无效surface/slot与停止/未授权PluginUi的拒绝条件、文案、注册/撤销次序和0外域注销保持；当前owner码ui_host.contribution_conflict/not_found/slot_incompatible/surface_invalid/plugin_denied。UIERR-02：去两类/旧出口与当前裸producer/consumer，唯一当地声明；明确分类修正：原裸码在SDK通用出口为不识别500，现按真实原因分别conflict409/not_found404/invalid400/forbidden403，保拒绝而非沿未知故障掩码。这些是统一模型的预期变化，不以全绿改断言；原类身份用具体当前code与kind及HTTP状态断言取代。UIERR-03：ui-host README、workbench-ui/feed/inbox/schedule/global-settings/plugin-host-executor现行真实mount/unregister/revoke测试、Source/API/build/health/资源和最终共享全量。只改UI注册合同错误，不改布局/挂载位置/用户权限、不开新状态或compat。
+
+
+I20完整df34bf3ea Source接受：9文件两类10构造、五裸码/旧出口清掉，当前ui_host owner原样；types65全0、API无变、health65实测38类/7形状/25非owner。明确分类修正409/404/400/403为统一模型既有决定；实际UiHost duplicate/missing/slot/surface测试查code/kind/派生status与registry不变，PluginUi两个拒绝case只断言code+forbidden及原UI列表，不能写成已实测HTTP403；未运行或纳冻结I8。
+
+W3-02-I21-GIT-WORKTREE收Host GitWorktreeError唯一闭集，不动WorkspaceGit的结果outcome专有边界或Git/过滤器/工作树协议。GITERR-01：真实git执行失败/授权仓库根/原起点和path、owned/writer分支、不接管外来目录/符号链接、dirty拒绝与重试保持当前git.*码、原文和defaultinvalid400，拒绝前后不创建/删除外域目录、原提交与登记不变。GITERR-02：去类及导出，五现行原因当地唯一声明，ENOENT/普通失败按原两分支，唯一not_owned捕获只认Common精确git.worktree_not_owned。GITERR-03：writer目录真实Git/恢复/SDK假设与security目录边界现行回归、README/工程/API/health/资源和全量；真实用户工作树/branch不清理、不跑真实Home。
+
+
+62真实终态40文件235条：230通过/5失败/0skip/cancel，207173ms，失败全为Coding state参数less读取未捕获current actions.dependency_missing；5历史/demo回归断言有效，未加allowlist。沿实际链 confirmed：无workspacesFor的合法Host不注册browsing-workspace，Coding注释承诺sessions仍可用、workspace null/list[]；typed settlement已统一旧Kernel缺项，Coding unlessMissing残留旧kernel码未同步。READFIX-01：仅该消费者改认现行actions.dependency_missing，其他权限/不可用错误仍抛；直接Kernel与cause测试正确保旧事实kernel.capability_missing，不全局改名/双码兼容。READFIX-02：原5fixture读真实恢复、Coding字段null/[]和非缺项拒绝，以及新main共同构建/实际回归证明。
+
+Root仅撤销未开始的59自有queue23941（原driver/无log-results/foreign holder验证后143），62已终态，I8合法解冻；不把59撤队列算测试。共享origin/main已推进46cb083ee：Grok480实际08:22:49Z合入，Root未merge该PR，CU后续仍遵守其优先链。本线合main63文件时只prologue控制端口一冲突：保main steer.source/key、保本线beforeModelSwitch/beforeAccept；门禁JSON取main后必须实测重生成。Source I18–I21已纳I8当前13beb75a6，无冲突/未运行；SDK仅保存/恢复临时两个文件不提交，main未更换SDK。新组合及READFIX需要一次新整建，不以2768的60/62证据贴作46cb最终通过。
+
+2026-10-14锁文件与当前整合核实：I18 Installer、I19 Connector三次修正、I20 UI Host及I21 Git已串行纳I8，53路径中52逐blob一致，index唯main新增desktopTaskComplete/type导出保留两边；只读Source复核接受，实际新组合回归待办。READFIX-01修正coding.state可选workspace依赖原kernel码消费为现行actions.dependency_missing，保原五条历史读取fixture；READFIX-02新增真实Host拒绝用例核forbidden/connection_unavailable的原code/message及实际读取次数，未运行不记通过。
+
+67批只排队无log/results；复查实际pkg1+/1-、lock9+/888-，大批Biome/esbuild/tauri/rolldown/lightningcss等optional条目已在保存patch前被裁掉，不能归因67执行，也不能称只有SDK替换。精确核本人wrapper73666/只有sleep子进程与foreign a1 holder23912后撤本人未开始队列，exit143，未触foreign。污染证据保留私有临时目录；从042ff HEAD恢复全部非SDK条目，只重放SDK41路径和由实际tgz计算的integrity，实际pkg1+/1-、lock5+/5-。新68删lock-only步骤，仅frozen offline install并核lock原文未改，再整建/根与workspace类型/快照/health-base/assets-base/boundary；单份已排队、尚无结果，I8源码保持冻结。SDK两临时文件不提交，不触vendor/真实Home。

@@ -752,7 +752,7 @@ node scripts/run-tests.mjs tests/ai-interaction-slice.e2e.test.ts
     - 2 条 ISSUE-34：上面的第 2 处，已修，通过。
     - 2 条 I0 预览：上面的断言，已改，通过。
   - `interaction-client.e2e` 14/14。
-  - `affected-tests` 建议全量（改了合同），统筹在合并前跑。
+  - 全量（`node scripts/run-tests.mjs`，合 main `b15ba0b1` 之后的 `609a5fed`，约 111 分钟）：6211 条，6198 通过、4 失败、9 跳过。4 条都不是本线引入的：`settings-requests-through-helper` 一条 main 上同样失败，已由 #487 修好；`touch-targets.e2e` 两条 main 上同样失败；`goal-event-document.e2e` 一条是负载下的时序（单独跑本线与干净 main 都 3/3）。之后再合 main `703bd996`（#478、#486、#487）：没有冲突，重建、健康门禁、页面资源都过，这几次合并改过的 7 个用例文件 64 条，63 通过、0 失败、1 跳过。
 - **用户 2026-10-13 定**：A1 与 H2 合成一个改动落地，不放宽页面资源门禁（20.11 的 (a)+(b)+(b′)，加上 H2 删掉 `renderCard` 与「接下来」行）。H2 按 W5-10 的协作者形状做，算 W5-10 的一部分。
 - **A2 要带的合同改动**：main 上 #477 把 `coding.runs.control` 升到第 2 版，`answer` 的每一项只收 `question`、`indexes`、`other`（`additionalProperties: false`），对应现在的纯选择题。A2 让 Coding 画带类型的题时要加 `value`，按 `docs/system/CONTRACT-CHANGES.md` 升第 3 版，并在同一个改动里改完调用方。
 - **下一步**：#410 全量通过后由统筹合进 main；之后在新的 PR 上做 A1+H2，再 A2、H3、H4、S1。

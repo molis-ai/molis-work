@@ -234,12 +234,18 @@ jobs:
 
   # Action directory, Manifest and MCP grant contracts, and undeclared names in the assembled Workbench client, on a workspace build
   # of their own (the same packages `pnpm workspace:verify` builds), beside `architecture-boundaries` so neither waits for the other.
-  # The full product suite still runs locally (see the PR template).
+  # Several of these files start real hosts and MCP servers under a per-test time limit (tests/action-mcp-stdio.test.ts: three servers
+  # in 20 seconds, 5.5 s alone), and four at a time on one 4-core runner pushed that past its limit. So two legs, two files at a time
+  # each: every second file of the list (`--shard`), each file in exactly one leg. The full product suite still runs locally.
   action-contracts:
-    name: Action and plugin contracts
+    name: Action and plugin contracts (${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     env:
-      MOLIS_WORK_TEST_JOBS: 4
+      MOLIS_WORK_TEST_JOBS: 2
     steps:
       - uses: actions/checkout@v6
 
@@ -264,7 +270,7 @@ jobs:
         run: pnpm workspace:build
 
       - name: Action and plugin contracts
-        run: pnpm test:contracts
+        run: pnpm test:contracts --shard ${{ matrix.shard }}/2
 
   # No dependencies and no build: it reads git history only, so it starts at once and is cheap to keep on every change.
   secret-scan:

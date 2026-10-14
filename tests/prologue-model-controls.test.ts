@@ -61,7 +61,7 @@ async function fixture(t: import("node:test").TestContext, models: Record<string
 const model = (name: string, extra: Partial<PrologueModelConfiguration> = {}): PrologueModelConfiguration =>
   ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: name, credential_ref: `key-${name}`, ...extra });
 
-test("a reasoning effort reaches every model call of the round and is recorded; a model not marked for it is refused before anything is sent", { timeout: 30_000 }, async t => {
+test("PA-24: a reasoning effort reaches every model call of the round and is recorded; a model not marked for it is refused before anything is sent", { timeout: 30_000 }, async t => {
   const f = await fixture(t, { small: model("small", { reasoning_effort: true }), plain: model("plain") }, () => sse("CHANGELOG.md"));
   const view = await f.settle((await f.start({ reasoning_effort: "high" })).ref);
   assert.equal(view.phase, "completed");
@@ -76,7 +76,7 @@ test("a reasoning effort reaches every model call of the round and is recorded; 
   assert.equal(none.frozen.reasoning_effort, undefined);
 });
 
-test("a running round switches to another model from its next call, with that model's key; history stays, and the switch shows", { timeout: 30_000 }, async t => {
+test("PA-24: a running round switches to another model from its next call, with that model's key; history stays, and the switch shows", { timeout: 30_000 }, async t => {
   const answered = Promise.withResolvers<void>();
   const f = await fixture(t, { small: model("small"), large: model("large", { endpoint: "https://1.1.1.2/v1/messages" }), tiny: model("tiny", { context_tokens: 1_000 }),
     chat: model("chat", { protocol: "openai-compatible", endpoint: "https://1.1.1.3/v1/chat/completions" }) },
@@ -104,7 +104,7 @@ test("a running round switches to another model from its next call, with that mo
   await assert.rejects(f.adapter.control(handle.ref, { kind: "switch-model", provider_id: "p", model_id: "chat" }), /已经结束/);
 });
 
-test("a round that thinks cannot be switched to a format without thinking; nothing changes", { timeout: 30_000 }, async t => {
+test("PA-24: a round that thinks cannot be switched to a format without thinking; nothing changes", { timeout: 30_000 }, async t => {
   const answered = Promise.withResolvers<void>();
   const f = await fixture(t, { small: model("small", { thinking: "adaptive" }), chat: model("chat", { protocol: "openai-compatible", endpoint: "https://1.1.1.3/v1/chat/completions" }) },
     async () => { await answered.promise; return sse("done"); });
@@ -115,4 +115,52 @@ test("a round that thinks cannot be switched to a format without thinking; nothi
   const view = await f.settle(handle.ref);
   assert.equal(view.model_switch, undefined);
   assert.equal(f.requests.length, 1);
+});
+
+/** A round held at its first model call, so a switch can be asked for while it runs. */
+async function heldRound(t: import("node:test").TestContext, models: Record<string, PrologueModelConfiguration>, startExtra: object = {}) {
+  const answered = Promise.withResolvers<void>();
+  const f = await fixture(t, models, async () => { await answered.promise; return sse("done"); });
+  const handle = await f.start(startExtra);
+  for (let i = 0; i < 200 && f.requests.length < 1; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  return { ...f, handle, release: () => answered.resolve() };
+}
+
+test("PA-24: a switch the round cannot carry is refused and changes nothing — prompt cache across formats, an effort the target is not marked for, a model that is not available", { timeout: 30_000 }, async t => {
+  const chat = model("chat", { protocol: "openai-compatible", endpoint: "https://1.1.1.3/v1/chat/completions" });
+  const cached = await heldRound(t, { small: model("small", { prompt_cache: "best-effort" }), chat });
+  await assert.rejects(cached.adapter.control(cached.handle.ref, { kind: "switch-model", provider_id: "p", model_id: "chat" }), /开着提示缓存，只能换同一种接口格式/);
+  await assert.rejects(cached.adapter.control(cached.handle.ref, { kind: "switch-model", provider_id: "p", model_id: "missing" }), /所选模型不可用/);
+  assert.equal((await cached.adapter.read(cached.handle.ref)).model_switch, undefined);
+  cached.release();
+  assert.equal((await cached.settle(cached.handle.ref)).phase, "completed");
+  assert.equal(cached.requests.length, 1, "nothing went to another model");
+
+  const effort = await heldRound(t, { small: model("small", { reasoning_effort: true }), plain: model("plain") }, { reasoning_effort: "medium" });
+  await assert.rejects(effort.adapter.control(effort.handle.ref, { kind: "switch-model", provider_id: "p", model_id: "plain" }), /没有标注「plain」可调思考力度/);
+  assert.equal((await effort.adapter.read(effort.handle.ref)).model_switch, undefined);
+  effort.release();
+  await effort.settle(effort.handle.ref);
+  assert.deepEqual(effort.requests.map(request => request.body.model), ["small"]);
+});
+
+test("PA-24: a round whose prompt cache is off may switch to another format", { timeout: 30_000 }, async t => {
+  const f = await heldRound(t, { small: model("small", { prompt_cache: "off" }), chat: model("chat", { protocol: "openai-compatible", endpoint: "https://1.1.1.3/v1/chat/completions" }) });
+  await f.adapter.control(f.handle.ref, { kind: "switch-model", provider_id: "p", model_id: "chat" });
+  assert.deepEqual((await f.adapter.read(f.handle.ref)).model_switch, { requested: "chat" });
+  await f.adapter.control(f.handle.ref, { kind: "stop" });
+  f.release();
+  await f.settle(f.handle.ref);
+});
+
+test("PA-24: stopping a round with a switch asked for sends nothing to the new model, and the ended round no longer shows the request", { timeout: 30_000 }, async t => {
+  const f = await heldRound(t, { small: model("small"), large: model("large", { endpoint: "https://1.1.1.2/v1/messages" }) });
+  await f.adapter.control(f.handle.ref, { kind: "switch-model", provider_id: "p", model_id: "large" });
+  assert.deepEqual((await f.adapter.read(f.handle.ref)).model_switch, { requested: "large" });
+  await f.adapter.control(f.handle.ref, { kind: "stop" });
+  f.release();
+  const view = await f.settle(f.handle.ref);
+  assert.equal(view.phase, "stopped");
+  assert.equal(view.model_switch, undefined, "a request that never took effect is not shown on the ended round");
+  assert.deepEqual(f.requests.map(request => request.body.model), ["small"], "nothing went to the new model");
 });

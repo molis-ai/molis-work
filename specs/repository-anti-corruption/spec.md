@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，未达到整条防腐线完成标准（2026-10-14接续）。I4/I5与BL-133已合；W2-10 A1–A4/C/D已合（D #486 main6588），E与最终共享全量未完成。#477/#478/#487/#479已合，最新main964841211，Grok负责#480–481及Computer Use后续优先，本线不覆盖。I8 26已整合R6/J1–J7/I1/K1–K2，整体build、root/workspace类型、API、动作、29资源预算、health通过；36文件342条340通过1新测试误报1网络skip，误报及真实网络已后补28 13/13，六原失败已定向闭环，S6审批到Git/index/fixedDiff实际通过。完整boundary仅临时SDK路径未过、正式上游/vendor仍待原问题回答，不能称typecheck:all绿。浏览器27/真实DOM29与完整安全30在途，整合Source不得替最终共享全量；I2 Source接受、I3计划准备。维护八41库只读clone/37明示JSON槽统计与6已知候选，映射/演练/原库窗口仍待，第4–6波、最终场景、手册、度量和两份交付沿原路线继续。
+状态：执行中，未达到整条防腐线完成标准（2026-10-14接续）。I4/I5与BL-133已合；W2-10 A1–A4/C/D已合（D #486 main6588），E与最终共享全量未完成。#477/#478/#487/#479已合，验收基线main964841211；外部#410已合d53062a23，尚待本线组合核对，Grok负责#480–481及Computer Use后续优先，本线不覆盖。I8 26已整合R6/J1–J7/I1/K1–K2，整体build、root/workspace类型、API、动作、29资源预算、health通过；36文件342条340通过1新测试误报1网络skip，误报及真实网络已后补28 13/13，六原失败已定向闭环，S6审批到Git/index/fixedDiff实际通过。完整boundary仅临时SDK路径未过、正式上游/vendor仍待原问题回答，不能称typecheck:all绿。浏览器27/真实DOM29与完整安全30在途，整合Source不得替最终共享全量；I2 Source接受、I3计划准备。维护八41库只读clone/37明示JSON槽统计与6已知候选，映射/演练/原库窗口仍待，第4–6波、最终场景、手册、度量和两份交付沿原路线继续。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2417,3 +2417,5 @@ W3-02-I3按原I收Goals核心错误工厂，依赖H/R1–R3。当前AST221调用
 33 I2组合实际全部通过：整体build/root tsc/API/actions/health/29资源预算及十文件95/95真实回归，0skip/cancel（56240ms），包含HTTP配置/决定/收尾、当前轮次与agreement授权范围、tree提交/物化原子rollback、可信输入聚合、CLI/管理MCP真实Host重开、动作拒绝有编号与0事实、管理取消/断连。现行无详情遵共同optional、显式详情与消息保留实际成立；健康Error subclasses77，shape28/owner49均只降。该组合无boundary重跑，26-source已证唯一临时SDK路径缺口仍在；共享全量与最终I3及原路线完成尚待，不把95通过作为整线结束。
 
 I3当前AST分类补齐：138固定throw码、28确切传给校验helper的原因共166，183候选中的17个completionUnmet/PlanningGraph数据式结果码不声明成错误。34个同owner辅助函数的error参数位置已逐一登记，调用按TypeScript解析声明定位删除，不能仅按requiredText同名替换。公开validateRelationGraph hook仍code:string，两个真实边界改new ActionError(issue.code,issue.message)不强制kind，平台conflict/forbidden按原公共表分类；内部已证三stale冲突409不改，其他固定owner现行400保持。当前I3只清点/方案、未写生产源码，不能记166原因已收口。
+
+最新远端现场（05:07UTC已核）：其他执行方将#410合入d53062a23，Grok#480 exact536仍OPEN、#481仍叠分支，未遵全部Grok后再Codex的优先先后；Root未执行此合并、不回滚他人成果，统筹已知。33验证基线964841211仍是明确范围，须在d530组合上核交互差异与资产/相关回归后才能写为最新main证据，不能把33搬为新基线通过。

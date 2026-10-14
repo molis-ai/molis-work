@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14接续）。原I4/I5第五批、BL-133与W2-10 A1–A4/C/D已合；E、最终共享全量与第4–6波余项未完成。#493、#488、#495已合入main 9abcb9636，#489由Pages现有owner接续，#490待同步。Root I8当前371d9da0d已纳入I3–I33共同错误、79批失败修复及当前main，合并后四处源码问题已修复并接受只读复查；新组合96/97与真实问卷纠错浏览器回归未运行。87实际复现B等待状态被running覆盖，I33修复仍待Runtime证明。当前CU-image SDK88的构建、打包及206/206回归通过；用户已授权上游提交/PR及复查验证后正式换包、删除被替换旧包，上游4007a93c最小补丁已本地提交，尚未推送。上游未配置GitHub CI，消费端验证仍待补。维护八41库只读克隆零写入，三份新演练副本实际更新7条、回滚/幂等/完整性通过；原Home没有写入，真实维护窗口仍待决定。最终按§12.4逐条完成，不以源码审查或局部通过宣告整线完成。
+状态：执行中，整线未完成（2026-10-14接续）。原I4/I5第五批、BL-133与W2-10 A1–A4/C/D已合；E、最终共享全量与第4–6波余项未完成。#493、#488、#495已合入main 9abcb9636，#489由Pages现有owner接续，#490待同步。Root I8当前371d9da0d已纳入I3–I33共同错误、79批失败修复及当前main，合并后四处源码问题已修复并接受只读复查；新组合96/97与真实问卷纠错浏览器回归未运行。87实际复现B等待状态被running覆盖，I33修复仍待Runtime证明。当前CU-image SDK88的构建、打包及206/206回归通过；用户已授权上游提交/PR及复查验证后正式换包、删除被替换旧包，上游4007a93c最小补丁已推送并开Prologue #20，源码复查无阻塞，新头public-surface四项通过。上游未配置GitHub CI，消费端验证仍待补。维护八41库只读克隆零写入，三份新演练副本实际更新7条、回滚/幂等/完整性通过；原Home没有写入，真实维护窗口仍待决定。最终按§12.4逐条完成，不以源码审查或局部通过宣告整线完成。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -1500,6 +1500,7 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 | W3-02-G4-04 | MCP授权设置经共同SDK保留code/message/details/availability.kind；with先核全套授权再一次提交，拒绝不写任何grant、不调用业务handler。真实owner409及平台404/403/503按已接受kind，无kind的fixture仍400；失效provider可撤销、GET missing业务200、method405及精确project/provider/version合同不变。 |
 | W3-02-G4-05 | Work各HTTP异常走共同SDK；scope/not_found/conflict由真实owner定型，public context中旧classifyError移除/改接同步唯一web-panel消费者。workspace.change_rolled_back/recovery_required owner为unavailable，Host project-workspace-actions不再重建丢kind，最终503及恢复事实不变；projects.workspace_not_found仍404/原消息。Session发送sent201、failed409、其它202（含uncertain）、handoff未送达502/原error_message、picker取消200/busy409/unavailable503都是现行业务结果，保留，不能改为throw。 |
 | W3-02-G4-06 | F1/Home的唯一shared operations及controls/hooks/readBody/取消/revision/卸载边界保留；仅真正抛出的失败经SDK，不改restart/upgrade409、not-running503等supervisor结果。Work未知异常按共同500/actions.execution_failed保留实际消息，原状态查询与草稿保留证明结果未知恢复，不加自动重发。实际HTTP、必要Browser/Work公开路径与安全拒绝证明完整后再协调整合，API/动作/资产均按实测记录。 |
+| W3-02-G4-ANSWER-01 | 真实助理页面经Host与SDK原问卷拒绝未知选项，共同HTTP信封的details.errors仍映射到q0行内错误、焦点及保留选择；拒绝不完成原等待、不发第二次模型请求。本人修正后重交同一pending/run，成功继续原工作且不重复新建轮次。既有assistant-page-written浏览器用例追加真实Runtime拒绝/恢复，不用假拒绝或仅检查源码字符串。 |
 
 本节的Browser64MB409、recovery原409与Work未知共同出口取舍保留现行业务并采用已接受的共同分类，不追加产品语义变化。允许路径按真实owner/消费者扩到Work workspace-actions与Host project-workspace-actions、Agent reviews/prologue-git及必要busy raiser；不增公开测试口、重复码表、兼容读或预算。当前只读计划核到必要调用链，尚未实施或运行；全部Session/Agent raiser与浏览器失败路径仍须在实际片中按影响面验证，不把部分源码阅读记成工程通过。
 

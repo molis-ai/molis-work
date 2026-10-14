@@ -1,3 +1,4 @@
+import { agentErrors } from "../errors.js";
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS, gatewayProblem, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
 import { allowDesktopAppForRound, createPrologueSurfaces, desktopActionCard, surfaceRules, SURFACE_GUIDANCE, DESKTOP_GUIDANCE, type PrologueSurfacePorts, type PrologueSurfaces } from "./prologue-surfaces.js";
@@ -18,15 +19,7 @@ const REFUSED_BEFORE_RUN = new Set(["AGENT_START_INVALID", "CONTEXT_BUDGET_EXCEE
 import path from "node:path";
 import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
 
-import {
-  PrologueAgentAdapter,
-  PrologueAdapterError,
-  type PrologueAdapterPorts,
-  type PrologueRuntimePort,
-  type PrologueStartInput,
-  type PrologueRestoredSession,
-  type PrologueRunTiming,
-} from "./prologue.js";
+import { PrologueAgentAdapter, type PrologueAdapterPorts, type PrologueRuntimePort, type PrologueStartInput, type PrologueRestoredSession, type PrologueRunTiming } from "./prologue.js";
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
 import { createPrologueSubagents, subagentYieldGuard, verifySubagentStart, exactCharacterKey, type PrologueSubagentRoot } from "./prologue-subagents.js";
 import { createPrologueMcpLibrary, mcpConnectionId, type HostMcpConnection } from "./prologue-mcp.js";
@@ -708,7 +701,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     const pending = await runtime.effects.pendings.read({ kind: "pending", id, revision });
     if (!pending || pending.origin?.session !== run.session_id || pending.origin.run !== run.run_id
       || !["text", "questionnaire"].includes(pending.kind)) {
-      throw new PrologueAdapterError("agent.pending_not_open", "原问题不属于本轮执行，不能提交答案");
+      throw agentErrors.pending_not_open("原问题不属于本轮执行，不能提交答案");
     }
     return pending;
   };
@@ -852,9 +845,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       claim: () => { const claim = runtime.queue.claim(); return { survives_window_close: claim.survivesWindowClose, why: claim.why }; },
       enqueue: async input => {
         const index = await readIndex(input.session_id);
-        if (!index) throw new PrologueAdapterError("agent.session_unknown", "会话不存在，不能安排定时");
+        if (!index) throw agentErrors.session_unknown("会话不存在，不能安排定时");
         const due = Date.parse(input.due_at);
-        if (!Number.isFinite(due)) throw new PrologueAdapterError("agent.capability_unavailable", "定时的时间无效");
+        if (!Number.isFinite(due)) throw agentErrors.capability_unavailable("定时的时间无效");
         return scheduledView(await runtime.queue.enqueue({ key: input.key, sessionRef: index.ref, work: { kind: input.kind, payload: { ...input.payload } }, dueAtMs: due,
           ...(input.max_attempts ? { maxAttempts: input.max_attempts } : {}) }));
       },
@@ -1389,19 +1382,19 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     approvals,
     async answerPending(run, answer) {
       if (!Number.isInteger(answer.pending_revision) || answer.pending_revision! < 1) {
-        throw new PrologueAdapterError("agent.pending_not_open", "原问题缺少精确版本，不能提交答案");
+        throw agentErrors.pending_not_open("原问题缺少精确版本，不能提交答案");
       }
       const pending = await readQuestion(run, answer.pending_id, answer.pending_revision!);
       const now = await host.readClock();
       const unavailable = questionUnavailable(pending, now.monotonicMs, Boolean(activeRuns.get(run.run_id)?.live() && runtime.effects.pendings.hasLiveWaiter(pending.ref)));
-      if (unavailable) throw new PrologueAdapterError("agent.pending_not_open", unavailable);
+      if (unavailable) throw agentErrors.pending_not_open(unavailable);
       if (pending.kind === "text") {
-        if (typeof answer.text !== "string" || !answer.text.trim() || answer.answers !== undefined) throw new PrologueAdapterError("agent.answer_invalid", "请填写原问题的文字回答");
+        if (typeof answer.text !== "string" || !answer.text.trim() || answer.answers !== undefined) throw agentErrors.answer_invalid("请填写原问题的文字回答");
         await runtime.effects.pendings.answer(pending.ref, { kind: "text", text: answer.text }, now);
       } else {
-        if (!answer.answers || answer.text !== undefined) throw new PrologueAdapterError("agent.answer_invalid", "请按原问卷逐题回答");
+        if (!answer.answers || answer.text !== undefined) throw agentErrors.answer_invalid("请按原问卷逐题回答");
         const problems = answerProblems(pending.questions, answer.answers);
-        if (problems.length) throw new PrologueAdapterError("agent.answer_invalid", `有 ${problems.length} 道题的回答不能提交`, problems);
+        if (problems.length) throw Object.assign(agentErrors.answer_invalid(`有 ${problems.length} 道题的回答不能提交`, { problems }), { problems });
         await runtime.effects.pendings.answer(pending.ref, { kind: "questionnaire", answers: answer.answers }, now);
       }
     },
@@ -1527,7 +1520,7 @@ async function stageInstructions(
   instructions: string,
 ): Promise<ExactRef<"resource"> | undefined> {
   if (instructions.length > MAX_COMPOSED_INSTRUCTION_CHARS) {
-    throw new PrologueAdapterError("agent.capability_unavailable", "本轮角色、项目说明、方法与恢复上下文合计超过 64000 字符，未启动执行。请缩短指令或减少本轮选择的方法后重试；不会截断指令。");
+    throw agentErrors.capability_unavailable("本轮角色、项目说明、方法与恢复上下文合计超过 64000 字符，未启动执行。请缩短指令或减少本轮选择的方法后重试；不会截断指令。");
   }
   if (instructions.trim() === "") return undefined;
   return stageTextResource(sdk, instructions, "role-instructions");

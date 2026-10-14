@@ -1,9 +1,10 @@
+import { agentErrors } from "../errors.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ExactRef, Runtime } from "@prologue/sdk";
-import { PrologueAdapterError, type PrologueRuntimePort } from "./prologue.js";
+import { type PrologueRuntimePort } from "./prologue.js";
 
 /** Images a model call can carry, as recognised from their bytes. */
 const IMAGE_MEDIA_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
@@ -41,7 +42,7 @@ export function createPrologueDocuments(runtime: Runtime, storageRoot: string | 
         const batch = runtime.beginIntake(dir.ref);
         try {
           const item = await batch.add(file, input.name.slice(0, 120) || "image");
-          if (!item.mediaType || !IMAGE_MEDIA_TYPES.includes(item.mediaType)) throw new PrologueAdapterError("agent.capability_unavailable", "只能带 PNG、JPEG、GIF 或 WebP 图片");
+          if (!item.mediaType || !IMAGE_MEDIA_TYPES.includes(item.mediaType)) throw agentErrors.capability_unavailable("只能带 PNG、JPEG、GIF 或 WebP 图片");
           await batch.publish();
           return { resource: { id: item.ref.id, revision: item.ref.revision }, media_type: item.mediaType, byte_length: item.byteLength };
         } catch (error) { await batch.cancel(); throw error; }
@@ -50,7 +51,6 @@ export function createPrologueDocuments(runtime: Runtime, storageRoot: string | 
     parse: input => parsePrologueDocument(runtime, input),
   };
 }
-
 
 /** This port returns text, so neither the source bytes nor its derived resource have a consumer. */
 export async function parsePrologueDocument(runtime: Runtime, input: { bytes: Uint8Array; name: string }) {

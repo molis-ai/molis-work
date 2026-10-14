@@ -1,6 +1,6 @@
+import { agentErrors } from "../errors.js";
 import { redactText, screenInbound, type ExactRef, type MemoryEntry, type MemoryMeta, type Runtime, type ScopedCandidate } from "@prologue/sdk";
 import type { AgentMemoryExecutionControl, AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryEntry, AgentMemoryMeta, AgentPinnedMemory } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { PrologueAdapterError } from "./prologue.js";
 
 /**
  * The platform memory port over the runtime's memory and candidate stores, and the exact references of the memories the
@@ -43,13 +43,13 @@ export function createPrologueMemory(runtime: Runtime, bind: (memory: AgentMemor
   const find = async (scope: Entry["scope"], owner: string, id: string) => {
     await ready(scope, owner);
     const entry = runtime.memory.list({ scope, owner }).find(item => item.ref.id === id);
-    if (!entry) throw new PrologueAdapterError("agent.capability_unavailable", "这条记忆不存在或已删除");
+    if (!entry) throw agentErrors.capability_unavailable("这条记忆不存在或已删除");
     return entry;
   };
   const candidate = async (scope: Entry["scope"], owner: string, id: string) => {
     await ready(scope, owner);
     const found = runtime.memoryCandidates.list({ scope, owner }).find(item => item.ref.id === id);
-    if (!found) throw new PrologueAdapterError("agent.capability_unavailable", "这条候选不存在");
+    if (!found) throw agentErrors.capability_unavailable("这条候选不存在");
     return found.ref;
   };
   const capability: AgentMemoryCapability = {

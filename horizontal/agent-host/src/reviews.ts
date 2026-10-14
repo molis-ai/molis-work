@@ -1,6 +1,7 @@
+import { agentErrors } from "./errors.js";
 import { isDeepStrictEqual } from "node:util";
 import type {
-  AgentHostErrorCode,
+
   AgentReviewDecisionInput,
   AgentReviewQueueApi,
   AgentReviewReceipt,
@@ -10,21 +11,6 @@ import type {
   AgentReviewRecoveryInput,
   AgentReviewRecoveryView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
-
-export class AgentReviewError extends Error {
-  constructor(
-    readonly code: Extract<AgentHostErrorCode,
-      | "agent.review_unknown"
-      | "agent.review_already_decided"
-      | "agent.review_expired"
-      | "agent.review_not_approved"
-      | "agent.capability_unavailable">,
-    message: string,
-  ) {
-    super(message);
-    this.name = "AgentReviewError";
-  }
-}
 
 /**
  * The identity of a command for a standing rule: same session, same plugin, same argv, directory,
@@ -94,13 +80,13 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
 
   async inspectRecovery(reviewId: string, observe: RecoveryObserver): Promise<AgentReviewRecoveryView> {
     const request = this.get(reviewId), handler = this.#recoverers.get(reviewId);
-    if (!request || !handler) throw new AgentReviewError("agent.capability_unavailable", "此操作的核对入口尚不可用");
+    if (!request || !handler) throw agentErrors.capability_unavailable("此操作的核对入口尚不可用");
     return handler.inspect(() => observe(request));
   }
 
   async recover(input: AgentReviewRecoveryInput, observe: RecoveryObserver): Promise<AgentReviewRecoveryView> {
     const request = this.get(input.review_id), handler = this.#recoverers.get(input.review_id);
-    if (!request || !handler) throw new AgentReviewError("agent.capability_unavailable", "此操作的核对入口尚不可用");
+    if (!request || !handler) throw agentErrors.capability_unavailable("此操作的核对入口尚不可用");
     return handler.resolve(input, () => observe(request));
   }
 
@@ -131,12 +117,12 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
       || operation.kind === "git-worktree" && operation.workspace_id && request.kind === "tool-operation" && request.document.kind === "tool-operation" && request.document.tool === "git-worktree-create" && request.plugin_id === "io.molis.work.coding"
       || operation.kind === "git-operation" && operation.workspace_id && request.kind === "tool-operation" && request.document.kind === "tool-operation" && /^git-(commit|branch-create|branch-switch|push|pr-create|merge|pull|resolve|merge-abort)$/.test(request.document.tool) && request.plugin_id === "io.molis.work.git");
     if ((request.run === null) !== Boolean(operation) || operation && !manual) {
-      throw new AgentReviewError("agent.review_unknown", "审查必须属于实际轮次或明确的宿主操作");
+      throw agentErrors.review_unknown("审查必须属于实际轮次或明确的宿主操作");
     }
     const existing = this.#rows.get(request.review_id);
     if (existing) {
       if (!isDeepStrictEqual(existing.request, request)) {
-        throw new AgentReviewError("agent.review_already_decided", "审查引用已绑定另一份内容，不能替换用户看到的操作");
+        throw agentErrors.review_already_decided("审查引用已绑定另一份内容，不能替换用户看到的操作");
       }
       return structuredClone(existing.request);
     }
@@ -160,8 +146,8 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   /** Host-only dispatch to the execution owner; never exposed as a Plugin capability. */
   registerDecisionHandler(reviewId: string, handler: (input: AgentReviewDecisionInput) => Promise<AgentReviewReceipt>): void {
     const row = this.#rows.get(reviewId);
-    if (!row) throw new AgentReviewError("agent.review_unknown", "找不到这条待审操作");
-    if (this.#deciders.has(reviewId)) throw new AgentReviewError("agent.review_already_decided", "审查已有执行所有者，不能替换");
+    if (!row) throw agentErrors.review_unknown("找不到这条待审操作");
+    if (this.#deciders.has(reviewId)) throw agentErrors.review_already_decided("审查已有执行所有者，不能替换");
     this.#deciders.set(reviewId, handler);
     // An exact repeat of a command a person allowed for this session goes through the same decision path,
     // attributed to that person and marked as coming from their rule. If it cannot, it simply stays pending.
@@ -179,11 +165,11 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
 
   async respond(input: AgentReviewDecisionInput): Promise<AgentReviewReceipt> {
     const handler = this.#deciders.get(input.review_id);
-    if (!handler) throw new AgentReviewError("agent.capability_unavailable", "执行方未接通或已中断，不能只在页面记录一次假批准");
+    if (!handler) throw agentErrors.capability_unavailable("执行方未接通或已中断，不能只在页面记录一次假批准");
     const row = this.#rows.get(input.review_id);
     const key = input.remember === "session" && row ? standingKey(row.request) : null;
     if (input.remember === "session" && (!key || input.decision !== "approve")) {
-      throw new AgentReviewError("agent.capability_unavailable", "只有在宿主执行边界内的命令可以设为本会话内不再询问");
+      throw agentErrors.capability_unavailable("只有在宿主执行边界内的命令可以设为本会话内不再询问");
     }
     const receipt = await handler(input);
     if (key && row && this.#status(row) === "approved") this.#standing.set(key, { set_by: input.actor_id, set_at: row.receipt.decided_at ?? this.#now().toISOString() });
@@ -192,7 +178,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
 
   deliveryFailed(reviewId: string, message: string): AgentReviewReceipt {
     const row = this.#rows.get(reviewId);
-    if (!row) throw new AgentReviewError("agent.review_unknown", "找不到这条待审操作");
+    if (!row) throw agentErrors.review_unknown("找不到这条待审操作");
     row.receipt.delivery_error = message;
     return structuredClone(row.receipt);
   }
@@ -220,14 +206,14 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   decide(input: AgentReviewDecisionInput): AgentReviewReceipt {
     const row = this.#rows.get(input.review_id);
     if (!row) {
-      throw new AgentReviewError("agent.review_unknown", "找不到这条待审操作");
+      throw agentErrors.review_unknown("找不到这条待审操作");
     }
     const current = this.#status(row);
     if (current === "expired") {
-      throw new AgentReviewError("agent.review_expired", "这条待审操作已过期，请重新发起");
+      throw agentErrors.review_expired("这条待审操作已过期，请重新发起");
     }
     if (current !== "pending") {
-      throw new AgentReviewError("agent.review_already_decided", "这条待审操作已经有结论了");
+      throw agentErrors.review_already_decided("这条待审操作已经有结论了");
     }
     const automatic = input.decision === "approve" ? this.#automatic.get(input.review_id) : undefined;
     row.receipt = {
@@ -274,13 +260,10 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   consumeApproval(reviewId: string): AgentReviewRequest {
     const row = this.#rows.get(reviewId);
     if (!row) {
-      throw new AgentReviewError("agent.review_unknown", "找不到这条待审操作");
+      throw agentErrors.review_unknown("找不到这条待审操作");
     }
     if (this.#status(row) !== "approved" || this.#consumed.has(reviewId)) {
-      throw new AgentReviewError(
-        "agent.review_not_approved",
-        "这条操作没有可用的批准；未经批准不得执行",
-      );
+      throw agentErrors.review_not_approved("这条操作没有可用的批准；未经批准不得执行");
     }
     this.#consumed.add(reviewId);
     return structuredClone(row.request);
@@ -290,18 +273,15 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   settle(reviewId: string, outcome: { ok: boolean; error?: string }, options?: { restored?: boolean }): AgentReviewReceipt {
     const row = this.#rows.get(reviewId);
     if (!row) {
-      throw new AgentReviewError("agent.review_unknown", "找不到这条待审操作");
+      throw agentErrors.review_unknown("找不到这条待审操作");
     }
     if (!this.#consumed.has(reviewId)) {
-      throw new AgentReviewError(
-        "agent.review_not_approved",
-        "没有消费过批准的操作不能记录执行结果",
-      );
+      throw agentErrors.review_not_approved("没有消费过批准的操作不能记录执行结果");
     }
     const effectError = outcome.ok ? null : outcome.error ?? "执行失败";
     if (row.receipt.effect_settled || row.receipt.effect_error !== null) {
       if (row.receipt.effect_settled !== outcome.ok || row.receipt.effect_error !== effectError) {
-        throw new AgentReviewError("agent.review_already_decided", "实际执行回执已经落定，不能用另一结果覆盖");
+        throw agentErrors.review_already_decided("实际执行回执已经落定，不能用另一结果覆盖");
       }
       return structuredClone(row.receipt);
     }

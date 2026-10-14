@@ -1,5 +1,6 @@
+import { agentErrors } from "../errors.js";
 import { isTerminalAgentPhase, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { PrologueAdapterError, type PrologueAdapterPorts, type PrologueControlPort, type PrologueModelConfiguration } from "./prologue.js";
+import { type PrologueAdapterPorts, type PrologueControlPort, type PrologueModelConfiguration } from "./prologue.js";
 
 /**
  * Switch a live Run's later model calls to another configured model (the runtime takes it at its next model boundary).
@@ -16,7 +17,7 @@ export async function switchRunModel(input: {
   requested(model: string): void;
 }): Promise<void> {
   const { view, control, model: start } = input.record;
-  const refuse = (why: string): never => { throw new PrologueAdapterError("agent.capability_unavailable", `${why}；本轮没有换模型，仍用原模型继续`); };
+  const refuse = (why: string): never => { throw agentErrors.capability_unavailable(`${why}；本轮没有换模型，仍用原模型继续`); };
   if (isTerminalAgentPhase(view.phase) || view.phase === "reconcile-required") refuse("这一轮已经结束，换模型请在下一轮选择");
   if (!control.switchModel || !start) refuse("这个运行时不能在一轮中途换模型");
   const next = await input.configure({ provider_id: input.selection.provider_id, model_id: input.selection.model_id });

@@ -114,9 +114,10 @@
         "horizontal/connector-host/",
         "apps/local-host/src/connector*",
         "apps/local-host/src/web-connector*",
-        "apps/local-host/src/host-connector-methods.ts"
+        "apps/local-host/src/host-connector-methods.ts",
+        "packages/contracts/src/services/connector-host.ts"
       ],
-      "reason": "Connector connections, drivers, OAuth and the connector settings routes (ConnectorHostError, ConnectorConnectionError, McpConnectionError): one owner, whose bare-word and connector_* codes become connector.*."
+      "reason": "Connector connections, drivers, OAuth and the connector settings routes (ConnectorHostError, ConnectorConnectionError, McpConnectionError): one owner, whose bare-word and connector_* codes become connector.*. Its public service contract declares the service and MCP connection refusals once."
     },
     "context_ledger": {
       "paths": [

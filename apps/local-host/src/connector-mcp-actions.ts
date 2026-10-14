@@ -1,6 +1,6 @@
 import path from "node:path";
 import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { callMcpConnectionTool, McpConnectionError, readMcpConnectionResource } from "./connector-mcp.js";
+import { callMcpConnectionTool, readMcpConnectionResource } from "./connector-mcp.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { CONNECTOR_MCP_CAPABILITY_PREFIX, createMcpVersionBook, createRegistrationSet, EXTERNAL_MCP_PERMISSION, mcpIdPart, mcpInputContract, mcpInputFingerprint, mcpToolDescription, readJsonFile, writeJsonFile } from "./mcp-tool-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -33,7 +33,7 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
   const connection = (id: string) => withConnectorConnections(options.homeDirectory, store => store.get(id));
   const withdraw = (connectionId: string) => { registered.get(connectionId)?.set.clear(); registered.delete(connectionId); };
 
-  const failure = (error: unknown) => error instanceof McpConnectionError
+  const failure = (error: unknown) => (error instanceof ActionError && ["connector.mcp.configuration","connector.mcp.authorization","connector.mcp.disconnected","connector.mcp.provider"].includes(error.code))
     ? new ActionError(error.code === "connector.mcp.authorization" ? "actions.reauthorize" : "actions.connection_unavailable", error.message) : error;
   function register(connectionId: string, tools: Seen[string]["tools"], resources = false) {
     const row = connection(connectionId);

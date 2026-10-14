@@ -1,7 +1,7 @@
 import { ActionError, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { githubWhoami } from "@molis-ai/molis-work-integration-github";
 import { catalogWhoami, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
-import { ConnectorConnectionError } from "./connector-connection-store.js";
+
 import { resolveApiConnection } from "./connector-access.js";
 
 export interface ConnectorAccount { connection_id: string; service_id: string; login: string; scopes?: string[]; account_id?: string }
@@ -25,7 +25,7 @@ export async function readConnectorAccount(home: string, connectionId: string): 
   let access: Awaited<ReturnType<typeof resolveApiConnection>>;
   try { access = await resolveApiConnection(home, connectionId); }
   catch (error) {
-    if (error instanceof ConnectorConnectionError && error.code === "connector.connection.not_found") throw new ActionError("connectors.unknown", "没有这条连接");
+    if ((error instanceof ActionError && ["connector.connection.invalid","connector.connection.not_found","connector.connection.service_mismatch","connector.connection.disconnected"].includes(error.code)) && error.code === "connector.connection.not_found") throw new ActionError("connectors.unknown", "没有这条连接");
     throw new ActionError("connectors.disconnected", error instanceof Error ? error.message : "连接不可用");
   }
   const service = access.connection.service_id;

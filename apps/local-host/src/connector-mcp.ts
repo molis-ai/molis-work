@@ -1,3 +1,4 @@
+import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
 import { randomUUID } from "node:crypto";
 import { connectorProductAuth } from "./connector-product-auth.js";
@@ -83,9 +84,7 @@ interface McpConfiguration extends ConnectorProtocolConfiguration {
   previousRevision?: string;
   previousDisconnectedAt?: string | null;
 }
-export class McpConnectionError extends Error {
-  constructor(readonly code: "connector.mcp.configuration" | "connector.mcp.authorization" | "connector.mcp.disconnected" | "connector.mcp.provider", message: string) { super(message); }
-}
+
 export interface StartMcpConnectionInput {
   serviceId: string; displayName: string; endpoint?: string; clientId?: string; clientSecret?: string;
   token?: string; origin: string; connectionId?: string; redirectUri?: string;
@@ -105,16 +104,16 @@ interface McpToolRequestOptions extends McpRequestOptions {
 
 function callbackOrigin(raw: string): string {
   let url: URL;
-  try { url = new URL(raw); } catch { throw new McpConnectionError("connector.mcp.configuration", "本机回调地址无效"); }
+  try { url = new URL(raw); } catch { throw connectorErrors["connector.mcp.configuration"]("本机回调地址无效"); }
   if (!isLoopbackHttpOrigin(url)) {
-    throw new McpConnectionError("connector.mcp.configuration", "授权回调必须使用本机 HTTP 地址");
+    throw connectorErrors["connector.mcp.configuration"]("授权回调必须使用本机 HTTP 地址");
   }
   return url.origin;
 }
-function safeError(error: unknown): McpConnectionError | ActionError {
-  if (error instanceof McpConnectionError || error instanceof ActionError) return error;
-  if (error instanceof UnauthorizedError) return new McpConnectionError("connector.mcp.authorization", "MCP 需要重新授权，请检查账号权限或 OAuth 应用配置");
-  return new McpConnectionError("connector.mcp.provider", "MCP 连接失败，请检查服务地址、账号权限和 OAuth 应用配置后重试");
+function safeError(error: unknown): ActionError {
+  if (error instanceof ActionError) return error;
+  if (error instanceof UnauthorizedError) return connectorErrors["connector.mcp.authorization"]("MCP 需要重新授权，请检查账号权限或 OAuth 应用配置");
+  return connectorErrors["connector.mcp.provider"]("MCP 连接失败，请检查服务地址、账号权限和 OAuth 应用配置后重试");
 }
 
 interface ConnectorMcpHostOptions {
@@ -162,19 +161,19 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
   };
   function endpointFor(serviceId: string, requested?: string): string {
     const server = servers[serviceId];
-    if (!server) throw new McpConnectionError("connector.mcp.configuration", "这个服务尚未配置官方 MCP 地址");
+    if (!server) throw connectorErrors["connector.mcp.configuration"]("这个服务尚未配置官方 MCP 地址");
     const expected = new URL(server.endpoint);
     const endpoint = new URL(requested || server.endpoint);
-    if ((server.endpointPattern ? !server.endpointPattern.test(endpoint.href) : endpoint.href !== expected.href) || endpoint.username || endpoint.password || endpoint.hash) throw new McpConnectionError("connector.mcp.configuration", "MCP 地址必须匹配所选服务的官方地址；租户 ID 和 server name 需替换成实际值");
+    if ((server.endpointPattern ? !server.endpointPattern.test(endpoint.href) : endpoint.href !== expected.href) || endpoint.username || endpoint.password || endpoint.hash) throw connectorErrors["connector.mcp.configuration"]("MCP 地址必须匹配所选服务的官方地址；租户 ID 和 server name 需替换成实际值");
     const local = isLoopbackHttpUrl(endpoint);
-    if (endpoint.protocol !== "https:" && !(local && (options.testServers || serviceId === "figma"))) throw new McpConnectionError("connector.mcp.configuration", "远程 MCP 必须使用 HTTPS");
+    if (endpoint.protocol !== "https:" && !(local && (options.testServers || serviceId === "figma"))) throw connectorErrors["connector.mcp.configuration"]("远程 MCP 必须使用 HTTPS");
     return endpoint.href;
   }
   function active(home: string, id: string): McpConfiguration {
     const connection = withConnectorConnections(home, store => store.require(id));
-    if (connection.auth_method !== "mcp" || connection.disconnected_at) throw new McpConnectionError("connector.mcp.disconnected", "MCP 连接已断开，请重新连接");
+    if (connection.auth_method !== "mcp" || connection.disconnected_at) throw connectorErrors["connector.mcp.disconnected"]("MCP 连接已断开，请重新连接");
     const config = withConnectorProtocols(home, store => store.get<McpConfiguration>(id));
-    if (!config || config.protocol !== "mcp" || config.serviceId !== connection.service_id) throw new McpConnectionError("connector.mcp.configuration", "MCP 连接配置缺失，请重新连接");
+    if (!config || config.protocol !== "mcp" || config.serviceId !== connection.service_id) throw connectorErrors["connector.mcp.configuration"]("MCP 连接配置缺失，请重新连接");
     endpointFor(config.serviceId, config.endpoint);
     return config;
   }
@@ -184,7 +183,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
       const url = new URL(input instanceof Request ? input.url : String(input));
       const configured = new URL(config.endpoint);
       const permittedLocal = url.origin === configured.origin && (options.testServers || config.serviceId === "figma");
-      if (url.username || url.password || (url.protocol !== "https:" && !(url.protocol === "http:" && permittedLocal))) throw new McpConnectionError("connector.mcp.configuration", "MCP 授权服务返回了不安全的地址");
+      if (url.username || url.password || (url.protocol !== "https:" && !(url.protocol === "http:" && permittedLocal))) throw connectorErrors["connector.mcp.configuration"]("MCP 授权服务返回了不安全的地址");
       await beforeDispatch?.();
       checkActive?.();
       signal?.throwIfAborted();
@@ -206,7 +205,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
         const client = oauth.clientInformation() as OAuthClientInformationMixed | undefined;
         return { client_name: "Molis", client_uri: "https://molis.ai", redirect_uris: [config.redirectUri], grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: client?.client_secret ? "client_secret_post" : "none" };
       },
-      state: () => { if (!state) throw new McpConnectionError("connector.mcp.authorization", "MCP 授权已失效，请重新连接"); return state; },
+      state: () => { if (!state) throw connectorErrors["connector.mcp.authorization"]("MCP 授权已失效，请重新连接"); return state; },
       clientInformation: () => { const raw = secrets.get("client"); return raw ? JSON.parse(raw) as OAuthClientInformationMixed : undefined; },
       saveClientInformation: client => { checkActive?.(); secrets.put("client", JSON.stringify(client)); },
       tokens: () => { checkActive?.(); const raw = secrets.get("oauth"); return raw ? JSON.parse(raw) as OAuthTokens : undefined; },
@@ -217,12 +216,12 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
         if (tokens.expires_in !== undefined) secrets.put("expires", String(now() + tokens.expires_in * 1000));
         else secrets.delete("expires");
       },
-      saveCodeVerifier: verifier => { if (!state) throw new McpConnectionError("connector.mcp.authorization", "MCP 需要重新授权"); secrets.put("verifier", verifier); },
-      codeVerifier: () => { const verifier = secrets.get("verifier"); if (!verifier) throw new McpConnectionError("connector.mcp.authorization", "授权校验信息缺失，请重新连接"); return verifier; },
+      saveCodeVerifier: verifier => { if (!state) throw connectorErrors["connector.mcp.authorization"]("MCP 需要重新授权"); secrets.put("verifier", verifier); },
+      codeVerifier: () => { const verifier = secrets.get("verifier"); if (!verifier) throw connectorErrors["connector.mcp.authorization"]("授权校验信息缺失，请重新连接"); return verifier; },
       redirectToAuthorization: url => {
-        if (!state) throw new McpConnectionError("connector.mcp.authorization", "MCP 需要重新授权");
+        if (!state) throw connectorErrors["connector.mcp.authorization"]("MCP 需要重新授权");
         const localTest = options.testServers && url.origin === new URL(config.endpoint).origin;
-        if (url.username || url.password || (url.protocol !== "https:" && !localTest)) throw new McpConnectionError("connector.mcp.authorization", "MCP 返回的授权地址无效");
+        if (url.username || url.password || (url.protocol !== "https:" && !localTest)) throw connectorErrors["connector.mcp.authorization"]("MCP 返回的授权地址无效");
         authorizationUrl = url.href;
       },
       discoveryState: () => config.discovery,
@@ -242,7 +241,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     signal?.throwIfAborted();
     if (servers[config.serviceId]?.stdio) {
       const info = session.oauth.clientInformation() as OAuthClientInformationMixed | undefined;
-      if (!info?.client_id || !info.client_secret) throw new McpConnectionError("connector.mcp.configuration", "飞书 / Lark MCP 需要 App ID 与 App Secret");
+      if (!info?.client_id || !info.client_secret) throw connectorErrors["connector.mcp.configuration"]("飞书 / Lark MCP 需要 App ID 与 App Secret");
       return runLarkMcpChild({ appId: info.client_id, appSecret: info.client_secret, domain: new URL(config.endpoint).origin, userAccessToken: session.secrets.get("access") },
         { stdioTransport: options.stdioTransport, checkActive: session.checkActive, signal }, run);
     }
@@ -254,7 +253,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
       if (session.authorizationUrl()) return { authorizationUrl: session.authorizationUrl() };
     }
     const token = config.mode === "bearer" ? session.secrets.get("access") : null;
-    if (config.mode === "bearer" && !token) throw new McpConnectionError("connector.mcp.authorization", "MCP 令牌缺失，请重新连接");
+    if (config.mode === "bearer" && !token) throw connectorErrors["connector.mcp.authorization"]("MCP 令牌缺失，请重新连接");
     const headers = token ? { Authorization: `${servers[config.serviceId]?.tokenScheme ?? "Bearer"} ${token}` } : undefined;
     const transportOptions = { authProvider: config.mode === "oauth" ? session.oauth : undefined, requestInit: headers ? { headers } : undefined, fetch: session.fetch };
     const connect = async (kind: "http" | "sse") => {
@@ -288,18 +287,18 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     if (capabilities?.tools) {
       let cursor: string | undefined;
       const seen = new Set<string>();
-      do { const page = await client.listTools(cursor ? { cursor } : undefined, { timeout: REQUEST_TIMEOUT, signal }); tools.push(...page.tools); cursor = page.nextCursor; if (cursor && seen.has(cursor)) throw new McpConnectionError("connector.mcp.provider", "MCP 工具分页重复"); if (cursor) seen.add(cursor); } while (cursor);
+      do { const page = await client.listTools(cursor ? { cursor } : undefined, { timeout: REQUEST_TIMEOUT, signal }); tools.push(...page.tools); cursor = page.nextCursor; if (cursor && seen.has(cursor)) throw connectorErrors["connector.mcp.provider"]("MCP 工具分页重复"); if (cursor) seen.add(cursor); } while (cursor);
     }
     if (capabilities?.resources) {
       let cursor: string | undefined;
       const seen = new Set<string>();
-      do { const page = await client.listResources(cursor ? { cursor } : undefined, { timeout: REQUEST_TIMEOUT, signal }); resources.push(...page.resources); cursor = page.nextCursor; if (cursor && seen.has(cursor)) throw new McpConnectionError("connector.mcp.provider", "MCP 资源分页重复"); if (cursor) seen.add(cursor); } while (cursor);
+      do { const page = await client.listResources(cursor ? { cursor } : undefined, { timeout: REQUEST_TIMEOUT, signal }); resources.push(...page.resources); cursor = page.nextCursor; if (cursor && seen.has(cursor)) throw connectorErrors["connector.mcp.provider"]("MCP 资源分页重复"); if (cursor) seen.add(cursor); } while (cursor);
     }
     return { tools, resources };
   }
   function commit(home: string, config: McpConfiguration): void {
     const previous = withConnectorConnections(home, store => store.get(config.connectionId));
-    if (previous && (previous.updated_at !== config.previousRevision || previous.disconnected_at !== config.previousDisconnectedAt)) throw new McpConnectionError("connector.mcp.configuration", "连接已改变，请重新开始授权");
+    if (previous && (previous.updated_at !== config.previousRevision || previous.disconnected_at !== config.previousDisconnectedAt)) throw connectorErrors["connector.mcp.configuration"]("连接已改变，请重新开始授权");
     const staged = connectorProtocolSecrets(home, config.sessionId);
     const final = connectorProtocolSecrets(home, config.connectionId);
     for (const name of ["oauth", "access", "expires", "client"]) {
@@ -328,17 +327,17 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     const origin = callbackOrigin(input.origin);
     const redirectUri = input.redirectUri?.trim() || origin + CALLBACK;
     const redirect = new URL(redirectUri);
-    if (redirect.username || redirect.password || redirect.search || redirect.hash || (redirect.protocol !== "https:" && redirectUri !== origin + CALLBACK)) throw new McpConnectionError("connector.mcp.configuration", "请使用当前本机回调或已登记的 HTTPS 回调地址");
+    if (redirect.username || redirect.password || redirect.search || redirect.hash || (redirect.protocol !== "https:" && redirectUri !== origin + CALLBACK)) throw connectorErrors["connector.mcp.configuration"]("请使用当前本机回调或已登记的 HTTPS 回调地址");
     const displayName = input.displayName?.trim();
-    if (!displayName || displayName.length > 100) throw new McpConnectionError("connector.mcp.configuration", "连接名称不能为空且最多 100 个字符");
+    if (!displayName || displayName.length > 100) throw connectorErrors["connector.mcp.configuration"]("连接名称不能为空且最多 100 个字符");
     const token = input.token?.trim();
-    if (token && (token.length < 8 || token.length > 16_384 || /[\r\n]/u.test(token))) throw new McpConnectionError("connector.mcp.configuration", "MCP 令牌格式无效");
-    if (token && (server.auth === "oauth" || server.auth === "none")) throw new McpConnectionError("connector.mcp.configuration", "此 MCP 服务不支持粘贴令牌，请使用其官方授权方式");
+    if (token && (token.length < 8 || token.length > 16_384 || /[\r\n]/u.test(token))) throw connectorErrors["connector.mcp.configuration"]("MCP 令牌格式无效");
+    if (token && (server.auth === "oauth" || server.auth === "none")) throw connectorErrors["connector.mcp.configuration"]("此 MCP 服务不支持粘贴令牌，请使用其官方授权方式");
     const mode = server.stdio ? (token ? "bearer" : "none") : server.auth === "none" ? "none" : token ? "bearer" : "oauth";
-    if (mode === "oauth" && server.registration === "manual" && !input.clientId?.trim()) throw new McpConnectionError("connector.mcp.configuration", "此 MCP 服务需要预先注册的 OAuth Client ID；请先配置官方应用");
+    if (mode === "oauth" && server.registration === "manual" && !input.clientId?.trim()) throw connectorErrors["connector.mcp.configuration"]("此 MCP 服务需要预先注册的 OAuth Client ID；请先配置官方应用");
     // MCP does not define a stable account identity. An explicit new authorization
     // gets a new connection so it cannot silently switch consumers to another account.
-    if (input.connectionId) throw new McpConnectionError("connector.mcp.configuration", "MCP 新授权请新建连接，避免替换原账号；已有授权会自动刷新");
+    if (input.connectionId) throw connectorErrors["connector.mcp.configuration"]("MCP 新授权请新建连接，避免替换原账号；已有授权会自动刷新");
     const connectionId = randomUUID();
     const config: McpConfiguration = { connectionId, serviceId: input.serviceId, protocol: "mcp", displayName, endpoint, redirectUri,
       sessionId: randomUUID(), mode, transport: "http" };
@@ -350,8 +349,8 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     try {
       const connected = await useClient(home, config, inspect, state);
       if (connected.authorizationUrl) { withConnectorProtocols(home, store => store.update(state, config)); return { connectionId, authorizationId, authorizationUrl: connected.authorizationUrl }; }
-      if (!connected.result) throw new McpConnectionError("connector.mcp.provider", "MCP 未完成初始化");
-      if (config.mode === "oauth" && !secrets.get("access")) throw new McpConnectionError("connector.mcp.authorization", "MCP 未取得访问令牌，请检查 OAuth 应用配置");
+      if (!connected.result) throw connectorErrors["connector.mcp.provider"]("MCP 未完成初始化");
+      if (config.mode === "oauth" && !secrets.get("access")) throw connectorErrors["connector.mcp.authorization"]("MCP 未取得访问令牌，请检查 OAuth 应用配置");
       commit(home, config);
       withConnectorProtocols(home, store => store.discard(state));
       finishConnectorAuthorization(home, state, "connected");
@@ -365,18 +364,18 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     let config: McpConfiguration;
     try {
       config = withConnectorProtocols(home, store => store.consume<McpConfiguration>(state, callbackOrigin(input.origin), now())).configuration;
-    } catch { throw new McpConnectionError("connector.mcp.authorization", "MCP 授权会话无效、已过期或已使用，请重新连接"); }
+    } catch { throw connectorErrors["connector.mcp.authorization"]("MCP 授权会话无效、已过期或已使用，请重新连接"); }
     return serialized(home, config.connectionId, async () => {
       const session = provider(home, config);
       try {
-        if (config.protocol !== "mcp") throw new McpConnectionError("connector.mcp.authorization", "授权方式不匹配");
-        if (returned && returned.origin + returned.pathname !== config.redirectUri) throw new McpConnectionError("connector.mcp.authorization", "返回地址不匹配本次授权");
-        if (input.error || returned?.searchParams.get("error")) throw new McpConnectionError("connector.mcp.authorization", "授权被取消或拒绝");
+        if (config.protocol !== "mcp") throw connectorErrors["connector.mcp.authorization"]("授权方式不匹配");
+        if (returned && returned.origin + returned.pathname !== config.redirectUri) throw connectorErrors["connector.mcp.authorization"]("返回地址不匹配本次授权");
+        if (input.error || returned?.searchParams.get("error")) throw connectorErrors["connector.mcp.authorization"]("授权被取消或拒绝");
         endpointFor(config.serviceId, config.endpoint);
-        if (!code.trim()) throw new McpConnectionError("connector.mcp.authorization", "MCP 未返回授权码，请重新连接");
+        if (!code.trim()) throw connectorErrors["connector.mcp.authorization"]("MCP 未返回授权码，请重新连接");
         await auth(session.oauth, { serverUrl: config.endpoint, authorizationCode: code, fetchFn: session.fetch });
         const connected = await useClient(home, config, inspect);
-        if (!connected.result) throw new McpConnectionError("connector.mcp.authorization", "MCP 授权未完成，请重新连接");
+        if (!connected.result) throw connectorErrors["connector.mcp.authorization"]("MCP 授权未完成，请重新连接");
         commit(home, config);
         finishConnectorAuthorization(home, state, "connected");
         return { connectionId: config.connectionId, serviceId: config.serviceId, ...connected.result };
@@ -390,7 +389,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     withConnectorRequest(home, id, options.signal, signal => serialized(home, id, async () => {
       signal.throwIfAborted();
       const connected = await useClient(home, active(home, id), client => run(client, signal), undefined, signal, options.beforeDispatch);
-      if (connected.result === undefined) throw new McpConnectionError("connector.mcp.authorization", "MCP 需要重新授权");
+      if (connected.result === undefined) throw connectorErrors["connector.mcp.authorization"]("MCP 需要重新授权");
       return connected.result;
     }));
   const inspectMcpConnection = (home: string, id: string, options: { signal?: AbortSignal } = {}) => runConnection(home, id, options, inspect);
@@ -399,11 +398,11 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     const row = withConnectorConnections(home, store => store.require(id));
     const revision = createHash("sha256").update(JSON.stringify([row.updated_at, before.endpoint, before.mode])).digest("hex");
     const capabilities = await inspectMcpConnection(home, id, options);
-    if (withConnectorConnections(home, store => store.require(id)).updated_at !== row.updated_at) throw new McpConnectionError("connector.mcp.configuration", "连接已改变，请重新读取");
+    if (withConnectorConnections(home, store => store.require(id)).updated_at !== row.updated_at) throw connectorErrors["connector.mcp.configuration"]("连接已改变，请重新读取");
     return { kind: "mcp" as const, connection_id: id, service_id: row.service_id, display_name: row.display_name, revision, available: true, ...capabilities };
   };
   const callMcpConnectionTool = (home: string, id: string, name: string, args: Record<string, unknown>, options: McpToolRequestOptions = {}) => runConnection(home, id, options, async (client, signal) => {
-    if (!name.trim() || name.length > 256) throw new McpConnectionError("connector.mcp.configuration", "MCP 工具名称无效");
+    if (!name.trim() || name.length > 256) throw connectorErrors["connector.mcp.configuration"]("MCP 工具名称无效");
     const available = await inspect(client, signal);
     options.onInspection?.(available);
     const tool = available.tools.find(tool => tool.name === name);
@@ -416,16 +415,16 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     return client.callTool({ name, arguments: args }, undefined, { timeout: REQUEST_TIMEOUT, signal });
   });
   const readMcpConnectionResource = (home: string, id: string, uri: string, options: McpRequestOptions = {}) => runConnection(home, id, options, async (client, signal) => {
-    if (!uri.trim() || uri.length > 4096) throw new McpConnectionError("connector.mcp.configuration", "资源 URI 无效");
+    if (!uri.trim() || uri.length > 4096) throw connectorErrors["connector.mcp.configuration"]("资源 URI 无效");
     await options.beforeDispatch?.();
     signal.throwIfAborted();
     return client.readResource({ uri }, { timeout: REQUEST_TIMEOUT, signal });
   });
   const resolveMcpConnectionToken = (home: string, id: string, endpoint: string) => serialized(home, id, async () => {
     const config = active(home, id);
-    if (new URL(endpoint).href !== config.endpoint) throw new McpConnectionError("connector.mcp.configuration", "MCP 连接只能用于已绑定的完整服务地址");
+    if (new URL(endpoint).href !== config.endpoint) throw connectorErrors["connector.mcp.configuration"]("MCP 连接只能用于已绑定的完整服务地址");
     const ready = await useClient(home, config, async () => true);
-    if (!ready.result) throw new McpConnectionError("connector.mcp.authorization", "MCP 需要重新授权");
+    if (!ready.result) throw connectorErrors["connector.mcp.authorization"]("MCP 需要重新授权");
     active(home, id);
     return connectorProtocolSecrets(home, id).get("access") ?? null;
   });

@@ -1,5 +1,6 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { ConnectorConnectionError, withConnectorConnections } from "./connector-connection-store.js";
+import { withConnectorConnections } from "./connector-connection-store.js";
 
 /** The binding is stored once per Home under the plugin-slot id `functions`, which the judgment-rules service (modules/functions) reads; every caller uses that one binding. */
 const CONSUMER = "functions";
@@ -24,7 +25,7 @@ export function typeSafeCredential(home: string): string | null {
   return withConnectorConnections(home, (store) => {
     // A disconnected or missing connection is no key; a locked Keychain is reported as itself.
     try { return store.resolveToken(selected.connection_id, "typesafe"); } catch (error) {
-      if (error instanceof ConnectorConnectionError) return null;
+      if ((error instanceof ActionError && ["connector.connection.invalid","connector.connection.not_found","connector.connection.service_mismatch","connector.connection.disconnected"].includes(error.code))) return null;
       throw error;
     }
   });

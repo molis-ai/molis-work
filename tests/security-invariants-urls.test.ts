@@ -13,7 +13,7 @@ import { ModelProviderStore, createModelProviderTables, readProjectReference } f
 import { isLoopbackHostname, isLoopbackHttpOrigin, isLoopbackHttpUrl, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { ConnectorConnectionStore, CONNECTOR_CONNECTIONS_SCHEMA, ConnectorConnectionError } from "@molis-ai/molis-work-service-connector-host";
+import { ConnectorConnectionStore, CONNECTOR_CONNECTIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
 import { isDisallowedResolvedAddress, normalizeCustomRssFeedUrl } from "@molis-ai/molis-work-integration-rss";
 import { isPublicAddress, validateNetworkRequest } from "@molis-ai/molis-work-plugin-sandbox";
 import { ADDRESSES_NEVER_PUBLIC, ADDRESSES_PUBLIC } from "./fixtures/public-address-policy.js";
@@ -75,11 +75,11 @@ test("S-09 a credential is bound to its first destination: plain HTTP elsewhere,
   try {
     const connection = store.createToken({ serviceId: "model-api", displayName: "Probe", token: "token-value-that-never-leaves" });
     for (const address of ["http://models.example/v1", "http://127.0.0.1.evil.example/v1", "https://user:pass@models.example/v1", "http://user@localhost:1/", "ftp://models.example/", "not a url"]) {
-      assert.throws(() => store.assertTarget(connection.connection_id, "model-api", address), (error: unknown) => error instanceof ConnectorConnectionError, address);
+      assert.throws(() => store.assertTarget(connection.connection_id, "model-api", address), (error: unknown) => (error instanceof ActionError && ["connector.connection.invalid","connector.connection.not_found","connector.connection.service_mismatch","connector.connection.disconnected"].includes(error.code)), address);
     }
     assert.equal(store.assertTarget(connection.connection_id, "model-api", "http://localhost:11434/v1"), "http://localhost:11434", "the first destination is pinned…");
-    assert.throws(() => store.assertTarget(connection.connection_id, "model-api", "http://localhost:11435/v1"), (error: unknown) => error instanceof ConnectorConnectionError, "…with its port");
-    assert.throws(() => store.assertTarget(connection.connection_id, "model-api", "https://models.example/v1"), (error: unknown) => error instanceof ConnectorConnectionError, "…and its scheme");
+    assert.throws(() => store.assertTarget(connection.connection_id, "model-api", "http://localhost:11435/v1"), (error: unknown) => (error instanceof ActionError && ["connector.connection.invalid","connector.connection.not_found","connector.connection.service_mismatch","connector.connection.disconnected"].includes(error.code)), "…with its port");
+    assert.throws(() => store.assertTarget(connection.connection_id, "model-api", "https://models.example/v1"), (error: unknown) => (error instanceof ActionError && ["connector.connection.invalid","connector.connection.not_found","connector.connection.service_mismatch","connector.connection.disconnected"].includes(error.code)), "…and its scheme");
   } finally { db.close(); }
 });
 

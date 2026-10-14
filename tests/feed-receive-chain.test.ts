@@ -111,6 +111,7 @@ test("FAS-01: rejected Signal drafts leave records, revisions and events unchang
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
+// CONERR-01: real Connector wiring rejects invalid provider input and a revoked connection without another poll.
 test("J2A-01: the connector owner refuses missing, duplicate and revoked wiring, and rejects an invalid provider event", async () => {
   const connector = new ConnectorHost();
   let polls = 0;

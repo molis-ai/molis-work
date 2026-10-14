@@ -852,6 +852,9 @@ interface AgentInputView {
 | # | 事项 | 现状 | 本线的方向（接 S3 时再定稿） |
 | --- | --- | --- | --- |
 | D16 | S3 的系统工具 `acknowledge-inputs` 在助理面板里怎么显示、用什么措辞 | 它在 `APP_MODE_SYSTEM_TOOLS` 里；采用线暂时在助理面板活动行（`assistant-service.ts` 的 `presentActivity`）里把它藏了，因为裸工具名不能直接给人看 | 处理说明显示在**对应那条输入的下面**（回执条与详情里的「AI 的理解」，§3.3 措辞规则：只用「AI 的理解」，不写「已生效」），不作为独立的活动行；活动行上永远不出现裸工具名。R0 预览已按这个口径画（说明行只写「助理说明了 N 条输入怎么处理 · 它自己的声明，不是执行记录」，用例逐检查点断言页面上没有 `acknowledge-inputs`）。真正的措辞、是否在时间线上留一条弱提示、`appRefs` 解析器怎么接 Context Ledger，要等 Molis 接 S3 时按当时的产品形态定；接之前不动采用线的隐藏 |
+| D17 | 阶段 1 的「读到」从哪来（统筹，2026-10-13） | 按原计划从账内顺序推（applied 之后的第一段模型产出）；直接用过渡包里 SDK S1 的 `steer-read`、`steer-withdrawn` 事件 | 直接用 SDK 事件。D7 满足时 Molis 的包已带 S1–S3，再写一份推导就是同一事实的第二个主人，阶段 3a 还得删掉它。运行视图的补充回执是 `received → applied → read`，一轮结束还没读到是 `unread`，放进上下文之前撤回是 `withdrawn`；旧的 `unconfirmed` 删掉，不留兼容 |
+| D18 | 宿主代写的补充怎么标（统筹，2026-10-13） | 只在 Molis 侧标；交给 SDK 的 `source` | 交给 SDK：新合同子路径 `services/agent-inputs` 的 `AgentSteerControl` 带 `source: "person" \| "host"`，宿主转告的那几处（审查拒绝的转告、会话间来信与板的更新、Coding 改计划后的说明）一律 `host`，映射成 SDK 的 `app`；SDK 以数据入模、不冒充人的话，运行视图把它显示成 `notice`，Coding 的报告不再把它列进「补充要求」 |
+| D19 | R0 预览改成现场调用 `projectInputReceipts` 放在哪一步（统筹，2026-10-13） | 本次换包后马上改；等有合适入口再改 | 等：预览是 `scripts/` 下的独立脚本，直接 import `@prologue/sdk` 会让 agent-host 之外多一个依赖 SDK 的地方（AGENTS 硬约束）。等 agent-host 的公开入口给出投影（阶段 3a 在 agent-host 里投影 L2–L4 时一起出），预览改用它，同一个改动删掉录好的投影文件 |
 
 以上与本线 SDK 的 S1/S2/S3 合同无冲突。
 
@@ -880,6 +883,14 @@ interface AgentInputView {
 - 2026-10-13：S4（任务图、待办与问题引用输入）在 Prologue `feature/input-receipts-s4` 上实现并工程通过，PR [molis-ai/prologue#10](https://github.com/molis-ai/prologue/pull/10)（基于已合入 main 的 P2a / P2b / P2c）。合同 `docs/slices/input-board-refs.md`，决策 I1–I15。板工具 `forInputs` / `inputs` 经引擎盖章（只认这一跑读到的输入）写进图的 `origins` / `report.inputs`；`acknowledge-inputs` 多 `board-node` / `todo` / `pending` 目标，绑定了节点的跑只能指绑定的那块板；`update-todo` 保住模型给的 id；`ask-user` 带 `about`、问题落定记 `pending-settled/expired/cancelled`，投影多 `questions`（账说不清的 `unresolved`）。证据：内存 Host 19 条、真实 Node Host 2 条（含 SIGKILL）、六份干净包消费者、12 个变异、SDK 全量 340 个文件 3 764 条通过。**未跑：真实 Provider、Molis 生产入口、用户实操。** Molis 一侧（`services/agent-inputs` 投影、界面）等 D7。同日按用户决定，R0 并入本交接 PR，#438 关闭。
 
 - 2026-10-13（防腐复查）：合 main `fc18d5f62`（merge-base `fc18d5f62`，合并提交 `e7c2d6b38`，无冲突）后复查本线自己的 diff（27 个文件、`scripts/` 与 `tests/` 与 spec，不碰 `apps/`、`horizontal/`、`plugins/`、`packages/`）。**通过，无待修项。** M2 `check-health-gates.mjs --base origin/main` 通过（新文件最长 219 行，没有新的巨大单元；录制的两份 JSON 不在源码计数里）；M7 对本线 23 个文件 `biome lint` 0 诊断（`pnpm lint` 全仓的既有诊断里没有本线文件）；M10 `test-imports.mjs --check --chains` 分裂进程数 164，与 main 基线同（两个新测试文件都不在任何链里）；`pnpm boundary:check` 无错误；doc-citation、根目录白名单、翻译门禁在 health 里通过。人工项：测试走公开入口（只经 `scripts/input-receipts-slice/` 自己的模块与设计系统根入口 `packages/design-system/src/index.ts`，不进别的包内部）；没有新增包内部引用；`scripts/` 里的预览与录制件放法与 I0、W0 同；没有 `console`、`as unknown as`、空 `catch`；预览里的中文文案在 `scripts/` 内、不属于产品界面字典（翻译门禁 0 缺失）。唯一要留意：页面服务用相对路径从设计系统源码取部件（根入口，非内部文件），换包 PR 里与「现场投影」一起复核。
+- 2026-10-13 晚（统筹，阶段 1 第一片）：D7 三项满足（#408 已合 main，过渡包带 S1–S3，默认路径在换包时验证过），阶段 1 开工。本片：
+  - 1a 的第一处抽取：补充回执的投影从 `prologue-stream.ts` 的巨大函数 `applyPrologueEvent` 里搬到 `horizontal/agent-host/src/adapters/prologue-inputs.ts`，走 `HANDLERS` 表。
+  - 1c 的「读到」直接用 SDK 事件（D17）：新增 `steer-read`、`steer-withdrawn`，一轮结束没读到记 `unread`。
+  - 1b 的第一块合同：新子路径 `services/agent-inputs`，`AgentSteerControl` 带 `source`、`key`；`AgentRunControl` 的 steer 分支改为引用它，`agent-host.ts` 不加行。
+  - 1c 的来源标记（D18）：宿主代写的补充交 SDK `app`，运行视图显示成 `notice`。
+  - 1d 的第一处措辞：Coding 回执条与报告按 §3.3（「已送达」「已放进上下文，等 AI 回应」「AI 已读到」「这一轮结束时 AI 没读到」「已撤回」）。
+  - 用例：新增 `tests/prologue-input-receipts.test.ts`（编号 AC-R1–R3，经包入口）；`prologue-recovery`、`coding-report-persistence` 的期望从 `unconfirmed` 改成 `unread`（D17 的预期变化）。
+  - 还没做：阶段 1 的其余抽取（`assistant-inputs.ts`、`input-receipts-client.ts`）、键与同键重发、`RUN_NOT_RUNNING` 改排队、`runViewVersion`、恢复报告、助理侧（1e）、R0 现场投影（D19）。
 
 ## 17. 远端交接（2026-10-11，已被 §19 取代，只作历史）
 

@@ -2642,3 +2642,6 @@ I33最终674a8a321（含fcd的顺序候选修正）已独立Source接受：两po
 
 
 **W4-11后续开工证据（只读准备，未实现）。** 当前storage/home-sqlite.ts仍19名PERSONAL_HOME_SQLITE_STORES，installer/uninstall.ts的purge另外手列projects/backups/logs/sessions/shelf/runtime目录；home-store-baselines测试又单独列18库基线，尚无共同全集。现行contracts/platform/plugin-database.ts已定义可信Host入口PluginDatabaseDeclaration（store_name/version/schema/read_permission/write_permission），plugin-platform与home-plugins从该入口提供database；Manifest和动作参数不能选择Home数据库。W4-11须复用这一信任边界，由storage提供通用登记/枚举、owner提供自身schema与位置，Host提供平台库/组合和真实Home，不能在storage import插件/Module实现或另造可让外部插件指定任意Home路径的Manifest入口。现有单库baseline拒错版、schema fixtures与已接受#20 purge全集决定保留；新登记实际接入baseline/purge/维护后才验收，W5-16一致快照仍需常驻Host协调暂停，不能把93的三个隔离副本演练称该功能。当前只完成必要路径读取，优先兑现已协调SDK88/I8验证窗口。
+
+
+87真实终结：1条0pass/1fail/0skip，17.57秒；诊断B会话state=running但SDK的w1.state=waiting存在，与I33原顺序覆盖竞态一致，不能当修复后通过。已按精确备份恢复临时diagnostic test。新923+beforeAccept隔离SDK88实际build/tests/pack均0，11文件206/206且无类型错误，SHA256 317d097a1e44f84e501413283bdfa94c4b43ee4ac86a689957b9b83d2853597c，尚未正式上游/换vendor；已在候选具体可审后弹窗询问当前正式上游/换包/删旧vendor授权，未回复不依赖它执行。Root保存仅pkg1/lock5临时patch、恢复自身pkg/lock后merge main9ab，出现27冲突，I8仍merge进行中；96/97未启动，SDK短段已结束并释放名额，已协调Pages可先build/资源、共享全量再排。冲突须保main的AssistantOffers/shared-card新路径与状态展示，并保Root共同错误、原caller lifetime和单请求Helper/异步保存；不能整块ours/theirs或手合派生baseline/assets。

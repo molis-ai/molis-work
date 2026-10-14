@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14接续）。原I4/I5第五批、BL-133和W2-10 A1–A4/C/D已合；E与最终共享全量未完成。Grok优先链中#481已合到#480叠分支，#480最新1ffc全必需及产品CI成功但落后main2768，Grok负责同步及Computer Use后续，本线远端后置。I8当前461003570已同步2768并纳已接受I3–I13共同错误、权限/生命周期和静态修复；37队列在未开始时撤销143，不再排队。联合08b+beforeAccept本地SDK41由唯一替代wrapper27691等构建锁，尚无构建/测试/pack结果；正式SDK上游/vendor仍待原问题回答。26–33旧964基线的真实定向结果保留，不能作为最新组合全绿；原security30为298/300，修后管理31/32为4/4，I2运行33为95/95。最新Source已接受与实际build/README回归、boundary/资源、最终全量分开；维护八41库只读克隆零写入，映射/演练及真实Home窗口待办。第4–6波、场景/手册/度量及两份最终汇报继续按§10/§12推进。
+状态：执行中，整线未完成（2026-10-14接续）。原I4/I5第五批、BL-133和W2-10 A1–A4/C/D已合；E与最终共享全量未完成。Grok优先链中#481已合到#480叠分支，#480最新1ffc全必需及产品CI成功但落后main2768，Grok负责同步及Computer Use后续，本线远端后置。I8已同步2768并串行纳已接受I3–I17共同错误、权限/生命周期和静态修复；37队列在未开始时撤销143，不再排队。联合08b+beforeAccept本地SDK41已实际build/tests/pack成功，8文件114/114；已用于I8临时依赖的58批离线安装整建，实际结果待收；正式SDK上游/vendor仍待原问题回答。26–33旧964基线的真实定向结果保留，不能作为最新组合全绿；原security30为298/300，修后管理31/32为4/4，I2运行33为95/95。最新Source已接受与实际build/README回归、boundary/资源、最终全量分开；维护八41库只读克隆零写入，映射/演练及真实Home窗口待办。第4–6波、场景/手册/度量及两份最终汇报继续按§10/§12推进。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2479,3 +2479,21 @@ BIND-02同片补Host四个重复根原因：project-catalog-contract复用共享
 BIND归属修复7129fd22a完整已跟踪候选通过Source类型0/all0、API52b/c匹配62/2413及health52c；独立复核接受，纳I8为2618d8e4f。此前api52的pnpm自动重装/无TTY失败保留，不能记为API通过。Session208完整Source接受且纳2be6c8d29；Sources/Listener516a46bf2的10文件完整Source接受，API53/health53当前2768通过，纳461003570。三片运行均仍待，临时SDKpkg/lock未提交。SDK41旧自身wrapper32071未取得锁时已撤销143，替代一份同driver队列27691，显式禁pnpm默认自动重装borrowed依赖；不改门禁、foreign全量未中断，41仍无build/test/pack结果。
 
 W3-02-I14-FEED/ATTENTION/SIGNALS接既有R/J的余项：Feed三真实生产原因直接用既有feedErrors，删FeedError、旧四原因转换表及已无作用的callFeed，现行纯表达式调用直接执行；read_not_supported无人产生不声明死原因。Attention四原因改现行attention.*，唯一声明在该域新合同内部文件并由既有attention-resumption subpath导出，文件正向归Attention；现有Inbox声明的事实owner保持。Feed callAttention只认共同类+完整四原因，仍缺项→inbox404、版本冲突→feed409、其他本域→feed400，外域原样抛出。Signals两原因改signals.*，唯一当地声明，数据/RawEvent/adapter/provenance/幂等及SQL不改。FAS-01：真实缺项/版本冲突/无效draft或reference精确原文与产品HTTP/MCP分类，拒绝前后持久化/事件不变；FAS-02：三类/旧导出/旧生产码与死原因兜底清掉，无旧读取兼容、无新厂或跨Module实现；FAS-03：三Module README回归、Feed/Inbox链及schema/API/build/health/assets、共享全量。新增合同仅现行raiser，旧存量码仍维护八按克隆演练处理，真实Home零写入。
+
+
+FAS完整272eb4d80已接受：5 Feed/8 Attention/2 Signals造错与7表达式展开逐项保持业务/文案，API54两快照62/2410、三Module source-types54全0；health54当前2768全tracked实测61类/13形状/31非owner，无gate放宽。Feed插件仍4/6未安装borrowed依赖诊断，不报完整类型通过。真实错误及持久化测试已写而尚未运行，与源码接受区分；已纳I8，最终新SDK整建回归待办。
+
+W3-02-I15-WORKSPACE收WorkspaceArtifactError、Files再导出FilePathError别名与Work补偿MolisWorkWorkspaceActionError。WSERR-01：公开路径/ref/payload每个现行work.workspace四原因/中文、拒绝条件保持；Files reading-position仅识别原四域共同错误，其余仍抛，不放宽路径安全断言。WSERR-02：Work两补偿原因共用模型，四处repair/unlink拒绝保留原目录事务/恢复顺序与原cause对象及非枚举性质；Host去已无作用的changing转换和纯表达式wrapper，不改Action服务授权/beforeEffect/审计。WSERR-03：类及旧别名/export/consumer清掉，现行kind默认400统一invalid；workspace-directory/files/reading-position及Work/合同README并集、真实目录拒绝和恢复/API/build/health/assets/共享全量。共同metadata保留既有cause，不引入额外兼容/factory/schema。
+
+
+W3-02-I16-PLUGIN-RUNTIME/SDK延续J1与I统一错误模型：Runtime六类、SDK Manifest/Definition两类共89真实构造、26现行plugin原因，码/理由/拒绝/生命周期/数据不变，原默认分类保invalid400，不按词猜403。共享唯一声明放新合同内部plugin-errors并由既有platform/plugin导出，正向归Plugin；SDK仍仅依赖contracts，Runtime/CLI各用公开合同，无private依赖。PRERR-01：包签名/路径、Manifest声明、grants/storage/事件兑现拒绝有精确code/message与0未授权效果，重启/停用/升级/隔离终态和原保存code一致；PRERR-02：去八类及旧公开出口，Runtime启动catch仅认原16完整码（外域保持原安全generic），SDK仅认原Manifest四码；原兑现路径本已接全部ActionError，删重复类判断，不扩大其他catch。两动态处按原有限条件/四码查同一声明，无猜测或兜底；PRERR-03：README并集/真实SDK作者样板与Runtime生命周期、类型/API/health/资源/最终共享全量。合同PluginEventError/PluginWiringError的detail与公共payload另片处理，不在这里机械丢元数据。
+
+
+I15 Workspace完整c587 Source正式接受，37parser与四补偿构造、cause identity/非枚举及原回滚顺序已复核；实际Files55类型own/all0、Work6/all8借用依赖缺失，API55/health55已证，纳I8为8e0b70701，运行待办。I16核心63165e309的35文件Source复核接受，四包types56全0、API56/health56已证；两处现行公开文档追加1602b22c4说明共同ActionError与公开pluginErrors，文档后完整头复核在途，实际SDK作者/Runtime回归仍未运行。
+
+W3-02-I17-SYSTEM收Kernel注册器、Host运行生命周期、ModelProvider与ProjectRecovery四类。SYSERR-01：Kernel三个原因、Host四原因与真实ModelProvider.invalid拒绝维持原码/理由/default400，不额外声明无人产生的ModelProvider.unknown；typed settlement只认共同类+精确kernel.capability_missing，仍包装actions.dependency_missing、原message/cause/503与调用记录一次不变。SYSERR-02：Recovery唯一catalog.project_recovery_unsupported_schema共享Catalog当前声明，消息仍原code；readonly检查、错版零写与关闭顺序不变；其他三域各有当前闭集声明，无旧class/alias/export或读取兼容。SYSERR-03：Kernel/local-host/model-provider-store/project-database-baseline与URL安全现行回归、README/API/build/health/资源及最终共享全量；真实Home/密钥仍不读取或写入。本片仅错误模型，不改注册/host生命周期/供应商secret引用规则。
+
+
+SDK41联合候选原始证据闭合：当前08b84296f81df1bd5f3429c2dc2997d18b72473a+beforeAccept副本build/tests/pack均0，Vitest 8files114/114无TypeError；实际tgz SHA256 660540fc6a711af5b03cf0e1beae02467b0ad2cb7913148479aa4b0b9045596d。旧d490的62条只作历史，不混记。Root仅把I8两个未提交pkg/lock临时依赖转向该包，58批同锁offline lock+frozen install/整体build/types/API/actions/health/实测资源准备一次验证；正式上游提交/vendor替换仍等原授权问题，不能因此称已正式交付。foreign receipts全量实测6240中6226通过/5失败/9跳过/0取消113分钟，不作为本线运行证据；其结束后Root41按锁取得名额，无foreign kill/reset。
+
+I16最终1602完整Source接受，37路径逐blob与I8 c4a2f27a0一致；I17 a2f43ad9d完整14文件正式Source接受，26处原文/条件，Host旧安全四声明保持只加Lifecycle四项，typed缺项原503/cause/一次结算与Recovery错版零写保留。Kernel57b全0，Host8文件scope0/all321依赖环境，不称完整Host类型通过；API57匹配、health57实测47类/13形状/31非owner。Root修正未提交时自身覆盖Host已有表的机械错误并保留失败/修正事实；当前Source有自有借用Kernel node_modules链接未提交，不称整个树clean。两片已串行纳入I8，58新组合FROZEN待整建与真实40文件59批，不复用旧运行证明。

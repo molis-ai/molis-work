@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { createActionMcpPorts, handleMcpMessage, serveMcpStdio } from "@molis-ai/molis-work-app-mcp";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { controlledAlchemistAi } from "./alchemist-actions.js";
 
 // Production Host/service composition with explicit test grants and controlled external AI/source ports.

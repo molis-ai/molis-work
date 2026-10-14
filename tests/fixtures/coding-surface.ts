@@ -1,5 +1,5 @@
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { codingSurface, type CodingExecutionPorts } from "../../plugins/native/coding/src/routes.js";
+import { codingSurface, type CodingExecutionPorts } from "../../plugins/native/coding/dist/routes.js";
 
 /**
  * Unit fixtures run Coding without a Plugin Runtime. The curated routes forward to Coding's owner-bound actions, so

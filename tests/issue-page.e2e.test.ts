@@ -9,6 +9,7 @@ import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host
 import type { Issue } from "@molis-ai/molis-work-plugin-issues";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueView } from "./fixtures/issue-browser.js";
+import { issueModel } from "./fixtures/issue-model.js";
 
 const create = (title: string, type: "bug" | "experience" | "feature", description: string) => ({ title, type, description });
 
@@ -126,8 +127,9 @@ test("ISSUE-09 ISSUE-27 screenshots: six join a capture, a seventh and a mislabe
   await v.escape(); await v.until("!$('[data-issue-preview]').open && d.activeElement?.matches('[data-issue-thumbs] figure:first-child [data-preview]')");
 });
 
-test("ISSUE-10 files dropped on the composer join it; an import started in a record that is then left joins nothing", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty"); if (!b) return;
+test("ISSUE-10 ISSUE-43 dropped screenshots preview, save and reopen; a late import joins nothing", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  await issueModel(t, b.homeDirectory);
   const v = issueView(b, "issue-page");
   await v.viewport(1440, 940); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
   await b.evaluate("window.issueScreen = 0; navigator.mediaDevices.getDisplayMedia = async () => { issueScreen++; throw Error('screen access must not be requested'); }");
@@ -140,6 +142,23 @@ test("ISSUE-10 files dropped on the composer join it; an import started in a rec
   await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 2");
   assert.deepEqual(await v.ask("[...d.querySelectorAll('[data-issue-thumbs] img')].map(i => i.alt)"), ["第一张.png", "第二张.png"]);
   assert.equal(await b.evaluate("issueScreen"), 0, "adding pictures never asks for the screen");
+  await v.press("[data-issue-thumbs] [data-preview]");
+  await v.until("$('[data-issue-preview]').open && $('[data-issue-preview] img').naturalWidth === 64");
+  await v.escape();
+  await v.press("[data-issue-composer] [name=description]"); await v.type("截图拖入后保存并重开，图片应保持完整。");
+  await v.send();
+  await v.until("$('[data-issue-list] .issues-row') && !$('[data-issue-list] [data-state=organizing]')", 20_000);
+  const [captured] = (await v.list()).items;
+  assert.ok(captured);
+  const expectedImages = files.map(path => ({ name: path.split("/").at(-1), data_url: pngUrl }));
+  assert.deepEqual((await v.read(captured.id)).images, expectedImages, "the dropped bytes, names and order are persisted");
+  await v.go("/plugins/issues"); await v.press(`[data-issue-id="${captured.id}"]`);
+  await v.until("d.querySelectorAll('[data-issue-view-shots] img').length === 2");
+  await v.press("[data-issue-view-shots] [data-preview]");
+  await v.until("$('[data-issue-preview]').open && $('[data-issue-preview] img').naturalWidth === 64");
+  assert.equal(await v.ask("$('[data-issue-preview] img').src"), pngUrl);
+  await v.escape(); await v.press("[data-issue-back]");
+
   const saved = await v.api<Issue>("/api/plugins/io.molis.work.issues/create", create("已有记录", "bug", "原文"));
   await v.go("/plugins/issues"); await v.press(`[data-issue-id="${saved.id}"]`); await v.press("[data-issue-edit]");
   await b.evaluate("const decode = createImageBitmap; window.createImageBitmap = file => new Promise(resolve => { window.issueFinish = () => decode(file).then(resolve); })");

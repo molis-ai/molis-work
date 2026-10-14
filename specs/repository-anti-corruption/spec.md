@@ -2427,3 +2427,7 @@ I3固定7beb4e3e0经独立只读复核接受，无Blocker/P1；主执行纳入�
 W3-02-I4接续Projects错误工厂，沿原I获批方向，依赖当前catalog owner码及共同模型，范围modules/projects、Host project-catalog/management-action-client及两现行公共模块测试。移除ProjectsErrorFactory及其必填options、ProjectService/WorkspaceService注入参数；真实8个现行catalog原因由实际owner defineErrorCodes，追当前Host catalogFailure：project_not_found为not_found404，其余七个invalid400，不按名字猜HTTP分类，不增新owner/别名/任意未知码fallback。I4-01：项目/目录确认、缺项和无效输入精确code/message/原404或400保持，事务、数据库、事件、删除receipt及权限顺序不变；I4-02：公共调用方同步删工厂，未知码不兜底、无新增兼容；I4-03：README现行Projects模块、目录关联/删除、原HTTP/MCP公开路径与最终整体build/回归通过。先独立Source候选，I8冻结期间不改受测树，最终PR说明公开模块options与构造参数移除；此计划不记实现完成。
 
 I4分类核对更正：Host现行catalogErrors明确project_not_found为not_found404；独立模块过去自注入plain测试错误没有分类，不作为Host合同。候选纠正这一声明并补公共getProject缺项精确404/code/message，不把一开始的invalid假设带入运行；其余实际七个既有invalid400不变。
+
+I4独立候选已写入，Project/Workspace服务17真实抛错点归八个现行原因，两个Host装配与现行测试删除工厂。source-types38b映射142个公开入口，模块及依赖均0诊断，API38当前62快照/2412声明匹配；health38相对d530通过。project_not_found分类更正单独保存，正式只读复核以完整clean头为准，不接受遗漏的早期4ec单头；工程build/运行仍未验证。
+
+W3-02-I5沿同一错误工厂收口，范围Goals插件的结构提案Query/Submission/Input/Normalizer/Decision/Check/FactMaterializer/Followup/DecisionPlan与唯一Host GoalsTree装配，依赖R3及I3。静态owner raiser替换固定和已溯源有限code参数，不改提案内容、排序、SQL、事件type、trusted authority、provenance聚合、事务和物化partial/rollback协议；现行Host沿ActionError默认invalid400，平台code分类与显式details仍原样，isDomainError识别端口改共同ActionError时保持错误聚合策略。I5-01：公开树提交/决定/检查精确错误码消息与details、拒绝0事实和原事务回滚；I5-02：factory及error识别注入无剩余、所有公共consumer同步共同错误、不保留旧类/别名/读取兼容；I5-03：插件README必跑、结构提案真实Host/HTTP/MCP及可信身份完整回归、资源预算和最终共享全量。未溯源动态code不盲改；先Source候选，I8冻结不动，完成PR说明公开构造端口移除。

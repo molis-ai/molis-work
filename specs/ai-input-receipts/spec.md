@@ -897,6 +897,36 @@ interface AgentInputView {
   - `touch-targets.e2e` 两条：main 上已有的失败，与本线无关。
   - 合 main `2768dd71`（#491）后重新构建：相关用例 56/56（`prologue-stream`、`prologue-model-controls`、`prologue-input-receipts`、`prologue-review-feedback`、`prologue-recovery`、`coding-report-persistence`）；健康门禁对照 merge-base 通过；边界检查与页面资源通过。
 
+- 2026-10-14（回执线会话，现状核对）：按 origin/main `393e8958` 的代码与用例逐项核对原始需求（§0 四问）与阶段 1–3 的验收。只读代码与跑过的用例；隔离 Home 实走见下一条。等级：「已实现」= 有代码且有用例；「部分」= 有一半或只有某个入口；「未做」= 没有代码。
+
+  | 项（§11） | 状态 | 证据 / 缺什么 |
+  | --- | --- | --- |
+  | 1a 补充回执投影抽出 | 已实现 | `horizontal/agent-host/src/adapters/prologue-inputs.ts`（#409）；`tests/prologue-input-receipts.test.ts` AC-R1–R3 |
+  | 1a `assistant-inputs.ts` | 未做 | 发送路由（回答 / 补充 / 开新轮）仍在 `AssistantService.dispatch` 与 `codingDispatch` 两处各写一份（`assistant-service.ts` 的 `freeTextQuestion`、`steerText`） |
+  | 1a `input-receipts-client.ts` | 未做 | 回执条与补充发送仍在 Coding `client.ts` 主模板里 |
+  | 1b 合同 `services/agent-inputs` | 部分 | `AgentSteerControl` 有 `source`、`key`；没有 `interrupt`、`about`；`control()` 返回 `void`，调用方拿不到输入编号与 `replayed` |
+  | 1c 键与同键去重 | 部分 | `prologue.ts` 的 `control()` 把 `key` 交给 SDK（SDK S1 已去重）；但 Coding `run-inputs.ts` 的 `runControl` 与助理两处 steer 都不带键，所以页面断线重发仍会落两笔 |
+  | 1c 宿主代写标来源（D18） | 已实现 | `prologue-node.ts` 的活动跑句柄以 `source: "app"` 转告（审查拒绝、会话来信、等待唤醒、任务图更新）；助理审查转告、Coding 改计划说明带 `source: "host"`；`prologue-stream.ts` 把 `app` 显示成 `notice`；`prologue-review-feedback` 用例 |
+  | 1c 读到（D17） | 已实现 | SDK `steer-read`、`steer-withdrawn` 直接投影；一轮结束未读到记 `unread` |
+  | 1c `RUN_NOT_RUNNING` 竞态 | 未做 | Coding 路由先读一次相位再发（`routes.ts` `coding.control-run`），读后到发之间的竞态仍抛错；助理把错误原样给页面。现用包已有 `session.queueInput`（S2） |
+  | 1c `runViewVersion` 纳入输入状态 | 未做 | `capability-registration.ts` 的版本串不含任何 `steer.state`：早先一条补充从 `applied` 变 `read` 不改版本，页面要等别的变化才刷新 |
+  | 1c 恢复报告「输入」一类 | 未做 | `AgentRecoveryReport` 只有跑、阻塞与操作 |
+  | 1c 会话条目记录收下的输入 | 未做 | 等 W4-06（#498）拆完 `prologue-node.ts` 再接 |
+  | 1d 措辞（§3.3） | 已实现 | Coding `client.ts` 回执条、`report.ts` 的 `STEER_WORDS`（#409） |
+  | 1d 发送方式菜单（补充 / 打断 / 下一轮） | 未做 | 运行中只有一种发送（steer），合同没有 `interrupt` |
+  | 1d 「发送中」气泡与同键重发 | 未做 | 发出后只在状态行写「补充要求已交给执行引擎」；失败只显示错误 |
+  | 1d 宿主说明不显示成你的话 | 部分 | 转告是 `notice` 轮、不套用户气泡样式；但 `notice` 轮也挂了补充回执条（`steerOf` 只看 role），读着像你发的补充；没有「Molis 转告」的样式 |
+  | 1d 「核对并继续」带上没读到的输入 | 未做 | `continuation.ts` 只从首条任务与宿主事实重建 |
+  | 1d 计划轮次不写「已体现」 | 未做 | `plans.ts` 的 `planTask` 仍写「已体现在确认的计划里」 |
+  | 1e 助理工作视图回执 | 未做 | `assistant-island.ts` 不读 `turn.steer`，只弹「已补充到正在进行的这一轮」 |
+  | 1e 回答 / 补充由用户点选（D14） | 未做 | 仍按「恰好一条自由文本题、没带材料」自动当回答 |
+  | 1e 重试键跨刷新保存 | 未做 | 页面的 `unsettled` 只在内存里；宿主的 `request_id` 去重只覆盖开新轮，补充不带键 |
+  | 1e 补充原话按 person 记录（G13） | 未做 | 助理只为开新轮存 round |
+  | 阶段 2（SDK S1–S4） | S1–S3 已在现用过渡包；S4 未进包 | 现用包 `interim-p1-cu-image` 里有 `queueInput`、`inputQueue`、`steer({interrupt,key,source,about})` 回 `SteerReceipt`；S4 等 P3 换包 |
+  | 阶段 3（处理说明、关联、影响、纠正） | 未做 | 依赖 P3；D16 仍由采用线暂时隐藏 |
+
+  对四问的回答程度：「被怎么处理」只答到送达、放进上下文、读到、没读到（Coding 有，助理没有）；「在哪里处理」「改变了什么」都没有；「还有什么没处理」只有 Coding 回执条上的「这一轮结束时 AI 没读到」，没有托盘、没有带到下一轮。
+
 ## 17. 远端交接（2026-10-11，已被 §19 取代，只作历史）
 
 用户已授权四条 Codex 任务及 SDK 依赖分别提交、推送。本分支 `feature/handoff-ai-input-receipts` 基于 Molis `7b4a92287`，保存本完整需求及最新交接；本分支没有 Molis 产品实现。前文的旧主线、旧分支、绝对路径和“提交/推送待授权”只描述当时状态；本文为本线唯一需求书。本次未合并 main、发布或改动正式安装。

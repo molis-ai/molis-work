@@ -20,12 +20,23 @@ import { codeLanguage, codeTokens, diffRowTokens } from "./highlight.js";
 import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { CODING_COMMANDS_CLIENT_FACTORY_SCRIPT } from "./commands-client.js";
 import { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
+import { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "./input-receipts-client.js";
 import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-client.js";
 import { createCodingTimeline } from "./timeline.js";
 import { codingTimelineWords } from "./timeline-words.js";
 import { createCodingTurnChanges } from "./turn-changes-client.js";
 
-/** Host supplies navigation; this client only handles Coding's own surface. */
+/**
+ * Host supplies navigation; this client only handles Coding's own surface.
+ *
+ * Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). How a person's
+ * turn reads: a round that started from the digest of earlier rounds shows the person's own request, the digest it
+ * carried one click away with the plain statement that tool output was not carried; files named with @ were attached
+ * after the person's words, so the words show and the attachments fold away; material the runtime handed the model (a
+ * confirmed plan, a fixed report) arrives wrapped as reference data and reads as one line naming it, the text one click
+ * away; a continuation the Host composed reads as one line, the facts it handed the model one click away. What became of
+ * a supplement is the receipt line from input-receipts-client.ts.
+ */
 export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const root = document.querySelector('[data-coding-workbench]');
   const directory = root?.querySelector('[data-coding-directory]');
@@ -139,6 +150,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     prefill:(text)=>{if(input.value.trim()!==text.trim()){input.value=text;input.dispatchEvent(new Event('input',{bubbles:true}));}input.focus();},
     // The Host attached a taken delivery to the session's materials; the page's selection follows, or the next send would drop it.
     materialsChanged:async()=>{const id=current;const data=await api('/sessions/'+encodeURIComponent(id)+'?window=1');if(id===current){materialSelections.set(id,data.materials || []);controls();}}});
+  const inputReceipts = (${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})({api});
   const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,api,current:()=>current,status,refresh:()=>readCurrent(),openStep:(runId,stepId)=>stepReports.open(current,runId,stepId)});
   // The TaskBoard takes the conversation's place in the main area; the session list stays beside it.
   const ROLE_NAMES={planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'};
@@ -842,8 +854,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           const renderKey=turn.text+'|'+(turn.steer?.state || '')+(run.frozen.role_id==='planner'?'|'+run.phase:'');
           if(renderedText.get(node)!==renderKey) {
             if(!plans.renderTurn(node,run,turn) && !writerDirectories.renderTurn(node,run,turn)){node.innerHTML=turn.html || ''; if(!turn.html) linkedText(node,turn.text);}
-            // A round that started from the digest of earlier rounds shows the person's own request; the digest it carried
-            // stays one click away, with the plain statement that tool output was not carried.
             const digestAt=turn.kind==='user' && turn.text.startsWith(HISTORY_DIGEST_MARKER) ? turn.text.indexOf(HISTORY_DIGEST_TASK_HEAD) : -1;
             if(digestAt>=0){
               const digest=turn.text.slice(HISTORY_DIGEST_MARKER.length,digestAt),own=turn.text.slice(digestAt+HISTORY_DIGEST_TASK_HEAD.length),count=(digest.match(/前 (\\d+) 轮/)||[])[1]||'';
@@ -854,15 +864,12 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
               text.className='coding-turn-own';text.textContent=own.startsWith(CONTINUATION_MARKER)?'从断点继续 · '+own.slice(CONTINUATION_MARKER.length).split('\\n')[0].replace(/请从断点继续完成原任务。?$/,'').trim():own;
               node.append(details,text);
             }
-            // Files named with @ were attached after the person's words; the words show, the attachments fold away.
             else if(turn.kind==='user' && turn.text.includes(MENTIONS_MARKER) && !turn.text.startsWith(CONTINUATION_MARKER)){
               const at=turn.text.indexOf(MENTIONS_MARKER),own=turn.text.slice(0,at),attached=turn.text.slice(at+MENTIONS_MARKER.length),folders=(attached.match(/^### .*（目录/gm)||[]).length,count=(attached.match(/^### /gm)||[]).length-folders;
               node.replaceChildren();const text=document.createElement('div'),details=document.createElement('details'),summary=document.createElement('summary'),body=document.createElement('pre');
               text.className='coding-turn-own';text.textContent=own;details.className='coding-digest';summary.innerHTML='<svg aria-hidden="true"><use href="#icon-paperclip"></use></svg>';summary.append(document.createTextNode('附带了 '+[count?count+' 个文件':'',folders?folders+' 个目录':''].filter(Boolean).join('、')+'（发送时的内容）'));
               body.textContent=attached;details.append(summary,body);node.append(text,details);
             }
-            // Material the runtime handed the model (a confirmed plan, a fixed report) arrives wrapped as reference data;
-            // it reads as one line naming the material, with the text one click away.
             else if(turn.kind==='user' && turn.text.startsWith('Untrusted context data.')){
               let name='附带材料';try{const outer=JSON.parse(turn.text.slice(turn.text.indexOf('{')));name=JSON.parse(String(outer.text).split('\\n')[0]).title||name;}catch{}
               node.classList.add('is-material');node.replaceChildren();
@@ -870,7 +877,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
               details.className='coding-digest';summary.innerHTML='<svg aria-hidden="true"><use href="#icon-paperclip"></use></svg>';summary.append(document.createTextNode('附带材料：'+name+'（作为参考数据交给模型，不是指令）'));
               body.textContent=turn.text;details.append(summary,body);node.append(details);
             }
-            // A continuation the Host composed reads as one line; the facts it handed the model stay one click away.
             else if(turn.kind==='user' && turn.text.startsWith(CONTINUATION_MARKER)){
               const body=node.innerHTML,line=turn.text.slice(CONTINUATION_MARKER.length).split('\\n')[0].replace(/请从断点继续完成原任务。?$/,'').trim();
               node.classList.add('is-continuation');node.innerHTML='';
@@ -878,12 +884,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
               summary.innerHTML='<svg aria-hidden="true"><use href="#icon-play"></use></svg>';summary.append(document.createTextNode('从断点继续 · '+line));
               facts.className='coding-continuation-facts';facts.innerHTML=body;details.append(summary,facts);node.append(details);
             }
-            if(turn.steer) {
-              const receipt=document.createElement('small'); receipt.className='coding-turn-receipt';
-              receipt.textContent=({applied:'已放进上下文，等 AI 回应',read:'AI 已读到',unread:'这一轮结束时 AI 没读到',withdrawn:'已撤回'})[turn.steer.state]||'已送达';
-              receipt.title='读到不代表已遵循，也不撤销先前操作；补充要求不代替回答问题。';
-              node.append(receipt);
-            }
+            const receipt=inputReceipts.receipt(turn);if(receipt)node.append(receipt);
             renderedText.set(node,renderKey); enrichCode(node);
           }
           ordered.push(node);
@@ -1605,8 +1606,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       rememberConfiguration();await flushDraft();
       if(activeRun && !terminal(activeRun.phase)) {
-        await api('/sessions/'+encodeURIComponent(id)+'/control','POST',{kind:'steer',run_id:activeRun.ref.run_id,text:task});
-        status('补充要求已交给执行引擎，等待后续处理。');
+        status(await inputReceipts.steer(id,activeRun.ref.run_id,task));
       } else {
         // Another session already working on the same files in this directory: the person decides who goes first.
         const {overlaps}=await api('/sessions/'+encodeURIComponent(id)+'/scope-check','POST',{task,workspace_id});

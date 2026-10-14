@@ -128,7 +128,7 @@ function businessError(error: unknown): never {
   if (error instanceof StartPulseRunError) throw new AlchemistOperationError(error.message, "请至少启用一个市场来源。");
   if (error instanceof IdeaActionError || error instanceof IdeaCardTransitionError) {
     if (error.code === "IDEA_CARD_ALREADY_KEPT") throw new AlchemistOperationError(error.code, "这张候选牌已经形成 Idea，不会重复创建版本。", 409, { recovery: "打开已有 Idea 继续查看。", ideaId: error.ideaId });
-    if (error.code === "IDEA_CARD_NOT_CANDIDATE" || error.code === "IDEA_CARD_NOT_DISCARDED") throw new AlchemistOperationError(error.code, "这张牌的状态已经改变，请刷新后重试。");
+    if (error.code === "alchemist.idea_card_not_candidate" || error.code === "alchemist.idea_card_not_discarded") throw new AlchemistOperationError(error.code, "这张牌的状态已经改变，请刷新后重试。");
     throw new AlchemistOperationError(error.code, error.code === "IDEA_VERSION_NOT_FOUND" ? "没有找到这个 Idea 版本。" : "没有找到这张候选牌。", 404);
   }
   if (error instanceof ResearchPlanError) throw new AlchemistOperationError(error.code,
@@ -174,8 +174,8 @@ export function createAlchemistOperationExecutor(dependencies: ApiDependencies):
 }
 
 const workspaceProblems: Record<string, string> = {
-  ANNOTATION_NOT_FOUND: "没有找到这条注释。", ANNOTATION_ALREADY_RESOLVED: "这条注释已经解决。", ANNOTATION_TARGET_NOT_FOUND: "注释目标版本已不可用。",
-  ACTION_PROPOSAL_NOT_FOUND: "没有找到这条校准提案。", ACTION_PROPOSAL_NOT_PENDING: "这条校准提案已经处理。", ACTION_PROPOSAL_UNSUPPORTED: "这类提案目前无法应用。",
+  ANNOTATION_NOT_FOUND: "没有找到这条注释。", "alchemist.annotation_already_resolved": "这条注释已经解决。", ANNOTATION_TARGET_NOT_FOUND: "注释目标版本已不可用。",
+  ACTION_PROPOSAL_NOT_FOUND: "没有找到这条校准提案。", "alchemist.action_proposal_not_pending": "这条校准提案已经处理。", ACTION_PROPOSAL_UNSUPPORTED: "这类提案目前无法应用。",
   PLAYBOOK_REQUIRES_LENS_REPORT: "研究方法校准需要来自研究报告。", PLAYBOOK_REQUIRES_MARKET_SPACE: "研究方法校准需要来自市场空间研究。",
   IDEA_NOT_FOUND: "没有找到这个 Idea。", TASTE_RULE_NOT_FOUND: "没有找到这条 Taste。", PLAYBOOK_RULE_NOT_FOUND: "没有找到这条校准规则。", PULSE_SOURCE_NOT_FOUND: "没有找到这个市场来源。",
 };

@@ -59,6 +59,7 @@ describe("Market Pulse domain", () => {
     expect(saved.convertedDirectionId).toBeUndefined();
   });
 
+  // J5A-01/J5A-02: a converted opportunity cannot be converted again.
   it("converts a new or saved opportunity exactly once", () => {
     const saved = transitionOpportunity(opportunity, {
       action: "save_for_later",
@@ -81,6 +82,6 @@ describe("Market Pulse domain", () => {
         directionId: "direction_02",
         now: "2026-07-31T03:00:00.000Z",
       }),
-    ).toThrowError(new OpportunityTransitionError("OPPORTUNITY_ALREADY_CONVERTED"));
+    ).toThrowError(new OpportunityTransitionError("alchemist.opportunity_already_converted"));
   });
 });

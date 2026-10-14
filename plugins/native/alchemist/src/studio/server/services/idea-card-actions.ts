@@ -15,8 +15,8 @@ export class IdeaActionError extends Error {
     readonly code:
       | "IDEA_CARD_NOT_FOUND"
       | "IDEA_CARD_ALREADY_KEPT"
-      | "IDEA_CARD_NOT_CANDIDATE"
-      | "IDEA_CARD_NOT_DISCARDED"
+      | "alchemist.idea_card_not_candidate"
+      | "alchemist.idea_card_not_discarded"
       | "IDEA_VERSION_NOT_FOUND",
     readonly ideaId?: string,
   ) {
@@ -84,7 +84,7 @@ export function createIdeaCardActions(dependencies: IdeaCardActionDependencies) 
       if (card.status === "kept") {
         throw new IdeaActionError("IDEA_CARD_ALREADY_KEPT", card.keptIdeaId);
       }
-      if (card.status !== "candidate") throw new IdeaActionError("IDEA_CARD_NOT_CANDIDATE");
+      if (card.status !== "candidate") throw new IdeaActionError("alchemist.idea_card_not_candidate");
       const now = dependencies.clock.now();
       const kept = dependencies.ideas.keepCard({
         cardId,

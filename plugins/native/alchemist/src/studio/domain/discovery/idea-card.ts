@@ -31,21 +31,21 @@ export type IdeaCard = IdeaCardBase &
 export class IdeaCardTransitionError extends Error {
   readonly name = "IdeaCardTransitionError";
 
-  constructor(readonly code: "IDEA_CARD_NOT_CANDIDATE" | "IDEA_CARD_NOT_DISCARDED") {
+  constructor(readonly code: "alchemist.idea_card_not_candidate" | "alchemist.idea_card_not_discarded") {
     super(code);
   }
 }
 
 export function discardCard(card: IdeaCard, discardedAt: string): IdeaCard {
   if (card.status !== "candidate") {
-    throw new IdeaCardTransitionError("IDEA_CARD_NOT_CANDIDATE");
+    throw new IdeaCardTransitionError("alchemist.idea_card_not_candidate");
   }
   return { ...card, status: "discarded", discardedAt };
 }
 
 export function restoreCard(card: IdeaCard): IdeaCard {
   if (card.status !== "discarded") {
-    throw new IdeaCardTransitionError("IDEA_CARD_NOT_DISCARDED");
+    throw new IdeaCardTransitionError("alchemist.idea_card_not_discarded");
   }
   const { discardedAt: _discardedAt, ...candidate } = card;
   return { ...candidate, status: "candidate" };
@@ -66,7 +66,7 @@ export interface KeepCardResult {
 
 export function keepCard(card: IdeaCard, input: KeepCardInput): KeepCardResult {
   if (card.status !== "candidate") {
-    throw new IdeaCardTransitionError("IDEA_CARD_NOT_CANDIDATE");
+    throw new IdeaCardTransitionError("alchemist.idea_card_not_candidate");
   }
 
   return {

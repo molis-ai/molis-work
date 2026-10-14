@@ -49,34 +49,34 @@ export class CalibrationStateError extends Error {
 }
 
 export function assertValidAnnotation(annotation: Annotation): Annotation {
-  if (!annotation.quotedSnapshot.trim()) throw new CalibrationStateError("ANNOTATION_QUOTE_REQUIRED");
-  if (!annotation.comment.trim()) throw new CalibrationStateError("ANNOTATION_COMMENT_REQUIRED");
+  if (!annotation.quotedSnapshot.trim()) throw new CalibrationStateError("alchemist.annotation_quote_required");
+  if (!annotation.comment.trim()) throw new CalibrationStateError("alchemist.annotation_comment_required");
   if (!Number.isInteger(annotation.target.revision) || annotation.target.revision < 1) {
-    throw new CalibrationStateError("ANNOTATION_REVISION_INVALID");
+    throw new CalibrationStateError("alchemist.annotation_revision_invalid");
   }
   if (!annotation.target.objectId.trim() || !annotation.target.blockId.trim()) {
-    throw new CalibrationStateError("ANNOTATION_TARGET_INVALID");
+    throw new CalibrationStateError("alchemist.annotation_target_invalid");
   }
   return annotation;
 }
 
 export function resolveAnnotation(annotation: Annotation, now: string): Annotation {
   if (annotation.status !== "open") {
-    throw new CalibrationStateError("ANNOTATION_ALREADY_RESOLVED");
+    throw new CalibrationStateError("alchemist.annotation_already_resolved");
   }
   return { ...annotation, status: "resolved", resolvedAt: now };
 }
 
 export function applyActionProposal(proposal: ActionProposal, now: string): ActionProposal {
   if (proposal.status !== "pending") {
-    throw new CalibrationStateError("ACTION_PROPOSAL_NOT_PENDING");
+    throw new CalibrationStateError("alchemist.action_proposal_not_pending");
   }
   return { ...proposal, status: "applied", appliedAt: now };
 }
 
 export function rejectActionProposal(proposal: ActionProposal, now: string): ActionProposal {
   if (proposal.status !== "pending") {
-    throw new CalibrationStateError("ACTION_PROPOSAL_NOT_PENDING");
+    throw new CalibrationStateError("alchemist.action_proposal_not_pending");
   }
   return { ...proposal, status: "rejected", rejectedAt: now };
 }

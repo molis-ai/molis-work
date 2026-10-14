@@ -97,7 +97,7 @@ export class SqliteCalibrationRepository {
     const result = this.database
       .prepare("UPDATE annotations SET status = 'resolved', resolved_at = ? WHERE id = ? AND status = 'open'")
       .run(now, id);
-    if (result.changes !== 1) throw new Error("ANNOTATION_ALREADY_RESOLVED");
+    if (result.changes !== 1) throw new Error("alchemist.annotation_already_resolved");
     return resolved;
   }
 
@@ -147,7 +147,7 @@ export class SqliteCalibrationRepository {
   rejectProposal(id: string, workspaceId: string, actorId: string, now: string): ActionProposal {
     const result = this.database.prepare("UPDATE action_proposals SET status = 'rejected', rejected_at = ? WHERE id = ? AND workspace_id = ? AND actor_id = ? AND status = 'pending'")
       .run(now, id, workspaceId, actorId);
-    if (result.changes !== 1) throw new Error("ACTION_PROPOSAL_NOT_PENDING");
+    if (result.changes !== 1) throw new Error("alchemist.action_proposal_not_pending");
     return this.getProposal(id)!.proposal;
   }
 
@@ -160,7 +160,7 @@ export class SqliteCalibrationRepository {
         "UPDATE action_proposals SET status = 'applied', applied_at = ? WHERE id = ? AND status = 'pending'",
       )
       .run(now, id);
-    if (result.changes !== 1) throw new Error("ACTION_PROPOSAL_NOT_PENDING");
+    if (result.changes !== 1) throw new Error("alchemist.action_proposal_not_pending");
     return applied;
   }
 }

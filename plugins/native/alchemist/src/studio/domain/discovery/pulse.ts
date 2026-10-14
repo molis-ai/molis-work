@@ -107,22 +107,22 @@ type OpportunityAction =
 
 export function transitionOpportunity(opportunity: Opportunity, action: OpportunityAction): Opportunity {
   if (opportunity.status === "converted_to_direction") {
-    throw new OpportunityTransitionError("OPPORTUNITY_ALREADY_CONVERTED");
+    throw new OpportunityTransitionError("alchemist.opportunity_already_converted");
   }
   if (action.action === "save_for_later") {
     if (opportunity.status !== "new") {
-      throw new OpportunityTransitionError("OPPORTUNITY_CANNOT_BE_SAVED");
+      throw new OpportunityTransitionError("alchemist.opportunity_cannot_be_saved");
     }
     return { ...opportunity, status: "saved_for_later", savedAt: action.now };
   }
   if (action.action === "dismiss") {
     if (opportunity.status !== "new" && opportunity.status !== "saved_for_later") {
-      throw new OpportunityTransitionError("OPPORTUNITY_CANNOT_BE_DISMISSED");
+      throw new OpportunityTransitionError("alchemist.opportunity_cannot_be_dismissed");
     }
     return { ...opportunity, status: "dismissed", dismissedAt: action.now };
   }
   if (opportunity.status !== "new" && opportunity.status !== "saved_for_later") {
-    throw new OpportunityTransitionError("OPPORTUNITY_CANNOT_BE_CONVERTED");
+    throw new OpportunityTransitionError("alchemist.opportunity_cannot_be_converted");
   }
   return {
     ...opportunity,

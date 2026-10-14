@@ -29,7 +29,7 @@ export function createCalibrationMemoryService(dependencies: Dependencies) {
       const parsed = createPlaybookProposalSchema.parse(input);
       const annotation = dependencies.calibration.getAnnotation(annotationId);
       if (!annotation) throw new Error("ANNOTATION_NOT_FOUND");
-      if (annotation.status !== "open") throw new Error("ANNOTATION_ALREADY_RESOLVED");
+      if (annotation.status !== "open") throw new Error("alchemist.annotation_already_resolved");
       const scope = resolveScope(annotation.target, parsed.scopeKind, dependencies);
       const now = dependencies.clock.now();
       const proposal: ActionProposal = {
@@ -77,7 +77,7 @@ export function createCalibrationMemoryService(dependencies: Dependencies) {
     applyProposal(id: string): { proposal: ActionProposal; rule: PlaybookRule } {
       const stored = dependencies.calibration.getProposal(id);
       if (!stored) throw new Error("ACTION_PROPOSAL_NOT_FOUND");
-      if (stored.proposal.status !== "pending") throw new Error("ACTION_PROPOSAL_NOT_PENDING");
+      if (stored.proposal.status !== "pending") throw new Error("alchemist.action_proposal_not_pending");
       if (stored.proposal.action !== "create_playbook_rule") {
         throw new Error("ACTION_PROPOSAL_UNSUPPORTED");
       }

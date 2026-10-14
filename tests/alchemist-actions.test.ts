@@ -74,11 +74,13 @@ test("Alchemist unified operations preserve direction → cards → research →
   assert.equal((await call(a.annotationsList, { kind: "lens_report", objectId: report.id, revision: 1 })).annotations[0]!.id, annotation.id);
   const { proposal } = await call(a.playbookPropose, { id: annotation.id, methodChange: "优先查找独立访谈", positiveExamples: ["直接用户反馈"], negativeExamples: ["推广软文"], scopeKind: "direction" });
   const applied = await call(a.proposalApply, { id: proposal.id }); assert.equal(applied.proposal.status, "applied");
-  await assert.rejects(call(a.proposalApply, { id: proposal.id }), { code: "ACTION_PROPOSAL_NOT_PENDING" });
+  // J5A-01/J5A-03: the production action refuses a second application.
+  await assert.rejects(call(a.proposalApply, { id: proposal.id }), { code: "alchemist.action_proposal_not_pending", message: "这条校准提案已经处理。" });
   assert.equal((await call(a.memoryGet, {})).playbook[0]!.id, applied.rule.id);
   await call(a.playbookDisable, { id: applied.rule.id });
   const other = await call(a.annotationCreate, { target: { kind: "idea_brief", objectId: id, revision: 1, blockId: "title" }, quotedSnapshot: "证据卡", comment: "已核对" });
   assert.equal((await call(a.annotationResolve, { id: other.annotation.id })).annotation.status, "resolved");
+  await assert.rejects(call(a.annotationResolve, { id: other.annotation.id }), { code: "alchemist.annotation_already_resolved", message: "这条注释已经解决。" });
   const { rule } = await call(a.tasteCreate, { title: "单人产品", statement: "先满足单人使用", appliesTo: "产品构思", exceptions: [] });
   const conversation = await call(a.conversationSend, { body: "这个方向的风险是什么", context: { kind: "idea", label: "证据卡", ideaId: id, version: 1, panel: "brief" } });
   assert.ok("assistantMessage" in conversation); assert.equal(conversation.assistantMessage.responseState, "complete");

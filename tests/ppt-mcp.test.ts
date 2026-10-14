@@ -37,7 +37,8 @@ test("PPT standard MCP shares exports, concurrent edits and fixed publication ac
       db.exec("CREATE TRIGGER fail_ppt_mcp BEFORE UPDATE OF artifact_version ON presentations WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
       assert.equal((await writer.callTool({name:'ppt.promote__v1',arguments:{id,expected_version:presentation.version}})).isError,true);
       assert.equal((await call(reader,'get',{id})).presentation.publication_pending.version,1);
-      presentation=(await call(writer,'update',{id,title:'Later edit',slides:[{id:'original-slide',title:'保留页',bullets:['真实内容'],notes:'两行\n备注'}]})).presentation;
+      const current=(await call(reader,'get',{id})).presentation;
+      presentation=(await call(writer,'update',{id,expected_version:current.version,title:'Later edit',slides:[{id:'original-slide',title:'保留页',bullets:['真实内容'],notes:'两行\n备注'}]})).presentation;
       db.exec('DROP TRIGGER fail_ppt_mcp');
     }finally{db.close();}
     await writer.close();await secondWriter.close();const restarted=await connect('a');

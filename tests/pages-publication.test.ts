@@ -5,9 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { pagesActions, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { pagesActions, pagesManifest, PAGES_SUBJECT_KIND, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, type GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { registerPagesArtifactVersion } from "../apps/local-host/dist/pages-artifact.js";
+import { PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION, type PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 
 const body = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 async function fixture(t: any) {
@@ -56,12 +57,24 @@ for (const failure of ["before-artifact", "after-artifact", "after-association"]
   });
 }
 
+function seedUntrackedHead(coordinator: GoalProjectApplication, document: Pick<PagesRecord, "id" | "title" | "body">): void {
+  coordinator.artifacts.commands.registerVersion({
+    project_id: "p", actor_id: "owner", owner_actor_id: LOCAL_PERSON_ACTOR_ID,
+    artifact_id: "pages-" + document.id, version: 1,
+    artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION,
+    producer: { plugin_id: pagesManifest.plugin_id, plugin_version: pagesManifest.version, binding_signature: pagesManifest.publisher.signature },
+    content: { kind: "inline", payload: { title: document.title, page_id: document.id, goal_id: "old-goal", body: document.body } },
+    origin: { kind: "pinned", subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: "opaque-revision" },
+    metadata: { page_id: document.id, goal_id: "old-goal", title: document.title }, title: document.title,
+    media_type: "application/json", scope: "personal", supersedes_version: null,
+  });
+}
+
 test("W1-18-PIN-CURRENT-01: an untracked Artifact head without a snapshot advances without overwriting the original version or the current draft", async t => {
   const f = await fixture(t);
   const original = (await f.bound.invoke(pagesActions.create, { title: "Existing pin", body: body("Already published"), goal_id: "old-goal" })).document;
   // No numeric source revision: the actual line-head adapter reports null, but there is no durable pending intent.
-  await f.host.withProject(f.ref, runtime => registerPagesArtifactVersion(runtime.coordinator, "p", "p", "owner")({ project_id: "p", page_id: original.id,
-    title: original.title, body: original.body, goal_id: "old-goal", version: 1 }));
+  await f.host.withProject(f.ref, runtime => seedUntrackedHead(runtime.coordinator, original));
   const edited = (await f.bound.invoke(pagesActions.update, { id: original.id, body: body("New unpublished work"), goal_id: "new-goal" })).document;
   assert.equal(edited.publication_pending, undefined);
   const result = await f.bound.invoke(pagesActions.promote, { id: original.id, expected_version: edited.version });
@@ -82,8 +95,7 @@ test("W1-18-PIN-CURRENT-01: an untracked Artifact head without a snapshot advanc
 test("W1-18-PIN-CURRENT-01: another actor explicitly pins the next version when no publication snapshot is pending", async t => {
   const f = await fixture(t);
   const original = (await f.bound.invoke(pagesActions.create, { title: "Existing pin", body: body("Already published"), goal_id: "old-goal" })).document;
-  await f.host.withProject(f.ref, runtime => registerPagesArtifactVersion(runtime.coordinator, "p", "p", "owner")({ project_id: "p", page_id: original.id,
-    title: original.title, body: original.body, goal_id: "old-goal", version: 1 }));
+  await f.host.withProject(f.ref, runtime => seedUntrackedHead(runtime.coordinator, original));
   const result = await f.client.invoke({ ...f.caller, actor_id: "another-actor" }, pagesActions.promote, { id: original.id });
   assert.equal(result.recovered, false); assert.equal(result.artifact.version, 2);
   assert.equal(result.document.publication_pending, undefined);
@@ -106,7 +118,7 @@ test("a conflicting immutable Artifact cannot replace the retained publication s
   const store = openPagesStore(f.home);
   try { store.beginPublication(original.id, "p", "owner"); } finally { store.close(); }
   await f.host.withProject(f.ref, runtime => registerPagesArtifactVersion(runtime.coordinator, "p", "p", "owner")({ project_id: "p", page_id: original.id,
-    title: "Conflicting", body: body("Different content"), goal_id: "", version: 1 }));
+    title: "Conflicting", body: body("Different content"), goal_id: "", version: 1, source_version: original.version }));
   await assert.rejects(f.bound.invoke(pagesActions.promote, { id: original.id }), { code: "pages.publication_conflict" });
   const page = (await f.bound.invoke(pagesActions.get, { id: original.id })).document;
   assert.equal(page.artifact_version, 0); assert.equal(page.publication_pending!.version, 1); assert.deepEqual(page.body, original.body);

@@ -314,8 +314,7 @@ test("W3-02-G1-01 real deletion HTTP and its forwarding MCP retain owner conflic
     });
     assert.equal(forwarded.isError, true);
     const text = forwarded.content[0]!.text;
-    assert.match(text, /运行环境尚未释放/);
-    assert.deepEqual(JSON.parse(text.slice(text.indexOf("\n") + 1)), { ...details, code: "example.runtime_busy" });
+    assert.deepEqual(JSON.parse(text), { error: "运行环境尚未释放", code: "example.runtime_busy", details });
     assert.deepEqual(catalog.listProjectDeletions(), []);
     assert.equal(existsSync(project.database_path), true);
   } finally { localHost.closeProject = original; }

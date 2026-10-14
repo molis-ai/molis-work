@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133与W2-10 A1–A4/C/D已合；第4–6波和最终共享全量仍在途。当前main774acaf57；I8 ad0ca76fb已联合Pages7b611、I3–I33及正式CU-image+beforeAccept SDK，102b九项工程检查全通过。103普通99条97通过、浏览器20条19通过，新增真实线程撤权/停止竞态均通过；104 Host HTML五条四通过。四条旧预期/夹具问题已定位，105错误出口13/13通过，106浏览器两条定向复验2/2通过，107模块图边界/root类型/merge-base健康检查全通过；准备冻结同一head跑唯一共享全量。Prologue #20已推送并开PR，无GitHub CI；干净构建/打包与66项检查通过。维护八隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。完整未完范围及新旧证据见§12.4–12.11。
+状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133与W2-10 A1–A4/C/D已合；第4–6波和最终共享全量仍在途。当前main774acaf57；I8 ad0ca76fb已联合Pages7b611、I3–I33及正式CU-image+beforeAccept SDK，102b九项工程检查全通过。103普通99条97通过、浏览器20条19通过，新增真实线程撤权/停止竞态均通过；104 Host HTML五条四通过。四条旧预期/夹具问题已定位，105错误出口13/13通过，106浏览器两条定向复验2/2通过，107模块图边界/root类型/merge-base健康检查全通过；唯一共享全量108已冻结c2017a9ac运行，已出现新增失败，完整终态及逐条裁决尚待。Prologue #20已推送并开PR，无GitHub CI；干净构建/打包与66项检查通过。维护八隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。完整未完范围及新旧证据见§12.4–12.11。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -1516,6 +1516,12 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 
 唯一writer已从cb460固定base开独立PR4源码树，按PR4→5→H接续，仅改源码，不构建/改I6/碰真实Home。实际MCP旧client.withScope在tree载荷校验前已绑定项目；新的Host.withProject还会prepareInstalledPlugins，不能替代它。PR4只保留原client.withScope空回调预打开及精确AST约束，三个Goals管理业务全部经unprepared factory/action port，保留真实身份拒绝顺序与原IO边界，不新增插件预准备或业务行；工程与回归须等I6释放机器构建窗口。
 
+### 10.10 调度前拒绝的共同结算（108新失败，待修）
+
+现象：action-call-log 的早取消命令需要留下原操作编号的一行“未执行”，而 MolisWorkLocalHost 的项目插件准备、withPreparedActions 的Home准备、LocalHost 的caller/signal/runtime检查在ActionService结算之前就可能抛错；原取消/范围/关闭拒绝必须保留。新失败与源码已定位，完整108栈及基线仍待，不以定位替代修复验收。最小方案只把准备阶段的拒绝交给现有bindCall/refuseCall/settleCall及同一Host记录hook，成功转发保持原ActionService唯一结算；不启动本已取消调用的插件、不写业务事实、不在下游已结算后再记录一次，保原error、caller和call_id。Assistant在计算目录之前已取消或期间取消时也须保原not-run结果跟踪，不能只把异常预期放宽为AbortError。
+
+验收沿现有S-12/S-18与action-call-log/assistant-change-outcomes，不增重复测试系统：PREP-108-01验证项目/Home准备、直接LocalHost早取消与等待后取消各留一次可查诊断，只有身份/动作/结果/错误码、没有输入或正文、业务handler零执行；PREP-108-02验证scope/closed/准备失败原拒绝和原对象/编号保留；PREP-108-03验证成功及handler内失败仍由原链记录一次，正常重新授权/重试可执行；PREP-108-04验证助理not-run持久化及后续读取、撤权等待零effect且原unknown无重复副作用。必要编号补进实际现有测试名/注释。修后整体构建、root/工作区类型、health对merge-base、相关真实Host用例与原安全/权限用例；按最终影响面决定共同补验，未解决的新业务失败继续独立归因。无需真实Home写入或改变拒绝语义。
+
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 
 用户更正：上一轮逻辑复查只查了 Goal 的完成规则与写进 Goal 的管理门。本轮按事实主人分 8 个区（插件基座、动作服务与授权、成果库/放置/上下文账本、搜索/记忆/助理、个人插件、文稿与数据插件、工作流插件、Coding/创作台/炼金术士），只读查逻辑缺陷，每区一个对抗核验者逐条复现或驳回（复现脚本在会话临时目录 `logic-review/`）。
@@ -2702,3 +2708,5 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 **四条实际失败的最小test-only修正。** MCP公共共同出口保code/isError/文案，字段由旧message改现行error；source检查从声明的esbuild browser入口计算相对模块图，再减去所有公共server出口及Host binding可达模块，仅不把browser-only裸Error称为HTTP500，其他错误类/mapper/裸owner码检查仍逐文件执行、共享/未引用模块继续受server检查。评论preview按生产collapsed caret设2和10，保原range映射、Prefix不纳入、换Doc老按钮零写入断言。Host review传输失败按唯一molisWorkRequest现行ui_host.outcome_unknown文案检查，保按钮恢复、真实reject零待办/approve一条待办等断言，不改生产出口。105错误出口整文件13/13通过、0取消/跳过、4.998秒；106只重验两个失败浏览器场景，结果待归回。已绿的103其余19浏览器不机械重跑。本次仅测试变更，不扩大门禁例外、阈值、模型主分支或真实Home授权。
 
 **106/107终态与共享全量准备。** 106两条真实Chrome失败场景2/2、0取消/跳过、18.719秒，评论原范围映射/Prefix不纳入/换Doc老按钮零写入，以及Host流式阅读、代码精确复制、折叠、命名对象、review断连恢复与真实reject0/approve1均实际成立。新增最小临时模块图证实browser-only被识别、共享server导出与Host消费同模块不会被免除；107该定向、root tsc与merge-base health全部exit0，不放宽门禁。代码仍沿102b已构建source，随后仅三测试及唯一进度spec变更；不为test-only重新构建。Root将同步spec至I8并冻结head，唯一共享全量108持全机build/browser两个名额，结束前不改源码、脚本、package.json或skills。
+
+**108已实际启动（进行中）。** c2017a9ac395ed34708b330ffc3100704a631e54为clean冻结头，生产仍为102b已构建的同一联合source；同步唯一spec后merge-base健康检查再次exit0，随后node scripts/./run-tests.mjs在同一build/browser锁下跑全量。当前日志已经报告新增失败，不能称全量通过：两条AgentBuilder测试仍用已退役构造入口，管理MCP README装配清单断言与取消在dispatch前的诊断结算链路已找到源码线索，其余浏览器/真实Host组合等待完整栈后裁决。此处只记录正在运行与已发现问题，不替代最终footer、基线比对或修复后验证；受测树源码/脚本/package/skills未修改。独立进度分支已机械同步main774a，diff仍只有此spec，Root全量树保持clean。

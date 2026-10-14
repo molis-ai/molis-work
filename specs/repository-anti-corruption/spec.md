@@ -2615,3 +2615,15 @@ I29最终e8b0e1efd关闭两个P1后已独立Source接受；90实际Goals/Kernel�
 
 
 I30 3bc3ba3a6已独立Source接受，文档c82a96e61补两处Kernel缺稳定Session码；I31 93bdb31a7四文件29+/5-，Source MCP own/all0、API无变，初次91健康因旧CALL-CHAINS死引用失败、91b更正同片文档后通过（class28/shape0/owner7），独立复核在途。I32 installed-plugin-host单文件四码机械归属修正4+/4-：Source92 scoped1file0/all223（不是全Host0），API62/2410无变、健康通过class28/shape0/owner6。I32 parent04a已含I28但未纳I29–I31，因此该数字不可与另一Source的7直接当Root组合数；纳全片后再实量。Source parent含I26的误写已纠正。唯一87仍排A2，SDK新候选88尚未build/pack。
+
+
+**维护八隔离演练（准备）。** 41库只读原克隆保持不写；从中仅对已核607映射实际命中的三个项目库另建可写临时演练副本，原Home仍不读写，Keychain/原调用日志不读。当前确定六个scalar旧码和一个source_fault JSON槽需要改名，十五个unknown scalar及另一个unknown JSON槽保持原样。演练只应用现有已核owner映射：检查真实SQLite失败回滚、合法更新、二次运行零修改，逐行对照目标表除既定字段外完全不变，逐表schema/行数及integrity保持。将“原只读克隆零写入”和“新演练副本七字段更新”分别记录；这是准备真实Home操作的证据，不是授权、同步备份或已维护真实Home。完整当前Source额外映射/部署后的窗口仍待另验与原待决。
+
+
+维护八93实际演练成功：三个新临时可写副本分别1/4/2行，共七处（六scalar+一producer限定JSON），每库注入第一次更新后的失败都真实ROLLBACK恢复目标表；成功提交后逐行与仅错误槽变化的独立expected相等，schema/各非调用日志表行数/SQLite integrity保持；二次运行每库0变化。原Home0写、受保护只读克隆0写、Keychain与历史调用日志正文未读/改。未知十五scalar及一个JSON值由完整目标行对照证明未动。不是跨库同步快照、不是已维护真实Home；额外Source映射及部署后原窗口仍待最终决定/实核。I31/I32已独立Source接受，92 scoped0/all223和91/92不同分支wrong-owner数按各自上下文保留。
+
+
+**Coding等待状态 I33（根因假设/准备）。** 79的B waits超时与现行startRound顺序存在明确交错：follow在两次await beforeWrite、await startDelegation和setState running/last-start存储之前启动；立即结束且已park的Run可能先写queued，迟到的发送回执随后改回running，同时wake可先读缺失origin_task。87仍待实际诊断trace，先在另一Source准备最小顺序修正，不能预记证实。R-CODING-RECEIPT-01：先完成原调用复查及running/last-start原收口，再启动activation follower；即时terminal/parked回执仍最终queued，wake原任务、重复唤醒/重启/撤回与cancel原断言保持；不延长超时、不给mock加延迟/跳过。R-CODING-RECEIPT-02：原取消/撤权/停用beforeEffect仍先于这些调用方记录，拒绝不写偏好/状态，Run事实仍由Agent owner；必须与17项真实Coding效果控制一起在新整体构建后验证。Root受测I8暂不改，直到87终结。
+
+
+I33 Source候选已准备3+/1-：仅将同一follow移到原last-start写完后，并在原即时waitRun回归加验收编号注释。Source94 Coding自身0/all2（全程序两条未借用依赖不计全绿）、merge-base健康通过，API未改；不是Root I8当前改动，也不是87实际证实/运行通过。下一步87取状态trace后按原因裁决，再统一纳已接受I26–I32、main f6与新隔离SDK；遵守唯一构建队列，不重复启动。

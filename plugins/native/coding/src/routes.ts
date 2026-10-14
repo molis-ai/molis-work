@@ -461,29 +461,32 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
   history = "digest"; historyReason = "完整的对话历史已放不进模型窗口";
   run = await start("digest");
     }
-    await beforeWrite(); beforeWrite.assert_current();
-    if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);
-    // A session created for a delegation starts its work when its person sends a round: that is its acceptance.
-    // The round has started either way; the delegation shows its own last recorded state.
-    if (session.runtime_id === "prologue") await startDelegation(record, context.services!.capabilities!, session.session_id).catch(() => undefined);
-    await beforeWrite(); beforeWrite.assert_current();
-    if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
-    // A session named by default takes its name from the first task, the way a person would label it.
-    if (firstRound && execution.sessions.get(projectId, record.session_id).title === DEFAULT_SESSION_TITLE) execution.sessions.rename(projectId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
-    execution.sessions.setState(projectId, record.session_id, "running", new Date().toISOString());
-    // How this round was started, so a round woken later (an answer arrived) starts the same way.
-    // A round woken later is a plain round in the same way of working: without the plan it ran or the directory split.
-    // A round continued from a breakpoint goes on with the task it continues, not the continuation's own wording.
-    const lastStart = (() => { try { return JSON.parse(context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as { origin_task?: unknown } | null; } catch { return null; } })();
-    const continued = typeof body.task === "string" && body.task.startsWith(CONTINUATION_MARKER) && typeof lastStart?.origin_task === "string";
-    context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
-      ...(effort ? { reasoning_effort: effort } : {}),
-      workspace_id: body.workspace_id, actor_id: actorId,
-      origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
-    // R-CODING-RECEIPT-01: an immediate terminal/wait receipt must follow, never precede, the saved start state and origin task.
-    follow(context.services!.capabilities!, ports ?? execution, record.session_id, session, run.ref, workspace.workspace_id);
-    return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
-  ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
+    try {
+      await beforeWrite(); beforeWrite.assert_current();
+      if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);
+      // A session created for a delegation starts its work when its person sends a round: that is its acceptance.
+      // The round has started either way; the delegation shows its own last recorded state.
+      if (session.runtime_id === "prologue") await startDelegation(record, context.services!.capabilities!, session.session_id).catch(() => undefined);
+      await beforeWrite(); beforeWrite.assert_current();
+      if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
+      // A session named by default takes its name from the first task, the way a person would label it.
+      if (firstRound && execution.sessions.get(projectId, record.session_id).title === DEFAULT_SESSION_TITLE) execution.sessions.rename(projectId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
+      execution.sessions.setState(projectId, record.session_id, "running", new Date().toISOString());
+      // How this round was started, so a round woken later (an answer arrived) starts the same way.
+      // A round woken later is a plain round in the same way of working: without the plan it ran or the directory split.
+      // A round continued from a breakpoint goes on with the task it continues, not the continuation's own wording.
+      const lastStart = (() => { try { return JSON.parse(context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as { origin_task?: unknown } | null; } catch { return null; } })();
+      const continued = typeof body.task === "string" && body.task.startsWith(CONTINUATION_MARKER) && typeof lastStart?.origin_task === "string";
+      context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
+        ...(effort ? { reasoning_effort: effort } : {}),
+        workspace_id: body.workspace_id, actor_id: actorId,
+        origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
+      return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
+    ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
+    } finally {
+      // R-CODING-RECEIPT-01/02: accepted work keeps its activation follower even when the caller cannot finish its receipt.
+      follow(context.services!.capabilities!, ports ?? execution, record.session_id, session, run.ref, workspace.workspace_id);
+    }
   };
   /*
    * A session parked until something happens: the model waits for an answer or a background command, or the person

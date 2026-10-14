@@ -1,3 +1,4 @@
+// PA-22: base SDK adoption behavior and retained review/budget boundaries.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { existsSync, readdirSync, writeFileSync } from "node:fs";

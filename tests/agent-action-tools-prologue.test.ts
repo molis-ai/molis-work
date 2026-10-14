@@ -210,7 +210,7 @@ test("Agent tool declarations preserve provider deadlines within the Agent ceili
   const actions = { tools, client: { discover: () => service.discover(context), invoke: (ref: ExactActionReference, input: unknown, signal?: AbortSignal) => service.invoke({ ...context, signal }, ref, input) } };
   const projected = prologueActionTools(actions, 60_000);
   assert.deepEqual(projected.pack.tools!.map(tool => tool.registration.timeoutMs), [2_000, 60_000, 60_000]);
-  // A read only when both say so (specs/prologue-adoption §2 item 4): the runtime may start a read before the model has
+  // PA-22: a read only when both say so (specs/prologue-adoption §2 item 4): the runtime may start a read before the model has
   // finished speaking, so a query that declares a write, and any command, go through the change path.
   const writes: ActionDefinition = { ...definitions[0]!, capability_id: 'arbitrary.writes', action: { ...definitions[0]!.action, effect: 'write' } };
   const command: ActionDefinition = { ...definitions[0]!, capability_id: 'arbitrary.command', operation: 'command', action: { ...definitions[0]!.action, kind: 'operation', effect: 'read' } };

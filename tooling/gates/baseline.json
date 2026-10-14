@@ -528,7 +528,7 @@
     "tests/workspace-plugin-graph.test.ts": 1,
     "tests/workspace-production-events.test.ts": 3
   },
-  "vendoredPrologueSdk": 2,
+  "vendoredPrologueSdk": 1,
   "schemaPatches": 0,
   "compatMarkerTotal": 9,
   "compatMarkers": {
@@ -1017,7 +1017,7 @@
     "server/tooling/continuity-demo.mts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 192,
+  "unknownCastsTotal": 189,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1039,7 +1039,6 @@
     "horizontal/agent-host/src/adapters/plugin-builder.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-mcp.ts": 3,
     "horizontal/agent-host/src/adapters/prologue-methods.ts": 1,
-    "horizontal/agent-host/src/adapters/prologue-stream.ts": 3,
     "modules/artifacts/src/repository.ts": 1,
     "modules/functions/src/store.ts": 1,
     "packages/contracts/src/modules/workspace-artifacts.ts": 2,

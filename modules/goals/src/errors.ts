@@ -1,23 +1,6 @@
-import type { ActionErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
+import { commandErrors } from "./command-error-codes.js";
+import { eventErrors } from "./event-error-codes.js";
+import { stateErrors } from "./state-error-codes.js";
 
-export class GoalsCommandError extends Error {
-  declare readonly kind?: ActionErrorKind;
-  constructor(
-    readonly code: string,
-    message: string,
-    readonly details?: Record<string, unknown>,
-    kind?: ActionErrorKind,
-  ) {
-    super(message);
-    this.name = "GoalsCommandError";
-    if (kind) this.kind = kind;
-  }
-}
-
-export type GoalsErrorFactory = (
-  code: string,
-  message: string,
-  details?: Record<string, unknown>,
-  kind?: ActionErrorKind,
-) => Error;
-
+export const goalErrors = { ...commandErrors, ...eventErrors, ...stateErrors };
+export type GoalErrorCode = keyof typeof goalErrors;

@@ -119,7 +119,6 @@ export class GoalProjectApplication {
       },
       {
         now: this.clock,
-        errorFactory: (code, message, details, kind) => new ActionError(code, message, { details, kind }),
         personalPlanningMethodPacks: this.personalPlanningMethodPacks,
       },
     );

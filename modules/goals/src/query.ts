@@ -1,3 +1,4 @@
+import { goalErrors } from "./errors.js";
 import type {
   GoalFactsView,
   GoalPolicy,
@@ -96,7 +97,7 @@ export class GoalsQueryService implements GoalsQueryApi {
 
   snapshot(projectId: string): GoalsQuerySnapshot {
     const board = this.repository.getBoard(projectId);
-    if (!board) throw this.context.error("goals.board.not_found", `这个项目还没有初始化目标资料库: ${projectId}`);
+    if (!board) throw goalErrors["goals.board.not_found"](`这个项目还没有初始化目标资料库: ${projectId}`);
     return {
       board,
       observed_event_cursor: this.repository.eventCursor(projectId),
@@ -118,7 +119,7 @@ export class GoalsQueryService implements GoalsQueryApi {
   readGoal(projectId: string, goalId: string): GoalFactsView {
     const snapshot = this.snapshot(projectId);
     const goal = snapshot.goals.find((candidate) => candidate.goal_id === goalId);
-    if (!goal) throw this.context.error("goals.not_found", `找不到这个 Goal: ${goalId}`);
+    if (!goal) throw goalErrors["goals.not_found"](`找不到这个 Goal: ${goalId}`);
     const parentContractCoverage = snapshot.relations
       .filter((relation) =>
         relation.state === "active" &&
@@ -165,7 +166,7 @@ export class GoalsQueryService implements GoalsQueryApi {
 
   private requireGoal(projectId: string, goalId: string): GoalRecord {
     const goal = this.getGoal(projectId, goalId);
-    if (!goal) throw this.context.error("goals.not_found", `找不到这个 Goal: ${goalId}`);
+    if (!goal) throw goalErrors["goals.not_found"](`找不到这个 Goal: ${goalId}`);
     return goal;
   }
 }

@@ -1,3 +1,4 @@
+import { goalErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import type {
   ConfigureGoalEventsApplicationInput,
@@ -61,7 +62,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
 
   constructor(private readonly context: GoalsCommandContext) {
     this.records = new GoalEventFactsRepository(context.repository.db);
-    this.configWrites = new GoalEventFactsConfig(context, this.records, (code, message, details) => context.error(code, message, details));
+    this.configWrites = new GoalEventFactsConfig(context, this.records);
     this.state = new GoalEventState(
       context,
       this.records,
@@ -119,11 +120,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
         const available = new Map(resolved.default_requirements.map((requirement) => [requirement.requirement_id, requirement]));
         for (const requirementId of selectedIds) {
           if (!available.has(requirementId)) {
-            throw this.context.error(
-              "goals.event_config.default_requirement_not_found",
-              `采用的规划里没有默认要求 ${requirementId}`,
-              { requirement_id: requirementId },
-            );
+            throw goalErrors["goals.event_config.default_requirement_not_found"](`采用的规划里没有默认要求 ${requirementId}`, { requirement_id: requirementId });
           }
         }
       }
@@ -141,10 +138,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
           },
         }));
       if (instantiated.length && !Number.isInteger(input.expected_agreement_version)) {
-        throw this.context.error(
-          "goals.event_agreement.expected_agreement_version_required",
-          "采用规划默认要求时需要 expected_agreement_version",
-        );
+        throw goalErrors["goals.event_agreement.expected_agreement_version_required"]("采用规划默认要求时需要 expected_agreement_version");
       }
       const innerInput: ConfigureGoalEventsInput = {
         project_id: input.project_id,
@@ -211,11 +205,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
       const current = this.records.getConfig(input.project_id, input.goal_id);
       const currentVersion = current?.current_version ?? 0;
       if (input.expected_version !== currentVersion) {
-        throw this.context.error(
-          "goals.event_config.version_conflict",
-          `配置版本已是 ${currentVersion}，不能用期望版本 ${input.expected_version} 覆盖`,
-          { current_version: currentVersion, expected_version: input.expected_version }, "conflict",
-        );
+        throw goalErrors["goals.event_config.version_conflict"](`配置版本已是 ${currentVersion}，不能用期望版本 ${input.expected_version} 覆盖`, { current_version: currentVersion, expected_version: input.expected_version });
       }
 
       const actorKind = this.actorKind(input.actor_kind);
@@ -225,7 +215,6 @@ export class GoalEventFacts implements GoalEventFactsApi {
       const addedRequirements = this.configWrites.applyRequirements(goal, [], input.actor_id, addedTypes, nextVersion, at);
       const addedBindings = this.configWrites.applyBindings(goal, input, addedTypes, addedRequirements, nextVersion, at);
       const adoptedPlanning = normalizeAdoptedPlanning(
-        this.error,
         input.adopted_planning,
         currentVersion === 0 ? [] : this.records.listAdoptedPlanning(goal.project_id, goal.goal_id, currentVersion),
       );
@@ -235,7 +224,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
         && JSON.stringify(adoptedPlanning) === JSON.stringify(currentVersion === 0 ? [] : this.records.listAdoptedPlanning(goal.project_id, goal.goal_id, currentVersion))
       ) {
         if (!pendingRequirementAdds) {
-          throw this.context.error("goals.event_config.no_changes", "配置没有增加类型、类型版本、绑定或规划来源");
+          throw goalErrors["goals.event_config.no_changes"]("配置没有增加类型、类型版本、绑定或规划来源");
         }
         return {
           config: this.configView(goal.project_id, goal.goal_id),
@@ -308,7 +297,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
   }
 
   report(input: ReportGoalEventsInput): ReportGoalEventsRecordedResult {
-    const progress = parseOptionalReportProgress((code, message, details) => this.context.error(code, message, details), input.progress);
+    const progress = parseOptionalReportProgress(input.progress);
     const hash = requestHash({
       project_id: input.project_id,
       goal_id: input.goal_id,
@@ -323,13 +312,10 @@ export class GoalEventFacts implements GoalEventFactsApi {
 
       const goal = this.requireWritableGoal(input.project_id, input.goal_id);
       if (!this.state.isEventStateOwner(goal.project_id, goal.goal_id)) {
-        throw this.context.error(
-          "goals.event_state.not_owner",
-          "这个 Goal 还没有事件状态归属。请先保存意图或登记事件配置，不要把旧完成入口和新状态效果混用",
-        );
+        throw goalErrors["goals.event_state.not_owner"]("这个 Goal 还没有事件状态归属。请先保存意图或登记事件配置，不要把旧完成入口和新状态效果混用");
       }
       if (!Array.isArray(input.events) || input.events.length === 0) {
-        throw this.context.error("goals.event_report.empty_batch", "至少需要一条工作事实");
+        throw goalErrors["goals.event_report.empty_batch"]("至少需要一条工作事实");
       }
       const prepared = input.events.map((item, index) => this.configWrites.prepareReport(goal, item, index));
       const at = this.context.now().toISOString();
@@ -400,11 +386,11 @@ export class GoalEventFacts implements GoalEventFactsApi {
     this.context.requireGoal(projectId, goalId);
     const afterCursor = query.after_cursor ?? 0;
     if (!Number.isInteger(afterCursor) || afterCursor < 0) {
-      throw this.context.error("goals.event_list.invalid_cursor", "分页游标必须是非负整数");
+      throw goalErrors["goals.event_list.invalid_cursor"]("分页游标必须是非负整数");
     }
     const limit = query.limit ?? DEFAULT_PAGE_SIZE;
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_SIZE) {
-      throw this.context.error("goals.event_list.invalid_limit", `每页最多 ${MAX_PAGE_SIZE} 条`);
+      throw goalErrors["goals.event_list.invalid_limit"](`每页最多 ${MAX_PAGE_SIZE} 条`);
     }
     const rows = this.records.listWorkEvents(projectId, goalId, afterCursor, limit);
     return {
@@ -436,7 +422,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
     this.context.requireGoal(projectId, goalId);
     const limit = query.limit ?? DEFAULT_LATEST_REPORTS;
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_LATEST_REPORTS) {
-      throw this.context.error("goals.event_list.invalid_limit", `最新报告最多 ${MAX_LATEST_REPORTS} 条`);
+      throw goalErrors["goals.event_list.invalid_limit"](`最新报告最多 ${MAX_LATEST_REPORTS} 条`);
     }
     return {
       reports: this.records.listLatestReportEvents(projectId, goalId, limit).map((row) => mapReportEvent(this.records, row)),
@@ -447,7 +433,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
   readEvent(projectId: string, goalId: string, eventId: string): GoalWorkEventRecord {
     this.context.requireGoal(projectId, goalId);
     const row = this.records.getWorkEvent(projectId, goalId, eventId);
-    if (!row) throw this.context.error("goals.event.not_found", `事件不存在: ${eventId}`);
+    if (!row) throw goalErrors["goals.event.not_found"](`事件不存在: ${eventId}`);
     return mapStoredWorkEvent(this.records, row);
   }
 
@@ -584,10 +570,10 @@ export class GoalEventFacts implements GoalEventFactsApi {
     this.context.requireBoard(projectId);
     const goal = this.context.requireGoal(projectId, goalId);
     if (goal.trashed_at) {
-      throw this.context.error("goals.goal.trashed", "回收站中的 Goal 不能登记事件配置或上报工作事实");
+      throw goalErrors["goals.goal.trashed"]("回收站中的 Goal 不能登记事件配置或上报工作事实");
     }
     if (goal.archived_at) {
-      throw this.context.error("goals.goal.archived", "已归档的 Goal 不能登记事件配置或上报工作事实");
+      throw goalErrors["goals.goal.archived"]("已归档的 Goal 不能登记事件配置或上报工作事实");
     }
     return goal;
   }
@@ -611,21 +597,19 @@ export class GoalEventFacts implements GoalEventFactsApi {
     this.context.requireGoal(projectId, goalId);
     const beforeCursor = query.before_cursor;
     if (beforeCursor != null && (!Number.isInteger(beforeCursor) || beforeCursor < 1)) {
-      throw this.context.error("goals.event_list.invalid_cursor", "最新页游标必须是正整数");
+      throw goalErrors["goals.event_list.invalid_cursor"]("最新页游标必须是正整数");
     }
     const limit = query.limit ?? DEFAULT_PAGE_SIZE;
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_SIZE) {
-      throw this.context.error("goals.event_list.invalid_limit", `每页最多 ${MAX_PAGE_SIZE} 条`);
+      throw goalErrors["goals.event_list.invalid_limit"](`每页最多 ${MAX_PAGE_SIZE} 条`);
     }
     return this.records.listLatestWorkEvents(projectId, goalId, beforeCursor ?? null, limit);
   }
 
   private actorKind(kind: "user" | "runtime" | undefined): "user" | "runtime" | null {
     if (kind == null) return null;
-    if (kind !== "user" && kind !== "runtime") throw this.context.error("goals.event_report.invalid_actor_kind", "actor_kind 只能是 user 或 runtime");
+    if (kind !== "user" && kind !== "runtime") throw goalErrors["goals.event_report.invalid_actor_kind"]("actor_kind 只能是 user 或 runtime");
     return kind;
   }
 
-  private readonly error = (code: string, message: string, details?: Record<string, unknown>) =>
-    this.context.error(code, message, details);
 }

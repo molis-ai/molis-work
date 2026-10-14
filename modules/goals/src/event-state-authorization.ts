@@ -1,3 +1,4 @@
+import { goalErrors, type GoalErrorCode } from "./errors.js";
 import {
   goalEventClosureKinds,
   goalEventConcernActions,
@@ -20,24 +21,20 @@ import {
 } from "./event-agreement-change.js";
 import { emptyScope, scopeIsSubset } from "./event-state-repository.js";
 
-type StateError = (code: string, message: string, details?: Record<string, unknown>) => Error;
-
 export function requiredEnum<T extends string>(
-  error: StateError,
   value: unknown,
   allowed: readonly T[],
-  code: string,
+  code: GoalErrorCode,
   message: string,
 ): T {
   if (typeof value !== "string" || !(allowed as readonly string[]).includes(value)) {
-    throw error(code, message, { value });
+    throw goalErrors[code](message, { value });
   }
   return value as T;
 }
 
-export function requiredConcernAction(error: StateError, value: unknown): GoalEventConcernAction {
+export function requiredConcernAction(value: unknown): GoalEventConcernAction {
   return requiredEnum(
-    error,
     value,
     goalEventConcernActions,
     "goals.event_concern.invalid_action",
@@ -45,9 +42,8 @@ export function requiredConcernAction(error: StateError, value: unknown): GoalEv
   );
 }
 
-export function requiredClosureKind(error: StateError, value: unknown): GoalEventClosureKind {
+export function requiredClosureKind(value: unknown): GoalEventClosureKind {
   return requiredEnum(
-    error,
     value,
     goalEventClosureKinds,
     "goals.event_closure.invalid_kind",
@@ -56,27 +52,25 @@ export function requiredClosureKind(error: StateError, value: unknown): GoalEven
 }
 
 export function resolveDecisionEffects(
-  error: StateError,
   input: { accepts_requirements?: boolean; effects?: GoalEventDecisionEffect[] },
   scope: GoalEventScope,
 ): GoalEventDecisionEffect[] {
-  return normalizeTrustedDecision(error, input, scope).effects;
+  return normalizeTrustedDecision(input, scope).effects;
 }
 
 export function normalizeTrustedDecision(
-  error: StateError,
   input: { accepts_requirements?: boolean; effects?: GoalEventDecisionEffect[] },
   scope: GoalEventScope,
 ): { effects: GoalEventDecisionEffect[]; accepts_requirements: boolean } {
   if (Array.isArray(input.effects) && input.effects.length > 0) {
-    const effects = normalizeEffects(error, input.effects);
-    assertEffectsMatchScope(error, effects, scope);
+    const effects = normalizeEffects(input.effects);
+    assertEffectsMatchScope(effects, scope);
     const derived = effects.some((effect) => effect.kind === "accept_requirements");
     if (input.accepts_requirements === true && !derived) {
-      throw error("goals.event_decision.effect_conflict", "显式效果与 accepts_requirements 互相矛盾，不能各写各的");
+      throw goalErrors["goals.event_decision.effect_conflict"]("显式效果与 accepts_requirements 互相矛盾，不能各写各的");
     }
     if (input.accepts_requirements === false && derived) {
-      throw error("goals.event_decision.effect_conflict", "显式效果与 accepts_requirements 互相矛盾，不能各写各的");
+      throw goalErrors["goals.event_decision.effect_conflict"]("显式效果与 accepts_requirements 互相矛盾，不能各写各的");
     }
     return { effects, accepts_requirements: derived };
   }
@@ -333,32 +327,30 @@ export function pendingBlocksCompletion(
 }
 
 function assertEffectsMatchScope(
-  error: StateError,
   effects: GoalEventDecisionEffect[],
   scope: GoalEventScope,
 ): void {
   for (const effect of effects) {
     if (effect.kind === "accept_requirements" || effect.kind === "reject_requirements") {
       if (scope.requirement_ids.length === 0) {
-        throw error("goals.event_decision.effect_scope_mismatch", "要求效果必须声明适用的 requirement_ids");
+        throw goalErrors["goals.event_decision.effect_scope_mismatch"]("要求效果必须声明适用的 requirement_ids");
       }
       continue;
     }
     if (effect.kind === "accept_concerns" || effect.kind === "reject_concerns") {
       if (scope.concern_ids.length === 0) {
-        throw error("goals.event_decision.effect_scope_mismatch", "Concern 效果必须声明适用的 concern_ids");
+        throw goalErrors["goals.event_decision.effect_scope_mismatch"]("Concern 效果必须声明适用的 concern_ids");
       }
       continue;
     }
     if (effect.kind === "authorize_agreement_change") continue;
     if (!scope.action || effect.action !== scope.action) {
-      throw error("goals.event_decision.effect_scope_mismatch", "动作效果必须匹配声明的 scope.action，不能把授权扩大到范围之外");
+      throw goalErrors["goals.event_decision.effect_scope_mismatch"]("动作效果必须匹配声明的 scope.action，不能把授权扩大到范围之外");
     }
   }
 }
 
 export function resolveRecordedDecision(
-  error: StateError,
   input: Pick<RecordGoalUserDecisionInput, "accepts_requirements" | "effects" | "authorized_change" | "scope">,
   request: GoalEventDecisionRequestView | null,
   scope: GoalEventScope,
@@ -366,7 +358,7 @@ export function resolveRecordedDecision(
   if (request?.purpose === "agreement_change") {
     const proposed = request.proposed_change;
     if (!proposed) {
-      throw error("goals.event_decision.missing_proposed_change", "约定变更请求必须带有可审阅的具体变化");
+      throw goalErrors["goals.event_decision.missing_proposed_change"]("约定变更请求必须带有可审阅的具体变化");
     }
     const callerEffects = Array.isArray(input.effects) ? input.effects : [];
     const denyAction = request.scope.action || "set_agreement";
@@ -378,26 +370,26 @@ export function resolveRecordedDecision(
       return true;
     });
     if (extra.length) {
-      throw error("goals.event_decision.effect_widened", "批准约定变更时不能附加请求里没有的效果或另一份变化");
+      throw goalErrors["goals.event_decision.effect_widened"]("批准约定变更时不能附加请求里没有的效果或另一份变化");
     }
     if (authorize && deny) {
-      throw error("goals.event_decision.effect_conflict", "不能同时批准和拒绝同一份约定变更");
+      throw goalErrors["goals.event_decision.effect_conflict"]("不能同时批准和拒绝同一份约定变更");
     }
     if (input.scope && (input.scope.requirement_ids?.length || input.scope.event_ids?.length || input.scope.concern_ids?.length || input.scope.action)) {
       if (!scopeIsSubset(scope, request.scope) || !scopeIsSubset(request.scope, scope)) {
-        throw error("goals.event_decision.scope_expanded", "批准约定变更时不能替换请求中的范围");
+        throw goalErrors["goals.event_decision.scope_expanded"]("批准约定变更时不能替换请求中的范围");
       }
     }
     const accepts = input.accepts_requirements === true || authorize;
     if (accepts) {
       if (deny) {
-        throw error("goals.event_decision.effect_conflict", "不能同时批准和拒绝同一份约定变更");
+        throw goalErrors["goals.event_decision.effect_conflict"]("不能同时批准和拒绝同一份约定变更");
       }
       if (input.authorized_change) {
         const left = JSON.stringify(canonicalizeValue(input.authorized_change));
         const right = JSON.stringify(canonicalizeValue(proposed));
         if (left !== right) {
-          throw error("goals.event_decision.change_mismatch", "批准时的约定变化必须与请求中的具体变化一致，不能加宽或替换");
+          throw goalErrors["goals.event_decision.change_mismatch"]("批准时的约定变化必须与请求中的具体变化一致，不能加宽或替换");
         }
       }
       return {
@@ -414,10 +406,10 @@ export function resolveRecordedDecision(
       scope: request.scope,
     };
   }
-  const normalized = normalizeTrustedDecision(error, input, scope);
+  const normalized = normalizeTrustedDecision(input, scope);
   if (normalized.effects.some((effect) => effect.kind === "authorize_agreement_change")) {
     if (!input.authorized_change) {
-      throw error("goals.event_decision.missing_proposed_change", "授权约定变更必须带上可审阅的具体变化");
+      throw goalErrors["goals.event_decision.missing_proposed_change"]("授权约定变更必须带上可审阅的具体变化");
     }
     return { ...normalized, authorized_change: input.authorized_change, scope };
   }
@@ -436,12 +428,11 @@ function canonicalizeValue(value: unknown): unknown {
   return value;
 }
 
-function normalizeEffects(error: StateError, effects: GoalEventDecisionEffect[]): GoalEventDecisionEffect[] {
+function normalizeEffects(effects: GoalEventDecisionEffect[]): GoalEventDecisionEffect[] {
   const normalized: GoalEventDecisionEffect[] = [];
   const seen = new Set<string>();
   for (const raw of effects) {
     const kind = requiredEnum(
-      error,
       raw?.kind,
       goalEventDecisionEffectKinds,
       "goals.event_decision.invalid_effect",
@@ -449,7 +440,7 @@ function normalizeEffects(error: StateError, effects: GoalEventDecisionEffect[])
     );
     const action = raw.action?.trim() || null;
     if ((kind === "authorize_action" || kind === "deny_action") && !action) {
-      throw error("goals.event_decision.invalid_effect", "动作授权必须写明具体动作");
+      throw goalErrors["goals.event_decision.invalid_effect"]("动作授权必须写明具体动作");
     }
     const key = `${kind}:${action ?? ""}`;
     if (seen.has(key)) continue;

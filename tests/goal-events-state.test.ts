@@ -517,7 +517,14 @@ test("cancel needs no fake evidence; ordinary reports do not resume; stale versi
         project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "stale-close",
         kind: "complete", reason: "旧版本", expected_config_version: 0, expected_agreement_version: 0,
       }),
-      (error: unknown) => error instanceof ActionError && error.code === "goals.event_closure.stale_version",
+      (error: unknown) => {
+        // I3-01: stale closure is rejected before changing any completion facts.
+        assert.ok(error instanceof ActionError);
+        assert.equal(error.code, "goals.event_closure.stale_version");
+        assert.equal(error.kind, "conflict");
+        assert.deepEqual(error.details, { current_version: versions(data.app, goalId).expected_config_version, expected_version: 0 });
+        return true;
+      },
     );
     const first = data.app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "close-retry",
@@ -820,6 +827,18 @@ test("agreement CAS uses the version that changes; unrelated types keep a valid 
     }));
     assert.equal(second.accepted, false);
     assert.equal((second as { code: string }).code, "goals.event_agreement.stale_version");
+    // I3-01: inspect the public error itself as well as the existing failure summary.
+    assert.throws(() => data.app.goalEvents.setAgreement({
+      project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "agree-2",
+      expected_config_version: first.agreement.version, expected_agreement_version: 1, outcome: "仍基于旧版本的覆盖写入",
+    }), (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "goals.event_agreement.stale_version");
+      assert.equal(error.message, "当前约定版本已是 3，不能用期望版本 1 覆盖");
+      assert.equal(error.kind, "conflict");
+      assert.deepEqual(error.details, { current_version: 3, expected_version: 1 });
+      return true;
+    });
     assert.equal(data.app.goalEvents.readState(BOARD, goalId).agreement.outcome, "第一个已保存的具体结果约定");
 
     const decided = data.app.goalEvents.recordTrustedDecision({

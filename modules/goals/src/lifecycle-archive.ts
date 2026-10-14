@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { goalErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -33,16 +35,13 @@ export class GoalArchiveCommands {
       if (replay) return { ...replay, replayed: true };
       const goal = this.context.requireGoal(projectId, input.goal_id);
       if (goal.trashed_at) {
-        throw this.context.error("goals.goal.trashed", "回收站中的 Goal 需要先恢复，才能变更归档状态");
+        throw goalErrors["goals.goal.trashed"]("回收站中的 Goal 需要先恢复，才能变更归档状态");
       }
       if (input.archived && goal.fulfillment_state !== "satisfied") {
-        throw this.context.error("goals.goal.not_satisfied", "只有已完成的 Goal 可以归档");
+        throw goalErrors["goals.goal.not_satisfied"]("只有已完成的 Goal 可以归档");
       }
       if (Boolean(goal.archived_at) === input.archived) {
-        throw this.context.error(
-          "goals.goal.archive_state_unchanged",
-          input.archived ? "Goal 已经归档" : "Goal 当前未归档",
-        );
+        throw goalErrors["goals.goal.archive_state_unchanged"](input.archived ? "Goal 已经归档" : "Goal 当前未归档");
       }
       const now = this.context.now().toISOString();
       this.context.repository.db
@@ -87,7 +86,7 @@ export class GoalArchiveCommands {
   ): GoalTrashResult & { replayed: boolean; observed_event_cursor: number } {
     const reasonText = input.reason.trim();
     if (!reasonText) {
-      throw this.context.error("goals.goal.trash_reason_required", "移入或恢复回收站时必须说明原因");
+      throw goalErrors["goals.goal.trash_reason_required"]("移入或恢复回收站时必须说明原因");
     }
     const hash = requestHash({ project_id: projectId, ...input, reason: reasonText });
     return this.context.repository.immediate(() => {
@@ -195,7 +194,7 @@ export class GoalArchiveCommands {
         ORDER BY trashed_at DESC, trash_record_id DESC LIMIT 1
       `).get(projectId, input.goal_id) as Row | undefined;
       if (!trashRecord) {
-        throw this.context.error("goals.goal.trash_record_missing", "回收站 Goal 缺少可恢复的删除记录");
+        throw goalErrors["goals.goal.trash_record_missing"]("回收站 Goal 缺少可恢复的删除记录");
       }
       this.context.repository.db.prepare(`
         UPDATE goals SET trashed_at = NULL, trashed_by = NULL, updated_at = ?
@@ -263,7 +262,7 @@ export class GoalArchiveCommands {
       const original = this.context.repository.getRelation(projectId, relationId)!;
       if (["part_of", "depends_on"].includes(original.type)) {
         const issue = this.hooks.validateRelationGraph?.(projectId, { ...original, state: "active" });
-        if (issue) throw this.context.error(issue.code, issue.message);
+        if (issue) throw new ActionError(issue.code, issue.message);
       }
       this.context.repository.db
         .prepare("UPDATE goal_relations SET state = 'active', deactivated_at = NULL WHERE relation_id = ?")

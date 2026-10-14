@@ -1,3 +1,4 @@
+import { goalErrors } from "../errors.js";
 import type { AddGoalRelationInput } from "@molis-ai/molis-work-contracts/modules/goals";
 import { randomUUID } from "node:crypto";
 
@@ -98,7 +99,6 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     return resolvePlanningEventAdoption(
       requested,
       { effective: resolvePlanningMethodPacks(personal, project), personal, project },
-      (code, message, details) => this.context.error(code, message, details),
     );
   }
 
@@ -108,10 +108,7 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
   } {
     this.context.requireBoard(input.project_id);
     if (input.user_confirmed !== true) {
-      throw this.context.error(
-        "goals.planning.user_confirmation_required",
-        "项目方法会改变后续 Goal 的拆分和依赖判断，必须由用户确认",
-      );
+      throw goalErrors["goals.planning.user_confirmation_required"]("项目方法会改变后续 Goal 的拆分和依赖判断，必须由用户确认");
     }
     const current = this.context.repository.listPlanningMethodPacks(input.project_id)
       .find((pack) => pack.method_id === input.method.method_id) ?? null;

@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -5,7 +6,6 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
-  GoalsCommandError,
   GoalsModule,
 } from "@molis-ai/molis-work-module-goals";
 
@@ -126,7 +126,7 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
     assert.equal(goals.query.getGoal("another-board", "goal-child"), null);
     assert.throws(
       () => goals.query.readGoal("board-query", "missing"),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "goals.not_found",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.not_found",
     );
   } finally {
     store.close();

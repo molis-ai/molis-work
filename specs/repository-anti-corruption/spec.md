@@ -2653,3 +2653,6 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 
 
 **2026-10-14：当前CU-image同步接受检查正式换包与组合96。** 上游Prologue #20已推送，head4007a93c/baseb88，4文件47+/2-，密钥扫描47行无发现，独立源码复查无阻塞；当前上游确未配置GitHub Actions，不称远端CI通过。从该head干净git archive执行sdk-formal-acceptance90：offline安装、整体SDK build、公开API/控制五文件66/66、pack全退出0且无类型错误；产物1,123,719字节、SHA-256 317d097a1e44f84e501413283bdfa94c4b43ee4ac86a689957b9b83d2853597c，与88候选逐字节相同。Root按授权在9ed906929正式替换vendor、删除旧CU-image tgz和两来源文件；旧1,123,638字节/SHA b45753fa/gitBlob 0d38581afa4d457b1d1b540126571017dae6b7af/来源923e5a40已入历史记录。25个历史源码提交对上游main c5d35d7f实际逐项核祖先，只有08b和923两个过渡提交不在main，如实记录。96 actual install0/build1，仅main Offers抽离合并后的五个未使用import；后续未运行。028769de4删除这五import并修正式包引用为../../vendor（相对路径已实测存在）；96b当时install/build/根types/workspace-types/API/actions已退出0，健康/资源/边界仍运行、97/98未开始。新真实问卷纠错测试与Workflow CAS Ring断言已写入，98实际验证及整线§12.4仍待。原Home零写入。
+
+
+**组合96b终态与96c重新冻结。** 96b九步中八步实际退出0，仅boundary退出1：登记表仍点旧CU-image文件名。不是资源、类型或错误owner失败。健康对main merge-base实测150巨大单元、496内部测试引用、0混源、28错误子类、0错误形状、0非owner码、57owner；29资源合计9,866,161字节，workbench1,100,249/pages48,801/editor707,935，均通过只降门禁。workbench比main只减471字节，不能作为Pages13,712字节的独立donor证明。82d8ff56a仅同步SDK登记文件名、提交这两份实测派生表，并补同一问卷用例最终正文DOM/无assistant-problem/原question-call tool_result精确答案断言。96c已冻结该head重跑，无新SDK版本或门禁阈值改动；96b不记全通过，97/98仍未运行。

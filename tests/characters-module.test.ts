@@ -29,6 +29,7 @@ test("personal Character drafts survive reopening, isolate actors and do not exp
   assert.deepEqual(reopened.get(created.character_id)?.host_tools, patch.host_tools);
   assert.deepEqual(other.list(), []);
   assert.equal(other.get(created.character_id), null);
+  const unchanged = reopened.get(created.character_id);
   assert.throws(() => other.update(created.character_id, 2, patch), (error: unknown) => {
     // CHAR-01: another actor still cannot see or modify this draft.
     assert.ok(error instanceof ActionError);
@@ -38,7 +39,7 @@ test("personal Character drafts survive reopening, isolate actors and do not exp
     assert.equal(actionHttpStatus(error), 400);
     return true;
   });
-  assert.deepEqual(first.get(created.character_id), reopened.get(created.character_id));
+  assert.deepEqual(first.get(created.character_id), unchanged);
 });
 
 test("stale windows cannot overwrite, disable or publish a newer Character draft", t => {

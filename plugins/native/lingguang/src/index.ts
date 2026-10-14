@@ -26,5 +26,7 @@ export { lingguangErrors } from "./error.js";
 export { lingguangContentActions, createLingguangContentHandlers } from "./content-actions.js";
 
 export { lingguangActions, LINGGUANG_ACTIONS, LINGGUANG_ACTION_PERMISSIONS, createLingguangActionHandlers } from "./actions.js";
+export { lingguangStreams, lingguangStreamOpening, lingguangStreamLine } from "./reply-stream.js";
+export type { LingguangStreamEvent } from "./reply-stream.js";
 export type { LingguangActionPorts } from "./actions.js";
 export type { LingguangConversationState } from "./store.js";

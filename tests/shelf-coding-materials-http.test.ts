@@ -12,9 +12,9 @@ import { ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
-import { handleShelfNativePluginHttp } from "../apps/local-host/src/shelf-native-plugin-http.js";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
+import { handleShelfNativePluginHttp } from "../apps/local-host/dist/shelf-native-plugin-http.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 

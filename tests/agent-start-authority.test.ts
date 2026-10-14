@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AgentHost } from "../horizontal/agent-host/src/index.js";
-import { registerAgentHostCapabilities } from "../horizontal/agent-host/src/capability-registration.js";
-import { PrologueAgentAdapter, type PrologueRuntimePort } from "../horizontal/agent-host/src/adapters/prologue.js";
-import { emptyCapabilityMatrix } from "../horizontal/agent-host/src/capabilities.js";
+import { AgentHost } from "@molis-ai/molis-work-service-agent-host";
+import { registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
+import { PrologueAgentAdapter, type PrologueRuntimePort } from "@molis-ai/molis-work-service-agent-host";
+import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { agentHostCapabilities, type AgentRuntimeAdapter, type AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 const owner = { project_id: "project", plugin_id: "unknown.plugin", install_id: "install", actor_id: "actor" };

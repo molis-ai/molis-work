@@ -7,8 +7,8 @@ import { AgentHost, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-a
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
-import { memoryForAgentRun, memoryHostFor } from "../apps/local-host/src/memory/memory-host.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { memoryForAgentRun, memoryHostFor } from "../apps/local-host/dist/memory/memory-host.js";
 
 const person: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
 

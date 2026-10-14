@@ -89,7 +89,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
       <p class="pages-search-empty" data-pages-search-empty hidden>${p.text("没有匹配的文档")}</p>
       <div data-pages-rows></div>
     </div>
-    <div class="plugin-stage-workspace" data-pages-stage-workspace hidden>
+    <div class="plugin-stage-workspace" data-pages-stage-workspace data-floating-stage hidden>
       <div class="plugin-stage-detail-bar">
         <button class="plugin-stage-back" type="button" data-pages-back aria-label="${p.text("返回文档列表")}" title="${p.text("返回文档列表")}">${icon("chevron-right")}</button>
         <h1 data-pages-editor-title>${p.text("文档")}</h1>

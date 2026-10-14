@@ -106,7 +106,7 @@ test("没有会话时给出插件自己的空状态，而不是一段空白", as
 
 test("recovery receipt lists cross the formal HTTP surface without being rendered as conversation turns", async () => {
   const { createServer } = await import("node:http");
-  const { handleCodingPluginHttp } = await import("../apps/local-host/src/coding-surface.js");
+  const { handleCodingPluginHttp } = await import("../apps/local-host/dist/coding-surface.js");
   const { agentHostCapabilities } = await import("@molis-ai/molis-work-contracts/services/agent-host");
   const directory = mkdtempSync(join(tmpdir(), "coding-recovery-http-"));
   const store = project(directory), sessions = new CodingSessionStore(store.db);

@@ -2,8 +2,8 @@ import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompt
 import { ALCHEMIST_COPILOT } from "@molis-ai/molis-work-plugin-alchemist";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { directionUnderstandingSchema } from "../plugins/native/alchemist/src/studio/shared/contracts/exploration.js";
-import { generateWithHost, type AlchemistAiPort } from "../plugins/native/alchemist/src/studio/server/runtime/host-port.js";
+import { directionUnderstandingSchema } from "../plugins/native/alchemist/dist/studio/shared/contracts/exploration.js";
+import { generateWithHost, type AlchemistAiPort } from "../plugins/native/alchemist/dist/studio/server/runtime/host-port.js";
 import { alchemistOutput } from "./fixtures/alchemist-output.js";
 
 const schema = directionUnderstandingSchema.pick({ summary: true });

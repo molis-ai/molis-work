@@ -18,8 +18,8 @@ import {
   createTodoRouteHandlers,
   todoManifest,
 } from "@molis-ai/molis-work-plugin-todo";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { rewriteNativePluginApiPath } from "../apps/local-host/src/native-plugin-api.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { rewriteNativePluginApiPath } from "../apps/local-host/dist/native-plugin-api.js";
 import { renderMolisWorkWeb, renderMolisWorkWorkbenchClientScript, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
 import { manifestProblems } from "./fixtures/declaration-manifest.js";
 
@@ -125,7 +125,7 @@ test("HTTP routes map to the same actions; fixed paths are not read as ids; a pr
 });
 
 test("待办整理师 and both organizing methods are registered with the Host, so they show in “Prompt 与 Character” and can be edited", async () => {
-  const { builtinRegistrations } = await import("../apps/local-host/src/agent-definitions/builtin-agents.js");
+  const { builtinRegistrations } = await import("../apps/local-host/dist/agent-definitions/builtin-agents.js");
   const todo = (builtinRegistrations() as Array<{ owner_id?: string; roles?: Array<{ name: string; workspace?: string; execution?: string }>; prompts?: Array<{ prompt_id: string }>;
     methods?: Array<{ skill_id: string; version: number; tools: string[]; body: string }> }>)
     .filter(entry => entry.owner_id === "io.molis.work.todo");

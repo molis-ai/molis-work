@@ -9,7 +9,7 @@ import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { pluginActions } from "./fixtures/plugin-actions.js";
-import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
+import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { createRequire } from "node:module";
 // The SDK's own delivery box stands behind the messages capability: its rules, not a copy of them, decide each move.
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));

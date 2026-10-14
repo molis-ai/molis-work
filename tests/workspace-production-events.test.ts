@@ -6,9 +6,9 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/src/project-plugins.js";
-import { observeGitOperations } from "../apps/local-host/src/git-operation-notifications.js";
-import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
+import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
+import { observeGitOperations } from "../apps/local-host/dist/git-operation-notifications.js";
+import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
 const FILES = "io.molis.work.files", GIT = "io.molis.work.git", EVENT = `${GIT}.operation-updated`;

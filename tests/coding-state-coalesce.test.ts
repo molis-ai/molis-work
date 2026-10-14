@@ -9,7 +9,7 @@ import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurf
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
+import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 
 test("however many pages poll the Coding directory at once, one read runs and at most one waits; a request mid-read gets the next read", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-state-coalesce-")), dbPath = join(root, "board.db");

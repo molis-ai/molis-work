@@ -891,6 +891,11 @@ interface AgentInputView {
   - 1d 的第一处措辞：Coding 回执条与报告按 §3.3（「已送达」「已放进上下文，等 AI 回应」「AI 已读到」「这一轮结束时 AI 没读到」「已撤回」）。
   - 用例：新增 `tests/prologue-input-receipts.test.ts`（编号 AC-R1–R3，经包入口）；`prologue-recovery`、`coding-report-persistence` 的期望从 `unconfirmed` 改成 `unread`（D17 的预期变化）。
   - 还没做：阶段 1 的其余抽取（`assistant-inputs.ts`、`input-receipts-client.ts`）、键与同键重发、`RUN_NOT_RUNNING` 改排队、`runViewVersion`、恢复报告、助理侧（1e）、R0 现场投影（D19）。
+- 2026-10-14（统筹，第一片的全量与合 main）：全量（`node scripts/run-tests.mjs`，`32c9364f`，约 113 分钟）6,240 条：6,226 通过、5 失败、9 跳过。5 条的归类：
+  - `prologue-review-feedback` 两条（packed SDK 的审查反馈）：**预期变化**。宿主转告的拒绝意见按 D18 以 `host`（SDK `app`）交给 SDK，运行视图显示成 `notice`；它的回执在模型读到后从 `applied` 走到 `read`（D17）。断言改成找 `notice` 且回执到 `applied` 或 `read`（`c100dd8b`），不是放宽：顺序上 `read` 在 `applied` 之后。单独重跑通过。
+  - `agent-action-selection.e2e` 一条：全量负载下的时序。本分支与干净基线（`fc18d5f6`）上单独重跑都通过。
+  - `touch-targets.e2e` 两条：main 上已有的失败，与本线无关。
+  - 合 main `2768dd71`（#491）后重新构建：相关用例 56/56（`prologue-stream`、`prologue-model-controls`、`prologue-input-receipts`、`prologue-review-feedback`、`prologue-recovery`、`coding-report-persistence`）；健康门禁对照 merge-base 通过；边界检查与页面资源通过。
 
 ## 17. 远端交接（2026-10-11，已被 §19 取代，只作历史）
 

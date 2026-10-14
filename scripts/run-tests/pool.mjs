@@ -81,7 +81,7 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
   const entries = files.map((file) => ({ file, browser: classifyFile(root, file).marks.includes("browser") }));
   const queue = plan(entries, durations);
   const browserCount = entries.filter((entry) => entry.browser).length;
-  console.log(`run-tests: ${files.length} files, ${jobs} at a time (at most ${browserJobs} of the ${browserCount} browser files), each with its own MOLIS_WORK_HOME`);
+  console.log(`run-tests: ${files.length} files, ${Math.min(jobs, files.length)} at a time (at most ${Math.min(browserJobs, browserCount)} of the ${browserCount} browser files), each with its own MOLIS_WORK_HOME`);
 
   const failed = [];
   let finished = 0;
@@ -113,7 +113,7 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
     });
 
     const slowest = [...results].sort((a, b) => b.result.seconds - a.result.seconds).slice(0, 8);
-    console.log(`\nrun-tests: ${files.length - failed.length} of ${files.length} files passed in ${minutes(Date.now() - started)} (${jobs} at a time)`);
+    console.log(`\nrun-tests: ${files.length - failed.length} of ${files.length} files passed in ${minutes(Date.now() - started)} (${Math.min(jobs, files.length)} at a time)`);
     console.log(`slowest: ${slowest.map(({ entry, result }) => `${entry.file} ${seconds(result.seconds)}`).join(", ")}`);
     if (failed.length) {
       console.log(`\nfailed (${failed.length}):`);

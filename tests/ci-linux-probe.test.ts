@@ -428,6 +428,10 @@ test("ci.yml: the Linux probe is an ubuntu job that cannot fail the workflow and
   const probeJob = jobBlock("linux-probe");
   assert.match(probeJob, /^    runs-on: ubuntu-latest$/m);
   assert.match(probeJob, /^    continue-on-error: true$/m, "a red probe must not turn the workflow red");
+  // Nightly on main and by hand, not on every push (user 2026-10-14); the nightly run has its own concurrency group, so a merge does not cancel it.
+  assert.match(probeJob, /^    if: \$\{\{ github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch' \}\}$/m);
+  assert.match(workflow, /^  schedule:\n    - cron: "[^"]+"$/m);
+  assert.match(workflow, /^  group: ci-.*github\.event_name == 'schedule' && 'nightly'/m);
   assert.match(probeJob, /node scripts\/ci-linux-probe\.mjs --expect-platform linux /, "the probe refuses to record results from another platform");
   assert.match(probeJob, /run: exec node scripts\/ci-linux-probe\.mjs /, "the probe is the step's own process, so a cancel's signal reaches it and not only the shell around it");
   assert.match(probeJob, /uses: actions\/upload-artifact@/);

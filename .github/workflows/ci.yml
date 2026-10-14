@@ -8,12 +8,16 @@ on:
     branches:
       - main
   workflow_dispatch:
+  # Nightly on main, for the Linux probe (it runs only on this and on a manual run, see the job); the other jobs run too.
+  schedule:
+    - cron: "0 19 * * *"
 
 permissions:
   contents: read
 
+# The nightly run has its own group, so a merge to main at night does not cancel it.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'schedule' && 'nightly' || github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -180,6 +184,7 @@ jobs:
           pnpm studio:replay --base "$base"
           node scripts/run-tests.mjs tests/studio-replay.test.ts
 
+  # No dependencies and no build: it reads git history only, so it starts at once and is cheap to keep on every change.
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-latest
@@ -329,8 +334,24 @@ jobs:
       - name: Security invariants
         run: pnpm test:security
 
+  # Decision #14 (specs/repository-anti-corruption): which test files pass on Linux is not known yet (some touch macOS-only
+  # paths: Seatbelt, Keychain, launchctl, Swift helpers), so the non-browser suite runs here as an information job and does
+  # not decide anything.
+  # It is deliberately NOT in `verify`'s needs and `continue-on-error` keeps a red run from marking the workflow red; branch
+  # protection is untouched. scripts/ci-linux-probe.mjs runs the test files one at a time (one MOLIS_WORK_HOME each, two at a
+  # time, one retry for a failure), marks each file darwin / live / browser from its own source, and leaves report.json,
+  # pass.txt and summary.md (also in this run's summary). A test file that fails is a result, not an error of the job.
+  # This workflow cancels a run when a newer push to the same pull request or to main arrives (concurrency above), and a run
+  # of about 100 minutes meets that often. The probe rewrites its three files after every file and, on the SIGINT/SIGTERM a
+  # cancel or the time limit sends, stops the running tests and writes a final partial report (unfinished files are `not-run`,
+  # `endedBy` says why); the upload step below is `if: always()`, so a cancelled run still keeps what it had.
+  # The probe stays an information job (about 50 minutes for every non-browser file is too long to wait for). What its first run
+  # showed became tests/ci-product-subset.txt (W2-16), run by the `product-subset` job below, which is the one that joins Verify.
+  # It runs nightly on main and when started by hand (workflow_dispatch), not on every push (user 2026-10-14): an hour of runner
+  # on each push decided nothing, and on main the next merge usually cancelled it.
   linux-probe:
     name: Linux probe (not required)
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     continue-on-error: true
     # The probe stops starting files after 85 minutes and still writes its report; this is the hard stop around it. Reaching it
@@ -376,8 +397,9 @@ jobs:
   # `continue-on-error`, take "(not required yet)" out of the name, and change the one test in tests/ci-product-subset.test.ts that
   # pins this state (the first of its two ci.yml cases). Joining Verify keeps the required check `Verify` as it is, so the repository
   # settings are not touched.
-  # Time: the job is meant to stay about as long as `architecture-boundaries` (about 20 minutes), so it never lengthens the check:
-  # install and build about 2 minutes, the browser smokes within 8, the other files within 15, and the job is stopped at 35. No attempt
+  # Time: the job was meant to stay about as long as the blocking check (then about 20 minutes, now about 10 since it was split into
+  # parallel jobs), so it never lengthens the check. Four non-browser files at a time on these 4-core runners (user 2026-10-14, raised
+  # from 2 while the job does not block yet, to see whether the load makes any file flaky before it joins). Install and build about 2 minutes, the browser smokes within 8, the other files within 15, and the job is stopped at 35. No attempt
   # (a first run or a retry) starts after its budget, so the worst case is 2 + 8 + a 4 minute smoke attempt + 15 + a 4 minute attempt = 33
   # minutes, inside the 35 (tests/ci-product-subset.test.ts works this out from the arguments below).
   # The runner stops starting files when a budget is used up and fails the run for the files it did not reach; the summary shows how
@@ -420,7 +442,7 @@ jobs:
 
       # `exec` makes the runner the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
       - name: Run the product subset
-        run: exec node scripts/ci-product-subset.mjs --expect-platform linux --out "$RUNNER_TEMP/product-subset" --jobs 2 --timeout-seconds 180 --browser-timeout-seconds 240 --retries 1 --budget-minutes 15 --browser-budget-minutes 8
+        run: exec node scripts/ci-product-subset.mjs --expect-platform linux --out "$RUNNER_TEMP/product-subset" --jobs 4 --timeout-seconds 180 --browser-timeout-seconds 240 --retries 1 --budget-minutes 15 --browser-budget-minutes 8
 
       - name: Keep the report
         if: ${{ always() }}

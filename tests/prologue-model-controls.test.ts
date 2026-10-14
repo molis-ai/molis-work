@@ -39,9 +39,10 @@ async function fixture(t: import("node:test").TestContext, models: Record<string
     requests.push({ body, key: headers.get("x-api-key") ?? headers.get("authorization") });
     return reply(body, requests.length);
   });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.model-controls-test", appVersion: "1.0.0" }, storageRoot: join(root, "sdk"), reviewQueue: new AgentReviewQueue(),
+  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.model-controls-test", appVersion: "1.0.0" }, storageRoot: join(root, "sdk"), reviewQueue: new AgentReviewQueue(),
     modelConfiguration: async selection => models[selection?.model_id ?? "small"] ?? null,
     resolveCredential: ref => `secret-of-${ref}` });
+  const adapter = await open();
   const owner = { project_id: "test", plugin_id: "io.molis.work.coding", install_id: "test", actor_id: "web-user" };
   const directory = { canonical_path: root, realpath_verified: true };
   const session = await adapter.createSession({ ...owner, directory, title: "Model controls" });
@@ -55,13 +56,13 @@ async function fixture(t: import("node:test").TestContext, models: Record<string
     }
   };
   t.after(async () => { await adapter.close(); await rm(root, { recursive: true, force: true }); });
-  return { adapter, requests, start, settle };
+  return { adapter, requests, start, settle, reopen: open };
 }
 
 const model = (name: string, extra: Partial<PrologueModelConfiguration> = {}): PrologueModelConfiguration =>
   ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: name, credential_ref: `key-${name}`, ...extra });
 
-test("a reasoning effort reaches every model call of the round and is recorded; a model not marked for it is refused before anything is sent", { timeout: 30_000 }, async t => {
+test("PA-24: a reasoning effort reaches every model call of the round and is recorded; a model not marked for it is refused before anything is sent", { timeout: 30_000 }, async t => {
   const f = await fixture(t, { small: model("small", { reasoning_effort: true }), plain: model("plain") }, () => sse("CHANGELOG.md"));
   const view = await f.settle((await f.start({ reasoning_effort: "high" })).ref);
   assert.equal(view.phase, "completed");
@@ -76,7 +77,7 @@ test("a reasoning effort reaches every model call of the round and is recorded; 
   assert.equal(none.frozen.reasoning_effort, undefined);
 });
 
-test("a running round switches to another model from its next call, with that model's key; history stays, and the switch shows", { timeout: 30_000 }, async t => {
+test("PA-24: a running round switches to another model from its next call, with that model's key; history stays, and the switch shows", { timeout: 30_000 }, async t => {
   const answered = Promise.withResolvers<void>();
   const f = await fixture(t, { small: model("small"), large: model("large", { endpoint: "https://1.1.1.2/v1/messages" }), tiny: model("tiny", { context_tokens: 1_000 }),
     chat: model("chat", { protocol: "openai-compatible", endpoint: "https://1.1.1.3/v1/chat/completions" }) },
@@ -104,7 +105,7 @@ test("a running round switches to another model from its next call, with that mo
   await assert.rejects(f.adapter.control(handle.ref, { kind: "switch-model", provider_id: "p", model_id: "chat" }), /已经结束/);
 });
 
-test("a round that thinks cannot be switched to a format without thinking; nothing changes", { timeout: 30_000 }, async t => {
+test("PA-24: a round that thinks cannot be switched to a format without thinking; nothing changes", { timeout: 30_000 }, async t => {
   const answered = Promise.withResolvers<void>();
   const f = await fixture(t, { small: model("small", { thinking: "adaptive" }), chat: model("chat", { protocol: "openai-compatible", endpoint: "https://1.1.1.3/v1/chat/completions" }) },
     async () => { await answered.promise; return sse("done"); });
@@ -116,3 +117,75 @@ test("a round that thinks cannot be switched to a format without thinking; nothi
   assert.equal(view.model_switch, undefined);
   assert.equal(f.requests.length, 1);
 });
+
+/** A round held at its first model call, so a switch can be asked for while it runs. */
+async function heldRound(t: import("node:test").TestContext, models: Record<string, PrologueModelConfiguration>, startExtra: object = {}) {
+  const answered = Promise.withResolvers<void>();
+  const f = await fixture(t, models, async () => { await answered.promise; return sse("done"); });
+  const handle = await f.start(startExtra);
+  for (let i = 0; i < 200 && f.requests.length < 1; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  return { ...f, handle, release: () => answered.resolve() };
+}
+
+test("PA-24: a switch the round cannot carry is refused and changes nothing — prompt cache across formats, an effort the target is not marked for, a model that is not available", { timeout: 30_000 }, async t => {
+  const chat = model("chat", { protocol: "openai-compatible", endpoint: "https://1.1.1.3/v1/chat/completions" });
+  const cached = await heldRound(t, { small: model("small", { prompt_cache: "best-effort" }), chat });
+  await assert.rejects(cached.adapter.control(cached.handle.ref, { kind: "switch-model", provider_id: "p", model_id: "chat" }), /开着提示缓存，只能换同一种接口格式/);
+  await assert.rejects(cached.adapter.control(cached.handle.ref, { kind: "switch-model", provider_id: "p", model_id: "missing" }), /所选模型不可用/);
+  assert.equal((await cached.adapter.read(cached.handle.ref)).model_switch, undefined);
+  cached.release();
+  assert.equal((await cached.settle(cached.handle.ref)).phase, "completed");
+  assert.equal(cached.requests.length, 1, "nothing went to another model");
+
+  const effort = await heldRound(t, { small: model("small", { reasoning_effort: true }), plain: model("plain") }, { reasoning_effort: "medium" });
+  await assert.rejects(effort.adapter.control(effort.handle.ref, { kind: "switch-model", provider_id: "p", model_id: "plain" }), /没有标注「plain」可调思考力度/);
+  assert.equal((await effort.adapter.read(effort.handle.ref)).model_switch, undefined);
+  effort.release();
+  await effort.settle(effort.handle.ref);
+  assert.deepEqual(effort.requests.map(request => request.body.model), ["small"]);
+});
+
+test("PA-24: a round whose prompt cache is off may switch to another format", { timeout: 30_000 }, async t => {
+  const f = await heldRound(t, { small: model("small", { prompt_cache: "off" }), chat: model("chat", { protocol: "openai-compatible", endpoint: "https://1.1.1.3/v1/chat/completions" }) });
+  await f.adapter.control(f.handle.ref, { kind: "switch-model", provider_id: "p", model_id: "chat" });
+  assert.deepEqual((await f.adapter.read(f.handle.ref)).model_switch, { requested: "chat" });
+  await f.adapter.control(f.handle.ref, { kind: "stop" });
+  f.release();
+  await f.settle(f.handle.ref);
+});
+
+test("PA-24: stopping a round with a switch asked for sends nothing to the new model, and the ended round no longer shows the request", { timeout: 30_000 }, async t => {
+  const f = await heldRound(t, { small: model("small"), large: model("large", { endpoint: "https://1.1.1.2/v1/messages" }) });
+  await f.adapter.control(f.handle.ref, { kind: "switch-model", provider_id: "p", model_id: "large" });
+  assert.deepEqual((await f.adapter.read(f.handle.ref)).model_switch, { requested: "large" });
+  await f.adapter.control(f.handle.ref, { kind: "stop" });
+  f.release();
+  const view = await f.settle(f.handle.ref);
+  assert.equal(view.phase, "stopped");
+  assert.equal(view.model_switch, undefined, "a request that never took effect is not shown on the ended round");
+  assert.deepEqual(f.requests.map(request => request.body.model), ["small"], "nothing went to the new model");
+});
+
+test("PA-24: after a restart the ended round still shows the model it switched to and the one it started with", { timeout: 30_000 }, async t => {
+  const answered = Promise.withResolvers<void>();
+  const f = await fixture(t, { small: model("small"), large: model("large", { endpoint: "https://1.1.1.2/v1/messages" }) },
+    async (_body, nth) => {
+      // The switch takes effect at the next model call, so the first call asks for a tool and the round makes a second one.
+      if (nth === 1) { await answered.promise; return sse("", { name: "read", input: { path: "notes.md" } }); }
+      return sse("Release notes go in CHANGELOG.md.");
+    });
+  const handle = await f.start();
+  for (let i = 0; i < 200 && f.requests.length < 1; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  await f.adapter.control(handle.ref, { kind: "switch-model", provider_id: "p", model_id: "large" });
+  answered.resolve();
+  assert.deepEqual((await f.settle(handle.ref)).model_switch, { now: "large" });
+  await f.adapter.close();
+  const reopened = await f.reopen();
+  try {
+    const view = await reopened.read(handle.ref);
+    assert.deepEqual(view.model_switch, { now: "large" }, "read cold from the ledger after a restart");
+    assert.equal(view.frozen.model_id, "small", "and the round still records what it started with");
+    assert.ok(view.activity.some(item => item.name === "model-switch" && item.target === "small → large"));
+  } finally { await reopened.close(); }
+});
+

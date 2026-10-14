@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { createPluginArtifactClient, PluginArtifactAccessError } from "@molis-ai/molis-work-plugin-artifacts";
+import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginArtifactClient, PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -99,12 +99,12 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     const versions = api.query.listArtifactVersions(DEMO_PROJECT_ID, value.artifact_id);
     assert.throws(() => noRead.client.read(value), (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
       && error.code === "plugin.grant_denied");
-    assert.throws(() => wrongSchema.client.read(value), (error: unknown) => error instanceof PluginArtifactAccessError
-      && error.code === "plugin_artifact_incompatible");
-    // A personal 成果 belongs to the Home's person whoever produced it: another actor's installation reads it by type, not by being its producer.
+    assert.throws(() => wrongSchema.client.read(value), (error: unknown) => error instanceof ActionError
+      && error.code === "artifacts.plugin_incompatible" && error.kind === "invalid");
+    // ARTACC-01/ARTACC-03: A personal 成果 belongs to the Home's person whoever produced it: another actor's installation reads it by type, not by being its producer.
     assert.deepEqual(otherUser.client.read(value), first.artifact);
     assert.throws(() => producer.client.publish({ ...value, artifact_id: "not-created", schema_version: 2 }),
-      PluginArtifactAccessError);
+      { code: "artifacts.plugin_incompatible", kind: "invalid", message: "Manifest 未声明生产此成果 type/schema" });
     assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), before);
     assert.deepEqual(api.query.listArtifactVersions(DEMO_PROJECT_ID, value.artifact_id), versions);
     assert.equal(api.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "not-created", version: 1 }), null);
@@ -152,13 +152,13 @@ test("an installation reads a process item only for the actor it was recorded fo
     }
     const producer = await install("producer", "author"), sameActor = await install("same-actor", "author"), otherActor = await install("other-actor", "other");
 
-    // A process item belongs to the actor whose installation recorded it: the ownership decision (2026-10-07) is about personal 成果 only.
+    // ARTACC-01/ARTACC-02: A process item belongs to the actor whose installation recorded it: the ownership decision (2026-10-07) is about personal 成果 only.
     const item = { artifact_id: "item-1", version: 1, artifact_type_id: "example.item", schema_version: 1,
       content: { kind: "inline" as const, payload: { step: "draft" } } };
     const recorded = producer.process.record(item);
     assert.equal(recorded.artifact.owner_actor_id, "author");
     assert.deepEqual(sameActor.client.read(item), recorded.artifact);
-    assert.throws(() => otherActor.client.read(item), (error: unknown) => error instanceof PluginArtifactAccessError && error.code === "plugin_artifact_denied");
+    assert.throws(() => otherActor.client.read(item), (error: unknown) => error instanceof ActionError && error.code === "artifacts.plugin_denied" && error.kind === "forbidden");
 
     // A personal 成果 is the person's whoever produced it, so any installation of the Home reads it by type.
     const note = { ...pinnedArtifact("Note", { kind: "note", id: "n-1" }), artifact_id: "note-1", version: 1, artifact_type_id: "example.note", schema_version: 1,

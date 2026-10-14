@@ -30,4 +30,9 @@ test("Coding actually consumes Shelf's fixed original bytes after an edit, and r
   const foreign = await call<{ reference: ArtifactReference }>(other.project_id, path, { expected_fingerprint: foreignPreview.body.fingerprint }); assert.equal(foreign.status, 200);
   const refused = await call(project.project_id, prefix + `/sessions/${session.body.session.session_id}/runs`, { ...start, materials: [foreign.body.reference] });
   assert.equal(refused.status, 400); assert.equal(requests.length, 1, "foreign material never reaches a new model request");
+  // ARTACC-02/ARTACC-03: the current Artifact SDK code still reaches Coding's original recovery message.
+  const incompatible = await call<{ error: string }>(project.project_id, prefix + `/sessions/${session.body.session.session_id}/runs`, { ...start, materials: [{ ...pinned.body.reference, schema_version: 2 }] });
+  assert.equal(incompatible.status, 400);
+  assert.equal(incompatible.body.error, "材料已归档、不可用或类型不兼容，请移除后重新选择");
+  assert.equal(requests.length, 1, "incompatible material never reaches a new model request");
 });

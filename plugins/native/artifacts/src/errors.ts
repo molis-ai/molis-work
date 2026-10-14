@@ -16,4 +16,8 @@ export const artifactsErrors = defineErrorCodes("artifacts", {
   continue_unavailable: "invalid",
   /** A `project://` reference needs the project's workspace, and the project has none the Host can confirm. */
   workspace_unconfirmed: "conflict",
+  /** The installation or actor may not use this artifact client. */
+  plugin_denied: "forbidden",
+  /** The declared artifact type/schema or exchange identity does not match. */
+  plugin_incompatible: "invalid",
 });

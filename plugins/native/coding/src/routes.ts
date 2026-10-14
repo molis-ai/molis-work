@@ -1245,7 +1245,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       const board = await api!.invoke(agent.amendStepBoard, [session, ref, amendment, version]);
       // The live round learns of the change through the same supplemental channel a person already uses.
       const note = amendmentNote(amendment, before ?? board);
-      try { await api!.invoke(agent.controlRun, [session, ref, { kind: "steer", text: note }]); return { board, steered: true }; }
+      try { await api!.invoke(agent.controlRun, [session, ref, { kind: "steer", source: "host", text: note }]); return { board, steered: true }; }
       catch (error) { return { board, steered: false, steer_error: error instanceof Error ? error.message : String(error) }; }
     }),
     route("coding.continuation", async (request, api, execution) => {

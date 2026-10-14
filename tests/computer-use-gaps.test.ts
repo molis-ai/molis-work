@@ -254,7 +254,8 @@ test("the desktop driver stores the round's project and frees the computer when 
     assert.equal(desk.holding(), null);
     assert.equal(desk.state().record_id, null);
     const finished = records.get(openId);
-    assert.equal(finished?.outcome, "completed");
+    assert.equal(finished?.outcome, "failed");
+    assert.match(finished?.conclusion ?? "", /模型说完成了/);
     assert.equal(typeof finished?.ended_at, "string");
 
     driver.describeRound!("sess-2", { run_id: null, project_id: "project-b", goal: "下一轮" });
@@ -279,6 +280,7 @@ function desktop(state: ReturnType<typeof seen>, probe: { window?: { pid?: numbe
       if (op === "apps.installed" || op === "apps.running") return { apps: [{ bundle_id: state.bundle_id, name: state.name }] } as T;
       if (op === "probe.point") return probe as T;
       if (op === "observe.screenshot") return shot as T;
+      if (op === "observe.tree") return { window: { title: state.window?.title ?? "", frame: state.window?.frame ?? [0, 0, 1, 1] }, nodes: [{ role: "AXButton", name: "按钮", depth: 0, frame: [0, 0, 10, 10] }], truncated: false, menus: [] } as T;
       if (op.startsWith("input.") || op === "focused.field") return (op === "focused.field" ? extra.field ?? { name: "", secure: false } : {}) as T;
       throw new Error(op);
     } },

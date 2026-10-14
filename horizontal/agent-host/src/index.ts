@@ -54,6 +54,7 @@ export type {
 export { PrologueAgentAdapter, PROLOGUE_RUNTIME_ID } from "./adapters/prologue.js";
 export { createPrologueNodeAdapter, SUBAGENT_DEFAULT_TURNS } from "./adapters/prologue-node.js";
 export { surfaceRules } from "./adapters/prologue-surfaces.js";
+export { DESKTOP_NODE_ID_GAP, deliverDesktopAct } from "./adapters/desktop-act-delivery.js";
 export { screenModelMaterial } from "./adapters/prologue-screening.js";
 export { projectQuestion, answerProblems } from "./adapters/prologue-questions.js";
 export { createPluginBuilderAgent } from "./adapters/plugin-builder.js";

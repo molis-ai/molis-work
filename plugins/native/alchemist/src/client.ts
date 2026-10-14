@@ -15,15 +15,15 @@ import { ALCHEMIST_FLOWS } from './client-flows.js';
  */
 export const ALCHEMIST_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
 const root=document.querySelector('[data-alchemist=workbench]');if(!root)return;
-const life=host.mountPluginClient(root);if(!life)return;let viewSignal;
+const life=host.mountPluginClient(root);if(!life)return;let viewAbort;
 const L=host.translate, $=(s,n=root)=>n.querySelector(s[0]==='['?s:'[data-alc-'+s+']'), enc=encodeURIComponent;
-const content=$('content'),footer=$('footer'),side=$('side'),sheet=$('dialog'),form=$('form'),bodySlot=$('dialog-body'),submitBtn=$('submit');
+const mainEl=$('content'),footer=$('footer'),side=$('side'),sheet=$('dialog'),form=$('form'),bodySlot=$('dialog-body'),submitBtn=$('submit');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),tx=v=>esc(L(v));
 const button=(label,action,primary=false,attrs='')=>'<button type="button" class="mw-btn mw-btn--'+(primary?'primary':'ghost')+'" data-alc-action="'+action+'" '+attrs+'>'+tx(label)+'</button>';
 const safeUrl=value=>{try{const url=new URL(value);return /^https?:$/.test(url.protocol)&&!url.username&&!url.password?esc(url.href):'#';}catch{return '#';}};
 const base=host.route('/api/alchemist/studio/api/v1');
 const headers=()=>typeof molisWorkControlHeaders==='function'?molisWorkControlHeaders():{'content-type':'application/json'};
-async function api(path,body,method,signal=body===undefined?viewSignal:undefined){const response=await life.fetch(base+path,{signal,method:method||(body===undefined?'GET':'POST'),headers:headers(),...(body===undefined?{}:{body:JSON.stringify(body)})});const result=await response.json().catch(()=>({}));life.assertCurrent(signal);if(!response.ok)throw new Error(result.message||result.error||L('炼金术士请求失败'));return result;}
+async function api(path,body,method,signal=body===undefined?viewAbort:undefined){const response=await life.fetch(base+path,{signal,method:method||(body===undefined?'GET':'POST'),headers:headers(),...(body===undefined?{}:{body:JSON.stringify(body)})});const result=await response.json().catch(()=>({}));life.assertCurrent(signal);if(!response.ok)throw new Error(result.message||result.error||L('炼金术士请求失败'));return result;}
 const modelLink=()=>'<a class="mw-btn mw-btn--ghost" href="/settings/models">'+tx('打开模型设置')+'</a>';
 const noModelRun=run=>/RUNTIME_(NOT_CONFIGURED|MODEL_UNAVAILABLE)/.test(run?.errorCode),noModel=()=>runtime.configured?'':'<div class="alc-warning">'+tx('还没有可用模型。连接模型后再试，已有的内容不会丢失。')+' '+modelLink()+'</div>';
 const notice=(text,retry=false)=>{if(!life.alive)return;const el=$('notice');el.hidden=!text;$('action=reload',el).hidden=!retry;el.querySelector('span').textContent=text||'';};
@@ -31,13 +31,13 @@ const formError=text=>{if(!life.alive)return;const el=$('form-error');el.hidden=
 const failed=e=>{if(life.visible&&e.name!=='AbortError')notice(e.message,true);};
 const active=status=>['queued','running'].includes(status);
 let data={directions:[],explorations:[],ideas:[]},pulse={reports:[]},decisions={cases:[],activities:[],log:[]},runtime={models:[],configured:false},rules={taste:[],playbook:[]};
-let view='directions',archived=false,focus=null,model=null,study=null,choice=null,ctx={kind:'surface',label:L('方向'),surface:'ideas'},target=null,quote=null,sideMode='',onSubmit=null,busy=false,returnFocus=null,seq=0,loadSeq=0,ready=false,pollTimer,detailKey='',lastRow=null;
+let view='directions',archived=false,focus=null,model=null,study=null,choice=null,ctx={kind:'surface',label:L('方向'),surface:'ideas'},target=null,quote=null,sideMode='',onSubmit=null,busy=false,returnFocus=null,seq=0,loadSeq=0,ready=false,pollId,detailId='',lastRow=null;
 let shown='',canReuse=false;
 const setContext=()=>{const c={plugin_id:'io.molis.work.alchemist',surface_title:L('炼金术士')};
 if(ctx.kind==='direction'&&ctx.directionId)c.object={kind:'alchemist-direction',id:ctx.directionId,title:ctx.label||''};
 else if(ctx.kind==='idea'&&ctx.ideaId&&ctx.version!=='draft')c.object={kind:'alchemist-idea',id:ctx.ideaId,...(ctx.version?{version:String(ctx.version)}:{}),title:ctx.label||''};
 const text=JSON.stringify(c);if(text!==shown){shown=text;root.setAttribute('data-assistant-context',text);}};
-if(content)life.observe(new MutationObserver(setContext),content,{childList:true});
+if(mainEl)life.observe(new MutationObserver(setContext),mainEl,{childList:true});
 setContext();
 const stateKey='molis-work:alchemist:'+host.projectId()+':'+(new URLSearchParams(location.search).get('workbenchPane')||'main');
 const persist=()=>{try{localStorage.setItem(stateKey,JSON.stringify({collection:view,current:focus}));}catch{}};
@@ -49,32 +49,32 @@ life.listen(document,'molis-work:model-ready',()=>{if(ready&&life.visible)void r
 async function refresh(){const n=seq;await load();if(n===seq&&focus)await open(focus,false);}
 function closeDetail(){seq++;focus=null;target=null;quote=null;side.hidden=true;sideMode='';root.dataset.expanded='false';$('workspace').hidden=true;renderList();persist();lastRow?.isConnected&&lastRow.focus();}
 async function open(next,save=true){
-if(!next)return;const n=++seq;const changed=!same(next);focus={...next};detailKey='';quote=null;if(changed){side.hidden=true;sideMode='';target=null;study=null;$('action=annotations').hidden=true;content.scrollTop=0;}
-root.dataset.expanded='true';$('workspace').hidden=false;footer.innerHTML='';if(changed)content.innerHTML=empty('正在读取…');
-if(next.kind==='direction'){const d=data.directions.find(v=>v.id===next.id);if(!d)throw new Error(L('方向不存在。'));renderDirection(d);}
+if(!next)return;const n=++seq;const changed=!same(next);focus={...next};detailId='';quote=null;if(changed){side.hidden=true;sideMode='';target=null;study=null;$('action=annotations').hidden=true;mainEl.scrollTop=0;}
+root.dataset.expanded='true';$('workspace').hidden=false;footer.innerHTML='';if(changed)mainEl.innerHTML=empty('正在读取…');
+if(next.kind==='direction'){const d=data.directions.find(v=>v.id===next.id);if(!d)throw new Error(L('方向不存在。'));paintDir(d);}
 else if(next.kind==='card'){const r=await api('/idea-cards/'+enc(next.id));if(n!==seq)return;if(r.kind==='idea_redirect'){view='ideas';return open({kind:'idea',id:r.ideaId,version:r.version,panel:'brief'},save);}renderBrief(r.model);}
 else if(next.kind==='idea'){
 focus.version=next.version||1;focus.panel=next.panel||(view==='decisions'?'decision':'brief');
 const r=await api('/ideas/'+enc(next.id)+'/versions/'+focus.version);if(n!==seq)return;model=r.model;setTitle(model.title+' · v'+model.version);ctx={kind:'idea',label:model.title,ideaId:next.id,version:model.version,panel:focus.panel};
 if(focus.panel==='brief')renderBrief(model);
 else if(focus.panel==='decision'){const d=await api('/ideas/'+enc(next.id)+'/versions/'+focus.version+'/decision');if(n!==seq)return;renderDecision(d);}
-else{const [d,reuse]=await Promise.all([api('/ideas/'+enc(next.id)+'/versions/'+focus.version+'/research'),api('/reuse/candidates',{intent:model.title},undefined,viewSignal)]);if(n!==seq)return;canReuse=reuse.available;renderResearch(d);detailKey=JSON.stringify(d);}
+else{const [d,reuse]=await Promise.all([api('/ideas/'+enc(next.id)+'/versions/'+focus.version+'/research'),api('/reuse/candidates',{intent:model.title},undefined,viewAbort)]);if(n!==seq)return;canReuse=reuse.available;paintStudy(d);detailId=JSON.stringify(d);}
 }else if(next.kind==='pulse'){const b=pulse.reports.find(b=>b.report.id===next.id);if(!b)throw new Error(L('报告不存在。'));renderPulse(b);}
 else if(next.kind==='settings'){const r=await Promise.all([api('/settings/runtime'),api('/memory')]);if(n!==seq)return;[runtime,rules]=r;renderSettings();}
-else if(next.kind==='activity'){target=null;setTitle(L('活动记录'));ctx={kind:'surface',label:L('活动记录'),surface:'decisions'};content.innerHTML=decisions.activities.length?decisions.activities.map(a=>'<div class="alc-message"><small>'+esc(new Date(a.createdAt).toLocaleString())+'</small>'+esc(activityLabel(a.kind))+'</div>').join(''):empty('还没有活动记录。');footer.innerHTML='';}
+else if(next.kind==='activity'){target=null;setTitle(L('活动记录'));ctx={kind:'surface',label:L('活动记录'),surface:'decisions'};mainEl.innerHTML=decisions.activities.length?decisions.activities.map(a=>'<div class="alc-message"><small>'+esc(new Date(a.createdAt).toLocaleString())+'</small>'+esc(activityLabel(a.kind))+'</div>').join(''):empty('还没有活动记录。');footer.innerHTML='';}
 if(n!==seq)return;renderList();if(save)persist();schedule();
 $('action=annotations').hidden=!target;
 }
 function activityLabel(kind){return ({'idea.kept':'保留了想法','idea_card.discarded':'弃牌','decision.created':'保存了决定','memory.taste_created':'添加了判断偏好','memory.playbook_created':'保存了研究方法','annotation.created':'添加了注释'})[kind]||kind.replaceAll('.',' · ');}
 function schedule(){
-life.clearTimeout(pollTimer);const running=data.explorations.some(e=>active(e.status))||active(pulse.latestRun?.status)||Object.values(study?.lenses||{}).some(l=>active(l.status));if(!running||!life.visible)return;
-pollTimer=life.timeout(async()=>{try{
+life.clearTimeout(pollId);const running=data.explorations.some(e=>active(e.status))||active(pulse.latestRun?.status)||Object.values(study?.lenses||{}).some(l=>active(l.status));if(!running||!life.visible)return;
+pollId=life.timeout(async()=>{try{
 const selected=focus?{...focus}:null;await load();if(!selected||!same(selected))return;
 if(selected.kind==='idea'&&['market','cost'].includes(selected.panel)){
 const d=await api('/ideas/'+enc(selected.id)+'/versions/'+selected.version+'/research');if(!same(selected))return;study=d;
-if(!sheet.open&&!sideMode&&JSON.stringify(d)!==detailKey){const scroll=content.scrollTop;renderResearch(d);content.scrollTop=scroll;detailKey=JSON.stringify(d);$('action=annotations').hidden=!target;}
+if(!sheet.open&&!sideMode&&JSON.stringify(d)!==detailId){const scroll=mainEl.scrollTop;paintStudy(d);mainEl.scrollTop=scroll;detailId=JSON.stringify(d);$('action=annotations').hidden=!target;}
 schedule();
-}else if(selected.kind==='direction'&&!sheet.open&&!sideMode){const d=data.directions.find(d=>d.id===selected.id);if(d){const scroll=content.scrollTop;renderDirection(d);content.scrollTop=scroll;}}
+}else if(selected.kind==='direction'&&!sheet.open&&!sideMode){const d=data.directions.find(d=>d.id===selected.id);if(d){const scroll=mainEl.scrollTop;paintDir(d);mainEl.scrollTop=scroll;}}
 }catch(e){failed(e);schedule();}},1800);
 }
 life.listen(root,'click',async event=>{
@@ -86,12 +86,12 @@ life.listen(sheet,'cancel',event=>{event.preventDefault();closeDialog();});
 life.listen(root,'submit',async event=>{
 const chat=event.target.matches('[data-alc-chat-form]'),annotation=event.target.matches('[data-alc-annotation-form]');if(!chat&&!annotation)return;event.preventDefault();const f=event.target,b=f.querySelector('button[type=submit]');if(b.disabled)return;b.disabled=true;const snapshot=JSON.stringify(ctx);try{if(chat){const r=await api('/conversation/messages',{body:new FormData(f).get('message'),context:{...ctx}});if(r.assistant)notice(r.assistant.message);}else{if(!quote)throw new Error(L('请重新选择原文。'));await api('/annotations',{target:quote.target,quotedSnapshot:quote.text,comment:new FormData(f).get('comment')});quote=null;}if(snapshot===JSON.stringify(ctx))await showSide(chat?'chat':'annotations');}catch(e){notice(e.message,true);}finally{if(b.isConnected)b.disabled=false;}
 });
-function captureSelection(){if(!target)return;const s=window.getSelection();if(!s||!s.rangeCount)return;const range=s.getRangeAt(0),text=s.toString().trim();if(!text||text.length>2000||!content.contains(range.commonAncestorContainer))return;const node=range.commonAncestorContainer.nodeType===1?range.commonAncestorContainer:range.commonAncestorContainer.parentElement;const block=node.closest('[data-alc-block]');if(block)quote={text,target:{...target,blockId:block.dataset.alcBlock}};}
-life.listen(content,'mouseup',captureSelection);life.listen(content,'keyup',captureSelection);
+function pickQuote(){if(!target)return;const s=window.getSelection();if(!s||!s.rangeCount)return;const range=s.getRangeAt(0),text=s.toString().trim();if(!text||text.length>2000||!mainEl.contains(range.commonAncestorContainer))return;const node=range.commonAncestorContainer.nodeType===1?range.commonAncestorContainer:range.commonAncestorContainer.parentElement;const block=node.closest('[data-alc-block]');if(block)quote={text,target:{...target,blockId:block.dataset.alcBlock}};}
+life.listen(mainEl,'mouseup',pickQuote);life.listen(mainEl,'keyup',pickQuote);
 life.listen($('search'),'input',renderList);
 life.listen(root,'molis-work:select-item',event=>{const id=event.detail?.itemId;if(!id){closeDetail();return;}void selectItem(id).catch(failed);});
 async function selectItem(id){const n=++seq;if(!await load()||n!==seq)return;const d=data.directions.find(d=>d.id===id),i=data.ideas.find(i=>i.id===id);if(!d&&!i)return;view=d?'directions':'ideas';archived=d?.status==='archived';$('search').value='';await open(d?{kind:'direction',id}:{kind:'idea',id,version:i.currentVersion,panel:'brief'});}
 const start=async()=>{if(ready){await refresh();return;}const n=seq;if(!await load()||n!==seq)return;try{const saved=JSON.parse(localStorage.getItem(stateKey)||'null');if(saved&&['directions','ideas','pulse','decisions'].includes(saved.collection)){view=saved.collection;renderList();if(saved.current)await open(saved.current,false);}}catch{closeDetail();}};
-life.whenVisible(signal=>{viewSignal=signal;void start().catch(failed);return()=>{seq++;loadSeq++;life.clearTimeout(pollTimer);};});
+life.whenVisible(signal=>{viewAbort=signal;void start().catch(failed);return()=>{seq++;loadSeq++;life.clearTimeout(pollId);};});
 return {refresh:()=>life.visible?refresh().catch(failed):Promise.resolve()};
 }`;

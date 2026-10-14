@@ -64,8 +64,8 @@ export const SELECT_MENU_STYLES = `
 
 export const SELECT_MENU_CLIENT_SCRIPT = `
 (() => {
-  const controls = new WeakMap();
-  let activeSelect = null;
+  const pickers = new WeakMap();
+  let openSelect = null;
   const skip = (select) => {
     if (!select || select.tagName !== "SELECT") return true;
     if (select.multiple || Number(select.size) > 1) return true;
@@ -86,9 +86,9 @@ export const SELECT_MENU_CLIENT_SCRIPT = `
     else target.removeAttribute(name);
   };
   const sync = (select) => {
-    const control = controls.get(select);
-    if (!control) return;
-    const { trigger, menu, text, labelIds } = control;
+    const ctl = pickers.get(select);
+    if (!ctl) return;
+    const { trigger, menu, text, labelIds } = ctl;
     text.textContent = optionText(select.selectedOptions[0]) || "\u00a0";
     menu.querySelectorAll("[data-mw-select-option]").forEach((item) => {
       const option = select.options[Number(item.dataset.mwSelectOption)];
@@ -100,7 +100,7 @@ export const SELECT_MENU_CLIENT_SCRIPT = `
     trigger.disabled = select.matches(":disabled");
     trigger.setAttribute("aria-required", select.getAttribute("aria-required") ?? String(select.required));
     for (const name of ["aria-describedby", "aria-errormessage", "title"]) copyAttribute(select, trigger, name);
-    const invalid = select.getAttribute("aria-invalid") || (control.validationFailed && !select.validity.valid ? "true" : null);
+    const invalid = select.getAttribute("aria-invalid") || (ctl.validationFailed && !select.validity.valid ? "true" : null);
     if (invalid != null) trigger.setAttribute("aria-invalid", invalid);
     else trigger.removeAttribute("aria-invalid");
     const labelledBy = select.getAttribute("aria-labelledby") || labelIds.join(" ");
@@ -197,23 +197,23 @@ export const SELECT_MENU_CLIENT_SCRIPT = `
     menu.style.top = top + "px";
   };
   const closeMenu = (select, menu, restoreFocus = false) => {
-    const trigger = controls.get(select)?.trigger;
+    const trigger = pickers.get(select)?.trigger;
     if (canPopover(menu) && menuOpen(menu)) menu.hidePopover();
     menu.classList.remove("is-open");
     trigger?.setAttribute("aria-expanded", "false");
-    if (activeSelect === select) activeSelect = null;
+    if (openSelect === select) openSelect = null;
     if (restoreFocus && trigger?.isConnected) trigger.focus({ preventScroll: true });
   };
   const openMenu = (select, trigger, menu) => {
     if (select.matches(":disabled")) return;
-    if (activeSelect && activeSelect !== select) closeMenu(activeSelect, controls.get(activeSelect).menu);
+    if (openSelect && openSelect !== select) closeMenu(openSelect, pickers.get(openSelect).menu);
     fillMenu(select, menu);
     if (canPopover(menu)) {
       if (!menuOpen(menu)) menu.showPopover();
     } else {
       menu.classList.add("is-open");
     }
-    activeSelect = select;
+    openSelect = select;
     trigger.setAttribute("aria-expanded", "true");
     placeMenu(trigger, menu);
     focusOption(menu);
@@ -276,7 +276,7 @@ export const SELECT_MENU_CLIENT_SCRIPT = `
     });
     select.before(picker);
     picker.append(select, trigger, menu);
-    controls.set(select, { trigger, menu, text, labelIds, validationFailed: false });
+    pickers.set(select, { trigger, menu, text, labelIds, validationFailed: false });
     select.hidden = true;
     select.tabIndex = -1;
     select.setAttribute("aria-hidden", "true");
@@ -285,7 +285,7 @@ export const SELECT_MENU_CLIENT_SCRIPT = `
     menu.addEventListener("toggle", () => {
       const open = menuOpen(menu);
       trigger.setAttribute("aria-expanded", open ? "true" : "false");
-      if (!open && activeSelect === select) activeSelect = null;
+      if (!open && openSelect === select) openSelect = null;
     });
     trigger.addEventListener("click", (event) => {
       event.preventDefault();
@@ -318,7 +318,7 @@ export const SELECT_MENU_CLIENT_SCRIPT = `
     });
     select.addEventListener("invalid", (event) => {
       event.preventDefault();
-      controls.get(select).validationFailed = true;
+      pickers.get(select).validationFailed = true;
       sync(select);
       trigger.focus();
     });
@@ -358,14 +358,14 @@ export const SELECT_MENU_CLIENT_SCRIPT = `
     });
   };
   document.addEventListener("pointerdown", (event) => {
-    if (!activeSelect) return;
-    const { menu, trigger } = controls.get(activeSelect);
-    if (!canPopover(menu) && !menu.contains(event.target) && !trigger.contains(event.target)) closeMenu(activeSelect, menu);
+    if (!openSelect) return;
+    const { menu, trigger } = pickers.get(openSelect);
+    if (!canPopover(menu) && !menu.contains(event.target) && !trigger.contains(event.target)) closeMenu(openSelect, menu);
   });
   const reposition = (event) => {
-    if (!activeSelect) return;
-    const { trigger, menu } = controls.get(activeSelect);
-    if (!trigger.isConnected) { closeMenu(activeSelect, menu); return; }
+    if (!openSelect) return;
+    const { trigger, menu } = pickers.get(openSelect);
+    if (!trigger.isConnected) { closeMenu(openSelect, menu); return; }
     if (event?.target instanceof Node && menu.contains(event.target)) return;
     placeMenu(trigger, menu);
   };
@@ -400,8 +400,8 @@ export const SELECT_MENU_CLIENT_SCRIPT = `
       requestAnimationFrame(() => {
         if (event.defaultPrevented) return;
         form.querySelectorAll?.("[data-mw-select-picker] select")?.forEach((select) => {
-          controls.get(select).validationFailed = false;
-          closeMenu(select, controls.get(select).menu);
+          pickers.get(select).validationFailed = false;
+          closeMenu(select, pickers.get(select).menu);
           sync(select);
         });
       });

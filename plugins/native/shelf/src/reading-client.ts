@@ -1,5 +1,5 @@
 /** Safe, dependency-free reading views for the Shelf's file copies. */
-export const SHELF_READING_FACTORY_SCRIPT = String.raw`(escapeText, escapeAttr) => {
+export const SHELF_READING_FACTORY_SCRIPT = String.raw`(escText, escapeAttr) => {
   const safeUrl = (value) => {
     try { const url = new URL(value); return ['http:', 'https:', 'mailto:'].includes(url.protocol) ? url.href : ''; }
     catch { return ''; }
@@ -7,10 +7,10 @@ export const SHELF_READING_FACTORY_SCRIPT = String.raw`(escapeText, escapeAttr) 
   const inline = (value) => {
     const parts = String(value).split(/(\x60[^\x60]+\x60|\[[^\]]+\]\([^\s)]+\))/g);
     return parts.map(part => {
-      if (part.startsWith('\x60') && part.endsWith('\x60')) return '<code>' + escapeText(part.slice(1,-1)) + '</code>';
+      if (part.startsWith('\x60') && part.endsWith('\x60')) return '<code>' + escText(part.slice(1,-1)) + '</code>';
       const link = part.match(/^\[([^\]]+)\]\(([^\s)]+)\)$/);
-      if (link) { const url = safeUrl(link[2]); return url ? '<a href="' + escapeAttr(url) + '" target="_blank" rel="noopener noreferrer">' + escapeText(link[1]) + '</a>' : escapeText(link[1]); }
-      return escapeText(part).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>');
+      if (link) { const url = safeUrl(link[2]); return url ? '<a href="' + escapeAttr(url) + '" target="_blank" rel="noopener noreferrer">' + escText(link[1]) + '</a>' : escText(link[1]); }
+      return escText(part).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>');
     }).join('');
   };
   const markdown = (text) => {
@@ -24,7 +24,7 @@ export const SHELF_READING_FACTORY_SCRIPT = String.raw`(escapeText, escapeAttr) 
       if(/^\s*\x60{3}/.test(line)) {
         const language=line.replace(/^\s*\x60{3}/,'').trim();const code=[];i++;
         while(i<lines.length&&!/^\s*\x60{3}/.test(lines[i]))code.push(lines[i++]);
-        i++;blocks.push('<pre class="shelf-code"><code' +(language?' data-language="'+escapeAttr(language)+'"':'')+'>'+escapeText(code.join('\n'))+'</code></pre>');continue;
+        i++;blocks.push('<pre class="shelf-code"><code' +(language?' data-language="'+escapeAttr(language)+'"':'')+'>'+escText(code.join('\n'))+'</code></pre>');continue;
       }
       const heading=line.match(/^(#{1,6})\s+(.+)$/);
       if(heading){const level=heading[1].length;blocks.push('<h'+level+'>'+inline(heading[2])+'</h'+level+'>');i++;continue;}
@@ -45,10 +45,10 @@ export const SHELF_READING_FACTORY_SCRIPT = String.raw`(escapeText, escapeAttr) 
   };
   const render = (item, text) => {
     const ext=String(item.name||'').split('.').pop().toLowerCase();
-    if(item.kind==='url'){const url=safeUrl(String(text).trim());return url?'<p><a class="shelf-source-link" href="'+escapeAttr(url)+'" target="_blank" rel="noopener noreferrer">'+escapeText(text)+'</a></p>':'<pre class="shelf-plain">'+escapeText(text)+'</pre>';}
+    if(item.kind==='url'){const url=safeUrl(String(text).trim());return url?'<p><a class="shelf-source-link" href="'+escapeAttr(url)+'" target="_blank" rel="noopener noreferrer">'+escText(text)+'</a></p>':'<pre class="shelf-plain">'+escText(text)+'</pre>';}
     if(item.kind==='markdown'||item.kind==='website'||['md','markdown'].includes(ext))return markdown(text);
-    if(ext==='json'){try{return '<pre class="shelf-code"><code>'+escapeText(JSON.stringify(JSON.parse(text),null,2))+'</code></pre>';}catch{}}
-    return '<pre class="'+(item.kind==='text'?'shelf-plain':'shelf-code')+'">'+escapeText(text)+'</pre>';
+    if(ext==='json'){try{return '<pre class="shelf-code"><code>'+escText(JSON.stringify(JSON.parse(text),null,2))+'</code></pre>';}catch{}}
+    return '<pre class="'+(item.kind==='text'?'shelf-plain':'shelf-code')+'">'+escText(text)+'</pre>';
   };
   return { render, markdown };
 }`;

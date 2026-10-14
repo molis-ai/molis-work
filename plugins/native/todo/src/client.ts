@@ -32,7 +32,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   const heading = $("[data-todo-editor-heading]");
   const saveStatus = $("[data-todo-save-status]");
   const detailNote = $("[data-todo-detail-note]");
-  const confirmDialog = $("[data-todo-confirm]");
+  const confirmBox = $("[data-todo-confirm]");
   const field = (name) => workbench.querySelector('[data-todo-field="' + name + '"]');
 
   const STATUS = { open: L("待处理"), doing: L("进行中"), waiting: L("等待他人"), done: L("已完成"), cancelled: L("已取消") };
@@ -76,11 +76,11 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   let noteTimer = 0;
   let saveTimer = 0;
   let saving = null;
-  let dirtyFields = new Set();
+  let dirtyKeys = new Set();
   let busy = false;
   let quickAttempt = null;
   let dropped = new Set();
-  let placementChoice = "";
+  let placeChoice = "";
   // The personal space is a location, not a project: there Todo is the personal view (personal and unplaced todos).
   const projectId = () => {
     const current = (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
@@ -89,7 +89,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   // The batch menu is drawn without the project's name, and in the personal space there is no project to move into.
   const batchProject = workbench.querySelector('[data-todo-batch-placement="project"]');
   if (batchProject) { batchProject.textContent = hereName(); batchProject.hidden = !projectId(); }
-  try { placementChoice = window.localStorage.getItem("molis.todo.quick-placement") || ""; } catch { placementChoice = ""; }
+  try { placeChoice = window.localStorage.getItem("molis.todo.quick-placement") || ""; } catch { placeChoice = ""; }
 
   const headers = () => typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" };
   const route = (path) => typeof host.route === "function" ? host.route(path) : path;
@@ -180,18 +180,18 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     noteView = options.view || null; viewButton.hidden = !noteView;
     if (text && !options.error) noteTimer = setTimeout(() => { note.hidden = true; undo = null; noteView = null; }, options.undo ? 12000 : 4000);
   };
-  const showDetailNote = (text, error) => {
+  const detailHint = (text, error) => {
     detailNote.hidden = !text;
     detailNote.textContent = text || "";
     detailNote.classList.toggle("is-error", Boolean(error));
   };
   const ask = (message, okLabel) => new Promise((resolve) => {
-    confirmDialog.querySelector("[data-confirm-text]").textContent = message;
-    confirmDialog.querySelector("[data-confirm-ok]").textContent = okLabel;
-    confirmDialog.returnValue = "cancel";
-    const onClose = () => { confirmDialog.removeEventListener("close", onClose); resolve(confirmDialog.returnValue === "ok"); };
-    confirmDialog.addEventListener("close", onClose);
-    confirmDialog.showModal();
+    confirmBox.querySelector("[data-confirm-text]").textContent = message;
+    confirmBox.querySelector("[data-confirm-ok]").textContent = okLabel;
+    confirmBox.returnValue = "cancel";
+    const onClose = () => { confirmBox.removeEventListener("close", onClose); resolve(confirmBox.returnValue === "ok"); };
+    confirmBox.addEventListener("close", onClose);
+    confirmBox.showModal();
   });
 
   // What the Assistant sees when the person turns to it: the open todo, its revision and unsaved input.
@@ -199,13 +199,13 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     const context = { plugin_id: "io.molis.work.todo", surface_title: L("待办") };
     if (selected) {
       context.object = { kind: "todo_item", id: selected.id, version: selected.revision, title: field("title").value || selected.title };
-      if (dirtyFields.size || saveTimer) context.unsaved = true;
+      if (dirtyKeys.size || saveTimer) context.unsaved = true;
     }
     workbench.setAttribute("data-assistant-context", JSON.stringify(context));
   };
 
   const placementLabel = (item) => item.placement === "project" ? (item.project_id === projectId() ? hereName() : L("其他项目")) : placeName(item.placement);
-  const renderPlacementChoices = (container, current, attribute) => {
+  const paintPlaces = (container, current, attribute) => {
     container.replaceChildren();
     ["personal", ...(projectId() ? ["project"] : []), "unassigned"].forEach((value) => {
       const on = value === current;
@@ -218,7 +218,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const quickDefaultPlacement = () => {
-    if (placementChoice && (placementChoice !== "project" || projectId())) return placementChoice;
+    if (placeChoice && (placeChoice !== "project" || projectId())) return placeChoice;
     return projectId() ? "unassigned" : "personal";
   };
 
@@ -597,7 +597,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       const place = make("div", "mw-toggle-group");
       place.setAttribute("role", "radiogroup");
       place.setAttribute("aria-label", L("放在"));
-      renderPlacementChoices(place, choice.edits.placement || candidate.placement, "data-todo-candidate-placement");
+      paintPlaces(place, choice.edits.placement || candidate.placement, "data-todo-candidate-placement");
       place.querySelectorAll("button").forEach((button) => { button.dataset.candidate = candidate.candidate_id; });
       editor.append(place);
       body.append(editor);
@@ -709,8 +709,8 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     quickSubmit.disabled = value || !quickInput.value.trim();
   };
   const paintSave = () => {
-    saveStatus.textContent = saving ? L("保存中") : dirtyFields.size ? L("尚未保存") : selected ? STATUS[selected.status] : "";
-    const tone = saving || dirtyFields.size ? "quiet" : selected && selected.status === "done" ? "done" : selected && selected.status === "doing" ? "progress" : "quiet";
+    saveStatus.textContent = saving ? L("保存中") : dirtyKeys.size ? L("尚未保存") : selected ? STATUS[selected.status] : "";
+    const tone = saving || dirtyKeys.size ? "quiet" : selected && selected.status === "done" ? "done" : selected && selected.status === "doing" ? "progress" : "quiet";
     saveStatus.className = "mw-status mw-status--" + tone;
     publishContext();
   };
@@ -868,7 +868,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   const fillEditor = (item) => {
     const switching = !selected || selected.id !== item.id;
     selected = item;
-    dirtyFields = new Set();
+    dirtyKeys = new Set();
     clearTimeout(saveTimer); saveTimer = 0;
     const opening = workspace.hidden;
     workbench.setAttribute("data-expanded", "true");
@@ -892,7 +892,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       button.classList.toggle("is-current", on);
       button.setAttribute("aria-pressed", String(on));
     });
-    renderPlacementChoices($("[data-todo-placement-choices]"), item.placement === "project" && item.project_id !== projectId() ? "" : item.placement, "data-todo-placement");
+    paintPlaces($("[data-todo-placement-choices]"), item.placement === "project" && item.project_id !== projectId() ? "" : item.placement, "data-todo-placement");
     const archiveButton = $("[data-todo-archive]");
     archiveButton.textContent = item.archived_at ? L("取回") : L("归档");
     archiveButton.disabled = !item.archived_at && item.status !== "done" && item.status !== "cancelled";
@@ -902,7 +902,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderHistory();
     if (switching) { works = []; renderWorks(); }
     void loadWorks(item);
-    showDetailNote("");
+    detailHint("");
     paintSave();
     rowsEl.querySelectorAll("[data-todo-row]").forEach((row) => row.classList.toggle("is-selected", row.dataset.todoRow === item.id));
   };
@@ -912,12 +912,12 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     history = payload.history || [];
     backlinks = payload.backlinks || [];
     linkPool = pool.items || [];
-    if (selected && (dirtyFields.size || saving)) { if (keepEdits && selected.id === id) selected = payload.item; paintSave(); return; }
+    if (selected && (dirtyKeys.size || saving)) { if (keepEdits && selected.id === id) selected = payload.item; paintSave(); return; }
     fillEditor(payload.item);
   };
   const patchFromEditor = () => {
     const patch = {};
-    for (const name of dirtyFields) {
+    for (const name of dirtyKeys) {
       if (name === "waiting") patch.waiting = { who: field("waiting.who").value.trim(), what: field("waiting.what").value.trim(), follow_up_on: field("waiting.follow_up_on").value || null };
       else if (name === "important") patch.important = field("important").checked;
       else if (name === "remind_at") patch.remind_at = fromLocalInput(field("remind_at").value);
@@ -929,11 +929,11 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   const flush = async () => {
     clearTimeout(saveTimer); saveTimer = 0;
     if (saving) await saving;
-    if (!selected || !dirtyFields.size) return;
-    if (dirtyFields.has("title") && !field("title").value.trim()) { const message = L("标题不能是空的"); showDetailNote(message, true); throw new Error(message); }
+    if (!selected || !dirtyKeys.size) return;
+    if (dirtyKeys.has("title") && !field("title").value.trim()) { const message = L("标题不能是空的"); detailHint(message, true); throw new Error(message); }
     const patch = patchFromEditor();
-    const sent = new Set(dirtyFields);
-    dirtyFields = new Set();
+    const sent = new Set(dirtyKeys);
+    dirtyKeys = new Set();
     const target = selected;
     const run = async () => {
       try {
@@ -946,11 +946,11 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         backlinks = detail.backlinks || [];
         renderHistory();
         $("[data-todo-remind-hint]").hidden = !selected.remind_at;
-        showDetailNote("");
+        detailHint("");
         void load().catch(() => {});
       } catch (error) {
-        sent.forEach((name) => dirtyFields.add(name));
-        showDetailNote(error.code === "todo.conflict" ? L("这件待办已在别处修改，你的输入还在。复制需要保留的内容后点“更多 → 重新读取”。") : error.message, true);
+        sent.forEach((name) => dirtyKeys.add(name));
+        detailHint(error.code === "todo.conflict" ? L("这件待办已在别处修改，你的输入还在。复制需要保留的内容后点“更多 → 重新读取”。") : error.message, true);
         throw error;
       }
     };
@@ -959,7 +959,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     await saving;
   };
   const queueSave = (name) => {
-    dirtyFields.add(name);
+    dirtyKeys.add(name);
     paintSave();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => { saveTimer = 0; void flush().catch(() => {}); }, ["title", "notes", "waiting"].includes(name) ? 600 : 50);
@@ -1026,9 +1026,9 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (button.matches("[data-todo-scope]")) { everything = !everything; await load(); return; }
       if (button.matches("[data-todo-quick-drop]")) { dropped.add(button.dataset.todoQuickDrop); renderQuick(); quickInput.focus(); return; }
       if (button.matches("[data-todo-quick-placement-choice]")) {
-        placementChoice = button.dataset.todoQuickPlacementChoice;
-        try { window.localStorage.setItem("molis.todo.quick-placement", placementChoice); } catch {}
-        renderPlacementChoices(quickPlacement, quickDefaultPlacement(), "data-todo-quick-placement-choice");
+        placeChoice = button.dataset.todoQuickPlacementChoice;
+        try { window.localStorage.setItem("molis.todo.quick-placement", placeChoice); } catch {}
+        paintPlaces(quickPlacement, quickDefaultPlacement(), "data-todo-quick-placement-choice");
         return;
       }
       if (button.matches("[data-todo-note-view]") && noteView) {
@@ -1152,7 +1152,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (button.matches("[data-todo-link-add]")) {
         const target = $("[data-todo-link-target]").value;
-        if (!target) { showDetailNote(L("先选一件待办"), true); return; }
+        if (!target) { detailHint(L("先选一件待办"), true); return; }
         const other = linkPool.find((entry) => entry.id === target);
         await post(selected, "/link", { add: { kind: "todo", subject: { kind: "todo_item", id: target }, title: other ? other.title : target, relation: $("[data-todo-link-relation]").value } });
         await openDetail(selected.id);
@@ -1173,8 +1173,8 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (button.matches("[data-todo-reload]")) {
         if (saving) await saving.catch(() => {});
         button.closest("details").open = false;
-        if (dirtyFields.size && !await ask(L("重新读取会丢掉还没保存的输入。继续吗？"), L("重新读取"))) return;
-        dirtyFields = new Set();
+        if (dirtyKeys.size && !await ask(L("重新读取会丢掉还没保存的输入。继续吗？"), L("重新读取"))) return;
+        dirtyKeys = new Set();
         await openDetail(selected.id);
         return;
       }
@@ -1185,13 +1185,13 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (saving) await saving.catch(() => {});
         const title = selected.title;
         await post(selected, "/delete");
-        dirtyFields = new Set();
+        dirtyKeys = new Set();
         await closeDetail();
         await load();
         showNote(L("已删除「{title}」").replace("{title}", title));
       }
     } catch (error) {
-      if (selected && button.closest("[data-todo-stage-workspace]")) showDetailNote(error.message || L("待办请求失败"), true);
+      if (selected && button.closest("[data-todo-stage-workspace]")) detailHint(error.message || L("待办请求失败"), true);
       else showNote(error.message || L("待办请求失败"), { error: true });
       if (error.code === "todo.conflict") void load().catch(() => {});
     }
@@ -1211,7 +1211,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (typeof capability !== "string" || capability.indexOf("todo.") !== 0) return;
     void load().then(async () => {
       if (!selected) return;
-      if (dirtyFields.size || saving) { showDetailNote(L("助理刚改过这件待办；你还有没保存的输入，保存时会提示冲突，不会覆盖。"), true); return; }
+      if (dirtyKeys.size || saving) { detailHint(L("助理刚改过这件待办；你还有没保存的输入，保存时会提示冲突，不会覆盖。"), true); return; }
       await openDetail(selected.id).catch(() => closeDetail());
     }).catch(() => {});
   });
@@ -1220,7 +1220,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     const detail = event.detail || {};
     if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("todo_item")) return;
     void load().then(async () => {
-      if (!selected || !detail.from || selected.id !== detail.from.id || dirtyFields.size || saving) return;
+      if (!selected || !detail.from || selected.id !== detail.from.id || dirtyKeys.size || saving) return;
       try {
         // The person can still read it (the page may show every project), so the event alone does not say where it went:
         // read it, and close it when it now belongs to a project this page is not showing.
@@ -1229,11 +1229,11 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       } catch { await closeDetail(); }
     }).catch(() => {});
   });
-  document.addEventListener("visibilitychange", () => { if (!document.hidden && !dirtyFields.size) void load().catch(() => {}); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && !dirtyKeys.size) void load().catch(() => {}); });
   setInterval(() => { if (!document.hidden && !workbench.hidden) void loadReminders().catch(() => {}); }, 60000);
-  window.addEventListener("beforeunload", (event) => { if (dirtyFields.size || saving) { event.preventDefault(); event.returnValue = ""; } });
+  window.addEventListener("beforeunload", (event) => { if (dirtyKeys.size || saving) { event.preventDefault(); event.returnValue = ""; } });
 
-  renderPlacementChoices(quickPlacement, quickDefaultPlacement(), "data-todo-quick-placement-choice");
+  paintPlaces(quickPlacement, quickDefaultPlacement(), "data-todo-quick-placement-choice");
   publishContext();
   void load().catch((error) => { loading.hidden = true; showNote(error.message || L("待办没打开，请刷新再试"), { error: true }); });
 }`;

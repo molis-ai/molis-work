@@ -459,26 +459,26 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderList();
   };
   /* ---- Outline from text: a dialog that turns pasted text into slides, locally or through the model ---- */
-  const outlineBox = bench.querySelector("[data-ppt-outline-dialog]"), outlineForm = bench.querySelector("[data-ppt-outline-form]");
-  let outlineMode = "local", outlineSourceKind = "text", outReq = null;
+  const outBox = bench.querySelector("[data-ppt-outline-dialog]"), outlineForm = bench.querySelector("[data-ppt-outline-form]");
+  let outlineMode = "local", outlineKind = "text", outReq = null;
   const endOutline = () => { const attempt = outReq; outReq = null; if (attempt) { attempt.controller.abort(); attempt.submit.disabled = false; attempt.submit.textContent = attempt.label; } };
   const paintOutlineSource = async () => {
-    if (!outlineBox) return;
-    outlineBox.querySelectorAll("[data-ppt-outline-source]").forEach((button) => {
-      const on = button.dataset.pptOutlineSource === outlineSourceKind;
+    if (!outBox) return;
+    outBox.querySelectorAll("[data-ppt-outline-source]").forEach((button) => {
+      const on = button.dataset.pptOutlineSource === outlineKind;
       button.classList.toggle("is-current", on);
       button.setAttribute("aria-checked", String(on));
     });
-    const pageField = outlineBox.querySelector("[data-ppt-outline-page-field]");
-    const textField = outlineBox.querySelector("[data-ppt-outline-text-field]");
-    const note = outlineBox.querySelector("[data-ppt-outline-page-note]");
-    const textarea = outlineBox.querySelector("[data-ppt-outline-text]");
-    const usePage = outlineSourceKind === "page";
+    const pageField = outBox.querySelector("[data-ppt-outline-page-field]");
+    const textField = outBox.querySelector("[data-ppt-outline-text-field]");
+    const note = outBox.querySelector("[data-ppt-outline-page-note]");
+    const textarea = outBox.querySelector("[data-ppt-outline-text]");
+    const usePage = outlineKind === "page";
     if (textField) textField.hidden = usePage;
     if (textarea) textarea.required = !usePage;
     if (pageField) pageField.hidden = !usePage;
     if (!usePage) { if (note) note.hidden = true; return; }
-    const select = outlineBox.querySelector("[data-ppt-outline-page]");
+    const select = outBox.querySelector("[data-ppt-outline-page]");
     if (select && select.dataset.loaded === "true") return;
     if (note) { note.hidden = false; note.textContent = L("正在读取文档…"); }
     try {
@@ -497,12 +497,12 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   };
   const paintOutlineModes = () => {
-    if (!outlineBox) return;
-    const ai = outlineBox.querySelector('[data-ppt-outline-mode="ai"]');
-    const reason = outlineBox.querySelector("[data-ppt-outline-ai-reason]");
+    if (!outBox) return;
+    const ai = outBox.querySelector('[data-ppt-outline-mode="ai"]');
+    const reason = outBox.querySelector("[data-ppt-outline-ai-reason]");
     if (ai) { ai.disabled = !aiAvailable; ai.title = aiAvailable ? "" : (aiUnavailableReason ? L(aiUnavailableReason) : L("请先配置可用的文字模型")); }
     if (!aiAvailable && outlineMode === "ai") outlineMode = "local";
-    outlineBox.querySelectorAll("[data-ppt-outline-mode]").forEach((button) => {
+    outBox.querySelectorAll("[data-ppt-outline-mode]").forEach((button) => {
       const on = button.dataset.pptOutlineMode === outlineMode;
       button.classList.toggle("is-current", on);
       button.setAttribute("aria-checked", String(on));
@@ -510,49 +510,49 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (reason) { reason.hidden = aiAvailable; reason.textContent = aiAvailable ? "" : (aiUnavailableReason ? L(aiUnavailableReason) : L("请先配置可用的文字模型")); }
   };
   const showOutlineError = (text) => {
-    const box = outlineBox?.querySelector("[data-ppt-outline-error]");
+    const box = outBox?.querySelector("[data-ppt-outline-error]");
     if (!box) return;
     box.hidden = !text;
     box.textContent = text || "";
   };
   const openOutline = () => {
-    if (!outlineBox || !sel) return;
+    if (!outBox || !sel) return;
     endOutline();
     showOutlineError("");
-    const replace = outlineBox.querySelector("[data-ppt-outline-replace]");
+    const replace = outBox.querySelector("[data-ppt-outline-replace]");
     const blank = sel.slides.length === 1 && !sel.slides[0].title && !sel.slides[0].bullets.length && !sel.slides[0].notes;
     if (replace) { replace.checked = false; replace.closest("label").hidden = blank; }
     paintOutlineModes();
-    const select = outlineBox.querySelector("[data-ppt-outline-page]");
+    const select = outBox.querySelector("[data-ppt-outline-page]");
     if (select) delete select.dataset.loaded;
     void paintOutlineSource();
-    outlineBox.showModal();
-    outlineBox.querySelector(outlineSourceKind === "page" ? "[data-ppt-outline-page]" : "[data-ppt-outline-text]")?.focus();
+    outBox.showModal();
+    outBox.querySelector(outlineKind === "page" ? "[data-ppt-outline-page]" : "[data-ppt-outline-text]")?.focus();
   };
   const submitOutline = async () => {
-    if (!outlineBox || !sel || outReq) return;
-    const textarea = outlineBox.querySelector("[data-ppt-outline-text]");
+    if (!outBox || !sel || outReq) return;
+    const textarea = outBox.querySelector("[data-ppt-outline-text]");
     const text = (textarea?.value || "").trim();
-    const pageId = outlineSourceKind === "page" ? (outlineBox.querySelector("[data-ppt-outline-page]")?.value || "") : "";
-    if (outlineSourceKind === "page" && !pageId) { showOutlineError(L("先选一篇文档")); return; }
-    if (outlineSourceKind === "text" && !text) { showOutlineError(L("收到的内容里没有可以做成幻灯片的文字")); textarea?.focus(); return; }
-    const submit = outlineBox.querySelector("[data-ppt-outline-submit]");
-    const replace = Boolean(outlineBox.querySelector("[data-ppt-outline-replace]")?.checked);
+    const pageId = outlineKind === "page" ? (outBox.querySelector("[data-ppt-outline-page]")?.value || "") : "";
+    if (outlineKind === "page" && !pageId) { showOutlineError(L("先选一篇文档")); return; }
+    if (outlineKind === "text" && !text) { showOutlineError(L("收到的内容里没有可以做成幻灯片的文字")); textarea?.focus(); return; }
+    const submit = outBox.querySelector("[data-ppt-outline-submit]");
+    const replace = Boolean(outBox.querySelector("[data-ppt-outline-replace]")?.checked);
     showOutlineError(""); submit.disabled = true;
-    const label = submit.textContent, attempt = { controller: new AbortController(), submit, label, id: sel.id, revision: editRev, mode: outlineMode, source: outlineSourceKind, text: textarea?.value || "" }; outReq = attempt;
+    const label = submit.textContent, attempt = { controller: new AbortController(), submit, label, id: sel.id, revision: editRev, mode: outlineMode, source: outlineKind, text: textarea?.value || "" }; outReq = attempt;
     submit.textContent = outlineMode === "ai" ? L("整理中…") : label;
     try {
       await save();
-      if (outReq !== attempt || !outlineBox.open || sel?.id !== attempt.id || editRev !== attempt.revision) return;
+      if (outReq !== attempt || !outBox.open || sel?.id !== attempt.id || editRev !== attempt.revision) return;
       const record = sel;
       const payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(record.id) + (attempt.mode === "ai" ? "/outline-ai" : "/outline"),
         { ...(pageId ? { page_id: pageId } : { text }), replace, expected_version: record.version }, attempt.controller.signal);
-      if (outReq !== attempt || !outlineBox.open || sel?.id !== record.id || editRev !== attempt.revision || sel.version !== record.version) return;
+      if (outReq !== attempt || !outBox.open || sel?.id !== record.id || editRev !== attempt.revision || sel.version !== record.version) return;
       slideKey = payload.presentation.slides[replace ? 0 : Math.max(0, payload.presentation.slides.length - payload.slide_count)]?.id || slideKey;
       fillEditor(payload.presentation);
       await loadList();
-      if (outReq !== attempt || !outlineBox.open) return;
-      if ((textarea?.value || "") === attempt.text && outlineMode === attempt.mode && outlineSourceKind === attempt.source && (!pageId || outlineBox.querySelector("[data-ppt-outline-page]")?.value === pageId)) { if (textarea) textarea.value = ""; endOutline(); outlineBox.close(); }
+      if (outReq !== attempt || !outBox.open) return;
+      if ((textarea?.value || "") === attempt.text && outlineMode === attempt.mode && outlineKind === attempt.source && (!pageId || outBox.querySelector("[data-ppt-outline-page]")?.value === pageId)) { if (textarea) textarea.value = ""; endOutline(); outBox.close(); }
       showNote(L("已生成 {count} 页").replace("{count}", String(payload.slide_count)), false);
     } catch (error) {
       if (outReq === attempt && !attempt.controller.signal.aborted) showOutlineError(error.message || L("演示稿请求失败"));
@@ -560,15 +560,15 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (outReq === attempt) endOutline();
     }
   };
-  outlineBox?.addEventListener("click", (event) => {
-    if (event.target.closest("[data-ppt-outline-close]")) { endOutline(); outlineBox.close(); return; }
+  outBox?.addEventListener("click", (event) => {
+    if (event.target.closest("[data-ppt-outline-close]")) { endOutline(); outBox.close(); return; }
     const sourceButton = event.target.closest("[data-ppt-outline-source]");
-    if (sourceButton) { outlineSourceKind = sourceButton.dataset.pptOutlineSource; void paintOutlineSource(); return; }
+    if (sourceButton) { outlineKind = sourceButton.dataset.pptOutlineSource; void paintOutlineSource(); return; }
     const mode = event.target.closest("[data-ppt-outline-mode]");
     if (mode && !mode.disabled) { outlineMode = mode.dataset.pptOutlineMode; paintOutlineModes(); }
   });
-  outlineBox?.addEventListener("cancel", endOutline);
-  outlineBox?.addEventListener("close", () => { if (!outlineBox.open) endOutline(); });
+  outBox?.addEventListener("cancel", endOutline);
+  outBox?.addEventListener("close", () => { if (!outBox.open) endOutline(); });
   outlineForm?.addEventListener("submit", (event) => { event.preventDefault(); void submitOutline(); });
   const draftFromDom = () => {
     const value = liveRecord();

@@ -6,7 +6,7 @@ export const FUNCTIONS_SETTINGS_CLIENT_SCRIPT = `(() => {
     const field = root.querySelector("[data-functions-connection]");
     const status = root.querySelector("[data-functions-settings-status]");
     const buttons = root.querySelectorAll("[data-functions-key-save], [data-functions-key-clear]");
-    buttons.forEach(button => { button.disabled = true; });
+    buttons.forEach(btnEl => { btnEl.disabled = true; });
     try {
       const payload = await post(clear ? { clear: true } : { connection_id: field.value });
       if (!root.isConnected) return;
@@ -20,7 +20,7 @@ export const FUNCTIONS_SETTINGS_CLIENT_SCRIPT = `(() => {
       root.querySelector("[data-functions-key-clear]").hidden = !field.value;
     } catch (error) {
       molisWorkRequest.show(status, error, t("保存失败"));
-    } finally { buttons.forEach(button => { button.disabled = false; }); }
+    } finally { buttons.forEach(btnEl => { btnEl.disabled = false; }); }
   };
   document.addEventListener("submit", (event) => {
     if (!event.target.matches("[data-functions-settings-form]")) return;
@@ -28,9 +28,9 @@ export const FUNCTIONS_SETTINGS_CLIENT_SCRIPT = `(() => {
     void save(event.target.closest("[data-functions-settings]"), false);
   });
   document.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-functions-key-clear]");
-    if (!button) return;
-    void save(button.closest("[data-functions-settings]"), true);
+    const btnEl = event.target.closest("[data-functions-key-clear]");
+    if (!btnEl) return;
+    void save(btnEl.closest("[data-functions-settings]"), true);
   });
 })();
 `;

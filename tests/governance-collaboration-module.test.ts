@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -6,7 +7,6 @@ import test from "node:test";
 
 import {
   GovernanceCollaborationModule,
-  GovernanceError,
   deriveGoalTreeProposalState,
 } from "@molis-ai/molis-work-module-governance-collaboration";
 
@@ -140,7 +140,7 @@ test("Governance decision provenance and target-owner materialization share one 
         state: "pending",
         updated_at: "2026-09-02T00:00:02.000Z",
       }),
-      (error: unknown) => error instanceof GovernanceError && error.code === "governance.transition_invalid",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.governance.transition_invalid" && error.kind === "invalid",
     );
   } finally {
     dispose();

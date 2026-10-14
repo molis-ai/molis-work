@@ -1,6 +1,7 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GovernanceError, GovernanceProvenance } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GovernanceProvenance } from "@molis-ai/molis-work-module-governance-collaboration";
 import type { ContractFieldSource, ContractProposalRecord, LegacyGovernanceSnapshot } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 const provenance = new GovernanceProvenance();
@@ -8,6 +9,7 @@ const source = (field: ContractFieldSource["field"]): ContractFieldSource => ({ 
   source_refs: ["clarification-turn:original"], confidence: 1, rationale: "Explicit user requirement",
   status: "proposed", requires_user_confirmation: true });
 
+// I2-01: current owner refusals use the shared model and preserve input and aggregate issues.
 test("native proposal provenance sorts sources and rejects premature confirmation without changing input", () => {
   const input = { source_refs: [" repo:z ", "message:a", "repo:z", " "], reason: " User requirement ", confidence: 0 };
   const before = structuredClone(input);
@@ -25,7 +27,8 @@ test("native proposal provenance sorts sources and rejects premature confirmatio
       message: "Goal Tree 提案的每个条目都必须等待用户确认，不能提前物化为正式事实" },
   ];
   for (const entry of cases) assert.throws(() => provenance.normalizeProposalSource(entry.input, 2), (error) => {
-    assert.ok(error instanceof GovernanceError);
+    assert.ok(error instanceof ActionError);
+    assert.equal(error.kind, "invalid");
     assert.equal(error.code, entry.code);
     assert.equal(error.message, entry.message);
     return true;
@@ -34,8 +37,9 @@ test("native proposal provenance sorts sources and rejects premature confirmatio
 
 test("malformed proposal sources report all missing facts without inventing confidence or provenance", () => {
   assert.throws(() => provenance.normalizeProposalSource({ reason: "已讨论的方案" } as never, 0), error => {
-    assert.ok(error instanceof GovernanceError);
-    assert.deepEqual((error.details.issues as Array<{ path: string }>).map(issue => issue.path), ["items[0].source_refs", "items[0].confidence"]);
+    assert.ok(error instanceof ActionError);
+    assert.equal(error.kind, "invalid");
+    assert.deepEqual((error.details!.issues as Array<{ path: string }>).map(issue => issue.path), ["items[0].source_refs", "items[0].confidence"]);
     return true;
   });
 });

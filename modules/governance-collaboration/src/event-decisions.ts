@@ -1,3 +1,4 @@
+import { decisionErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import type {
   GoalEventAgreementChange,
@@ -9,7 +10,6 @@ import type { GovernanceEventDecisionApi } from "@molis-ai/molis-work-contracts/
 import { GovernanceProvenance } from "./provenance.js";
 import { json, parseJson } from "./mappers.js";
 import type { GovernanceSqliteDatabase } from "./repository.js";
-import { GovernanceError, type GovernanceErrorFactory } from "./errors.js";
 
 type Row = Record<string, unknown>;
 
@@ -41,16 +41,14 @@ export class GovernanceEventDecisions implements GovernanceEventDecisionApi {
   constructor(
     private readonly db: GovernanceSqliteDatabase,
     private readonly now: () => string = () => new Date().toISOString(),
-    private readonly error: GovernanceErrorFactory = (code, message, details) =>
-      new GovernanceError(code, message, details),
   ) {
-    this.provenance = new GovernanceProvenance(this.error);
+    this.provenance = new GovernanceProvenance();
   }
 
   record(input: RecordGoalUserDecisionInput & { authority: GoalEventTrustedAuthority }): GoalEventTrustedDecisionRecord {
     const authority = this.provenance.validateEventDecisionAuthority(input.authority);
     const conclusion = input.conclusion?.trim();
-    if (!conclusion) throw this.error("goals.event_decision.conclusion_required", "用户决定需要结论");
+    if (!conclusion) throw decisionErrors.conclusion_required("用户决定需要结论");
     const at = this.now();
     const decisionId = `gedec-${randomUUID()}`;
     const scope = {

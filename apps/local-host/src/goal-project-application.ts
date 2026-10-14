@@ -99,7 +99,6 @@ export class GoalProjectApplication {
     const governanceModule = new GovernanceCollaborationModule({
       db: this.store.db as unknown as GovernanceSqliteDatabase,
       now: () => this.clock().toISOString(),
-      errorFactory: (code, message, details) => new ActionError(code, message, { details }),
     });
     this.governance = {
       provenance: governanceModule.provenance,

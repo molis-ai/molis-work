@@ -6,14 +6,13 @@ import type {
 import type { GovernanceSqliteDatabase } from "./repository.js";
 import { GovernanceGoalTreeRecords } from "./goal-tree-records.js";
 import { GovernanceProposalOperationStore } from "./proposal-operation-store.js";
-import { GovernanceError, type GovernanceErrorFactory } from "./errors.js";
 
 export class GovernanceRecordStore implements GovernanceRecordsApi {
   private readonly proposalOperations: GovernanceProposalOperationStore;
   private readonly goalTrees: GovernanceGoalTreeRecords;
-  constructor(db: GovernanceSqliteDatabase, errorFactory: GovernanceErrorFactory = (code, message, details) => new GovernanceError(code, message, details)) {
-    this.goalTrees = new GovernanceGoalTreeRecords(db, errorFactory);
-    this.proposalOperations = new GovernanceProposalOperationStore(db, errorFactory);
+  constructor(db: GovernanceSqliteDatabase) {
+    this.goalTrees = new GovernanceGoalTreeRecords(db);
+    this.proposalOperations = new GovernanceProposalOperationStore(db);
   }
 
   executeGoalTreeSubmission(...args: Parameters<GovernanceRecordsApi["executeGoalTreeSubmission"]>) {

@@ -1,14 +1,13 @@
+import { requestErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import type { GovernanceRecordsApi, GoalTreeProposalDecisionResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import { GovernanceError, type GovernanceErrorFactory } from "./errors.js";
 import { json, parseJson, text, type GovernanceRow } from "./mappers.js";
 import { GovernanceRepository, type GovernanceSqliteDatabase } from "./repository.js";
 
 /** Goal Tree submission, check and decision keys share one idempotent journal. */
 export class GovernanceProposalOperationStore {
   private readonly repository: GovernanceRepository;
-  constructor(private readonly db: GovernanceSqliteDatabase,
-    private readonly error: GovernanceErrorFactory = (code, message) => new GovernanceError(code, message)) {
+  constructor(private readonly db: GovernanceSqliteDatabase) {
     this.repository = new GovernanceRepository(db);
   }
 
@@ -59,7 +58,7 @@ export class GovernanceProposalOperationStore {
         .get(input.project_id, input.actor_id, operationName, input.idempotency_key) as GovernanceRow | undefined;
       if (saved) {
         if (text(saved.request_hash) !== input.request_hash) {
-          throw this.error("goals.request.idempotency_key_reused", `幂等键 ${input.idempotency_key} 已被不同请求使用`);
+          throw requestErrors.idempotency_key_reused(`幂等键 ${input.idempotency_key} 已被不同请求使用`);
         }
         const value = parseJson<T | null>(saved.outcome_json, null);
         if (value) return { value, replayed: true };

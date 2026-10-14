@@ -16,7 +16,7 @@ import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-c
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
-import { createWebCatalogAccess } from "../apps/local-host/src/web-catalog-access.js";
+import { createWebCatalogAccess } from "../apps/local-host/dist/web-catalog-access.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 const user: ActionCallContext = { actor_id: "owner", actor_kind: "user", audience: "user", project_id: null,

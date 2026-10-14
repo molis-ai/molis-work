@@ -16,7 +16,7 @@ import { cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { bindSearchEntriesHandler, defineSearchEntriesAction, definePlugin, defineSubjectContextAction, subjectContext } from "../packages/plugin-sdk/src/index.js";
+import { bindSearchEntriesHandler, defineSearchEntriesAction, definePlugin, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";

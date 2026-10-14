@@ -222,7 +222,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     let rows=[];
     try{
       const result=await molisWorkRequest(routePrefix+'/api/agent/reviews?status=pending');
-      rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(!row.receipt||row.receipt.status==='pending'));
+      rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(row.request.document.fields||[]).some(f=>f.label==='网站')&&(!row.receipt||row.receipt.status==='pending'));
     }catch{}
     renderApproval(rows[0]||null);
     if(rows.length||state?.control?.mode==='assistant'||state?.control?.mode==='taken-over')reviewTimer=setTimeout(pollReviews,1500);

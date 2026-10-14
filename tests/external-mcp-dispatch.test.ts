@@ -8,10 +8,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
-import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
-import { createExternalMcpDirectory } from "../apps/local-host/src/external-mcp-actions.js";
-import { EXTERNAL_MCP_PERMISSION, isMcpToolCapability } from "../apps/local-host/src/mcp-tool-actions.js";
-import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { createExternalMcpDirectory } from "../apps/local-host/dist/external-mcp-actions.js";
+import { EXTERNAL_MCP_PERMISSION, isMcpToolCapability } from "../apps/local-host/dist/mcp-tool-actions.js";
+import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 test("real Prologue HTTP dispatch rechecks persisted action grants after DNS preparation, preserves cancellation and recovers", { timeout: 30_000 }, async t => {

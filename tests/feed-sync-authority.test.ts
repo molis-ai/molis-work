@@ -10,9 +10,9 @@ import { FEED_SOURCE_ACTIONS, createFeedSourceHandlers, feedQueryActions, feedSo
 import { SignalsModule } from "@molis-ai/molis-work-module-signals";
 import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedConnectorSync, listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
-import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 

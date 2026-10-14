@@ -6,8 +6,8 @@ import { tmpdir } from "node:os";
 import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/src/project-plugins.js";
-import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
+import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
 test("background startup shares its instance with later UI execution adapters and closing revokes providers", async () => {

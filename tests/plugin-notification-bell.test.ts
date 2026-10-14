@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { icon } from "@molis-ai/molis-work-design-system";
 import { EN } from "@molis-ai/molis-work-app-local-host";
-import { renderImmersiveHeader } from "../apps/workbench/src/immersive-shell.js";
-import { CLIENT_SCRIPT } from "../apps/workbench/src/browser-assets.js";
-import { PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/plugin-notifications.js";
-import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/assistant-island.js";
+import { renderImmersiveHeader } from "../apps/workbench/dist/immersive-shell.js";
+import { CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";
+import { PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/plugin-notifications.js";
+import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
 import { renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
 
 const primitives = { L: (value: string) => value, escapeHtml: (value: unknown) => String(value), icon };

@@ -8,7 +8,7 @@ import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-wo
 import { MolisWorkV1Error, handleGoalEventDecisionHttp, hostEventDecisionAuthority, GOALS_ACTIONS, GOALS_PLUGIN_ID, goalsActions, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { bindGoalsManagementActions, bindGoalsWebActions } from "../apps/local-host/src/goals-actions.js";
+import { bindGoalsManagementActions, bindGoalsWebActions } from "../apps/local-host/dist/goals-actions.js";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalEventTypeDefinitionInput, SetGoalEventAgreementInput } from "@molis-ai/molis-work-contracts/modules/goals";
 

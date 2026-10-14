@@ -56,10 +56,13 @@ export const LINGGUANG_STYLES = `
     display: flex; flex-direction: column; gap: 16px; padding: 4px 0 8px;
   }
   .lingguang-message { display: flex; flex-direction: column; gap: 4px; }
+  .lingguang-message.is-draft strong { color: var(--muted); }
+  .lingguang-message.is-draft p { color: var(--muted); white-space: pre-wrap; }
   .lingguang-chat-form {
     display: flex; flex-direction: column; gap: 8px; flex: none;
   }
   .lingguang-chat-form .mw-btn { flex: none; width: auto; align-self: flex-end; }
+  .lingguang-chat-actions { display: flex; justify-content: flex-end; gap: 8px; }
   .lingguang-note {
     position: absolute; left: 50%; bottom: 28px; z-index: 6;
     margin: 0; padding: 8px 16px; border-radius: 8px;

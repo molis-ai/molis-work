@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { bindActionClient, ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { workActions, WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
-import { SessionRuntimeService } from "../apps/local-host/src/session-runtime-resources.js";
+import { SessionRuntimeService } from "../apps/local-host/dist/session-runtime-resources.js";
 
 test("Work actions use original session facts, enforce project scope and revalidate authority after native work", async () => {
   const home = await mkdtemp(join(tmpdir(), "work-session-actions-"));

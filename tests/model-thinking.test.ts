@@ -1,3 +1,4 @@
+// PA-22: base SDK adoption behavior and retained review/budget boundaries.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
@@ -93,6 +94,11 @@ test("packed SDK: 开着时请求带上思考档、这一轮记下它；关着�
     assert.equal("thinking" in bodies.at(-1), false, "off sends no thinking field at all");
     assert.equal(bodies.at(-1).max_tokens, 4096, "off keeps the SDK's limit");
     assert.equal(off.frozen.thinking, undefined);
+    // The raised ceiling only replaces the SDK default: an output budget the round was given is what goes out.
+    thinking = "adaptive";
+    await done((await adapter.start({ ...owner, directory, session, task: "第三句。", role_id: "reader", role, budget: { max_output_tokens: 900 } })).ref as never);
+    assert.deepEqual(bodies.at(-1).thinking, { type: "adaptive" });
+    assert.equal(bodies.at(-1).max_tokens, 900, "the round's own output budget wins over the thinking ceiling");
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });
 

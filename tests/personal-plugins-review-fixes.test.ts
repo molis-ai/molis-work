@@ -1,10 +1,10 @@
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { handlePagesNativePluginHttp } from "../apps/local-host/src/pages-native-plugin-http.js";
+import { handlePagesNativePluginHttp } from "@molis-ai/molis-work-app-local-host";
 import type { PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";
 import { pagesTestPorts } from "./fixtures/pages-actions.js";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { handleFunctionsHttp } from "../apps/local-host/src/functions-http.ts";
+import { handleFunctionsHttp } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdtemp, mkdir, readFile, rm, writeFile, stat } from "node:fs/promises";
@@ -23,8 +23,8 @@ import {
 import {
   DEMO_PROJECT_ID,
 } from "@molis-ai/molis-work-app-local-host";
-import { GoalProjectApplication } from "../apps/local-host/src/goal-project-application.js";
-import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkV1Error as ContractsError } from "@molis-ai/molis-work-contracts/platform/errors";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -36,7 +36,7 @@ import {
   datasetManifest,
 } from "@molis-ai/molis-work-plugin-dataset";
 import { FORM_CLIENT_FACTORY_SCRIPT, formManifest } from "@molis-ai/molis-work-plugin-form";
-import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/functions/client.ts";
+import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/functions/client.js";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT, lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
@@ -46,16 +46,16 @@ import {
 } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_CLIENT_FACTORY_SCRIPT, pptManifest, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
 import { homeSqlitePath, PERSONAL_HOME_SQLITE_STORES } from "@molis-ai/molis-work-storage";
-import { hostCompleteText } from "../apps/local-host/src/host-complete-text.ts";
-import { handlePersonalNativePluginHttp } from "../apps/local-host/src/personal-native-plugin-http.ts";
-import { rewriteNativePluginApiPath } from "../apps/local-host/src/native-plugin-api.ts";
-import { registerPagesArtifactVersion } from "../apps/local-host/src/pages-artifact.ts";
-import { MolisWorkUninstallService } from "../apps/local-host/src/installer/uninstall.ts";
-import { RuntimeIntegrationService } from "../apps/local-host/src/installer/runtime-integration.ts";
-import { MolisWorkWebServiceManager } from "../apps/local-host/src/installer/web-service.ts";
+import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { handlePersonalNativePluginHttp } from "../apps/local-host/dist/personal-native-plugin-http.js";
+import { rewriteNativePluginApiPath } from "../apps/local-host/dist/native-plugin-api.js";
+import { registerPagesArtifactVersion } from "../apps/local-host/dist/pages-artifact.js";
+import { MolisWorkUninstallService } from "../apps/local-host/dist/installer/uninstall.js";
+import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkWebServiceManager } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
-import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/src/plugin-workbench.ts";
-import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/src/project-plugins.js";
+import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/dist/plugin-workbench.js";
+import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";

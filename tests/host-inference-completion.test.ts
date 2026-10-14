@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hostCompleteText, type HostTextOptions } from "../apps/local-host/src/host-complete-text.js";
-import { markDispatchRefusal } from "../horizontal/agent-host/src/inference.js";
+import { hostCompleteText, type HostTextOptions } from "@molis-ai/molis-work-app-local-host";
+import { markDispatchRefusal } from "../horizontal/agent-host/dist/inference.js";
 const env = () => ({ MOLIS_WORK_TEXT_API_KEY: "private-fixture-key", MOLIS_WORK_TEXT_BASE_URL: "https://model.example/v1", MOLIS_WORK_TEXT_API_FORMAT: "openai-chat-completions", MOLIS_WORK_TEXT_MODEL: "chosen-model" });
 type Resolver = NonNullable<HostTextOptions["resolveInference"]>;
 type Client = Awaited<ReturnType<Resolver>>;

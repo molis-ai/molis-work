@@ -7,7 +7,7 @@ import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-a
 import { MemoryService, MEMORY_GATE_RULE, SIGNAL_THRESHOLD, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { MemoryLedgerPort, MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
-import { prologueMemoryBackend } from "../apps/local-host/src/memory/memory-host.js";
+import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { NOT_THEIRS, THEIRS } from "./fixtures/memory-said-cases.js";
 
 /** A real Prologue runtime (its Memory is the store) and the Host ledger in a scratch Home; restartable. */

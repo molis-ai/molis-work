@@ -141,6 +141,13 @@ export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCac
 export { developerMode } from "./developer-mode.js";
 export { rewriteNativePluginApiPath, withRewrittenPluginApi } from "./native-plugin-api.js";
 export { hostCompleteText, hostTextGeneration, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
+// Context-driven interaction: the judgment service and the readers of what a page claims, for the tests that drive them (new tests import the entry).
+export { createContextualJudgmentService, type ContextualJudgmentPorts, type ContextualJudgmentService } from "./contextual/judgment-service.js";
+export { readJudgeRequest, readLanding } from "./contextual/contextual-request.js";
+export { handleContextualHttp } from "./contextual/contextual-http.js";
+export { draftRequest } from "./contextual/contextual-draft.js";
+export { draftIntake, type DraftInput, type DraftModel, type DraftPorts } from "./drafting/draft-service.js";
+export type { DraftTarget } from "./drafting/draft-data.js";
 export { bindScheduledTaskRunner, bindScheduleDeliveryFeed, scheduleServiceFor } from "./schedule-runtime.js";
 export { createHostScheduledTaskRunner, scheduledTaskReadiness } from "./schedule-task-runner.js";
 
@@ -204,7 +211,7 @@ export {
   type AgentHostComposition,
   type AgentHostCompositionOptions,
 } from "./agent-host-composition.js";
-export { handleAgentReviewHttp, type AgentReviewHttpPorts } from "./agent-review-http.js";
+export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
 export {
   codingDirectoryPanel,
   diffStagePanel,
@@ -232,3 +239,25 @@ export { AssistantService } from "./assistant/assistant-service.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { prologueMemoryBackend } from "./memory/memory-host.js";
+export { ComputerRecords } from "./computer/computer-records.js";
+export { ComputerDesk } from "./computer/computer-desk.js";
+export { ComputerSettings } from "./computer/computer-settings.js";
+export { ComputerDriver, type DeskContext } from "./computer/computer-driver.js";
+export { helperFailure, isRefused } from "./computer/computer-errors.js";
+export {
+  COMPUTER_RECORD_SOURCE_ID,
+  computerRecordFileSource,
+  handleUnscopedComputerFiles,
+  recordsOwnedBy,
+} from "./computer/computer-record-source.js";
+export {
+  SELF_APPROVAL_QUIET_MS,
+  confirmArrivedTooSoon,
+  refuseCapture,
+  refuseDespiteWindowText,
+  refuseLanding,
+  refuseSelfApproval,
+  reviewProjectFor,
+  type ComputerRoundHolder,
+} from "./computer/computer-policy.js";
+export { ASSISTANT_RULES_PROVIDER } from "./assistant/assistant-rule-actions.js";

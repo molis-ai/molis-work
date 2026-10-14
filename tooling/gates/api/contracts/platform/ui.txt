@@ -147,6 +147,7 @@ export interface UiViewDeclaration {
     readonly contribution_id?: string;
     readonly icon?: string;
     readonly accepts_objects?: boolean;
+    readonly objects?: readonly string[];
     readonly order?: number;
 }
 

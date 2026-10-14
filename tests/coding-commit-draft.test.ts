@@ -7,8 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commitDraftMaterial, commitMessageFrom, CODING_COMMIT_DRAFT, CODING_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-coding";
 import { draftText } from "@molis-ai/molis-work-app-local-host";
-import { agentDefinitionsFor } from "../apps/local-host/src/agent-definitions/agent-definitions.js";
-import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-registrations.js";
+import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
+import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-registrations.js";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 const run = (task: string, answer: string) => ({ turns: [{ turn_id: "u", kind: "user", text: task, at: null }, { turn_id: "a", kind: "assistant", text: answer, at: null }] }) as unknown as AgentRunView;

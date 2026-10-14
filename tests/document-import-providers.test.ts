@@ -3,11 +3,11 @@ import test from "node:test";
 import { createServer } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { CATALOG_CONNECTORS } from "../plugins/official-integrations/catalog/src/catalog.js";
-import { catalogWhoami } from "../plugins/official-integrations/catalog/src/provider.js";
+import { CATALOG_CONNECTORS } from "@molis-ai/molis-work-integration-catalog";
+import { catalogWhoami } from "@molis-ai/molis-work-integration-catalog";
 import {
   readExternalDocument, type ExternalDocumentSource,
-} from "../plugins/official-integrations/catalog/src/document-import.js";
+} from "@molis-ai/molis-work-integration-catalog";
 
 const NOTION_ID = "12345678-1234-1234-1234-123456789abc";
 const NOTION_URL = `https://team.notion.site/Notes-${NOTION_ID.replaceAll("-", "")}?shared=private#heading`;

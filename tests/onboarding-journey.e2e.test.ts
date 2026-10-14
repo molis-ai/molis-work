@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
 import { TODO_ACTION_PERMISSIONS, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
-import { withContextJourneys, type ContextJourney, type ContextReference } from "../apps/local-host/src/context-onboarding-store.js";
+import { withContextJourneys, type ContextJourney, type ContextReference } from "../apps/local-host/dist/context-onboarding-store.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean } from "./fixtures/layout-audit.js";
 

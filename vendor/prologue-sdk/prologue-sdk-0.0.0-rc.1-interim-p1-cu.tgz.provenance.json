@@ -1,0 +1,63 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/prologue.git",
+    "path": "packages/sdk",
+    "commit": "08b84296f81df1bd5f3429c2dc2997d18b72473a",
+    "composition": [
+      {
+        "commit": "95cd901d7777ae877f6b64e66ced42ee2ab8d9b1",
+        "summary": "input receipts S3 fix H16 (no input-id note in a round whose tool list lacks acknowledge-inputs) over 82488fa0 = upstream main PR #6 merge (P1 TaskBoard collaboration contract, docs only) over f5ef12e6 (PR #5: input receipts S2, S3) over 55b0c85a (PR #4: A0 adoption fixes, input receipts S1, typed questionnaire); in upstream main since PR #17 (b219d859)"
+      },
+      {
+        "commit": "d4908c118f7899d44e3d1975806797a05f0094b9",
+        "summary": "desktop Computer Use: five commits over c4b9fde3 (feat/desktop-computer-use); in upstream main since PR #15 (a47eb26d)"
+      }
+    ],
+    "inFlight": {
+      "branch": "release/molis-interim-p1-cu-2",
+      "pushed": true,
+      "parents": [
+        "95cd901d7777ae877f6b64e66ced42ee2ab8d9b1",
+        "d4908c118f7899d44e3d1975806797a05f0094b9"
+      ],
+      "parentsOnUpstreamMain": true,
+      "checkedHead": "b219d8592d6eae6de56dda3a7ebbb616bdd862f8",
+      "checkedOn": "2026-10-13",
+      "decision": "user decision 2026-10-13 (interim package until Molis P3)",
+      "supersedes": "release/molis-interim-p1-cu at 208dd381 (same content without H16; never vendored; its commit message gives the decision date as 2026-10-14 by mistake)",
+      "note": "A merge made only to be this package's source: it is not on upstream main, both parents are (git merge-base --is-ancestor against checkedHead). Upstream main's tip cannot go into Molis yet: P2d (PR #11) removes dispatch-subagent and the board tools from runs not bound to a task-graph node and deletes claims, which Molis uses until its P3. P2a-P2g and input receipts S4 (PR #10) come with P3 in a second swap built from an upstream main commit. The merge's only conflict was the public-surface snapshot, regenerated."
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-interim-p1-cu.tgz",
+    "bytes": 1119945,
+    "sha256": "860081e2c480bc10821fe4dfc75d0ff164eadb35269f1b83c97c42c07f750eca",
+    "integrity": "sha512-pVjwwT/96bKOR4b8bSbxDjbqKVc/N4U98t+trKY8vm+42RCYc7VpwlP8AO+bVdg48DoY2d1OIEt7W59JW7dXJg=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "git archive 08b84296f81df1bd5f3429c2dc2997d18b72473a | tar -x -C <dir>",
+      "pnpm install --frozen-lockfile --offline",
+      "pnpm --filter @prologue/sdk run build",
+      "cd packages/sdk && pnpm pack --pack-destination <dir>   # writes prologue-sdk-0.0.0-rc.1.tgz; renamed to prologue-sdk-0.0.0-rc.1-interim-p1-cu.tgz"
+    ],
+    "packedOn": "2026-10-13",
+    "reproducedFrom": "08b84296f81df1bd5f3429c2dc2997d18b72473a",
+    "reproducedByteIdentical": true,
+    "note": "SDK checks on 08b84296 (2026-10-13): dist built first, typecheck clean, full suite 335 files 3782 passed / 21 skipped / 0 failed; desktop-computer-use.live not run (drives the real desktop of a machine in use). Clean-archive consumer checks steer-receipts, input-queue, input-handling passed. Packed twice from clean archives, byte-identical."
+  }
+}

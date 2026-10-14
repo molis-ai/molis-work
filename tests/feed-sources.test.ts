@@ -155,7 +155,9 @@ test("public Feed interruption preserves current owner failures and an uncoded r
       intelligenceCollect: { async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
         if (failure) throw failure;
         return createCompletedIntentResultFixtureV1(request);
-      } }, content: { has() { return true; } }, async shutdown() {},
+      }, async shutdown() {} },
+      content: { write() { throw new Error("this empty result writes no content"); }, read() { return null; }, has() { return false; },
+        inspect() { return { referenced: 0, available: 0, missing: 0, keyAvailable: true }; } }, async shutdown() {},
     }));
     const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
     for (const [error, expected, operation] of [

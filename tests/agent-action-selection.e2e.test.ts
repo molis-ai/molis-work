@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { definePlugin } from "../packages/plugin-sdk/src/index.js";
+import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";

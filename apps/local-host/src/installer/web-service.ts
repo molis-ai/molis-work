@@ -89,15 +89,15 @@ export class MolisWorkWebServiceManager {
 
   private async consumePlan(input: { plan_id: string; decision: "confirmed" | "declined" }): Promise<PreparedServicePlan> {
     const prepared = this.plans.get(input.plan_id);
-    if (!prepared) throw new MolisWorkWebServiceError("service.plan_missing", "常驻服务预览不存在或已失效，请重新预览");
+    if (!prepared) throw new MolisWorkWebServiceError("installer.service.plan_missing", "常驻服务预览不存在或已失效，请重新预览");
     this.plans.delete(input.plan_id);
     if (input.decision === "declined") {
       return prepared;
     }
-    if (prepared.publicPlan.status === "unsupported") throw new MolisWorkWebServiceError("service.unsupported", prepared.publicPlan.message);
-    if (prepared.publicPlan.status === "conflict") throw new MolisWorkWebServiceError("service.conflict", prepared.publicPlan.message);
+    if (prepared.publicPlan.status === "unsupported") throw new MolisWorkWebServiceError("installer.service.unsupported", prepared.publicPlan.message);
+    if (prepared.publicPlan.status === "conflict") throw new MolisWorkWebServiceError("installer.service.conflict", prepared.publicPlan.message);
     if (await this.snapshotHash() !== prepared.snapshotHash) {
-      throw new MolisWorkWebServiceError("service.plan_stale", "LaunchAgent 状态在预览后发生变化，请重新预览");
+      throw new MolisWorkWebServiceError("installer.service.plan_stale", "LaunchAgent 状态在预览后发生变化，请重新预览");
     }
     return prepared;
   }
@@ -123,7 +123,7 @@ export class MolisWorkWebServiceManager {
     finalDetection ??= await this.detect();
     if (["install", "start", "restart"].includes(action) && finalDetection.state !== "running") {
       throw new MolisWorkWebServiceError(
-        "service.command_failed",
+        "installer.service.command_failed",
         `Molis Work Web 操作后没有保持当前受管实例的运行状态：${finalDetection.message}`,
       );
     }

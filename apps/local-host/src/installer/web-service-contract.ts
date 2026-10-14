@@ -67,7 +67,7 @@ export interface PreparedServicePlan {
 
 export class MolisWorkWebServiceError extends Error {
   constructor(
-    readonly code: "service.unsupported" | "service.conflict" | "service.plan_missing" | "service.plan_stale" | "service.command_failed",
+    readonly code: "installer.service.unsupported" | "installer.service.conflict" | "installer.service.plan_missing" | "installer.service.plan_stale" | "installer.service.command_failed",
     message: string,
   ) {
     super(message);

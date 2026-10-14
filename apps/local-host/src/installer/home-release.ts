@@ -193,7 +193,7 @@ async function assertLinkStaysInsideRelease(rootDirectory: string, entryPath: st
   const relative = path.relative(rootDirectory, resolved);
   if (path.isAbsolute(target) || relative === ".." || relative.startsWith(`..${path.sep}`)) {
     throw new MolisWorkHomeInstallError(
-      "source.invalid",
+      "installer.source.invalid",
       `Molis Work 依赖链接指向安装 release 外部，无法生成自包含安装: ${entryPath}`,
     );
   }
@@ -208,11 +208,11 @@ export async function inspectRelease(
   const state = await pathState(releaseDirectory);
   if (!state) return "missing";
   if (!state.isDirectory()) {
-    throw new MolisWorkHomeInstallError("release.conflict", `已存在未知 Molis Work release 文件: ${releaseDirectory}`);
+    throw new MolisWorkHomeInstallError("installer.release.conflict", `已存在未知 Molis Work release 文件: ${releaseDirectory}`);
   }
   const manifest = await readJsonIfPresent<ReleaseManifest>(path.join(releaseDirectory, "release.json"));
   if (!manifest || !isOwnedInstaller(manifest.installer) || manifest.version !== version) {
-    throw new MolisWorkHomeInstallError("release.conflict", `已存在未知 Molis Work release 目录: ${releaseDirectory}`);
+    throw new MolisWorkHomeInstallError("installer.release.conflict", `已存在未知 Molis Work release 目录: ${releaseDirectory}`);
   }
   if (
     manifest.schema_version !== SCHEMA_VERSION

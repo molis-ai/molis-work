@@ -232,7 +232,7 @@ test("home install rejects a source missing the plugin-dev skill", async () => {
       () => installMolisWorkHome({ homeDirectory: join(directory, "home", ".molis-work"), sourceDirectory: source }),
       (error: unknown) =>
         error instanceof MolisWorkHomeInstallError &&
-        error.code === "source.asset_missing" &&
+        error.code === "installer.source.asset_missing" &&
         /skills\/molis-plugin-dev\/SKILL\.md/.test(error.message),
     );
   });
@@ -305,7 +305,7 @@ test("repository sources require a current build fingerprint and local install a
       () => installMolisWorkHome({ homeDirectory: home, sourceDirectory: source }),
       (error: unknown) =>
         error instanceof MolisWorkHomeInstallError
-        && error.code === "source.build_stale"
+        && error.code === "installer.source.build_stale"
         && /pnpm install:local/.test(error.message),
     );
     assert.ok((await stat(join(installed.release_directory, "dist", "cli", "main.js"))).isFile());
@@ -348,7 +348,7 @@ test("workspace source changes reject an old build before touching the installed
       const original = await readFile(changedInput, "utf8");
       await writeFile(changedInput, original + "\n// changed source input\n");
       await assert.rejects(installMolisWorkHome({ homeDirectory: home, sourceDirectory: source }),
-        (error: unknown) => error instanceof MolisWorkHomeInstallError && error.code === "source.build_stale");
+        (error: unknown) => error instanceof MolisWorkHomeInstallError && error.code === "installer.source.build_stale");
       assert.equal(await readFile(installationPath, "utf8"), before);
       assert.equal(await readFile(installed.launchers.cli, "utf8"), launcherBefore);
       await writeFile(changedInput, original);
@@ -458,7 +458,7 @@ test("home install refuses to overwrite unknown launcher files", async () => {
 
     await assert.rejects(
       () => installMolisWorkHome({ homeDirectory: home, sourceDirectory: source }),
-      (error: unknown) => error instanceof MolisWorkHomeInstallError && error.code === "home.unknown_file",
+      (error: unknown) => error instanceof MolisWorkHomeInstallError && error.code === "installer.home.unknown_file",
     );
     assert.equal(await readFile(unknownLauncher, "utf8"), "user launcher");
   });
@@ -487,7 +487,7 @@ test("home install rejects dependency links that would escape the installed rele
       () => installMolisWorkHome({ homeDirectory: join(directory, "home", ".molis-work"), sourceDirectory: source }),
       (error: unknown) =>
         error instanceof MolisWorkHomeInstallError &&
-        error.code === "source.invalid" &&
+        error.code === "installer.source.invalid" &&
         /指向安装 release 外部/.test(error.message),
     );
   });
@@ -611,7 +611,7 @@ test("home install rejects a declared production dependency that cannot be resol
       () => installMolisWorkHome({ homeDirectory: join(directory, "home", ".molis-work"), sourceDirectory: source }),
       (error: unknown) =>
         error instanceof MolisWorkHomeInstallError &&
-        error.code === "source.asset_missing" &&
+        error.code === "installer.source.asset_missing" &&
         /missing-fixture-dependency/.test(error.message),
     );
   });
@@ -789,7 +789,7 @@ test("home install fails when a workspace package is missing declared files or u
       () => installMolisWorkHome({ homeDirectory: join(directory, "home-missing"), sourceDirectory: missing.source }),
       (error: unknown) =>
         error instanceof MolisWorkHomeInstallError
-        && error.code === "source.asset_missing"
+        && error.code === "installer.source.asset_missing"
         && /Missing release asset in fixture-desktop: methods/.test(error.message),
     );
 
@@ -808,7 +808,7 @@ test("home install fails when a workspace package is missing declared files or u
       () => installMolisWorkHome({ homeDirectory: join(directory, "home-globs"), sourceDirectory: globs.source }),
       (error: unknown) =>
         error instanceof MolisWorkHomeInstallError
-        && error.code === "source.invalid"
+        && error.code === "installer.source.invalid"
         && /Unsupported release files entry in fixture-desktop: dist\/\*\*/.test(error.message),
     );
   });

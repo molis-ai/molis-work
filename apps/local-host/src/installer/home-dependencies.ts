@@ -39,7 +39,7 @@ export async function collectRuntimeDependencies(
     } catch (error) {
       if (candidate.optional) continue;
       throw new MolisWorkHomeInstallError(
-        "source.asset_missing",
+        "installer.source.asset_missing",
         `Molis Work 安装源缺少运行时依赖 ${candidate.name}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
@@ -53,7 +53,7 @@ export async function collectRuntimeDependencies(
       metadata = JSON.parse(await fs.readFile(resolvedPackageJson, "utf8")) as typeof metadata;
     } catch {
       throw new MolisWorkHomeInstallError(
-        "source.invalid",
+        "installer.source.invalid",
         `运行时依赖 package.json 无法解析: ${resolvedPackageJson}`,
       );
     }
@@ -61,7 +61,7 @@ export async function collectRuntimeDependencies(
     const version = String(metadata.version ?? "").trim();
     if (name !== candidate.name || !version) {
       throw new MolisWorkHomeInstallError(
-        "source.invalid",
+        "installer.source.invalid",
         `运行时依赖身份无效: ${candidate.name} (${resolvedPackageJson})`,
       );
     }
@@ -72,7 +72,7 @@ export async function collectRuntimeDependencies(
         const parent = byDirectory.get(path.dirname(candidate.fromPackageJson));
         if (!parent) {
           throw new MolisWorkHomeInstallError(
-            "source.invalid",
+            "installer.source.invalid",
             `运行时依赖存在无法平铺的版本冲突: ${name}@${existing.version} / ${name}@${version}`,
           );
         }

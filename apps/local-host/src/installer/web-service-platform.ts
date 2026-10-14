@@ -161,7 +161,7 @@ export async function molisWorkWebPortCheck(): Promise<boolean> {
 }
 
 export function commandError(action: string, result: { code: number; stderr: string }): MolisWorkWebServiceError {
-  return new MolisWorkWebServiceError("service.command_failed", `launchctl ${action}失败（${result.code}）：${result.stderr.trim() || "未知错误"}`);
+  return new MolisWorkWebServiceError("installer.service.command_failed", `launchctl ${action}失败（${result.code}）：${result.stderr.trim() || "未知错误"}`);
 }
 
 export function errorMessage(error: unknown): string {

@@ -14,10 +14,10 @@ export async function inspectSource(
 ): Promise<InspectedSource> {
   const sourceState = await pathState(sourceDirectory);
   if (!sourceState?.isDirectory()) {
-    throw new MolisWorkHomeInstallError("source.invalid", `Molis Work 安装源不存在或不是目录: ${sourceDirectory}`);
+    throw new MolisWorkHomeInstallError("installer.source.invalid", `Molis Work 安装源不存在或不是目录: ${sourceDirectory}`);
   }
   const packageJson = path.join(sourceDirectory, "package.json");
-  const packageText = await readText(packageJson, "source.asset_missing");
+  const packageText = await readText(packageJson, "installer.source.asset_missing");
   let packageMetadata: {
     version?: unknown;
     dependencies?: Record<string, unknown>;
@@ -26,7 +26,7 @@ export async function inspectSource(
   try {
     packageMetadata = JSON.parse(packageText) as typeof packageMetadata;
   } catch {
-    throw new MolisWorkHomeInstallError("source.invalid", `Molis Work 安装源 package.json 无法解析: ${packageJson}`);
+    throw new MolisWorkHomeInstallError("installer.source.invalid", `Molis Work 安装源 package.json 无法解析: ${packageJson}`);
   }
   const packageVersion = String(packageMetadata.version ?? "").trim();
   const version = (requestedVersion ?? packageVersion).trim();
@@ -40,7 +40,7 @@ export async function inspectSource(
   ]) {
     const assetPath = path.join(sourceDirectory, asset);
     if (!(await pathState(assetPath))) {
-      throw new MolisWorkHomeInstallError("source.asset_missing", `Molis Work 安装源缺少 ${asset}: ${assetPath}`);
+      throw new MolisWorkHomeInstallError("installer.source.asset_missing", `Molis Work 安装源缺少 ${asset}: ${assetPath}`);
     }
   }
   await assertFreshRepositoryBuild(sourceDirectory);
@@ -49,7 +49,7 @@ export async function inspectSource(
   const bundledNodeState = await pathState(bundledNodeCandidate);
   if (bundledNodeState && !bundledNodeState.isFile()) {
     throw new MolisWorkHomeInstallError(
-      "source.invalid",
+      "installer.source.invalid",
       `Molis Work bundled Node 不是文件: ${bundledNodeCandidate}`,
     );
   }
@@ -71,7 +71,7 @@ export async function assertFreshRepositoryBuild(sourceDirectory: string): Promi
   const currentDigest = await computeBuildSourceDigest(sourceDirectory);
   if (manifest?.schema_version === 1 && manifest.source_digest === currentDigest) return;
   throw new MolisWorkHomeInstallError(
-    "source.build_stale",
+    "installer.source.build_stale",
     `Molis Work 源码与 dist 不一致，已停止安装旧构建。请在仓库运行 pnpm install:local（它会先 build）后重试: ${sourceDirectory}`,
   );
 }
@@ -105,7 +105,7 @@ export async function computeSourceContentDigest(
 
 export function safeReleaseName(version: string): string {
   if (!version || !/^[0-9A-Za-z][0-9A-Za-z._+-]*$/.test(version)) {
-    throw new MolisWorkHomeInstallError("version.invalid", `Molis Work 版本不能用于安装目录: ${version || "(empty)"}`);
+    throw new MolisWorkHomeInstallError("installer.version.invalid", `Molis Work 版本不能用于安装目录: ${version || "(empty)"}`);
   }
   return `molis-work-${version}`;
 }

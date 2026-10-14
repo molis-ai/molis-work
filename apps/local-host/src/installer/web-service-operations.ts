@@ -14,7 +14,7 @@ export class WebServiceOperations {
     const previousReceipt = await readText(this.environment.receiptPath);
     const detection = await this.detect();
     if (detection.state === "conflict") {
-      throw new MolisWorkWebServiceError("service.conflict", detection.message);
+      throw new MolisWorkWebServiceError("installer.service.conflict", detection.message);
     }
     const previouslyRunning = detection.running;
     let serviceMutated = false;
@@ -43,7 +43,7 @@ export class WebServiceOperations {
       const finalDetection = await this.detect();
       if (finalDetection.state !== "running") {
         throw new MolisWorkWebServiceError(
-          "service.command_failed",
+          "installer.service.command_failed",
           `Molis Work Web 安装后没有保持当前受管实例的运行状态：${finalDetection.message}`,
         );
       }
@@ -68,7 +68,7 @@ export class WebServiceOperations {
       }
       if (rollbackErrors.length > 0) {
         throw new MolisWorkWebServiceError(
-          "service.command_failed",
+          "installer.service.command_failed",
           `${errorMessage(error)}；自动恢复未完成：${rollbackErrors.join("；")}`,
         );
       }
@@ -90,7 +90,7 @@ export class WebServiceOperations {
   async restart(): Promise<MolisWorkWebServiceDetection> {
     const previous = await this.detect();
     if (previous.state === "conflict") {
-      throw new MolisWorkWebServiceError("service.conflict", previous.message);
+      throw new MolisWorkWebServiceError("installer.service.conflict", previous.message);
     }
     try {
       await this.process.stop();
@@ -105,7 +105,7 @@ export class WebServiceOperations {
 
   async remove(): Promise<void> {
     const detection = await this.detect();
-    if (!detection.owned) throw new MolisWorkWebServiceError("service.conflict", "LaunchAgent 不属于 Molis Work，拒绝移除");
+    if (!detection.owned) throw new MolisWorkWebServiceError("installer.service.conflict", "LaunchAgent 不属于 Molis Work，拒绝移除");
     await this.process.stop();
     await fs.rm(this.environment.plistPath, { force: true });
     await fs.rm(this.environment.receiptPath, { force: true });
@@ -115,7 +115,7 @@ export class WebServiceOperations {
     const detection = await this.detect();
     if (detection.state === "running") return detection;
     throw new MolisWorkWebServiceError(
-      "service.command_failed",
+      "installer.service.command_failed",
       `Molis Work Web ${action}后没有保持当前受管实例的运行状态：${detection.message}`,
     );
   }
@@ -126,7 +126,7 @@ export class WebServiceOperations {
       else await this.process.stop();
     } catch (rollbackError) {
       throw new MolisWorkWebServiceError(
-        "service.command_failed",
+        "installer.service.command_failed",
         `${errorMessage(originalError)}；自动恢复操作前运行状态失败：${errorMessage(rollbackError)}`,
       );
     }

@@ -74,7 +74,7 @@ export async function runtimeDependencyReleaseEntries(directory: string): Promis
     if (error instanceof MolisWorkHomeInstallError) throw error;
     const message = error instanceof Error ? error.message : String(error);
     throw new MolisWorkHomeInstallError(
-      message.includes("Missing release asset") ? "source.asset_missing" : "source.invalid",
+      message.includes("Missing release asset") ? "installer.source.asset_missing" : "installer.source.invalid",
       message.startsWith("Missing release asset") || message.startsWith("Unsupported release files")
         ? message
         : `Molis Work 依赖发布文件范围无效: ${message}`,

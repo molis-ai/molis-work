@@ -124,13 +124,13 @@ export interface TextMutation {
 export class MolisWorkHomeInstallError extends Error {
   constructor(
     readonly code:
-      | "home.not_directory"
-      | "source.invalid"
-      | "source.asset_missing"
-      | "source.build_stale"
-      | "version.invalid"
-      | "home.unknown_file"
-      | "release.conflict",
+      | "installer.home.not_directory"
+      | "installer.source.invalid"
+      | "installer.source.asset_missing"
+      | "installer.source.build_stale"
+      | "installer.version.invalid"
+      | "installer.home.unknown_file"
+      | "installer.release.conflict",
     message: string,
   ) {
     super(message);

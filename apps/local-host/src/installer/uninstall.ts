@@ -121,15 +121,15 @@ export class MolisWorkUninstallService {
     purge_confirmation?: { home_directory: string; user_project_count: number };
   }): Promise<MolisWorkUninstallResult> {
     const prepared = this.plans.get(input.plan_id);
-    if (!prepared) throw new MolisWorkUninstallError("uninstall.plan_missing", "卸载预览不存在或已失效，请重新预览");
+    if (!prepared) throw new MolisWorkUninstallError("installer.uninstall.plan_missing", "卸载预览不存在或已失效，请重新预览");
     this.plans.delete(input.plan_id);
     const plan = prepared.publicPlan;
     if (input.decision === "declined") {
       return { status: "declined", home_directory: this.homeDirectory, removed_paths: [], preserved_paths: plan.preserved_paths, receipt_path: null, message: "已取消，没有修改 Molis Work 安装或数据" };
     }
-    if (plan.status === "conflict") throw new MolisWorkUninstallError("uninstall.conflict", plan.message);
+    if (plan.status === "conflict") throw new MolisWorkUninstallError("installer.uninstall.conflict", plan.message);
     if (await this.snapshotHash(prepared.snapshotPaths) !== prepared.snapshotHash) {
-      throw new MolisWorkUninstallError("uninstall.plan_stale", "Molis Work 安装内容在预览后发生变化，请重新预览");
+      throw new MolisWorkUninstallError("installer.uninstall.plan_stale", "Molis Work 安装内容在预览后发生变化，请重新预览");
     }
     if (plan.purge_user_data) this.requirePurgeConfirmation(plan, input.purge_confirmation);
     if (plan.status === "no_change") {
@@ -212,7 +212,7 @@ export class MolisWorkUninstallService {
       receipt.error = error instanceof Error ? error.message : String(error);
       receipt.updated_at = new Date().toISOString();
       await this.writeReceipt(receipt).catch(() => undefined);
-      throw new MolisWorkUninstallError("uninstall.step_failed", `卸载未完成，进度收据已保留：${receipt.error}`);
+      throw new MolisWorkUninstallError("installer.uninstall.step_failed", `卸载未完成，进度收据已保留：${receipt.error}`);
     }
   }
 
@@ -226,7 +226,7 @@ export class MolisWorkUninstallService {
       && confirmation.user_project_count === plan.user_project_count
     ) return;
     throw new MolisWorkUninstallError(
-      "uninstall.purge_confirmation_required",
+      "installer.uninstall.purge_confirmation_required",
       `永久清除还需要再次确认精确目录 ${this.homeDirectory} 和用户项目数量 ${plan.user_project_count}`,
     );
   }

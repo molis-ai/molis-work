@@ -74,11 +74,11 @@ export interface UninstallReceipt {
 export class MolisWorkUninstallError extends Error {
   constructor(
     readonly code:
-      | "uninstall.plan_missing"
-      | "uninstall.plan_stale"
-      | "uninstall.conflict"
-      | "uninstall.purge_confirmation_required"
-      | "uninstall.step_failed",
+      | "installer.uninstall.plan_missing"
+      | "installer.uninstall.plan_stale"
+      | "installer.uninstall.conflict"
+      | "installer.uninstall.purge_confirmation_required"
+      | "installer.uninstall.step_failed",
     message: string,
   ) {
     super(message);

@@ -18,9 +18,9 @@ export interface MolisWorkRuntimePayloadOptions {
 /** Packages the same self-contained release used by Home installation, without installing or starting it. */
 export async function createMolisWorkRuntimePayload(options: MolisWorkRuntimePayloadOptions): Promise<{ directory: string; version: string }> {
   const destination = path.resolve(options.destinationDirectory);
-  if (await pathState(destination)) throw new MolisWorkHomeInstallError("source.invalid", `Runtime payload 输出已存在，不会覆盖: ${destination}`);
+  if (await pathState(destination)) throw new MolisWorkHomeInstallError("installer.source.invalid", `Runtime payload 输出已存在，不会覆盖: ${destination}`);
   const nodeExecutable = path.resolve(options.nodeExecutablePath);
-  if (!(await pathState(nodeExecutable))?.isFile()) throw new MolisWorkHomeInstallError("source.invalid", `Runtime Node 不是文件: ${nodeExecutable}`);
+  if (!(await pathState(nodeExecutable))?.isFile()) throw new MolisWorkHomeInstallError("installer.source.invalid", `Runtime Node 不是文件: ${nodeExecutable}`);
   const source = await inspectSource(path.resolve(options.sourceDirectory), undefined);
   source.bundledNodePath = nodeExecutable;
   source.contentDigest = createHash("sha256").update(JSON.stringify({

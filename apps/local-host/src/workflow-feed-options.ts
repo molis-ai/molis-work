@@ -1,9 +1,9 @@
-import { createFeedCaptureTrigger, feedSourceActions, type FeedSourceSchedulerResult } from "@molis-ai/molis-work-plugin-feed";
+import { createFeedCaptureTrigger, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import type { ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createLocalFeedApplication, type LocalFeedApplicationOptions } from "./feed-application.js";
 import { createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { localWebActionContext } from "./local-web-actions.js";
@@ -52,7 +52,7 @@ export function createProjectFeedScheduler(host: MolisWorkLocalHost, runtime: Mo
     tick: () => feedPull(async () => {
       const caller = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS, lifetime.signal);
       lifetime.signal.throwIfAborted();
-      return actions.invoke<Record<string, never>, FeedSourceSchedulerResult>(caller, feedSourceActions.tick, {});
+      return bindActionClient(actions, () => caller).invoke(feedSourceActions.tick, {});
     }),
   };
 }

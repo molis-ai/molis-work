@@ -1,6 +1,51 @@
+import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_REASONING_EFFORTS, type AgentReasoningEffort, type AgentRunControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingWriterAssignments } from "./writers.js";
 import type { CodingModelChoice } from "./routes.js";
+
+const identity = {
+  session_id: { type: "string", minLength: 1, maxLength: 200 },
+  run_id: { type: "string", minLength: 1, maxLength: 200 },
+};
+/** A string the handler's text() accepts: present, within the cap, and not only spaces. */
+const words = (maximum: number) => ({ type: "string", minLength: 1, maxLength: maximum, pattern: "\\S" });
+const answerItem = {
+  type: "object", additionalProperties: false, required: ["question", "indexes"],
+  properties: {
+    question: { type: "integer" },
+    indexes: { type: "array", maxItems: 20, items: { type: "integer" } },
+    other: { type: "string", maxLength: 500 },
+  },
+};
+function controlBranch(kind: string, extra: Record<string, unknown>, required: readonly string[]): ActionSchema {
+  return {
+    type: "object", additionalProperties: false,
+    properties: { ...identity, kind: { const: kind }, ...extra },
+    required: ["session_id", "run_id", "kind", ...required],
+  };
+}
+
+/**
+ * The published input of coding.runs.control. Each kind names the fields its handler reads, so a call the schema
+ * accepts is not later rejected for a field this schema never asked for.
+ */
+export const codingRunControlInput: ActionSchema = {
+  oneOf: [
+    controlBranch("answer", { pending_id: words(200), pending_revision: { type: "integer", minimum: 1 }, text: words(100_000) }, ["pending_id", "pending_revision", "text"]),
+    controlBranch("answer", {
+      pending_id: words(200), pending_revision: { type: "integer", minimum: 1 },
+      answers: { type: "array", minItems: 1, maxItems: 10, items: answerItem },
+    }, ["pending_id", "pending_revision", "answers"]),
+    controlBranch("steer", { text: words(100_000) }, ["text"]),
+    controlBranch("stop", {}, []),
+    controlBranch("pause", {}, []),
+    controlBranch("resume", {}, []),
+    controlBranch("switch-model", {
+      provider_id: { type: "string", minLength: 1, maxLength: 200 },
+      model_id: { type: "string", minLength: 1, maxLength: 200 },
+    }, ["provider_id", "model_id"]),
+  ],
+};
 
 /** What the page sends to start, steer or answer a round, checked before it reaches the Host. */
 

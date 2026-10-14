@@ -121,6 +121,7 @@ export {
 } from "./roles.js";
 export { createCodingPlugin, type CodingPluginPorts } from "./plugin.js";
 export { CODING_ACTIONS, codingRouteActions } from "./route-actions.js";
+export { runControl } from "./run-inputs.js";
 export type { CodingExecutionPorts, CodingModelChoice } from "./routes.js";
 export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE, planContinuesAfterTalk } from "./routes.js";
 export {

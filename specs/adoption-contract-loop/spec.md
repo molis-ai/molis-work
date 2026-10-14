@@ -93,3 +93,5 @@
 碰了 contracts、agent-host 或跨三个以上包时，全量前先整体 `pnpm build`。
 
 当前合同补记（2026-10-13）：coding.runs.control 输入形状改变，因此按现行合同规则用v2；不保留v1别名，不因没有外部固定引用而复用旧版本。同一runControl/schema、user受众与页面下一次调用换模语义保持。ADOPT-CONTROL-V2-01：公开schema拒绝缺字段、完整answer/steer/stop/pause/resume/switch-model可用，版本为2且页面/HTTP按当前定义调用；构建后更新实际动作快照与现行消费者，再按当前main检查。
+
+ADOPT-CONTROL-V2-01候选验证（2026-10-13）：当前严格schema、v2和user受众在整体构建、实际动作快照、API、健康/边界以及三文件31条真实测试中通过，零失败/跳过/取消。页面与HTTP引用当前定义；没有内部消费者固定control v1，MCP/Agent本来不获此user-only动作。合入后才成为main现行合同，本验证不代替采用线其余桌面验收。

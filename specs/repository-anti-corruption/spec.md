@@ -2593,10 +2593,25 @@ FIX79 Shelf输出旧预期：runtime-actions.refused本已明确Common ActionErr
 FIX79-LIFETIME：current create已auto-select并codingDetail=true，旧测试随后点击隐藏directory row；新fixture通过真正可见directory-back→等待detail=false→点原row，保单次create/request/effect与卸载全部断言，生产不改。NETWORK-PULSE-01：原句/英文/匿名账号与HTML默认hidden静态断言全保，删失效的源码实现regex，将等价更强的实际可见性断言移入既有Chrome Alchemist client完整HTTP/SQLite测试；点击pulse/ideas/decisions/directions现行collection，唯pulse notice可见，不放宽timeout或跳过UI。这些四test文件尚未运行，不把修好源码记通过。
 
 
-**W3-02 Goals错误余项 I29（准备，未运行）。** 规划动作两个实际拒绝planning_method.not_found改为本插件唯一声明goals.planning.method_not_found；创建意图白名单拒绝mcp.unexpected_field改为goals.intent.unexpected_field，MCP传输自己拒绝未许可字段的mcp.unexpected_field保持。不是全局字符串替换。R-GOALS-OWNER-01：实际planning read/apply缺方法分别保原文案、invalid/400、项目规划版本和组合不变；R-GOALS-OWNER-02：真实Host的GoalEventApplication.createIntent在schema之外直接拒绝未许可字段（动作schema的actions.input_invalid仍保留）保details.fields、invalid/400、事件/Goal/关系和幂等状态不变，正常及重试路径保持。生产方各声明一次、不引入旧码alias或读取兼容；既有真实Host动作测试补编号与拒绝数据断言。Source类型/API/merge-base健康与纳I8后真实回归分开验收。
+**W3-02 Goals错误余项 I29（准备，未运行）。** 规划动作两个实际拒绝planning_method.not_found改为本插件唯一声明goals.planning.method_not_found；创建意图白名单拒绝mcp.unexpected_field改为goals.intent.unexpected_field，MCP传输自己拒绝未许可字段的mcp.unexpected_field保持。不是全局字符串替换。R-GOALS-OWNER-01：实际planning read/apply缺方法分别保原文案、动作kind invalid/默认400；项目apply HTTP现有特判404保留，规划版本和组合不变；R-GOALS-OWNER-02：真实Host的GoalEventApplication.createIntent在schema之外直接拒绝未许可字段（动作schema的actions.input_invalid仍保留）保details.fields、invalid/400、事件/Goal/关系和幂等状态不变，正常及重试路径保持。生产方各声明一次、不引入旧码alias或读取兼容；既有真实Host动作测试补编号与拒绝数据断言。Source类型/API/merge-base健康与纳I8后真实回归分开验收。
 
 
 **W3-02 Kernel缺Session错误 I30（准备，未运行）。** 已区分两个同名历史码的真正拒绝：Kernel action-authorship检查authorship:session且trusted runtime_session_missing，文案是缺稳定Session；Host mcp-event-identity检查runtime_id，文案是缺可信Runtime。只将Kernel声明/生产与五个实测其路径的测试期望改为kernel.runtime_identity_missing invalid；Host的mcp.runtime_identity_missing保持，不能全仓替换。R-KERNEL-OWNER-01：直接、nested wrapper、workflow与Feed promotion/offer/Gateway在缺Session时保原文案/400、zero handler与zero记录；补有效Session后原作者与合法执行保持。只有现行码改归属，无身份兜底、读取兼容、权限/schema或状态机变化；Source与整建后实际回归分别记录。
 
 
 I29 Source df02dd098e12cf12e14b9c98cb81ec53480865be已准备四文件36+/6-；Goals源码类型own/all0、API62文件2410声明无变，merge-base健康通过（本Source parent dc6821，只含I27，28类/0形状/10非owner）。独立复核在途，真实运行未做，尚未纳I8。I30首次Source类型89失败仅六条缺AJV借用依赖；补自己树的kernel node_modules软链再做89b，不能将首次失败记通过。隔离SDK新候选923e5a40（含#493 CU-image）加原beforeAccept最小补丁已只在新临时工作树准备，未build/pack、未推上游/替vendor；唯一87仍未启动，不重复排新构建。
+
+
+I29首轮Source复核拒绝两个P1：factory第二参本为details却沿用ActionError options导致details多包一层；web-planning旧码比较遗漏会丢原404。已传原始fields并同片同步唯一HTTP消费者，新真实HTTP missing apply断言404/原文案/项目读取不变，原断言不放宽。更正同段原状态描述，不把首轮静态通过当接受或运行通过。I30 Source89b补自己借用AJV链后own/all0，API无变/健康通过；先修正I29再继续，未纳I8。
+
+
+**W3-02 MCP两个错误归属 I31（准备，未运行）。** MCP适配自己的URL构造失败web.url_invalid改为mcp.url_invalid，自己的Runtime Goal Tree批准入口拒绝goals.goal_tree_proposal.runtime_decide_unsupported改为mcp.runtime_decide_unsupported；它们不属于Web页面或Goals领域。原createError端口与Host共同ActionError适配保留，同一拒绝条件、原文案/details、默认invalid/400、调用顺序保持，管理路径和真正Goals错误不动。R-MCP-OWNER-01：公开MCP URL呈现真实无效base拒绝/合法地址成功；公开dispatch Runtime批准拒绝原文案且零业务invoke，management真实同动作授权/拒绝原有测试保持。Source类型/API/健康与I8整建运行分别记录；无工具名/schema/受众/身份/日志合同改变，无旧码alias。
+
+
+I29最终e8b0e1efd关闭两个P1后已独立Source接受；90实际Goals/Kernel源码own/all均0、健康通过class28/shape0/owner9。I30实际3bc3ba3a6六文件14+/7-已提交，现有协调会话只读复核在途，真实回归仍待整建。#488已由其负责人合入，协调会话核GitHub主线f6f2ce47d8b35265479c800a7222675335e5b28f、其当前435所有必需CI成功；#489由Pages唯一owner接formatter/资源/最终共享全量。Root I8仍b33/5ba，未静默把新main或Source结果当组合证据。
+
+
+**W3-02 Installed Plugin四个技术拒绝归属 I32（准备，未运行）。** installed-plugin-host已归Plugin安装域，四个执行安装身份或模型caller缺失/失效拒绝的host.capability_denied改为现行plugin.capability_denied。只改四个码字面量；SandboxError保留：runner.ts只将该技术类的code/message交回沙箱，并据其可信outcome判未知结果，换成普通ActionError会丢失原回执，不能为清类而改这个IPC合同。现行plugin.capability_denied已在公开Plugin唯一错误声明中为invalid，无新alias、声明、factory、读取兼容或宽松异常映射；原条件、文案、SandboxError身份与outcome/默认状态保持。R-INSTALLED-OWNER-01：AST实际生产四点只改owner前缀，shared Sandbox runner已知拒绝/未知结果、installed-plugin-host真实停用/关闭/重启/模型声明与零业务效果相关回归保持，merge-base健康不增且该域wrong-owner清零。改名属机械代码归属修正，不新增仅测试包装的自证用例；Source与I8整建实际回归分记。
+
+
+I30 3bc3ba3a6已独立Source接受，文档c82a96e61补两处Kernel缺稳定Session码；I31 93bdb31a7四文件29+/5-，Source MCP own/all0、API无变，初次91健康因旧CALL-CHAINS死引用失败、91b更正同片文档后通过（class28/shape0/owner7），独立复核在途。I32 installed-plugin-host单文件四码机械归属修正4+/4-：Source92 scoped1file0/all223（不是全Host0），API62/2410无变、健康通过class28/shape0/owner6。I32 parent04a已含I28但未纳I29–I31，因此该数字不可与另一Source的7直接当Root组合数；纳全片后再实量。Source parent含I26的误写已纠正。唯一87仍排A2，SDK新候选88尚未build/pack。

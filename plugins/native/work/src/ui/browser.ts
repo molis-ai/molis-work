@@ -16,7 +16,7 @@ export const PROJECT_OPERATIONS_CLIENT_SCRIPT = `
   });
   const showToast = (message) => {
     if (!toast) return;
-    toast.textContent = message;
+    toast.textContent = message; toast.dataset.mwState = "idle"; toast.classList.remove("is-error");
     toast.hidden = false;
     clearTimeout(showToast.timer);
     showToast.timer = setTimeout(() => { toast.hidden = true; }, 3200);

@@ -257,7 +257,7 @@ export const GOAL_CANVAS_STYLES = `
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .goal-stage-list .goal-status svg { display: block; width: 12px; height: 12px; flex: none; }
+  .goal-stage-list .goal-status svg { display: block;  flex: none; }
   .goal-stage-list .tree-progress { display: inline-flex; align-items: center; gap: 8px; grid-column: 3; grid-row: 1; min-width: 0; width: auto; margin: 0; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
   .goal-stage-list .tree-progress.is-empty { visibility: hidden; }
   .goal-stage-list .tree-progress > i { width: 34px; height: 2px; overflow: hidden; background: var(--line-strong); flex: none; }
@@ -327,8 +327,6 @@ export const GOAL_CANVAS_STYLES = `
   .goal-kanban-card-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .goal-kanban-card-meta small { min-width: 0; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   body.immersive-workbench .goal-kanban-card .goal-status { display: inline-flex; align-items: center; gap: 4px; width: max-content; max-width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 11px; font-weight: 400; color: var(--goal-status-tone); }
-  body.immersive-workbench .goal-kanban-card .goal-status svg { display: none; }
-  body.immersive-workbench .goal-kanban-card .goal-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
   .goal-kanban-card:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   @container goal-board (max-width: 839px) {
     .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: block; overflow-x: hidden; overflow-y: auto; background: var(--paper); min-width: 0; max-width: 100%; }
@@ -382,8 +380,6 @@ export const GOAL_CANVAS_STYLES = `
     .goal-canvas-node:hover .goal-canvas-open, .goal-canvas-node:hover .goal-canvas-frame, .goal-canvas-node:focus-within .goal-canvas-open, .goal-canvas-node:focus-within .goal-canvas-frame, .goal-canvas-node.is-selected .goal-canvas-open, .goal-canvas-node.is-selected .goal-canvas-frame { opacity: 1; }
   }
   .goal-canvas-node > .goal-status { display: inline-flex; align-items: center; gap: 8px; grid-row: 3; grid-column: 1; align-self: end; width: max-content; padding: 0; border: 0; background: transparent; max-width: none; font-size: 11px; font-weight: 400; color: var(--goal-status-tone); }
-  .goal-canvas-node > .goal-status svg { display: none; }
-  .goal-canvas-node > .goal-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
   .goal-canvas-node:focus-visible, .goal-canvas-open:focus-visible, .goal-canvas-frame:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .goal-canvas-viewport.is-reject { background-color: color-mix(in srgb, var(--amber) 8%, var(--canvas)); }
   .goal-canvas-node:hover { border-color: color-mix(in srgb, var(--ink) 22%, var(--line)); }

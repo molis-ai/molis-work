@@ -211,7 +211,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (text !== undefined && text !== null) node.textContent = text;
     return node;
   };
-  const stateLabel = (state) => L(STATE_LABELS[state] || state || "");
+  const stateLabel = (state) => L(STATE_LABELS[state] || state || ""); const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? L("个人")
     : title || (project && scope.project_id === project.id ? (project.title || L("本项目")) : L("另一个项目"));
   const currentWork = () => works.find((work) => work.work_id === currentId) || (view && view.work.work_id === currentId ? view.work : null);
@@ -557,7 +557,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     "file-change": "code", command: "terminal", "command-output": "terminal", ask: "question", todo: "list", suggest: "zap", delegate: "workflow", "delegate-check": "workflow",
     "delegate-follow-up": "workflow", "delegate-stop": "workflow", "memory-keep": "sparkles", "memory-list": "sparkles", "memory-forget": "sparkles", "memory-suggest": "sparkles",
     "auto-continue": "refresh", compact: "refresh", "browser-list": "globe", "browser-look": "globe", "browser-act": "globe", "computer-list": "system", "computer-look": "system", "computer-act": "system", "ended-on-promise": "alert" };
-  const verbGlyph = (item) => item.state === "started" ? spinner() : glyph(item.state === "failed" ? "circle-alert" : item.state === "unknown" ? "alert" : VERB_GLYPH[item.verb] || "circle");
+  const verbGlyph = (item) => item.state === "started" ? spinner() : item.state === "failed" || item.state === "unknown" ? spinner(item.state === "failed" ? "failed" : "verify") : glyph(VERB_GLYPH[item.verb] || "circle");
   const activityLine = (item) => {
     const verb = L(VERBS[item.verb] || item.verb);
     const what = item.target ? (item.verb === "ask" ? "：" : " ") + item.target : "";
@@ -599,7 +599,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const renderReview = (card, work, review) => {
     const [, kind, kindIcon] = REVIEW_KIND.find(([pattern]) => pattern.test(String(review.kind || ""))) || REVIEW_KIND[REVIEW_KIND.length - 1];
     const head = el("div", "assistant-card-head"), mark = el("span", "assistant-card-kicker is-attention"), badge = el("span", "assistant-card-badge");
-    mark.append(glyph("shield"), document.createTextNode(L("执行前需要你确认"))); badge.append(glyph(kindIcon), document.createTextNode(L(kind)));
+    mark.append(spinner("approval"), document.createTextNode(L("执行前需要你确认"))); badge.append(glyph(kindIcon), document.createTextNode(L(kind)));
     head.append(mark, badge); card.replaceChildren(head, el("p", "assistant-card-title", review.summary));
     const plain = review.fields.filter((field) => field.label !== "完整参数" && field.label !== "能力");
     const CODE_FIELD = { "改动": "diff", "命令": "sh", "参数": "json" };
@@ -838,7 +838,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     const status = keyed(node, "data-entry", "status", () => el("p", "assistant-round-status"));
     const phase = round.phase;
-    status.dataset.phase = phase;
+    status.dataset.phase = phase; status.dataset.mwState = ({starting:'starting',running:'running',compacting:'running',failed:'failed',stopped:'stopped',cancelled:'cancelled',paused:'paused','reconcile-required':'verify',unknown:'verify'})[phase] || 'idle';
     const ownStop = round.stop_reason && round.stop_reason !== "已停止" ? round.stop_reason : "";
     setText(status, phase === "running" || phase === "starting" || phase === "compacting" ? L("正在处理…")
       : phase === "failed" ? L("这一轮没有完成") + (round.stop_reason ? "：" + round.stop_reason : "")
@@ -896,7 +896,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (found && found.firstElementChild) holder.append(found.firstElementChild.cloneNode(true));
     return holder;
   };
-  const spinner = () => el("span", "assistant-spinner");
+  const spinner = (state = "running") => { const mark = el("span", "assistant-state-ring"); mark.dataset.mwState = state; mark.setAttribute("aria-hidden", "true"); return mark; };
   /** What an object is, read from its kind or the surface it opens in. */
   const KIND_GLYPH = [[/todo/, "check"], [/image|photo/, "image"], [/coding|code/, "code"], [/goal/, "target"], [/lingguang|idea/, "idea"],
     [/feed|inbox|mail/, "inbox"], [/workflow|schedule/, "workflow"], [/dataset|database/, "database"], [/artifact|package/, "package"], [/page|doc|note|form|ppt/, "note"]];
@@ -1059,7 +1059,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           const current = item.state === "in-progress", waiting = current && next;
           const row = el("div", "assistant-subtask assistant-step-item" + (waiting ? " is-attention" : current ? " is-current" : "") + (item.state === "abandoned" ? " is-abandoned" : ""));
           const mark = el("span", "assistant-subtask-mark" + (item.state === "done" ? " is-done" : waiting ? " is-attention" : ""));
-          mark.append(item.state === "done" ? glyph("check") : waiting ? glyph("status-waiting") : current ? spinner() : item.state === "abandoned" ? glyph("x") : glyph("circle"));
+          mark.append(spinner(item.state === "done" ? "done" : waiting ? (work.state === "needs-check" ? "verify" : work.state === "waiting-review" ? "approval" : "answer") : current ? (work.state === "running" ? "running" : work.state === "paused" ? "paused" : "doing") : item.state === "abandoned" ? "cancelled" : "idle"));
           if (waiting) {
             const name = el("button", "assistant-subtask-name", item.text); name.type = "button"; name.setAttribute("aria-label", next.label + "：" + item.text);
             name.addEventListener("click", () => next.run());
@@ -1077,7 +1077,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           const row = el("div", "assistant-subtask" + (WAITING.has(child.state) && !child.taken_back ? " is-attention" : ""));
           const tone = child.taken_back ? "" : child.state === "completed" ? "done" : WAITING.has(child.state) ? "attention" : child.state === "failed" ? "blocked" : "";
           const mark = el("span", "assistant-subtask-mark" + (tone ? " is-" + tone : ""));
-          mark.append(child.state === "running" ? spinner() : glyph(child.state === "completed" ? "check" : WAITING.has(child.state) ? "status-waiting" : child.state === "failed" ? "circle-alert" : "circle"));
+          mark.append(spinner(ringState(child.state)));
           const name = el("button", "assistant-subtask-name", child.title); name.type = "button"; name.setAttribute("aria-label", L("打开") + "：" + child.title);
           name.addEventListener("click", () => switchTo(child.work_id));
           row.append(mark, name, el("span", "assistant-subtask-state", (child.taken_back ? L("已收回") : stateLabel(child.state)) + (child.follow_ups ? " · " + L("补改") + " " + child.follow_ups : "")));
@@ -1216,11 +1216,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           render();
         }, false, "secondary", "undo")] : [] }));
       const JOB = { running: "进行中", completed: "已完成", failed: "没有完成", unknown: "不再跟进，请到原处查看" };
-      const background = jobs.map((job) => card({ icon: job.state === "running" ? spinner() : job.state === "completed" ? "check" : "circle-alert",
+      const background = jobs.map((job) => card({ icon: spinner(job.state === "running" ? "running" : job.state === "completed" ? "round-ended" : job.state === "failed" ? "failed" : "verify"),
         tone: job.state === "completed" ? "done" : job.state === "failed" ? "blocked" : "", title: job.title, sub: L(JOB[job.state] || job.state) + (job.last_state ? " · " + job.last_state : "") }));
       /* A change still with its owner when the round stopped: what it finally did, never re-sent. */
       const SETTLED = { pending: "还在等它的结果，不会重新提交", completed: "停止后已完成", failed: "停止后失败", "not-run": "停止时还没开始，没有执行" };
-      const stopped = unsettled.map((change) => card({ icon: change.state === "pending" ? spinner() : "clock", title: change.title, sub: L(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "") }));
+      const stopped = unsettled.map((change) => card({ icon: spinner(({pending:"waiting",completed:"done",failed:"failed","not-run":"stopped"})[change.state] || "verify"), title: change.title, sub: L(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "") }));
       /* Memory the work kept (asked for, or kept on its own): the memory service owns it; this is where it can be taken back. */
       // The memory service names more kinds than these; one this panel does not know reads as plainly kept.
       const KEPT = { kept: "", auto_kept: "自动记住", replaced: "替换了旧的一条", auto_replaced: "自动替换了旧的一条", merged: "和旧的一条合并", edited: "改过",
@@ -1373,7 +1373,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (strip.hidden) return;
     strip.dataset.tone = WAITING.has(state) ? "waiting" : state === "running" ? "running" : "";
     const stateNode = strip.querySelector("[data-assistant-strip-state]"), nowNode = strip.querySelector("[data-assistant-strip-now]");
-    stateNode.textContent = stateLabel(state); stateNode.dataset.state = state;
+    stateNode.textContent = stateLabel(state); stateNode.dataset.state = state; stateNode.dataset.mwState = ringState(state);
     nowNode.textContent = nowLine(work); nowNode.title = nowNode.textContent;
     const go = strip.querySelector("[data-assistant-strip-next]");
     go.hidden = !next;
@@ -1384,7 +1384,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const work = view && view.work.work_id === currentId ? view.work : currentWork();
     titleEl.textContent = work ? work.title : L("新工作");
     stateEl.textContent = work ? stateLabel(work.state) : "";
-    stateEl.dataset.state = work ? work.state : "";
+    stateEl.dataset.state = work ? work.state : ""; if (work) stateEl.dataset.mwState = ringState(work.state); else stateEl.removeAttribute("data-mw-state");
     const summary = island.querySelector(".assistant-summary");
     if (summary) summary.dataset.tone = !work ? "" : WAITING.has(work.state) ? "waiting" : work.state === "running" ? "running" : work.state === "failed" || work.state === "stopped" ? "failed" : "";
     const now = nowLine(work);
@@ -1483,7 +1483,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   // A tab's mark says at a glance which work waits on the person, which runs, and which has news not yet seen.
   const markOf = (work) => !work ? "" : WAITING.has(work.state) || urgentWorks.has(work.work_id) ? "waiting" : work.state === "running" ? "running"
     : unreadWorks.has(work.work_id) ? "unread" : work.state === "failed" ? "failed" : "";
-  const MARK_LABEL = { waiting: "等你", running: "进行中", unread: "有新结果", failed: "没有完成" };
+  const MARK_LABEL = { waiting: "等你", running: "进行中", unread: "有新结果", failed: "没有完成" }; const tabMark = (mark, work) => { const node = el("span", "assistant-tab-mark"); if (mark) node.dataset.mwState = mark === "waiting" ? (work && WAITING.has(work.state) ? ringState(work.state) : "answer") : mark; node.setAttribute("aria-hidden", "true"); return node; };
   const workById = (id) => works.find((work) => work.work_id === id) || (view && view.work.work_id === id ? view.work : null);
   function paintTabs() {
     if (!tabsEl) return;
@@ -1498,7 +1498,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const main = el("button", "assistant-tab-main"); main.type = "button"; main.setAttribute("role", "tab");
       main.setAttribute("aria-selected", String(current)); main.tabIndex = current ? 0 : -1;
       main.setAttribute("aria-controls", "assistant-side");
-      main.append(el("span", "assistant-tab-mark"), el("span", "assistant-tab-title", title));
+      main.append(tabMark(mark, workById(id)), el("span", "assistant-tab-title", title));
       main.title = title + (mark ? " · " + L(MARK_LABEL[mark]) : "");
       main.addEventListener("click", () => { if (id === "new") void switchTo(null); else void switchTo(id); });
       wrap.append(main);
@@ -1621,7 +1621,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const shown = problem || (work && view.problem) || null;
     if (shown) {
       const box = el("div", "assistant-problem"); box.setAttribute("role", "alert");
-      const kicker = el("span", "assistant-card-kicker is-blocked"); kicker.append(glyph("circle-alert"), document.createTextNode(L("出了问题")));
+      const kicker = el("span", "assistant-card-kicker is-blocked"); kicker.append(spinner("failed"), document.createTextNode(L("出了问题")));
       box.append(kicker, el("p", "", shown.message));
       if (work && work.state === "needs-check") {
         // What the interrupted round really did, then an explicit close. Nothing is re-run.
@@ -1698,9 +1698,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         if (mark) item.dataset.mark = mark;
         if (work.work_id === currentId) item.setAttribute("aria-current", "true");
         const meta = el("span", "assistant-works-meta", stateLabel(work.state) + " · " + scopeLabel(work.scope, work.scope_title) + (tabs.includes(work.work_id) ? " · " + L("已打开") : ""));
-        meta.dataset.state = work.state;
+        meta.dataset.state = work.state; meta.dataset.mwState = ringState(work.state);
         const head = el("span", "assistant-works-head");
-        head.append(el("span", "assistant-tab-mark"), el("span", "assistant-works-title", work.title));
+        head.append(tabMark(mark, work), el("span", "assistant-works-title", work.title));
         item.append(head, meta);
         item.addEventListener("click", () => { setWorks(false); switchTo(work.work_id); });
         worksNav.append(item);

@@ -640,7 +640,6 @@ export const PERSONAL_WORKBENCH_V3_STYLES = `  /* Personal workbench v3: one dir
       background: color-mix(in srgb, var(--goal-status-tone) 7%, var(--paper));
       font-size: 11px;
     }
-    body[data-desktop-shell="true"] .goal-title-kicker .goal-status svg { width: 12px; height: 12px; }
     body[data-desktop-shell="true"] .goal-title-row h1 { max-width: 34ch; font-size: 24px; line-height: 1.18; letter-spacing: -.025em; }
     body[data-desktop-shell="true"] .goal-brief-grid {
       margin: 8px 0 12px;

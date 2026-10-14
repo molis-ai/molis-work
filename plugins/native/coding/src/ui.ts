@@ -374,7 +374,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
 function renderWorkspaceLine(workspacePath: string | null, p: CodingUiPrimitives): string {
   // A project with no workspace bound says so; it never shows a guessed path.
   if (workspacePath === null) {
-    return `<span class="mw-status" data-tone="attention">${p.icon("circle-alert")}${p.escape("这个项目还没有绑定工作区目录")}</span>`;
+    return `<span class="mw-status" data-tone="attention" data-mw-state="unavailable">${p.escape("这个项目还没有绑定工作区目录")}</span>`;
   }
   return `<span class="coding-workspace" data-coding-workspace>${p.icon("folder")}${p.escape(workspacePath)}</span>`;
 }
@@ -563,7 +563,7 @@ export function renderPendingReviewCard(model: CodingReviewCardModel): string {
     ? `<li class="coding-review-more">${p.escape(`还有 ${model.pending.length - 3} 项`)}</li>`
     : "";
   return `<aside class="coding-review-card" data-coding-review-card>
-    <div class="mw-status" data-tone="attention">${p.icon("circle-alert")}${p.escape(`${model.pending.length} 项操作等你决定`)}</div>
+    <div class="mw-status" data-tone="attention" data-mw-state="approval">${p.escape(`${model.pending.length} 项操作等你决定`)}</div>
     <ul class="coding-review-list">${items}${more}</ul>
     <a class="mw-button mw-button--primary" href="${p.escape(model.review_href)}" data-coding-review-open>${p.escape("查看并处理")}</a>
     <p class="coding-review-note">${p.escape("在你批准之前，这些操作不会发生。批准在宿主的审查面里做。")}</p>

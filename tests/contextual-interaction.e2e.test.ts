@@ -57,6 +57,8 @@ for (const width of [1440, 390]) {
 
     // 更多 holds exactly the plan (spec §6.4.1, W2-03): the actions that did not fit, the same groups, every action, the whole document's last.
     await waitFor(`(() => { const menu = document.querySelector('.mw-ctx-menu'); if (menu && menu.querySelector('.mw-ctx-menu__basis')?.textContent === '按规则') return true; document.querySelector(${JSON.stringify(MORE)})?.click(); return false; })()`);
+    // RING-07: the current toolbar keeps the unconfigured judgment state beside its rules explanation.
+    await waitFor("document.querySelector('.mw-ctx-menu__basis .mw-state-ring')?.dataset.mwState === 'unavailable'");
     const menu = await evaluate<string[]>(`[...document.querySelectorAll('.mw-ctx-menu > p:not(.mw-ctx-menu__basis), .mw-ctx-menu > button')].map(node => node.matches('p') ? '#' + node.textContent.trim() : node.querySelector('span').textContent.trim())`);
     const planned = await evaluate<string[]>(`(() => { const plan = window.__contextPlan; const title = key => plan.candidates.find(item => item.key === key).title; const extra = plan.primary.slice(${slots}).map(title);
       return [...(extra.length ? ['#推荐', ...extra] : []), ...plan.more.flatMap(group => ['#' + group.title, ...group.keys.map(title)]), '#全部操作（不依赖推荐）', ...plan.candidates.map(item => item.title), '#助理', '带到助理', '说出要做什么']; })()`);

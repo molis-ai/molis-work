@@ -33,7 +33,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const lifetime=host.mountPluginClient(root);if(!lifetime)return;
   let viewSignal;
   const showReviews=(container,refs,sessionId,workspaceId,scope)=>host.showReviews?.(container,refs,sessionId,workspaceId,scope,{lifetime,signal:viewSignal});
-  const q = (selector) => root.querySelector(selector);
+  const q = (selector) => root.querySelector(selector); const phaseRing = phase => ({starting:'starting',running:'running',compacting:'running',pausing:'paused',paused:'paused','awaiting-input':'answer','awaiting-review':'approval',completed:'round-ended',failed:'failed',stopped:'stopped',cancelled:'cancelled','reconcile-required':'verify'})[phase] || 'idle';
   const turns = q('[data-coding-turns]'), input = q('[data-coding-task]');
   // The results panel's index: one chip per section on show, to jump to it. It is rebuilt only when the set of
   // sections changes, so its own writes never loop back through the observer that schedules it.
@@ -458,7 +458,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       // Two sessions under way on the same Goal may be doing the same thing twice.
       const busyStates=['running','paused','waiting-answer','waiting-approval','queued'],twin=session.goal_id&&busyStates.includes(session.state)?visible.find(other=>other!==session&&other.goal_id===session.goal_id&&busyStates.includes(other.state)):null;
       const label=(session.priority?'优先 · ':'')+(session.checkpoint_busy ? '回退待处理' : labels[session.state] || session.state)+(holders?' · '+holders:'')+(twin?' · 可能与「'+twin.title.slice(0,16)+'」重复':'');if(mark.textContent!==label) mark.textContent=label;
-      mark.dataset.state=session.checkpoint_busy ? 'waiting-approval' : session.state;
+      mark.dataset.state=session.checkpoint_busy ? 'waiting-approval' : session.state; mark.dataset.mwState=session.checkpoint_busy?'verify':({running:'running',ready:'ready','waiting-answer':'answer','waiting-approval':'approval',paused:'paused',failed:'failed','reconcile-required':'verify',completed:'round-ended',stopped:'stopped',cancelled:'cancelled'})[session.state]||'idle';
       const goalKey=session.goal_id || '';let group=directoryGroups.get(goalKey);
       if(!group) {group=document.createElement('section');group.className='coding-session-group';const heading=document.createElement('h2');heading.className='mw-dir__heading';group.append(heading);directoryGroups.set(goalKey,group);}
       const groupTitle=session.goal_title || (session.goal_id ? '关联 Goal 暂不可用' : '未关联 Goal');
@@ -703,6 +703,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       const canAnswer=!terminal(run.phase) && question.answerable!==false;
       form.dataset.answerable=String(canAnswer);
+      const ring=form.querySelector('.mw-ix-kicker .mw-state-ring');if(ring)ring.dataset.mwState=canAnswer?'answer':'unavailable';
       if(form.dataset.busy!=='true') form.querySelectorAll('fieldset,button').forEach(node=>node.disabled=!canAnswer);
       if(!canAnswer && form.dataset.busy!=='true') form.querySelector('[data-ix-note]').textContent=question.unavailable_reason || '这一轮已结束，原问题不可再回答。';
     }
@@ -947,7 +948,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         row.append(name,phase,change,report);outcomeList.prepend(row);
       }
       row.querySelector('.coding-outcome-name').textContent='第 '+(all.indexOf(run)+1)+' 轮';
-      const phase=row.querySelector('.coding-outcome-phase');phase.textContent=phases[run.phase] || run.phase;phase.dataset.tone=run.phase==='completed'?'done':run.phase==='failed'?'failed':'idle';
+      const phase=row.querySelector('.coding-outcome-phase');phase.textContent=phases[run.phase] || run.phase;phase.dataset.mwState=phaseRing(run.phase);phase.dataset.tone=run.phase==='completed'?'done':run.phase==='failed'?'failed':'idle';
     }
     lastRun=all.at(-1)||null;
     const result=q('[data-coding-result]');
@@ -970,7 +971,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const key=JSON.stringify([all.length,phaseLabel,values,unused]);
       if(result.dataset.content!==key) {
         const head=document.createElement('header'),title=document.createElement('h3'),phase=document.createElement('span'),round=document.createElement('span'),dl=document.createElement('dl');
-        head.className='coding-facts-head';title.textContent='本轮概况';phase.className='coding-facts-phase';phase.dataset.tone=tone;phase.textContent=phaseLabel;round.className='coding-facts-round';round.textContent='第 '+all.length+' 轮';head.append(title,phase,round);
+        head.className='coding-facts-head';title.textContent='本轮概况';phase.className='coding-facts-phase';phase.dataset.tone=tone;phase.dataset.mwState=phaseRing(lastRun.phase);phase.textContent=phaseLabel;round.className='coding-facts-round';round.textContent='第 '+all.length+' 轮';head.append(title,phase,round);
         values.forEach(([label,value])=>{const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;if(label==='工作范围'||label==='本轮独立目录')dd.className='is-path';dl.append(dt,dd);});
         result.replaceChildren(head,dl);
         if(unused.length){const note=document.createElement('p');note.className='coding-facts-unused';note.textContent='本轮未使用：'+unused.join('、');result.append(note);}
@@ -980,7 +981,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       // The round's own footer shows its live state and outcome; this line only carries a failure worth reading twice.
       if(statusKey!==nextStatus){statusKey=nextStatus;status(lastRun.phase==='failed' ? (lastRun.stop_reason || phases.failed) : '',lastRun.phase==='failed');}
     }
-    const pill=q('[data-coding-phase]'),live=lastRun && !terminal(lastRun.phase);pill.hidden=!live;if(live){pill.dataset.phase=lastRun.phase;pill.textContent=phases[lastRun.phase]||lastRun.phase;}
+    const pill=q('[data-coding-phase]'),live=lastRun && !terminal(lastRun.phase);pill.hidden=!live;if(live){pill.dataset.phase=lastRun.phase;pill.dataset.mwState=phaseRing(lastRun.phase);pill.textContent=phases[lastRun.phase]||lastRun.phase;}
     if(follow) turns.scrollTop=turns.scrollHeight;
     q('[data-coding-latest]').hidden=Boolean(reportRun) || follow || atBottom(position()); controls();
   };

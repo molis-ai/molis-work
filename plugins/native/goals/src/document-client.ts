@@ -23,7 +23,7 @@ export const GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       documentPane.querySelector("[data-goal-document-loading]")?.remove();
       if (!busy) return;
       const indicator = document.createElement("div");
-      indicator.className = "goal-document-loading";
+      indicator.className = "goal-document-loading"; indicator.dataset.mwState = "running";
       indicator.dataset.goalDocumentLoading = "true";
       indicator.setAttribute("role", "status");
       indicator.textContent = L("正在载入 Goal…");

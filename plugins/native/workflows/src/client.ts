@@ -279,9 +279,9 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     }).join('<span aria-hidden="true">；</span>') + '</span></p>';
   }
   function runStatus(run) {
-    if (run.status === 'done') return { tone: 'done', text: L('已走完') };
-    if (run.status === 'stopped') return { tone: 'quiet', text: L('已结束 · 停在第 {n} 步', { n: run.current + 1 }) };
-    return { tone: 'progress', text: L('第 {n}/{total} 步 · {plugin}', { n: run.current + 1, total: run.chain.stations.length, plugin: label(run.chain.stations[run.current]) }) };
+    if (run.status === 'done') return { tone: 'done', state: 'done', text: L('已走完') };
+    if (run.status === 'stopped') return { tone: 'quiet', state: 'stopped', text: L('已结束 · 停在第 {n} 步', { n: run.current + 1 }) };
+    return { tone: 'progress', state: 'doing', text: L('第 {n}/{total} 步 · {plugin}', { n: run.current + 1, total: run.chain.stations.length, plugin: label(run.chain.stations[run.current]) }) };
   }
   function pipsHtml(run) {
     return '<span class="wf-pips" aria-hidden="true">' + run.chain.stations.map((station, i) => '<i data-state="' + stepState(run, i) + '" style="--station-tint:' + tint(station.plugin) + '"></i>').join('') + '</span>';
@@ -298,7 +298,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     return head + '<div class="wf-runs">' + state.instances.map((run) => {
       const status = runStatus(run);
       return '<button type="button" class="wf-run-row" data-wf-open-instance="' + esc(run.instance_id) + '"><span class="wf-run-row__title">' + esc(run.title) + '</span>' + pipsHtml(run)
-        + '<span class="mw-status mw-status--' + status.tone + ' mw-status--plain">' + esc(status.text) + '</span><span class="wf-muted">' + esc(when(run.updated_at)) + '</span></button>';
+        + '<span class="mw-status mw-status--' + status.tone + ' mw-status--plain" data-mw-state="' + status.state + '">' + esc(status.text) + '</span><span class="wf-muted">' + esc(when(run.updated_at)) + '</span></button>';
     }).join('') + '</div>';
   }
   function returnHtml() {
@@ -385,7 +385,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const el = view.querySelector('[data-wf-save-state]');
     if (!el) return;
     el.dataset.state = mode;
-    el.innerHTML = mode === 'saving' ? '<span class="mw-spinner" aria-hidden="true"></span><span>' + tx('正在保存…') + '</span>' : (mode === 'saved' ? ico('check') : '') + '<span>' + tx('已保存') + '</span>';
+    el.dataset.mwState = mode === 'saving' ? 'saving' : 'saved'; el.textContent = L(mode === 'saving' ? '正在保存…' : '已保存');
   }
   const undoStack = [];
   const configured = (link) => link.kind !== 'manual' || Boolean(link.title_template || link.body_template || link.instructions);
@@ -780,14 +780,14 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const status = runStatus(run);
     return '<button class="plugin-stage-back" type="button" data-wf-action="back-to-flow" aria-label="' + tx('回到这条流程') + '" title="' + tx('回到这条流程') + '">' + ico('chevron-right') + '</button>'
       + '<div class="wf-run__title"><h1>' + esc(run.title) + '</h1><span class="wf-muted">' + esc(state.instanceWorkflowTitle || '') + '</span></div>'
-      + pipsHtml(run) + '<span class="mw-status mw-status--' + status.tone + ' mw-status--plain wf-run__status">' + esc(status.text) + '</span>'
+      + pipsHtml(run) + '<span class="mw-status mw-status--' + status.tone + ' mw-status--plain wf-run__status" data-mw-state="' + status.state + '">' + esc(status.text) + '</span>'
       + (run.status === 'active' ? '<button class="mw-btn mw-btn--ghost" type="button" data-wf-action="stop">' + ico('pause') + '<span>' + tx('结束这一次') + '</span></button>' : '');
   }
   function vchainHtml(run, selected) {
     const chain = run.chain;
     return chain.stations.map((station, i) => {
       const s = run.steps[i]; const st = stepState(run, i);
-      const mark = st === 'done' ? ico('check') : st === 'current' ? '<i class="wf-dot"></i>' : st === 'stopped' ? ico('pause') : '<i class="wf-ring"></i>';
+      const mark = '<i data-mw-state="' + (st === 'current' ? 'doing' : st === 'pending' ? 'waiting' : st) + '"></i>';
       let linkRow = '';
       if (i < chain.links.length) {
         const link = chain.links[i]; const ls = linkState(run, i); const kind = L(KIND_LABEL[link.kind]);
@@ -795,7 +795,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
           : ls === 'working' ? (link.kind === 'ai' ? L('AI 正在整理…') : L('正在交接…'))
           : ls === 'waiting' ? (link.kind === 'manual' ? L('手动 · 等你交') : L('{kind} · 等你继续', { kind }))
           : ls === 'blocked' ? L('{kind} · 未接上', { kind }) : kind;
-        linkRow = '<div class="wf-vlink" data-wf-vlink="' + i + '" data-kind="' + link.kind + '" data-state="' + ls + '"><span class="wf-vlink__line" aria-hidden="true"></span><span class="wf-vlink__label">' + esc(text) + '</span></div>';
+        linkRow = '<div class="wf-vlink" data-wf-vlink="' + i + '" data-kind="' + link.kind + '" data-state="' + ls + '"><span class="wf-vlink__line" aria-hidden="true"></span><span class="wf-vlink__label" data-mw-state="' + ({done:'done',working:'running',waiting:'answer',blocked:'blocked',future:'idle'}[ls]) + '">' + esc(text) + '</span></div>';
       }
       const on = i === selected;
       return '<button type="button" class="wf-vstep is-' + st + (on ? ' is-selected' : '') + '" data-wf-step="' + i + '" tabindex="' + (on ? '0' : '-1') + '" style="--station-tint:' + tint(station.plugin) + '"' + (on ? ' aria-current="step"' : '') + '>'
@@ -931,7 +931,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
         + '<button class="mw-btn mw-btn--ghost" type="button" data-wf-step="' + (index + 1) + '"><span>' + esc(L('去 {next} 看这一次', { next })) + '</span>' + ico('arrow') + '</button></div></details>';
     }
     if (index >= chain.links.length) {
-      return run.status === 'done' ? '<p class="wf-handoff__note is-done">' + ico('completed') + '<span>' + tx('这是最后一站，这一次已经走完。') + '</span></p>' : '';
+      return run.status === 'done' ? '<p class="wf-handoff__note is-done"><span data-mw-state="done" aria-hidden="true"></span>' + '<span>' + tx('这是最后一站，这一次已经走完。') + '</span></p>' : '';
     }
     if (run.status !== 'active' || index !== run.current) {
       if (run.status === 'stopped' && index === run.current) {
@@ -945,7 +945,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const target = chain.stations[index + 1];
     if (target.action && step.pending?.attempted_at && !busy) {
       // The action was called and never confirmed: nothing repeats it until the person has checked.
-      return '<div class="wf-handoff__bar is-blocked wf-uncertain" role="status">' + ico('alert') + '<span>'
+      return '<div class="wf-handoff__bar is-blocked wf-uncertain" role="status"><span data-mw-state="verify" aria-hidden="true"></span><span>'
         + esc(step.pending.attempt_error ? L('上次执行「{action}」时出错：{error}', { action: target.action.title, error: step.pending.attempt_error }) : L('上次执行「{action}」没有确认结果', { action: target.action.title }))
         + ' · ' + esc(L('先到{place}核对，确认没有生效再重新执行。', { place: target.action.group || L('对应插件') })) + '</span>'
         + '<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="stop">' + tx('结束这一次') + '</button>'

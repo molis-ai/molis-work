@@ -61,7 +61,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const showSave = (text, failed = false) => {
     saveStatus.textContent = L(text);
-    saveStatus.dataset.failed = String(failed);
+    saveStatus.dataset.failed = String(failed); saveStatus.dataset.mwState = failed ? "failed" : text === "已保存" ? "saved" : text === "尚未保存" ? "unsaved" : "saving";
     saveRetry.hidden = !failed;
     publishContext(failed || text !== "已保存");
   };

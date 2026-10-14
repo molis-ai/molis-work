@@ -302,7 +302,9 @@ test("desktop shell uses one project directory, project tabs, and soft work surf
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-workspace-panels \{[\s\S]*min-height: max\(420px, calc\(100dvh - 340px\)\);[\s\S]*display: grid;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-title-kicker \.goal-status \{[\s\S]*min-height: 26px;[\s\S]*padding: 4px 8px;[\s\S]*gap: 8px;[\s\S]*border-radius: 8px;/); // padding and glyph gap on the 4/8 scale
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-title-status--narrow \.goal-status \{[\s\S]*min-height: 0;[\s\S]*padding: 0;[\s\S]*border: 0;[\s\S]*background: transparent;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-title-status--narrow \.goal-status::before \{[^}]*width: 5px;[^}]*background: var\(--goal-status-tone\)/);
+  // RING-05: narrow titles keep the shared ring; no second dot or rule hides its SVG.
+  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-title-status--narrow \.goal-status::before/);
+  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-title-status--narrow \.goal-status svg \{[^}]*display: none/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-workspace-panel(?:[^\w-]|$)/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\[data-goal-panel\]/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tui-pane\[data-tui-read-only\] \.tui-tabs,[\s\S]*\.tui-menu \{[\s\S]*display: none !important;/);

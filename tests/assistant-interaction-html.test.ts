@@ -25,6 +25,7 @@ const questionnaire: AgentPendingQuestion = {
 test("AC-21: a questionnaire is drawn as the shared question card, escaped, with the person's half-written answer in place", () => {
   const html = agentQuestionHtml(questionnaire, say, { q0: { picked: ["1"], other: "看情况" }, q1: ["0"] });
   assert.match(html, /data-ix-question="q-pending-1"/);
+  assert.match(html, /mw-ix-kicker[^>]*><svg[^>]*data-mw-state="answer"/, "RING-07: the Host question carries the waiting state in its shared heading");
   assert.match(html, /怎么安排&lt;复盘&gt;？/, "the Runtime's words are shown as text, never as markup");
   assert.match(html, /data-ix-field="q0"[\s\S]*role="radiogroup"/, "one pick is a radio group");
   assert.match(html, /data-ix-option="1" role="radio" aria-checked="true"/, "the drafted pick is selected again");
@@ -43,6 +44,7 @@ test("AC-21: a plain question offers its options and words; a question that can 
   const closed = agentQuestionHtml({ ...plain, answerable: false, unavailable_reason: "这个问题已经过期" }, say);
   assert.match(closed, /data-ix-banner[^>]*>\s*<p data-ix-banner-text>这个问题已经过期/);
   assert.doesNotMatch(closed, /data-ix-action="answer"/);
+  assert.match(closed, /mw-ix-kicker[^>]*><svg[^>]*data-mw-state="unavailable"/, "RING-07: an unavailable question does not still ask for an answer");
 });
 
 test("AC-21: what the card sends becomes the Runtime's answer: every question once, words before a pick, nothing for nothing", () => {
@@ -58,6 +60,18 @@ test("AC-21: what the card sends becomes the Runtime's answer: every question on
 const card = (status: AssistantCard["status"], fields: AssistantCard["fields"] = []): AssistantCard => ({
   card_id: "card-1", revision: 3, run_id: "run-1", title: "新建待办", summary: "把「报销」记成待办", provider: "待办", capability_title: "新建待办", capability_id: "todo.items.create",
   effect: "write", fields, missing: [], status, created_at: "2026-10-13T00:00:00.000Z", updated_at: "2026-10-13T00:00:00.000Z" });
+
+test("RING-07: Host action headings distinguish execution states from irreversible effects", () => {
+  const expected = { ready: "ready", running: "running", done: "done", failed: "failed", unknown: "verify", stale: "stale", dismissed: "cancelled", "needs-input": "answer" } as const;
+  for (const status of Object.keys(expected) as Array<keyof typeof expected>) {
+    const html = assistantCardHtml({ ...card(status), effect: "irreversible" }, say);
+    const header = html.slice(0, html.indexOf("</header>"));
+    assert.match(header, new RegExp(`mw-ix-kicker[^>]*><svg[^>]*data-mw-state="${expected[status]}"`), status);
+    assert.equal((header.match(/data-mw-state=/g) ?? []).length, 1, "the effect badge is a description, not another execution state");
+    assert.match(header, /会修改，不能撤回/);
+    assert.equal(/data-ix-action="run"/.test(html), ["ready", "needs-input", "failed"].includes(status), "the state mark does not change whether the action can run");
+  }
+});
 
 test("AC-23: an open card is the shared operation card: the fields the person may change, the rest as exactly what runs, run or set aside", () => {
   const html = assistantCardHtml({ ...card("needs-input", [

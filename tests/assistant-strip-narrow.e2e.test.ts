@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { assistantCardHtml, agentQuestionHtml, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 
 /** One streamed model turn: a tool call, or plain text. */
 function turn(tool?: { name: string; input: unknown }, text = "好的。"): string {
@@ -62,10 +62,16 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   await say("记一下：整理周报");
   await waitFor(`${shown(strip)} && ${shown(`${strip} [data-assistant-strip-next]`)} && document.querySelector('${strip} [data-assistant-strip-next]').textContent === '去确认'`, 30_000);
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').dataset.side"), "closed", "at this width the side pane is a closed drawer");
+  await waitFor("document.querySelector('.assistant-tab[data-current] .assistant-tab-mark .mw-state-ring')?.dataset.mwState === 'approval'"); // RING-07
   await click(`${strip} [data-assistant-strip-next]`);
   // It lands on the card's own decision, not on a copy button inside the code it shows.
   await waitFor("Boolean(document.activeElement?.closest('[data-review]')) && !document.activeElement.classList.contains('assistant-code-copy')", 10_000);
 
+  await waitFor("document.querySelector('[data-review] .assistant-card-kicker .mw-state-ring')?.dataset.mwState === 'approval'"); // RING-07
+  // RING-08: common status sizes survive the compact tab and card styles.
+  for (const selector of [".assistant-tab[data-current] .mw-state-ring", "[data-review] .assistant-card-kicker .mw-state-ring"]) {
+    assert.ok(await evaluate(`document.querySelector('${selector}').getBoundingClientRect().width >= 20`));
+  }
   await click("[data-assistant-new]");
   await say("写一份周报草稿");
   await waitFor(`${shown(`${strip} [data-assistant-control=pause]`)}`, 30_000);
@@ -73,5 +79,24 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   release?.();
   await waitFor(`${shown(`${strip} [data-assistant-control=resume]`)} && ${shown(`${strip} [data-assistant-control=stop]`)}`, 30_000);
   assert.equal(await evaluate(`document.querySelector('${strip} [data-assistant-control=pause]').hidden`), true);
+  await waitFor("document.querySelector('.assistant-round-status[data-phase=paused] .mw-state-ring')?.dataset.mwState === 'paused'"); // RING-07
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+
+  // RING-07 RING-08: actual Host markup under the live Assistant's styles; model-driven question submission is covered separately.
+  const html = agentQuestionHtml({ pending_id: "ring-question", kind: "clarify", prompt: "继续整理？", options: [], allows_free_text: true }, text => text)
+    + assistantCardHtml({ card_id: "ring-action", revision: 1, run_id: "ring-run", title: "新建待办", summary: "保存结果", provider: "待办", capability_title: "新建待办", capability_id: "todo.items.create",
+      effect: "irreversible", fields: [], missing: [], status: "unknown", created_at: "", updated_at: "" }, text => text);
+  await evaluate(`(() => { const sample = document.createElement('section'); sample.id = 'ring-host-sample'; sample.innerHTML = ${JSON.stringify(html)};
+    document.querySelector('[data-assistant-thread]').append(sample); })()`);
+  for (const width of [800, 390]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
+    for (const state of ["answer", "verify"]) {
+      const selector = `#ring-host-sample .mw-ix-kicker .mw-state-ring[data-mw-state="${state}"]`;
+      await evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({ block: 'center' })`);
+      assert.ok(await evaluate(`(() => { const ring = document.querySelector(${JSON.stringify(selector)}), box = ring.getBoundingClientRect();
+        return box.width >= 20 && box.height >= 20 && box.left >= 0 && box.right <= innerWidth && getComputedStyle(ring).display !== 'none'; })()`), `${state} at ${width}px`);
+    }
+  }
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+  await evaluate("document.getElementById('ring-host-sample').remove()");
 });

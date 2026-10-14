@@ -227,6 +227,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     const links = node("span", "", "placement-bar-links");
     // A plugin that shows its own save state leaves it out here (data-placement-saved="off").
     const saved = node("span", slot.dataset.placementSaved === "off" ? "" : context.unsaved ? L("尚未保存") : L("已保存"), "placement-bar-saved" + (context.unsaved ? " is-unsaved" : ""));
+    if (saved.textContent) saved.dataset.mwState = context.unsaved ? "unsaved" : "saved";
     bar.append(where, access, links, saved);
     slot.append(bar);
     let description = null;

@@ -59,6 +59,7 @@ export function cardView(card: StoredCard): AssistantCard {
 }
 
 const EFFECT = { read: "只读取，不改数据", write: "会修改，可在原处撤回", irreversible: "会修改，不能撤回" } as const;
+const CARD_RING = { ready: "ready", running: "running", done: "done", failed: "failed", unknown: "verify", stale: "stale", dismissed: "cancelled", "needs-input": "answer" } as const;
 const STATUS: Partial<Record<AssistantCard["status"], string>> = { running: "正在执行…", done: "已完成", failed: "没有完成", unknown: "结果未确认，请到原处核对，不会自动重试",
   stale: "已失效", dismissed: "已忽略", "needs-input": "还需要你填写" };
 
@@ -132,8 +133,8 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
   const origin = card.from ? say("来自「{title}」页面", { title: card.from.title || card.from.surface })
     + (card.source_object?.title ? ` · ${say("选中自《{title}》", { title: card.source_object.title })}` : "") : "";
   return renderInteractionOperation({
-    id: card.card_id, kicker: open ? say("可以执行") : say("操作"), title: card.title,
-    badge: { label: say(EFFECT[card.effect]), tone: card.effect === "irreversible" ? "failed" : "quiet" },
+    id: card.card_id, kicker: open ? say("可以执行") : say("操作"), state: CARD_RING[card.status], title: card.title,
+    badge: { label: say(EFFECT[card.effect]), tone: card.effect === "irreversible" ? "failed" : "quiet", state: null },
     target: { prefix: card.provider, label: card.capability_title }, ...(origin ? { about: origin } : {}), impact: card.summary,
     ...(editable.length ? { fields: editable.map(field => cardField(field, asked(field.key), say, zone)) } : {}),
     // The buttons come after everything that would run: under the exact values when there are any, else under the fields.

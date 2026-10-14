@@ -160,6 +160,8 @@ test("a new person's first run: the opening, two questions, materials, a name, a
 
   // No model is connected in this Home: the materials are kept, and the person names the project they begin.
   assert.equal(await evaluate("document.querySelector('[data-action=start] [data-slot=button-label]').textContent"), "先带入资料");
+  // RING-05: model setup retains its own connection state beside the existing copy.
+  assert.equal(await evaluate("document.querySelector('.ob-model .mw-state-ring')?.dataset.mwState"), "disconnected");
   await click("[data-action=start]");
   await waitFor(obView("materials"), 20_000);
   assert.ok(await evaluate("!!document.querySelector('[data-action=materials-only]')"));
@@ -319,6 +321,11 @@ test("every screen of the journey lays out cleanly at every width, in light and 
         await go(path + (width >= 760 ? "&desktop=1" : ""));
         await waitFor(ready, 10_000);
         await assertLayoutClean(evaluate, `${state} · ${name} · ${scheme}`);
+        if (state === "reading, interrupted") {
+          // RING-05: keep the source failure distinct from retained materials, with no activity after interruption.
+          assert.deepEqual(await evaluate("[...document.querySelectorAll('.is-receipts [data-slot=status]')].map(node => node.dataset.mwState)"), ["done", "failed"]);
+          assert.equal(await evaluate("document.querySelectorAll('[data-ob-view=reading] [data-mw-state=running]').length"), 0);
+        }
       }
       // A source's own settings are part of the list: open each, one at a time.
       await go("/onboarding?mode=new-project");

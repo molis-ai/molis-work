@@ -3,12 +3,14 @@ import type { ScheduledOperationOccurrence } from './operations.js';
 import type { ScheduleUiPrimitives } from './ui.js';
 
 const labels = { enabled: '已启用', paused: '已暂停', needs_confirmation: '待确认归属', needs_review: '结果待核对', completed: '已完成' };
+const ringStates = { enabled: 'ready', paused: 'paused', needs_confirmation: 'approval', needs_review: 'verify', completed: 'done' };
+const occurrenceStates = { pending: 'queued', running: 'running', succeeded: 'done', failed: 'failed', unknown: 'verify', skipped: 'cancelled' };
 const occurrenceLabels = { pending: '等待执行', running: '正在执行', succeeded: '执行成功', failed: '执行失败', unknown: '结果未知', skipped: '已跳过' };
 export function renderOperationRow(run: ScheduledOperationView, p: ScheduleUiPrimitives): string {
   return `<article class="inbox-stage-item feed-stage-item"><button class="feed-stage-entry directory-list-row" type="button" role="option" aria-selected="false" tabindex="-1" data-schedule-row data-schedule-kind="job" data-schedule-job-id="operation:${p.escape(run.id)}">
     <span class="feed-stage-leading"><strong>${p.escape(run.pluginTitle)} · ${p.escape(run.operationTitle)}</strong></span>
     <span class="feed-entry-source">${run.job ? p.escape(p.formatDate(run.job.next_due_at)) : p.text('原闹钟已不存在')}</span>
-    <span class="mw-status mw-status--${run.state.startsWith('needs_') ? 'attention' : 'quiet'} mw-status--plain feed-entry-status">${p.text(labels[run.state])}</span>
+    <span class="mw-status mw-status--${run.state.startsWith('needs_') ? 'attention' : 'quiet'} mw-status--plain feed-entry-status" data-mw-state="${ringStates[run.state]}">${p.text(labels[run.state])}</span>
   </button></article>`;
 }
 export function renderOperationDetail(run: ScheduledOperationView, p: ScheduleUiPrimitives): string {
@@ -21,7 +23,7 @@ export function renderOperationDetail(run: ScheduledOperationView, p: ScheduleUi
   const controls = review ? (canRecover ? unknown ? recover('skip', '跳过本次并继续') + recover('retry', '重试本次') : recover('resume', '确认归属并恢复') : '')
     : run.job && run.state !== 'completed' ? `<button class="mw-btn mw-btn--secondary" type="button" data-schedule-enabled-action="${run.state !== 'enabled'}" data-schedule-job-id="${p.escape(run.jobId)}" data-schedule-detail-id="operation:${p.escape(run.id)}">${p.text(run.state === 'enabled' ? '暂停' : '恢复')}</button>` : '';
   return `<article class="feed-detail inbox-reference-detail" data-schedule-detail="operation:${p.escape(run.id)}" hidden>
-    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${p.text('返回定时任务列表')}">${p.icon('chevron-right')}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--quiet">${p.escape(run.pluginTitle)}</span><span class="mw-status mw-status--${review ? 'attention' : 'quiet'}">${p.text(labels[run.state])}</span></div></header>
+    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${p.text('返回定时任务列表')}">${p.icon('chevron-right')}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--quiet">${p.escape(run.pluginTitle)}</span><span class="mw-status mw-status--${review ? 'attention' : 'quiet'}" data-mw-state="${ringStates[run.state]}">${p.text(labels[run.state])}</span></div></header>
     <header class="feed-detail-header"><h1>${p.escape(run.operationTitle)}</h1></header>
     <div class="inbox-reference-body"><p>${p.escape(run.detail ?? '')}</p><p data-schedule-operation-target>${target ? p.escape(`${target.title} · ${target.version} · ${target.publisher}`) : p.text('请先安装并启用对应插件，再刷新查看当前安装。')}</p>
       ${target && !canRecover && review ? `<p>${p.text('原闹钟或功能已不存在，请保留历史并新建定时。')}</p>` : ''}
@@ -33,7 +35,7 @@ export function renderOperationDetail(run: ScheduledOperationView, p: ScheduleUi
   </article>`;
 }
 function renderOccurrence(item: ScheduledOperationOccurrence, p: ScheduleUiPrimitives): string {
-  return `<article class="schedule-turn"><header><strong>${p.text(occurrenceLabels[item.state])}</strong><time>${p.escape(p.formatDate(item.dueAt))}</time></header><p>${p.escape(item.detail ?? '')}</p>
+  return `<article class="schedule-turn"><header><strong data-mw-state="${occurrenceStates[item.state]}">${p.text(occurrenceLabels[item.state])}</strong><time>${p.escape(p.formatDate(item.dueAt))}</time></header><p>${p.escape(item.detail ?? '')}</p>
     ${(item.decisions ?? []).map(decision => `<p>${p.escape(p.formatDate(decision.at))} · ${p.text(decision.decision === 'retry' ? '已确认重试' : '已确认跳过')} · ${p.escape(decision.previousDetail ?? '')}</p>`).join('')}</article>`;
 }
 export function renderOperationRecoveryDialog(p: ScheduleUiPrimitives): string {

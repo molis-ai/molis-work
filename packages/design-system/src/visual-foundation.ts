@@ -26,6 +26,7 @@ import { SOURCE_FEED_STYLES } from "./styles/source-feed.js";
 import { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
 import { PRIMITIVE_STYLES } from "./styles/primitives.js";
 import { ARRIVAL_COMPONENT_STYLES } from "./styles/arrival-components.js";
+import { STATE_RING_CLIENT_SCRIPT } from "./state-ring-client.js";
 
 /** Stable concatenation order preserves the existing cascade.
  * Coss + Primitive sit at the end of this bundle so Catalog/tests that only
@@ -50,7 +51,7 @@ export const VISUAL_FOUNDATION_STYLES = [
 ].join("");
 
 /** Theme preferences plus the measured micro-interactions; every page renderer inlines this. */
-export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `${PREFERENCE_CLIENT_SCRIPT}${MICRO_INTERACTION_CLIENT_SCRIPT}${SELECT_MENU_CLIENT_SCRIPT}${CRAFT_FINISH_CLIENT_SCRIPT}`;
+export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `${PREFERENCE_CLIENT_SCRIPT}${MICRO_INTERACTION_CLIENT_SCRIPT}${SELECT_MENU_CLIENT_SCRIPT}${CRAFT_FINISH_CLIENT_SCRIPT}${STATE_RING_CLIENT_SCRIPT}`;
 
 export { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
 export { PRIMITIVE_STYLES } from "./styles/primitives.js";

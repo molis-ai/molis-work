@@ -1,5 +1,6 @@
 import { icon, type MolisWorkIcon } from "../icons.js";
 import { type AttrValue, cx, escapeHtml, renderAttrs } from "./html.js";
+import { renderStateRing } from "../state-ring.js";
 
 export type MwButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "danger-outline" | "link";
 export type MwControlSize = "sm" | "md" | "lg" | "icon";
@@ -26,7 +27,7 @@ export function renderButton(options: MwButtonOptions): string {
   const label = escapeHtml(options.label);
   const leading = options.icon ? icon(options.icon) : "";
   const key = options.key && !options.iconOnly ? `<kbd class="mw-btn__key" aria-hidden="true">${escapeHtml(options.key)}</kbd>` : "";
-  const spinner = options.loading ? `<span class="mw-spinner" data-slot="button-loading-indicator" aria-hidden="true"></span>` : "";
+  const spinner = options.loading ? `<span class="mw-spinner" data-slot="button-loading-indicator" data-ring-mounted aria-hidden="true">${renderStateRing({ state: "running" })}</span>` : "";
   const text = options.iconOnly
     ? `<span class="mw-sr-only">${label}</span>`
     : `<span data-slot="button-label">${label}</span>`;

@@ -1,5 +1,7 @@
 # Prologue 采用：能力接入与 TaskBoard 统一协作
 
+> **2026-10-14 暂停（用户让需求线先停、防腐线先走）：恢复从 §6.0c「暂停点」开始。** 现状核对见 §6.0b。
+
 > **当前接续入口是 §6.0b「现状核对（2026-10-14）」**：原 23 项与 24、25 项逐项对照 Molis main 与 Prologue main 的真实代码和测试，列出已实现、部分、未做、暂缓与依据，以及文中写了完成但代码不符的地方。§7（2026-10-13 晚）的分支、决策、工作规则、已知问题和复现命令仍有效，其中进度句以 §6.0b 为准；正文里的旧绝对路径、旧工作树、旧授权语句都是历史记录。
 
 > 2026-10-13 晚已与 main（#471 Computer Use、#472 旧采用树）对账：实现以 main 为准，#408 只留 main 没有的部分；Molis 依赖换成过渡包。对账记录见 §6.0a。
@@ -851,6 +853,62 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 6. §3.1 表里的 `onYieldSettled`、`SubagentRequest.yield`、`SubagentWake` 在 P2i 已从 SDK 删掉；P3 的 Molis 一侧不能再引用它们。
 
 **Prologue main 合入后的补跑**（§7.4 第 3 条、合同 P2i / P2j「验证」行）：对 `b01067b4`（P2j 之后又合了 #24）跑 `prologue-verify.sh`（build dist → `tsc` → SDK 全量，两个 worker，不跑 `desktop-computer-use.live` → 干净 `git archive` 打包 → 空目录跑全部 `*-consumer.mjs` → 对 P2h 的包再跑一遍）。P2h 的包取自 P2h 合并前的验证目录（`4416fc09` 打出，1,163,878 字节，SHA-256 `7e728f4a…`；与 #19 的 head `0bfb0e47` 比，`packages/sdk/src` 与 `package.json` 没有差别）。结果记在合同的 P2i、P2j「验证」行，经 Prologue docs PR 进 main。
+
+### 6.0c 暂停点（2026-10-14，用户让需求线先停、防腐线先走）
+
+统筹 2026-10-14 转达用户：当前任务做完后，需求线先暂停，整台机器让给防腐线。采用线停在下面这个位置。
+
+**决定（都已记进本文）**：
+- 用户选 B：同一项目的编码会话共用项目工作板。原题、三个选项和对 X5 的影响见 §4.6.10 末尾。
+- 统筹批准 P2k「按节点判冲突」（理由：在 SDK 源头修，不在 Molis 里另造一套语义；只开一个会话时也有这个缺陷）。
+- 助理仍是每个 Work 一块板，到 P4 再看。
+
+**已完成、已验证**：
+- 现状核对 §6.0b：Molis PR #500，已合 main（`59d02a37`）。
+- P2k 的实现与定向证据：Prologue 分支 `feature/p2k-node-conflicts`，head `46bc586d`，叠在 main `b01067b4` 上。
+  - 新用例 `taskboard-node-conflicts`：内存 9 条、真实 Node Host 1 条，全过。
+  - 5 个变异各自让用例变红，还原后文件逐字节相同。
+  - 改了一条预期变化的旧断言（`taskboard-waits` 的「同一张板一次只改一处」）。
+  - 合同改了三处：新加「板的写法：按节点判冲突（P2k）」一节；P2 进度里加 P2k 一条；决策记录的 X5 一行写明用户选 B。
+
+**没验证的**：
+- Prologue main `b01067b4` 合入后的补跑：一直排在构建锁后面，暂停时按要求撤掉，一次都没跑。
+- P2k 的 SDK 全量（要先 build dist）和干净包消费者检查：没跑。
+  - 在没构建 dist 的工作树上，相关非 live 用例 412 条里有 5 条失败，全是读 `packages/sdk/dist` 的跨进程用例。
+  - 草稿 PR molis-ai/prologue#25 已经开了（暂停通知之前开的），验证一节写的是「待补」，不要合。
+- P3a：远端分支 `adoption/p3-collaboration`，标 WIP。
+  - 底是 #498 的 head `02e6720a`，再并了 main `59d02a37`。
+  - 没换包、没编译、没跑任何用例，也没量门禁。
+
+**P3a 已写的（按 B）**：
+- 新合同子路径 `services/agent-collaboration`：视图类型，加 read、control 两个动作。
+- 旧 `agent.waits.*` 换成一个 typed 等待 `agent.collaboration.await.v1`（Action 不能是等待）。
+- `prologue-collaboration.ts`：会话在项目工作板上的那一块、绑定规则、`admitDispatch`。
+- `prologue-plan-steps.ts`：计划步骤带前缀放在会话那一块下面，视图还原成 `step-N`，计划的版本按它自己的步骤算，人的修订也在这里。`prologue-taskboard.ts` 只剩接缝，原来的巨大函数拆到阈值以下。
+- `prologue-waits.ts` 改写到 `HeldWait` 上，人排队改成 app 的 `arm`。
+- 删 `subagentYieldGuard`。
+- 发信钩子只留三件事：说清不能发的、展开「范围重叠的会话」、群发上限。
+- 优先提醒改由宿主直接告诉正在跑的那几轮。
+- Coding 的叫醒循环搬到 `wake-loop.ts`（`routes.ts` 1522 → 1454 行），状态词表补了两种新状态。
+- 改写的用例：`coding-message-wait`、`coding-queued-round`、`coding-delegation-waits`、`coding-cooperation-http`、`coding-step-claims`（只改了 `claims` → `node`）、`prologue-adoption-guard`（S-23 改述）、`vendor-provenance`（期待的提交号还是 `b01067b4`，换包时改成实际的那一个）。
+
+**恢复时按这个顺序**：
+1. **补跑 Prologue main `b01067b4`**（构建锁下，`~/code/prologue-p2j` 已停在 detached `b01067b4`）。
+   - 命令：`zsh coordination/2026-10-14/tools/prologue-verify.sh ~/code/prologue-p2j main-b01067b4 <P2h 的包>`。
+   - P2h 的包：另一会话 scratchpad 里的 `prologue-verify/p2h-3/prologue-sdk-0.0.0-rc.1.tgz`，1,163,878 字节，SHA-256 `7e728f4a…`，由 `4416fc09` 打出，与 #19 的 head 相比 src 相同。找不到就省略第三个参数，并写明。
+   - 结果补进合同 P2i、P2j 的「验证」行。
+2. **P2k 验证**：在 `~/code/prologue-p2k` 跑同一个脚本，第三个参数用第 1 步打出的包，新加的消费者脚本在那个包上应当失败。
+   - 公开面快照若变了，逐项核过再 `-u`。
+   - 结果写进 #25 的「验证」与合同的 P2k 进度条，转为 ready，发统筹合。
+3. **P3a 按 B 继续**：
+   1. #498 合入后变基到 main。
+   2. 从 P2k 合入后的 main 打包换进 vendored 目录：删掉过渡包，记进 `patch-history.json`；`commitsChecked` 加上过渡包的提交与新包的提交；锁文件只改 `@prologue/sdk` 的路径和 integrity（依赖相同，都是 `@tauri-apps/api` 2.11.1）；`vendor-provenance` 用例的提交号、PR 号跟着改。
+   3. 构建锁下 `pnpm build`，修编译错误。
+   4. 跑 `affected-tests` 选出的用例和本文 §7.10 的默认路径清单，另外改到能过：`coding-collab-handoff`、`coding-session-messages`、`coding-background-wait`、`coding-step-claims`、`prologue-taskboard`、`prologue-subagents`、`coding-taskboard.e2e`。
+   5. 加并发用例：两个会话同时汇报，都成功；同一步被别人改过的那一方得到明确的冲突。
+   6. `pnpm api:update`、`pnpm actions:update`；`page-assets` 量两个新状态词（只许变小，超了就在同一个文件里省字节）；`check-health-gates --base`。
+   7. 写验证证据，开 PR。
+4. 之后是 P3b（换模型的 `beforeAccept`）、P3c（外部条件检查器），再往后 P4。
 
 ### 6.1 当前记录
 

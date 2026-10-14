@@ -932,11 +932,11 @@ function checkArtifactsOwnership(repositoryRoot) {
   // The lifecycle rules live in the service and in the registration it checks a version with (service.ts, registration.ts).
   const service = read("modules/artifacts/src/service.ts") + read("modules/artifacts/src/registration.ts");
   for (const required of [
-    "artifact.version_not_increasing",
-    "artifact.version_conflict",
-    "artifact.producer_mismatch",
-    "artifact.hash_mismatch",
-    "artifact.team_share_not_authorized",
+    "artifacts.artifact.version_not_increasing",
+    "artifacts.artifact.version_conflict",
+    "artifacts.artifact.producer_mismatch",
+    "artifacts.artifact.hash_mismatch",
+    "artifacts.artifact.team_share_not_authorized",
     '"consumer_missing"',
   ]) {
     if (!service.includes(required)) {
@@ -996,10 +996,10 @@ function checkArtifactsOwnership(repositoryRoot) {
   const test = read(testPath);
   for (const required of [
     "opaque content, scope and producer binding",
-    "artifact.version_not_increasing",
-    "artifact.producer_mismatch",
-    "artifact.hash_mismatch",
-    "artifact.team_share_not_authorized",
+    "artifacts.artifact.version_not_increasing",
+    "artifacts.artifact.producer_mismatch",
+    "artifacts.artifact.hash_mismatch",
+    "artifacts.artifact.team_share_not_authorized",
     "consumer_missing",
     "artifact_unavailable",
   ]) {

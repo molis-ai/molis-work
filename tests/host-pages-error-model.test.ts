@@ -323,9 +323,9 @@ test("the import's failures are declared, each with the status of its kind: 415 
   }
   const edge = await artifactEdge(t, { current: undefined });
   const notJson = await edge.send("POST", "/api/artifacts/import", { headers: { "content-type": "application/json" }, body: "{broken" });
-  assert.deepEqual([notJson.status, notJson.body.code], [400, "document.request_invalid"]);
+  assert.deepEqual([notJson.status, notJson.body.code], [400, "artifacts.document.request_invalid"]);
   const tooLarge = await edge.send("POST", "/api/artifacts/import", { headers: { "content-type": "application/json" }, body: JSON.stringify({ source: "file", padding: " ".repeat(13_000_000) }) });
-  assert.deepEqual([tooLarge.status, tooLarge.body.code], [413, "document.too_large"]);
+  assert.deepEqual([tooLarge.status, tooLarge.body.code], [413, "artifacts.document.too_large"]);
 });
 
 /** What `ExternalDocumentImportError` answered on the merge-base, by reason (its own `status`); needs_auth was 401 and the three 422s are 400 now. */

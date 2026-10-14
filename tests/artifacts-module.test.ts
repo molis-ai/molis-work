@@ -132,14 +132,15 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
       () => module.commands.registerVersion(registration({
         content: { kind: "inline", payload: { title: "conflicting overwrite" } },
       })),
-      "artifact.version_conflict",
+      // R4B-01: a conflicting version still leaves the prior bytes and revision intact.
+      "artifacts.artifact.version_conflict",
     );
     expectCode(
       () => module.commands.registerVersion(registration({
         artifact_id: "artifact-bad-hash",
         expected_digest: `sha256:${"0".repeat(64)}`,
       })),
-      "artifact.hash_mismatch",
+      "artifacts.artifact.hash_mismatch",
     );
 
     expectCode(
@@ -148,7 +149,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
         scope: "team_project",
         supersedes_version: 1,
       })),
-      "artifact.team_share_not_authorized",
+      "artifacts.artifact.team_share_not_authorized",
     );
     const thirdInput = registration({
       version: 3,
@@ -172,14 +173,14 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
 
     expectCode(
       () => module.commands.registerVersion(registration({ version: 2 })),
-      "artifact.version_not_increasing",
+      "artifacts.artifact.version_not_increasing",
     );
     expectCode(
       () => module.commands.registerVersion(registration({
         version: 4,
         actor_id: "user-b",
       })),
-      "artifact.not_owner",
+      "artifacts.artifact.not_owner",
     );
     expectCode(
       () => module.commands.registerVersion(registration({
@@ -190,7 +191,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
           binding_signature: "different-binding-signature",
         },
       })),
-      "artifact.producer_mismatch",
+      "artifacts.artifact.producer_mismatch",
     );
 
     assert.deepEqual(
@@ -215,7 +216,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
         actor_id: "user-b",
         reason: "blob missing",
       }),
-      "artifact.not_owner",
+      "artifacts.artifact.not_owner",
     );
     const unavailable = module.commands.markUnavailable({
       project_id: "board-artifacts",
@@ -317,7 +318,7 @@ test("Artifact reference digest mismatch is rollback-safe, and the owner schema 
           size_bytes: 4096,
         },
       })),
-      "artifact.hash_mismatch",
+      "artifacts.artifact.hash_mismatch",
     );
     assert.equal(module.query.listArtifactVersions("board-artifacts", "artifact-blob").length, 0);
   } finally {

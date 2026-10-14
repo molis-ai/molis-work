@@ -2,7 +2,7 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 
 /**
  * The Artifacts plugin's own error codes, every one `artifacts.<reason>`. The kind is the sort of failure, and the Host's edge turns it
- * into the status (SDK `actionHttpStatus`), so the plugin keeps no status of its own. (The document import's codes are `document.<reason>`,
+ * into the status (SDK `actionHttpStatus`), so the plugin keeps no status of its own. (The document import's codes are `artifacts.document.<reason>`,
  * declared next to the import: `documentErrors` in document-import.ts; they become `artifacts.*` with the rest of the owner's prefixes, W3-02 R4b.)
  */
 export const artifactsErrors = defineErrorCodes("artifacts", {

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
@@ -312,14 +313,14 @@ test("MCP settings keep authorization at 401 and missing connections as safe pro
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = "http://127.0.0.1:" + address.port;
-  const headers = { origin, "content-type": "application/json", "x-molis-work-control-token": controlToken };
+  const headers = () => ({ origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
   try {
     const before = withConnectorConnections(home, store => store.list());
-    const refused = await fetch(origin + "/api/settings/connectors/methods/mcp/complete", { method: "POST", headers,
+    const refused = await fetch(origin + "/api/settings/connectors/methods/mcp/complete", { method: "POST", headers: headers(),
       body: JSON.stringify({ returned_url: origin + "/api/settings/connectors/methods/mcp/callback?state=missing-state&code=unused" }) });
     assert.equal(refused.status, 401);
     assert.deepEqual(await refused.json(), { error: "MCP 授权会话无效、已过期或已使用，请重新连接", code: "connector.mcp.authorization" });
-    const missing = await fetch(origin + "/api/settings/connectors/connections/missing-connection/mcp", { method: "POST", headers, body: JSON.stringify({ action: "inspect" }) });
+    const missing = await fetch(origin + "/api/settings/connectors/connections/missing-connection/mcp", { method: "POST", headers: headers(), body: JSON.stringify({ action: "inspect" }) });
     assert.equal(missing.status, 400);
     assert.deepEqual(await missing.json(), { error: "MCP 连接失败，请检查服务地址、账号权限和 OAuth 应用配置后重试", code: "connector.mcp.provider" });
     assert.deepEqual(withConnectorConnections(home, store => store.list()), before);

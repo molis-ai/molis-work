@@ -17,6 +17,7 @@
 - [risk-plugin](risk-plugin/spec.md)：专门记录风险的插件（风险已移出 Goals）。
 - [ai-interaction-experience](ai-interaction-experience/spec.md)：跨插件的 AI 对话与动态动作交互（执行中，2026-10-09 方案已对齐）。
 - [computer-use](computer-use/spec.md)：个人助理的完整 Computer Use——操作 macOS 桌面应用，过程与结果在侧栏的「电脑」「文件」与对话里交给用户（进行中）。
+- [adoption-contract-loop](adoption-contract-loop/spec.md)：把 Prologue 采用收成同一份合同，并补上 Computer Use 观察与动作之间还缺的一截（执行中，2026-10-13）。
 
 ## 现行规范
 

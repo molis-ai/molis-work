@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxPluginContract } from '../packages/contracts/src/platform/plugin-sandbox.js';
-import { createSandboxRunner, type SandboxLimits, type SandboxServices, type SandboxRunner } from '../packages/plugin-sandbox/dist/index.js';
+import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { createSandboxRunner, type SandboxLimits, type SandboxServices, type SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import { currentCallId, newCallId, withCallId } from '@molis-ai/molis-work-kernel';
 
 const identity: SandboxIdentity = { projectId: 'project-a', installationId: 'installation-a', pluginId: 'test', namespace: 'preview' };

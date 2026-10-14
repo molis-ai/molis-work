@@ -1,3 +1,4 @@
+import { ASSISTANT_STAGE_FACTORY, localMoment } from "./assistant-stage.js";
 import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
 
 /**
@@ -48,13 +49,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     get(key) { try { return localStorage.getItem(key); } catch { return null; } },
     set(key, value) { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* per-viewer convenience only */ } },
   };
-  // A stored instant as the value of a local date-and-time picker.
-  const localMoment = (iso) => {
-    const at = new Date(iso);
-    if (!Number.isFinite(at.getTime())) return "";
-    const two = (part) => String(part).padStart(2, "0");
-    return at.getFullYear() + "-" + two(at.getMonth() + 1) + "-" + two(at.getDate()) + "T" + two(at.getHours()) + ":" + two(at.getMinutes());
-  };
+  const localMoment = ${localMoment.toString()};
   const CURRENT_KEY = "molis.assistant.current";
   const NEW_DRAFT_KEY = "molis.assistant.new-draft";
   let works = [];
@@ -221,15 +216,16 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     : title || (project && scope.project_id === project.id ? (project.title || L("本项目")) : L("另一个项目"));
   const currentWork = () => works.find((work) => work.work_id === currentId) || (view && view.work.work_id === currentId ? view.work : null);
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
-  const setPanel = (open) => { if (panel) panel.hidden = !open; };
-  const syncSend = () => { send.disabled = busy || !String(input.value || "").trim(); };
+  let presentation;
+  const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
+  const syncSend = () => { send.disabled = busy || !!currentWork()?.reply_target || !String(input.value || "").trim(); };
 
   /* ─── Where the next Send goes ─────────────────────────────────────────── */
   const paintTarget = () => {
-    const work = currentWork();
+    const work = currentWork(); presentation?.syncWork(work); input.readOnly = !!work?.reply_target;
     if (work) {
-      targetLabel.textContent = (isLive(work.state) ? L("补充到") : L("继续")) + "：" + work.title;
-      target.title = L("下一次发送进入这项工作；点 × 改为开始新工作");
+      targetLabel.textContent = work.reply_target ? L("回复到原评论") + "：" + work.reply_target.title : (isLive(work.state) ? L("补充到") : L("继续")) + "：" + work.title;
+      target.title = work.reply_target ? L("请回到原评论继续回复") : L("下一次发送进入这项工作；点 × 改为开始新工作");
       if (targetClear) targetClear.hidden = false;
       if (targetWrap) { targetWrap.dataset.mode = "work"; targetWrap.hidden = false; }
     } else {
@@ -241,7 +237,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     // A page that knows what the person is looking at (the project list) may say so in the placeholder of a new work.
     const hint = !work && newExecutor === "assistant" && host.placeholder ? host.placeholder(project) : "";
-    input.placeholder = work ? L("补充、回答或纠正…") : newExecutor === "coding" ? L("让 Coding Agent 做点什么…")
+    input.placeholder = work?.reply_target ? L("请回到原评论继续回复") : work ? L("补充、回答或纠正…") : newExecutor === "coding" ? L("让 Coding Agent 做点什么…")
       : hint ? hint : searchKey() ? L("让助理做点什么，或按 {key} 搜索").replace("{key}", searchKey()) : L("让助理做点什么…");
     // A Coding work shows the mode its next round runs in — the session's own setting, the same one its page shows.
     if (modeButton) {
@@ -2716,6 +2712,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (currentId) await refresh(); else render();
     } finally { busy = false; syncSend(); schedule(); }
   });
+  presentation = (${ASSISTANT_STAGE_FACTORY})({island,panel,input,current:currentWork,switchTo,showProblem,L});
   /* ─── Head controls ────────────────────────────────────────────────────── */
   island.querySelector("[data-assistant-panel-close]")?.addEventListener("click", () => setPanel(false));
   island.querySelectorAll("[data-assistant-control]").forEach((button) => button.addEventListener("click", async () => {

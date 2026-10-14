@@ -1,3 +1,4 @@
+import { pagesCommentActions } from "./comment-actions.js";
 import { PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS } from "./actions.js";
 import { pagesContentActions } from "./content-actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -25,7 +26,7 @@ export const pagesManifest: PluginManifest = {
     { permission: "artifact:write", required: true, reason: "把文档存为成果" },
   ],
   capabilities: { provides: [], consumes: [] },
-  actions: [...PAGES_ACTIONS, ...Object.values(pagesContentActions)],
+  actions: [...Object.values(pagesCommentActions), ...PAGES_ACTIONS, ...Object.values(pagesContentActions)],
   artifacts: {
     produces: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION, title: "文档",
       preview: { capability_id: "pages.artifacts.preview", version: 1 }, pin: { capability_id: "pages.artifacts.pin", version: 1 },
@@ -36,6 +37,7 @@ export const pagesManifest: PluginManifest = {
   ui: {
     contributions: [PAGES_UI_CONTRIBUTION_ID],
     views: [
+      { view_id: "comments", slot: "side", context_binding: "focused-object", title: "评论与备注", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "message" },
       { view_id: "directory", slot: "navigator", title: "Pages", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "note", order: 56 },
     ],
   },

@@ -69,17 +69,20 @@ test("file entries page by kind and id with a revision over every entry; preview
   assert.throws(() => fileContentOf({ subject: { kind: "memo", id: "big" }, revision: "1", title: "big", media_type: "image/png", bytes: new Uint8Array(FILE_CONTENT_MAX_BYTES + 1) }), /太大/u);
 });
 
-test("the side slot places a plugin's tab only while the plugin is enabled, and the panel renders it as a frame", () => {
+test("PAS-08: the side slot places a plugin's tab only while the plugin is enabled, and the panel renders it as a frame", () => {
   assert.equal(UI_VIEW_SLOTS.includes("side"), true);
   const manifest = { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.side", version: "1.0.0", name: "侧栏样例", kind: "native",
     publisher: { publisher_id: "example", signature: "example-side" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
-    ui: { contributions: ["io.molis.work.example.side.notes"], views: [{ view_id: "notes", slot: "side", title: "随手记", icon: "note" }] } } as const;
+    ui: { contributions: ["io.molis.work.example.side.notes"], views: [{ view_id: "notes", slot: "side", context_binding: "focused-object", title: "随手记", icon: "note" }] } } as const;
   assert.deepEqual(new UiViewRegistry([{ manifest: manifest as never, enabled: true }]).slot("side").map(view => view.view_id), ["notes"]);
   assert.deepEqual(new UiViewRegistry([{ manifest: manifest as never, enabled: false }]).slot("side"), [], "a disabled plugin leaves no tab behind");
+  assert.equal(new UiViewRegistry([{ manifest: manifest as never, enabled: true }]).slot("side")[0]!.context_binding, "focused-object");
+  assert.throws(() => parsePluginManifest({ ...manifest, ui: { ...manifest.ui, views: [{ ...manifest.ui.views[0], slot: "stage" }] } }), /context_binding/);
   const html = renderSidePanel({ L: text => text, escapeHtml: value => String(value), icon: name => `<svg data-icon="${name}"></svg>` },
-    [{ key: "example/notes", title: "随手记", icon: "note", src: "/projects/p1/side/example/notes" }]);
+    [{ key: "example/notes", title: "随手记", icon: "note", src: "/projects/p1/side/example/notes", contextOwner: manifest.plugin_id, contextSurface: "example" }]);
   assert.match(html, /data-side-tab="plugin:example\/notes"/u);
+  assert.match(html, /data-side-context-owner="io\.molis\.work\.example\.side" data-side-context-surface="example" hidden/u);
   assert.match(html, /data-side-src="\/projects\/p1\/side\/example\/notes"/u);
   assert.match(html, /data-side-tab="discussion"[\s\S]*data-side-tab="browser"[\s\S]*data-side-tab="files"/u);
   assert.doesNotMatch(html, /assistant-/u, "the panel stays out of the Assistant's classes");

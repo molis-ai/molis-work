@@ -1,5 +1,6 @@
 import { MW_PLUGINS } from "../palette.js";
 import { TOUCH_TARGET_STYLES } from "./touch-targets.js";
+import { ASSISTANT_STAGE_STYLES } from "./assistant-stage.js";
 
 /** Soft Workbench finish: the last layer of every Molis Work page (module name kept from the craft pass).
  *
@@ -377,7 +378,7 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .bar-composer {
     position: static; inset: auto; display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 8px;
     width: 100%; height: var(--composer-h); min-height: var(--composer-h); max-height: none; margin: 0; padding: 0 8px 0 8px; border: 0; border-radius: var(--r-composer); overflow: visible;
-    background: var(--paper); box-shadow: var(--composer-shadow);
+    background: var(--paper); box-shadow: var(--composer-shadow, var(--lift-2));
     transition: box-shadow var(--dur-move) var(--ease-quint);
   }
   html[data-resolved-theme="dark"] ${SHELL} .bar-composer { --composer-shadow: 0 0 0 1px var(--edge-highlight), var(--lift-1); }
@@ -1396,11 +1397,6 @@ const CRAFT_BASE_STYLES = `
   .prompt-role-focus { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; padding: 12px 12px; border-radius: 8px; background: var(--hover); font-size: 13px; }
   .prompt-role-focus p { margin: 4px 0 0; color: var(--muted); }
   .prompt-diagnostics { margin-top: 24px; }
-  .assistant-rules { margin-bottom: 18px; }
-  .assistant-rule-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; font-size: 13px; }
-  .assistant-rule-form > strong { flex-basis: 100%; font-weight: 500; }
-  .assistant-rule-surfaces { display: flex; flex-wrap: wrap; gap: 6px 14px; flex-basis: 100%; }
-  .assistant-rule-form select { width: auto; }
   .prompt-diagnostics > summary { display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
   .prompt-diagnostics-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
   .prompt-diagnostics-owner { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
@@ -1974,7 +1970,7 @@ const STILL_RESET = `
   html[data-craft-still] *, html[data-craft-still] *::before, html[data-craft-still] *::after { transition-duration: 0s !important; transition-delay: 0s !important; }
 `;
 
-export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + TOUCH_TARGET_STYLES + STILL_RESET;
+export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + TOUCH_TARGET_STYLES + ASSISTANT_STAGE_STYLES + STILL_RESET;
 
 /** Behaviour for the craft layer. Everything here is presentation: it never writes Goal state,
  * never moves focus and never cancels another handler. Without it the pages look the same, only

@@ -1,3 +1,4 @@
+import { renderPagesComments } from "./comment-side-view.js";
 import type {
   UiContribution,
   UiContributionDescriptor,
@@ -8,7 +9,7 @@ import { PAGES_TEMPLATES } from "./templates.js";
 
 export const PAGES_UI_CONTRIBUTION_ID = "io.molis.work.native.pages.ui.v1";
 
-export type PagesUiSurface = "directory" | "workbench";
+export type PagesUiSurface = "directory" | "workbench" | "comments";
 
 export interface PagesUiPrimitives {
   escape(value: unknown): string;
@@ -26,6 +27,7 @@ export const pagesUiDescriptor: UiContributionDescriptor = {
   navigation_id: "pages",
   label: "Pages",
   surfaces: [
+    { surface_id: "comments", target_slot_id: "workbench.side", format: "declarative-html" },
     { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
     { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
   ],
@@ -36,6 +38,7 @@ export const pagesUiContribution: UiContribution<PagesUiModel> = {
   descriptor: pagesUiDescriptor,
   render(request: UiRenderRequest<PagesUiModel>): string {
     switch (request.surface as PagesUiSurface) {
+      case "comments": return renderPagesComments(request.model);
       case "directory":
         return "";
       case "workbench":
@@ -96,6 +99,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         <span data-pages-editor-status></span>
         <span data-placement-slot data-placement-saved="off"></span>
         <div class="pages-editor-tools">
+          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-comments-open aria-label="${p.text("文档评论")}" title="${p.text("文档评论")}">${icon("message")}</button>
           <button class="mw-btn mw-btn--ghost" type="button" data-pages-promote data-pages-artifact-bar title="${p.text("把当前内容存成不会再变的一版，放进这个位置的成果（Artifacts）")}">${p.text("存为固定版本")}</button>
           <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-star-editor aria-label="${p.text("收藏")}" title="${p.text("收藏")}">${icon("star")}</button>
           <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-more aria-expanded="false" aria-haspopup="true" aria-label="${p.text("更多")}" title="${p.text("更多")}">${icon("more")}</button>

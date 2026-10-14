@@ -20,7 +20,7 @@
  * 项目首页; the switcher lists the rest.
  *
  * The opened Assistant panel's tab bar is a row of 44px targets on touch too: the work's tab with its close mark, "new work", "all
- * works", the details and minimize, side by side without a gap (it is 50px tall; a 320px panel still leaves the tab a title).
+ * works", the details, expand and minimize. On narrow phones the work title and actions use separate rows to keep both reachable.
  *
  * So is the rest of the panel. One rule covers every button, summary, link and field inside it (the list of all works, the details
  * of a work, and what a conversation holds), so a control the island makes later needs no entry here; a select is drawn as a picker

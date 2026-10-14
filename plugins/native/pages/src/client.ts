@@ -1,9 +1,13 @@
+import { PAGES_LIST_ERROR_SCRIPT } from "./list-client.js";
+import { PAGES_COMMENT_SIDE_FACTORY } from "./comment-side-client.js";
+import { PAGES_COMMENT_EDITOR_SCRIPT } from "./comment-editor-client.js";
 import { PAGES_BLANK_CLIENT_SCRIPT } from "./blank-client.js";
 import { PAGES_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
 
 /** Pages workbench client: library, autosave, ProseMirror host. */
 export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
+  if (host.side) return (${PAGES_COMMENT_SIDE_FACTORY})(host);
   const workbench = document.querySelector("[data-pages=workbench]");
   if (!workbench) return;
   const list = workbench.querySelector("[data-pages=directory]");
@@ -509,6 +513,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     editor = Editor.mount(editorHost, {
       doc: body,
+      onComment: (markId) => { void commentOpen(markId); },
       onChange: () => { if (!filling) queueSave(); },
       onFocus: (focus) => { focusNow = focus; reportFocus(); },
       menuActions,
@@ -645,6 +650,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     closeMove();
     workbench.querySelectorAll(".pages-format-bar, .pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu, .pages-block-ghost, .pages-drop-line").forEach((node) => { node.hidden = true; });
   };
+  ${PAGES_COMMENT_EDITOR_SCRIPT}
   const loadList = async () => {
     const seq = ++listSeq;
     const payload = await request("GET", "/api/plugins/pages");
@@ -1132,20 +1138,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     if (handled) event.preventDefault();
   });
-  // A list that cannot be read says so where the list is, with a way to try again (the note lives in the editor).
-  const listFailed = (error) => {
-    if (empty) empty.hidden = true;
-    const box = document.createElement("div");
-    box.className = "mw-empty mw-empty--error";
-    box.setAttribute("role", "alert");
-    box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
-    box.querySelector("strong").textContent = L("列表暂时读不到");
-    box.querySelector("p").textContent = error?.message || L("请稍后重试");
-    const retry = box.querySelector("button");
-    retry.textContent = L("重试");
-    retry.addEventListener("click", () => { retry.disabled = true; void loadList().then(() => box.remove(), (next) => { retry.disabled = false; box.querySelector("p").textContent = next?.message || L("请稍后重试"); }); });
-    rowsEl.replaceChildren(box);
-  };
+  ${PAGES_LIST_ERROR_SCRIPT}
   void loadList().catch((error) => { showNote(error.message || L("文档请求失败"), true); listFailed(error); });
   void loadGoals();
 }`;

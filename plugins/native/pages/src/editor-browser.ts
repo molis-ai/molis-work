@@ -1,3 +1,5 @@
+import { openEditorComment } from "./editor-comments.js";
+export { focusComment, commentBlock } from "./editor-comments.js";
 import { baseKeymap, chainCommands, setBlockType } from "prosemirror-commands";
 import { dropCursor } from "prosemirror-dropcursor";
 import { gapCursor } from "prosemirror-gapcursor";
@@ -168,6 +170,7 @@ export interface PagesEditorMountOptions {
   translate?: (value: string) => string;
   pages?: () => readonly PagesListItem[];
   onOpenPage?: (id: string) => void;
+  onComment?: (markId: string) => void;
   runAi?: (input: { command: string; text: string; style?: string }) => Promise<{ text: string }>;
   /**
    * Hands the selection to the resident Assistant: `suggest` puts it into the Assistant's input for the person to send;
@@ -3080,24 +3083,8 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     area.focus();
   };
 
-  const openComment = (view: EditorView) => {
-    const found = commentAt(view.state.doc, view.state.selection);
-    if (!found) return;
-    pop.hidden = false;
-    pop.replaceChildren();
-    const area = document.createElement("textarea");
-    area.className = "mw-input";
-    area.rows = 3;
-    area.placeholder = t(options.translate, "评论");
-    area.value = found.text;
-    pop.append(area);
-    pop.append(actions(options.translate, () => {
-      applyComment(view, found.from, found.to, area.value, found.id);
-      hidePop();
-    }, hidePop));
-    placeOverlay(pop, view.coordsAtPos(found.from), "below");
-    area.focus();
-  };
+  const openComment = (view: EditorView) => openEditorComment(view, { onComment: options.onComment,
+    pop, translate: options.translate, actions, hidePop, applyComment, placeOverlay });
 
   const openTone = (view: EditorView) => {
     pop.hidden = false;

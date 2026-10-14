@@ -37,6 +37,7 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
   return [
     ...problems,
     ...referenceProblems(key, action),
+    ...threadProtocolProblems(key, raw.operation, action),
     ...subjectProtocolProblems(key, raw.operation, action),
     ...offerChoiceProblems(key, action),
     ...homeProtocolProblems(key, raw.operation, action),
@@ -49,6 +50,16 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...workflowContentProblems(key, raw.operation, action),
     ...operationKindProblems(key, raw.operation, action),
   ];
+}
+
+function threadProtocolProblems(key: string, operation: unknown, action: ActionBody): string[] {
+  const source = action.thread_source;
+  if (source === undefined) return [];
+  if (!isObject(source) || !["context", "reply"].includes(String(source.role)) || !isText(source.subject_kind)
+    || !action.subject_kinds.includes(String(source.subject_kind)) || action.scope !== "project"
+    || action.audiences.length !== 1 || action.audiences[0] !== "user"
+    || operation !== (source.role === "context" ? "query" : "command")) return [`能力 ${key} 的评论协议需要项目范围、user audience 和匹配的查询/命令`];
+  return [];
 }
 
 // ---- the action body --------------------------------------------------------------------------------------------------------

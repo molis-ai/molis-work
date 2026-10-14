@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import ts from "typescript";
 
 import {
   handleDatasetNativePluginHttp,
@@ -316,8 +317,27 @@ function filesOf(owner: Owner): string[] {
 
 // The plugin client files hold the page's scripts as template strings; the only bare Errors allowed elsewhere are the two sentences that report a
 // wiring mistake in the code (a route without its Host binding, a UI surface the plugin does not render): nobody can cause them by a request.
-const BROWSER_SCRIPT = /[\\/](?:import-)?client\.ts$/u;
 const PROGRAMMING_ERROR: readonly RegExp[] = [/没有 Host binding/u, /UI surface .* 不存在/u];
+function bareServerErrors(source: string): string[] {
+  const file = ts.createSourceFile("plugin.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const errors: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "Error") {
+      const argument = node.arguments?.[0]?.getText(file) ?? "";
+      if (!PROGRAMMING_ERROR.some(sentence => sentence.test(argument))) errors.push(argument);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return errors;
+}
+
+test("the owner-error check ignores browser script text but detects executable template interpolations and server errors", () => {
+  assert.deepEqual(bareServerErrors('export const SCRIPT = `throw new Error("browser");`;'), []);
+  assert.deepEqual(bareServerErrors('export const SCRIPT = `client ${new Error("server interpolation")}`;'), ['"server interpolation"']);
+  assert.deepEqual(bareServerErrors('throw new Error("server input");'), ['"server input"']);
+  assert.deepEqual(bareServerErrors('throw new Error("没有 Host binding");'), []);
+});
 
 test("no document plugin keeps an error class, a route-error mapper, or a raise of its own code outside its declarations", async () => {
   for (const owner of OWNERS) {
@@ -331,13 +351,8 @@ test("no document plugin keeps an error class, a route-error mapper, or a raise 
       assert.doesNotMatch(source, /\bmapError\b|RouteErrorResponse/u, `${where}: a route-error mapper`);
       assert.doesNotMatch(source, new RegExp(String.raw`new\s+\w*Error\(\s*"${owner}\.[a-z_]+"`, "u"), `${where}: ${owner}.* raised without the declaration (it would answer 400 whatever its kind)`);
       assert.doesNotMatch(source, /Object\.assign\(new Error\(/u, `${where}: an Error given a code afterwards`);
-      if (BROWSER_SCRIPT.test(file)) {
-        // The page's own messages: these files are template strings that run in the browser, never an action's failure. Prove it, so the exemption cannot hide a server file.
-        assert.match(source, /^export const \w+_CLIENT(?:_FACTORY)?_SCRIPT = (?:String\.raw)?`/mu, `${where}: exempt from the bare-Error rule only as a browser script`);
-        continue;
-      }
-      // A caller's mistake is an owner code; a bare Error would answer 500 `actions.execution_failed` for it. Only the two programming errors may stay.
-      const bare = [...source.matchAll(/\bnew\s+Error\(([^\n]*)/gu)].map(match => match[1]!).filter(rest => !PROGRAMMING_ERROR.some(sentence => sentence.test(rest)));
+      // Parse actual server expressions: quoted browser scripts are data, but interpolations execute here.
+      const bare = bareServerErrors(source);
       assert.deepEqual(bare, [], `${where}: a bare new Error( is a caller-visible 500; raise ${spec.declarations}.<reason>(...) (or a platform code) instead`);
     }
   }

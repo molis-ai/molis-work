@@ -1,3 +1,6 @@
+import { AssistantThreads } from "./assistant-threads.js";
+import { assistantThreadActions, assistantThreadRegistration } from "./assistant-thread-actions.js";
+import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
@@ -32,12 +35,13 @@ export interface AssistantHttpPorts {
   agentHost: AgentHost;
   agentReady: () => Promise<void>;
   projectTitle(projectId: string): Promise<string | null>;
+  projectReference?(projectId: string): Promise<LocalHostProjectReference>;
 }
 
 /** One Assistant per Home. Its store is opened once and lives as long as the Host that serves it. */
-const services = new WeakMap<MolisWorkLocalHost, { home: string; service: AssistantService; store: AssistantStore }>();
+const services = new WeakMap<MolisWorkLocalHost, { home: string; service: AssistantService; store: AssistantStore; threads: AssistantThreads }>();
 
-export function assistantServiceFor(ports: AssistantHttpPorts): { service: AssistantService; store: AssistantStore } {
+export function assistantServiceFor(ports: AssistantHttpPorts): { service: AssistantService; store: AssistantStore; threads: AssistantThreads } {
   const existing = services.get(ports.localHost);
   if (existing && existing.home === ports.homeDirectory) return existing;
   const store = new AssistantStore(openHomeSqliteDatabase(ports.homeDirectory, ASSISTANT_STORE_NAME));
@@ -70,6 +74,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       invoke: async (action, input) => client.invoke(await personContext(reference), action, input),
     };
   };
+  let threads: AssistantThreads;
   const service: AssistantService = new AssistantService(store, {
     host: async () => { await ports.agentReady(); return ports.agentHost; },
     // The platform memory, registered with this Home's Agent service (the Assistant is one of its consumers).
@@ -79,7 +84,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
         work: { work_id: work.work_id, title: work.title } }, said, key: `${work.work_id}:${run_id}`, session_id: work.session_id ?? null })
         .catch(error => console.warn("[memory] 没有排上提炼", error));
     },
-    authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views),
+    authority: async work => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), service.delegation(work),
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.noteDispatched(work, view), () => {
@@ -107,13 +112,19 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     // Reading related objects back from their owners, as the person: the work's project, or the Home for personal work.
     scopeActions: async work => personClient(work.project_ref),
   }, WEB_ACTOR);
-  const entry = { home: ports.homeDirectory, service, store };
+  threads = new AssistantThreads(store, service, {
+    actorId: WEB_ACTOR, host: async () => { await ports.agentReady();return ports.agentHost; },
+    project: async id => { if (!ports.projectReference) throw new AssistantError("assistant.scope", "当前宿主未提供项目上下文");return ports.projectReference(id); },
+    client: project => ports.localHost.actionClient(project), caller: project => localWebActionContext(ports.localHost, project, LOCAL_OWNER_PERMISSIONS),
+    alive: () => ports.localHost.lifecycle() === "running",
+  });
+  const entry = { home: ports.homeDirectory, service, store, threads };
   services.set(ports.localHost, entry);
   // Deleting a project also stops the round its works still run and cancels their timed follow-ups, which only this service can do.
   projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: "助理在这个项目里的工作", alive: () => ports.localHost.lifecycle() === "running",
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.removeFollowUp(id); } }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
-  try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory); }
+  try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory, assistantThreadRegistration(threads)); }
   catch (error) { console.warn("[assistant] 提醒规则动作没能登记到动作目录", error); }
   return entry;
 }
@@ -135,6 +146,15 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
     async handle({ method, pathname, body }) {
       const { service, store } = assistantServiceFor(ports);
       const parts = pathname.slice("/api/assistant/".length).split("/").map(decodeURIComponent);
+      if (parts.length === 2 && parts[0] === "threads" && ports.projectRef) {
+        const action = parts[1] === "start" ? assistantThreadActions.start : parts[1] === "status" ? assistantThreadActions.status
+          : parts[1] === "retry" ? assistantThreadActions.retry : parts[1] === "stop" ? assistantThreadActions.stop : null;
+        if (action && (method === "POST" || method === "GET" && parts[1] === "status")) {
+          const input = method === "GET" ? { target: { provider_id: url.searchParams.get("provider_id"), subject_kind: url.searchParams.get("subject_kind"), subject_id: url.searchParams.get("subject_id"), thread_id: url.searchParams.get("thread_id") } } : body;
+          const result = await ports.localHost.actionClient(ports.projectRef).invoke(await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS), action, input);
+          return { status: 200, body: parts[1] === "status" ? { status: result } : result };
+        }
+      }
       if (method === "GET" && parts.length === 1 && parts[0] === "works") return { status: 200, body: { works: await service.list() } };
       // The works that relate to one object here: for that object's own page ("belongs to …", continue it).
       if (method === "GET" && parts.length === 1 && parts[0] === "related") {
@@ -234,6 +254,12 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 4 && parts[2] === "materials") return { status: 200, body: { material: service.material(workId, parts[3]!) } };
       if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materialImage(workId, parts[3]!) } };
       if (method !== "POST") return null;
+      const bound = store.get(WEB_ACTOR, workId);
+      if (bound.reply_target && !["rename", "archive", "recovery", "budget"].includes(parts[2] ?? "")) {
+        if (parts[2] !== "control" || body.kind !== "stop" || !bound.project_ref) throw new AssistantError("assistant.scope", "请回到原评论继续这项回复");
+        await ports.localHost.actionClient(bound.project_ref).invoke(await localWebActionContext(ports.localHost, bound.project_ref, LOCAL_OWNER_PERMISSIONS), assistantThreadActions.stop, { work_id: workId });
+        return { status: 200, body: await service.read(workId) };
+      }
       if (parts.length === 3 && parts[2] === "control") return { status: 200, body: await service.control(workId, body as never) };
       if (parts.length === 3 && parts[2] === "answer") return { status: 200, body: await service.answer(workId, body as never) };
       if (parts.length === 3 && parts[2] === "draft") return { status: 200, body: { work: service.saveDraft(workId, body.draft as string) } };

@@ -232,6 +232,8 @@ export type AssistantExecutor =
       mode?: string };
 
 export interface AssistantWork {
+  /** This work replies into an owner-held discussion; its scope cannot become global. */
+  reply_target?: AssistantReplyTarget;
   work_id: string;
   executor: AssistantExecutor;
   revision: number;
@@ -735,4 +737,35 @@ export interface AssistantRoundDiagnostics {
   usage: { input: number; output: number; cached_input: number } | null;
   /** Calls that failed or whose outcome is not known, with the tool's own name and summary. */
   failures: Array<{ tool: string; target: string; state: "failed" | "unknown"; summary: string }>;
+}
+
+/** Immutable destination of a discussion work. The owner provides context and stores the final reply. */
+export interface AssistantReplyTarget {
+  provider_id: string;
+  subject_kind: string;
+  subject_id: string;
+  thread_id: string;
+  title: string;
+}
+/** A person explicitly includes an unsaved object draft; the owner validates its base revision. */
+export interface AssistantThreadDraft {
+  text: string;
+  revision: string;
+}
+
+export interface AssistantThreadContext {
+  title: string;
+  revision: string;
+  text: string;
+  truncated: boolean;
+  message: { message_id: string; body: string; request_id: string };
+}
+/** Set only by the Host after reading this work's completed run; not an action input. */
+export interface AssistantReplyDelivery {
+  target: AssistantReplyTarget;
+  message_id: string;
+  request_id: string;
+  work_id: string;
+  run_id: string;
+  body: string;
 }

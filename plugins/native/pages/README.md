@@ -4,6 +4,10 @@
 
 `pages.generate` 接收调用方已解析的材料快照，通过同一模型配置执行；缺少模型时目录及调用明确拒绝，不生成占位文稿。插件内部的 `generatePagesFromMaterials` 通过短 Store 操作保存 `page_generations`，不跨模型等待持有数据库。历史按项目和请求保存要求、采用版本、错误和文稿 ID；失败或取消保留快照，重试成功后返回原文稿，不覆盖手工编辑。Workbench 的 Inbox 提供材料选择、要求与恢复入口，生成不会自动完成 Inbox。编辑器与 MCP 的 AI 使用统一文字模型配置；候选正文由用户确认或后续创建/修改动作保存。生成前后核对文档版本和取消状态，过期候选不提交。
 
+文档右侧的「评论与备注」跟随当前主区文档。评论保存在 Pages 自己的 `page_comments` 表，正文的原批注与块备注不变。普通评论只保存文字；选中 `@助理` 后发送，宿主把当前正文、引用及本线程作为快照交给同一个 Prologue 运行时，答复只回到原评论，不修改正文。移除引用原文后保留摘录并显示失去定位。回复生成后投递失败可单独重试，避免重复调用模型。
+
+Pages 存储基线为 2；本次未实现旧库读取兼容或自动迁移，也未操作真实 Home。已有基线 1 的 Home 须先经过明确授权的维护升级，才能试用此构建。
+
 包名：`@molis-ai/molis-work-plugin-pages`。
 
 导入入口在 Pages 文档列表的「导入」。支持 Notion 的 Markdown & CSV / HTML ZIP 导出包，飞书等工具导出的 DOCX、Markdown，以及通用 HTML、TXT、CSV。先预览、查看转换提示并勾选文档，再导入当前项目的指定文件夹；可继续编辑、自动保存。保留常用文字格式、列表、待办、表格和代码。导入只创建新文档；一次批量写入使用事务，同一请求重试不会覆盖手工编辑或重复创建。
@@ -49,3 +53,5 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 - 改动后必跑：`node scripts/run-tests.mjs tests/pages-actions.test.ts tests/pages-cross-module.test.ts tests/pages-generation-lease.test.ts tests/pages-conversion.test.ts tests/action-before-effect.test.ts tests/pages-publication.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/pages-blank-discard.test.ts tests/pages-draft-race.test.ts tests/plugin-client-served.test.ts tests/document-plugins-error-model.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/plugin-small-ux.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+评论回归：`node scripts/run-tests.mjs tests/pages-comments.test.ts tests/assistant-thread-reply.test.ts tests/pages-assistant-surfaces.e2e.test.ts`。后两项分别经过真实 Host/Prologue（本机流式模型夹具）与真实浏览器。

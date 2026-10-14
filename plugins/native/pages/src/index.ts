@@ -11,9 +11,10 @@ export const packageDescriptor = {
 export { PAGES_UI_CONTRIBUTION_ID, pagesUiContribution, pagesUiDescriptor, renderPagesWorkbench } from "./ui.js";
 export type { PagesUiModel, PagesUiPrimitives, PagesUiSurface } from "./ui.js";
 import { PAGES_STYLES as PAGES_BASE_STYLES } from "./styles.js";
+import { PAGES_COMMENT_STYLES } from "./comment-side-view.js";
 import { PAGES_IMPORT_STYLES } from "./import-client.js";
 /** Pages' stylesheet: the workbench, and its own import dialog (restored 2026-10-03 at the user's request). */
-export const PAGES_STYLES = PAGES_BASE_STYLES + PAGES_IMPORT_STYLES;
+export const PAGES_STYLES = PAGES_BASE_STYLES + PAGES_IMPORT_STYLES + PAGES_COMMENT_STYLES;
 export { PAGES_EN } from "./en.js";
 export { PAGES_INSTRUCTIONS, PAGES_WRITING_ASSISTANT, PAGES_GENERATE_FROM_MATERIALS } from "./prompts.js";
 export { PAGES_CLIENT_FACTORY_SCRIPT } from "./client.js";
@@ -167,3 +168,6 @@ export { pagesContentActions, createPagesContentHandlers } from "./content-actio
 
 export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND, PAGES_READABLE_FILE, createPagesActionHandlers } from "./actions.js";
 export type { PagesActionPorts } from "./actions.js";
+
+export { pagesCommentActions, createPagesCommentHandlers } from "./comment-actions.js";
+export { pageAnnotations } from "./comments-store.js";

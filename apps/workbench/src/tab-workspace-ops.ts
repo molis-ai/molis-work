@@ -1,13 +1,12 @@
 // @ts-nocheck
 /** Pure tab-workspace rules for additive tabs, user groups, and split panes. Stringified into the browser client; keep it type-annotation-free. */
 export function createTabWorkspaceOps(titles) {
-  const MAX_PANES = Infinity;
   const GROUP_COLORS = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan"];
   const uid = () => "t" + Math.random().toString(36).slice(2, 10);
   const homeTab = () => ({ id: uid(), plugin: "home", kind: "home", title: "项目首页" });
   const itemTab = (plugin, itemId, title) => ({ id: uid(), plugin, kind: "item", itemId, title });
   const pluginViewKey = (plugin) => "plugin:" + plugin;
-  const tabKey = (tab) => tab.kind === "item" ? tab.plugin + ":item:" + tab.itemId : tab.plugin + ":" + tab.kind;
+  const tabKey = (tab) => tab.kind === "system" ? "system:" + tab.owner + ":" + tab.itemId : tab.kind === "item" ? tab.plugin + ":item:" + tab.itemId : tab.plugin + ":" + tab.kind;
   const pluginTitle = (plugin) => (titles && titles[plugin]) || ({
     home: "项目首页",
     goals: "Goals",
@@ -309,6 +308,7 @@ export function createTabWorkspaceOps(titles) {
     const to = state.panes.find((pane) => pane.id === toId);
     const tab = from?.tabs.find((item) => item.id === tabId);
     if (!tab || !to || (!copy && from === to && beforeId === tabId)) return state;
+    if (tab.kind === "system") copy = false;
     const next = copy ? { ...tab, id: uid() } : tab;
     if (copy || from !== to) delete next.groupId;
     if (!copy) {
@@ -339,6 +339,7 @@ export function createTabWorkspaceOps(titles) {
     const source = state.panes.find((candidate) => candidate.id === sourcePaneId);
     const active = source?.tabs.find((tab) => tab.id === (sourceTabId || source.activeTabId));
     if (!pane || (!active && !source?.viewPlugin)) return state;
+    if (active?.kind === "system") mode = "move";
     if (mode === "move" && pane === source && !source.viewPlugin && (active ? pane.tabs.length === 1 : !source.tabs.length)) return state;
     normalizeLayout(state);
     const before = edge === "left" || edge === "top";
@@ -409,7 +410,6 @@ export function createTabWorkspaceOps(titles) {
     return pane?.tabs.find((tab) => tab.id === pane.activeTabId) || null;
   };
   return {
-    MAX_PANES,
     GROUP_COLORS,
     pluginTitle,
     pluginOfSurface,

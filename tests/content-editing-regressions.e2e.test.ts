@@ -7,6 +7,30 @@ import type { PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
+
+test("W2-18-PAGES-COMMENT-01: a plain comment popup follows its original range and refuses a replaced document", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + b.projectId + "/?openPlugin=pages" }, b.sessionId));
+  await b.waitFor("typeof window.MolisWorkPagesEditor?.mount === 'function'");
+  await b.evaluate("(() => { const root=document.createElement('div'); root.id='comment-anchor-fixture'; document.body.append(root); window.commentHandle=window.MolisWorkPagesEditor.mount(root,{doc:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Document A',marks:[{type:'comment',attrs:{id:'comment-a',text:'A note'}}]}]}]}}); const view=commentHandle.view; view.dispatch(view.state.tr.setSelection(view.state.selection.constructor.create(view.state.doc,2,3))); view.focus(); })()");
+  await b.waitFor("[...document.querySelectorAll('.pages-comment-preview')].some(node=>!node.hidden && node.textContent.includes('A note'))");
+  await b.evaluate("[...document.querySelectorAll('.pages-comment-preview')].find(node=>!node.hidden && node.textContent.includes('A note')).querySelector('button').click()");
+  await b.waitFor("[...document.querySelectorAll('.pages-pop:not([hidden]) textarea')].some(node=>node.value==='A note')");
+  await b.evaluate("(() => { const area=[...document.querySelectorAll('.pages-pop:not([hidden]) textarea')].find(node=>node.value==='A note'); window.oldCommentApply=area.closest('.pages-pop').querySelector('.mw-btn--primary'); area.value='Mapped note'; commentHandle.view.dispatch(commentHandle.view.state.tr.insertText('Prefix ',1)); oldCommentApply.click(); })()");
+  const mapped = await b.evaluate<{ content: Array<{ content: Array<{ text: string; marks?: Array<{ type: string; attrs: { text: string } }> }> }> }>("window.MolisWorkPagesEditor.getDoc(commentHandle)");
+  assert.equal(mapped.content[0]!.content.map(node => node.text).join(""), "Prefix Document A");
+  assert.ok(mapped.content[0]!.content.some(node => node.text === "Document A" && node.marks?.some(mark => mark.type === "comment" && mark.attrs.text === "Mapped note")), "the original text carries the saved annotation after the insertion moved it");
+  assert.ok(!mapped.content[0]!.content.some(node => node.text.includes("Prefix") && node.marks?.some(mark => mark.type === "comment" && mark.attrs.text === "Mapped note")), "the inserted prefix was not silently included in the old range");
+  await b.evaluate("(() => { const view=commentHandle.view; view.dispatch(view.state.tr.setSelection(view.state.selection.constructor.create(view.state.doc,10,11))); view.focus(); })()");
+  await b.waitFor("[...document.querySelectorAll('.pages-comment-preview')].some(node=>!node.hidden && node.textContent.includes('Mapped note'))");
+  await b.evaluate("[...document.querySelectorAll('.pages-comment-preview')].find(node=>!node.hidden && node.textContent.includes('Mapped note')).querySelector('button').click()");
+  await b.waitFor("[...document.querySelectorAll('.pages-pop:not([hidden]) textarea')].some(node=>node.value==='Mapped note')");
+  await b.evaluate("(() => { const area=[...document.querySelectorAll('.pages-pop:not([hidden]) textarea')].find(node=>node.value==='Mapped note'); window.detachedCommentButton=area.closest('.pages-pop').querySelector('.mw-btn--primary'); area.value='Must not enter B'; window.MolisWorkPagesEditor.setDoc(commentHandle,{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Document B'}]}]}); })()");
+  const before = await b.evaluate("window.MolisWorkPagesEditor.getDoc(commentHandle)");
+  await b.evaluate("window.detachedCommentButton.click()");
+  assert.deepEqual(await b.evaluate("window.MolisWorkPagesEditor.getDoc(commentHandle)"), before, "a retained old popup handler cannot annotate the next document");
+  await b.evaluate("window.MolisWorkPagesEditor.destroy(commentHandle);document.querySelector('#comment-anchor-fixture').remove()");
+});
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
 const body = (text: string) => ({ type: "doc" as const, content: [paragraph(text)] });
 const readPage = (b: Browser, id: string) => { const store = openPagesStore(b.homeDirectory); try { return store.get(id, b.projectId!); } finally { store.close(); } };

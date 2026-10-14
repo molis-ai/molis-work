@@ -57,6 +57,8 @@ export interface ActionCallOrigin {
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
+  /** Host-authenticated delivery of a completed discussion run; never accepted from business input. */
+  readonly assistant_reply?: import("../services/assistant.js").AssistantReplyDelivery;
   /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
   readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
@@ -113,8 +115,16 @@ export interface ActionCallContext extends ActionCallOrigin {
  * After asynchronous work, await this immediately before committing each effect. It rechecks
  * this exact registration, live authority/availability, scope, cancellation and call lifetime.
  * The provider still owns the following transaction and optimistic concurrency checks. */
+export interface RetainedActionAuthority {
+  (): Promise<void>;
+  /** Recheck original authority and registrations after a downstream action's final await. No handler lifetime is retained. */
+  readonly assertCurrent: () => void;
+}
+
 export interface ActionExecutionContext extends ActionCallContext {
   readonly beforeEffect: () => Promise<void>;
+  /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect. */
+  readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
 }
 
 export interface ActionMetadata {
@@ -152,6 +162,8 @@ export interface ActionMetadata {
   readonly search_source?: SearchSourceDeclaration;
   /** A side panel file source: the file kinds it lists (or previews) and where each opens (specs/archive/side-panel §3.3). */
   readonly file_source?: FileSourceDeclaration;
+  /** Common owner protocol for reading a discussion and committing its fixed reply destination. */
+  readonly thread_source?: { readonly role: "context" | "reply"; readonly subject_kind: string };
   /** Optional rule choices owned by this subject-offer query; each target is declared in the same registration, in the same scope, and handles the option's subject kinds. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
   /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); each target is declared in the same registration and scope. */

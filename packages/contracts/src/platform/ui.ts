@@ -39,6 +39,8 @@ export interface UiViewDeclaration {
   readonly icon?: string;
   /** The view can host bounded objects opened from elsewhere. */
   readonly accepts_objects?: boolean;
+  /** A side view follows the focused stage object of its own plugin. Omitted means a persistent tool. */
+  readonly context_binding?: "focused-object";
   /**
    * `side` views only: the object kinds this cell of the right panel shows, so what is picked up there is a known object.
    * Each kind needs an object reader (`subject.read`) in the same Manifest (context-program §4).
@@ -46,6 +48,24 @@ export interface UiViewDeclaration {
   readonly objects?: readonly string[];
   /** Lower sorts earlier inside its slot. Ties fall back to view_id order. */
   readonly order?: number;
+}
+
+/** Focused stage metadata delivered by the shell to a declared contextual side view. Never grants object access. */
+export interface UiSideContext {
+  readonly plugin_id: string;
+  readonly pane_id: string;
+  readonly tab_id: string;
+  readonly view_id: string;
+  readonly object_ref: { readonly kind: string; readonly id: string; readonly title?: string; readonly version?: string | number };
+  readonly revision: string | number | null;
+  readonly unsaved: boolean;
+}
+
+/** A side client announces molis:side-ready; the shell sends its latest context, including explicit clearing. */
+export interface UiSideContextMessage {
+  readonly type: "molis:side-context";
+  readonly context_epoch: number;
+  readonly context: UiSideContext | null;
 }
 
 export const UI_COMMAND_INPUT_KINDS = ["current", "object", "agent-session", "artifacts"] as const;

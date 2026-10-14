@@ -14,7 +14,7 @@ type Translate = (text: string, values?: Record<string, string | number>) => str
 function projectSideTabs(enabled: readonly string[], routePrefix: string) {
   const home = homePluginSideTabs();
   return [...home, ...sideEntries(enabled).filter(side => !home.some(tab => tab.key === `${side.project_plugin_id}/${side.view_id}`))
-    .map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title, icon: (side.icon ?? "package") as PageIcon,
+    .map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title, ...(side.context_binding ? { contextOwner: side.plugin_id, contextSurface: side.project_plugin_id } : {}), icon: (side.icon ?? "package") as PageIcon,
       src: `${routePrefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` }))];
 }
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";

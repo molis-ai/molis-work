@@ -4,6 +4,7 @@ import { PAGES_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
 /** Pages workbench client: library, autosave, ProseMirror host. */
 export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
+  if (host.side) return window.MolisWorkPagesEditor.mountComments({ ...host, controlHeaders: molisWorkControlHeaders });
   const bench = document.querySelector("[data-pages=workbench]");
   if (!bench) return;
   const list = bench.querySelector("[data-pages=directory]");
@@ -512,6 +513,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     editor = Editor.mount(editorHost, {
       doc: body,
+      onComment: (markId) => { void commentOpen(markId); },
       onChange: () => { if (!filling) queueSave(); },
       onFocus: (focus) => { focusNow = focus; reportFocus(); },
       onTools: publishTools,
@@ -688,6 +690,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!sel || unshowable) return;
     do { await save(); } while (sel && (saveTimer || dirty));
   };
+  const commentOpen = Editor.bindComments({ workbench: bench, persistCurrent: persist, showNote, translate: L, get selected() { return sel; }, get editor() { return editor; }, get unshowable() { return unshowable; }, get dirty() { return dirty || Boolean(saveTimer); } });
   // Showing the document already open here again (its item tab after the page's list, a reload's second request): the
   // workbench took its name off the surface when it hid it, so name it again with its version and title.
   const revealEditor = () => {
@@ -1127,20 +1130,6 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     if (handled) event.preventDefault();
   });
-  // A list that cannot be read says so where the list is, with a way to try again (the note lives in the editor).
-  const listFailed = (error) => {
-    if (empty) empty.hidden = true;
-    const box = document.createElement("div");
-    box.className = "mw-empty mw-empty--error";
-    box.setAttribute("role", "alert");
-    box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
-    box.querySelector("strong").textContent = L("列表暂时读不到");
-    box.querySelector("p").textContent = error?.message || L("请稍后重试");
-    const retry = box.querySelector("button");
-    retry.textContent = L("重试");
-    retry.addEventListener("click", () => { retry.disabled = true; void loadList().then(() => box.remove(), (next) => { retry.disabled = false; box.querySelector("p").textContent = next?.message || L("请稍后重试"); }); });
-    rowsEl.replaceChildren(box);
-  };
-  void loadList().catch((error) => { showNote(error.message || L("文档请求失败"), true); listFailed(error); });
+  void loadList().catch((error) => { showNote(error.message || L("文档请求失败"), true); window.MolisWorkPagesEditor.listFailed({empty,rowsEl,L,loadList},error); });
   void loadGoals();
 }`;

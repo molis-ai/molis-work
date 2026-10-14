@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   COSS_CONTROL_STYLES,
+  PRIMITIVE_STYLES,
   INTERACTION_TEXTURE_STYLES,
   MOLIS_WORK_DENSITY_STORAGE_KEY,
   MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY,
@@ -24,6 +25,17 @@ import {
 } from "./workbench-renderer-fixture.js";
 
 // Soft Workbench (specs/archive/soft-workbench-rollout): every layer takes its base tokens from one helper.
+test("PAS-14 page styles apply each shared control overlay once and standalone foundation retains both", () => {
+  for (const render of [renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet]) {
+    const sheet = render();
+    for (const overlay of [COSS_CONTROL_STYLES, PRIMITIVE_STYLES]) {
+      assert.equal(sheet.split(overlay).length - 1, 1, "only the final control overlay remains");
+      assert.ok(VISUAL_FOUNDATION_STYLES.includes(overlay), "standalone consumers keep controls");
+    }
+    assert.ok(sheet.indexOf(COSS_CONTROL_STYLES) < sheet.indexOf(PRIMITIVE_STYLES), "overlay precedence stays unchanged");
+  }
+});
+
 test("Soft Workbench shell tokens come from one helper", () => {
   const light = renderShellTokens("light");
   const dark = renderShellTokens("dark");

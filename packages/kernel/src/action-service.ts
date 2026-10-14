@@ -1,3 +1,4 @@
+import { actionExecutionContext, visibleAction } from "./action-execution-context.js";
 import {
   ActionError, actionReachesAudience, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
@@ -7,7 +8,7 @@ import {
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CapabilityRegistry } from "./index.js";
 import { assertSessionAuthorship } from "./action-authorship.js";
-import { assertCurrentAuthority, effectGuard, bindCall, describeCall, settleCall, settleCallSync, runActionHandler, type CallContext, type CallSettled } from "./action-settlement.js";
+import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallSync, runActionHandler, type CallContext, type CallSettled } from "./action-settlement.js";
 import { actionSchemaAccepts, compileActionSchema, createActionSchemaCompiler, validateActionValue } from "./action-schema.js";
 import { validateActionInput } from "./version-precondition.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
@@ -84,7 +85,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         const availability = (context: ActionCallContext): ActionAvailability => {
           const source = sourceAvailability(context);
           if (!source.available) return source;
-          if (!visible(definition, provider, context)) return unavailable("actions.forbidden", "当前调用者不可使用此能力");
+          if (!visibleAction(definition, provider, context)) return unavailable("actions.forbidden", "当前调用者不可使用此能力");
           if (definition.action.scope === "project" && !context.project_id) return unavailable("actions.project_required", "请选择项目");
           const own = handler.availability?.(context) ?? { available: true };
           return own.available ? this.dependencyAvailability(context, definition) : own;
@@ -120,8 +121,8 @@ export class ActionService implements ActionClient, ActionRegistryPort {
             requireSynchronous(this.effects.assertCurrent?.(context, reference), "最终运行环境检查必须同步完成");
           };
           // Copy the context so a concurrent/nested invocation cannot replace this call's check.
-          const execution: ActionExecutionContext = { ...context, ...(lifetime ? { signal: lifetime.signal } : {}),
-            ...effectGuard(context, reference, definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target)) };
+          const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
+            definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref)), ...(lifetime ? { signal: lifetime.signal } : {}) };
           const checked = (value: unknown) => checkedActionResult(definition, validateOutput, value);
           // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
           try {
@@ -195,7 +196,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       if (!definition.action || !provider || !context.actor_id
         || (provider.project_id && provider.project_id !== context.project_id)
         || !actionReachesAudience(definition.action, definition.capability_id, context.audience)) return [];
-      if (!inspection && !visible(definition as ActionDefinition, provider, context)) return [];
+      if (!inspection && !visibleAction(definition as ActionDefinition, provider, context)) return [];
       return [{ capability_id: definition.capability_id, version: definition.version, operation: definition.operation,
         action: definition.action, provider, availability: this.registry.availability(context, definition) }];
     });
@@ -451,13 +452,6 @@ function checkedActionResult(definition: ActionDefinition, validateOutput: Retur
   return value;
 }
 
-function visible(d: ActionDefinition, provider: ActionProvider, c: ActionCallContext): boolean {
-  return !!c.actor_id && (!provider.project_id || provider.project_id === c.project_id)
-    && actionReachesAudience(d.action, d.capability_id, c.audience) && d.action.permissions.every(p => c.permissions.includes(p))
-    && (!c.allowed_capability_ids || c.allowed_capability_ids.includes(d.capability_id))
-    && (!c.allowed_actions || c.allowed_actions.some(ref => ref.capability_id === d.capability_id && ref.version === d.version
-      && (!ref.provider_id || ref.provider_id === provider.provider_id)));
-}
 function sceneVisible(s: RegisteredScene, c: ActionCallContext): boolean {
   return !!c.actor_id && (!s.provider.project_id || s.provider.project_id === c.project_id)
     && (s.definition.permissions.every(p => c.permissions.includes(p))

@@ -154,7 +154,7 @@ export async function handleMolisWorkWebRequest(
     // Personal memories are managed from the global settings, outside any project.
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost })) return;
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, {
-      localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady,
+      localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady, projectReference: async projectId => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
       projectTitle: async projectId => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }),
     })) return;
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/side/files/") && await handleUnscopedComputerFiles(request, response, url, serverOptions.homeDirectory)) return;
@@ -414,7 +414,7 @@ export async function handleMolisWorkWebRequest(
         // This project's memories (and the person's own) from the project's settings and work panel.
         if (serverOptions.homeDirectory && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost, projectRef: hostReference })) return;
         if (serverOptions.homeDirectory && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, {
-          localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady, projectRef: hostReference,
+          localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady, projectRef: hostReference, projectReference: async projectId => projectId === hostReference.project_id ? hostReference : composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
           projectTitle: async projectId => projectId === options.project?.project_id ? options.project.display_name
             : composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }),
         })) return;

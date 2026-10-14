@@ -18,6 +18,7 @@ export interface UiPlacedView {
   contribution_id: string;
   icon: string | null;
   accepts_objects: boolean;
+  context_binding?: "focused-object";
   order: number;
 }
 
@@ -61,6 +62,7 @@ export class UiViewRegistry {
           contribution_id: view.contribution_id ?? defaultContributionId(manifest, view.view_id),
           icon: view.icon ?? null,
           accepts_objects: view.accepts_objects === true,
+          ...(view.context_binding ? { context_binding: view.context_binding } : {}),
           order: view.order ?? 100,
         });
       }

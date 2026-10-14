@@ -2415,3 +2415,5 @@ W3-02-I3按原I收Goals核心错误工厂，依赖H/R1–R3。当前AST221调用
 32真实安全管理四条再次通过0skip/cancel（5835ms），增强可信actor精确LOCAL_PERSON_ACTOR_ID及幂等重放facts完全不增，原安全矩阵和取消/断连保持；独立Source复核4e13无P1。I2以6cd33032b/4b288纳I8，actual完整模块与独立候选同，Host只删治理注入；测试Goals前缀按I8完整R3既有事实保持，未带回独立候选旧测试词元。33整体build/root tsc/API/actions/health/资源已0，真实治理、HTTP状态/可信身份、树物化rollback与provenance正在回归，未出完整footer不记整批通过。
 
 33 I2组合实际全部通过：整体build/root tsc/API/actions/health/29资源预算及十文件95/95真实回归，0skip/cancel（56240ms），包含HTTP配置/决定/收尾、当前轮次与agreement授权范围、tree提交/物化原子rollback、可信输入聚合、CLI/管理MCP真实Host重开、动作拒绝有编号与0事实、管理取消/断连。现行无详情遵共同optional、显式详情与消息保留实际成立；健康Error subclasses77，shape28/owner49均只降。该组合无boundary重跑，26-source已证唯一临时SDK路径缺口仍在；共享全量与最终I3及原路线完成尚待，不把95通过作为整线结束。
+
+I3当前AST分类补齐：138固定throw码、28确切传给校验helper的原因共166，183候选中的17个completionUnmet/PlanningGraph数据式结果码不声明成错误。34个同owner辅助函数的error参数位置已逐一登记，调用按TypeScript解析声明定位删除，不能仅按requiredText同名替换。公开validateRelationGraph hook仍code:string，两个真实边界改new ActionError(issue.code,issue.message)不强制kind，平台conflict/forbidden按原公共表分类；内部已证三stale冲突409不改，其他固定owner现行400保持。当前I3只清点/方案、未写生产源码，不能记166原因已收口。

@@ -80,7 +80,9 @@ async function composerPath(page: ChromePage): Promise<void> {
   await page.click(ref("sample-notes"));
   await page.fill(`${assistant} [data-ix-part="time"]`, "9:30");
   await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", text: "\r" });
-  assert.equal(await read(page, "document.activeElement?.id"), "assistant-references");
+  // The shared client (I1) lands on a group's pick or first control, not on the group: a group is not itself a control.
+  assert.equal(await read(page, "document.activeElement?.tagName === 'BUTTON' && document.activeElement.closest('#assistant-references') !== null"), true,
+    "Enter moves on into the references group, onto its first control");
   assert.equal(await read(page, `document.querySelector('${assistant}').dataset.questionState`), "open");
   await page.click(`${assistant} [data-ix-field="date"] [data-ix-calendar-open]`);
   assert.equal(await read(page, "document.activeElement?.getAttribute('aria-label')"), "10月15日");

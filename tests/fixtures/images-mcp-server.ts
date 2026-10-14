@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { IMAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-images";
 import { createActionMcpPorts, handleMcpMessage, serveMcpStdio } from "@molis-ai/molis-work-app-mcp";
 

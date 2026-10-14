@@ -222,7 +222,8 @@ export class AssistantOffers {
       const code = (error as { code?: string }).code ?? "";
       const message = error instanceof Error ? error.message : String(error);
       // An unknown outcome is never offered again as a plain retry: it may already have happened.
-      const unknown = /delivery_unknown|host_replaced/.test(code);
+      // That includes a failure the owner raised after its effect, or an invalid output after it (W2-18-CARD-UNKNOWN-01).
+      const unknown = ["actions.outcome_unknown", "actions.output_invalid_after_effect"].includes(code) || /delivery_unknown|host_replaced/.test(code);
       // The data moved on since the suggestion: say so, and let the person ask for a fresh one; never re-aim it quietly.
       const moved = !unknown && (/conflict|stale|revision|version/i.test(code) || /已在其他窗口修改|版本|已变化|已更新|revision|version/i.test(message));
       return cardView(this.ports.store.updateCard(card, card.revision, unknown ? { status: "unknown", outcome: `结果未确认：${message}。请到原处核对，不会自动重试` }

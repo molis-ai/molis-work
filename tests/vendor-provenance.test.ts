@@ -204,23 +204,24 @@ describe("the records of this repository", () => {
   const file = (relative: string) => readFileSync(path.join(repoRoot, relative), "utf8");
   const json = (relative: string) => JSON.parse(file(relative));
   const folder = "vendor/prologue-sdk";
-  const current = "prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz";
+  const current = "prologue-sdk-0.0.0-rc.1-interim-p1-cu-image-acceptance.tgz";
 
   test("every vendored archive matches its .sha256 and provenance", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("the current Prologue package is the one agent-host depends on, the interim line plus the window picture, pushed and built without a patch", () => {
+  test("the current Prologue package is the one agent-host depends on, the interim line plus the window picture and the model-switch acceptance check, pushed and built without a patch", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    assert.equal(provenance.source.commit, "923e5a40e568a5df15a9a5a542d3c083c783a5e2");
-    // Still the 2026-10-13 interim line (until Molis P3 takes P2). The window-picture commit from upstream main is
-    // cherry-picked onto that line; the package commit itself is not on upstream main, and its parent is the previous interim merge.
-    assert.equal(provenance.source.inFlight.branch, "release/molis-interim-p1-cu-image");
+    assert.equal(provenance.source.commit, "4007a93c8901f090994bff8d847009982958bdef");
+    // Still the 2026-10-13 interim line (until Molis P3 takes P2): the window-picture commit from upstream main cherry-picked onto
+    // it, then (2026-10-14, user-authorized) the model-switch beforeAccept check (Prologue #20 into that line; #24 on main). The
+    // package commit is not on upstream main.
+    assert.equal(provenance.source.inFlight.branch, "feature/model-switch-acceptance-cu-image");
     assert.equal(provenance.source.inFlight.pushed, true);
     assert.equal(provenance.source.inFlight.parentsOnUpstreamMain, false);
-    assert.deepEqual(provenance.source.inFlight.parents, ["08b84296f81df1bd5f3429c2dc2997d18b72473a"]);
+    assert.deepEqual(provenance.source.inFlight.parents, ["b88b2422084a9010b62bac2da39e65b0383ef7ea"]);
     assert.deepEqual(provenance.source.patches, []);
     assert.equal(provenance.source.dirty, false);
   });
@@ -231,10 +232,12 @@ describe("the records of this repository", () => {
     assert.deepEqual(patches, named ? [named] : []);
   });
 
-  test("patch-history.json holds the 26 deleted patches and the 15 packages that never had one", () => {
+  test("patch-history.json holds the 26 deleted patches and the 16 packages that never had one", () => {
     const record = json(`${folder}/patch-history.json`);
     assert.equal(record.patches.length, 26);
-    assert.equal(record.packagesWithoutPatch.length, 15);
+    assert.equal(record.packagesWithoutPatch.length, 16);
+    // The 16th is the CU-image package this one replaced.
+    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz");
     assert.equal(record.patches.reduce((sum: number, patch: { bytes: number }) => sum + patch.bytes, 0), 2_791_897);
     const kinds = record.patches.reduce((count: Record<string, number>, patch: { sourceKind: string }) => ({ ...count, [patch.sourceKind]: (count[patch.sourceKind] ?? 0) + 1 }), {});
     assert.deepEqual(kinds, { "upstream-commit": 8, "uncommitted-worktree": 17, "molis-repo": 1 });
@@ -243,7 +246,7 @@ describe("the records of this repository", () => {
     const networkDispatch = record.patches.find((patch: { file: string }) => patch.file === "network-dispatch.patch");
     assert.equal(networkDispatch.package.sha256, "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e");
     assert.equal(networkDispatch.package.file, "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz");
-    assert.equal(record.upstream.commitsChecked.length, 24);
+    assert.equal(record.upstream.commitsChecked.length, 25);
     // The commit named for retrieval is one that is known to hold every patch; it is not "the last one" (every later commit
     // on main up to the deletion holds them too), so the key must not say so.
     assert.deepEqual(Object.keys(record.retrieval).filter((key) => /^last/i.test(key)), []);
@@ -255,8 +258,8 @@ describe("the records of this repository", () => {
     const readme = file(`${folder}/README.md`);
     const record = json(`${folder}/patch-history.json`);
     assert.ok(readme.includes("26 份补丁（合计 2,791,897 字节）"));
-    assert.ok(readme.includes(`记录里写到的每个 Prologue 提交（${record.upstream.commitsChecked.length} 个）`));
-    assert.ok(readme.includes(`\`${record.upstream.mainHead.slice(0, 8)}\``));
+    assert.match(readme, new RegExp(`${record.upstream.commitsChecked.length}\\s*个\\s*Prologue\\s*提交`), "the README states how many Prologue commits the record checked");
+    assert.ok(readme.includes(record.upstream.mainHead.slice(0, 8)), "the README names the upstream main head the record checked against");
     assert.ok(readme.includes(json(`${folder}/${current}.provenance.json`).source.commit));
     // Statements the dependency plan (specs/repository-anti-corruption/dependencies-and-sdk-plan.md §4.1) showed to be wrong:
     // the source commits are pushed (merged upstream as PR #3), the network-dispatch hash was recorded.

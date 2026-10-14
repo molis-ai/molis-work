@@ -72,7 +72,9 @@ export async function injectDesktopAction(action: HostSurfaceAction, target: Tar
     case "upload": {
       const file = path.resolve(path.sep, ...action.from);
       ctx.mark(`把本机文件 ${path.basename(file)} 交给「${target.name}」`, null);
-      return void await helper.call("file.give", { pid, path: file });
+      await helper.call("file.give", { pid, path: file });
+      ctx.noteFile?.(path.basename(file));
+      return;
     }
     case "download": {
       const destination = downloadDestination(action.to);
@@ -80,6 +82,8 @@ export async function injectDesktopAction(action: HostSurfaceAction, target: Tar
       if (!document.path) throw new Error(`「${target.name}」的前窗没有对应的文件可取出`);
       ctx.mark(`从「${target.name}」取出 ${path.basename(document.path)}，存到 ${destination}`, null);
       fs.copyFileSync(document.path, destination, fs.constants.COPYFILE_EXCL);
+      ctx.noteFile?.(path.basename(document.path));
+      ctx.noteFile?.(path.basename(destination));
       return;
     }
     case "app":

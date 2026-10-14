@@ -48,6 +48,13 @@ function rememberRefusal(ctx: DeskContext, app: { bundle_id: string; name: strin
   throw error;
 }
 
+/** The title and document the desk will compare when the round ends. An empty title clears a window that closed. */
+function rememberSeen(ctx: DeskContext, state: AppState | null): void {
+  ctx.noteWindow?.(state?.window?.title ?? "");
+  const documentName = state?.window?.document.split("/").filter(Boolean).pop();
+  if (documentName) ctx.noteFile?.(documentName);
+}
+
 /** The target app's accessibility tree, as window-relative text for the model. `cut` is the node cap or the text cap, not the window title. */
 function renderTree(state: AppState, tree: Tree): { text: string; cut: boolean } {
   const [ox, oy, width, height] = tree.window.frame;
@@ -137,6 +144,10 @@ export interface DeskContext {
   noteRun(sessionId: string, runId: string): void;
   /** Ends the round that `describeRound` named: finishes its record and frees the computer. */
   release(sessionId: string): void;
+  /** The window title just read. Empty when that window is gone. */
+  noteWindow?(title: string): void;
+  /** A file this round handed over, took out, or found as the window's document. */
+  noteFile?(name: string): void;
   /** Clock for an observation's age. Tests pass one; a real desk uses the wall clock. */
   now?(): number;
 }
@@ -250,6 +261,7 @@ export class ComputerDriver {
     const state = await this.appState();
     try { this.forbidCheck(state); } catch (error) { rememberRefusal(this.ctx, this.appRef(), this.translate(error)); }
     if (!state.window) throw new Error(`「${target.name}」现在没有打开的窗口`);
+    rememberSeen(this.ctx, state);
     this.ctx.mark(`正在查看「${target.name}」`, null);
     if (kind === "screenshot") {
       const png = await this.screenshot(state);
@@ -283,7 +295,7 @@ export class ComputerDriver {
 
   private async perform(action: HostSurfaceAction, sessionId: string | null): Promise<HostSurfaceActReceipt | void> {
     await this.ctx.ready(sessionId);
-    if (action.what === "app") { await this.switchApp(action.app); this.ctx.noteInjected(); return this.receipt(); }
+    if (action.what === "app") { const png = await this.switchApp(action.app); this.ctx.noteInjected(); return this.receipt(png); }
     if (action.what === "navigate") throw new Error("桌面应用没有网址可打开；网页上的事用侧栏浏览器");
     const target = this.ctx.target();
     if (!target) throw new Error("还没有选定应用：先用 app 动作打开或切到一个应用");
@@ -331,6 +343,7 @@ export class ComputerDriver {
   private async receipt(png?: Uint8Array): Promise<HostSurfaceActReceipt> {
     const target = this.ctx.target();
     const state = target ? await this.appState() : null;
+    rememberSeen(this.ctx, state);
     if (!target || !state?.window) return { tree: "这一步之后没有可读的窗口。" };
     const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 });
     const rendered = renderTree(state, tree);
@@ -338,7 +351,7 @@ export class ComputerDriver {
     return { tree: rendered.text, ...(reason && png ? { model_image: png, image_reason: reason } : {}) };
   }
 
-  private async switchApp(bundleId: string): Promise<void> {
+  private async switchApp(bundleId: string): Promise<Uint8Array | undefined> {
     const installed = await this.ctx.helper.call<{ apps: { bundle_id: string; name: string }[] }>("apps.installed");
     const running = await this.ctx.helper.call<{ apps: { bundle_id: string; name: string }[] }>("apps.running");
     const known = running.apps.find(app => app.bundle_id === bundleId) ?? installed.apps.find(app => app.bundle_id === bundleId);
@@ -356,7 +369,7 @@ export class ComputerDriver {
     this.ctx.setTarget({ bundle_id: bundleId, name: state.name || known.name, pid: state.pid, verdict });
     try { this.forbidCheck(state); } catch (error) { rememberRefusal(this.ctx, this.appRef(), this.translate(error)); }
     this.ctx.changed();
-    try { await this.freshFrame(); } catch (error) { if (isRefused(error)) throw error; /* no picture yet is fine */ }
+    try { return await this.freshFrame(); } catch (error) { if (isRefused(error)) throw error; return undefined; }
   }
 
   /** The point is on the target app and not on a window that shows Molis Work. The helper checks again at the last moment. */

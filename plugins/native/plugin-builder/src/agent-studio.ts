@@ -453,12 +453,12 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
   if(el.dataset.asTab){tab=el.dataset.asTab;target=null;if(tab!=='build'){playToken++;playing=false;queue.forEach(id=>revealed.add(id));queue=[];landing=null;picking=null;wires.forEach(w=>wiredCaps.add(w.cap));wires=[];wiring=null;}schedule();return;}
   if(el.hasAttribute('data-as-untarget')){target=null;schedule();return;}
   if(el.dataset.asInstall){const v=versions.find(x=>x.version===Number(el.dataset.asInstall));consent(L('安装「{name}」到这个项目',{name:current.design?.title||''}),v?.permissions,L('安装')).then(ok=>{if(ok)run(async()=>{
-    const install=extra=>act('install',{version:v.version,grants:{consent:true,secrets:ok.secrets||[],...extra}});
-    try{await install();}catch(e){
+    const apply=extra=>act('install',{version:v.version,grants:{consent:true,secrets:ok.secrets||[],...extra}});
+    try{await apply();}catch(e){
      if(e.code!=='plugin.kept_data_incompatible')throw e;
      const choice=await ask(L('安装「{name}」',{name:current.design?.title||''}),L('之前卸载时留下了这个插件的数据，但这个版本读不了它。要安装，只能放弃那些旧数据、全新开始；放弃后无法找回。'),[['discard',L('放弃旧数据，全新安装'),true],['cancel',L('取消')]]);
      if(choice!=='discard')return;
-     await install({discardKeptData:true});}
+     await apply({discardKeptData:true});}
     await refreshState();});});return;}
   if(el.dataset.asUpgrade){const v=versions.find(x=>x.version===+el.dataset.asUpgrade),go=s=>run(async()=>{await act('upgrade',{version:v.version,grants:{consent:true,secrets:s}});await refreshState();});
    if(covered(v?.permissions,installed(current)?.effects))go();else consent(L('升级到 v{version} 需要新的权限',{version:v.version}),v?.permissions,L('确认并升级')).then(ok=>ok&&go(ok.secrets));return;}

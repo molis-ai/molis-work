@@ -179,8 +179,8 @@ test("visual foundation defines one wide workbench and one narrow companion", ()
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-workspace-nav/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-btn--primary[\s\S]*background: var\(--action\)/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-now-body \.goal-primary-action/);
-  assert.equal(VISUAL_FOUNDATION_STYLES.match(/linear-gradient/g)?.length, 3);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-map\.graph-stage \{[\s\S]*linear-gradient\(to right,[\s\S]*linear-gradient\(to bottom,/);
+  // The one gradient left is the primitives' own; the momentum grid's two went with its retired skin (A1+H2).
+  assert.equal(VISUAL_FOUNDATION_STYLES.match(/linear-gradient/g)?.length, 1);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-dir-row__copy strong \{[\s\S]*text-overflow: ellipsis/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.mw-dir-row__copy strong \{[\s\S]*mask-image:/);
 });
@@ -377,13 +377,6 @@ test("Goal Tree keeps each stable Goal id visible beside its title", () => {
   assert.match(goalIdRule, /text-overflow:\s*clip/);
 });
 
-test("Goal Momentum keeps each stable Goal id available with its node title", () => {
-  const goalIdRule = VISUAL_FOUNDATION_STYLES.match(/\.momentum-node > small \{([^}]*)\}/)?.[1] ?? "";
-  assert.match(goalIdRule, /display:\s*block/);
-  assert.doesNotMatch(goalIdRule, /display:\s*none/);
-  assert.match(goalIdRule, /text-overflow:\s*ellipsis/);
-});
-
 test("runtime separates app chrome from a configurable terminal canvas", () => {
   assert.match(VISUAL_FOUNDATION_STYLES, /--terminal-muted: #b5b5bd;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--terminal-faint: #92929b;/);
@@ -516,29 +509,16 @@ test("desktop Goal tabs preserve readable titles instead of shrinking to status 
 });
 
 test("visual foundation gives Goal momentum a left-to-right topology and action workbench", () => {
+  // The momentum-* rules of the retired skin went with A1+H2: no markup draws those classes (the view is goal-canvas-*).
+  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.momentum-[a-z]/);
   assert.match(VISUAL_FOUNDATION_STYLES, /workspace\.is-desktop-tui\.is-graph-view/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.workspace\.is-desktop-tui\.is-graph-view/);
   assert.match(VISUAL_FOUNDATION_STYLES, /:has\(> \.tree-pane\[data-navigator-view="graph"\]\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.workspace\.is-desktop-tui\[data-navigator-view="graph"\]/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-momentum/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-map\.graph-stage/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /grid-template-columns: repeat\(var\(--momentum-level-count\)/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /grid-column: var\(--momentum-column\)/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-group/);
   assert.match(VISUAL_FOUNDATION_STYLES, /tree-pane > \.tree-scroll \{ grid-row: 4; \}/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.graph-zoom/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-edge\.is-selected-path path/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-edge path \{[^}]*opacity: \.2;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /#momentum-arrow-selected path \{ fill: var\(--blue\); \}/);
   assert.match(VISUAL_FOUNDATION_STYLES, /workspace\[data-workspace-mode="graph"\] > \.workbench-header \{[\s\S]*display: block;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /workspace\[data-workspace-mode="graph"\] > \.goal-momentum \{[^}]*grid-column: 3;[^}]*grid-row: 2;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-node\.is-bottleneck/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-cadence-panel:not\(\[hidden\]\) \{ display: grid; \}/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-cadence \{[\s\S]*container-type: inline-size;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /@container \(max-width: 780px\)[\s\S]*\.momentum-cadence-copy \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) auto;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-group header button, \.momentum-group header > span \{[\s\S]*text-overflow: ellipsis;[\s\S]*white-space: nowrap;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-node\.is-group-first-row \{ align-self: start; margin-top: 24px; \}/); // spacing scale
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-map-scroll::\-webkit-scrollbar \{ display: none; width: 0; height: 0; \}/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-queue-panel/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-node\.is-selected/);
 });

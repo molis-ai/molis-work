@@ -31,6 +31,6 @@ export async function switchRunModel(input: {
   }
   if (frozen.thinking && next!.protocol !== "anthropic-compatible") refuse(`这一轮开着思考，「${next!.model}」的接口格式没有思考档`);
   if (frozen.reasoning_effort && next!.reasoning_effort !== true) refuse(`这一轮选了思考力度，模型设置里没有标注「${next!.model}」可调思考力度`);
-  if (start!.prompt_cache && next!.protocol !== start!.protocol) refuse("这一轮开着提示缓存，只能换同一种接口格式的模型");
+  if (start!.prompt_cache && start!.prompt_cache !== "off" && next!.protocol !== start!.protocol) refuse("这一轮开着提示缓存，只能换同一种接口格式的模型");
   await control.switchModel!({ protocol: next!.protocol, endpoint: next!.endpoint, model: next!.model, credential_ref: next!.credential_ref }, () => input.requested(next!.model));
 }

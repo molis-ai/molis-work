@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，未达到整条防腐线的完成标准（2026-10-12 复查）。全部71包源码审查已完成；2026-10-13新合入main的`fc18d5f62`（#472）所涉7包增量也已补审，并核合并头`6972b1cb0`及`808f0856c`的修正。新发现换模尾检、自动回交当前状态与动作版本缺口仍须整改，不以源码已审冒充修复或运行通过。逐包职责、消费者、放置和验证边界见§12.9；必要修复见 §12.3/§12.8，组合路径见 §12.7，均不因源码审完而关闭。I6 冻结稿 `af0fe957` 全量已结束，6,088 个用例中 4 个失败、9 个跳过，不能记为通过；独立修复按明确文件范围推进，共同 AUTH 与机器构建/浏览器队列仍由原会话统一管理（§12.11）。Dataset 文件导入与 Issue 手动保存的本地修复、缺陷复现和修后验证已核，尚待整合；其余准备稿不冒充已验收。第 1 波 W1-18 的源码裁决已补齐，整改未完；第 2 波 W2-18 的逐插件异常、组合路径、前端第二轮、测试有效性与动作消费仍在收口。第 3 波余项、第 4–6 波和维护八沿原路线推进。已合入代码、在途候选、原始失败、真实产品实操与用户验收分别记录，完整要求映射和任务书 §7 的逐条结论见 §12。
+状态：执行中，未达到整条防腐线完成标准（2026-10-13接续）。71包及#472增量源码审查已完成，整改和真实回归仍在。I4/I5的第五批既有修复已收入main，BL-133旧测试按用户决定修正；后续共享核心在I8组合收口，05实际658条中45失败、06定向106条中8失败，修后08冻结验证排队，未宣称全量通过。W2-10 A1–A4已合入，C #484已合入、D已准备，E绝对零候选待组合验证。错误统一H/R1–R3及权限、生命周期修复尚在候选，Work R4a三片仅源码/静态复核通过，实际运行待补。模型换模SDK上游提交与正式vendor替换仍等已有问题的用户回答；真实Home写入、维护八及他人成果清理遵守§1授权。第4–6波与最终真实场景、手册、度量和交付沿原路线继续，当前main和逐项证据见§10/§12，不以已审、已记、已合PR或静态通过冒充整线完成。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -2234,3 +2234,42 @@ R3源码20e9b32e9固定：148错误词元/32TS、90现行码；AST门禁仅识�
 
 I8接续共享核心整合：新树i8-error-test-import-integration由当前main c33448f29建立，4778d5636合入H/R1–R3与此前I7源码，194a288fa合入C/D测试与隔离夹具/DNS恢复，2e29acd4e承接E绝对零；冲突保留新增业务测试正文并按现行入口重写导入。E入口同时保留I7浏览器程序拒写guard与新增混载绝对零检查，不放宽门禁。实际静态图零混载（967进程），缺的整体构建/类型、MCP/HTTP与动作v2、核心与全量由这一组合统一补证。Root已核pid/cwd/未启动日志，仅取消自己未启动的H47546/82294与I7 15935/78750两个排队构建，组合代替它们，不重复构建；外来全量自然结束，其进程未动，C/D25浏览器已拿到名额。候选SDK仍只在私有临时树引用，pkg1+/1-、lock5+/5-且118optional项保留；上游commit/push/PR与正式vendor替换许可仍待，未动正式vendor。
 R3独立源审确认148literal/32TS/90码之外正文仅两注释，2990JS/TS含嵌入脚本零旧错误码；八业务type/三宿主in-flight保留，无Blocker/P1。运行与动作快照缺口继续保留。
+
+C/D冻结ada822a15的25文件真实浏览器组合已完成：w2-10-cd-browser-runtime01.log实际77/77，零fail/cancel/skip，session65943退出0；C 7Darwin63条与D42非浏览器108条既有独立有效证据保留，不重复计 rerun。I8预检01安装frozen/offline/optional通过，整体build退出1，contracts报告闲置导入（原日志i8-build01.log）；未执行后续动作快照/门禁/类型/79文件，不记运行通过。先最小清理编译阻断后整体重建。
+
+I8编译接续：02验证contracts已越过，但Goals报告13闲置import，02b7c66cf仅移除这些绑定；03先单包Goal编译，明确TS4023是公共动作使用contracts私有GoalReadActionInput、插件另有同形输入定义。沿P-MCP的单一合同主人公开现有{goal_id:string}输入到goal-actions subpath，插件import/re-export现行类型并删本地定义，同步API；不改字段/动作schema/运行行为，不增加读取兼容。03仍未整体build或运行，不记通过。
+
+I8源码编译修复固定f2fad9f96：fc1c8b3fe清contracts闲置imports，02b7c66cf清Goal13闲置绑定，7a8903319公开并复用GoalReadActionInput唯一合同/API（插件原类型名作纯type再导出），f2fad9f96标明Coding位置参数_api；动作行为不改。05整体build/API/actions/types实际退出0，四个Goal规划输出已实测v2；另四Goal读/进度动作plugin消费场景及Coding control v2来自既有I7承接，不能误记只四行变化。资源实测十一项超main预算，未写预算；health拒context-onboarding内部import 7→8，未写基线；boundary另发现Goals HTTP SDK未声明dep，候选SDK临时路径也仍待正式许可。79文件真实运行仍在进行，已有失败待末尾完整诊断，先不改断言或生产语义。C独立仅测试分支对齐main a4106442f，正确头版本脚本health降至520/7，密钥扫描通过；#484已开draft并附到当前任务，等完整CI，不提前合。
+
+I8预检05真实79文件单批收齐：658条613通过/45失败，17文件，零取消/跳过。该轮不能验收。按实际源码与独立只读诊断，88dbd9be2修当前kind解析/Agent权威夹具/已退役active入口并声明Goal SDK依赖，d5943e356修六现行入口（可逆plugin create实际actor审计/原四builtin拒绝保持、禁用403、catalog新Session恢复文案、合法token、真实sandbox闭合schema及隔离Home），96a802b1e接SDK真正授权动作链/原current+signal真实Runtime尾检装配、真实Schedule provider通知、SDK编码模型正文、MCP读版本再promote。原低层typed端口permissions=[]保持，T1增加它拒绝写入/编号/事实和通知不变，合法第三入口由真实PluginRuntime的绑定actions证明；不可继续称它为typed写路径。其他backend合法后台行/项目关闭重开与可用性、资源16路径超额、OAuth内部导入等仍待。13修复文件06 frozen96a802b1e，安装/整建/类型/相关运行已单次启动，不重复05的有效无变部分；SourceSDK临时pkg/lock5差异仍只验证未正式发布。
+
+06补验证据：13文件106条98通过/8失败、零取消/跳过，安装/整体build/types通过。16版本前置、两typedAgent、真实Sandbox四保护动作、十个真实Runtime尾检及MCP未来catalog等已有效通过；仍须处理实际出站错误边界、八剩余根因和05未补文件。GATEWAY-MODEL-CODE-01：本地Agent动作网关对已识别ActionError用SDK已支持HOST_RESPONSE_INVALID协议保留原owner code与message，让真实模型上下文与Host诊断一致；取消保留原路径、未知错误仍按SDK现行处理，不扩大SDK任意code闭集。真实Assistant用例须仍断言模型收到schedule.task_not_found与原理由、Host日志及零事实改变。当前Source拟修，未据98通过关闭整条目标。
+
+当前main在执行中独立合入#411情境动作到70c928ae（108文件、含源码/资源/门禁），非本轮Root操作；C #484原a410 CI五必需+Product已成功，ready后因新main变BEHIND，未提前合。C隔离树自动merge新main为2d2a955b，无冲突；03 frozen安装/整体build/health/boundary已通过，当前24文件浏览器（23C+既有D mcp-access，多跑一文件）尚在，不再只引用旧Source的77条证明新main。I8六剩余修复文件07 frozenb0b7d09f1排队等待，Source不改；它含GATEWAY-MODEL-CODE-01本地已识别ActionError的SDK允许失败码保留原code/message，取消与未知错误原样，Goal settings/guidance缺的共同SDK出口亦补齐。06其余失配改按真上下文保留断言（Home Todo page/MCP各自project_id、低typed无ambient权限、未曾授权MCP未知方法）；Pages真实读动作为get，未新增别名。#476独立docs树原97d2 CI五+Product通过但新main落后，已同步到ca0091b28，两doc94新增行、源码与main一致，健康/密钥02通过，推送后重等CI；后五堆叠片仍须按父片/current main验证。
+
+I8合入#411后固定e881c7302并单次排08：新版landing/draft、浮层停留保留，HTTP拒绝继续共同SDK，安全测试取两边并集、S13新增起草/S15原Home权限仍完整；Pages文档级资源与冻结锚点、setDoc/destroy清理保留。08十文件含OAuth真实HTTP/servedScript/情境landing/draft及六剩余入口，现等待外来adoption全量结束，没有动它的进程。独立只读复核另识别同合并P1：callout样式弹层仍绕过showPop（旧pos可留到新文档），已记在待修，须08后接reclaim+showPop并实操补验，不据源并关闭。C新main03安装/整建/健康/边界全过，24浏览器73/73，零跳过取消；#484已推2d2a并等新CI。#476当前ca009两doc94新增行、现行main一致，密钥与健康通过并已推，等待5+Product；#477审发现shape变而留v1，沿现行合同规矩在Root独立树ed5acdfe6改v2/原user受众与校验保留，新增验收编号ADOPT-CONTROL-V2-01；构建/真实动作快照/三既有控制用例仍排队，不提前推新形状或声称通过。
+
+远端#476已在2026-10-13T23:35:16Z以b03a4e839487f5d87eb09404c606e834f0ab009a合入：精确ca0091b28同步70c，5必需+Product实际成功、freshsecrets通过，Linux探针仍报告中。C原2d2a5必需+Product成功，但合并文档片后必须再同步；Root已把#476的两doc合到C为10a85e13b并freshsecrets普通push，源码/脚本/技能/测试与已验证73条的头逐项无差异，因此不机械重跑Source浏览器，只等新头严格CI。I8 e881/08与#477 ed5/预检01仍在同一机器构建队列等待外来adoption全量，未重启或中断它。
+
+W3-02-R4a1接续现行owner命名决定：先只迁私人Session/消息/交接的生产错误及现行消费者到work.<原前缀>.<原因>，在当前main b03a4e83隔离树串行准备。capability/session.create/read/resume、sessions动作与权限名、handoff.goal/project/workspace业务关系、sessions.db文件及历史记录保持；context/workspace跨owner同词码另片按生产方裁决，不能全局替换。本片不新建错误类、alias、schema兼容或维护读取。R4A1-01：真实动作/HTTP/Registry消息和交接拒绝产生现行work码，消息/kind/details/诊断号与拒绝副作用保持；R4A1-02：AST逐词元审生产/消费，公开PrivateWorkContextErrorCode/API同片更新，业务词元与历史SQL保持；R4A1-03：现行Session真实定向回归、资产/健康/边界及共享组合全量通过后才能验收。生产错误写入原库的维护八先在克隆统计并验证，真实Home写入仍按既有待决许可；本片源码准备不冒充数据维护、构建或运行完成。
+
+R4a1源码准备实际完成：118个TS错误词元（105生产/13断言）涉及22文件，另将recoverInterrupted的现行SQL写入码改为work.handoff.interrupted，未改历史查询。AST逆转owner名后22份文件正文一致、解析零；只刷新PrivateWorkContextErrorCode一份API，其他公开快照不变，现行base健康门禁通过。新增R4A1-01标在真实消息撤关联与租约恢复用例。动作/权限/业务type/关系/数据库名保持；数据维护、构建、真实运行与组合全量尚未执行，不验收。D现行main/C同步至c816d570e，重新量得500内部引用/0混载，剩19文件差异；须C先合及新版实际回归后发布D。
+
+R4a2按事实owner收口同词context错误：私人工作绑定产出的context.*为work.context.*；Projects/桌面Panel各自产出的context.*为catalog.context.*；Ledger四种拒绝为context_ledger.*。三类producer与各自当前类型/调用消费者同片同步，传入同一个catalogFailure工厂不改变事实归属；跨owner透传仍保留原码。R4A2-01：真实项目绑定/Panel/Ledger拒绝产生相应owner码，拒绝理由、确认门槛及事务/事件不变；R4A2-02：context.bound/rebound/unbound、目录/关系及业务事件SQL一字不改，错误类型/API同步；R4A2-03：各producer定向真实用例及共享组合回归证明当前消费者，无读取旧码兼容。该片从现行main隔离准备，不修改I8/#477冻结树。
+
+R4a3按已登记Work owner承接Workspace句柄/文件快照校验与Session目录更新回滚的错误：只将workspace.invalid_ref/handle_not_opaque/invalid_path/invalid_payload/change_rolled_back/recovery_required及实际消费者变成work.workspace.*，字段、opaque句柄、安全路径、内容、事务回滚/重试不变。R4A3-01：真实校验仍拒绝路径泄露、越界及错误载荷，目录变更失败仍回滚或明确恢复失败，返回现行owner码；R4A3-02：公开错误union/API及现行比较同步、workspace.name等业务键和历史SQL保持；R4A3-03：真实生产路径与现有断言、资源/门禁及组合全量通过后验收。与前两片共享组合一次验证，不新增测试专用API。
+
+R4a1 b4153282b经统筹独立只读复核：3,099份跟踪JS/TS/SQL未剩21种完整旧错误token，22TS逆名AST一致，HTTP状态/交接SQL/回执与业务词元保持，无新Blocker/P1。R4a2 19a2a9568准备15TS/78词元，独立只读同样无新Blocker/P1，剩25个context业务词元保持；API仅app-host错误union同步，health通过，补工厂透传说明不改行为。R4a3 ac65c8789准备5TS/51错误词元，逆名AST一致、API仅workspace-artifacts错误union、health通过；真实目录回滚/路径拒绝断言保留。三片均未构建或真实运行，不能据静态复核验收。
+
+R4b沿已接受owner规则准备Artifacts首片：Module产出的artifact.<原因>→artifacts.artifact.<原因>，成果文档导入的document.<原因>→artifacts.document.<原因>，已是artifacts.*的现行码保持。生产工厂、HTTP/动作消费者及测试/活文档同片更新；artifact.*业务事件/引用路径、document.id/version合同示例、导入文档类型和历史数据不迁。R4B-01：实际成果注册/导入拒绝使用现行owner码，原消息/kind/details、权限、幂等与读回保持；R4B-02：只迁错误语境，完整消费者与工厂类型API同步，业务与SQL保持；R4B-03：owner真实定向、资源/健康/边界与共享组合全量通过才验收。当前排队期间仅准备源码，不另起构建。
+
+R4a3 ac65c8789独立只读复核无新Blocker/P1：3,062份JS/TS/SQL无六类旧错码，实际路径/opaque/快照、repair/unlink补偿顺序与cause及Files/Git拒绝断言保留，静态证据不替代运行。R4b 2f6dc5def准备71错误literal/14file、两document工厂变artifacts.document，17文件合并改动中16JS/TS逆名后AST正文一致；API0差异、base health通过，9条boundary引用与真实Feed消费保持同一检查，仅错码名字同步，不放宽门禁。artifact.published、document.id/version、DOM及旧库保持；构建/真实运行/资源与组合全量仍待，不验收。
+
+W2-10 C #484已在2026-10-14T00:06:34Z合入main 5c66cf0ab607bf1550287942cbc6011e0559eaf7：精确head10a85e13b对齐b03a4e83，五必需检查+Product成功、freshsecrets05通过；Linux仍报告中。GitHub mergeState为UNSTABLE仅因Linux未结束，其余全部已完成SUCCESS；未忽略任何必需/产品失败。C新main03真实73/73和旧Darwin63独立证据保留，D同步后仍须实际新版回归，不据C合入关闭D/E或I8。
+
+R4c1先按既有登记Characters owner处理五种character错误（not_found/conflict/deleted/disabled/invalid）为characters.<原因>：Module和插件、HTTP状态比较及现行测试同片更新；角色身份、修订号、启停/删除状态、固定成果、授权和持久化业务事件保持。R4C1-01：真实更新冲突/停用/删除/导入输入拒绝仍阻止写入，owner码现行且原消息和事实不变；R4C1-02：producer和HTTP/测试消费者无旧码读取或alias，既有API/action形状无变化则不机械升版；R4C1-03：owner相关实跑/资源/健康与共享回归后验收。当前从main5c66隔离源码准备，不新增构建排队。
+
+R4c2沿登记Agent owner仅迁Molis自有inference错误到agent.inference.<原因>，保留第二段区分执行服务与既有agent.*；SDK原生闭集错误、Run状态/模型协议/事件、dispatch-refusal身份标记及日志历史保持。生产Molis Prologue适配器/Host服务、Unavailable/image前缀消费者和现行测试/活文档同片更新，不改SDK源码或正式vendor。R4C2-01：服务停用/占用、图片/密钥/空输出等原拒绝保持、模型回执和0外部派发/0事实修改断言不放宽；R4C2-02：现行consumer无旧Molis错码读取兼容，外部SDK码不改，API/action形状有变化才同步；R4C2-03：实际Agent/推理生命周期、类型/资源/门禁与共享组合回归通过后验收。当前仅源码准备。
+
+C #484合入后的Codex合规复查按系统整理§1–15：§1–7没有新增生产身份/能力/owner/生命周期路径，包导入迁移保留实际定义及私有构建副本，除Keychain夹具外AST测试正文一致；§8/13未新增模型/SDK调用，文档仅现行构建前提；§9真实新main浏览器73/73保留范围；§10单Home/文件Secret和假Keychain隔离，唯一fixture Host供网页与动作共用、原locked读取/0provider/0Keychain/不改密文断言全部保持，未碰真Home；§11/12/14与Darwin干净基线及真实失败/重跑证据对照，不改产品语义或吞断言；§15仅本片可收口，D/E/I8和维护/后续路线不关闭。未发现该片新增必须处理P1。
+R4c1 67081873c（41错误词元/6TS）独立只读无新Blocker/P1，旧5码无残留、API0及health通过；R4c2 bd56ef174（22错误词元/8TS+现行文档/fixture说明）将Molis自有推理码和image_比较归agent.inference，逆名AST8/8同、API0/health通过，SDK原生错误与真实拒绝身份标记/模型回执保持。R4c2仍未运行；D现行5c66同步7cf62dc67，整树与c816d570e一致，42非浏览器+2浏览器新版driver仅准备未启动。I8和#477原等待进程保持，不新增同一构建。

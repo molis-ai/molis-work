@@ -85,6 +85,24 @@ function connectorWith(driver: ConnectorDriver): ConnectorHost {
   return connector;
 }
 
+test("J2A-01: the connector owner refuses missing, duplicate and revoked wiring, and rejects an invalid provider event", async () => {
+  const connector = new ConnectorHost();
+  let polls = 0;
+  const driver: ConnectorDriver = { driver_id: "refusal-driver", async health() { return { ok: true, status: "connected", message: "ready" }; },
+    async poll() { polls++; return { ok: true, mode: "live", events: [{ ...rawEvent("invalid"), occurred_at: "not-a-date" }], cursor_after: null }; } };
+  assert.throws(() => connector.connect({ connection_id: "refusal-connection", driver_id: driver.driver_id }), { code: "connector.driver_missing" });
+  assert.equal(polls, 0);
+  connector.registerDriver(driver);
+  connector.registerDriver(driver);
+  assert.throws(() => connector.registerDriver({ ...driver }), { code: "connector.driver_duplicate" });
+  connector.connect({ connection_id: "refusal-connection", driver_id: driver.driver_id });
+  await assert.rejects(connector.invoke({ connection_id: "refusal-connection", cursor: null }), { code: "connector.invocation_failed" });
+  assert.equal(polls, 1);
+  connector.revoke("refusal-connection");
+  await assert.rejects(connector.invoke({ connection_id: "refusal-connection", cursor: null }), { code: "connector.connection_missing" });
+  assert.equal(polls, 1, "a revoked connection cannot invoke its driver again");
+});
+
 test("Listener refusal after accepting a Signal preserves that receipt but cannot mark delivery, advance cursor or write a failure; restart dedupes it", async () => {
   const directory = mkdtempSync(join(tmpdir(), "listener-effect-authority-")), databasePath = join(directory, "project.sqlite");
   seedDemoBoard(databasePath);

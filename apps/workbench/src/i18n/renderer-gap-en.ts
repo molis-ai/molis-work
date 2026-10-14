@@ -12,6 +12,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "同一项选了两次": "The same option was picked twice",
   "这一题不能写其他答案": "This question takes only the options shown",
   "回答太长了": "The answer is too long",
+  "选的对象已不存在或现在不能用，请重新选择": "The object you picked is gone or not available to you now; pick again",
   "这一题的回答不能提交，请改一下": "This answer cannot be sent; please change it",
   "打开「{title}」": "Open “{title}”",
   "这一轮做出的结果": "What this round made",

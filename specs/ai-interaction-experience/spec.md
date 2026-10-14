@@ -458,6 +458,9 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 | D18 | 问卷卡与「读回答」各放哪（2026-10-14，本线定） | 卡由宿主画，放在 `apps/local-host/src/agent-question-card.ts`（助理与 Coding 的问题都在宿主那一层附 HTML，同一个函数）；把卡里的字段读成运行的回答放在插件开发包 `questionAnswer`（宿主的助理 HTTP 用它，Coding 的页面脚本把它按文本嵌入，与嵌入代码高亮同法） | 两边各写一份就是同一个事实的两个主人；读回答要同时在宿主和页面里用，按 AGENTS 的规矩，作者和平台共用、会运行的工具放在插件开发包里。代价：改插件开发包算共享核心，要跑全量 |
 | D19 | 共享客户端只在一处（2026-10-14，本线定） | `workbench.js` 的初始化里定义一次，经宿主对象交给助理岛与所有延迟加载的插件客户端（Coding 拿到的是 `host.interaction`）；项目选择页内联一份给它自己的岛 | 不在 5 个 Coding 系插件包里各嵌一份；岛也不再自带一份（A1 时嵌在岛里） |
 | D20 | 带类型的选择题开放（2026-10-14，本线定，按 D8） | 助理与 Coding 都声明 `choice`，宿主给 Runtime `askUserQuestionTypes: ["choice"]`；`assistant-base` 升到 25、`coding-base` 升到 10，各加一句怎样写选项说明、推荐与选填；ISSUE-34 改为断言带类型的合同（缺 `label` 的选项被拒并说明，只纠正一次） | 两个界面都画得了带类型的选择题，按 D8 就在同一个改动里开放；其他题型等两边都画得了再开 |
+| D21 | 对象候选动作叫什么、挂在谁下面（2026-10-14，本线定，技术决定按防腐后果） | `search.references@1`，挂在现有的 `system.search` 提供方下（原计划名 `interaction.references.search`）；候选 = 调用者的搜索按种类找到的、调用者自己项目里或 Home 范围的对象，每个再经对象主人的读取器（`resolveActionSubject`）以调用者权限读一遍；提交前的复核（`confirmReferences`）用同一次读取。受众只给人与页面（`user`、`plugin`），不给模型 | 新建提供方要多一处 `registerProvider`，门禁冻结这个数；候选本来就是「搜索 + 主人重读」，事实主人是搜索。情境线落点的 `find` 可直接调它。限制：没有搜索来源或没有读取器的种类挑不到 |
+| D22 | 复核不过时怎么说（2026-10-14，本线定） | 合同加一个宿主自己的原因 `reference-unavailable`（`AGENT_QUESTION_HOST_REASONS`），与 SDK 的 19 个原因分开列；仍是 `agent.answer_invalid`，标在那一题上，别的题与草稿不动 | 不混进 SDK 的闭集（那份要与 SDK 一字不差） |
+| D23 | `assistant-base` 里对象引用题那句放哪一片（2026-10-14，本线定，同 D17） | 放到开放 `reference` 题型的那一片，不在 H3 | H3 之后模型仍拿不到 `reference` 题；提示词先讲就是在讲它没有的工具 |
 
 ## 17. 分期与 PR 序列
 
@@ -940,6 +943,42 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
 - 并入 main `9abcb963`（含 #488 状态环）：宿主问卷卡的标题环随 `answer`/`unavailable` 走（原来画在助理那份 `assistantQuestionHtml` 与 Coding 自己的卡上，现在画在共享的 `agentQuestionHtml` 上，Coding 页面在这一轮结束时把环切到 `unavailable`）；`assistant-strip-narrow.e2e` 的 RING-07 样例改用 `agentQuestionHtml`。并入后对照 merge-base `9abcb963`：5 个 Coding 系插件包各 −826，`workbench.css`、`settings.css` 各 −752，`workbench.js` −14。
 - 全量回归（并入 main 之前的 `1c7051a5`）：6261 条，6250 通过，9 跳过，2 失败——都是 main 上已知的 `touch-targets.e2e` 两条（亮、暗各一）。并入 main 之后重跑了相关单测 107 条与浏览器用例 8 条（`coding-question-card`、`issue-clarification-page`、`assistant-strip-narrow`、`coding-state-rings`、`assistant-page-written`），全部通过。
 - 用例：新 `tests/coding-question-card.e2e.test.ts`（AC-22：带类型的合同、推荐与说明、不预选、草稿随会话、回答到达模型、卡换成回执）；`coding-question-card.test.ts` 的规则（不预选、无忽略、无多余输入框、无空选项组、各卡 id 不串、转义）改到共享卡上，「没有问题时什么都不画」随列表渲染函数一起删掉（宿主按每个等待中的问题附一张卡）；`agent-typed-questions`、`issue-clarification-page` 的 ISSUE-34 按 D20 改。
+
+### 20.15 现状核对（2026-10-14，交互线线会话，依据 origin/main `393e8958`）
+
+口径：「已实现」= 代码在 main 上、有守它的用例；「部分」= 只做了一部分或只在一处入口；「未做」= main 上没有。证据只列代码与用例位置；实走截图另记（本节末）。三级证据分开：下表只是工程证据，不是真实产品实操，也不是用户验收。
+
+**内部完整（§1）：未达到。** 「AI 发起交互 → 用户填写或选择 → 原任务继续 → 结果与后续」在助理与 Coding 上只对**选择题**和**助理的操作卡**通了；混合字段、对象引用、Coding 的操作卡与下一步、单次插件的接续、第二批入口、文档与三个示例都还没有。
+
+| 验收 | 判定 | 证据 / 缺口 |
+| --- | --- | --- |
+| AC-01 范围 | 部分 | §14.3 只有首轮分组；逐插件的证据没补；第二批入口（P5）未开始 |
+| AC-02 输入体验 | 部分 | Option 在问卷卡里（助理 `agent-question-card.ts`、Coding 同一函数，用例 `assistant-interaction-html`、`coding-question-card.e2e`）。**同排推荐没有**：D14 把下一步放在最新一轮之下，不在输入框旁；Coding 没有下一步（H4）。§3 第 2 条「与输入框平齐、横向展开」是用户特别强调的，现在归情境线的助理面板布局（跨线，见下） |
+| AC-03 交互语义 | 部分 | 操作卡不点不执行、推荐不等于选中、默认值不提交（`assistant-offers.ts`；`coding-question-card.e2e`「不预选」）。输入框目标芯片（D14 修订后的 R4：「写进问卷 / 补充这一轮」）两边都没做：本线的「写进问卷」一半与回执线 1e 的一半都未开工 |
+| AC-04 补充信息 | 部分 | 宿主逐题校验与字段旁的错误已通（`answerProblems` → `agent.answer_invalid` → `questionErrors`；`agent-typed-questions.test.ts`）；但 `hostQuestionTypes()` 只有 `choice`，文本、数字、日期、对象引用都没给模型 |
+| AC-05 对象与材料 | 未做 | H3：没有候选动作、提交前没有复核。只有操作卡的目标对象改版后失效（`assistant-offers.ts` 的失效巡检） |
+| AC-06 预览与结果 | 部分 | 助理操作卡有对象、参数、影响与回执（`assistant-card-view.ts`）；结果只有一行文字；下一步只有「打开结果 / 再试一次」。Coding 没有操作卡（H4） |
+| AC-07 失败恢复 | 部分 | 等待期限 24 小时（`prologue-node.ts` 的 `inputWaitTtlMs`）；草稿存在工作记录与 Coding 会话（D13、`question_drafts`）；卡片 CAS、结果未知不重试。重启后带类型问卷读回并作答的真实 Node Host 用例**没有** |
+| AC-08 并发与输入 | 部分 | 卡片版本 CAS、问题版本核对；没有「两个入口同时回答同一题」的真实交错用例 |
+| AC-09 专业插件 | 部分 | Coding 的 Diff、命令审查、报告在 A2 全量里通过；非 Agent 插件的结构化接续没有（S1） |
+| AC-10 UI | 部分 | 助理问卷卡与操作卡在 A1 看过浅、深与 390 px；Coding 问卷卡的三个宽度与深色没有记录；真实中文输入法、读屏未验证 |
+| AC-11 SDK 消费 | 部分 | 过渡包带带类型 `ask-user`，宿主用它投影与预检；只开了 `choice`；换正式包（采用线 P3）后要再核 |
+| AC-12 长期接入 | 未做 | `skills/molis-prologue-ai`、`docs/platform/PROLOGUE-AI.md`、`skills/molis-plugin-dev`（含 `generated-ai.md`）都没写问卷、操作卡、对象引用、单次接续；§15.8 三个示例一个都没有（示例 1 要日期时间、数字、对象引用；示例 2 要同排按钮；示例 3 要 S1） |
+| AC-17 共享部件 | 已实现 | `interaction-components.test.ts`、`interaction-sdk-mapping.test.ts` |
+| AC-18 共享客户端 | 已实现 | `interaction-client.e2e.test.ts` |
+| AC-19、AC-20 带类型的题进宿主 | 已实现 | C1+H1（#410）；用例 `agent-typed-questions.test.ts`（用例名里没写 AC-19/20 的编号，随下一片补上） |
+| AC-21 助理问卷卡 | 已实现 | #492；`assistant-interaction-html.test.ts` |
+| AC-22 Coding 问卷卡 | 已实现 | #496；`coding-question-card.e2e.test.ts` |
+| AC-23 操作卡协作者 | 已实现（助理） | #492；`assistant-offers.ts`（W5-10 形状） |
+| AC-24 对象引用 | 未做 | H3 |
+| AC-25 Coding 操作卡 | 未做 | H4；Coding 的 Run 没有动作网关（网关只在 business 工作区），`suggest-action` 无处落 |
+| AC-26 单次接续 | 未做 | S1；插件开发包只有 `questionAnswer`（只读选择题与文字） |
+
+**题型放开的真实前置**（比 §17.1 写的多两件）：①共享问卷卡 `agentQuestionHtml` 只画选择题与文字，日期、数字、对象引用要先在这里画出来；②Coding 的 `coding.runs.control` 第 2 版只收 `question/indexes/other`，带 `value` 要升第 3 版（§20.0 已记），`plugins/native/coding/src/run-inputs.ts` 的 `questionAnswer` 跟着改；③插件开发包的 `questionAnswer` 要读出 `value`。
+
+**跨线**：同排推荐的位置（输入框旁 vs 线程里）属于助理面板的布局与动线，现在归情境线；本线只出合同（下一步视图 `InteractionNextStep` 与派生函数）与 Coding 侧的呈现。
+
+**实走（隔离 Home）**：待做。main 在 A2 之后要重新整体构建，构建锁被防腐线全量占着；拿到构建时段后在隔离 Home 里走助理与 Coding 的问卷卡、操作卡、Option、下一步，截图 1440/1024/390 与深色，补在这里。
 
 ### 20.12 C1+H1（`c50a5534`）重做时与 main 的碰撞（2026-10-13，只读核对，没有合并）
 

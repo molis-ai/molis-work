@@ -102,7 +102,6 @@ ${F} .plugin-stage-list .feed-stage-entry .feed-entry-copy strong {
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; white-space: normal;
   font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.55; color: var(--ink); text-wrap: pretty;
 }
-${F} .feed-stage-entry[data-feed-entry-read="unread"] .feed-entry-copy strong::before { content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 8px 4px 0; border-radius: 50%; background: var(--accent); vertical-align: middle; }
 ${F} .feed-stage-entry[data-feed-entry-read="read"] .feed-entry-copy strong { color: var(--ink-soft); }
 ${F} .plugin-stage-list .feed-stage-entry .feed-entry-preview { display: block; margin-top: 4px; font-size: 12px; line-height: 1.6; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 ${F} .feed-entry-foot { display: flex; align-items: center; min-height: 0; margin-top: 8px; }

@@ -6,6 +6,11 @@ import type { AgentCommandOutput, AgentRunView } from "@molis-ai/molis-work-cont
 import { codingUsageSummary } from "./usage.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
 import { CODING_REPORT_TYPE, type CodingReport } from "./artifacts.js";
+
+/** What the report says about a supplement: the runtime's receipt in the same words as the timeline (specs/ai-input-receipts §3.3). */
+const STEER_WORDS: Record<NonNullable<AgentRunView["turns"][number]["steer"]>["state"], string> = {
+  received: "已送达，还没放进上下文", applied: "已放进上下文，AI 还没读到", read: "AI 已读到", unread: "这一轮结束时 AI 没读到", withdrawn: "已撤回",
+};
 import { codingChangeSetReference } from "./changeset.js";
 
 export interface CodingExecutionReport extends CodingReport {
@@ -86,8 +91,8 @@ export function createCodingExecutionReport(input: {
   const phase = { completed: "本轮结束", failed: "执行失败", stopped: "已停止", cancelled: "已取消" };
   const task = run.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => requestText(turn.text)).join("\n\n");
   const modelAnswer = run.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text).join("\n\n");
-  const supplemental = run.turns.filter(turn => turn.steer).map(turn =>
-    `${turn.steer!.state === "applied" ? "已加入后续上下文" : "已收到，未确认应用"}\n${literal(turn.text)}`).join("\n\n");
+  const supplemental = run.turns.filter(turn => turn.kind === "user" && turn.steer).map(turn =>
+    `${STEER_WORDS[turn.steer!.state]}\n${literal(turn.text)}`).join("\n\n");
   const commandEvidence = input.commands.map(({ call_id, output }) => {
     if (!output) return `命令 ${call_id}：回执无法读取，结果未知。`;
     const state = output.timed_out ? "超时" : output.cancelled ? "已取消" : output.exit_code === null ? "退出状态未知" : `退出码 ${output.exit_code}`;

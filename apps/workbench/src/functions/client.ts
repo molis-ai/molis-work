@@ -848,7 +848,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       const published = record.status === "published";
       const status = document.createElement("span");
       status.className = "mw-status mw-status--" + (published ? "done" : "quiet") + " feed-entry-status";
-      status.textContent = published ? "v" + (record.version || 1) : L("草稿");
+      status.dataset.mwState = published ? "ready" : "draft"; status.textContent = published ? "v" + (record.version || 1) : L("草稿");
       row.append(
         leading,
         kindChip(record.primitive || "choice", primitive),

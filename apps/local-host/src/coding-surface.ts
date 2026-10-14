@@ -1,4 +1,6 @@
 import { ensureProjectPlugins as ensureStarted, type ProjectPluginPorts, type ProjectPluginState as Started } from "./project-plugins.js";
+import { agentQuestionHtml } from "./agent-question-card.js";
+import { L } from "./web-locale.js";
 import { CHARACTERS_UI_CONTRIBUTION_ID, type CharactersUiModel } from "@molis-ai/molis-work-plugin-characters";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { icon, escapeHtml, renderPluginStageShell, renderEmpty, renderSidebar } from "@molis-ai/molis-work-design-system";
@@ -8,7 +10,6 @@ import {
   CODING_UI_CONTRIBUTION_ID,
   CodingSessionStore,
   toDirectoryEntries,
-  renderPendingQuestionCard,
   renderCodingReport,
   codingNetChange,
   HISTORY_DIGEST_MARKER,
@@ -49,7 +50,7 @@ import { listWorkspaceDirectory } from "./workspace-files.js";
 import { readWorkspaceGit } from "./workspace-git.js";
 import { TEXT_STATS_PLUGIN_ID, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
 
-import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 
 import { sendLocalWebJson } from "./web-http.js";
 import { dispatchRuntimePluginRoute, type RuntimePluginRouteHooks } from "./plugin-route-operations.js";
@@ -236,10 +237,8 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
     // bookkeeping, not something said to the person; only labels at the very start are dropped.
     for (const turn of run.turns) if (!(turn.kind === "user" && turn.text.startsWith(HISTORY_DIGEST_MARKER))) Object.assign(turn, {
       html: renderFeedRichText(turn.kind === "assistant" ? turn.text.replace(/^(?:[^\S\n]*\[(?:retained|historical) [^\]\n]*\][^\S\n]*\n?)+/, "") : turn.text) });
-    for (const question of run.awaiting_input) Object.assign(question, { html: renderPendingQuestionCard({
-      questions: [question], primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]),
-        text: value => value, formatDate: value => value },
-    }) });
+    // The same question card the Assistant shows, in the person's language; Coding's page restores its own drafts into it.
+    for (const question of run.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, L) });
   }
   const childBody = result.body as { subagents?: Array<{ children: Array<{ result: string | null }> }> } | undefined;
   if (childBody?.subagents) for (const group of childBody.subagents) for (const child of group.children) {

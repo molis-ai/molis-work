@@ -211,6 +211,7 @@ export {
   type AgentHostComposition,
   type AgentHostCompositionOptions,
 } from "./agent-host-composition.js";
+export { ASSISTANT_QUESTION_TYPES, CODING_QUESTION_TYPES, hostQuestionTypes } from "./agent-question-surfaces.js";
 export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
 export {
   codingDirectoryPanel,
@@ -236,6 +237,9 @@ export { PLACEMENT_BASELINE } from "./placement-actions.js";
 export { ALCHEMIST_SEARCH_BASELINE, createAlchemistSearchPort } from "./alchemist-search.js";
 export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
 export { AssistantService } from "./assistant/assistant-service.js";
+export { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
+export { assistantCardHtml, cardInputValues, instantIn } from "./assistant/assistant-card-view.js";
+export { assistantNextSteps, drawAssistantReply } from "./assistant/assistant-view-html.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { prologueMemoryBackend } from "./memory/memory-host.js";
@@ -243,6 +247,7 @@ export { ComputerRecords } from "./computer/computer-records.js";
 export { ComputerDesk } from "./computer/computer-desk.js";
 export { ComputerSettings } from "./computer/computer-settings.js";
 export { ComputerDriver, type DeskContext } from "./computer/computer-driver.js";
+export { desktopTaskComplete, type DesktopTaskFacts, type DesktopTaskWanted } from "./computer/task-outcome.js";
 export { helperFailure, isRefused } from "./computer/computer-errors.js";
 export {
   COMPUTER_RECORD_SOURCE_ID,

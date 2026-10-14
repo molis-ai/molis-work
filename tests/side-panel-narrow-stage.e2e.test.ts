@@ -33,6 +33,14 @@ test("an open record keeps a readable width when the side panel narrows the stag
   await click("[data-side-toggle]");
   await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('section.side-panel').getBoundingClientRect().width >= 360");
   await waitFor("document.querySelector('[data-pages=workbench] .plugin-stage-list').getClientRects().length === 0");
+  // RING-07: the existing iframe status protocol paints and clears the shared ring.
+  for (const [status, ring] of [["busy", "running"], ["attention", "answer"], ["", null]]) {
+    await evaluate(`(() => {
+      const frame = document.querySelector('[data-side-body] iframe');
+      window.dispatchEvent(new MessageEvent('message', { origin: location.origin, source: frame.contentWindow, data: { type: 'molis:side-status', status: ${JSON.stringify(status)} } }));
+    })()`);
+    await waitFor(`(document.querySelector('.side-busy-mark .mw-state-ring')?.dataset.mwState || null) === ${JSON.stringify(ring)}`);
+  }
   const narrow = await layout();
   assert.ok(narrow.editor >= 360, `the document keeps a readable width beside the panel: ${narrow.editor}px`);
   assert.equal(narrow.overflow, false);

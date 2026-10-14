@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  CRAFT_FINISH_STYLES, INTERACTION_STYLES, PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES,
+  CRAFT_FINISH_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_QUESTION_STYLES, INTERACTION_REFERENCE_STYLES,
+  INTERACTION_STEP_STYLES, INTERACTION_STYLES, INTERACTION_TRACE_STYLES, PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES,
   renderInteractionNextSteps, renderInteractionOperation, renderInteractionOptions, renderInteractionQuestion, renderPrimitiveCatalog,
   type InteractionField,
 } from "@molis-ai/molis-work-design-system";
+import { renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
 
 const footer = { note: "草稿只在本页保留", actions: [{ id: "submit", label: "提交回答", variant: "primary" as const, type: "submit" as const }] };
 const fields: InteractionField[] = [
@@ -74,7 +76,7 @@ test("AC-17 / AC-06: the operation card states its target and version, the exact
   assert.match(html, /data-ix-recovery[\s\S]*data-ix-action="reconcile"/);
   assert.doesNotMatch(html, /data-ix-action="execute"/, "an unknown result offers no execution");
 });
-test("AC-17: the component board shows the parts; their styles stay out of the frozen product sheets until adopted", () => {
+test("AC-17, AC-21: the component board shows the parts; a product sheet takes only the segments its pages draw", () => {
   const board = renderPrimitiveCatalog();
   assert.match(board, /<section class="mw-catalog__section" id="interaction" data-primitive="interaction"><h2>AI 交互 \/ Interaction<\/h2>/);
   assert.match(board, /<a href="#interaction" title="AI 交互 \/ Interaction">AI 交互<\/a>/, "the board's index lists it");
@@ -82,6 +84,15 @@ test("AC-17: the component board shows the parts; their styles stay out of the f
   assert.ok(board.includes(INTERACTION_STYLES), "the board inlines the interaction sheet");
   for (const sheet of [PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES, CRAFT_FINISH_STYLES]) assert.ok(!sheet.includes(".mw-ix-card"), "not part of the shared page sheets");
   assert.doesNotMatch(INTERACTION_STYLES, /#[0-9a-fA-F]{3,8}\b|!important/, "tokens only, no overrides");
+  // Adopted by the Assistant (A1+H2): the pages it lives on (the workbench and the project chooser) take what it draws, and no more.
+  const drawn = [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_STEP_STYLES];
+  for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkArrivalStylesheet()]) {
+    for (const segment of drawn) assert.ok(sheet.includes(segment), "a segment the Assistant draws is in its pages' sheet");
+    for (const segment of [INTERACTION_NUMBER_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_TRACE_STYLES]) assert.ok(!sheet.includes(segment), "a segment it does not draw stays out");
+  }
+  assert.ok(!renderMolisWorkSettingsStylesheet().includes(".mw-ix-card"), "settings pages have no Assistant");
+  assert.equal(INTERACTION_STYLES, [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_OPERATION_STYLES,
+    INTERACTION_STEP_STYLES, INTERACTION_TRACE_STYLES].join(""), "the segments add up to the whole sheet");
 });
 test("AC-17: ids and scopes are escaped exactly once, so references match the elements they name", () => {
   const nasty: InteractionField[] = [
@@ -115,4 +126,13 @@ test("AC-17: an other answer is a free text slot; whether it is chosen is whethe
   const html = renderInteractionQuestion({ id: "o", kicker: "k", title: "t", footer: { note: "", actions: [] },
     fields: [{ id: "f", label: "方式", control: { kind: "choice", options: [{ value: "1", label: "一" }], other: { label: "其他", value: "自己写的" } } }] });
   assert.match(html, /<input[^>]*value="自己写的"[^>]*data-ix-other="f"/);
+});
+
+// RING-07: explicit receipt meaning wins over the badge's visual tone.
+test("RING-07 interaction cards distinguish unknown results from waiting for a person", () => {
+  const target = { prefix: "目标", label: "测试文档" };
+  const html = renderInteractionOperation({ id: "unknown-ring", kicker: "操作", title: "核对", target, badge: { label: "结果未知", tone: "waiting", state: "verify" } });
+  assert.match(html, /data-mw-state="verify"/);
+  assert.doesNotMatch(html, /data-mw-state="answer"/);
+  assert.match(renderInteractionOperation({ id: "done-ring", kicker: "操作", title: "完成", target, result: { title: "已完成", body: "保留原回执" } }), /data-mw-state="done"/);
 });

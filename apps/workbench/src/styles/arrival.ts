@@ -196,9 +196,7 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-meter p b { color: var(--ink); font-size: 15px; font-weight: var(--weight-title, 600); font-variant-numeric: tabular-nums; }
   .ob-meter .mw-progress > span { background: var(--ink-soft); }
   .ob-meters.is-over .mw-progress > span { background: var(--red); }
-  .ob-model { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
-  .ob-model__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
-  .ob-model__dot.is-on { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent); }
+  .ob-model { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
   .ob-model__text { min-width: 0; display: grid; }
   .ob-model__text strong { font-size: 13px; font-weight: var(--weight-control, 500); line-height: 18px; }
   .ob-model__text small { font-size: 12px; line-height: 16px; color: var(--muted); }

@@ -1,3 +1,4 @@
+import type { StateRingState } from "@molis-ai/molis-work-design-system";
 import { createTerminalPanels } from "./panels.js";
 import type { PanelRecord } from "./types.js";
 import { createTerminalAutofill } from "./autofill.js";
@@ -27,6 +28,16 @@ declare global {
     L?: (zh: string, vars?: Record<string, string | number>) => string;
     molisWorkControlHeaders?: () => Record<string, string>;
   }
+}
+
+type TerminalStatusTone = "idle" | "busy" | "live" | "error";
+
+function paintTerminalStatus(node: HTMLElement | null, text: string, tone: TerminalStatusTone, state?: StateRingState) {
+  if (!node) return;
+  node.textContent = text;
+  node.dataset.tone = text ? tone : "";
+  if (text) node.dataset.mwState = state ?? (tone === "live" ? "done" : tone === "busy" ? "running" : tone === "error" ? "failed" : "idle");
+  else delete node.dataset.mwState;
 }
 
 export function startWorkTerminalClient() {
@@ -119,11 +130,7 @@ export function startWorkTerminalClient() {
       }
     };
 
-    const setStatus = (text: string, tone: "idle" | "busy" | "live" | "error" = "idle") => {
-      if (!statusEl) return;
-      statusEl.textContent = text;
-      statusEl.dataset.tone = text ? tone : "";
-    };
+    const setStatus = (text: string, tone: TerminalStatusTone = "idle", state?: StateRingState) => paintTerminalStatus(statusEl, text, tone, state);
 
     let toastTimer: ReturnType<typeof setTimeout> | undefined;
     const showPageToast = (message: string, error = false) => {
@@ -132,7 +139,7 @@ export function startWorkTerminalClient() {
         setStatus(message, error ? "error" : "idle");
         return;
       }
-      toast.textContent = message;
+      toast.textContent = message; toast.dataset.mwState = error ? "failed" : "done";
       toast.classList.toggle("is-error", error);
       toast.classList.add("is-visible");
       clearTimeout(toastTimer);
@@ -264,8 +271,8 @@ export function startWorkTerminalClient() {
       if (!panel) setStatus("");
       else if (parentReadOnly) setStatus(L("历史终端只读；请到具体的子 Goal 继续。"));
       else if (!panelBelongsHere(panel)) setStatus(L("这个终端属于另一条 Goal，当前不可操作。"), "error");
-      else if (live) setStatus(L("终端已连接"), "live");
-      else setStatus(L("终端进程已不在，可重新打开"));
+      else if (live) setStatus(L("终端已连接"), "live", "connected");
+      else setStatus(L("终端进程已不在，可重新打开"), "idle", "disconnected");
       if (panelId && screens.has(panelId)) {
         const session = screens.get(panelId)!;
         requestAnimationFrame(() => {

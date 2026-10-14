@@ -137,7 +137,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
           try {
             const result = await molisWorkRequest("/api/settings/demo", { body: { action, user_confirmed: true }, fallback: L("demo 操作失败") });
             if (toast) {
-              toast.textContent = result.message || L("demo 已更新");
+              toast.textContent = result.message || L("demo 已更新"); toast.dataset.mwState = "done"; toast.classList.remove("is-error");
               toast.classList.add("is-visible");
               setTimeout(() => toast.classList.remove("is-visible"), 2600);
             }

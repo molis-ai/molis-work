@@ -5,6 +5,7 @@ import {
   modelRequestShape,
   providerHealth,
   type ModelProviderRecord,
+  type ModelProviderStatus,
 } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import {
   formatContext,
@@ -188,4 +189,16 @@ test("供应商模板的选项来自页面数据：页面没有自己的目录�
   const unknown = draftOf("not-offered");
   assert.doesNotMatch(unknown, /aria-pressed="true"[^>]*data-model-template=/, "页面数据里没有的模板不亮，也不写提示");
   assert.doesNotMatch(unknown, /model-field-note">[^<]*还差/);
+});
+
+test("RING-07 provider health uses readiness and credential states, not a success dot", () => {
+  const cases: Array<[ModelProviderStatus, string]> = [["ready", "ready"], ["needs-credential", "reauth"],
+    ["credential-unavailable", "unavailable"], ["no-models", "unavailable"], ["disabled", "disabled"]];
+  for (const [status, expected] of cases) {
+    const html = renderModelSettingsDocument({ templates: [], providers: [provider()],
+      health: [{ ...providerHealth(provider(), true), status, detail: "连接状态说明" }], selected_provider_id: "minimax", primitives: p });
+    assert.match(html, new RegExp(`data-mw-state="${expected}"`));
+    assert.match(html, /title="连接状态说明"/);
+    assert.doesNotMatch(html, /data-icon="dot"/);
+  }
 });

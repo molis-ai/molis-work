@@ -17,6 +17,7 @@ import { CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT } from "./usage-meter-client.j
 import { CODING_COMPOSER_MODEL_CLIENT_FACTORY_SCRIPT } from "./composer-model-client.js";
 import { CODING_COOPERATION_CLIENT_FACTORY_SCRIPT } from "./cooperation-client.js";
 import { codeLanguage, codeTokens, diffRowTokens } from "./highlight.js";
+import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { CODING_COMMANDS_CLIENT_FACTORY_SCRIPT } from "./commands-client.js";
 import { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-client.js";
@@ -32,7 +33,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const lifetime=host.mountPluginClient(root);if(!lifetime)return;
   let viewSignal;
   const showReviews=(container,refs,sessionId,workspaceId,scope)=>host.showReviews?.(container,refs,sessionId,workspaceId,scope,{lifetime,signal:viewSignal});
-  const q = (selector) => root.querySelector(selector);
+  const q = (selector) => root.querySelector(selector); const phaseRing = phase => ({starting:'starting',running:'running',compacting:'running',pausing:'paused',paused:'paused','awaiting-input':'answer','awaiting-review':'approval',completed:'round-ended',failed:'failed',stopped:'stopped',cancelled:'cancelled','reconcile-required':'verify'})[phase] || 'idle';
   const turns = q('[data-coding-turns]'), input = q('[data-coding-task]');
   // The results panel's index: one chip per section on show, to jump to it. It is rebuilt only when the set of
   // sections changes, so its own writes never loop back through the observer that schedules it.
@@ -98,6 +99,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   let methodChoices = [], methodDocumentTicket = 0;
   const answeredQuestions = new Set();
   const draftKey = (id) => 'molis-coding-draft:' + root.dataset.codingPrefix + ':' + id;
+  const questionAnswer = ${questionAnswer.toString()};
   const terminal = (phase) => ['completed','failed','stopped','cancelled','reconcile-required'].includes(phase);
   const phases = { starting:'正在准备', running:'执行中', compacting:'正在整理上下文', pausing:'正在暂停', paused:'已暂停', 'awaiting-input':'等待回答', 'awaiting-review':'等待审查', completed:'本轮结束', failed:'执行失败', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'需要核对结果' };
   let runtimeSessionId = null;
@@ -456,7 +458,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       // Two sessions under way on the same Goal may be doing the same thing twice.
       const busyStates=['running','paused','waiting-answer','waiting-approval','queued'],twin=session.goal_id&&busyStates.includes(session.state)?visible.find(other=>other!==session&&other.goal_id===session.goal_id&&busyStates.includes(other.state)):null;
       const label=(session.priority?'优先 · ':'')+(session.checkpoint_busy ? '回退待处理' : labels[session.state] || session.state)+(holders?' · '+holders:'')+(twin?' · 可能与「'+twin.title.slice(0,16)+'」重复':'');if(mark.textContent!==label) mark.textContent=label;
-      mark.dataset.state=session.checkpoint_busy ? 'waiting-approval' : session.state;
+      mark.dataset.state=session.checkpoint_busy ? 'waiting-approval' : session.state; mark.dataset.mwState=session.checkpoint_busy?'verify':({running:'running',ready:'ready','waiting-answer':'answer','waiting-approval':'approval',paused:'paused',failed:'failed','reconcile-required':'verify',completed:'round-ended',stopped:'stopped',cancelled:'cancelled'})[session.state]||'idle';
       const goalKey=session.goal_id || '';let group=directoryGroups.get(goalKey);
       if(!group) {group=document.createElement('section');group.className='coding-session-group';const heading=document.createElement('h2');heading.className='mw-dir__heading';group.append(heading);directoryGroups.set(goalKey,group);}
       const groupTitle=session.goal_title || (session.goal_id ? '关联 Goal 暂不可用' : '未关联 Goal');
@@ -657,71 +659,57 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       lifetime.listen(detail,'toggle',()=>{if(detail.open) void load();});
     }
   };
+  // A waiting question is the shared question card the Host draws (A2); the page restores its draft, binds it with the
+  // shared client and answers with what it holds. A card that can no longer be answered keeps what was written, to check.
   const renderQuestions = (block,run) => {
     const live=new Set();
     for(const question of run.awaiting_input || []) {
       const key=JSON.stringify([run.ref.run_id,question.pending_id,question.pending_revision]);live.add(key);
       if(answeredQuestions.has(key)) continue;
       let form=[...block.querySelectorAll('[data-coding-question]')].find(node=>node.dataset.questionKey===key);
-      const definition=JSON.stringify([question.kind,question.prompt,question.options,question.allows_free_text,question.questions]);
-      const hasDefinition=question.kind==='text' || question.questions?.length || question.options?.length;
-      if(form && hasDefinition && form.dataset.questionDefinition!==definition) {form.remove();form=null;}
+      if(form && question.html && form.dataset.questionDefinition!==question.html) {form.ix?.destroy();form.remove();form=null;}
       if(!form) {
         if(!question.html) continue;
         const template=document.createElement('template');template.innerHTML=question.html;
         form=template.content.firstElementChild;if(!form) continue;
-        form.dataset.questionKey=key;form.dataset.questionDefinition=definition;block.append(form);
-        const id=current;
-        const saved=questionDrafts.get(id)?.[key];
-        const written=form.querySelector('[data-coding-answer-text]');
-        if(written && typeof saved?.text==='string') written.value=saved.text;
-        for(const field of form.querySelectorAll('[data-question-index]')) {
-          const answer=Array.isArray(saved?.answers) ? saved.answers.find(item=>item?.question===Number(field.dataset.questionIndex)) : null;
-          for(const option of field.querySelectorAll('input')) option.checked=Array.isArray(answer?.indexes) && answer.indexes.includes(Number(option.value));
-          const other=field.querySelector('textarea');if(other && typeof answer?.other==='string') other.value=answer.other;
-        }
-        const collect=()=>written ? {text:written.value} : {answers:[...form.querySelectorAll('[data-question-index]')].map(field=>({
-          question:Number(field.dataset.questionIndex),indexes:[...field.querySelectorAll('input:checked')].map(option=>Number(option.value)),
-          ...(field.querySelector('textarea')?.value.trim() ? {other:field.querySelector('textarea').value} : {}),
-        }))};
+        form.setAttribute('data-coding-question','');form.dataset.questionKey=key;form.dataset.questionDefinition=question.html;block.append(form);
+        const id=current,card=form,note=card.querySelector('[data-ix-note]');
         const remember=()=>{
-          const drafts=questionDrafts.get(id) || {};drafts[key]=collect();questionDrafts.set(id,drafts);
+          const drafts=questionDrafts.get(id) || {};drafts[key]=client.read();questionDrafts.set(id,drafts);
           try{sessionStorage.setItem(draftKey(id)+':questions',JSON.stringify(drafts));}catch{}
         };
-        lifetime.listen(form,'input',()=>{
-          remember();lifetime.clearTimeout(draftTimer);
-          draftTimer=lifetime.timeout(()=>{void saveDraft(id,localDraft(id) || '').catch(error=>{form.querySelector('[data-question-status]').textContent='答案暂未写入服务，当前窗口仍保留：'+error.message;});},400);
+        const client=card.ix=host.interaction(card,{
+          onChange:()=>{remember();lifetime.clearTimeout(draftTimer);
+            draftTimer=lifetime.timeout(()=>{void saveDraft(id,localDraft(id) || '').catch(error=>{note.textContent='答案暂未写入服务，当前窗口仍保留：'+error.message;});},400);},
+          onSubmit:async()=>{
+            if(card.dataset.busy==='true' || card.dataset.answerable!=='true') return;
+            remember();const answer=questionAnswer(client.read());
+            if(!answer) {note.textContent='请回答每一道问题后再提交。';return;}
+            card.dataset.busy='true';card.querySelectorAll('fieldset,button').forEach(node=>node.disabled=true);note.textContent='正在提交原问题的回答…';
+            try {
+              await api('/sessions/'+encodeURIComponent(id)+'/control','POST',{kind:'answer',run_id:run.ref.run_id,pending_id:question.pending_id,pending_revision:question.pending_revision,...answer});
+              answeredQuestions.add(key);
+              const drafts=questionDrafts.get(id);if(drafts)delete drafts[key];
+              try{sessionStorage.setItem(draftKey(id)+':questions',JSON.stringify(drafts || {}));}catch{}
+              client.destroy();const receipt=document.createElement('p');receipt.textContent='回答已交给原执行者，继续这一轮任务。';card.replaceChildren(receipt);
+              void saveDraft(id,localDraft(id) || '').catch(()=>{});
+              if(current===id) {void readCurrent();void refreshState().catch(()=>{});}
+            } catch(error) {if(!lifetime.alive)return;
+              note.textContent=error.message;card.querySelectorAll('fieldset,button').forEach(node=>node.disabled=card.dataset.answerable!=='true');
+            } finally {delete card.dataset.busy;}
+          },
         });
-        lifetime.listen(form,'keydown',event=>{if(event.isComposing && event.key==='Enter')event.preventDefault();});
-        lifetime.listen(form,'submit',async event=>{
-          event.preventDefault();if(form.dataset.busy==='true' || form.dataset.answerable!=='true') return;
-          remember();const answer=collect(),message=form.querySelector('[data-question-status]');
-          if(written ? !answer.text.trim() : answer.answers.some(item=>!item.indexes.length && !item.other?.trim())) {message.textContent='请回答每一道问题后再提交。';return;}
-          form.dataset.busy='true';form.querySelectorAll('input,textarea,button').forEach(node=>node.disabled=true);message.textContent='正在提交原问题的回答…';
-          try {
-            await api('/sessions/'+encodeURIComponent(id)+'/control','POST',{kind:'answer',run_id:run.ref.run_id,pending_id:question.pending_id,pending_revision:question.pending_revision,...answer});
-            answeredQuestions.add(key);
-            const drafts=questionDrafts.get(id);if(drafts)delete drafts[key];
-            try{sessionStorage.setItem(draftKey(id)+':questions',JSON.stringify(drafts || {}));}catch{}
-            form.replaceChildren();const receipt=document.createElement('p');receipt.textContent='回答已交给原执行者，继续这一轮任务。';form.append(receipt);
-            void saveDraft(id,localDraft(id) || '').catch(()=>{});
-            if(current===id) {void readCurrent();void refreshState().catch(()=>{});}
-          } catch(error) {if(!lifetime.alive)return;
-            message.textContent=error.message;form.querySelectorAll('input,textarea,button').forEach(node=>node.disabled=form.dataset.answerable!=='true');
-          } finally {delete form.dataset.busy;}
-        });
+        const saved=questionDrafts.get(id)?.[key];if(saved && typeof saved==='object') client.write(saved);
       }
       const canAnswer=!terminal(run.phase) && question.answerable!==false;
-      if(canAnswer && form.dataset.answerable==='false') form.querySelector('[data-question-status]').textContent='';
       form.dataset.answerable=String(canAnswer);
-      form.querySelector('[data-question-label]').textContent=canAnswer ? '需要你回答' : '问题不可回答';
-      form.querySelector('[data-question-hint]').textContent=canAnswer ? '回答用于继续这一轮任务；离开会话不会取消等待。' : '保留原问题与未提交内容，便于核对；这不表示答案已交付。';
-      if(form.dataset.busy!=='true') form.querySelectorAll('input,textarea,button,fieldset').forEach(node=>node.disabled=!canAnswer);
-      if(!canAnswer && form.dataset.busy!=='true') form.querySelector('[data-question-status]').textContent=question.unavailable_reason || '这一轮已结束，原问题不可再回答。';
+      const ring=form.querySelector('.mw-ix-kicker .mw-state-ring');if(ring)ring.dataset.mwState=canAnswer?'answer':'unavailable';
+      if(form.dataset.busy!=='true') form.querySelectorAll('fieldset,button').forEach(node=>node.disabled=!canAnswer);
+      if(!canAnswer && form.dataset.busy!=='true') form.querySelector('[data-ix-note]').textContent=question.unavailable_reason || '这一轮已结束，原问题不可再回答。';
     }
     for(const form of block.querySelectorAll('[data-coding-question]')) {
       if(!live.has(form.dataset.questionKey)) {
-        const hadFocus=form.contains(document.activeElement);form.remove();if(hadFocus)input.focus({preventScroll:true});
+        const hadFocus=form.contains(document.activeElement);form.ix?.destroy();form.remove();if(hadFocus)input.focus({preventScroll:true});
       }
     }
   };
@@ -892,8 +880,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
             }
             if(turn.steer) {
               const receipt=document.createElement('small'); receipt.className='coding-turn-receipt';
-              receipt.textContent=turn.steer.state==='applied'?'已加入后续模型上下文':turn.steer.state==='unconfirmed'?'已保存，未确认应用':'已收到，等待后续处理';
-              receipt.title='加入上下文不代表模型已遵循，也不会撤销先前操作；补充要求不代替问题回答。';
+              receipt.textContent=({applied:'已放进上下文，等 AI 回应',read:'AI 已读到',unread:'这一轮结束时 AI 没读到',withdrawn:'已撤回'})[turn.steer.state]||'已送达';
+              receipt.title='读到不代表已遵循，也不撤销先前操作；补充要求不代替回答问题。';
               node.append(receipt);
             }
             renderedText.set(node,renderKey); enrichCode(node);
@@ -960,7 +948,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         row.append(name,phase,change,report);outcomeList.prepend(row);
       }
       row.querySelector('.coding-outcome-name').textContent='第 '+(all.indexOf(run)+1)+' 轮';
-      const phase=row.querySelector('.coding-outcome-phase');phase.textContent=phases[run.phase] || run.phase;phase.dataset.tone=run.phase==='completed'?'done':run.phase==='failed'?'failed':'idle';
+      const phase=row.querySelector('.coding-outcome-phase');phase.textContent=phases[run.phase] || run.phase;phase.dataset.mwState=phaseRing(run.phase);phase.dataset.tone=run.phase==='completed'?'done':run.phase==='failed'?'failed':'idle';
     }
     lastRun=all.at(-1)||null;
     const result=q('[data-coding-result]');
@@ -983,7 +971,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const key=JSON.stringify([all.length,phaseLabel,values,unused]);
       if(result.dataset.content!==key) {
         const head=document.createElement('header'),title=document.createElement('h3'),phase=document.createElement('span'),round=document.createElement('span'),dl=document.createElement('dl');
-        head.className='coding-facts-head';title.textContent='本轮概况';phase.className='coding-facts-phase';phase.dataset.tone=tone;phase.textContent=phaseLabel;round.className='coding-facts-round';round.textContent='第 '+all.length+' 轮';head.append(title,phase,round);
+        head.className='coding-facts-head';title.textContent='本轮概况';phase.className='coding-facts-phase';phase.dataset.tone=tone;phase.dataset.mwState=phaseRing(lastRun.phase);phase.textContent=phaseLabel;round.className='coding-facts-round';round.textContent='第 '+all.length+' 轮';head.append(title,phase,round);
         values.forEach(([label,value])=>{const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;if(label==='工作范围'||label==='本轮独立目录')dd.className='is-path';dl.append(dt,dd);});
         result.replaceChildren(head,dl);
         if(unused.length){const note=document.createElement('p');note.className='coding-facts-unused';note.textContent='本轮未使用：'+unused.join('、');result.append(note);}
@@ -993,7 +981,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       // The round's own footer shows its live state and outcome; this line only carries a failure worth reading twice.
       if(statusKey!==nextStatus){statusKey=nextStatus;status(lastRun.phase==='failed' ? (lastRun.stop_reason || phases.failed) : '',lastRun.phase==='failed');}
     }
-    const pill=q('[data-coding-phase]'),live=lastRun && !terminal(lastRun.phase);pill.hidden=!live;if(live){pill.dataset.phase=lastRun.phase;pill.textContent=phases[lastRun.phase]||lastRun.phase;}
+    const pill=q('[data-coding-phase]'),live=lastRun && !terminal(lastRun.phase);pill.hidden=!live;if(live){pill.dataset.phase=lastRun.phase;pill.dataset.mwState=phaseRing(lastRun.phase);pill.textContent=phases[lastRun.phase]||lastRun.phase;}
     if(follow) turns.scrollTop=turns.scrollHeight;
     q('[data-coding-latest]').hidden=Boolean(reportRun) || follow || atBottom(position()); controls();
   };

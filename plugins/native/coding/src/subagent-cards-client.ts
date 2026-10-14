@@ -21,7 +21,7 @@ export const CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       node.append(head,task,process,reviews,result,foot);section.append(node);
     }
     node.dataset.state=child.state;
-    node.querySelector('.coding-child-mark').innerHTML=child.state==='running'?'<span class="coding-spinner" aria-hidden="true"></span>':svg(child.state==='completed'?'check':child.state==='failed'?'x':'circle-alert');
+    node.querySelector('.coding-child-mark').dataset.mwState=child.state==='running'?'running':child.state==='completed'?'round-ended':child.state==='failed'?'failed':child.state==='reconcile-required'?'verify':'stopped';
     node.querySelector('.coding-child-role').textContent=child.role_name||child.role_id;
     const verdict=child.verdict?.status;
     node.querySelector('.coding-child-state').textContent=verdict==='accepted'?'你已接受结论':verdict==='needs-work'?'你要求返工':STATE[child.state]||child.state;

@@ -151,7 +151,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       }
       const copy = text('span', '', 'images-history-copy');
       const title = text('strong', job.prompt); title.title = job.prompt;
-      copy.append(title, text('small', (statuses[job.status] || job.status) + ' · ' + dateLabel(job.created_at)));
+      const status = text('small', (statuses[job.status] || job.status) + ' · ' + dateLabel(job.created_at)); status.dataset.mwState = job.status === 'succeeded' ? 'done' : job.status === 'running' ? 'generating' : job.status; copy.append(title, status);
       node.append(copy); return node;
     }));
     list.scrollTop = top;
@@ -181,7 +181,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (resultSignature === signature) return;
     resultSignature = signature; result.replaceChildren();
     const heading = text('div', '', 'images-result-heading');
-    heading.append(text('h2', statuses[job.status] || job.status), button(L('使用这个提示词'), 'data-images-reuse', job.id, 'secondary'));
+    const status = text('h2', statuses[job.status] || job.status); status.dataset.mwState = job.status === 'succeeded' ? 'done' : job.status === 'running' ? 'generating' : job.status; heading.append(status, button(L('使用这个提示词'), 'data-images-reuse', job.id, 'secondary'));
     if (job.status !== 'running') heading.append(button(L('删除记录'), 'data-images-delete-job', job.id));
     result.append(heading, text('p', job.connection_name + ' · ' + job.model + ' · ' + dateLabel(job.created_at), 'images-result-meta'));
     if (job.status !== 'succeeded') {

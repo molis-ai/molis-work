@@ -5,7 +5,8 @@ import type { ProjectWorkspaceMembership as MolisWorkWorkspaceMembership } from 
 import type { RuntimeContextBindingRepository } from "./context-bindings.js";
 import { boundResolution, type RuntimeProjectResolution } from "./project-resolution.js";
 import type { RuntimeProjectBindingValidation } from "./project-binding-validation.js";
-import { bindingErrors, bindingCatalogErrors } from "./binding-errors.js";
+import { bindingErrors } from "./binding-errors.js";
+import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 
 export interface RuntimeProjectBindingPorts {
   query: Pick<ProjectsQueryApi, "getProject" | "listWorkspaceMemberships">;
@@ -78,7 +79,7 @@ bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextR
     const actorId = this.validation.requiredActorId(input.actor_id);
     const projectId = input.project_id.trim();
     if (!projectId) {
-      throw bindingCatalogErrors.project_not_found("绑定时必须选择一个 Molis Work 项目");
+      throw projectCatalogErrors.project_not_found("绑定时必须选择一个 Molis Work 项目");
     }
     if (input.user_confirmed !== true) {
       throw bindingErrors.user_confirmation_required("只有用户在当前对话明确选择项目后才能建立绑定",

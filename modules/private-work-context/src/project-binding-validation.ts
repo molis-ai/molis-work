@@ -1,5 +1,6 @@
 import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, RuntimeWorkspaceContext, NormalizedRuntimeWorkspaceContext } from "@molis-ai/molis-work-contracts/modules/private-work-context";
-import { bindingErrors, bindingCatalogErrors } from "./binding-errors.js";
+import { bindingErrors } from "./binding-errors.js";
+import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 export interface RuntimeProjectBindingValidationPorts {
   normalizeProjectWorkspace(input: RuntimeWorkspaceContext | null | undefined): NormalizedRuntimeWorkspaceContext | undefined;
 }
@@ -53,14 +54,14 @@ function runtimeContextPersistenceId(context: NormalizedRuntimeWorkContext): str
 
 function requiredName(value: string): string {
   const name = value.trim();
-  if (!name) throw bindingCatalogErrors.invalid_name("项目显示名称不能为空");
+  if (!name) throw projectCatalogErrors.invalid_name("项目显示名称不能为空");
   return name;
 }
 
 function requiredProjectId(value: string): string {
   const projectId = value.trim();
   if (!projectId) {
-    throw bindingCatalogErrors.project_not_found("项目 ID 不能为空");
+    throw projectCatalogErrors.project_not_found("项目 ID 不能为空");
   }
   return projectId;
 }

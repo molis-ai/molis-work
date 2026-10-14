@@ -11,7 +11,3 @@ export const bindingErrors = defineErrorCodes("work.context", {
   identity_required: "invalid",
   idempotency_key_required: "invalid",
 });
-export const bindingCatalogErrors = defineErrorCodes("catalog", {
-  project_not_found: "not_found",
-  invalid_name: "invalid",
-});

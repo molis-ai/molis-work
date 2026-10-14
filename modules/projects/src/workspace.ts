@@ -11,7 +11,7 @@ import type {
   RepairWorkspaceProjectInput,
 } from "@molis-ai/molis-work-contracts/modules/projects";
 
-import { catalogErrors } from "./errors.js";
+import { projectCatalogErrors as catalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ProjectsRepository } from "./repository.js";
 
 export function normalizeProjectWorkspace(

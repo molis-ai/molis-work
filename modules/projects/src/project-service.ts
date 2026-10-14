@@ -1,5 +1,5 @@
 import path from "node:path";
-import { catalogErrors } from "./errors.js";
+import { projectCatalogErrors as catalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import type {
   AddProjectPluginInput,

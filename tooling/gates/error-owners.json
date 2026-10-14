@@ -64,6 +64,7 @@
     "catalog": {
       "paths": [
         "modules/projects/",
+        "packages/contracts/src/modules/projects.ts",
         "apps/local-host/src/project-catalog*.ts",
         "apps/local-host/src/catalog-schema.ts",
         "apps/local-host/src/managed-project-*",
@@ -73,7 +74,7 @@
         "apps/local-host/src/project-file-paths.ts",
         "apps/desktop/src/panels.ts"
       ],
-      "reason": "The project catalog: creating, binding, recovering and deleting projects and their panels (MolisWorkProjectCatalogError folds into the catalog.* codes, spec W3-02 G2)."
+      "reason": "The project catalog: creating, binding, recovering and deleting projects and their panels (MolisWorkProjectCatalogError folds into the catalog.* codes, spec W3-02 G2). Its public module contract holds the single Catalog error declaration used by Projects and Work."
     },
     "catalog_integration": {
       "paths": [

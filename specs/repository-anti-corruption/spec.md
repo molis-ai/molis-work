@@ -2677,3 +2677,6 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 
 
 **99当前组合工程闭环，100真实回归已开始。** 当前main774a A2与c761夹具修正的联合Source，在1b782e042切点实际offline安装、整体build、根/全workspace类型、API、动作快照、actual-base健康、资源、边界九项全部退出0。健康仍150巨大单元/496内部引用/0混源/28错误子类/0非owner码，资源逐项只降，Root只提交两份实测派生表至b66ad829a、clean。100已在该head冻结实际7普通+6浏览器，file secret backend、原整机构建/浏览器锁；当前未归回，不记通过。100后纳Pages已验候选7b6115153进入同一共享核心组合，只该组合再整建并冻结一次全量，33共同路径不预判33冲突；保真正的caller权限、HTML投影、冻结发送、Pages草稿及现行错误/库版本拒绝，派生数值仍重建后生成。当前没有第二份全量或Pages队列。
+
+
+**100实际终态与101定向复验。** b66ad829a冻结组合实际7普通53条：51通过2失败0取消/跳过（125993ms）；6文件浏览器10/10通过0取消/跳过（60238ms）。I6真实number问卷错误/合法续跑、Coding九种取消/撤权/实际provider替换、后台命令read故障保原观察及恢复、激活无需页面的持久wait+四次连续owner read故障恢复（75491ms）均通过，Source判根因没有替代运行。两失败为fixture：observe终态不含异步补读的step_board，以及HTML settings路由先经web-goals-read共同403而非web-planning API400。9550194c6改为terminal后真实adapter.read取得图，原nodes/user verdict/immutable report/reopen断言保留；HTML仅改该403并断原code/reason/call_id，三个API400保留。已独立源核，101只选这两条实际失败复验，wrapper沿生产99构建与隔离Home，其他51普通/10浏览器保100有效证明，不相加宣称新整批或全量。101结果仍待。Pages最终7b6115153 clean、113文件，将在两条完成后纳同一联合分支；此时无第二份共享全量。

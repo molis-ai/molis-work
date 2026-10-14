@@ -87,6 +87,9 @@ export interface InteractionOperationView {
   about?: string;
   evidence?: InteractionEvidence;
   impact?: string;
+  /** Values the person may still change before it runs (the card's own client reads them like a questionnaire's). */
+  fields?: InteractionField[];
+  optionalLabel?: string;
   actions?: InteractionAction[];
   preview?: { title: string; rows: Array<[string, string]>; note?: string; actions?: InteractionAction[] };
   status?: { text: string; tone?: "failed" | "waiting"; busy?: boolean };
@@ -207,7 +210,7 @@ export function renderInteractionOperation(view: InteractionOperationView): stri
   const result = view.result ? `<section class="mw-ix-result" data-ix-result tabindex="-1" aria-labelledby="${esc(`${scope}-result`)}"><span class="mw-ix-result__mark">${icon("check")}</span><div class="mw-ix-result__body"><h4 id="${esc(`${scope}-result`)}">${esc(view.result.title)}</h4><p>${esc(view.result.body)}</p>${
     actionRow(view.result.actions, "")}${view.result.details ? `<div class="mw-ix-result__details" data-ix-result-details><h5>${esc(view.result.details.title)}</h5><p data-ix-result-text>${esc(view.result.details.body)}</p></div>` : ""}</div></section>` : "";
   return `<article class="mw-ix-card mw-ix-operation" data-ix-operation="${esc(scope)}" tabindex="-1" aria-labelledby="${esc(`${scope}-title`)}">${heading(scope, view, "zap")}${target}${
-    view.impact ? `<p class="mw-ix-impact">${icon("info")}<span>${esc(view.impact)}</span></p>` : ""}${actionRow(view.actions, "data-ix-actions")}${preview}${status}${actionRow(view.recovery, "data-ix-recovery")}${result}${evidenceBlock(view.evidence)}</article>`;
+    view.impact ? `<p class="mw-ix-impact">${icon("info")}<span>${esc(view.impact)}</span></p>` : ""}${view.fields?.length ? `<div class="mw-ix-fields" data-ix-fields>${view.fields.map(field => renderInteractionField(scope, field, view.optionalLabel)).join("")}</div>` : ""}${actionRow(view.actions, "data-ix-actions")}${preview}${status}${actionRow(view.recovery, "data-ix-recovery")}${result}${evidenceBlock(view.evidence)}</article>`;
 }
 /** Next steps beside a composer: at most one primary and one secondary; a busy step shows its progress. */
 export function renderInteractionNextSteps(steps: InteractionNextStep[], label = "下一步"): string {

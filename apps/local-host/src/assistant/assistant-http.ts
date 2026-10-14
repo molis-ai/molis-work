@@ -1,9 +1,11 @@
+import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AssistantPageCardInput, AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
-import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
+import { dispatchNativePluginJsonHttp, writeNativePluginJsonResponse } from "../native-plugin-http.js";
+import { L } from "../web-locale.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
@@ -20,6 +22,8 @@ import { memoryHostFor } from "../memory/memory-host.js";
 import { builtinRegistrations } from "../agent-definitions/builtin-agents.js";
 import { projectDeletedHooksFor } from "../project-deleted-hooks.js";
 import { purgeAssistantProject } from "./assistant-project-purge.js";
+import { AssistantQuestionDrafts, assistantAnswerFrom, questionErrors } from "./assistant-questions.js";
+import { drawAssistantReply } from "./assistant-view-html.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
 const WEB_ACTOR = LOCAL_PERSON_ACTOR_ID;
@@ -33,6 +37,9 @@ export interface AssistantHttpPorts {
   agentReady: () => Promise<void>;
   projectTitle(projectId: string): Promise<string | null>;
 }
+
+/** Half-written answers to a work's questions, kept with the work. */
+const questionDrafts = (store: AssistantStore) => new AssistantQuestionDrafts({ store, actorId: WEB_ACTOR, fail: (code, message) => new AssistantError(code, message) });
 
 /** One Assistant per Home. Its store is opened once and lives as long as the Host that serves it. */
 const services = new WeakMap<MolisWorkLocalHost, { home: string; service: AssistantService; store: AssistantStore }>();
@@ -79,7 +86,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
         work: { work_id: work.work_id, title: work.title } }, said, key: `${work.work_id}:${run_id}`, session_id: work.session_id ?? null })
         .catch(error => console.warn("[memory] 没有排上提炼", error));
     },
-    authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views),
+    authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), service.delegation(work),
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.noteDispatched(work, view), () => {
@@ -134,6 +141,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
   return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/assistant", maxBodyBytes: url.pathname.endsWith("/api/assistant/attachments") ? 11_500_000 : 400_000,
     async handle({ method, pathname, body }) {
       const { service, store } = assistantServiceFor(ports);
+      const drafts = questionDrafts(store);
       const parts = pathname.slice("/api/assistant/".length).split("/").map(decodeURIComponent);
       if (method === "GET" && parts.length === 1 && parts[0] === "works") return { status: 200, body: { works: await service.list() } };
       // The works that relate to one object here: for that object's own page ("belongs to …", continue it).
@@ -149,7 +157,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       }
       // A card a page prepared from the person's selection (a contextual action they clicked); runs only when clicked.
       if (method === "POST" && parts.length === 1 && parts[0] === "cards") {
-        return { status: 200, body: await service.offerFromPage(body as unknown as AssistantPageCardInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };
+        return { status: 200, body: await service.offers.offerFromPage(body as unknown as AssistantPageCardInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "send") {
         // A page marks the words it wrote itself ("page"); the marks of the Host's and the Assistant's own rounds are set in code and cannot be claimed from outside.
@@ -242,11 +250,27 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materialImage(workId, parts[3]!) } };
       if (method !== "POST") return null;
       if (parts.length === 3 && parts[2] === "control") return { status: 200, body: await service.control(workId, body as never) };
-      if (parts.length === 3 && parts[2] === "answer") return { status: 200, body: await service.answer(workId, body as never) };
+      // The question card sends what its fields hold; it becomes the Runtime's answer here, and its draft goes once it is taken.
+      if (parts.length === 3 && parts[2] === "answer") {
+        const answer = body.values === undefined ? {} : assistantAnswerFrom(body.values);
+        if (!answer) throw new AssistantError("assistant.invalid", "请先回答再提交");
+        const view = await service.answer(workId, { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
+          ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
+          ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer });
+        drafts.drop(workId, String(body.pending_id ?? ""));
+        return { status: 200, body: view };
+      }
+      if (parts.length === 3 && parts[2] === "question-draft") { drafts.save(workId, String(body.pending_id ?? ""), body.values); return { status: 200, body: { ok: true } }; }
       if (parts.length === 3 && parts[2] === "draft") return { status: 200, body: { work: service.saveDraft(workId, body.draft as string) } };
       if (parts.length === 3 && parts[2] === "rename") return { status: 200, body: { work: await service.rename(workId, Number(body.revision), String(body.title ?? "")) } };
-      if (parts.length === 5 && parts[2] === "cards" && parts[4] === "run") return { status: 200, body: await service.runCard(workId, parts[3]!, { revision: Number(body.revision), values: body.values as Record<string, string> | undefined }) };
-      if (parts.length === 5 && parts[2] === "cards" && parts[4] === "dismiss") return { status: 200, body: service.dismissCard(workId, parts[3]!) };
+      if (parts.length === 5 && parts[2] === "cards" && parts[4] === "run") return { status: 200, body: await service.offers.runCard(workId, parts[3]!, { revision: Number(body.revision), values: body.values }) };
+      if (parts.length === 5 && parts[2] === "cards" && parts[4] === "dismiss") return { status: 200, body: service.offers.dismissCard(workId, parts[3]!) };
+      // A card that went stale is prepared again only when asked: the request goes in as the page's words, nothing runs in its place.
+      if (parts.length === 5 && parts[2] === "cards" && parts[4] === "redo") {
+        const card = service.offers.card(workId, parts[3]!);
+        return { status: 200, body: await service.send({ work_id: workId, request_id: randomUUID(), text: L("建议「{title}」没有执行：{why}。请读取最新状态，按现在的情况重新准备这一项的操作卡。",
+          { title: card.title, why: card.outcome || L("数据在建议之后变化了") }) }, ports.projectRef ? { project_ref: ports.projectRef } : {}, "page") };
+      }
       if (parts.length === 3 && parts[2] === "mode") return { status: 200, body: await service.setExecutorMode(workId, String(body.mode ?? "")) };
       if (parts.length === 3 && parts[2] === "take-back") return { status: 200, body: await service.takeBack(workId) };
       if (parts.length === 4 && parts[2] === "undo") return { status: 200, body: await service.undo(workId, parts[3]!) };
@@ -259,7 +283,17 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (parts.length === 4 && parts[2] === "reviews") return { status: 200, body: await service.decide(workId, { review_id: parts[3]!, decision: body.decision as "approve" | "reject", ...(typeof body.note === "string" ? { note: body.note } : {}) }) };
       return null;
     },
+    // Questions, cards and the next steps go out drawn, in the person's language (the page only binds them).
+    write(response, result) {
+      const { service, store } = assistantServiceFor(ports);
+      drawAssistantReply(result.body, { say: L, card: card => service.offers.html(card, L),
+        drafts: workId => { try { return questionDrafts(store).read(workId); } catch { return {}; } } });
+      writeNativePluginJsonResponse(response, result);
+    },
     mapError(error) {
+      // A questionnaire answer the Runtime refused: each question's reason, beside its field.
+      const refused = error as { code?: string; message?: string; problems?: unknown };
+      if (refused?.code === "agent.answer_invalid") return { status: 400, body: { error: refused.message, code: refused.code, ...(Array.isArray(refused.problems) ? { errors: questionErrors(refused.problems, L) } : {}) } };
       if (error instanceof AssistantError) {
         const status = error.code === "assistant.not_found" ? 404 : error.code === "assistant.expired" ? 410 : error.code === "assistant.scope" ? 403
           : ["assistant.conflict", "assistant.pending_request", "assistant.busy", "assistant.stale", "assistant.state", "assistant.needs_check"].includes(error.code) ? 409 : 400;

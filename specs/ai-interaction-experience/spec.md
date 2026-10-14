@@ -450,6 +450,11 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 | D10 | 回答的身份与 R4 | 待统筹定（§17.1「跨线待定」） | 影响 C1、A1 与回执线 1e |
 | D11 | C1 与 H1 合成一片、S1 移到 A1/A2 之后（2026-10-12，统筹定） | 带类型的题在宿主里一次做完（合同子路径、投影、预检、错误码、等待期限、题型交集），叠在 #408 上；题型校验函数放 `packages/plugin-sdk`；S1 等助理与 Coding 的问卷体验做完再做。取舍：C1a（#447）因不含使用者而关闭；#408 若迟迟不合，这一片 PR 里会带着 #408 的提交一起评审，base 在 #408 合入后改到 main | 用户先得到助理与 Coding 的问卷；S1 需要新增 Form 功能与 SDK 出口，体量最大，放最后 |
 | D12 | A1 的字节办法与共享客户端放在哪（2026-10-13，本线建议，**放宽一项待用户定**） | 按 §20.11 的送出字节：先做 (a)+(b)（只带 A1 用到的脚本与样式段、与原语去重、删被替换的旧渲染），CSS 再用 (b′) 删已核实无人引用的旧皮肤规则抵平；`workbench.js` 仍多约 +6.9 K，请用户给一次性、有上限的放宽，由 H2 合入后偿还。`INTERACTION_CLIENT_SCRIPT` 只进 `workbench.js` 一份，A2 用宿主提供的那份，不在 5 个 Coding 系插件包里各嵌一份。取舍：放宽门禁要先问用户；不用内联样式绕过预算（不量内联，但每次重发、不能缓存） | A1 的 PR 描述要附实测；`tests/interaction-components.test.ts` 里「样式不进冻结样式表」一条在 A1 改成断言采用后的状态 |
+| D13 | 问卷草稿存在哪（2026-10-14，本线定，技术决定按防腐后果） | 存在工作自己的记录里（`StoredWork.question_drafts`，按 pending 号，最多留 4 份，答完即删），不新开 `assistant_question_drafts` 表 | 新表要把助理库的基线版本从 2 升到 3：`applySqliteBaseline` 对版本不符的库直接拒绝打开，每个已有 Home（含真实 Home）都要先维护才能再开助理库；`AssistantStore` 的方法数已超限、不能再加方法。工作记录本来就随工作走，草稿跟着工作删；代价是每次存草稿工作的 `revision` 加 1（与输入框草稿相同） |
+| D14 | 下一步放在哪（2026-10-14，本线定，按体验推荐） | 留在原「接下来」行的位置（最新一轮之下），由宿主的纯函数从工作派生（失败 → 用同样的话再试一次；完成且有结果 → 打开结果，最多两个），画成共享的下一步部件；问题与操作卡的「去回答 / 去处理」仍由顶部条带给出，不在下一步里重复 | 放进底栏输入框旁会改动共用的底栏（项目选择页也用），布局要另做验证；留在线程里保持阅读顺序，字节相同 |
+| D15 | 样式怎样只带用到的（2026-10-14，本线定） | `INTERACTION_STYLES` 拆成七段：问卷、日期、数字与日历、对象行、操作卡、下一步、留痕（出处、字段提示、回填与刷新标记、已答摘要、版本、结果、输入框标记）；工作台与项目选择页只带前四段（问卷、日期、操作卡、下一步），设置页不带。脚本用不带日历的 `INTERACTION_CLIENT_SCRIPT_TYPED_DATES`，日期手输、星期照显 | 项目选择页也挂助理岛（`arrival/chooser.ts`），所以 `arrival.css` 也要带，§20.11 说「只进 workbench.css」不对；日历按需等有日期题时再带 |
+| D16 | 旧皮肤抵字节删哪些（2026-10-14，本线定，用户已准 (b′)） | 只删 `momentum.ts` 里每个选择器都含 `.momentum-*` 类的 140 条规则（加 `craft-finish` 里一条同类）：逐个类核过，非样式源码里没有任何标记或脚本画出这些类（现在的推进态势画 `goal-canvas-*` 类与 `[data-goal-momentum]` 钩子）；只钉这些死规则文字的断言随之删去，「Goal 编号留在节点上」改到现行的 `.goal-canvas-node small` 上断言 | 一整族删干净比挑够数更好核；其余候选（`personal-*`、`desktop-*` 等）留给防腐 W5-05 |
+| D17 | `assistant-base` 升版放在哪一片（2026-10-14，本线定） | 不在 A1：助理声明 `["choice"]`，但 Coding 仍是空，交集为空，模型拿到的仍是纯选择题；提示词这时讲带类型的题与 `reference` 题，就是在讲模型没有的工具。改到让交集非空的那一片（A2）一起升 | 提示词与工具形状同步 |
 
 ## 17. 分期与 PR 序列
 
@@ -903,6 +908,22 @@ node scripts/gates/page-assets.mjs --base origin/main
 **建议**：(a)+(b) 无论如何都要做（把 A1 带进来的字节压到真正用到的那一段）；CSS 用 (b′) 抵平，不需要放宽；JS 在 (a)+(b) 之后仍多 +6.9 K，我没找到同量级的已核实无人引用的脚本，所以请用户对 `workbench.js` 给一次性 +7 K 的上限放宽（只给这一个文件，写明由 H2 合入后偿还：H2 删 8.1 K、加约 1.5 K，净 −6.6 K，A1+H2 之后回到现在的数以内），PR 里附实测。若不放宽，唯一不放宽的路是把 A1 与 H2 的 JS 并进同一个 PR（≈ +0.3 K，再删岛里问题卡的聚焦选择器等零碎即可到 0），但 H2 是 W5-10 形状的助理拆分、体量大、要等防腐线确认先后，**不建议为了字节把两片捆在一起**。不采用的办法：把样式或脚本改成页面 HTML 里的内联 `<style>`/`<script>`——`scripts/gates/page-assets.mjs` 头部写明它不量内联，这样能「绕过」预算，但每次渲染都重发、不能缓存，违背决定 #17 的本意。
 
 A1 开工时一起要改的断言（改成断言采用后的状态，不是放宽）：`tests/interaction-components.test.ts` 的「styles stay out of the frozen product sheets until adopted」（AC-17）；`tests/coss-control-language.test.ts` 的 `.assistant-choice-row, .assistant-code-head` 44px 一条；`tests/touch-targets.e2e.test.ts` 量到的助理问卷控件；`tests/assistant-island-script.test.ts`。
+
+### 20.13 A1+H2（2026-10-14，分支 `feature/ai-interaction-a1-h2`，从 `d53062a2` 起）
+
+做了什么（一个改动，用户 10-13 定）：
+
+- **H2 操作卡协作者**（W5-10 形状）：`assistant-offers.ts`（`recordOffer`、`offerFromPage`、`runCard`、`dismissCard`、`card`、`html`、失效巡检；只经端口依赖宿主）与 `assistant-card-view.ts`（卡片视图、画成共享操作卡、控件值转成输入要的字符串、按人的时区换算时刻）。`AssistantService` 2,542 → 2,287 行。
+- **A1 问题卡**：`assistant-questions.ts` 把等待中的问题画成共享问卷卡（带草稿、选择题的默认值），把卡片送回的值转成 Runtime 的回答，把 SDK 拒绝的逐题原因转成字段旁的一句话；`assistant-view-html.ts` 在回复里给每个问题、每张卡、最新一轮的下一步附上 HTML（同 Coding 的 `question.html`），在助理 HTTP 的写出处统一做，记录本身不变。草稿走新路由 `works/:id/question-draft`；回答路由收 `values`；失效卡的「重新准备」改由宿主写那句话（`cards/:id/redo`，仍记为页面写的）。
+- **岛**：删 `renderQuestion`、`renderCard`（连同 `EFFECTS` 等）、「接下来」行、`localMoment`、`cardShell`；问题、卡、下一步都只挂宿主画好的 HTML 并用共享客户端接行为。2,803 → 约 2,650 行。
+- **设计系统**：操作卡可带可改的字段（`fields`）；不带日历的客户端脚本；样式分段（D15）。
+- **题型**：助理声明 `["choice"]`，交集仍为空，产品里模型的问法不变（D17）。
+
+字节（按门禁口径从源码估算，构建后用 `page-assets.mjs --base` 复核）：`workbench.js` 约 −0.03 K；`workbench.css`、`arrival.css` 约 −10.4 K（新段 +11.5 K，删旧助理样式 −5.6 K，删 momentum 死规则 −16.3 K）；`settings.css` 约 −21.9 K。
+
+验收：新测试 `tests/assistant-interaction-html.test.ts`（AC-21、AC-23）；改动的断言（预期变化，不是放宽）：`interaction-components` AC-17 改成断言采用后的状态（D15）、`coss-control-language` 的 44 px 一条改到共享部件、`visual-foundation` 去掉钉死规则文字的断言（D16）、`assistant-page-written.e2e` 的失效卡改成库里真有的卡、`agent-typed-questions` 的助理题型。
+
+没做：A2（Coding）、`assistant-base` 升版（D17）、H3/H4、S1；日期题与日历（等有日期题时随那一片带）。
 
 ### 20.12 C1+H1（`c50a5534`）重做时与 main 的碰撞（2026-10-13，只读核对，没有合并）
 

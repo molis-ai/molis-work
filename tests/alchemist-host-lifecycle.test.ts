@@ -157,7 +157,8 @@ for (const operation of ["conversation", "settings"] as const) {
 // refused and MCP clients are forwarded to the resident one. Separate callers therefore share one Host.
 test("Alchemist discovery is inert; on the Home's one Host a job keeps its caller, others' activity cannot stop it, and concurrent callers stay separate", { timeout: 30_000 }, async t => {
   const f = await setup(t), first = await f.open("alice"), second = f.as(first.host, "bob");
-  assert.throws(() => new MolisWorkLocalHost({ homeDirectory: f.home }), { code: "inference.home_in_use" });
+  // R4C2-01: a second Host still refuses the same Home instead of acquiring another model executor.
+  assert.throws(() => new MolisWorkLocalHost({ homeDirectory: f.home }), { code: "agent.inference.home_in_use" });
   const catalog = await first.bound.discover();
   assert.ok(catalog.some(item => item.capability_id === a.directionCreate.capability_id && item.availability.available));
   await assert.rejects(access(f.path), { code: "ENOENT" }); assert.equal(f.requests.length, 0);

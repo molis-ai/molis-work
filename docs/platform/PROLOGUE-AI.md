@@ -228,7 +228,7 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 | 错误 | 后果 | 正确做法 |
 | --- | --- | --- |
 | 等模型的动作没声明并发 | 一次对话把整个项目的操作卡住数分钟 | `scheduling: "concurrent"` + 返回后按快照提交 |
-| 在同一 Home 再起一个执行进程/宿主 | `inference.home_in_use` 或 `agent.storage_busy` | 一个 Home 一个执行归属；MCP 等入口转发给常驻 Web 宿主 |
+| 在同一 Home 再起一个执行进程/宿主 | `agent.inference.home_in_use` 或 `agent.storage_busy` | 一个 Home 一个执行归属；MCP 等入口转发给常驻 Web 宿主 |
 | 在 Prologue 上登记全局钩子并对别人的会话回 `later` | 并发构建互相挂起 | 钩子一律 `forSession` |
 | 被拒绝后仍写失败记录 | 违反 F2，撤权后仍改数据 | 被拒绝就不写；可重试性另行设计 |
 | 把执行服务不可用报成网络问题 | 用户去查网络 | `inferenceServiceUnavailableReason` |

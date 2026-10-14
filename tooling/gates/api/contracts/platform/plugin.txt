@@ -2472,7 +2472,7 @@ export interface PluginEventDeliveryFailure {
     occurred_at: string;
 }
 
-export type PluginEventDeliveryFailureCode = "subscriber_start_failed" | "subscriber_handler_failed" | "subscriber_revoked" | "payload_invalid";
+export type PluginEventDeliveryFailureCode = "plugin.subscriber_start_failed" | "plugin.subscriber_handler_failed" | "plugin.subscriber_revoked" | "plugin.payload_invalid";
 
 export declare class PluginEventError extends Error {
     readonly code: PluginEventErrorCode;
@@ -2480,7 +2480,7 @@ export declare class PluginEventError extends Error {
     constructor(code: PluginEventErrorCode, message: string, detail?: Readonly<Record<string, string | number>> | undefined);
 }
 
-export type PluginEventErrorCode = "event_type_invalid" | "event_type_reserved" | "event_type_not_owned" | "event_not_declared" | "event_payload_invalid" | "event_payload_too_large" | "event_identity_invalid" | "event_delivery_revoked" | "event_recovery_changed" | "event_recovery_invalid" | "event_subscription_invalid";
+export type PluginEventErrorCode = "plugin.event_type_invalid" | "plugin.event_type_reserved" | "plugin.event_type_not_owned" | "plugin.event_not_declared" | "plugin.event_payload_invalid" | "plugin.event_payload_too_large" | "plugin.event_identity_invalid" | "plugin.event_delivery_revoked" | "plugin.event_recovery_changed" | "plugin.event_recovery_invalid" | "plugin.event_subscription_invalid";
 
 export interface PluginEventLogQuery {
     event_type_id?: string;
@@ -3115,7 +3115,7 @@ export declare class PluginWiringError extends Error {
     constructor(code: PluginWiringErrorCode, message: string, detail?: Readonly<Record<string, string | number>> | undefined);
 }
 
-export type PluginWiringErrorCode = "port_declaration_invalid" | "port_type_mismatch" | "port_unknown" | "port_binding_invalid" | "port_artifact_invalid" | "input_group_invalid" | "input_group_unknown";
+export type PluginWiringErrorCode = "plugin.port_declaration_invalid" | "plugin.port_type_mismatch" | "plugin.port_unknown" | "plugin.port_binding_invalid" | "plugin.port_artifact_invalid" | "plugin.input_group_invalid" | "plugin.input_group_unknown";
 
 export interface PluginWiringPluginView {
     plugin_id: string;

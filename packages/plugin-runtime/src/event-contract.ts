@@ -6,7 +6,7 @@ import {
 
 export class PluginEventContractError extends Error {
   constructor(
-    readonly code: "plugin_event_type_missing" | "plugin_event_type_undeclared",
+    readonly code: "plugin.event_type_missing" | "plugin.event_type_undeclared",
     message: string,
   ) {
     super(message);
@@ -45,7 +45,7 @@ export function buildEventContract(definition: PluginDefinition): PluginEventCon
     const validator = validators.get(key);
     if (!validator) {
       throw new PluginEventContractError(
-        "plugin_event_type_missing",
+        "plugin.event_type_missing",
         `发布事件 ${key} 没有对应的类型校验器`,
       );
     }
@@ -54,7 +54,7 @@ export function buildEventContract(definition: PluginDefinition): PluginEventCon
   for (const key of validators.keys()) {
     if (!publishes.has(key)) {
       throw new PluginEventContractError(
-        "plugin_event_type_undeclared",
+        "plugin.event_type_undeclared",
         `事件类型 ${key} 没有在 Manifest 的 publishes 里声明`,
       );
     }

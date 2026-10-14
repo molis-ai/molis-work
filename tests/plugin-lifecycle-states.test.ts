@@ -413,6 +413,6 @@ test("a failed upgrade from a crashed install leaves the old code with its own e
   assert.equal(supervisor.manifest(ID)?.version, "1.0.0");
   assert.deepEqual([...supervisor.contract(ID)!.publishes.keys()], [ID + ".a@1"], "the candidate's declarations did not stay behind");
   assert.equal(publish("a"), "accepted", "the old code publishes what it declared");
-  assert.equal(publish("b"), "event_not_declared", "and nothing the failed candidate declared");
+  assert.equal(publish("b"), "plugin.event_not_declared", "and nothing the failed candidate declared");
   await runtime.stop(id);
 });

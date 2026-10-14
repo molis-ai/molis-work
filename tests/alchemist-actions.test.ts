@@ -92,7 +92,7 @@ test("Alchemist unified operations preserve direction → cards → research →
   assert.equal(decision.reportBindings.length, 2);
   assert.equal((await call(a.decisionGet, { id, version: 1 })).decision!.id, decision.id);
   await assert.rejects(call(a.decisionCreate, { id, version: 1, outcome: "hold", reason: "不得重复决定" }), { code: "alchemist.decision_already_exists", message: "这个 Idea 版本已经有正式决定。" });
-  const decisions = await call(a.decisionsList, {}); assert.equal(decisions.log[0]!.id, decision.id); assert.ok(decisions.activities.some(item => item.kind === "annotation.created"));
+  const decisions = await call(a.decisionsList, {}); assert.equal(decisions.log.length, 1); assert.equal(decisions.log[0]!.id, decision.id); assert.ok(decisions.activities.some(item => item.kind === "annotation.created"));
   assert.equal((await f.api(`/ideas/${id}/versions/1/decision`)).decision.id, decision.id);
 });
 

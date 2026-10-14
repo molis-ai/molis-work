@@ -213,7 +213,7 @@ export {
   releaseCodingSurface,
   type CodingSurfacePorts,
 } from "./coding-surface.js";
-export { createGitWorktreePort, GitWorktreeError, type GitWorktreePort } from "./git-worktrees.js";
+export { createGitWorktreePort, type GitWorktreePort } from "./git-worktrees.js";
 export { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";
 export { draftText } from "./model-draft.js";
 

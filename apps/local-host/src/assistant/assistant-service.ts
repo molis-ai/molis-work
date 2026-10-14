@@ -25,7 +25,7 @@ import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from ".
 import { identity } from "./assistant-relations.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, type DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
-import { AssistantStoreError, typedTexts, type AssistantStore, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
+import { typedTexts, type AssistantStore, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
 import { assistantCandidate, assistantMemoryTools } from "./assistant-memory-tools.js";
 import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";

@@ -67,9 +67,9 @@ export const ASSISTANT_STAGE_FACTORY = String.raw`({island,panel,input,current,s
 }`;
 
 /** Shared by the Assistant's controller and its movable presentation. */
-export function assistantElement(tag: string, className?: string, text?: string | null): HTMLElement {
+export const ASSISTANT_ELEMENT_SCRIPT = String.raw`(tag, className, text) => {
   const node = document.createElement(tag);
   if (className) node.className = className;
   if (text !== undefined && text !== null) node.textContent = text;
   return node;
-}
+}`;

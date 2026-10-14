@@ -408,7 +408,7 @@ export class BrowserPage {
         if (!isTop(sessionId) || frame.parentId) return;
         // Chrome commits its own error page for an address that could not load: the address stays what was asked for.
         this.url = frame.unreachableUrl ?? frame.url + (frame.urlFragment ?? "");
-        this.problem = frame.unreachableUrl ? { code: "page.load_failed", message: this.host.forbiddenOrigins().includes(originOf(frame.unreachableUrl))
+        this.problem = frame.unreachableUrl ? { code: "browser.load_failed", message: this.host.forbiddenOrigins().includes(originOf(frame.unreachableUrl))
           ? "这个地址不能在侧栏浏览器里打开（它是本机的 Molis Work 服务）。" : "页面没有打开，请检查地址或网络后刷新重试。" } : null;
         this.dialog = null; this.fileChooser = null;
         void this.readHistory();
@@ -460,7 +460,7 @@ export class BrowserPage {
       if (this.url && this.url !== "about:blank") this.resumeUrl = this.url;
       this.stack = []; this.screencasting = null; this.loading = false;
       this.status = crashed ? "crashed" : "stopped";
-      this.problem = crashed ? { code: "page.crashed", message: "这个页面崩溃了。重新加载会回到原来的地址。" } : null;
+      this.problem = crashed ? { code: "browser.page_crashed", message: "这个页面崩溃了。重新加载会回到原来的地址。" } : null;
       this.emit();
       return;
     }
@@ -543,7 +543,7 @@ export class BrowserPage {
   async navigate(input: string): Promise<void> {
     const address = browserAddress(input);
     if ("blocked" in address) {
-      this.problem = { code: "page.blocked_scheme", message: `侧栏浏览器只打开网页地址，不打开「${address.blocked}:」这类地址。` };
+      this.problem = { code: "browser.blocked_scheme", message: `侧栏浏览器只打开网页地址，不打开「${address.blocked}:」这类地址。` };
       this.emit();
       return;
     }
@@ -557,7 +557,7 @@ export class BrowserPage {
     const result = await this.connection!.send("Page.navigate", { url }, top.sessionId).catch(error => ({ errorText: error instanceof Error ? error.message : String(error) })) as { errorText?: string };
     if (result.errorText) {
       this.loading = false;
-      this.problem = { code: "page.load_failed", message: loadFailure(result.errorText) };
+      this.problem = { code: "browser.load_failed", message: loadFailure(result.errorText) };
       this.emit();
     }
   }
@@ -624,7 +624,7 @@ export class BrowserPage {
   /** Give the page the files the person chose for its file chooser. Paths are under the Host's upload directory. */
   async chooseFiles(id: string, files: readonly string[]): Promise<void> {
     const chooser = this.fileChooser;
-    if (!chooser || chooser.id !== id || !this.connection) throw new BrowserError("page.load_failed", "页面已经不再等待选择文件");
+    if (!chooser || chooser.id !== id || !this.connection) throw new BrowserError("browser.load_failed", "页面已经不再等待选择文件");
     this.fileChooser = null; this.emit();
     await this.connection.send("DOM.setFileInputFiles", { files: [...files], backendNodeId: chooser.backendNodeId }, chooser.sessionId);
   }
@@ -667,7 +667,7 @@ export class BrowserPage {
   async evaluate(expression: string): Promise<unknown> {
     const top = await this.ensure();
     const result = await this.connection!.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }, top.sessionId) as { result?: { value?: unknown }; exceptionDetails?: unknown };
-    if (result.exceptionDetails) throw new BrowserError("page.load_failed", "页面脚本出错");
+    if (result.exceptionDetails) throw new BrowserError("browser.load_failed", "页面脚本出错");
     return result.result?.value;
   }
 

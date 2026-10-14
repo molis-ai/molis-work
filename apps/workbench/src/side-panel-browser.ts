@@ -159,13 +159,13 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     $('[data-browser-address-field]').title=state.origin?(state.secure?L('安全连接')+' · ':L('连接未加密')+' · ')+state.origin:'';
     view.setAttribute('aria-label',state.title||state.origin?L('网页画面')+'：'+(state.title||state.origin):L('网页画面'));
     // What covers the page: a problem that leaves nothing to show, or the start page.
-    const problem=state.problem;
+    const fault=state.problem;
     const blank=!state.url&&!state.loading;
-    if(problem&&(state.status==='unavailable'||state.status==='stopped'||state.status==='crashed')){
+    if(fault&&(state.status==='unavailable'||state.status==='stopped'||state.status==='crashed')){
       cover.hidden=false;
-      const action=problem.code==='browser.not_found'?button('retry',L('重试')):problem.code==='page.crashed'?button('reload',L('重新加载')):button('restart',L('重新启动浏览器'));
-      coverCopy.innerHTML='<p class="side-browser-cover-title">'+esc(problem.code==='browser.not_found'?L('没有可用的浏览器'):problem.code==='page.crashed'?L('页面崩溃了'):L('浏览器没有运行'))+'</p><p>'+esc(problem.message)+'</p>'+action;
-      say(problem.message,true);
+      const action=fault.code==='browser.not_found'?button('retry',L('重试')):fault.code==='browser.page_crashed'?button('reload',L('重新加载')):button('restart',L('重新启动浏览器'));
+      coverCopy.innerHTML='<p class="side-browser-cover-title">'+esc(fault.code==='browser.not_found'?L('没有可用的浏览器'):fault.code==='browser.page_crashed'?L('页面崩溃了'):L('浏览器没有运行'))+'</p><p>'+esc(fault.message)+'</p>'+action;
+      say(fault.message,true);
     }else if(state.status==='starting'){
       cover.hidden=false;coverCopy.innerHTML='<p class="side-browser-cover-title">'+esc(L('正在启动浏览器…'))+'</p>';
     }else if(blank){
@@ -173,12 +173,12 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
       coverCopy.innerHTML='<p class="side-browser-cover-title">'+esc(L('在上方输入网址开始浏览'))+'</p><p>'+esc(L('这里的登录状态与你自己的浏览器分开：在这里登录过的网站，只在 Molis Work 里保持登录。'))+(state.engine?'</p><p>'+esc(L('使用本机的 {name}',{name:state.engine})):'')+'</p>';
     }else cover.hidden=true;
     // The strip above the page: a page problem the page still shows behind, or the window a page opened.
-    if(problem&&cover.hidden){strip.hidden=false;strip.dataset.tone='problem';strip.innerHTML='<p>'+esc(problem.message)+'</p>'+(problem.code==='page.load_failed'?button('reload',L('刷新')):'');say(problem.message,true);}
+    if(fault&&cover.hidden){strip.hidden=false;strip.dataset.tone='problem';strip.innerHTML='<p>'+esc(fault.message)+'</p>'+(fault.code==='browser.load_failed'?button('reload',L('刷新')):'');say(fault.message,true);}
     else if(state.popup_depth>0){strip.hidden=false;strip.dataset.tone='popup';strip.innerHTML='<p>'+esc(L('这是网页打开的新窗口（例如登录）。关闭后回到原来的页面。'))+'</p>'+button('popup-close',L('关闭并返回'));}
     else{strip.hidden=true;strip.innerHTML='';}
     renderSheet();renderControl();
     // A page that failed to load is announced by its problem above, never as opened.
-    if(state.status==='ready'&&!state.loading&&state.title&&!problem)say(L('已打开：{title}',{title:state.title}));
+    if(state.status==='ready'&&!state.loading&&state.title&&!fault)say(L('已打开：{title}',{title:state.title}));
   };
   const renderSheet=()=>{
     const dialog=state.dialog,chooser=state.file_chooser,download=[...state.downloads].reverse().find(item=>item.state==='completed'&&!seenDownloads.has(item.id));

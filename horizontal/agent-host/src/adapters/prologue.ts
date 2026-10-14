@@ -1,5 +1,6 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { parseAgentRunBudget, agentTextMaterialContent, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentPendingQuestion, AgentQuestionProblem } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
   AgentSkillLibrary,
@@ -8,7 +9,6 @@ import type {
   AgentMcpSourceRef,
   AgentCommandOutput,
   AgentCommandOutputRef,
-  AgentPendingQuestion,
   AgentCreateSessionInput,
   AgentHostErrorCode,
   AgentRunControl,
@@ -58,15 +58,11 @@ export const PROLOGUE_RUNTIME_ID = "prologue";
 
 export class PrologueAdapterError extends Error {
   constructor(
-    readonly code: Extract<AgentHostErrorCode,
-      | "agent.model_not_configured"
-      | "agent.role_not_frozen"
-      | "agent.session_unknown"
-      | "agent.session_busy"
-      | "agent.run_unknown"
-      | "agent.pending_not_open"
-      | "agent.capability_unavailable">,
+    readonly code: Extract<AgentHostErrorCode, "agent.model_not_configured" | "agent.role_not_frozen" | "agent.session_unknown" | "agent.session_busy"
+      | "agent.run_unknown" | "agent.pending_not_open" | "agent.answer_invalid" | "agent.capability_unavailable">,
     message: string,
+    /** For `agent.answer_invalid`: every question that could not be answered as given, so a surface marks each field. */
+    readonly problems?: readonly AgentQuestionProblem[],
   ) {
     super(message);
     this.name = "PrologueAdapterError";

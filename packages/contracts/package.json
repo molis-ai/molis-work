@@ -182,6 +182,10 @@
       "types": "./dist/services/agent-definitions.d.ts",
       "import": "./dist/services/agent-definitions.js"
     },
+    "./services/agent-interaction": {
+      "types": "./dist/services/agent-interaction.d.ts",
+      "import": "./dist/services/agent-interaction.js"
+    },
     "./services/connector-host": {
       "types": "./dist/services/connector-host.d.ts",
       "import": "./dist/services/connector-host.js"

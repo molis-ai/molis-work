@@ -1,8 +1,9 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AttentionReason as ModuleAttentionReason, AttentionStatus as ModuleAttentionStatus, AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedOutRuleRecord, FeedSnapshot, FeedSourceRunRecord, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType, SourceHistoryDecision } from "./projection.js";
-import { SourcesError } from "@molis-ai/molis-work-contracts/modules/sources";
+
 import {
   type JudgmentRecord,
 } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -72,7 +73,7 @@ export class FeedApplication {
     try {
       return this.sourceRecord(this.ports.sources.query.get(projectId, sourceId));
     } catch (error) {
-      if (error instanceof SourcesError && error.code === "sources.not_found") {
+      if (error instanceof ActionError && error.code === "sources.not_found") {
         throw feedErrors.source_not_found("找不到这个来源");
       }
       throw error;
@@ -119,7 +120,7 @@ export class FeedApplication {
     try {
       return this.sourceRecord(this.ports.sources.commands.setEnabled(projectId, sourceId, enabled));
     } catch (error) {
-      if (error instanceof SourcesError && error.code === "sources.not_found") {
+      if (error instanceof ActionError && error.code === "sources.not_found") {
         throw feedErrors.source_not_found("找不到这个来源");
       }
       throw error;
@@ -459,8 +460,6 @@ export class FeedApplication {
     }
     this.completeArtifactOutFailure(item);
   }
-
-
 
   private recordArtifactOutFailure(item: FeedItemRecord, ruleIds: string[], errorCodes: string[]): void {
     // The person ignored this item; a capture that failed for it is not worth putting it back in front of them.

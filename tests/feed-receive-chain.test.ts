@@ -4,11 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 
 import { SignalsModule } from "@molis-ai/molis-work-module-signals";
 import { SourcesModule } from "@molis-ai/molis-work-module-sources";
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
-import { ListenerHost, ListenerHostError } from "@molis-ai/molis-work-service-listener-host";
+import { ListenerHost } from "@molis-ai/molis-work-service-listener-host";
 import type {
   ConnectorDriver,
   ConnectorFailureKind,
@@ -235,7 +236,7 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
           operation_id: "fd1-operation-recovery",
           adapter: adapter("two"),
         }),
-        (error: unknown) => error instanceof ListenerHostError
+        (error: unknown) => error instanceof ActionError
           && error.code === "listener.delivery_failed",
       );
       assert.deepEqual(firstListener.checkpoint(DEMO_PROJECT_ID, sourceId).cursor, {});
@@ -356,7 +357,15 @@ test("Listener lease prevents two callers from consuming one Source concurrently
           operation_id: "fd1-lease-second",
           adapter: adapter(),
         }),
-        (error: unknown) => error instanceof ListenerHostError && error.code === "listener.lease_busy",
+        (error: unknown) => {
+          // SOURCE-01: the second real poll cannot take an existing Listener lease.
+          assert.ok(error instanceof ActionError);
+          assert.equal(error.code, "listener.lease_busy");
+          assert.equal(error.message, "这个 Source 已有 Listener 正在处理");
+          assert.equal(error.kind, "invalid");
+          assert.equal(actionHttpStatus(error), 400);
+          return true;
+        },
       );
       releasePoll?.();
       assert.equal((await first).outcome, "completed");
@@ -410,13 +419,13 @@ test("repeated Adapter failure quarantines the Raw Event without polling past it
         adapter: failingAdapter,
       });
 
-      await assert.rejects(run(), (error: unknown) => error instanceof ListenerHostError
+      await assert.rejects(run(), (error: unknown) => error instanceof ActionError
         && error.code === "listener.delivery_failed");
-      await assert.rejects(run(), (error: unknown) => error instanceof ListenerHostError
+      await assert.rejects(run(), (error: unknown) => error instanceof ActionError
         && error.code === "listener.delivery_quarantined");
       assert.equal(listener.checkpoint(DEMO_PROJECT_ID, sourceId).state, "quarantined");
       assert.deepEqual(listener.checkpoint(DEMO_PROJECT_ID, sourceId).cursor, {});
-      await assert.rejects(run(), (error: unknown) => error instanceof ListenerHostError
+      await assert.rejects(run(), (error: unknown) => error instanceof ActionError
         && error.code === "listener.delivery_quarantined");
       assert.equal(polls, 1, "quarantined delivery must block further Provider polling");
     } finally {

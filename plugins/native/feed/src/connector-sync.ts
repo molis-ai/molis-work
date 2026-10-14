@@ -1,6 +1,8 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { listenerErrors } from "@molis-ai/molis-work-contracts/services/listener-host";
 import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import { ListenerHostError, type ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
+import { type ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord } from "./projection.js";
 import type { FeedSourceSyncResult, FeedSourceSyncInput } from "./source-ports.js";
@@ -76,7 +78,8 @@ export class FeedConnectorSync {
     } catch (error) {
       await beforeEffect();
       const updatedAt = new Date().toISOString();
-      const errorCode = error instanceof ListenerHostError ? error.code : safeErrorCode(error);
+      const errorCode = error instanceof ActionError && error.code.startsWith("listener.")
+        && Object.hasOwn(listenerErrors, error.code.slice("listener.".length)) ? error.code : safeErrorCode(error);
       await this.ports.reportCrash(source.source_id, errorCode);
       await beforeEffect();
       const latest = this.feed.getSource(this.projectId, sourceId);

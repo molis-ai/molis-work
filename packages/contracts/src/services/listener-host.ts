@@ -1,6 +1,7 @@
 import type { SignalDraft, SignalReceipt } from "../modules/signals.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ConnectorHostApi, ConnectorRawEvent } from "./connector-host.js";
+import { defineErrorCodes } from "../platform/action-errors.js";
 
 export const servicesListenerHostContract = {
   contractId: "io.molis.work.service.listener-host.v1",
@@ -71,16 +72,9 @@ export interface ListenerHostApi {
   }): Promise<ListenerRunReceipt>;
 }
 
-export class ListenerHostError extends Error {
-  constructor(
-    readonly code:
-      | "listener.lease_busy"
-      | "listener.delivery_failed"
-      | "listener.delivery_quarantined"
-      | "listener.connector_failed",
-    message: string,
-  ) {
-    super(message);
-    this.name = "ListenerHostError";
-  }
-}
+export const listenerErrors = defineErrorCodes("listener", {
+  lease_busy: "invalid",
+  delivery_failed: "invalid",
+  delivery_quarantined: "invalid",
+  connector_failed: "invalid",
+});

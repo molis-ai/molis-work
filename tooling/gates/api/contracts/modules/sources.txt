@@ -80,11 +80,6 @@ export interface SourcesApi {
     readonly events: SourceEvents;
 }
 
-export declare class SourcesError extends Error {
-    readonly code: "sources.not_found" | "sources.invalid_schedule" | "sources.invalid_transition";
-    constructor(code: "sources.not_found" | "sources.invalid_schedule" | "sources.invalid_transition", message: string);
-}
-
 export declare function isAccountConnectorSyncKind(kind: string): kind is Extract<SourceSyncKind, "github" | "gmail" | "connector">;
 
 export declare const modulesSourcesContract: {
@@ -96,3 +91,9 @@ export declare const modulesSourcesContract: {
 };
 
 export declare function sourceDeletedAt(source: Pick<SourceRecord, "config">): string | null;
+
+export declare const sourceErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly not_found: "invalid";
+    readonly invalid_schedule: "invalid";
+    readonly invalid_transition: "invalid";
+}>;

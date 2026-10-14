@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   LocalSqliteJournal,
 } from "@molis-ai/molis-work-storage";
@@ -19,10 +20,7 @@ import {
   FeedModule,
 } from "@molis-ai/molis-work-module-feed";
 
-import {
-  SourcesError,
-  SourcesModule,
-} from "@molis-ai/molis-work-module-sources";
+import { SourcesModule } from "@molis-ai/molis-work-module-sources";
 import {
   deleteListenerSourceState,
   getListenerRunByOperationId,
@@ -64,7 +62,7 @@ export function createLocalFeedApplication(
           sources.query.get(projectId, subjectId);
           return true;
         } catch (error) {
-          if (error instanceof SourcesError && error.code === "sources.not_found") return false;
+          if (error instanceof ActionError && error.code === "sources.not_found") return false;
           throw error;
         }
       }

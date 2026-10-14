@@ -1,4 +1,5 @@
 import type { ContractDescriptor } from "../platform/package.js";
+import { defineErrorCodes } from "../platform/action-errors.js";
 
 export const modulesSourcesContract = {
   contractId: "io.molis.work.module.sources.v1",
@@ -90,15 +91,11 @@ export interface SourcesApi {
   readonly events: SourceEvents;
 }
 
-export class SourcesError extends Error {
-  constructor(
-    readonly code: "sources.not_found" | "sources.invalid_schedule" | "sources.invalid_transition",
-    message: string,
-  ) {
-    super(message);
-    this.name = "SourcesError";
-  }
-}
+export const sourceErrors = defineErrorCodes("sources", {
+  not_found: "invalid",
+  invalid_schedule: "invalid",
+  invalid_transition: "invalid",
+});
 
 export function sourceDeletedAt(source: Pick<SourceRecord, "config">): string | null {
   const lifecycle = source.config._molis_work_lifecycle;

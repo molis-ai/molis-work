@@ -79,6 +79,14 @@ jobs:
           chmod +x "$RUNNER_TEMP/chrome-ci"
           echo "MOLIS_WORK_TEST_CHROME=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
 
+      # The pages are Chinese first and the layout tests measure Chinese text; the runner image has no CJK font, so without one the
+      # text has no real glyphs and wraps and fits differently from a development machine.
+      - name: CJK font for the browser files
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends fonts-noto-cjk
+          fc-list :lang=zh family | sort -u
+
       # The runner starts the files that took longest last time first; each shard keeps its own durations from run to run.
       - name: Test durations
         uses: actions/cache@v4

@@ -1359,3 +1359,14 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 - 不新增 typed 能力。
 - 写入从一开始就带读取版本（W3-09-3）。
 - 页面请求用 `request-client.ts`（W3-10）。
+
+**实现记录（W3-B1，本地 `c623a9eb`，未推送）**：
+
+- **焦点在哪里**：以前没有谁设 `focus.place`，`attach.` 候选因此永远派生不出来。现在由总线按报告焦点的元素推出：在右栏格子里（`[data-side-panel] [data-side-body]`）是 `side`（带 `side_tab`），在助理岛里是 `assistant`，其余不设（即 `main`）。写在新文件 `context-landing.ts`，`molis:surface-focus` 的监听从 `context-bus.ts` 移过去（`context-bus.ts` 变小）。
+- **右栏手上的东西**：右栏的文件预览（`side-panel-files.ts`）打开插件文件时声明它的对象（`data-assistant-context`），在里面选的文字就是手上的东西。插件自己的右栏格子是 iframe，焦点到不了总线，不在 W3-B1。
+- **排序**：版面只把前三个里的落点类候选放进主行，从不放进「更多」；只按规则时它们从来排不进前三。内核 `ruleScores` 让派生出的 `attach.` 候选按声明顺序排在其他规则之上（判断时权重和其他规则一样，只占百分之一分）。只在左边真有落点、手上的东西不在左边时才派生，所以不影响平常的选区。
+- **输入怎样拼**：宿主 `contextual-attach.ts` 确定性地拼：`id` 取落点对象，`expected_version` 取落点版本，`anchor`/`head` 取落点第一个带位置的目标，`material_field` 取手上各段文字（空行相接，至多 20000 字），动作有 `source` 时取手上对象的标题。手上没有文字就拒绝（`contextual.empty`），没有落点就是 `contextual.stale`。
+- **预览**：画在 Pages 编辑器自己的浮层里、落点下方（`placeOverlay`，在 `[data-pages-stage-workspace]` 内），不是 `molis:context-panel-open`（那个槽停在情境条下，离落点远）；仍在主人页面里，不开整页、不开标签页。准备好的输入位置与报告的不同，或确认时文档已改，就不写，请人重新选位置。确认先保存未存的输入，用保存后的版本经 `/api/contextual/attach` 调动作，再按存储重载文档。
+- **分屏窗格**（iframe 里的落点）不在 W3-B1。
+- **待统筹答复**：选中事件 `ContextActionChosen` 加可选的 `landing` 与 `run`（现在代码已这样传，类型未改）；页面资源的抵消方式。
+- **证据**：`tests/pages-landing-actions.test.ts`（三个动作、版本冲突、撤销、撤权不写），`tests/context-landing.e2e.test.ts`（右栏选一句 → 「插入到光标处」→ 落点处预览 → 放进去）。

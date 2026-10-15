@@ -26,8 +26,7 @@ import {
   FORM_CLIENT_FACTORY_SCRIPT,
   FORM_EN,
   FORM_STYLES,
-  FormPluginRouteTable,
-  createFormRouteHandlers,
+  formActions,
   openFormStore,
 } from "@molis-ai/molis-work-plugin-form";
 import {
@@ -302,45 +301,24 @@ test("Dataset：删行丢掉，筛选藏着的行留下；工作台内联同一�
 test("Forms：建题、预览提交、结果计数，重开还在；出题是本地 stub", async () => {
   await withHome(async (home) => {
     const store = openFormStore(home);
-    const routes = new FormPluginRouteTable(createFormRouteHandlers(formTestPorts(store, PROJECT)));
-    const created = await routes.handle({ method: "POST", pathname: "/api/form", query: projectQuery(), body: projectBody({ title: "周报" }) });
-    const id = (created?.body as { form: { id: string; project_id: string } }).form.id;
-    assert.equal((created?.body as { form: { project_id: string } }).form.project_id, PROJECT);
-    await routes.handle({
-      method: "POST",
-      pathname: `/api/form/${id}`,
-      query: projectQuery(),
-      body: projectBody({
-        questions: [{ id: "q1", type: "singleChoice", title: "用得最多的工具", required: true, order: 1, options: [{ id: "a", label: "编辑器" }, { id: "b", label: "终端" }] }],
-      }),
-    });
-    const generated = await routes.handle({
-      method: "POST",
-      pathname: `/api/form/${id}/generate-questions`,
-      query: projectQuery(),
-      body: projectBody({ prompt: "你最常用的工具是什么" }),
-    });
-    const generatedForm = (generated?.body as { form: { questions: Array<{ title: string; type: string }> } }).form;
+    // Form's routes are its Runtime plugin's now (tests/form-runtime-routes.test.ts); the same steps through its actions.
+    const { actions } = formTestPorts(store, PROJECT);
+    const created = await actions.invoke(formActions.create, { title: "周报" });
+    const id = created.form.id;
+    assert.equal(created.form.project_id, PROJECT);
+    await actions.invoke(formActions.update, { id,
+      questions: [{ id: "q1", type: "singleChoice", title: "用得最多的工具", required: true, order: 1, options: [{ id: "a", label: "编辑器" }, { id: "b", label: "终端" }] }] });
+    const generatedForm = (await actions.invoke(formActions.generate, { id, prompt: "你最常用的工具是什么" })).form;
     assert.equal(generatedForm.questions.at(-1)?.title, "你最常用的工具是什么");
     assert.equal(generatedForm.questions.at(-1)?.type, "text");
-    await routes.handle({ method: "POST", pathname: `/api/form/${id}/publish`, query: projectQuery(), body: projectBody() });
+    await actions.invoke(formActions.publish, { id });
     await assert.rejects(
-      () => routes.handle({
-        method: "POST",
-        pathname: `/api/form/${id}/submit`,
-        query: projectQuery(),
-        body: projectBody({ answers: {} }),
-      }),
+      () => actions.invoke(formActions.submit, { id, answers: {} }),
       (error: Error) => error.message.includes("请回答"),
     );
-    await routes.handle({
-      method: "POST",
-      pathname: `/api/form/${id}/submit`,
-      query: projectQuery(),
-      body: projectBody({ answers: { q1: "编辑器" } }),
-    });
-    const results = await routes.handle({ method: "GET", pathname: `/api/form/${id}/results`, query: projectQuery(), body: {} });
-    assert.equal((results?.body as { analysis: { submission_count: number } }).analysis.submission_count, 1);
+    await actions.invoke(formActions.submit, { id, answers: { q1: "编辑器" } });
+    const results = await actions.invoke(formActions.results, { id });
+    assert.equal(results.analysis.submission_count, 1);
     store.close();
 
     const reopened = openFormStore(home);
@@ -469,12 +447,7 @@ test("问卷、数据表、演示稿按项目隔离", async () => {
     assert.deepEqual(datasets.list(PROJECT).map((item) => item.title), ["项目甲表"]);
     assert.deepEqual(ppts.list(OTHER).map((item) => item.title), ["项目乙演示"]);
     assert.throws(() => forms.get(formA.id, OTHER));
-    await assert.rejects(() => new FormPluginRouteTable(createFormRouteHandlers(formTestPorts(forms, PROJECT))).handle({
-      method: "GET",
-      pathname: "/api/form",
-      query: new URLSearchParams({ project_id: OTHER }),
-      body: {},
-    }));
+    // A page asking Forms in one project for another project's forms is refused by the route: tests/form-runtime-routes.test.ts.
     forms.close();
     datasets.close();
     ppts.close();

@@ -4,7 +4,7 @@
 
 包名：`@molis-ai/molis-work-plugin-form`。
 
-插件在 `src/actions.ts` 声明列表、读取、新建、编辑、删除、本地加题、AI 生成题目、标记已发布、停止收集、提交与导入答卷、读取与导出结果、导出填写页、存成成果等能力。项目 Host 注册插件处理器；HTTP 只转发同一动作客户端，MCP 只经授权的动作工具，项目、调用者及权限由 Host 注入。
+插件在 `src/actions.ts` 声明列表、读取、新建、编辑、删除、本地加题、AI 生成题目、标记已发布、停止收集、提交与导入答卷、读取与导出结果、导出填写页、存成成果等能力。插件经 Plugin Runtime 运行，每个项目一个实例（`src/plugin.ts` 的 `createFormPlugin`，宿主在 `apps/local-host/src/project-plugins.ts` 的监督器条目里启动它，问卷库是条目声明的 `form` 库）；页面走 Manifest 声明的路由（项目下的 `/api/plugins/io.molis.work.form/forms…`，每条只把请求转成同名动作，带内容的路由读到 1 MB），MCP 只经授权的动作工具，项目、调用者及权限由 Host 注入。
 
 “按题目加题”只做本地追加；“AI 生成题目”（`form.questions.draft`）显式使用系统文字模型和连接，另需 `model:invoke`：要求说得不够时先返回 `needs_input` 和几道选择题（宿主把它画成共享问卷卡），回答按问过的题检查后再拟题，只追问一次；问过的题只存在插件进程里（至多 32 组、一天）。缺模型禁用 AI，保留本地操作。模型等待期间问卷被编辑、删除，或调用取消、连接撤销时不追加过期结果。
 
@@ -35,7 +35,7 @@
   - 只有收集中（`published`）的问卷接受提交和答卷文件导入。草稿和已停止收集的问卷只收本人的两样东西：试填（本机界面的 `preview`），以及本人导入的答卷文件（页面在停止收集后仍提供导入）。填写页（`fill`）的提交，和助理、MCP、流程、插件来源的提交与导入，以 `form.closed`（HTTP 409）拒绝，不写任何答卷，重新开始收集后恢复；导入是整次调用被拒，在读任何一个文件之前，已导入过的文件也一样。判断是 `FormStore.submit` 与 `FormStore.importAnswers` 事务里的同一个 `assertTakesAnswers`，入口不各写一份；动作层把这个拒绝作为 `ActionError` 交出，MCP 客户端才读得到代码和原因（其他错误对 MCP 只显示为「能力执行失败」）。
   - 流程交来的标题和题目列表按问卷的上限（标题 80 字、40 题）截取后再收，不因超限而整次拒收。
   - 项目被删除时宿主按目录条目上的 `project_data`（`formProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeFormProject`）调用清掉问卷与收到的全部回答，连同复制回执；只读库文件，库不存在时不创建，重复运行没有副作用。
-- 改动后必跑：`node scripts/run-tests.mjs tests/form-actions.test.ts tests/form-mcp.test.ts tests/creative-tools-plugins.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/form-actions.test.ts tests/form-runtime-routes.test.ts tests/form-mcp.test.ts tests/creative-tools-plugins.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts`
 - 答卷边界、离线文件与 Form → Dataset 的定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-portable-regressions.e2e.test.ts tests/work-placement-plugins.e2e.test.ts`（浏览器文件需要本机 Chrome；CSV 沿既有合同把回答中的换行显示为分号，源答卷保留换行）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

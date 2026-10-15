@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, formResultsCsv, openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, formResultsCsv, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { datasetActions, createDatasetActionHandlers, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { lingguangActions, lingguangContentActions, createLingguangActionHandlers, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { pagesActions, pagesContentActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
@@ -100,7 +100,7 @@ test("AI actions of Form, Dataset, PPT and 灵光 recheck the grant right before
   const spark = sparks.create({ project_id: "p", title: "S", body: "b" }), conversation = sparks.openConversation([spark.id], "p").conversation;
   const cases: Array<{ name: string; run: (state: ReturnType<typeof newState>) => Promise<unknown>; unchanged: () => unknown }> = [
     { name: "form.questions.draft", unchanged: () => forms.get(form.id, "p").questions.length,
-      run: state => handle(createFormActionHandlers({ withStore: run => run(forms), modelAvailability: () => ({ available: true }),
+      run: state => handle(createFormActionHandlers({ ...ownFormStores(run => run(forms)), modelAvailability: () => ({ available: true }),
         completeText: hostModel(state, JSON.stringify({ status: "done", questions: [{ title: "题目？", type: "text" }] })) }), formActions.draft.capability_id)
         .handle(revocable(state), { id: form.id, prompt: "加一题" }) },
     { name: "dataset.columns.ai", unchanged: () => datasets.get(dataset.id, "p").columns.length,

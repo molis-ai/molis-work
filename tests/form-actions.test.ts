@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
-import { formActions as actions, FORM_ACTION_PERMISSIONS, FORM_ANSWER_FORMAT, FormPluginRouteTable, createFormRouteHandlers, openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { formActions as actions, FORM_ACTION_PERMISSIONS, FORM_ANSWER_FORMAT, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
@@ -256,17 +256,14 @@ test("answer files go into a form that is not collecting only when the person im
   // The person still imports: the page promises it after stopping, and the same answer counts once.
   assert.deepEqual(await f.bound.invoke(actions.importAnswers, { id, files: [answerFile(form, "person-stopped-0001", "停止后本人导入")] }), { imported: 1, skipped: 0, rejected: [] });
   assert.deepEqual(await f.bound.invoke(actions.importAnswers, { id, files: [answerFile(form, "person-stopped-0001", "停止后本人导入")] }), { imported: 0, skipped: 1, rejected: [] });
-  // Through the workbench's own route, which is always the person.
-  const routes = new FormPluginRouteTable(createFormRouteHandlers({ projectId: "a", actions: f.bound }));
-  const viaRoute = await routes.handle({ method: "POST", pathname: `/api/form/${id}/answers`, query: new URLSearchParams(), body: { project_id: "a", files: [answerFile(form, "page-stopped-0001", "停止后经页面导入")] } });
-  assert.equal(viaRoute?.status, 200); assert.deepEqual(viaRoute?.body, { imported: 1, skipped: 0, rejected: [] });
+  // The workbench's own route is always the person too: W4-04-04 imports through it after collection stops (tests/form-runtime-routes.test.ts).
 
   // Starting again opens the form to every caller again.
   await f.bound.invoke(actions.publish, { id, expected_version: form.version });
   for (const audience of outside) assert.deepEqual(await imports(audience, "again", `重新收集 ${audience}`), { imported: 1, skipped: 0, rejected: [] }, audience);
 
   assert.deepEqual(await stored(), [
-    "file:草稿时本人导入", "file:停止后本人导入", "file:停止后经页面导入",
+    "file:草稿时本人导入", "file:停止后本人导入",
     ...outside.flatMap(audience => [`file:收集中 ${audience}`, `file:重新收集 ${audience}`]),
   ].sort());
 });

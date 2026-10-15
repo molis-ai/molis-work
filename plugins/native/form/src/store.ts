@@ -1,6 +1,7 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
+import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   FormOption,
   FormQuestion,
@@ -50,23 +51,44 @@ const QUESTION_TYPES: readonly FormQuestionType[] = [
   "text", "singleChoice", "multiChoice", "dropdown", "rating", "date",
 ];
 
+/**
+ * The SQL the store runs: its own connection to `form/form.db`, or the library the Runtime gives the plugin, inside one write
+ * transaction or read-only. Reads are SELECT; writes are INSERT, UPDATE and DELETE.
+ */
+export interface FormSql {
+  get(sql: string, parameters?: readonly FormSqlValue[]): Readonly<Record<string, unknown>> | null | undefined;
+  all(sql: string, parameters?: readonly FormSqlValue[]): readonly Readonly<Record<string, unknown>>[];
+  run(sql: string, parameters?: readonly FormSqlValue[]): { changes: number | bigint };
+}
+export type FormSqlValue = string | number | null;
+
+/** Where the actions read and write: reads run on their own; a write waits for the call's authority and is one transaction. */
+export interface FormStores {
+  read<T>(run: (store: FormStore) => T): T;
+  write<T>(caller: ActionExecutionContext, run: (store: FormStore) => T): Promise<T>;
+}
+
+/** Reads and writes on a store opened for each run (`withStore`), by a process with its own connection: tests, maintenance. */
+export function ownFormStores(withStore: <T>(run: (store: FormStore) => T) => T): FormStores {
+  return { read: withStore, async write(caller, run) { await caller.beforeEffect(); return withStore(run); } };
+}
+
 export class FormStore {
-  constructor(private readonly db: DatabaseSync) {}
+  /** `atomically` runs a write that takes several statements as one: a transaction of its own, or nothing more inside one. */
+  constructor(private readonly db: FormSql, private readonly atomically: <T>(run: () => T) => T = run => run(), private readonly release: () => void = () => {}) {}
 
   close(): void {
-    this.db.close();
+    this.release();
   }
 
   list(projectId: string): FormRecord[] {
     const project_id = normalizeProjectId(projectId);
-    const rows = this.db.prepare(
-      "SELECT * FROM forms WHERE project_id = ? ORDER BY datetime(updated_at) DESC, title COLLATE NOCASE",
-    ).all(project_id) as unknown as FormRow[];
+    const rows = this.db.all("SELECT * FROM forms WHERE project_id = ? ORDER BY datetime(updated_at) DESC, title COLLATE NOCASE", [project_id]) as unknown as FormRow[];
     return rows.map(fromRow);
   }
 
   get(id: string, projectId?: string): FormRecord {
-    const row = this.db.prepare("SELECT * FROM forms WHERE id = ?").get(id) as FormRow | undefined;
+    const row = this.db.get("SELECT * FROM forms WHERE id = ?", [id]) as FormRow | undefined;
     if (!row) throw formErrors.not_found("找不到这份问卷");
     if (projectId && row.project_id !== normalizeProjectId(projectId)) {
       throw formErrors.not_found("找不到这份问卷");
@@ -90,12 +112,8 @@ export class FormStore {
       artifact_id: "",
       artifact_version: 0,
     };
-    this.db.prepare(
-      "INSERT INTO forms (id, project_id, title, description, status, share_id, questions_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).run(
-      record.id, record.project_id, record.title, record.description, record.status, record.share_id,
-      JSON.stringify(record.questions), record.created_at, record.updated_at, record.version,
-    );
+    this.db.run("INSERT INTO forms (id, project_id, title, description, status, share_id, questions_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [record.id, record.project_id, record.title, record.description, record.status, record.share_id,
+      JSON.stringify(record.questions), record.created_at, record.updated_at, record.version]);
     return record;
   }
 
@@ -115,9 +133,7 @@ export class FormStore {
       updated_at: new Date().toISOString(),
       version: current.version + 1,
     };
-    const result = this.db.prepare(
-      "UPDATE forms SET title = ?, description = ?, questions_json = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?",
-    ).run(next.title, next.description, JSON.stringify(next.questions), next.updated_at, next.version, id, current.version);
+    const result = this.db.run("UPDATE forms SET title = ?, description = ?, questions_json = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?", [next.title, next.description, JSON.stringify(next.questions), next.updated_at, next.version, id, current.version]);
     if (result.changes !== 1) throw formErrors.conflict("问卷已改变，请重新读取后保存");
     return next;
   }
@@ -133,9 +149,7 @@ export class FormStore {
       updated_at: new Date().toISOString(),
       version: current.version + 1,
     };
-    const result = this.db.prepare(
-      "UPDATE forms SET status = ?, share_id = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?",
-    ).run(next.status, next.share_id, next.updated_at, next.version, id, current.version);
+    const result = this.db.run("UPDATE forms SET status = ?, share_id = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?", [next.status, next.share_id, next.updated_at, next.version, id, current.version]);
     if (result.changes !== 1) throw formErrors.conflict("问卷已改变，请重新读取后发布");
     return next;
   }
@@ -143,12 +157,12 @@ export class FormStore {
   /** A form made from a list of questions another plugin hands over; one delivery makes one form. */
   receive(projectId: string, requestId: string, title: string, questions: readonly FormQuestionInput[]): FormRecord {
     const target = normalizeProjectId(projectId);
-    return this.transaction(() => {
-      const prior = this.db.prepare("SELECT target_id FROM form_copies WHERE project_id = ? AND request_id = ?").get(target, "receive:" + requestId) as { target_id: string } | undefined;
+    return this.atomically(() => {
+      const prior = this.db.get("SELECT target_id FROM form_copies WHERE project_id = ? AND request_id = ?", [target, "receive:" + requestId]) as { target_id: string } | undefined;
       if (prior) return this.get(prior.target_id, target);
       const created = this.create({ title, project_id: target });
       const filled = this.update(created.id, { questions, expected_version: created.version }, target);
-      this.db.prepare("INSERT INTO form_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)").run(target, "receive:" + requestId, "", filled.id, filled.updated_at);
+      this.db.run("INSERT INTO form_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)", [target, "receive:" + requestId, "", filled.id, filled.updated_at]);
       return filled;
     });
   }
@@ -158,8 +172,7 @@ export class FormStore {
     const current = this.get(id, projectId);
     this.assertVersion(current, expectedVersion);
     const next: FormRecord = { ...current, status: "closed", updated_at: new Date().toISOString(), version: current.version + 1 };
-    const result = this.db.prepare("UPDATE forms SET status = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?")
-      .run(next.status, next.updated_at, next.version, id, current.version);
+    const result = this.db.run("UPDATE forms SET status = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?", [next.status, next.updated_at, next.version, id, current.version]);
     if (result.changes !== 1) throw formErrors.conflict("问卷已改变，请重新读取后再停止收集");
     return next;
   }
@@ -174,7 +187,7 @@ export class FormStore {
    */
   importAnswers(id: string, files: readonly { name: string; content: string }[], projectId?: string,
     options: { source?: Exclude<FormSubmissionSource, "file"> } = {}): { imported: number; skipped: number; rejected: { name: string; reason: string }[] } {
-    return this.transaction(() => {
+    return this.atomically(() => {
       const form = this.get(id, projectId);
       assertTakesAnswers(form, options.source ?? "preview", "import");
       let imported = 0, skipped = 0;
@@ -189,14 +202,13 @@ export class FormStore {
           const answerId = typeof parsed.answer_id === "string" && /^[A-Za-z0-9-]{8,80}$/u.test(parsed.answer_id) ? parsed.answer_id : "";
           if (!answerId) throw formErrors.invalid("答卷缺少编号");
           const requestId = "file:" + answerId;
-          if (this.db.prepare("SELECT 1 FROM submissions WHERE form_id = ? AND request_id = ?").get(id, requestId)) { skipped += 1; continue; }
+          if (this.db.get("SELECT 1 FROM submissions WHERE form_id = ? AND request_id = ?", [id, requestId])) { skipped += 1; continue; }
           const questions = normalizeQuestions(Array.isArray(parsed.questions) ? parsed.questions as FormQuestionInput[] : []);
           const answers = normalizeAnswers(questions, (parsed.answers && typeof parsed.answers === "object" ? parsed.answers : {}) as Record<string, string>);
           const at = typeof parsed.submitted_at === "string" && Number.isFinite(Date.parse(parsed.submitted_at)) ? new Date(parsed.submitted_at).toISOString() : new Date().toISOString();
           if (!Number.isSafeInteger(parsed.form_version) || Number(parsed.form_version) < 1) throw formErrors.invalid("答卷缺少问卷版本");
           const version = Number(parsed.form_version);
-          this.db.prepare("INSERT INTO submissions (id, form_id, answers_json, submitted_at, form_version, questions_json, request_id, source) VALUES (?, ?, ?, ?, ?, ?, ?, 'file')")
-            .run(crypto.randomUUID(), id, JSON.stringify(answers), at, version, JSON.stringify(questions), requestId);
+          this.db.run("INSERT INTO submissions (id, form_id, answers_json, submitted_at, form_version, questions_json, request_id, source) VALUES (?, ?, ?, ?, ?, ?, ?, 'file')", [crypto.randomUUID(), id, JSON.stringify(answers), at, version, JSON.stringify(questions), requestId]);
           imported += 1;
         } catch (error) {
           rejected.push({ name, reason: error instanceof ActionError ? error.message : "文件内容无法读取" });
@@ -209,12 +221,11 @@ export class FormStore {
   /** Move to another partition; the id stays and its answers go with it. Fixed versions stay with the old place. */
   relocate(id: string, from: string, to: string): FormRecord {
     const target = normalizeProjectId(to);
-    return this.transaction(() => {
+    return this.atomically(() => {
       const current = this.get(id, from);
       if (current.publication_pending) throw formErrors.publication_pending("上次固定版本还没存完，请先在原位置恢复，再移动");
       // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
-      const result = this.db.prepare("UPDATE forms SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?")
-        .run(target, id, current.version);
+      const result = this.db.run("UPDATE forms SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?", [target, id, current.version]);
       if (result.changes !== 1) throw formErrors.conflict("问卷刚被修改，请重新读取后再移动");
       return this.get(id, target);
     });
@@ -223,26 +234,25 @@ export class FormStore {
   /** A copy of the questions in another partition, without answers and not collecting; the same request returns the same copy. */
   duplicate(id: string, from: string, to: string, requestId: string): FormRecord {
     const target = normalizeProjectId(to);
-    return this.transaction(() => {
-      const prior = this.db.prepare("SELECT target_id FROM form_copies WHERE project_id = ? AND request_id = ?").get(target, requestId) as { target_id: string } | undefined;
+    return this.atomically(() => {
+      const prior = this.db.get("SELECT target_id FROM form_copies WHERE project_id = ? AND request_id = ?", [target, requestId]) as { target_id: string } | undefined;
       if (prior) return this.get(prior.target_id, target);
       const source = this.get(id, from);
       const now = new Date().toISOString();
       const copy: FormRecord = { id: crypto.randomUUID(), project_id: target, title: source.title, description: source.description, status: "draft", share_id: null,
         questions: source.questions, created_at: now, updated_at: now, version: 1, artifact_id: "", artifact_version: 0 };
-      this.db.prepare("INSERT INTO forms (id, project_id, title, description, status, share_id, questions_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .run(copy.id, copy.project_id, copy.title, copy.description, copy.status, null, JSON.stringify(copy.questions), now, now, 1);
-      this.db.prepare("INSERT INTO form_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)").run(target, requestId, id, copy.id, now);
+      this.db.run("INSERT INTO forms (id, project_id, title, description, status, share_id, questions_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [copy.id, copy.project_id, copy.title, copy.description, copy.status, null, JSON.stringify(copy.questions), now, now, 1]);
+      this.db.run("INSERT INTO form_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)", [target, requestId, id, copy.id, now]);
       return copy;
     });
   }
 
   delete(id: string, projectId?: string, expectedVersion?: number): void {
-    this.transaction(() => {
+    this.atomically(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
       if (current.publication_pending) throw formErrors.publication_pending("请先恢复上次成果发布，再删除问卷");
-      this.db.prepare("DELETE FROM submissions WHERE form_id = ?").run(id);
-      this.db.prepare("DELETE FROM forms WHERE id = ?").run(id);
+      this.db.run("DELETE FROM submissions WHERE form_id = ?", [id]);
+      this.db.run("DELETE FROM forms WHERE id = ?", [id]);
     });
   }
 
@@ -262,12 +272,12 @@ export class FormStore {
 
   submit(id: string, answers: Readonly<Record<string, string>>, projectId?: string,
     options: { expectedVersion?: number; requestId?: string; source?: Exclude<FormSubmissionSource, "file"> } = {}): FormSubmissionRecord {
-    return this.transaction(() => {
+    return this.atomically(() => {
       const form = this.get(id, projectId);
       const source = options.source ?? "preview";
       assertTakesAnswers(form, source);
       if (options.requestId) {
-        const existing = this.db.prepare("SELECT * FROM submissions WHERE form_id = ? AND request_id = ?").get(id, options.requestId) as SubmissionRow | undefined;
+        const existing = this.db.get("SELECT * FROM submissions WHERE form_id = ? AND request_id = ?", [id, options.requestId]) as SubmissionRow | undefined;
         if (existing) {
           const prior = submissionFromRow(existing);
           const normalized = normalizeAnswers(prior.questions, answers);
@@ -281,29 +291,24 @@ export class FormStore {
       const normalized = normalizeAnswers(form.questions, answers);
       const submission: FormSubmissionRecord = { id: crypto.randomUUID(), form_id: id, answers: normalized,
         submitted_at: new Date().toISOString(), form_version: form.version, questions: form.questions, source };
-      this.db.prepare("INSERT INTO submissions (id, form_id, answers_json, submitted_at, form_version, questions_json, request_id, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-        .run(submission.id, id, JSON.stringify(normalized), submission.submitted_at, form.version, JSON.stringify(form.questions), options.requestId ?? null, source);
+      this.db.run("INSERT INTO submissions (id, form_id, answers_json, submitted_at, form_version, questions_json, request_id, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [submission.id, id, JSON.stringify(normalized), submission.submitted_at, form.version, JSON.stringify(form.questions), options.requestId ?? null, source]);
       return submission;
     });
   }
 
   listSubmissions(id: string, projectId?: string): FormSubmissionRecord[] {
     this.get(id, projectId);
-    const rows = this.db.prepare(
-      "SELECT * FROM submissions WHERE form_id = ? ORDER BY datetime(submitted_at) DESC",
-    ).all(id) as unknown as SubmissionRow[];
+    const rows = this.db.all("SELECT * FROM submissions WHERE form_id = ? ORDER BY datetime(submitted_at) DESC", [id]) as unknown as SubmissionRow[];
     return rows.map(submissionFromRow);
   }
 
   analyze(id: string, projectId?: string): { form_id: string; submission_count: number } {
     this.get(id, projectId);
-    const row = this.db.prepare(
-      "SELECT COUNT(*) AS count FROM submissions WHERE form_id = ?",
-    ).get(id) as { count: number };
+    const row = this.db.get("SELECT COUNT(*) AS count FROM submissions WHERE form_id = ?", [id]) as { count: number };
     return { form_id: id, submission_count: Number(row.count) };
   }
   beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: FormPublicationSnapshot, version?: number): FormPublicationIntent {
-    return this.transaction(() => {
+    return this.atomically(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
       const pending = this.publicationIntent(id);
       if (pending) {
@@ -312,36 +317,28 @@ export class FormStore {
       }
       const intent: FormPublicationIntent = { content: existing ?? { title: current.title, description: current.description, status: current.status, questions: current.questions },
         version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };
-      this.db.prepare("UPDATE forms SET publication_pending_json = ? WHERE id = ?").run(JSON.stringify(intent), id);
+      this.db.run("UPDATE forms SET publication_pending_json = ? WHERE id = ?", [JSON.stringify(intent), id]);
       return intent;
     });
   }
 
   completePublication(id: string, projectId: string, intent: FormPublicationIntent, artifact: { artifact_id: string; version: number }): FormRecord {
-    return this.transaction(() => {
+    return this.atomically(() => {
       const current = this.get(id, projectId);
       if (current.artifact_id === artifact.artifact_id && current.artifact_version >= intent.version) return current;
       if (JSON.stringify(this.publicationIntent(id)) !== JSON.stringify(intent)) throw formErrors.publication_conflict("发布记录已改变，请重新读取问卷");
-      this.db.prepare("UPDATE forms SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = version + 1, publication_pending_json = NULL WHERE id = ?")
-        .run(artifact.artifact_id, artifact.version, new Date().toISOString(), id);
+      this.db.run("UPDATE forms SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = version + 1, publication_pending_json = NULL WHERE id = ?", [artifact.artifact_id, artifact.version, new Date().toISOString(), id]);
       return this.get(id, projectId);
     });
   }
 
   private publicationIntent(id: string): FormPublicationIntent | null {
-    const row = this.db.prepare("SELECT publication_pending_json FROM forms WHERE id = ?").get(id) as { publication_pending_json: string | null };
+    const row = this.db.get("SELECT publication_pending_json FROM forms WHERE id = ?", [id]) as { publication_pending_json: string | null };
     return row.publication_pending_json ? JSON.parse(row.publication_pending_json) as FormPublicationIntent : null;
   }
   private assertVersion(current: FormRecord, expectedVersion?: number): void {
     if (expectedVersion !== undefined && expectedVersion !== current.version) throw formErrors.conflict("问卷已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
   }
-  private transaction<T>(run: () => T): T {
-    this.db.exec("BEGIN IMMEDIATE");
-    try { const result = run(); this.db.exec("COMMIT"); return result; }
-    catch (error) { this.db.exec("ROLLBACK"); throw error; }
-  }
-
-
 }
 
 /**
@@ -378,9 +375,21 @@ export const FORM_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
   CREATE TABLE form_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
 ` };
 
+/** A store on its own connection, for the project's deletion and for tests; the running plugin uses the library the Runtime gives it. */
 export function openFormStore(homeDirectory: string): FormStore {
   const db = openBaselineHomeSqlite(homeDirectory, FORM_HOME_STORE.path, FORM_STORE_BASELINE);
-  return new FormStore(db);
+  const sql: FormSql = {
+    get: (text, parameters = []) => db.prepare(text).get(...parameters),
+    all: (text, parameters = []) => db.prepare(text).all(...parameters),
+    run: (text, parameters = []) => db.prepare(text).run(...parameters),
+  };
+  return new FormStore(sql, run => immediate(db, run), () => db.close());
+}
+
+function immediate<T>(db: DatabaseSync, run: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try { const result = run(); db.exec("COMMIT"); return result; }
+  catch (error) { db.exec("ROLLBACK"); throw error; }
 }
 
 function fromRow(row: FormRow): FormRecord {
@@ -506,3 +515,7 @@ export type { FormOption };
 
 /** This plugin's store in the Home's store registry (W4-11): `form/form.db` at its one baseline. */
 export const FORM_HOME_STORE: HomeStoreDeclaration = { path: "form", library: { baseline: FORM_STORE_BASELINE } };
+
+/** The library the Host's start list gives the running plugin (`services.database`): the same store, read with `form:read`, written with `form:write`. */
+export const FORM_DATABASE: PluginDatabaseDeclaration = { store_name: FORM_HOME_STORE.path, version: FORM_STORE_BASELINE.version, schema: FORM_STORE_BASELINE.schema,
+  read_permission: "form:read", write_permission: "form:write" };

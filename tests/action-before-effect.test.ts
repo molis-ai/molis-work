@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient, retainActionAuthority, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { datasetActions, DATASET_ACTION_PERMISSIONS, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { pagesActions, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
@@ -30,7 +30,7 @@ test("same public provider replacement during Form model wait cannot commit to t
   const original = store.create({ project_id: "a", title: "Original" });
   let models = 0;
   const register = () => service.registerProvider({ provider: { provider_id: "same-install", title: "Form", kind: "plugin", project_id: "a" },
-    definitions: Object.values(formActions), handlers: createFormActionHandlers({ withStore: run => run(store), modelAvailability: () => ({ available: true }),
+    definitions: Object.values(formActions), handlers: createFormActionHandlers({ ...ownFormStores(run => run(store)), modelAvailability: () => ({ available: true }),
       completeText: async () => { models++; if (models === 1) { entered.resolve(); await release.promise; } return JSON.stringify({ status: "done", questions: [{ title: "Only the current registration may save", type: "text" }] }); } }) });
   let dispose = register();
   try {

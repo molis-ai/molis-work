@@ -252,12 +252,21 @@ export function pluginStageSummaries(): Record<string, string> {
     .map((entry) => [entry.project_plugin_id, entry.summary as string]));
 }
 
-export function pluginTabTitles(): Record<string, string> {
+/**
+ * The English interface's names for the built-in plugins whose Manifest name is Chinese (user decision 2026-10-15). The
+ * Chinese interface keeps the Manifest name; the plugins already named in English keep theirs in both.
+ */
+export const PLUGIN_ENGLISH_NAMES: Readonly<Record<string, string>> = {
+  artifacts: "Artifacts", "plugin-builder": "Plugin Studio", images: "Images", lingguang: "Lingguang", todo: "To-do",
+  alchemist: "Alchemist", workflows: "Workflows",
+};
+
+/** A built-in plugin's name in the interface language. */
+export const pluginLabel = (id: string, label: string, english: boolean): string => (english && PLUGIN_ENGLISH_NAMES[id]) || label;
+
+export function pluginTabTitles(english = false): Record<string, string> {
   const enabled = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
-  return Object.fromEntries([
-    ...railEntries(enabled).map((entry) => [entry.id, entry.label]),
-    ...islandEntries(enabled).map((entry) => [entry.id, entry.label]),
-  ]);
+  return Object.fromEntries([...railEntries(enabled), ...islandEntries(enabled)].map((entry) => [entry.id, pluginLabel(entry.id, entry.label, english)]));
 }
 
 /**

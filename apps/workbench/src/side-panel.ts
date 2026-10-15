@@ -37,7 +37,8 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
     `<button class="side-panel-tab" type="button" role="tab" id="side-tab-${escapeHtml(id)}" aria-controls="side-body-${escapeHtml(id)}" aria-selected="false" tabindex="-1" data-side-tab="${escapeHtml(id)}" title="${escapeHtml(label)}"${extra}>${icon(glyph)}<span>${escapeHtml(label)}</span></button>`;
   const body = (id: string, label: string, inner: string, extra = "") =>
     `<div class="side-panel-body" id="side-body-${escapeHtml(id)}" role="tabpanel" aria-labelledby="side-tab-${escapeHtml(id)}" aria-label="${escapeHtml(label)}" data-side-body="${escapeHtml(id)}"${extra} hidden>${inner}</div>`;
-  const plugins = pluginTabs.map(entry => ({ id: `plugin:${entry.key}`, ...entry }));
+  // A plugin's side view names itself in its Manifest; the panel shows that name in the interface language.
+  const plugins = pluginTabs.map(entry => ({ id: `plugin:${entry.key}`, ...entry, title: L(entry.title) }));
   return `<section class="side-panel" id="dock-window-im" role="region" aria-label="${L("侧栏")}" data-side-panel data-dock-window="im" hidden>
         <header class="side-panel-head">
           <div class="side-panel-tabs" role="tablist" aria-label="${L("侧栏内容")}" data-side-tabs>
@@ -112,7 +113,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   const frame=panel.querySelector('[data-dock-frame="im"]'),projectId=document.body.dataset.projectId;
   const tabs=()=>[...panel.querySelectorAll('[data-side-tab]')].filter(tab=>!tab.hidden);
   const divider=document.createElement('div');divider.className='side-panel-divider';divider.tabIndex=0;
-  divider.setAttribute('role','separator');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label','调整侧栏宽度');divider.setAttribute('aria-controls',panel.id);
+  divider.setAttribute('role','separator');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label',globalThis.L('调整侧栏宽度'));divider.setAttribute('aria-controls',panel.id);
   panel.after(divider);
   const read=(key)=>{try{return localStorage.getItem(key);}catch{return null;}};
   const write=(key,value)=>{try{localStorage.setItem(key,value);}catch{}};

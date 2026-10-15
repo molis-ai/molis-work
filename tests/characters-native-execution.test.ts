@@ -143,7 +143,9 @@ for (const invalidation of ["cancel", "revoke", "publication", "provider"] as co
   assert.equal(spawns, 0); assert.equal(existsSync(join(home, "characters", "runs")), false); assert.deepEqual(await native.runs(imported.character_id), []);
   controlled = false;
   if (invalidation === "publication") personal.setState(imported.character_id, personal.get(imported.character_id)!.revision, "active");
-  if (invalidation === "provider") { const active = platform.supervisor.state("io.molis.work.characters")!; platform.supervisor.revoke("io.molis.work.characters"); if (active.install_id) await platform.runtime.stop(active.install_id); await start(); }
+  if (invalidation === "provider") { const active = platform.supervisor.state("io.molis.work.characters")!; platform.supervisor.revoke("io.molis.work.characters"); if (active.install_id) await platform.runtime.stop(active.install_id);
+    // A revoked plugin comes back only when it is enabled again; starting the platform once more does not lift the revocation.
+    assert.equal((await platform.supervisor.enable("io.molis.work.characters")).status, "running"); }
   const fresh = await call("/execution/native", { reference: published.body.reference, workspace_id: "work", task: "Fresh authorized launch", request_id: randomUUID() });
   assert.equal(fresh.status, 200, JSON.stringify(fresh.body)); assert.equal(spawns, 1); assert.equal((await native.runs(imported.character_id)).length, 1);
 });

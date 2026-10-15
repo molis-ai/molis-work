@@ -28,7 +28,8 @@ test("W2-18-PARSE-RESOURCES-01 successful and failed text extraction release own
         if (refusal) await assert.rejects(pending, /fixture parser rejected/);
         else assert.deepEqual(await pending, { text: "Extracted source text", truncated: false, pages: 1 });
       }
-      assert.deepEqual(await documents.readImage!(kept.resource), pixel, "releasing parsed inputs must not revoke another consumer's image");
+      // The port hands back bytes (a Uint8Array); what is compared is the bytes.
+      assert.deepEqual(Buffer.from(await documents.readImage!(kept.resource)), pixel, "releasing parsed inputs must not revoke another consumer's image");
       await documents.intakeImage!({ bytes: pixel, name: "after.png" });
     }
   } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }

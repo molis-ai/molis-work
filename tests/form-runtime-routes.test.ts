@@ -65,3 +65,25 @@ test("W4-04-04 a page asking one project's Forms about another project is refuse
   assert.deepEqual(await home.web.post(`${forms}/${form.id}/answers`, { files: [answerFile(form, "page-stopped-0001", "停止后经页面导入")] }),
     { imported: 1, skipped: 0, rejected: [] });
 });
+
+test("W4-04-05 「AI 生成题目」 asks first through the Runtime route: the Host adds the shared question card, and the answer goes on to a draft", { timeout: 90_000 }, async t => {
+  const prompts: string[] = [];
+  const home = await openTestHome(t, { host: { completeText: async prompt => {
+    prompts.push(prompt);
+    return JSON.stringify(/内部同事/u.test(prompt) ? { status: "done", questions: [{ title: "你最常用的工具是什么？", type: "text" }] }
+      : { status: "needs_input", why: "先确认问卷给谁填", questions: [{ id: "audience", prompt: "给谁填？", options: [{ label: "内部同事", recommended: true }, { label: "外部客户" }] }] });
+  } } });
+  const project = await home.createProject("Forms drafting");
+  const forms = `/projects/${project.project_id}/api/plugins/io.molis.work.form/forms`;
+  const { form } = await home.web.post<{ form: FormRecord }>(forms, { title: "工具调研" });
+  const asked = await home.web.post<{ status: string; interaction: { interaction_id: string; html: string } }>(`${forms}/${form.id}/draft-questions`,
+    { prompt: "问问大家的常用工具", expected_version: form.version });
+  assert.equal(asked.status, "needs_input");
+  assert.match(asked.interaction.html, /data-ix-question/u, "the Runtime exit draws the same question card as the Assistant's");
+  assert.match(asked.interaction.html, /给谁填？/u);
+  const drafted = await home.web.post<{ status: string; form: FormRecord }>(`${forms}/${form.id}/draft-questions`,
+    { prompt: "问问大家的常用工具", expected_version: form.version, interaction: { interaction_id: asked.interaction.interaction_id, values: { q0: ["0"] } } });
+  assert.equal(drafted.status, "done");
+  assert.deepEqual(drafted.form.questions.map(question => question.title), ["你最常用的工具是什么？"]);
+  assert.equal(prompts.length, 2);
+});

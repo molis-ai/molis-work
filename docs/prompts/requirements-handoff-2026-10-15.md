@@ -1,15 +1,15 @@
-# 六项需求实施交接 Prompt
+# 七项需求实施交接 Prompt
 
-请接手 Molis Work 的以下六份需求，统筹推进实现，直到达到各自 spec 约定的完成标准。
+请接手 Molis Work 的以下七份需求，统筹推进实现，直到达到各自 spec 约定的完成标准。
 
 需求来源：
 - 仓库：https://github.com/molis-ai/molis-work
-- 分支：feature/requirements-handoff-20261015
-- 提交：04400b2faea7ef083020ce303b772ef425abe522
-- 远端入口：https://github.com/molis-ai/molis-work/tree/feature/requirements-handoff-20261015/specs
+- 分支：feature/requirements-handoff-services-20261015
+- 版本：以本分支最新提交为准
+- 远端入口：https://github.com/molis-ai/molis-work/tree/feature/requirements-handoff-services-20261015/specs
 - 交接文件：docs/prompts/requirements-handoff-2026-10-15.md
 
-六份独立需求书（路径相对于仓库根目录）：
+七份独立需求书（路径相对于仓库根目录）：
 1. specs/unified-input-voice/spec.md
    统一输入体验与本地语音输入
 2. specs/proactive-assistant/spec.md
@@ -22,6 +22,8 @@
    视觉细节与 UI 性能
 6. specs/font-and-skin-system/spec.md
    字体、皮肤与语言系统
+7. specs/assistant-service-connections/spec.md
+   助理统一服务接入
 
 先拉取需求分支，完整阅读这些需求书及适用的 AGENTS.md，核对最新主线、已有实现和在途任务，避免重复开发。实现工作按仓库规则基于最新 main 建立工作树，并带入尚未合入的需求文档；如果需求已经合入 main，不重复带入。不要依赖原作者的本机路径。
 
@@ -29,7 +31,7 @@
 
 请根据实际依赖安排实施顺序和分工，协调交叉部分使用同一套能力与合同。已有负责人继续保留；遵守仓库的并行、共享文件、构建及浏览器测试约定。
 
-工作简报已确认纳入：它拥有综合结果的正文、版本、来源和修订；主动判断、分析、执行与跟进仍由个人助理和场景 Skill 驱动。其余行为按六份 spec 执行，不另行扩展方案。
+工作简报已确认纳入：它拥有综合结果的正文、版本、来源和修订；主动判断、分析、执行与跟进仍由个人助理和场景 Skill 驱动。其余行为按七份 spec 执行，不另行扩展方案。
 
 这是实施授权，不止交付计划。需要关键决定时只暂停依赖该决定的部分，其余工作继续。产品功能需要保证交互视觉UI动效等质量，参考存量设计语言以及视觉细节与UI性能优化需求进行打磨
 

@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-15，Claude 按用户 10-14 目标接手，Codex 写线已暂停交接）。I8 的修复树 F109（本地分支 `9a30b3135`，未推送、未进 main）已合入 main 到 #513；F109 全量 974/985、其余 11 个已逐个查明；F109 不是 main 的结果。10-15 代码回溯审查的 C-03、C-05、C-06 与文档尾项在 main 上修（§10.12），C-01、C-02、C-04、A-01、A-04 只在 F109，随 I8 进 main。下一步按工作流拆片、串行合入 main（§10.11 决定 7）：S1 的闭包离不开 W3-02，改成 S1+W3-02 一片，再接第 4–6 波。10-14 独立复查见 §10.11。
+状态：执行中，整线未完成（2026-10-15，Claude 按用户 10-14 目标接手，Codex 写线已暂停交接）。I8 的修复树 F109 按 §1 10-15 的决定整树一个 PR 合入 main（合了 main 到 #521，Pages 编辑器的单次资源例外在 #522）；全量在 CI 分片跑（`full-suite` 标签），macOS 专有用例在本机补，失败逐个对照 main 基线。10-15 代码回溯审查的 C-03、C-05、C-06 与文档尾项在 #514 修，C-01、C-02、C-04、A-01、A-04 随 F109 进 main（§10.12）。下一步接第 4–6 波与 B-01～B-12 的结构项。10-14 独立复查见 §10.11。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -18,6 +18,10 @@ W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只
 
 | 日期 | 事项 | 选项 | 结论 | 说明 |
 | --- | --- | --- | --- | --- |
+| 2026-10-15 | F109 合 main 后 Pages 编辑器资源 698,574 → 703,633 字节（+5,059，全部来自 `editor-transient.ts` 与 `card-content.ts` 的修复；弹窗） | 单次资源例外（推荐）；瘦身现有编辑器代码 ≥5 KB；去掉几种代码高亮语言 | 单次资源例外 | 照 #520 的做法在 #522 里只给这一个资源、这一个旧基线开一次，上限等于实测，多一字节、其他资源、之后再长都拒绝；名字混淆会破坏现有 `/Decoration\.node/` 断言，不用 |
+| 2026-10-15 | W3-10 单片全量失败后 I8 怎样合（弹窗；改上一行的两个 PR）：W3-10 单独取 35 个文件，全量 41 个文件失败（缺别的工作流里的 `molisWorkRequest`、`feedApi` 等），单片离不开其余工作流 | 整个 F109 一个 PR（推荐）；继续拆 | 整个 F109 一个 PR | 用合了 main 的 F109 整树开一个 PR，不写混合文件；重建、刷新门禁基线；加 `full-suite` 标签在 CI 分片跑全量，本机补 macOS 专有用例，失败逐个对照 main 基线；PR 描述按工作流分节写改动与影响 |
+| 2026-10-15 | W3-10 之后剩下的 1116 个文件怎样合（弹窗）：27 个文件跨工作流，W2-10 的 353 个测试文件只有 1 个是纯导入改写 | 剩余一片合入（推荐）；仍拆 2–3 片并写过渡 | 剩余一片 | I8 = 两个 PR：W3-10 与其余；其余那片合入前在合并树上重跑全量并对照基线，PR 按工作流分节写改动与影响 |
+| 2026-10-15 | I8 怎样拆片（弹窗；改决定 7 的 5–8 片）：第 1 片的构建闭包拉进 136 个文件、仍有 19 个测试文件失败，S1、W3-02、W3-07 互相离不开 | 改成 3–4 片（推荐）；仍坚持 5–8 片；整个 F109 一次合入 | 3–4 片 | 每片从合了 main 的 F109 整文件取，不写混合文件 |
 | 2026-10-15 | main 开合并队列（弹窗，推翻 2026-10-02「不开合并队列」） | 开（推荐）；不开 | 开 | 10-02 时 `Verify` 约 28 分钟，现在约 5 分钟；10-13 到 10-15 的 200 次 CI 里 95 次因分支同步后重跑被取消。`ci.yml` 加 `merge_group`，健康门禁与密钥扫描在队列里以 `merge_group.base_sha` 为比较点；分支保护去掉「必须与 main 同步」，由规则集的合并队列验证 `Verify`；不挡合并的作业不进队列。做法见 `docs/system/PARALLEL-DEVELOPMENT.md` §3 |
 | 2026-10-15 | 全量搬到 CI 分片跑（弹窗） | 上 CI 分片（推荐）；只在本机 | 上 CI 分片 | `.github/workflows/full-suite.yml`：10 个 ubuntu runner，PR 加 `full-suite` 标签、推到 `integration/**`、每晚和手动时跑；不挡合并；Linux 探针标为 macOS 专有的文件（`run-tests.mjs --skip-macos-only`）仍在本机跑。依据：本机全量 56–61 分钟，其中浏览器文件 116 分钟、同时 2 个就占 58 分钟，整台机器一次只能一个全量，并行需求互相排队 |
 | 2026-10-15 | Prologue #26 由我合入后被权限检查标成「未经评审合并」（弹窗） | 保留（推荐）；回退等评审 | 保留合入 | #26 只改两个消费者脚本（P2i、P2h 改用真实会话），SDK 代码未动；12 个消费者脚本在干净包上全部通过 |
@@ -1584,21 +1588,21 @@ I8 修复树 F109 上另修的产品问题（都带用例）：卡片结果未�
 
 | 编号 | 问题 | main 状态 | 处理 |
 | --- | --- | --- | --- |
-| C-01 | 共同副作用守卫在最后一次 Host 等待（`beforeEffect`）之后不再复查调用者授权 | 仍在 | F109 有 `assertCurrentAuthority` 候选，随 I8 第 1 片（S1+W3-02 闭包）进 main；进之前不算修 |
-| C-02 | Pages 评论回复在停止后被异步返回写回「运行中」 | 仍在 | F109 有读取返回后复查轮次与按 revision 提交的候选，随 I8 进 main |
+| C-01 | 共同副作用守卫在最后一次 Host 等待（`beforeEffect`）之后不再复查调用者授权 | 随 F109 修 | `effectGuard` 在 Host 的 `beforeEffect` 之后同步调用 `assert_authority_current`（异步结果拒绝），MCP 入口的末端检查同步重读对外授权；`tests/mcp-effect-authority.test.ts`（真实 MCP，在 Host 最后一次可用性等待里撤权后拒绝）、`tests/action-authority-tail.test.ts` W3-09-AUTH-02 |
+| C-02 | Pages 评论回复在停止后被异步返回写回「运行中」 | 随 F109 修 | 读取返回后复查轮次、按 revision 提交；`tests/assistant-thread-reply.test.ts` PAS-10 S-18-102-03（发送后第二次读取时停止，晚到的写入被拒） |
 | C-03 | 搜索等索引追上时撤权，这次查询仍返回旧授权内容 | #514 修 | 查询在追上索引之后重读调用者目录，再按那份目录过滤和报来源；`tests/system-search.test.ts`「a source revoked while the query waits for the index answers nothing from that query」（未修时返回 `a1`，已复现） |
-| C-04 | 外部 MCP 改已有对象可以不带读取版本 | 仍在 | F109 有中央版本前置候选（W3-09-3），随 I8 进 main |
+| C-04 | 外部 MCP 改已有对象可以不带读取版本 | 随 F109 修 | 动作服务按声明的版本字段对 `agent`、`mcp` 来源统一要求读取版本（W3-09-3），在任何处理器之前拒绝；`tests/action-version-precondition.test.ts` W3-09-3-01～03 |
 | C-05 | 「永久清除用户数据」漏掉现行库和数据 | #514 修 | 清除范围补上 `assistant`、`placement`、`agent-definitions`、`characters` 四个库（进 `PERSONAL_HOME_SQLITE_STORES`，归为宿主库，插件不能用这些名字），以及 `docs/system/HOME-DATA.md` 登记的 `agent-runtime/`、`feed/`、`browser/`、`plugin-builder/`、`cache/`、`directory-access/`、`git-operation-details.json`、`runtime-integration-attempts/` 和 `config/` 里属于人的五个文件；`tests/uninstall.test.ts` 往每一项放内容，断言在计划里且 Home 整个删掉（未修时「purge 要删 assistant」失败）。Keychain 主密钥不在 Home，不碰。统一登记（W4-11）仍未做 |
 | C-06 | Characters 打开无版本旧库时直接盖成版本 1 | #514 修 | `openCharacters` 改经 `applySqliteBaseline`（`CHARACTERS_STORE_BASELINE`）；无版本的表、更高版本都拒绝且原库不动（`tests/home-store-baselines.test.ts`，未修时「Missing expected exception」）。发布检查清单该行改成「拒绝」。真实 Home 的库在 10-14 只读拷贝上是现行形状（F-9） |
-| A-01 | 模型切换在 SDK 接受时没有末端授权复核 | 仍在 | 随 I8 第 1 片（新 SDK 包 + `beforeAccept`）进 main |
+| A-01 | 模型切换在 SDK 接受时没有末端授权复核 | 随 F109 修 | 新 SDK 包的 `beforeAccept` 接到模型切换；`tests/agent-sdk-effects.test.ts` W2-18-MODEL-SWITCH-01/02（在读配置、读凭据、SDK 接受三处撤权或取消，切换都被拒，已接受的模型 B 和它的显示不变） |
 | A-02 | Computer Use 停下或出错的一轮被记成「失败：模型说完成了」 | 已修 | #510 |
 | A-03 | 电脑 socket 自带本机名单、S-04 未覆盖 | 已修 | #510；`SECURITY-INVARIANTS.md` 第 9、70 行「Computer Use 不在 main」#514 改掉，并补 S-25（桌面动作的拒绝，用例只在本机跑） |
-| A-04 | `withPreparedActions` 准备失败不进共同调用结算 | 仍在 | F109 有 `refuse` 第三参候选，随 I8 进 main |
+| A-04 | `withPreparedActions` 准备失败不进共同调用结算 | 随 F109 修 | 准备失败经 `refuseCall` 进共同结算，调用记录留一行「未运行」；`tests/action-prepare-refusal.test.ts`（10-15 补，main 上 0 行、F109 上 1 行） |
 | A-05 | 测试内部引用台账开头仍写 16 条 | #514 修 | 改成 15 条、8 个测试文件，注明 10-15 删去的一条 |
 | A-06 | AI 入口清单没有 Pages 评论线程 | #514 修 | `ai-entry-inventory.md` 补 AG-7（模型调用仍走 AG-1；C-02 记在这一行） |
 | B-01～B-12 | 结构项（手工装配、浏览器模板脚本、Home 清单分散等） | 照路线图 | 第 4～6 波；不在本节关闭 |
 
-I8 落地的实际情况（10-15）：第 1 片（S1）的构建闭包把 136 个文件拉进来，仍有 19 个测试文件失败，原因都是 W3-02 的错误改名、`goal-actions` 子路径和管理入口没跟进。S1 不能单独成片，下一步把 S1 与 W3-02 合成一片，从 F109 `9a30b3135`（已合入 #505～#513）整文件取，而不是 `7882cf09c`。
+I8 落地的实际情况（10-15）：第 1 片（S1）的构建闭包把 136 个文件拉进来，仍有 19 个测试文件失败，原因都是 W3-02 的错误改名、`goal-actions` 子路径和管理入口没跟进。S1 不能单独成片，下一步把 S1 与 W3-02 合成一片，从 F109 `9a30b3135`（已合入 #505～#513）整文件取，而不是 `7882cf09c`。后来按 §1 的三行决定改成整个 F109 一个 PR：W3-10 单独取 35 个文件时全量 41 个文件失败，单片离不开其余工作流。C-01、C-02、C-04、A-01 的用例用到 F109 才有的接口，在 main 上跑不起来，main 上的失败以审查报告的隔离复现为准；A-04 的用例只用公开接口，在 main 上失败、在 F109 上通过。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 

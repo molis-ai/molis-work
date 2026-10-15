@@ -91,7 +91,7 @@
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 233,
     "class horizontal/search/src/index.ts#SearchService": {
-      "lines": 407,
+      "lines": 403,
       "methods": 26
     },
     "class modules/feed/src/index.ts#FeedModule": {

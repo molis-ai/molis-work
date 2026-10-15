@@ -83,9 +83,10 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
   await shown(`!!document.querySelector(${JSON.stringify(row(a.directionCreate.capability_id))})`);
   assert.equal(await status(a.directionCreate.capability_id), "enabled");
   // The write reaches the real server, then its response is lost. UI must not claim success.
-  await evaluate(`globalThis.originalFetch=globalThis.fetch;globalThis.fetch=async(...args)=>{const response=await originalFetch(...args);if(String(args[0])==='/api/settings/mcp/actions'&&args[1]?.method==='POST'){globalThis.fetch=originalFetch;throw new TypeError('simulated response loss');}return response;}`);
+  await evaluate(`globalThis.originalFetch=globalThis.fetch;globalThis.fetch=async(...args)=>{const response=await originalFetch(...args);if(new URL(String(args[0]),location.origin).pathname==='/api/settings/mcp/actions'&&args[1]?.method==='POST'){globalThis.fetch=originalFetch;throw new TypeError('simulated response loss');}return response;}`);
   await grant(a.directionCreate.capability_id, false);
-  assert.match(await evaluate<string>("document.querySelector('[data-mcp-access-feedback]').textContent"), /保存结果未确认/);
+  // The shared request helper sends the full URL and, for a write whose answer was lost, says it may or may not have happened.
+  assert.match(await evaluate<string>("document.querySelector('[data-mcp-access-feedback]').textContent"), /不知道这次操作有没有完成/);
   assert.equal(await status(a.directionCreate.capability_id), "enabled", "uncertain result must not optimistically repaint the grant");
   assert.equal((await alpha.callTool({ name: createName, arguments: { description: "撤销后拒绝写入" } })).isError, true);
   await click('[data-mcp-access-refresh]');

@@ -19,11 +19,11 @@ test("a connected account is read through one registered connector action; conne
     const client = host.homeActionClient();
     const rows = (await client.discover(user)).filter(row => row.provider.provider_id === "system.connectors");
     assert.deepEqual(rows.map(row => row.capability_id), ["connectors.account.read"]);
-    // The account is read through one connection; an unknown or disconnected one is never replaced by another account.
-    await assert.rejects(client.invoke(user, connectorAccountActions.read, { connection_id: "11111111-1111-4111-8111-111111111111" }), { code: "connectors.unknown" });
+    // CONACC-01/CONACC-02: The account is read through one connection; an unknown or disconnected one is never replaced by another account.
+    await assert.rejects(client.invoke(user, connectorAccountActions.read, { connection_id: "11111111-1111-4111-8111-111111111111" }), { code: "connector.account.unknown", kind: "invalid", message: "没有这条连接" });
     const github = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: "fixture-github-token" }));
     withConnectorConnections(home, store => store.disconnect(github.connection_id));
-    await assert.rejects(client.invoke(user, connectorAccountActions.read, { connection_id: github.connection_id }), { code: "connectors.disconnected" });
+    await assert.rejects(client.invoke(user, connectorAccountActions.read, { connection_id: github.connection_id }), { code: "connector.account.disconnected", kind: "invalid" });
     await assert.rejects(client.invoke({ ...user, audience: "mcp", actor_id: "runtime:x", permissions: [] }, connectorAccountActions.read, { connection_id: github.connection_id }), { code: "actions.forbidden" });
     const external = await client.discover({ ...user, audience: "mcp", actor_id: "runtime:x" });
     assert.ok(external.some(row => row.capability_id === "connectors.account.read"), "an external client can be granted the account check explicitly");

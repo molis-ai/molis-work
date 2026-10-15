@@ -3,6 +3,7 @@ import type { RuntimeSettings } from "../../domain/settings/runtime-settings.js"
 import type { RuntimeSettingsDto } from "../../shared/contracts/settings.js";
 import type { SqliteSettingsRepository } from "../db/settings-repository.js";
 import { generateWithHost, type AlchemistAiPort } from "./host-port.js";
+import type { AlchemistEffectControl } from "../services/action-operations.js";
 
 interface RuntimeSelectorOptions {
   workspaceId: string;
@@ -17,25 +18,26 @@ export class RuntimeSelector implements AiRuntimePort {
     const settings = this.settings();
     const models = await this.listModels();
     const selected = settings.modelPolicy === "fixed" ? models.find(model => model.id === settings.modelId) : models[0];
-    if (!selected) throw new Error(settings.modelPolicy === "fixed" ? "RUNTIME_MODEL_UNAVAILABLE" : "RUNTIME_NOT_CONFIGURED");
+    if (!selected) throw new Error(settings.modelPolicy === "fixed" ? "alchemist.runtime_model_unavailable" : "alchemist.runtime_not_configured");
     return generateWithHost(this.options.ai, input, selected.id);
   }
   async isRealEnabled(): Promise<boolean> { return (await this.getPublicSettings()).configured; }
   async getPublicSettings(): Promise<RuntimeSettingsDto> { return this.publicSettings(this.settings(), await this.listModels()); }
-  async update(input: Omit<RuntimeSettings, "workspaceId" | "provider" | "updatedAt">): Promise<RuntimeSettingsDto> {
+  async update(input: Omit<RuntimeSettings, "workspaceId" | "provider" | "updatedAt">, control?: AlchemistEffectControl): Promise<RuntimeSettingsDto> {
     const models = await this.listModels();
-    if (input.modelPolicy === "fixed" && !models.some(model => model.id === input.modelId)) throw new Error("RUNTIME_MODEL_UNAVAILABLE");
+    if (input.modelPolicy === "fixed" && !models.some(model => model.id === input.modelId)) throw new Error("alchemist.runtime_model_unavailable");
+    await control?.beforeEffect(); control?.assert_authority_current?.();
     const updated = this.options.settings.update({ ...this.settings(), ...input, provider: models.length ? "prologue" : "none", updatedAt: this.options.now() });
     return this.publicSettings(updated, models);
   }
   async verifyAndEnable(): Promise<RuntimeSettingsDto> {
     const current = await this.getPublicSettings();
-    if (!current.configured) throw new Error("RUNTIME_NOT_CONFIGURED");
+    if (!current.configured) throw new Error("alchemist.runtime_not_configured");
     return current;
   }
   private settings(): RuntimeSettings {
     const settings = this.options.settings.get(this.options.workspaceId);
-    if (!settings) throw new Error("RUNTIME_SETTINGS_NOT_FOUND");
+    if (!settings) throw new Error("alchemist.runtime_settings_not_found");
     return settings;
   }
   private publicSettings(settings: RuntimeSettings, models: readonly RuntimeModel[]): RuntimeSettingsDto {

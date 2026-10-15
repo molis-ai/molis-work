@@ -129,39 +129,17 @@ export function createCatalogHttp(fetchImpl: CatalogFetch, now: () => Date): Cat
 export function throwIfProviderPayloadFailed(json: unknown, status: number): void {
   const record = asRecord(json);
   if (!record) return;
+  const refused = (auth: boolean) => new CatalogLiveError(auth ? "needs_auth" : "provider", status,
+    auth ? "重新连接有效凭据" : "稍后重试同步");
   if (record.ok === false) {
-    const error = text(record.error);
-    throw new CatalogLiveError(
-      error.includes("auth") || error.includes("token") || error === "invalid_auth" || error === "not_authed"
-        ? "needs_auth"
-        : "provider",
-      status,
-      error ? `服务返回：${error}` : "重新连接有效凭据",
-    );
+    if (record.error === "ratelimited") throw new CatalogLiveError("rate_limited", status, "稍后重试同步");
+    throw refused(["invalid_auth", "not_authed", "token_revoked", "token_expired", "account_inactive", "missing_scope"].includes(text(record.error)));
   }
   if (typeof record.errcode === "number" && record.errcode !== 0) {
-    throw new CatalogLiveError(
-      record.errcode === 40014 || record.errcode === 40001 || record.errcode === 42001 || record.errcode === 41001
-        ? "needs_auth"
-        : "provider",
-      status,
-      text(record.errmsg) || `服务返回 ${record.errcode}`,
-    );
+    throw refused([40014, 40001, 42001, 41001].includes(record.errcode));
   }
   if (typeof record.code === "number" && record.code !== 0 && ("msg" in record || "tenant_access_token" in record)) {
-    throw new CatalogLiveError(
-      record.code === 99991663 || record.code === 99991661 ? "needs_auth" : "provider",
-      status,
-      text(record.msg) || `服务返回 ${record.code}`,
-    );
+    throw refused(record.code === 99991663 || record.code === 99991661);
   }
-  if (record.success === false) {
-    const errors = Array.isArray(record.errors) ? record.errors : [];
-    const first = asRecord(errors[0]);
-    throw new CatalogLiveError("provider", status, text(first?.message) || "请求失败");
-  }
-  if (Array.isArray(record.errors) && record.errors.length > 0 && record.data == null) {
-    const first = asRecord(record.errors[0]);
-    throw new CatalogLiveError("provider", status, text(first?.message) || "请求失败");
-  }
+  if (record.success === false || (Array.isArray(record.errors) && record.errors.length > 0 && record.data == null)) throw refused(false);
 }

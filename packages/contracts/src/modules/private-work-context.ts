@@ -1,3 +1,4 @@
+import { defineErrorCodes } from "../platform/action-errors.js";
 export * from "./session-messages.js";
 import type { ContractDescriptor } from "../platform/package.js";
 export * from "./runtime-project-context.js";
@@ -391,39 +392,26 @@ export interface WorkSessionHandoffDestinationInput {
 /** Public fact operations; excludes opening storage, SQL and repository internals. */
 export interface WorkSessionApi extends WorkSessionQueryApi, WorkSessionCommandApi, WorkSessionSurfaceApi {}
 
-
 export interface PrivateWorkContextApplicationApi {
   query: WorkSessionQueryApi;
   commands: WorkSessionCommandApi;
 }
 
-export type PrivateWorkContextErrorCode =
-  | "session.message_content_unavailable"
-  | "session.message_conflict"
-  | "session.message_target_changed"
-  | "session.message_unavailable"
-  | "session.message_not_found"
-  | "session.message_attempt_changed"
-  | "session.not_found"
-  | "session.confirmation_required"
-  | "session.identity_conflict"
-  | "session.runtime_mismatch"
-  | "session.correlation_invalid"
-  | "session.invalid_input"
-  | "session.handoff_not_found"
-  | "session.handoff_invalid_state"
-  | "session.registry_unknown"
-  | "session.registry_reader_too_old";
-
-export class PrivateWorkContextError extends Error {
-  constructor(
-    readonly code: PrivateWorkContextErrorCode,
-    message: string,
-  ) {
-    super(message);
-    this.name = "MolisWorkSessionError";
-  }
-}
-
-/** Compatibility name retained while old Session callers move to the Module API. */
-export { PrivateWorkContextError as MolisWorkSessionError };
+export const sessionErrors = defineErrorCodes("work.session", {
+  message_content_unavailable: "invalid",
+  message_conflict: "invalid",
+  message_target_changed: "invalid",
+  message_unavailable: "invalid",
+  message_not_found: "invalid",
+  message_attempt_changed: "invalid",
+  not_found: "invalid",
+  confirmation_required: "invalid",
+  identity_conflict: "invalid",
+  runtime_mismatch: "invalid",
+  correlation_invalid: "invalid",
+  invalid_input: "invalid",
+  handoff_not_found: "invalid",
+  handoff_invalid_state: "invalid",
+  registry_unknown: "invalid",
+  registry_reader_too_old: "invalid",
+});

@@ -8,7 +8,7 @@ export {
   createRuntimeContextSuggestionRejectionTable,
   type RuntimeContextSetupRequestRecord,
 } from "./context-bindings.js";
-export { MolisWorkSessionError, PrivateWorkContextError } from "./errors.js";
+
 export {
   MolisWorkSessionRegistry,
   type MolisWorkSessionRegistryOptions,
@@ -40,7 +40,7 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { RuntimeProjectResolution, boundResolution } from "./project-resolution.js";
 
-export { createRuntimeProjectBindingValidation, type RuntimeProjectBindingValidation, type RuntimeProjectBindingErrorFactory, type RuntimeProjectBindingErrorCode } from "./project-binding-validation.js";
+export { createRuntimeProjectBindingValidation, type RuntimeProjectBindingValidation } from "./project-binding-validation.js";
 
 export { RuntimeProjectBindingCommands, type RuntimeProjectBindingPorts } from "./project-binding-commands.js";
 

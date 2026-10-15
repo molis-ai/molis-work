@@ -1,7 +1,7 @@
+import { goalErrors } from "./errors.js";
 import type { GoalInputBindingRecord, GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ContextAccess, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type { GoalsSqliteDatabase } from "./repository.js";
-import { GoalsCommandError } from "./errors.js";
 
 export const GOAL_INPUT_BINDINGS_SCHEMA_SQL = `
   CREATE TABLE input_bindings (
@@ -39,7 +39,7 @@ export class GoalInputBindings implements GoalInputBindingsApi {
 
   register(input: GoalInputBindingRecord): void {
     if (!this.db.prepare("SELECT 1 FROM goals WHERE project_id = ? AND goal_id = ?").get(input.project_id, input.goal_id)) {
-      throw new GoalsCommandError("goal.not_found", "输入绑定的 Goal 不属于这个 Project");
+      throw goalErrors["goals.not_found"]("输入绑定的 Goal 不属于这个 Project");
     }
     this.db.transaction(() => {
       const edgeKey = this.recordSource(input);
@@ -85,7 +85,7 @@ export class GoalInputBindings implements GoalInputBindingsApi {
     const edge = this.ledger.query.get(this.access(input.project_id), input.source_edge_key);
     if (!edge || edge.type !== "goal.input" || edge.source.module !== "goals" || edge.source.id !== input.goal_id
       || edge.target.module !== "feed") {
-      throw new GoalsCommandError("goal.input_source_missing", "输入确认记录的来源关系缺失或不匹配");
+      throw goalErrors["goals.goal.input_source_missing"]("输入确认记录的来源关系缺失或不匹配");
     }
     return `feed-item:${edge.target.id}`;
   }

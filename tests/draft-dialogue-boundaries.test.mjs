@@ -17,9 +17,12 @@ for (const [method, port, file, action] of [
   for (const extra of ["store.immediate(operation)", `coordinator.${method}(input)`, "db.prepare('INSERT INTO goal_tree_proposals VALUES (?)')"]) {
     assert.match(check(sources[0], sources[1], `${sources[2]}\n${extra}`).join("\n"), /Module owners/);
   }
+  // W3-07 PR-5 retired the typed Goals bridges: the Host's typed registrations carry no entry for this proposal step at all, and
+  // the only registration is the Goals owner's action list.
   const typed = read("apps/local-host/src/project-capabilities.ts");
-  assert.ok(typed.includes(`goalAction(runtime, goalsActions.${action},`));
+  assert.equal(typed.includes(`goalsActions.${action}`), false, "no typed bridge is registered for the action");
   assert.equal(typed.includes(`coordinator.${port}.${method}(`), false, "typed transport cannot bypass action policy");
+  assert.ok(sources[1].includes(`goalsActions.${action}`), "the Goals owner registers the action");
 });
 
 test("retired draft dialogue facade and Host registrations stay removed", () => {

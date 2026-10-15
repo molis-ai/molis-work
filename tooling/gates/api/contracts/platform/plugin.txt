@@ -12,10 +12,7 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.home_mismatch": "forbidden";
     readonly "actions.plugin_disabled": "forbidden";
     readonly "actions.unauthenticated": "forbidden";
-    readonly "actions.host_only": "forbidden";
-    readonly "actions.transport_denied": "forbidden";
     readonly "actions.missing": "not_found";
-    readonly "actions.not_found": "not_found";
     readonly "actions.binding_missing": "not_found";
     readonly "actions.scene_missing": "not_found";
     readonly "actions.recommendation_missing": "not_found";
@@ -39,7 +36,7 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.mcp_name_conflict": "conflict";
     readonly "actions.scene_duplicate": "conflict";
     readonly "actions.input_invalid": "invalid";
-    readonly "actions.invalid_input": "invalid";
+    readonly "actions.version_required": "invalid";
     readonly "actions.project_required": "invalid";
     readonly "actions.reference_invalid": "invalid";
     readonly "actions.binding_invalid": "invalid";
@@ -59,6 +56,7 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.home_required": "invalid";
     readonly "actions.dependency_cycle": "invalid";
     readonly "actions.function_unpublished": "invalid";
+    readonly "actions.provider_ambiguous": "invalid";
     readonly "actions.input_too_large": "too_large";
     readonly "actions.rate_limited": "rate_limited";
     readonly "actions.cancelled": "cancelled";
@@ -86,8 +84,6 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.host_context_missing": "unavailable";
     readonly "actions.delivery_unknown": "upstream";
     readonly "actions.execution_failed": "internal";
-    readonly "actions.failed": "internal";
-    readonly "actions.transport_failed": "internal";
     readonly "actions.judgment_failed": "internal";
     readonly "actions.async_required": "internal";
     readonly "actions.output_invalid": "internal";
@@ -392,10 +388,12 @@ export type ActionAvailability = {
     readonly available: false;
     readonly code: string;
     readonly reason: string;
+    readonly kind?: ActionErrorKind;
 };
 
 export interface ActionCallContext extends ActionCallOrigin {
     readonly actor_id: string;
+    readonly assistant_reply?: import("@molis-ai/molis-work-contracts/services/assistant").AssistantReplyDelivery;
     readonly page_context?: {
         readonly url: string | null;
         readonly title: string | null;
@@ -420,6 +418,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly allowed_capability_ids?: readonly string[];
     readonly allowed_actions?: readonly ActionReference[];
     readonly validate_authority?: (reference: ActionReference) => void | Promise<void>;
+    readonly assert_authority_current?: (reference?: ActionReference, requiredPermissions?: readonly string[]) => void;
     readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
     readonly signal?: AbortSignal;
     readonly on_progress?: (event: {
@@ -465,6 +464,7 @@ export interface ActionErrorOptions {
 
 export interface ActionExecutionContext extends ActionCallContext {
     readonly beforeEffect: () => Promise<void>;
+    readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
 }
 
 export interface ActionExecutionPolicy {
@@ -510,6 +510,10 @@ export interface ActionMetadata {
     readonly workflow_content?: WorkflowContentStation;
     readonly search_source?: SearchSourceDeclaration;
     readonly file_source?: FileSourceDeclaration;
+    readonly thread_source?: {
+        readonly role: "context" | "reply";
+        readonly subject_kind: string;
+    };
     readonly subject_offer_choices?: readonly SubjectOfferChoice[];
     readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
     readonly intake?: ActionIntake;
@@ -892,7 +896,7 @@ export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">): Promise<Output>;
 }
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
@@ -2474,7 +2478,7 @@ export interface PluginEventDeliveryFailure {
     occurred_at: string;
 }
 
-export type PluginEventDeliveryFailureCode = "subscriber_start_failed" | "subscriber_handler_failed" | "subscriber_revoked" | "payload_invalid";
+export type PluginEventDeliveryFailureCode = "plugin.subscriber_start_failed" | "plugin.subscriber_handler_failed" | "plugin.subscriber_revoked" | "plugin.payload_invalid";
 
 export declare class PluginEventError extends Error {
     readonly code: PluginEventErrorCode;
@@ -2482,7 +2486,7 @@ export declare class PluginEventError extends Error {
     constructor(code: PluginEventErrorCode, message: string, detail?: Readonly<Record<string, string | number>> | undefined);
 }
 
-export type PluginEventErrorCode = "event_type_invalid" | "event_type_reserved" | "event_type_not_owned" | "event_not_declared" | "event_payload_invalid" | "event_payload_too_large" | "event_identity_invalid" | "event_delivery_revoked" | "event_recovery_changed" | "event_recovery_invalid" | "event_subscription_invalid";
+export type PluginEventErrorCode = "plugin.event_type_invalid" | "plugin.event_type_reserved" | "plugin.event_type_not_owned" | "plugin.event_not_declared" | "plugin.event_payload_invalid" | "plugin.event_payload_too_large" | "plugin.event_identity_invalid" | "plugin.event_delivery_revoked" | "plugin.event_recovery_changed" | "plugin.event_recovery_invalid" | "plugin.event_subscription_invalid";
 
 export interface PluginEventLogQuery {
     event_type_id?: string;
@@ -2609,7 +2613,7 @@ export interface PluginEventsRepository {
     deleteCursors(projectId: string, subscriberPluginId: string): void;
 }
 
-export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context">;
+export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">;
 
 export interface PluginExecutor {
     start(definition: PluginDefinition, context: PluginStartContext): Promise<PluginExecutorHandle>;
@@ -3117,7 +3121,7 @@ export declare class PluginWiringError extends Error {
     constructor(code: PluginWiringErrorCode, message: string, detail?: Readonly<Record<string, string | number>> | undefined);
 }
 
-export type PluginWiringErrorCode = "port_declaration_invalid" | "port_type_mismatch" | "port_unknown" | "port_binding_invalid" | "port_artifact_invalid" | "input_group_invalid" | "input_group_unknown";
+export type PluginWiringErrorCode = "plugin.port_declaration_invalid" | "plugin.port_type_mismatch" | "plugin.port_unknown" | "plugin.port_binding_invalid" | "plugin.port_artifact_invalid" | "plugin.input_group_invalid" | "plugin.input_group_unknown";
 
 export interface PluginWiringPluginView {
     plugin_id: string;
@@ -3155,6 +3159,11 @@ export interface PluginWiringView {
 }
 
 export declare const RESERVED_EVENT_NAMESPACES: readonly ["molis.", "host."];
+
+export interface RetainedActionAuthority {
+    (): Promise<void>;
+    readonly assertCurrent: () => void;
+}
 
 export declare const SEARCH_ENTRIES_INPUT_SCHEMA: {
     type: string;
@@ -4033,7 +4042,7 @@ export declare function ownsEventType(pluginId: string, eventTypeId: string): bo
 
 export declare function parseExactActionReferences(value: unknown): ExactActionReference[];
 
-export declare function pinActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<ArtifactPinResult>;
+export declare function pinActionSubject(client: ActionClient, caller: ActionExecutionContext, subject: ActionSubject): Promise<ArtifactPinResult>;
 
 export declare function pinnableSubjectKinds(client: ActionClient, caller: ActionCallContext): Promise<string[]>;
 
@@ -4072,6 +4081,35 @@ export declare const platformPluginWiringContract: {
     readonly maturity: "partial";
     readonly ssot: "docs/platform/PLUGIN-PLATFORM.md";
 };
+
+export declare const pluginErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly capability_denied: "invalid";
+    readonly contribution_kind_invalid: "invalid";
+    readonly contribution_unredeemed: "invalid";
+    readonly declaration_invalid: "invalid";
+    readonly definition_conflict: "invalid";
+    readonly definition_missing: "invalid";
+    readonly entrypoint_missing: "invalid";
+    readonly event_type_missing: "invalid";
+    readonly event_type_undeclared: "invalid";
+    readonly executor_failed: "invalid";
+    readonly grant_denied: "invalid";
+    readonly install_replaced: "invalid";
+    readonly kept_data_incompatible: "invalid";
+    readonly manifest_invalid: "invalid";
+    readonly package_invalid: "invalid";
+    readonly permission_invalid: "invalid";
+    readonly quarantined: "invalid";
+    readonly signature_invalid: "invalid";
+    readonly signer_mismatch: "invalid";
+    readonly state_invalid: "invalid";
+    readonly storage_denied: "invalid";
+    readonly storage_input_invalid: "invalid";
+    readonly upgrade_required: "invalid";
+    readonly upgrade_rollback_failed: "invalid";
+    readonly upgrade_validation_failed: "invalid";
+    readonly upgrade_validation_missing: "invalid";
+}>;
 
 export declare function portTypeKey(artifactTypeId: string, schemaVersion: number): string;
 

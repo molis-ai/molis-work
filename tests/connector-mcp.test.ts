@@ -45,6 +45,7 @@ async function fixture(options: { token?: string; oauth?: boolean; sse?: boolean
   let expectedToken = options.token;
   let challenge = "";
   let refreshCount = 0;
+  let tokenRequestCount = 0;
   let callCount = 0;
   let readCount = 0;
   let initializationCount = 0;
@@ -72,6 +73,7 @@ async function fixture(options: { token?: string; oauth?: boolean; sse?: boolean
       });
       if (url.pathname === "/register") { const metadata = JSON.parse(await body(request)); return json(201, { ...metadata, client_id: "dynamic-test-client" }); }
       if (url.pathname === "/token") {
+        tokenRequestCount++;
         const params = new URLSearchParams(await body(request));
         authClient = params.get("client_id") ?? "";
         if (params.get("grant_type") === "authorization_code") {
@@ -122,7 +124,7 @@ async function fixture(options: { token?: string; oauth?: boolean; sse?: boolean
     endpoint: `${origin}/mcp`, called, releaseCall,
     authorize(url: string) { const params = new URL(url).searchParams; challenge = params.get("code_challenge") ?? ""; assert.equal(params.get("code_challenge_method"), "S256"); return params.get("state")!; },
     rejectCurrentToken() { expectedToken = "server-invalidated-token"; },
-    stats: () => ({ refreshCount, callCount, readCount, initializationCount, authClient, authorizationHeaders }),
+    stats: () => ({ refreshCount, tokenRequestCount, callCount, readCount, initializationCount, authClient, authorizationHeaders }),
     async close() { await Promise.all([...sessions].map(session => session.close())); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); },
   };
 }
@@ -146,7 +148,8 @@ test("MCP initializes, discovers real SDK tools/resources, calls explicitly, and
     await assert.rejects(host.resolveMcpConnectionToken(temp, result.connectionId, remote.endpoint + "?other=1"), /完整服务地址/);
     withConnectorConnections(temp, store => store.disconnect(result.connectionId));
     const before = remote.stats().initializationCount;
-    await assert.rejects(host.inspectMcpConnection(temp, result.connectionId), /已断开/);
+    // J2C-01: the current owner code accompanies the refusal; no new remote initialization occurs.
+    await assert.rejects(host.inspectMcpConnection(temp, result.connectionId), { code: "connector.mcp.disconnected", message: /已断开/ });
     assert.equal(remote.stats().initializationCount, before);
     assert.equal(remote.stats().callCount, 1);
   } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
@@ -162,7 +165,7 @@ test("MCP Bearer credentials are independent, remain private, and cannot move en
     assert.equal(JSON.stringify(result).includes("mcp-bearer-secret"), false);
     const publicView = withConnectorConnections(temp, store => store.view(store.require(result.connectionId)));
     assert.equal(JSON.stringify(publicView).includes("mcp-bearer-secret"), false);
-    await assert.rejects(host.startMcpConnection(temp, { serviceId: "github", displayName: "Other", endpoint: "https://attacker.example/mcp", token: "mcp-bearer-secret", origin: callbackOrigin }), /官方地址/);
+    await assert.rejects(host.startMcpConnection(temp, { serviceId: "github", displayName: "Other", endpoint: "https://attacker.example/mcp", token: "mcp-bearer-secret", origin: callbackOrigin }), { code: "connector.mcp.configuration", message: /官方地址/ });
     const anotherHome = home();
     try { await assert.rejects(host.inspectMcpConnection(anotherHome, result.connectionId)); } finally { rmSync(anotherHome, { recursive: true, force: true }); }
   } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
@@ -232,6 +235,30 @@ test("MCP authorization expires after ten minutes and rejected grants reveal no 
       assert.doesNotMatch(String(error), /do-not-echo-provider-secret|registered-client-secret/); return true;
     });
     assert.equal(withConnectorConnections(temp, store => store.list()).length, 0);
+  } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("MCP rejects issuerless OAuth credentials before they leave the Host", async () => {
+  const temp = home(); const remote = await fixture({ oauth: true });
+  const host = createConnectorMcpHost({ testServers: { slack: { endpoint: remote.endpoint, auth: "oauth", registration: "manual" } } });
+  try {
+    const started = await host.startMcpConnection(temp, { serviceId: "slack", displayName: "Slack", origin: callbackOrigin,
+      clientId: "registered-client", clientSecret: "registered-client-secret" });
+    const state = remote.authorize(started.authorizationUrl!);
+    await host.completeMcpAuthorization(temp, { state, code: "valid-code", origin: callbackOrigin });
+    const secrets = connectorProtocolSecrets(temp, started.connectionId);
+    const client = JSON.parse(secrets.get("client")!) as Record<string, unknown>;
+    const tokens = JSON.parse(secrets.get("oauth")!) as Record<string, unknown>;
+    assert.equal(new URL(String(client.issuer)).origin, new URL(remote.endpoint).origin);
+    assert.equal(tokens.issuer, client.issuer);
+
+    delete client.issuer; delete tokens.issuer;
+    secrets.put("client", JSON.stringify(client)); secrets.put("oauth", JSON.stringify(tokens));
+    const before = remote.stats();
+    await assert.rejects(host.inspectMcpConnection(temp, started.connectionId), /旧版本.*重新连接/u);
+    const after = remote.stats();
+    assert.equal(after.tokenRequestCount, before.tokenRequestCount, "the refresh token never reaches a token endpoint");
+    assert.equal(after.initializationCount, before.initializationCount, "the access token never reaches the MCP server");
   } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });
 

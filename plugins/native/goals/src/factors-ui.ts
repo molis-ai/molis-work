@@ -48,7 +48,7 @@ function createFactorsRenderer(primitives: GoalsFactorsPrimitives) {
                 key: "rules", iconName: "shield", title: L("工作规则"), description: L("执行、检查和完成前必须遵守的规则"),
                 triggerAttributes: `id="goal-factor-tab-rules-${goalId}" role="tab" aria-selected="false" aria-controls="goal-factor-panel-rules-${goalId}" tabindex="-1" data-goal-factor-tab="rules"`,
                 bodyClass: "goal-factor-panel", bodyAttributes: `id="goal-factor-panel-rules-${goalId}" role="tabpanel" aria-labelledby="goal-factor-tab-rules-${goalId}" data-goal-factor-panel="rules"`,
-                body: `<header><h3>${L("工作规则")}</h3><p>${L("说明执行和完成前需要哪些检查；项目默认与当前 Goal 的额外要求会合并生效。")}</p></header>${content.policyHtml}`,
+                body: `<header><h3>${L("工作规则")}</h3><p>${L("项目规则在收尾时检查；本 Goal 的完成要求由事件记录维护。")}</p></header>${content.policyHtml}`,
             },
         ], L("关联与约束"), "goal-factor-nav", `role="tablist"`)}
   </section>`;

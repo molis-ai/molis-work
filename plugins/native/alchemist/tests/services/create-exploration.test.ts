@@ -84,12 +84,12 @@ describe("createExplorationService", () => {
 
       expect(fixture.explorations.get(result.runId)).toMatchObject({
         status: "failed",
-        errorCode: "AI_OUTPUT_INVALID",
+        errorCode: "alchemist.ai_output_invalid",
         cards: [],
       });
       expect(fixture.jobs.get(result.jobId)).toMatchObject({
         status: "failed",
-        errorCode: "AI_OUTPUT_INVALID",
+        errorCode: "alchemist.ai_output_invalid",
       });
     } finally {
       fixture.close();

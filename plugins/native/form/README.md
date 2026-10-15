@@ -27,6 +27,7 @@
 - 公开入口：`@molis-ai/molis-work-plugin-form`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `form.<原因>`，状态由错误种类决定，Form 不自带状态表）、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 每题回答沿现行 4000 字上限，原生填写与导出离线页在输入/提交时执行；多选合成后也检查。离线超限保留输入，不生成成功文件。两种页面的题名、必填状态和选项组都有可访问关联。
   - 缺模型时禁用 AI，保留本地操作。
   - 编辑带读取版本，冲突保留输入；重新读取前确认丢弃。
   - 新答卷保留提交时的题目快照；同次提交用稳定的 `request_id`，重试不重复保存。
@@ -35,5 +36,6 @@
   - 流程交来的标题和题目列表按问卷的上限（标题 80 字、40 题）截取后再收，不因超限而整次拒收。
   - 项目被删除时宿主按目录条目上的 `project_data`（`formProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeFormProject`）调用清掉问卷与收到的全部回答，连同复制回执；只读库文件，库不存在时不创建，重复运行没有副作用。
 - 改动后必跑：`node scripts/run-tests.mjs tests/form-actions.test.ts tests/form-mcp.test.ts tests/creative-tools-plugins.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts`
+- 答卷边界、离线文件与 Form → Dataset 的定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-portable-regressions.e2e.test.ts tests/work-placement-plugins.e2e.test.ts`（浏览器文件需要本机 Chrome；CSV 沿既有合同把回答中的换行显示为分号，源答卷保留换行）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

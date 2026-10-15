@@ -90,7 +90,7 @@ test("declared SDK dependency inspection uses the live Host registry without ope
   const raw = host.client(reference("a"));
   const client = createPluginCapabilityClient({ ...filesManifest, plugin_id: "io.molis.work.example.dependency", capabilities: { provides: [], consumes: [definition.capability_id] } }, raw, () => active);
   try {
-    assert.deepEqual(client.availability({ ...definition, capability_id: "undeclared" }), { available: false, code: "plugin_capability_denied", reason: "插件未声明消费此宿主能力" });
+    assert.deepEqual(client.availability({ ...definition, capability_id: "undeclared" }), { available: false, code: "plugin.capability_denied", reason: "插件未声明消费此宿主能力" });
     assert.equal(client.availability(definition).available, false);
     const stop = host.register(definition, () => { calls++; return 3; });
     assert.deepEqual(client.availability(definition), { available: true });
@@ -128,19 +128,18 @@ test("dependency inspection cannot cross project or provider scope, and absent i
   } finally { await host.close(); }
 });
 
-test("registered Host-only adapters cannot be granted by an unknown plugin manifest or forged descriptor", async () => {
+test("W3-07-6-02: a removed developer protocol cannot be granted by a manifest or forged descriptor", async () => {
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const raw = host.client(reference("protected"));
-  const protectedEntry = { ...definition, capability_id: "unfamiliar.protected-entry", host_only: true };
-  let calls = 0;
-  host.register(protectedEntry, () => ++calls);
+  const protectedEntry = { ...definition, capability_id: "io.molis.work.local-host.plugin.development", operation: "command" as const };
   const plugin = createPluginCapabilityClient({ ...filesManifest, plugin_id: "io.molis.work.example.forged-authority",
     capabilities: { provides: [], consumes: [protectedEntry.capability_id] } }, raw);
   try {
-    assert.equal(raw.availability(protectedEntry).available, true);
-    assert.equal(await raw.invoke(protectedEntry, {}), 1);
-    assert.deepEqual(plugin.availability(protectedEntry), { available: false, code: "actions.host_only", reason: "此适配入口仅供受保护的 Host 调用，插件声明不能授予用户权限" });
-    await assert.rejects(plugin.invoke({ ...protectedEntry, host_only: false }, {}, { consumer: undefined }), { code: "actions.host_only" });
-    assert.equal(calls, 1);
+    assert.equal(raw.availability(protectedEntry).available, false);
+    await assert.rejects(raw.invoke(protectedEntry, {}), { code: "actions.dependency_missing" });
+    const available = plugin.availability(protectedEntry);
+    assert.equal(available.available, false); assert.equal(!available.available && available.code, "actions.dependency_missing");
+    const forged = { ...protectedEntry, host_only: false };
+    await assert.rejects(plugin.invoke(forged, {}, { consumer: undefined }), { code: "actions.dependency_missing" });
   } finally { await host.close(); }
 });

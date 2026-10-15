@@ -9,9 +9,9 @@
   },
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
-    "checkedOn": "2026-10-13",
-    "mainHead": "b219d8592d6eae6de56dda3a7ebbb616bdd862f8",
-    "statement": "下面 commitsChecked 里除 `08b84296` 以外的每个 Prologue 提交（各项的基线、提交，以及来源里写出的提交链）都是上游 main 头的祖先（git merge-base --is-ancestor；2026-10-08 核对 4f7110fe；2026-10-12 PR #4、#5 合并后上游 main 头是 f5ef12e6，`c4b9fde3` 随 a13bf067 进入 main，复核同样成立）。远端特性分支已不能当定位点，所以按提交号定位，不按分支名。2026-10-13 对 `b219d859` 复核：`f5ef12e6`（PR #5）、`d4908c11`（随 PR #15 `a47eb26d`）同样是祖先。`08b84296` 是已换掉的过渡包来源，不在 main 上（用户 2026-10-13 决定），它的两个父提交在。",
+    "checkedOn": "2026-10-14",
+    "mainHead": "c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a",
+    "statement": "2026-10-14对当前上游main c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a 逐项用git merge-base --is-ancestor核对：commitsChecked中除08b84296与923e5a40两个已换掉的过渡包来源以外，全部是main祖先。两个过渡提交本身不在main，其功能父系保留；按完整提交号定位，不以分支名替代事实。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -26,6 +26,7 @@
       "55b0c85aed4a0cd9296a58180f99e31a419a9608",
       "6f530d5a818e0f7aecfb6322c5bfe22dbe7552ea",
       "8d590818e32534880984f9e84e1efd005caa105a",
+      "923e5a40e568a5df15a9a5a542d3c083c783a5e2",
       "93bbe1db280540361bf9f24be9e82589e8818e5c",
       "9fc3b17386419625a36359b74fb4789c17a3adc8",
       "a7e785b8c76149961d25b2f918aeec55554d8420",
@@ -629,6 +630,14 @@
       "gitBlob": "d727e547543bf88deebe5a8e8c77ac5671de9394",
       "commit": "08b84296f81df1bd5f3429c2dc2997d18b72473a",
       "description": "提交 `08b84296`（分支 `release/molis-interim-p1-cu-2`，merge `95cd901d` 与 `d4908c11`；合并提交不在 Prologue main，两个父提交在）。2026-10-13 起是 main 的依赖（用户决定：P3 之前不用带 P2d 的 main 末端）。2026-10-14 被 interim-p1-cu-image 换掉：同一基线接上能在一步里收下窗口图的 `d8c96e29`。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz",
+      "bytes": 1123638,
+      "sha256": "b45753fa24f96a3b5402ed4ae7b6a57a2cc8ba60bb42d5fac8769be8cbed9361",
+      "gitBlob": "0d38581afa4d457b1d1b540126571017dae6b7af",
+      "commit": "923e5a40e568a5df15a9a5a542d3c083c783a5e2",
+      "description": "提交923e5a40，CU-image过渡线接上窗口图。2026-10-14按用户授权被同系谱的模型切换同步beforeAccept包替换；旧包和其来源记录从Git历史取回。"
     }
   ],
   "notes": [

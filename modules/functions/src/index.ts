@@ -17,7 +17,7 @@ export { openFunctionsStore, FunctionsStore, FUNCTIONS_STORE_BASELINE, assertRea
 export { purgeFunctionsProject, functionsProjectData } from "./project-data.js";
 export { createFunctionsService, FunctionsService } from "./service.js";
 export type { TypeSafeProvider, TypeSafeEvaluateResult } from "./service.js";
-export { createTypeSafeProvider, type TypeSafeExecution, readAnswer, readChoiceAnswer, TYPESAFE_SYSTEMONE_URL } from "./provider.js";
+export { createTypeSafeProvider, type TypeSafeExecution, readAnswer, TYPESAFE_SYSTEMONE_URL } from "./provider.js";
 export { seedBuiltinFunctions } from "./builtin.js";
 
 export { functionsActions, publishedFunctionAction, publishedFunctionKey, functionsActionProvider, publishedFunctionProvider } from "./actions.js";

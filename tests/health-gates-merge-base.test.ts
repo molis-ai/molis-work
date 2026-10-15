@@ -506,6 +506,20 @@ test("ci base, push of several commits: the previous tip is fetched and the hist
   assert.equal(gateAt(dir, "--base", run.base).code, 0);
 });
 
+// A merge queue builds its group's commit on the queue's base (github.event.merge_group.base_sha, which ci.yml passes as
+// PUSH_BEFORE), so the group is compared with that base as a push is with its previous tip.
+test("ci base, merge_group: the queue's base is the comparison commit and nothing is fetched", () => {
+  const world = ciWorld();
+  const dir = shallowClone(world.mainTip, 2);
+  const queueBase = gitAt(dir, "rev-parse", "HEAD^1").trim();
+  const run = ciBase(dir, { EVENT_NAME: "merge_group", PUSH_BEFORE: queueBase });
+  assert.equal(run.code, 0, run.log);
+  assert.equal(run.base, queueBase);
+  assert.equal(commitCount(dir), 2);
+  assert.ok(isShallow(dir));
+  assert.equal(gateAt(dir, "--base", run.base).code, 0);
+});
+
 test("ci base, push that creates the branch, and other events: origin/main with its full history", () => {
   const world = ciWorld();
   for (const env of [{ EVENT_NAME: "push", PUSH_BEFORE: "0".repeat(40) }, { EVENT_NAME: "workflow_dispatch" }]) {

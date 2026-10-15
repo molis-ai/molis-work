@@ -32,12 +32,18 @@ async function openShelfBrowser(t: TestContext) {
   const routes = new ShelfPluginRouteTable(createShelfRouteHandlers({ actions: directShelfActions(shelf) }));
   const requests: string[] = [];
   let delayNextRead: (() => Promise<void>) | undefined;
+  let delayNextFile: (() => Promise<void>) | undefined;
   const delaySnapshot = () => {
     let ready!: () => void, release!: () => void;
     const started = new Promise<void>(resolve => { ready = resolve; });
     const wait = new Promise<void>(resolve => { release = resolve; });
     delayNextRead = () => { ready(); return wait; };
     return { started, release };
+  };
+  const delayFile = () => {
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    delayNextFile = () => { entered.resolve(); return release.promise; };
+    return { started: entered.promise, release: () => release.resolve() };
   };
   const escape = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   const html = `<!doctype html><html data-resolved-theme="light"><head><meta charset="utf-8"><style>
@@ -63,6 +69,7 @@ async function openShelfBrowser(t: TestContext) {
       const result = await routes.handle({ method: request.method === "POST" ? "POST" : "GET", pathname: url.pathname, query: url.searchParams, body: bytes.length ? JSON.parse(bytes.toString("utf8")) : {} });
       if (!result) { response.writeHead(404); response.end(); return; }
       if (request.method === "GET" && url.pathname === "/api/shelf" && delayNextRead) { const wait = delayNextRead; delayNextRead = undefined; await wait(); }
+      if (request.method === "GET" && url.pathname.endsWith("/file") && delayNextFile) { const wait = delayNextFile; delayNextFile = undefined; await wait(); }
       response.writeHead(result.status, { "content-type": result.mime || "application/json; charset=utf-8", "cache-control": "no-store", ...result.headers });
       response.end(result.bytes ? Buffer.from(result.bytes) : JSON.stringify(result.body));
     } catch (error) {
@@ -95,7 +102,7 @@ async function openShelfBrowser(t: TestContext) {
     const check=()=>{if(${expression})resolve(true);else if(Date.now()>end)reject(new Error('Condition timed out: '+${JSON.stringify(expression)}));else setTimeout(check,25)};check()})`);
   await command("Page.navigate", { url: origin }, sessionId);
   await waitFor("document.querySelector('[data-shelf-list=materials] [data-shelf-item]') && document.querySelector('[data-shelf-bar]')?.textContent.length > 0");
-  return { home, shelf, requests, evaluate, waitFor, command, sessionId, delaySnapshot };
+  return { home, shelf, requests, evaluate, waitFor, command, sessionId, delaySnapshot, delayFile };
 }
 
 test("Shelf isolated client boundaries use production UI and real file HTTP", { timeout: 90_000 }, async t => {
@@ -171,6 +178,60 @@ test("Shelf isolated client boundaries use production UI and real file HTTP", { 
     assert.equal(shelf.readFile(file.item_id).bytes.toString('utf8'),'outside folder');
     assert.equal(await evaluate(`Boolean(document.querySelector('[data-shelf-item="${file.item_id}"]'))`),true);
   });
+});
+
+test("W2-18-SHELF-OPEN-01: a selected clipboard ID opens its body on the mounted page and after remount", { timeout: 35_000 }, async t => {
+  const browser = await openShelfBrowser(t); if (!browser) return;
+  const { shelf, evaluate, waitFor } = browser;
+  const clip = shelf.addClipboard("The original private clipboard body 7731"); assert.ok(clip);
+  const select = `document.querySelector('[data-shelf=workbench]').dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{itemId:${JSON.stringify(clip.clip_id)}}}))`;
+  await evaluate(select);
+  await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('clipboard body 7731')");
+  assert.equal(await evaluate("document.querySelector('[data-shelf-chrome-tag]').textContent"), "剪贴板");
+  await evaluate("window.oldShelf=document.querySelector('[data-shelf=workbench]');window.shelfParent=oldShelf.parentElement;oldShelf.remove()");
+  await new Promise(resolve => setTimeout(resolve, 50));
+  await evaluate(`shelfParent.append(oldShelf);bootShelf();${select}`);
+  await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('clipboard body 7731')");
+  const material = shelf.snapshot().materials[0]!;
+  await evaluate(`oldShelf.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{itemId:${JSON.stringify(material.item_id)}}}))`);
+  await waitFor("document.querySelector('[data-shelf-chrome-tag]').textContent.includes('材料')");
+});
+
+test("W2-18-SHELF-CACHE-01: owner edits invalidate same-ID text and an earlier file response cannot restore old bytes", { timeout: 35_000 }, async t => {
+  const browser = await openShelfBrowser(t); if (!browser) return;
+  const { shelf, evaluate, waitFor, delayFile } = browser;
+  const item = shelf.admit({ filename: "editable.md", bytes: Buffer.from("# Original\n" + "a".repeat(25_000) + "\nORIGINAL_END"), mime: "text/markdown" });
+  await evaluate(`window.dispatchEvent(new CustomEvent('molis-shelf-refresh',{detail:{item_ids:[${JSON.stringify(item.item_id)}]}}))`);
+  await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('ORIGINAL_END')");
+  const delayed = delayFile(); t.after(() => delayed.release());
+  await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))"); await delayed.started;
+  shelf.writeCopy(item.item_id, "# Current\n" + "b".repeat(25_000) + "\nCURRENT_END");
+  await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))");
+  await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('CURRENT_END')");
+  delayed.release(); await new Promise(resolve => setTimeout(resolve, 100));
+  const text = await evaluate<string>("document.querySelector('[data-shelf-preview]').textContent");
+  assert.ok(text.includes("CURRENT_END")); assert.ok(!text.includes("ORIGINAL_END"));
+  await evaluate("window.shelfRoot=document.querySelector('[data-shelf=workbench]');shelfRoot.hidden=true");
+  await new Promise(resolve => setTimeout(resolve, 50));
+  shelf.writeCopy(item.item_id, "# Return\nRETURN_END");
+  await evaluate("shelfRoot.hidden=false");
+  await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('RETURN_END')");
+});
+
+test("W2-18-SHELF-LIFETIME-01: admission belongs to one live mount and publishes no detached failure", { timeout: 35_000 }, async t => {
+  const browser = await openShelfBrowser(t); if (!browser) return;
+  const { requests, evaluate, waitFor } = browser;
+  const count = () => requests.filter(request => request === "POST /api/shelf/items").length;
+  await evaluate("window.placements=[];window.addEventListener('molis:placement-result',event=>placements.push(event.detail));window.shelfRoot=document.querySelector('[data-shelf=workbench]');window.shelfParent=shelfRoot.parentElement;shelfRoot.remove()");
+  await new Promise(resolve => setTimeout(resolve, 50));
+  const admit = "window.dispatchEvent(new CustomEvent('molis:shelf-admit',{detail:{filename:'received.txt',bytes_base64:btoa('Original fixture bytes')}}))";
+  const before = count(); await evaluate(admit); await new Promise(resolve => setTimeout(resolve, 100));
+  assert.equal(count(), before); assert.deepEqual(await evaluate("placements"), []);
+  await evaluate("shelfParent.append(shelfRoot);bootShelf();bootShelf()");
+  await new Promise(resolve => setTimeout(resolve, 100));
+  await evaluate(admit); await waitFor("placements.length>0");
+  await new Promise(resolve => setTimeout(resolve, 100));
+  assert.equal(count(), before + 1); assert.deepEqual(await evaluate("placements.map(p=>p.verb)"), ["received"]);
 });
 
 

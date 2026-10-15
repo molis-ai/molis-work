@@ -150,28 +150,17 @@ export interface FeedModuleDependencies {
   attention: AttentionApi;
 }
 
-export class FeedError extends Error {
-  constructor(
-    readonly code:
-      | "feed_item_not_found"
-      | "feed_revision_conflict"
-      | "feed_invalid_transition"
-      | "feed_read_not_supported",
-    message: string,
-  ) {
-    super(message);
-    this.name = "FeedError";
-  }
-}
+
 
 /**
  * Feed's own error codes, every one `feed.<reason>`. The kind is the sort of failure; the Host's edge turns it into the status
  * (plugin SDK `actionHttpStatus`), so Feed keeps no status table of its own. They are declared here, beside the module's contract, because
  * the Feed plugin, the Host files that sync and the RSS and YouTube integrations all refuse in Feed's name and share no other package.
  * Every status is the one the Feed route answered for the code's old name: the missing things 404, the changed-under-you things 409,
- * every other refusal 400.
+ * caller refusals 400; an internal deletion-contract violation remains 500.
  */
 export const feedErrors = defineErrorCodes("feed", {
+  contract_source_history_decision_required: "internal",
   item_not_found: "not_found",
   source_not_found: "not_found",
   out_rule_not_found: "not_found",
@@ -198,7 +187,7 @@ export const feedErrors = defineErrorCodes("feed", {
   source_wrong_sync_kind: "invalid",
   connector_wrong_sync_kind: "invalid",
   connector_needs_auth: "invalid",
-  /** The provider reported a failed pull. Its own code (what a run and a source fault store, e.g. `connector_rate_limited`) is `details.error_code`. */
+  /** The provider reported a failed pull. Its own code (what a run and a source fault store, e.g. `connector.rate_limited`) is `details.error_code`. */
   connector_failed: "invalid",
   custom_rss_url_invalid: "invalid",
   youtube_channel_invalid: "invalid",

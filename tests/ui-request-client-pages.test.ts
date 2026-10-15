@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
-import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, createWorkbenchLocale, renderHomePluginPage, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 
@@ -79,7 +79,7 @@ test("a plugin's side panel document carries the request helper", () => {
 test("a Home plugin page carries the request helper before the plugin's client runs", () => {
   const entry = BUILTIN_PLUGIN_CATALOG.find(candidate => candidate.project_plugin_id === "todo");
   assert.ok(entry, "the Todo plugin is a Home plugin with a page of its own");
-  const html = renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN);
+  const html = renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN, createWorkbenchLocale(() => "zh"));
   assert.equal(count(html, UI_REQUEST_CLIENT_SCRIPT), 1);
   assert.doesNotMatch(html, OWN_HEADERS_FUNCTION);
   assert.ok(html.indexOf(UI_REQUEST_CLIENT_SCRIPT) < html.indexOf("molisWorkbenchPluginFactories"), "the helper is there when the client mounts");

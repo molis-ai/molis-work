@@ -82,12 +82,13 @@ node --import tsx --test tests/cross-device-client.test.ts tests/cross-device-la
 node --import tsx server/tooling/continuity-demo.mts /tmp/molis-continuity-isolated-qa
 ```
 
-QA 工具只创建显式隔离目录和实际业务对象；`lose-next-response` 文件只由该工具读取，用于在真实进展已提交后丢弃响应。该故障入口不存在于产品 HTTP。验证状态与交接见 `specs/archive/bp-delivery-parallel/work-items/cross-device-team/verification.md`。
+QA 工具只写系统临时目录中的专用子目录；启动前核对真实祖先路径，拒绝真实 Home 和指向临时目录以外的链接。该 QA 进程固定使用临时 Home 的文件密钥，不读取用户钥匙串或沿用环境中的加密键。先构建公开包，再运行上面的命令；可追加 `--port 0` 使用空闲端口。工具从公开 owner 入口创建/读取成员，按当前来源、标题和媒体类型注册固定成果，重启复用原成员与业务事实。`lose-next-response` 文件只由该工具读取，用于在真实进展已提交后丢弃响应；原键重试先核回执，不另写一条进展。该故障入口不存在于产品 HTTP。`tests/cross-device-launcher.test.ts` 的 W2-18-CONTINUITY-QA-01 实际启动这条命令并核重试、重启；验证状态与交接见 `specs/archive/bp-delivery-parallel/work-items/cross-device-team/verification.md`。
 
 ## 开发要求
 
 - 负责：共享的身份、设备、项目访问、HTTP/SSE 与接续回执，以及群聊（IM）领域（`src/im`）。它是在用、还会迭代的业务功能，按 Module 规则检查，不算平台包（2026-10-08 决定第 4 项）。
 - 不负责：Goal 或 Artifact 事实、模型执行、独立的 App 启动器。
+- 错误由 `im` 归属：设备身份、接续与传输分别使用 `im.identity.*`、`im.continuity.*`、`im.server.*`，群聊保留 `im.*`。来自 Goals 或 Host 的拒绝保留原提供方的错误码；历史持久码按防腐维护八一次性处理，不在读取时改写。
 - 公开入口：`@molis-ai/molis-work-server`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：Module 只依赖合同与平台包，不依赖 Horizontal Service、App 或 Plugin（[包边界规则](../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
 - 不变量：

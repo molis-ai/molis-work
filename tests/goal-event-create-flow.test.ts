@@ -1,10 +1,11 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+
 
 function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-02-create-"));
@@ -85,7 +86,7 @@ test("user can revise a createIntent requirement; runtime cannot relax it withou
         idempotency_key: "runtime-revise-created", ...versions,
         revise_requirements: [{ requirement_id: target.requirement_id, statement: "Runtime 自行放宽原文" }],
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_agreement.unauthorized_change",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_agreement.unauthorized_change",
     );
     const blocked = data.app.goalEvents.readState("board", created.goal.goal_id);
     assert.equal(blocked.requirements[0]?.statement, "真实付款成功");

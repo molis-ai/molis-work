@@ -22,7 +22,7 @@ export interface GoalTreeSemanticReview extends GoalChangeImpact {
   status: "required" | "not_required";
   next_action: "review_affected_subgraph" | "continue";
   /** The action that reviews the affected part of the Goal tree (Goals planning impact). */
-  review_action: { capability_id: "goals.planning.impact"; version: 1 };
+  review_action: { capability_id: "goals.planning.impact"; version: 2 };
   canonical_changes_require_new_user_confirmation: true;
 }
 

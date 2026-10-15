@@ -1,3 +1,4 @@
+import { uiHostErrors } from "./ui-errors.js";
 import type {
   UiContribution,
   UiContributionDescriptor,
@@ -7,7 +8,7 @@ import type {
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
-export { createPluginUiClient, PluginUiAccessError } from "./plugin-client.js";
+export { createPluginUiClient } from "./plugin-client.js";
 export { UiViewRegistry } from "./view-registry.js";
 export { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "./client-lifecycle.js";
 export { shortCallId } from "./call-id.js";
@@ -28,19 +29,7 @@ export const packageDescriptor = {
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
-export class UiContributionError extends Error {
-  constructor(
-    readonly code:
-      | "ui_contribution_conflict"
-      | "ui_contribution_not_found"
-      | "ui_slot_incompatible"
-      | "ui_surface_invalid",
-    message: string,
-  ) {
-    super(message);
-    this.name = "UiContributionError";
-  }
-}
+
 
 /**
  * Host-owned registry. It routes a surface to its owning Plugin but never
@@ -52,13 +41,10 @@ export class UiHost implements UiHostApi {
   register<TModel>(contribution: UiContribution<TModel>): void {
     const contributionId = contribution.descriptor.contribution_id.trim();
     if (!contributionId) {
-      throw new UiContributionError("ui_surface_invalid", "UI Contribution 必须声明稳定 ID");
+      throw uiHostErrors.surface_invalid("UI Contribution 必须声明稳定 ID");
     }
     if (this.contributions.has(contributionId)) {
-      throw new UiContributionError(
-        "ui_contribution_conflict",
-        `UI Contribution ${contributionId} 已注册`,
-      );
+      throw uiHostErrors.contribution_conflict(`UI Contribution ${contributionId} 已注册`);
     }
     this.contributions.set(contributionId, contribution as UiContribution<unknown>);
   }
@@ -76,10 +62,7 @@ export class UiHost implements UiHostApi {
   render<TModel>(request: UiRenderRequest<TModel>): string {
     const contribution = this.contributions.get(request.contribution_id);
     if (!contribution) {
-      throw new UiContributionError(
-        "ui_contribution_not_found",
-        `找不到 UI Contribution ${request.contribution_id}`,
-      );
+      throw uiHostErrors.contribution_not_found(`找不到 UI Contribution ${request.contribution_id}`);
     }
     return contribution.render(request as UiRenderRequest<unknown>);
   }
@@ -87,28 +70,19 @@ export class UiHost implements UiHostApi {
   mount<TModel>(request: UiMountRequest<TModel>): UiMountResult {
     const contribution = this.contributions.get(request.contribution.contribution_id);
     if (!contribution) {
-      throw new UiContributionError(
-        "ui_contribution_not_found",
-        `找不到 UI Contribution ${request.contribution.contribution_id}`,
-      );
+      throw uiHostErrors.contribution_not_found(`找不到 UI Contribution ${request.contribution.contribution_id}`);
     }
     const surface = contribution.descriptor.surfaces?.find(
       (candidate) => candidate.surface_id === request.contribution.surface,
     );
     if (!surface) {
-      throw new UiContributionError(
-        "ui_surface_invalid",
-        `UI Contribution ${request.contribution.contribution_id} 未声明 surface ${request.contribution.surface}`,
-      );
+      throw uiHostErrors.surface_invalid(`UI Contribution ${request.contribution.contribution_id} 未声明 surface ${request.contribution.surface}`);
     }
     if (
       surface.target_slot_id !== request.slot.slot_id ||
       !request.slot.accepts.includes(surface.format)
     ) {
-      throw new UiContributionError(
-        "ui_slot_incompatible",
-        `surface ${surface.surface_id} 不能挂载到 slot ${request.slot.slot_id}`,
-      );
+      throw uiHostErrors.slot_incompatible(`surface ${surface.surface_id} 不能挂载到 slot ${request.slot.slot_id}`);
     }
     return {
       slot_id: request.slot.slot_id,

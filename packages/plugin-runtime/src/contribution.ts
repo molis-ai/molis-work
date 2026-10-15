@@ -1,3 +1,4 @@
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   PluginAppContribution,
   PluginContribution,
@@ -11,15 +12,7 @@ import type {
  * stays the whole contract.
  */
 
-export class PluginContributionError extends Error {
-  constructor(
-    readonly code: "plugin_contribution_kind_invalid" | "plugin_contribution_unredeemed",
-    message: string,
-  ) {
-    super(message);
-    this.name = "PluginContributionError";
-  }
-}
+
 
 export function viewContributionId(manifest: PluginManifest, viewId: string): string {
   const declared = (manifest.ui.views ?? []).find((view) => view.view_id === viewId);
@@ -28,16 +21,10 @@ export function viewContributionId(manifest: PluginManifest, viewId: string): st
 
 function assertKind(manifest: PluginManifest, contribution: PluginContribution): void {
   if (manifest.kind === "integration" && contribution.kind !== "integration") {
-    throw new PluginContributionError(
-      "plugin_contribution_kind_invalid",
-      "Integration Plugin 必须返回 Integration contribution",
-    );
+    throw pluginErrors.contribution_kind_invalid("Integration Plugin 必须返回 Integration contribution");
   }
   if (manifest.kind === "app" && contribution.kind !== "app") {
-    throw new PluginContributionError(
-      "plugin_contribution_kind_invalid",
-      "app Plugin 必须返回 app contribution",
-    );
+    throw pluginErrors.contribution_kind_invalid("app Plugin 必须返回 app contribution");
   }
 }
 
@@ -131,7 +118,7 @@ export function assertContributionMatchesManifest(
     ...assertHandlers(manifest, contribution),
   );
   if (problems.length > 0) {
-    throw new PluginContributionError("plugin_contribution_unredeemed", problems.join("；"));
+    throw pluginErrors.contribution_unredeemed(problems.join("；"));
   }
 }
 

@@ -14,7 +14,6 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export {
   FILE_PATH_MAX_SEGMENTS,
   FILE_SEGMENT_MAX_LENGTH,
-  FilePathError,
   parseFilePath,
   pathKey,
   pathLabel,

@@ -67,7 +67,6 @@ export {
   CODING_REPORT_TYPE,
   CODING_GOAL_CONTEXT_TYPE,
   CODING_PLAN_TYPE,
-  CodingDiagramError,
   inspectDiagram,
   type CodingArtifactType,
   type CodingChangeScope,
@@ -94,7 +93,6 @@ export {
 } from "./projection.js";
 export {
   CodingSessionStore,
-  CodingStoreError,
   CODING_ACTIVE_STATES,
   CODING_SCHEMA_SQL,
   listCodingBackgroundSessions,

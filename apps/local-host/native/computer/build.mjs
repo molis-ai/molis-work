@@ -14,4 +14,10 @@ if (process.platform === 'darwin') {
     const result = spawnSync('bash', [path.join(here, 'build.sh')], { stdio: 'inherit' });
     if (result.status !== 0) process.exit(result.status ?? 1);
   }
+} else {
+  // The helper is a macOS app. The release still declares its folder (package.json `files`), so elsewhere it holds this note and
+  // the release installs; the Host finds no helper off macOS (src/computer/computer-surfaces.ts).
+  const bin = path.join(path.dirname(fileURLToPath(import.meta.url)), 'bin');
+  fs.mkdirSync(bin, { recursive: true });
+  fs.writeFileSync(path.join(bin, 'README.md'), `The computer helper is built on macOS only; this build ran on ${process.platform}.\n`);
 }

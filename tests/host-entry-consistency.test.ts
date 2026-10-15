@@ -1,10 +1,11 @@
+import { managementGoals } from "./goal-management-caller.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
@@ -18,7 +19,7 @@ test("MCP Goal directory cannot be split by a queued competing Goal write, and a
   const { database_path: databasePath, project_id: projectId } = project;
   const host = createMolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
-  const client = host.client(reference);
+  const client = managementGoals(host.actionClient(reference, false), projectId);
   const runtimeHost = {
     homeDirectory: directory,
     runtimeContext: { runtime_id: "entry", stable_work_context_id: "session", host_declares_stable: true },
@@ -27,12 +28,12 @@ test("MCP Goal directory cannot be split by a queued competing Goal write, and a
   // The MCP server below binds this Host to the Home, and a Home has one Host: the same Host serves the access settings the grant goes through.
   const served = await serveTestHost(null, { home: directory, host });
   const makeIntent = (goalId: string) => ({
-    project_id: projectId, idempotency_key: `create-${goalId}`,
+    idempotency_key: `create-${goalId}`,
     goal_id: goalId, title: goalId, outcome: "一致的入口结果",
   });
   let competingWrite: Promise<unknown> | undefined;
   try {
-    await client.invoke(createGoalIntentCapability, makeIntent("first"));
+    await client.invoke(goalsActions.create, makeIntent("first"));
     await host.withProject(reference, ({ coordinator }) => {
       const original = coordinator.goalEvents.listGoals.bind(coordinator.goalEvents);
       let enqueue = true;
@@ -40,7 +41,7 @@ test("MCP Goal directory cannot be split by a queued competing Goal write, and a
         const result = original(input);
         if (enqueue) {
           enqueue = false;
-          competingWrite = client.invoke(createGoalIntentCapability, makeIntent("later"));
+          competingWrite = client.invoke(goalsActions.create, makeIntent("later"));
         }
         return result;
       };
@@ -49,7 +50,7 @@ test("MCP Goal directory cannot be split by a queued competing Goal write, and a
     const listed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.list__v1", { limit: 100 }));
     await competingWrite;
     assert.deepEqual(listed.goals.map((item: { goal_id: string }) => item.goal_id), ["first"]);
-    const later = await client.invoke(createGoalIntentCapability, makeIntent("later"));
+    const later = await client.invoke(goalsActions.create, makeIntent("later"));
     assert.equal(later.replayed, true);
     const after = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.list__v1", { limit: 100 }));
     assert.deepEqual(after.goals.map((item: { goal_id: string }) => item.goal_id).sort(), ["first", "later"]);

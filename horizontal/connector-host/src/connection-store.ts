@@ -1,3 +1,4 @@
+import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type {
@@ -19,12 +20,7 @@ export interface ConnectorConnectionSecrets {
   has?(reference: string): boolean;
 }
 
-export class ConnectorConnectionError extends Error {
-  constructor(readonly code: "invalid" | "not_found" | "service_mismatch" | "disconnected", message: string) {
-    super(message);
-    this.name = "ConnectorConnectionError";
-  }
-}
+
 
 function connectionFromRow(row: Row): ConnectorConnectionRecord {
   return {
@@ -42,7 +38,7 @@ function connectionFromRow(row: Row): ConnectorConnectionRecord {
 
 function requiredText(value: unknown, label: string, max: number): string {
   if (typeof value !== "string" || !value.trim() || value.trim().length > max) {
-    throw new ConnectorConnectionError("invalid", `${label}不能为空且最多 ${max} 个字符`);
+    throw connectorErrors["connector.connection.invalid"](`${label}不能为空且最多 ${max} 个字符`);
   }
   return value.trim();
 }
@@ -104,8 +100,8 @@ export class ConnectorConnectionStore {
 
   require(connectionId: string, serviceId?: string): ConnectorConnectionRecord {
     const connection = this.get(connectionId);
-    if (!connection) throw new ConnectorConnectionError("not_found", "找不到这条连接");
-    if (serviceId && connection.service_id !== serviceId) throw new ConnectorConnectionError("service_mismatch", "连接不属于这个服务");
+    if (!connection) throw connectorErrors["connector.connection.not_found"]("找不到这条连接");
+    if (serviceId && connection.service_id !== serviceId) throw connectorErrors["connector.connection.service_mismatch"]("连接不属于这个服务");
     return connection;
   }
 
@@ -142,25 +138,25 @@ export class ConnectorConnectionStore {
   assertTarget(connectionId: string, serviceId: "model-api" | "image-api" | "mcp-bearer", address: string): string {
     this.require(connectionId, serviceId);
     let endpoint: URL;
-    try { endpoint = new URL(address); } catch { throw new ConnectorConnectionError("invalid", "服务地址无效"); }
+    try { endpoint = new URL(address); } catch { throw connectorErrors["connector.connection.invalid"]("服务地址无效"); }
     const localHttp = isLoopbackHttpUrl(endpoint);
     if ((!localHttp && endpoint.protocol !== "https:") || endpoint.username || endpoint.password) {
-      throw new ConnectorConnectionError("invalid", "服务地址必须使用 HTTPS 或本机 HTTP，且不能包含账号密码");
+      throw connectorErrors["connector.connection.invalid"]("服务地址必须使用 HTTPS 或本机 HTTP，且不能包含账号密码");
     }
     const origin = endpoint.origin;
     const previous = this.targetOrigin(connectionId);
-    if (previous && previous !== origin) throw new ConnectorConnectionError("service_mismatch", `这条连接已绑定 ${previous}；如需访问 ${origin}，请新建连接`);
+    if (previous && previous !== origin) throw connectorErrors["connector.connection.service_mismatch"](`这条连接已绑定 ${previous}；如需访问 ${origin}，请新建连接`);
     this.db.prepare("INSERT OR IGNORE INTO connector_connection_targets (connection_id,origin) VALUES (?,?)").run(connectionId, origin);
-    if (this.targetOrigin(connectionId) !== origin) throw new ConnectorConnectionError("service_mismatch", "连接已绑定另一服务地址，请新建连接");
+    if (this.targetOrigin(connectionId) !== origin) throw connectorErrors["connector.connection.service_mismatch"]("连接已绑定另一服务地址，请新建连接");
     return origin;
   }
 
   createToken(input: { serviceId: string; displayName: string; token: string; accountLabel?: string | null; authMethod?: "token" | "oauth" }): ConnectorConnectionRecord {
     const serviceId = requiredText(input.serviceId, "服务", 100);
-    if (!SERVICE_ID.test(serviceId)) throw new ConnectorConnectionError("invalid", "服务 ID 无效");
+    if (!SERVICE_ID.test(serviceId)) throw connectorErrors["connector.connection.invalid"]("服务 ID 无效");
     const displayName = requiredText(input.displayName, "连接名称", 100);
     const token = requiredText(input.token, "凭据", 16_384);
-    if (token.length < 8 || /[\r\n]/u.test(token)) throw new ConnectorConnectionError("invalid", "凭据格式无效");
+    if (token.length < 8 || /[\r\n]/u.test(token)) throw connectorErrors["connector.connection.invalid"]("凭据格式无效");
     const connectionId = randomUUID();
     const ref = `connector-connection:${connectionId}:token`;
     const now = this.now().toISOString();
@@ -180,15 +176,15 @@ export class ConnectorConnectionStore {
   /** Register only after the protocol adapter has completed its real handshake. */
   saveProtocol(input: { connectionId: string; serviceId: string; displayName: string; endpoint: string;
     credentialRef: string | null; refreshRef?: string | null; expiresRef?: string | null }): ConnectorConnectionRecord {
-    if (!CONNECTION_ID.test(input.connectionId) || !SERVICE_ID.test(input.serviceId)) throw new ConnectorConnectionError("invalid", "连接标识无效");
+    if (!CONNECTION_ID.test(input.connectionId) || !SERVICE_ID.test(input.serviceId)) throw connectorErrors["connector.connection.invalid"]("连接标识无效");
     const existing = this.get(input.connectionId);
-    if (existing && (existing.service_id !== input.serviceId || existing.auth_method !== "mcp")) throw new ConnectorConnectionError("service_mismatch", "连接不属于这个 MCP 服务");
+    if (existing && (existing.service_id !== input.serviceId || existing.auth_method !== "mcp")) throw connectorErrors["connector.connection.service_mismatch"]("连接不属于这个 MCP 服务");
     const endpoint = new URL(input.endpoint);
-    if (endpoint.username || endpoint.password || endpoint.hash || (endpoint.protocol !== "https:" && !isLoopbackHttpUrl(endpoint))) throw new ConnectorConnectionError("invalid", "MCP 地址无效");
+    if (endpoint.username || endpoint.password || endpoint.hash || (endpoint.protocol !== "https:" && !isLoopbackHttpUrl(endpoint))) throw connectorErrors["connector.connection.invalid"]("MCP 地址无效");
     for (const ref of [input.credentialRef, input.refreshRef, input.expiresRef]) {
-      if (ref && !ref.startsWith(`connector-protocol:${input.connectionId}:`)) throw new ConnectorConnectionError("invalid", "MCP 凭据引用无效");
+      if (ref && !ref.startsWith(`connector-protocol:${input.connectionId}:`)) throw connectorErrors["connector.connection.invalid"]("MCP 凭据引用无效");
     }
-    if (input.credentialRef && !this.secrets.get(input.credentialRef)?.trim()) throw new ConnectorConnectionError("disconnected", "MCP 凭据尚未保存");
+    if (input.credentialRef && !this.secrets.get(input.credentialRef)?.trim()) throw connectorErrors["connector.connection.disconnected"]("MCP 凭据尚未保存");
     const now = this.now().toISOString();
     this.db.prepare(`INSERT INTO connector_connections
       (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
@@ -210,17 +206,17 @@ export class ConnectorConnectionStore {
     stableAccountValidated?: boolean;
   }): ConnectorConnectionRecord {
     if (!CONNECTION_ID.test(input.connectionId) || !SERVICE_ID.test(input.serviceId)) {
-      throw new ConnectorConnectionError("invalid", "OAuth 连接标识无效");
+      throw connectorErrors["connector.connection.invalid"]("OAuth 连接标识无效");
     }
     const existing = this.get(input.connectionId);
     if (existing && (existing.service_id !== input.serviceId || existing.auth_method !== "oauth")) {
-      throw new ConnectorConnectionError("service_mismatch", "不能把授权写入另一服务的连接");
+      throw connectorErrors["connector.connection.service_mismatch"]("不能把授权写入另一服务的连接");
     }
     if (!input.stableAccountValidated && existing?.account_label && input.accountLabel && existing.account_label !== input.accountLabel.trim()) {
-      throw new ConnectorConnectionError("service_mismatch", "授权账号与原连接不同，请新增连接");
+      throw connectorErrors["connector.connection.service_mismatch"]("授权账号与原连接不同，请新增连接");
     }
     if (!this.secrets.get(input.accessRef)?.trim() || (input.refreshRef && !this.secrets.get(input.refreshRef)?.trim())) {
-      throw new ConnectorConnectionError("disconnected", "OAuth 凭据尚未保存完整");
+      throw connectorErrors["connector.connection.disconnected"]("OAuth 凭据尚未保存完整");
     }
     const now = this.now().toISOString();
     this.db.prepare(`INSERT INTO connector_connections
@@ -240,7 +236,7 @@ export class ConnectorConnectionStore {
 
   /** CLI secrets stay in the official CLI; this records its verified current account under one stable id per CLI account. */
   saveCli(input: { serviceId: string; displayName: string; externalId: string; accountLabel: string }): ConnectorConnectionRecord {
-    if (!SERVICE_ID.test(input.serviceId) || !input.externalId.trim()) throw new ConnectorConnectionError("invalid", "外部连接标识无效");
+    if (!SERVICE_ID.test(input.serviceId) || !input.externalId.trim()) throw connectorErrors["connector.connection.invalid"]("外部连接标识无效");
     const connectionId = `external-${createHash("sha256").update(input.serviceId).update("\0external\0").update(input.externalId).digest("hex").slice(0, 24)}`;
     const now = this.now().toISOString();
     this.db.prepare(`INSERT INTO connector_connections
@@ -261,9 +257,9 @@ export class ConnectorConnectionStore {
 
   replaceToken(connectionId: string, token: string): ConnectorConnectionRecord {
     const connection = this.require(connectionId);
-    if (!(["token", "oauth"] as string[]).includes(connection.auth_method) || !connection.credential_ref) throw new ConnectorConnectionError("invalid", "这条连接不能用令牌更新");
+    if (!(["token", "oauth"] as string[]).includes(connection.auth_method) || !connection.credential_ref) throw connectorErrors["connector.connection.invalid"]("这条连接不能用令牌更新");
     const value = requiredText(token, "凭据", 16_384);
-    if (value.length < 8 || /[\r\n]/u.test(value)) throw new ConnectorConnectionError("invalid", "凭据格式无效");
+    if (value.length < 8 || /[\r\n]/u.test(value)) throw connectorErrors["connector.connection.invalid"]("凭据格式无效");
     this.secrets.put(connection.credential_ref, value);
     this.db.prepare("UPDATE connector_connections SET disconnected_at = NULL, updated_at = ? WHERE connection_id = ?")
       .run(this.now().toISOString(), connectionId);
@@ -287,15 +283,15 @@ export class ConnectorConnectionStore {
 
   resolveToken(connectionId: string, serviceId: string): string {
     const connection = this.require(connectionId, serviceId);
-    if (connection.disconnected_at || !connection.credential_ref) throw new ConnectorConnectionError("disconnected", "所选连接已断开，请重新选择或授权");
+    if (connection.disconnected_at || !connection.credential_ref) throw connectorErrors["connector.connection.disconnected"]("所选连接已断开，请重新选择或授权");
     const token = this.secrets.get(connection.credential_ref)?.trim();
-    if (!token) throw new ConnectorConnectionError("disconnected", "所选连接需要重新授权");
+    if (!token) throw connectorErrors["connector.connection.disconnected"]("所选连接需要重新授权");
     return token;
   }
 
   bind(input: { scopeId: string; pluginId: string; slotId: string; serviceId: string; connectionId: string }): void {
     const connection = this.require(input.connectionId, input.serviceId);
-    if (this.state(connection) !== "connected") throw new ConnectorConnectionError("disconnected", "连接不可用，请先重新授权");
+    if (this.state(connection) !== "connected") throw connectorErrors["connector.connection.disconnected"]("连接不可用，请先重新授权");
     const scope = requiredText(input.scopeId, "作用域", 160);
     const plugin = requiredText(input.pluginId, "插件", 160);
     const slot = requiredText(input.slotId, "用途", 160);

@@ -1,0 +1,141 @@
+name: Full suite
+
+# The full product suite (every file `node scripts/run-tests.mjs` takes without arguments, browser files included) spread over
+# sixteen ubuntu runners, so a change that needs the full suite (docs/system/PARALLEL-DEVELOPMENT.md §6) does not wait for the one
+# full-suite slot of a development machine. About an hour on one machine; about a quarter of that here.
+# Left out: the files the Linux probe marks macOS-only (`--skip-macos-only`, scripts/ci-linux-probe/select.mjs: Seatbelt,
+# Keychain, launchctl, Swift helpers); those still run locally. Live tests skip themselves, since no key is set here.
+# It informs and decides nothing: branch protection and the merge queue wait only for `Verify` (ci.yml).
+# When it runs:
+#   - a pull request labelled `full-suite` (when the label is added, and on each push while it is on);
+#   - a push to an integration branch (`integration/**`, §7 of the same document);
+#   - nightly on main, and by hand (Actions → Full suite → Run workflow, on any branch).
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [labeled, synchronize, reopened]
+  push:
+    branches:
+      - "integration/**"
+  workflow_dispatch:
+  schedule:
+    - cron: "0 17 * * *"
+
+permissions:
+  contents: read
+
+# A new run cancels the older one in its group, so a push to a labelled pull request stops the run for the previous push. Only a
+# run whose shards will run takes that group: a pull request event whose shards the job `if` below skips (a push before the label
+# is on, another label added) gets a group of its own (its run id), so it cannot cancel a run that is testing. Before this, the
+# `synchronize` run of a push made right before the label was added cancelled the labelled run (#519, 2026-10-15). The condition
+# is the job `if` of `shard`, written twice because the concurrency key cannot read a job; change both together.
+concurrency:
+  group: >-
+    full-suite-${{ (github.event_name != 'pull_request'
+      || (github.event.action == 'labeled' && github.event.label.name == 'full-suite')
+      || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'full-suite')))
+      && (github.event_name == 'schedule' && 'nightly' || github.event.pull_request.number || github.ref)
+      || format('skip-{0}', github.run_id) }}
+  cancel-in-progress: true
+
+jobs:
+  shard:
+    name: Full suite (${{ matrix.shard }}/16)
+    if: >-
+      ${{ github.event_name != 'pull_request'
+          || (github.event.action == 'labeled' && github.event.label.name == 'full-suite')
+          || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'full-suite')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+    env:
+      # Four cores per runner: two files at once, one of them a browser file. With three at once, browser files timed out on CDP and
+      # DOM waits under load, a different handful each run (#519, five runs); sixteen shards keep the wall time about the same.
+      MOLIS_WORK_TEST_JOBS: 2
+      MOLIS_WORK_TEST_BROWSER_JOBS: 1
+    steps:
+      # The whole history, as on a development machine: some tests read git (the merge-base of a gate, the history of a file).
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # The version is the root package.json "packageManager", the pin the other workflows use.
+      - name: Install pnpm
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The tests import the built workspace packages and dist/, and the installer tests compare the build fingerprint.
+      - name: Build
+        run: pnpm build
+
+      # The same Chrome the product subset uses (ci.yml): the ubuntu image's, with --no-sandbox for a runner whose kernel restricts
+      # unprivileged user namespaces.
+      - name: Chrome for the browser files
+        run: |
+          chrome="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$chrome" || { echo "no Chrome on this runner"; exit 1; }
+          "$chrome" --version
+          printf '#!/bin/sh\nexec "%s" --no-sandbox "$@"\n' "$chrome" > "$RUNNER_TEMP/chrome-ci"
+          chmod +x "$RUNNER_TEMP/chrome-ci"
+          echo "MOLIS_WORK_TEST_CHROME=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
+
+      # The pages are Chinese first and the layout tests measure Chinese text; the runner image has no CJK font, so without one a
+      # page that does not load the product's own Chinese face (a test page from a file) has no real glyphs and wraps differently
+      # from a development machine. WenQuanYi, because the product's font stack does not name it: a font it names before the
+      # bundled Inter (Noto Sans CJK SC) would also take over Latin text and change its width.
+      - name: CJK font for the browser files
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends fonts-wqy-zenhei
+          fc-list :lang=zh family | sort -u
+
+      # The runner starts the files that took longest last time first; each shard keeps its own durations from run to run.
+      - name: Test durations
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/molis-work-tests
+          key: full-suite-durations-${{ matrix.shard }}-${{ github.run_id }}
+          restore-keys: full-suite-durations-${{ matrix.shard }}-
+
+      # A file that fails is run once more; one that then passes is listed as flaky in the summary and does not turn the shard red, so
+      # the check shows the files that fail every time (user 2026-10-15).
+      - name: Run this shard
+        shell: bash
+        run: node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/16 --timeout-seconds 900 --retries 1 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
+
+      # The runner's closing lines: files passed, the slowest, the flaky files, the failed files and the command that reruns only them.
+      - name: Summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "### Shard ${{ matrix.shard }}/16"
+            echo '```'
+            sed -n '/^run-tests: [0-9]* of [0-9]* files passed/,$p' "$RUNNER_TEMP/full-suite.log" 2>/dev/null || echo "no summary (the run did not finish)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # One check for the whole suite, for an integration branch or a labelled pull request to read.
+  result:
+    name: Full suite
+    needs: [shard]
+    if: ${{ always() && needs.shard.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every shard passed
+        env:
+          SHARDS_RESULT: ${{ needs.shard.result }}
+        run: |
+          echo "shards: $SHARDS_RESULT (each shard's summary lists its failed files and the command that reruns them)"
+          test "$SHARDS_RESULT" = "success"

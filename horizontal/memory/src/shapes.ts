@@ -1,5 +1,5 @@
 import { MEMORY_KINDS, type MemoryCandidate, type MemoryCandidateRecord, type MemoryChange, type MemoryChangeRecord, type MemoryExportPackage, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
-import { MemoryError } from "./errors.js";
+import { memoryErrors } from "./errors.js";
 import { CONSUMER_LABELS } from "./prefs.js";
 import type { MemoryCaller } from "./service.js";
 
@@ -32,7 +32,7 @@ export function changeView(record: MemoryChangeRecord): MemoryChange {
 
 /** A package is read whole before anything is written: one malformed entry and the whole import is refused. */
 export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
-  const refuse = (why: string): never => { throw new MemoryError("memory.invalid", `记忆包无法导入：${why}；没有写入任何一条`); };
+  const refuse = (why: string): never => { throw memoryErrors.invalid(`记忆包无法导入：${why}；没有写入任何一条`); };
   if (!pack || typeof pack !== "object") refuse("不是记忆包");
   const value = pack as Partial<MemoryExportPackage>;
   if (value.format !== "molis.memory") refuse("格式不认识");

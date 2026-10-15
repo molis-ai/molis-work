@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
-test("settings serve complete category pages; the project gear opens them in the workbench stage", { timeout: 60_000 }, async t => {
+// It walks every settings category in two layouts: about 27 s on a development Mac, about 60 s on the Linux CI runner.
+test("settings serve complete category pages; the project gear opens them in the workbench stage", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { origin, projectId, command, sessionId, evaluate, navigate, click, waitFor, reloadPage } = browser;

@@ -28,5 +28,3 @@ export declare const platformToolingContract: {
     readonly maturity: "contract-only";
     readonly ssot: "docs/platform/CONTRACTS-AND-OPERATIONS.md";
 };
-
-export declare const pluginDevelopmentCapability: HostCapabilityDefinition<PluginDevelopmentInput, PluginDevelopmentResult>;

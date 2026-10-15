@@ -1,4 +1,4 @@
-import { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { randomUUID } from "node:crypto";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { FeedGoalLinks } from "./goal-links.js";
@@ -55,7 +55,6 @@ export interface FeedModuleOptions {
   eventSink?: (event: FeedJournalEvent) => void;
 }
 
-export { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
 
 /** The Feed tables, as one current schema; the host composes them into the project database baseline. */
 export const FEED_SCHEMA_SQL = `
@@ -201,7 +200,7 @@ export class FeedModule implements FeedApi {
     const row = this.db.prepare(
       "SELECT * FROM feed_items WHERE project_id = ? AND item_id = ?",
     ).get(projectId, itemId) as Row | undefined;
-    if (!row) throw new FeedError("feed_item_not_found", "找不到这个 Feed Item");
+    if (!row) throw feedErrors.item_not_found("找不到这个 Feed Item");
     const materials = (this.db.prepare(`
       SELECT * FROM feed_materials
       WHERE project_id = ? AND item_id = ? ORDER BY updated_at DESC, material_id
@@ -431,7 +430,7 @@ export class FeedModule implements FeedApi {
     return this.db.transaction(() => {
       const current = this.get(projectId, itemId);
       if (expectedRevision != null && expectedRevision !== current.revision) {
-        throw new FeedError("feed_revision_conflict", "这条 Item 已经变化，请刷新后重试");
+        throw feedErrors.revision_conflict("这条 Item 已经变化，请刷新后重试");
       }
       if (current.disposition === disposition) {
         if (disposition === "inbox") this.openManualAttention(projectId, itemId);
@@ -439,7 +438,7 @@ export class FeedModule implements FeedApi {
       }
       // An ignored item is brought back by restore, never by admitting it to the Inbox or by another disposition.
       if (current.disposition === "archived") {
-        throw new FeedError("feed_invalid_transition", "请先恢复这条已忽略的 Feed Item");
+        throw feedErrors.invalid_transition("请先恢复这条已忽略的 Feed Item");
       }
       if (disposition === "inbox") {
         this.openManualAttention(projectId, itemId);
@@ -473,7 +472,7 @@ export class FeedModule implements FeedApi {
     return this.db.transaction(() => {
       const current = this.get(projectId, itemId);
       if (expectedRevision != null && expectedRevision !== current.revision) {
-        throw new FeedError("feed_revision_conflict", "这条 Item 已经变化，请刷新后重试");
+        throw feedErrors.revision_conflict("这条 Item 已经变化，请刷新后重试");
       }
       if (current.disposition !== "archived") return current;
       const at = this.now().toISOString();
@@ -527,7 +526,7 @@ export class FeedModule implements FeedApi {
     return this.db.transaction(() => {
       const current = this.get(projectId, itemId);
       if (current.disposition === "archived") {
-        throw new FeedError("feed_invalid_transition", "请先恢复这条已忽略的 Feed Item");
+        throw feedErrors.invalid_transition("请先恢复这条已忽略的 Feed Item");
       }
       if (current.linked_goal_id === goalId && current.disposition === disposition) return current;
       const at = this.now().toISOString();

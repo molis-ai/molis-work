@@ -53,7 +53,7 @@ test("document import reads only the selected account, preserves provenance and 
       const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
       beforeSave = async () => { entered.resolve(); await release.promise; };
       const pending = importLocalArtifactDocument({ ...input, connection_id: a!.connection_id }, guardedPorts);
-      const rejected = assert.rejects(pending, { code: "document.connection_revoked" });
+      const rejected = assert.rejects(pending, { code: "artifacts.document.connection_revoked" });
       try {
         await entered.promise;
         withConnectorConnections(home, store => store.disconnect(a!.connection_id));
@@ -65,7 +65,7 @@ test("document import reads only the selected account, preserves provenance and 
       revokeAtMetadata = true;
       revoke = () => withConnectorConnections(home, store => store.disconnect(c.connection_id));
       const count = calls.length;
-      await assert.rejects(importLocalArtifactDocument({ ...input, connection_id: c.connection_id }, guardedPorts), { code: "document.connection_revoked" });
+      await assert.rejects(importLocalArtifactDocument({ ...input, connection_id: c.connection_id }, guardedPorts), { code: "artifacts.document.connection_revoked" });
       assert.equal(calls.length, count + 1, "disconnect after metadata prevents the following body request");
       assert.deepEqual(artifacts.query.listArtifacts("board"), before);
     });

@@ -1,11 +1,11 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkV1Error, handleGoalEventDecisionHttp, hostEventDecisionAuthority, GOALS_ACTIONS, GOALS_PLUGIN_ID, goalsActions, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
+import { handleGoalEventDecisionHttp, hostEventDecisionAuthority, GOALS_ACTIONS, GOALS_PLUGIN_ID, goalsActions, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { bindGoalsManagementActions, bindGoalsWebActions } from "../apps/local-host/dist/goals-actions.js";
@@ -135,7 +135,7 @@ test("intent without agreement can record work but explicit complete does not ap
     });
     assert.equal(closed.recorded, true);
     assert.equal(closed.completion_applied, false);
-    assert.ok(closed.unmet_reasons.some((reason) => reason.code === "event_closure.missing_agreement"));
+    assert.ok(closed.unmet_reasons.some((reason) => reason.code === "goals.event_closure.missing_agreement"));
     const after = data.app.goalEvents.readState(BOARD, created.goal.goal_id);
     assert.equal(after.completion_effect, false);
     assert.equal(after.work_status, "open");
@@ -250,7 +250,7 @@ test("progress summary uses this Goal cursor, goes stale on new facts, and ignor
         project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "sum-future",
         based_on_cursor: cursor + 50, summary: "未来",
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_progress.future_cursor",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_progress.future_cursor",
     );
     const other = data.app.goalEvents.createIntent({
       project_id: BOARD, title: "另一个 Goal", actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "intent-other",
@@ -271,7 +271,7 @@ test("progress summary uses this Goal cursor, goes stale on new facts, and ignor
         project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "sum-foreign",
         based_on_cursor: otherReport.events[0]!.journal_seq, summary: "错用其他 Goal",
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_progress.cursor_not_on_goal",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_progress.cursor_not_on_goal",
     );
 
     const combinedGoal = data.app.goalEvents.createIntent({
@@ -298,7 +298,7 @@ test("progress summary uses this Goal cursor, goes stale on new facts, and ignor
         }],
         progress: { summary: "不同进展" },
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "request.idempotency_key_reused",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.request.idempotency_key_reused",
     );
     const beforeBad = data.app.goalEvents.listEvents(BOARD, combinedGoal, { limit: 100 }).events.length;
     assert.throws(
@@ -309,7 +309,7 @@ test("progress summary uses this Goal cursor, goes stale on new facts, and ignor
         }],
         progress: { summary: "坏字段", unexpected: true } as never,
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_report.unknown_progress_field",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_report.unknown_progress_field",
     );
     assert.equal(data.app.goalEvents.listEvents(BOARD, combinedGoal, { limit: 100 }).events.length, beforeBad);
   } finally {
@@ -339,7 +339,7 @@ test("scoped concerns, trusted user decisions, reuse, and runtime forgery", () =
         project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "con-accept-runtime",
         action: "accept", concern_id: opened.concern.concern_id, reason: "Runtime 自行接受",
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_concern.accept_requires_user_decision",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_concern.accept_requires_user_decision",
     );
     const requested = data.app.goalEvents.requestDecision({
       project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "ask-1",
@@ -365,8 +365,8 @@ test("scoped concerns, trusted user decisions, reuse, and runtime forgery", () =
         accepts_requirements: true,
         scope: { requirement_ids: ["human-ok"] },
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && (
-        error.code === "event_decision.runtime_dialogue_not_user" || error.code === "event_decision.untrusted_actor"
+      (error: unknown) => error instanceof ActionError && (
+        error.code === "goals.event_decision.runtime_dialogue_not_user" || error.code === "goals.event_decision.untrusted_actor"
       ),
     );
     const decided = data.app.goalEvents.recordTrustedDecision({
@@ -399,7 +399,7 @@ test("scoped concerns, trusted user decisions, reuse, and runtime forgery", () =
         project_id: BOARD, goal_id: other.goal.goal_id, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "cite-cross",
         decision_id: decided.decision.decision_id,
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_decision.not_found",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_decision.not_found",
     );
     const followUp = reportSupport(data.app, goalId, "report-after-concern", "human-ok");
     const resolved = data.app.goalEvents.applyConcern({
@@ -495,7 +495,7 @@ test("cancel needs no fake evidence; ordinary reports do not resume; stale versi
       () => data.app.goalEvents.resumeWork({
         project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "resume-no-reason", reason: "   ",
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_resume.reason_required",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_resume.reason_required",
     );
     const resumed = data.app.goalEvents.resumeWork({
       project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "resume-1", reason: "明确继续",
@@ -510,14 +510,21 @@ test("cancel needs no fake evidence; ordinary reports do not resume; stale versi
       () => data.app.goalEvents.resumeWork({
         project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "resume-open", reason: "已在进行",
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_resume.already_open",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_resume.already_open",
     );
     assert.throws(
       () => data.app.goalEvents.submitClosure({
         project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "stale-close",
         kind: "complete", reason: "旧版本", expected_config_version: 0, expected_agreement_version: 0,
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_closure.stale_version",
+      (error: unknown) => {
+        // I3-01: stale closure is rejected before changing any completion facts.
+        assert.ok(error instanceof ActionError);
+        assert.equal(error.code, "goals.event_closure.stale_version");
+        assert.equal(error.kind, "conflict");
+        assert.deepEqual(error.details, { current_version: versions(data.app, goalId).expected_config_version, expected_version: 0 });
+        return true;
+      },
     );
     const first = data.app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "close-retry",
@@ -770,7 +777,7 @@ test("trusted rejection cannot accept a Concern; nonexistent events cannot overt
       action: "accept", concern_id: opened.concern.concern_id, reason: "尝试引用拒绝", cited_decision_id: rejected.decision.decision_id,
     }));
     assert.equal(accepted.accepted, false);
-    assert.equal((accepted as { code: string }).code, "event_concern.accept_requires_user_decision");
+    assert.equal((accepted as { code: string }).code, "goals.event_concern.accept_requires_user_decision");
     assert.equal(data.app.goalEvents.readState(BOARD, goalId).concerns[0]?.status, "open");
 
     const other = data.app.goalEvents.createIntent({
@@ -808,7 +815,7 @@ test("agreement CAS uses the version that changes; unrelated types keep a valid 
       ...versions(data.app, goalId), outcome: "第一个已保存的具体结果约定",
     }));
     assert.equal(unauthorized.accepted, false);
-    assert.equal((unauthorized as { code: string }).code, "event_agreement.unauthorized_change");
+    assert.equal((unauthorized as { code: string }).code, "goals.event_agreement.unauthorized_change");
     const first = data.app.goalEvents.setAgreement({
       project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "agree-1",
       ...versions(data.app, goalId), outcome: "第一个已保存的具体结果约定",
@@ -819,7 +826,19 @@ test("agreement CAS uses the version that changes; unrelated types keep a valid 
       expected_config_version: first.agreement.version, expected_agreement_version: 1, outcome: "仍基于旧版本的覆盖写入",
     }));
     assert.equal(second.accepted, false);
-    assert.equal((second as { code: string }).code, "event_agreement.stale_version");
+    assert.equal((second as { code: string }).code, "goals.event_agreement.stale_version");
+    // I3-01: inspect the public error itself as well as the existing failure summary.
+    assert.throws(() => data.app.goalEvents.setAgreement({
+      project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "agree-2",
+      expected_config_version: first.agreement.version, expected_agreement_version: 1, outcome: "仍基于旧版本的覆盖写入",
+    }), (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "goals.event_agreement.stale_version");
+      assert.equal(error.message, "当前约定版本已是 3，不能用期望版本 1 覆盖");
+      assert.equal(error.kind, "conflict");
+      assert.deepEqual(error.details, { current_version: 3, expected_version: 1 });
+      return true;
+    });
     assert.equal(data.app.goalEvents.readState(BOARD, goalId).agreement.outcome, "第一个已保存的具体结果约定");
 
     const decided = data.app.goalEvents.recordTrustedDecision({
@@ -899,7 +918,7 @@ test("complete then cancel then resume stays consistent; invalid kind has no wri
       kind: "not-a-valid-kind" as "complete", reason: "非法枚举必须拒绝", ...versions(data.app, invalid.goal.goal_id),
     }));
     assert.equal(bad.accepted, false);
-    assert.equal((bad as { code: string }).code, "event_closure.invalid_kind");
+    assert.equal((bad as { code: string }).code, "goals.event_closure.invalid_kind");
     assert.equal(data.app.goalEvents.listEvents(BOARD, invalid.goal.goal_id, { limit: 100 }).events.length, before);
     assert.equal(data.app.goalEvents.readState(BOARD, invalid.goal.goal_id).work_status, "open");
   } finally {
@@ -939,12 +958,12 @@ test("closure keeps depends_on, human_approval, completion risk, pending decisio
     }, { actor_id: "user-1", idempotency_key: "rel-dep" });
     const blockedDep = close("dependent");
     assert.equal(blockedDep.completion_applied, false);
-    assert.ok(blockedDep.unmet_reasons.some((reason) => reason.code === "event_closure.open_dependency"));
+    assert.ok(blockedDep.unmet_reasons.some((reason) => reason.code === "goals.event_closure.open_dependency"));
 
     make("human-policy", "hp", { human_decision_required: true });
     const blockedPolicy = close("human-policy");
     assert.equal(blockedPolicy.completion_applied, false);
-    assert.ok(blockedPolicy.unmet_reasons.some((reason) => reason.code === "event_closure.human_decision_required"));
+    assert.ok(blockedPolicy.unmet_reasons.some((reason) => reason.code === "goals.event_closure.human_decision_required"));
 
     make("risk-gate", "rk");
     data.app.goalEvents.applyConcern({
@@ -955,13 +974,13 @@ test("closure keeps depends_on, human_approval, completion risk, pending decisio
     });
     const blockedRisk = close("risk-gate");
     assert.equal(blockedRisk.completion_applied, false);
-    assert.ok(blockedRisk.unmet_reasons.some((reason) => reason.code === "event_closure.blocking_concern"));
+    assert.ok(blockedRisk.unmet_reasons.some((reason) => reason.code === "goals.event_closure.blocking_concern"));
 
     make("missing-result", "mr");
     const emptyResult = close("missing-result", { result: undefined });
     assert.equal(emptyResult.completion_applied, false);
     assert.equal(emptyResult.closure.result, null);
-    assert.ok(emptyResult.unmet_reasons.some((reason) => reason.code === "event_closure.missing_result"));
+    assert.ok(emptyResult.unmet_reasons.some((reason) => reason.code === "goals.event_closure.missing_result"));
 
     make("pending", "pd");
     data.app.goalEvents.requestDecision({
@@ -977,7 +996,7 @@ test("closure keeps depends_on, human_approval, completion risk, pending decisio
     const blockedPending = close("pending");
     assert.equal(data.app.goalEvents.readState(BOARD, "pending").pending_decisions.length, 1);
     assert.equal(blockedPending.completion_applied, false);
-    assert.ok(blockedPending.unmet_reasons.some((reason) => reason.code === "event_closure.pending_decision"));
+    assert.ok(blockedPending.unmet_reasons.some((reason) => reason.code === "goals.event_closure.pending_decision"));
   } finally {
     close(data);
   }
@@ -1078,7 +1097,7 @@ test("later rejection and human-requirement counter-evidence update current comp
       reason: "检查收尾边界", ...versions(data.app, "human-counter"),
     });
     assert.equal(reclosed.completion_applied, false);
-    assert.ok(reclosed.unmet_reasons.some((reason) => reason.code === "event_closure.human_decision_required"));
+    assert.ok(reclosed.unmet_reasons.some((reason) => reason.code === "goals.event_closure.human_decision_required"));
   } finally {
     close(data);
   }
@@ -1156,7 +1175,7 @@ test("explicit effects are the unique decision input and stay inside declared sc
       scope: { requirement_ids: ["fx-req"] },
     }));
     assert.equal(conflict.accepted, false);
-    assert.equal((conflict as { code: string }).code, "event_decision.effect_conflict");
+    assert.equal((conflict as { code: string }).code, "goals.event_decision.effect_conflict");
 
     const mismatched = data.app.goalEvents.createIntent({
       project_id: BOARD, title: "范围越权", outcome: "可回读", actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "intent-scope-fx",
@@ -1171,7 +1190,7 @@ test("explicit effects are the unique decision input and stay inside declared sc
       scope: { action: "release" },
     }));
     assert.equal(scoped.accepted, false);
-    assert.equal((scoped as { code: string }).code, "event_decision.effect_scope_mismatch");
+    assert.equal((scoped as { code: string }).code, "goals.event_decision.effect_scope_mismatch");
     assert.equal(data.app.goalEvents.listEvents(BOARD, mismatched.goal.goal_id, { limit: 100 }).events.length, before);
   } finally {
     close(data);
@@ -1227,7 +1246,7 @@ test("later comparable decision is current; old cite cannot undo a later rejecti
       decision_id: accepted.decision.decision_id, scope: { requirement_ids: ["later-req"] },
     }));
     assert.equal(cited.accepted, false);
-    assert.equal((cited as { code: string }).code, "event_decision.superseded");
+    assert.equal((cited as { code: string }).code, "goals.event_decision.superseded");
     assert.equal(data.app.goalEvents.readState(BOARD, goalId).requirements[0]?.user_conclusion?.verdict, "rejected");
     const history = data.app.goalEvents.readState(BOARD, goalId).applied_decisions;
     assert.ok(history.some((item) => item.decision_id === accepted.decision.decision_id));
@@ -1347,7 +1366,7 @@ test("replacing a non-empty draft outcome needs a specific cited change; user ap
       outcome: "只要展示一个购买按钮即可",
     }));
     assert.equal(denied.accepted, false);
-    assert.equal((denied as { code: string }).code, "event_agreement.unauthorized_change");
+    assert.equal((denied as { code: string }).code, "goals.event_agreement.unauthorized_change");
     assert.equal(data.app.goalEvents.readState(BOARD, goalId).completion_effect, true);
     assert.equal(data.app.goalEvents.readState(BOARD, goalId).observed_event_cursor, beforeCursor);
     const requested = data.app.goalEvents.requestDecision({
@@ -1419,7 +1438,7 @@ test("close without agreement version is rejected; human extra unknown after acc
       expected_config_version: 1,
     } as never));
     assert.equal(omitted.accepted, false);
-    assert.equal((omitted as { code: string }).code, "event_closure.expected_agreement_version_required");
+    assert.equal((omitted as { code: string }).code, "goals.event_closure.expected_agreement_version_required");
     const supportedOnly = data.app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "close-support-only", kind: "complete", reason: "只有报告", result: "已确认",
@@ -1512,7 +1531,7 @@ test("requirement acceptance pending blocks close; suggestion does not; revise e
       ...versions(data.app, waitingId),
     });
     assert.equal(blocked.completion_applied, false);
-    assert.ok(blocked.unmet_reasons.some((reason) => reason.code === "event_closure.pending_decision"));
+    assert.ok(blocked.unmet_reasons.some((reason) => reason.code === "goals.event_closure.pending_decision"));
 
     const other = data.app.goalEvents.createIntent({
       project_id: BOARD, title: "修订范围", outcome: "两段都可用",
@@ -1545,7 +1564,7 @@ test("requirement acceptance pending blocks close; suggestion does not; revise e
       idempotency_key: "agree-empty", ...versions(data.app, otherId), outcome: "两段都可用",
     }));
     assert.equal(empty.accepted, false);
-    assert.equal((empty as { code: string }).code, "event_agreement.no_changes");
+    assert.equal((empty as { code: string }).code, "goals.event_agreement.no_changes");
     data.app.goalEvents.setAgreement({
       project_id: BOARD, goal_id: otherId, actor_id: "web-user", actor_kind: "user",
       idempotency_key: "agree-revise", ...versions(data.app, otherId),
@@ -1632,7 +1651,7 @@ test("stale agreement_change approval is rejected after related commitment chang
       effects: [{ kind: "authorize_agreement_change" }],
     }));
     assert.equal(stale.accepted, false);
-    assert.equal((stale as { code: string }).code, "event_decision.stale_commitment");
+    assert.equal((stale as { code: string }).code, "goals.event_decision.stale_commitment");
     assert.match((stale as { message: string }).message, /变化|变更|匹配|过期|基线/);
     const afterApprove = data.app.goalEvents.readState(BOARD, goalId);
     assert.equal(afterApprove.observed_event_cursor, beforeApprove.observed_event_cursor);
@@ -1644,7 +1663,7 @@ test("stale agreement_change approval is rejected after related commitment chang
       retire_requirement_ids: ["r-five"],
     }));
     assert.equal(retireDenied.accepted, false);
-    assert.equal((retireDenied as { code: string }).code, "event_agreement.unauthorized_change");
+    assert.equal((retireDenied as { code: string }).code, "goals.event_agreement.unauthorized_change");
   } finally {
     close(data);
   }
@@ -1723,7 +1742,7 @@ test("revoked concern acceptance cannot unblock, while a current matching approv
       reason: "风险还没接受", ...versions(data.app, "valid-concern"),
     });
     assert.equal(blocked.completion_applied, false);
-    assert.ok(blocked.unmet_reasons.some((reason) => reason.code === "event_closure.blocking_concern"));
+    assert.ok(blocked.unmet_reasons.some((reason) => reason.code === "goals.event_closure.blocking_concern"));
     const decided = concernDecision(
       data.app, "valid-concern", "dec-valid-concern", opened.concern.concern_id, "accept_concerns",
       { concern_ids: [opened.concern.concern_id] },
@@ -1773,7 +1792,7 @@ test("revoked concern acceptance cannot unblock, while a current matching approv
       idempotency_key: "cite-revoked-concern", decision_id: approved.decision.decision_id,
     }));
     assert.equal(cited.accepted, false);
-    assert.equal((cited as { code: string }).code, "event_decision.superseded");
+    assert.equal((cited as { code: string }).code, "goals.event_decision.superseded");
     const beforeReuse = eventCount(data.app, "revoked-concern");
     const reused = attempt(() => data.app.goalEvents.applyConcern({
       project_id: BOARD, goal_id: "revoked-concern", actor_id: "runtime-1", actor_kind: "runtime",
@@ -1781,14 +1800,14 @@ test("revoked concern acceptance cannot unblock, while a current matching approv
       reason: "沿用已经被撤回的批准", cited_decision_id: approved.decision.decision_id,
     }));
     assert.equal(reused.accepted, false);
-    assert.equal((reused as { code: string }).code, "event_decision.superseded");
+    assert.equal((reused as { code: string }).code, "goals.event_decision.superseded");
     const repeated = attempt(() => data.app.goalEvents.applyConcern({
       project_id: BOARD, goal_id: "revoked-concern", actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "accept-revoked-concern", action: "accept", concern_id: risk.concern.concern_id,
       reason: "沿用已经被撤回的批准", cited_decision_id: approved.decision.decision_id,
     }));
     assert.equal(repeated.accepted, false);
-    assert.equal((repeated as { code: string }).code, "event_decision.superseded");
+    assert.equal((repeated as { code: string }).code, "goals.event_decision.superseded");
     assert.equal(eventCount(data.app, "revoked-concern"), beforeReuse);
     assert.equal(operationCount(data.app, "revoked-concern", "concern_accepted"), 0);
     const stillBlocked = data.app.goalEvents.submitClosure({
@@ -1797,7 +1816,7 @@ test("revoked concern acceptance cannot unblock, while a current matching approv
       reason: "旧批准不能解除阻塞", ...versions(data.app, "revoked-concern"),
     });
     assert.equal(stillBlocked.completion_applied, false);
-    assert.ok(stillBlocked.unmet_reasons.some((reason) => reason.code === "event_closure.blocking_concern"));
+    assert.ok(stillBlocked.unmet_reasons.some((reason) => reason.code === "goals.event_closure.blocking_concern"));
     const revokedState = data.app.goalEvents.readState(BOARD, "revoked-concern");
     const concern = revokedState.concerns.find((item) => item.concern_id === risk.concern.concern_id);
     assert.equal(concern?.status, "open");
@@ -1842,7 +1861,7 @@ test("changed commitment or uncovered scope cannot reuse a concern approval", ()
       scope: { requirement_ids: ["promise-req"], concern_ids: [opened.concern.concern_id] },
     }));
     assert.equal(staleCite.accepted, false);
-    assert.equal((staleCite as { code: string }).code, "event_decision.stale_commitment");
+    assert.equal((staleCite as { code: string }).code, "goals.event_decision.stale_commitment");
     const beforeAccept = eventCount(data.app, "stale-concern");
     const staleAccept = attempt(() => data.app.goalEvents.applyConcern({
       project_id: BOARD, goal_id: "stale-concern", actor_id: "runtime-1", actor_kind: "runtime",
@@ -1850,7 +1869,7 @@ test("changed commitment or uncovered scope cannot reuse a concern approval", ()
       reason: "旧承诺上的批准", cited_decision_id: decided.decision.decision_id,
     }));
     assert.equal(staleAccept.accepted, false);
-    assert.equal((staleAccept as { code: string }).code, "event_decision.stale_commitment");
+    assert.equal((staleAccept as { code: string }).code, "goals.event_decision.stale_commitment");
     assert.equal(eventCount(data.app, "stale-concern"), beforeAccept);
     assert.equal(operationCount(data.app, "stale-concern", "concern_accepted"), 0);
     const staleState = data.app.goalEvents.readState(BOARD, "stale-concern");
@@ -1862,7 +1881,7 @@ test("changed commitment or uncovered scope cannot reuse a concern approval", ()
       reason: "承诺变化后的旧批准不能解除阻塞", ...versions(data.app, "stale-concern"),
     });
     assert.equal(stillBlocked.completion_applied, false);
-    assert.ok(stillBlocked.unmet_reasons.some((reason) => reason.code === "event_closure.blocking_concern"));
+    assert.ok(stillBlocked.unmet_reasons.some((reason) => reason.code === "goals.event_closure.blocking_concern"));
 
     readyGoal(data.app, "scope-concern", "scope-req");
     const covered = openBlockingConcern(data.app, "scope-concern", "open-scope-covered", {
@@ -1880,14 +1899,14 @@ test("changed commitment or uncovered scope cannot reuse a concern approval", ()
       reason: "把别的 Concern 的批准拿来用", cited_decision_id: scoped.decision.decision_id,
     }));
     assert.equal(mismatched.accepted, false);
-    assert.equal((mismatched as { code: string }).code, "event_concern.accept_requires_user_decision");
+    assert.equal((mismatched as { code: string }).code, "goals.event_concern.accept_requires_user_decision");
     const widened = attempt(() => data.app.goalEvents.citeDecision({
       project_id: BOARD, goal_id: "scope-concern", actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "cite-scope-widened", decision_id: scoped.decision.decision_id,
       scope: { requirement_ids: ["scope-req"], concern_ids: [covered.concern.concern_id, uncovered.concern.concern_id], action: "complete" },
     }));
     assert.equal(widened.accepted, false);
-    assert.equal((widened as { code: string }).code, "event_decision.scope_expanded");
+    assert.equal((widened as { code: string }).code, "goals.event_decision.scope_expanded");
     assert.equal(eventCount(data.app, "scope-concern"), beforeScope);
     const matched = data.app.goalEvents.applyConcern({
       project_id: BOARD, goal_id: "scope-concern", actor_id: "runtime-1", actor_kind: "runtime",
@@ -1904,7 +1923,7 @@ test("changed commitment or uncovered scope cannot reuse a concern approval", ()
       reason: "未覆盖的 Concern 仍阻塞", ...versions(data.app, "scope-concern"),
     });
     assert.equal(scopeBlocked.completion_applied, false);
-    assert.ok(scopeBlocked.unmet_reasons.some((reason) => reason.code === "event_closure.blocking_concern"));
+    assert.ok(scopeBlocked.unmet_reasons.some((reason) => reason.code === "goals.event_closure.blocking_concern"));
   } finally {
     close(data);
   }
@@ -2069,8 +2088,8 @@ test("project human-approval policy blocks completion until a current user autho
       reason: "工作事实已经支持，但项目规则还要你点头", ...versions(data.app, goalId),
     });
     assert.equal(blocked.completion_applied, false);
-    assert.ok(blocked.unmet_reasons.some((reason) => reason.code === "event_closure.human_approval_required"));
-    assert.equal(blocked.unmet_reasons.some((reason) => reason.code === "event_closure.human_decision_required"), false);
+    assert.ok(blocked.unmet_reasons.some((reason) => reason.code === "goals.event_closure.human_approval_required"));
+    assert.equal(blocked.unmet_reasons.some((reason) => reason.code === "goals.event_closure.human_decision_required"), false);
     data.app.goalEvents.recordTrustedDecision({
       project_id: BOARD, goal_id: goalId, idempotency_key: "allow-approval-policy",
       authority: hostEventDecisionAuthority("management", BOARD, "review-user", "allow-approval-policy"),
@@ -2089,7 +2108,7 @@ test("project human-approval policy blocks completion until a current user autho
   }
 });
 
-const APPROVAL_REQUIRED = "event_closure.human_approval_required";
+const APPROVAL_REQUIRED = "goals.event_closure.human_approval_required";
 
 function requireProjectApproval(app: GoalProjectApplication, key: string) {
   app.goals.commands.saveProjectPolicy({
@@ -2451,7 +2470,7 @@ test("a decision about completing that names one requirement is reused on that r
     changeAgreement(data.app, goalId, "revise-named-reuse-first", PERSON, { revise_requirements: [{ requirement_id: "named-reuse-first", statement: "改写的第一条要求" }] });
     const stale = cite("cite-named-reuse-after-first");
     assert.equal(stale.accepted, false);
-    assert.equal((stale as { code: string }).code, "event_decision.stale_commitment");
+    assert.equal((stale as { code: string }).code, "goals.event_decision.stale_commitment");
   } finally {
     close(data);
   }
@@ -2473,7 +2492,7 @@ test("under the project human-approval rule an authorization given for the curre
     reportSupport(data.app, goalId, "rep-standing-against", "standing-approval-new", "contradicts");
     const held = tryComplete(data.app, goalId, "close-standing-held", RUNTIME);
     assert.equal(held.completion_applied, false);
-    assert.deepEqual(reasonCodes(held), ["event_closure.requirement_unsupported"]);
+    assert.deepEqual(reasonCodes(held), ["goals.event_closure.requirement_unsupported"]);
     reportSupport(data.app, goalId, "rep-standing-again", "standing-approval-new");
     assert.equal(tryComplete(data.app, goalId, "close-standing", RUNTIME).completion_applied, true);
   } finally {
@@ -2689,7 +2708,7 @@ test("an acceptance of one requirement is reused on that requirement, not on the
       changeAgreement(data.app, goalId, "revise-accepted-reuse-first", PERSON, { revise_requirements: [{ requirement_id: "accepted-reuse-first", statement: "改写的第一条要求" }] });
       const stale = cite("cite-accepted-reuse-after-first");
       assert.equal(stale.accepted, false, how);
-      assert.equal((stale as { code: string }).code, "event_decision.stale_commitment", how);
+      assert.equal((stale as { code: string }).code, "goals.event_decision.stale_commitment", how);
     } finally {
       close(data);
     }
@@ -2933,7 +2952,7 @@ test("under the project human-approval rule an acceptance given for the current 
       reportSupport(data.app, goalId, "rep-accepted-standing-against", "accepted-standing-second", "contradicts");
       const held = tryComplete(data.app, goalId, "close-accepted-standing-held", RUNTIME);
       assert.equal(held.completion_applied, false, how);
-      assert.deepEqual(reasonCodes(held), ["event_closure.requirement_unsupported"], how);
+      assert.deepEqual(reasonCodes(held), ["goals.event_closure.requirement_unsupported"], how);
       reportSupport(data.app, goalId, "rep-accepted-standing-again", "accepted-standing-second");
       assert.equal(tryComplete(data.app, goalId, "close-accepted-standing", RUNTIME).completion_applied, true, how);
     } finally {
@@ -2985,7 +3004,7 @@ test("under the project human-approval rule a requirement that needs the person'
     authorizeComplete(data.app, goalId, "allow-human-requirement");
     const authorized = tryComplete(data.app, goalId, "close-human-requirement-authorized", RUNTIME);
     assert.equal(authorized.completion_applied, false);
-    assert.deepEqual(reasonCodes(authorized), ["event_closure.human_decision_required"]);
+    assert.deepEqual(reasonCodes(authorized), ["goals.event_closure.human_decision_required"]);
     const accepted = acceptRequirements(data.app, goalId, "accept-human-requirement", [requirementId], ACCEPT_ONLY[0]);
     assert.equal(tryComplete(data.app, goalId, "close-human-requirement", RUNTIME).completion_applied, true);
 
@@ -3025,7 +3044,7 @@ test("without the project rule an acceptance of a requirement is not limited to 
     configure(data.app, goalId, "cfg-unruled", { new_requirements: [{ requirement_id: requirementId, statement: "要人验收的要求", human_decision_required: true }] });
     reportSupport(data.app, goalId, "rep-unruled", requirementId);
     // Without the rule the requirement's own acceptance is all it takes, as it always was.
-    assert.deepEqual(reasonCodes(tryComplete(data.app, goalId, "close-unruled-before", RUNTIME)), ["event_closure.human_decision_required"]);
+    assert.deepEqual(reasonCodes(tryComplete(data.app, goalId, "close-unruled-before", RUNTIME)), ["goals.event_closure.human_decision_required"]);
     acceptRequirements(data.app, goalId, "accept-unruled", [requirementId], ACCEPT_ONLY[0]);
     assert.equal(tryComplete(data.app, goalId, "close-unruled", RUNTIME).completion_applied, true);
     resumeGoal(data.app, goalId, "resume-unruled");
@@ -3071,7 +3090,7 @@ test("the management caller factory acts as the person on this machine, builds t
   seen.length = 0;
   for (const named of [{ actor_id: "someone-else" }, { actor_kind: "runtime" }, { authority_source: "web" }]) {
     await assert.rejects(management.invoke(goalsActions.decide, decision, { conversation_ref: "conversation://x", ...named }), { code: "goals.event_decision_authority_invalid" }, Object.keys(named).join());
-    await assert.rejects(management.invoke(goalsActions.treeDecide, { proposal_id: "p", idempotency_key: "k" }, { conversation_ref: "conversation://x", ...named }), { code: "goal_tree_proposal.authority_source_invalid" }, Object.keys(named).join());
+    await assert.rejects(management.invoke(goalsActions.treeDecide, { proposal_id: "p", idempotency_key: "k" }, { conversation_ref: "conversation://x", ...named }), { code: "goals.goal_tree_proposal.authority_source_invalid" }, Object.keys(named).join());
   }
   await assert.rejects(management.invoke(goalsActions.initialize, { title: "资料库", idempotency_key: "init" }, { conversation_ref: "conversation://x" }), { code: "actions.input_invalid" });
 
@@ -3093,4 +3112,26 @@ test("the management caller factory acts as the person on this machine, builds t
   // A read has no such rule here: its contract refuses what it does not know, so the call reaches the client.
   await management.invoke(goalsActions.treeRead, { actor_id: "x" } as never);
   assert.equal(seen.length, 1);
+});
+
+
+test("R-GOALS-OWNER-02: create-intent rejects unpermitted fields before facts or an idempotency receipt, then the same intent succeeds once", () => {
+  const data = fixture();
+  try {
+    const input = { project_id: BOARD, title: "合法意图", actor_id: "runtime-1", actor_kind: "runtime" as const, idempotency_key: "intent-owner-rejection" };
+    const before = data.store.snapshot(BOARD), events = data.store.readEventsDescending(BOARD);
+    const unpermitted = { ...input, injected_identity: "another-person" };
+    assert.throws(() => data.app.goalEvents.createIntent(unpermitted),
+      { code: "goals.intent.unexpected_field", kind: "invalid", message: "不能使用未许可字段：injected_identity", details: { fields: ["injected_identity"] } });
+    assert.deepEqual(data.store.snapshot(BOARD), before);
+    assert.deepEqual(data.store.readEventsDescending(BOARD), events);
+    const created = data.app.goalEvents.createIntent(input);
+    assert.equal(created.replayed, false);
+    const after = data.store.snapshot(BOARD), afterEvents = data.store.readEventsDescending(BOARD);
+    const replay = data.app.goalEvents.createIntent(input);
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.goal.goal_id, created.goal.goal_id);
+    assert.deepEqual(data.store.snapshot(BOARD), after);
+    assert.deepEqual(data.store.readEventsDescending(BOARD), afterEvents);
+  } finally { close(data); }
 });

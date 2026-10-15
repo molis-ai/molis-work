@@ -9,6 +9,7 @@ import { BrowserHost, type BrowserListener, type BrowserPage } from "../apps/loc
 import { createBrowserSurfaceDriver } from "../apps/local-host/dist/browser/surface-driver.js";
 import { locateBrowser } from "../apps/local-host/dist/browser/locate.js";
 import type { BrowserPageState } from "@molis-ai/molis-work-contracts/services/browser";
+import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 /*
  * The side panel's browser on a real local Chrome (specs/archive/side-panel P2, P5): what the person sees and drives, and what
@@ -50,6 +51,62 @@ const centre = async (page: BrowserPage, selector: string) => {
   const raw = await page.evaluate(`JSON.stringify((() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })())`);
   return JSON.parse(String(raw)) as { x: number; y: number };
 };
+
+test("R5B-01/03: real page and browser process crashes retain their distinct recovery controls", { timeout: 120_000 }, async t => {
+  const ui = await openGoalBrowser(t, true, undefined, null); if (!ui) return;
+  await ui.command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
+    const Native=window.WebSocket;window.browserRecoveryMessages=[];
+    window.WebSocket=class extends Native {constructor(...args){super(...args);if(String(args[0]).endsWith('/browser'))window.browserRecoverySocket=this;}
+      send(text){if(String(this.url).endsWith('/browser'))window.browserRecoveryMessages.push(JSON.parse(text));return super.send(text);}};
+  })();` }, ui.sessionId);
+  await ui.navigate(() => ui.command("Page.navigate", { url: `${ui.origin}/projects/${ui.projectId}/` }, ui.sessionId));
+  await ui.waitFor("window.browserRecoverySocket?.readyState===1 && document.querySelector('[data-browser]')");
+  await ui.click('[data-side-tab="browser"]');
+  await ui.waitFor("document.querySelector('[data-side-tab=browser]').getAttribute('aria-selected')==='true'");
+  const home = await mkdtemp(join(tmpdir(), "browser-recovery-owner-")), site = await serve();
+  const browsers = new BrowserHost({ homeDirectory: home });
+  const page = browsers.page("recovery");
+  const listener: BrowserListener = { state: () => undefined, frame: () => undefined };
+  let detach = () => {};
+  try {
+    detach = page.attach(listener, { width: 800, height: 600, dpr: 1 });
+    await until(() => page.snapshot().status, value => value === "ready", "owned page startup");
+    await page.navigate(site.origin);
+    await until(() => page.snapshot(), value => value.url.startsWith(site.origin) && !value.loading, "owned page loaded");
+    const running = await browsers.browser();
+    const targets = await running.cdp.send("Target.getTargets") as { targetInfos: Array<{ targetId: string }> };
+    const target = targets.targetInfos.find(row => page.owns(row.targetId)); assert.ok(target);
+    const attached = await running.cdp.send("Target.attachToTarget", { targetId: target.targetId, flatten: true }) as { sessionId: string };
+    const crashing = running.cdp.send("Page.crash", {}, attached.sessionId, 1_000).catch(() => undefined);
+    const crashed = await until(() => page.snapshot(), value => value.problem?.code === "browser.page_crashed", "real page crash");
+    await crashing;
+    assert.equal(crashed.status, "crashed");
+    const present = async (state: BrowserPageState, action: string) => {
+      await ui.evaluate(`window.browserRecoverySocket.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'state',state:${JSON.stringify(state)}})}))`);
+      await ui.waitFor(`document.querySelector('[data-browser-cover-copy] [data-browser-action="${action}"]')`);
+      await ui.evaluate("window.browserRecoveryMessages=[]");
+      await ui.click(`[data-browser-cover-copy] [data-browser-action="${action}"]`);
+      assert.equal(await ui.evaluate("window.browserRecoveryMessages.at(-1)?.type"), action, "the actual production click sends its recovery command");
+    };
+    await present(crashed, "reload");
+    assert.equal(await ui.evaluate("document.querySelector('[data-browser-cover-copy] [data-browser-action=restart]')"), null);
+    await page.reload();
+    await until(() => page.snapshot(), value => value.status === "ready" && value.url.startsWith(site.origin) && !value.loading, "page reload recovery");
+    assert.equal((await browsers.browser()).child.pid, running.child.pid, "page recovery retains its running browser");
+    assert.ok(running.child.pid); running.child.kill("SIGTERM");
+    const stopped = await until(() => page.snapshot(), value => value.problem?.code === "browser.crashed", "owned browser process exit");
+    assert.equal(stopped.status, "stopped");
+    await present(stopped, "restart");
+    assert.equal(await ui.evaluate("document.querySelector('[data-browser-cover-copy] [data-browser-action=reload]')"), null);
+    await browsers.restart();
+    await until(() => page.snapshot(), value => value.status === "ready" && value.url.startsWith(site.origin) && !value.loading, "browser restart recovery");
+    assert.notEqual((await browsers.browser()).child.pid, running.child.pid);
+  } finally {
+    detach(); await browsers.close();
+    await new Promise<void>(resolve => site.server.close(() => resolve()));
+    await rm(home, { recursive: true, force: true });
+  }
+});
 
 test("the side panel browser shows and drives a real page, and the Assistant's driver acts on the same page within its bounds", { skip: !locateBrowser() && "no Chrome-family browser on this machine", timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "side-panel-browser-"));
@@ -160,12 +217,15 @@ test("the side panel browser shows and drives a real page, and the Assistant's d
 
     // Only web addresses; never the local Host itself.
     await page.navigate("file:///etc/passwd");
-    assert.equal(state!.problem?.code, "page.blocked_scheme");
+    // R5B-01: the actual browser refuses non-Web schemes under its current owner code.
+    assert.equal(state!.problem?.code, "browser.blocked_scheme");
     await page.navigate(`${forbidden.origin}/`);
-    await until(() => state, value => !!value && !value.loading, "the blocked load to settle");
+    // Settled means the refusal is in: right after the navigation the previous state can still read "not loading" while the
+    // document is between pages (no body yet), which is how this failed on the Linux runner.
+    await until(() => state, value => !!value && !value.loading && value.problem?.code === "page.load_failed", "the blocked load to settle");
     assert.equal(await page.evaluate("document.body.innerText.includes('控制令牌在这里')"), false, "the forbidden origin's page never loaded");
     assert.notEqual(state!.title, "本机服务");
-    assert.equal(state!.problem?.code, "page.load_failed");
+    assert.equal(state!.problem?.code, "browser.load_failed");
 
     // A site the person blocked is not even looked at.
     const blocking = createBrowserSurfaceDriver(page, () => true);
@@ -216,6 +276,20 @@ test("sign-ins last: a site's cookies survive the browser closing, and a browser
   } finally {
     for (const host of hosts.reverse()) await host.close().catch(() => undefined);
     site.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("BROWERR-01/BROWERR-02: no installed browser refuses with its current code and original message", async () => {
+  const home = await mkdtemp(join(tmpdir(), "browser-no-engine-"));
+  const browsers = new BrowserHost({ homeDirectory: home, locate: () => null });
+  try {
+    await assert.rejects(browsers.browser(), {
+      code: "browser.not_found", kind: "invalid",
+      message: "没有找到可用的浏览器。请安装 Google Chrome（或 Chromium、Microsoft Edge），然后重试。",
+    });
+  } finally {
+    await browsers.close();
     await rm(home, { recursive: true, force: true });
   }
 });

@@ -145,7 +145,7 @@ test("closing a Chrome that obeys SIGTERM does not wait for the forced stop", as
   });
 });
 
-test("closing waits for the main process to exit, not for its stderr to close: a helper that keeps the pipe open does not delay it", async () => {
+test("closing waits for the main process to exit and only briefly for its stderr to close: a helper that keeps the pipe open delays it by half a second at most", async () => {
   await withFakeChrome("helper-holds-stderr", async ({ directory, executable, report }) => {
     const chrome = await launchHeadlessChrome({ executable, profileDirectory: join(directory, "profile") });
     const { pid, helperPid } = await report();
@@ -154,8 +154,8 @@ test("closing waits for the main process to exit, not for its stderr to close: a
       const started = Date.now();
       await chrome.close();
       const elapsed = Date.now() - started;
-      // Waiting for the pipe would take the helper's full four seconds.
-      assert.ok(elapsed < 900, `close() took ${elapsed} ms`);
+      // Waiting for the pipe would take the helper's full four seconds; closing gives the helpers 500 ms, then stops waiting.
+      assert.ok(elapsed >= 450 && elapsed < 1_400, `close() took ${elapsed} ms`);
       assert.equal(alive(pid), false);
       assert.ok(alive(helperPid), "the helper outlives close() and still holds the pipe");
     } finally {

@@ -127,7 +127,7 @@ test("choosing the account is the person's: an agent or MCP caller cannot, and t
   const f = alchemistFixture(directory);
   t.after(() => f.close());
   assert.deepEqual(await f.bound.invoke(a.pulseGithub, {}), { accounts: [], selectedConnectionId: null });
-  await assert.rejects(f.bound.invoke(a.pulseGithubSelect, { connectionId: null }), { code: "PULSE_GITHUB_UNAVAILABLE" });
+  await assert.rejects(f.bound.invoke(a.pulseGithubSelect, { connectionId: null }), { code: "alchemist.pulse_github_unavailable" });
   for (const audience of ["agent", "mcp", "workflow"] as const) {
     await assert.rejects(f.service.invoke({ ...f.caller, audience }, a.pulseGithub, {}), { code: "actions.forbidden" }, `${audience} cannot read the account list`);
     await assert.rejects(f.service.invoke({ ...f.caller, audience }, a.pulseGithubSelect, { connectionId: null }), { code: "actions.forbidden" }, `${audience} cannot choose the account`);

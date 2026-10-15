@@ -19,7 +19,6 @@ export {
   type ChangeSetSource,
 } from "./changeset.js";
 export {
-  UnifiedDiffError,
   countChangedLines,
   hunkRows,
   parseUnifiedDiff,

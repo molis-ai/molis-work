@@ -29,7 +29,7 @@ export class WatchaSource implements SourcePort {
       return sourceError(
         this.sourceId,
         WATCHA_URL,
-        error instanceof SourceHttpError ? error.code : "SOURCE_NETWORK_ERROR",
+        error instanceof SourceHttpError ? error.code : "alchemist.source_network_error",
       );
     }
     if (response.status < 200 || response.status >= 300) {
@@ -52,7 +52,7 @@ export class WatchaSource implements SourcePort {
         signals,
       };
     } catch {
-      return sourceError(this.sourceId, WATCHA_URL, "SOURCE_INVALID_RESPONSE", response);
+      return sourceError(this.sourceId, WATCHA_URL, "alchemist.source_invalid_response", response);
     }
   }
 }

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { catalogSchemaCompatibilityError, type MolisWorkProjectCatalog, type RuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
@@ -361,7 +362,7 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
             user_confirmed: false,
           }),
         (error: unknown) =>
-          error instanceof ActionError && error.code === "context.user_confirmation_required",
+          error instanceof ActionError && error.code === "work.context.user_confirmation_required",
       );
       const initial = catalog.bindRuntimeContext({
         context: codexEntry,
@@ -393,6 +394,8 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
         ],
       );
 
+      const bindingsBeforeRefusal = catalog.listRuntimeContextBindings();
+      const eventsBeforeRefusal = catalog.listRuntimeContextBindingEvents(codexEntry);
       assert.throws(
         () =>
           catalog.bindRuntimeContext({
@@ -401,9 +404,19 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
             actor_id: "runtime",
             user_confirmed: true,
           }),
-        (error: unknown) =>
-          error instanceof ActionError && error.code === "context.rebind_confirmation_required",
+        (error: unknown) => {
+          // BIND-01: the current explicit rebind refusal keeps its common transport status.
+          assert.ok(error instanceof ActionError);
+          assert.equal(error.code, "work.context.rebind_confirmation_required");
+          assert.equal(error.message, "这个 Runtime 工作入口已绑定其他项目；请在当前对话明确确认后再切换");
+          assert.equal(error.kind, "invalid");
+          assert.equal(actionHttpStatus(error), 400);
+          assert.equal(Object.hasOwn(error, "details"), false);
+          return true;
+        },
       );
+      assert.deepEqual(catalog.listRuntimeContextBindings(), bindingsBeforeRefusal);
+      assert.deepEqual(catalog.listRuntimeContextBindingEvents(codexEntry), eventsBeforeRefusal);
       assert.equal(catalog.resolveRuntimeContext(codexEntry).connection?.project_id, first.project_id);
       assert.equal(catalog.resolveRuntimeContext(claudeEntry).connection?.project_id, first.project_id);
 
@@ -484,9 +497,8 @@ test("canonical workspace routing supports symlinks, multiple project candidates
       assert.equal(initialMembership[0]?.workspace_name, "ordinary-project-directory");
 
       const aliasResolved = catalog.resolveRuntimeContext(aliasSession);
-      assert.equal(aliasResolved.status, "bound");
-      assert.equal(aliasResolved.project?.project_id, first.project_id);
-      assert.deepEqual(aliasResolved.suggested_projects, []);
+      assert.deepEqual([aliasResolved.status, aliasResolved.project, aliasResolved.connection], ["suggested", null, null]);
+      assert.deepEqual(aliasResolved.suggested_projects.map(item => item.project_id), [first.project_id]);
       assert.equal(
         aliasResolved.context.workspace?.workspace_id,
         initial.context.workspace?.workspace_id,
@@ -528,9 +540,10 @@ test("canonical workspace routing supports symlinks, multiple project candidates
         user_confirmed: true,
       });
       const needsChoice = catalog.resolveRuntimeContext(workspaceContext("generic", null, workspace));
-      assert.equal(needsChoice.status, "bound");
-      assert.equal(needsChoice.project?.project_id, first.project_id);
-      assert.deepEqual(needsChoice.suggested_projects, []);
+      assert.equal(needsChoice.status, "suggested");
+      assert.equal(needsChoice.project, null);
+      assert.equal(needsChoice.connection, null);
+      assert.deepEqual(needsChoice.suggested_projects.map(item => item.project_id), [first.project_id]);
 
       assert.equal(
         catalog.resolveRuntimeContext({
@@ -592,7 +605,7 @@ test("a fresh Runtime Session receives host suggestions but needs confirmation, 
             suggestion_clues: clues,
           }),
         (error: unknown) =>
-          error instanceof ActionError && error.code === "context.user_confirmation_required",
+          error instanceof ActionError && error.code === "work.context.user_confirmation_required",
       );
       const rejected = catalog.rejectRuntimeContextSuggestion({
         context: firstSession,
@@ -687,7 +700,7 @@ test("current Runtime can create and bind one new project without orphaning data
             idempotency_key: "create-current-runtime-project",
           }),
         (error: unknown) =>
-          error instanceof ActionError && error.code === "context.idempotency_conflict",
+          error instanceof ActionError && error.code === "work.context.idempotency_conflict",
       );
 
       await assert.rejects(
@@ -700,7 +713,7 @@ test("current Runtime can create and bind one new project without orphaning data
             idempotency_key: "create-without-rebind-confirmation",
           }),
         (error: unknown) =>
-          error instanceof ActionError && error.code === "context.rebind_confirmation_required",
+          error instanceof ActionError && error.code === "work.context.rebind_confirmation_required",
       );
       assert.equal(catalog.listProjects().length, 1);
 
@@ -718,7 +731,7 @@ test("current Runtime can create and bind one new project without orphaning data
             idempotency_key: "create-without-stable-context",
           }),
         (error: unknown) =>
-          error instanceof ActionError && error.code === "context.stable_identity_required",
+          error instanceof ActionError && error.code === "work.context.stable_identity_required",
       );
       assert.equal(catalog.listProjects().length, 1);
     } finally {
@@ -749,7 +762,7 @@ test("unbinding removes only the current Runtime entry and preserves the managed
             user_confirmed: false,
           }),
         (error: unknown) =>
-          error instanceof ActionError && error.code === "context.user_confirmation_required",
+          error instanceof ActionError && error.code === "work.context.user_confirmation_required",
       );
       assert.equal(catalog.resolveRuntimeContext(context).connection?.project_id, project.project_id);
 

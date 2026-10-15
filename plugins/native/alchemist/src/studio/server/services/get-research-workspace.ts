@@ -23,7 +23,7 @@ interface Dependencies {
 export function createGetResearchWorkspaceService(dependencies: Dependencies) {
   return async (ideaId: string, ideaVersion: number, signal?: AbortSignal): Promise<IdeaResearchWorkspaceDto> => {
     const version = dependencies.ideas.getVersion(ideaId, ideaVersion);
-    if (!version) throw new Error("IDEA_VERSION_NOT_FOUND");
+    if (!version) throw new Error("alchemist.idea_version_not_found");
     const scope = dependencies.research.getMvpScopeForIdeaVersion(ideaId, ideaVersion);
     const marketKey = marketLensCompatibilityKey(ideaId, ideaVersion);
     const costKey = scope ? buildLensCompatibilityKey(ideaId, ideaVersion, scope.version) : undefined;

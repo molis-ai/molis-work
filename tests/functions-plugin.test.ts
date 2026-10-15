@@ -37,7 +37,7 @@ import {
   hashChoiceConfig,
   hashFunctionConfig,
   openFunctionsStore,
-  readChoiceAnswer,
+  readAnswer,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
 import { FunctionsHttpRouteTable } from "../apps/local-host/dist/functions-http/routes.js";
@@ -357,10 +357,10 @@ test("route table lists, previews, publishes, and maps missing functions to 404"
 });
 
 test("TypeSafe choice answers with a null pick are needs_review, not a thrown error", () => {
-  const result = readChoiceAnswer({
+  const result = readAnswer({
     model: "jev-1.13.0",
     answers: { ticket_route: { type: "choice", choice: null, probabilities: { a: 0.5, b: 0.5 } } },
-  }, "ticket_route");
+  }, { primitive: "choice", function_key: "ticket_route", criteria: [{ key: "a", description: "A" }, { key: "b", description: "B" }] });
   assert.equal(result.choice, null);
   assert.equal(result.model, "jev-1.13.0");
 });
@@ -381,8 +381,8 @@ test("the rules page suggests behaviors by the real page rule: destination, vers
   assert.equal(script.split(from).length, 2, "start anchor appears exactly once");
   assert.equal(script.split(to).length, 2, "end anchor appears exactly once");
   const rule = script.slice(script.indexOf(from), script.indexOf(to));
-  const build = (selected: Record<string, unknown> | undefined, catalog: FunctionAuthoringCatalog) => new Function("L", "catalog", "selected", "selectedDestId",
-    rule + "\nreturn { suggestedBehaviors, destOf };")((value: string) => value, catalog, selected, () => selected?.scene_id ?? "") as {
+  const build = (selected: Record<string, unknown> | undefined, catalog: FunctionAuthoringCatalog) => new Function("L", "cat", "sel", "destKey",
+    rule + "\nreturn { suggestedBehaviors: hints, destOf };")((value: string) => value, catalog, selected, () => selected?.scene_id ?? "") as {
     suggestedBehaviors: (destinationId: string, kinds: string[]) => { behavior_id: string; title: string; action_ref?: { capability_id: string } }[];
     destOf: (id: string) => { behavior_ids: string[] } | null;
   };
@@ -421,27 +421,28 @@ test("the rules page suggests behaviors by the real page rule: destination, vers
 });
 
 test("Functions client clears leftover preview text when switching records and hides Noul section chrome", () => {
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const switching = selected\?\.id !== record\.id/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const switching = sel\?\.id !== rec\.id/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions\/catalog/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-destination/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-source/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /agent\.mcp/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /if \(switching\) previewInput\.value = record\.last_preview\?\.input \|\| ""/);
+  // The preview box ([data-functions-preview-input]) is sampleText in the client.
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /if \(switching\) sampleText\.value = rec\.last_preview\?\.input \|\| ""/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaHead\.hidden = kind === "noul"/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /addChoiceRow/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const addChoice = \(key, description\) =>/); // the choice rows (shortened from addChoiceRow, fa63ade24)
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /scene_map/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-map/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /select\.className = "mw-select"/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /select\.className = "mw-input"/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /suggestedBehaviors/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaFollowContext/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /syncCriteriaPanel/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const hints =/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const followContext =/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const syncPanel = \(\) =>/); // the criteria panel sync (shortened from syncCriteriaPanel, fa63ade24)
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /matchesSubjects/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /if \(event\.target\.matches\("\[data-functions-source\]"\)\)/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /syncCriteriaPanel\(\);/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /syncPanel\(\);/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaForDestination/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /subject_kinds: dest\?\.subject_kinds/);
-  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /selected = record;\s*records = records\.some/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /sel = rec;\s*records = records\.some/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/inbox\/judgment|\/api\/home\/dock-judgment/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /row\.project_id \? " · " \+ row\.project_id/);
 });
@@ -457,8 +458,8 @@ test("system judgment editor and connection settings render without plugin contr
   assert.doesNotMatch(stage, /mw-btn--secondary"[^>]*data-functions-new/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /plugin-stage-kind/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /kindChip\(record\.primitive \|\| "choice"/);
-  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /kind \+ " · " \+ record\.function_key/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /kindChip\(rec\.primitive \|\| "choice"/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /kind \+ " · " \+ rec\.function_key/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /mw-status--plain feed-entry-status/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /className = "functions-row/);
   assert.match(stage, /data-functions-destinations/);

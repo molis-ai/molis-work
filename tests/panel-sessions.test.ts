@@ -74,7 +74,7 @@ test("a binding whose Runtime Session already belongs to another project is refu
     const [one, two] = [await catalog.createProject({ display_name: "一", actor_id: "user" }), await catalog.createProject({ display_name: "二", actor_id: "user" })];
     const bound = registry.recordBindingSession({ runtime_id: "claude-code", stable_work_context_id: "claude-a", project_id: one.project_id, bound_by: "user" });
     assert.throws(() => registry.recordBindingSession({ runtime_id: "claude-code", stable_work_context_id: "claude-a", project_id: two.project_id, bound_by: "user" }),
-      (error: unknown) => (error as { code?: string }).code === "session.identity_conflict");
+      (error: unknown) => (error as { code?: string }).code === "work.session.identity_conflict");
     assert.deepEqual(registry.list().map((session) => [session.session_id, session.project_id]), [[bound.session_id, one.project_id]]);
   } finally {
     registry.close();

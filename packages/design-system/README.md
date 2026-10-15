@@ -27,7 +27,7 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 
 控件标本：开发预览打开 `/__ui/catalog`（不进用户导航），真实底栏标本在 `/__ui/catalog/bar`。变体、状态、浅深色、密度、打开后的菜单、组合（列表+详情、工具栏+筛选、带错误的表单、对话框里的菜单、长内容嵌套滚动、窄屏与密度）和动效以组件板为准，不要在业务 CSS 里重画一套。改共享控件必须先看这块板。已经达到产品美学要求的共享控件、状态变体或微动效要补进 `src/primitives/catalog.ts`；草稿和产品专属编排不必塞进去，但进产品主链前不得带着系统下拉等 OS 控件。
 
-页面仍注入 `THEME_BOOTSTRAP_SCRIPT`、`VISUAL_FOUNDATION_STYLES`（含 `PRIMITIVE_STYLES`）、`TYPEFACE_STYLES` 和 `renderIconSprite()`。三张产品表在 [apps/workbench/src/page-assets.ts](../../apps/workbench/src/page-assets.ts) 再把 Coss / Primitive / Typeface 挂到页面 CSS 之后，最后接 `CRAFT_FINISH_STYLES`（Soft Workbench 终层），让 `mw-*` 和终层盖住中间插入的产品规则。对照装配入口 [apps/workbench/src/renderer.ts](../../apps/workbench/src/renderer.ts)。
+页面仍注入 `THEME_BOOTSTRAP_SCRIPT`、基础样式、`TYPEFACE_STYLES` 和 `renderIconSprite()`。规格板等独立消费者使用完整的 `VISUAL_FOUNDATION_STYLES`（含 Coss / Primitive）；三张产品表在 [apps/workbench/src/page-assets.ts](../../apps/workbench/src/page-assets.ts) 使用不含这两层的 `VISUAL_FOUNDATION_PAGE_STYLES`，只在原来的页面 CSS 末尾覆盖位置装配一次 Coss / Primitive / Typeface，最后接 `CRAFT_FINISH_STYLES`（Soft Workbench 终层），让 `mw-*` 和终层盖住中间插入的产品规则。对照装配入口 [apps/workbench/src/renderer.ts](../../apps/workbench/src/renderer.ts)。
 
 ## 文件
 
@@ -83,10 +83,12 @@ node scripts/run-tests.mjs tests/primitives.test.ts tests/visual-foundation.test
 隔离预览（不要动用户 4180）：
 
 ```bash
-node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home "$HOME/.molis-work"
+node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home /tmp/molis-ui-catalog-isolated-home
 ```
 
-然后打开 `http://127.0.0.1:4182/__ui/catalog`。
+然后打开 `http://127.0.0.1:4182/__ui/catalog`。这里使用专用临时 Home，换端口不会隔离真实 Home。
+
+生成插件表单按提交时的输入版本处理回执：等待中又编辑时，旧成功不清新草稿、不关它的 sheet/dialog；当前草稿成功提交后才复位，prefill 编辑表单继续保留值。换版/销毁的旧回包不写当前表单或错误反馈。`tests/plugin-composition.e2e.test.ts` 的 W2-18-COMPONENT-DRAFT-01/02 使用生产 renderer、延迟回包并覆盖 form/sheet/dialog。
 
 ## 开发要求
 
@@ -95,12 +97,14 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home "$HOME
 - 公开入口：`@molis-ai/molis-work-design-system`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/ui`。
 - 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 服务端 HTML 的文字和属性值使用本包 `escapeHtml`，先处理 `&`，并覆盖单双引号；受信 HTML 槽与 JSON 脚本编码由各自合同处理。
   - 生产只从包名（或 `/floating`）导入，不深入 `src/`；改源码后编进 `dist`，预览和测试读的是包导出。`/floating` 必须保持叶子：不 import 任何东西、不碰 Node（`tests/design-system-floating.test.ts` 看住）。
   - 改共享控件先看规格板 `/__ui/catalog`。
   - 禁止系统色盘、系统日期/时间弹出、`alert`/`confirm`/`prompt` 与未换肤的 `range`。
   - 键盘焦点只用 `--focus-stroke`；动效只用 `--dur-*`、`--motion-*`、`--ease-*`。
   - 进入工作台之前的页面用到的部件（`mw-wordmark`、`mw-caption`、`mw-steps`、`mw-goal-track`、`mw-bar-context`、`mw-bar-status`、`mw-file-kind/row/group`、`mw-brief`、按钮上的 `mw-btn__key`）在这里定义，规格板的「到达」一节各有标本；页面（`apps/workbench/src/arrival/`）只排版，不重画。打字与飞入动效是一段脚本（`ARRIVAL_MOTION_CLIENT_SCRIPT`），在减少动态效果与自动化下静止。
   - AI 交互部件只收展示参数，不认识 Run、回执或授权；读人的文字由调用方给。浏览器端行为（`interaction-client.ts`）只读写 DOM、不存值；它的函数各自不依赖 import，改它要保持这一点。`INTERACTION_STYLES` 只用令牌，不进共享页面样式表，直到产品真正采用。
+- 共用 select 增强器保留原字段显式的 `aria-required`；没有声明时才跟随原生 `required`，不改变原表单的提交校验。动态更改与键盘、原生校验回归见 `tests/select-menu-interaction.e2e.test.ts`。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-design-system run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/coss-control-language.test.ts tests/visual-foundation.test.ts tests/arrival-components.test.ts tests/studio-english.test.ts tests/interaction-components.test.ts tests/design-system-floating.test.ts tests/context-toolbar.test.ts`；改了 `interaction-client.ts` 加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/interaction-client.e2e.test.ts`
 - 改到外壳控件的尺寸（底栏、标签条、助理输入与它旁边的小按钮）加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/touch-targets.e2e.test.ts`——触控尺寸按输入类型，不按宽度：`pointer: coarse` 的窗口（手机、横过来的手机、平板）与手机宽度的窗口，标签条与底栏的控件都是 44px 目标；只有精细指针、宽于 600px（标签条 760px）的桌面窗口在 [DESIGN.md](../../DESIGN.md) 「Focus and accessibility」写明范围的例外内保持原尺寸。挤满的助理输入条由岛标记 `data-crowded` 并分步让位（只在触控窗口；选择器、工作条的清除标记、材料与通知并入「+」菜单，每步只在上一步仍放不下时才做），不把任何按钮压到 44px 以下；岛量这一行时带着小按钮量（`data-measuring` 暂时撤掉手机打字时收起小按钮的规则），所以点进输入框又点开，步骤不变；手机底栏第二行的控件互相紧挨，是一道精确的加法：七个目标要 308px，最宽的一屏（带目录按钮，八个）要 352px，再加两边 8px 内边距与 4px 列间距共 375px；窄于 375px 时列间距与内边距让掉（行贴到窗口边，上面的助理输入条位置不变），八个放得下到 356px、七个到 312px；更窄时不重叠、不压小、不挤出窗口——Dock 从末尾起把按钮并进「+N」列表，项目首页永不收起，连项目首页加「+N」也放不下（356px 以下、带目录按钮）时「+N」按钮也让掉，切换器列着全部插件，什么都不丢。底栏与标签条打开的东西（助理的各个列表与建议卡、通知、材料的移除键、切换器的置顶与添加键、Dock 的「+N」列表、项目菜单、标签条的打开插件、布局、标签与标签组菜单及组名输入与颜色点、展开的助理面板的标签栏与正文、`mw-menu` 的项）在手机与粗指针下也是 44px。面板正文指全部工作的列表、工作详情，和对话里的控件（复制、代码块的复制与展开、问答的选项与输入、批准按钮、步骤摘要、下一步按钮）；句子里的链接比字宽、44px 高，句子里的对象按钮看上去不变、响应手指的范围 44px 高。精细指针的桌面窗口里这些列表里的控件不低于 32px 下限（紧凑 28px；组的颜色点是 32px 目标、里面画 18px 的点）；只有展开的助理面板在桌面仍低于下限：标签栏的 28px 按钮与 20px 关闭标记、正文 22–28px 的控件，是已登记的缺口 BL-127。同一个测试一并量；面板正文的控件种类从页面运行的脚本里读出来（每个 `el("button", "assistant-…")`），新增的控件种类自动进入测量。同一份 `touch-targets.ts` 里还有共用请求助手放在错误区域与吐司里的「诊断编号」按钮（`[data-molis-call-id]`）的 44px 规则（句子里的链接：上下内边距加等量负外边距，不占行高），改它或改吐司的排版（`craft-finish.ts` 的 `.toast`）加跑 `tests/request-failure-call-id.e2e.test.ts`：它在 390px 手机上量吐司不缩成半个窗口、长消息把按钮排到消息下面、按钮用吐司的字色（对比度不低于 4.5）、按钮盒与手指实际点得到的范围都不低于 44px，桌面窗口里消息与按钮同一行。

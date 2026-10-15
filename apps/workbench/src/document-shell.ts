@@ -1,3 +1,4 @@
+import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import type { UiSlotDescriptor, WorkbenchDocumentRenderRequest } from '@molis-ai/molis-work-contracts/platform/ui';
 
 export const WORKBENCH_UI_SLOTS = {
@@ -9,9 +10,6 @@ export const WORKBENCH_UI_SLOTS = {
   side: { slot_id: 'workbench.side', version: 1, accepts: ['declarative-html'] },
 } as const satisfies Record<string, UiSlotDescriptor>;
 
-function escapeHtml(value: string): string {
-  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
-}
 
 function renderAttributes(attributes: WorkbenchDocumentRenderRequest['body_attributes']): string {
   return Object.entries(attributes ?? {})

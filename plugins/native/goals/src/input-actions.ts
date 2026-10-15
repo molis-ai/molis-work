@@ -1,7 +1,7 @@
 import { ActionError, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef, parseGoalPluginObjectRef, type GoalInputBindingRecord, type GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction, goalActor } from "./action-contract.js";
-import { text, identifier, boolean, array, object, nullable, enumeration } from "./event-action-schemas.js";
+import { text, identifier, boolean, array, object, nullable, enumeration } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
 /** A Plugin object bound to a Goal, as callers see it: the owner's subject, the name it was bound under, and state. */
 export interface GoalBoundObject {

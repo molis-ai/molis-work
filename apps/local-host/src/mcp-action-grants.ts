@@ -37,7 +37,7 @@ export function resolveMcpActionContext(caller: ActionCallContext, catalog: read
     const records = preference.action_grants.filter(grant => grant.client_id === caller.actor_id
       && grant.project_id === (view.action.scope === "home" ? null : caller.project_id)
       && grant.capability_id === view.capability_id && grant.version === view.version && grant.provider_id === view.provider.provider_id);
-    const granted = records.some(grant => matches(grant, view, caller));
+    const granted = records.length === 1 && matches(records[0], view, caller);
     return (publicSystem && !records.length) || granted;
   });
   return { ...caller, permissions: [...new Set(accepted.flatMap(view => view.action.permissions))],

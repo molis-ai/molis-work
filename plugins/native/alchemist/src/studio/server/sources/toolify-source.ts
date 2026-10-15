@@ -18,18 +18,18 @@ export class ToolifySource implements SourcePort {
       return sourceError(
         this.sourceId,
         TOOLIFY_URL,
-        error instanceof SourceHttpError ? error.code : "SOURCE_NETWORK_ERROR",
+        error instanceof SourceHttpError ? error.code : "alchemist.source_network_error",
       );
     }
     if (/cdn-cgi\/challenge-platform|Just a moment/i.test(response.body)) {
-      return sourceError(this.sourceId, TOOLIFY_URL, "SOURCE_CHALLENGE", response);
+      return sourceError(this.sourceId, TOOLIFY_URL, "alchemist.source_challenge", response);
     }
     if (response.status < 200 || response.status >= 300) {
       return sourceError(this.sourceId, TOOLIFY_URL, `SOURCE_HTTP_${response.status}`, response);
     }
     const signals = parseToolifyTrending(response.body, response.fetchedAt).slice(0, input.limit);
     if (signals.length === 0) {
-      return sourceError(this.sourceId, TOOLIFY_URL, "SOURCE_INVALID_RESPONSE", response);
+      return sourceError(this.sourceId, TOOLIFY_URL, "alchemist.source_invalid_response", response);
     }
     return {
       sourceId: this.sourceId,

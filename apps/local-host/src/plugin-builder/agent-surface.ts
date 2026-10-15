@@ -293,7 +293,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         const entries = await readdir(join(build.directory, 'src'), { withFileTypes: true }).catch(() => []);
         return entries.filter(entry => entry.isFile() && entry.name.endsWith('.ts') && entry.name !== 'index.ts').map(entry => 'src/' + entry.name).sort();
       },
-      async resetPreview(buildId) { await stopRunner(buildId); studio.storage.delete(PREVIEW_KEY + STABLE_PREVIEW + buildId); },
+      async resetPreview(buildId, beforeReset) { beforeReset?.(); await stopRunner(buildId); beforeReset?.(); studio.storage.delete(PREVIEW_KEY + STABLE_PREVIEW + buildId); },
       presentation: true,
       visionAvailable: () => { const selection = selected(); return !!selection && models(store => store?.list().find(provider => provider.provider_id === selection.provider_id)?.models.find(model => model.model_id === selection.model_id)?.vision === true); },
       inspectPresentation: (build, signal) => inTrial(build, signal, options => inspectBuilderPresentation(build, options)),

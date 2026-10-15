@@ -47,7 +47,7 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /marketMembership/);
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /移除/);
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /api\/plugins\/runtime\/updates/);
-  assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /api\/plugins\/" \+ encodeURIComponent\(pluginId\) \+ "\/upgrade/);
+  assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /api\/plugins\/"\s*\+\s*encodeURIComponent\(pluginId\)\s*\+\s*"\/upgrade/);
   assert.match(script, /data-market-scope/);
   assert.match(script, /plugin-market-installed-item/);
   assert.match(script, /grey: "var\(--hue-gray\)"/);

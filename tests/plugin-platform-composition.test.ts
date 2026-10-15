@@ -184,7 +184,7 @@ test('stopped activation event clients remain revoked after restart and bus clos
     assert.throws(() => clients[0]!.publish(input), { code: 'actions.forbidden' });
     clients.at(-1)!.publish(input); await entered.promise;
     await platform.events.close();
-    assert.throws(() => clients.at(-1)!.publish(input), { code: 'event_identity_invalid' });
+    assert.throws(() => clients.at(-1)!.publish(input), { code: 'plugin.event_identity_invalid' });
     finish.resolve(); await new Promise(resolve => setImmediate(resolve));
     assert.equal(writes, 0);
     assert.equal(platform.events.cursors(DEMO_PROJECT_ID, CONSUMER)[0]!.state, 'quarantined');

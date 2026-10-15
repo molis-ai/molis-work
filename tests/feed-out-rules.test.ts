@@ -214,7 +214,7 @@ test("registerVersion failure writes artifact_out_failed Attention and keeps the
   const data = harness({
     artifacts: {
       registerVersion() {
-        throw Object.assign(new Error("injected artifact failure"), { code: "artifact.unavailable" });
+        throw Object.assign(new Error("injected artifact failure"), { code: "artifacts.artifact.unavailable" });
       },
       latestVersion() {
         return null;
@@ -239,7 +239,7 @@ test("registerVersion failure writes artifact_out_failed Attention and keeps the
     );
     assert.equal(failures.length, 1);
     assert.equal(failures[0]?.status, "open");
-    assert.deepEqual(failures[0]?.detail.error_codes, ["artifact.unavailable"]);
+    assert.deepEqual(failures[0]?.detail.error_codes, ["artifacts.artifact.unavailable"]);
     assert.equal(data.feed.getFeedItem(DEMO_PROJECT_ID, ingested.item.item_id).item_id, ingested.item.item_id);
     assert.equal(
       data.app.artifacts.query.listArtifacts(DEMO_PROJECT_ID, {
@@ -324,7 +324,7 @@ test("Attention records an Inbox entry for a failed 成果 output", () => {
     subject_type: "feed_item",
     subject_id: "item-new",
     reason: "artifact_out_failed",
-    detail: { rule_ids: ["rule-1"], error_codes: ["artifact.unavailable"] },
+    detail: { rule_ids: ["rule-1"], error_codes: ["artifacts.artifact.unavailable"] },
   });
   assert.equal(created.created, true);
   assert.equal(created.entry.reason, "artifact_out_failed");

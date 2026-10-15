@@ -76,7 +76,7 @@ test("intake rejects false image types, path escapes, symlinks, count and byte l
     await assert.rejects(f.adapter.inference.completeTextResult(f.input({ images: [{ root_path: f.root, relative_path: "one.png" }, { root_path: f.root, relative_path }] })));
     assert.deepEqual(await f.staged(), []); assert.equal(f.requests.length, 0);
   }
-  await assert.rejects(f.adapter.inference.completeTextResult(f.input({ images: Array.from({ length: 31 }, () => ({ root_path: f.root, relative_path: "one.png" })) })), { code: "inference.image_limit" });
+  await assert.rejects(f.adapter.inference.completeTextResult(f.input({ images: Array.from({ length: 31 }, () => ({ root_path: f.root, relative_path: "one.png" })) })), { code: "agent.inference.image_limit" });
   assert.equal(f.requests.length, 0);
   // The size boundary is checked on bytes, independently of external image quality/decoding.
   await writeFile(join(f.root, "large.png"), tooLarge.subarray(0, 32 * 1024 * 1024));

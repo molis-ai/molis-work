@@ -5,7 +5,7 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
   const status=q('[data-plugin-events-status]'), error=q('[data-plugin-event-error]');
   let rows=[], selected=null, fresh=false, busy=false, viewSignal, reading=0, revealUntil=0;
   const key=row=>JSON.stringify([row.cursor.subscriber_plugin_id,row.cursor.subscriber_install_id,row.cursor.subscriber_generation,row.cursor.source_plugin_id,row.cursor.event_type_id,row.cursor.type_version]);
-  const message=text=>{error.textContent=text;error.hidden=!text;};
+  const message=text=>{if(typeof text==='string')error.textContent=text;else molisWorkRequest.show(error,text);error.hidden=!text;};
   const node=(tag,text,className)=>{const item=document.createElement(tag);item.textContent=text;if(className)item.className=className;return item;};
   const sync=()=>{
     form.querySelectorAll('button,textarea,input').forEach(item=>{item.disabled=busy;});
@@ -42,14 +42,13 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
     if(busy||!lifetime.visible)return;
     const epoch=++reading, oldKey=selected&&key(selected), signal=viewSignal;fresh=false;sync();status.textContent=L('正在读取插件通知…');status.classList.add('mw-loading');
     try{
-      const response=await lifetime.fetch(host.route('/api/plugins/runtime/events'),{cache:'no-store',signal});
-      const body=await response.json();lifetime.assertCurrent(signal);if(epoch!==reading)return;
-      if(!response.ok)throw Error(body.error||L('无法读取插件通知，请重新读取。'));
+      const body=await molisWorkRequest(host.route('/api/plugins/runtime/events'),{scope:lifetime,signal,fallback:L('无法读取插件通知，请重新读取。')});
+      if(epoch!==reading)return;
       rows=body.pending||[];paint(body.history||[]);status.classList.remove('mw-loading');status.textContent=rows.length?L('有通知需要核对，其他插件可继续使用。'):L('没有待核对的通知。');
       if(reselect&&oldKey){selected=rows.find(row=>key(row)===oldKey)||null;form.elements.decision.forEach(item=>{item.checked=false;});message('');describe();}
       fresh=true;sync();
       document.dispatchEvent(new CustomEvent('molis-work:plugin-events',{detail:{pending:rows.length}}));reveal();
-    }catch(cause){if(epoch===reading&&!signal?.aborted&&lifetime.alive){status.classList.remove('mw-loading');status.textContent=cause.message; if(dialog.open)message(cause.message);fresh=false;sync();reveal();}}
+    }catch(cause){if(epoch===reading&&!signal?.aborted&&lifetime.alive){status.classList.remove('mw-loading');molisWorkRequest.show(status,cause);if(dialog.open)message(cause);fresh=false;sync();reveal();}}
   };
   lifetime.whenVisible(signal=>{viewSignal=signal;void load();return()=>{reading++;fresh=false;if(dialog.open)dialog.close();};});
   lifetime.listen(root,'click',event=>{
@@ -68,11 +67,9 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
       event_id:selected.event.event_id,reason:String(data.get('reason')||''),decision:String(data.get('decision')||'')};
     busy=true;sync();message('');
     try{
-      const response=await lifetime.fetch(host.route('/api/plugins/runtime/events/recover'),{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify(input),signal});
-      const body=await response.json();lifetime.assertCurrent(signal);
-      if(!response.ok)throw Error(body.error||L('无法确认处理结果，请重新读取后核对。'));
+      await molisWorkRequest(host.route('/api/plugins/runtime/events/recover'),{body:input,scope:lifetime,signal,fallback:L('无法确认处理结果，请重新读取后核对。')});
       dialog.close();selected=null;busy=false;await load();
-    }catch(cause){if(!signal?.aborted&&lifetime.alive){fresh=false;message(cause.message);}}
+    }catch(cause){if(!signal?.aborted&&lifetime.alive){fresh=false;message(cause);}}
     finally{busy=false;if(lifetime.alive)sync();}
   });
   return {scope:enabled=>{root.hidden=!enabled;}};

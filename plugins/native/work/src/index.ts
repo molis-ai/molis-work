@@ -23,7 +23,7 @@ export { SessionHandoffService } from "./handoff.js";
 export { buildSessionHandoffPackage } from "./handoff-package.js";
 export { RegistryFallbackSessionAdapter } from "./registry-fallback-adapter.js";
 export { SessionTuiRecorder, stripTerminalControl } from "./tui-recorder.js";
-export { repairProjectWorkspace, unlinkProjectWorkspace, MolisWorkWorkspaceActionError, type ProjectWorkspaceActionRecord, type WorkspaceActionCatalog } from "./workspace-actions.js";
+export { repairProjectWorkspace, unlinkProjectWorkspace, type ProjectWorkspaceActionRecord, type WorkspaceActionCatalog } from "./workspace-actions.js";
 export type { SessionTimelineEvent, SessionContentMode, SessionContentResult, SessionResumeResult, SessionHandoffGoalContext, PrepareSessionHandoffInput, SendSessionHandoffInput, SessionHandoffResult } from "./types.js";
 
 export { workUiContribution, WORK_UI_CONTRIBUTION_ID } from "./ui/contribution.js";

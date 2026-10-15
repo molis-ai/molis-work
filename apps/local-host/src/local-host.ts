@@ -1,3 +1,4 @@
+import { hostErrors } from "./host-errors.js";
 import { withSceneConfigurationActions } from "./scene-configuration-actions.js";
 import { HomeLine } from "./home-line.js";
 import { randomUUID } from "node:crypto";
@@ -10,9 +11,10 @@ import type {
   LocalHostProjectReference,
   LocalHostStatus,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionService, CapabilityRegistry, bindCall, judgmentRecommendationKeys, refuseCall, startHandler, subjectOfferChoices, subjectOfferCompatibilityReason,
+import { ActionService, CapabilityRegistry, bindCall, judgmentRecommendationKeys, refuseCall, registeredActionMetadata, startHandler, subjectOfferChoices, subjectOfferCompatibilityReason,
   type CallContext, type CallDescription, type CallOutcome, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { settleTyped } from "./typed-call-settlement.js";
+import { typedCapabilityInvocation } from "./typed-capability-invocation.js";
 import { sceneConfigurationActions, ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
   type ActionRegistryPort, type ActionProviderRegistration, type ActionAvailability, type ActionView, type ActionSceneClient, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -41,18 +43,7 @@ export interface LocalHostOptions<Runtime> {
 /** How long one queued project operation may hold everything else of the project before the log names it. */
 const HELD_IN_LINE_WARN_MS = 20_000;
 
-export class LocalHostError extends Error {
-  constructor(
-    readonly code:
-      | "host.closed"
-      | "host.project_invalid"
-      | "host.project_identity_conflict"
-      | "host.project_closing",
-    message: string,
-  ) {
-    super(message);
-  }
-}
+
 
 interface RuntimeEntry<Runtime> {
   reference: LocalHostProjectReference;
@@ -70,7 +61,7 @@ function normalizeReference(reference: LocalHostProjectReference): LocalHostProj
     storage_key: reference.storage_key.trim(),
   };
   if (!normalized.project_id || !normalized.storage_key) {
-    throw new LocalHostError("host.project_invalid", "Local Host Project reference 不能为空");
+    throw hostErrors.project_invalid("Local Host Project reference 不能为空");
   }
   return normalized;
 }
@@ -89,21 +80,36 @@ function snapshotCaller(caller: ActionCallContext): ActionCallContext {
   };
 }
 
+/** A scene keeps the Host's real closing fence across its asynchronous owner checks. */
+function hostAuthorityContext(caller: ActionCallContext, current: () => boolean): ActionCallContext {
+  const assertActive = () => {
+    if (!current()) throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
+    caller.signal?.throwIfAborted();
+  };
+  return { ...caller, assert_authority_current: (reference, requiredPermissions) => {
+    assertActive();
+    requireSynchronous(caller.assert_authority_current?.(reference, requiredPermissions), "最终授权检查必须同步完成");
+    assertActive();
+  } };
+}
+
 /** The provider of the Host's own actions: a capability registered with an `action` and no provider of its own (the workspace reads, for one). */
 export const HOST_PROVIDER_ID = "platform";
+
+function assertSameIdentity(current: LocalHostProjectReference, next: LocalHostProjectReference): void {
+  if (current.project_id !== next.project_id || current.project_id !== next.project_id) {
+    throw hostErrors.project_identity_conflict(`同一 storage_key 不能映射到不同 Project: ${current.project_id} / ${next.project_id}`);
+  }
+}
 
 export class LocalHost<Runtime> {
   readonly instanceId: string;
   readonly capabilities = new CapabilityRegistry<ActionCallContext>();
   private readonly settled: CallSettled = (caller, action, outcome) => this.options.actionSettled?.(caller, action, outcome);
-  private readonly actionService = new ActionService(this.capabilities, { beforeEffect: async (caller, reference) => {
-    const assertActive = () => {
-      if (this.state !== "running" || this.executionScope.getStore()?.entry.state === "closing") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
-    };
-    assertActive();
-    await this.checkActionAvailability(caller, reference);
-    assertActive();
-  }, admit: (caller, reference) => this.checkActionAvailability(caller, reference), settled: this.settled });
+  private readonly actionService = new ActionService(this.capabilities, { assertCurrent: () => {
+    if (this.state !== "running" || this.executionScope.getStore()?.entry.state === "closing") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
+  }, beforeEffect: (caller, reference) => this.checkActionAvailability(caller, reference),
+    admit: (caller, reference) => this.checkActionAvailability(caller, reference), settled: this.settled });
   private readonly invocationRuntimes = new WeakMap<ActionCallContext, Runtime>();
   /** Callers that reached a Host capability through a plugin SDK adapter; restricted independently of the action audience. */
   private readonly pluginCapabilityCallers = new WeakSet<ActionCallContext>();
@@ -126,19 +132,11 @@ export class LocalHost<Runtime> {
     this.assertRunning();
     const invoke = (caller: ActionCallContext, input: Input) => {
       if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.host_context_missing", "此能力需要 Host 的项目运行环境");
-      const token = this.capabilities.registrationToken(definition);
-      return startHandler(caller, () => handler(this.invocationRuntimes.get(caller)!, input, { ...(caller.signal ? { signal: caller.signal } : {}), ...(caller.host_plugin ? { plugin: caller.host_plugin } : {}),
-        ...(this.pluginCapabilityCallers.has(caller) ? { consumer: "plugin" as const } : {}), call_id: caller.call_id, beforeEffect: async () => {
-        caller.signal?.throwIfAborted();
-        if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
-        await caller.validate_authority?.({ ...definition, provider_id: definition.action_provider?.provider_id ?? HOST_PROVIDER_ID });
-        const available = this.capabilities.availability(caller, definition);
-        if (!available.available) throw new ActionError(available.code, available.reason);
-        await this.checkActionAvailability(caller, definition);
-        if (this.capabilities.registrationToken(definition) !== token) throw new ActionError("actions.provider_replaced", "能力提供方已重启，不能继续原副作用");
-        if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
-        caller.signal?.throwIfAborted();
-      } }));
+      const invocation = typedCapabilityInvocation(caller, definition, { registry: this.capabilities,
+        active: () => this.invocationRuntimes.has(caller), running: () => this.state === "running" && this.executionScope.getStore()?.entry.state !== "closing",
+        pluginConsumer: this.pluginCapabilityCallers.has(caller), providerId: HOST_PROVIDER_ID, checkAvailability: () => this.checkActionAvailability(caller, definition) });
+      invocation.assertAuthorityCurrent();
+      return startHandler(caller, () => handler(this.invocationRuntimes.get(caller)!, input, invocation));
     };
     if (definition.action) return this.actionService.registerProvider({
       provider: definition.action_provider ?? { provider_id: HOST_PROVIDER_ID, title: "Molis Work", kind: "system" },
@@ -148,14 +146,11 @@ export class LocalHost<Runtime> {
         // bound to this Host's active project scope, rather than the caller object's identity.
         const scope = this.executionScope.getStore();
         if (!scope?.active || scope.entry.reference.project_id !== caller.project_id) throw new ActionError("actions.host_context_missing", "此能力需要 Host 的项目运行环境");
-        return handler(scope.runtime, input as Input, { ...(caller.signal ? { signal: caller.signal } : {}), ...(caller.host_plugin ? { plugin: caller.host_plugin, consumer: "plugin" as const } : {}), call_id: caller.call_id, beforeEffect: caller.beforeEffect });
+        return handler(scope.runtime, input as Input, { ...(caller.signal ? { signal: caller.signal } : {}), ...(caller.host_plugin ? { plugin: caller.host_plugin, consumer: "plugin" as const } : {}), call_id: caller.call_id, beforeEffect: caller.beforeEffect,
+          assertAuthorityCurrent: () => { requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成"); } });
       } }],
     });
-    const hostOnly = definition.host_only === true;
-    return this.capabilities.register(definition, invoke, { availability: caller => hostOnly
-      && (this.pluginCapabilityCallers.has(caller) || caller.audience !== "user" || caller.actor_id !== "local-host")
-      ? { available: false, code: "actions.host_only", reason: "此适配入口仅供受保护的 Host 调用，插件声明不能授予用户权限" }
-      : { available: true } });
+    return this.capabilities.register(definition, invoke);
   }
 
   /** Composition-only registration. Project authority comes from the owner, never the Plugin. */
@@ -165,7 +160,7 @@ export class LocalHost<Runtime> {
     return { registerProvider: (registration: ActionProviderRegistration) => {
       this.assertRunning();
       if (entry && (entry.state === "closing" || this.entries.get(entry.reference.storage_key) !== entry)) {
-        throw new LocalHostError("host.project_closing", "能力来源所属项目已关闭");
+        throw hostErrors.project_closing("能力来源所属项目已关闭");
       }
       if (registration.provider.project_id && registration.provider.project_id !== project?.project_id) {
         throw new ActionError("actions.scope_mismatch", "能力来源不能注册到其他项目");
@@ -188,12 +183,22 @@ export class LocalHost<Runtime> {
   }
 
   /** System capabilities share the registry but do not create a fictitious project Runtime. */
+  inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) {
+    this.assertRunning(); caller.signal?.throwIfAborted();
+    const project = reference ? normalizeReference(reference) : undefined;
+    if (caller.project_id !== (project?.project_id ?? null)) throw new ActionError("actions.scope_mismatch", "目录上下文与项目不一致");
+    if (project) this.assertCompatibleReference(project);
+    return registeredActionMetadata(this.capabilities, snapshotCaller(caller));
+  }
+
   async inspectActions(caller: ActionCallContext, reference?: LocalHostProjectReference): Promise<ActionView[]> {
     this.assertRunning();
+    caller.signal?.throwIfAborted();
     const project = reference ? normalizeReference(reference) : undefined;
     if (caller.project_id !== (project?.project_id ?? null)) throw new ActionError("actions.scope_mismatch", "目录上下文与项目不一致");
     const bound = snapshotCaller(caller);
     if (project) await this.withRuntime(project, () => undefined);
+    caller.signal?.throwIfAborted();
     return this.projectActionViews(bound, this.actionService.inspect(bound));
   }
 
@@ -207,7 +212,9 @@ export class LocalHost<Runtime> {
     return {
       discover: async caller => this.discoverActions(contextFor(caller)),
       invoke: async (caller, capability, input) => {
-        const context = contextFor(caller);
+        let context: ActionCallContext;
+        try { context = contextFor(caller); }
+        catch (error) { return refuseCall(this.settled, caller, capability, error); }
         const descriptor = this.capabilities.descriptor(capability);
         return this.homeLine.run(() => this.actionService.invoke(context, capability, input), descriptor?.action?.scheduling === "concurrent" ? "concurrent" : step ? "step" : "serial");
       },
@@ -218,9 +225,12 @@ export class LocalHost<Runtime> {
     const project = reference ? normalizeReference(reference) : undefined;
     const prepare = async (caller: ActionCallContext): Promise<ActionCallContext> => {
       this.assertRunning();
+      caller.signal?.throwIfAborted();
       if (caller.project_id !== (project?.project_id ?? null)) throw new ActionError("actions.scope_mismatch", "场景上下文与项目不一致");
-      const bound = snapshotCaller(caller);
+      const bound = hostAuthorityContext(snapshotCaller(caller), () => this.state === "running"
+        && (!project || !this.closingKeys.has(project.storage_key)) && this.executionScope.getStore()?.entry.state !== "closing");
       if (project) await this.withRuntime(project, () => undefined);
+      caller.signal?.throwIfAborted();
       return bound;
     };
     const scenes = async (caller: ActionCallContext, judgment?: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference) => {
@@ -316,7 +326,7 @@ export class LocalHost<Runtime> {
     return { invokeSync: (caller, capability, input) => {
       this.assertRunning();
       if (entry.state !== "ready" || this.entries.get(project.storage_key) !== entry) {
-        throw new LocalHostError("host.project_closing", "同步能力需要已打开且仍有效的项目运行环境");
+        throw hostErrors.project_closing("同步能力需要已打开且仍有效的项目运行环境");
       }
       if (caller.project_id !== project.project_id) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
       if (caller.audience !== "plugin") throw new ActionError("actions.forbidden", "同步入口只接受可信插件 SDK 上下文");
@@ -346,6 +356,7 @@ export class LocalHost<Runtime> {
     const project = normalizeReference(reference);
     const callerFor = (caller: ActionCallContext) => {
       this.assertCompatibleReference(project);
+      caller.signal?.throwIfAborted();
       if (caller.project_id !== project.project_id) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
       return snapshotCaller(caller);
     };
@@ -353,14 +364,18 @@ export class LocalHost<Runtime> {
       discover: async caller => {
         const bound = callerFor(caller);
         await this.withRuntime(project, () => undefined);
+        caller.signal?.throwIfAborted();
         return this.discoverActions(bound);
       },
       invoke: async (caller, capability, input) => {
-        const bound = callerFor(caller);
-        await this.withRuntime(project, () => undefined);
+        let bound = caller;
+        try { bound = callerFor(caller); await this.withRuntime(project, () => undefined); caller.signal?.throwIfAborted(); this.assertRunning(); }
+        catch (error) { return refuseCall(this.settled, bound, capability, error); }
         const descriptor = this.capabilities.descriptor(capability, bound.project_id);
         if (!descriptor) return refuseCall(this.settled, bound, capability, new ActionError("actions.missing", "能力未注册或版本已失效"));
-        return this.enqueue(project, descriptor, bound, () => this.actionService.invoke(bound, capability, input), step);
+        let dispatched = false;
+        return this.enqueue(project, descriptor, bound, () => { dispatched = true; return this.actionService.invoke(bound, capability, input); }, step)
+          .catch(error => { if (dispatched) throw error; return refuseCall(this.settled, bound, capability, error); });
       },
     };
   }
@@ -397,15 +412,17 @@ export class LocalHost<Runtime> {
     input: Input,
     options?: HostCapabilityCallOptions,
   ): Promise<Output> {
-    const beforeEffect = options?.before_effect, plugin = options?.plugin_caller;
+    const beforeEffect = options?.before_effect, current = options?.assert_authority_current, signal = options?.signal, plugin = options?.plugin_caller;
     if (plugin && (plugin.project_id !== reference.project_id || plugin.project_id !== reference.project_id)) throw new ActionError("actions.scope_mismatch", "插件调用不属于当前项目");
     plugin?.assertActive();
     // A plugin reaches an action through this port as the plugin audience, as it would through the action client: an action
     // not offered to plugins stays out of its reach.
     const caller = bindCall({ actor_id: plugin?.actor_id ?? "local-host", project_id: reference.project_id, audience: plugin ? "plugin" : "user", permissions: [],
-      ...(options?.signal ? { signal: options.signal } : {}),
+      ...(signal ? { signal } : {}),
       ...(plugin ? { host_plugin: plugin, plugin_install_id: plugin.install_id } : {}),
-      ...(beforeEffect ? { validate_authority: () => beforeEffect() } : {}) });
+      ...(beforeEffect ? { validate_authority: () => beforeEffect() } : {}), assert_authority_current: () => {
+        signal?.throwIfAborted(); plugin?.assertActive(); requireSynchronous(current?.(), "最终授权检查必须同步完成"); signal?.throwIfAborted(); plugin?.assertActive();
+      } });
     if (options?.consumer === "plugin") this.pluginCapabilityCallers.add(caller);
     // A typed identity may omit the activation scope; only the bound Host supplies it.
     const registered = this.capabilities.descriptor(capability, reference.project_id);
@@ -598,11 +615,11 @@ export class LocalHost<Runtime> {
     const normalized = normalizeReference(reference);
     this.assertCompatibleReference(normalized);
     if (this.closingKeys.has(normalized.storage_key)) {
-      throw new LocalHostError("host.project_closing", "这个 Project 的 Local Host runtime 正在关闭");
+      throw hostErrors.project_closing("这个 Project 的 Local Host runtime 正在关闭");
     }
     const existing = this.entries.get(normalized.storage_key);
     if (existing) {
-      this.assertSameIdentity(existing.reference, normalized);
+      assertSameIdentity(existing.reference, normalized);
       return existing;
     }
     const entry: RuntimeEntry<Runtime> = {
@@ -629,25 +646,13 @@ export class LocalHost<Runtime> {
     this.assertRunning();
     const sameProject = [...this.entries.values()].find(entry => entry.reference.project_id === reference.project_id);
     if (sameProject && sameProject.reference.storage_key !== reference.storage_key) {
-      throw new LocalHostError("host.project_identity_conflict", "同一 Project 不能同时使用两个存储位置");
+      throw hostErrors.project_identity_conflict("同一 Project 不能同时使用两个存储位置");
     }
     const existing = this.entries.get(reference.storage_key);
-    if (existing) this.assertSameIdentity(existing.reference, reference);
-  }
-
-  private assertSameIdentity(
-    current: LocalHostProjectReference,
-    next: LocalHostProjectReference,
-  ): void {
-    if (current.project_id !== next.project_id || current.project_id !== next.project_id) {
-      throw new LocalHostError(
-        "host.project_identity_conflict",
-        `同一 storage_key 不能映射到不同 Project: ${current.project_id} / ${next.project_id}`,
-      );
-    }
+    if (existing) assertSameIdentity(existing.reference, reference);
   }
 
   private assertRunning(): void {
-    if (this.state !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
+    if (this.state !== "running") throw hostErrors.closed("Local Host 已关闭");
   }
 }

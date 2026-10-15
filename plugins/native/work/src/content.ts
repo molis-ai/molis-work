@@ -42,7 +42,7 @@ export class SessionContentService {
         content_mode: "failed",
         native_error: {
           code: result.code,
-          message: result.code === "runtime.response_too_large"
+          message: result.code === "runtime_host.response_too_large"
             ? "这条 Session 的单项内容超过安全读取上限；Molis Work 已停止本次读取，服务仍可继续使用。"
             : "Runtime 内容读取失败。确认 Runtime 可用后重试。",
         },

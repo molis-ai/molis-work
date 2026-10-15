@@ -1,5 +1,6 @@
 import { handleGoalRelationsHttp } from "./relations.js";
 import type { GoalsHttpContext } from "./types.js";
+import { respondGoalsFailure } from "./failure.js";
 import { handleGoalCreateHttp } from "./create.js";
 import { handleGoalPolicyGuidanceHttp } from "./policy-guidance.js";
 import { handleGoalLifecycleHttp } from "./lifecycle.js";
@@ -10,7 +11,7 @@ import { handleGoalDeliverablesHttp } from "./deliverables.js";
 import { handleGoalInputsHttp } from "./inputs.js";
 
 export async function handleGoalsWebHttp(context: GoalsHttpContext): Promise<boolean> {
-  return await handleGoalCreateHttp(context)
+  try { return await handleGoalCreateHttp(context)
     || await handleGoalPolicyGuidanceHttp(context)
     || await handleGoalRelationsHttp(context)
     || await handleGoalLifecycleHttp(context)
@@ -18,5 +19,6 @@ export async function handleGoalsWebHttp(context: GoalsHttpContext): Promise<boo
     || await handleGoalEventHttp(context)
     || await handleGoalEventDecisionHttp(context)
     || await handleGoalDeliverablesHttp(context)
-    || await handleGoalInputsHttp(context);
+    || await handleGoalInputsHttp(context); }
+  catch (error) { return respondGoalsFailure(context, error); }
 }

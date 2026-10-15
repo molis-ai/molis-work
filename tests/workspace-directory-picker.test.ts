@@ -1,16 +1,53 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createDirectoryPicker, type DirectoryPickerCommandResult } from "../apps/local-host/src/directory-picker.ts";
+import { createDirectoryPicker, runDirectoryPickerCommand, type DirectoryPickerCommandResult } from "../apps/local-host/src/directory-picker.ts";
 import { handleWorkspaceHttp } from "../plugins/native/work/dist/http/workspaces.js";
 import type { WorkSessionHttpContext } from "@molis-ai/molis-work-plugin-work";
+import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 function commandResult(overrides: Partial<DirectoryPickerCommandResult> = {}): DirectoryPickerCommandResult {
   return { stdout: "", stderr: "", code: 0, ...overrides };
 }
+
+test("W2-18-DIRECTORY-PICKER-01 the default runner keeps the picker busy until its actual child exits", { timeout: 10_000 }, async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), "molis-picker-process-"));
+  const started = path.join(directory, "started"), release = path.join(directory, "release");
+  const script = `const fs = require('node:fs'); fs.writeFileSync(process.argv[1], 'ready');
+    const timer = setInterval(() => { if (fs.existsSync(process.argv[2])) {
+      clearInterval(timer); process.stdout.write(process.argv[3] + '\\n');
+    } }, 10);`;
+  const picker = createDirectoryPicker(undefined, () => ({ command: process.execPath, args: ["-e", script, started, release, directory] }));
+  const pending = picker.pick();
+  t.after(async () => { await writeFile(release, "finish"); await pending; await rm(directory, { recursive: true, force: true }); });
+  let returned = false;
+  void pending.then(() => { returned = true; }, () => { returned = true; });
+  const deadline = Date.now() + 3_000;
+  for (;;) {
+    try { await readFile(started); break; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT" || Date.now() >= deadline) throw error; }
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.equal(returned, false, "stdout is the completed output, never the ChildProcess stream");
+  assert.deepEqual(await picker.pick(), { status: "busy" });
+  await writeFile(release, "finish");
+  assert.deepEqual(await pending, { status: "picked", path: directory });
+});
+
+test("W2-18-DIRECTORY-PICKER-01 actual child stdout, cancellation, failure, missing executable and timeout are distinguished", { timeout: 10_000 }, async () => {
+  assert.deepEqual(await runDirectoryPickerCommand(process.execPath, ["-e", "process.stdout.write('picked\\n')"]), commandResult({ stdout: "picked\n" }));
+  const cancelled = createDirectoryPicker(undefined, () => ({ command: process.execPath, args: ["-e", "process.exit(0)"] }));
+  assert.deepEqual(await cancelled.pick(), { status: "cancelled" });
+  const failed = await runDirectoryPickerCommand(process.execPath, ["-e", "process.stderr.write('failed'); process.exit(7)"]);
+  assert.deepEqual([failed.code, failed.stderr], [7, "failed"]);
+  assert.equal((await runDirectoryPickerCommand(path.join(tmpdir(), "molis-picker-executable-does-not-exist"), [])).missing, true);
+  const timeout = await runDirectoryPickerCommand(process.execPath, ["-e", "setInterval(() => {}, 1000)"], 50);
+  assert.equal(timeout.timedOut, true);
+});
 
 test("system folder window returns an existing absolute directory and ignores a trailing slash", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "molis-workspace-pick-"));
@@ -119,4 +156,19 @@ test("pick route reports the window result and does not open one without a proje
     { error: "这台电脑打不开目录选择窗口" },
   ]);
   assert.deepEqual(calls.slice(1).map((call) => call.status), [200, 200, 409, 503]);
+  // SESSION-02: only a declared Session failure keeps membership's existing 503 recovery response.
+  for (const [failure, expectedStatus] of [
+    [sessionErrors.invalid_input("关联恢复需要核对"), 503],
+    [new ActionError("actions.forbidden", "没有目录权限"), 400],
+    [new ActionError("work.session.unlisted", "不是声明中的 Session 原因"), 400],
+  ] as const) {
+    let invoked = 0;
+    await handleWorkspaceHttp({ ...base, projectOptions: project, method: "PATCH", pathname: "/api/workspaces/current/path",
+      readBody: async () => ({ workspace_path: "/tmp/next", user_confirmed: true }),
+      actions: { discover: async () => [], invoke: async () => { invoked++; throw failure; } },
+      pickDirectory: async () => ({ status: "cancelled" }),
+    });
+    assert.equal(invoked, 1);
+    assert.deepEqual(calls.at(-1), { status: expectedStatus, body: { error: failure.message } });
+  }
 });

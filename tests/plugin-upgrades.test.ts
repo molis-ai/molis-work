@@ -94,7 +94,7 @@ test("an undeclared newer Manifest cannot start or alter the older installation"
   const supervisor = new PluginSupervisor(reopened);
   const report = await supervisor.start([{ definition: next }]);
   assert.deepEqual(report.running, []);
-  assert.equal(report.failed[0]?.code, "plugin_upgrade_required");
+  assert.equal(report.failed[0]?.code, "plugin.upgrade_required");
   assert.equal(reopened.get(installed.install.install_id).version, "1.0.0");
   assert.equal(reopened.get(installed.install.install_id).state, "running");
   assert.equal(supervisor.upgradeCandidates()[0]?.mode, "unsupported");
@@ -130,7 +130,7 @@ test("a same-version Manifest change is usable only with an exact compatibility 
   const denied = new PluginSupervisor(deniedRuntime);
   const undeclared = { ...changed, manifest: { ...changed.manifest, upgrade_compatibility: undefined } };
   const rejected = await denied.start([{ definition: undeclared }]);
-  assert.equal(rejected.failed[0]?.code, "plugin_definition_conflict");
+  assert.equal(rejected.failed[0]?.code, "plugin.definition_conflict");
   assert.equal(deniedRuntime.get(installed.install.install_id).manifest_digest, installed.install.manifest_digest);
 });
 

@@ -70,16 +70,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const documentCollection = trashView ? "trash" : archiveView ? "archive" : "current";
     const routePrefix = document.body.dataset.routePrefix || "";
     const route = (pathname) => routePrefix + pathname;
-    const feedApi = async (pathname, method, body) => {
-      const response = await fetch(route(pathname), {
-        method,
-        headers: molisWorkControlHeaders(),
-        body: body == null ? undefined : JSON.stringify(body),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || L("来源操作失败"));
-      return result;
-    };
+    const api = (pathname,method,body) => molisWorkRequest(route(pathname), {method,body:body==null?undefined:body,fallback:L("来源操作失败")});
     const markFeedItemRead = async (row, entryId) => {
       if (
         !row || row.dataset.feedEntryType !== "feed" ||
@@ -92,7 +83,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       const detail = feedWorkbench?.querySelector('[data-feed-detail="' + CSS.escape(entryId) + '"]');
       const status = detail?.querySelector("[data-feed-action-status]");
       try {
-        await feedApi("/api/feed/items/" + encodeURIComponent(itemId) + "/read", "POST", {});
+        await api("/api/feed/items/" + encodeURIComponent(itemId) + "/read", "POST", {});
         row.dataset.feedEntryRead = "read";
         if (detail) detail.dataset.feedDetailRead = "read";
         row.querySelectorAll("[data-feed-read-state]").forEach((label) => { label.textContent = L("已读"); });
@@ -107,9 +98,9 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
           status.hidden = true;
           delete status.dataset.feedReadError;
         }
-      } catch {
+      } catch(error) {
         if (status) {
-          status.textContent = L("已打开，但未能保存已读状态；重新选择该 Item 即可重试");
+          molisWorkRequest.show(status,error);status.prepend(document.createTextNode(L("已打开，但未能保存已读状态；重新选择该 Item 即可重试")+" "));
           status.dataset.feedReadError = "true";
           status.hidden = false;
         }
@@ -118,10 +109,10 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       }
     };
     const setFeedSourceFeedback = (message, error = false) => {
-      if (message && feedSourcesDialog?.hidden) showToast(message);
+      if (message && feedSourcesDialog?.hidden) showToast(message,error);
       if (feedSourceError) feedSourceError.hidden = !error;
       if (feedSourceProgress) feedSourceProgress.hidden = error || !message;
-      if (error && feedSourceError) feedSourceError.textContent = message;
+      if(error && feedSourceError){if(typeof message==="string")feedSourceError.textContent=message;else molisWorkRequest.show(feedSourceError,message);}
       if (!error && feedSourceProgress) feedSourceProgress.textContent = message;
     };
     if (new URLSearchParams(location.search).get("feed-auth") === "gmail") {
@@ -176,7 +167,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let selected = document.querySelector("[data-goal-view]:not([hidden])")?.dataset.goalView || (collectionView ? "" : state.active_goal_id) || "";
     const initialHistoryState = history.state && typeof history.state === "object" ? history.state : {};
     history.replaceState({ ...initialHistoryState, goalId: selected }, "", location.href);
-    let toastTimer;
     let syncing = false;
     let deferredClients = null;
     let boardLifetime = null;

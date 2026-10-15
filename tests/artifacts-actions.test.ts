@@ -47,6 +47,11 @@ test("Artifacts share real records through Host and production MCP, preserving f
     assert.deepEqual(JSON.parse((await bound.invoke(a.export, { reference: { artifact_id: first.artifact_id, version: first.version } })).content), record);
     assert.equal((await bound.invoke(a.importFile, input)).reused, true);
     assert.equal((await bound.invoke(a.browser, {})).versions.length, 1);
+    // W3-02-G1-05: the subject reader accepts only an exact version; the refused input changes no saved artifact.
+    await assert.rejects(bound.invoke(a.subject, { subject_id: first.artifact_id }), {
+      code: "actions.input_invalid", message: "成果事项必须包含准确的成果 ID 和版本",
+    });
+    assert.equal((await bound.invoke(a.browser, {})).versions.length, 1);
     await assert.rejects(client.invoke({ ...caller, permissions: ["artifacts:read"] }, a.importFile, input), { code: "actions.forbidden" });
     await assert.rejects(client.invoke({ ...caller, project_id: "other" }, a.read, { reference: first }), { code: "actions.scope_mismatch" });
     await assert.rejects(client.invoke({ ...caller, permissions: ["artifacts:read", "artifacts:write"] }, a.importExternal,

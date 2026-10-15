@@ -97,19 +97,7 @@ export interface AttentionApi {
   readonly events: AttentionEvents;
 }
 
-export class AttentionError extends Error {
-  constructor(
-    readonly code:
-      | "attention_entry_not_found"
-      | "attention_revision_conflict"
-      | "attention_invalid_reference"
-      | "attention_invalid_transition",
-    message: string,
-  ) {
-    super(message);
-    this.name = "AttentionError";
-  }
-}
+export { attentionErrors } from "./attention-errors.js";
 
 /**
  * Inbox's own error codes, every one `inbox.<reason>`. The Inbox entries are this module's facts, but the Feed plugin (which composes the module)

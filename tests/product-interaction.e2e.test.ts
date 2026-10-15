@@ -213,13 +213,17 @@ test("Feed reader keeps one title, tracks read state, collapses and retries a fa
   const feed=createLocalFeedApplication(b.store.db);
   const item=feed.ingestItem({source,externalId:'reader-test',title:'一次清楚的阅读',summary:'列表摘要',body:'## 核心内容\n\n阅读正文与完整来源。\n\n'+Array.from({length:30},(_,i)=>`### 检查项 ${i+1}\n\n保持标题和操作在视野内，让阅读区独立滚动。`).join('\n\n'),priority:'normal',occurredAt:'2026-09-16T00:00:00.000Z',attention:false}).item;
   const catalog=await openMolisWorkProjectCatalog({homeDirectory});catalog.addProjectPlugin({project_id:projectId!,plugin_id:'feed',actor_id:'test'});catalog.close();
+  // A fixed desktop size: Chrome's default window is 756 px wide on macOS and 780 px on Linux, either side of the 760 px phone layout.
+  await command('Emulation.setDeviceMetricsOverride',{width:1440,height:960,deviceScaleFactor:1,mobile:false},sessionId);
   await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");await click('[data-plugin-id=feed]');
   const row=`[data-feed-entry-id="${item.item_id}"]`;
   await waitFor(`Boolean(document.querySelector('${row}'))`);
   await evaluate(`{const original=window.fetch;let fail=true;window.fetch=(url,options)=>{if(fail&&String(url).includes('/detail?')){fail=false;return Promise.resolve(new Response('failed',{status:503}));}return original(url,options);};}`);
   await click(row);await waitFor("document.querySelector('[data-feed-stage-shell][data-expanded=true] [data-retry-feed-detail]')");
-  await click('[data-feed-stage-workspace] [data-retry-feed-detail]');
+  // One retry, in the placeholder under the reader bar.
+  assert.equal(await evaluate<number>("[...document.querySelectorAll('[data-feed-stage-workspace] [data-retry-feed-detail]')].filter(b=>b.checkVisibility()).length"),1);
+  await click('[data-feed-stage-workspace] [data-feed-detail-empty] [data-retry-feed-detail]');
   await waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"] .feed-rich-content')`);
   assert.ok(feed.getFeedItem(DEMO_PROJECT_ID,item.item_id).read_at);
   assert.equal(await evaluate(`document.querySelector('${row}').getAttribute('aria-expanded')`),'true');

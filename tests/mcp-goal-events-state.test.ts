@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
@@ -6,8 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkLocalHost, snapshotBoardCapability, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkV1Error, goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { managementGoals } from "./goal-management-caller.js";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import type { GoalEventClosureResult, GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -87,7 +88,7 @@ test("Runtime state tools record progress and close without applying user identi
     await assert.rejects(
       () => runtime!.callTool("molis_work_v1_event_decide", { goal_id, idempotency_key: "runtime-decide", conclusion: "伪造批准",
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.authority_denied",
+      (error: unknown) => error instanceof ActionError && error.code === "mcp.authority_denied",
     );
     await assert.rejects(
       () => runtime!.callTool("molis_work_v1_action_goals.progress.record__v1", { goal_id, idempotency_key: "fake-user", actor_kind: "user",
@@ -102,7 +103,7 @@ test("Runtime state tools record progress and close without applying user identi
     await assert.rejects(() => management!.callTool("molis_work_v1_event_decide", {
       database_path: project.database_path, project_id, goal_id, actor_id: "manager", idempotency_key: "mgmt-forged",
       request_id: asked.decision_request.request_id, selected_option_id: "yes", conclusion: "冒名确认",
-    }), (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.unexpected_field");
+    }), (error: unknown) => error instanceof ActionError && error.code === "mcp.unexpected_field");
     const decided = JSON.parse(await management.callTool("molis_work_v1_event_decide", {
       database_path: project.database_path,
       project_id, goal_id, idempotency_key: "mgmt-decide",
@@ -132,9 +133,9 @@ test("Runtime state tools record progress and close without applying user identi
     assert.equal(reopened.work_status, "completed");
     assert.equal(reopened.applied_decisions[0]?.authority_source, "management");
 
-    const persisted = await host.client(molisWorkHostProjectReference({
+    const persisted = await managementGoals(host.actionClient(molisWorkHostProjectReference({
       databasePath: project.database_path, projectId: project.project_id,
-    })).invoke(snapshotBoardCapability, { project_id });
+    }), false), project_id).invoke(goalsActions.snapshot, {});
     assert.equal("claims" in persisted, false, "the retired claim protocol has no state");
 
     const progressEvent = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.read__v1", { goal_id, event_id: progress.event_id,
@@ -275,8 +276,8 @@ test("MCP agreement_change request keeps request-time commitment; later related 
         conclusion: "批准之前展示的取消要求",
         effects: [{ kind: "authorize_agreement_change" }],
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error
-        && error.code === "event_decision.stale_commitment"
+      (error: unknown) => error instanceof ActionError
+        && error.code === "goals.event_decision.stale_commitment"
         && /变化|变更|匹配|过期|基线/.test(error.message),
     );
     const afterApprove = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;

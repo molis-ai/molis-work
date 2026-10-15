@@ -45,17 +45,17 @@ test("relation actions preserve original receipts, direction, history, graph rul
     assert.equal(record.state, "active");
     const before = await snapshot();
     await assert.rejects(actions.invoke(goalsActions.relationAdd, { ...input, reason: "Changed" }));
-    await assert.rejects(actions.invoke(goalsActions.relationAdd, { ...input, idempotency_key: "duplicate" }), { code: "planning.relation_duplicate" });
-    await assert.rejects(actions.invoke(goalsActions.relationAdd, { ...input, from_goal_id: "parent", idempotency_key: "self" }), { code: "relation.self_reference" });
+    await assert.rejects(actions.invoke(goalsActions.relationAdd, { ...input, idempotency_key: "duplicate" }), { code: "goals.planning.relation_duplicate" });
+    await assert.rejects(actions.invoke(goalsActions.relationAdd, { ...input, from_goal_id: "parent", idempotency_key: "self" }), { code: "goals.relation.self_reference" });
     await assert.rejects(actions.invoke(goalsActions.relationAdd, { ...input, from_goal_id: "parent", to_goal_id: "child", idempotency_key: "cycle" }));
-    await assert.rejects(actions.invoke(goalsActions.relationAdd, { ...input, to_goal_id: "missing", idempotency_key: "missing" }), { code: "goal.not_found" });
+    await assert.rejects(actions.invoke(goalsActions.relationAdd, { ...input, to_goal_id: "missing", idempotency_key: "missing" }), { code: "goals.not_found" });
     await assert.rejects(client.invoke({ ...caller, project_id: "foreign" }, goalsActions.relations, {}), { code: "actions.scope_mismatch" });
     for (const forged of [{ actor_id: "forged" }, { project_id: "other" }, { user_action: caller.user_action }]) {
       await assert.rejects(actions.invoke(goalsActions.relationAdd, { ...input, ...forged }), { code: "actions.input_invalid" });
     }
     assert.deepEqual(await snapshot(), before);
     const proposed = await actions.invoke(goalsActions.relationAdd, { ...input, from_goal_id: "parent", to_goal_id: "child", state: "proposed", idempotency_key: "proposed" });
-    await assert.rejects(actions.invoke(goalsActions.relationDeactivate, { relation_id: proposed.relation_id, reason: "Not active", idempotency_key: "bad-remove" }), { code: "relation.not_active" });
+    await assert.rejects(actions.invoke(goalsActions.relationDeactivate, { relation_id: proposed.relation_id, reason: "Not active", idempotency_key: "bad-remove" }), { code: "goals.relation.not_active" });
     const pending = (await actions.invoke(goalsActions.relations, {})).relations.find(r => r.relation_id === proposed.relation_id)!;
     assert.equal(pending.state, "proposed");
     const remove = { relation_id: old.relation_id, reason: "  No longer belongs here  ", idempotency_key: "existing-remove" };
@@ -113,7 +113,7 @@ test("project policy actions preserve normalized receipts, original binding hist
     assert.deepEqual((await actions.invoke(goalsActions.policyResolve, { goal_id: "child" })).policy, { human_approval: true });
     const next = { ...input, policy: { human_approval: true }, idempotency_key: "next" };
     const stable = await snapshot();
-    await assert.rejects(actions.invoke(goalsActions.policySave, { ...next, user_confirmed: false }), { code: "policy.confirmation_required" });
+    await assert.rejects(actions.invoke(goalsActions.policySave, { ...next, user_confirmed: false }), { code: "goals.policy.confirmation_required" });
     await assert.rejects(actions.invoke(goalsActions.policySave, { ...next, policy: { ...next.policy, cross_reviewers: 2 } }), { code: "actions.input_invalid" }, "a rule is only the user's acceptance");
     await assert.rejects(actions.invoke(goalsActions.policySave, { ...next, idempotency_key: input.idempotency_key }));
     // A model's client cannot hold a grant for what is the person's alone: the access settings never offer these actions to the client,
@@ -183,7 +183,7 @@ test("Web relations and rules use live action policy for writes and selected pag
     assert.equal((await write("/api/goals/parent/relations", relation, "web-add", false)).status, 403);
     denied.add(goalsActions.relationAdd.capability_id);
     const blocked = await write("/api/goals/parent/relations", relation, "web-add");
-    assert.equal(blocked.status, 400); assert.match(await blocked.text(), /Configuration disabled/);
+    assert.equal(blocked.status, 403); assert.match(await blocked.text(), /Configuration disabled/);
     assert.deepEqual(await snapshot(), before);
     denied.clear();
     const added = await write("/api/goals/parent/relations", relation, "web-add"); assert.equal(added.status, 200, await added.clone().text());
@@ -192,13 +192,13 @@ test("Web relations and rules use live action policy for writes and selected pag
     const row = (await actions.invoke(goalsActions.relations, { goal_id: "parent" })).relations.find(r => r.relation_id === relation_id)!;
     assert.equal(row.from_goal_id, "child"); assert.equal(row.to_goal_id, "parent"); assert.equal(row.created_by, "web-user");
     denied.add(goalsActions.relationDeactivate.capability_id);
-    assert.equal((await write(`/api/relations/${relation_id}/deactivate`, { reason: "Remove" }, "web-remove")).status, 400);
+    assert.equal((await write(`/api/relations/${relation_id}/deactivate`, { reason: "Remove" }, "web-remove")).status, 403);
     assert.equal((await actions.invoke(goalsActions.relations, {})).relations.find(r => r.relation_id === relation_id)?.state, "active");
     denied.clear();
     assert.equal((await write(`/api/relations/${relation_id}/deactivate`, { reason: "Remove" }, "web-remove")).status, 200);
     const policy = { scope: "project_default", policy: { human_approval: true }, user_confirmed: true, idempotency_key: "web-policy", actor_id: "forged" };
     denied.add(goalsActions.policySave.capability_id);
-    assert.equal((await write("/api/policy-bindings", policy, "web-policy")).status, 400);
+    assert.equal((await write("/api/policy-bindings", policy, "web-policy")).status, 403);
     denied.clear();
     const saved = await write("/api/policy-bindings", policy, "web-policy"); assert.equal(saved.status, 200, await saved.clone().text());
     assert.equal((await actions.invoke(goalsActions.policyHistory, {})).bindings.at(-1)?.created_by, "web-user");

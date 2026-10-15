@@ -1,4 +1,5 @@
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 
 export const CATALOG_SCHEMA_VERSION = 22;
 export const CATALOG_OWNER = "molis-work-project-catalog-v1";
@@ -13,15 +14,12 @@ export function isOwnedCatalogOwner(owner: string | null | undefined): boolean {
  * still running is a `conflict` the person can resolve, and everything else is the caller's mistake (`invalid`), as the class this
  * replaced answered at every edge.
  */
-export const catalogErrors = defineErrorCodes("catalog", {
+const hostCatalogErrors = defineErrorCodes("catalog", {
+  project_recovery_unsupported_schema: "invalid",
   unknown_database: "invalid",
   unsupported_schema: "invalid",
   reader_too_old: "invalid",
-  invalid_name: "invalid",
-  project_not_found: "not_found",
-  plugin_not_found: "invalid",
   database_invalid: "invalid",
-  project_storage_invalid: "invalid",
   delete_confirmation_required: "invalid",
   project_terminal_live: "conflict",
   deletion_idempotency_conflict: "invalid",
@@ -32,11 +30,17 @@ export const catalogErrors = defineErrorCodes("catalog", {
   panel_not_found: "not_found",
   panel_confirmation_required: "invalid",
 });
+export const catalogErrors = {
+  ...hostCatalogErrors,
+  invalid_name: projectCatalogErrors.invalid_name,
+  project_not_found: projectCatalogErrors.project_not_found,
+  plugin_not_found: projectCatalogErrors.plugin_not_found,
+  project_storage_invalid: projectCatalogErrors.project_storage_invalid,
+};
 
 /**
- * The failure the catalog's injected factories raise (Projects, the runtime-context entries and the desktop panels hand it their codes): a
- * `catalog.*` code has the kind the catalog declares for it. Any other code is one of the runtime-context entries' (`context.*`, the Work
- * owner's until W3-02 R4a), each a mistake of the caller, which is what a code nobody classified is.
+ * The failure the catalog's remaining desktop-panel factory raises: declared catalog codes retain their kinds. Unclassified panel validation codes pass through
+ * unchanged as caller input errors. The injected factory does not assign the fact owner.
  */
 export function catalogFailure(code: string, message: string): ActionError {
   const reason = code.startsWith("catalog.") ? code.slice("catalog.".length) : "";

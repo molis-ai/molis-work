@@ -18,7 +18,7 @@ export { ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT } from "./goal-input-client.js";
 export { ARTIFACT_WORKS_CLIENT_SCRIPT } from "./works-client.js";
 export { ARTIFACT_HANDOFF_CLIENT_SCRIPT } from "./handoff-client.js";
 export { ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "./port-input-ui.js";
-export { createPluginArtifactClient, PluginArtifactAccessError } from "./plugin-client.js";
+export { createPluginArtifactClient } from "./plugin-client.js";
 export { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./goal-context.js";
 
 export const packageDescriptor = {

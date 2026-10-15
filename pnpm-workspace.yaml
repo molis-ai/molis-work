@@ -13,6 +13,12 @@ packages:
 # readable-stream 2 pins safe-buffer 5.1.2 while newer string_decoder pins 5.2.1.
 # The installer flattens runtime dependencies by package name, and 5.2.1 keeps the 5.1 API.
 overrides:
+  # lark-mcp pins the vulnerable MCP SDK 1.30.1 exactly. Keep every workspace consumer on the first release that binds
+  # persisted OAuth credentials to their authorization issuer (GHSA-6qxp-vccf-f47h).
+  '@modelcontextprotocol/sdk': 1.31.0
+  # Both PostCSS versions allow this patch release; force every installed path past the source-map parsing DoS
+  # (GHSA-68fv-2mgg-jv7q) without upgrading PostCSS or its other dependencies.
+  source-map-js: 1.2.2
   safe-buffer: 5.2.1
   # @larksuiteoapi/lark-mcp -> proxy-agent -> pac-proxy-agent -> get-uri declares basic-ftp ^5.0.2, which resolves to 5.x, and
   # even the latest 5.x has the Client.list() quadratic-time parser flaw (GHSA-c475-qrg2-pj4r, fixed in 6.2.1, the oldest fixed

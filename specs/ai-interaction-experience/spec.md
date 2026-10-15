@@ -817,6 +817,13 @@ I0 预览、共享展示部件（#423，已进 main）、共享浏览器行为�
 4. **A2 Coding 接入**：`ui.ts` 问题卡改用 `renderInteractionQuestion`，`client.ts` 用共享函数，`routes.ts` 的 `questionAnswer` 收 `value`，`question_drafts` 收值，`coding-base` 升版，在 Coding 声明里加题型；Coding 客户端字节在 5 个包里都不涨；AC-22。
 5. **H2/H3/H4**：H2 操作卡协作者（`assistant-offers.ts`，W5-10 形状）、H3 对象引用只读动作 `interaction.references.search`（`pnpm actions:update`，安全不变量加拒绝用例）、H4 Coding 的 `suggest-action`；AC-23–25。
 6. **S1 单次接续**：题型校验纯函数放 `packages/plugin-sdk`（不放 kernel），与 Prologue 的 `validateQuestionnaireAnswer` 做一致性用例并加进 `tests/ci-product-subset.txt`；Form「AI 生成表单」缺信息返回 `needs_input` → 同一问卷卡（宿主提供客户端挂载）→ 接续生成。Form 现在没有这个功能，是新功能；AC-26。
+   - **S1 状态（2026-10-15，分支 `feature/ai-interaction-s1`）**：已实现，构建、门禁与定向用例通过，PR 见统筹会话的合并队列。做法：
+     - `packages/plugin-sdk` 的 `questionProblems`、`questionSetFlaw`（Molis 形状上复刻 Prologue 的规则）；`tests/question-rules-consistency.test.ts` 用 36 组输入覆盖全部 19 个原因，与 agent-host 的 `answerProblems`（背后是 `validateQuestionnaireAnswer`）逐条同结论，已进 `ci-product-subset`。
+     - Form 新动作 `form.questions.draft@1`（「AI 生成题目」，concurrent，`model:invoke`）：要求不够清楚时返回 `needs_input` 和至多 4 道选择题；回答按问的那几道题检查（`form.answer_invalid`，`details.problems`），通过后带着原要求与回答再调一次模型，只追问一次。旧的 `form.questions.ai@1` 保留（创作台回放语料引用它），页面不再调它。
+     - 问过的题只存在插件进程里（至多 32 组、一天），绑定问卷 id、项目与版本；问卷在回答期间改过就请人重新生成。这不是持久等待，插件重启后要重新生成。
+     - 问卷卡由宿主画（`agentQuestionHtml`，新增可选的底部说明，默认文字不变）；字段错误由宿主的 `questionErrors` 写成读者的语言放进 `details.errors`，和助理的卡同一套文字；页面只绑定共享客户端（`host.interaction`），请求在途时问卷区 inert。
+     - `form.js` 37633 → 37608 字节（公共的 `make()` 小函数抵掉新增的客户端），`client.ts` 931 → 905 行。
+     - 验证：`tests/form-draft-questions.test.ts`（AC-26）、`tests/form-actions.e2e.test.ts` 在 1440/390 走「问 → 空答被拒在字段旁 → 回答 → 题目追加」。题型仍只开放 choice（D8 交集），开放其他题型是后面单独一片。
 7. **D1 文档**随各片：`skills/molis-prologue-ai`、`docs/platform/PROLOGUE-AI.md`、`skills/molis-plugin-dev`（含 `generated-ai.md`）、设计系统 README；§15.8 三个示例都要有用例。
 
 ### 20.6 跨线约定

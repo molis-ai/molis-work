@@ -276,9 +276,8 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     input.dataset.optionId = option?.id || crypto.randomUUID();
     input.value = option?.label || "";
     input.placeholder = L("选项");
-    const remove = document.createElement("button");
+    const remove = make("button", "mw-btn mw-btn--ghost mw-btn--icon-only");
     remove.type = "button";
-    remove.className = "mw-btn mw-btn--ghost mw-btn--icon-only";
     remove.dataset.optionRemove = "true";
     remove.setAttribute("aria-label", L("删选项"));
     remove.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
@@ -292,11 +291,9 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const list = make("div", "form-option-list");
     const source = options && options.length ? options : [{ label: "" }, { label: "" }];
     source.forEach((option) => addOptionRow(list, option));
-    const add = document.createElement("button");
+    const add = make("button", "mw-btn mw-btn--ghost", L("加选项"));
     add.type = "button";
-    add.className = "mw-btn mw-btn--ghost";
     add.dataset.optionAdd = "true";
-    add.textContent = L("加选项");
     optionsEl.append(list, add);
   };
   const renderQuestion = (question) => {
@@ -492,9 +489,8 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       row.dataset.formId = record.id;
       row.setAttribute("aria-selected", String(sel?.id === record.id));
       const leading = make("span", "feed-stage-leading");
-      const title = document.createElement("strong");
+      const title = make("strong", "", record.title);
       title.title = record.title;
-      title.textContent = record.title;
       leading.append(title);
       const published = record.status === "published";
       const status = document.createElement("span");
@@ -527,9 +523,8 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     reason.hidden = aiAvailable;
     reason.replaceChildren(document.createTextNode(aiUnavailableReason || L("当前没有可用的文字模型，请检查模型设置和服务连接。")));
     if (!aiAvailable) {
-      const link = document.createElement("a");
+      const link = make("a", "", L("打开模型设置"));
       link.href = "/settings/models";
-      link.textContent = L("打开模型设置");
       reason.append(document.createTextNode(" "), link);
     }
   };
@@ -829,8 +824,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       const labels = new Map(submission.questions.map(question => [question.id, question.title]));
       Object.entries(submission.answers || {}).forEach(([questionId, answer]) => {
         const row = document.createElement("p");
-        const label = document.createElement("span");
-        label.textContent = labels.get(questionId) || questionId;
+        const label = make("span", "", labels.get(questionId) || questionId);
         const value = document.createElement("span");
         const raw = answer;
         value.textContent = raw ? String(raw).replace(/\\n/g, "、") : "—";

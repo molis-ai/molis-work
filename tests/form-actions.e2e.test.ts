@@ -99,6 +99,7 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   await input('[data-form-ai-prompt]','常用工具');await click('[data-form-generate-ai]');await idle();assert.equal(modelCalls,1);
   await waitFor("document.querySelector('[data-form-draft-ask] [data-ix-question]') && !document.querySelector('[data-form-draft-ask]').hidden");
   assert.match(await evaluate<string>("document.querySelector('[data-form-draft-ask]').textContent"),/给谁填？[\s\S]*回答后接着生成题目/);
+  await waitFor("document.activeElement?.closest('[data-form-draft-ask]')");
   await screenshot('draft-ask');
   await click('[data-form-draft-ask] [data-ix-action=answer]');
   await waitFor("/这一题需要回答/.test(document.querySelector('[data-form-draft-ask]').textContent)");assert.equal(modelCalls,1,'an unanswered card does not reach the model');

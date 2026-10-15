@@ -100,6 +100,7 @@ export {
   type ArtifactsSqliteDatabase,
   type ArtifactsSqliteStatement,
 } from "./repository.js";
+export { afterTransaction, onVersionStoreWrite } from "./committed.js";
 export {
   ArtifactsService,
   type ArtifactEventInput,

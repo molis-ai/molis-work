@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { withRecordedCallId } from "./call-id-response.js";
+import { withPluginInteraction } from "./plugin-interaction-answer.js";
 
 export interface NativePluginJsonResult {
   readonly status: number;
@@ -90,10 +91,11 @@ export async function dispatchNativePluginJsonHttp(
       body,
     });
     if (!result) return false;
-    write(response, result);
+    write(response, { ...result, body: withPluginInteraction(result.body) });
     return true;
   } catch (error) {
-    write(response, actionErrorResponse(error));
+    const refusal = actionErrorResponse(error);
+    write(response, { ...refusal, body: withPluginInteraction(refusal.body) });
     return true;
   }
 }

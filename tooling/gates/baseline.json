@@ -2,10 +2,10 @@
   "giantUnits": 147,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2239,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2222,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1814,
-      "methods": 112
+      "lines": 1796,
+      "methods": 110
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 280,
@@ -216,7 +216,7 @@
       "lines": 493,
       "methods": 44
     },
-    "file plugins/native/form/src/client.ts": 930,
+    "file plugins/native/form/src/client.ts": 900,
     "function plugins/native/goals/src/event-document-forms.ts#createEventDocumentForms": 348,
     "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": 269,
     "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": 243,

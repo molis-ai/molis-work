@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-15，Claude 按用户 10-14 目标接手，Codex 写线已暂停交接）。I8 的修复树 F109 按 §1 10-15 的决定整树一个 PR（#523）合入 main（合了 main 到 #522，#522 是 Pages 编辑器的单次资源例外）；全量在 CI 分片跑（`full-suite` 标签），macOS 专有用例在本机补，失败逐个对照 main 基线。10-15 代码回溯审查的 C-03、C-05、C-06 与文档尾项在 #514 修，C-01、C-02、C-04、A-01、A-04 随 F109（#523）进 main（§10.12）。下一步接第 4–6 波与 B-01～B-12 的结构项。10-14 独立复查见 §10.11。
+状态：执行中，整线未完成（2026-10-15，Claude 按用户 10-14 目标接手，Codex 写线已暂停交接）。I8 的修复树 F109 按 §1 10-15 的决定整树一个 PR，#523 已合入 main（`f74e29d86`；#522 是 Pages 编辑器的单次资源例外）；全量在 CI 分片跑，macOS 专有用例在本机补，失败逐个对照 main 基线，合入后的三项 Linux 修复与一处合并留下的旧错误码在后续 PR 补进。10-15 代码回溯审查的 C-03、C-05、C-06 与文档尾项在 #514 修，C-01、C-02、C-04、A-01、A-04 随 #523 进了 main（§10.12）。下一步接第 4–6 波与 B-01～B-12 的结构项。10-14 独立复查见 §10.11。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -18,6 +18,7 @@ W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只
 
 | 日期 | 事项 | 选项 | 结论 | 说明 |
 | --- | --- | --- | --- | --- |
+| 2026-10-15 | CI 全量占满 runner（弹窗） | 限流并只在加标签时跑（推荐）；只限流；全量只在每晚和集成分支跑 | 限流并只在加标签时跑 | 6 个带 `full-suite` 标签的 PR 每次推送各开 16 个分片，占满仓库的 20 台并发，`Verify` 与 main 的 CI 排队 10–20 分钟。`full-suite.yml`：PR 只在加上标签时跑一次，`max-parallel: 6`；要再跑就重新加标签或手动触发 |
 | 2026-10-15 | F109 在启动时打开所有项目（为了恢复各项目的定时任务），每次打开都同步编译全部动作合同（Goals 一项约 250 ms），Catalog 读取被卡住（`tests/catalog-read-contention.test.ts`：最长停顿 84 ms，main 是 22 ms；加载重时 3 次都失败；弹窗） | 推迟到第一次调度时再打开（推荐）；拆小打开项目的同步工作；撤掉启动时打开项目 | 推迟到第一次调度时再打开 | 启动不打开项目，第一轮调度（30 秒）先从 Catalog 打开各项目、再跑到期的任务；同一份合同只编译一次（按合同全文缓存），打开项目时先分批编译再注册。最长停顿回到 22 ms；`tests/schedule-reminder-recovery.test.ts` W2-18-SCHEDULE-01 改为断言启动不打开、第一轮打开 |
 | 2026-10-15 | F109 合 main 后 Pages 编辑器资源 698,574 → 703,633 字节（+5,059，全部来自 `editor-transient.ts` 与 `card-content.ts` 的修复；弹窗） | 单次资源例外（推荐）；瘦身现有编辑器代码 ≥5 KB；去掉几种代码高亮语言 | 单次资源例外 | 照 #520 的做法在 #522 里只给这一个资源、这一个旧基线开一次，上限等于实测，多一字节、其他资源、之后再长都拒绝；名字混淆会破坏现有 `/Decoration\.node/` 断言，不用 |
 | 2026-10-15 | W3-10 单片全量失败后 I8 怎样合（弹窗；改上一行的两个 PR）：W3-10 单独取 35 个文件，全量 41 个文件失败（缺别的工作流里的 `molisWorkRequest`、`feedApi` 等），单片离不开其余工作流 | 整个 F109 一个 PR（推荐）；继续拆 | 整个 F109 一个 PR | 用合了 main 的 F109 整树开一个 PR，不写混合文件；重建、刷新门禁基线；加 `full-suite` 标签在 CI 分片跑全量，本机补 macOS 专有用例，失败逐个对照 main 基线；PR 描述按工作流分节写改动与影响 |
@@ -26,6 +27,7 @@ W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只
 | 2026-10-15 | CI 全量里轮换出现的偶发失败（弹窗） | 重试一次加降负载（推荐）；只重试；只降负载；继续逐个修 | 重试一次加降负载 | #519 前后五轮：864 → 888 → 892，每轮失败的是另一批浏览器文件，报错是 CDP、DOM 等待超时（4 核 runner 同时 3 个文件）。`run-tests.mjs --retries <n>`（默认 0，本机行为不变）：重跑通过的列为 flaky、不让运行失败；`full-suite.yml` 用 `--retries 1`，每个 runner 同时 2 个文件，分片 10 → 16 |
 | 2026-10-15 | 本机验证的等待（弹窗） | 只重建变了的包（推荐）；机器槽位工具（推荐）；把点名的用例送 CI 跑；本机浏览器槽提到 3 | 只重建变了的包；机器槽位工具 | 依据 42 个会话：前台构建 19 小时（每次整体清空重建 71 个包，整台机器一次一个）、浏览器用例 16 小时、前台轮询等待 29 小时（其中 13 小时等别的会话，靠 `pgrep` 或某个会话私有的锁脚本）。`scripts/build-workspace.mjs` 按输入摘要跳过没变的包，`pnpm build:clean` 保留全量重建；`scripts/machine-slot.mjs` 让构建与浏览器批次按到达顺序排队、死掉的占用者被接手；`docs/system/PARALLEL-DEVELOPMENT.md` §5 写明等待用后台加通知 |
 | 2026-10-15 | main 开合并队列（弹窗，推翻 2026-10-02「不开合并队列」） | 开（推荐）；不开 | 开 | 10-02 时 `Verify` 约 28 分钟，现在约 5 分钟；10-13 到 10-15 的 200 次 CI 里 95 次因分支同步后重跑被取消。`ci.yml` 加 `merge_group`，健康门禁与密钥扫描在队列里以 `merge_group.base_sha` 为比较点；分支保护去掉「必须与 main 同步」，由规则集的合并队列验证 `Verify`；不挡合并的作业不进队列。做法见 `docs/system/PARALLEL-DEVELOPMENT.md` §3 |
+| 2026-10-15 | 测试自己的时限能不能按慢机调大（#519 与 #527 口径相反，§10.13 R-5） | 用户直接答复 | 可以：「时限可以90秒，我没说必须30秒」 | 时限只用来拦卡死，不是行为断言：Linux CI 比 macOS 慢约 2.3–2.5 倍，按这个倍数调大时限、在注释里写明，不算放宽断言；断言本身仍不放宽、不跳过。`tests/mcp-scene-effect-authority.test.ts` 定为 90 秒 |
 | 2026-10-15 | 全量搬到 CI 分片跑（弹窗） | 上 CI 分片（推荐）；只在本机 | 上 CI 分片 | `.github/workflows/full-suite.yml`：10 个 ubuntu runner，PR 加 `full-suite` 标签、推到 `integration/**`、每晚和手动时跑；不挡合并；Linux 探针标为 macOS 专有的文件（`run-tests.mjs --skip-macos-only`）仍在本机跑。依据：本机全量 56–61 分钟，其中浏览器文件 116 分钟、同时 2 个就占 58 分钟，整台机器一次只能一个全量，并行需求互相排队 |
 | 2026-10-15 | Prologue #26 由我合入后被权限检查标成「未经评审合并」（弹窗） | 保留（推荐）；回退等评审 | 保留合入 | #26 只改两个消费者脚本（P2i、P2h 改用真实会话），SDK 代码未动；12 个消费者脚本在干净包上全部通过 |
 | 2026-10-15 | BL-137：SDK 释放 8 MiB 资源约 0.8 秒（弹窗） | 在 Prologue 开 PR 修（推荐）；只记录 | 在 Prologue 修 | 先作废索引，再逐块直接删、目录 fsync 一次；崩溃后由扫块兜底补删，断电语义不变；另跑 SDK 全量与干净包 |
@@ -1541,7 +1543,7 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 
 唯一writer已从cb460固定base开独立PR4源码树，按PR4→5→H接续，仅改源码，不构建/改I6/碰真实Home。实际MCP旧client.withScope在tree载荷校验前已绑定项目；新的Host.withProject还会prepareInstalledPlugins，不能替代它。PR4只保留原client.withScope空回调预打开及精确AST约束，三个Goals管理业务全部经unprepared factory/action port，保留真实身份拒绝顺序与原IO边界，不新增插件预准备或业务行；工程与回归须等I6释放机器构建窗口。
 
-### 10.10 调度前拒绝的共同结算（108新失败，待修）
+### 10.10 调度前拒绝的共同结算（108新失败，已修）
 
 现象：action-call-log 的早取消命令需要留下原操作编号的一行“未执行”，而 MolisWorkLocalHost 的项目插件准备、withPreparedActions 的Home准备、LocalHost 的caller/signal/runtime检查在ActionService结算之前就可能抛错；原取消/范围/关闭拒绝必须保留。新失败与源码已定位，完整108栈及基线仍待，不以定位替代修复验收。最小方案只把准备阶段的拒绝交给现有bindCall/refuseCall/settleCall及同一Host记录hook，成功转发保持原ActionService唯一结算；不启动本已取消调用的插件、不写业务事实、不在下游已结算后再记录一次，保原error、caller和call_id。Assistant在计算目录之前已取消或期间取消时也须保原not-run结果跟踪，不能只把异常预期放宽为AbortError。 冷invoke没有discover前置条件：已发现view只作诊断名、不作授权；没有缓存时共享核心提取registeredActionMetadata，由既有directory复用同一scope/audience过滤；Host的inspectActionMetadata只返回这些已登记声明，保scope/Host身份校验、不评估Host或provider可用性、不打开Runtime或准备插件，未登记reference不伪造view，metadata不可读时保原拒绝。此模式只给停止结果命名，常规目录与validate_authority始终带原signal，实际invoke的授权、授予与最终effect检查不变。
 
@@ -1560,7 +1562,7 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 | F-4 | main 的 vendored SDK 没有模型切换接受时的授权复核 | 安全缺口（已有上游修复） | 决定 5：I8 第一片 |
 | F-5 | 现用 SDK 包的系谱经过 08b84296，不在 Prologue main 上 | 与 D7 冲突 | 决定 6：过渡期例外 |
 | F-6 | I8 的 W3-10 把 Feed/Inbox 列表刷新失败的「当前输入已保留」换成共同出口的话；Issue 的模型设置读不出时同样 | 在 W3-10 批准的方向内，但措辞上的损失没写明 | BL-134 |
-| F-7 | Prologue #21、#22 合入前没跑最终头的 SDK 全量与干净包消费者 | PR 里写明，承诺合后补跑 | 补跑结果待记（Molis 在 P3 前不用这两片） |
+| F-7 | Prologue #21、#22 合入前没跑最终头的 SDK 全量与干净包消费者 | PR 里写明，承诺合后补跑 | 已补跑：Prologue main `b01067b4`，SDK 全量 3912 条通过，2 条失败都在 `desktop-computer-use.live`（桌面被占）；干净包上的消费者脚本通过（记在 Prologue `docs/slices/taskboard-collaboration.md`，`0107d9b0`） |
 | F-8 | I8：删一条已接受的记忆后，账本留下孤立的候选记录，之后每次读记忆都失败 | 产品缺陷（I8 去掉了 main 的兜底，按不留兼容是对的） | 在 F109（未进 main）e694bd761 里删记忆时连记录一起删，随 I8 落地。真实 Home 只读拷贝核对（用户 10-14 同意）：记忆账本 0 条候选记录，没有孤立记录，不需要维护 |
 | F-9 | I8：Shelf 与 Characters 只读现行形状；shelf-settings 里两条旧默认值用例与之矛盾 | 符合「读取不兜底」 | 两条在 F109（未进 main）改成拒绝用例。真实 Home 只读拷贝用 F109 的读取代码打开：Shelf 目录（版本 1）与角色库（版本 1）都是现行形状，不需要维护 |
 | F-10 | I8：Runtime 插件的 consumes 能调到别的插件的动作，没有决定，用例被留在失败 | 缺决定 | 决定 4 |
@@ -1591,21 +1593,59 @@ I8 修复树 F109 上另修的产品问题（都带用例）：卡片结果未�
 
 | 编号 | 问题 | main 状态 | 处理 |
 | --- | --- | --- | --- |
-| C-01 | 共同副作用守卫在最后一次 Host 等待（`beforeEffect`）之后不再复查调用者授权 | 随 F109（#523）修 | `effectGuard` 在 Host 的 `beforeEffect` 之后同步调用 `assert_authority_current`（异步结果拒绝），MCP 入口的末端检查同步重读对外授权；`tests/mcp-effect-authority.test.ts`（真实 MCP，在 Host 最后一次可用性等待里撤权后拒绝）、`tests/action-authority-tail.test.ts` W3-09-AUTH-02 |
-| C-02 | Pages 评论回复在停止后被异步返回写回「运行中」 | 随 F109（#523）修 | 读取返回后复查轮次、按 revision 提交；`tests/assistant-thread-reply.test.ts` PAS-10 S-18-102-03（发送后第二次读取时停止，晚到的写入被拒） |
+| C-01 | 共同副作用守卫在最后一次 Host 等待（`beforeEffect`）之后不再复查调用者授权 | 已修（#523，main `f74e29d86`） | `effectGuard` 在 Host 的 `beforeEffect` 之后同步调用 `assert_authority_current`（异步结果拒绝），MCP 入口的末端检查同步重读对外授权；`tests/mcp-effect-authority.test.ts`（真实 MCP，在 Host 最后一次可用性等待里撤权后拒绝）、`tests/action-authority-tail.test.ts` W3-09-AUTH-02 |
+| C-02 | Pages 评论回复在停止后被异步返回写回「运行中」 | 已修（#523，main `f74e29d86`） | 读取返回后复查轮次、按 revision 提交；`tests/assistant-thread-reply.test.ts` PAS-10 S-18-102-03（发送后第二次读取时停止，晚到的写入被拒） |
 | C-03 | 搜索等索引追上时撤权，这次查询仍返回旧授权内容 | #514 修 | 查询在追上索引之后重读调用者目录，再按那份目录过滤和报来源；`tests/system-search.test.ts`「a source revoked while the query waits for the index answers nothing from that query」（未修时返回 `a1`，已复现） |
-| C-04 | 外部 MCP 改已有对象可以不带读取版本 | 随 F109（#523）修 | 动作服务按声明的版本字段对 `agent`、`mcp` 来源统一要求读取版本（W3-09-3），在任何处理器之前拒绝；`tests/action-version-precondition.test.ts` W3-09-3-01～03 |
+| C-04 | 外部 MCP 改已有对象可以不带读取版本 | 已修（#523，main `f74e29d86`） | 动作服务按声明的版本字段对 `agent`、`mcp` 来源统一要求读取版本（W3-09-3），在任何处理器之前拒绝；`tests/action-version-precondition.test.ts` W3-09-3-01～03 |
 | C-05 | 「永久清除用户数据」漏掉现行库和数据 | #514 修 | 清除范围补上 `assistant`、`placement`、`agent-definitions`、`characters` 四个库（进 `PERSONAL_HOME_SQLITE_STORES`，归为宿主库，插件不能用这些名字），以及 `docs/system/HOME-DATA.md` 登记的 `agent-runtime/`、`feed/`、`browser/`、`plugin-builder/`、`cache/`、`directory-access/`、`git-operation-details.json`、`runtime-integration-attempts/` 和 `config/` 里属于人的五个文件；`tests/uninstall.test.ts` 往每一项放内容，断言在计划里且 Home 整个删掉（未修时「purge 要删 assistant」失败）。Keychain 主密钥不在 Home，不碰。统一登记（W4-11）仍未做 |
 | C-06 | Characters 打开无版本旧库时直接盖成版本 1 | #514 修 | `openCharacters` 改经 `applySqliteBaseline`（`CHARACTERS_STORE_BASELINE`）；无版本的表、更高版本都拒绝且原库不动（`tests/home-store-baselines.test.ts`，未修时「Missing expected exception」）。发布检查清单该行改成「拒绝」。真实 Home 的库在 10-14 只读拷贝上是现行形状（F-9） |
-| A-01 | 模型切换在 SDK 接受时没有末端授权复核 | 随 F109（#523）修 | 新 SDK 包的 `beforeAccept` 接到模型切换；`tests/agent-sdk-effects.test.ts` W2-18-MODEL-SWITCH-01/02（在读配置、读凭据、SDK 接受三处撤权或取消，切换都被拒，已接受的模型 B 和它的显示不变） |
+| A-01 | 模型切换在 SDK 接受时没有末端授权复核 | 已修（#523，main `f74e29d86`） | 新 SDK 包的 `beforeAccept` 接到模型切换；`tests/agent-sdk-effects.test.ts` W2-18-MODEL-SWITCH-01/02（在读配置、读凭据、SDK 接受三处撤权或取消，切换都被拒，已接受的模型 B 和它的显示不变） |
 | A-02 | Computer Use 停下或出错的一轮被记成「失败：模型说完成了」 | 已修 | #510 |
 | A-03 | 电脑 socket 自带本机名单、S-04 未覆盖 | 已修 | #510；`SECURITY-INVARIANTS.md` 第 9、70 行「Computer Use 不在 main」#514 改掉，并补 S-25（桌面动作的拒绝，用例只在本机跑） |
-| A-04 | `withPreparedActions` 准备失败不进共同调用结算 | 随 F109（#523）修 | 准备失败经 `refuseCall` 进共同结算，调用记录留一行「未运行」；`tests/action-prepare-refusal.test.ts`（10-15 补，main 上 0 行、F109 上 1 行） |
+| A-04 | `withPreparedActions` 准备失败不进共同调用结算 | 已修（#523，main `f74e29d86`） | 准备失败经 `refuseCall` 进共同结算，调用记录留一行「未运行」；`tests/action-prepare-refusal.test.ts`（10-15 补，main 上 0 行、F109 上 1 行） |
 | A-05 | 测试内部引用台账开头仍写 16 条 | #514 修 | 改成 15 条、8 个测试文件，注明 10-15 删去的一条 |
 | A-06 | AI 入口清单没有 Pages 评论线程 | #514 修 | `ai-entry-inventory.md` 补 AG-7（模型调用仍走 AG-1；C-02 记在这一行） |
 | B-01～B-12 | 结构项（手工装配、浏览器模板脚本、Home 清单分散等） | 照路线图 | 第 4～6 波；不在本节关闭 |
 
-I8 落地的实际情况（10-15）：第 1 片（S1）的构建闭包把 136 个文件拉进来，仍有 19 个测试文件失败，原因都是 W3-02 的错误改名、`goal-actions` 子路径和管理入口没跟进。S1 不能单独成片，下一步把 S1 与 W3-02 合成一片，从 F109 `9a30b3135`（已合入 #505～#513）整文件取，而不是 `7882cf09c`。后来按 §1 的三行决定改成整个 F109 一个 PR：W3-10 单独取 35 个文件时全量 41 个文件失败，单片离不开其余工作流。C-01、C-02、C-04、A-01 的用例用到 F109 才有的接口，在 main 上跑不起来，main 上的失败以审查报告的隔离复现为准；A-04 的用例只用公开接口，在 main 上失败、在 F109 上通过。#523 在 CI 上第一次跑全量：F109 失败 25 个文件，main 基线（`integration/main-baseline-e18a65b4`，同一套分片）失败 31 个。只在 F109 失败的 6 个逐个查过：`characters-schema` 是 F109 的 W1-18 断言还在等旧的 `characters.invalid`，而 main 的 C-06 已改成共同基线的 `storage.schema_version_mismatch`；同时发现 #514 把 `chmod` 放在了版本检查之前，被拒绝的库也会被改权限，已改成通过检查后才收紧。`catalog-read-contention` 是启动时打开项目引起的真回归，处理见 §1 的启动决定。`side-panel-browser` R5B-01/03 是浏览器进程退出先于 DevTools 连接关闭时页面仍显示「就绪」的竞态，退出时先关连接。`lingguang-mcp`、`ppt-mcp`、`companion-client-lifecycle` 在本机通过，CI 上是超时，main 上同样接近时限。
+I8 落地的实际情况（10-15）：第 1 片（S1）的构建闭包把 136 个文件拉进来，仍有 19 个测试文件失败，原因都是 W3-02 的错误改名、`goal-actions` 子路径和管理入口没跟进。S1 不能单独成片，下一步把 S1 与 W3-02 合成一片，从 F109 `9a30b3135`（已合入 #505～#513）整文件取，而不是 `7882cf09c`。后来按 §1 的三行决定改成整个 F109 一个 PR：W3-10 单独取 35 个文件时全量 41 个文件失败，单片离不开其余工作流。C-01、C-02、C-04、A-01 的用例用到 F109 才有的接口，在 main 上跑不起来，main 上的失败以审查报告的隔离复现为准；A-04 的用例只用公开接口，在 main 上失败、在 F109 上通过。#523 在 CI 上第一次跑全量：F109 失败 25 个文件，main 基线（`integration/main-baseline-e18a65b4`，同一套分片）失败 31 个。只在 F109 失败的 6 个逐个查过：`characters-schema` 是 F109 的 W1-18 断言还在等旧的 `characters.invalid`，而 main 的 C-06 已改成共同基线的 `storage.schema_version_mismatch`；同时发现 #514 把 `chmod` 放在了版本检查之前，被拒绝的库也会被改权限，已改成通过检查后才收紧。`catalog-read-contention` 是启动时打开项目引起的真回归，处理见 §1 的启动决定。`side-panel-browser` R5B-01/03 是浏览器进程退出先于 DevTools 连接关闭时页面仍显示「就绪」的竞态，退出时先关连接。`lingguang-mcp`、`ppt-mcp`、`companion-client-lifecycle` 在本机通过，CI 上是超时，main 上同样接近时限。第二轮（合了 #524：16 片、失败重试一次）对照同一配置的 main 基线（`integration/main-baseline-64ae9293`）：重试后仍失败的，F109 15 个、main 17 个，只在 F109 失败的 3 个都已查清并修好，在 Linux 上的临时诊断任务里连跑 3 次都通过。`alchemist-client-boundaries` 是真缺陷：选中一项后，如果它的列表读取被更晚的读取超过，或视图在读取中被隐藏，这次选择就丢了，回来时打开的是旧对象。现在记住这次选择，直到它真正打开，并补了两个确定复现的步骤（W2-18-ALCHEMIST-UI-01）；修复多出的字节用一个共用的提示段落函数抵掉，资源预算反而降了 60 字节。`side-panel-browser` R5B-01/03：在限制用户命名空间的 Linux runner 上，带沙箱的渲染进程收到崩溃指令后会卡住不退出，页面收不到崩溃事件；用例改用测试机的 Chrome（CI 上不带沙箱），产品逻辑不变。`shelf-client-boundaries`：Chrome 主进程退出后辅助进程还在写配置目录，清理时删除失败；#519 已让测试用的 Chrome 退出后等辅助进程 500 ms 再删，不另改。#523 先于这三项合入，它们和 #519 与 F109 文本合并留下的一处旧错误码（`tests/side-panel-browser.e2e.test.ts` 等待 `page.load_failed`，F109 已改名为 `browser.load_failed`）由后续 PR 补进 main。`tests/goal-event-document.e2e.test.ts` 的「event document writes planning, report, concern, decision and closure」随 F109 变得偶发失败（本机单跑：旧 main `afe440dd8` 0/9，F109 2/9，合入后的 main 4/13）。原因是保存后约 0.6 秒，看板每 4 秒一次的游标轮询整页刷新 Goal 文档，把刚打开的记录菜单收起，下一次点击落到时间线上（旧 main 也有这个刷新，F109 的时序让窗口更常撞上）。现在 Goal 文档里打开着记录菜单或「更多」菜单时，后台刷新先等，菜单关掉后下一次轮询再刷新；`tests/goals-refresh.e2e.test.ts` BL-140 用例去掉修复会失败。修复后本机 17 次都通过。#529 合入后又看到 `tests/todo-draft-recovery.e2e.test.ts`（W2-18-TODO-DRAFT-01）偶发失败：等不到版本冲突（409）。原因在测试：关掉详情时编辑区只是藏起来，字段里还留着旧值，所以「重新打开」后等标题的那一步在读取返回之前就过了；页面外的修改先落库，重新打开读到的是新版本，后面的输入照常保存，不会冲突。编辑区藏着的时候人打不了字，产品没有问题。现在这一步同时等编辑区显示出来。把重新打开的读取人为推迟 1.5 秒：旧写法每次都按 CI 的报错失败，新写法通过。`tests/agent-action-selection.e2e.test.ts` 在 main 上早就在 CI 里反复失败（I8 之前的基线 `64ae9293` 也失败），新建角色后编辑区一直不出现。原因在产品：设置里的「我的角色」先由服务端画出来，「新建角色」「从本机导入」按钮一出现就可以点，但页面脚本这时还没挂上，点了没有任何反应；CI 上测试刚打开页面就点，正好落在这段时间里。现在这两个按钮先画成不可用，页面脚本第一次读完列表后照常由 `controls()` 打开；测试等按钮可用后再点。旧写法下点击落在脚本挂上之前，不会发出新建请求；把列表读取人为推迟 2.5 秒后，修复前失败、修复后通过，本机另跑两次以及 `cross-plugin-recovery`、`page-interaction-flow` 两个用到角色页的用例都通过。
+
+
+**10-15 现状：** 已随 #523（A-04）修好。PREP-108-01～04 在 `tests/action-call-log.test.ts` 与 `tests/assistant-business-gateway.test.ts`，10-15 在 main `f484d09a5` 上 2 个文件 67 项全部通过。上面的现象和方案留作记录。
+
+### 10.13 2026-10-15 合入 PR 的独立复查（#513～#533，及在途）
+
+按 10-14 目标的三条（是否符合要求文档、有没有把清理过的问题带回来、有没有无依据的行为变化），复查 10-15 审计基线 `24d04d98` 之后合入 main 的 #513～#533。看的是实际改动和合并后的共同效果，不只看 PR 自述与 CI。
+
+| 编号 | 发现 | 判定 | 处理 |
+| --- | --- | --- | --- |
+| R-1 | #527 撤回了把 `tests/mcp-scene-effect-authority.test.ts` 时限从 30 秒调大的提交，理由是「调大测试自己的时限就是放宽」，并改为把安全任务拆成两片。3 分钟后合入的 #529 又把它调到 120 秒 | 当时判为推翻 #527 的决定、没有新依据，#541 改回 30 秒。用户 10-15 已定：时限可按慢机放宽（第 1 节），所以 #541 的改回是错的：30 秒下 `W3-09-AUTH-03` 在 #532 的 CI 上超时过，本机 13–16 秒 | 改成 90 秒，注释写明倍数与用途（#541 之后的修正 PR） |
+| R-2 | #520 与 #522 的单次资源例外已经用完（issues.js 实测 26,331，Pages 编辑器 703,633），可门禁里按旧大小（24,378、698,574）写的例外还在：缩回旧大小就能再用一次 | 与 F-1、F-13 同类 | 本 PR 删掉 `APPROVED_CEILINGS`，两条例外用例改成「已用完、旧大小下不再放行」。变异检查：用 main 的门禁跑，这两条失败 |
+| R-3 | #520 写明用户在 10-15 批准了 Issue 26 KiB 的例外，但 `specs/issue-home-v0` 没有这条批准的记录，只有 PR 说明和门禁注释 | 与 F-1 同类；批准由 #520 作者转述，本会话无法核实 | 记在这里；例外已在 R-2 删除 |
+| R-4 | #516（依赖安全修补）：MCP SDK 升到 1.31.0；OAuth 凭据没有 issuer 时拒绝读取，提示「MCP 授权凭据来自旧版本，请重新连接」（stdio 不受影响） | 有依据（GHSA）的行为变化，不留兼容，符合「读取不兜底」 | 用户可见：之前保存的 OAuth MCP 连接要重新连接一次。未读钥匙串核对 |
+| R-5 | #519 为 Linux CI 调大 20 多个用例的时限与等待（「时限只防挂住，不是速度检查」），#527 对同类问题的口径相反 | 用户 10-15 已定：时限可按慢机放宽，不算放宽断言（第 1 节）；#519 的做法符合，#527 撤回时限那一步不再作为口径 | 已定，不用再问 |
+| R-6 | #521 新增浏览器脚本模板 `ISSUE_REVIEW_CLIENT_SCRIPT` | R-07（浏览器代码无打包与类型检查）方向上多一个，但这项还没有门禁 | 留给第 5 波浏览器类型化，不在本 PR 处理 |
+
+没有问题的：
+- #521：重新整理只读助理已就绪的 `issues.update` 建议卡，把标题和类型填回编辑器，页面不执行卡片；仍由带 `expected_version` 的保存提交；不引用别的插件的实现。
+- #527：校验结果与注册时的拒绝都不变，与 #523 的预编译组合正常。
+- #528：去掉了重复的重试，占位里仍显示带诊断编号的错误。
+- #531：纯提取，外加改成显式版本号。
+- #533：等待条件跟上 #523 改的错误码，断言没变。
+- #513、#517、#525（文档）与 #515、#518、#524、#526（CI 与测试基础设施）：每项改动都有用户 10-15 弹窗决定（第 1 节）。`--retries 1` 只在 CI 全量里开，重跑才通过的文件会单独列出，本机默认仍是 0。
+
+Prologue（10-14 复查到 #22 为止，这次看 #24～#27）：
+- #24：把 #20 的模型切换末端授权复核搬到 main，源码与用例和 #20 相同。#23（临时发布分支）关闭，没有合入。
+- #25（P2k，按步骤判冲突）：同一版本、不同步骤上的两次改动都落地，是 X5 用户选 B 的预期变化；同一步骤上的冲突仍拒绝，用例保留并补了这一条。
+- #26：只改测试夹具，改用 Runtime 里真实的会话。
+- #27（F-15 / BL-137）：撤销时先作废索引（一次墓碑），再用新的 `HostStorage.discard` 删块，最后 fsync 一次目录；崩溃后再次撤销能按文件名找到残留块。会话与 Effect 的删除路径不变。Tauri 的 `storage_discard` 接受任何 kind，信任级别与 `storage_purge` 相同，PR 里已经提出可以再收紧，不挡。Molis 还在用旧包，要等 P3a 换成 `e5123369` 的包才生效，BL-137 那时再关。
+
+在途：
+- #530：目录读取改为共享冻结的快照，写入会抛错而不是只改到副本；调用方核查与 Agent 工具参数拷贝合理。
+- #532、#534、#536：由四线各自负责，与第 4 波的冲突已经告知统筹（W4-04 等 #532，W4-07 等 #534）。
+- 本节的修复是 #541，已合入（`4eead9d5`）。
+- #539、#540（W4-09）的 CI 全量各有红片，查过不是它们引入的：
+  - 两者共有的是 `tests/agent-action-selection.e2e.test.ts`。它在 #535 合入前的各分支全量里都红（`context/assistant-flow`、`adoption/p3-collaboration`、`feature/ai-interaction-s1`），#535 修了这处 Characters 偶发，而这两个分支的基点早于 #535。
+  - #540 另有 `W2-18-PAGES-TRANSIENT-01`（插入的文字落在段尾）：失败片重跑全过，本机在该分支上 9/9 通过；之前没有记录。只出现一次，没有进隔离名单，再出现就按 `tests/quarantine.json` 登记。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 
@@ -1713,7 +1753,7 @@ I8 落地的实际情况（10-15）：第 1 片（S1）的构建闭包把 136 �
 
 | 既有路线/验收编号 | 严重性、根因与影响 | 必须动作与验收方式 |
 | --- | --- | --- |
-| W3-09 / W2-19（S-08/S-18） | P1 授权竞态，源码已确认、复现待跑：共同 `beforeEffect` 在精确授权之后还 await 权限与 Host 可用性检查；最后只用初始 `allowed_actions`，期间撤销精确动作可能仍写。MCP 权限并集不能识别保留同权限 B、撤销 A 的差别 | 唯一 writer 优先以真实 MCP 授权文件、Form SQLite 与可控后续可用性检查复现；`form.questions.ai` 最后检查后写题目的路径可触发。修共同入口，断言 A 被拒、业务记录不变、B 不能替 A 授权、重新授权恢复；不要每插件补兜底。涉及 kernel/MCP，按共享核心整合验证，I6 结束前只准备源码。依据：`packages/kernel/src/action-service.ts` 119–124/446、`apps/local-host/src/mcp-action-client.ts` 16–26、`local-host.ts` 99–106、Form `actions.ts` 109–110；现 `tests/action-before-effect.test.ts` 只覆盖模型等待时撤权和授权等待时换提供方，未覆盖此窗口。 |
+| W3-09 / W2-19（S-08/S-18） | P1 授权竞态，源码已确认、复现待跑：共同 `beforeEffect` 在精确授权之后还 await 权限与 Host 可用性检查；最后只用初始 `allowed_actions`，期间撤销精确动作可能仍写。MCP 权限并集不能识别保留同权限 B、撤销 A 的差别 | 唯一 writer 优先以真实 MCP 授权文件、Form SQLite 与可控后续可用性检查复现；`form.questions.ai`（#532 起是 `form.questions.draft@1`）最后检查后写题目的路径可触发。修共同入口，断言 A 被拒、业务记录不变、B 不能替 A 授权、重新授权恢复；不要每插件补兜底。涉及 kernel/MCP，按共享核心整合验证，I6 结束前只准备源码。依据：`packages/kernel/src/action-service.ts` 119–124/446、`apps/local-host/src/mcp-action-client.ts` 16–26、`local-host.ts` 99–106、Form `actions.ts` 109–110；现 `tests/action-before-effect.test.ts` 只覆盖模型等待时撤权和授权等待时换提供方，未覆盖此窗口。 |
 | W1-18 | P1 完成声明失真：把事实表 PR 当作三阶段逐包审查，71 行全待审仍写第 1 波全完；owner/放置错误可能遗漏 | 按 §5.1 已登记的深 11、中 43、浅 17 逐包写职责、依赖方向、变化原因、代码放置、重叠和必要动作；每行有源码依据与裁决。未完成项不得改成已审。按风险读码，不靠文件数/门禁替代 |
 | W2-18-FR | P1 验收范围遗漏：首轮亮色无模型页面和部分浏览器测试被当成前端整体；暗色/英文/辅助技术/异常恢复未全覆盖 | 在已有 frontend-flow-walk 中接续同一表，复用有效截图；核关键路径的键盘/读屏、三种宽度、暗色/英文、离线/失败/无权限/部分成功、多窗口与真实模型。状态、操作、反馈及输入保持需实际操作；受限项写明，不伪装通过。接 W4-12/W6-05 |
 | W2-18-LC | P1 生命周期证据缺口：首轮差集名单过期，§11 的 15 组修复不覆盖所有插件/官方接入 | 按现行成员重对安装/启用/发现/调用/停用/撤权/卸载/升级/重启；按有意义的路径制造真实交错，验返回、持久化、副作用、重试和下次可观察状态；组合场景按原 11 条更新。已删 Experiments 明确退役，Issue 纳入。批准的例外写理由，迁移后接 W6-02 |
@@ -1731,7 +1771,7 @@ I8 落地的实际情况（10-15）：第 1 片（S1）的构建闭包把 136 �
 
 | 验收编号 | 可观察结果与证据要求 |
 | --- | --- |
-| W3-09-AUTH-01 | 真实隔离 Home 经 HTTP 授予 MCP A/B 两个精确动作且权限相同；A 为实际 form.questions.ai。A 精确检查后在后续 availability 等待期间撤 A、保留 B，A 必须拒绝，Form SQLite 业务事实/失败业务记录均不变；保留原缺陷复现日志，不能只测人工构造 caller。 |
+| W3-09-AUTH-01 | 真实隔离 Home 经 HTTP 授予 MCP A/B 两个精确动作且权限相同；A 为实际 form.questions.draft@1（#532 起取代 form.questions.ai@1；`tests/mcp-effect-authority.test.ts` 用的就是它）。A 精确检查后在后续 availability 等待期间撤 A、保留 B，A 必须拒绝，Form SQLite 业务事实/失败业务记录均不变；保留原缺陷复现日志，不能只测人工构造 caller。 |
 | W3-09-AUTH-02 | 重新授权 A 后同一真实入口正常提交一次；已有提供方替换、取消、timeout、安装/运输撤销拒绝仍生效。原异步 validators/合法异步 transport 继续可用；最终同步尾检不得接受 Promise，也不得新增循环重查。 |
 | W3-09-AUTH-03 | 真实 bind/control、原动作包裹的嵌套动作与函数/scene 路径保留来源和目标的精确拒绝；同权限目标不能替已撤销来源放行。测试调用生产共同路径，literal code/事实/真实平台拒绝行与编号分别核对，不把无业务写入误记为无平台调用记录。 |
 

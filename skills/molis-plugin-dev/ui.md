@@ -97,6 +97,14 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 
 重编辑器（Pages 的 ProseMirror）打成浏览器 IIFE，不要塞进 factory 字符串。还要在 `apps/local-host/src/web-assets.ts` 挂 `/assets/…`，HTML 再 `<script src="…">`。
 
+### 动作先问几个问题再接着做
+
+不经 Agent 运行、自己调模型的动作，信息不够时不要猜，也不要自己画问卷：
+- 动作返回 `{ status: "needs_input", interaction }`（合同 `InteractionRequest`，`@molis-ai/molis-work-contracts/services/agent-interaction`）：`interaction_id`、`why`（一句话，卡片标题）、`questions`（现在只用选择题）、`note`（回答后会发生什么，本插件的话，英文写进本插件词典）。输出 schema 写成一个对象，MCP 工具才不会把结果包一层。
+- 动作自己记住问过的题。人回答后，页面带着 `interaction: { interaction_id, values }` 再调一次动作；动作用 SDK 的 `questionAnswer` 读答案，用 `questionProblems` 对照问过的题检查。有问题就抛本插件的错误码，`details.problems` 放这些原因。
+- 宿主对任何插件路由的回答都会做两件事：给 `needs_input` 加上共享问卷卡的 `interaction.html`；给 `details.problems` 加上逐字段的 `details.errors`。页面只要把 html 放进去，用 `host.interaction(card, { onSubmit })` 绑定，出错时调 `showErrors(details.errors)`。
+- 样例：Form 的「AI 生成题目」（`plugins/native/form/src/drafting.ts`、`draft-client.ts`）。
+
 ## 控件与视觉
 
 从 `@molis-ai/molis-work-design-system` 导入 `renderButton` / `renderChoice` / `icon` / 已有 `render*`。class 用 `mw-btn`、`mw-input`、`mw-status`、`mw-choice`。标本与组合：`/__ui/catalog`（含底栏与浮层的真实样例）。

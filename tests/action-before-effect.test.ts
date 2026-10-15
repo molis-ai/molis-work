@@ -31,16 +31,16 @@ test("same public provider replacement during Form model wait cannot commit to t
   let models = 0;
   const register = () => service.registerProvider({ provider: { provider_id: "same-install", title: "Form", kind: "plugin", project_id: "a" },
     definitions: Object.values(formActions), handlers: createFormActionHandlers({ withStore: run => run(store), modelAvailability: () => ({ available: true }),
-      completeText: async () => { models++; if (models === 1) { entered.resolve(); await release.promise; } return "Only the current registration may save"; } }) });
+      completeText: async () => { models++; if (models === 1) { entered.resolve(); await release.promise; } return JSON.stringify({ status: "done", questions: [{ title: "Only the current registration may save", type: "text" }] }); } }) });
   let dispose = register();
   try {
-    const pending = service.invoke(caller, formActions.generateAi, { id: original.id, prompt: "Question" });
+    const pending = service.invoke(caller, formActions.draft, { id: original.id, prompt: "Question" });
     const rejected = assert.rejects(pending, errorCode("actions.provider_changed"));
     await entered.promise;
     dispose(); dispose = register(); release.resolve();
     await rejected;
     assert.deepEqual(store.get(original.id, "a"), original);
-    const result = await service.invoke(caller, formActions.generateAi, { id: original.id, prompt: "Question" }) as { form: typeof original };
+    const result = await service.invoke(caller, formActions.draft, { id: original.id, prompt: "Question" }) as { form: typeof original };
     assert.equal(result.form.questions.length, 1);
     assert.deepEqual(store.get(original.id, "a"), JSON.parse(JSON.stringify(result.form)), "original JSON storage preserves every serialized result field");
     assert.equal(models, 2);
@@ -86,8 +86,8 @@ test("typed Action handlers retain the Host Runtime and share the same live effe
 });
 
 type Kind = "form" | "dataset" | "lingguang" | "pages" | "cognia";
-const actions = { form: formActions.generateAi, dataset: datasetActions.generateAi, lingguang: lingguangActions.message, pages: pagesActions.generate, cognia: cogniaActions.synthesize };
-const output = { form: "A generated question", dataset: "Generated column", lingguang: "A considered reply", pages: "A research draft with source boundaries.", cognia: "# Evidence\nA finding [S1]" };
+const actions = { form: formActions.draft, dataset: datasetActions.generateAi, lingguang: lingguangActions.message, pages: pagesActions.generate, cognia: cogniaActions.synthesize };
+const output = { form: JSON.stringify({ status: "done", questions: [{ title: "A generated question", type: "text" }] }), dataset: "Generated column", lingguang: "A considered reply", pages: "A research draft with source boundaries.", cognia: "# Evidence\nA finding [S1]" };
 
 async function prepare(kind: Kind, client: ReturnType<typeof bindActionClient>): Promise<Record<string, unknown>> {
   if (kind === "form") return { id: (await client.invoke(formActions.create, { title: "Original" })).form.id, prompt: "A question" };

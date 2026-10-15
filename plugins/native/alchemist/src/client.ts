@@ -20,6 +20,7 @@ const L=host.translate, $=(s,n=root)=>n.querySelector(s[0]==='['?s:'[data-alc-'+
 const mainEl=$('content'),footer=$('footer'),side=$('side'),sheet=$('dialog'),form=$('form'),bodySlot=$('dialog-body'),submitBtn=$('submit');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),tx=v=>esc(L(v));
 const button=(label,action,primary=false,attrs='')=>'<button type="button" class="mw-btn mw-btn--'+(primary?'primary':'ghost')+'" data-alc-action="'+action+'" '+attrs+'>'+tx(label)+'</button>';
+const muted=v=>'<p class="alc-muted">'+v+'</p>';
 const safeUrl=value=>{try{const url=new URL(value);return /^https?:$/.test(url.protocol)&&!url.username&&!url.password?esc(url.href):'#';}catch{return '#';}};
 const base=host.route('/api/alchemist/studio/api/v1');
 const headers=()=>typeof molisWorkControlHeaders==='function'?molisWorkControlHeaders():{'content-type':'application/json'};
@@ -31,7 +32,7 @@ const formError=text=>{if(!life.alive)return;const el=$('form-error');el.hidden=
 const failed=e=>{if(life.visible&&e.name!=='AbortError')notice(e.message,true);};
 const active=status=>['queued','running'].includes(status);
 let data={directions:[],explorations:[],ideas:[]},pulse={reports:[]},decisions={cases:[],activities:[],log:[]},runtime={models:[],configured:false},rules={taste:[],playbook:[]};
-let view='directions',archived=false,focus=null,model=null,study=null,choice=null,ctx={kind:'surface',label:L('方向'),surface:'ideas'},target=null,quote=null,sideMode='',onSubmit=null,busy=false,returnFocus=null,seq=0,loadSeq=0,ready=false,pollId,detailId='',lastRow=null;
+let view='directions',archived=false,focus=null,model=null,study=null,choice=null,ctx={kind:'surface',label:L('方向'),surface:'ideas'},target=null,quote=null,sideMode='',onSubmit=null,busy=false,returnFocus=null,seq=0,loadSeq=0,wanted=null,ready=false,pollId,detailId='',lastRow=null;
 let shown='',canReuse=false;
 const setContext=()=>{const c={plugin_id:'io.molis.work.alchemist',surface_title:L('炼金术士')};
 if(ctx.kind==='direction'&&ctx.directionId)c.object={kind:'alchemist-direction',id:ctx.directionId,title:ctx.label||''};
@@ -46,8 +47,8 @@ function setTitle(title){$('title').textContent=title;}
 `+WORK_REUSE_CLIENT+ALCHEMIST_VIEWS+ALCHEMIST_FLOWS+String.raw`
 async function load(){const n=++loadSeq;const values=await Promise.all([api('/bootstrap'),api('/pulse/reports'),api('/decisions'),api('/settings/runtime')]);if(n!==loadSeq)return false;[data,pulse,decisions,runtime]=values;ready=true;renderList();schedule();return true;}
 life.listen(document,'molis-work:model-ready',()=>{if(ready&&life.visible)void refresh().catch(failed);});
-async function refresh(){const n=seq;await load();if(n===seq&&focus)await open(focus,false);}
-function closeDetail(){seq++;focus=null;target=null;quote=null;side.hidden=true;sideMode='';root.dataset.expanded='false';$('workspace').hidden=true;renderList();persist();lastRow?.isConnected&&lastRow.focus();}
+async function refresh(){if(wanted)return selectItem(wanted);const n=seq;await load();if(n===seq&&focus)await open(focus,false);}
+function closeDetail(){seq++;wanted=null;focus=null;target=null;quote=null;side.hidden=true;sideMode='';root.dataset.expanded='false';$('workspace').hidden=true;renderList();persist();lastRow?.isConnected&&lastRow.focus();}
 async function open(next,save=true){
 if(!next)return;const n=++seq;const changed=!same(next);focus={...next};detailId='';quote=null;if(changed){side.hidden=true;sideMode='';target=null;study=null;$('action=annotations').hidden=true;mainEl.scrollTop=0;}
 root.dataset.expanded='true';$('workspace').hidden=false;footer.innerHTML='';if(changed)mainEl.innerHTML=empty('正在读取…');
@@ -89,9 +90,9 @@ const chat=event.target.matches('[data-alc-chat-form]'),annotation=event.target.
 function pickQuote(){if(!target)return;const s=window.getSelection();if(!s||!s.rangeCount)return;const range=s.getRangeAt(0),text=s.toString().trim();if(!text||text.length>2000||!mainEl.contains(range.commonAncestorContainer))return;const node=range.commonAncestorContainer.nodeType===1?range.commonAncestorContainer:range.commonAncestorContainer.parentElement;const block=node.closest('[data-alc-block]');if(block)quote={text,target:{...target,blockId:block.dataset.alcBlock}};}
 life.listen(mainEl,'mouseup',pickQuote);life.listen(mainEl,'keyup',pickQuote);
 life.listen($('search'),'input',renderList);
-life.listen(root,'molis-work:select-item',event=>{const id=event.detail?.itemId;if(!id){closeDetail();return;}void selectItem(id).catch(failed);});
-async function selectItem(id){const n=++seq;if(!await load()||n!==seq)return;const d=data.directions.find(d=>d.id===id),i=data.ideas.find(i=>i.id===id);if(!d&&!i)return;view=d?'directions':'ideas';archived=d?.status==='archived';$('search').value='';await open(d?{kind:'direction',id}:{kind:'idea',id,version:i.currentVersion,panel:'brief'});}
-const start=async()=>{if(ready){await refresh();return;}const n=seq;if(!await load()||n!==seq)return;try{const saved=JSON.parse(localStorage.getItem(stateKey)||'null');if(saved&&['directions','ideas','pulse','decisions'].includes(saved.collection)){view=saved.collection;renderList();if(saved.current)await open(saved.current,false);}}catch{closeDetail();}};
+life.listen(root,'molis-work:select-item',event=>{const id=event.detail?.itemId;if(!id){closeDetail();return;}wanted=id;void selectItem(id).catch(failed);});
+async function selectItem(id){const n=++seq;await load();if(n!==seq||!ready)return;const d=data.directions.find(d=>d.id===id),i=data.ideas.find(i=>i.id===id);if(wanted===id)wanted=null;if(!d&&!i)return;view=d?'directions':'ideas';archived=d?.status==='archived';$('search').value='';await open(d?{kind:'direction',id}:{kind:'idea',id,version:i.currentVersion,panel:'brief'});}
+const start=async()=>{if(ready||wanted){await refresh();return;}const n=seq;if(!await load()||n!==seq)return;try{const saved=JSON.parse(localStorage.getItem(stateKey)||'null');if(saved&&['directions','ideas','pulse','decisions'].includes(saved.collection)){view=saved.collection;renderList();if(saved.current)await open(saved.current,false);}}catch{closeDetail();}};
 life.whenVisible(signal=>{viewAbort=signal;void start().catch(failed);return()=>{seq++;loadSeq++;life.clearTimeout(pollId);};});
 return {refresh:()=>life.visible?refresh().catch(failed):Promise.resolve()};
 }`;

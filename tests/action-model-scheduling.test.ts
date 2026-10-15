@@ -50,7 +50,7 @@ test("real Native AI declarations reach the Builder catalog and stop metered aut
   const ref = molisWorkHostProjectReference({ databasePath: join(home, 'a.sqlite'), projectId: 'a' });
   try {
     const catalog = await capabilityCatalog({ registry: host.actionRegistry(ref), client: host.actionClient(ref), project_id: 'a', inspect: caller => host.inspectActions(caller, ref) }, 'web-user');
-    for (const id of ['pages.ai', 'pages.generate', 'form.questions.ai', 'dataset.columns.ai', 'lingguang.conversation.message', 'jelly.plan.generate', 'cognia.knowledge.query', 'images.jobs.start', 'alchemist.reuse.assess']) {
+    for (const id of ['pages.ai', 'pages.generate', 'form.questions.draft', 'dataset.columns.ai', 'lingguang.conversation.message', 'jelly.plan.generate', 'cognia.knowledge.query', 'images.jobs.start', 'alchemist.reuse.assess']) {
       const entry = catalog.find(item => item.id === id); assert.ok(entry, id);
       assert.equal(entry.execution.cost, 'metered', id);
       assert.throws(() => normalizeEffects({ capabilities: [id] }, 'query', 'page load', catalog), /不能调用收费能力/, id);

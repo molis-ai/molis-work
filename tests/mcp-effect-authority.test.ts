@@ -15,7 +15,7 @@ const peer: ActionDefinition = { capability_id: "fixture.form.peer", version: 1,
 } };
 const wrapper: ActionDefinition = { ...peer, capability_id: "fixture.form.wrapper", operation: "command", action: {
   ...peer.action, title: "Generate through an originating action", kind: "operation", scheduling: "concurrent",
-  output_schema: formActions.generateAi.action.output_schema,
+  output_schema: formActions.draft.action.output_schema,
 } };
 
 function facts(home: string, projectId: string, formId: string) {
@@ -33,13 +33,13 @@ for (const nested of [false, true]) test(nested
     completeText: async (_prompt, options) => {
       await options?.beforeDispatch?.();
       models++; returnedFromModel = true;
-      return "Only a currently granted call may add this question";
+      return JSON.stringify({ status: "done", questions: [{ title: "Only a currently granted call may add this question", type: "text" }] });
     },
     actionAvailability: async (caller, action) => {
       // The authority/permission inspectors use the raw transport caller, without allowed_actions.
       // Hold only the real executing call's later Host policy, after its model has returned.
-      if (held && returnedFromModel && action.capability_id === "form.questions.ai"
-        && caller.allowed_actions?.some(reference => reference.capability_id === "form.questions.ai")) {
+      if (held && returnedFromModel && action.capability_id === "form.questions.draft"
+        && caller.allowed_actions?.some(reference => reference.capability_id === "form.questions.draft")) {
         entered.resolve(); await release.promise;
       }
       return { available: true };
@@ -53,12 +53,12 @@ for (const nested of [false, true]) test(nested
     provider: { provider_id: "fixture.form-authority", title: "Grantable fixture actions", kind: "system", project_id: project.project_id },
     definitions: [peer, wrapper], handlers: [{ ...peer, handle: () => true }, { ...wrapper, handle: caller => {
       const retained = retainActionAuthority(caller, { ...wrapper, provider_id: "fixture.form-authority" }, caller.beforeEffect);
-      return bindActionClient(home.host.actionClient(project.reference, true), () => retained).invoke(formActions.generateAi, input, caller);
+      return bindActionClient(home.host.actionClient(project.reference, true), () => retained).invoke(formActions.draft, input, caller);
     } }],
   });
   try {
-    const clientId = "runtime:effect-authority", target = nested ? wrapper : formActions.generateAi;
-    await home.grant(clientId, project.project_id, [...(nested ? [wrapper] : []), formActions.generateAi, peer]);
+    const clientId = "runtime:effect-authority", target = nested ? wrapper : formActions.draft;
+    await home.grant(clientId, project.project_id, [...(nested ? [wrapper] : []), formActions.draft, peer]);
     const beforeGrants = (await readMcpToolPreference(home.home)).action_grants.filter(grant => grant.client_id === clientId && grant.project_id === project.project_id);
     const exact = beforeGrants.find(grant => grant.capability_id === target.capability_id);
     const other = beforeGrants.find(grant => grant.capability_id === peer.capability_id);
@@ -87,8 +87,8 @@ for (const nested of [false, true]) test(nested
     assert.ok(home.host.callLog);
     const rows = home.host.callLog.find(callId);
     assert.deepEqual(rows.map(row => [row.capability_id, row.code, row.ok, row.refused] as const).sort(([a], [b]) => a.localeCompare(b)), nested
-      ? [[wrapper.capability_id, "mcp.action_revoked", false, undefined], [formActions.generateAi.capability_id, "mcp.action_revoked", false, undefined]]
-      : [[formActions.generateAi.capability_id, "mcp.action_revoked", false, undefined]]);
+      ? [[wrapper.capability_id, "mcp.action_revoked", false, undefined], [formActions.draft.capability_id, "mcp.action_revoked", false, undefined]]
+      : [[formActions.draft.capability_id, "mcp.action_revoked", false, undefined]]);
     assert.ok(rows.every(row => row.call_id === callId && row.actor_id === clientId && row.project_id === project.project_id && (row.path ?? "action") === "action"));
     await home.grant(clientId, project.project_id, [target]);
     const recovered = await mcp.client.invoke(mcp.caller, target, nested ? {} : input);

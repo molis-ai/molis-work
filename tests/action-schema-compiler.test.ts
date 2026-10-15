@@ -145,3 +145,35 @@ test("provider compilation isolates same-id input and output contracts and retai
     }
   } finally { dispose(); }
 });
+
+test("a registration check refuses exactly what a full compile refuses, with the same message", () => {
+  const refused: ActionSchema[] = [
+    { type: "string", unknownConstraint: true },
+    { type: "string", format: "not-a-format" },
+    { type: "string", pattern: "(" },
+    { type: "invalid-type" },
+    { $ref: "https://schema.test/nowhere" },
+    { type: "object", properties: { a: { $ref: "#/$defs/missing" } } },
+    { $schema: dialects[0], type: "array", prefixItems: [{ type: "string" }] },
+    { $schema: dialects[1], type: "object", properties: { a: { $id: "https://schema.test/a" }, b: { $id: "https://schema.test/a" } } },
+  ];
+  const message = (run: () => unknown) => { try { run(); } catch (error) { return (error as { code: string; message: string }); } return undefined; };
+  for (const schema of refused) {
+    const checked = message(() => createActionSchemaCompiler()(schema)), compiled = message(() => compileActionSchema(schema));
+    assert.ok(compiled, `${JSON.stringify(schema)} is refused by a full compile`);
+    assert.deepEqual({ ...checked }, { ...compiled }, JSON.stringify(schema));
+    assert.equal(checked?.message, compiled.message);
+  }
+});
+
+test("checking a schema that refers to its meta schema leaves that meta schema validating in full", () => {
+  for (const dialect of dialects) {
+    const compile = createActionSchemaCompiler();
+    const metaShaped = compile({ $schema: dialect, $ref: dialect });
+    assert.throws(() => compile({ $schema: dialect, type: "invalid-type" }), invalidSchema);
+    assert.equal(metaShaped({ type: "string" }), true);
+    assert.equal(metaShaped({ type: "invalid-type" }), false);
+    assert.ok(metaShaped.errors?.length);
+    assert.throws(() => compile({ $schema: dialect, minimum: "one" }), invalidSchema);
+  }
+});

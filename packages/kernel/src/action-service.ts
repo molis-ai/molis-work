@@ -10,7 +10,7 @@ import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/pl
 import { CapabilityRegistry } from "./index.js";
 import { assertSessionAuthorship } from "./action-authorship.js";
 import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallSync, runActionHandler, type CallContext, type CallSettled } from "./action-settlement.js";
-import { actionSchemaAccepts, compileActionSchema, createActionSchemaCompiler, validateActionValue } from "./action-schema.js";
+import { actionSchemaAccepts, createActionSchemaCompiler, validateActionValue, type ActionValidator } from "./action-schema.js";
 import { validateActionInput } from "./version-precondition.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
 import { createExecutionLifetime, inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
@@ -21,9 +21,9 @@ interface RegisteredScene {
   handler: ActionSceneHandlerBinding;
   availability(context: ActionCallContext): ActionAvailability;
   configurationAvailability(context: ActionCallContext): ActionAvailability;
-  validateEvent?: ReturnType<typeof compileActionSchema>;
-  validateInput: ReturnType<typeof compileActionSchema>;
-  validateResult: ReturnType<typeof compileActionSchema>;
+  validateEvent?: ActionValidator;
+  validateInput: ActionValidator;
+  validateResult: ActionValidator;
 }
 
 export type { ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -52,11 +52,11 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     if (!provider.provider_id || !provider.title) throw new ActionError("actions.provider_invalid", "能力来源缺少身份或名称");
     const handlers = exactBindings(registration.definitions, registration.handlers, actionKey, "能力");
     const sceneHandlers = exactBindings(registration.scenes ?? [], registration.scene_handlers ?? [], sceneKey, "消费场景");
-    // A provider commonly shares its full workspace schema across many commands: compile that immutable
-    // registration snapshot once. Across registrations validators are reused only by exact schema text
+    // A provider commonly shares its full workspace schema across many commands: check that immutable registration
+    // snapshot once (its validator is built on first use). Across registrations checks are reused only by exact schema text
     // (action-schema.ts), so a mutated contract never reaches a later installation.
     const compileSchema = createActionSchemaCompiler();
-    const validators = new WeakMap<object, ReturnType<typeof compileActionSchema>>();
+    const validators = new WeakMap<object, ActionValidator>();
     const compile = (original: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema,
       snapshot: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema) => {
       let validator = validators.get(original);
@@ -434,7 +434,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 }
 
-function checkedActionResult(definition: ActionDefinition, validateOutput: ReturnType<typeof compileActionSchema> | undefined, value: unknown): unknown {
+function checkedActionResult(definition: ActionDefinition, validateOutput: ActionValidator | undefined, value: unknown): unknown {
   if (!validateOutput) return value;
   try { validateActionValue(validateOutput, value, "output"); }
   catch (error) {

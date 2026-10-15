@@ -61,7 +61,8 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
   const saved = openTodoStore(homeDirectory);
   try { const item = saved.get(first!.id, access); assert.deepEqual([item.title,item.notes,item.due_date,item.due_time], retained); } finally { saved.close(); }
   await evaluate(`document.querySelector('[data-todo-id="${first!.id}"]').click()`);
-  await waitFor("document.querySelector('[data-todo-field=title]').value === '保留输入'");
+  // Closing the detail only hides it and leaves the old values in the fields: wait until the reopen has read the item again.
+  await waitFor("!document.querySelector('[data-todo-stage-workspace]').hidden && document.querySelector('[data-todo-field=title]').value === '保留输入'");
   const concurrent = openTodoStore(homeDirectory);
   try { concurrent.update(first!.id, { notes: "另一入口保存的说明" }, undefined, access); } finally { concurrent.close(); }
   await evaluate("const notes = document.querySelector('[data-todo-field=notes]'); notes.value = '冲突时保留的输入'; notes.dispatchEvent(new Event('input', { bubbles: true }));");

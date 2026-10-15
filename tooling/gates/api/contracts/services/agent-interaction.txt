@@ -82,6 +82,19 @@ export type AgentQuestionType = (typeof AGENT_QUESTION_TYPES)[number];
 
 export type AgentQuestionValue = string | number | readonly AgentQuestionReference[] | null;
 
+export interface InteractionRequest {
+    interaction_id: string;
+    why: string;
+    questions: AgentQuestion[];
+    note?: string;
+    html?: string;
+}
+
+export interface InteractionRequestResult {
+    status: "needs_input";
+    interaction: InteractionRequest;
+}
+
 export declare const servicesAgentInteractionContract: {
     readonly contractId: "io.molis.work.service.agent-interaction.v1";
     readonly kind: "service";

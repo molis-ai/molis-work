@@ -97,6 +97,18 @@ test("W2-18-ALCHEMIST-UI-01/02 and PARTIAL-01: object selection, unavailable pub
   await evaluate("document.dispatchEvent(new CustomEvent('molis-work:model-ready'))"); await pause(100); assert.equal(reads(), detached);
   await evaluate("parentNode.append(root);boot();boot()"); await pause(200); assert.equal(reads(), detached + 1, "only one mount refreshes");
   const remounted = reads(); await evaluate("document.dispatchEvent(new CustomEvent('molis-work:model-ready'))"); await pause(200); assert.equal(reads(), remounted + 1);
+  // W2-18-ALCHEMIST-UI-01: a list read that starts later and lands first (here a model-ready refresh) never drops the latest selection.
+  const picked = { entered: Promise.withResolvers<void>(), release: Promise.withResolvers<void>() }; block = picked; t.after(() => picked.release.resolve());
+  await select(idea.id); await picked.entered.promise;
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:model-ready'))"); await pause(200);
+  picked.release.resolve();
+  await waitFor(`JSON.parse(root.dataset.assistantContext).object?.id===${JSON.stringify(idea.id)}`);
+  // Hiding the view while the selection's read is held cancels the read, not the choice: the return opens what was asked for.
+  const hiddenPick = { entered: Promise.withResolvers<void>(), release: Promise.withResolvers<void>() }; block = hiddenPick; t.after(() => hiddenPick.release.resolve());
+  await select(direction.id); await hiddenPick.entered.promise;
+  await evaluate("root.hidden=true"); await pause(50); hiddenPick.release.resolve(); await pause(100);
+  await evaluate("root.hidden=false");
+  await waitFor(`JSON.parse(root.dataset.assistantContext).object?.id===${JSON.stringify(direction.id)}`);
   // W2-18-ALCHEMIST-UI-02: detach while a real production read is held, not only between requests.
   await select(direction.id);
   await waitFor(`document.querySelector('[data-alc-title]').textContent===${JSON.stringify(direction.title)}`);

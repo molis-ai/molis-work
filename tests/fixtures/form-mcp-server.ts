@@ -6,7 +6,7 @@ import { createActionMcpPorts, handleMcpMessage, serveMcpStdio } from "@molis-ai
 // Explicit fixture launch grants. Production client grant management is tested separately.
 const [home, projectId, access] = process.argv.slice(2);
 if (!home || !projectId) throw new Error("Missing fixture identity");
-const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: async () => "MCP 题目" });
+const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: async () => JSON.stringify({ status: "done", questions: [{ title: "MCP 题目", type: "text" }] }) });
 const ref = molisWorkHostProjectReference({ databasePath: join(home, `${projectId}.sqlite`), projectId: projectId });
 await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: projectId, title: "MCP Form fixture", actor_id: `fixture-${projectId}`, idempotency_key: "form-mcp-fixture-init" }));
 const ports = createActionMcpPorts({ service: host.actionClient(ref), serverInfo: { name: "form-actions", version: "1" },

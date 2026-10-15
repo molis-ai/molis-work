@@ -95,7 +95,12 @@ export const AGENT_QUESTION_PROBLEM_REASONS = [
   "duplicate", "other-not-allowed", "too-long", "not-a-number", "not-an-integer", "too-small", "too-large",
   "bad-date", "too-early", "too-late", "kind-not-allowed", "too-many",
 ] as const;
-export type AgentQuestionProblemReason = (typeof AGENT_QUESTION_PROBLEM_REASONS)[number];
+/**
+ * The Host's own reason beside the SDK's (specs/ai-interaction-experience H3): a picked object is gone, is not the person's
+ * to use now, or is of a kind the question does not allow, as its owner says right before the answer would go on.
+ */
+export const AGENT_QUESTION_HOST_REASONS = ["reference-unavailable"] as const;
+export type AgentQuestionProblemReason = (typeof AGENT_QUESTION_PROBLEM_REASONS)[number] | (typeof AGENT_QUESTION_HOST_REASONS)[number];
 
 /** One problem, tied to its question so the interface can mark that field and leave the others as they are. */
 export interface AgentQuestionProblem {

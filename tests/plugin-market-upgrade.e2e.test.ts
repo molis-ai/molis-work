@@ -43,7 +43,8 @@ test("plugin market sends a manual upgrade after a real browser click", { timeou
       return nativeFetch(input, init);
     };
   })();` }, sessionId);
-  await command("Page.reload", {}, sessionId);
+  // Wait for the reloaded page: a check run while it is still being parsed finds the button before its update count.
+  await navigate(() => command("Page.reload", {}, sessionId));
   await waitFor("document.querySelector('[data-global-menu] [data-plugin-id=market]')");
   await waitFor("!document.querySelector('[data-global-menu] [data-plugin-id=market] [data-market-update-count]').hidden");
   assert.equal(await evaluate<string>("document.querySelector('[data-global-menu] [data-market-update-count]').textContent"), "1", "update reminder appears before opening the market");

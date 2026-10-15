@@ -70,6 +70,32 @@ export type SearchOpenResponse =
   | { state: "missing"; hit_id: string; reason: string }
   | { state: "unavailable"; hit_id: string; reason: string };
 export interface SearchStatusResponse { sources: SearchSourceStatus[] }
+/**
+ * Objects a person may pick to answer a question that asks for one (specs/ai-interaction-experience H3): found in the caller's
+ * project by kind, and each read again just now through its owner's reader with the caller's authority. A candidate is never
+ * offered by a model, and the Host reads a picked one again before the answer goes on (the same read, `confirmReferences`).
+ */
+export interface SearchReferencesRequest {
+  /** The kinds the question allows. */
+  kinds: string[];
+  query: string;
+  limit?: number;
+}
+export interface SearchReferenceCandidate {
+  kind: string;
+  id: string;
+  /** The title its owner gives it now. */
+  label: string;
+  revision: string;
+  plugin_title: string;
+  snippet: string;
+}
+export interface SearchReferencesResponse {
+  /** As for `search.query`: `partial` or `indexing` say some objects may not be found yet. */
+  status: SearchQueryStatus;
+  candidates: SearchReferenceCandidate[];
+}
+
 export interface SearchRebuildRequest { scope?: SearchScope }
 export interface SearchRebuildResponse { cleared: number; sources: SearchSourceStatus[] }
 
@@ -128,6 +154,14 @@ export const searchActions = {
         required: ["state", "hit_id", "subject", "open", "title", "revision"], additionalProperties: false },
       { type: "object", properties: { state: { enum: ["missing", "unavailable"] }, hit_id: text, reason: text }, required: ["state", "hit_id", "reason"], additionalProperties: false },
     ] } } } as ActionDefinition<SearchOpenRequest, SearchOpenResponse>,
+  references: { capability_id: "search.references", version: 1, operation: "query", action: { ...metadata, permissions: [SEARCH_READ_PERMISSION],
+    audiences: ["user", "plugin"] as ("user" | "plugin")[],
+    title: "查找可引用的对象", description: "按种类在当前项目里查找调用者现在能读取的对象，供回答需要对象的问题时挑选；每一个都已向对象所属插件重新读取过。只读。",
+    input_schema: { type: "object", properties: { kinds: { type: "array", minItems: 1, maxItems: 8, uniqueItems: true, items: token },
+      query: { type: "string", minLength: 1, maxLength: 200, pattern: "\\S" }, limit: { type: "integer", minimum: 1, maximum: 20 } }, required: ["kinds", "query"], additionalProperties: false },
+    output_schema: { type: "object", properties: { status: { enum: ["complete", "partial", "indexing", "empty_scope"] }, candidates: { type: "array", items: { type: "object",
+      properties: { kind: text, id: text, label: text, revision: text, plugin_title: text, snippet: text }, required: ["kind", "id", "label", "revision", "plugin_title", "snippet"], additionalProperties: false } } },
+      required: ["status", "candidates"], additionalProperties: false } } } as ActionDefinition<SearchReferencesRequest, SearchReferencesResponse>,
   status: { capability_id: "search.status", version: 1, operation: "query", action: { ...metadata, permissions: [SEARCH_READ_PERMISSION],
     title: "搜索索引状态", description: "查看当前范围内各插件的索引状态：已就绪、首次索引中、读取失败或已停用。",
     input_schema: { type: "object", properties: { scope }, additionalProperties: false },

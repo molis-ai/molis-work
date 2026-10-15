@@ -1584,16 +1584,16 @@ I8 修复树 F109 上另修的产品问题（都带用例）：卡片结果未�
 | --- | --- | --- | --- |
 | C-01 | 共同副作用守卫在最后一次 Host 等待（`beforeEffect`）之后不再复查调用者授权 | 仍在 | F109 有 `assertCurrentAuthority` 候选，随 I8 第 1 片（S1+W3-02 闭包）进 main；进之前不算修 |
 | C-02 | Pages 评论回复在停止后被异步返回写回「运行中」 | 仍在 | F109 有读取返回后复查轮次与按 revision 提交的候选，随 I8 进 main |
-| C-03 | 搜索等索引追上时撤权，这次查询仍返回旧授权内容 | 本 PR 修 | 查询在追上索引之后重读调用者目录，再按那份目录过滤和报来源；`tests/system-search.test.ts`「a source revoked while the query waits for the index answers nothing from that query」（未修时返回 `a1`，已复现） |
+| C-03 | 搜索等索引追上时撤权，这次查询仍返回旧授权内容 | #514 修 | 查询在追上索引之后重读调用者目录，再按那份目录过滤和报来源；`tests/system-search.test.ts`「a source revoked while the query waits for the index answers nothing from that query」（未修时返回 `a1`，已复现） |
 | C-04 | 外部 MCP 改已有对象可以不带读取版本 | 仍在 | F109 有中央版本前置候选（W3-09-3），随 I8 进 main |
-| C-05 | 「永久清除用户数据」漏掉现行库和数据 | 本 PR 修 | 清除范围补上 `assistant`、`placement`、`agent-definitions`、`characters` 四个库（进 `PERSONAL_HOME_SQLITE_STORES`，归为宿主库，插件不能用这些名字），以及 `docs/system/HOME-DATA.md` 登记的 `agent-runtime/`、`feed/`、`browser/`、`plugin-builder/`、`cache/`、`directory-access/`、`git-operation-details.json`、`runtime-integration-attempts/` 和 `config/` 里属于人的五个文件；`tests/uninstall.test.ts` 往每一项放内容，断言在计划里且 Home 整个删掉（未修时「purge 要删 assistant」失败）。Keychain 主密钥不在 Home，不碰。统一登记（W4-11）仍未做 |
-| C-06 | Characters 打开无版本旧库时直接盖成版本 1 | 本 PR 修 | `openCharacters` 改经 `applySqliteBaseline`（`CHARACTERS_STORE_BASELINE`）；无版本的表、更高版本都拒绝且原库不动（`tests/home-store-baselines.test.ts`，未修时「Missing expected exception」）。发布检查清单该行改成「拒绝」。真实 Home 的库在 10-14 只读拷贝上是现行形状（F-9） |
+| C-05 | 「永久清除用户数据」漏掉现行库和数据 | #514 修 | 清除范围补上 `assistant`、`placement`、`agent-definitions`、`characters` 四个库（进 `PERSONAL_HOME_SQLITE_STORES`，归为宿主库，插件不能用这些名字），以及 `docs/system/HOME-DATA.md` 登记的 `agent-runtime/`、`feed/`、`browser/`、`plugin-builder/`、`cache/`、`directory-access/`、`git-operation-details.json`、`runtime-integration-attempts/` 和 `config/` 里属于人的五个文件；`tests/uninstall.test.ts` 往每一项放内容，断言在计划里且 Home 整个删掉（未修时「purge 要删 assistant」失败）。Keychain 主密钥不在 Home，不碰。统一登记（W4-11）仍未做 |
+| C-06 | Characters 打开无版本旧库时直接盖成版本 1 | #514 修 | `openCharacters` 改经 `applySqliteBaseline`（`CHARACTERS_STORE_BASELINE`）；无版本的表、更高版本都拒绝且原库不动（`tests/home-store-baselines.test.ts`，未修时「Missing expected exception」）。发布检查清单该行改成「拒绝」。真实 Home 的库在 10-14 只读拷贝上是现行形状（F-9） |
 | A-01 | 模型切换在 SDK 接受时没有末端授权复核 | 仍在 | 随 I8 第 1 片（新 SDK 包 + `beforeAccept`）进 main |
 | A-02 | Computer Use 停下或出错的一轮被记成「失败：模型说完成了」 | 已修 | #510 |
-| A-03 | 电脑 socket 自带本机名单、S-04 未覆盖 | 已修 | #510；`SECURITY-INVARIANTS.md` 第 9、70 行「Computer Use 不在 main」本 PR 改掉，并补 S-25（桌面动作的拒绝，用例只在本机跑） |
+| A-03 | 电脑 socket 自带本机名单、S-04 未覆盖 | 已修 | #510；`SECURITY-INVARIANTS.md` 第 9、70 行「Computer Use 不在 main」#514 改掉，并补 S-25（桌面动作的拒绝，用例只在本机跑） |
 | A-04 | `withPreparedActions` 准备失败不进共同调用结算 | 仍在 | F109 有 `refuse` 第三参候选，随 I8 进 main |
-| A-05 | 测试内部引用台账开头仍写 16 条 | 本 PR 修 | 改成 15 条、8 个测试文件，注明 10-15 删去的一条 |
-| A-06 | AI 入口清单没有 Pages 评论线程 | 本 PR 修 | `ai-entry-inventory.md` 补 AG-7（模型调用仍走 AG-1；C-02 记在这一行） |
+| A-05 | 测试内部引用台账开头仍写 16 条 | #514 修 | 改成 15 条、8 个测试文件，注明 10-15 删去的一条 |
+| A-06 | AI 入口清单没有 Pages 评论线程 | #514 修 | `ai-entry-inventory.md` 补 AG-7（模型调用仍走 AG-1；C-02 记在这一行） |
 | B-01～B-12 | 结构项（手工装配、浏览器模板脚本、Home 清单分散等） | 照路线图 | 第 4～6 波；不在本节关闭 |
 
 I8 落地的实际情况（10-15）：第 1 片（S1）的构建闭包把 136 个文件拉进来，仍有 19 个测试文件失败，原因都是 W3-02 的错误改名、`goal-actions` 子路径和管理入口没跟进。S1 不能单独成片，下一步把 S1 与 W3-02 合成一片，从 F109 `9a30b3135`（已合入 #505～#513）整文件取，而不是 `7882cf09c`。

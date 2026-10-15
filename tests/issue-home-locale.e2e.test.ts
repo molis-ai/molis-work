@@ -30,6 +30,8 @@ test("W2-18-HOME-LOCALE-01: Home and project Issue controls follow locale while 
   assert.deepEqual(await controls(), english);
   assert.equal(await v.ask(`$('${composer}').value`), "问题描述");
   await v.press(`[data-issue-id="${record.id}"]`);
+  // The detail reads the record fresh by id: wait for that read, then compare every word.
+  await v.until("!$('[data-issue-detail]').hidden && $('[data-issue-title]').textContent !== ''");
   assert.deepEqual(await v.ask("({ title: $('[data-issue-title]').textContent, text: $('[data-issue-text]').textContent, type: $('[data-issue-type]').textContent })"),
     { title: "删除", text: "我的 Issue", type: "Usability issue" });
   await v.press("[data-issue-edit]");
@@ -66,7 +68,8 @@ test("W2-18-HOME-LOCALE-01: no-model capture opens English settings, retries a f
   await v.press('[data-issue-flag] a[href="/settings/models"]');
   await v.until("$('[data-home-model-settings]').open && !$('[data-home-model-retry]').hidden");
   assert.deepEqual(await v.ask("({ title: $('#home-model-title').textContent, close: $('[data-home-model-close]').textContent, retry: $('[data-home-model-retry]').textContent, status: $('[data-home-model-status]').textContent })"),
-    { title: "Models", close: "Close", retry: "Retry", status: "Settings could not load. Your input is preserved. Please retry." });
+    // A dropped connection is said by the shared request helper, in English here (W3-10).
+    { title: "Models", close: "Close", retry: "Retry", status: "Can't reach the Molis Work service. Try again in a moment." });
   await v.press("[data-home-model-retry]");
   await v.until("$('[data-home-model-content] [data-model-settings]') && $('[data-home-model-status]').hidden", 15_000);
   await v.press("[data-home-model-close]"); await v.until("!$('[data-home-model-settings]').open");

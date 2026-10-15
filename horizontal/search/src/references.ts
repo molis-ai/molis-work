@@ -34,7 +34,7 @@ async function ownerRead(access: ReferenceAccess, subject: ActionSubject): Promi
 /**
  * Objects of the asked kinds a person may pick (specs/ai-interaction-experience H3): the caller's search finds them, only in
  * the caller's own project or the person's Home-scoped content, and each is read again from its owner before it is offered.
- * The context line's landing targets read their candidates through the same pair (this and `confirmReferences`).
+ * The context bar's landing targets read their candidates through the same pair (this and `confirmReferences`).
  */
 export async function findReferenceCandidates(search: { query(access: ReferenceAccess, input: SearchQueryRequest): Promise<SearchQueryResponse> },
   access: ReferenceAccess, input: SearchReferencesRequest): Promise<SearchReferencesResponse> {

@@ -1,4 +1,5 @@
 // Expand browser program syntax and keep each piece's source owner. No repository function is executed.
+import path from "node:path";
 import ts from "typescript";
 import { createBrowserGraph, unwrapBrowserNode as unwrap, browserName } from "./browser-graph.mjs";
 
@@ -83,8 +84,28 @@ const replaceParts = (parts, node, pattern, replacement, all) => {
   result.push(...sliceParts(parts, cursor, text.length)); return result;
 };
 
+// A program the package bundles from TypeScript (as Forms does, plugins/native/form/src/browser/): the source reads the bundle
+// with `readFileSync(new URL("./<name>.js", import.meta.url), "utf8")`, and the package's build script makes `dist/<name>.js`
+// with `esbuild <entry> … --outfile=dist/<name>.js`. The program is then the entry and what it imports, read as typed source.
+const BUNDLE_STEP = /(?:^|[\s&;/])esbuild\s+(\S+\.ts)\b[^&;]*?--outfile=(\S+\.js)/g;
+const bundleEntry = (graph, node) => {
+  if (!ts.isIdentifier(node.expression) || node.expression.text !== "readFileSync" || node.arguments.length !== 2) return null;
+  const [url, encoding] = node.arguments.map(unwrap);
+  if (!ts.isStringLiteralLike(encoding) || encoding.text !== "utf8" || !ts.isNewExpression(url) || url.expression.getText() !== "URL"
+    || url.arguments?.length !== 2 || !ts.isStringLiteralLike(url.arguments[0]) || url.arguments[1].getText() !== "import.meta.url") return null;
+  const file = node.getSourceFile().fileName;
+  for (const { dir, json } of graph.packages.values()) {
+    if (!file.startsWith(dir + "/src/")) continue;
+    const bundle = path.posix.normalize(path.posix.join(path.posix.dirname(dir + "/dist/" + file.slice(dir.length + 5)), url.arguments[0].text));
+    for (const [, entry, outfile] of String(json.scripts?.build ?? "").matchAll(BUNDLE_STEP)) {
+      if (path.posix.join(dir, outfile) === bundle && graph.entries.has(path.posix.join(dir, entry))) return path.posix.join(dir, entry);
+    }
+  }
+  return null;
+};
+
 export function browserPrograms(snapshot, isSource) {
-  const graph = createBrowserGraph(snapshot, isSource), candidates = [], problems = [];
+  const graph = createBrowserGraph(snapshot, isSource), candidates = [], problems = [], bundled = new Set();
   let dependencies = new Set();
   const evaluating = new Set(), propertyStack = new Set();
   const fail = (node, reason) => { throw new Error(`${where(node)}: cannot statically expand browser program (${reason})`); };
@@ -181,6 +202,9 @@ export function browserPrograms(snapshot, isSource) {
     if (ts.isTaggedTemplateExpression(node) && node.tag.getText() === "String.raw") return evaluateTemplate(node.template, env, true);
     if (ts.isTemplateExpression(node)) return evaluateTemplate(node, env, false);
     if (ts.isCallExpression(node)) {
+      const bundle = bundleEntry(graph, node);
+      // The bundle's text is not read here; `null` holds its place as an expression.
+      if (bundle) { bundled.add(bundle); return [[piece(node, "null")]]; }
       if (node.expression.getText() === "String") return node.arguments.length === 1 ? evaluate(node.arguments[0], env) : fail(node, "String needs one static argument");
       if (dataCall(node)) {
         if (node.expression.getText() === "JSON.stringify") {
@@ -192,6 +216,8 @@ export function browserPrograms(snapshot, isSource) {
       }
       if (ts.isPropertyAccessExpression(node.expression)) {
         const method = node.expression.name.text, receiver = unwrap(node.expression.expression);
+        // Surrounding whitespace is not program syntax.
+        if (method === "trim" && !node.arguments.length) return evaluate(receiver, env);
         if (method === "toString") {
           const target = staticValue(receiver, env);
           if (!target || !graph.isFunction(target)) return fail(node, "toString receiver is not a declared function");
@@ -343,5 +369,6 @@ export function browserPrograms(snapshot, isSource) {
     typed.add(file); for (const dependency of entry.imports) visitTyped(dependency);
   };
   for (const entry of graph.entries.values()) if (/^apps\/workbench\/src\/.*(?:terminal-client|browser-client)\.ts$/.test(entry.file)) visitTyped(entry.file);
+  for (const file of bundled) visitTyped(file);
   return { programs, typed: [...typed].map((file) => graph.entries.get(file)), problems };
 }

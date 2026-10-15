@@ -425,7 +425,8 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
   const file = join(home, 'project.db'); seedDemoBoard(file); const store = new LocalProjectDatabase(file), token = randomUUID(), mutations = new Map<string, LocalMutationState>();
   const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, ...agentStudioFixture(0) }, installed = await ensureInstalledPlugins(options);
   const build = installed.releases.create('Network upgrade fixture'), pluginId = 'io.molis.work.generated.' + build.id;
-  const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [], acceptance: [], operations: [
+  // A design always has at least one page (agent-experience refuses one without); the studio canvas draws from the first.
+  const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [{ id: 'main', title: '天气', regions: [{ id: 'main', title: '天气', operationIds: ['fetch'] }] }], acceptance: [], operations: [
     { id: 'fetch', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: {}, errors: [], examples: [{ input: null, output: 'v1' }] }] };
   const bundlePath = join(home, 'v1.mjs'); await writeFile(bundlePath, 'export const operations={fetch:async()=>"v1"};');
   const first: AgentRelease = { buildId: build.id, pluginId, version: 1, directory: home, packagePath: home, bundlePath, nodes: [], prompts: [], permissions: {}, publishedAt: new Date().toISOString(),

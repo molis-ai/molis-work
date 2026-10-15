@@ -1,6 +1,7 @@
 import type { BackgroundTask, ExactRef, HeldWait, Runtime, WaitCondition } from "@prologue/sdk";
 import type { AgentBackgroundTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentCollaborationCondition, AgentCollaborationControl, AgentCollaborationPort, AgentCollaborationSessionView, AgentCollaborationWait, AgentContinuationView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
+import { agentErrors } from "../errors.js";
 import { readyStep } from "./prologue-collaboration.js";
 
 /** What the waits need to know about a session: its project, and how the person knows it. */
@@ -95,7 +96,7 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
     .filter(view => view.continuation && ["eligible", "blocked", "needs-reconciliation"].includes(view.continuation.state) && !exclude.includes(view.continuation.request_key));
   const owned = async (project: string, waitId: string) => {
     const wait = runtime.waits.get(waitId);
-    if (!wait || !(await inProject(project, wait.session.id))) throw new Error("这个等待不属于这个项目");
+    if (!wait || !(await inProject(project, wait.session.id))) throw agentErrors.collaboration_unknown("这个等待不属于这个项目");
     return wait;
   };
   const collaboration: AgentCollaborationPort = {
@@ -120,7 +121,7 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
         // Over already, its step held for the person: giving it up gives the step back (the person's decision, on the
         // step's record); going on is the round the person starts now, which gives it back the same way.
         const continuation = continuationOf(wait);
-        if (!continuation || !stillHeld(wait, continuation)) throw new Error("这个等待已经结束");
+        if (!continuation || !stillHeld(wait, continuation)) throw agentErrors.collaboration_conflict("这个等待已经结束");
         if (control.kind === "cancel-wait") await readyStep(runtime, wait.scope.board, wait.scope.node, actorId, control.note ?? "用户取消了等待");
         return sessionView(wait.session.id);
       }

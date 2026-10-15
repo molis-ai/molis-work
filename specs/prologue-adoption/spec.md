@@ -408,7 +408,7 @@ P1 冻结的是语义（§4.6.9）。这一节写 P3 在 Molis 一侧具体怎�
 | 派出复核 | `collaborationHost.admitDispatch`：沿用 `verifySubagentStart` 的角色、目录核对，再跑这一跑的 `beforeDispatch`（授权、安装、停用）。拒绝就带原因码 | 共享用量账的预留这一刀不做，PA-07 的预算一半留到 P4（那里有工作级额度） |
 | 接续起跑 | 不给 `startContinuation`。接续满足后停在 `eligible`；Coding 插件看到它，用接续的请求键起跑（`startAgentRun` 的 `agent.idempotencyKey` 填请求键，`collaboration` 填接续所在的那一步）。这一轮走 Coding 自己的 `startRound`，所以照常经过宿主开跑前的全部复核 | §4.6.9 写由协作口起跑。改的理由：Coding 一轮开始时插件还要做自己的账（会话状态、跟随这一跑、委派的接受、标题），宿主替它起跑会漏掉这些；SDK 明确支持「App 看图事件，自己用请求键起」这条路，开跑的唯一入口仍是同一个。助理在 P4 若要宿主直接起跑，再接协作口 |
 | 人排队等另一个会话那一轮 | 宿主在排队会话的那一块上以 app 身份 `arm` 一个等待，条件是同一张板上那一轮的节点（`node`），`onFailure: block`。排进去的那一轮的请求体由 Coding 自己存（`queued:<wait>`），等待上不挂数据（`HeldWait` 没有 `data`）。人不等了、直接开始那一轮（开跑请求带 `queued_work_id`，接过那一项）时，宿主撤掉这条等待（`queueTakenOver`），那边做完不会再起一轮 | — |
-| 等待的读与控制 | 新合同子路径 `services/agent-collaboration`，两个动作和一个等待：<br>• `agent.collaboration.read.v1`（动作）：每个会话一条视图，是它还要紧的最近一条等待（还在等，或接续还没被接上、没被放弃）；<br>• `agent.collaboration.await.v1`（typed，`operation: wait`，在 `agentHostCapabilities.awaitContinuations`：动作不能是等待）：项目里可以接着做或留给人的接续，最多等 25 秒；<br>• `agent.collaboration.control.v1`（动作）：本刀只做 `cancel-wait`、`continue-now`。等待已经结束、它那一步留给人决定时（失败、到期、要核对），`cancel-wait` 把那一步交还（SDK 没有别的出口），视图从此不再列它。<br>旧的 `agent.waits.read/await/resume/cancel` 只有 Coding 在调，同一刀删掉 | §4.6.9 只列了 read / revise / control。`await` 是加的：Coding 要「等到有一条能接着做」而不轮询。`revise`（替换 `step-board.amend`）、`control` 的 `retry` / `resolve-reconciliation` 留到 P4 |
+| 等待的读与控制 | 新合同子路径 `services/agent-collaboration`，两个动作和一个等待：<br>• `agent.collaboration.read.v1`（动作）：每个会话一条视图，是它还要紧的最近一条等待（还在等，或接续还没被接上、没被放弃）；<br>• `agent.collaboration.await.v1`（typed，`operation: wait`，在 `agentHostCapabilities.awaitContinuations`：动作不能是等待）：项目里可以接着做或留给人的接续，最多等 25 秒；<br>• `agent.collaboration.control.v1`（动作）：本刀只做 `cancel-wait`、`continue-now`。等待已经结束、它那一步留给人决定时（失败、到期、要核对），`cancel-wait` 把那一步交还（SDK 没有别的出口），视图从此不再列它。<br>旧的 `agent.waits.read/await/resume/cancel` 只有 Coding 在调，同一刀删掉 | §4.6.9 只列了 read / revise / control。`await` 是加的：Coding 要「等到有一条能接着做」而不轮询。`revise`（替换 `step-board.amend`）、`control` 的 `retry` / `resolve-reconciliation` 留到 P4。P1 写过「不新增 typed」：`await` 是 typed，因为动作的 operation 只有 query、command，长等待的先例是 `agent.run.wait.v1`；它顶替旧的四个 typed（`agent.waits.*`），净减 3，旧 id 不留别名（统筹 2026-10-15 同意）。要做成动作，得等动作合同加上 wait 这种 operation |
 | 让出 | 删 `subagentYieldGuard`。`dispatch-subagent` 带 `yield` 按 SDK 走：派出、这一步等孩子那一步、收工；孩子那一步结束，接续 `eligible`，Coding 起下一轮 | PA-23 的「不开放私有自动续做」改由 PA-08、PA-11 证明 |
 | 宿主代用户发的「优先」notice | 不再发成信，改由宿主直接告诉范围重叠、此刻正在跑的那几轮（宿主来源的补充）。理由有两条：agents 受众的信只能在相邻的步骤之间走；`people` 受众的信又到不了对方的模型那里。没有在跑的会话不再收到这句话：它下一轮开跑时，项目工作摘要会写出重叠 | — |
 | 信交给收件人 | 「子任务一律不能发信」删掉：能不能发、发给谁由 SDK 的位置检查决定（同一项目的会话在项目板上是兄弟，子任务是会话那一块的孩子）。宿主的发信钩子只留三件事：说清不能发的（发给自己、发给别的项目、发给子任务）、把「范围重叠的会话」换成名单、群发上限 5 个。收件人还没有在项目板上的那一块时（它从没跑过一轮），发信之前先给它放上（`place`），不然 SDK 找不到它的位置。会话的信件列表只列四种信（request、notice、reply、handoff），宿主给正在跑的那一轮的 inject 不算信。宿主仍负责把信交给收件人正在跑的那一轮，孩子的跑也算在内（`watchChild` 给每个孩子都登记了 steer）；没在跑的主会话，信留到它下一轮的收件箱。Runtime 自己写回的信（`inject`：子任务回报、等待带回的结果）由 SDK 自己交 | — |
@@ -939,7 +939,7 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
    - ONE 报告 TWO 的步骤，拿到 `TASKBOARD_NOT_ASSIGNED`；
    - 另一个项目的会话读板、报告、发信都被拒绝，板和信箱都不变。
 
-**在新路径上跑用例和门禁时找到、已修的缺陷**（最后一条是门禁找到的，其余都是用例先红，修完变绿）：
+**在新路径上跑用例和门禁时找到、已修的缺陷**（`board_id` 那条是门禁找到的，最后一条是防腐复查对硬约束看出来的，其余都是用例先红，修完变绿）：
 
 - 两个会话同时第一次开跑，会各建一张项目板：项目板的入场改成同一个 promise 共用。
 - 根和会话的块被当成项目工作列出来：工作项改用 `w-` 前缀，只列它们。
@@ -952,6 +952,7 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 - 读视图每个会话返回好几条：改成每个会话一条，是它还要紧的最近一条。
 - 人不等了、直接开始排队的那一轮（开跑请求带 `queued_work_id`）时，等待还挂着，那边做完会再起一轮：开跑接过那一项时，宿主撤掉这条等待（`queueTakenOver`）。main 上原有这一步（旧 `waits.resume`），P3a 改写时漏了，`coding-project-work` 用例抓到。
 - 合同里两个视图的字段 `board_id` 撞上旧名门禁（它指的是项目），改名 `graph_id`。
+- 叫醒循环开跑被拒（撤权、调用被取消、插件停用）时，照样给人留一条「自动开始没有成功」。被拒的调用不写业务记录（AGENTS 硬约束）：改成不留言、不动接续、这个 activation 不再问，接续留给之后能开跑的 activation。`coding-queued-round` 加了撤权、取消两种拒绝，还有拒绝之后人「现在开始」照样用上留着的那次发送；去掉这处改动时，用例拿到那条留言而失败。
 
 **用例跟着改的、属于预期变化的**：
 
@@ -975,6 +976,37 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 | 浏览器 | 选出的浏览器文件，含 `coding-taskboard.e2e` | 待补 |
 | 安全 | `pnpm test:security`（含 S-13 在新包上） | 待补 |
 | 全量 | PR 加 `full-suite` 标签，CI 上 Linux 分片；只在 macOS 跑的部分在本机补 | 待补 |
+
+**防腐复查**（清单 `coordination/2026-10-13/ANTI-CORRUPTION-REVIEW.md`，对本线 diff `f74e29d8..HEAD`）：
+
+- 2026-10-15 · 合入的 main 是 `f74e29d8`（#523）· merge-base 也是 `f74e29d8`。
+- 已修的项：
+  - 16（命名）：两个视图的 `board_id` 改名 `graph_id`；
+  - 19（页面资源）：两个新状态词的字节由 plan-progress 客户端改用 `change(...)` 抵消，预算降了 30；
+  - 11（新子路径写进文档）：`docs/platform/PROLOGUE-AI.md` §8 加了「等待与接续」；
+  - 14（错误码）：`control` 的两处拒绝改成 `defineErrorCodes` 的码（见下表）。
+- 统筹 2026-10-15 定的两项（都选 A）：
+  - 2：留一个 typed 等待 `agent.collaboration.await.v1`，顶替旧的四个（`agent.waits.read/await/resume/cancel`），typed 净减 3（199 → 192 里有这一部分），旧 id 不留别名。偏离 P1 的地方记在 §4.6.10。长等待要做成动作，得等动作合同加上 wait 这种 operation（现在只有 query、command）。唯一的调用方 `wake-loop.ts` 的用例要覆盖「被取消、撤权的不再写记录」。
+  - 20：「在等别的步骤」「重启后需要核对」两个状态词（`plugins/native/coding/src/taskboard-client.ts:34`、`plugins/native/coding/src/plan-progress-client.ts:12`）按原有缺口留着：这两个客户端脚本整份都没有翻译调用。两个词只在原有标签的位置显示，不加新的界面元素；随 BACKLOG 的 BL-141「Coding 客户端接翻译」一起译。
+
+| 项 | 结论与证据 |
+| --- | --- |
+| M1 `pnpm boundary:check` | 通过（换包后登记表里的包路径已改） |
+| M2 `check-health-gates --base origin/main` | 通过；数字只降不升，见 PR「只许减少的数字」 |
+| M4、M5 快照 | 已重新生成：新增子路径 `agent-collaboration`；`agent-host` 删 `waits`、加 `collaboration`；新增两个宿主动作 |
+| M6 `page-assets --base` | 通过，五个页面资源各降 30 字节 |
+| M8 DOM 事件、M9 翻译、M10 test-imports | 都通过；M9 与基线工作树逐行相同 |
+| 1 不留兼容 | `subagentYieldGuard`、`claims`、旧 `agent.waits.*` 删干净，没有别名；`following` 按 §4.6.10 留到 P4，没动 |
+| 2 注册一次 | read、control 是宿主登记的动作，一处注册；typed 等待按统筹的 A：顶替旧的四个，净减 3（见上）；唯一调用方 `wake-loop.ts` 开跑被拒时不写记录，`coding-queued-round` 断言撤权、取消两种 |
+| 4 身份 | `control` 的操作者和项目取自调用上下文；`control` 先 `beforeEffect()` 再改 |
+| 5、6 分层与模型 | 插件只经合同和动作；`@prologue/sdk` 仍只在 agent-host |
+| 9 巨大单元 | 没有新的巨大单元；`createPrologueTaskBoards` 已降到阈值以下，`routes.ts`、`agent-host.ts` 都变小 |
+| 12 合同变更 | 唯一的调用方 Coding 在本 PR 里改完；旧名在活文档和 Skill 里都没有引用 |
+| 22 测试 | 新测试只走公开入口（包名）；`prologue-project-board` 已加进产品子集 |
+| 23 验收编号 | 新测试名带 PA-03 |
+| 24 SDK | 只剩一份 tgz；`.sha256`、`.provenance.json`、`patch-history.json`、README 都和包相符 |
+| 26 分支卫生 | 门禁脚本、`limits.json`、`biome.jsonc` 和各例外文件都没动；`scripts/workspace-packages.mjs` 只改了包路径（换包要改） |
+| 3、7、8、10、15、17、18、21、25、27 | 不涉及，或只是就地改自己的行（`prologue-node.ts` 只改 7 行，不加长） |
 
 **留到后面的（不在 P3a 里）**：
 

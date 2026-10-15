@@ -14,7 +14,7 @@ import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/mol
 import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/dist/coding-surface.js";
 
 // specs/prologue-adoption §4.6.10: the Host keeps the wait on the session's step; the plugin keeps the queued send and starts it once the step may go on.
-test("a round told to wait for another session's work waits on it, starts on its own when that work is done, waits for the person when it is not, and can be given up", { timeout: 30_000 }, async () => {
+test("a round told to wait for another session's work waits on it, starts on its own when that work is done, waits for the person when it is not, can be given up, and a start refused (revoked, cancelled) writes nothing", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-queued-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = new CodingSessionStore(store.db), at = new Date().toISOString();
@@ -28,6 +28,8 @@ test("a round told to wait for another session's work waits on it, starts on its
   const fire = (id: string, outcome: "done" | "not-done") => { const one = waits.find(item => item.wait.wait_id === id)!;
     one.wait.state = outcome === "done" ? "satisfied" : "failed"; one.wait.conditions[0]!.last = { status: outcome === "done" ? "satisfied" : "failed", at: new Date().toISOString() };
     one.continuation.state = outcome === "done" ? "eligible" : "blocked"; };
+  // A start the Host refuses (the authority withdrawn, the call cancelled) by the time a wait is over.
+  let refusal: Error | undefined;
   const actions = pluginActions(store, DEMO_PROJECT_ID);
   actions.registry.registerProvider({ provider: { provider_id: "fixture.agent-host", title: "fixture", kind: "system" }, definitions: [collaboration.read, collaboration.control], handlers: [
     { ...collaboration.read, handle: async (_caller, input) => { calls.push([collaboration.read.capability_id, input]); const session = (input as { session_id?: string }).session_id;
@@ -78,6 +80,7 @@ test("a round told to wait for another session's work waits on it, starts on its
       if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
       if (id === agent.readSession.capability_id) return { runs: [] } as Output;
       if (id === agent.startRun.capability_id) {
+        if (refusal) throw refusal;
         const mine = work.find(item => item.work_id === input[1].queued_work_id);
         if (mine) { mine.state = "running"; mine.run_id = "rb"; }
         // The round the Host starts on that session takes up its step's continuation that may go on.
@@ -141,5 +144,29 @@ test("a round told to wait for another session's work waits on it, starts on its
     assert.deepEqual(calls.filter(([id]) => id === collaboration.control.capability_id).map(([, args]) => { const { kind, wait_id } = args as { kind: string; wait_id: string }; return [kind, wait_id]; }), [["cancel-wait", "w-wb1"]]);
     assert.equal(sessions.get(DEMO_PROJECT_ID, "b").state, "done");
     assert.equal((await call("/sessions/b")).body.session.queued, null);
+    // The start is refused once the wait is over: a refused call writes nothing (AGENTS) — no note for the person, the
+    // send kept, the continuation left where it was — and this activation does not ask again.
+    const refusedLeavesNothing = async (workId: string, error: Error) => {
+      refusal = error;
+      assert.equal((await call("/sessions/b/runs", { ...send, wait_for: "wa" })).body.queued.work_id, workId);
+      const tried = started().length;
+      fire(`w-${workId}`, "done");
+      await until(`${workId}: the start was asked for`, () => started().length === tried + 1);
+      await new Promise(resolve => setTimeout(resolve, 800));
+      assert.equal(started().length, tried + 1, "not asked again by this activation");
+      // The session's own state first: reading the session projects it from the fixture's rounds.
+      const state = sessions.get(DEMO_PROJECT_ID, "b").state, queuedView = (await call("/sessions/b")).body.session.queued;
+      assert.deepEqual([state, queuedView?.wait_id, queuedView?.note], ["queued", `w-${workId}`, undefined]);
+      assert.equal(waits.find(one => one.wait.wait_id === `w-${workId}`)!.continuation.state, "eligible");
+      refusal = undefined;
+    };
+    await refusedLeavesNothing("wb2", Object.assign(new Error("插件的权限已撤回"), { code: "actions.plugin_permission" }));
+    // The send was kept: the person starts it now, and that round takes the continuation up.
+    const now = await call("/sessions/b/queued", { action: "start" });
+    assert.equal(now.status, 200, JSON.stringify(now.body));
+    assert.deepEqual([started().at(-1).queued_work_id, started().at(-1).task], ["wb2", "给 src/label.ts 加前缀"]);
+    assert.equal(waits.find(one => one.wait.wait_id === "w-wb2")!.continuation.state, "started");
+    await until("the round the person started ends", () => sessions.get(DEMO_PROJECT_ID, "b").state === "done");
+    await refusedLeavesNothing("wb3", Object.assign(new Error("调用已取消"), { name: "AbortError" }));
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

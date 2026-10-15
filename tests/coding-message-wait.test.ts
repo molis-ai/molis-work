@@ -25,7 +25,7 @@ test("a round that ends waiting on an answer or a background command waits as th
   // The task graph's waits, as the Host serves them. B's model waits in each round it runs: on a request, or a command.
   type Held = { session_id: string; wait: AgentCollaborationWait; continuation: AgentContinuationView };
   const waits: Held[] = [], parks: Array<{ wait_id: string; condition: Omit<AgentCollaborationCondition, "last">; reason: string; until?: "settled"; on_failure?: "continue" }> = [];
-  const starts: any[] = [], cancels: string[] = [], continued: string[] = [], cancelledWaits: string[] = [];
+  const starts: Array<{ task: string }> = [], cancels: string[] = [], continued: string[] = [], cancelledWaits: string[] = [];
   const now = () => new Date().toISOString();
   const wait = (park: typeof parks[number], run: string): Held => ({ session_id: "sdk-b",
     wait: { wait_id: park.wait_id, session_id: "sdk-b", run_id: run, graph_id: "board-b", node_id: "session", by: "agent", reason: park.reason, mode: "all", until: park.until ?? "success",

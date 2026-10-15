@@ -5,7 +5,7 @@
  * next round — the Host starts that round under the continuation's request key — or keeps a note for the person when it
  * should not start on its own (specs/prologue-adoption §4.6.10).
  */
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, platformErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
@@ -61,8 +61,19 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
     if (queued) return String(queued.actor_id ?? LOCAL_PERSON_ACTOR_ID);
     try { return String(JSON.parse(storage()?.get(`last-start:${record.session_id}`) ?? "{}").actor_id ?? LOCAL_PERSON_ACTOR_ID); } catch { return LOCAL_PERSON_ACTOR_ID; }
   };
+  /**
+   * The round was refused before it started: the activation is stopping, the call was cancelled, or the authority to start
+   * it is gone (withdrawn, the plugin turned off). A refused call writes no record (AGENTS): no note is kept and the
+   * continuation stays where it is, for an activation that may start it.
+   */
+  const refused = (error: unknown) => {
+    if (deps.stopped.aborted || (error as { name?: unknown } | undefined)?.name === "AbortError") return true;
+    const { code, kind } = (error ?? {}) as { code?: unknown; kind?: unknown };
+    const sort = typeof kind === "string" ? kind : typeof code === "string" ? platformErrorKind(code) : undefined;
+    return sort === "forbidden" || sort === "cancelled" || sort === "unavailable";
+  };
   /** A wait that is over: start the next round (it takes the continuation up), or leave it for the person with a note. */
-  const takeUp = async (api: Capabilities, execution: Execution, runtimeId: string, view: CodingWaitView): Promise<"started" | "held" | "later" | "not-ours"> => {
+  const takeUp = async (api: Capabilities, execution: Execution, runtimeId: string, view: CodingWaitView): Promise<"started" | "held" | "later" | "not-ours" | "refused"> => {
     const found = deps.records(execution).find(entry => entry.runtime_id === runtimeId && entry.runtime_session_id === view.session_id);
     if (!found) return "not-ours";
     const reason = holdReason(view);
@@ -77,6 +88,7 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
       const message = error instanceof Error ? error.message : String(error);
       // The round it waited in may still be closing: try again shortly rather than give up.
       if (/正在|进行中|still running|session_busy/.test(message)) return "later";
+      if (refused(error)) return "refused";
       hold(view.wait.wait_id, `自动开始没有成功：${message}`);
       return "held";
     } finally { deps.busy.delete(found.session_id); }
@@ -105,7 +117,8 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
         let later = false;
         for (const view of ready) {
           const outcome = await takeUp(api, execution, runtimeId, view).catch(() => "later" as const);
-          if ((outcome === "held" || outcome === "not-ours") && view.continuation) held.add(view.continuation.request_key);
+          // Held, not ours, or refused: this activation does not ask again.
+          if ((outcome === "held" || outcome === "not-ours" || outcome === "refused") && view.continuation) held.add(view.continuation.request_key);
           if (outcome === "later") later = true;
         }
         if (later) await deps.pause(2_000);

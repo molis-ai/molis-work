@@ -1162,7 +1162,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 519,
+  "explicitAnyTotal": 518,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1217,7 +1217,7 @@
     "tests/coding-goal-context-http.test.ts": 9,
     "tests/coding-history-summary-http.test.ts": 4,
     "tests/coding-materials-http.test.ts": 3,
-    "tests/coding-message-wait.test.ts": 4,
+    "tests/coding-message-wait.test.ts": 3,
     "tests/coding-plan-amend-http.test.ts": 1,
     "tests/coding-plan-dependencies.test.ts": 1,
     "tests/coding-plans-http.test.ts": 11,

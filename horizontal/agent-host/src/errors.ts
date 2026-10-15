@@ -4,6 +4,8 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 export const agentErrors = defineErrorCodes("agent", {
   answer_invalid: "invalid",
   capability_unavailable: "invalid",
+  collaboration_conflict: "conflict",
+  collaboration_unknown: "invalid",
   directory_unauthorized: "invalid",
   model_not_configured: "invalid",
   pending_not_open: "invalid",

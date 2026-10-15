@@ -92,7 +92,9 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     connections.add(connection);
     connection.once("close", () => connections.delete(connection));
   });
-  const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 5_000 });
+  // The limits stop a hang; they are not speed checks. They are sized for the Linux CI runner, which runs these pages about
+  // 2.5 times slower than a development Mac (one command or wait that takes 4 s there takes 10 s here).
+  const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 15_000 });
   harness = browser;
   /** A page load may take far longer than any other command. */
   function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : undefined): Promise<T> {
@@ -116,7 +118,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
     return result.result.value;
   }
-  async function waitFor(expression: string, timeoutMs = 4000): Promise<void> {
+  async function waitFor(expression: string, timeoutMs = 10_000): Promise<void> {
     const result = await command<{ result: { value: unknown }; exceptionDetails?: unknown }>("Runtime.evaluate", { expression: `new Promise((resolve, reject) => {
       const deadline = Date.now() + ${timeoutMs};
       const check = () => { if (${expression}) resolve(true); else if (Date.now() >= deadline) reject(new Error('DOM condition timeout: ' + ${JSON.stringify(expression.slice(0, 200))} + '; toast=' + document.querySelector('[data-toast]')?.textContent + '; focused=' + document.activeElement?.outerHTML.slice(0,300))); else setTimeout(check, 16); }; check();
@@ -173,7 +175,10 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y }, sessionId);
       const hit = await evaluate<string | null>(`(async () => { await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const element = document.querySelector(${JSON.stringify(selector)}); const hit = document.elementFromPoint(${point.x}, ${point.y});
-        return element && element.contains(hit) ? null : (hit?.outerHTML.slice(0, 400) ?? 'nothing'); })()`);
+        if (!element || element.contains(hit)) return null;
+        const style = getComputedStyle(element), rect = element.getBoundingClientRect();
+        return (hit?.outerHTML.slice(0, 400) ?? 'nothing') + ' (target: pointer-events ' + style.pointerEvents + ', visibility ' + style.visibility
+          + ', rect ' + [rect.x, rect.y, rect.width, rect.height].map(Math.round).join(',') + ', viewport ' + innerWidth + 'x' + innerHeight + ')'; })()`);
       if (hit !== null) throw new Error("Click target " + selector + " is covered by " + hit);
     }
     await command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 }, sessionId);

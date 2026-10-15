@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 // Any other `--` option is handed to `node --test` (e.g. `--test-name-pattern=…`).
 // One file: one `node --test` process, as before. Several files: each file runs alone in its own process with its own
 // MOLIS_WORK_HOME and secret store (this script again, with that one file), several at once (scripts/run-tests/pool.mjs).
+// A run with a browser file first takes the machine's browser slot (scripts/machine-slot.mjs) and waits its turn for it.
 const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [--shard <k>/<n>] [--retries <n>] [--skip-macos-only] [node --test options] [files…]";
 const die = (message) => { console.error(`run-tests: ${message}\n${USAGE}`); process.exit(2); };
 const whole = (name, value, least) => {
@@ -61,6 +62,16 @@ if (options.shard) {
   const mine = targets.filter((_, position) => position % count === index);
   if (!mine.length) { console.log(`run-tests: shard ${index + 1}/${count} of ${targets.length} files has no file`); process.exit(0); }
   targets.splice(0, targets.length, ...mine);
+}
+
+// One browser batch at a time on this machine (docs/system/PARALLEL-DEVELOPMENT.md §5): a run with a browser file takes the machine's
+// browser slot first and waits its turn when another checkout holds it (scripts/machine-slot.mjs; not in CI, not inside a test).
+{
+  const { classifyFile } = await import("./ci-linux-probe/select.mjs");
+  if (targets.some((file) => classifyFile(root, relative(root, resolve(file))).marks.includes("browser"))) {
+    const { acquireSlot } = await import("./machine-slot.mjs");
+    await acquireSlot("browser", { label: `tests ${targets.length === 1 ? targets[0] : `${targets.length} files`}` });
+  }
 }
 
 if (targets.length > 1) {

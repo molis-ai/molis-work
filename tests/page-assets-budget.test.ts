@@ -599,3 +599,41 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
   sizes[asset] = 23451; sizes["/assets/a.css"]++; putBudget(sizes);
   assert.equal(gate("--base", "issue-draft-old").code, 1, "other assets remain frozen");
 });
+
+// ISSUE-48: exactly the current baseline receives the user's 26 KiB exception; the next baseline freezes again.
+test("saved Issue reorganization has one bounded allowance; other assets and later growth still fail", () => {
+  const asset = "/assets/molis-work-plugins/issues.js";
+  branch("issue-reorganize-base", () => { sizes[asset] = 24378; putBudget(sizes); });
+  git("checkout", "-q", "-B", "issue-reorganize-change");
+  sizes[asset] = 26624;
+  assert.equal(gate("--update", "--base", "issue-reorganize-base").code, 0);
+  assert.equal(gate("--base", "issue-reorganize-base").code, 0);
+  sizes[asset] = 26625;
+  assert.equal(gate("--update", "--base", "issue-reorganize-base").code, 1);
+  sizes[asset] = 26268; sizes["/assets/a.css"]++;
+  assert.equal(gate("--update", "--base", "issue-reorganize-base").code, 1);
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "issue-reorganize-base").code, 0);
+  commit("freeze actual reorganization size"); git("branch", "-f", "issue-reorganize-frozen");
+  sizes[asset]++; putBudget(sizes); commit("try to grow the new baseline");
+  assert.equal(gate("--base", "issue-reorganize-frozen").code, 1);
+  assert.equal(gate("--update", "--base", "issue-reorganize-frozen").code, 1);
+});
+
+// I8-PAGES-01: exactly the current Pages editor baseline receives the user's one-time allowance; the next baseline freezes again.
+test("the Pages editor has one bounded allowance for the I8 fixes; other assets and later growth still fail", () => {
+  const asset = "/assets/molis-work-pages-editor.js";
+  branch("pages-editor-base", () => { sizes[asset] = 698574; putBudget(sizes); });
+  git("checkout", "-q", "-B", "pages-editor-change");
+  sizes[asset] = 703633;
+  assert.equal(gate("--update", "--base", "pages-editor-base").code, 0);
+  assert.equal(gate("--base", "pages-editor-base").code, 0);
+  sizes[asset] = 703634;
+  assert.equal(gate("--update", "--base", "pages-editor-base").code, 1);
+  sizes[asset] = 703633; sizes["/assets/a.css"]++;
+  assert.equal(gate("--update", "--base", "pages-editor-base").code, 1);
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "pages-editor-base").code, 0);
+  commit("freeze actual Pages editor size"); git("branch", "-f", "pages-editor-frozen");
+  sizes[asset]++; putBudget(sizes); commit("try to grow the new baseline");
+  assert.equal(gate("--base", "pages-editor-frozen").code, 1);
+  assert.equal(gate("--update", "--base", "pages-editor-frozen").code, 1);
+});

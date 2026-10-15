@@ -1,4 +1,4 @@
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "./actions.js";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "./actions.js";
 import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
 
 /**
@@ -67,20 +67,20 @@ export function placementSourceProject(caller: ActionCallContext, to: string): s
 }
 
 export function bindObjectMoveHandler(definition: ActionDefinition<PlacementMoveInput, PlacementResult>,
-  move: (input: PlacementMoveInput & { from_project_id: string }, caller: ActionCallContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding {
+  move: (input: PlacementMoveInput & { from_project_id: string }, caller: ActionExecutionContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding {
   return { capability_id: definition.capability_id, version: definition.version,
     handle: (caller, input) => { const value = input as PlacementMoveInput; return move({ ...value, from_project_id: placementSourceProject(caller, value.to_project_id) }, caller); } };
 }
 
 /** A Home-scoped mover (see defineObjectMoveAction): the plugin knows where the object belongs now; `to_project_id` is where it goes. */
 export function bindHomeObjectMoveHandler(definition: ActionDefinition<PlacementMoveInput, PlacementResult>,
-  move: (input: PlacementMoveInput, caller: ActionCallContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding {
+  move: (input: PlacementMoveInput, caller: ActionExecutionContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding {
   if (definition.action.scope !== "home") throw new ActionError("actions.definition_invalid", "Home 作用域的移动处理只能绑定 Home 作用域的放置动作");
   return { capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => move(input as PlacementMoveInput, caller) };
 }
 
 export function bindObjectCopyHandler(definition: ActionDefinition<PlacementCopyInput, PlacementResult>,
-  copy: (input: PlacementCopyInput & { from_project_id: string }, caller: ActionCallContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding {
+  copy: (input: PlacementCopyInput & { from_project_id: string }, caller: ActionExecutionContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding {
   return { capability_id: definition.capability_id, version: definition.version,
     handle: (caller, input) => {
       const value = input as PlacementCopyInput;

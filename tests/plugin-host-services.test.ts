@@ -457,6 +457,33 @@ test("W4-04-01 a plugin reads the head of its own line of 成果; another produc
   } finally { rig.close(); }
 });
 
+test("W4-04-02 a plugin reads back a version it pinned itself, archived and not consumed; read still refuses it, and another producer's version is refused", async () => {
+  const rig = harness(() => []);
+  try {
+    const REPORT = "demo.report";
+    const reader = manifestFor({ id: CONSUMER, inputs: ["payload"] }), writer = manifestFor({ id: PRODUCER, outputs: ["payload"] });
+    reader.permissions.push({ permission: "artifact:write", required: true, reason: "固定自己的成果" });
+    const readerPreview = artifactPreview(CONSUMER, REPORT), writerPreview = artifactPreview(PRODUCER, REPORT);
+    reader.actions = [readerPreview.definition]; reader.artifacts.produces.push(readerPreview.type);
+    writer.actions = [writerPreview.definition]; writer.artifacts.produces.push(writerPreview.type);
+    await rig.supervisor.start([{ definition: definitionFor(rig, writer, [writerPreview.handler]) }, { definition: definitionFor(rig, reader, [readerPreview.handler]) }]);
+    const own = rig.services[CONSUMER]!.artifacts, other = rig.services[PRODUCER]!.artifacts;
+    const pin = (artifacts: typeof own, artifact_id: string) => artifacts.publish({ artifact_id, version: 1,
+      artifact_type_id: REPORT, schema_version: 1, content: { kind: "inline", payload: { note: artifact_id } }, supersedes_version: null,
+      ...pinnedArtifact("报告", { kind: "report", id: artifact_id }, "1") });
+    assert.equal(own.readOwn({ artifact_id: "report-a", version: 1 }), null, "a version the project does not hold");
+    pin(own, "report-a"); pin(other, "report-b");
+    rig.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, artifact_id: "report-a", version: 1, actor_id: "tester" });
+    const back = own.readOwn({ artifact_id: "report-a", version: 1 });
+    assert.equal(back?.lifecycle_state, "archived");
+    assert.deepEqual(back?.payload, { note: "report-a" });
+    assert.throws(() => own.read({ artifact_id: "report-a", version: 1 }), (error: { code?: string }) => error.code === "artifacts.plugin_incompatible",
+      "read answers only what the plugin consumes and can still use");
+    assert.throws(() => own.readOwn({ artifact_id: "report-b", version: 1 }), (error: { code?: string }) => error.code === "artifacts.plugin_denied", "another producer's version");
+    assert.throws(() => other.readOwn({ artifact_id: "report-b", version: 1 }), /未声明/u, "a plugin that does not declare artifact:read");
+  } finally { rig.close(); }
+});
+
 test("a process item port keeps its own version sequence: selecting an older version guards stale choices and never rewinds generation", async () => {
   const rig = harness(() => []);
   try {

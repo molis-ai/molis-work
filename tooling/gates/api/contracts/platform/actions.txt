@@ -2808,14 +2808,14 @@ export interface WorkflowContentBinding {
 }
 
 export interface WorkflowContentHandlers {
-    list(caller: ActionCallContext): readonly WorkflowStartItem[] | Promise<readonly WorkflowStartItem[]>;
+    list(caller: ActionExecutionContext): readonly WorkflowStartItem[] | Promise<readonly WorkflowStartItem[]>;
     read(input: {
         item_id: string;
-    }, caller: ActionCallContext): WorkflowPayload | Promise<WorkflowPayload>;
-    receive?(input: WorkflowReceiveInput, caller: ActionCallContext): WorkflowItemRef | Promise<WorkflowItemRef>;
+    }, caller: ActionExecutionContext): WorkflowPayload | Promise<WorkflowPayload>;
+    receive?(input: WorkflowReceiveInput, caller: ActionExecutionContext): WorkflowItemRef | Promise<WorkflowItemRef>;
     create?(input: {
         title: string;
-    }, caller: ActionCallContext): WorkflowItemRef | Promise<WorkflowItemRef>;
+    }, caller: ActionExecutionContext): WorkflowItemRef | Promise<WorkflowItemRef>;
 }
 
 export type WorkflowContentRole = "list" | "read" | "receive" | "create";
@@ -2916,15 +2916,15 @@ export declare function bindArtifactPreview(definition: ActionDefinition<Artifac
 
 export declare function bindFileEntriesHandler(definition: ActionDefinition<FileEntriesInput, FileEntriesPage>, list: (caller: ActionCallContext) => readonly FileEntry[] | Promise<readonly FileEntry[]>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding;
 
-export declare function bindHomeObjectMoveHandler(definition: ActionDefinition<PlacementMoveInput, PlacementResult>, move: (input: PlacementMoveInput, caller: ActionCallContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding;
+export declare function bindHomeObjectMoveHandler(definition: ActionDefinition<PlacementMoveInput, PlacementResult>, move: (input: PlacementMoveInput, caller: ActionExecutionContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding;
 
 export declare function bindObjectCopyHandler(definition: ActionDefinition<PlacementCopyInput, PlacementResult>, copy: (input: PlacementCopyInput & {
     from_project_id: string;
-}, caller: ActionCallContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding;
+}, caller: ActionExecutionContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding;
 
 export declare function bindObjectMoveHandler(definition: ActionDefinition<PlacementMoveInput, PlacementResult>, move: (input: PlacementMoveInput & {
     from_project_id: string;
-}, caller: ActionCallContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding;
+}, caller: ActionExecutionContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding;
 
 export declare function bindSearchEntriesHandler(definition: ActionDefinition<SearchEntriesInput, SearchEntriesPage>, list: (caller: ActionCallContext) => readonly SearchEntry[] | Promise<readonly SearchEntry[]>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding;
 

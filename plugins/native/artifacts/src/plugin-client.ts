@@ -103,40 +103,26 @@ export function createPluginArtifactClient(input: {
       if (latest.producer_plugin_id !== manifest.plugin_id) throw artifactsErrors.plugin_denied("这条成果线不是这个插件的");
       return artifactLineHeadOf(latest);
     },
+    readOwn(reference) {
+      requirePermission("artifact:read");
+      const pinned = api.query.getArtifactVersion(project_id, reference);
+      if (!pinned) return null;
+      if (pinned.producer_plugin_id !== manifest.plugin_id) throw artifactsErrors.plugin_denied("这条成果线不是这个插件的");
+      return pinned;
+    },
   };
-  const providerId = `sdk.artifacts.${context.install_id}`;
-  const reads = (operation: string) => operation === "read" || operation === "head";
-  const define = (operation: "read" | "head" | "publish" | "record", inputSchema: ActionDefinition["action"]["input_schema"], outputSchema: ActionDefinition["action"]["input_schema"]): ActionDefinition => ({
-    capability_id: `${providerId}.${operation}`, version: 1, provider_id: providerId,
-    operation: reads(operation) ? "query" : "command",
-    action: { title: { read: "读取插件成果", head: "读取插件成果线的最新版本", publish: "发布插件成果", record: "记下插件过程项" }[operation], description: "使用当前安装实例的类型合同和生产者身份访问成果",
-      kind: reads(operation) ? "query" : "operation", scope: "project", audiences: ["plugin"],
-      permissions: [reads(operation) ? "artifact:read" : "artifact:write"], subject_kinds: ["artifact"],
-      input_schema: inputSchema, output_schema: outputSchema },
-  });
-  const read = define("read", reference, nullable({ anyOf: [record, processRecord] }));
-  const head = define("head", object({ artifact_id: id }), nullable(object({ version, source_revision: nullable({ type: "integer", minimum: 0 }) })));
-  const versionInput = object({ artifact_id: id, version, artifact_type_id: id, schema_version: version,
-    content: { oneOf: [object({ kind: { const: "inline" }, payload: {} }), object({ kind: { const: "reference" }, content_ref: id,
-      digest: id, size_bytes: { type: "integer", minimum: 0 }, observed_digest: nullable(text), available: { type: "boolean" } },
-      ["kind", "content_ref", "digest", "size_bytes"])] }, metadata: { type: "object" }, supersedes_version: nullable(version) },
-    ["artifact_id", "version", "artifact_type_id", "schema_version", "content"]);
-  const result = (artifact: unknown) => object({ artifact, observed_event_cursor: { type: "integer", minimum: 0 }, replayed: { type: "boolean" } });
-  const versionProperties = (versionInput as { properties: Record<string, unknown> }).properties;
-  const publishInput = object({ ...versionProperties, origin, title: id, media_type: id, trace: array(reference) },
-    ["artifact_id", "version", "artifact_type_id", "schema_version", "content", "origin", "title", "media_type"]);
-  const publish = define("publish", publishInput, result(record));
-  const recordItem = define("record", versionInput, result(processRecord));
+  const { providerId, read, head, own, publish, recordItem } = sdkArtifactActions(context.install_id);
   const caller: ActionCallContext = { actor_id, project_id: input.actions.project_id, audience: "plugin",
-    plugin_install_id: context.install_id, permissions: manifest.permissions.map(item => item.permission), allowed_actions: [read, head, publish, recordItem] };
+    plugin_install_id: context.install_id, permissions: manifest.permissions.map(item => item.permission), allowed_actions: [read, head, own, publish, recordItem] };
   const dispose = input.actions.registry.registerProvider({
     provider: { provider_id: providerId, title: `${manifest.name} · 成果 SDK`, kind: "system", project_id: input.actions.project_id },
-    definitions: [read, head, publish, recordItem],
+    definitions: [read, head, own, publish, recordItem],
     availability: call => call.actor_id === actor_id && call.plugin_install_id === context.install_id
       ? { available: true } : denied("成果 SDK 属于其他安装实例或用户"),
     handlers: [
       { ...read, execution: "sync", availability: () => available("artifact:read"), handle: (_call, value) => operations.read(value as Parameters<PluginArtifactClient["read"]>[0]) },
       { ...head, execution: "sync", availability: () => available("artifact:read"), handle: (_call, value) => operations.head((value as { artifact_id: string }).artifact_id) },
+      { ...own, execution: "sync", availability: () => available("artifact:read"), handle: (_call, value) => operations.readOwn(value as Parameters<PluginArtifactClient["readOwn"]>[0]) },
       { ...publish, execution: "sync", availability: () => available("artifact:write"), handle: (_call, value) => operations.publish(value as PluginArtifactPublishInput) },
       { ...recordItem, execution: "sync", availability: () => available("artifact:write"), handle: (_call, value) => operations.record(value as PluginProcessItemInput) },
     ],
@@ -153,9 +139,39 @@ export function createPluginArtifactClient(input: {
   return { dispose, client: {
     read: value => invoke(read, { artifact_id: value.artifact_id, version: value.version }) as ReturnType<PluginArtifactClient["read"]>,
     head: artifactId => invoke(head, { artifact_id: artifactId }) as ReturnType<PluginArtifactClient["head"]>,
+    readOwn: value => invoke(own, { artifact_id: value.artifact_id, version: value.version }) as ReturnType<PluginArtifactClient["readOwn"]>,
     publish: value => invoke(publish, { ...versionOf(value), origin: value.origin, title: value.title, media_type: value.media_type,
       ...(value.trace === undefined ? {} : { trace: value.trace }) }) as ReturnType<PluginArtifactClient["publish"]>,
   }, process: {
     record: value => invoke(recordItem, versionOf(value)) as ReturnType<PluginProcessItemClient["record"]>,
   } };
+}
+
+/** The SDK actions one installation reaches its 成果 through (sandboxed code calls them; the client above wraps them). */
+function sdkArtifactActions(installId: string) {
+  const providerId = `sdk.artifacts.${installId}`;
+  const reads = (operation: string) => operation === "read" || operation === "head" || operation === "own";
+  const define = (operation: "read" | "head" | "own" | "publish" | "record", inputSchema: ActionDefinition["action"]["input_schema"], outputSchema: ActionDefinition["action"]["input_schema"]): ActionDefinition => ({
+    capability_id: `${providerId}.${operation}`, version: 1, provider_id: providerId,
+    operation: reads(operation) ? "query" : "command",
+    action: { title: { read: "读取插件成果", head: "读取插件成果线的最新版本", own: "读取插件自己固定的版本", publish: "发布插件成果", record: "记下插件过程项" }[operation], description: "使用当前安装实例的类型合同和生产者身份访问成果",
+      kind: reads(operation) ? "query" : "operation", scope: "project", audiences: ["plugin"],
+      permissions: [reads(operation) ? "artifact:read" : "artifact:write"], subject_kinds: ["artifact"],
+      input_schema: inputSchema, output_schema: outputSchema },
+  });
+  const read = define("read", reference, nullable({ anyOf: [record, processRecord] }));
+  const head = define("head", object({ artifact_id: id }), nullable(object({ version, source_revision: nullable({ type: "integer", minimum: 0 }) })));
+  const own = define("own", reference, nullable(record));
+  const versionInput = object({ artifact_id: id, version, artifact_type_id: id, schema_version: version,
+    content: { oneOf: [object({ kind: { const: "inline" }, payload: {} }), object({ kind: { const: "reference" }, content_ref: id,
+      digest: id, size_bytes: { type: "integer", minimum: 0 }, observed_digest: nullable(text), available: { type: "boolean" } },
+      ["kind", "content_ref", "digest", "size_bytes"])] }, metadata: { type: "object" }, supersedes_version: nullable(version) },
+    ["artifact_id", "version", "artifact_type_id", "schema_version", "content"]);
+  const result = (artifact: unknown) => object({ artifact, observed_event_cursor: { type: "integer", minimum: 0 }, replayed: { type: "boolean" } });
+  const versionProperties = (versionInput as { properties: Record<string, unknown> }).properties;
+  const publishInput = object({ ...versionProperties, origin, title: id, media_type: id, trace: array(reference) },
+    ["artifact_id", "version", "artifact_type_id", "schema_version", "content", "origin", "title", "media_type"]);
+  const publish = define("publish", publishInput, result(record));
+  const recordItem = define("record", versionInput, result(processRecord));
+  return { providerId, read, head, own, publish, recordItem };
 }

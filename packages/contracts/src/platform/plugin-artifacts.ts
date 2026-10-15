@@ -34,6 +34,12 @@ export interface PluginArtifactClient {
    * producer started is refused.
    */
   head(artifactId: string): ArtifactLineHead | null;
+  /**
+   * One version this Plugin pinned itself, whatever it consumes and archived or not (null when the project does not hold it),
+   * so it can recover or check its own pin; `read` answers only what the Plugin consumes and can still use. A version
+   * another producer pinned is refused.
+   */
+  readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
 }
 
 /**

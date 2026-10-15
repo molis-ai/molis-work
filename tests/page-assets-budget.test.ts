@@ -586,23 +586,16 @@ test("no new asset path is admitted, the Issue client included, and an establish
   assert.equal(gate("--base", "main").code, 1);
 });
 
-// ISSUE-45/46: this one approved increase must not become a reusable allowance for later changes.
-test("Issue draft/preview exception is bounded and freezes again at the new measured size", () => {
+// ISSUE-45/46 spent their one approved increase (23,451 → 24,379 measured, under the 24 KiB the user allowed on 2026-10-15,
+// specs/issue-home-v0): the Issue client, even back at its old size, grows under the same rule as every asset.
+test("the spent Issue draft/preview increase leaves no allowance, even at the Issue client's old size", () => {
   const asset = "/assets/molis-work-plugins/issues.js";
   branch("issue-draft-old", () => { sizes[asset] = 23451; putBudget(sizes); });
-  git("checkout", "-q", "-b", "issue-draft-fix");
-  sizes[asset] = 24576;
-  assert.equal(gate("--update", "--base", "issue-draft-old").code, 0);
-  commit("approved Issue increase");
-  assert.equal(gate("--base", "issue-draft-old").code, 0);
+  git("checkout", "-q", "-b", "issue-draft-regrow");
   sizes[asset]++;
   assert.equal(gate("--update", "--base", "issue-draft-old").code, 1);
-  putBudget(sizes); assert.equal(gate("--base", "issue-draft-old").code, 1);
-  sizes[asset] = 24390; putBudget(sizes); commit("freeze exact measured size");
-  git("checkout", "-q", "-b", "issue-draft-later");
-  sizes[asset]++; putBudget(sizes); commit("later unapproved growth");
-  assert.equal(gate("--base", "issue-draft-fix").code, 1);
-  assert.equal(gate("--update", "--base", "issue-draft-fix").code, 1);
-  sizes[asset] = 24390; sizes["/assets/a.css"]++; putBudget(sizes);
+  putBudget(sizes); commit("attempt to regrow from the old Issue size");
+  assert.equal(gate("--base", "issue-draft-old").code, 1);
+  sizes[asset] = 23451; sizes["/assets/a.css"]++; putBudget(sizes);
   assert.equal(gate("--base", "issue-draft-old").code, 1, "other assets remain frozen");
 });

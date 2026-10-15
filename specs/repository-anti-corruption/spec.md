@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-14）。原I4/I5第五批、BL-133与W2-10 A1–A4/C/D已合；第4–6波和最终共享全量仍在途。当前main774acaf57；I8 ad0ca76fb已联合Pages7b611、I3–I33及正式CU-image+beforeAccept SDK，102b九项工程检查全通过。103普通99条97通过、浏览器20条19通过，新增真实线程撤权/停止竞态均通过；104 Host HTML五条四通过。四条旧预期/夹具问题已定位，105错误出口13/13通过，106浏览器两条定向复验2/2通过，107模块图边界/root类型/merge-base健康检查全通过；唯一共享全量108已冻结c2017a9ac运行，已出现新增失败，完整终态及逐条裁决尚待。Prologue #20已推送并开PR，无GitHub CI；干净构建/打包与66项检查通过。维护八隔离演练7条更新、回滚/幂等/完整性通过，原Home未写入。完整未完范围及新旧证据见§12.4–12.11。
+状态：执行中，整线未完成（2026-10-14，Claude 按用户 10-14 目标接手，Codex 写线已暂停交接）。I8 的修复树 F109 已并入 main 5d62d77f（含 W4-06 拆分），108 的失败逐个修完，F109 全量回归在跑；之后按区域拆 5–8 个 PR 串行合入（§10.11 决定 7），再接第 4–6 波。10-14 独立复查的发现与处理见 §10.11。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -18,6 +18,13 @@ W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只
 
 | 日期 | 事项 | 选项 | 结论 | 说明 |
 | --- | --- | --- | --- | --- |
+| 2026-10-14 | 108 卡在 work-placement-restart（弹窗） | 只停这一个文件的进程（推荐）；停整个 108；等它超时 | 只停这一个文件的进程 | 去停时 pid 35170 已自行退出、108 继续，实际没有停任何进程 |
+| 2026-10-14 | Issue 首次登记的 24,000 资源上限（复查 F-1，弹窗） | 批准过，补记录并删掉已用完的例外（推荐）；没批准，回退 | 批准过，补记录 | 记录补在 specs/issue-home-v0；`INITIAL_ASSET_BUDGETS` 已删，门禁回到只减不增（[#501](https://github.com/molis-ai/molis-work/pull/501)） |
+| 2026-10-14 | Home 级内置插件的登记位置（复查 F-2，弹窗） | 改规则文字（推荐）；改代码搬到 Host 侧名单 | 改规则文字 | AGENTS.md、EXTENSION-POINTS、PLUGIN-DEVELOPMENT 写明：Home 级内置插件在 `builtin-plugins.ts` 以 `runtime: { scope: "home" }` 登记，由 `home-plugins.ts` 装配；项目级仍只走 `project-plugins.ts`（[#502](https://github.com/molis-ai/molis-work/pull/502)） |
+| 2026-10-14 | Runtime 插件的 consumes 能否调到别的插件的动作（复查 F-10，弹窗） | 只给宿主装配的内置插件；对所有插件放开；都只到宿主动作 | 对所有插件放开 | 仍受受众、权限、可用性与 schema 约束；先查授权再查目录；未列在 consumes 的动作 `actions.forbidden`。SECURITY-INVARIANTS S-15、插件开发 Skill、PLUGIN-DEVELOPMENT 已写；`tests/workspace-read-one-id.test.ts` 改为断言列出的可达、未列的拒绝，进 `test:security`（F109 00bbdacb7） |
+| 2026-10-14 | main 缺模型切换的授权复核（复查 F-4，弹窗） | 单独一个小 PR 先进 main（推荐）；随 I8 一起 | 单独一个小 PR 先进 main | 上游已有：Prologue #24。Molis 侧要换包加 beforeAccept 接线，接线依赖 G5 的执行检查框架（`prologue-effects.ts`），所以这是 I8 拆分后的第一个 PR，不会很小 |
+| 2026-10-14 | SDK 系谱不满足 D7（复查 F-5，弹窗） | 过渡期内接受并写进决定（推荐）；按 D7 重建 | 过渡期内接受 | D7 的例外：Molis P3 之前，临时线可以带已在 Prologue main 上的提交的 cherry-pick（#18、#24），provenance 照实写 `parentsOnUpstreamMain: false` |
+| 2026-10-14 | I8 怎样落 main（弹窗） | 按大块拆成几个 PR（推荐）；一个大 PR | 按大块拆成 5–8 个 PR | 依赖顺序串行，每片从最新 main 起、CI 全绿再合 |
 | 2026-10-14 | 当前CU-image SDK的beforeAccept补丁、上游与正式vendor（用户原问题回复） | 只留临时包；提交上游并正式换包 | 允许提交上游并正式换包（推荐） | 范围为923e5a40 CU-image当前系谱上的最小同步beforeAccept补丁；允许提交/推送Prologue、开PR，经复查与验证后更新Molis正式vendored包及来源记录、删除被替换旧包。当前上游多一项公开API快照修正，补丁保留该修正；不扩大到P2/P3迁移、真实Home维护或他人成果清理。上游GitHub Actions未配置，须如实记录验证缺口，不能声称远端CI通过。 |
 | 2026-10-12 | 将复查推进到现有全部 71 包实际审完（用户后续明确要求） | 只核对要求与部分路径；逐包补齐全部现行代码、插件和组合路径 | 逐包继续到审完，必要修复归本 spec | 用户明确“把现有全部 71 个包逐包审完，补齐未审代码、插件和组合路径，不只核对要求和进度”。已启动 §12.7 的 9 个 `gpt-6.1-sol / max` 只读会话，按完整包边界互不重叠，现行五个缺陷沿原 owner 修复；所有结论由协调方核源码/证据后回写此 spec。阶段报告、首次扫描、派发、测试存在均不计已审完成。I6 冻结和机器验证队列不变。 |
 | 2026-10-12 | 复查后提高独立修复并发（用户在协调会话追加） | 原 writer 串行；按独立包新建 Codex 会话 | Dataset、Issue 各新建一个会话 | 用户明确现有 writer 较慢，可以新开提高并发；随后允许派发会话使用 `gpt-6.1-sol`、`max`。两个新会话已按此设置，文件边界与身份见 §12.6；这一决定覆盖本任务此前的单 writer 默认，仅允许互不冲突的实现并行。I6 受测树冻结、整机一个构建/一个浏览器批次、共享核心整合验证和唯一进度 spec 保持。没有扩大真实 Home、发布或他人成果清理授权。 |
@@ -1521,6 +1528,37 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 
 唯一writer已从cb460固定base开独立PR4源码树，按PR4→5→H接续，仅改源码，不构建/改I6/碰真实Home。实际MCP旧client.withScope在tree载荷校验前已绑定项目；新的Host.withProject还会prepareInstalledPlugins，不能替代它。PR4只保留原client.withScope空回调预打开及精确AST约束，三个Goals管理业务全部经unprepared factory/action port，保留真实身份拒绝顺序与原IO边界，不新增插件预准备或业务行；工程与回归须等I6释放机器构建窗口。
 
+### 10.10 调度前拒绝的共同结算（108新失败，待修）
+
+现象：action-call-log 的早取消命令需要留下原操作编号的一行“未执行”，而 MolisWorkLocalHost 的项目插件准备、withPreparedActions 的Home准备、LocalHost 的caller/signal/runtime检查在ActionService结算之前就可能抛错；原取消/范围/关闭拒绝必须保留。新失败与源码已定位，完整108栈及基线仍待，不以定位替代修复验收。最小方案只把准备阶段的拒绝交给现有bindCall/refuseCall/settleCall及同一Host记录hook，成功转发保持原ActionService唯一结算；不启动本已取消调用的插件、不写业务事实、不在下游已结算后再记录一次，保原error、caller和call_id。Assistant在计算目录之前已取消或期间取消时也须保原not-run结果跟踪，不能只把异常预期放宽为AbortError。 冷invoke没有discover前置条件：已发现view只作诊断名、不作授权；没有缓存时共享核心提取registeredActionMetadata，由既有directory复用同一scope/audience过滤；Host的inspectActionMetadata只返回这些已登记声明，保scope/Host身份校验、不评估Host或provider可用性、不打开Runtime或准备插件，未登记reference不伪造view，metadata不可读时保原拒绝。此模式只给停止结果命名，常规目录与validate_authority始终带原signal，实际invoke的授权、授予与最终effect检查不变。
+
+验收沿现有S-12/S-18与action-call-log/assistant-change-outcomes，不增重复测试系统：PREP-108-01验证项目/Home准备、直接LocalHost早取消与等待后取消各留一次可查诊断，只有身份/动作/结果/错误码、没有输入或正文、业务handler零执行；PREP-108-02验证scope/closed/准备失败原拒绝和原对象/编号保留；PREP-108-03验证成功及handler内失败仍由原链记录一次，正常重新授权/重试可执行；PREP-108-04验证助理not-run持久化及后续读取、撤权等待零effect且原unknown无重复副作用。必要编号补进实际现有测试名/注释。修后整体构建、root/工作区类型、health对merge-base、相关真实Host用例与原安全/权限用例；按最终影响面决定共同补验，未解决的新业务失败继续独立归因。无需真实Home写入或改变拒绝语义。
+
+
+### 10.11 2026-10-14 独立复查（Claude 接手后）
+
+按 10-14 目标的三条（是否符合 15 份要求文档、有没有把清理过的问题带回来、有没有无依据的行为变化），复查了 b66c423c7 以后合入 main 的 PR、在途的 I8（774acaf57..F109），以及 Prologue SDK 同期合入的 #18–#24。CI 通过、已合入和 PR 里的自查不算证明，每条都对着代码与用例看过。
+
+| 编号 | 发现 | 判定 | 处理 |
+| --- | --- | --- | --- |
+| F-1 | #395 在资源门禁加 Issue 首次登记上限 24,000，批准没有带日期的记录 | 用户确认批准过 | 补记录，删已用完的例外（#501） |
+| F-2 | Issue 是 Home 级内置插件，登记在 `builtin-plugins.ts`，与 AGENTS.md「只走 project-plugins.ts」不符 | 规则与实现冲突，用户定改文字 | #502 |
+| F-3 | AI 入口清单少了情境起草（`draft-wiring.ts`）与 Issue 整理两处 | 都经 agent-host，边界没破，记录不全 | ai-entry-inventory 补 HJ-5 与 Issue 一行（#502） |
+| F-4 | main 的 vendored SDK 没有模型切换接受时的授权复核 | 安全缺口（已有上游修复） | 决定 5：I8 第一片 |
+| F-5 | 现用 SDK 包的系谱经过 08b84296，不在 Prologue main 上 | 与 D7 冲突 | 决定 6：过渡期例外 |
+| F-6 | I8 的 W3-10 把 Feed/Inbox 列表刷新失败的「当前输入已保留」换成共同出口的话；Issue 的模型设置读不出时同样 | 在 W3-10 批准的方向内，但措辞上的损失没写明 | BL-134 |
+| F-7 | Prologue #21、#22 合入前没跑最终头的 SDK 全量与干净包消费者 | PR 里写明，承诺合后补跑 | 补跑结果待记（Molis 在 P3 前不用这两片） |
+| F-8 | I8：删一条已接受的记忆后，账本留下孤立的候选记录，之后每次读记忆都失败 | 产品缺陷（I8 去掉了 main 的兜底，按不留兼容是对的） | F109 e694bd761 删记忆时连记录一起删；落地前只读核对真实 Home 有没有这样的孤立记录 |
+| F-9 | I8：Shelf 与 Characters 只读现行形状；shelf-settings 里两条旧默认值用例与之矛盾 | 符合「读取不兜底」 | 两条改成拒绝用例；落地前只读核对真实 Home 的形状 |
+| F-10 | I8：Runtime 插件的 consumes 能调到别的插件的动作，没有决定，用例被留在失败 | 缺决定 | 决定 4 |
+| F-11 | Goal 收尾被拒后，读回文档时未满足的原因列表消失，只剩提示 | 与 main 相同，不是回退 | BL-135 |
+| F-12 | I8：用 POST 发的读请求（Files 打开）断网时被说成「不知道这次操作有没有完成」 | 共同请求出口的口径缺口 | BL-136 |
+| F-13 | #503 的一次资源放宽被 #504 用完，按旧值 23,451 写的放宽留在门禁里，缩回去就重开 | 与 F-1 同类 | #505 删掉 |
+
+其余：#489（Pages 评论侧栏与助理主区）新动作只给用户、等模型的动作并发声明并在写前复核、后台投递用可撤销授权；删掉的断言都是原样保留、等价改写，或换成按模块图判定浏览器专属代码（PR 写明）。#498（W4-06）只拆文件，没有删断言。#504 的 Issue 草稿截图存在浏览器 Cache Storage，属于本机草稿。I8 的门禁只收紧（`rawFetchInScripts` 是 W3-10-5 的批准项），资源预算 24 项下降、0 项上升，产品子集只增，断言数下降的 7 个文件都是退役的 Goals typed 桥（PR-5）和 `host_only`（PR-6），改由动作重新断言。
+
+I8 修复树 F109 上另修的产品问题（都带用例）：卡片结果未知的判断在合并 7c7999489 里丢了（assistant-offers）；Coding 打开会话就提前启动运行时（只在有可恢复会话时启动）；工作流接续与停止投递同一毫秒的时间戳冲突（`nextUpdatedAt`）；Pages 新建与导入时空白页丢弃了两次；成果交给别的插件失败时直接显示内部原因（改成可读的话）；consumes 先查目录再查授权（改成先查授权）；导出的问卷页必填题只有 aria-required，原生下拉框在 Chrome 的可访问树里看不到必填（加原生 required 并 `novalidate`，提交校验与错误话不变）。其余是测试跟着已批准的变化改（共同请求出口的话、按 id 现读详情、MCP 新会话要用户确认、AI 改对象要带版本），每条在提交说明里写了依据，没有放宽断言。
+
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 
 用户更正：上一轮逻辑复查只查了 Goal 的完成规则与写进 Goal 的管理门。本轮按事实主人分 8 个区（插件基座、动作服务与授权、成果库/放置/上下文账本、搜索/记忆/助理、个人插件、文稿与数据插件、工作流插件、Coding/创作台/炼金术士），只读查逻辑缺陷，每区一个对抗核验者逐条复现或驳回（复现脚本在会话临时目录 `logic-review/`）。
@@ -2709,3 +2747,7 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 **106/107终态与共享全量准备。** 106两条真实Chrome失败场景2/2、0取消/跳过、18.719秒，评论原范围映射/Prefix不纳入/换Doc老按钮零写入，以及Host流式阅读、代码精确复制、折叠、命名对象、review断连恢复与真实reject0/approve1均实际成立。新增最小临时模块图证实browser-only被识别、共享server导出与Host消费同模块不会被免除；107该定向、root tsc与merge-base health全部exit0，不放宽门禁。代码仍沿102b已构建source，随后仅三测试及唯一进度spec变更；不为test-only重新构建。Root将同步spec至I8并冻结head，唯一共享全量108持全机build/browser两个名额，结束前不改源码、脚本、package.json或skills。
 
 **108已实际启动（进行中）。** c2017a9ac395ed34708b330ffc3100704a631e54为clean冻结头，生产仍为102b已构建的同一联合source；同步唯一spec后merge-base健康检查再次exit0，随后node scripts/./run-tests.mjs在同一build/browser锁下跑全量。当前日志已经报告新增失败，不能称全量通过：两条AgentBuilder测试仍用已退役构造入口，管理MCP README装配清单断言与取消在dispatch前的诊断结算链路已找到源码线索，其余浏览器/真实Host组合等待完整栈后裁决。此处只记录正在运行与已发现问题，不替代最终footer、基线比对或修复后验证；受测树源码/脚本/package/skills未修改。独立进度分支已机械同步main774a，diff仍只有此spec，Root全量树保持clean。
+
+**109独立修复准备与进度PR归回（尚未运行）。** 108持续冻结c2017a9ac，独立109从main再ff该头，只由Root写入，未启第二构建/测试队列。e028ce555补调度前一次拒绝结算和取消命令声明-only命名，Root/协调只读源核接受；现有真实Host取消、等待中取消/open失败/close、原对象/编号、未知descriptor不泄另一项目标题与Runtime/Host snapshot/provider policy/handler五项零计数回归已准备，parse0不是类型或运行证明。随后23文件最小修正沿原合同：Builder和卡片owner入口、当前错误码/kind、MCP真实版本、编辑器边界stub及源码绑定名，保所有业务断言；Pages无pending null来源head按已接受W1-18-PIN-CURRENT生成第二版、保旧内容/各producer/person owner，正常三阶段pending恢复未改，删除陈旧说明。源核/22TS parse0与diff检查通过，正式构建/短验仍待108释放名额。#490 exact655866561全部七CI通过后于2026-10-14T16:57:16Z合入main cbbeada4e；该PR只补唯一spec，不能宣告候选代码已合入或整线完成。
+
+**暂停交接（2026-10-14T17:15Z）。** 用户明确暂停本线；新的修改、构建、验证排队与推送/合并均已停止。108原冻结树c201 clean、session6308仍跑完整回归，driver只有health→full两步，无自动后续任务；结果须恢复时先查原state/footer，不重复启动。109 HEAD39bfa481c仅保留pages-publication/ppt-mcp/project-deletion-service三文件未提交22+/10-，已交统筹汇入单份handoff；没有109构建或测试已排队。之后按用户明确恢复再推进§10.10、108失败裁决与原RAC/W4–6，不把暂停当完成。

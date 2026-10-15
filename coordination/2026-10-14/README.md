@@ -48,6 +48,22 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
 
 **采用线 P3a 恢复（10-15 13:40 UTC）**：防腐 I8 第二个 PR #523 已合入 Molis main（`f74e29d8`，换上 acceptance 包）。P3a 从最新 main 变基，按 B 实现，从 Prologue main `e5123369`（含 #25 P2k、#27 撤销资源修复）打包换掉 acceptance 包；P3a 动共享核心，全量用 CI `full-suite` 标签，macOS 专有部分本机补；PR 交主会话进合并队列。其余三线仍暂停。
 
+**10-15 跨线冲突安排（用户问交互与情境在界面上会不会冲突）**：按分支 merge-base..HEAD 加未提交改动比对，在做的四片（P3a、1a、S1、W3-A1）之间只撞枢纽文件（`page-assets.json`、`baseline.json`、`ci-product-subset.txt`），可以并行；冲突集中在下一波，按下面排。
+
+1. 界面一个面一个主人：
+   - 助理面板的布局与动线、下一步那一行、`packages/design-system/src/interaction.ts` 的下一步部件、`agent-next-steps.ts` 的派生，归情境线。
+   - 卡与题的合同和卡内渲染（`agent-question-card.ts`、`assistant-card-view.ts`、`assistant-offers.ts`、`agent-question-surfaces.ts`），以及 Coding 里的呈现，归交互线。
+   - 每条输入的回执内容归回执线，画在情境线留出的位置：对话里你那条消息下面。
+   - 采用线不新开界面：P3 的等待、交接、接续状态，用户看得到的部分走交互线的卡或题与情境线的下一步（`waiting`），不另画。
+   - 要改别人的面先发主会话。
+2. W3-A1 合入后，下一步部件与派生的形状冻结。H4 只往派生里加输入（Coding 的卡与专业后续），改形状先经主会话。交互线放开新题型（日期、数字、对象引用）时，下一步那一行按 FLOW-02 只给「去回答（N 题）」，不在行里画新题型。
+3. 助理面板这一块串行：W3-A1 → 1d（同改 `assistant-island.ts`、`assistant-en.ts`）→ W3-A2 → 1e；H4 在 W3-A1 之后；W3-B 在 H3 之后（共用 `search.references@1`）。
+4. agent-host 这一层串行：P3a → H3 → 1c → 1d → P3b/P3c（都改 `prologue-node*.ts`、`prologue.ts`、`capability-registration.ts`、合同 `services/agent-host.ts`；后两个是巨大单元，只许缩）。
+5. 枢纽文件：
+   - 后合的 PR 在合并结果上重建，再跑 `page-assets --update --base origin/main` 与 health `--update`。
+   - 每个 PR 自己抵消自己加的资源字节，不借别的 PR 省下的。
+6. 主会话做的界面把关：W3-A1、H4、1e 各自合入后，在隔离 Home 合起来走一遍助理面板与 Coding，截图对照 FLOW-01…05 与 DESIGN.md；用户验收放在这一遍之后。
+
 **⏸ 四条需求线已暂停（用户 10-14 原话：「当前任务完成后，可以先暂停一下需求的线，让防腐线先继续。」）**。各线把手上的推到远端分支、撤掉自己排在构建锁后面的等待、在本线需求书写好「暂停点」后停下；整机让给防腐线（Codex，由用户恢复）。暂停时全部**没有构建、没有跑用例**：
 
 | 线 | 远端分支 @ head | 暂停点 | 恢复第一步 |

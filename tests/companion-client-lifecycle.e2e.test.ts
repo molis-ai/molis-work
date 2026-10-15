@@ -15,7 +15,7 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { CodingSessionStore, createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { createDiffPlugin, renderDiff, type DiffView } from "@molis-ai/molis-work-plugin-diff";
 import { icon } from "@molis-ai/molis-work-design-system";
-import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { UiHost, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
@@ -42,6 +42,7 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
       response.setHeader("content-type", "text/html; charset=utf-8");
       response.end(`<!doctype html><section id="parent" hidden>${markup}</section><script>
         window.errors=[];addEventListener('error',event=>errors.push(event.message));addEventListener('unhandledrejection',event=>errors.push(String(event.reason)));
+        ${UI_REQUEST_CLIENT_SCRIPT}
         window.mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();window.parentView=document.querySelector('#parent');
         ${script}
       </script>`);return;

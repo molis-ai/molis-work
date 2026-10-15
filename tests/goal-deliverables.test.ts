@@ -103,6 +103,7 @@ test("a Goal pins a bound document on the spot through Pages and hands in the ne
 
   // Only an owner that declares a pin action can pin; nothing else is written.
   const unknown = await fetch(deliverables, { method: "POST", headers: headers(), body: JSON.stringify({ subject: { kind: "note", id: "n-1" }, delivered: true }) });
-  assert.equal(unknown.status, 400);
+  // No owner declares a pin for this kind: the platform code, whose kind (not_found) gives the status (W3-02).
+  assert.deepEqual([unknown.status, (await unknown.json() as { code: string }).code], [404, "actions.subject_unavailable"]);
   assert.equal(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID).filter(item => item.artifact_id === `pages-${document.id}`).length, 1);
 });

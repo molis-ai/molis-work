@@ -1,7 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginExecutionControl, PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRouteRouter } from "@molis-ai/molis-work-plugin-runtime";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPlatform } from "./plugin-platform.js";
+import { withPluginInteraction } from "./plugin-interaction-answer.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
 /**
@@ -18,6 +21,13 @@ export interface RuntimePluginRouteHooks {
   afterDispatch?(result: PluginRouteResponse): Promise<void>;
 }
 
+/** Transport authority comes from the caller, never from body/query values. */
+export interface RuntimePluginRouteControls {
+  granted?: readonly string[];
+  execution?: PluginExecutionControl;
+  readBody?(request: IncomingMessage): Promise<unknown>;
+}
+
 /**
  * The HTTP operations every Runtime plugin shares: restart and release-quarantine, upgrade, "not running", the view revision, then
  * the plugin's own declared route. Runtime registration, not a list of plugin ids, decides whose route this is: returns false
@@ -25,13 +35,15 @@ export interface RuntimePluginRouteHooks {
  * declare, true once it has answered.
  */
 export async function dispatchRuntimePluginRoute(
-  platform: PluginPlatform, pluginId: string, operation: string, request: IncomingMessage, response: ServerResponse,
-  url: URL, actorId: string, hooks: RuntimePluginRouteHooks = {},
+  platform: Pick<PluginPlatform, "runtime" | "supervisor" | "router" | "upgrade" | "viewRevision">,
+  pluginId: string, operation: string, request: IncomingMessage, response: ServerResponse,
+  url: URL, actorId: string, hooks: RuntimePluginRouteHooks = {}, controls: RuntimePluginRouteControls = {},
 ): Promise<boolean> {
   const active = platform.supervisor.state(pluginId);
   // Native adapters and unrelated routes retain their own ownership. Runtime
   // registration, rather than a second list of built-in IDs, decides this boundary.
   if (!active) return false;
+  if (active.install_id && platform.runtime.get(active.install_id).state === "uninstalled") return false;
   if (operation === "restart" || operation === "release-quarantine") {
     if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "重试必须通过 POST 确认" }); return true; }
     const state = await platform.supervisor.restart(pluginId, { release_quarantine: operation === "release-quarantine" });
@@ -61,13 +73,22 @@ export async function dispatchRuntimePluginRoute(
   }
   if (!router.match(request.method ?? "GET", url.pathname)) return false;
   await hooks.beforeDispatch?.(router);
+  let body: unknown;
+  if (!["GET", "HEAD"].includes(request.method ?? "GET")) {
+    try { body = await (controls.readBody ?? readLocalWebBody)(request); }
+    catch (error) {
+      if (!(error instanceof ActionError)) throw error;
+      const refusal = actionErrorResponse(error);
+      sendLocalWebJson(response, refusal.status, refusal.body);
+      return true;
+    }
+  }
   const result = await router.dispatch({
     method: request.method ?? "GET", pathname: url.pathname, actor_id: actorId,
-    query: Object.fromEntries(url.searchParams),
-    ...(["GET", "HEAD"].includes(request.method ?? "GET") ? {} : { body: await readLocalWebBody(request) }),
+    query: Object.fromEntries(url.searchParams), body, granted: controls.granted, execution: controls.execution,
   });
   if (!result) return false;
   await hooks.afterDispatch?.(result);
-  sendLocalWebJson(response, result.status, result.body);
+  sendLocalWebJson(response, result.status, withPluginInteraction(result.body));
   return true;
 }

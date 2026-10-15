@@ -41,17 +41,17 @@ export class MemoryRuleStateError extends Error {
 }
 
 export function assertValidPlaybookScope(scope: PlaybookScope | undefined): PlaybookScope {
-  if (!scope) throw new MemoryRuleStateError("PLAYBOOK_SCOPE_REQUIRED");
+  if (!scope) throw new MemoryRuleStateError("alchemist.playbook_scope_required");
   if (scope.kind === "report" && !scope.reportId.trim()) {
-    throw new MemoryRuleStateError("PLAYBOOK_SCOPE_TARGET_REQUIRED");
+    throw new MemoryRuleStateError("alchemist.playbook_scope_target_required");
   }
   if (scope.kind === "direction" && !scope.directionId.trim()) {
-    throw new MemoryRuleStateError("PLAYBOOK_SCOPE_TARGET_REQUIRED");
+    throw new MemoryRuleStateError("alchemist.playbook_scope_target_required");
   }
   return scope;
 }
 
 export function disableMemoryRule<Rule extends PlaybookRule | TasteRule>(rule: Rule, now: string): Rule {
-  if (rule.status !== "active") throw new MemoryRuleStateError("MEMORY_RULE_NOT_ACTIVE");
+  if (rule.status !== "active") throw new MemoryRuleStateError("alchemist.memory_rule_not_active");
   return { ...rule, status: "disabled", updatedAt: now };
 }

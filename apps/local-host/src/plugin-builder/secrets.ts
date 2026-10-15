@@ -17,6 +17,14 @@ export interface PluginSecrets {
   save(pluginId: string, input: { name: string; header: string; value: string }): void;
   remove(pluginId: string, name?: string): void;
   resolve(pluginId: string, name: string): Promise<{ header: string; value: string } | null>;
+  /** Validate and capture only the keys changed by this version switch. Values stay inside the sealed-store adapter. */
+  stage?(pluginId: string, inputs: Array<{ name: string; header: string; value: string }>): { apply(): void; restore(): void };
+}
+
+function validate(input: { name: string; header: string; value: string }): void {
+  if (!NAME.test(input.name)) throw new Error('密钥名称只能用字母、数字、点、下划线和连字符');
+  if (!HEADER.test(input.header) || RESERVED.has(input.header.toLowerCase())) throw new Error('这个请求头不能用来放密钥：' + input.header);
+  if (!input.value || input.value.length > 8192 || /[\r\n]/.test(input.value)) throw new Error('密钥内容不能为空、不能换行，也不能超过 8KB');
 }
 
 export function pluginSecrets(home: string | undefined, projectId: string, storage: PluginPrivateStorage, store?: SecretStore): PluginSecrets {
@@ -24,12 +32,10 @@ export function pluginSecrets(home: string | undefined, projectId: string, stora
   const secrets = () => { if (sealed) return sealed; if (!home) throw new Error('这个创作台没有可用的密钥存储'); return sealed = runWithMolisWorkHome(home, () => createFileSecretStore()); };
   const reference = (pluginId: string, name: string) => 'plugin-builder-secret:' + projectId + ':' + pluginId + ':' + name;
   const index = (pluginId: string): Record<string, string> => { const raw = storage.get(INDEX + pluginId); return raw ? JSON.parse(raw) as Record<string, string> : {}; };
-  return {
+  const api: PluginSecrets = {
     list: pluginId => Object.entries(index(pluginId)).map(([name, header]) => ({ name, header })),
     save(pluginId, input) {
-      if (!NAME.test(input.name)) throw new Error('密钥名称只能用字母、数字、点、下划线和连字符');
-      if (!HEADER.test(input.header) || RESERVED.has(input.header.toLowerCase())) throw new Error('这个请求头不能用来放密钥：' + input.header);
-      if (!input.value || input.value.length > 8192 || /[\r\n]/.test(input.value)) throw new Error('密钥内容不能为空、不能换行，也不能超过 8KB');
+      validate(input);
       secrets().put(reference(pluginId, input.name), input.value);
       storage.set(INDEX + pluginId, JSON.stringify({ ...index(pluginId), [input.name]: input.header }));
     },
@@ -44,5 +50,23 @@ export function pluginSecrets(home: string | undefined, projectId: string, stora
       const value = secrets().get(reference(pluginId, name));
       return value ? { header, value } : null;
     },
+    stage(pluginId, inputs) {
+      inputs.forEach(validate);
+      if (new Set(inputs.map(input => input.name)).size !== inputs.length) throw new Error('同一个密钥不能重复填写');
+      const before = index(pluginId), previous = inputs.map(input => ({ input: { ...input }, header: before[input.name], value: secrets().get(reference(pluginId, input.name)) }));
+      const applied: typeof previous = [];
+      return { apply() { for (const item of previous) { applied.push(item); api.save(pluginId, item.input); } }, restore() {
+        const current = index(pluginId);
+        for (const item of applied) {
+          // A later direct edit owns its value; a failed switch restores only the value this attempt put there.
+          if (secrets().get(reference(pluginId, item.input.name)) !== item.input.value) continue;
+          if (current[item.input.name] !== item.input.header && current[item.input.name] !== item.header) continue;
+          if (item.value === null) secrets().delete(reference(pluginId, item.input.name)); else secrets().put(reference(pluginId, item.input.name), item.value);
+          if (item.header === undefined) delete current[item.input.name]; else current[item.input.name] = item.header;
+        }
+        if (Object.keys(current).length) storage.set(INDEX + pluginId, JSON.stringify(current)); else storage.delete(INDEX + pluginId);
+      } };
+    },
   };
+  return api;
 }

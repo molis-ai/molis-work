@@ -3,7 +3,8 @@ import { SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type Runtime, type S
 import type { createNodeHost } from "@prologue/sdk/node";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PrologueAdapterError, type PrologueAdapterPorts, type PrologueStartInput } from "./prologue.js";
+import type { PrologueAdapterPorts, PrologueStartInput } from "./prologue.js";
+import { agentErrors } from "../errors.js";
 import type { HostMcpConnection } from "./prologue-mcp.js";
 import type { PrologueSurfacePorts } from "./prologue-surfaces.js";
 import type { AgentReviewQueue } from "../reviews.js";
@@ -19,7 +20,7 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   /** Host-owned surface; absence keeps all writes unavailable. */
   reviewQueue?: AgentReviewQueue;
   questionTypes?: readonly import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionType[]; // typed types every interface showing questions renders; absent or empty: the plain question
-  /** Reads each object a person picked for a reference question again from its owner before the answer goes on (S-24); absent: refused. */
+  /** Reads each object a person picked for a reference question again from its owner before the answer goes on (S-26); absent: refused. */
   confirmReferences?: import("./prologue-questions.js").ReferenceConfirmer;
   /**
    * The side panel's browser pages (specs/archive/side-panel): attached to a business round in their project, looked at and
@@ -88,6 +89,8 @@ export interface RoundState {
   readonly liveSessions: Map<string, string>;
   /** Main rounds registered as project work: which item, in which project and directory. */
   readonly runWork: Map<string, { project: string; id: string; session: ExactRef<"session">; directory: string }>;
+  /** Each running round's own pre-dispatch check, asked again before every child it dispatches. */
+  readonly dispatchChecks: Map<string, () => Promise<void>>;
 }
 
 export function createRoundState(): RoundState {
@@ -96,7 +99,7 @@ export function createRoundState(): RoundState {
     gatewayHooks: new Set(), heldLabels: new Map(), memoryRounds: new Map(), offerRounds: new Map(), changeRounds: new Map(),
     stopGuards: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), runSessions: new Map(),
     runRefs: new Map(), reviewEffects: new Map(), deadlines: new Map(), commandEvents: new Map(), subagentBridgeErrors: new Map(),
-    liveSessions: new Map(), runWork: new Map(),
+    liveSessions: new Map(), runWork: new Map(), dispatchChecks: new Map(),
   };
 }
 
@@ -147,7 +150,7 @@ export async function stageInstructions(
   instructions: string,
 ): Promise<ExactRef<"resource"> | undefined> {
   if (instructions.length > MAX_COMPOSED_INSTRUCTION_CHARS) {
-    throw new PrologueAdapterError("agent.capability_unavailable", "本轮角色、项目说明、方法与恢复上下文合计超过 64000 字符，未启动执行。请缩短指令或减少本轮选择的方法后重试；不会截断指令。");
+    throw agentErrors.capability_unavailable("本轮角色、项目说明、方法与恢复上下文合计超过 64000 字符，未启动执行。请缩短指令或减少本轮选择的方法后重试；不会截断指令。");
   }
   if (instructions.trim() === "") return undefined;
   return stageTextResource(sdk, instructions, "role-instructions");

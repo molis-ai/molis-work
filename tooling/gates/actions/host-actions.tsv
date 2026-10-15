@@ -5,6 +5,8 @@
 # its Manifest, the row moves to actions.tsv; a row with no Manifest is a contract nothing in the plugin's package carries.
 capability_id	version	provider	operation	kind	scope	effect	scheduling	audiences	permissions	subjects	input_type	output_type	input	output	traits
 actions.usages.read	1	system.action-usages	query	query	home	read	concurrent	agent,mcp,user	-	-	-	-	8fc50332e9ea	d71b99ccedeb	-
+agent.collaboration.control.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	c68b8987c37d	b16327ef33ed	-
+agent.collaboration.read.v1	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	d0bfd70f551b	7cfc6db4ee5d	-
 connectors.account.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:account:read	connector	-	-	7d42269d0825	e14fa014b7b4	-
 functions.authoring.catalog	1	system.functions	query	query	home	read	-	agent,mcp,user,workflow	functions:manage	-	-	-	d746974fa9af	80d5bc6ba3f2	-
 functions.authoring.configure	1	system.functions	command	operation	home	write	-	agent,mcp,user,workflow	functions:manage	-	-	-	edd82b576d7e	c4c6715b3c37	-

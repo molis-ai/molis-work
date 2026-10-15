@@ -26,13 +26,21 @@ test("persisted grants keep concurrent management updates; duplicates and other 
   await writeMcpActionGrant(home, { ...first, enabled: false });
   assert.equal((await readMcpToolPreference(home)).action_grants?.length, 2);
   assert.equal(JSON.parse(await readFile(mcpToolPreferencePath(home), "utf8")).action_grants[1].enabled, false);
+  // W1-18-MCP-CONFIG-01: duplicate records remain visible facts; resolving them never grants or restores a default.
+  const duplicate = JSON.stringify({ ...preference, action_grants: [first, { ...first, enabled: false }, second] });
+  const conflicted = parseMcpToolPreference(JSON.parse(duplicate));
+  assert.deepEqual(conflicted.action_grants, [first, { ...first, enabled: false }, second]);
+  assert.deepEqual(resolveMcpActionContext(caller, [view()], conflicted).allowed_actions, []);
+  await writeFile(mcpToolPreferencePath(home), duplicate);
+  await assert.rejects(writeMcpActionGrant(home, first), { code: "actions.configuration_unavailable" });
+  assert.equal(await readFile(mcpToolPreferencePath(home), "utf8"), duplicate);
   const invalid = JSON.stringify({ ...preference, action_grants: [first, { ...first, enabled: false }, { ...first, version: "1" }] });
-  assert.deepEqual(parseMcpToolPreference(JSON.parse(invalid)).action_grants, []);
+  assert.throws(() => parseMcpToolPreference(JSON.parse(invalid)), { code: "actions.configuration_unavailable" });
   await writeFile(mcpToolPreferencePath(home), invalid);
   await assert.rejects(writeMcpActionGrant(home, first), /已保留原文件/);
   assert.equal(await readFile(mcpToolPreferencePath(home), "utf8"), invalid);
   const otherVersion = JSON.stringify({ version: 1, overrides: {}, action_grants: [first] });
-  assert.deepEqual(parseMcpToolPreference(JSON.parse(otherVersion)).action_grants, [], "a file of another version grants nothing");
+  assert.throws(() => parseMcpToolPreference(JSON.parse(otherVersion)), { code: "actions.configuration_unavailable" }, "another version is rejected, never interpreted as a missing file");
   await writeFile(mcpToolPreferencePath(home), otherVersion);
   await assert.rejects(writeMcpActionGrant(home, first), /已保留原文件/);
   assert.equal(await readFile(mcpToolPreferencePath(home), "utf8"), otherVersion);
@@ -125,4 +133,7 @@ test("permission-free system defaults can be revoked per client and restored, wi
   assert.deepEqual(resolveMcpActionContext(caller, [action], { ...preference, action_grants: [deny] }).allowed_actions, [], "Home revocation applies even when a client is in a project");
   assert.equal(resolveMcpActionContext({ ...context, actor_id: "runtime:other" }, [action], { ...preference, action_grants: [deny] }).allowed_actions?.length, 1);
   assert.equal(resolveMcpActionContext(context, [action], { ...preference, action_grants: [{ ...deny, enabled: true }] }).allowed_actions?.length, 1);
+  for (const enabled of [false, true]) assert.deepEqual(resolveMcpActionContext(context, [action], {
+    ...preference, action_grants: [{ ...deny, enabled }, { ...deny, enabled }],
+  }).allowed_actions, [], "even identical enabled duplicates cannot reopen a permission-free system default");
 });

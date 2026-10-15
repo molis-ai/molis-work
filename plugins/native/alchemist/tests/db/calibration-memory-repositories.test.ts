@@ -65,7 +65,7 @@ describe("calibration and Memory repositories", () => {
       payload: { methodChange: "检查持续人工投入" },
     });
     expect(() => repository.markProposalApplied(proposal.id, "2026-07-31T10:13:00.000Z")).toThrowError(
-      "ACTION_PROPOSAL_NOT_PENDING",
+      "alchemist.action_proposal_not_pending",
     );
   });
 

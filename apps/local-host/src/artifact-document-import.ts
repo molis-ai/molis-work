@@ -14,10 +14,10 @@ import { withConnectorRequest } from "./connector-lifecycle.js";
 
 /**
  * What the Host's side of the document import refuses: reading the request, the HTML file and the connected service. Every code is
- * `document.<reason>`, the family the plugin declares the rest of (`documentErrors`, which the too-large request below also raises);
+ * `artifacts.document.<reason>`, the family the plugin declares the rest of (`documentErrors`, which the too-large request below also raises);
  * what is wrong with the request is `invalid`, as the 422s that stood for the connection were.
  */
-const artifactImportErrors = defineErrorCodes("document", {
+const artifactImportErrors = defineErrorCodes("artifacts.document", {
   request_invalid: "invalid",
   request_aborted: "invalid",
   html_invalid: "invalid",

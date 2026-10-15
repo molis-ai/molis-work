@@ -78,7 +78,8 @@ describe("SQLite Idea repository", () => {
 
     ideas.keepCard(input);
 
-    expect(() => ideas.keepCard(input)).toThrowError("IDEA_CARD_NOT_CANDIDATE");
+    // J5A-01: repeated retention must leave one Idea and one version.
+    expect(() => ideas.keepCard(input)).toThrowError("alchemist.idea_card_not_candidate");
     expect(database.prepare("SELECT COUNT(*) AS count FROM ideas").get()).toEqual({ count: 1 });
     expect(database.prepare("SELECT COUNT(*) AS count FROM idea_versions").get()).toEqual({ count: 1 });
   });

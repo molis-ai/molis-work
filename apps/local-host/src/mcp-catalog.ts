@@ -9,7 +9,7 @@ import type { ActionReference, ActionView } from "@molis-ai/molis-work-contracts
 
 /**
  * One MCP catalog: the platform tools this audience may call (connecting to a project, and the trusted management
- * entry's own), and every action the authenticated client is granted and can use now. Nothing else lists a tool.
+ * entry's own), and every action the authenticated client is granted. Listing hides unavailable actions; named calls reach the Host.
  */
 export interface AssembledMcpTool {
   readonly definition: McpToolDefinition;
@@ -51,11 +51,11 @@ export function assembleMcpCatalog(input: AssembleMcpCatalogInput): AssembledMcp
     if (known.has(definition.name)) throw new Error(`MCP 名称重复：${definition.name}`);
     known.add(definition.name);
     const reference = { capability_id: action.capability_id, version: action.version, provider_id: action.provider.provider_id };
-    if (!action.availability.available || !(input.authorized_actions ?? []).some(granted => sameAction(granted, reference))) continue;
+    if (!(input.authorized_actions ?? []).some(granted => sameAction(granted, reference))) continue;
     entries.push({ definition, source: "action", scope: action.action.scope, action });
   }
   const homeScoped = new Set<string>(entries
     .filter((entry) => entry.scope === "home" || isRuntimeContextMcpTool(entry.definition.name))
     .map((entry) => entry.definition.name));
-  return { tools: entries.map((entry) => entry.definition), entries, home_scoped_names: homeScoped, known_names: known };
+  return { tools: entries.filter(entry => entry.source === "platform" || entry.action?.availability.available).map(entry => entry.definition), entries, home_scoped_names: homeScoped, known_names: known };
 }

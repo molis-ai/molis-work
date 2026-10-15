@@ -1,3 +1,4 @@
+import { pagesCommentActions } from "./comment-actions.js";
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pagesActions } from "./actions.js";
 import type { PagesPluginRouteContext, PagesPluginRouteHandler } from "./routes.js";
@@ -20,6 +21,8 @@ export function createPagesRouteHandlers(ports: PagesRoutePorts): Record<string,
   const input = (_: PagesPluginRouteContext, body: Record<string, unknown>) => body;
   const identified = ({ params }: PagesPluginRouteContext, body: Record<string, unknown>) => ({ ...body, id: params.id });
   return {
+    "pages.comments.list": call(pagesCommentActions.list, ({ params }) => ({ page_id: params.id })),
+    "pages.comments.append": call(pagesCommentActions.append, ({ params }, body) => ({ ...body, page_id: params.id })),
     "pages.list": call(pagesActions.list, empty),
     "pages.templates": call(pagesActions.templates, empty),
     "pages.get": call(pagesActions.get, ({ params }) => ({ id: params.id })),

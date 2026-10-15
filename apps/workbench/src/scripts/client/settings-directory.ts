@@ -185,6 +185,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         if (loading !== request) return;
         loadFromHtml(section, html, fetchPath);
       } catch (error) {
+        if (loading !== request) return;
         const failed = document.createElement("div");
         failed.className = "mw-empty mw-empty--error";
         failed.dataset.settingsLoading = "1";
@@ -194,7 +195,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         molisWorkRequest.show(failed.querySelector("p"), error);
         const retry = failed.querySelector("button");
         retry.textContent = L("重试");
-        retry.addEventListener("click", () => { retry.disabled = true; if (loading === request) loading = null; void loadSection(section, fetchPath); });
+        retry.addEventListener("click", () => { if (!body.contains(failed)) return; retry.disabled = true; if (loading === request) loading = null; void loadSection(section, fetchPath); });
         showNode(failed);
       } finally {
         if (loading === request) loading = null;

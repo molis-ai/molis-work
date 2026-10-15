@@ -1,13 +1,17 @@
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash } from "node:crypto";
 export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetimeOptions } from "./execution-lifetime.js";
-import { parsePluginManifest, PluginManifestError } from "./manifest.js";
+import { parsePluginManifest } from "./manifest.js";
 
-export { parsePluginManifest, PluginManifestError, comparePluginVersions } from "./manifest.js";
+export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
 export { inspectActionDeclarations } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */
 export { DIFF_STEP_BUDGET, splitLines, joinLines, reconstructSides, compareTexts, textDiffRow, alignSplitRows } from "./text-diff.js";
 export { questionAnswer } from "./question-answers.js";
+/** The rules of a question set and its answer, for a plugin that asks without an Agent run; the same verdicts as the Agent runtime's. */
+export { QUESTION_LIMITS, questionProblems, questionSetFlaw } from "./question-rules.js";
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineAction } from "./actions.js";
 /** The two binders: an HTTP route over an action, and an action over the local owner's personal state. A route answers a failure by its kind. */
@@ -62,19 +66,7 @@ export const packageDescriptor = {
   capabilities: ["plugin.define.v1", "integration.polling.v1"],
 } as const;
 
-export class PluginDefinitionError extends Error {
-  constructor(
-    readonly code:
-      | "plugin_manifest_invalid"
-      | "plugin_entrypoint_missing"
-      | "plugin_permission_invalid"
-      | "plugin_declaration_invalid",
-    message: string,
-  ) {
-    super(message);
-    this.name = "PluginDefinitionError";
-  }
-}
+
 
 export function definePlugin(definition: PluginDefinition): PluginDefinition {
   assertManifest(definition.manifest);
@@ -87,7 +79,7 @@ export function definePollingIntegrationPlugin(input: {
   now?: () => Date;
 }): PluginDefinition {
   if (input.manifest.kind !== "integration") {
-    throw new PluginDefinitionError("plugin_manifest_invalid", "Polling Provider 必须声明为 Integration Plugin");
+    throw pluginErrors.manifest_invalid("Polling Provider 必须声明为 Integration Plugin");
   }
   return definePlugin({
     manifest: input.manifest,
@@ -175,8 +167,8 @@ export function assertManifest(manifest: PluginManifest): void {
   try {
     parsePluginManifest(manifest);
   } catch (error) {
-    if (error instanceof PluginManifestError) {
-      throw new PluginDefinitionError(error.code, error.message);
+    if (error instanceof ActionError && Object.hasOwn(manifestFailures, error.code)) {
+      throw manifestFailures[error.code as keyof typeof manifestFailures](error.message);
     }
     throw error;
   }
@@ -230,3 +222,10 @@ export type {
 
 /** Say what an action really does where its id would be misread (a `delete_preview` deletes nothing); `plugin: false` keeps it from generated plugins. */
 export { withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
+
+const manifestFailures = {
+  "plugin.manifest_invalid": pluginErrors.manifest_invalid,
+  "plugin.entrypoint_missing": pluginErrors.entrypoint_missing,
+  "plugin.permission_invalid": pluginErrors.permission_invalid,
+  "plugin.declaration_invalid": pluginErrors.declaration_invalid,
+} as const;

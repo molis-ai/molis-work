@@ -12,10 +12,7 @@ export const ASSISTANT_FOLLOW_FACTORY_SCRIPT = String.raw`(input) => {
     while (!controller.signal.aborted && input.current() === id) {
       const started = Date.now();
       try {
-        const response = await fetch(input.route("/api/assistant/works/" + encodeURIComponent(id) + "/wait?timeout=20000" + (since ? "&since=" + since : "")),
-          { headers: input.headers(), signal: controller.signal });
-        if (!response.ok) throw new Error(String(response.status));
-        const result = await response.json();
+        const result=await molisWorkRequest(input.route("/api/assistant/works/"+encodeURIComponent(id)+"/wait?timeout=20000"+(since?"&since="+since:"")),{signal:controller.signal});
         failures = 0;
         if (result.version !== since && input.current() === id && !controller.signal.aborted) { since = result.version; input.show(result.view); }
         if (!input.followed(result.view)) break;

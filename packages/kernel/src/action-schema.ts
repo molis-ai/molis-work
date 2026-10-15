@@ -1,19 +1,79 @@
-import { Ajv, type AnySchemaObject, type ValidateFunction } from "ajv";
+import { Ajv, type AnySchemaObject, type ErrorObject, type ValidateFunction } from "ajv";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { ActionError, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 
-/** No coercion/default injection: callers must send the data the handler receives. */
-export function compileActionSchema(schema: ActionSchema): ValidateFunction {
-  return createActionSchemaCompiler()(schema);
+/** A contract's validator. Its schema is known to compile; the validating code is built the first time it validates. */
+export interface ActionValidator {
+  (value: unknown): boolean;
+  errors?: ErrorObject[] | null;
 }
 
-/** Reuse dialect metadata within one registration, never another business schema's references. */
-export function createActionSchemaCompiler(): (schema: ActionSchema) => ValidateFunction {
-  const options = { allErrors: true, strict: false, strictSchema: true, validateFormats: true };
+/** No coercion/default injection: callers must send the data the handler receives. */
+export function compileActionSchema(schema: ActionSchema): ValidateFunction {
+  return schemaCompiler().compile(schema);
+}
+
+/**
+ * Schemas known to compile, by dialect and exact schema text, with their validator once one is built. Every project registers the
+ * same built-in contracts again (Goals alone is about 350 KB of schema), so each is checked once per process. A schema compiles alone
+ * (its references are removed after it), so whether it compiles, and its validator, depend on nothing but this text: a changed
+ * contract is another key, and a failed compile is not kept.
+ */
+const known = new Map<string, { validate?: ValidateFunction }>();
+const KNOWN_LIMIT = 4096;
+/** What a checked schema's generated code is replaced with: the check needs the generation (where a schema is refused), not the function. */
+const CHECKED = "return function validate() { return true; }";
+
+/**
+ * Reuse dialect metadata within one registration, never another business schema's references. A schema is checked here, by
+ * generating its validating code, which is where Ajv refuses a schema that does not compile; the validator itself is built the first
+ * time it validates, since most of a Host's contracts are never called in a session.
+ */
+export function createActionSchemaCompiler(): (schema: ActionSchema) => ActionValidator {
+  return schemaCompiler().check;
+}
+
+function schemaCompiler(): { check(schema: ActionSchema): ActionValidator; compile(schema: ActionSchema): ValidateFunction } {
+  let checking: ActionSchema | undefined;
+  // Ajv's optimiser only rewrites the generated code, for the same results; it costs about half of a compile. Only the schema being
+  // checked gets the placeholder: a meta schema or another root it refers to is compiled in full and kept by this instance.
+  const options = { allErrors: true, strict: false, strictSchema: true, validateFormats: true,
+    code: { optimize: false, process: (source: string, env?: { root: { schema: unknown } }) => env && env.root.schema === checking ? CHECKED : source } };
   const instances: Partial<Record<"draft7" | "2020", Ajv | Ajv2020>> = {};
-  return schema => {
-    const dialect = schema.$schema === "https://json-schema.org/draft/2020-12/schema" ? "2020" : "draft7";
+  const dialectOf = (schema: ActionSchema) => schema.$schema === "https://json-schema.org/draft/2020-12/schema" ? "2020" as const : "draft7" as const;
+  const remember = (key: string, entry: { validate?: ValidateFunction }) => {
+    known.set(key, entry);
+    if (known.size > KNOWN_LIMIT) known.delete(known.keys().next().value!);
+    return entry;
+  };
+  return {
+    check(schema) {
+      const dialect = dialectOf(schema), key = dialect + JSON.stringify(schema);
+      let entry = known.get(key);
+      if (!entry) {
+        checking = schema;
+        try { compileFresh(schema, dialect); } finally { checking = undefined; }
+        entry = remember(key, {});
+      }
+      const found = entry;
+      const validator: ActionValidator = value => {
+        const validate = found.validate ??= compileFresh(schema, dialect);
+        const valid = validate(value);
+        validator.errors = validate.errors;
+        return valid;
+      };
+      return validator;
+    },
+    compile(schema) {
+      const dialect = dialectOf(schema), key = dialect + JSON.stringify(schema), entry = known.get(key);
+      if (entry?.validate) return entry.validate;
+      const validate = compileFresh(schema, dialect);
+      if (entry) entry.validate = validate; else remember(key, { validate });
+      return validate;
+    },
+  };
+  function compileFresh(schema: ActionSchema, dialect: "draft7" | "2020"): ValidateFunction {
     let ajv = instances[dialect];
     if (!ajv) {
       ajv = dialect === "2020" ? new Ajv2020(options) : new Ajv(options);
@@ -30,11 +90,26 @@ export function createActionSchemaCompiler(): (schema: ActionSchema) => Validate
     try { return ajv.compile(schema); }
     catch (error) { throw new ActionError("actions.schema_invalid", `能力 schema 无效：${error instanceof Error ? error.message : String(error)}`); }
     finally { ajv.removeSchema(); }
-  };
+  }
 }
 
-export function validateActionValue(validate: ValidateFunction, value: unknown, side: "input" | "output"): void {
+/**
+ * Check a set of definitions' contracts ahead of their registration, yielding to the event loop after each, so that registering
+ * them (which checks synchronously, and refuses an invalid schema there) finds them checked. A schema that does not compile is
+ * left for that registration to refuse.
+ */
+export async function precompileActionSchemas(definitions: readonly { action: { input_schema: ActionSchema; output_schema?: ActionSchema } }[]): Promise<void> {
+  const compile = createActionSchemaCompiler();
+  for (const schema of definitions.flatMap(definition => [definition.action.input_schema, definition.action.output_schema])) {
+    if (!schema) continue;
+    try { compile(schema); } catch { /* The registration that uses it refuses it. */ }
+    await new Promise<void>(resolve => setImmediate(resolve));
+  }
+}
+
+export function validateActionValue(validate: ActionValidator, value: unknown, side: "input" | "output", classify?: (errors: readonly ErrorObject[]) => void): void {
   if (validate(value)) return;
+  classify?.(validate.errors ?? []);
   // Report paths and constraints, never the user's values or credentials.
   const detail = (validate.errors ?? []).map(e => `${e.instancePath || "/"} ${e.keyword}`).join(", ");
   throw new ActionError(`actions.${side}_invalid`, `${side === "input" ? "输入" : "结果"}不符合能力合同：${detail}`);

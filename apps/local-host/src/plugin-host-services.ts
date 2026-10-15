@@ -1,5 +1,5 @@
 import {
-  ActionError, type ActionReference,
+  ActionError, requireSynchronous, type ActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDatabase, PluginDefinition, PluginManifest, PluginModelClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -38,11 +38,13 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let disposeArtifacts = () => {};
   let library: ReturnType<typeof openPluginDatabase> | undefined;
   let withdrawInstructions: (() => void) | undefined;
-  const dispose = () => { active = false; disposeArtifacts(); library?.close(); withdrawInstructions?.(); ui.dispose(); };
+  let withdrawCaller: (() => void) | undefined;
+  const dispose = () => { active = false; withdrawCaller?.(); disposeArtifacts(); library?.close(); withdrawInstructions?.(); ui.dispose(); };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     const manifest = definition.manifest;
     const pluginCaller = hostPluginCaller(options, definition, context, assertActive);
+    withdrawCaller = options.qualifyCaller?.(definition, pluginCaller);
     const providerId = options.providerFor?.(definition, context.install_id) ?? context.install_id;
     const artifactService = createPluginArtifactClient({ api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions,
       project_id: options.project_id, actor_id: options.actor_id });
@@ -51,7 +53,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     withdrawInstructions = registerPluginInstructions(options.home, definition, context.install_id);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
       database: library?.client, model: pluginModelFor(options.home, definition, context, assertActive) });
-    return { context: hosted, revoke: () => { active = false; }, dispose };
+    return { context: hosted, revoke: () => { active = false; withdrawCaller?.(); }, dispose };
   } catch (error) {
     dispose();
     throw error;
@@ -156,9 +158,15 @@ function withPluginCaller(caller: HostPluginCaller, port: PluginCapabilityPort):
     ...(port.availability ? { availability: (capability: ActionReference, options?: Pick<HostCapabilityCallOptions, "consumer">) => port.availability!(capability, options) } : {}),
     invoke(capability, input, options) {
       caller.assertActive();
+      const beforeEffect = options?.before_effect, current = options?.assert_authority_current, signal = options?.signal;
+      const assertAuthorityCurrent = () => {
+        caller.assertActive(); signal?.throwIfAborted();
+        requireSynchronous(current?.(), "最终授权检查必须同步完成");
+        signal?.throwIfAborted(); caller.assertActive();
+      };
       const bound = { ...options, consumer: "plugin" as const, plugin_caller: caller, before_effect: async () => {
-        caller.assertActive(); await options?.before_effect?.(); caller.assertActive();
-      } };
+        caller.assertActive(); signal?.throwIfAborted(); await beforeEffect?.(); assertAuthorityCurrent();
+      }, assert_authority_current: assertAuthorityCurrent };
       // The port knows no capability by name: a capability that depends on who is calling reads the trusted invocation itself.
       return port.invoke(capability, input, bound);
     },

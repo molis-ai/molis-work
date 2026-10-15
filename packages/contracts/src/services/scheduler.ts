@@ -1,5 +1,6 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { HostCapabilityDefinition } from "../platform/app-host.js";
+import { defineErrorCodes } from "../platform/action-errors.js";
 
 export const servicesSchedulerContract = {
   contractId: "io.molis.work.service.scheduler.v1",
@@ -85,20 +86,14 @@ export interface ScheduleWakeupControl {
   beforeEffect(): void;
 }
 
-export class ScheduleError extends Error {
-  constructor(
-    readonly code:
-      | "schedule_job_invalid"
-      | "schedule_handler_missing"
-      | "schedule_job_not_found"
-      | "schedule_interval_too_short"
-      | "schedule_path_refused",
-    message: string,
-  ) {
-    super(message);
-    this.name = "ScheduleError";
-  }
-}
+/** Scheduler's existing input refusals; Schedule translates them at its own action boundary. */
+export const schedulerErrors = defineErrorCodes("scheduler", {
+  job_invalid: "invalid",
+  handler_missing: "invalid",
+  job_not_found: "invalid",
+  interval_too_short: "invalid",
+  path_refused: "invalid",
+});
 
 /**
  * The typed `schedule.*` channel serves Runtime plugins only. Whose jobs a call touches is read from the trusted

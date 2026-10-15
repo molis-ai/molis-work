@@ -1,3 +1,5 @@
+import { managementGoals } from "./goal-management-caller.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -5,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createMolisWorkLocalHost, molisWorkHostProjectReference, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
@@ -19,7 +21,7 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
   const { database_path: databasePath, project_id: projectId } = project;
   const host = createMolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
-  const client = host.client(reference);
+  const client = managementGoals(host.actionClient(reference, false), projectId);
   const runtimeHost = {
     homeDirectory: directory,
     runtimeContext: {
@@ -97,7 +99,7 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
     });
     const state = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     assert.equal(state.work_status, "completed");
-    const final = await client.invoke(snapshotBoardCapability, { project_id: projectId });
+    const final = await client.invoke(goalsActions.snapshot, {});
     assert.equal(final.goals.find((goal) => goal.goal_id === goal_id)?.title, "跨入口验收");
     assert.deepEqual(await cli("snapshot", { project_id: projectId }), final);
   } finally {

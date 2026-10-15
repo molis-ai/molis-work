@@ -136,7 +136,7 @@ export function pauseOrResumeConversationTask(
         schedule.setEnabled(task.job_id, false);
       } catch (error) {
         const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
-        if (code !== "schedule_job_not_found") throw error;
+        if (code !== "scheduler.job_not_found") throw error;
       }
     }
     return getScheduleConversationTask(db, task.task_id) ?? task;

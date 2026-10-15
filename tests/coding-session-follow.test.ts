@@ -8,11 +8,16 @@ import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ensureProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 
-for (const stop of [false, true]) test(`Coding background follower ${stop ? "rejects late state and events after activation stops" : "publishes real terminal state with no page open"}`, { timeout: 30_000 }, async () => {
+for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as const) test(`Coding background follower ${mode}`, { timeout: 30_000 }, async () => {
+  const stop = mode === "stop", interruptedReceipt = mode === "cancel-receipt" || mode === "revoke-receipt";
+  const controller = new AbortController(); let valid = true;
+  const assertCurrent = () => { controller.signal.throwIfAborted(); if (!valid) throw new ActionError("actions.forbidden", "original call revoked"); };
   const root = mkdtempSync(join(tmpdir(), "coding-follow-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = new CodingSessionStore(store.db);
@@ -30,7 +35,14 @@ for (const stop of [false, true]) test(`Coding background follower ${stop ? "rej
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
-      if (definition.capability_id === agent.startRun.capability_id) return { ref: { session_id: "sdk", run_id: "r1" }, frozen: {} } as Output;
+      if (definition.capability_id === agent.startRun.capability_id) {
+        if (mode === "cancel-receipt") controller.abort(new ActionError("actions.cancelled", "original call cancelled after Run acceptance"));
+        return { ref: { session_id: "sdk", run_id: "r1" }, frozen: {} } as Output;
+      }
+      if (definition.capability_id === agent.readMessages.capability_id) {
+        if (mode === "revoke-receipt") valid = false;
+        return [] as Output;
+      }
       if (definition.capability_id === agent.waitRun.capability_id) {
         const [, run, since] = args as unknown as [unknown, { run_id: string }, string | null];
         assert.equal(run.run_id, "r1");
@@ -52,9 +64,20 @@ for (const stop of [false, true]) test(`Coding background follower ${stop ? "rej
   try {
     const platform = (await ensureProjectPlugins(host())).platform!;
     const beforeFiles = platform.viewRevision("io.molis.work.files"), beforeGit = platform.viewRevision("io.molis.work.git");
-    const result = await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/s/runs`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ task: "改一个文件", intent: "execute", workspace_id: "work", provider_id: "p", model_id: "m" }) });
-    assert.equal(result.status, 200, await result.text());
+    const body = { task: "改一个文件", intent: "execute", workspace_id: "work", provider_id: "p", model_id: "m" };
+    if (interruptedReceipt) {
+      // R-CODING-RECEIPT-02: reject the original receipt at each post-start fence, while its accepted Run stays followed.
+      const privateStorage = new SqlitePluginPrivateStorage(store.db), install = platform.supervisor.state("io.molis.work.coding")!.install_id!;
+      const before = privateStorage.snapshotInstallationData(install);
+      const result = await platform.router().dispatch({ method: "POST", pathname: "/api/plugins/io.molis.work.coding/sessions/s/runs", actor_id: "web-user", body,
+        execution: { signal: controller.signal, beforeEffect: async () => { assertCurrent(); }, assert_authority_current: assertCurrent } });
+      assert.ok(result && result.status >= 400, "the original caller is refused");
+      assert.deepEqual(privateStorage.snapshotInstallationData(install), before, "no caller draft or last-start receipt was saved");
+      assert.equal(sessions.get(DEMO_PROJECT_ID, "s").state, "idle", "the refused caller did not save a running state");
+    } else {
+      const result = await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/s/runs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      assert.equal(result.status, 200, await result.text());
+    }
     if (stop) {
       for (let i=0; i<100 && !releaseWait; i++) await new Promise(resolve=>setTimeout(resolve,10));
       assert.ok(releaseWait);assert.ok(waitSignal);
@@ -72,7 +95,7 @@ for (const stop of [false, true]) test(`Coding background follower ${stop ? "rej
       if (Date.now() > deadline) throw new Error(`still ${sessions.get(DEMO_PROJECT_ID, "s").state} after ${waits} waits`);
       await new Promise(resolve => setTimeout(resolve, 20));
     }
-    assert.deepEqual(seenStates, ["running", "running", "waiting-approval"], "the recorded state followed the run through review to done");
+    assert.deepEqual(seenStates, [interruptedReceipt ? "idle" : "running", "running", "waiting-approval"], "the recorded state followed the run through review to done");
     const settled = waits;
     await new Promise(resolve => setTimeout(resolve, 200));
     assert.equal(waits, settled, "a settled round is no longer followed");

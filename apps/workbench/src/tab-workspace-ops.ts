@@ -1,25 +1,12 @@
 // @ts-nocheck
 /** Pure tab-workspace rules for additive tabs, user groups, and split panes. Stringified into the browser client; keep it type-annotation-free. */
 export function createTabWorkspaceOps(titles) {
-  const MAX_PANES = Infinity;
   const GROUP_COLORS = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan"];
   const uid = () => "t" + Math.random().toString(36).slice(2, 10);
   const homeTab = () => ({ id: uid(), plugin: "home", kind: "home", title: "项目首页" });
   const itemTab = (plugin, itemId, title) => ({ id: uid(), plugin, kind: "item", itemId, title });
   const pluginViewKey = (plugin) => "plugin:" + plugin;
-  const tabKey = (tab) => tab.kind === "item" ? tab.plugin + ":item:" + tab.itemId : tab.plugin + ":" + tab.kind;
-  const dropMotherTabs = (pane) => {
-    if (!pane || !Array.isArray(pane.tabs)) return;
-    const activeMother = pane.tabs.find((tab) => tab.kind === "mother" && tab.id === pane.activeTabId);
-    if (activeMother) {
-      pane.viewPlugin = activeMother.plugin;
-      pane.activeTabId = null;
-    }
-    pane.tabs = pane.tabs.filter((tab) => tab.kind !== "mother");
-    if (pane.activeTabId && !pane.tabs.some((tab) => tab.id === pane.activeTabId)) {
-      pane.activeTabId = pane.viewPlugin ? null : pane.tabs[0]?.id || null;
-    }
-  };
+  const tabKey = (tab) => tab.kind === "system" ? "system:" + tab.owner + ":" + tab.itemId : tab.kind === "item" ? tab.plugin + ":item:" + tab.itemId : tab.plugin + ":" + tab.kind;
   const pluginTitle = (plugin) => (titles && titles[plugin]) || ({
     home: "项目首页",
     goals: "Goals",
@@ -51,12 +38,10 @@ export function createTabWorkspaceOps(titles) {
   };
   const emptyGroups = (pane) => {
     if (!Array.isArray(pane.groups)) pane.groups = [];
-    delete pane.collapsed;
     pane.tabs.forEach((tab) => { if (tab.pinned) delete tab.groupId; });
     const used = new Set(pane.tabs.map((tab) => tab.groupId).filter(Boolean));
     pane.groups = pane.groups.filter((group) => used.has(group.id));
     pane.tabs.forEach((tab) => {
-      delete tab.preview;
       if (tab.groupId && !used.has(tab.groupId)) delete tab.groupId;
     });
   };
@@ -74,7 +59,6 @@ export function createTabWorkspaceOps(titles) {
   };
   const normalizeLayout = (state) => {
     state.panes.forEach((pane) => {
-      dropMotherTabs(pane);
       emptyGroups(pane);
       orderPinned(pane);
       followActiveItem(pane);
@@ -95,7 +79,6 @@ export function createTabWorkspaceOps(titles) {
     return state;
   };
   const ensureHome = (state) => {
-    (state.panes || []).forEach(dropMotherTabs);
     if (countTabs(state) > 0) return normalizeLayout(state);
     if ((state.panes || []).some((pane) => pane.viewPlugin)) return normalizeLayout(state);
     const pane = focused(state) || state.panes[0];
@@ -176,7 +159,6 @@ export function createTabWorkspaceOps(titles) {
     return activeIndex + 1;
   };
   const insertNew = (pane, tab) => {
-    delete tab.preview;
     pane.tabs.splice(insertIndex(pane), 0, tab);
     orderPinned(pane);
     activateInPane(pane, tab);
@@ -192,7 +174,6 @@ export function createTabWorkspaceOps(titles) {
   const openPlugin = (state, plugin) => {
     state.exclusive = null;
     const pane = focused(state);
-    dropMotherTabs(pane);
     if (plugin === "home") {
       pane.viewPlugin = null;
       return openInPane(state, pane, homeTab());
@@ -327,6 +308,7 @@ export function createTabWorkspaceOps(titles) {
     const to = state.panes.find((pane) => pane.id === toId);
     const tab = from?.tabs.find((item) => item.id === tabId);
     if (!tab || !to || (!copy && from === to && beforeId === tabId)) return state;
+    if (tab.kind === "system") copy = false;
     const next = copy ? { ...tab, id: uid() } : tab;
     if (copy || from !== to) delete next.groupId;
     if (!copy) {
@@ -357,6 +339,7 @@ export function createTabWorkspaceOps(titles) {
     const source = state.panes.find((candidate) => candidate.id === sourcePaneId);
     const active = source?.tabs.find((tab) => tab.id === (sourceTabId || source.activeTabId));
     if (!pane || (!active && !source?.viewPlugin)) return state;
+    if (active?.kind === "system") mode = "move";
     if (mode === "move" && pane === source && !source.viewPlugin && (active ? pane.tabs.length === 1 : !source.tabs.length)) return state;
     normalizeLayout(state);
     const before = edge === "left" || edge === "top";
@@ -427,7 +410,6 @@ export function createTabWorkspaceOps(titles) {
     return pane?.tabs.find((tab) => tab.id === pane.activeTabId) || null;
   };
   return {
-    MAX_PANES,
     GROUP_COLORS,
     pluginTitle,
     pluginOfSurface,
@@ -459,4 +441,29 @@ export function createTabWorkspaceOps(titles) {
     shownPlugin,
     countTabs,
   };
+}
+
+/** Saved tabs use only the fields written by this workspace; a plugin page is pane.viewPlugin, not a tab. */
+export function isCurrentTabWorkspace(value, plugins) {
+  if (!value || !Array.isArray(value.panes) || !value.panes.length || typeof value.focusedPaneId !== "string") return false;
+  if (!Object.keys(value).every(key => ["panes", "layout", "focusedPaneId", "exclusive"].includes(key))) return false;
+  if (value.exclusive !== null && typeof value.exclusive !== "string") return false;
+  const layout = value.layout;
+  if (!layout || !["row", "column"].includes(layout.direction) || !Array.isArray(layout.sizes)) return false;
+  if (!Object.keys(layout).every(key => ["direction", "sizes", "tree"].includes(key))) return false;
+  return value.panes.every(pane => {
+    if (!pane || typeof pane.id !== "string" || !Array.isArray(pane.tabs) || !Array.isArray(pane.groups)) return false;
+    if (!Object.keys(pane).every(key => ["id", "tabs", "activeTabId", "groups", "viewPlugin"].includes(key))) return false;
+    if (pane.activeTabId !== null && typeof pane.activeTabId !== "string") return false;
+    if (pane.viewPlugin !== null && (typeof pane.viewPlugin !== "string" || plugins && !Object.hasOwn(plugins, pane.viewPlugin))) return false;
+    return pane.tabs.every(tab => tab && typeof tab.id === "string" && typeof tab.title === "string"
+      && typeof tab.plugin === "string" && (!plugins || Object.hasOwn(plugins, tab.plugin))
+      && (tab.kind === "home" && tab.plugin === "home" || tab.kind === "item" && typeof tab.itemId === "string")
+      && (tab.pinned === undefined || typeof tab.pinned === "boolean") && (tab.groupId === undefined || typeof tab.groupId === "string")
+      && (tab.goalView === undefined || ["frame", "work"].includes(tab.goalView)) && (tab.feedTask == null || typeof tab.feedTask === "string")
+      && Object.keys(tab).every(key => ["id", "plugin", "kind", "itemId", "title", "pinned", "groupId", "goalView", "feedTask"].includes(key)))
+      && pane.groups.every(group => group && typeof group.id === "string" && typeof group.title === "string"
+        && typeof group.color === "string" && typeof group.collapsed === "boolean"
+        && Object.keys(group).every(key => ["id", "title", "color", "collapsed"].includes(key)));
+  });
 }

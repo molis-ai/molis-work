@@ -186,14 +186,13 @@ export class SearchService {
     const limit = Math.min(50, Math.max(1, input.limit ?? DEFAULT_LIMIT));
     const offset = offsetOf(input.cursor, query);
     const scoped = this.scoped(access.caller, input.scope);
-    const views = await access.client.discover(access.caller);
-    const personal = await this.personalSpaceOf(access, scoped);
-    const all = [...this.entrySources(views, access.caller), ...personal?.sources ?? []].filter(source => this.inScope(source, scoped) && this.matchesFilter(source, input));
-    const visible = all.filter(source => source.view.availability.available);
-    await this.purgeDisabled(all);
-    await this.catchUp(visible, scoped, access.caller, false, personal ? this.options.personalSpace : undefined);
+    const before = await this.callerSources(access, scoped, input);
+    await this.purgeDisabled(before.all);
+    await this.catchUp(before.visible, scoped, access.caller, false, before.personal ? this.options.personalSpace : undefined);
+    // Catching up waits on the owner's listings; a source the caller lost meanwhile answers nothing from the index (system-search §5.2).
+    const { views, all, visible } = await this.callerSources(access, scoped, input);
     if (!all.length) return { status: "empty_scope", hits: [], next_cursor: null, sources: [] };
-    const readers = [...views, ...personal?.views ?? []].filter(view => isReader(view) && view.availability.available);
+    const readers = views.filter(view => isReader(view) && view.availability.available);
     const allowed = visible.map(source => ({ source_key: source.key,
       readable_kinds: [...source.kinds.keys()].filter(kind => readers.some(reader => reader.provider.provider_id === source.reference.provider_id && reader.action.subject_kinds.includes(kind))) }));
     const found = this.options.index.search({ query, sources: allowed, ...(input.kinds?.length ? { kinds: input.kinds } : {}), offset, limit });
@@ -260,20 +259,14 @@ export class SearchService {
   }
 
   async status(access: SearchAccess, input: { scope?: SearchScope }): Promise<SearchStatusResponse> {
-    const scoped = this.scoped(access.caller, input.scope);
-    const views = await access.client.discover(access.caller);
-    const personal = await this.personalSpaceOf(access, scoped);
-    return { sources: this.statuses([...this.entrySources(views, access.caller), ...personal?.sources ?? []].filter(source => this.inScope(source, scoped))) };
+    return { sources: this.statuses((await this.callerSources(access, this.scoped(access.caller, input.scope))).all) };
   }
 
   async rebuild(access: SearchAccess, input: SearchRebuildRequest): Promise<SearchRebuildResponse> {
     const scoped = this.scoped(access.caller, input.scope);
-    const views = await access.client.discover(access.caller);
-    const personal = await this.personalSpaceOf(access, scoped);
-    const sources = [...this.entrySources(views, access.caller), ...personal?.sources ?? []].filter(source => this.inScope(source, scoped));
+    const { all: sources, visible, personal } = await this.callerSources(access, scoped);
     let cleared = 0;
     for (const source of sources) { await this.inflight.get(source.key)?.catch(() => undefined); cleared += this.options.index.removeSource(source.key); }
-    const visible = sources.filter(source => source.view.availability.available);
     await this.catchUp(visible, scoped, access.caller, true, personal ? this.options.personalSpace : undefined);
     return { cleared, sources: this.statuses(sources) };
   }
@@ -328,10 +321,13 @@ export class SearchService {
     } catch { return null; }
   }
 
-  private matchesFilter(source: SourceView, input: SearchQueryRequest): boolean {
-    if (input.plugins?.length && !input.plugins.includes(source.view.provider.plugin_id ?? source.reference.provider_id)) return false;
-    if (input.kinds?.length && ![...source.kinds.keys()].some(kind => input.kinds!.includes(kind))) return false;
-    return true;
+  /** The caller's sources in scope, from its catalog as it is now (with the personal space, for the local person), narrowed by a query's filters. */
+  private async callerSources(access: SearchAccess, scoped: Scoped, input?: SearchQueryRequest) {
+    const views = await access.client.discover(access.caller), personal = await this.personalSpaceOf(access, scoped);
+    const all = [...this.entrySources(views, access.caller), ...personal?.sources ?? []].filter(source => this.inScope(source, scoped)
+      && (!input?.plugins?.length || input.plugins.includes(source.view.provider.plugin_id ?? source.reference.provider_id))
+      && (!input?.kinds?.length || [...source.kinds.keys()].some(kind => input.kinds!.includes(kind))));
+    return { views: [...views, ...personal?.views ?? []], personal, all, visible: all.filter(source => source.view.availability.available) };
   }
 
   private defaultOpen(source: SourceView, kind: string, id: string) {

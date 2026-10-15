@@ -1,5 +1,9 @@
 /** English for the onboarding window (first run, new project, app update). Fragments joined with counts keep English word order. */
 export const ONBOARDING_EN: Record<string, string> = {
+  // The summary page a new project starts with (apps/local-host/src/context-onboarding-service.ts).
+  "{title} · 工作摘要": "{title} · Work summary",
+  "资料来源": "Sources",
+  "项目：{title}": "Project: {title}",
   "下载": "Downloads",
   "文稿": "Documents",
   "桌面": "Desktop",

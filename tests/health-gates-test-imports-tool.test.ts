@@ -7,10 +7,9 @@ import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 
 // specs/repository-anti-corruption W2-10 (PR-0): the test-imports tool (scripts/test-imports.mjs, scripts/test-imports/) and the
-// interim health-gate metric built on its graph (scripts/gates/test-import-splits.mjs). A test process that loads a package from its
+// absolute-zero health gate built on its graph (scripts/gates/test-import-splits.mjs). A test process that loads a package from its
 // source (../P/src) and from its build (the package name, ../P/dist) holds two copies of it. The tool finds those processes and
-// rewrites the imports so a package is reached from one place; the metric lets no test file split more packages than it does at the
-// merge-base. As in tests/health-gates-source-counts.test.ts, the tool and the gate run as the commands they are, on small scratch
+// rewrites the imports so a package is reached from one place; any remaining split is refused, even at the merge-base. As in tests/health-gates-source-counts.test.ts, the tool and the gate run as the commands they are, on small scratch
 // repositories, so nothing here imports a package or the scripts: this file starts at 0 internal imports.
 const tool = fileURLToPath(new URL("../scripts/test-imports.mjs", import.meta.url));
 const gateScript = fileURLToPath(new URL("../scripts/check-health-gates.mjs", import.meta.url));
@@ -323,9 +322,13 @@ const gate = (dir: string, ...args: string[]) => {
 };
 const commit = (dir: string, message: string) => { git(dir, "add", "-A"); git(dir, "commit", "-q", "--allow-empty", "-m", message); };
 const repoForGate = () => {
-  const dir = scratch(gateBase());
+  const original = gateBase();
+  const dir = scratch(original);
+  // Bootstrap the other metrics from a clean process graph, then keep two historical splits at main.
+  for (const file of ["tests/split.test.ts", "tests/fixtures/spawned.ts"]) put(dir, file, original[file].replace(/packages\/alpha\/src\/hidden\.ts/g, "packages/alpha/dist/hidden.js"));
   git(dir, "add", "-A");
   assert.equal(gate(dir, "--update").code, 0);
+  for (const [file, text] of Object.entries(original)) put(dir, file, text);
   commit(dir, "base");
   return dir;
 };
@@ -391,9 +394,13 @@ test("gate: --update does not hide a new split, neither with the merge-base nor 
   assert.equal(refused.code, 1, refused.out);
   assert.match(refused.out, /Baseline not written/);
   assert.equal(git(dir, "status", "--porcelain"), "", "a refused --update leaves baseline.json alone");
-  assert.equal(gate(dir, "--update").code, 0);
-  commit(dir, "update baseline");
-  assert.equal(gate(dir).code, 0, "the local check against the committed baseline is satisfied by the rewrite");
+  assert.equal(gate(dir, "--update").code, 1, "W2-10-E-01 even a local update cannot record a split");
+  const baseline = JSON.parse(read(dir, "tooling/gates/baseline.json"));
+  baseline.testImportSplits = { "tests/source-only.test.ts": 100, "tests/split.test.ts": 100, "tests/fixtures/spawned.ts": 100 };
+  baseline.testImportSplitsTotal = 300;
+  put(dir, "tooling/gates/baseline.json", json(baseline));
+  commit(dir, "forged baseline");
+  assert.equal(gate(dir).code, 1, "W2-10-E-01 forged historical counts grant no exception");
   const still = gate(dir, "--base", "main");
   assert.equal(still.code, 1, still.out);
   for (const pattern of violations[0].expect) assert.match(still.out, pattern);
@@ -410,7 +417,8 @@ test("gate: only the process that reads a package from both places is counted at
   assert.deepEqual(JSON.parse(gate(dir, "--report", "--json", "--base", "main").out).head.testImportSplits, { "tests/fixtures/spawned.ts": 1, "tests/split.test.ts": 1 });
   branch(dir, "harmless", () => { for (const file of ["tests/type-only.test.ts", "tests/twin.test.ts", "tests/source-only.test.ts", "tests/fixtures/spawned.ts", "tests/fixtures/clean-child.ts"]) put(dir, file, `${read(dir, file)}// touched\n`); });
   const run1 = gate(dir, "--base", "main");
-  assert.equal(run1.code, 0, run1.out);
+  assert.equal(run1.code, 1, run1.out);
+  assert.match(run1.out, /test import absolute zero:/);
   assert.doesNotMatch(run1.out, /Lower than the merge-base: [^.]*testImportSplits/);
 });
 
@@ -418,21 +426,24 @@ test("gate: removing a split lowers the number, and moving a split test keeps it
   const dir = gateMain();
   branch(dir, "tidy", () => swap(dir, "tests/split.test.ts", 'import { hidden } from "../packages/alpha/src/hidden.ts";', 'import type { hidden } from "../packages/alpha/src/hidden.ts";'));
   const lowered = gate(dir, "--base", "main");
-  assert.equal(lowered.code, 0, lowered.out);
-  assert.match(lowered.out, /Lower than the merge-base: [^.]*testImportSplits/);
-  assert.equal(gate(dir, "--update", "--base", "main").code, 0, "lowering the baseline with the merge-base given is accepted");
+  assert.equal(lowered.code, 1, lowered.out);
+  assert.match(lowered.out, /test import absolute zero:/);
+  assert.match(gate(dir, "--report", "--base", "main").out, /Packages test processes load from both source and build/);
+  assert.equal(gate(dir, "--update", "--base", "main").code, 1, "a decline that leaves one split cannot update the baseline");
 
   branch(dir, "moved", () => git(dir, "mv", "tests/split.test.ts", "tests/split-renamed.test.ts"));
   const moved = gate(dir, "--base", "main");
-  assert.equal(moved.code, 0, moved.out);
+  assert.equal(moved.code, 1, moved.out);
+  assert.match(moved.out, /test import absolute zero: tests\/split-renamed\.test\.ts/);
 });
 
 test("gate: fixing a spawned fixture lowers the number, and a fixture a test starts to import is measured through that test", () => {
   const dir = gateMain();
   branch(dir, "fixture-tidy", () => swap(dir, "tests/fixtures/spawned.ts", "packages/alpha/src/hidden.ts", "packages/alpha/dist/hidden.js"));
   const lowered = gate(dir, "--base", "main");
-  assert.equal(lowered.code, 0, lowered.out);
-  assert.match(lowered.out, /Lower than the merge-base: [^.]*testImportSplits/);
+  assert.equal(lowered.code, 1, lowered.out);
+  assert.match(lowered.out, /test import absolute zero:/);
+  assert.match(gate(dir, "--report", "--base", "main").out, /Packages test processes load from both source and build/);
   assert.deepEqual(JSON.parse(gate(dir, "--report", "--json", "--base", "main").out).head.testImportSplits, { "tests/split.test.ts": 1 });
 
   // The same split, now read by a test: the fixture is no longer a process of its own, the test that reads it is split in its place.
@@ -456,5 +467,18 @@ test("gate: a repository with no tests has nothing to measure", () => {
   const dir = scratch({ "tooling/gates/limits.json": json({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }), ...alpha({}, []) });
   git(dir, "add", "-A");
   assert.equal(gate(dir, "--update").code, 0);
-  assert.deepEqual(JSON.parse(read(dir, "tooling/gates/baseline.json")).testImportSplits, {});
+  assert.equal(Object.hasOwn(JSON.parse(read(dir, "tooling/gates/baseline.json")), "testImportSplits"), false);
+});
+
+test("W2-10-E-01 a fully unified graph passes and drops obsolete baseline keys", () => {
+  const dir = gateMain();
+  branch(dir, "all-unified", () => {
+    swap(dir, "tests/split.test.ts", "packages/alpha/src/hidden.ts", "packages/alpha/dist/hidden.js");
+    swap(dir, "tests/fixtures/spawned.ts", "packages/alpha/src/hidden.ts", "packages/alpha/dist/hidden.js");
+  });
+  assert.equal(gate(dir, "--base", "main").code, 0);
+  assert.equal(gate(dir, "--update", "--base", "main").code, 0);
+  const baseline = JSON.parse(read(dir, "tooling/gates/baseline.json"));
+  assert.equal(Object.hasOwn(baseline, "testImportSplits"), false);
+  assert.equal(Object.hasOwn(baseline, "testImportSplitsTotal"), false);
 });

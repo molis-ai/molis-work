@@ -83,7 +83,7 @@ export class SqliteJobRunner {
   /** Synchronous plugin persistence is fenced by the original job in the same DB transaction. */
   withLease<T>(jobId: string, write: () => T): T {
     return this.database.transaction(() => {
-      if (!this.ownsLease(jobId)) throw new Error("JOB_LEASE_NOT_OWNED");
+      if (!this.ownsLease(jobId)) throw new Error("alchemist.job_lease_not_owned");
       return write();
     }).immediate();
   }
@@ -127,6 +127,11 @@ export class SqliteJobRunner {
     ).map(mapJob);
   }
 
+  /** Whether any job is waiting or running: a studio with one is not closed for being idle. */
+  hasActive(): boolean {
+    return this.database.prepare("SELECT 1 FROM jobs WHERE status IN ('queued', 'running') LIMIT 1").get() !== undefined;
+  }
+
   claimNext(): PersistedJob | undefined {
     return this.database.transaction(() => {
       const row = this.database
@@ -162,7 +167,7 @@ export class SqliteJobRunner {
            WHERE id = ? AND status = 'running' AND lease_owner = ?`,
         )
         .run(JSON.stringify(checkpoint), now, jobId, this.options.workerId);
-      if (update.changes !== 1) throw new Error("JOB_LEASE_NOT_OWNED");
+      if (update.changes !== 1) throw new Error("alchemist.job_lease_not_owned");
       this.appendEvent(jobId, event?.type ?? "checkpoint_saved", event?.payload ?? {});
       return this.require(jobId);
     });
@@ -186,7 +191,7 @@ export class SqliteJobRunner {
            WHERE id = ? AND status IN ('queued', 'running')`,
         )
         .run(now, jobId);
-      if (update.changes !== 1) throw new Error("JOB_NOT_CANCELLABLE");
+      if (update.changes !== 1) throw new Error("alchemist.job_not_cancellable");
       this.appendEvent(jobId, "cancelled", {});
       return this.require(jobId);
     }).immediate();
@@ -249,7 +254,7 @@ export class SqliteJobRunner {
            WHERE id = ? AND status = 'running' AND lease_owner = ?`,
         )
         .run(status, errorCode ?? null, now, jobId, this.options.workerId);
-      if (update.changes !== 1) throw new Error("JOB_LEASE_NOT_OWNED");
+      if (update.changes !== 1) throw new Error("alchemist.job_lease_not_owned");
       this.appendEvent(jobId, status, errorCode ? { errorCode } : {});
       return this.require(jobId);
     });
@@ -268,7 +273,7 @@ export class SqliteJobRunner {
 
   private require(id: string): PersistedJob {
     const job = this.get(id);
-    if (!job) throw new Error("JOB_NOT_FOUND");
+    if (!job) throw new Error("alchemist.job_not_found");
     return job;
   }
 }

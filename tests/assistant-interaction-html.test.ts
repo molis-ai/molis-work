@@ -145,3 +145,24 @@ test("AC-21, AC-23: a reply's views and cards are drawn wherever it carries them
   drawAssistantReply(single, { say, drafts: () => ({}), card: () => "<drawn>" });
   assert.equal((single.card as AssistantCard & { html?: string }).html, "<drawn>", "a reply that carries one card gets it drawn");
 });
+
+
+// PAS-15: direct reads and long-poll/send envelopes project the latest raw words; stored facts do not acquire HTML.
+test("PAS-15: reply projection redraws text and reviews in direct and wrapped views without trusting supplied HTML", () => {
+  const raw = view("running");
+  raw.rounds[0]!.turns = [{ turn_id: "t1", kind: "assistant", text: "**first**", at: "" }, { turn_id: "u1", kind: "user", text: "<b>person</b>", at: "" }];
+  raw.reviews = [{ review_id: "r1", run_id: "run-1", kind: "file", summary: "<not markup>", fields: [{ label: "改动", value: "+ saved" }], requested_at: "", expires_at: null }];
+  const drawn = structuredClone(raw), ports = { say, drafts: () => ({}), card: () => "" };
+  Object.assign(drawn.rounds[0]!.turns[0]!, { html: "<script>untrusted</script>" });
+  drawAssistantReply(drawn, ports);
+  const shown = drawn.rounds[0]!.turns[0] as { text: string; html?: string };
+  assert.equal(shown.text, "**first**");
+  assert.equal(shown.html, '<div class="assistant-rich"><p><strong>first</strong></p></div>');
+  assert.equal("html" in drawn.rounds[0]!.turns[1]!, false);
+  assert.match((drawn.reviews[0] as { html?: string }).html ?? "", /&lt;not markup&gt;/);
+  shown.text += " second";
+  drawAssistantReply({ version: "v2", view: drawn }, ports);
+  assert.equal(shown.html, '<div class="assistant-rich"><p><strong>first</strong> second</p></div>');
+  assert.equal("html" in raw.rounds[0]!.turns[0]!, false);
+  assert.equal("html" in raw.reviews[0]!, false);
+});

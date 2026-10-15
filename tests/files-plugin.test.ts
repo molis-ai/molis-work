@@ -1,9 +1,10 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
   CODING_FILE_CHANGED_EVENT,
-  FilePathError,
   GIT_FILE_CHANGED_EVENT,
   entryAt,
   filesManifest,
@@ -33,9 +34,10 @@ function listing(names: Array<[string, "file" | "directory"]>, prefix: string[] 
   };
 }
 
+// WSERR-01: the shared parser rejects these actual unsafe paths.
 test("路径片段里的 .. 与分隔符被拒绝，而不是被改写", () => {
   for (const path of [[".."], ["a", ".."], ["a/b"], ["a\\b"], ["."], [""]]) {
-    assert.throws(() => parseFilePath(path), (error: unknown) => error instanceof FilePathError,
+    assert.throws(() => parseFilePath(path), (error: unknown) => error instanceof ActionError && error.code === "work.workspace.invalid_path" && actionHttpStatus(error) === 400,
       `${JSON.stringify(path)} 不该被接受`);
   }
   assert.deepEqual(parseFilePath(["src", "index.ts"]), ["src", "index.ts"]);
@@ -43,9 +45,9 @@ test("路径片段里的 .. 与分隔符被拒绝，而不是被改写", () => {
 });
 
 test("控制字符一律拒绝，不只是 NUL", () => {
-  assert.throws(() => parseFilePath([`a${String.fromCharCode(0)}b`]), FilePathError);
-  assert.throws(() => parseFilePath([`a${String.fromCharCode(9)}b`]), FilePathError);
-  assert.throws(() => parseFilePath([`a${String.fromCharCode(10)}b`]), FilePathError);
+  assert.throws(() => parseFilePath([`a${String.fromCharCode(0)}b`]), (error: unknown) => error instanceof ActionError && error.code === "work.workspace.invalid_path" && actionHttpStatus(error) === 400);
+  assert.throws(() => parseFilePath([`a${String.fromCharCode(9)}b`]), (error: unknown) => error instanceof ActionError && error.code === "work.workspace.invalid_path" && actionHttpStatus(error) === 400);
+  assert.throws(() => parseFilePath([`a${String.fromCharCode(10)}b`]), (error: unknown) => error instanceof ActionError && error.code === "work.workspace.invalid_path" && actionHttpStatus(error) === 400);
 });
 
 test("两条不同的路径不会算出同一个 key", () => {

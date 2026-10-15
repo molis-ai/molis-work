@@ -82,7 +82,8 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
 
     const liveUiInteractionActive = () => {
       const active = document.activeElement;
-      if (active?.closest?.("[data-live-form], [data-event-form]")) return true;
+      // A menu the person opened in a Goal document counts too: replacing the document now would close it under their next click.
+      if (active?.closest?.("[data-live-form], [data-event-form]") || document.querySelector("[data-record-menu][open], .goal-more[open]")) return true;
       const dirtyVisibleForm = [...document.querySelectorAll('[data-live-form][data-live-dirty="true"], [data-event-form][data-live-dirty="true"]')]
         .some((form) => form.getClientRects().length > 0 || form.closest("[data-goal-node-workspace]")?.hidden);
       if (dirtyVisibleForm) return true;
@@ -124,9 +125,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       }
       syncing = true;
       try {
-        const cursorResponse = await boardLifetime.fetch(route("/api/board/cursor"), { cache: "no-store", signal });
-        if (!cursorResponse.ok) throw new Error("无法读取 Molis Work 游标");
-        const cursorState = await cursorResponse.json();
+        const cursorState=await molisWorkRequest(route("/api/board/cursor"),{scope:boardLifetime,signal,fallback:"无法读取 Molis Work 游标"});
         boardLifetime.assertCurrent(signal);
         if (Number(cursorState.observed_event_cursor) === Number(state.snapshot.cursor)) {
           return;
@@ -145,12 +144,10 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         const compactRefreshPath = route("/api/board/refresh?view=" + documentCollection +
           (refreshGoalId ? "&goal_id=" + encodeURIComponent(refreshGoalId) : ""));
         const refreshGeneration = documentReplaceGeneration;
-        let pageResponse = await boardLifetime.fetch(compactRefreshPath, { cache: "no-store", signal });
-        if (!pageResponse.ok) {
-          pageResponse = await boardLifetime.fetch(pagePath, { cache: "no-store", signal });
-        }
-        if (!pageResponse.ok) {
-          pageResponse = await boardLifetime.fetch(route(collectionPath), { cache: "no-store", signal });
+        let pageResponse;
+        for (const path of [compactRefreshPath, pagePath, route(collectionPath)]) {
+          pageResponse=await molisWorkRequest(path,{scope:boardLifetime,signal,as:"response"});
+          if (pageResponse.ok) break;
         }
         if (!pageResponse.ok) throw new Error("无法更新 Goal 页面");
         const parsed = new DOMParser().parseFromString(await pageResponse.text(), "text/html");

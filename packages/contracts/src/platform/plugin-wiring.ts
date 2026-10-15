@@ -17,13 +17,13 @@ export const platformPluginWiringContract = {
 } as const satisfies ContractDescriptor;
 
 export type PluginWiringErrorCode =
-  | "port_declaration_invalid"
-  | "port_type_mismatch"
-  | "port_unknown"
-  | "port_binding_invalid"
-  | "port_artifact_invalid"
-  | "input_group_invalid"
-  | "input_group_unknown";
+  | "plugin.port_declaration_invalid"
+  | "plugin.port_type_mismatch"
+  | "plugin.port_unknown"
+  | "plugin.port_binding_invalid"
+  | "plugin.port_artifact_invalid"
+  | "plugin.input_group_invalid"
+  | "plugin.input_group_unknown";
 
 export class PluginWiringError extends Error {
   constructor(

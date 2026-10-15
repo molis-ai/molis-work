@@ -1,3 +1,4 @@
+import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import type {
   AttentionEntryRecord,
 } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
@@ -87,13 +88,4 @@ function resolveSubject(
     source_label: "Molis Work",
     open: goal ? { kind: "goal", href: `${view.route_prefix}/goals/${encodeURIComponent(goal.goal.goal_id)}` } : null,
   };
-}
-
-function escapeHtml(value: unknown): string {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }

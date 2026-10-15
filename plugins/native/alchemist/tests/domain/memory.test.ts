@@ -16,10 +16,11 @@ describe("Memory rules", () => {
     expect(assertValidPlaybookScope(scope)).toEqual(scope);
   });
 
+  // J5A-01/J5A-02: invalid scope remains a domain refusal.
   it("has no implicit or empty Playbook scope", () => {
-    expect(() => assertValidPlaybookScope(undefined)).toThrowError("PLAYBOOK_SCOPE_REQUIRED");
+    expect(() => assertValidPlaybookScope(undefined)).toThrowError("alchemist.playbook_scope_required");
     expect(() => assertValidPlaybookScope({ kind: "report", reportId: "" })).toThrowError(
-      "PLAYBOOK_SCOPE_TARGET_REQUIRED",
+      "alchemist.playbook_scope_target_required",
     );
   });
 
@@ -47,7 +48,7 @@ describe("Memory rules", () => {
       updatedAt: "2026-07-31T10:30:00.000Z",
     });
     expect(() => disableMemoryRule(disabled, "2026-07-31T10:31:00.000Z")).toThrowError(
-      new MemoryRuleStateError("MEMORY_RULE_NOT_ACTIVE"),
+      new MemoryRuleStateError("alchemist.memory_rule_not_active"),
     );
   });
 });

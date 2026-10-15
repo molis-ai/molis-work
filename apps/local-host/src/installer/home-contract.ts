@@ -120,21 +120,3 @@ export interface TextMutation {
   filePath: string;
   previous: string | null;
 }
-
-export class MolisWorkHomeInstallError extends Error {
-  constructor(
-    readonly code:
-      | "home.not_directory"
-      | "source.invalid"
-      | "source.asset_missing"
-      | "source.build_stale"
-      | "version.invalid"
-      | "home.unknown_file"
-      | "release.conflict",
-    message: string,
-  ) {
-    super(message);
-    this.name = "MolisWorkHomeInstallError";
-  }
-}
-

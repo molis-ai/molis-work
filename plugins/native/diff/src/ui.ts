@@ -78,9 +78,10 @@ export function renderDiff(model: DiffUiModel): string {
     const state = `data-phase="${escape(view.phase)}" data-group="${escape(view.group ?? "none")}"`;
     const empty = (attributes: string) => `<div class="mw-empty"${attributes}><span class="mw-empty__mark">${model.primitives.icon("git-compare")}</span><strong>${escape(view.message)}</strong>`
       + `${view.recovery === undefined ? "" : `<p>${escape(view.recovery)}</p>`}</div>`;
-    return header === "" && noticeHtml === ""
+    const files = renderFileList(model);
+    return header === "" && noticeHtml === "" && files === ""
       ? empty(` ${state}`)
-      : `<section class="diff" ${state}>${header}${noticeHtml}${empty("")}</section>`;
+      : `<section class="diff" ${state}>${header}${noticeHtml}${files}${empty("")}</section>`;
   }
   const body = view.mode === "split" ? renderSplit(view.rows, model) : renderUnified(view.rows, model);
   return `<section class="diff" data-phase="ready" data-group="${escape(view.group ?? "none")}" data-mode="${escape(view.mode)}"`
@@ -89,10 +90,10 @@ export function renderDiff(model: DiffUiModel): string {
 
 function renderFileList(model: DiffUiModel): string {
   const { escape } = model.primitives;
-  if (model.view.files.length <= 1) return "";
-  return `<ul class="diff-files">${model.view.files.map((file) =>
+  if (model.view.files.length <= 1 || model.sides === false) return "";
+  return `<ul class="diff-files">${model.view.files.map((file, index) =>
     `<li data-kind="${escape(file.kind)}"><button type="button" data-action="diff.show-file"`
-    + ` data-path="${escape(file.path)}">${escape(file.path)}</button>`
+    + ` data-change-index="${index}" data-path="${escape(file.path)}">${index + 1}. ${escape(file.path)}</button>`
     + `<span class="diff-counts">+${escape(file.added_lines)} −${escape(file.removed_lines)}</span></li>`).join("")}</ul>`;
 }
 

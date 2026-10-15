@@ -24,9 +24,8 @@ export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
     try {
       const url = new URL(href, location.origin); url.searchParams.set('embed', '1');
       if (cached && models) url.searchParams.set('new', '1');
-      const response = await fetch(url, { signal: controller.signal });
-      if (!response.ok) throw new Error(L('无法读取模型设置'));
-      const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const html = await molisWorkRequest(url.href, {as:'text', signal:controller.signal, fallback:L('无法读取模型设置')});
+      const page = new DOMParser().parseFromString(html, 'text/html');
       const document = page.querySelector(models ? '[data-model-settings]' : '[data-connectors-settings]');
       if (!document) throw new Error(L('模型设置页面不完整'));
       if (controller.signal.aborted) return;
@@ -52,7 +51,7 @@ export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
         pages.set(key, holder);
       }
       status.hidden = true;
-    } catch { if (!controller.signal.aborted) { status.textContent = L('设置加载失败，当前输入已保留，请重试。'); retry.hidden = false; } }
+    } catch(error) { if (!controller.signal.aborted) { molisWorkRequest.show(status,error,L('设置加载失败，当前输入已保留，请重试。')); retry.hidden = false; } }
     finally { if (pending === controller) content.removeAttribute('aria-busy'); }
   };
   // Keep the settings document mounted on close, including any unsaved settings input.

@@ -168,16 +168,17 @@ test("invalid, empty, oversized and unauthorized imports leave Artifact records 
   const { coordinator, post, rawPost, headers } = await fixture(t);
   const before = coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const cases: Array<{ body: unknown; status: number; code: string }> = [
-    { body: { source: "unsupported" }, status: 400, code: "document.source_invalid" },
-    { body: { source: "file", filename: "empty.md", content: " \n\t" }, status: 400, code: "document.empty" },
-    { body: { source: "file", filename: "binary.txt", content: "\u0000binary" }, status: 400, code: "document.binary" },
+    // R4B-01: production import refusals retain kind and reason under the Artifacts owner.
+    { body: { source: "unsupported" }, status: 400, code: "artifacts.document.source_invalid" },
+    { body: { source: "file", filename: "empty.md", content: " \n\t" }, status: 400, code: "artifacts.document.empty" },
+    { body: { source: "file", filename: "binary.txt", content: "\u0000binary" }, status: 400, code: "artifacts.document.binary" },
     // Any file is accepted (artifact-positioning A3), but one that is not text must come with its original bytes.
-    { body: { source: "file", filename: "report.pdf", content: "PDF" }, status: 400, code: "document.original_invalid" },
-    { body: { source: "file", filename: "report.pdf", original_file: { filename: "report.pdf", mime: "application/pdf", data_base64: "not base64!" } }, status: 413, code: "document.original_invalid" },
-    { body: { source: "file", filename: "../report.md", content: "body" }, status: 400, code: "document.filename_invalid" },
-    { body: { source: "file", filename: "body.md", content: 42 }, status: 400, code: "document.content_invalid" },
+    { body: { source: "file", filename: "report.pdf", content: "PDF" }, status: 400, code: "artifacts.document.original_invalid" },
+    { body: { source: "file", filename: "report.pdf", original_file: { filename: "report.pdf", mime: "application/pdf", data_base64: "not base64!" } }, status: 413, code: "artifacts.document.original_invalid" },
+    { body: { source: "file", filename: "../report.md", content: "body" }, status: 400, code: "artifacts.document.filename_invalid" },
+    { body: { source: "file", filename: "body.md", content: 42 }, status: 400, code: "artifacts.document.content_invalid" },
     // This passes a character-count limit but exceeds the actual UTF-8 byte limit.
-    { body: { source: "file", filename: "large.md", content: "文".repeat(Math.floor(DOCUMENT_IMPORT_MAX_BYTES / 3) + 1) }, status: 413, code: "document.too_large" },
+    { body: { source: "file", filename: "large.md", content: "文".repeat(Math.floor(DOCUMENT_IMPORT_MAX_BYTES / 3) + 1) }, status: 413, code: "artifacts.document.too_large" },
   ];
   for (const example of cases) {
     const response = await post(example.body);
@@ -188,7 +189,7 @@ test("invalid, empty, oversized and unauthorized imports leave Artifact records 
   for (const body of ["{broken", "null", "[]", Buffer.from([0xff, 0xfe])]) {
     const response = await rawPost(body, headers());
     assert.equal(response.status, 400);
-    assert.equal((await response.json() as { code: string }).code, "document.request_invalid");
+    assert.equal((await response.json() as { code: string }).code, "artifacts.document.request_invalid");
   }
   const file = { source: "file", filename: "valid.txt", content: "可以重试并导入" };
   const validBody = JSON.stringify(file);

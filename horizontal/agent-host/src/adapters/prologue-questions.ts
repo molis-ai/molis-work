@@ -43,7 +43,7 @@ export function answerProblems(questions: readonly PendingQuestion[], answers: Q
     question: problem.question, ...(problem.id === undefined ? {} : { id: problem.id }), reason: problem.reason }));
 }
 
-/** Reads each picked object again from its owner, as the session's owner (the Host's; S-24): true while it is still theirs to use. */
+/** Reads each picked object again from its owner, as the session's owner (the Host's; S-26): true while it is still theirs to use. */
 export type ReferenceConfirmer = (owner: { project_id: string; actor_id: string }, picked: readonly { kind: string; id: string }[], kinds: readonly string[]) => Promise<readonly boolean[]>;
 
 /**

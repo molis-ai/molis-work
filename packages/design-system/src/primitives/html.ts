@@ -1,11 +1,12 @@
 export type AttrValue = string | number | boolean | undefined | null;
 
-export function escapeHtml(value: string | number | undefined | null): string {
+export function escapeHtml(value: unknown): string {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 export function cx(...parts: Array<string | false | null | undefined>): string {

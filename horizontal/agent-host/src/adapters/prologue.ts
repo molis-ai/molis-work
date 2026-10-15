@@ -1,6 +1,8 @@
+import { agentErrors } from "../errors.js";
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { parseAgentRunBudget, agentTextMaterialContent, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AgentPendingQuestion, AgentQuestionProblem } from "@molis-ai/molis-work-contracts/services/agent-interaction";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import { parseAgentRunBudget, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
   AgentSkillLibrary,
@@ -10,7 +12,7 @@ import type {
   AgentCommandOutput,
   AgentCommandOutputRef,
   AgentCreateSessionInput,
-  AgentHostErrorCode,
+
   AgentRunControl,
   AgentRunHandle,
   AgentRunRef,
@@ -28,7 +30,7 @@ import type {
 
 import { emptyCapabilityMatrix } from "../capabilities.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "../execution-plan.js";
-import { freezeRunStart } from "./prologue-frozen.js";
+import { freezeRunStart, validateRunAttachments, assertSessionCreation } from "./prologue-frozen.js";
 import { switchRunModel } from "./prologue-model-switch.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
@@ -55,19 +57,6 @@ import {
  */
 
 export const PROLOGUE_RUNTIME_ID = "prologue";
-
-export class PrologueAdapterError extends Error {
-  constructor(
-    readonly code: Extract<AgentHostErrorCode, "agent.model_not_configured" | "agent.role_not_frozen" | "agent.session_unknown" | "agent.session_busy"
-      | "agent.run_unknown" | "agent.pending_not_open" | "agent.answer_invalid" | "agent.capability_unavailable">,
-    message: string,
-    /** For `agent.answer_invalid`: every question that could not be answered as given, so a surface marks each field. */
-    readonly problems?: readonly AgentQuestionProblem[],
-  ) {
-    super(message);
-    this.name = "PrologueAdapterError";
-  }
-}
 
 /** What the Host must supply before a Run can start. The adapter reads, never stores. */
 export interface PrologueModelConfiguration {
@@ -112,14 +101,16 @@ export interface PrologueControlPort {
   pause(): void;
   resume(): void;
   steer(input: { text: string; source?: "person" | "app"; key?: string }): void | Promise<void>;
+  /** Revalidate the original invocation after model-selection waits. */ beforeModelSwitch?(): Promise<void>;
   /** Later model calls of this Run go to this target, from its next model boundary. Absent where the runtime cannot. */
-  switchModel?(target: Pick<PrologueModelConfiguration, "protocol" | "endpoint" | "model" | "credential_ref">): Promise<void>;
+  switchModel?(target: Pick<PrologueModelConfiguration, "protocol" | "endpoint" | "model" | "credential_ref">, beforeAccept: () => void): Promise<void>;
   subscribe(listener: () => void): () => void;
 }
 
 export interface PrologueStartInput {
   /** Recheck original activation immediately before dispatch; never persisted. */
   beforeStart?: AgentStartExecution["beforeStart"];
+  assertBeforeStart?: AgentStartExecution["assertBeforeStart"];
   beforeDispatch?: AgentStartExecution["beforeDispatch"];
   actions?: NonNullable<AgentStartRequest["role"]>["actions"];
   action_gateway?: NonNullable<AgentStartRequest["role"]>["action_gateway"];
@@ -183,7 +174,7 @@ export interface PrologueRuntimePort {
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
-  waits?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentWaitsCapability;
+  collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
   background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   /** The runtime's durable local queue for timed work. */
@@ -206,7 +197,7 @@ export interface PrologueRuntimePort {
   readPendingQuestion?(run: AgentRunRef, pendingId: string, revision: number): Promise<AgentPendingQuestion | null>;
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
-    create(input: AgentCreateSessionInput): Promise<{ ref: { id: string } }>;
+    create(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<{ ref: { id: string } }>;
     restore?(sessionId: string): Promise<PrologueRestoredSession | undefined>;
     /** Same owner/recovery checks as restore, without restoring historical controls or retaining transcripts. */
     readStatus?(sessionId: string): Promise<{
@@ -308,7 +299,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   readonly projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
-  readonly waits?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentWaitsCapability;
+  readonly collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
   readonly background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
@@ -333,7 +324,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     this.#runtime = options.runtime;
     if (options.runtime.projectWork) this.projectWork = options.runtime.projectWork;
     if (options.runtime.messages) this.messages = options.runtime.messages;
-    if (options.runtime.waits) this.waits = options.runtime.waits;
+    if (options.runtime.collaboration) this.collaboration = options.runtime.collaboration;
     if (options.runtime.background) this.background = options.runtime.background;
     if (options.runtime.schedule) this.schedule = options.runtime.schedule;
     if (options.runtime.memory) this.memory = options.runtime.memory;
@@ -350,12 +341,12 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         // One of this session's rounds, or a subtask's interrupted round that this session's recovery lists as its own.
         if (!held.runs.some(run => run.run_id === runId)
           && !(await options.runtime.recovery!.inspect(session)).runs.some(run => run.run_id === runId && run.subagent)) {
-          throw new PrologueAdapterError("agent.run_unknown", "这轮执行不属于当前会话");
+          throw agentErrors.run_unknown("这轮执行不属于当前会话");
         }
         const latest = held.runs.at(-1);
         const phase = latest && this.#requireRun(latest.run_id).view.phase;
         if (this.#startingSessions.has(session.session_id) || options.runtime.checkpoints?.busy?.(session)
-          || phase && phase !== "reconcile-required" && !isEnded(phase)) throw new PrologueAdapterError("agent.session_busy", "会话仍在执行或回退，不能关闭中断轮次");
+          || phase && phase !== "reconcile-required" && !isEnded(phase)) throw agentErrors.session_busy("会话仍在执行或回退，不能关闭中断轮次");
         this.#startingSessions.add(session.session_id);
         try {
           const report = await options.runtime.recovery!.close(session, runId, expectedVersion);
@@ -372,7 +363,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         const held = await this.#loadSession(session.session_id);
         const latest = held.runs.at(-1);
         if (held.recovery || this.#startingSessions.has(session.session_id) || options.runtime.checkpoints!.busy?.(session)
-          || latest && !isEnded(this.#requireRun(latest.run_id).view.phase)) throw new PrologueAdapterError("agent.session_busy", "会话仍有执行、回退或待核对结果，不能回退文件");
+          || latest && !isEnded(this.#requireRun(latest.run_id).view.phase)) throw agentErrors.session_busy("会话仍有执行、回退或待核对结果，不能回退文件");
         this.#startingSessions.add(session.session_id);
         try { return await options.runtime.checkpoints!.prepareRewind(session, checkpointId); }
         finally { this.#startingSessions.delete(session.session_id); }
@@ -424,14 +415,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     return { ok: true, status: "ready", message: `已配置 ${configuration.model}` };
   }
 
-  async createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef> {
-    if (input.workspace === "none" && (!this.#runtime.workspaceNone || input.directory !== undefined || !input.actor_id?.trim())) {
-      throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此无工作区会话");
-    }
-    if (input.workspace === "business" && (!this.descriptor.supports_workspace_business || input.directory !== undefined || !input.actor_id?.trim())) {
-      throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此业务会话");
-    }
-    const session = await this.#runtime.sessions.create(input);
+  async createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef> {
+    assertSessionCreation(input, this.#runtime.workspaceNone, this.descriptor.supports_workspace_business);
+    await execution?.beforeStart?.(); requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
+    const session = await this.#runtime.sessions.create(input, execution);
     this.#sessions.set(session.ref.id, { title: input.title, workspace: input.workspace ?? "required", runs: [], owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id } });
     return { session_id: session.ref.id, runtime_id: PROLOGUE_RUNTIME_ID };
   }
@@ -459,7 +446,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       if (restoring) await restoring;
       else {
         const saved = await this.#runtime.sessions.readStatus(session.session_id);
-        if (!saved) { this.#requireSession(session.session_id); throw new PrologueAdapterError("agent.session_unknown", "找不到这条会话"); }
+        if (!saved) { this.#requireSession(session.session_id); throw agentErrors.session_unknown("找不到这条会话"); }
         // A start/detail read may have completed while the SDK reads were in flight.
         if (!this.#sessions.has(session.session_id)) projected = saved;
       }
@@ -492,25 +479,25 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const session = await this.#loadSession(request.session.session_id);
     if (session.workspace !== (request.workspace ?? "required") || request.role?.workspace === "none" && request.workspace !== "none"
       || request.role?.workspace === "business" && request.workspace !== "business") {
-      throw new PrologueAdapterError("agent.session_unknown", "不能改变原会话的工作区方式");
+      throw agentErrors.session_unknown("不能改变原会话的工作区方式");
     }
     if (request.workspace === "none" && (!this.#runtime.workspaceNone || request.role?.workspace !== "none" || request.directory !== undefined
       || request.role.execution !== "read-only" || request.role.host_tools.length || request.role.actions?.tools.length || request.role.subagents?.length
       || request.action_tools?.length || request.mcp_tools?.length || request.mcp_sources?.length || request.skills?.length || request.execution_plan || request.subagent_workspaces?.length)) {
-      throw new PrologueAdapterError("agent.capability_unavailable", "无工作区会话只能进行宿主冻结的无工具推理");
+      throw agentErrors.capability_unavailable("无工作区会话只能进行宿主冻结的无工具推理");
     }
     // Business work: no directory, the Host's frozen actions and root-free tools only; nothing file- or child-shaped.
     if (request.workspace === "business" && (!this.descriptor.supports_workspace_business || request.role?.workspace !== "business" || request.directory !== undefined
       || !["read-only", "operate"].includes(request.role.execution) || request.role.host_tools.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool))
       || request.role.subagents?.length || request.role.subagent_workspaces?.length || request.mcp_tools?.length || request.mcp_sources?.length
       || request.execution_plan || request.subagent_workspaces?.length)) {
-      throw new PrologueAdapterError("agent.capability_unavailable", "业务会话只能使用宿主冻结的业务动作与不碰目录的工具");
+      throw agentErrors.capability_unavailable("业务会话只能使用宿主冻结的业务动作与不碰目录的工具");
     }
-    if (session.recovery) throw new PrologueAdapterError("agent.session_busy", session.recovery.reason);
+    if (session.recovery) throw agentErrors.session_busy(session.recovery.reason);
     const latest = session.runs.at(-1);
     if (this.#runtime.checkpoints?.busy?.(request.session) || this.#startingSessions.has(request.session.session_id)
       || (latest !== undefined && !isEnded(this.#requireRun(latest.run_id).view.phase))) {
-      throw new PrologueAdapterError("agent.session_busy", "这个会话仍在执行或保存上一轮；可以补充要求，结束后再开新一轮");
+      throw agentErrors.session_busy("这个会话仍在执行或保存上一轮；可以补充要求，结束后再开新一轮");
     }
     this.#startingSessions.add(request.session.session_id);
     try { return await this.#start(request, session, execution); }
@@ -523,66 +510,56 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async #start(request: AgentStartRequest, session: SessionRecord, execution?: AgentStartExecution): Promise<AgentRunHandle> {
-    const textMaterials = request.text_materials ?? [];
-    if (textMaterials.length > 30 || new Set(textMaterials.map(item => item.material_id)).size !== textMaterials.length) throw new Error("材料过多或选择重复");
-    textMaterials.forEach(agentTextMaterialContent);
-    const imageMaterials = request.image_materials ?? [];
-    if (imageMaterials.length > 6 || new Set(imageMaterials.map(item => item.material_id)).size !== imageMaterials.length
-      || imageMaterials.some(item => !item || typeof item.resource?.id !== "string" || !Number.isSafeInteger(item.resource.revision) || !/^image\//.test(String(item.media_type)))) throw new Error("图片过多、重复或格式无效");
-    if (imageMaterials.length && (!this.#runtime.imageAttachments || request.workspace !== "business")) throw new PrologueAdapterError("agent.capability_unavailable", "这个运行方式还不能把图片交给模型");
+    const { textMaterials, imageMaterials } = validateRunAttachments(request, Boolean(this.#runtime.imageAttachments));
     if (request.budget?.max_turns !== undefined && (!Number.isSafeInteger(request.budget.max_turns) || request.budget.max_turns < 1 || request.budget.max_turns > 100)) throw new Error("执行轮次预算必须为 1–100 的整数");
     const model = await this.#ports.modelConfiguration(request.model_selection);
     if (model === null) {
-      throw new PrologueAdapterError("agent.model_not_configured", "还没有配置可用的模型");
+      throw agentErrors.model_not_configured("还没有配置可用的模型");
     }
     // A model the settings mark as not seeing images never gets them: nothing is sent, and the person hears why.
-    if (imageMaterials.length && model.vision === false) throw new PrologueAdapterError("agent.capability_unavailable", `模型设置里标注「${model.model}」不支持看图，图片没有发出；可以换一个支持看图的模型，或去掉图片再发`);
+    if (imageMaterials.length && model.vision === false) throw agentErrors.capability_unavailable(`模型设置里标注「${model.model}」不支持看图，图片没有发出；可以换一个支持看图的模型，或去掉图片再发`);
     const role = request.role;
     if (role === undefined) {
-      throw new PrologueAdapterError(
-        "agent.role_not_frozen",
-        "宿主没有冻结角色定义，不能在没有角色 Prompt 的情况下起跑",
-      );
+      throw agentErrors.role_not_frozen("宿主没有冻结角色定义，不能在没有角色 Prompt 的情况下起跑");
     }
     if (request.continue_step_board_of !== undefined) {
       // Continuing a graph is only ever the same plan, in the same session, while that graph is unfinished.
-      if (!request.execution_plan) throw new PrologueAdapterError("agent.capability_unavailable", "继续计划需要原确认计划");
+      if (!request.execution_plan) throw agentErrors.capability_unavailable("继续计划需要原确认计划");
       const earlier = await this.read({ session_id: request.session.session_id, run_id: request.continue_step_board_of });
-      if (!isEnded(earlier.phase)) throw new PrologueAdapterError("agent.session_busy", "被继续的那一轮还没有结束");
-      if (JSON.stringify(earlier.frozen.execution_plan) !== JSON.stringify(request.execution_plan)) throw new PrologueAdapterError("agent.capability_unavailable", "继续计划必须使用那一轮的同一版确认计划");
-      if (!earlier.step_board || earlier.step_board.terminal) throw new PrologueAdapterError("agent.capability_unavailable", "那一轮的计划图已经结束，请调整计划后重新开始");
+      if (!isEnded(earlier.phase)) throw agentErrors.session_busy("被继续的那一轮还没有结束");
+      if (JSON.stringify(earlier.frozen.execution_plan) !== JSON.stringify(request.execution_plan)) throw agentErrors.capability_unavailable("继续计划必须使用那一轮的同一版确认计划");
+      if (!earlier.step_board || earlier.step_board.terminal) throw agentErrors.capability_unavailable("那一轮的计划图已经结束，请调整计划后重新开始");
     }
     if (request.execution_plan && (!this.#runtime.readStepBoard || STEP_TOOLS.some(tool => !role.host_tools.includes(tool)))) {
-      throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时或角色尚未接通计划步骤回报");
+      throw agentErrors.capability_unavailable("当前运行时或角色尚未接通计划步骤回报");
     }
     // Only Host-frozen workspace grants open the SDK write envelope for children.
     // The coordinator's Character still restricts its own tools to read/dispatch.
-    if (role.subagents?.length && !this.#runtime.subagents) throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时未装配子代理观察和控制");
+    if (role.subagents?.length && !this.#runtime.subagents) throw agentErrors.capability_unavailable("当前运行时未装配子代理观察和控制");
     const mode = role.execution === "read-only" && !role.subagent_workspaces?.length ? "plan" : "build";
     if (mode === "build" && this.descriptor.capabilities["text-edit"] === "unsupported") {
-      throw new PrologueAdapterError(
-        "agent.capability_unavailable",
-        "这个 Runtime 尚未接通副作用审批，不能运行会写入的角色",
-      );
+      throw agentErrors.capability_unavailable("这个 Runtime 尚未接通副作用审批，不能运行会写入的角色");
     }
 
     if ((request.skills?.length ?? 0) !== (role.skills?.length ?? 0)
       || role.skills?.some(skill => !request.skills?.some(ref => ref.skill_id === skill.skill_id && ref.version === skill.version))
       || ((role.skills?.length ?? 0) > 0 && !this.#runtime.inlineMethods)) {
-      throw new PrologueAdapterError("agent.capability_unavailable", "方法未由宿主解析或当前运行时不能展开方法");
+      throw agentErrors.capability_unavailable("方法未由宿主解析或当前运行时不能展开方法");
     }
-    if ((request.mcp_tools?.length || request.mcp_sources?.length) && this.descriptor.capabilities.mcp === "unsupported") throw new PrologueAdapterError("agent.capability_unavailable", "此运行时尚未接通 MCP 审查");
-    if (role.compaction && !this.#runtime.compaction) throw new PrologueAdapterError("agent.capability_unavailable", "上下文整理尚未接通");
-    if ((role.actions?.tools.length || role.action_gateway) && !this.#runtime.actionTools) throw new PrologueAdapterError("agent.capability_unavailable", "Action tools are not connected to this runtime");
-    if (role.action_gateway && request.workspace !== "business") throw new PrologueAdapterError("agent.capability_unavailable", "能力网关只用于业务会话");
+    if ((request.mcp_tools?.length || request.mcp_sources?.length) && this.descriptor.capabilities.mcp === "unsupported") throw agentErrors.capability_unavailable("此运行时尚未接通 MCP 审查");
+    if (role.compaction && !this.#runtime.compaction) throw agentErrors.capability_unavailable("上下文整理尚未接通");
+    if ((role.actions?.tools.length || role.action_gateway) && !this.#runtime.actionTools) throw agentErrors.capability_unavailable("Action tools are not connected to this runtime");
+    if (role.action_gateway && request.workspace !== "business") throw agentErrors.capability_unavailable("能力网关只用于业务会话");
     const at = this.#now().toISOString();
     const state = emptyPrologueStreamState();
     state.prompt_includes_cache = model.protocol.startsWith("openai");
     const frozen = freezeRunStart({ request, role, model, textMaterials, imageMaterials, defaultWindow: this.#runtime.defaultContextWindowTokens, callId: execution?.call_id });
 
     await execution?.beforeStart?.();
+    requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
     const started = await this.#runtime.startAgentRun({
       beforeStart: execution?.beforeStart,
+      assertBeforeStart: execution?.assertBeforeStart,
       beforeDispatch: execution?.beforeDispatch,
       provenance: { frozen, started_at: at },
       session_id: request.session.session_id,
@@ -675,7 +652,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
   async read(run: AgentRunRef): Promise<AgentRunView> {
     const session = await this.#loadSession(run.session_id);
-    if (!session.runs.some(item => item.run_id === run.run_id)) throw new PrologueAdapterError("agent.run_unknown", "这次执行不属于此会话");
+    if (!session.runs.some(item => item.run_id === run.run_id)) throw agentErrors.run_unknown("这次执行不属于此会话");
     const record = this.#requireRun(run.run_id);
     const view = structuredClone(record.view);
     if (view.frozen.execution_plan) {
@@ -719,10 +696,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       const record = await this.#loadSession(run.session_id);
       const at = record.runs.findIndex(entry => entry.run_id === run.run_id);
       const later = record.runs.slice(at + 1).map(entry => this.#requireRun(entry.run_id).view);
-      if (later.some(view => view.frozen.execution_plan || !isEnded(view.phase))) throw new PrologueAdapterError("agent.session_busy", "这一轮之后已有新的计划轮或仍在进行的一轮，它的计划图不再调整；请在最新的计划轮上调整");
-      if (!current.step_board || current.step_board.terminal) throw new PrologueAdapterError("agent.session_busy", "这一轮的计划图已经结束，不再调整；请调整计划后开始新一轮");
+      if (later.some(view => view.frozen.execution_plan || !isEnded(view.phase))) throw agentErrors.session_busy("这一轮之后已有新的计划轮或仍在进行的一轮，它的计划图不再调整；请在最新的计划轮上调整");
+      if (!current.step_board || current.step_board.terminal) throw agentErrors.session_busy("这一轮的计划图已经结束，不再调整；请调整计划后开始新一轮");
     }
-    if (!this.#runtime.amendStepBoard) throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能调整计划图");
+    if (!this.#runtime.amendStepBoard) throw agentErrors.capability_unavailable("当前运行时不能调整计划图");
     return this.#runtime.amendStepBoard(run, amendment, expectedVersion, actorId);
   }
 
@@ -747,19 +724,16 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         break;
       case "switch-model":
         await switchRunModel({ record, selection: control, configure: this.#ports.modelConfiguration, defaultWindow: this.#runtime.defaultContextWindowTokens,
-          requested: model => { if (model === undefined) delete record.state.model_requested; else record.state.model_requested = model; } });
+          requested: model => { record.state.model_requested = model; } });
         break;
       case "answer": {
         const answer = this.#answerPending;
         if (answer === undefined) {
-          throw new PrologueAdapterError(
-            "agent.capability_unavailable",
-            "没有接上回答通道，这条问题回答不了",
-          );
+          throw agentErrors.capability_unavailable("没有接上回答通道，这条问题回答不了");
         }
         const question = record.state.awaiting_input.find(item => item.pending_id === control.pending_id);
         if (!question || isEnded(record.view.phase) || question.pending_revision !== control.pending_revision) {
-          throw new PrologueAdapterError("agent.pending_not_open", "这条问题不属于本轮当前等待，不能提交答案");
+          throw agentErrors.pending_not_open("这条问题不属于本轮当前等待，不能提交答案");
         }
         await answer(run, control);
         // The Run owns whether the question is closed; drop it from the view
@@ -776,8 +750,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     ref: AgentCommandOutputRef,
   ): Promise<AgentCommandOutput> {
     const record = await this.#loadSession(session.session_id);
-    if (!record.runs.some(run => run.run_id === ref.run_id)) throw new PrologueAdapterError("agent.run_unknown", "这轮执行不属于所选会话");
-    if (!this.#runtime.readCommandOutput) throw new PrologueAdapterError("agent.capability_unavailable", "这个 Runtime 没有接通命令回执");
+    if (!record.runs.some(run => run.run_id === ref.run_id)) throw agentErrors.run_unknown("这轮执行不属于所选会话");
+    if (!this.#runtime.readCommandOutput) throw agentErrors.capability_unavailable("这个 Runtime 没有接通命令回执");
     return this.#runtime.readCommandOutput(session.session_id, ref);
   }
 
@@ -884,7 +858,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
   #requireSession(sessionId: string) {
     const record = this.#sessions.get(sessionId);
-    if (!record) throw new PrologueAdapterError("agent.session_unknown", "找不到这条会话");
+    if (!record) throw agentErrors.session_unknown("找不到这条会话");
     return record;
   }
 
@@ -908,7 +882,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       const { state, endedAt } = restorePrologueRun(saved);
       // Replayed records are immutable observations. A new Run continues the
       // same SDK session; old control handles cannot be resurrected.
-      const unavailable = (): never => { throw new PrologueAdapterError("agent.capability_unavailable", "历史执行没有活动控制句柄，不能重放停止、回答或继续指令"); };
+      const unavailable = (): never => { throw agentErrors.capability_unavailable("历史执行没有活动控制句柄，不能重放停止、回答或继续指令"); };
       const control: PrologueControlPort = { state: state.phase === "reconcile-required" ? "reconcile-required" : "running",
         stop: unavailable, pause: unavailable, resume: unavailable, steer: unavailable, subscribe: () => () => {} };
       const view: AgentRunView = { ref: saved.ref, frozen: saved.frozen, started_at: saved.started_at, ended_at: endedAt,
@@ -923,7 +897,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
   #requireRun(runId: string): RunRecord {
     const record = this.#runs.get(runId);
-    if (!record) throw new PrologueAdapterError("agent.run_unknown", "找不到这次执行");
+    if (!record) throw agentErrors.run_unknown("找不到这次执行");
     return record;
   }
 }

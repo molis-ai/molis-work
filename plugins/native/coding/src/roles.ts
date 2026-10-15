@@ -79,7 +79,7 @@ export const codingAgentManifest: AgentManifest = {
       // It holds run-command only so its independent reviewer can be given it: a subagent gets no tool its parent lacks.
       execution: "workspace-write",
       prompts: ["coding-base", "coding-coordinator"],
-      // session-send: it may ask another session of the project, or answer one, without a review each time (the person's decision).
+      // session-send: it may ask another session of the project, or answer one (they are neighbours on the project's board), without a review each time (the person's decision).
       // Background commands: started and stopped under review like any command; reading and waiting on them are reads.
       host_tools: ["context-remaining", "find-tools", "ask-user", "read-file", "list", "search", "run-command", "start-command", "command-output", "command-stop", "await-commands", "dispatch-subagent", "await-subagents", "steer-subagent", "session-send"],
     },

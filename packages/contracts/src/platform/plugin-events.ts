@@ -18,17 +18,17 @@ export const PLUGIN_EVENT_PAYLOAD_MAX_BYTES = 16_384;
 export const RESERVED_EVENT_NAMESPACES = ["molis.", "host."] as const;
 
 export type PluginEventErrorCode =
-  | "event_type_invalid"
-  | "event_type_reserved"
-  | "event_type_not_owned"
-  | "event_not_declared"
-  | "event_payload_invalid"
-  | "event_payload_too_large"
-  | "event_identity_invalid"
-  | "event_delivery_revoked"
-  | "event_recovery_changed"
-  | "event_recovery_invalid"
-  | "event_subscription_invalid";
+  | "plugin.event_type_invalid"
+  | "plugin.event_type_reserved"
+  | "plugin.event_type_not_owned"
+  | "plugin.event_not_declared"
+  | "plugin.event_payload_invalid"
+  | "plugin.event_payload_too_large"
+  | "plugin.event_identity_invalid"
+  | "plugin.event_delivery_revoked"
+  | "plugin.event_recovery_changed"
+  | "plugin.event_recovery_invalid"
+  | "plugin.event_subscription_invalid";
 
 export class PluginEventError extends Error {
   constructor(
@@ -136,10 +136,10 @@ export interface PluginEventCursorRecord {
 }
 
 export type PluginEventDeliveryFailureCode =
-  | "subscriber_start_failed"
-  | "subscriber_handler_failed"
-  | "subscriber_revoked"
-  | "payload_invalid";
+  | "plugin.subscriber_start_failed"
+  | "plugin.subscriber_handler_failed"
+  | "plugin.subscriber_revoked"
+  | "plugin.payload_invalid";
 
 export interface PluginEventDeliveryFailure {
   code: PluginEventDeliveryFailureCode;

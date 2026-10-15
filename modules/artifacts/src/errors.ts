@@ -1,20 +1,46 @@
-export type ArtifactsErrorFactory = (
-  code: string,
-  message: string,
-  details?: Record<string, unknown>,
-) => Error;
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
-export class ArtifactsError extends Error {
-  readonly code: string;
-  readonly details?: Record<string, unknown>;
+// Keep the current HTTP classification while removing the Host-selected error factory (W3-02-I1).
+const declared = defineErrorCodes("artifacts.artifact", {
+  board_mismatch: "invalid",
+  content_invalid: "invalid",
+  digest_invalid: "invalid",
+  hash_mismatch: "invalid",
+  input_invalid: "invalid",
+  metadata_invalid: "invalid",
+  not_found: "invalid",
+  not_owner: "invalid",
+  origin_invalid: "invalid",
+  owner_invalid: "invalid",
+  payload_invalid: "invalid",
+  producer_mismatch: "invalid",
+  scope_invalid: "invalid",
+  supersession_invalid: "invalid",
+  supersession_missing: "invalid",
+  team_share_not_authorized: "invalid",
+  type_undeclared: "invalid",
+  version_conflict: "invalid",
+  version_not_increasing: "invalid",
+});
 
-  constructor(code: string, message: string, details?: Record<string, unknown>) {
-    super(message);
-    this.name = "ArtifactsError";
-    this.code = code;
-    this.details = details;
-  }
-}
-
-export const defaultArtifactsErrorFactory: ArtifactsErrorFactory = (code, message, details) =>
-  new ArtifactsError(code, message, details);
+export const artifactErrors = {
+  "artifacts.artifact.board_mismatch": declared.board_mismatch,
+  "artifacts.artifact.content_invalid": declared.content_invalid,
+  "artifacts.artifact.digest_invalid": declared.digest_invalid,
+  "artifacts.artifact.hash_mismatch": declared.hash_mismatch,
+  "artifacts.artifact.input_invalid": declared.input_invalid,
+  "artifacts.artifact.metadata_invalid": declared.metadata_invalid,
+  "artifacts.artifact.not_found": declared.not_found,
+  "artifacts.artifact.not_owner": declared.not_owner,
+  "artifacts.artifact.origin_invalid": declared.origin_invalid,
+  "artifacts.artifact.owner_invalid": declared.owner_invalid,
+  "artifacts.artifact.payload_invalid": declared.payload_invalid,
+  "artifacts.artifact.producer_mismatch": declared.producer_mismatch,
+  "artifacts.artifact.scope_invalid": declared.scope_invalid,
+  "artifacts.artifact.supersession_invalid": declared.supersession_invalid,
+  "artifacts.artifact.supersession_missing": declared.supersession_missing,
+  "artifacts.artifact.team_share_not_authorized": declared.team_share_not_authorized,
+  "artifacts.artifact.type_undeclared": declared.type_undeclared,
+  "artifacts.artifact.version_conflict": declared.version_conflict,
+  "artifacts.artifact.version_not_increasing": declared.version_not_increasing,
+} as const;

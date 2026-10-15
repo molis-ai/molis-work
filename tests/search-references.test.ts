@@ -7,7 +7,7 @@ import { findReferenceCandidates } from "@molis-ai/molis-work-service-search";
 import { person, referenceOwners as fixture } from "./fixtures/reference-owners.js";
 
 // specs/ai-interaction-experience H3: the objects a person may pick for a question that asks for one. The Host's read of a
-// picked one before the answer goes on is S-24 (security-invariants-object-references).
+// picked one before the answer goes on is S-26 (security-invariants-object-references).
 
 test("AC-24 the candidates are objects of the asked kinds in the caller's project, each as its owner has it now", async t => {
   const f = await fixture(t);

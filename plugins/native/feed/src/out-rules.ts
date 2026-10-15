@@ -336,6 +336,6 @@ function isVersionConflict(error: unknown): boolean {
     error
     && typeof error === "object"
     && "code" in error
-    && (error as { code?: unknown }).code === "artifact.version_conflict",
+    && (error as { code?: unknown }).code === "artifacts.artifact.version_conflict",
   );
 }

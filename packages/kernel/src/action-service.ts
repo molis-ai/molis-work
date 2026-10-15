@@ -1,5 +1,7 @@
+import { actionExecutionContext, visibleAction } from "./action-execution-context.js";
+import { registeredActionMetadata } from "./action-metadata.js";
 import {
-  ActionError, actionReachesAudience, requireSynchronous,
+  ActionError, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
   type ActionProvider, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort,
   type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView, type ActionSceneView,
@@ -7,8 +9,9 @@ import {
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CapabilityRegistry } from "./index.js";
 import { assertSessionAuthorship } from "./action-authorship.js";
-import { bindCall, describeCall, settleCall, settleCallSync, startHandler, type CallContext, type CallSettled } from "./action-settlement.js";
-import { actionSchemaAccepts, compileActionSchema, createActionSchemaCompiler, validateActionValue } from "./action-schema.js";
+import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallSync, runActionHandler, type CallContext, type CallSettled } from "./action-settlement.js";
+import { actionSchemaAccepts, createActionSchemaCompiler, validateActionValue, type ActionValidator } from "./action-schema.js";
+import { validateActionInput } from "./version-precondition.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
 import { createExecutionLifetime, inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 
@@ -18,9 +21,9 @@ interface RegisteredScene {
   handler: ActionSceneHandlerBinding;
   availability(context: ActionCallContext): ActionAvailability;
   configurationAvailability(context: ActionCallContext): ActionAvailability;
-  validateEvent?: ReturnType<typeof compileActionSchema>;
-  validateInput: ReturnType<typeof compileActionSchema>;
-  validateResult: ReturnType<typeof compileActionSchema>;
+  validateEvent?: ActionValidator;
+  validateInput: ActionValidator;
+  validateResult: ActionValidator;
 }
 
 export type { ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -34,6 +37,8 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   constructor(readonly registry = new CapabilityRegistry<ActionCallContext>(),
     private readonly effects: {
       beforeEffect?(context: ActionCallContext, reference: ActionReference): void | Promise<void>;
+      /** The Host's live runtime check, without yielding after the final authority check. */
+      assertCurrent?(context: ActionCallContext, reference: ActionReference): void;
       /** Host policy, before anything is resolved or dispatched. Asynchronous, so a synchronous call is never offered to it. */
       admit?(context: CallContext, reference: ActionReference): void | Promise<void>;
       /** When a call is over, once, refusals included: which action, for whom, and how it ended. Never the input or result. */
@@ -47,11 +52,11 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     if (!provider.provider_id || !provider.title) throw new ActionError("actions.provider_invalid", "能力来源缺少身份或名称");
     const handlers = exactBindings(registration.definitions, registration.handlers, actionKey, "能力");
     const sceneHandlers = exactBindings(registration.scenes ?? [], registration.scene_handlers ?? [], sceneKey, "消费场景");
-    // A provider commonly shares its full workspace schema across many commands.
-    // Compile that immutable registration snapshot once; never retain a global
-    // cache that could carry a mutated contract into a later installation.
+    // A provider commonly shares its full workspace schema across many commands: check that immutable registration
+    // snapshot once (its validator is built on first use). Across registrations checks are reused only by exact schema text
+    // (action-schema.ts), so a mutated contract never reaches a later installation.
     const compileSchema = createActionSchemaCompiler();
-    const validators = new WeakMap<object, ReturnType<typeof compileActionSchema>>();
+    const validators = new WeakMap<object, ActionValidator>();
     const compile = (original: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema,
       snapshot: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema) => {
       let validator = validators.get(original);
@@ -81,7 +86,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         const availability = (context: ActionCallContext): ActionAvailability => {
           const source = sourceAvailability(context);
           if (!source.available) return source;
-          if (!visible(definition, provider, context)) return unavailable("actions.forbidden", "当前调用者不可使用此能力");
+          if (!visibleAction(definition, provider, context)) return unavailable("actions.forbidden", "当前调用者不可使用此能力");
           if (definition.action.scope === "project" && !context.project_id) return unavailable("actions.project_required", "请选择项目");
           const own = handler.availability?.(context) ?? { available: true };
           return own.available ? this.dependencyAvailability(context, definition) : own;
@@ -90,7 +95,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         const callWindows = new Map<string, number[]>();
         const execute = (context: ActionCallContext, input: unknown) => {
           context.signal?.throwIfAborted(); assertSessionAuthorship(definition.action, context);
-          validateActionValue(validateInput, input, "input");
+          validateActionInput(validateInput, definition, context, input);
           const policy = definition.action.execution;
           if (policy?.max_calls_per_minute) {
             const now = Date.now();
@@ -114,28 +119,15 @@ export class ActionService implements ActionClient, ActionRegistryPort {
             context.signal?.throwIfAborted();
             if (this.registry.registrationToken(registeredDefinition) !== registration) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
             assertAvailable(availability(context));
+            requireSynchronous(this.effects.assertCurrent?.(context, reference), "最终运行环境检查必须同步完成");
           };
           // Copy the context so a concurrent/nested invocation cannot replace this call's check.
-          const execution: ActionExecutionContext = { ...context, ...(lifetime ? { signal: lifetime.signal } : {}), beforeEffect: async () => {
-            assertCurrent();
-            await context.validate_authority?.(reference);
-            await context.validate_permissions?.(definition.action.permissions);
-            await this.effects.beforeEffect?.(context, reference);
-            assertCurrent();
-          } };
-          const checked = (value: unknown) => {
-            if (!validateOutput) return value;
-            try { validateActionValue(validateOutput, value, "output"); }
-            catch (error) {
-              // An operation that returned has already committed; reporting a plain failure would invite a retry that repeats it.
-              if (definition.operation === "command" && definition.action.kind === "operation" && error instanceof ActionError) throw new ActionError("actions.output_invalid_after_effect", `操作已执行，但${error.message}；请刷新后查看，不要重复操作`);
-              throw error;
-            }
-            return value;
-          };
+          const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
+            definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref)), ...(lifetime ? { signal: lifetime.signal } : {}) };
+          const checked = (value: unknown) => checkedActionResult(definition, validateOutput, value);
           // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
           try {
-            const result = startHandler(context, () => handler.handle(execution, input));
+            const result = runActionHandler(context, execution, () => executing, () => handler.handle(execution, input));
             if (handler.execution === "sync") {
               try { return checked(requireSynchronous(result)); }
               finally { executing = false; lifetime?.dispose(); }
@@ -197,17 +189,9 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   private directory(context: ActionCallContext, inspection: boolean): ActionView[] {
-    // Other projects' actions are dropped before anything is copied.
-    return this.registry.descriptors(d => !d.action_provider?.project_id || d.action_provider.project_id === context.project_id).flatMap(definition => {
-      const provider = definition.action_provider;
-      // A wait (following a live round) observes and is never an action; actions are queries or commands.
-      if (definition.operation === "wait") return [];
-      if (!definition.action || !provider || !context.actor_id
-        || (provider.project_id && provider.project_id !== context.project_id)
-        || !actionReachesAudience(definition.action, definition.capability_id, context.audience)) return [];
-      if (!inspection && !visible(definition as ActionDefinition, provider, context)) return [];
-      return [{ capability_id: definition.capability_id, version: definition.version, operation: definition.operation,
-        action: definition.action, provider, availability: this.registry.availability(context, definition) }];
+    return registeredActionMetadata(this.registry, context).flatMap(metadata => {
+      if (!inspection && !visibleAction(metadata, metadata.provider, context)) return [];
+      return [{ ...metadata, availability: this.registry.availability(context, { ...metadata, action_provider: metadata.provider }) }];
     });
   }
 
@@ -222,6 +206,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         await call.validate_authority({ ...reference, provider_id: definition.action_provider?.provider_id });
         if (registration !== this.registry.registrationToken(definition)) throw new ActionError("actions.provider_changed", "授权检查期间能力已重新加载，请重新执行");
       }
+      assertCurrentAuthority(call, { ...reference, provider_id: definition.action_provider?.provider_id });
       return this.registry.invoke(call, definition, input);
     });
   }
@@ -235,6 +220,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       const registration = this.registry.registrationToken(definition);
       requireSynchronous(call.validate_authority?.({ ...reference, provider_id: definition.action_provider?.provider_id }), "授权检查需要异步调用");
       if (registration !== this.registry.registrationToken(definition)) throw new ActionError("actions.provider_changed", "授权检查期间能力已重新加载，请重新执行");
+      assertCurrentAuthority(call, { ...reference, provider_id: definition.action_provider?.provider_id });
       return this.registry.invokeSync(call, definition, input);
     });
   }
@@ -346,6 +332,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     }
     if (this.requireScene(context, binding, purpose) !== scene) throw new ActionError("actions.provider_changed", "配置期间消费场景已重新加载");
     context.signal?.throwIfAborted();
+    assertCurrentAuthority(context, binding.enabled ? saved.function : undefined, requiredPermissions);
     await scene.handler.bind(context, structuredClone(saved), options ? { provider_id: options.provider_id,
       expected_revision: options.expected_revision, required_permissions: [...new Set(requiredPermissions)] } : undefined);
   }
@@ -363,17 +350,21 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     const functionRegistration = this.registry.registrationToken(functionDefinition);
     if (scene.validateEvent) validateActionValue(scene.validateEvent, event, "input");
     const prepared = scene.handler.prepare ? await scene.handler.prepare(context, event) : { input: event };
-    const recheck = async () => {
-      await context.validate_permissions?.(scene.definition.permissions);
+    const assertSceneCurrent = () => {
       if (this.requireScene(context, binding) !== scene || this.registry.registrationToken(functionDefinition) !== functionRegistration) {
         throw new ActionError("actions.provider_changed", "判断期间能力或消费场景已重新加载，请重新执行");
       }
+      context.signal?.throwIfAborted();
+    };
+    const recheck = async () => {
+      await context.validate_permissions?.(scene.definition.permissions);
+      assertSceneCurrent();
       const current = (await scene.handler.bindings(context)).find(b => b.binding_id === bindingId && bindingBelongsTo(b, scene.definition, context));
       if (!current?.enabled || actionKey(current.function) !== actionKey(binding.function) || current.revision !== binding.revision) {
         throw new ActionError("actions.binding_changed", "判断期间场景绑定已变化");
       }
       this.requireCompatible(context, scene, current.function);
-      context.signal?.throwIfAborted();
+      assertSceneCurrent();
     };
     await recheck();
     let result: unknown;
@@ -384,6 +375,8 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       await execution.beforeConsume?.(binding.function);
       await context.validate_authority?.(binding.function);
       await recheck();
+      assertCurrentAuthority(context, binding.function, scene.definition.permissions);
+      assertSceneCurrent();
       if (!scene.handler.failed) throw error;
       return scene.handler.failed(context, prepared.input, error, { binding: structuredClone(binding), state: prepared.state });
     }
@@ -391,6 +384,8 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     await context.validate_authority?.(binding.function);
     await recheck();
     validateActionValue(scene.validateResult, result, "output");
+    assertCurrentAuthority(context, binding.function, scene.definition.permissions);
+    assertSceneCurrent();
     return scene.handler.consume(context, prepared.input, result, { binding: structuredClone(binding), state: prepared.state });
   }
 
@@ -439,13 +434,17 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 }
 
-function visible(d: ActionDefinition, provider: ActionProvider, c: ActionCallContext): boolean {
-  return !!c.actor_id && (!provider.project_id || provider.project_id === c.project_id)
-    && actionReachesAudience(d.action, d.capability_id, c.audience) && d.action.permissions.every(p => c.permissions.includes(p))
-    && (!c.allowed_capability_ids || c.allowed_capability_ids.includes(d.capability_id))
-    && (!c.allowed_actions || c.allowed_actions.some(ref => ref.capability_id === d.capability_id && ref.version === d.version
-      && (!ref.provider_id || ref.provider_id === provider.provider_id)));
+function checkedActionResult(definition: ActionDefinition, validateOutput: ActionValidator | undefined, value: unknown): unknown {
+  if (!validateOutput) return value;
+  try { validateActionValue(validateOutput, value, "output"); }
+  catch (error) {
+    // An operation that returned has already committed; reporting a plain failure would invite a retry that repeats it.
+    if (definition.operation === "command" && definition.action.kind === "operation" && error instanceof ActionError) throw new ActionError("actions.output_invalid_after_effect", `操作已执行，但${error.message}；请刷新后查看，不要重复操作`);
+    throw error;
+  }
+  return value;
 }
+
 function sceneVisible(s: RegisteredScene, c: ActionCallContext): boolean {
   return !!c.actor_id && (!s.provider.project_id || s.provider.project_id === c.project_id)
     && (s.definition.permissions.every(p => c.permissions.includes(p))
@@ -476,7 +475,7 @@ function requireDefinition(definition: HostCapabilityDescriptor | undefined, ref
   }
   return definition;
 }
-function assertAvailable(value: ActionAvailability): void { if (!value.available) throw new ActionError(value.code, value.reason); }
+function assertAvailable(value: ActionAvailability): void { if (!value.available) throw new ActionError(value.code, value.reason, { kind: value.kind }); }
 function unavailable(code: string, reason: string): ActionAvailability { return { available: false, code, reason }; }
 function actionKey(v: ActionReference): string { return `${v.capability_id}@${v.version}`; }
 function sceneKey(v: { scene_id: string; version: number }): string { return `${v.scene_id}@${v.version}`; }

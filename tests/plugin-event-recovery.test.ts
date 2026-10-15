@@ -57,7 +57,7 @@ for (const memory of [false, true]) {
       assert.equal(receipt.actor_id, "local-reviewer");
       assert.equal(receipt.reason, input.reason);
       assert.equal(receipt.event_id, rig.bus.log(EVENT_BOARD)[0]!.event_id);
-      assert.throws(() => rig.bus.recover(EVENT_BOARD, "local-reviewer", input), { code: "event_recovery_changed" });
+      assert.throws(() => rig.bus.recover(EVENT_BOARD, "local-reviewer", input), { code: "plugin.event_recovery_changed" });
       await rig.bus.drain();
       assert.equal(rig.count(), decision === "skip" ? 2 : 3);
       assert.equal(rig.bus.cursors(EVENT_BOARD)[0]!.delivered_sequence, 2);
@@ -97,17 +97,17 @@ test("a failed audit insert rolls back the cursor and a competing connection can
 
 test("wrong project, stale code, stopped installation and unbound history cannot authorize recovery", async t => {
   const rig = await fixture(t), view = rig.bus.recoveries(EVENT_BOARD)[0]!, input = confirmation(view);
-  assert.throws(() => rig.bus.recover("other-board", "tester", input), { code: "event_identity_invalid" });
-  assert.throws(() => rig.bus.recover(EVENT_BOARD, "tester", { ...input, reason: " " }), { code: "event_recovery_invalid" });
+  assert.throws(() => rig.bus.recover("other-board", "tester", input), { code: "plugin.event_identity_invalid" });
+  assert.throws(() => rig.bus.recover(EVENT_BOARD, "tester", { ...input, reason: " " }), { code: "plugin.event_recovery_invalid" });
   const upgraded = { ...rig.subscriber, manifest: { ...rig.subscriber.manifest, version: "2.0.0",
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"] } } };
   await rig.supervisor.upgrade(EVENT_SUBSCRIBER, upgraded);
-  assert.throws(() => rig.bus.recover(EVENT_BOARD, "tester", input), { code: "event_recovery_changed" });
+  assert.throws(() => rig.bus.recover(EVENT_BOARD, "tester", input), { code: "plugin.event_recovery_changed" });
   const fresh = confirmation(rig.bus.recoveries(EVENT_BOARD)[0]!);
   assert.equal(fresh.expected_version, "2.0.0");
   rig.supervisor.revoke(EVENT_SUBSCRIBER);
   assert.equal(rig.bus.recoveries(EVENT_BOARD)[0]!.can_recover, false);
-  assert.throws(() => rig.bus.recover(EVENT_BOARD, "tester", fresh), { code: "event_recovery_changed" });
+  assert.throws(() => rig.bus.recover(EVENT_BOARD, "tester", fresh), { code: "plugin.event_recovery_changed" });
   await rig.supervisor.enable(EVENT_SUBSCRIBER);
   rig.repository.saveCursor({ ...view.cursor, revision: "legacy", subscriber_install_id: "", subscriber_generation: "" });
   const legacy = rig.bus.recoveries(EVENT_BOARD).find(row => !row.cursor.subscriber_generation)!;
@@ -125,8 +125,8 @@ test("same-id reinstall never takes over the old event and close cannot resolve 
   assert.equal(rig.supervisor.installation(EVENT_SUBSCRIBER)!.install_id, input.expected_install_id);
   assert.notEqual(rig.supervisor.installation(EVENT_SUBSCRIBER)!.installation_generation, input.expected_generation);
   assert.equal(rig.bus.recoveries(EVENT_BOARD)[0]!.can_recover, false);
-  assert.throws(() => rig.bus.recover(EVENT_BOARD, "tester", input), { code: "event_recovery_changed" });
+  assert.throws(() => rig.bus.recover(EVENT_BOARD, "tester", input), { code: "plugin.event_recovery_changed" });
   await rig.bus.close();
-  assert.throws(() => rig.bus.recover(EVENT_BOARD, "tester", input), { code: "event_recovery_changed" });
+  assert.throws(() => rig.bus.recover(EVENT_BOARD, "tester", input), { code: "plugin.event_recovery_changed" });
   assert.equal(rig.count(), 1);
 });

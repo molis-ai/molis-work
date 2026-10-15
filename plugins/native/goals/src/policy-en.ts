@@ -1,5 +1,7 @@
 /** English copy owned by the Goals work-rules surfaces. Shared shell labels remain in Workbench. */
 export const GOALS_POLICY_EN: Record<string, string> = {
+  "项目规则在收尾时检查；本 Goal 的完成要求由事件记录维护。": "Project rules are checked at closure. This Goal's completion requirements are maintained in its event record.",
+  "当前 Goal 完成要求": "This Goal's completion requirements",
 
   "当前使用系统默认": "Using system defaults",
   "保存项目默认规则": "Save project rules",

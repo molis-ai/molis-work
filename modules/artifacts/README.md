@@ -51,12 +51,14 @@ node scripts/run-tests.mjs tests/artifacts-module.test.ts
 - 公开入口：`@molis-ai/molis-work-module-artifacts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/artifacts`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 错误由本包声明并抛出共同 `ActionError`，Host 不注入错误工厂；现行码、消息、详情与响应分类随 owner 保持。
   - 同一 `artifact_id + version` 的相同重放幂等，不同内容不能覆盖；不维护 canonical head。
   - 没有兼容消费者时仍能保存、同步和重放。
-  - 版本的生产者（`actor_id`，记为 `created_by`）与归属（`owner_actor_id`，缺省为生产者）分开。装配时给了 `homeOwner` 的 Home 里，个人成果一律归这个人：已存的、归在某个行为者名下的身份读作这个人的，不迁移；给个人成果写别的 owner 报 `artifact.owner_invalid`。`team_project` 与过程项不适用。
+  - 版本的生产者（`actor_id`，记为 `created_by`）与归属（`owner_actor_id`，缺省为生产者）分开。装配时给了 `homeOwner` 的 Home 里，个人成果一律归这个人：已存的、归在某个行为者名下的身份读作这个人的，不迁移；给个人成果写别的 owner 报 `artifacts.artifact.owner_invalid`。`team_project` 与过程项不适用。
   - 只有用户在插件里明确共享，或 Team 插件已获授权，才能注册 `team_project` 版本。
   - 事件日志（`events` 表）是 storage 的：事件追加和读游标都经装配时传入的 `appendEvent`、`eventCursor`（宿主传 storage 的日志函数），包内不写 `events` 的 SQL，`pnpm health:check` 的 `table-owners` 门禁守着。
-- 改动后必跑：`node scripts/run-tests.mjs tests/artifacts-module.test.ts tests/artifacts-actions.test.ts tests/plugin-artifact-client.test.ts tests/personal-artifact-owner.test.ts`
+  - 写入一个成果或过程项版本后，本进程里看同一个库文件的观察者会被告知（`committed.ts` 的 `onVersionStoreWrite`，W4-09）；写在别人开的事务里时，等那个事务结束（提交或回滚）再告知，观察者自己读日志判断有没有新东西。别的进程写的不告知，由观察者的低频兜底读到。
+- 改动后必跑：`node scripts/run-tests.mjs tests/artifacts-module.test.ts tests/artifacts-actions.test.ts tests/plugin-artifact-client.test.ts tests/personal-artifact-owner.test.ts tests/plugin-platform-composition.test.ts`
 - 相关手册：[docs/modules/artifacts.md](../../docs/modules/artifacts.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

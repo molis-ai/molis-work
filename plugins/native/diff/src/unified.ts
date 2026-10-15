@@ -1,4 +1,5 @@
 import type { TextDiffRow } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * Reading a unified diff that somebody else already computed.
@@ -23,12 +24,11 @@ export interface UnifiedHunk {
   rows: readonly TextDiffRow[];
 }
 
-export class UnifiedDiffError extends Error {
-  constructor(readonly code: "unified.no_hunks" | "unified.bad_header" | "unified.count_mismatch", message: string) {
-    super(message);
-    this.name = "UnifiedDiffError";
-  }
-}
+export const unifiedErrors = defineErrorCodes("diff.unified", {
+  no_hunks: "invalid",
+  bad_header: "invalid",
+  count_mismatch: "invalid",
+});
 
 const HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@ ?(.*)$/u;
 
@@ -55,9 +55,7 @@ export function parseUnifiedDiff(diff: string): UnifiedHunk[] {
     const sawBefore = current.rows.filter((row) => row.kind !== "insert").length;
     const sawAfter = current.rows.filter((row) => row.kind !== "delete").length;
     if (sawBefore !== expectedBefore || sawAfter !== expectedAfter) {
-      throw new UnifiedDiffError(
-        "unified.count_mismatch",
-        `hunk 行数与 @@ 头不一致：声明 ${expectedBefore}/${expectedAfter}，实际 ${sawBefore}/${sawAfter}`,
+      throw unifiedErrors.count_mismatch(`hunk 行数与 @@ 头不一致：声明 ${expectedBefore}/${expectedAfter}，实际 ${sawBefore}/${sawAfter}`,
       );
     }
     hunks.push({
@@ -76,7 +74,7 @@ export function parseUnifiedDiff(diff: string): UnifiedHunk[] {
       close();
       const header = HEADER.exec(line);
       if (header === null) {
-        throw new UnifiedDiffError("unified.bad_header", `读不懂的 hunk 头：${line.slice(0, 80)}`);
+        throw unifiedErrors.bad_header(`读不懂的 hunk 头：${line.slice(0, 80)}`);
       }
       current = {
         header,
@@ -109,7 +107,7 @@ export function parseUnifiedDiff(diff: string): UnifiedHunk[] {
   }
   close();
   if (hunks.length === 0) {
-    throw new UnifiedDiffError("unified.no_hunks", "这段 diff 里没有可读的 hunk");
+    throw unifiedErrors.no_hunks("这段 diff 里没有可读的 hunk");
   }
   return hunks;
 }

@@ -4,13 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 
 import { SignalsModule } from "@molis-ai/molis-work-module-signals";
 import { SourcesModule } from "@molis-ai/molis-work-module-sources";
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
-import { ListenerHost, ListenerHostError } from "@molis-ai/molis-work-service-listener-host";
+import { ListenerHost } from "@molis-ai/molis-work-service-listener-host";
 import type {
   ConnectorDriver,
+  ConnectorFailureKind,
   ConnectorPollResult,
   ConnectorRawEvent,
 } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -85,6 +87,110 @@ function connectorWith(driver: ConnectorDriver): ConnectorHost {
   return connector;
 }
 
+test("FAS-01: rejected Signal drafts leave records, revisions and events unchanged", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-signal-refusal-"));
+  const databasePath = join(directory, "molis-work.sqlite");
+  seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath);
+  try {
+    const signals = new SignalsModule(store.db);
+    const draft = { project_id: DEMO_PROJECT_ID, source_id: "fas-source", provider_dedupe_id: "fas-event", kind: "update",
+      occurred_at: "2026-09-02T08:00:00.000Z", observed_at: "2026-09-02T08:00:01.000Z", payload: { title: "Accepted event" },
+      raw_event_id: "fas-raw-event", adapter: { plugin_id: "io.molis.work.integration.fixture", version: "1.0.0" }, provenance: {} };
+    const accepted = signals.commands.submitDraft(draft);
+    const records = signals.query.list(DEMO_PROJECT_ID), events = signals.events.list(DEMO_PROJECT_ID);
+    const revisions = store.db.prepare("SELECT * FROM signal_revisions ORDER BY signal_id, revision").all();
+    assert.throws(() => signals.query.get(DEMO_PROJECT_ID, "missing-fas-signal"), (error: unknown) => error instanceof ActionError
+      && error.code === "signals.not_found" && error.message === "找不到这个 Signal" && actionHttpStatus(error) === 400);
+    assert.throws(() => signals.commands.submitDraft({ ...draft, kind: "" }), (error: unknown) => error instanceof ActionError
+      && error.code === "signals.invalid_draft" && error.message === "Signal Draft 缺少可信身份、时间或结构化内容" && actionHttpStatus(error) === 400);
+    assert.deepEqual(signals.query.list(DEMO_PROJECT_ID), records);
+    assert.deepEqual(signals.events.list(DEMO_PROJECT_ID), events);
+    assert.deepEqual(store.db.prepare("SELECT * FROM signal_revisions ORDER BY signal_id, revision").all(), revisions);
+    assert.deepEqual(signals.query.get(DEMO_PROJECT_ID, accepted.signal.signal_id), accepted.signal);
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+// CONERR-01: real Connector wiring rejects invalid provider input and a revoked connection without another poll.
+test("J2A-01: the connector owner refuses missing, duplicate and revoked wiring, and rejects an invalid provider event", async () => {
+  const connector = new ConnectorHost();
+  let polls = 0;
+  const driver: ConnectorDriver = { driver_id: "refusal-driver", async health() { return { ok: true, status: "connected", message: "ready" }; },
+    async poll() { polls++; return { ok: true, mode: "live", events: [{ ...rawEvent("invalid"), occurred_at: "not-a-date" }], cursor_after: null }; } };
+  assert.throws(() => connector.connect({ connection_id: "refusal-connection", driver_id: driver.driver_id }), { code: "connector.driver_missing" });
+  assert.equal(polls, 0);
+  connector.registerDriver(driver);
+  connector.registerDriver(driver);
+  assert.throws(() => connector.registerDriver({ ...driver }), { code: "connector.driver_duplicate" });
+  connector.connect({ connection_id: "refusal-connection", driver_id: driver.driver_id });
+  await assert.rejects(connector.invoke({ connection_id: "refusal-connection", cursor: null }), { code: "connector.invocation_failed" });
+  assert.equal(polls, 1);
+  connector.revoke("refusal-connection");
+  await assert.rejects(connector.invoke({ connection_id: "refusal-connection", cursor: null }), { code: "connector.connection_missing" });
+  assert.equal(polls, 1, "a revoked connection cannot invoke its driver again");
+});
+
+test("J3A-01: Sources owner refusals leave both the source and its durable events unchanged", () => {
+  const directory = mkdtempSync(join(tmpdir(), "sources-owner-refusal-")), databasePath = join(directory, "project.sqlite");
+  seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath);
+  try {
+    const sourceId = createSource(store), sources = new SourcesModule(store.db);
+    const before = sources.query.get(DEMO_PROJECT_ID, sourceId), events = sources.events.list(DEMO_PROJECT_ID, sourceId);
+    assert.throws(() => sources.query.get(DEMO_PROJECT_ID, "missing-source"), { code: "sources.not_found", message: /找不到/ });
+    assert.throws(() => sources.commands.save({ ...before, schedule: { mode: "interval", enabled: true, interval_minutes: 1, next_pull_at: null } }), { code: "sources.invalid_schedule", message: /来源计划/ });
+    assert.deepEqual(sources.query.get(DEMO_PROJECT_ID, sourceId), before);
+    assert.deepEqual(sources.events.list(DEMO_PROJECT_ID, sourceId), events);
+    sources.commands.retire(DEMO_PROJECT_ID, sourceId, "retain_history");
+    const retired = sources.query.get(DEMO_PROJECT_ID, sourceId), history = sources.events.list(DEMO_PROJECT_ID, sourceId);
+    assert.throws(() => sources.commands.setEnabled(DEMO_PROJECT_ID, sourceId, true), { code: "sources.not_found" });
+    assert.deepEqual(sources.query.get(DEMO_PROJECT_ID, sourceId), retired);
+    assert.deepEqual(sources.events.list(DEMO_PROJECT_ID, sourceId), history);
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+// J3C-01/J3C-02: dynamic provider failures are persisted with the current owner, not inferred by the test.
+test("Listener persists a failed provider pull, retains the cursor and replays without polling", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "listener-provider-owner-")), databasePath = join(directory, "project.sqlite");
+  seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath);
+  try {
+    const sourceId = createSource(store), signals = new SignalsModule(store.db);
+    let polls = 0, failure: ConnectorFailureKind = "needs_auth";
+    const driver: ConnectorDriver = { driver_id: "failure-owner-driver", async health() { return { ok: true, status: "connected", message: "ready" }; },
+      async poll() { polls += 1; return { ok: false, mode: "live", failure, message: "Provider refused", retry_after_at: "2026-09-02T08:10:00.000Z" }; } };
+    const listener = new ListenerHost(store.db, connectorWith(driver), signals.commands);
+    const cases: ReadonlyArray<readonly [ConnectorFailureKind, string]> = [["needs_auth", "connector.needs_auth"], ["configuration", "connector.configuration"],
+      ["network", "connector.network"], ["provider", "connector.provider"], ["rate_limited", "connector.rate_limited"], ["stale_history", "connector.stale_history"]];
+    for (const [reason, code] of cases) {
+      failure = reason;
+      const input = { project_id: DEMO_PROJECT_ID, source_id: sourceId, connection_id: "fixture-connection", operation_id: "provider-failure-" + reason, adapter: adapter() };
+      const receipt = await listener.run(input);
+      assert.equal(receipt.error_code, code);
+      assert.deepEqual([receipt.phase, receipt.outcome, receipt.created_count, receipt.deduped_count], ["terminal", "failed", 0, 0]);
+      assert.equal(listener.getRunByOperationId(DEMO_PROJECT_ID, input.operation_id)?.error_code, code);
+      const checkpoint = listener.checkpoint(DEMO_PROJECT_ID, sourceId);
+      assert.deepEqual(checkpoint.cursor, {}); assert.equal(checkpoint.last_error_code, code);
+      assert.equal(checkpoint.state, reason === "rate_limited" ? "retry_wait" : "idle");
+      if (reason === "rate_limited") assert.equal(checkpoint.retry_at, "2026-09-02T08:10:00.000Z");
+      const beforeReplay = polls;
+      assert.equal((await listener.run(input)).replayed, true); assert.equal(polls, beforeReplay);
+      assert.deepEqual(signals.query.list(DEMO_PROJECT_ID, sourceId), []);
+    }
+    const run = listener.listRuns(DEMO_PROJECT_ID)[0]!;
+    const interrupted = { ...run, run_id: "interrupted-owner-run", operation_id: "interrupted-owner-operation", phase: "running" as const, outcome: null, error_code: null, completed_at: null };
+    listener.saveRun(interrupted);
+    store.db.prepare("UPDATE listener_instances SET state = 'listening', lease_owner = ?, lease_expires_at = ? WHERE project_id = ? AND source_id = ?")
+      .run("old-process", "2026-09-02T08:10:00.000Z", DEMO_PROJECT_ID, sourceId);
+    const restarted = new ListenerHost(store.db, connectorWith(driver), new SignalsModule(store.db).commands);
+    assert.equal(restarted.recoverInterruptedRuns(DEMO_PROJECT_ID), 1);
+    assert.equal(restarted.getRunByOperationId(DEMO_PROJECT_ID, interrupted.operation_id)?.error_code, "listener.process_interrupted");
+    assert.equal(restarted.checkpoint(DEMO_PROJECT_ID, sourceId).last_error_code, "listener.process_interrupted");
+    assert.equal(restarted.checkpoint(DEMO_PROJECT_ID, sourceId).state, "retry_wait");
+    assert.equal(restarted.recoverInterruptedRuns(DEMO_PROJECT_ID), 0);
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
 test("Listener refusal after accepting a Signal preserves that receipt but cannot mark delivery, advance cursor or write a failure; restart dedupes it", async () => {
   const directory = mkdtempSync(join(tmpdir(), "listener-effect-authority-")), databasePath = join(directory, "project.sqlite");
   seedDemoBoard(databasePath);
@@ -155,8 +261,8 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
           operation_id: "fd1-operation-recovery",
           adapter: adapter("two"),
         }),
-        (error: unknown) => error instanceof ListenerHostError
-          && error.code === "listener_delivery_failed",
+        (error: unknown) => error instanceof ActionError
+          && error.code === "listener.delivery_failed",
       );
       assert.deepEqual(firstListener.checkpoint(DEMO_PROJECT_ID, sourceId).cursor, {});
       assert.equal(firstSignals.query.list(DEMO_PROJECT_ID, sourceId).length, 1);
@@ -233,6 +339,7 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
   }
 });
 
+// J3B-01/J3B-02: the real lease refusal retains its current owner code.
 test("Listener lease prevents two callers from consuming one Source concurrently", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-fd1-lease-"));
   try {
@@ -275,7 +382,15 @@ test("Listener lease prevents two callers from consuming one Source concurrently
           operation_id: "fd1-lease-second",
           adapter: adapter(),
         }),
-        (error: unknown) => error instanceof ListenerHostError && error.code === "listener_lease_busy",
+        (error: unknown) => {
+          // SOURCE-01: the second real poll cannot take an existing Listener lease.
+          assert.ok(error instanceof ActionError);
+          assert.equal(error.code, "listener.lease_busy");
+          assert.equal(error.message, "这个 Source 已有 Listener 正在处理");
+          assert.equal(error.kind, "invalid");
+          assert.equal(actionHttpStatus(error), 400);
+          return true;
+        },
       );
       releasePoll?.();
       assert.equal((await first).outcome, "completed");
@@ -288,6 +403,7 @@ test("Listener lease prevents two callers from consuming one Source concurrently
   }
 });
 
+// J3B-01/J3B-03: repeated delivery failure preserves the cursor and blocks further polling.
 test("repeated Adapter failure quarantines the Raw Event without polling past it", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-fd1-quarantine-"));
   try {
@@ -328,14 +444,14 @@ test("repeated Adapter failure quarantines the Raw Event without polling past it
         adapter: failingAdapter,
       });
 
-      await assert.rejects(run(), (error: unknown) => error instanceof ListenerHostError
-        && error.code === "listener_delivery_failed");
-      await assert.rejects(run(), (error: unknown) => error instanceof ListenerHostError
-        && error.code === "listener_delivery_quarantined");
+      await assert.rejects(run(), (error: unknown) => error instanceof ActionError
+        && error.code === "listener.delivery_failed");
+      await assert.rejects(run(), (error: unknown) => error instanceof ActionError
+        && error.code === "listener.delivery_quarantined");
       assert.equal(listener.checkpoint(DEMO_PROJECT_ID, sourceId).state, "quarantined");
       assert.deepEqual(listener.checkpoint(DEMO_PROJECT_ID, sourceId).cursor, {});
-      await assert.rejects(run(), (error: unknown) => error instanceof ListenerHostError
-        && error.code === "listener_delivery_quarantined");
+      await assert.rejects(run(), (error: unknown) => error instanceof ActionError
+        && error.code === "listener.delivery_quarantined");
       assert.equal(polls, 1, "quarantined delivery must block further Provider polling");
     } finally {
       store.close();

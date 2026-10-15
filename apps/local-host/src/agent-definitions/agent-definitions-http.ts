@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
-import { AgentDefinitionsError, type AgentDefinitions } from "./agent-definitions.js";
+import type { AgentDefinitions } from "./agent-definitions.js";
 import { UNREGISTERED_MODEL_CALLS } from "./builtin-instructions.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -25,10 +25,5 @@ export async function handleAgentDefinitionsHttp(request: IncomingMessage, respo
       if (method === "POST" && path === "/prompt/reset") return { status: 200, body: { prompt: definitions.reset(key, expected, WEB_ACTOR) } };
       return null;
     },
-    mapError(error) {
-      if (error instanceof AgentDefinitionsError) {
-        return { status: error.code === "agent_definitions.not_found" ? 404 : error.code === "agent_definitions.conflict" ? 409 : 400, body: { error: error.message, code: error.code } };
-      }
-      return { status: 500, body: { error: error instanceof Error ? error.message : "读取 Prompt 失败" } };
-    } });
+  });
 }

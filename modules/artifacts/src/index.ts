@@ -85,11 +85,6 @@ export {
   normalizeArtifactPayload,
 } from "./content.js";
 export {
-  ArtifactsError,
-  defaultArtifactsErrorFactory,
-  type ArtifactsErrorFactory,
-} from "./errors.js";
-export {
   ARTIFACT_TABLES,
   ARTIFACTS_SCHEMA_SQL,
   ArtifactsRepository,
@@ -105,6 +100,7 @@ export {
   type ArtifactsSqliteDatabase,
   type ArtifactsSqliteStatement,
 } from "./repository.js";
+export { afterTransaction, onVersionStoreWrite } from "./committed.js";
 export {
   ArtifactsService,
   type ArtifactEventInput,

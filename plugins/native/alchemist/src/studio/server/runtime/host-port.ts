@@ -31,13 +31,13 @@ export async function generateWithHost<Result>(ai: AlchemistAiPort, input: Struc
   input.signal?.throwIfAborted();
   await input.beforeModelDispatch?.();
   const parseResult = (result: Awaited<ReturnType<AlchemistAiPort["generate"]>>): Result => {
-    if (!result.json.ok) throw new Error("AI_OUTPUT_INVALID");
+    if (!result.json.ok) throw new Error("alchemist.ai_output_invalid");
     return parse(result.json.value);
   };
   try {
     return { operationId: input.operationId, runtimeLabel: result.runtimeLabel, value: parseResult(result), ...(result.usage ? { usage: result.usage } : {}) };
   } catch (error) {
-    if (!beforeCorrection || !(error instanceof ZodError || error instanceof Error && error.message === "AI_OUTPUT_INVALID")) throw error;
+    if (!beforeCorrection || !(error instanceof ZodError || error instanceof Error && error.message === "alchemist.ai_output_invalid")) throw error;
     // The worker reserves and persists this extra call before it can reach Prologue.
     await beforeCorrection();
     input.signal?.throwIfAborted();

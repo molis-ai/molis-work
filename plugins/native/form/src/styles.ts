@@ -74,7 +74,7 @@ export const FORM_STYLES = `
     background: color-mix(in srgb, var(--rail) 72%, var(--paper));
   }
   [data-form-pane=preview] .form-field { gap: 8px; }
-  [data-form-pane=preview] .form-field > span:first-child { color: var(--ink); font-size: 13px; }
+  [data-form-pane=preview] .form-field > :first-child { color: var(--ink); font-size: 13px; }
   .form-preview-options { display: flex; flex-direction: column; gap: 4px; }
   .form-preview-rating { flex-direction: row; flex-wrap: wrap; gap: 8px 12px; }
   .form-preview-option {

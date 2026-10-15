@@ -201,7 +201,7 @@ export function parseOrganizeOutput(raw: string, materials: readonly TodoOrganiz
         uncertain.push(reading.ambiguous);
       } else if (reading) {
         dueDate = reading.date;
-        dueTime = reading.time ?? (dueTime && dueDate === due.date ? dueTime : null);
+        dueTime = reading.time;
       } else if (dueDate) {
         // A phrase no rule can turn into a day ("这周", "月中") does not become a due date on the model's word.
         suggested = suggested ?? dueDate;
@@ -229,19 +229,14 @@ export function parseOrganizeOutput(raw: string, materials: readonly TodoOrganiz
       const changes: Record<string, string | null> = {};
       const protectedFields: { field: (typeof CHANGE_FIELDS)[number]; value: string | null }[] = [];
       for (const field of CHANGE_FIELDS) {
-        if (!match.changes || !(field in match.changes)) continue;
-        const next = match.changes[field];
+        // The displayed candidate and existing todo share the same material-backed date reading.
+        const dueField = field === "due_date" || field === "due_time";
+        if (dueField ? !dueDate : !match.changes || !(field in match.changes)) continue;
+        const next = dueField ? field === "due_date" ? dueDate : dueTime : match.changes[field];
         const valid = next === null || (field.endsWith("date") ? isTodoDate(next) : field === "due_time" ? isTodoTime(next) : typeof next === "string" && next.trim().length > 0);
         if (!valid || JSON.stringify(item[field]) === JSON.stringify(next)) continue;
-        // A due date the material does not state never overwrites; a field the person edited is theirs.
-        if (field === "due_date" && !(phrase && quoted)) continue;
         if ((item.edited_fields as readonly string[]).includes(field)) protectedFields.push({ field, value: next as string | null });
         else changes[field] = next as string | null;
-      }
-      // A due date the material states and the todo does not match is a change, whatever relation the model named.
-      if (dueDate && item.due_date !== dueDate && !("due_date" in changes) && !protectedFields.some(entry => entry.field === "due_date")) {
-        if ((item.edited_fields as readonly string[]).includes("due_date")) protectedFields.push({ field: "due_date", value: dueDate });
-        else changes.due_date = dueDate;
       }
       const closed = item.status === "done" || item.status === "cancelled";
       let relation = match.relation as NonNullable<TodoCandidateDraft["existing"]>["relation"];

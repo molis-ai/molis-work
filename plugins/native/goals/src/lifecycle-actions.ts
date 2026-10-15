@@ -1,8 +1,8 @@
 import { ActionError, withActionEffect, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalsLifecycleApi, GoalsCommandApi, GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction, goalActor } from "./action-contract.js";
-import { text, identifier, count, boolean, object, array } from "./event-action-schemas.js";
-import { goalRecordSchema, goalArchiveResultSchema, goalTrashResultSchema } from "./goal-record-schema.js";
+import { text, identifier, count, boolean, object, array } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalRecordSchema, goalArchiveResultSchema, goalTrashResultSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
 type ActiveInput = { goal_id: string; reason: string; idempotency_key: string };
 type ArchiveInput = ActiveInput & { archived: boolean };
@@ -37,7 +37,7 @@ export function createGoalsLifecycleActionHandlers(ports: GoalsLifecycleActionPo
     } },
     { ...goalsLifecycleActions.trash, handle: (caller, input) => {
       const { idempotency_key, user_confirmed, ...goal } = input as TrashInput;
-      if (!user_confirmed) throw new ActionError("goal.trash_confirmation_required", "移入或恢复回收站必须先由用户明确确认指定目标");
+      if (!user_confirmed) throw new ActionError("goals.goal.trash_confirmation_required", "移入或恢复回收站必须先由用户明确确认指定目标");
       return ports.lifecycle.setTrashed(projectId, goal, { ...goalActor(caller), idempotency_key });
     } },
     { ...goalsLifecycleActions.trashed, handle: () => ({ goals: ports.lifecycle.listTrashed(projectId), observed_event_cursor: ports.eventCursor() }) },

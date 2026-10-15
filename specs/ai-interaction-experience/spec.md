@@ -821,6 +821,17 @@ I0 预览、共享展示部件（#423，已进 main）、共享浏览器行为�
 4. **A2 Coding 接入**：`ui.ts` 问题卡改用 `renderInteractionQuestion`，`client.ts` 用共享函数，`routes.ts` 的 `questionAnswer` 收 `value`，`question_drafts` 收值，`coding-base` 升版，在 Coding 声明里加题型；Coding 客户端字节在 5 个包里都不涨；AC-22。
 5. **H2/H3/H4**：H2 操作卡协作者（`assistant-offers.ts`，W5-10 形状）、H3 对象引用只读动作 `interaction.references.search`（`pnpm actions:update`，安全不变量加拒绝用例）、H4 Coding 的 `suggest-action`；AC-23–25。
 6. **S1 单次接续**：题型校验纯函数放 `packages/plugin-sdk`（不放 kernel），与 Prologue 的 `validateQuestionnaireAnswer` 做一致性用例并加进 `tests/ci-product-subset.txt`；Form「AI 生成表单」缺信息返回 `needs_input` → 同一问卷卡（宿主提供客户端挂载）→ 接续生成。Form 现在没有这个功能，是新功能；AC-26。
+   - **S1 状态（2026-10-15，PR #532，分支 `feature/ai-interaction-s1`）**：已实现；构建、门禁与定向用例通过，全量在 CI 上跑。做法：
+     - `packages/plugin-sdk` 的 `questionProblems`、`questionSetFlaw`（在 Molis 的形状上复刻 Prologue 的规则）。`tests/question-rules-consistency.test.ts` 用 36 组输入覆盖全部 19 个原因，与 agent-host 的 `answerProblems`（背后是 `validateQuestionnaireAnswer`）逐条同结论，已进 `ci-product-subset`。
+     - 合同 `InteractionRequest` / `InteractionRequestResult`（`services/agent-interaction`）：插件动作「先问几个问题」时的结果形状 `{ status: "needs_input", interaction }`。
+     - 宿主 `withPluginInteraction`（`apps/local-host/src/plugin-interaction-answer.ts`）挂在插件路由共用的两处出口：Native 的 `dispatchNativePluginJsonHttp` 与 Runtime 的 `dispatchRuntimePluginRoute`。对任何插件，见到这个形状就补上共享问卷卡的 html，底部那句由插件的 `note` 给；见到 `details.problems` 是问卷原因的拒绝，就补上逐字段的 `details.errors`（与助理的卡同一套文字）。它不认插件、不认错误码。
+     - Form 新动作 `form.questions.draft@1`（「AI 生成题目」，concurrent，`model:invoke`），旧的 `form.questions.ai@1` 与提示词 `form.draft-question` 已删，不留兼容（防腐复查第 1 条）。
+       - 回答按问过的那几道题检查（`form.answer_invalid`，`details.problems`），通过后带着原要求与回答再调一次模型，只追问一次。
+       - 问卷里已有的题不发给模型，与旧动作「本地题目不出本机」一致。
+       - 问过的题只存在插件进程里（至多 32 组、一天），绑定问卷 id、项目与版本；问卷在回答期间改过就请人重新生成。这不是持久等待。
+     - 页面只绑定共享客户端（`host.interaction`）：请求在途时问卷区 inert，卡片出现时第一题取得焦点。`form.js` 37633 → 37472 字节，`client.ts` 930 → 899 行。
+     - 作者手册：`skills/molis-plugin-dev/ui.md`「动作先问几个问题再接着做」。
+     - 验证：`tests/form-draft-questions.test.ts`、`tests/plugin-interaction-answer.test.ts`（AC-26），以及 `tests/form-actions.e2e.test.ts` 在 1440/390 走「问 → 空答被拒在字段旁 → 回答 → 题目追加」。题型仍只开放 choice（D8 交集），开放其他题型是后面单独一片。
 7. **D1 文档**随各片：`skills/molis-prologue-ai`、`docs/platform/PROLOGUE-AI.md`、`skills/molis-plugin-dev`（含 `generated-ai.md`）、设计系统 README；§15.8 三个示例都要有用例。
 
 ### 20.6 跨线约定
@@ -998,7 +1009,7 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
   - 没接复核的宿主一律拒绝带引用的回答。
   - 宿主由 `system-agent-service.ts` 接上 `localHost.search.confirmReferences`，只认本机用户是会话主人的情况。
   - 新原因 `reference-unavailable`（D22），字段旁的话写在 `agent-question-card.ts`，英文在 `renderer-gap-en.ts`。
-- 安全不变量 S-24（`docs/system/SECURITY-INVARIANTS.md`）及其用例 `tests/security-invariants-object-references.test.ts`（两条），候选用例 `tests/search-references.test.ts`，夹具 `tests/fixtures/reference-owners.ts`。
+- 安全不变量 S-26（`docs/system/SECURITY-INVARIANTS.md`）及其用例 `tests/security-invariants-object-references.test.ts`（两条），候选用例 `tests/search-references.test.ts`，夹具 `tests/fixtures/reference-owners.ts`。
 - S1：
   - `packages/plugin-sdk/src/question-rules.ts`（`questionProblems`、`questionSetFlaw`）与 `tests/question-rules-consistency.test.ts`。
   - Form 新动作 `form.questions.draft@1`（`plugins/native/form/src/drafting.ts`）。不改 `form.questions.ai@1`，因为创作台回放语料引用它。

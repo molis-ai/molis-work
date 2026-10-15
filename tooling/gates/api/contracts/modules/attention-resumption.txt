@@ -35,11 +35,6 @@ export interface AttentionEntryRecord {
     completed_at: string | null;
 }
 
-export declare class AttentionError extends Error {
-    readonly code: "attention_entry_not_found" | "attention_revision_conflict" | "attention_invalid_reference" | "attention_invalid_transition";
-    constructor(code: "attention_entry_not_found" | "attention_revision_conflict" | "attention_invalid_reference" | "attention_invalid_transition", message: string);
-}
-
 export interface AttentionEvent {
     event_id: string;
     project_id: string;
@@ -80,6 +75,13 @@ export interface CreateAttentionEntryInput {
     entry_id?: string;
     at?: string;
 }
+
+export declare const attentionErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly entry_not_found: "invalid";
+    readonly revision_conflict: "invalid";
+    readonly invalid_reference: "invalid";
+    readonly invalid_transition: "invalid";
+}>;
 
 export declare const inboxErrors: import("platform/action-errors").ErrorCodeRaisers<{
     readonly entry_not_found: "not_found";

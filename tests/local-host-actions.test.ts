@@ -268,6 +268,9 @@ test("every route into an action or a typed capability is settled exactly once, 
   host.register(counter, (runtime, input) => (runtime.total += input.amount));
   host.register(note, (_runtime, input, invocation) => { noted.push(invocation.call_id); return input.text; });
   host.register(broken, () => { throw new Error("the handler failed"); });
+  const lookalike = { ...broken, capability_id: "host.notes.lookalike" };
+  const ownerFailure = Object.assign(new Error("the owner failed"), { code: "kernel.capability_missing" });
+  host.register(lookalike, () => { throw ownerFailure; });
   host.actionRegistry().registerProvider({ provider: { provider_id: "home", kind: "system", title: "Home" }, definitions: [homeRead], handlers: [{ ...homeRead, handle: () => 7 }] });
   host.actionRegistry(project).registerProvider({ provider: { provider_id: "sync", kind: "plugin", title: "Sync", project_id: project.project_id },
     definitions: [syncCounter], handlers: [{ ...syncCounter, execution: "sync", handle: (_context, input) => input }] });
@@ -296,7 +299,10 @@ test("every route into an action or a typed capability is settled exactly once, 
       { operation: "unknown", title: "host.nowhere", provider_title: "", ok: false, code: "actions.missing", refused: true });
     await settledOnce(() => host.actionClient(project).invoke(caller, counter, { amount: "x" }), { title: "累计", ok: false, code: "actions.input_invalid", refused: true });
     await settledOnce(() => host.client(project).invoke({ ...counter, capability_id: "host.counter.unregistered" }, { amount: 1 }),
-      { title: "host.counter.unregistered", ok: false, code: "kernel.capability_missing", refused: true, path: "typed" });
+      { title: "host.counter.unregistered", ok: false, code: "actions.dependency_missing", refused: true, path: "typed" });
+    // W3-07-5-01: normalize only the registry's genuine refusal, never an owner's coded lookalike.
+    await assert.rejects(host.client(project).invoke(lookalike, {}), error => error === ownerFailure);
+    assert.deepEqual([rows.at(-1)!.code, rows.at(-1)!.refused], ["kernel.capability_missing", undefined]);
     assert.equal(new Set(rows.map(row => row.call_id)).size, rows.length, "operations do not share ids");
   } finally { await host.close(); }
 });

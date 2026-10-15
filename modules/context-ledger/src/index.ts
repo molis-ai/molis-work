@@ -18,5 +18,5 @@ export function createContextLedger(db: ContextLedgerDatabase, options: ContextL
 }
 
 export { CONTEXT_LEDGER_SCHEMA, createContextLedgerSchema, type ContextLedgerDatabase } from "./repository.js";
-export { ContextLedgerError, type ContextLedgerOptions } from "./service.js";
+export { type ContextLedgerOptions } from "./service.js";
 export { createContextMaterializer } from "./materialization.js";

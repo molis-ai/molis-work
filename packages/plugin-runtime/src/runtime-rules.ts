@@ -1,7 +1,9 @@
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createHash } from "node:crypto";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PluginRuntimeError } from "./errors.js";
+import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actions";
+
 
 export function validateManifest(manifest: PluginManifest): void {
   if (
@@ -12,12 +14,12 @@ export function validateManifest(manifest: PluginManifest): void {
     || !manifest.publisher.publisher_id.trim()
     || !manifest.publisher.signature.trim()
   ) {
-    throw new PluginRuntimeError("plugin_manifest_invalid", "Plugin Manifest 身份、签名或 Host API 不合法");
+    throw pluginErrors.manifest_invalid("Plugin Manifest 身份、签名或 Host API 不合法");
   }
   try {
     parsePluginManifest(manifest);
   } catch (error) {
-    throw new PluginRuntimeError("plugin_manifest_invalid", error instanceof Error ? error.message : "Plugin Manifest 不合法");
+    throw pluginErrors.manifest_invalid(error instanceof Error ? error.message : "Plugin Manifest 不合法");
   }
 }
 
@@ -30,7 +32,7 @@ export function assertRequiredGrants(manifest: PluginManifest, grants: readonly 
     .filter((permission) => permission.required && !grants.includes(permission.permission))
     .map((permission) => permission.permission);
   if (missing.length > 0) {
-    throw new PluginRuntimeError("plugin_grant_denied", `Plugin 缺少必需 grant：${missing.join(", ")}`);
+    throw pluginErrors.grant_denied(`Plugin 缺少必需 grant：${missing.join(", ")}`);
   }
 }
 
@@ -49,7 +51,7 @@ export function definitionKey(manifest: PluginManifest | PluginInstanceRecord): 
 }
 
 export function normalizeErrorCode(value: string): string {
-  return /^[a-z][a-z0-9_]{1,63}$/u.test(value) ? value : "plugin_process_crashed";
+  return ACTION_ERROR_CODE.test(value) ? value : "plugin.process_crashed";
 }
 
 export function safeErrorCode(error: unknown): string {
@@ -57,7 +59,7 @@ export function safeErrorCode(error: unknown): string {
     const code = (error as { code?: unknown }).code;
     if (typeof code === "string") return normalizeErrorCode(code);
   }
-  return "plugin_executor_failed";
+  return "plugin.executor_failed";
 }
 
 export function sameStrings(left: readonly string[], right: readonly string[]): boolean {

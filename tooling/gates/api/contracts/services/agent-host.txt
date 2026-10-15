@@ -494,6 +494,7 @@ export interface AgentMemoryCandidateEntry {
 }
 
 export interface AgentMemoryCapability {
+    withExecution?(control: AgentMemoryExecutionControl): AgentMemoryCapability;
     list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
     write(input: {
         scope: AgentMemoryEntry["scope"];
@@ -575,6 +576,11 @@ export interface AgentMemoryEntry {
     };
     created_at_ms: number;
     updated_at_ms: number;
+}
+
+export interface AgentMemoryExecutionControl {
+    beforeEffect(): void | Promise<void>;
+    assert_current(): void;
 }
 
 export interface AgentMemoryMeta {
@@ -708,7 +714,6 @@ export interface AgentProjectWorkCapability {
         task: string;
         after: string;
         title?: string;
-        data?: unknown;
     }, actorId: string): Promise<AgentProjectWork>;
     release(project: string, workId: string, actorId: string, note: string): Promise<void>;
 }
@@ -918,6 +923,7 @@ export interface AgentRunView {
 }
 
 export interface AgentRuntimeAdapter {
+    withEffect?<T>(control: AgentMemoryExecutionControl, operation: () => Promise<T>): Promise<T>;
     diagnostics?(): AgentRuntimeDiagnostics;
     readonly recovery?: AgentRecoveryCapability;
     readonly schedule?: AgentScheduleCapability;
@@ -925,7 +931,7 @@ export interface AgentRuntimeAdapter {
     readonly documents?: AgentDocumentCapability;
     readonly descriptor: AgentRuntimeDescriptor;
     health(): Promise<AgentRuntimeHealth>;
-    createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef>;
+    createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef>;
     readSession(session: AgentSessionRef): Promise<AgentSessionView>;
     readSessionStatus?(session: AgentSessionRef): Promise<{
         owner: AgentSessionView["owner"];
@@ -933,7 +939,7 @@ export interface AgentRuntimeAdapter {
     }>;
     readonly projectWork?: AgentProjectWorkCapability;
     readonly messages?: AgentSessionMessagesCapability;
-    readonly waits?: AgentWaitsCapability;
+    readonly collaboration?: AgentCollaborationPort;
     readonly background?: AgentBackgroundCapability;
     start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle>;
     read(run: AgentRunRef): Promise<AgentRunView>;
@@ -1144,6 +1150,7 @@ export interface AgentSkillsCapability {
 
 export interface AgentStartExecution extends ActionCallOrigin {
     beforeStart?(): void | Promise<void>;
+    assertBeforeStart?(): void;
     beforeDispatch?(): void | Promise<void>;
 }
 
@@ -1184,7 +1191,7 @@ export interface AgentStepBoard {
     terminal: boolean;
     nodes: Array<{
         id: string;
-        state: "not-started" | "ready" | "running" | "succeeded" | "failed" | "cancelled" | "blocked";
+        state: "not-started" | "ready" | "running" | "waiting" | "succeeded" | "failed" | "cancelled" | "blocked" | "needs-reconciliation";
         reports: Array<{
             note: string;
             at_ms: number;
@@ -1323,49 +1330,6 @@ export interface AgentTurnView {
 }
 
 export type AgentUsageCoverage = "unknown" | "reported" | "estimated" | "partial" | "partial-estimated";
-
-export interface AgentWait {
-    wait_id: string;
-    session_id: string;
-    run_id?: string;
-    by: "agent" | "app";
-    state: "waiting" | "fired" | "resumed" | "cancelled" | "expired";
-    reason: string;
-    waiting_on: string;
-    on: Array<{
-        kind: "command";
-        task: string;
-        until: "exit" | "output";
-        match?: string;
-    } | {
-        kind: "envelope";
-        envelope: string;
-    } | {
-        kind: "board-node";
-        board: string;
-        node: string;
-    }>;
-    fired?: {
-        kind: "command" | "envelope" | "board-node";
-        target: string;
-        outcome: "succeeded" | "failed" | "stopped" | "interrupted" | "output" | "answered" | "settled" | "withdrawn" | "done" | "not-done";
-        text: string;
-        at_ms: number;
-        reply?: string;
-    };
-    data?: unknown;
-    created_at_ms: number;
-    expires_at_ms: number;
-    closed_at_ms?: number;
-    note?: string;
-}
-
-export interface AgentWaitsCapability {
-    read(project: string, sessionId?: string): Promise<AgentWait[]>;
-    awaitFired(project: string, timeoutMs: number, exclude?: string[], signal?: AbortSignal): Promise<AgentWait[]>;
-    resume(project: string, waitId: string, note?: string): Promise<AgentWait>;
-    cancel(project: string, waitId: string, note?: string): Promise<AgentWait>;
-}
 
 export interface AgentWorkingDirectory {
     canonical_path: string;
@@ -1507,12 +1471,8 @@ export declare const agentHostCapabilities: {
         task: string;
         after: string;
         title?: string;
-        data?: unknown;
     }], AgentProjectWork>;
-    readonly readWaits: HostCapabilityDefinition<[runtimeId: string, sessionId?: string], AgentWait[]>;
-    readonly awaitFiredWaits: HostCapabilityDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentWait[]>;
-    readonly resumeWait: HostCapabilityDefinition<[runtimeId: string, waitId: string, note?: string], AgentWait>;
-    readonly cancelWait: HostCapabilityDefinition<[runtimeId: string, waitId: string, note?: string], AgentWait>;
+    readonly awaitContinuations: HostCapabilityDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>;
     readonly readBackground: HostCapabilityDefinition<[runtimeId: string, sessionId?: string], AgentBackgroundTask[]>;
     readonly stopBackground: HostCapabilityDefinition<[runtimeId: string, taskId: string], boolean>;
     readonly releaseProjectRound: HostCapabilityDefinition<[runtimeId: string, workId: string, note: string], void>;

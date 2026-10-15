@@ -64,7 +64,7 @@ test("Alchemist independent processes preserve a long live call and recover a ki
     const exited = once(first.child, "exit"); first.child.kill("SIGKILL"); await exited;
     await until(async () => (await observer.api(`/explorations/${crashed.runId}`)).exploration.status === "failed");
     const failed = (await observer.api(`/explorations/${crashed.runId}`)).exploration;
-    assert.equal(failed.errorCode, "AI_CALL_INTERRUPTED"); assert.deepEqual(failed.cards, []);
+    assert.equal(failed.errorCode, "alchemist.ai_call_interrupted"); assert.deepEqual(failed.cards, []);
     assert.equal(responses.length, 2, "The interrupted provider request must not be replayed");
     assert.equal((await observer.api(`/explorations/${receipt.runId}`)).exploration.cards.length, 1);
     await observer.close();

@@ -3,6 +3,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { callAttention } from "@molis-ai/molis-work-plugin-feed";
 
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { FeedModule } from "@molis-ai/molis-work-module-feed";
@@ -35,6 +38,15 @@ test("Feed and Attention repositories preserve Signal revisions and state across
     let itemId = "";
     try {
       const { attention, feed } = feedModules(firstStore);
+      // FAS-01: real module refusals keep their wording and the public Feed/Inbox edge mapping.
+      const priorEvents = firstStore.db.prepare("SELECT * FROM events ORDER BY event_id").all();
+      assert.throws(() => feed.query.get(DEMO_PROJECT_ID, "missing-fas-item"), (error: unknown) => error instanceof ActionError
+        && error.code === "feed.item_not_found" && error.message === "找不到这个 Feed Item" && actionHttpStatus(error) === 404);
+      assert.throws(() => attention.query.get(DEMO_PROJECT_ID, "missing-fas-entry"), (error: unknown) => error instanceof ActionError
+        && error.code === "attention.entry_not_found" && error.message === "找不到这个 Inbox Entry" && actionHttpStatus(error) === 400);
+      assert.throws(() => callAttention(() => attention.query.get(DEMO_PROJECT_ID, "missing-fas-entry")), (error: unknown) => error instanceof ActionError
+        && error.code === "inbox.entry_not_found" && error.message === "找不到这个 Inbox Entry" && actionHttpStatus(error) === 404);
+      assert.deepEqual(firstStore.db.prepare("SELECT * FROM events ORDER BY event_id").all(), priorEvents);
       const first = feed.commands.ingest({
         project_id: DEMO_PROJECT_ID,
         source_id: "source-module-test",

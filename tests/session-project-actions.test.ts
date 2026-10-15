@@ -1,10 +1,10 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
-import { MolisWorkSessionError } from "@molis-ai/molis-work-module-private-work-context";
 
 test("Session project actions are confirmed, atomic, isolated and keep Goal history", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-actions-"));
@@ -42,8 +42,8 @@ test("Session project actions are confirmed, atomic, isolated and keep Goal hist
         user_confirmed: false,
         project_id: "project-b",
       }),
-      (error: unknown) => error instanceof MolisWorkSessionError
-        && error.code === "session.confirmation_required",
+      (error: unknown) => error instanceof ActionError
+        && error.code === "work.session.confirmation_required",
     );
 
     const switched = registry.updateAssociations({

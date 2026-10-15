@@ -1,10 +1,9 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { LocalCatalogMetadata, LocalSqliteStorage, createFileSecretStore, peekSealedEntry, runWithMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
+import { LocalSqliteStorage, createFileSecretStore, peekSealedEntry, runWithMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
 import { inspectPromptCacheChoice, type ModelProviderRecord, type ModelRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { ModelProviderStore, type ModelSecretPort } from "./model-provider-store.js";
-import { assertOwnedCatalog } from "./catalog-schema.js";
-import { catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
+import { assertOwnedCatalog, assertCurrentCatalog } from "./catalog-schema.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
@@ -18,8 +17,7 @@ export function openConfiguredModels(home: string): { storage: LocalSqliteStorag
   const storage = new LocalSqliteStorage(path);
   try {
     assertOwnedCatalog(storage, path);
-    const problem = catalogSchemaCompatibilityError(new LocalCatalogMetadata(storage.db).version());
-    if (problem) throw problem;
+    assertCurrentCatalog(storage, path);
     let secrets: SecretStore | undefined;
     const get = () => secrets ??= runWithMolisWorkHome(home, () => createFileSecretStore());
     const port: ModelSecretPort = { get: ref => get().get(ref) };

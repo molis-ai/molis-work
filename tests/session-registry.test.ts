@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
@@ -6,7 +8,6 @@ import test from "node:test";
 import { findSessionForHostSignals } from "@molis-ai/molis-work-module-private-work-context";
 import type { RuntimeSessionHostSignals } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
-import { MolisWorkSessionError } from "@molis-ai/molis-work-module-private-work-context";
 
 async function withRegistry(
   run: (registry: MolisWorkSessionRegistry, home: string) => Promise<void> | void,
@@ -26,9 +27,18 @@ test("Session Registry keeps Molis Work, Runtime, surface and workspace identiti
   await withRegistry((registry) => {
     assert.throws(
       () => registry.createSession({ runtime_id: "codex", actor_id: "user", user_confirmed: false }),
-      (error: unknown) =>
-        error instanceof MolisWorkSessionError && error.code === "session.confirmation_required",
+      (error: unknown) => {
+        // SESSION-01: the public registry's confirmation refusal keeps its current common status.
+        assert.ok(error instanceof ActionError);
+        assert.equal(error.code, "work.session.confirmation_required");
+        assert.equal(error.message, "创建或改变 Session 关联前必须获得用户明确确认");
+        assert.equal(error.kind, "invalid");
+        assert.equal(actionHttpStatus(error), 400);
+        assert.equal(Object.hasOwn(error, "details"), false);
+        return true;
+      },
     );
+    assert.deepEqual(registry.list(), [], "SESSION-01: refusal persists no Session");
 
     const first = registry.createSession({
       runtime_id: "codex",
@@ -96,7 +106,7 @@ test("late native identity requires matching correlation or surface and preserve
         correlation_token: "wrong-token",
       }),
       (error: unknown) =>
-        error instanceof MolisWorkSessionError && error.code === "session.correlation_invalid",
+        error instanceof ActionError && error.code === "work.session.correlation_invalid",
     );
 
     const linked = registry.linkNativeRuntimeSession({
@@ -145,7 +155,7 @@ test("Runtime discovery syncs metadata without creating project, Goal or workspa
         project_id: "project-a",
       }),
       (error: unknown) =>
-        error instanceof MolisWorkSessionError && error.code === "session.confirmation_required",
+        error instanceof ActionError && error.code === "work.session.confirmation_required",
     );
     const linked = registry.explicitlyLinkSession({
       runtime_id: "codex",

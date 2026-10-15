@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
@@ -10,7 +11,7 @@ import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { isPlatformMcpTool } from "@molis-ai/molis-work-app-mcp";
-import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
   PROJECT_DATABASE_FILENAME,
   readProductEnv,
@@ -164,7 +165,7 @@ test("legacy plugin IDs are rejected", () => {
   };
   assert.throws(
     () => parsePluginManifest(manifest),
-    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin_manifest_invalid",
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid",
   );
   assert.equal(parsePluginManifest({ ...manifest, plugin_id: "io.molis.work.example.notes" }).plugin_id, "io.molis.work.example.notes");
 });

@@ -98,6 +98,12 @@ test("组合根把 Agent Host 接进宿主之后，插件经 Capability 够得�
       ["fixture-read-only", "io.molis.work.coding"]);
     assert.deepEqual(roles, [{ role_id: "reader", available: true }]);
 
+    // W2-18-CODING-WAKE-02: a runtime without a task graph is unavailable, not an immediately successful long poll.
+    await assert.rejects(
+      () => client.invoke(agentHostCapabilities.awaitContinuations, ["fixture-read-only", 25_000, []]),
+      (error: unknown) => (error as { code?: string }).code === "agent.capability_unavailable",
+    );
+
     // 命令回执仍然如实不可用——接线不等于接通
     await assert.rejects(
       () => client.invoke(agentHostCapabilities.readCommandOutput,

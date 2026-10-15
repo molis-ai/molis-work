@@ -1,5 +1,6 @@
+import { agentErrors } from "../errors.js";
 import type {
-  AgentHostErrorCode,
+
   AgentReviewDocument,
   AgentReviewKind,
   AgentReviewReceipt,
@@ -45,19 +46,6 @@ export interface ProloguePendingPort {
     ref: ProloguePendingRef,
     answer: { kind: "effect-approval"; answer: "allow" | "deny" | "later" },
   ): Promise<{ authorized: boolean }>;
-}
-
-export class PrologueApprovalError extends Error {
-  constructor(
-    readonly code: Extract<AgentHostErrorCode,
-      | "agent.pending_unknown"
-      | "agent.pending_not_open"
-      | "agent.review_unknown">,
-    message: string,
-  ) {
-    super(message);
-    this.name = "PrologueApprovalError";
-  }
 }
 
 export interface PrologueApprovalBridgeOptions {
@@ -111,19 +99,16 @@ export class PrologueApprovalBridge {
    */
   mirror(input: MirrorPendingInput): AgentReviewRequest {
     if (input.pending.state !== "open") {
-      throw new PrologueApprovalError(
-        "agent.pending_not_open",
-        "这笔待批已经结束，不能再放到审查面上",
-      );
+      throw agentErrors.pending_not_open("这笔待批已经结束，不能再放到审查面上");
     }
     if (input.pending.kind !== "effect-approval" || input.pending.origin?.session !== input.run.session_id
       || input.pending.origin?.run !== input.run.run_id || !input.owner.project_id || !input.owner.plugin_id) {
-      throw new PrologueApprovalError("agent.pending_unknown", "待批来源与执行归属不一致，不能替用户批准");
+      throw agentErrors.pending_unknown("待批来源与执行归属不一致，不能替用户批准");
     }
     const reviewId = `prologue:${input.pending.ref.id}`;
     const previousRef = this.#pendingByReview.get(reviewId);
     if (previousRef && (previousRef.kind !== input.pending.ref.kind || previousRef.revision !== input.pending.ref.revision)) {
-      throw new PrologueApprovalError("agent.pending_unknown", "同一审查不能换成另一版本的待批引用");
+      throw agentErrors.pending_unknown("同一审查不能换成另一版本的待批引用");
     }
     const request = this.#queue.request({
       review_id: reviewId,
@@ -158,7 +143,7 @@ export class PrologueApprovalBridge {
   }): Promise<AgentReviewRequest> {
     const pending = await this.#pendings.read(input.pendingRef);
     if (!pending) {
-      throw new PrologueApprovalError("agent.pending_unknown", "执行主人那边找不到这笔待批");
+      throw agentErrors.pending_unknown("执行主人那边找不到这笔待批");
     }
     const document = await this.#pendings.document(pending);
     const request = this.mirror({
@@ -189,17 +174,17 @@ export class PrologueApprovalBridge {
   }): Promise<AgentReviewReceipt> {
     const pendingRef = this.#pendingByReview.get(input.review_id);
     if (!pendingRef) {
-      throw new PrologueApprovalError("agent.review_unknown", "找不到这条待审操作");
+      throw agentErrors.review_unknown("找不到这条待审操作");
     }
     const pending = await this.#pendings.read(pendingRef);
     if (!pending) {
-      throw new PrologueApprovalError("agent.pending_unknown", "执行主人那边找不到这笔待批");
+      throw agentErrors.pending_unknown("执行主人那边找不到这笔待批");
     }
 
     const request = this.#queue.get(input.review_id);
     if (!request || !request.run || pending.ref.kind !== pendingRef.kind || pending.ref.revision !== pendingRef.revision || pending.ref.id !== pendingRef.id
       || pending.kind !== "effect-approval" || pending.origin?.session !== request?.run.session_id || pending.origin?.run !== request?.run.run_id) {
-      throw new PrologueApprovalError("agent.pending_unknown", "执行方返回的待批与原审查不一致");
+      throw agentErrors.pending_unknown("执行方返回的待批与原审查不一致");
     }
     if (pending.state !== "open") {
       // The execution owner already closed it. Our queue must not pretend the
@@ -207,16 +192,13 @@ export class PrologueApprovalBridge {
       this.#queue.cancel(input.review_id, "执行主人已经结束了这笔待批");
       const receipt = this.#queue.receipt(input.review_id)!;
       if (receipt.status === "cancelled" || receipt.status === "expired") await this.#recordDecision?.(pending, receipt);
-      throw new PrologueApprovalError(
-        "agent.pending_not_open",
-        "这笔待批已经结束，请刷新后按当前状态处理",
-      );
+      throw agentErrors.pending_not_open("这笔待批已经结束，请刷新后按当前状态处理");
     }
     if (!await this.#pendings.canAnswer(pendingRef)) {
       this.#queue.cancel(input.review_id, "执行已中断，原待批没有活动等待方；需核对后继续");
       const receipt = this.#queue.receipt(input.review_id)!;
       if (receipt.status === "cancelled" || receipt.status === "expired") await this.#recordDecision?.(pending, receipt);
-      throw new PrologueApprovalError("agent.pending_not_open", "原执行已中断，不能通过批准旧待批恢复它");
+      throw agentErrors.pending_not_open("原执行已中断，不能通过批准旧待批恢复它");
     }
     const receipt = this.#queue.decide({
       review_id: input.review_id,
@@ -258,9 +240,9 @@ export class PrologueApprovalBridge {
   async defer(reviewId: string): Promise<void> {
     const pendingRef = this.#pendingByReview.get(reviewId);
     if (!pendingRef) {
-      throw new PrologueApprovalError("agent.review_unknown", "找不到这条待审操作");
+      throw agentErrors.review_unknown("找不到这条待审操作");
     }
     const pending = await this.#pendings.read(pendingRef);
-    if (!pending || pending.state !== "open") throw new PrologueApprovalError("agent.pending_not_open", "这笔待批已结束");
+    if (!pending || pending.state !== "open") throw agentErrors.pending_not_open("这笔待批已结束");
   }
 }

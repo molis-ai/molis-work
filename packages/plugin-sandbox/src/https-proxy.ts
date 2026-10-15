@@ -35,19 +35,19 @@ export function isPublicAddress(address: string): boolean {
 }
 
 export function validateNetworkRequest(request: SandboxNetworkRequest, approvedDomains: string[], limit: number): URL {
-  if (!request || typeof request !== 'object' || Array.isArray(request) || Object.keys(request).some(k => !['url', 'method', 'headers', 'body', 'secretRefs'].includes(k))) throw new SandboxError('INVALID_REQUEST', 'Invalid network request fields');
+  if (!request || typeof request !== 'object' || Array.isArray(request) || Object.keys(request).some(k => !['url', 'method', 'headers', 'body', 'secretRefs'].includes(k))) throw new SandboxError('sandbox.invalid_request', 'Invalid network request fields');
   let url: URL;
-  try { url = new URL(request.url); } catch { throw new SandboxError('INVALID_REQUEST', 'Invalid HTTPS URL'); }
-  if (url.protocol !== 'https:' || url.username || url.password || url.hash || (url.port && url.port !== '443') || isIP(url.hostname) || url.hostname.endsWith('.') || !approvedDomains.includes(url.hostname)) throw new SandboxError('NETWORK_DENIED', 'HTTPS destination is not approved');
-  if (!/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z][a-z0-9-]*$/.test(url.hostname)) throw new SandboxError('NETWORK_DENIED', 'Destination must be an exact DNS domain');
-  if (request.method !== undefined && !['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) throw new SandboxError('INVALID_REQUEST', 'Unsupported HTTP method');
-  if (request.body !== undefined && typeof request.body !== 'string') throw new SandboxError('INVALID_REQUEST', 'HTTP body must be text');
-  if (Buffer.byteLength(JSON.stringify(request)) > limit) throw new SandboxError('REQUEST_TOO_LARGE', 'HTTPS request exceeds size limit');
-  if (request.headers !== undefined && (!request.headers || typeof request.headers !== 'object' || Array.isArray(request.headers))) throw new SandboxError('INVALID_REQUEST', 'Invalid headers');
+  try { url = new URL(request.url); } catch { throw new SandboxError('sandbox.invalid_request', 'Invalid HTTPS URL'); }
+  if (url.protocol !== 'https:' || url.username || url.password || url.hash || (url.port && url.port !== '443') || isIP(url.hostname) || url.hostname.endsWith('.') || !approvedDomains.includes(url.hostname)) throw new SandboxError('sandbox.network_denied', 'HTTPS destination is not approved');
+  if (!/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z][a-z0-9-]*$/.test(url.hostname)) throw new SandboxError('sandbox.network_denied', 'Destination must be an exact DNS domain');
+  if (request.method !== undefined && !['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) throw new SandboxError('sandbox.invalid_request', 'Unsupported HTTP method');
+  if (request.body !== undefined && typeof request.body !== 'string') throw new SandboxError('sandbox.invalid_request', 'HTTP body must be text');
+  if (Buffer.byteLength(JSON.stringify(request)) > limit) throw new SandboxError('sandbox.request_too_large', 'HTTPS request exceeds size limit');
+  if (request.headers !== undefined && (!request.headers || typeof request.headers !== 'object' || Array.isArray(request.headers))) throw new SandboxError('sandbox.invalid_request', 'Invalid headers');
   for (const [name, value] of Object.entries(request.headers ?? {})) {
-    if (!/^[!#$%&'*+.^_`|~0-9a-z-]+$/i.test(name) || typeof value !== 'string' || /[\r\n\0]/.test(value) || ['host', 'connection', 'content-length', 'transfer-encoding', 'upgrade', 'proxy-authorization', 'proxy-connection', 'accept-encoding', 'te', 'trailer'].includes(name.toLowerCase())) throw new SandboxError('INVALID_REQUEST', 'Unsafe HTTP header');
+    if (!/^[!#$%&'*+.^_`|~0-9a-z-]+$/i.test(name) || typeof value !== 'string' || /[\r\n\0]/.test(value) || ['host', 'connection', 'content-length', 'transfer-encoding', 'upgrade', 'proxy-authorization', 'proxy-connection', 'accept-encoding', 'te', 'trailer'].includes(name.toLowerCase())) throw new SandboxError('sandbox.invalid_request', 'Unsafe HTTP header');
   }
-  if (request.secretRefs !== undefined && (!Array.isArray(request.secretRefs) || request.secretRefs.length > 8 || request.secretRefs.some(r => typeof r !== 'string') || new Set(request.secretRefs).size !== request.secretRefs.length)) throw new SandboxError('INVALID_REQUEST', 'Invalid secret references');
+  if (request.secretRefs !== undefined && (!Array.isArray(request.secretRefs) || request.secretRefs.length > 8 || request.secretRefs.some(r => typeof r !== 'string') || new Set(request.secretRefs).size !== request.secretRefs.length)) throw new SandboxError('sandbox.invalid_request', 'Invalid secret references');
   return url;
 }
 
@@ -59,7 +59,7 @@ export function createHttpsProxy(options: HttpsProxyOptions = {}): NonNullable<S
     const url = validateNetworkRequest(input, authorization.domains, requestBytes);
     const signal = AbortSignal.any([context.signal, AbortSignal.timeout(timeoutMs)]);
     const bounded = <T>(work: Promise<T>): Promise<T> => new Promise((resolve, reject) => {
-      const abort = () => reject(new SandboxError('NETWORK_TIMEOUT', 'HTTPS request cancelled or timed out'));
+      const abort = () => reject(new SandboxError('sandbox.network_timeout', 'HTTPS request cancelled or timed out'));
       signal.addEventListener('abort', abort, { once: true });
       work.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort)).catch(() => {});
       if (signal.aborted) abort();
@@ -68,7 +68,7 @@ export function createHttpsProxy(options: HttpsProxyOptions = {}): NonNullable<S
     const addresses = await bounded(options.resolveHostname
       ? options.resolveHostname(url.hostname, signal)
       : lookup(url.hostname, { all: true, verbatim: true }));
-    if (!Array.isArray(addresses) || !addresses.length || addresses.some(a => !a || typeof a.address !== 'string' || (a.family !== 4 && a.family !== 6) || isIP(a.address) !== a.family || !isPublicAddress(a.address))) throw new SandboxError('NETWORK_DENIED', 'DNS resolved to an invalid or non-public address');
+    if (!Array.isArray(addresses) || !addresses.length || addresses.some(a => !a || typeof a.address !== 'string' || (a.family !== 4 && a.family !== 6) || isIP(a.address) !== a.family || !isPublicAddress(a.address))) throw new SandboxError('sandbox.network_denied', 'DNS resolved to an invalid or non-public address');
     // Snapshot a host resolver's answer before awaiting secrets; later cache mutations
     // cannot replace the already-approved connection target.
     const selected = { ...addresses[0]! };
@@ -76,13 +76,13 @@ export function createHttpsProxy(options: HttpsProxyOptions = {}): NonNullable<S
     headers['accept-encoding'] = 'identity';
     const secrets: string[] = [];
     for (const reference of input.secretRefs ?? []) {
-      if (!authorization.secretRefs.includes(reference) || !options.resolveSecret) throw new SandboxError('NOT_AUTHORIZED', 'Secret reference is not approved');
+      if (!authorization.secretRefs.includes(reference) || !options.resolveSecret) throw new SandboxError('sandbox.not_authorized', 'Secret reference is not approved');
       const secret = await bounded(options.resolveSecret(context, reference));
-      if (!secret || !secret.value || !secret.domains.includes(url.hostname) || !/^[a-z][a-z0-9-]*$/i.test(secret.header) || /[\r\n\0]/.test((secret.prefix ?? '') + secret.value) || ['host', 'connection', 'content-length', 'transfer-encoding', 'upgrade', 'accept-encoding'].includes(secret.header.toLowerCase())) throw new SandboxError('NOT_AUTHORIZED', 'Secret is unavailable for this destination');
+      if (!secret || !secret.value || !secret.domains.includes(url.hostname) || !/^[a-z][a-z0-9-]*$/i.test(secret.header) || /[\r\n\0]/.test((secret.prefix ?? '') + secret.value) || ['host', 'connection', 'content-length', 'transfer-encoding', 'upgrade', 'accept-encoding'].includes(secret.header.toLowerCase())) throw new SandboxError('sandbox.not_authorized', 'Secret is unavailable for this destination');
       headers[secret.header.toLowerCase()] = (secret.prefix ?? '') + secret.value;
       secrets.push(secret.value);
     }
-    if (Buffer.byteLength(JSON.stringify(headers)) + Buffer.byteLength(input.body ?? '') > requestBytes) throw new SandboxError('REQUEST_TOO_LARGE', 'Injected HTTPS request exceeds limit');
+    if (Buffer.byteLength(JSON.stringify(headers)) + Buffer.byteLength(input.body ?? '') > requestBytes) throw new SandboxError('sandbox.request_too_large', 'Injected HTTPS request exceeds limit');
     await bounded(Promise.resolve(context.beforeEffect?.()));
     signal.throwIfAborted();
     return bounded(new Promise<SandboxNetworkResponse>((resolve, reject) => {
@@ -91,27 +91,27 @@ export function createHttpsProxy(options: HttpsProxyOptions = {}): NonNullable<S
       const req = httpsRequest({ hostname: url.hostname, servername: url.hostname, family: selected.family, port: 443, path: url.pathname + url.search, method: input.method ?? 'GET', headers, agent: false, signal, maxHeaderSize: 16 * 1024,
         lookup: (_hostname, _options, callback) => callback(null, selected.address, selected.family),
       }, res => {
-        if ((res.statusCode ?? 0) >= 300 && (res.statusCode ?? 0) < 400) { res.destroy(); reject(new SandboxError('REDIRECT_DENIED', 'HTTPS redirects are not followed')); return; }
-        if (res.headers['content-encoding'] && res.headers['content-encoding'] !== 'identity') { res.destroy(); reject(new SandboxError('ENCODING_DENIED', 'HTTPS response must use identity encoding')); return; }
+        if ((res.statusCode ?? 0) >= 300 && (res.statusCode ?? 0) < 400) { res.destroy(); reject(new SandboxError('sandbox.redirect_denied', 'HTTPS redirects are not followed')); return; }
+        if (res.headers['content-encoding'] && res.headers['content-encoding'] !== 'identity') { res.destroy(); reject(new SandboxError('sandbox.encoding_denied', 'HTTPS response must use identity encoding')); return; }
         const chunks: Buffer[] = []; let bytes = 0;
         res.on('data', (chunk: Buffer) => {
           bytes += chunk.length;
-          if (bytes > responseBytes) { res.destroy(new SandboxError('RESPONSE_TOO_LARGE', 'HTTPS response exceeds limit')); return; }
+          if (bytes > responseBytes) { res.destroy(new SandboxError('sandbox.response_too_large', 'HTTPS response exceeds limit')); return; }
           chunks.push(chunk);
         });
-        res.on('error', error => reject(error instanceof SandboxError ? error : new SandboxError('NETWORK_ERROR', 'HTTPS response failed')));
+        res.on('error', error => reject(error instanceof SandboxError ? error : new SandboxError('sandbox.network_error', 'HTTPS response failed')));
         res.on('end', () => {
           const responseHeaders = Object.fromEntries(Object.entries(res.headers).filter(([k]) => !['set-cookie', 'set-cookie2'].includes(k)).map(([k, v]) => [k, Array.isArray(v) ? v.join(', ') : v ?? '']));
           const response = { status: res.statusCode ?? 0, headers: responseHeaders, body: Buffer.concat(chunks).toString('utf8') };
           const serialized = JSON.stringify(response);
           for (const secret of secrets) {
             const variants = [secret, encodeURIComponent(secret), Buffer.from(secret).toString('base64'), Buffer.from(secret).toString('base64url'), Buffer.from(secret).toString('hex'), JSON.stringify(secret).slice(1, -1)];
-            if (variants.some(v => serialized.includes(v))) { reject(new SandboxError('SECRET_IN_RESPONSE', 'Upstream response contains a secret')); return; }
+            if (variants.some(v => serialized.includes(v))) { reject(new SandboxError('sandbox.secret_in_response', 'Upstream response contains a secret')); return; }
           }
           resolve(response);
         });
       });
-      req.on('error', error => reject(error instanceof SandboxError ? error : new SandboxError('NETWORK_ERROR', 'HTTPS connection failed')));
+      req.on('error', error => reject(error instanceof SandboxError ? error : new SandboxError('sandbox.network_error', 'HTTPS connection failed')));
       req.end(input.body);
     }));
   } };

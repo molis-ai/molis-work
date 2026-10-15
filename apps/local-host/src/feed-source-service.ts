@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { feedSourceSyncLease } from "./feed-source-sync-lease.js";
 import { createHash } from "node:crypto";
 import { LocalSqliteJournal, type SqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -11,12 +12,12 @@ import { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-r
 import { syncResearchLibrarySource } from "./research-library-source.js";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import { ConnectorConnectionError, withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
+import { withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
 
 /** The connector host's refusal (no such connection, another service's, a disconnected one) is the person choosing a connection Feed cannot use. */
 function requireFeedConnection(connections: ConnectorConnectionStore, connectionId: string, serviceId: string) {
   try { return connections.require(connectionId, serviceId); }
-  catch (error) { throw error instanceof ConnectorConnectionError ? feedErrors.source_invalid_configuration(error.message) : error; }
+  catch (error) { throw (error instanceof ActionError && ["connector.connection.invalid","connector.connection.not_found","connector.connection.service_mismatch","connector.connection.disconnected"].includes(error.code)) ? feedErrors.source_invalid_configuration(error.message) : error; }
 }
 
 export function listFeedSourceCatalog(): FeedSourceCatalogView[] {

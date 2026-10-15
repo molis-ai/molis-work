@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { RegistryFallbackSessionAdapter } from "@molis-ai/molis-work-plugin-work";
 import assert from "node:assert/strict";
@@ -16,7 +17,7 @@ import { SessionContentService } from "@molis-ai/molis-work-plugin-work";
 import { SessionDirectoryService } from "@molis-ai/molis-work-plugin-work";
 import { SessionHandoffService, buildSessionHandoffPackage } from "@molis-ai/molis-work-plugin-work";
 import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
-import { MolisWorkSessionError } from "@molis-ai/molis-work-module-private-work-context";
+
 import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
@@ -257,7 +258,7 @@ test("a source Session without a current Goal cannot prepare a Handoff", async (
         actor_id: "user",
         goal_contract: contract,
       }),
-      (error: unknown) => error instanceof MolisWorkSessionError && /当前 Goal/.test(error.message),
+      (error: unknown) => error instanceof ActionError && /当前 Goal/.test(error.message),
     );
   } finally {
     registry.close();

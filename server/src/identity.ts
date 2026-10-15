@@ -23,18 +23,18 @@ export class Identity {
   }
   active(session: Session): Session {
     const fresh = this.db.prepare("SELECT id,member_id,expires_at FROM mw_sessions WHERE id=? AND revoked=0 AND expires_at>?").get(session.id, this.now()) as Session | undefined;
-    if (!fresh || fresh.member_id !== session.member_id) throw new ImError("identity.unauthenticated", "设备连接已失效，请重新配对", 401);
+    if (!fresh || fresh.member_id !== session.member_id) throw new ImError("im.identity.unauthenticated", "设备连接已失效，请重新配对", 401);
     return fresh;
   }
   requireMember(session: Session): Member {
     this.active(session);
     const member = this.member(session);
-    if (!member) throw new ImError("identity.unauthenticated", "请先连接设备或设置你的名字", 401);
+    if (!member) throw new ImError("im.identity.unauthenticated", "请先连接设备或设置你的名字", 401);
     return member;
   }
   require(request: IncomingMessage, named = true): Session {
     const session = this.session(request);
-    if (!session || (named && !session.member_id)) throw new ImError("identity.unauthenticated", "请先连接设备", 401);
+    if (!session || (named && !session.member_id)) throw new ImError("im.identity.unauthenticated", "请先连接设备", 401);
     return session;
   }
   member(session: Session): Member | null {
@@ -75,13 +75,13 @@ export class Identity {
     const code = textInput(input.code, "代码", 80), label = textInput(input.device_label, "设备名称", 60), name = textInput(input.display_name, "名字", 40);
     return transaction(this.db, () => {
       const invitation = this.db.prepare("SELECT * FROM mw_codes WHERE hash=? AND consumed=0 AND expires_at>?").get(hash(code), this.now()) as {kind:string; member_id:string; project_id:string|null; role:Role; creator_session:string|null} | undefined;
-      if (!invitation) throw new ImError("identity.code_invalid", "代码已使用或过期，请生成新代码", 401);
-      if (invitation.creator_session && !this.db.prepare("SELECT 1 FROM mw_sessions WHERE id=? AND revoked=0 AND expires_at>?").get(invitation.creator_session, this.now())) throw new ImError("identity.code_invalid", "发起设备已断开，请生成新代码", 401);
+      if (!invitation) throw new ImError("im.identity.code_invalid", "代码已使用或过期，请生成新代码", 401);
+      if (invitation.creator_session && !this.db.prepare("SELECT 1 FROM mw_sessions WHERE id=? AND revoked=0 AND expires_at>?").get(invitation.creator_session, this.now())) throw new ImError("im.identity.code_invalid", "发起设备已断开，请生成新代码", 401);
       const existing = this.session(request);
       let memberId = invitation.member_id;
       if (invitation.kind === "invite") {
         const owner = this.db.prepare("SELECT owner_id FROM mw_projects WHERE id=?").get(invitation.project_id) as {owner_id:string} | undefined;
-        if (owner?.owner_id !== invitation.member_id) throw new ImError("identity.code_invalid", "邀请已失效", 403);
+        if (owner?.owner_id !== invitation.member_id) throw new ImError("im.identity.code_invalid", "邀请已失效", 403);
         memberId = existing?.member_id ?? this.createMember(name).id;
         this.db.prepare("INSERT INTO mw_access VALUES (?,?,?) ON CONFLICT(project_id,member_id) DO UPDATE SET role=CASE WHEN role='owner' THEN role ELSE excluded.role END")
           .run(invitation.project_id, memberId, invitation.role);
@@ -94,7 +94,7 @@ export class Identity {
   access(session: Session, projectId: string, minimum: Role = "viewer"): Role {
     const member = this.requireMember(session);
     const role = this.roleOf(projectId, member.id);
-    if (!role || (minimum === "owner" && role !== "owner") || (minimum === "editor" && role === "viewer")) throw new ImError("identity.forbidden", "此项目的访问已撤回或没有操作权限", 403);
+    if (!role || (minimum === "owner" && role !== "owner") || (minimum === "editor" && role === "viewer")) throw new ImError("im.identity.forbidden", "此项目的访问已撤回或没有操作权限", 403);
     return role;
   }
   /** The role a member holds in a project, or null when they have none (never invited, or the access was withdrawn). */

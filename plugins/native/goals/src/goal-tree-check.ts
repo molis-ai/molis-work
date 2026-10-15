@@ -1,3 +1,4 @@
+import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
 import { createHash } from "node:crypto";
 import type { GoalsQueryApi, GoalsPlanningApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GovernanceApplicationApi, GoalTreeProposalCheckInput, GoalTreeProposalCheckResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
@@ -5,7 +6,6 @@ import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
 import { GoalTreeQueryApplication } from "./goal-tree-query.js";
 import { GoalTreeMaterializationApplication } from "./goal-tree-materialization.js";
 
-interface CheckError extends Error { code: string; details?: Record<string, unknown> }
 export class GoalTreeCheckApplication implements Pick<GoalTreeApplicationApi, "checkGoalTreeProposal"> {
   constructor(private readonly ports: {
     goals: { query: Pick<GoalsQueryApi, "getGoal">; planning: Pick<GoalsPlanningApi, "proposalGraphIssues"> };
@@ -13,19 +13,17 @@ export class GoalTreeCheckApplication implements Pick<GoalTreeApplicationApi, "c
     query: GoalTreeQueryApplication;
     materialization: GoalTreeMaterializationApplication;
     clock: () => Date;
-    errorFactory: (code: string, message: string, details?: Record<string, unknown>) => Error;
-    isDomainError: (error: unknown) => error is CheckError;
   }) {}
 
   checkGoalTreeProposal(input: GoalTreeProposalCheckInput): GoalTreeProposalCheckResult {
     const actorId = this.requiredText(
       input.actor_id,
-      "goal_tree_proposal.actor_required",
+      "goals.goal_tree_proposal.actor_required",
       "检查 Goal Tree 提案需要当前 Runtime 的 actor_id",
     );
     const proposalId = this.requiredText(
       input.proposal_id,
-      "goal_tree_proposal.id_required",
+      "goals.goal_tree_proposal.id_required",
       "需要指定要检查的 Goal Tree proposal_id",
     );
     const proposalView = this.ports.query.listGoalTreeProposals({
@@ -33,7 +31,7 @@ export class GoalTreeCheckApplication implements Pick<GoalTreeApplicationApi, "c
       proposal_id: proposalId,
     }).proposals[0];
     if (!proposalView) {
-      throw this.ports.errorFactory("goal_tree_proposal.not_found", `找不到 Goal Tree 提案: ${proposalId}`);
+      throw treeErrors["goals.goal_tree_proposal.not_found"](`找不到 Goal Tree 提案: ${proposalId}`);
     }
     const canonicalProposalId = proposalView.proposal_id;
     const hash = requestHash({ project_id: input.project_id, proposal_id: canonicalProposalId, actor_id: actorId });
@@ -98,10 +96,9 @@ export class GoalTreeCheckApplication implements Pick<GoalTreeApplicationApi, "c
     });
   }
 
-
-  private requiredText(value: string, code: string, message: string): string {
+  private requiredText(value: string, code: TreeErrorCode, message: string): string {
     const text = value.trim();
-    if (!text) throw this.ports.errorFactory(code, message);
+    if (!text) throw treeErrors[code](message);
     return text;
   }
 }

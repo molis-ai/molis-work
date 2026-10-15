@@ -97,7 +97,7 @@ export { isProjectSettingsWorkbenchPath, projectSettingsPageFromPath, projectSet
 export { createWorkbenchProjectChooserRenderer, type ChooserArrival } from "./arrival/chooser.js";
 export { composeProjectBrief, currentBriefGoal, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "./arrival/project-brief.js";
 export type { ArrivalPrimitives, ArrivalShellPrimitives } from "./arrival/shell.js";
-export type { WebSettingsProject, WebInstallationDiagnostics, MolisWorkSettingsView } from "./settings-view.js";
+export type { WebSettingsProject, WebInstallationDiagnostics, WebPeriodicTask, MolisWorkSettingsView } from "./settings-view.js";
 export { createWorkbenchSettingsRenderer, type SettingsRenderPrimitives } from "./settings-renderer.js";
 export type { CapabilitiesView, CapabilitySection } from "./capabilities.js";
 export type { CallRowView } from "./call-row.js";
@@ -139,3 +139,5 @@ export { BUILTIN_PLUGIN_AGENTS, artifactTypeDeclarations, artifactContinuers, ar
 
 export { pluginWorkbenchClientAsset } from "./plugin-workbench.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
+
+export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";

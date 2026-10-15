@@ -1,6 +1,7 @@
 export * from "./personal-planning-actions.js";
 export * from "./decision-view.js";
 export * from "./actions.js";
+export type { InitializeBoardOutput } from "./board-actions.js";
 export * from "./decision-groups.js";
 export * from "./decision-results.js";
 export * from "./decision-results-ui.js";
@@ -9,10 +10,8 @@ export * from "./proposal-en.js";
 export * from "./proposal-client.js";
 export * from "./proposal-ui.js";
 export * from "./proposal-ui-model.js";
-export * from "./board-entry-capabilities.js";
 export * from "./goal-event-application.js";
-export * from "./goal-event-entry-capabilities.js";
-export * from "./proposal-capabilities.js";
+export { managementTreeAuthority, managementEventDecisionAuthority } from "./management-evidence.js";
 export * from "./goal-entry-contract.js";
 export * from "./goal-tree-query.js";
 export * from "./goal-tree-submission.js";
@@ -107,7 +106,7 @@ export { GoalDecisionAttentionSync } from "./goal-decision-attention.js";
 
 export { readMolisWorkSnapshot, type MolisWorkSnapshotPorts } from "./board-snapshot-query.js";
 
-export { MolisWorkV1Error } from "./errors.js";
+
 
 export { TRASH_GOAL_STYLES } from "./trash-document-styles.js";
 

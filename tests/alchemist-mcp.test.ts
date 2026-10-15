@@ -8,7 +8,9 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { alchemistManifest } from "@molis-ai/molis-work-plugin-alchemist";
 
-test("Alchemist standard MCP shares persisted business state across processes with project and read-only fixture grants", { timeout: 30_000 }, async () => {
+// Every MCP client here starts its own Host process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
+// whole test at two files at once): the budget only stops a hang, it is not a speed check.
+test("Alchemist standard MCP shares persisted business state across processes with project and read-only fixture grants", { timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "alchemist-mcp-")), clients: Client[] = [];
   const connect = async (project: string, access = "write") => {
     const client = new Client({ name: "external-alchemist", version: "1" }); clients.push(client);

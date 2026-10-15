@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import type { Runtime } from "@prologue/sdk";
+import type { ExactRef, Runtime } from "@prologue/sdk";
+import { sessionBlock } from "./prologue-collaboration.js";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
-import type { PrologueCredentialBridge } from "./prologue-credentials.js";
+import { prepareInferenceCredential, type PrologueCredentialBridge } from "./prologue-credentials.js";
 import { createPrologueInference } from "./prologue-inference.js";
 import { createSessionMessages } from "./prologue-messages.js";
 import { createProjectWork } from "./prologue-project-work.js";
@@ -37,7 +38,7 @@ export function createNodeProjectWork(options: PrologueNodeAdapterOptions, host:
   }, runId => state.runWork.has(runId));
 }
 
-/** Messages between sessions, parked sessions and background commands, and the rounds' step boards. */
+/** Messages between sessions, waits and background commands, and the rounds' step boards. */
 export function createNodeCoordination(runtime: Runtime, index: SessionIndexStore, state: RoundState, projectWork: ReturnType<typeof createProjectWork>) {
   /** Tell a session's main round that is running now; false when it has none. */
   const steerSession = async (sessionId: string, text: string) => {
@@ -49,7 +50,11 @@ export function createNodeCoordination(runtime: Runtime, index: SessionIndexStor
   const messages = createSessionMessages(runtime, {
     async owner(sessionId) {
       const saved = await index.read(sessionId).catch(() => undefined);
-      return saved ? { project: saved.owner.project_id, ref: saved.ref, subtask: Boolean(saved.parent_run) } : undefined;
+      if (saved) return { project: saved.owner.project_id, ref: saved.ref, subtask: Boolean(saved.parent_run) };
+      // A subtask with nothing for the Host to review keeps no index of its own: it is its parent's.
+      const child = runtime.subagents.list().find(one => one.session.id === sessionId);
+      const parent = child && await index.read(child.parentSession.id).catch(() => undefined);
+      return parent ? { project: parent.owner.project_id, ref: child!.session, subtask: true } : undefined;
     },
     async title(project, sessionId) {
       const listed = (await projectWork.read(project).catch(() => ({ items: [] }))).items.find(item => item.session_id === sessionId);
@@ -65,8 +70,14 @@ export function createNodeCoordination(runtime: Runtime, index: SessionIndexStor
       const seen = await projectWork.read(project, { session_id: sessionId, directory: mine.directory, paths: mine.paths });
       return [...new Set(seen.overlaps.map(overlap => overlap.work.session_id))];
     },
+    async place(sessionId) {
+      const saved = await index.read(sessionId).catch(() => undefined);
+      if (!saved || saved.parent_run) return;
+      await runtime.sessions.open(saved.ref);
+      await sessionBlock(runtime, { kind: "task-board", id: await projectWork.projectId(saved.owner.project_id), revision: 1 } as ExactRef<"task-board">, saved.ref, saved.title);
+    },
   });
-  /** Parked sessions and background commands; a wait that fires while its session runs a round is told to that round. */
+  /** The project's waits and continuations, and background commands (the SDK hands a wait that is over to a live round). */
   const waitsPort = createPrologueWaits(runtime, {
     project: async sessionId => (await index.read(sessionId).catch(() => undefined))?.owner.project_id,
     title: async sessionId => {
@@ -74,7 +85,6 @@ export function createNodeCoordination(runtime: Runtime, index: SessionIndexStor
       if (!saved) return sessionId;
       return (await projectWork.read(saved.owner.project_id).catch(() => ({ items: [] }))).items.find(item => item.session_id === sessionId)?.title ?? saved.title;
     },
-    steer: (sessionId, text) => steerSession(sessionId, text),
   });
   const stepBoards = createPrologueTaskBoards(runtime, async run => {
     const saved = await index.read(run.session_id), attempt = saved?.attempts.find(attempt => attempt.run_id === run.run_id);
@@ -94,22 +104,7 @@ export function createNodeCoordination(runtime: Runtime, index: SessionIndexStor
 
 /** The inference client, and the plugin builder agents it hands out (closed with the runtime). */
 export function createNodeInference(runtime: Runtime, options: PrologueNodeAdapterOptions, credentials: PrologueCredentialBridge, dispatchGuards: DispatchGuards) {
-  const inference = createPrologueInference(runtime, async (input, signal, optional) => {
-    const normalize = (value: string | null) => value?.trim() ? value : null;
-    signal.throwIfAborted();
-    await input.beforeDispatch?.();
-    const snapshot = normalize(await input.resolveCredential(input.credential_ref));
-    signal.throwIfAborted();
-    const assertCurrent = async () => {
-      signal.throwIfAborted();
-      if (normalize(await input.resolveCredential(input.credential_ref)) !== snapshot) throw new Error("模型凭据或配置已改变");
-      signal.throwIfAborted();
-    };
-    if (optional && snapshot === null) return { assertCurrent };
-    if (snapshot === null) throw new Error("模型凭据不可用");
-    const ref = await credentials.prologueRefFor(input.credential_ref, async () => { await assertCurrent(); return snapshot; }, signal);
-    return { ref, assertCurrent };
-  }, (guard, operation) => dispatchGuards.run(guard, operation));
+  const inference = createPrologueInference(runtime, prepareInferenceCredential(credentials), (guard, operation) => dispatchGuards.run(guard, operation));
   const builders = new Set<Awaited<ReturnType<typeof createPluginBuilderAgent>>>();
   let closingBuilders = false;
   const createBuilderAgent = async (input: PluginBuilderAgentOptions) => {

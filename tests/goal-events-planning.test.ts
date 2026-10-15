@@ -1,7 +1,7 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -344,7 +344,7 @@ test("configure idempotency uses the original request before resolving upgraded 
           fields: [{ field_id: "note", name: "内容", purpose: "x", format: "text", required: true }],
         }],
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "request.idempotency_key_reused",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.request.idempotency_key_reused",
     );
     await mcp.close();
     mcp = new MolisWorkServer("runtime", {
@@ -442,7 +442,7 @@ test("equivalent planning packs merge with provenance; conflicting packs fail at
         goal_id: conflictGoal.goal.goal_id, expected_version: 0, idempotency_key: "conflict-adopt",
         adopted_planning: [{ method_id: "conflict-a" }, { method_id: "conflict-b" }],
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_config.planning_type_conflict",
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_config.planning_type_conflict",
     );
     const unchanged = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", {
       goal_id: conflictGoal.goal.goal_id,

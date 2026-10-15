@@ -168,26 +168,26 @@ export function validatePlanningGraph(
     const endpoints = [relation.from_goal_id, relation.to_goal_id];
     const missing = endpoints.filter((goalId) => !goalsById.has(goalId));
     if (missing.length) {
-      issues.push({ code: "planning.goal_missing", message: `关系引用了不存在的 Goal：${missing.join("、")}`, goal_ids: missing, relation_ids: [relation.relation_id], path: endpoints });
+      issues.push({ code: "goals.planning.goal_missing", message: `关系引用了不存在的 Goal：${missing.join("、")}`, goal_ids: missing, relation_ids: [relation.relation_id], path: endpoints });
       continue;
     }
     const trashed = endpoints.filter((goalId) => goalsById.get(goalId)?.trashed_at);
-    if (trashed.length) issues.push({ code: "planning.goal_trashed", message: `生效关系引用了回收站 Goal：${trashed.join("、")}`, goal_ids: trashed, relation_ids: [relation.relation_id], path: endpoints });
-    if (relation.from_goal_id === relation.to_goal_id) issues.push({ code: "planning.relation_self_reference", message: `Goal「${relation.from_goal_id}」不能关联自身`, goal_ids: [relation.from_goal_id], relation_ids: [relation.relation_id], path: endpoints });
+    if (trashed.length) issues.push({ code: "goals.planning.goal_trashed", message: `生效关系引用了回收站 Goal：${trashed.join("、")}`, goal_ids: trashed, relation_ids: [relation.relation_id], path: endpoints });
+    if (relation.from_goal_id === relation.to_goal_id) issues.push({ code: "goals.planning.relation_self_reference", message: `Goal「${relation.from_goal_id}」不能关联自身`, goal_ids: [relation.from_goal_id], relation_ids: [relation.relation_id], path: endpoints });
     const key = relationKey(relation);
     const prior = seen.get(key);
-    if (prior) issues.push({ code: "planning.relation_duplicate", message: `重复的生效关系：${relation.from_goal_id} → ${relation.to_goal_id}`, goal_ids: endpoints, relation_ids: [prior.relation_id, relation.relation_id], path: endpoints });
+    if (prior) issues.push({ code: "goals.planning.relation_duplicate", message: `重复的生效关系：${relation.from_goal_id} → ${relation.to_goal_id}`, goal_ids: endpoints, relation_ids: [prior.relation_id, relation.relation_id], path: endpoints });
     else seen.set(key, relation);
   }
 
   const active = relations.filter((relation) => relation.state === "active");
   const partCycle = findCycle(edgesFor(active, "part_of"));
-  if (partCycle) issues.push({ code: "planning.part_of_cycle", message: `父子关系形成循环：${partCycle.join(" → ")}`, goal_ids: [...new Set(partCycle)], relation_ids: relationIdsForPath(active, partCycle, "part_of"), path: partCycle });
+  if (partCycle) issues.push({ code: "goals.planning.part_of_cycle", message: `父子关系形成循环：${partCycle.join(" → ")}`, goal_ids: [...new Set(partCycle)], relation_ids: relationIdsForPath(active, partCycle, "part_of"), path: partCycle });
   const dependencyCycle = findCycle(edgesFor(active, "depends_on"));
-  if (dependencyCycle) issues.push({ code: "planning.dependency_cycle", message: `依赖关系形成循环：${dependencyCycle.join(" → ")}`, goal_ids: [...new Set(dependencyCycle)], relation_ids: relationIdsForPath(active, dependencyCycle, "depends_on"), path: dependencyCycle });
+  if (dependencyCycle) issues.push({ code: "goals.planning.dependency_cycle", message: `依赖关系形成循环：${dependencyCycle.join(" → ")}`, goal_ids: [...new Set(dependencyCycle)], relation_ids: relationIdsForPath(active, dependencyCycle, "depends_on"), path: dependencyCycle });
   if (!partCycle && !dependencyCycle) {
     const executionCycle = findCycle(edgesFor(active, "execution"));
-    if (executionCycle) issues.push({ code: "planning.execution_cycle", message: `父子与依赖组合后形成执行循环：${executionCycle.join(" → ")}`, goal_ids: [...new Set(executionCycle)], relation_ids: relationIdsForPath(active, executionCycle, "execution"), path: executionCycle });
+    if (executionCycle) issues.push({ code: "goals.planning.execution_cycle", message: `父子与依赖组合后形成执行循环：${executionCycle.join(" → ")}`, goal_ids: [...new Set(executionCycle)], relation_ids: relationIdsForPath(active, executionCycle, "execution"), path: executionCycle });
   }
   return issues;
 }

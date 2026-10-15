@@ -1,12 +1,10 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { RuntimeHostApi } from "@molis-ai/molis-work-contracts/services/runtime-host";
+import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SessionDirectoryService } from "./directory.js";
-import {
-  MolisWorkSessionError,
-  type MolisWorkSessionHandoffRecord,
-  type MolisWorkSessionRecord,
-  type SessionHandoffResult,
-} from "./types.js";
+import { type MolisWorkSessionHandoffRecord, type MolisWorkSessionRecord, type SessionHandoffResult } from "./types.js";
 
 /** Send/recovery orchestration only; the Session module owns every persisted transition. */
 export class SessionHandoffDelivery {
@@ -16,16 +14,18 @@ export class SessionHandoffDelivery {
     private readonly directory: SessionDirectoryService,
   ) {}
 
-  send(handoff: MolisWorkSessionHandoffRecord, actorId: string): Promise<SessionHandoffResult> {
+  send(handoff: MolisWorkSessionHandoffRecord, actorId: string, control?: Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">): Promise<SessionHandoffResult> {
     return this.router.capabilities(handoff.target_runtime_id).handoff === "native"
-      ? this.sendNative(handoff, actorId)
-      : this.sendFallback(handoff, actorId);
+      ? this.sendNative(handoff, actorId, control)
+      : this.sendFallback(handoff, actorId, control);
   }
 
   private async sendNative(
     handoff: MolisWorkSessionHandoffRecord,
     actorId: string,
+    control?: Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">,
   ): Promise<SessionHandoffResult> {
+    await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     let destination = handoff.destination_session_id
       ? this.registry.get(handoff.destination_session_id)
       : this.findRecordedDestination(handoff);
@@ -33,6 +33,8 @@ export class SessionHandoffDelivery {
       const created = await this.router.invoke(handoff.target_runtime_id, "create", {
         ...(handoff.target_workspace_path ? { cwd: handoff.target_workspace_path } : {}),
       });
+      // A created external Session is not permission to create a local association or send its next message.
+      await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
       if (created.status !== "ok") {
         const retryable = created.status === "failed" && created.recovery?.retryable === true;
         const failed = this.registry.markHandoffFailed({
@@ -65,7 +67,8 @@ export class SessionHandoffDelivery {
       } catch (error) {
         const failed = this.registry.markHandoffFailed({
           package_id: handoff.package_id,
-          error_code: error instanceof MolisWorkSessionError ? error.code : "session.identity_conflict",
+          error_code: error instanceof ActionError && error.code.startsWith("work.session.")
+            && Object.hasOwn(sessionErrors, error.code.slice("work.session.".length)) ? error.code : "work.session.identity_conflict",
           error_message: error instanceof Error ? error.message : String(error),
           retryable: false,
         });
@@ -94,6 +97,7 @@ export class SessionHandoffDelivery {
       prompt: handoff.content,
       existingThreadId: nativeSessionId,
     });
+    await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     if (result.status !== "ok") {
       const retryable = result.status === "failed" && result.recovery?.retryable === true;
       const failed = this.registry.markHandoffFailed({
@@ -113,7 +117,7 @@ export class SessionHandoffDelivery {
     if (deliveredNativeSessionId && deliveredNativeSessionId !== nativeSessionId) {
       const failed = this.registry.markHandoffFailed({
         package_id: handoff.package_id,
-        error_code: "session.identity_conflict",
+        error_code: "work.session.identity_conflict",
         error_message: "目标 Runtime 返回了另一条 Session 身份；Molis Work 没有覆盖已确认的目标关系。",
         retryable: false,
         destination_session_id: destination.session_id,
@@ -133,7 +137,9 @@ export class SessionHandoffDelivery {
   private async sendFallback(
     handoff: MolisWorkSessionHandoffRecord,
     actorId: string,
+    control?: Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">,
   ): Promise<SessionHandoffResult> {
+    await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     let destination = handoff.destination_session_id
       ? this.registry.get(handoff.destination_session_id)
       : null;
@@ -147,7 +153,8 @@ export class SessionHandoffDelivery {
         workspace_id: handoff.target_workspace_id,
         workspace_path: handoff.target_workspace_path,
         title: this.destinationTitle(handoff),
-      });
+      }, control);
+      await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
       this.registry.attachHandoffDestination({
         package_id: handoff.package_id,
         destination_session_id: destination.session_id,
@@ -173,9 +180,11 @@ export class SessionHandoffDelivery {
       this.recordLineageEvents(destination, sent);
       return { handoff: sent, destination_session: destination };
     } catch {
+      // Refusal must escape without manufacturing a new failure record for the cancelled invocation.
+      await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
       const failed = this.registry.markHandoffFailed({
         package_id: handoff.package_id,
-        error_code: "handoff.fallback_failed",
+        error_code: "work.handoff.fallback_failed",
         error_message: destination
           ? "目标托管 Session 已创建，但 package 写入失败；重试会继续使用这条 Session。"
           : "Molis Work 无法创建目标托管 Session；来源 Session 与草稿已保留。",
@@ -195,7 +204,7 @@ export class SessionHandoffDelivery {
     if (handoff.destination_session_id) {
       const current = this.registry.get(handoff.destination_session_id);
       if (current.native_runtime_session_id === nativeSessionId) return current;
-      throw new MolisWorkSessionError("session.identity_conflict", "Handoff 已连接另一个目标 Runtime Session");
+      throw sessionErrors.identity_conflict("Handoff 已连接另一个目标 Runtime Session");
     }
     const existing = this.registry.findByNativeRuntimeSession(handoff.target_runtime_id, nativeSessionId);
     if (existing) {
@@ -203,10 +212,7 @@ export class SessionHandoffDelivery {
         existing.session_id !== handoff.source_session_id
         && existing.metadata.handoff_package_id === handoff.package_id
       ) return existing;
-      throw new MolisWorkSessionError(
-        "session.identity_conflict",
-        "目标 Runtime 返回的不是一条新的 Session；Molis Work 没有覆盖现有 Session 关系",
-      );
+      throw sessionErrors.identity_conflict("目标 Runtime 返回的不是一条新的 Session；Molis Work 没有覆盖现有 Session 关系");
     }
     return this.registry.createSession({
       runtime_id: handoff.target_runtime_id,

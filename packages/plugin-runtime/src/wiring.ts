@@ -23,7 +23,8 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import type { PluginHostLifecycle } from "./lifecycle.js";
-import { buildWiringView, usableVersion } from "./wiring-view.js";
+import { buildWiringView } from "./wiring-view.js";
+import { acceptsLibraryVersion, resolvePortInput, usableVersion } from "./wiring-input.js";
 
 /** Reads a published Artifact version. The graph never owns Artifact storage. */
 export interface PluginArtifactReaderPort {
@@ -96,7 +97,7 @@ export class PluginInputGraph implements PluginWiringApi {
       .find((port) => port.port === input.target_port);
     if (!inputPort) {
       throw new PluginWiringError(
-        "port_unknown",
+        "plugin.port_unknown",
         `${input.target_plugin_id} 没有输入端口 ${input.target_port}`,
       );
     }
@@ -104,7 +105,7 @@ export class PluginInputGraph implements PluginWiringApi {
       .find((port) => port.port === input.source_port);
     if (!outputPort) {
       throw new PluginWiringError(
-        "port_unknown",
+        "plugin.port_unknown",
         `${input.source_plugin_id} 没有输出端口 ${input.source_port}`,
       );
     }
@@ -112,7 +113,7 @@ export class PluginInputGraph implements PluginWiringApi {
     const offered = portTypeKey(outputPort.artifact_type_id, outputPort.schema_version);
     if (wanted !== offered) {
       throw new PluginWiringError(
-        "port_type_mismatch",
+        "plugin.port_type_mismatch",
         `端口类型不匹配：${input.target_port} 需要 ${wanted}，${input.source_port} 产出 ${offered}`,
       );
     }
@@ -138,13 +139,16 @@ export class PluginInputGraph implements PluginWiringApi {
 
   /** Give an input port one fixed 成果 version instead of another plugin's output (artifact-positioning, 2026-10-04). */
   bindArtifact(input: PluginPortArtifactBindingInput): PluginPortArtifactBindingRecord {
-    const port = (this.#requireManifest(input.target_plugin_id).ports?.inputs ?? []).find((candidate) => candidate.port === input.target_port);
-    if (!port) throw new PluginWiringError("port_unknown", `${input.target_plugin_id} 没有输入端口 ${input.target_port}`);
+    const manifest = this.#requireManifest(input.target_plugin_id);
+    const port = (manifest.ports?.inputs ?? []).find((candidate) => candidate.port === input.target_port);
+    if (!port) throw new PluginWiringError("plugin.port_unknown", `${input.target_plugin_id} 没有输入端口 ${input.target_port}`);
     const version = this.#artifacts.library?.({ artifact_id: input.artifact_id, version: input.version }) ?? null;
-    if (!version) throw new PluginWiringError("port_artifact_invalid", "成果库里没有这一版");
+    if (!version) throw new PluginWiringError("plugin.port_artifact_invalid", "成果库里没有这一版");
     const wanted = portTypeKey(port.artifact_type_id, port.schema_version), offered = portTypeKey(version.artifact_type_id, version.schema_version);
-    if (wanted !== offered) throw new PluginWiringError("port_type_mismatch", `端口类型不匹配：${input.target_port} 需要 ${wanted}，这一版是 ${offered}`);
-    if (!usableVersion(version)) throw new PluginWiringError("port_artifact_invalid", "这一版现在不可用或已归档");
+    if (wanted !== offered) throw new PluginWiringError("plugin.port_type_mismatch", `端口类型不匹配：${input.target_port} 需要 ${wanted}，这一版是 ${offered}`);
+    const unavailable = !acceptsLibraryVersion(manifest, version) ? "插件未声明读取这种成果"
+      : !usableVersion(version) ? "这一版现在不可用或已归档" : null;
+    if (unavailable) throw new PluginWiringError("plugin.port_artifact_invalid", unavailable);
     const record: PluginPortArtifactBindingRecord = { project_id: this.#projectId, ...input, created_at: this.#now().toISOString() };
     this.#repository.saveArtifactBinding(record);
     return { ...record };
@@ -158,7 +162,7 @@ export class PluginInputGraph implements PluginWiringApi {
     const manifest = this.#requireManifest(pluginId);
     const groups = manifest.ports?.input_groups ?? [];
     if (!groups.some((group) => group.group_id === groupId)) {
-      throw new PluginWiringError("input_group_unknown", `${pluginId} 没有输入组 ${groupId}`);
+      throw new PluginWiringError("plugin.input_group_unknown", `${pluginId} 没有输入组 ${groupId}`);
     }
     const record: PluginInputGroupSelectionRecord = {
       project_id: this.#projectId,
@@ -184,7 +188,7 @@ export class PluginInputGraph implements PluginWiringApi {
     const manifest = this.#requireManifest(input.plugin_id);
     if (!(manifest.ports?.outputs ?? []).some((port) => port.port === input.port)) {
       throw new PluginWiringError(
-        "port_unknown",
+        "plugin.port_unknown",
         `${input.plugin_id} 没有输出端口 ${input.port}`,
       );
     }
@@ -217,16 +221,10 @@ export class PluginInputGraph implements PluginWiringApi {
 
   /** The fixed reference currently bound to one input port, or null. */
   reference(pluginId: string, port: string): ArtifactReference | null {
-    const binding = this.#repository.getBinding(this.#projectId, pluginId, port);
-    if (!binding) return null;
-    const output = this.#repository.getOutput(
-      this.#projectId,
-      binding.source_plugin_id,
-      binding.source_port,
-    );
-    if (!output || output.artifact_id === null || output.version === null) return null;
-    if (output.invalidated_reason !== null) return null;
-    return { artifact_id: output.artifact_id, version: output.version };
+    const manifest = this.#lifecycle.manifest(pluginId);
+    if (!manifest) return null;
+    const { record } = resolvePortInput({ projectId: this.#projectId, manifest, port, repository: this.#repository, artifacts: this.#artifacts });
+    return record ? { artifact_id: record.artifact_id, version: record.version } : null;
   }
 
   /** The current version on one output port; 0 when it has never published. */
@@ -300,7 +298,7 @@ export class PluginInputGraph implements PluginWiringApi {
         const reject = () => {
           controller.abort();
           if (!entered && this.#controllers.get(pluginId) === controller) this.#dispatched.delete(pluginId);
-          throw new PluginWiringError("port_binding_invalid", "输入或插件执行身份已失效");
+          throw new PluginWiringError("plugin.port_binding_invalid", "输入或插件执行身份已失效");
         };
         if (controller.signal.aborted || this.#shutdown.signal.aborted || !this.#canReadCommitted() || !consumer.active()
           || this.#lifecycle.generation(pluginId) !== generation) reject();
@@ -354,7 +352,7 @@ export class PluginInputGraph implements PluginWiringApi {
   #requireManifest(pluginId: string): PluginManifest {
     const manifest = this.#lifecycle.manifest(pluginId);
     if (!manifest) {
-      throw new PluginWiringError("port_binding_invalid", `插件 ${pluginId} 没有登记`);
+      throw new PluginWiringError("plugin.port_binding_invalid", `插件 ${pluginId} 没有登记`);
     }
     return manifest;
   }
@@ -392,52 +390,13 @@ export class PluginInputGraph implements PluginWiringApi {
     let unavailable: PluginUpstreamUnavailableReason | undefined;
 
     for (const port of required) {
-      const fixed = this.#repository.getArtifactBinding(this.#projectId, pluginId, port);
-      if (fixed) {
-        // A fixed version stays what the port gives until someone changes it; it carries no scope of its own.
-        const record = this.#artifacts.library?.(fixed) ?? null;
-        if (record && usableVersion(record)) { resolved.set(port, { scope: null, record }); continue; }
+      const entry = resolvePortInput({ projectId: this.#projectId, manifest, port, repository: this.#repository, artifacts: this.#artifacts });
+      if (!entry.record) {
         missing.push(port);
-        unavailable ??= { binding_id: bindingId(pluginId, port), code: "content_unavailable", message: `输入 ${port} 固定的那一版已不可读取` };
+        unavailable ??= entry.reason;
         continue;
       }
-      const binding = this.#repository.getBinding(this.#projectId, pluginId, port);
-      if (!binding) {
-        missing.push(port);
-        continue;
-      }
-      const output = this.#repository.getOutput(
-        this.#projectId,
-        binding.source_plugin_id,
-        binding.source_port,
-      );
-      if (!output || output.artifact_id === null || output.version === null) {
-        missing.push(port);
-        continue;
-      }
-      if (output.invalidated_reason !== null) {
-        missing.push(port);
-        unavailable ??= {
-          binding_id: bindingId(pluginId, port),
-          code: "source_invalidated",
-          message: output.invalidated_reason,
-        };
-        continue;
-      }
-      const record = this.#artifacts.read({
-        artifact_id: output.artifact_id,
-        version: output.version,
-      });
-      if (!record || !usableVersion(record)) {
-        missing.push(port);
-        unavailable ??= {
-          binding_id: bindingId(pluginId, port),
-          code: "content_unavailable",
-          message: `输入 ${port} 的内容已不可读取`,
-        };
-        continue;
-      }
-      resolved.set(port, { scope: output.scope_key, record });
+      resolved.set(port, { scope: entry.scope, record: entry.record });
     }
 
     if (missing.length > 0) {

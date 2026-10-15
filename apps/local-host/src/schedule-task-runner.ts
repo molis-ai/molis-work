@@ -12,6 +12,8 @@ import {
 } from "@molis-ai/molis-work-plugin-schedule";
 import { currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import { configuredModelChoices } from "./configured-models.js";
+import type { MolisWorkLocalHost } from "./project-host.js";
+import { memoryForAgentRun } from "./memory/memory-host.js";
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -132,4 +134,10 @@ export function createHostScheduledTaskRunner(options: {
       }
     },
   };
+}
+
+/** Scheduled tasks retain Schedule's identity when reading the Host's shared memory. */
+export function scheduledTaskMemory(host: MolisWorkLocalHost, projectId: string) {
+  return (task: string, title: string) => memoryForAgentRun(host, { project_id: projectId, task, plugin_id: SCHEDULE_PLUGIN_ID,
+    used_for: `定时任务 · ${title.replace(/\s+/g, " ").trim().slice(0, 40)}` });
 }

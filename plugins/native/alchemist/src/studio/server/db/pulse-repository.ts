@@ -160,7 +160,7 @@ export class SqlitePulseRepository {
     const result = this.database
       .prepare("UPDATE source_settings SET enabled = ?, updated_at = ? WHERE source_id = ?")
       .run(enabled ? 1 : 0, now, sourceId);
-    if (result.changes !== 1) throw new Error("PULSE_SOURCE_NOT_FOUND");
+    if (result.changes !== 1) throw new Error("alchemist.pulse_source_not_found");
     return this.requireSourceSetting(sourceId);
   }
 
@@ -293,7 +293,7 @@ export class SqlitePulseRepository {
       };
       return fetch.status === "completed"
         ? { ...base, status: "completed" as const }
-        : { ...base, status: "error" as const, errorCode: fetch.error_code ?? "SOURCE_FAILED" };
+        : { ...base, status: "error" as const, errorCode: fetch.error_code ?? "alchemist.source_failed" };
     });
   }
 
@@ -478,7 +478,7 @@ export class SqlitePulseRepository {
     const collision = this.database.prepare("SELECT 1 FROM supply_signals WHERE id = ?").get(snapshotId) as
       | { 1: number }
       | undefined;
-    if (collision) throw new Error("PULSE_SIGNAL_SNAPSHOT_ID_CONFLICT");
+    if (collision) throw new Error("alchemist.pulse_signal_snapshot_id_conflict");
     return snapshotId;
   }
 
@@ -486,19 +486,19 @@ export class SqlitePulseRepository {
     const row = this.database.prepare("SELECT * FROM source_settings WHERE source_id = ?").get(sourceId) as
       | SourceSettingRow
       | undefined;
-    if (!row) throw new Error("PULSE_SOURCE_NOT_FOUND");
+    if (!row) throw new Error("alchemist.pulse_source_not_found");
     return mapSourceSetting(row);
   }
 
   private requireRun(id: string): PulseRun {
     const run = this.getRun(id);
-    if (!run) throw new Error("PULSE_RUN_NOT_FOUND");
+    if (!run) throw new Error("alchemist.pulse_run_not_found");
     return run;
   }
 
   private requireOpportunity(id: string): Opportunity {
     const opportunity = this.getOpportunity(id);
-    if (!opportunity) throw new Error("OPPORTUNITY_NOT_FOUND");
+    if (!opportunity) throw new Error("alchemist.opportunity_not_found");
     return opportunity;
   }
 }

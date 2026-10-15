@@ -1,10 +1,10 @@
 export { installMolisWorkHome } from "./installer/home.js";
-export { MolisWorkHomeInstallError } from "./installer/home-contract.js";
+
 export type { MolisWorkHomeInstallOptions, MolisWorkHomeInstallResult, MolisWorkHomeInstallStatus, MolisWorkHomeInstallStep } from "./installer/home-contract.js";
 export { computeBuildSourceDigest, writeMolisWorkBuildManifest, digestPaths } from "./installer/fingerprint.js";
 export type { MolisWorkBuildManifest } from "./installer/fingerprint.js";
 export { RuntimeIntegrationService } from "./installer/runtime-integration.js";
-export { RuntimeIntegrationError, SUPPORTED_RUNTIME_IDS, isSupportedRuntimeId } from "./installer/runtime-integration-contract.js";
+export { SUPPORTED_RUNTIME_IDS, isSupportedRuntimeId } from "./installer/runtime-integration-contract.js";
 export type { SupportedRuntimeId, RuntimeIntegrationAction, RuntimeConnectionState, RuntimeIntegrationDetection, RuntimeIntegrationChange, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResultStatus, RuntimeIntegrationResult, RuntimeIntegrationValidationContext, RuntimeIntegrationServiceOptions } from "./installer/runtime-integration-contract.js";
 export { openWorkSessionRegistry } from "./session-registry.js";
 export { RuntimeSessionHost } from "./runtime-session.js";
@@ -37,9 +37,9 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export * from "./local-host.js";
 export { MolisWorkWebServiceManager } from "./installer/web-service.js";
-export { MolisWorkWebServiceError, type MolisWorkWebServiceAction, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection, type MolisWorkWebServicePlan, type MolisWorkWebServiceResult, type MolisWorkWebServiceManagerOptions } from "./installer/web-service-contract.js";
+export { type MolisWorkWebServiceAction, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection, type MolisWorkWebServicePlan, type MolisWorkWebServiceResult, type MolisWorkWebServiceManagerOptions } from "./installer/web-service-contract.js";
 export { MolisWorkUninstallService } from "./installer/uninstall.js";
-export { MolisWorkUninstallError, type MolisWorkUninstallPlan, type MolisWorkUninstallResult, type MolisWorkUninstallServiceOptions, type MolisWorkUninstallChange, type UninstallProjectAccess } from "./installer/uninstall-contract.js";
+export { type MolisWorkUninstallPlan, type MolisWorkUninstallResult, type MolisWorkUninstallServiceOptions, type MolisWorkUninstallChange, type UninstallProjectAccess } from "./installer/uninstall-contract.js";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
 export { createMolisWorkRuntimePayload, type MolisWorkRuntimePayloadOptions } from "./installer/runtime-payload.js";
 export { createMolisWorkNpmPackageDirectory } from "./installer/npm-package.js";
@@ -163,8 +163,7 @@ export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
 export * from "./project-host.js";
 export { projectActionAvailability } from "./project-action-availability.js";
-export { initializeBoardCapability, snapshotBoardCapability, createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
-export { runLocalPluginDevelopment } from "./local-plugin-development.js";
+export { runLocalPluginDevelopment, developInPrivateHost } from "./local-plugin-development.js";
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { createLocalPanelHttp } from "./web-panel.js";
 export { createLocalWorkSessionHttp } from "./web-work-session.js";
@@ -195,14 +194,7 @@ export {
   readGitStatus,
   type GitStatusResult,
 } from "./git-status.js";
-export {
-  ModelProviderError,
-  ModelProviderStore,
-  createModelProviderTables,
-  type ModelProviderSqlite,
-  type ModelProviderStoreOptions,
-  type ModelSecretPort,
-} from "./model-provider-store.js";
+export { ModelProviderStore, createModelProviderTables, type ModelProviderSqlite, type ModelProviderStoreOptions, type ModelSecretPort } from "./model-provider-store.js";
 export { MINIMAX_ANTHROPIC_BASE_URL, MODEL_PROVIDER_TEMPLATES, modelProviderTemplate } from "./model-provider-templates.js";
 export {
   composeAgentHost,
@@ -221,7 +213,7 @@ export {
   releaseCodingSurface,
   type CodingSurfacePorts,
 } from "./coding-surface.js";
-export { createGitWorktreePort, GitWorktreeError, type GitWorktreePort } from "./git-worktrees.js";
+export { createGitWorktreePort, type GitWorktreePort } from "./git-worktrees.js";
 export { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";
 export { draftText } from "./model-draft.js";
 
@@ -238,6 +230,7 @@ export { ALCHEMIST_SEARCH_BASELINE, createAlchemistSearchPort } from "./alchemis
 export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
 export { AssistantService } from "./assistant/assistant-service.js";
 export { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
+export { withPluginInteraction } from "./plugin-interaction-answer.js";
 export { assistantCardHtml, cardInputValues, instantIn } from "./assistant/assistant-card-view.js";
 export { assistantNextSteps, drawAssistantReply } from "./assistant/assistant-view-html.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";

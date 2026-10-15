@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
@@ -99,18 +100,20 @@ test("project general settings persist a rename, cancel safely, and retry deleti
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/general?desktop=1" }, sessionId));
   await waitFor(general, 15_000);
 
-  // Exercise both themes and a narrow layout against the actual settings and modal.
+  // Exercise both themes and a narrow layout against the actual settings and modal. The screenshots go to the ignored review folder.
+  const screenshots = resolve(".impeccable/qa/review", "project-settings");
+  await mkdir(screenshots, { recursive: true });
   for (const { width, theme } of [{ width: 1280, theme: "light" }, { width: 480, theme: "dark" }]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
     await waitFor(`document.documentElement.dataset.resolvedTheme === ${JSON.stringify(theme)}`);
     const pageScreenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
-    await writeFile(`/private/tmp/molis-work-project-settings-${width}-${theme}.png`, Buffer.from(pageScreenshot.data, "base64"));
+    await writeFile(resolve(screenshots, `project-settings-${width}-${theme}.png`), Buffer.from(pageScreenshot.data, "base64"));
     await click('[data-project-delete-open]');
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
     assert.equal(await evaluate("document.querySelector('[data-project-delete-dialog]').clientHeight < 500"), true);
     const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
-    await writeFile(`/private/tmp/molis-work-project-delete-${width}-${theme}.png`, Buffer.from(screenshot.data, "base64"));
+    await writeFile(resolve(screenshots, `project-delete-${width}-${theme}.png`), Buffer.from(screenshot.data, "base64"));
     await click('[data-project-delete-cancel]');
   }
   await click('[data-project-delete-open]');

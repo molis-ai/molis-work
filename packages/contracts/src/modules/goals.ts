@@ -1,7 +1,5 @@
-import type { RecordGoalProgressSummaryInput, GoalEventProgressResult } from "./goal-event-state.js";
 import type { ContractDescriptor } from "../platform/package.js";
-import type { HostCapabilityDefinition } from "../platform/app-host.js";
-import type { GoalEventDirectoryPage, GoalEventStateView } from "./goal-events.js";
+import type { GoalEventStateView } from "./goal-events.js";
 
 /** Read-only, scoped by the Host's project. Consumers cannot supply another board. */
 export interface GoalContextSnapshot {
@@ -9,25 +7,6 @@ export interface GoalContextSnapshot {
   /** Only this Goal's cursor belongs in its context; unrelated project events do not. */
   state: Omit<GoalEventStateView, "observed_event_cursor">;
 }
-export const goalContextCapabilities = {
-  list: { capability_id: "goals.context.list.v1", version: 1, operation: "query" } as HostCapabilityDefinition<
-    { after_cursor?: string }, GoalEventDirectoryPage>,
-  read: { capability_id: "goals.context.read.v1", version: 1, operation: "query" } as HostCapabilityDefinition<
-    { goal_id: string }, GoalContextSnapshot>,
-};
-/**
- * Who a Goal progress receipt is read for. Host-direct callers (the CLI, MCP and tests: trusted composition) name the actor; a
- * plugin never does, because the Host takes it from the plugin's own call context and refuses one in the arguments. Recording
- * names no actor for anyone: a plugin is its call context's actor, every other caller is the person on this machine.
- */
-export interface GoalProgressActor { actor_id?: string; actor_kind?: "user" | "runtime" }
-/** Project-scoped access to the original Goal progress transaction and receipt. */
-export const goalProgressCapabilities = {
-  record: { capability_id: "goals.progress.record.v1", version: 1, operation: "command" } as HostCapabilityDefinition<
-    Omit<RecordGoalProgressSummaryInput, "project_id" | "actor_id" | "actor_kind">, GoalEventProgressResult>,
-  receipt: { capability_id: "goals.progress.receipt.v1", version: 1, operation: "query" } as HostCapabilityDefinition<
-    { goal_id: string; idempotency_key: string } & Pick<GoalProgressActor, "actor_id">, GoalEventProgressResult | null>,
-};
 import type {
   GoalEventAdoptedPlanningRequest,
   GoalEventTypeDefinitionInput,
@@ -290,13 +269,13 @@ export interface PlanningRelationChange {
 
 export interface PlanningGraphIssue {
   code:
-    | "planning.goal_missing"
-    | "planning.goal_trashed"
-    | "planning.relation_self_reference"
-    | "planning.relation_duplicate"
-    | "planning.part_of_cycle"
-    | "planning.dependency_cycle"
-    | "planning.execution_cycle";
+    | "goals.planning.goal_missing"
+    | "goals.planning.goal_trashed"
+    | "goals.planning.relation_self_reference"
+    | "goals.planning.relation_duplicate"
+    | "goals.planning.part_of_cycle"
+    | "goals.planning.dependency_cycle"
+    | "goals.planning.execution_cycle";
   message: string;
   goal_ids: string[];
   relation_ids: string[];
@@ -770,3 +749,20 @@ export {
   goalEventUserConclusionVerdicts,
   goalEventWorkStatuses,
 } from "./goal-events.js";
+
+import type { GoalTreeProposalRecord } from "./governance-collaboration.js";
+/** Existing full project snapshot; every record is defined by its fact owner. */
+export interface BoardSnapshot {
+  cursor: number;
+  board: GoalsBoardRecord;
+  goals: GoalRecord[];
+  relations: GoalRelationRecord[];
+  planning_method_packs: PlanningMethodPack[];
+  project_guidance: ProjectGuidanceEntryRecord[];
+  goal_tree_proposals: GoalTreeProposalRecord[];
+}
+
+/** Public entry contract: Goal facts plus the owners' records about it. */
+export interface GoalContractView extends GoalFactsView {
+  goal_tree_proposals: GoalTreeProposalRecord[];
+}

@@ -57,7 +57,7 @@ test("a form submission's source comes from the call, not from the input: only a
   form = (await f.bound.invoke(formActions.update, { id: form.id, questions: [{ id: "q", type: "text", title: "Q?" }], expected_version: form.version })).form;
   form = (await f.bound.invoke(formActions.publish, { id: form.id, expected_version: form.version })).form;
   const submit = async (audience: ActionAudience, source?: "preview" | "fill") =>
-    (await f.as(audience).invoke(formActions.submit, { id: form.id, answers: { q: `${audience}-${source ?? "none"}` }, ...(source ? { source } : {}) })).submission.source;
+    (await f.as(audience).invoke(formActions.submit, { id: form.id, expected_version: form.version, answers: { q: `${audience}-${source ?? "none"}` }, ...(source ? { source } : {}) })).submission.source;
   assert.equal(await submit("user", "fill"), "fill", "the fill page in the workbench names itself");
   assert.equal(await submit("user", "preview"), "preview");
   assert.equal(await submit("user"), "preview");
@@ -99,8 +99,9 @@ test("AI actions of Form, Dataset, PPT and 灵光 recheck the grant right before
   const form = forms.create({ project_id: "p", title: "F" }), dataset = datasets.create({ project_id: "p", title: "D" }), deck = decks.create({ project_id: "p", title: "P" });
   const spark = sparks.create({ project_id: "p", title: "S", body: "b" }), conversation = sparks.openConversation([spark.id], "p").conversation;
   const cases: Array<{ name: string; run: (state: ReturnType<typeof newState>) => Promise<unknown>; unchanged: () => unknown }> = [
-    { name: "form.questions.ai", unchanged: () => forms.get(form.id, "p").questions.length,
-      run: state => handle(createFormActionHandlers({ withStore: run => run(forms), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "题目？") }), formActions.generateAi.capability_id)
+    { name: "form.questions.draft", unchanged: () => forms.get(form.id, "p").questions.length,
+      run: state => handle(createFormActionHandlers({ withStore: run => run(forms), modelAvailability: () => ({ available: true }),
+        completeText: hostModel(state, JSON.stringify({ status: "done", questions: [{ title: "题目？", type: "text" }] })) }), formActions.draft.capability_id)
         .handle(revocable(state), { id: form.id, prompt: "加一题" }) },
     { name: "dataset.columns.ai", unchanged: () => datasets.get(dataset.id, "p").columns.length,
       run: state => handle(createDatasetActionHandlers({ withStore: run => run(datasets), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "列") }), datasetActions.generateAi.capability_id)

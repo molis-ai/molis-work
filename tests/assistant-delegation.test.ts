@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
+const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
+const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { LocalHost } from "@molis-ai/molis-work-app-local-host";
-import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
-import { AssistantError, AssistantService } from "../apps/local-host/dist/assistant/assistant-service.js";
-import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, AssistantStore, AssistantService, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 600; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -74,9 +76,9 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     const delegation = service.delegation(store.get("web-user", sent.work.work_id))!;
     await delegation.follow_up(child.work.work_id, "每条再短一点");
     await delegation.follow_up(child.work.work_id, "去掉编号");
-    await assert.rejects(delegation.follow_up(child.work.work_id, "再改一次"), (error: unknown) => error instanceof AssistantError && error.code === "assistant.limit", "follow-ups are bounded");
+    await assert.rejects(delegation.follow_up(child.work.work_id, "再改一次"), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid", "follow-ups are bounded");
     const other = await service.send({ text: "别的事", request_id: "req-delegation-2" }, { project_ref: project });
-    await assert.rejects(service.delegation(store.get("web-user", other.work.work_id))!.stop(child.work.work_id), (error: unknown) => error instanceof AssistantError && error.code === "assistant.scope");
+    await assert.rejects(service.delegation(store.get("web-user", other.work.work_id))!.stop(child.work.work_id), (error: unknown) => error instanceof ActionError && error.code === "assistant.scope" && error.kind === "forbidden");
     assert.equal(service.delegation(store.get("web-user", child.work.work_id)), undefined);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -186,15 +188,19 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
     if (JSON.stringify(body.messages).includes("委托给你的子任务")) return child(childRound++, init.signal);
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))();
   });
-  const flags = { model: true };
+  const flags = { model: true, beforeAuthority: undefined as (() => Promise<void>) | undefined, beforeStart: undefined as (() => Promise<void>) | undefined, assertBeforeStart: undefined as (() => void) | undefined };
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-fixture-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)), projectTitle: async () => "项目" }, "web-user");
-  return { service, store, project, flags, close: async () => { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+    authority: async work => {
+      const base = assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work));
+      if (!work.delegated_by) await flags.beforeAuthority?.();
+      return { ...base, beforeStart: async () => { await base.beforeStart?.(); if (!work.delegated_by) await flags.beforeStart?.(); }, assertBeforeStart: () => { base.assertBeforeStart?.(); if(!work.delegated_by)flags.assertBeforeStart?.(); } };
+    }, projectTitle: async () => "项目" }, "web-user");
+  return { service, store, project, flags, adapter, home, close: async () => { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a sub-task the person put away still counts for the work that handed it out: its tokens, its place among the limit, and the stop", { timeout: 60_000 }, async t => {
@@ -228,7 +234,7 @@ test("a sub-task the person put away still counts for the work that handed it ou
     }
     for (const id of made.slice(1, 3)) await f.service.archive(id, true);
     const delegation = f.service.delegation(f.store.get("web-user", sent.work.work_id))!;
-    await assert.rejects(delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }), (error: unknown) => error instanceof AssistantError && error.code === "assistant.limit");
+    await assert.rejects(delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid");
 
     // The parent's stop reaches a put-away sub-task that a follow-up has set going again.
     await delegation.follow_up(childId, "再改改");
@@ -248,7 +254,7 @@ test("a sub-task whose first round cannot start is not left behind: no idle orph
     f.flags.model = false;
     // Seven failed starts: each says why, none is told the six are used up.
     for (let attempt = 0; attempt < 7; attempt++) {
-      await assert.rejects(delegation.start({ title: `子任务 ${attempt}`, brief: "做一点。", acceptance: "完成" }), (error: unknown) => !(error instanceof AssistantError && error.code === "assistant.limit") && /模型/.test(String((error as Error).message)));
+      await assert.rejects(delegation.start({ title: `子任务 ${attempt}`, brief: "做一点。", acceptance: "完成" }), (error: unknown) => !(error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid") && /模型/.test(String((error as Error).message)));
     }
     assert.deepEqual(f.store.delegatedBy("web-user", parent.work_id), [], "no orphan is left on the board");
     assert.deepEqual(f.store.list("web-user", { archived: true }).concat(f.store.list("web-user")).map(work => work.work_id), [parent.work_id], "nor anywhere else");
@@ -257,4 +263,95 @@ test("a sub-task whose first round cannot start is not left behind: no idle orph
     assert.equal(f.store.delegatedBy("web-user", parent.work_id).length, 1);
     assert.equal(started.title, "能开始的");
   } finally { await f.close(); }
+});
+
+
+for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const) test(`W2-18-HANDBACK-CURRENT-01: archive during ${stage} prevents an automatic accepted run`, { timeout: 60_000 }, async t => {
+  const childWaiting = Promise.withResolvers<void>(), finishChild = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let parentCalls = 0;
+  const f = await delegationFixture(t, [
+    () => { parentCalls++; return reply({ name: "delegate-work", input: { title: "Draft", brief: "写出一段交回的文字。", acceptance: "一段文字" } }); },
+    () => { parentCalls++; return reply(undefined, "子任务正在写。等它交回。" ); },
+    () => { parentCalls++; return reply(undefined, "恢复后已核对交回的完整文字。"); },
+  ], async () => { childWaiting.resolve(); await finishChild.promise; return reply(undefined, "已交回的一段完整文字。"); });
+  try {
+    const sent = await f.service.send({ text: "委托起草并等它交回", request_id: "handback-archive-" + stage }, { project_ref: f.project });
+    await childWaiting.promise;
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "parent finishes before child");
+    const before = f.store.get("web-user", sent.work.work_id); assert.ok(before.session_id);
+    const beforeSession = await f.adapter.readSession({ session_id: before.session_id }); assert.equal(beforeSession.runs.length, 1);
+    if (stage === "authority") f.flags.beforeAuthority = async () => { entered.resolve(); await release.promise; };
+    else if (stage === "before-start") f.flags.beforeStart = async () => { entered.resolve(); await release.promise; };
+    else {
+      const inspector = createNodeHost({ storageRoot: join(f.home, "sdk") });
+      const indexKind = "molis-agent-index-" + createHash("sha256").update("io.molis.work.assistant-delegation-fixture-test").digest("hex").slice(0, 24);
+      let armed = false, held = false;
+      f.flags.assertBeforeStart = () => {
+        if(!armed || !/[\\/]session[\\/]core[\\/]session\.js/.test(new Error().stack ?? ""))return;
+        armed=false;
+        // The real SDK Session commit calls this original authority checker synchronously.
+        // Archive in that checker; the hand-back's final guard must reject before SDK acceptance.
+        f.store.update("web-user",sent.work.work_id,null,{archived:true});
+      };
+      f.flags.beforeStart = async () => {
+        const bytes = await inspector.storage.readSecure({ kind: indexKind, id: before.session_id! });
+        const prepared = JSON.parse(new TextDecoder().decode(bytes)); bytes.fill(0);
+        if (!held && prepared.attempts.length > beforeSession.runs.length && !prepared.attempts.at(-1).run_id) {
+          held = true; entered.resolve(); await release.promise; armed = true;
+        }
+      };
+    }
+    finishChild.resolve(); await entered.promise;
+    if (stage !== "sdk-prepared-start") await f.service.archive(sent.work.work_id, true);
+    release.resolve();
+    await until(() => f.service.notices(null).some(notice => notice.kind === "needs-decision" && notice.text.includes("没有自动接着做")), "cancelled hand-back settles");
+    const after = await f.adapter.readSession({ session_id: before.session_id });
+    assert.deepEqual(after.runs, beforeSession.runs, "the actual SDK accepted no hand-back run");
+    assert.equal(f.store.rounds(sent.work.work_id).length, 1); assert.equal(f.store.get("web-user", sent.work.work_id).archived, true);
+    assert.equal(parentCalls, 2, "no automatic model inference was dispatched");
+    const child = f.store.delegatedBy("web-user", sent.work.work_id, "any")[0]!;
+    assert.equal(child.handed_back_run, undefined, "a rejected hand-back did not consume the child's result");
+    f.flags.beforeAuthority = undefined; f.flags.beforeStart = undefined; f.flags.assertBeforeStart = undefined;
+    await f.service.archive(sent.work.work_id, false);
+    await f.service.send({ work_id: sent.work.work_id, text: "恢复后核对子任务交回的结果", request_id: "handback-resume-" + stage }, { project_ref: f.project });
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "explicit resumed round completes");
+    assert.equal(f.store.rounds(sent.work.work_id).length, 2);
+    assert.equal(f.store.get("web-user", child.work_id).handed_back_run, f.store.rounds(child.work_id).at(-1)?.run_id);
+    assert.equal((await f.adapter.readSession({ session_id: before.session_id })).runs.length, 2);
+    assert.equal(parentCalls, 3);
+  } finally { finishChild.resolve(); release.resolve(); await f.close(); }
+});
+
+
+for (const change of ["stop", "new-round"] as const) test(`W2-18-HANDBACK-CURRENT-02: ${change} invalidates an older prepared hand-back`, { timeout: 60_000 }, async t => {
+  const waiting = Promise.withResolvers<void>(), childRelease = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const f = await delegationFixture(t, [
+    () => reply({ name: "delegate-work", input: { title: "Draft", brief: "写一段交回。", acceptance: "一段文字" } }),
+    () => reply(undefined, "主任务先收工，等子任务交回。"),
+    () => reply(undefined, "按用户的新要求核对子任务并完成。"),
+  ], async () => { waiting.resolve(); await childRelease.promise; return reply(undefined, "子任务的固定交回文字。"); });
+  try {
+    const sent = await f.service.send({ text: "委托起草", request_id: "handback-current-" + change }, { project_ref: f.project });
+    await waiting.promise; await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed");
+    const parent = f.store.get("web-user", sent.work.work_id); assert.ok(parent.session_id);
+    f.flags.beforeAuthority = async () => { entered.resolve(); await release.promise; };
+    childRelease.resolve(); await entered.promise; f.flags.beforeAuthority = undefined;
+    if (change === "stop") await f.service.control(parent.work_id, { kind: "stop" });
+    else {
+      await f.service.send({ work_id: parent.work_id, text: "按我这次新要求继续核对", request_id: "new-parent-round" }, { project_ref: f.project });
+      await until(async () => (await f.service.read(parent.work_id)).work.state === "completed");
+    }
+    release.resolve();
+    await until(() => f.service.notices(null).some(notice => notice.text.includes("没有自动接着做")), "old hand-back refused");
+    const child = f.store.delegatedBy("web-user", parent.work_id, "any")[0]!;
+    assert.equal((await f.adapter.readSession({ session_id: parent.session_id })).runs.length, change === "stop" ? 1 : 2);
+    if (change === "stop") {
+      assert.equal(child.handed_back_run, undefined); assert.equal(f.store.get("web-user", parent.work_id).hand_back_held, f.store.rounds(parent.work_id)[0]!.run_id);
+      await f.service.send({ work_id: parent.work_id, text: "现在由我明确要求继续核对交回结果", request_id: "resume-stopped-handback" }, { project_ref: f.project });
+      await until(async () => (await f.service.read(parent.work_id)).work.state === "completed");
+    }
+    assert.equal(f.store.rounds(parent.work_id).length, 2);
+    assert.equal((await f.adapter.readSession({ session_id: parent.session_id })).runs.length, 2, "only the person's current continuation was accepted");
+    assert.equal(f.store.get("web-user", child.work_id).handed_back_run, f.store.rounds(child.work_id).at(-1)?.run_id);
+  } finally { childRelease.resolve(); release.resolve(); await f.close(); }
 });

@@ -24,11 +24,11 @@ export async function handleSessionMessageHttp(context: WorkSessionHttpContext):
     } else { respond(405, { error: "消息操作不支持这个请求方法" }); return true; }
     respond(result.state === "accepted" ? 200 : result.state === "failed" ? 409 : 202, result);
   } catch (error) {
-    const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "session.message_failed";
-    const status = ["session.message_not_found", "session.not_found", "sessions.not_found", "actions.plugin_disabled", "actions.missing"].includes(code) ? 404
-      : code === "session.message_failed" ? 500 : code === "actions.forbidden" ? 403 : ["session.message_conflict", "session.message_target_changed"].includes(code) ? 409
-      : ["session.message_unavailable", "session.message_content_unavailable", "actions.service_unavailable"].includes(code) ? 503 : 400;
-    respond(status, { code, error: code === "session.message_failed" ? "消息请求失败，请保留原请求并查询送达状态" : error instanceof Error ? error.message : "消息请求失败" });
+    const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "work.session.message_failed";
+    const status = ["work.session.message_not_found", "work.session.not_found", "work.sessions.not_found", "actions.plugin_disabled", "actions.missing"].includes(code) ? 404
+      : code === "work.session.message_failed" ? 500 : code === "actions.forbidden" ? 403 : ["work.session.message_conflict", "work.session.message_target_changed"].includes(code) ? 409
+      : ["work.session.message_unavailable", "work.session.message_content_unavailable", "actions.service_unavailable"].includes(code) ? 503 : 400;
+    respond(status, { code, error: code === "work.session.message_failed" ? "消息请求失败，请保留原请求并查询送达状态" : error instanceof Error ? error.message : "消息请求失败" });
   }
   return true;
 }

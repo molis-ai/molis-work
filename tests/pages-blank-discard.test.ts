@@ -78,6 +78,7 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
       dispatchEvent() {}, addEventListener() {},
       MolisWorkPagesEditor: {
         emptyDoc: () => EMPTY,
+        bindComments: () => async () => {}, // This fixture tests discard; real comments are covered by the editor/browser regressions.
         mount: (_host: unknown, given: EditorConfig) => { config = given; editorBody = given.doc; change = given.onChange; return { id: "editor" }; },
         setDoc: (_editor: unknown, doc: unknown) => { editorBody = doc; }, getDoc: () => editorBody,
       },

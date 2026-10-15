@@ -1,3 +1,5 @@
+import type { AgentStartExecution } from "./agent-host-start.js";
+export type { AgentStartExecution } from "./agent-host-start.js";
 import type { ActionCallOrigin, ActionView, ExactActionReference } from "../platform/actions.js";
 import type {
   AgentPromptLayer,
@@ -10,10 +12,11 @@ import type { HostCapabilityDefinition } from "../platform/app-host.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
 import type { CharacterContent } from "../modules/characters.js";
-import type { AgentDocumentCapability, AgentMemoryCapability, AgentMemoryRecallFact, AgentRecalledMemory } from "./agent-host-memory.js";
+import type { AgentDocumentCapability, AgentMemoryExecutionControl, AgentMemoryCapability, AgentMemoryRecallFact, AgentRecalledMemory } from "./agent-host-memory.js";
 import type { AgentAnswerControl, AgentPendingQuestion } from "./agent-interaction.js";
+import type { AgentCollaborationPort, AgentCollaborationSessionView } from "./agent-collaboration.js";
 // Memory and documents through the runtime: declared beside this file, part of the same contract.
-export type { AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability } from "./agent-host-memory.js";
+export type { AgentMemoryExecutionControl, AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability } from "./agent-host-memory.js";
 
 export const servicesAgentHostContract = {
   contractId: "io.molis.work.service.agent-host.v1",
@@ -235,7 +238,7 @@ export interface AgentProjectWork {
   /** Work items this one waits for. */
   waits_for?: string[];
   updated_at_ms: number;
-  /** For a waiting item: the session's parked wait that starts it (see AgentWait). */
+  /** For a waiting item: the session's wait that starts it (agent-collaboration). */
   wait_id?: string;
 }
 
@@ -249,10 +252,10 @@ export interface AgentProjectWorkCapability {
   /** `probe`: a round about to start (its directory and task or plan text); overlaps are found against it. */
   read(project: string, probe?: { session_id?: string; directory: string; text: string }): Promise<{ items: AgentProjectWork[]; overlaps: AgentProjectWorkOverlap[] }>;
   /**
-   * Hold a round until another piece of work finishes; the person decided. The session is parked on that work (an
-   * AgentWait by "app"), carrying `data` for whoever starts the round when it fires.
+   * Hold a round until another piece of work finishes; the person decided. The session's step waits on that work (a
+   * wait by "app"); the round itself is kept by whoever starts it once the step may go on.
    */
-  queue(project: string, input: { session: AgentSessionRef; directory: string; task: string; after: string; title?: string; data?: unknown }, actorId: string): Promise<AgentProjectWork>;
+  queue(project: string, input: { session: AgentSessionRef; directory: string; task: string; after: string; title?: string }, actorId: string): Promise<AgentProjectWork>;
   /** Give up a waiting item; `note` says why. */
   release(project: string, workId: string, actorId: string, note: string): Promise<void>;
 }
@@ -312,53 +315,6 @@ export interface AgentSessionMessagesCapability {
   act?(project: string, messageId: string, action: AgentPeopleMessageAction, detail: { event?: string; note?: string; attachments?: AgentMessageAttachment[] }, actorId: string): Promise<AgentSessionMessage>;
 }
 
-/**
- * A session parked until something happens (the SDK's wait): a background command, an answer from another session,
- * another session's work. When it fires, the next round is started with it; a session running then hears it at once.
- */
-export interface AgentWait {
-  wait_id: string;
-  session_id: string;
-  /** The round that parked it. */
-  run_id?: string;
-  /** "agent": the model parked itself; "app": the person chose to wait. */
-  by: "agent" | "app";
-  state: "waiting" | "fired" | "resumed" | "cancelled" | "expired";
-  /** What it waits for, in the parker's words. */
-  reason: string;
-  /** What it waits on, for a person: "会话「A」的答复", "后台命令 npm test", "「A」那一轮". */
-  waiting_on: string;
-  on: Array<
-    | { kind: "command"; task: string; until: "exit" | "output"; match?: string }
-    | { kind: "envelope"; envelope: string }
-    | { kind: "board-node"; board: string; node: string }
-  >;
-  fired?: {
-    kind: "command" | "envelope" | "board-node";
-    /** The command, envelope or node that fired it. */
-    target: string;
-    outcome: "succeeded" | "failed" | "stopped" | "interrupted" | "output" | "answered" | "settled" | "withdrawn" | "done" | "not-done";
-    text: string;
-    at_ms: number;
-    reply?: string;
-  };
-  /** What the App kept with it (for "app" waits: the round to start). */
-  data?: unknown;
-  created_at_ms: number;
-  expires_at_ms: number;
-  closed_at_ms?: number;
-  note?: string;
-}
-
-export interface AgentWaitsCapability {
-  read(project: string, sessionId?: string): Promise<AgentWait[]>;
-  /** Fired waits nobody has taken up yet, but for `exclude`; waits up to `timeoutMs` for one when there are none. */
-  awaitFired(project: string, timeoutMs: number, exclude?: string[], signal?: AbortSignal): Promise<AgentWait[]>;
-  /** The session went on (woken, or started by the person). */
-  resume(project: string, waitId: string, note?: string): Promise<AgentWait>;
-  cancel(project: string, waitId: string, note?: string): Promise<AgentWait>;
-}
-
 /** A background command of a session: it keeps running after the round that started it, until it ends or is stopped. */
 export interface AgentBackgroundTask {
   task_id: string;
@@ -397,7 +353,7 @@ export interface AgentStepBoard {
   /** In execution order: dependencies first, the original plan order breaking ties. */
   nodes: Array<{
     id: string;
-    state: "not-started" | "ready" | "running" | "succeeded" | "failed" | "cancelled" | "blocked";
+    state: "not-started" | "ready" | "running" | "waiting" | "succeeded" | "failed" | "cancelled" | "blocked" | "needs-reconciliation";
     /** Who reported (本会话, 子任务「…」, 用户); a handover says so. */
     reports: Array<{ note: string; at_ms: number; by?: string; handover?: true }>;
     owner?: AgentStepOwner;
@@ -1222,12 +1178,6 @@ export interface AgentRecoveryCapability {
   close(session: AgentSessionRef, runId: string, expectedVersion: number): Promise<AgentRecoveryReport>;
 }
 
-/** Host-owned, in-memory: authority checks, and the call number the Host gave the round (never from a Plugin payload). */
-export interface AgentStartExecution extends ActionCallOrigin {
-  beforeStart?(): void | Promise<void>;
-  /** Live owner authority, valid beyond the start invocation's lifetime. */
-  beforeDispatch?(): void | Promise<void>;
-}
 
 /**
  * What a Runtime says about itself, for developers: how it was assembled, what the machine gives it, and what it could
@@ -1248,6 +1198,8 @@ export interface AgentRuntimeDiagnostics {
 }
 
 export interface AgentRuntimeAdapter {
+  /** Trusted Host commit scope through the runtime's asynchronous preparation; never an Agent payload. */
+  withEffect?<T>(control: AgentMemoryExecutionControl, operation: () => Promise<T>): Promise<T>;
   /** The Runtime's own account of its assembly, for the developer diagnostics page; absent when it keeps none. */
   diagnostics?(): AgentRuntimeDiagnostics;
   readonly recovery?: AgentRecoveryCapability;
@@ -1256,7 +1208,7 @@ export interface AgentRuntimeAdapter {
   readonly documents?: AgentDocumentCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   health(): Promise<AgentRuntimeHealth>;
-  createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef>;
+  createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef>;
   readSession(session: AgentSessionRef): Promise<AgentSessionView>;
   /** The session's standing without copying its rounds; a Runtime without it is read through readSession. */
   readSessionStatus?(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }>;
@@ -1264,8 +1216,8 @@ export interface AgentRuntimeAdapter {
   readonly projectWork?: AgentProjectWorkCapability;
   /** Messages between the project's sessions, when this Runtime carries them. */
   readonly messages?: AgentSessionMessagesCapability;
-  /** Sessions parked until something happens, when this Runtime keeps them. */
-  readonly waits?: AgentWaitsCapability;
+  /** What the project's sessions wait for and how they go on, when this Runtime keeps a task graph. */
+  readonly collaboration?: AgentCollaborationPort;
   /** Background commands of the project's sessions. */
   readonly background?: AgentBackgroundCapability;
   start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle>;
@@ -1428,24 +1380,16 @@ export const agentHostCapabilities = {
   } as HostCapabilityDefinition<[runtimeId: string, messageId: string], void>,
   /** Hold a round until another piece of work in the project finishes. */
   queueProjectRound: {
-    capability_id: "agent.project-work.queue.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[runtimeId: string, input: { session: AgentSessionRef; directory: string; task: string; after: string; title?: string; data?: unknown }], AgentProjectWork>,
-  /** The project's parked sessions; one session's when named. */
-  readWaits: {
-    capability_id: "agent.waits.read.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[runtimeId: string, sessionId?: string], AgentWait[]>,
-  /** Fired waits nobody took up yet, waiting up to `timeoutMs` for one. */
-  awaitFiredWaits: {
-    capability_id: "agent.waits.await.v1", version: 1, operation: "wait",
-  } as HostCapabilityDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentWait[]>,
-  /** The session went on: woken, or started anyway. */
-  resumeWait: {
-    capability_id: "agent.waits.resume.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[runtimeId: string, waitId: string, note?: string], AgentWait>,
-  /** The person gives the wait up. */
-  cancelWait: {
-    capability_id: "agent.waits.cancel.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[runtimeId: string, waitId: string, note?: string], AgentWait>,
+    capability_id: "agent.project-work.queue.v1", version: 2, operation: "command",
+  } as HostCapabilityDefinition<[runtimeId: string, input: { session: AgentSessionRef; directory: string; task: string; after: string; title?: string }], AgentProjectWork>,
+  /**
+   * Continuations of the project's sessions that are ready to go on, or held for the person, but for `exclude` (request
+   * keys); waits up to `timeoutMs` for one. A wait, so it stays a Host channel: reading and controlling are the actions
+   * in agent-collaboration.
+   */
+  awaitContinuations: {
+    capability_id: "agent.collaboration.await.v1", version: 1, operation: "wait",
+  } as HostCapabilityDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>,
   /** The project's background commands; one session's when named. */
   readBackground: {
     capability_id: "agent.background.read.v1", version: 1, operation: "query",

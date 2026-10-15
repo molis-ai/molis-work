@@ -77,11 +77,11 @@ test("this repository: the version sources agree and the database table is the c
   assert.equal(result.stdout.split("\n")[0], `Molis Work release version sources agree: ${version}`);
 });
 
-test("this repository: the table lists the JSON files whose version mismatch loses credentials or authorizations", () => {
+test("this repository: the table lists the JSON files whose version mismatch refuses credentials or authorizations", () => {
   const checklist = readFileSync(path.join(repository, "docs/releases/CHECKLIST.md"), "utf8");
   const row = (location: string) => checklist.split("\n").find(line => line.startsWith("|") && line.includes(`\`${location}\``)) ?? "";
   assert.match(row("feed/secrets.json"), /file-secret-store\.ts#FORMAT_VERSION` \| 拒绝读取/);
-  assert.match(row("config/mcp-tools.json"), /mcp-settings-store\.ts#MCP_TOOL_PREFERENCE_VERSION`.*\| 读成空/);
+  assert.match(row("config/mcp-tools.json"), /mcp-settings-store\.ts#MCP_TOOL_PREFERENCE_VERSION`.*\| 拒绝读取/);
 });
 
 test("a consistent scratch tree passes, and the tag may be v<version>", () => {

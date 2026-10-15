@@ -71,3 +71,7 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-coding-materials-http.test.
 Agent 列表与页面刷新不启动本机 CLI。人工终端保留全部引擎；自动动作通过独立 AI 模型选择和共享 Prologue。确认页说明材料会发给所选模型、可能计费、原件不变以及无终端写入工具。本机提取单独声明无模型成本与权限。固定指令由插件 prompts.ts 登记，界面、MCP 与 Workflow 使用同一 Action 定义。
 
 Shelf 和结果面板使用 Host 注入的 UI 生命周期。卸载释放全局事件、请求、观察器及计时器；隐藏停止运行进度查询，返回时保留编辑/确认/运行中的交互，其余状态读取最新快照。迟到的旧快照不能覆盖较新的读取或命令结果。
+
+搜索打开材料或剪贴板 ID 时选择对应正文；剪贴板仍只对本人提供。权威快照刷新会让完整正文缓存失效，较早的文件回包不能覆盖新正文，比较视图采用同样规则。跨插件文件入库事件也随挂载释放，卸载后不再发请求或发布过期成功/失败通知。
+
+这些客户端边界的回归在 `tests/shelf-client-boundaries.e2e.test.ts`，正式搜索与剪贴板隐私断言在 `tests/system-search-host.test.ts`；依次用 `node scripts/run-tests.mjs` 运行相应文件，浏览器批次需排时段。

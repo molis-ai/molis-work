@@ -143,3 +143,22 @@ export interface AgentPendingQuestion {
   answerable?: boolean;
   unavailable_reason?: string;
 }
+
+/**
+ * What a plugin action that asks the person first, without an Agent run, answers instead of its result
+ * (specs/ai-interaction-experience S1): `{ status: "needs_input", interaction }`; it is called again with the answer. The plugin
+ * keeps what it asked and checks the answer against it. On any plugin route the Host draws the questions as the shared question
+ * card (`html`), and a refusal whose `details.problems` are `AgentQuestionProblem`s gets each field's line in the reader's
+ * language (`details.errors`, keyed `q<index>`). Choice questions only, until every card draws the other types.
+ */
+export interface InteractionRequest {
+  interaction_id: string;
+  /** Why it asks, in one sentence: the card's title. */
+  why: string;
+  questions: AgentQuestion[];
+  /** What answering leads to, in the plugin's words: the card's footer line. */
+  note?: string;
+  /** Added by the Host on the way out: the shared question card. */
+  html?: string;
+}
+export interface InteractionRequestResult { status: "needs_input"; interaction: InteractionRequest }

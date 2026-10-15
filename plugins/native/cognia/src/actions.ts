@@ -75,7 +75,7 @@ export function createCogniaActionHandlers(ports: CogniaActionPorts): ActionHand
     bind(cogniaActions.deleteMaterial, input => ports.withStore(store => { store.deleteMaterial(input.id); return { deleted: true }; })),
     bind(cogniaActions.preview, input => ports.withStore(store => ({ preview: store.preview({ ...input, locator: input.locator ?? "upload" }) }))),
     bind(cogniaActions.scan, (input, caller) => ports.scan(input.path, caller.signal)),
-    bind(cogniaActions.previewDirectory, async (input, caller) => { const actions = ports.actions(caller); const scanned = await actions.invoke(cogniaActions.scan, { path: input.path }); caller.signal?.throwIfAborted(); return actions.invoke(cogniaActions.preview, { ...scanned, kind: input.kind, source_id: input.source_id, domain_id: input.domain_id }); }),
+    bind(cogniaActions.previewDirectory, async (input, caller) => { const actions = ports.actions(caller); const scanned = await actions.invoke(cogniaActions.scan, { path: input.path }, caller); await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted(); return actions.invoke(cogniaActions.preview, { ...scanned, kind: input.kind, source_id: input.source_id, domain_id: input.domain_id }, caller); }),
     bind(cogniaActions.commit, input => ports.withStore(store => ({ receipt: store.commit(input.preview_id) }))),
     bind(cogniaActions.cancel, input => ports.withStore(store => { store.cancelPreview(input.preview_id); return { cancelled: true }; })),
     bind(cogniaActions.synthesize, async (input, caller) => ({ draft: await generateCogniaDraft(ports.withStore, { ...input, mode: "synthesize" }, { ...ports.ai(caller), beforeEffect: caller.beforeEffect }) }), available),

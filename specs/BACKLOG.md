@@ -33,7 +33,7 @@
 | BL-013 | 项目讨论分屏（群聊与公开 Thread） | [molis-work-im/redesign-v2](archive/molis-work-im/redesign-v2/spec.md) | 无 | 低 | 用户 |
 | BL-014 | Shelf 原生手势：真人划选不出轮盘、Finder 拖放、系统文件选择器 | [shelf-drop-wheel-arming](archive/shelf-drop-wheel-arming/spec.md)、[shelf-dropagent-parity](archive/shelf-dropagent-parity/spec.md) | 本机原生环境 | 中 | 用户 |
 | BL-015 | 菜单栏胶囊在副屏上的点击 | [macos-secondary-display-tray-click](archive/macos-secondary-display-tray-click/spec.md) | 双屏 | 低 | 用户 |
-| BL-016 | 真机中文输入法与 VoiceOver：底栏输入、Todo、侧栏、动态交互的读屏 | [system-assistant/implementation.md §14](archive/system-assistant/implementation.md)、[todo-plugin/implementation.md](archive/todo-plugin/implementation.md)、[side-panel §7.4](archive/side-panel/spec.md)、[contextual-interaction](archive/contextual-interaction/spec.md) | 真机 | 中 | 用户 |
+| BL-016 | 真机中文输入法、软键盘与 VoiceOver：底栏/主区助理、Pages 评论、Todo、侧栏和动态交互 | [system-assistant/implementation.md §14](archive/system-assistant/implementation.md)、[todo-plugin/implementation.md](archive/todo-plugin/implementation.md)、[side-panel §7.4](archive/side-panel/spec.md)、[contextual-interaction](archive/contextual-interaction/spec.md)、[Pages 与助理](archive/pages-assistant-surfaces/spec.md) | 真机 | 中 | 用户 |
 | BL-017 | 平台侧栏 7.3 的 8 步，特别是在侧栏浏览器里登录真实网站（AC05） | [side-panel §7.4](archive/side-panel/spec.md) | 无 | 低 | 用户 |
 | BL-105 | 打开 Molis Work 的重做：项目选择页（预选上次项目、右边是项目简介）、开场与 Welcome、新建项目引导、更新页（#159） | [project-arrival-flow](archive/project-arrival-flow/spec.md) | 无 | 中 | 用户 |
 | BL-109 | #150 性能修复：完整视觉走查，以及原生窗口里的输入与导航验收 | [performance-preserving-fixes](archive/performance-preserving-fixes/spec.md) | 无 | 中 | 用户 |
@@ -109,6 +109,7 @@
 | BL-113 | 插件创作台：界面验收发现「显示问题」时交回设计并重新实现，之后门禁不通过就整次构建失败，没有像普通分支那样交回代码 Agent 修（报名表真实模型复测，PMR-36） | [post-merge-review §3 PMR-36](archive/post-merge-review/spec.md#3-问题表) | 已知缺口 | 显示问题分支在门禁失败时进入相同的修复轮（最多两轮），用离线回放验证 | 无 | 中 | 未分配 |
 | BL-125 | 创作台的英文只到创作台自己写的字（标签、阶段、状态、空态、指示标签、对话框、提示；字典在 `apps/workbench/src/i18n/studio-en.ts`；服务端路由答的请求期消息也有英文）。英文界面里仍是中文的：①构建记录里宿主写下的步骤标签、笔记与错误（`agent-workflow.ts` 写进记录，读取时原样显示）；②能力板上能力目录的标题、说明与授权说明（各提供方的动作定义，能力库页也是原样显示）；③生成插件渲染器自带的固定词（新建、取消、提交、今天……，`packages/design-system/src/plugin-component-client.ts`，已安装的插件里也是）；④插件切换器里的显示名「插件创作工作台」（与 BL-114 同一处）；⑤“做一个……”才会问「新插件还是修改」的判断只认中文；⑥框架里的页面（试用、已安装插件的框架，含「插件暂时无法运行」的恢复页与它的原因）拿不到宿主的翻译器，仍是中文 | [PRODUCT.md](../PRODUCT.md)（界面默认中文，可切换英文） | 已知缺口 | ①（含构建运行中工作流抛出的错误）需要给记录文字加稳定键或读取时翻译；③⑥要先定生成插件的界面语言和框架怎样拿到翻译器 | 无 | 低 | 未分配 |
 | BL-132 | 成果库只读内置插件目录：`apps/workbench/src/plugin-catalog.ts` 的 `artifactTypeDeclarations`、`artifactContinuers` 遍历 `BUILTIN_PLUGIN_CATALOG`，Runtime 与已安装插件声明的成果类型名称、预览、固定、比较、继续今天没有读取方。W3-05-2 起这些声明在解析 Manifest 时必须齐全并指向本插件的动作（`packages/plugin-sdk/src/artifact-declarations.ts`），所以有了读取方就能直接用；在那之前第三方插件的成果在成果库里没有显示名与预览 | [artifact-positioning](artifact-positioning/spec.md)、[W3-05 方案](repository-anti-corruption/wave3-batchB-plan.md) | 已知缺口 | 成果库的目录是构建期静态表，第三方成果在成果库里怎样出现还没定 | 无 | 低 | 未分配 |
+| BL-141 | Coding 客户端接翻译：Coding 的客户端脚本（如 `plugins/native/coding/src/taskboard-client.ts`、`plugins/native/coding/src/plan-progress-client.ts`）整份没有翻译调用，状态词、按钮、提示都直接写中文，英文界面里仍是中文。P3a 新加的两个状态词「在等别的步骤」「重启后需要核对」（`taskboard-client.ts:34`、`plan-progress-client.ts:12`）随这一行一起译 | [prologue-adoption §6.0d](prologue-adoption/spec.md) | 已知缺口 | 要先给 Coding 客户端接上 `L()`，属于 W5-03 换稳定键的范围；插件包会变大，要同时省出等量字节 | W5-03（BL-118） | 低 | 未分配 |
 
 ## 6. 连接、来源与 Onboarding
 
@@ -133,6 +134,11 @@
 | BL-126 | 维护六收尾核对（2026-10-11 ①②已做：新构建打开 18 个 v7 项目库的拷贝，Goal 数与各表行数与维护六前相同，见检查清单第 4.3 节；只剩③，要用户重开会话）：①新构建打开 v7 项目库——在安装版里绑定一个项目并读它的 Goal 数，与维护前一致（或在项目库拷贝上用新构建打开一次，看工作台和插件切换器里没有「实验」、没有 `storage.schema_version_mismatch`）；②重装之后逐库只读核对（v7、无 Casebook 表、`integrity_check`、行数）；③重装之前起的会话里的 MCP 仍是只认 v6 的旧代码，重连或重开会话。2026-10-10 只做了重装和列出 18 个项目（只读目录库），这一半没做 | [repository-anti-corruption §4.1 维护六](repository-anti-corruption/spec.md)、[CHECKLIST 第 4.3 节「做完核对」](../docs/releases/CHECKLIST.md) | 部分实现 | 绑定项目、重连会话都会动真实 Home 与用户的会话，按检查清单 4.1 先得到用户同意 | 无 | 中 | 协调会话 |
 | BL-129 | 首页事项动作不区分撤不回的目标：情境条把效果为撤不回的事项选项标为不可用（`packages/kernel/src/contextual.ts` 的 `subjectCandidates`），首页的事项动作（`apps/local-host/src/home-offer-actions.ts`）没有这个判断。今天没有这样的生产方（Feed、Inbox 的事项选项目标都可撤回），等真有了再定首页怎么处理 | W3-05 的使用端核对 | 已知缺口 | 没有生产方，先不做 | 无 | 低 | 未分配 |
 | BL-130 | 插件开发 Skill 补写注册时的引用规则：撤销、后台任务、片段与事项推荐的选项、结果对象（`result_subject` 与未声明时的明文推断规则）；规则已写在 `docs/platform/PLUGIN-DEVELOPMENT.md`，`skills/molis-plugin-dev/` 还没有，生成插件和第三方作者看不到。随 W6-03 做，用 W1-12 的回放工具验证；Skill 的改动在全量回归之外做 | [action-architecture §3 末尾 G7](action-architecture/spec.md) | 明确后续做 | W3-05 不改 `skills/` | W1-12、W6-03 | 中 | 未分配 |
+| BL-134 | 列表刷新失败时少了「当前输入已保留」：W3-10 把 Feed、Inbox 的提示换成共同请求出口的话（读不到时「连不上 Molis Work 服务，请稍后重试」），Issue 的模型设置读不出时也一样；输入其实还在，但这句安慰没有了。共同出口忽略调用方给的兜底话 | [防腐 §10.11 F-6](repository-anti-corruption/spec.md) | 已知缺口 | 随 I8 落地后再定：让调用方补一句，或出口按场合说 | I8 | 低 | 第二步 |
+| BL-136 | 共同请求出口把所有非 GET 的断网都说成「不知道这次操作有没有完成，请刷新后核对」，Files 用 POST 打开文件这类读请求也这样说。要让调用方标明是读，或按 query 路由判 | [防腐 §10.11 F-12](repository-anti-corruption/spec.md) | 已知缺口 | 随 I8 落地后改 `packages/ui-host` 的请求出口 | I8 | 低 | 第二步 |
+| BL-137 | Prologue SDK 释放一个 8 MiB 资源（`runtime.resources.revoke`）要约 0.8 秒，比暂存加发布还慢；Molis 的文档解析每次释放两份，大附件的解析因此多等约 0.8 秒 | [防腐 §10.11 F-15](repository-anti-corruption/spec.md) | 已知缺口 | Prologue #27 已修（main `e5123369`，8 MiB 从 753 ms 到 31 ms）；P3a 换成这个包后，在 Molis 复测大附件解析，再删行 | Prologue | 低 | 防腐线（随 P3a） |
+| BL-138 | 共享问卷卡在窄宽（约 300px）时，标题行右侧的状态签与收起按钮把标题挤成四字一行；窄卡片时让状态签换到标题下面（容器查询），生产里助理主区的实际宽度先核对 | [防腐 §10.11 F-19](repository-anti-corruption/spec.md) | 已知缺口 | 规格板里看到，生产宽度下未核对 | 无 | 低 | 未分配 |
+| BL-139 | 英文界面里「开始」显示成「Started」（欢迎页主按钮、新建引导的步骤名）：同一中文在状态与动作两种语境下译法不同。要让运行时的 `L()` 认稳定键（W5-03），再给这两处用各自的键 | [防腐 §10.11 F-23](repository-anti-corruption/spec.md) | 已知缺口 | 稳定键的运行时支持还没做 | W5-03 | 低 | 未分配 |
 
 ## 8. 交给第二步（防腐整理）
 

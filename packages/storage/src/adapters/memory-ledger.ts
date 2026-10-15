@@ -176,8 +176,8 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
     },
     transaction: <T>(work: () => T): T => {
       if (depth > 0) return work();
-      depth += 1;
       db.exec("BEGIN IMMEDIATE");
+      depth += 1;
       try { const result = work(); db.exec("COMMIT"); return result; }
       catch (error) { db.exec("ROLLBACK"); throw error; }
       finally { depth -= 1; }

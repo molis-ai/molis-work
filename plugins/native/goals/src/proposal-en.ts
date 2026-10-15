@@ -1,5 +1,6 @@
 /** Existing native and historical proposal/decision copy; composed into the shared locale catalog. */
 export const GOALS_PROPOSAL_EN: Record<string, string> = {
+  "随后可在 Goal 中记录进展；完成前仍需满足约定的要求和依赖。": "You can then record progress in the Goal. Its agreed requirements and dependencies still need to be met before completion.",
   "Runtime": "Runtime",
   "未记录": "Not recorded",
   "补充说明": "Notes",

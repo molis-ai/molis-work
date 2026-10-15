@@ -1,6 +1,7 @@
+import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
-import { completeMcpAuthorization, inspectMcpConnection, McpConnectionError, startMcpConnection } from "./connector-mcp.js";
+import { completeMcpAuthorization, inspectMcpConnection, startMcpConnection } from "./connector-mcp.js";
 import { handleConnectorApiMethodsHttp } from "./web-connector-api-methods.js";
 import { connectorAuthorizationFailed } from "./connector-authorization-return.js";
 import { ActionError, type ActionCallContext, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -24,7 +25,7 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
   if (url.pathname !== `${PREFIX}/start` && url.pathname !== `${PREFIX}/complete` && url.pathname !== `${PREFIX}/callback` && !item) return false;
   try {
     const host = requestHost(request);
-    if (!host) throw new McpConnectionError("configuration", "授权回调必须来自本机地址");
+    if (!host) throw connectorErrors["connector.mcp.configuration"]("授权回调必须来自本机地址");
     const origin = `http://${host}`;
     if (url.pathname === `${PREFIX}/callback` && request.method === "GET") {
       const result = await completeMcpAuthorization(home, { state: url.searchParams.get("state") ?? "", code: url.searchParams.get("code") ?? "", error: url.searchParams.get("error") ?? undefined, origin });
@@ -72,20 +73,23 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
         "此连接没有所选工具，请重新发现工具"));
       return true;
     }
-    throw new McpConnectionError("configuration", "请选择检查连接，或填写要调用的 MCP 工具和参数");
+    throw connectorErrors["connector.mcp.configuration"]("请选择检查连接，或填写要调用的 MCP 工具和参数");
   } catch (error) {
     if (request.method === "GET" && url.pathname === `${PREFIX}/callback`) {
       connectorAuthorizationFailed(response, undefined, url.searchParams.get("error") === "access_denied");
       return true;
     }
-    if (error instanceof ActionError) {
-      sendLocalWebJson(response, error.code === "actions.reauthorize" ? 401 : 400, { error: error.message, code: error.code === "actions.reauthorize" ? "authorization" : error.code });
+    const mcpRefusal = error instanceof ActionError && error.code.startsWith("connector.mcp.") && Object.hasOwn(connectorErrors, error.code);
+    if (mcpRefusal) {
+      sendLocalWebJson(response, error.code === "connector.mcp.authorization" ? 401 : 400, { error: error.message, code: error.code });
       return true;
     }
-    const known = error instanceof McpConnectionError;
-    sendLocalWebJson(response, known && error.code === "authorization" ? 401 : 400, {
-      error: known ? error.message : "MCP 操作失败，请检查连接配置后重试", code: known ? error.code : "provider",
-    });
+    const serviceRefusal = error instanceof ActionError && Object.hasOwn(connectorErrors, error.code);
+    if (error instanceof ActionError && !serviceRefusal) {
+      sendLocalWebJson(response, error.code === "actions.reauthorize" ? 401 : 400, { error: error.message, code: error.code === "actions.reauthorize" ? "connector.mcp.authorization" : error.code });
+      return true;
+    }
+    sendLocalWebJson(response, 400, { error: "MCP 操作失败，请检查连接配置后重试", code: "connector.mcp.provider" });
   }
   return true;
 }
@@ -99,6 +103,6 @@ async function runThroughDirectory(localHost: MolisWorkLocalHost, directory: Con
     directory.remember(connectionId, inspected.tools as ConnectorMcpTool[], inspected.resources);
     reference = directory.reference(connectionId, capabilityId);
   }
-  if (!reference) throw new McpConnectionError("configuration", missing);
+  if (!reference) throw connectorErrors["connector.mcp.configuration"](missing);
   return localHost.homeActionClient().invoke(LOCAL_USER, reference, input);
 }

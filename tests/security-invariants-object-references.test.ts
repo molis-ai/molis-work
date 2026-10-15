@@ -9,9 +9,9 @@ import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type AgentStart
 import { confirmReferences } from "@molis-ai/molis-work-service-search";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
 
-// S-24 (docs/system/SECURITY-INVARIANTS.md): a reference a person picked is used only while its owner still hands it to them.
+// S-26 (docs/system/SECURITY-INVARIANTS.md): a reference a person picked is used only while its owner still hands it to them.
 
-test("S-24 a picked object its owner no longer hands to the person is refused", async t => {
+test("S-26 a picked object its owner no longer hands to the person is refused", async t => {
   const f = await referenceOwners(t);
   const access = f.access(person("a"));
   assert.deepEqual(await confirmReferences(access, [{ kind: "goal", id: "g1" }, { kind: "page", id: "p1" }], ["goal", "page"]), [true, true]);
@@ -41,7 +41,7 @@ async function until<T>(read: () => T | Promise<T>, what: string): Promise<NonNu
   throw new Error(`Expected ${what} not reached`);
 }
 
-test("S-24 a reference answer the Host cannot confirm never reaches the run", { timeout: 60_000 }, async t => {
+test("S-26 a reference answer the Host cannot confirm never reaches the run", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-s24-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const requests: string[] = [];
@@ -64,7 +64,7 @@ test("S-24 a reference answer the Host cannot confirm never reaches the run", { 
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
     host.register(adapter);
     const owner = { project_id: "a", plugin_id: "caller", install_id: "i", actor_id: "web-user" }, directory = { canonical_path: home, realpath_verified: true };
-    const session = await adapter.createSession({ ...owner, directory, title: "S-24" });
+    const session = await adapter.createSession({ ...owner, directory, title: "S-26" });
     const authority: AgentStartAuthority = { authorizedDirectories: [home],
       manifest: { roles: [{ role_id: "asker", version: 1, name: "Asker", execution: "read-only", prompts: ["base"], host_tools: [] }], prompts: [{ prompt_id: "base", version: 1 }] },
       prompts: [{ prompt_id: "base", version: 1, layer: "base", body: "Ask which Goal." }] };

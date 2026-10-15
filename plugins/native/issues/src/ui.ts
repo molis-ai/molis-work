@@ -9,8 +9,8 @@ export const issuesUiContribution: UiContribution<unknown> = {
   render: () => renderIssuesWorkbench(),
 };
 
-const types = (name: string) => `<div class="mw-toggle-group" role="radiogroup" aria-label="类型" data-issue-types="${name}">${[["bug", "Bug"], ["experience", "体验问题"], ["feature", "功能需求"]]
-  .map(([value, label]) => `<button type="button" role="radio" aria-checked="false" data-type="${value}">${label}</button>`).join("")}</div>`;
+const types = (name: string) => `<div class="mw-toggle-group" data-issue-i18n role="radiogroup" aria-label="类型" data-issue-types="${name}">${[["bug", "Bug"], ["experience", "体验问题"], ["feature", "功能需求"]]
+  .map(([value, label]) => `<button type="button" data-issue-i18n role="radio" aria-checked="false" data-type="${value}">${label}</button>`).join("")}</div>`;
 const shots = (key: string) => `<div class="issues-shots" data-issue-${key}></div>`;
 
 /**
@@ -21,24 +21,24 @@ export function renderIssuesWorkbench(): string {
   return renderPluginStageShell({ surface: "issues", label: "Issue", dataset: "issues", body: `<div class="issues" data-issue-root>
     <section class="issues-home" data-issue-home>
       <form class="issues-composer" data-issue-composer>
-        <textarea name="description" rows="3" maxlength="100000" aria-label="问题描述" placeholder="遇到什么问题？写下来，截图可以直接粘贴"></textarea>
+        <textarea data-issue-i18n name="description" rows="3" maxlength="100000" aria-label="问题描述" placeholder="遇到什么问题？写下来，截图可以直接粘贴"></textarea>
         ${shots("thumbs")}
         <div class="issues-bar">
-          <button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" data-issue-pick aria-label="添加截图" title="添加截图">${icon("image")}</button>
+          <button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" data-issue-pick data-issue-i18n aria-label="添加截图" title="添加截图">${icon("image")}</button>
           <span class="issues-tip" data-issue-tip></span>
-          <button type="submit" class="mw-btn mw-btn--primary mw-btn--sm" data-issue-submit>记录<span class="mw-btn__key" data-issue-key></span></button>
+          <button type="submit" class="mw-btn mw-btn--primary mw-btn--sm" data-issue-submit data-issue-i18n>记录<span class="mw-btn__key" data-issue-key></span></button>
         </div>
       </form>
-      <h2 class="issues-head">我的 Issue</h2>
-      <ol class="issues-list" data-issue-list aria-label="我的 Issue" aria-busy="true"></ol>
-      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm issues-more" data-issue-more hidden>加载更多</button>
+      <h2 class="issues-head" data-issue-i18n>我的 Issue</h2>
+      <ol class="issues-list" data-issue-list data-issue-i18n aria-label="我的 Issue" aria-busy="true"></ol>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm issues-more" data-issue-more data-issue-i18n hidden>加载更多</button>
     </section>
     <article class="issues-detail" data-issue-detail hidden>
       <header class="issues-detail-bar">
-        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-back>${icon("chevron-left")}<span>全部</span></button>
+        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-back>${icon("chevron-left")}<span data-issue-i18n>全部</span></button>
         <span></span>
-        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-edit>编辑</button>
-        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-delete>删除</button>
+        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-edit data-issue-i18n>编辑</button>
+        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-delete data-issue-i18n>删除</button>
       </header>
       <div class="issues-page" data-issue-page>
         <div data-issue-view>
@@ -50,28 +50,28 @@ export function renderIssuesWorkbench(): string {
         </div>
         <form class="issues-editor" data-issue-editor hidden novalidate>
           <p class="issues-flag" data-issue-flag role="status" hidden></p>
-          <input class="mw-input" name="title" maxlength="200" aria-label="标题" placeholder="标题">
+          <input class="mw-input" data-issue-i18n name="title" maxlength="200" aria-label="标题" placeholder="标题">
           ${types("edit")}
-          <textarea class="mw-textarea" name="description" maxlength="100000" aria-label="问题描述" placeholder="问题描述"></textarea>
+          <textarea class="mw-textarea" data-issue-i18n name="description" maxlength="100000" aria-label="问题描述" placeholder="问题描述"></textarea>
           ${shots("edit-shots")}
           <div class="issues-bar">
-            <button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" data-issue-pick aria-label="添加截图" title="添加截图">${icon("image")}</button>
+            <button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" data-issue-pick data-issue-i18n aria-label="添加截图" title="添加截图">${icon("image")}</button>
             <span class="issues-tip" data-issue-tip></span>
-            <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-cancel>取消</button>
-            <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-redo hidden>重新整理</button>
-            <button type="submit" class="mw-btn mw-btn--primary mw-btn--sm" data-issue-save>保存</button>
+            <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-issue-cancel data-issue-i18n>取消</button>
+            <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-redo data-issue-i18n hidden>重新整理</button>
+            <button type="submit" class="mw-btn mw-btn--primary mw-btn--sm" data-issue-save data-issue-i18n>保存</button>
           </div>
         </form>
       </div>
     </article>
     <div class="issues-toast" data-issue-toast role="status" hidden><span></span><button type="button" class="mw-btn mw-btn--sm" data-issue-toast-action></button></div>
     <input type="file" accept="image/png,image/jpeg,image/webp" multiple hidden data-issue-files>
-    <dialog class="mw-dialog issues-preview" data-issue-preview aria-label="截图">
-      <form method="dialog"><img alt=""><button class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-zoom type="button">原始尺寸</button><button class="mw-btn mw-btn--secondary mw-btn--sm">关闭</button></form>
+    <dialog class="mw-dialog issues-preview" data-issue-preview data-issue-i18n aria-label="截图">
+      <form method="dialog"><header><button class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-zoom data-issue-i18n type="button">原始尺寸</button><button class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-i18n>关闭</button></header><div class="issues-preview-body"><img alt=""></div></form>
     </dialog>
     <dialog class="mw-dialog mw-dialog--form" data-issue-dialog aria-labelledby="issue-dialog-title">
       <form method="dialog" class="mw-dialog__shell mw-form"><div class="mw-form__body"><h2 id="issue-dialog-title"></h2><p></p></div>
-        <footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" value="cancel">取消</button><button class="mw-btn mw-btn--danger" value="confirm"></button></footer>
+        <footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" data-issue-i18n value="cancel">取消</button><button class="mw-btn mw-btn--danger" value="confirm"></button></footer>
       </form>
     </dialog>
   </div>` });
@@ -87,7 +87,8 @@ export const ISSUES_STYLES = `
 .issues textarea{display:block;width:100%;resize:none;overflow:hidden;font:inherit;font-size:15px;line-height:1.65;color:var(--ink);background:transparent}
 .issues-composer textarea{border:0!important;outline:0!important;box-shadow:none!important;border-radius:0;padding:0;min-height:69px}
 .issues-bar{display:flex;align-items:center;gap:6px;margin-top:6px}
-.issues-tip{flex:1;min-width:0;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.issues-tip{flex:1;color:var(--muted);font-size:12px}
+.issues-tip,.issues-toast>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .issues-tip.is-error{color:var(--red)}
 .issues-shots{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.issues-shots:empty{display:none}
 .issues-shots figure{position:relative;margin:0}
@@ -120,13 +121,13 @@ export const ISSUES_STYLES = `
 .issues-editor .issues-bar{position:sticky;bottom:-60px;padding:8px 0 60px;margin-bottom:-60px;background:var(--paper)}
 .issues-flag{margin:0;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--amber) 12%,transparent);color:var(--ink);font-size:13px;line-height:1.6}
 .issues-toast{position:absolute;left:50%;bottom:14px;z-index:5;transform:translateX(-50%);display:flex;align-items:center;gap:6px;max-width:calc(100% - 24px);padding:4px 4px 4px 14px;border-radius:999px;background:var(--action);color:var(--action-ink);box-shadow:var(--shadow);font-size:13px;animation:issues-toast var(--dur-move) var(--ease-quint)}
-.issues-toast>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .issues-toast .mw-btn{background:transparent;color:inherit;text-decoration:underline;text-underline-offset:3px}.issues-toast .mw-btn:empty{display:none}
 @keyframes issues-toast{from{opacity:0;transform:translate(-50%,8px)}}
-dialog.issues-preview{width:calc(100vw - 32px);max-width:1440px;height:calc(100dvh - 32px);padding:0}
-.issues-preview form{position:relative;height:100%;overflow:auto;display:grid;place-items:safe center;padding:48px 16px 16px}
+dialog.issues-preview{width:calc(100vw - 32px);max-width:1440px;height:calc(100dvh - 32px);padding:0;overflow:hidden}
+.issues-preview form{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
+.issues-preview header{display:flex;justify-content:flex-end;gap:8px;padding:10px}
+.issues-preview-body{overflow:auto;display:grid;place-items:safe center;padding:16px}
 .issues-preview img{max-width:100%;max-height:100%;object-fit:contain}.issues-preview[data-zoom] img{max-width:none;max-height:none}
-.issues-preview .mw-btn{position:absolute;top:10px;right:10px}.issues-preview [data-issue-zoom]{right:76px}
 @media(max-width:760px){.issues textarea{font-size:16px}}
 @media(prefers-reduced-motion:reduce){.issues-row.is-new,.issues-toast{animation:none}}
 `;

@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,7 +8,6 @@ import test from "node:test";
 
 import {
   CodingSessionStore,
-  CodingStoreError,
   toDirectoryEntries,
 } from "@molis-ai/molis-work-plugin-coding";
 
@@ -69,7 +69,7 @@ test("关联 Goal 可加可撤，撤掉之后会话还在", async () => {
   }
 });
 
-test("同一个会话 id 不会被悄悄覆盖", async () => {
+test("CDSTORE-01/CDSTORE-02: 同一个会话 id 不会被悄悄覆盖", async () => {
   const directory = await mkdtemp(join(tmpdir(), "coding-store-"));
   try {
     const db = open(join(directory, "project.db"));
@@ -77,7 +77,7 @@ test("同一个会话 id 不会被悄悄覆盖", async () => {
     const input = { project_id: BOARD, session_id: "s1", title: "第一次", runtime_id: "cli", at: "2026-09-19T14:00:00Z" };
     store.create(input);
     assert.throws(() => store.create({ ...input, title: "第二次" }),
-      (error: unknown) => error instanceof CodingStoreError && error.code === "coding.session_duplicate");
+      (error: unknown) => error instanceof ActionError && error.code === "coding.session_duplicate" && error.kind === "invalid" && error.message === "会话已存在：s1");
     assert.equal(store.get(BOARD, "s1").title, "第一次");
     db.close();
   } finally {
@@ -96,6 +96,8 @@ test("归档会话从活动目录移出，直接读取仍保留原执行引用",
     assert.equal(store.list(BOARD).length, 0);
     assert.equal(store.get(BOARD, "s1").runtime_session_id, "runtime-s1");
     assert.throws(() => store.archive(BOARD, "s1", "2026-09-19T17:00:00Z"), /已归档/);
+    assert.throws(() => store.archive(BOARD, "s1", "2026-09-19T17:00:00Z"), { code: "coding.session_unknown", message: "会话已归档", kind: "invalid" });
+    assert.equal(store.get(BOARD, "s1").runtime_session_id, "runtime-s1");
     db.close();
   } finally { await rm(directory, { recursive: true, force: true }); }
 });

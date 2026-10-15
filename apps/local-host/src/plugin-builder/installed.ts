@@ -14,7 +14,7 @@ import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperat
 export const installedSignature = (buildId: string) => 'agent-built:' + buildId;
 export const releaseVersion = (version: number) => `${version}.0.0`;
 const ENTRIES = 'sandbox:entries';
-const GONE = new Set(['PROCESS_EXIT', 'STOPPED', 'CANCELLED', 'START_FAILED', 'START_TIMEOUT', 'OPERATION_TIMEOUT', 'MEMORY_LIMIT', 'CPU_LIMIT', 'CHANNEL_LIMIT', 'CHANNEL_ERROR', 'PROTOCOL_ERROR']);
+const GONE = new Set(['sandbox.process_exit', 'sandbox.stopped', 'sandbox.cancelled', 'sandbox.start_failed', 'sandbox.start_timeout', 'sandbox.operation_timeout', 'sandbox.memory_limit', 'sandbox.cpu_limit', 'sandbox.channel_limit', 'sandbox.channel_error', 'sandbox.protocol_error']);
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 /** The sandbox's storage transactions over the installation's private store: serialized and atomically committed. */
@@ -94,9 +94,9 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
             const capabilities = dependencies.length ? await host.capabilities?.() ?? [] : [];
             if (host.capabilities) for (const id of dependencies) {
               const entry = latestCapability(capabilities, id);
-              if (!entry || entry.installed === false) throw new SandboxError('CAPABILITY_UNAVAILABLE', '这项功能依赖的能力当前不可用：' + id);
+              if (!entry || entry.installed === false) throw new SandboxError('plugin_builder.capability_unavailable', '这项功能依赖的能力当前不可用：' + id);
               if (operation.kind === 'query' && (entry.execution?.cost === 'metered' || entry.effect && entry.effect !== 'read')) {
-                throw new SandboxError('CAPABILITY_DENIED', '查询不能自动调用收费或写入能力，请改为手动运行：' + id);
+                throw new SandboxError('plugin_builder.capability_denied', '查询不能自动调用收费或写入能力，请改为手动运行：' + id);
               }
             }
             const binding = capabilityPolicyBinding(operation.effects, capabilities);
@@ -106,7 +106,7 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
               if (!host.capabilities || !dependencies.length) return;
               if (capabilityPolicyBinding(operation.effects, await host.capabilities()) !== binding) {
                 policyChanged = true;
-                throw new SandboxError('CAPABILITY_CHANGED', '依赖能力的提供方、版本或执行策略已变更，本次调用已停止；请检查结果后再决定是否重试');
+                throw new SandboxError('plugin_builder.capability_changed', '依赖能力的提供方、版本或执行策略已变更，本次调用已停止；请检查结果后再决定是否重试');
               }
               await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
             };
@@ -116,7 +116,7 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
               signal: request.execution?.signal, beforeEffect, limits: capabilityLimits(operation.effects, capabilities),
             }) } }; }
             catch (error) {
-              // The worker may wrap a refused SDK call as PLUGIN_ERROR; keep the trusted Host's reason.
+              // The worker may wrap a refused SDK call as sandbox.plugin_error; keep the trusted Host's reason.
               let failure = error;
               try { await beforeEffect(); } catch (current) { failure = current; }
               const gone = GONE.has((error as { code?: string }).code ?? '');

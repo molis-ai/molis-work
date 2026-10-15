@@ -1,7 +1,7 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
 export * from "./action-execution.js";
-import { ActionError } from "./action-errors.js";
+import { ActionError, type ActionErrorKind } from "./action-errors.js";
 export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
 import type { ActionResultView } from "./action-result.js";
@@ -57,6 +57,8 @@ export interface ActionCallOrigin {
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
+  /** Host-authenticated delivery of a completed discussion run; never accepted from business input. */
+  readonly assistant_reply?: import("../services/assistant.js").AssistantReplyDelivery;
   /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
   readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
@@ -93,6 +95,10 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly allowed_actions?: readonly ActionReference[];
   /** Trusted authority owner rechecks revocable access at dispatch, including after a Host queue. */
   readonly validate_authority?: (reference: ActionReference) => void | Promise<void>;
+  /** Trusted synchronous check after the final await, never business input or persisted state.
+   * Additional permissions come from the current consumer's declaration, not from action input.
+   * Without a target, retain only the originating call's authority and lifetime (for disabling a binding). */
+  readonly assert_authority_current?: (reference?: ActionReference, requiredPermissions?: readonly string[]) => void;
   /** Recheck permissions consumed directly by a scene, without pretending it invoked another action. */
   readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
   readonly signal?: AbortSignal;
@@ -109,8 +115,16 @@ export interface ActionCallContext extends ActionCallOrigin {
  * After asynchronous work, await this immediately before committing each effect. It rechecks
  * this exact registration, live authority/availability, scope, cancellation and call lifetime.
  * The provider still owns the following transaction and optimistic concurrency checks. */
+export interface RetainedActionAuthority {
+  (): Promise<void>;
+  /** Recheck original authority and registrations after a downstream action's final await. No handler lifetime is retained. */
+  readonly assertCurrent: () => void;
+}
+
 export interface ActionExecutionContext extends ActionCallContext {
   readonly beforeEffect: () => Promise<void>;
+  /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect. */
+  readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
 }
 
 export interface ActionMetadata {
@@ -148,6 +162,8 @@ export interface ActionMetadata {
   readonly search_source?: SearchSourceDeclaration;
   /** A side panel file source: the file kinds it lists (or previews) and where each opens (specs/archive/side-panel §3.3). */
   readonly file_source?: FileSourceDeclaration;
+  /** Common owner protocol for reading a discussion and committing its fixed reply destination. */
+  readonly thread_source?: { readonly role: "context" | "reply"; readonly subject_kind: string };
   /** Optional rule choices owned by this subject-offer query; each target is declared in the same registration, in the same scope, and handles the option's subject kinds. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
   /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); each target is declared in the same registration and scope. */
@@ -221,6 +237,8 @@ export type ActionAvailability = { readonly available: true } | {
   readonly available: false;
   readonly code: string;
   readonly reason: string;
+  /** The owner's classification of this refusal; the Kernel and SDK preserve it when raising the failure. */
+  readonly kind?: ActionErrorKind;
 };
 
 /**
@@ -405,15 +423,20 @@ export function requireSynchronous<T>(value: T, message = "此操作需要异步
 /** An entrypoint binds its authenticated context once; callers supply only business input. */
 export interface BoundActionClient {
   discover(): Promise<readonly ActionView[]>;
-  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">): Promise<Output>;
+  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">): Promise<Output>;
 }
 
 export function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient {
   return { discover: async () => client.discover(context()),
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">) => {
+    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">) => {
       const caller = context();
       return await client.invoke(control ? { ...caller, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context,
-        validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); } } : caller, definition, input) as Output;
+        validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); },
+        assert_authority_current: (reference, requiredPermissions) => {
+          // The control belongs to its original caller; the bound caller owns the child's reference and permissions.
+          requireSynchronous(control.assert_authority_current?.(), "最终授权检查必须同步完成");
+          requireSynchronous(caller.assert_authority_current?.(reference, requiredPermissions), "最终授权检查必须同步完成");
+        } } : caller, definition, input) as Output;
     } };
 }
 
@@ -421,12 +444,19 @@ export function bindActionClient(client: ActionClient, context: () => ActionCall
  * This does not grant permissions; the dispatcher still checks each target's current registration and policy. */
 export function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference & { provider_id: string }, beforeEffect?: () => Promise<void>): Context {
   const validate = context.validate_authority;
-  if (!validate && !beforeEffect) return context;
+  const assertCurrent = context.assert_authority_current;
+  if (!validate && !beforeEffect && !assertCurrent) return context;
   const pinned = { capability_id: origin.capability_id, version: origin.version, provider_id: origin.provider_id };
   return { ...context, validate_authority: async (reference: ActionReference) => {
-    await beforeEffect?.();
     await validate?.(pinned);
     if (reference.capability_id !== pinned.capability_id || reference.version !== pinned.version || reference.provider_id !== pinned.provider_id) await validate?.(reference);
+    await beforeEffect?.();
+  }, assert_authority_current: (reference?: ActionReference, requiredPermissions?: readonly string[]) => {
+    requireSynchronous(assertCurrent?.(), "最终授权检查必须同步完成");
+    requireSynchronous(assertCurrent?.(pinned, requiredPermissions), "最终授权检查必须同步完成");
+    if (reference && (reference.capability_id !== pinned.capability_id || reference.version !== pinned.version || reference.provider_id !== pinned.provider_id)) {
+      requireSynchronous(assertCurrent?.(reference, requiredPermissions), "最终授权检查必须同步完成");
+    }
   } };
 }
 

@@ -15,8 +15,8 @@ const LOCAL: readonly ActionAudience[] = ["user"];
 
 type Translate = { toInput(request: PluginRouteRequest): Record<string, unknown>; toRequest(input: Record<string, unknown>): Pick<PluginRouteRequest, "params" | "query" | "body"> & { method: PluginRouteMethod } };
 function define(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
-  permissions: readonly string[], audiences: readonly ActionAudience[], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent"): ActionDefinition<Record<string, unknown>, unknown> {
-  return { capability_id: `coding.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), ...(scheduling ? { scheduling } : {}), kind: operation === "query" ? "query" : "operation",
+  permissions: readonly string[], audiences: readonly ActionAudience[], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent", version = 1): ActionDefinition<Record<string, unknown>, unknown> {
+  return { capability_id: `coding.${name}`, version, operation, action: { title, description, ...(execution ? { execution } : {}), ...(scheduling ? { scheduling } : {}), kind: operation === "query" ? "query" : "operation",
     scope: "project", audiences, permissions, subject_kinds: ["coding_session"], input_schema: input, output_schema: result } };
 }
 const body = (request: PluginRouteRequest) => request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {};

@@ -29,7 +29,7 @@ async function memoryHome(t: { after(fn: () => Promise<void> | void): void }, cl
   t.after(async () => { await close(); await rm(home, { recursive: true, force: true }); });
   /** Prologue Memory itself, as the first version wrote to it (no ledger facts). */
   const raw = () => prologueMemoryBackend(async () => host!.adapter("prologue").memory!);
-  return { home, open, close, ledger: () => ledger!, raw };
+  return { home, open, close, ledger: () => ledger!, raw, memory: () => adapter!.memory! };
 }
 
 const person = (project: string | null = "project-a"): MemoryCaller => ({ actor_id: "web-user", project_id: project, consumer: "ui", person: true });
@@ -39,6 +39,21 @@ const assistant = (project: string | null = "project-a", work = { work_id: "work
  * points at one of them. Most tests here are about the gate, not about the Assistant's tool, and state the person's message in `said`; this passes it on as the one the Host saved.
  */
 const keep = (memory: MemoryService, caller: MemoryCaller, request: MemoryWriteRequest) => memory.write(caller, request, { originals: request.said ? [request.said] : [] });
+
+// W2-18-MEMORY-EFFECT-02: an accepted SDK write is not erased by a revoked compensation after an owner-ledger failure.
+test("SDK memory already committed remains an explicit partial result when the ledger fails and the original call is revoked", async t => {
+  const env = await memoryHome(t); await env.open(); let current = true;
+  const control = { beforeEffect: async () => {}, assert_current: () => { if (!current) throw new Error("original memory call revoked"); } };
+  const service = new MemoryService({ backend: prologueMemoryBackend(async () => env.memory(), control), ledger: env.ledger(), timeZone: "Asia/Shanghai", projectTitle: async () => "Fixture" });
+  const failure = t.mock.method(env.ledger(), "addRevision", () => { current = false; throw new Error("owner ledger failed after SDK commit"); });
+  await assert.rejects(service.write(person(), { scope: "personal", text: "Prefer concise answers." }), /owner ledger failed/);
+  const committed = await env.raw().list("personal", "web-user");
+  assert.equal(committed.length, 1); assert.equal(committed[0]!.text, "Prefer concise answers.");
+  assert.deepEqual(env.ledger().revisions(committed[0]!.memory_id), [], "the owner ledger never reported a completed revision");
+  failure.mock.restore(); await env.close(); const reopened = await env.open();
+  assert.deepEqual((await env.raw().list("personal", "web-user")).map(item => item.memory_id), committed.map(item => item.memory_id), "no hidden rollback or duplicate entry across restart");
+  assert.equal((await reopened.list(person(), { scope: "personal" })).items[0]!.text, "Prefer concise answers.");
+});
 
 test("the write gate keeps explicit requests, refuses secrets, holds instruction-like text, and never lets an inference override what the person said", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
@@ -700,4 +715,42 @@ test("what is kept as theirs is the message as they wrote it, not the model's ve
   const long = `A${" ".repeat(300)}B${" ".repeat(200)}C`;
   await assert.rejects(memory.write(work(4), { scope: "personal", text: "a b c", said: "x" }, { originals: [long] }), /1–400/);
   assert.equal((await memory.list(person(), { scope: "personal" })).items.length, 1);
+});
+
+// W1-18-MEMORY-CANDIDATE-01: a query cannot manufacture a current SDK candidate from the ledger's old note.
+test("a missing SDK candidate is refused unchanged, before and after restart", async t => {
+  const env = await memoryHome(t); let memory = await env.open();
+  const offered = await memory.offer(assistant(), { scope: "personal", text: "回答用短句", kind: "preference", basis: "inferred", why: "fixture inference", from: "extraction" });
+  const notes = env.ledger().candidates("web-user"), note = notes.find(one => one.candidate_id === offered.candidate!.candidate_id)!;
+  await env.raw().candidates.purge({ scope: note.scope, owner: note.owner, candidate_id: note.candidate_id });
+  const unchanged = env.ledger().candidates("web-user");
+  for (let read = 0; read < 2; read++) {
+    await assert.rejects(memory.candidates(person()), /原记录不可读/);
+    assert.deepEqual(env.ledger().candidates("web-user"), unchanged);
+    assert.deepEqual(await env.raw().candidates.list(note.scope, note.owner), []);
+  }
+  await env.close(); memory = await env.open();
+  await assert.rejects(memory.candidates(person()), /原记录不可读/);
+  assert.deepEqual(env.ledger().candidates("web-user"), unchanged);
+  assert.deepEqual(await env.raw().candidates.list(note.scope, note.owner), []);
+});
+
+// W2-18-MEMORY-EFFECT-01 / -02: overlapping SDK operations retain separate final checks and successful facts.
+test("two SDK memory calls never exchange execution controls, and a committed entry survives another call's refusal", async t => {
+  const env = await memoryHome(t); await env.open(); const memory = env.memory();
+  const kept = await memory.write({ scope: "app", owner: "one", text: "original", origin: "fixture", tags: [] });
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let valid = true;
+  const first = memory.withExecution!({ beforeEffect: async () => { entered.resolve(); await release.promise; }, assert_current: () => { if (!valid) throw new Error("original call cancelled"); } });
+  const pending = first.update({ scope: "app", owner: "one", memory_id: kept.memory_id, text: "forbidden update" });
+  const rejection = assert.rejects(pending, /original call cancelled/);
+  await entered.promise;
+  let checks = 0;
+  const second = memory.withExecution!({ beforeEffect: async () => {}, assert_current: () => { checks++; } });
+  await second.write({ scope: "app", owner: "two", text: "accepted independently", origin: "fixture", tags: [] });
+  assert.ok(checks > 0); valid = false; release.resolve(); await rejection;
+  assert.deepEqual((await memory.list("app", "one")).map(entry => entry.text), ["original"]);
+  assert.deepEqual((await memory.list("app", "two")).map(entry => entry.text), ["accepted independently"]);
+  await env.close(); await env.open();
+  assert.deepEqual((await env.memory().list("app", "one")).map(entry => entry.text), ["original"]);
+  assert.deepEqual((await env.memory().list("app", "two")).map(entry => entry.text), ["accepted independently"]);
 });

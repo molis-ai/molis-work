@@ -1,11 +1,13 @@
 import type { MolisWorkRuntimeConnection } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { dispatchMcpProjectTool, type McpPresentationErrorFactory } from "@molis-ai/molis-work-app-mcp";
 import { readProductEnv } from "@molis-ai/molis-work-storage";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { catalogManagementProject, residentManagementActions } from "./management-action-client.js";
+import { bindGoalsManagementActions } from "./goals-actions.js";
 
-export const createPresentationError: McpPresentationErrorFactory = (code, message, details) => new MolisWorkV1Error(code, message, details);
+export const createPresentationError: McpPresentationErrorFactory = (code, message, details) => new ActionError(code, message, { details });
 
 /** Who is calling a v1 project tool, and on what. A Runtime call runs in its bound project; a management call names its own database. */
 export interface McpV1ToolCaller {
@@ -13,6 +15,7 @@ export interface McpV1ToolCaller {
   audience: "runtime" | "management";
   /** The Runtime's bound project; null for the management audience. */
   runtimeConnection: MolisWorkRuntimeConnection | null;
+  resident?: { home: string; origin: string; signal?: AbortSignal };
 }
 
 /**
@@ -26,29 +29,34 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
     ? runtimeConnection!.databasePath
     : namedDatabasePath(arguments_.database_path) ?? namedDatabasePath(readProductEnv("DATABASE"));
   if (!location) {
-    throw new MolisWorkV1Error("mcp.path_required",
+    throw new ActionError("mcp.path_required",
       "管理入口需要明确的数据库路径：在参数 database_path 里给出，或设置环境变量 MOLIS_WORK_DATABASE。没有默认路径，不会按当前目录猜一个。");
   }
   const storage = prepareLocalProjectStorage(location, name === "molis_work_v1_initialize" ? "create" : "existing");
   const { databasePath } = storage;
   if (storage.status === "missing") {
-    throw new MolisWorkV1Error("mcp.not_found", `Molis Work 数据库不存在: ${databasePath}`);
+    throw new ActionError("mcp.not_found", `Molis Work 数据库不存在: ${databasePath}`);
   }
   const projectId = String(
     audience === "runtime"
       ? runtimeConnection!.projectId
       : arguments_.project_id ?? `database:${databasePath}`,
   );
-  const reference = molisWorkHostProjectReference({
+  let reference = molisWorkHostProjectReference({
     databasePath,
     projectId,
   });
-  const client = caller.localHost.client(reference);
-  return dispatchMcpProjectTool(client, name, arguments_, {
+  const fallback = () => bindGoalsManagementActions(caller.localHost.actionClient(reference, false), reference, { signal: caller.resident?.signal });
+  const owned = audience === "management" && caller.resident ? catalogManagementProject(caller.resident.home, databasePath) : undefined;
+  if (owned && owned.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "管理请求与 Home 登记的项目不匹配");
+  if (owned) reference = molisWorkHostProjectReference({ databasePath: owned.database_path, projectId: owned.project_id });
+  if (!owned) await caller.localHost.client(reference).withScope(() => undefined);
+  const actions = audience !== "management" ? null : owned && caller.resident ? residentManagementActions({
+    home: caller.resident.home, origin: caller.resident.origin, signal: caller.resident.signal,
+    databasePath: owned.database_path, projectId: owned.project_id, fallback }) : fallback();
+
+  return dispatchMcpProjectTool(actions, name, arguments_, {
     audience,
-    webBaseUrl: () => String(audience === "runtime" ? runtimeConnection!.webBaseUrl
-      : arguments_.web_base_url ?? readProductEnv("WEB_URL") ?? "http://127.0.0.1:4173"),
-    projectId: runtimeConnection?.projectId,
     createError: createPresentationError,
   });
 }

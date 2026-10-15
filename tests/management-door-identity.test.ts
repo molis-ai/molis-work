@@ -6,18 +6,19 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import ts from "typescript";
 import { MolisWorkServer, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, runV1Cli } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, developInPrivateHost, runV1Cli } from "@molis-ai/molis-work-app-local-host";
+import type { GoalEventDecisionResult } from "@molis-ai/molis-work-contracts/modules/goals";
 import { MCP_TOOLS } from "@molis-ai/molis-work-app-mcp";
-import { goalTreeCapabilities, goalsActions, recordGoalUserDecisionCapability } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, managementEventDecisionAuthority, type GoalTreeProposalDecisionResult } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostCapabilityDefinition, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
+const retiredDevelopment: HostCapabilityDefinition<unknown, unknown> = { capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" };
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { managementGoals } from "./goal-management-caller.js";
 
 /**
- * The management door (the CLI, the typed Host client, the management MCP) has no caller identity of its own: the Host records
+ * The management door (the CLI and the management MCP) has no caller identity of its own: the Host records
  * the person on this machine and refuses an identity carried in the arguments (repository-anti-corruption §9.5 #6). The structure
  * decision, the event decision and the plugin development run are three more entries of that door.
  */
@@ -32,43 +33,54 @@ async function structureProject(name: string) {
   const typed = host.client(ref), project_id = project.project_id;
   const runtime = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:writer", audit_actor_id: "runtime:writer:session", actor_kind: "runtime",
     audience: "agent", project_id, permissions: ["goals:read", "goals:write"], runtime_session_id: "session" }));
-  await runtime.invoke(goalsActions.create, { goal_id: "draft", title: "整理入口", outcome: "提案先保存，用户决定后生效", idempotency_key: "start" });
-  const proposal = (await typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ project_id, summary: "拆一个子目标", idempotency_key: "propose", root_goal_id: "draft",
-    items: [{ item_id: "child", kind: "goal", operation: "create", payload: { goal_id: "child", title: "子目标", outcome: "结果" }, source_refs: ["runtime"], reason: "需要", confidence: 0.9 }] }])).proposal;
-  const decision = (key: string) => ({ project_id, proposal_id: proposal.proposal_id, decisions: [{ item_id: "child", decision: "confirm" as const }], reason: "确认", idempotency_key: key,
-    authority: { conversation_ref: "conversation://identity", message_ref: "message://confirm" } });
-  const decisions = async () => (await typed.invoke(goalTreeCapabilities.listGoalTreeProposals, [{ project_id, proposal_id: proposal.proposal_id }])).proposals[0]!.decisions;
-  return { home, ref, host, typed, project_id, proposal, decision, decisions, databasePath: project.database_path,
-    done: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
+  const management = new MolisWorkServer("management", null, null, host);
+  try {
+    await runtime.invoke(goalsActions.create, { goal_id: "draft", title: "整理入口", outcome: "提案先保存，用户决定后生效", idempotency_key: "start" });
+    await runV1Cli(["goal-tree-propose", "--db", project.database_path, "--json", JSON.stringify({ project_id, summary: "拆一个子目标", idempotency_key: "propose", root_goal_id: "draft",
+      items: [{ item_id: "child", kind: "goal", operation: "create", payload: { goal_id: "child", title: "子目标", outcome: "结果" }, source_refs: ["runtime"], reason: "需要", confidence: 0.9 }] })], { localHost: host });
+    const proposal = (await runtime.invoke(goalsActions.treeRead, {})).proposals[0]!;
+    const decideEntry = async (input: Record<string, unknown>) => JSON.parse(await management.callTool("molis_work_v1_goal_tree_decide",
+      { database_path: project.database_path, ...input })) as GoalTreeProposalDecisionResult;
+    const decision = (key: string) => ({ project_id, proposal_id: proposal.proposal_id, decisions: [{ item_id: "child", decision: "confirm" as const }], reason: "确认", idempotency_key: key,
+      authority: { conversation_ref: "conversation://identity", message_ref: "message://confirm" } });
+    const decisions = async () => (await runtime.invoke(goalsActions.treeRead, { proposal_id: proposal.proposal_id })).proposals[0]!.decisions;
+    return { home, ref, host, typed, runtime, decideEntry, project_id, proposal, decision, decisions, databasePath: project.database_path,
+      done: async () => { await management.close(); await host.close(); await rm(home, { recursive: true, force: true }); } };
+  } catch (error) {
+    try { await management.close(); }
+    finally { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } }
+    throw error;
+  }
 }
 
-test("a structure decision through the typed management entry is recorded as the person on this machine, and refuses an identity in its arguments", async () => {
-  const { typed, decision, decisions, done } = await structureProject("typed");
+// R3-01/R3-02: current owner refusal and protected identity flow through the real MCP door.
+test("a structure decision through the management MCP is recorded as the person on this machine, and refuses an identity in its arguments", async () => {
+  const { decideEntry, decision, decisions, done } = await structureProject("mcp-identity");
   try {
     for (const identity of IDENTITY_FIELDS) {
-      await assert.rejects(typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [{ ...decision("forged"), ...identity }] as never), { code: "actions.input_invalid" }, `refuses ${Object.keys(identity).join(" and ")}`);
+      await assert.rejects(decideEntry({ ...decision("forged"), ...identity }), { code: "actions.input_invalid" }, `refuses ${Object.keys(identity).join(" and ")}`);
     }
     // An identity named inside the authority is not accepted either: the Host fixes who decides.
     for (const authority of [{ actor_id: "someone-else" }, { authority_source: "web" }, { actor_kind: "runtime" }]) {
-      await assert.rejects(typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [{ ...decision("forged-authority"), authority: { ...decision("forged-authority").authority, ...authority } }] as never),
-        { code: "goal_tree_proposal.authority_source_invalid" }, `refuses ${Object.keys(authority).join(" and ")} in the authority`);
+      await assert.rejects(decideEntry({ ...decision("forged-authority"), authority: { ...decision("forged-authority").authority, ...authority } }),
+        { code: "goals.goal_tree_proposal.authority_source_invalid" }, `refuses ${Object.keys(authority).join(" and ")} in the authority`);
     }
     assert.deepEqual(await decisions(), [], "a refused call decides nothing");
 
-    const decided = await typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [decision("decide")]);
+    const decided = await decideEntry(decision("decide"));
     assert.deepEqual(decided.applied_item_ids, ["child"]);
     const recorded = await decisions();
     assert.deepEqual(recorded.map(item => [item.actor_id, item.authority_source, item.runtime_actor_id]), [[LOCAL_PERSON_ACTOR_ID, "management", null]],
       "the person on this machine decided through the management door, and no Runtime relayed it");
-    assert.equal((await typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [decision("decide")])).replayed, true, "the same key replays");
+    assert.equal((await decideEntry(decision("decide"))).replayed, true, "the same key replays");
   } finally { await done(); }
 });
 
-test("the typed structure decision takes only the conversation it came from: the Host builds the authority, with defaults when none is given", async () => {
-  const { typed, project_id, proposal, decision, decisions, done } = await structureProject("evidence");
+test("the management structure decision takes only the conversation it came from: the Host builds the authority, with defaults when none is given", async () => {
+  const { decideEntry, project_id, proposal, decision, decisions, done } = await structureProject("evidence");
   try {
     const { authority: _evidence, ...business } = decision("defaults");
-    const decided = await typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [business]);
+    const decided = await decideEntry(business);
     assert.deepEqual(decided.applied_item_ids, ["child"]);
     const [record] = await decisions();
     assert.deepEqual([record!.actor_id, record!.authority_source, record!.runtime_actor_id, record!.conversation_ref, record!.message_ref],
@@ -78,7 +90,7 @@ test("the typed structure decision takes only the conversation it came from: the
 });
 
 test("the CLI's goal-tree-decide and the management MCP's goal_tree_decide refuse a runtime_actor_id or any other identity, and decide nothing", async () => {
-  const { host, typed, decision, decisions, project_id, proposal, databasePath, done } = await structureProject("doors");
+  const { host, runtime, decision, decisions, project_id, proposal, databasePath, done } = await structureProject("doors");
   const management = new MolisWorkServer("management", null, null, host);
   try {
     const payload = decision("door");
@@ -96,7 +108,7 @@ test("the CLI's goal-tree-decide and the management MCP's goal_tree_decide refus
     assert.deepEqual(decided.applied_item_ids, ["child"]);
     assert.deepEqual((await decisions()).map(item => [item.actor_id, item.runtime_actor_id]), [[LOCAL_PERSON_ACTOR_ID, null]]);
     assert.equal(proposal.project_id, project_id);
-    assert.equal((await typed.invoke(goalTreeCapabilities.listGoalTreeProposals, [{ project_id, proposal_id: proposal.proposal_id }])).proposals[0]!.decisions.length, 1);
+    assert.equal((await runtime.invoke(goalsActions.treeRead, { proposal_id: proposal.proposal_id })).proposals[0]!.decisions.length, 1);
   } finally { await management.close(); await done(); }
 });
 
@@ -110,59 +122,69 @@ async function eventDecisionProject(name: string) {
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: name, actor_id: LOCAL_PERSON_ACTOR_ID }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const typed = host.client(ref), project_id = project.project_id, goal_id = "EVENT-DECISION";
-  await managementGoals(host.actionClient(ref), project_id).invoke(goalsActions.create, { goal_id, title: "事件决定", idempotency_key: "create" });
-  const cursor = () => host.withProject(ref, runtime => runtime.coordinator.goalEvents.readState(project_id, goal_id).goal_event_cursor);
-  const decide = (key: string) => ({ project_id, goal_id, idempotency_key: key, conclusion: "允许发布当前结果",
-    effects: [{ kind: "authorize_action" as const, action: "publish" }], scope: { action: "publish" } });
-  const stored = (governanceId: string) => host.withProject(ref, runtime => runtime.coordinator.governance.eventDecisions.read(project_id, governanceId));
-  return { home, ref, host, typed, project_id, goal_id, cursor, decide, stored, databasePath: project.database_path,
-    done: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
+  const project_id = project.project_id, goal_id = "EVENT-DECISION";
+  const management = new MolisWorkServer("management", null, null, host);
+  const decideEntry = async (input: Record<string, unknown>) => JSON.parse(await management.callTool("molis_work_v1_event_decide",
+    { database_path: project.database_path, ...input })) as GoalEventDecisionResult;
+  try {
+    await managementGoals(host.actionClient(ref), project_id).invoke(goalsActions.create, { goal_id, title: "事件决定", idempotency_key: "create" });
+    const cursor = () => host.withProject(ref, runtime => runtime.coordinator.goalEvents.readState(project_id, goal_id).goal_event_cursor);
+    const decide = (key: string) => ({ project_id, goal_id, idempotency_key: key, conclusion: "允许发布当前结果",
+      effects: [{ kind: "authorize_action" as const, action: "publish" }], scope: { action: "publish" } });
+    const stored = (governanceId: string) => host.withProject(ref, runtime => runtime.coordinator.governance.eventDecisions.read(project_id, governanceId));
+    return { home, ref, host, decideEntry, project_id, goal_id, cursor, decide, stored, databasePath: project.database_path,
+      done: async () => { await management.close(); await host.close(); await rm(home, { recursive: true, force: true }); } };
+  } catch (error) {
+    try { await management.close(); }
+    finally { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } }
+    throw error;
+  }
 }
 
-test("an event decision through the typed management entry is recorded as the person on this machine, and refuses an identity in its arguments or its authority", async () => {
-  const { typed, cursor, decide, stored, done } = await eventDecisionProject("event-typed");
+test("an event decision through the management MCP is recorded as the person on this machine, and refuses an identity in its arguments or its authority", async () => {
+  const { decideEntry, project_id, cursor, decide, stored, done } = await eventDecisionProject("event-mcp-identity");
   try {
     const before = await cursor();
     for (const identity of IDENTITY_FIELDS) {
-      await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...decide("forged"), ...identity } as never), { code: "actions.input_invalid" }, `refuses ${Object.keys(identity).join(" and ")}`);
+      await assert.rejects(decideEntry({ ...decide("forged"), ...identity }), { code: "mcp.unexpected_field" }, `refuses ${Object.keys(identity).join(" and ")}`);
     }
     // An identity or origin named inside the authority is not accepted either: the Host fixes who decides, as for a structure decision.
     const evidence = { conversation_ref: "conversation://identity", message_ref: "message://confirm" };
     for (const authority of [{ actor_id: "someone-else" }, { actor_id: LOCAL_PERSON_ACTOR_ID }, { actor_kind: "runtime" }, { authority_source: "web" },
       { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", authority_source: "management" }]) {
-      await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...decide("forged-authority"), authority: { ...evidence, ...authority } } as never),
-        { code: "goals.event_decision_authority_invalid" }, `refuses ${Object.keys(authority).join(" and ")} in the authority`);
+      assert.throws(() => managementEventDecisionAuthority(project_id, "forged-authority", { ...evidence, ...authority }), { code: "goals.event_decision_authority_invalid" });
+      await assert.rejects(decideEntry({ ...decide("forged-authority"), authority: { ...evidence, ...authority } }),
+        { code: "mcp.unexpected_field" }, `refuses ${Object.keys(authority).join(" and ")} in the authority`);
     }
     assert.equal(await cursor(), before, "a refused call decides nothing");
 
-    const decided = await typed.invoke(recordGoalUserDecisionCapability, { ...decide("decide"), authority: evidence });
+    const decided = await decideEntry(decide("decide"));
     assert.equal(decided.replayed, false);
     assert.deepEqual([decided.decision.actor_id, decided.decision.authority_source], [LOCAL_PERSON_ACTOR_ID, "management"],
       "the person on this machine decided through the management door");
     const record = await stored(decided.decision.governance_decision_id);
     assert.deepEqual([record?.actor_id, record?.actor_kind, record?.authority_source, record?.conversation_ref, record?.message_ref],
-      [LOCAL_PERSON_ACTOR_ID, "user", "management", evidence.conversation_ref, evidence.message_ref], "the authority only pointed at the conversation");
-    assert.equal((await typed.invoke(recordGoalUserDecisionCapability, { ...decide("decide"), authority: evidence })).replayed, true, "the same key replays");
+      [LOCAL_PERSON_ACTOR_ID, "user", "management", `management:${project_id}`, "management-event-decision:decide"], "the MCP fixes the management provenance");
+    assert.equal((await decideEntry(decide("decide"))).replayed, true, "the same key replays");
   } finally { await done(); }
 });
 
-test("the typed event decision takes only the conversation it came from: the Host builds the authority, with defaults when none is given", async () => {
-  const { typed, project_id, decide, stored, done } = await eventDecisionProject("event-evidence");
+test("the management event decision takes only the conversation it came from: the Host builds the authority, with defaults when none is given", async () => {
+  const { decideEntry, project_id, decide, stored, done } = await eventDecisionProject("event-evidence");
   try {
-    const plain = await typed.invoke(recordGoalUserDecisionCapability, decide("defaults"));
+    const plain = await decideEntry(decide("defaults"));
     const record = await stored(plain.decision.governance_decision_id);
     assert.deepEqual([record?.actor_id, record?.authority_source, record?.conversation_ref, record?.message_ref],
       [LOCAL_PERSON_ACTOR_ID, "management", `management:${project_id}`, "management-event-decision:defaults"], "a decision without evidence points at the management door itself");
     // A reference that is not a usable string falls back to the default, so the stored authority always has both.
-    const blank = await typed.invoke(recordGoalUserDecisionCapability, { ...decide("blank"), authority: { conversation_ref: "conversation://half", message_ref: "  " } });
-    const half = await stored(blank.decision.governance_decision_id);
-    assert.deepEqual([half?.conversation_ref, half?.message_ref], ["conversation://half", "management-event-decision:blank"]);
+    const half = managementEventDecisionAuthority(project_id, "blank", { conversation_ref: "conversation://half", message_ref: "  " });
+    assert.deepEqual([half.conversation_ref, half.message_ref], ["conversation://half", "management-event-decision:blank"]);
+    await assert.rejects(decideEntry({ ...decide("blank"), authority: { conversation_ref: "conversation://half", message_ref: "  " } }), { code: "mcp.unexpected_field" });
   } finally { await done(); }
 });
 
 test("the management MCP's event_decide records the person on this machine and has no way to carry an authority", async () => {
-  const { host, typed, project_id, goal_id, cursor, decide, stored, databasePath, done } = await eventDecisionProject("event-mcp");
+  const { host, decideEntry, project_id, goal_id, cursor, decide, stored, databasePath, done } = await eventDecisionProject("event-mcp");
   const management = new MolisWorkServer("management", null, null, host);
   try {
     const before = await cursor();
@@ -177,8 +199,8 @@ test("the management MCP's event_decide records the person on this machine and h
     assert.deepEqual([decided.decision.actor_id, decided.decision.authority_source], [LOCAL_PERSON_ACTOR_ID, "management"]);
     const record = await stored(decided.decision.governance_decision_id);
     assert.deepEqual([record?.conversation_ref, record?.message_ref], [`management:${project_id}`, "management-event-decision:mcp-decide"]);
-    // The typed entry and the MCP share one decision: the same key replays across them.
-    assert.equal((await typed.invoke(recordGoalUserDecisionCapability, decide("mcp-decide"))).replayed, true);
+    // A second actual management invocation replays the same decision.
+    assert.equal((await decideEntry(decide("mcp-decide"))).replayed, true);
   } finally { await management.close(); await done(); }
 });
 
@@ -200,8 +222,8 @@ test("the management MCP's initialize reads only project_id, title and idempoten
   } finally { await management.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-/** W3-01 D: the management door is reached through MCP messages too. Its tool call is an operation: the typed command it runs leaves a row, and the result says which. */
-test("a management tool call is one operation: its typed command leaves a row and the result names that operation", async () => {
+/** W3-01 D / W3-07-4-01: the management door is reached through MCP messages too. Its one Goals action leaves a row, and the result says which. */
+test("a management tool call is one operation: its single Goals action leaves a row and the result names that operation", async () => {
   const home = await mkdtemp(join(tmpdir(), "management-door-call-id-"));
   const databasePath = join(home, "project.db"), project_id = "project/call-id";
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -214,8 +236,10 @@ test("a management tool call is one operation: its typed command leaves a row an
     assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     assert.notEqual(id, "11111111-2222-4333-8444-555555555555", "a number the client put in `_meta` is not taken");
     const rows = host.callLog!.find(id);
-    assert.ok(rows.length >= 1, "the operation left a row the number finds");
-    assert.ok(rows.every(row => row.call_id === id && row.operation === "command" && row.ok), JSON.stringify(rows));
+    assert.equal(rows.length, 1, "the operation left exactly one Goals action row");
+    assert.equal(rows[0]!.count ?? 1, 1, "the first message settled only once");
+    assert.deepEqual(rows.map(row => [row.call_id, row.operation, row.path ?? "action", row.capability_id, row.ok]),
+      [[id, "command", "action", "goals.board.initialize", true]]);
   } finally { await management.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -229,44 +253,45 @@ test("the management MCP's goal_tree_decide schema names no identity", () => {
 });
 
 /** A plugin that lists these entries under capabilities.consumes would otherwise be recorded as the person, or run unsigned code with the grants it names. */
-test("a plugin that lists the structure decision or the plugin development run under consumes is refused", async () => {
+test("a plugin that lists the plugin development run under consumes is refused", async () => {
   const { typed, decision, decisions, project_id, done } = await structureProject("plugin");
   const asPlugin = (actor_id: string): HostCapabilityCallOptions => ({ consumer: "plugin", before_effect: async () => {},
     plugin_caller: { plugin_id: "io.molis.work.test.door-writer", install_id: "install-1", actor_id, project_id,
       declaration: { manifest: {} as HostPluginCaller["declaration"]["manifest"] }, assertActive: () => {} } });
   try {
     const entries = [
-      { name: "decide structure proposal", capability: goalTreeCapabilities.decideGoalTreeProposal as HostCapabilityDefinition<unknown, unknown>, input: [decision("plugin-decide")] as unknown },
-      { name: "run plugin development", capability: pluginDevelopmentCapability as HostCapabilityDefinition<unknown, unknown>,
+      { name: "run plugin development", capability: retiredDevelopment,
         input: { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true } as unknown },
     ];
-    assert.deepEqual(entries.filter(entry => entry.capability.host_only !== true).map(entry => entry.name), [], "every one of them is flagged host_only");
+    // W3-07-6-02: the old protocol is absent from the actual Host, including the normal user client.
+    for (const { capability, input } of entries) await assert.rejects(typed.invoke(capability, input), { code: "actions.dependency_missing" });
     const manifest = { ...filesManifest, plugin_id: "io.molis.work.test.door-writer", capabilities: { provides: [], consumes: entries.map(entry => entry.capability.capability_id) } };
     const sdk = createPluginCapabilityClient(manifest, typed);
     for (const { name, capability, input } of entries) {
       const available = sdk.availability(capability);
       assert.equal(available.available, false, `${name} is not available to a plugin`);
-      assert.equal(!available.available && available.code, "actions.host_only", name);
-      await assert.rejects(sdk.invoke(capability, input), { code: "actions.host_only" }, `${name}: through the plugin client`);
-      await assert.rejects(sdk.invoke({ ...capability, host_only: false }, input), { code: "actions.host_only" }, `${name}: through an unflagged copy`);
-      await assert.rejects(typed.invoke(capability, input, asPlugin("plugin-person")), { code: "actions.host_only" }, `${name}: with the plugin's own call context`);
+      assert.equal(!available.available && available.code, "actions.dependency_missing", name);
+      await assert.rejects(sdk.invoke(capability, input), { code: "actions.dependency_missing" }, `${name}: through the plugin client`);
+      const forged = { ...capability, host_only: false };
+      await assert.rejects(sdk.invoke(forged, input), { code: "actions.dependency_missing" }, `${name}: through an unflagged copy`);
+      await assert.rejects(typed.invoke(capability, input, asPlugin("plugin-person")), { code: "actions.dependency_missing" }, `${name}: with the plugin's own call context`);
     }
     assert.deepEqual(await decisions(), [], "nothing was decided");
   } finally { await done(); }
 });
 
-test("the plugin development run takes no actor: one named in its arguments is refused, and the Host records its own", async () => {
-  const { typed, project_id, done } = await structureProject("development");
+test("W3-07-6-01: the plugin development run takes no actor: one named in its arguments is refused, and the Host records its own", async () => {
+  const { host, ref, project_id, done } = await structureProject("development");
   try {
     for (const identity of [{ actor_id: "someone-else" }, { actor_id: LOCAL_PERSON_ACTOR_ID }, { actor_kind: "user" }, { audit_actor_id: "runtime:forged:session" }]) {
-      await assert.rejects(typed.invoke(pluginDevelopmentCapability, { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true, ...identity } as never),
+      await assert.rejects(developInPrivateHost(host, ref, { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true, ...identity } as never),
         { code: "actions.input_invalid" }, `refuses ${Object.keys(identity).join(" and ")}`);
     }
     // The project is the one the client opened: another project in the arguments is a scope mismatch, checked before the identity.
-    await assert.rejects(typed.invoke(pluginDevelopmentCapability, { directory: "/nonexistent", project_id: "foreign", grants: [], allow_unsigned_development: true, actor_id: "someone-else" } as never),
+    await assert.rejects(developInPrivateHost(host, ref, { directory: "/nonexistent", project_id: "foreign", grants: [], allow_unsigned_development: true, actor_id: "someone-else" } as never),
       { code: "actions.scope_mismatch" });
     // Without an identity the call gets as far as the directory it was asked to load: the refusal above came first.
-    await assert.rejects(typed.invoke(pluginDevelopmentCapability, { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true }),
+    await assert.rejects(developInPrivateHost(host, ref, { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true }),
       (error: unknown) => (error as { code?: string }).code !== "actions.input_invalid");
   } finally { await done(); }
 });
@@ -285,26 +310,18 @@ function typeErrors(source: string): string[] {
     .map(diagnostic => `line ${diagnostic.file ? ts.getLineAndCharacterOfPosition(diagnostic.file, diagnostic.start ?? 0).line + 1 : 0}: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, " ")}`);
 }
 
-test("the structure decision, the event decision and plugin development entries are typed without an identity, so a caller that follows the types is not refused", { timeout: 180_000 }, () => {
+test("the decision actions and plugin development input carry no caller identity", { timeout: 180_000 }, () => {
   const source = `
-import type { HostCapabilityInput } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
-import { goalTreeCapabilities, recordGoalUserDecisionCapability } from "@molis-ai/molis-work-plugin-goals";
-type Identity = "actor_id" | "actor_kind" | "audit_actor_id" | "runtime_actor_id";
-type KeysOf<Input> = Input extends readonly [infer First, ...unknown[]] ? keyof First : keyof Input;
-type Free<Input> = [Extract<KeysOf<Input>, Identity>] extends [never] ? true : false;
-export const decideFree: Free<HostCapabilityInput<typeof goalTreeCapabilities.decideGoalTreeProposal>> = true;
-// The authority only points at the conversation: who decides, and through which door, is the Host's to fix.
-type DecideInput = HostCapabilityInput<typeof goalTreeCapabilities.decideGoalTreeProposal> extends readonly [infer First, ...unknown[]] ? First : never;
-type AuthorityKeys = keyof NonNullable<DecideInput extends { authority?: infer Authority } ? Authority : never>;
-export const authorityFree: [Extract<AuthorityKeys, Identity | "authority_source">] extends [never] ? true : false = true;
-export const authorityNamesConversation: "conversation_ref" extends AuthorityKeys ? true : false = true;
-// The event decision's authority points at the conversation too.
-export const eventDecideFree: Free<HostCapabilityInput<typeof recordGoalUserDecisionCapability>> = true;
-type EventAuthorityKeys = keyof NonNullable<HostCapabilityInput<typeof recordGoalUserDecisionCapability> extends { authority?: infer Authority } ? Authority : never>;
-export const eventAuthorityFree: [Extract<EventAuthorityKeys, Identity | "authority_source">] extends [never] ? true : false = true;
-export const eventAuthorityNamesConversation: "conversation_ref" extends EventAuthorityKeys ? true : false = true;
-export const developmentFree: Free<HostCapabilityInput<typeof pluginDevelopmentCapability>> = true;
+import type { PluginDevelopmentInput } from "@molis-ai/molis-work-contracts/platform/tooling";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+type Input<T> = T extends ActionDefinition<infer I, infer _O> ? I : never;
+type Identity = "actor_id" | "actor_kind" | "audit_actor_id" | "runtime_actor_id" | "authority";
+type KeysOf<T> = T extends readonly [infer First, ...unknown[]] ? keyof First : keyof T;
+type Free<T> = [Extract<KeysOf<T>, Identity>] extends [never] ? true : false;
+export const decideFree: Free<Input<typeof goalsActions.treeDecide>> = true;
+export const eventDecideFree: Free<Input<typeof goalsActions.decide>> = true;
+export const developmentFree: Free<PluginDevelopmentInput> = true;
 `;
   assert.deepEqual(typeErrors(source), []);
 });

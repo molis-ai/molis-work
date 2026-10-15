@@ -26,7 +26,8 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-plugin-goals": "workspace:*"
+    "@molis-ai/molis-work-plugin-goals": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "molis-work": {
     "path": "apps/mcp",
@@ -41,7 +42,6 @@
       "goal-reorg-ex4"
     ],
     "ssot": "docs/SSOT-MATRIX.md",
-    "capabilities": [
-    ]
+    "capabilities": []
   }
 }

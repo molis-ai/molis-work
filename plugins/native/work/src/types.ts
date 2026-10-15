@@ -6,7 +6,6 @@ import type {
   WorkSessionHandoffRecord as MolisWorkSessionHandoffRecord,
 } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
-export { MolisWorkSessionError } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 export type {
   WorkSessionRecord as MolisWorkSessionRecord,
   WorkSessionEventRecord as MolisWorkSessionEventRecord,

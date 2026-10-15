@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import ts from "typescript";
+import { parseImports } from "../scripts/test-imports/parse.mjs";
 
 import {
   handleDatasetNativePluginHttp,
@@ -250,12 +252,8 @@ test("real routes: a change made on a stale version is 409 <owner>.conflict at P
   assert.deepEqual([answer.status, answer.body.code], [409, "workflows.conflict"], JSON.stringify(answer.body));
 });
 
-test("real routes: a publish in an environment with no publisher is refused by the plugin's availability object: 400 <owner>.unavailable at Pages, PPT, Dataset and Form", async t => {
-  // The publishable plugins say "no publisher here" with an availability object (`{ available: false, code: "<owner>.unavailable" }`), which the kernel raises as an
-  // ActionError with that code and no kind. A code of the owner's with no kind is a caller mistake, so it answers 400; the deleted mappers gave 409. This is the one
-  // status change of the slice that the design did not list. The code is the same and nothing is written. Pinned here for all four so a change of it is a decision:
-  // the owner's availability carrying its kind (ActionAvailability `kind`, passed on by the kernel's `assertAvailable`) is the shared core's (W3-02-G1, plan
-  // wave3-batchB-plan.md), and when it lands these four answers become 409 in the same change.
+test("real routes: a publish in an environment with no publisher is refused by the plugin's availability object: 409 <owner>.unavailable at Pages, PPT, Dataset and Form", async t => {
+  // W3-02-G1-02: the owner classifies its availability refusal as conflict; Kernel and HTTP preserve it without publishing or changing the draft.
   const home = await mkdtemp(join(tmpdir(), "document-error-model-publish-"));
   const pages = openPagesStore(home), ppt = openPptStore(home), dataset = openDatasetStore(home), form = openFormStore(home);
   t.after(async () => { pages.close(); ppt.close(); dataset.close(); form.close(); await rm(home, { recursive: true, force: true }); });
@@ -270,8 +268,10 @@ test("real routes: a publish in an environment with no publisher is refused by t
     assert.equal(created.status, 200, JSON.stringify(created.body));
     const record = Object.values(created.body).find((value): value is { id: string } => typeof value === "object" && value !== null && "id" in value);
     assert.ok(record, `${owner} answers the record it created`);
+    const store = { pages, ppt, dataset, form }[owner], before = store.get(record.id);
     const answer = await server.post(`/api/${owner}/${record.id}/promote`, JSON.stringify({ goal_id: "CORE" }));
-    assert.deepEqual([owner, answer.status, answer.body.code], [owner, 400, `${owner}.unavailable`], JSON.stringify(answer.body));
+    assert.deepEqual([owner, answer.status, answer.body.code], [owner, 409, `${owner}.unavailable`], JSON.stringify(answer.body));
+    assert.deepEqual(store.get(record.id), before, `${owner}: the refusal keeps the persisted draft unchanged`);
   }
 });
 
@@ -290,9 +290,9 @@ test("MCP action port: a Pages failure comes out as its own code and message, no
   const call = async (action: ActionDefinition<never, unknown>, args: Record<string, unknown>) => {
     const reply = await handleMcpMessage({ id: 1, method: "tools/call", params: { name: actionMcpToolName(action), arguments: args } }, ports);
     const result = reply!.result as { isError: boolean; content: Array<{ text: string }> };
-    return { isError: result.isError, ...(result.isError ? JSON.parse(result.content[0]!.text) as { code: string; message: string } : {}) };
+    return { isError: result.isError, ...(result.isError ? JSON.parse(result.content[0]!.text) as { code: string; error: string } : {}) };
   };
-  assert.deepEqual(await call(pagesActions.get, { id: "no-such-document" }), { isError: true, code: "pages.not_found", message: "找不到这篇文档" });
+  assert.deepEqual(await call(pagesActions.get, { id: "no-such-document" }), { isError: true, code: "pages.not_found", error: "找不到这篇文档" });
   const document = store.create({ project_id: "a", title: "原稿" });
   const stale = await call(pagesActions.update, { id: document.id, title: "改过", expected_version: document.version + 5 });
   assert.deepEqual([stale.isError, stale.code], [true, "pages.conflict"]);
@@ -314,30 +314,110 @@ function filesOf(owner: Owner): string[] {
     ...readdirSync(host).filter(name => HOST_FILES[owner].some(pattern => pattern.test(name))).map(name => join(host, name))];
 }
 
-// The plugin client files hold the page's scripts as template strings; the only bare Errors allowed elsewhere are the two sentences that report a
-// wiring mistake in the code (a route without its Host binding, a UI surface the plugin does not render): nobody can cause them by a request.
-const BROWSER_SCRIPT = /[\\/](?:import-)?client\.ts$/u;
+// Only modules exclusively reached from the declared browser build can have browser-local Errors.
+// Every other source remains checked, including orphan modules and anything also imported by server code.
+function browserOnlyFiles(sources: ReadonlyMap<string, string>, browserEntries: readonly string[], serverEntries: readonly string[]): Set<string> {
+  const reach = (entries: readonly string[]) => {
+    const found = new Set<string>();
+    const visit = (file: string): void => {
+      if (found.has(file) || !sources.has(file)) return;
+      found.add(file);
+      for (const imported of parseImports(file, sources.get(file)!, { deep: true })) {
+        if (imported.typeOnly || !imported.spec.startsWith(".")) continue;
+        const target = join(dirname(file), imported.spec), base = target.replace(/\.m?js$/u, "");
+        const resolved = [target, `${base}.ts`, `${base}.mts`, `${target}/index.ts`].find(candidate => sources.has(candidate));
+        if (resolved) visit(resolved);
+      }
+    };
+    entries.forEach(visit); return found;
+  };
+  const browser = reach(browserEntries);
+  const server = reach([...serverEntries, ...[...sources.keys()].filter(file => !browser.has(file))]);
+  return new Set([...browser].filter(file => !server.has(file)));
+}
+function browserEntriesFor(owner: Owner): string[] {
+  const path = join(REPOSITORY, "plugins", "native", owner, "tsconfig.editor.json");
+  if (!existsSync(path)) return [];
+  const config = ts.readConfigFile(path, ts.sys.readFile);
+  assert.equal(config.error, undefined);
+  const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, dirname(path));
+  assert.deepEqual(parsed.errors, []);
+  return parsed.fileNames;
+}
+
+test("the owner-error check excludes browser-only modules but keeps shared, dynamic server imports and orphan modules", () => {
+  const sources = new Map([
+    ["/src/browser.ts", 'import "./client.js"; import "./shared.js";'],
+    ["/src/client.ts", 'throw new Error("browser");'],
+    ["/src/shared.ts", 'throw new Error("shared server");'],
+    ["/src/server.ts", 'async function load() { await import("./shared.js"); }'],
+    ["/src/orphan.ts", 'throw new Error("orphan server");'],
+  ]);
+  assert.deepEqual([...browserOnlyFiles(sources, ["/src/browser.ts"], ["/src/server.ts"])].sort(), ["/src/browser.ts", "/src/client.ts"]);
+  sources.set("/src/server.ts", 'export { default } from "./client.js"; require("./shared.js");');
+  assert.deepEqual([...browserOnlyFiles(sources, ["/src/browser.ts"], ["/src/server.ts"])], ["/src/browser.ts"]);
+  sources.set("/src/server.ts", 'import type { Shape } from "./client.js"; import shared = require("./shared.js");');
+  assert.deepEqual([...browserOnlyFiles(sources, ["/src/browser.ts"], ["/src/server.ts"])].sort(), ["/src/browser.ts", "/src/client.ts"]);
+  sources.set("/src/server.ts", 'import "./client";');
+  assert.deepEqual([...browserOnlyFiles(sources, ["/src/browser.ts"], ["/src/server.ts"])].sort(), ["/src/browser.ts", "/src/shared.ts"]);
+  assert.deepEqual([...browserOnlyFiles(sources, [...sources.keys()], ["/src/server.ts"])].includes("/src/client.ts"), false);
+  assert.deepEqual([...browserOnlyFiles(sources, [], ["/src/server.ts"])], []);
+});
+
+// Inline browser script bodies are data; their interpolations still run on the server. In server modules, only the two
+// programming mistakes below may use bare Errors (missing Host wiring or a UI surface); a request cannot cause them.
 const PROGRAMMING_ERROR: readonly RegExp[] = [/没有 Host binding/u, /UI surface .* 不存在/u];
+function bareServerErrors(source: string): string[] {
+  const file = ts.createSourceFile("plugin.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const errors: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "Error") {
+      const argument = node.arguments?.[0]?.getText(file) ?? "";
+      if (!PROGRAMMING_ERROR.some(sentence => sentence.test(argument))) errors.push(argument);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return errors;
+}
+
+test("the owner-error check ignores browser script text but detects executable template interpolations and server errors", () => {
+  assert.deepEqual(bareServerErrors('export const SCRIPT = `throw new Error("browser");`;'), []);
+  assert.deepEqual(bareServerErrors('export const SCRIPT = `client ${new Error("server interpolation")}`;'), ['"server interpolation"']);
+  assert.deepEqual(bareServerErrors('throw new Error("server input");'), ['"server input"']);
+  assert.deepEqual(bareServerErrors('throw new Error("没有 Host binding");'), []);
+});
+
+test("the owner-error check keeps shared browser modules covered when a server export or Host binding consumes them", () => {
+  const sources = new Map([
+    ["/p/src/browser.ts", 'import "./only-browser.js"; import "./shared.js";'],
+    ["/p/src/only-browser.ts", 'throw new Error("browser input");'],
+    ["/p/src/shared.ts", 'throw new Error("server input");'],
+    ["/p/src/server.ts", 'export * from "./shared.js";'],
+  ]);
+  const modules = browserOnlyFiles(sources, ["/p/src/browser.ts"], ["/p/src/server.ts"]);
+  assert.equal(modules.has("/p/src/only-browser.ts"), true);
+  assert.equal(modules.has("/p/src/shared.ts"), false, "a transitive server export keeps the same browser module covered");
+  assert.deepEqual(bareServerErrors(sources.get("/p/src/shared.ts")!), ['"server input"']);
+  sources.set("/p/host.ts", 'import "./src/only-browser.js";');
+  assert.equal(browserOnlyFiles(sources, ["/p/src/browser.ts"], ["/p/src/server.ts"]).has("/p/src/only-browser.ts"), false, "a Host import brings a browser module under the server check");
+});
 
 test("no document plugin keeps an error class, a route-error mapper, or a raise of its own code outside its declarations", async () => {
   for (const owner of OWNERS) {
     const spec = SPECS[owner];
     const module = await import(spec.pkg) as Record<string, unknown>;
     for (const name of spec.removed) assert.equal(name in module, false, `${spec.pkg} no longer exports ${name}`);
-    for (const file of filesOf(owner)) {
-      const source = readFileSync(file, "utf8");
+    const sources = new Map(filesOf(owner).map(file => [file, readFileSync(file, "utf8")]));
+    const browserOnly = browserOnlyFiles(sources, browserEntriesFor(owner), [join(REPOSITORY, "plugins", "native", owner, "src", "index.ts")]);
+    for (const [file, source] of sources) {
       const where = relative(REPOSITORY, file);
       assert.doesNotMatch(source, /\bclass\s+\w+\s+extends\s+Error\b/u, `${where}: an error class`);
       assert.doesNotMatch(source, /\bmapError\b|RouteErrorResponse/u, `${where}: a route-error mapper`);
       assert.doesNotMatch(source, new RegExp(String.raw`new\s+\w*Error\(\s*"${owner}\.[a-z_]+"`, "u"), `${where}: ${owner}.* raised without the declaration (it would answer 400 whatever its kind)`);
       assert.doesNotMatch(source, /Object\.assign\(new Error\(/u, `${where}: an Error given a code afterwards`);
-      if (BROWSER_SCRIPT.test(file)) {
-        // The page's own messages: these files are template strings that run in the browser, never an action's failure. Prove it, so the exemption cannot hide a server file.
-        assert.match(source, /^export const \w+_CLIENT(?:_FACTORY)?_SCRIPT = (?:String\.raw)?`/mu, `${where}: exempt from the bare-Error rule only as a browser script`);
-        continue;
-      }
-      // A caller's mistake is an owner code; a bare Error would answer 500 `actions.execution_failed` for it. Only the two programming errors may stay.
-      const bare = [...source.matchAll(/\bnew\s+Error\(([^\n]*)/gu)].map(match => match[1]!).filter(rest => !PROGRAMMING_ERROR.some(sentence => sentence.test(rest)));
+      // Browser-only modules run in the editor bundle; template interpolations and shared modules still execute on the server.
+      const bare = browserOnly.has(file) ? [] : bareServerErrors(source);
       assert.deepEqual(bare, [], `${where}: a bare new Error( is a caller-visible 500; raise ${spec.declarations}.<reason>(...) (or a platform code) instead`);
     }
   }

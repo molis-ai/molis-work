@@ -124,9 +124,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       }
       syncing = true;
       try {
-        const cursorResponse = await boardLifetime.fetch(route("/api/board/cursor"), { cache: "no-store", signal });
-        if (!cursorResponse.ok) throw new Error("无法读取 Molis Work 游标");
-        const cursorState = await cursorResponse.json();
+        const cursorState=await molisWorkRequest(route("/api/board/cursor"),{scope:boardLifetime,signal,fallback:"无法读取 Molis Work 游标"});
         boardLifetime.assertCurrent(signal);
         if (Number(cursorState.observed_event_cursor) === Number(state.snapshot.cursor)) {
           return;
@@ -145,12 +143,12 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         const compactRefreshPath = route("/api/board/refresh?view=" + documentCollection +
           (refreshGoalId ? "&goal_id=" + encodeURIComponent(refreshGoalId) : ""));
         const refreshGeneration = documentReplaceGeneration;
-        let pageResponse = await boardLifetime.fetch(compactRefreshPath, { cache: "no-store", signal });
+        let pageResponse=await molisWorkRequest(compactRefreshPath,{scope:boardLifetime,signal,as:"response"});
         if (!pageResponse.ok) {
-          pageResponse = await boardLifetime.fetch(pagePath, { cache: "no-store", signal });
+          pageResponse=await molisWorkRequest(pagePath,{scope:boardLifetime,signal,as:"response"});
         }
         if (!pageResponse.ok) {
-          pageResponse = await boardLifetime.fetch(route(collectionPath), { cache: "no-store", signal });
+          pageResponse=await molisWorkRequest(route(collectionPath),{scope:boardLifetime,signal,as:"response"});
         }
         if (!pageResponse.ok) throw new Error("无法更新 Goal 页面");
         const parsed = new DOMParser().parseFromString(await pageResponse.text(), "text/html");

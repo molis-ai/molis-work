@@ -1,14 +1,15 @@
+import { installerErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
-import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { validateMolisWorkMcpLauncher } from "@molis-ai/molis-work-app-mcp";
-import { INTEGRATION_OWNER, isOwnedInstallerOwner, isOwnedIntegrationOwner, RuntimeIntegrationError } from "./runtime-integration-contract.js";
-import type { RuntimeIntegrationServiceOptions, PreparedPlan, RuntimeIntegrationDetection, SupportedRuntimeId, RuntimeIntegrationAction, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResult, RuntimeAdapter, RuntimeSnapshot, ConfigInspection, InstalledArtifacts, IntegrationReceipt, RuntimeConnectionState, RuntimeIntegrationResultStatus } from "./runtime-integration-contract.js";
+import { INTEGRATION_OWNER, isOwnedInstallerOwner, isOwnedIntegrationOwner, integrationResult } from "./runtime-integration-contract.js";
+import type { RuntimeIntegrationServiceOptions, PreparedPlan, RuntimeIntegrationDetection, SupportedRuntimeId, RuntimeIntegrationAction, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResult, RuntimeAdapter, RuntimeSnapshot, ConfigInspection, InstalledArtifacts, IntegrationReceipt, RuntimeConnectionState } from "./runtime-integration-contract.js";
 import { ADAPTERS, adapterFor } from "./runtime-config-adapters.js";
+import { applyRuntimeIntegration, serializeRuntimeConfirmation } from "./runtime-integration-apply.js";
 import { RuntimeIntegrationPlanner } from "./runtime-integration-planner.js";
 import { digest } from "./runtime-config-text.js";
-import { inspectSkillLink, replaceSkillLink, removeExpectedSkillLink, restoreSkillSnapshot, replaceTextFile, writeAtomic, readTextOrNull, fileModeOrUndefined, pathState, anyPathExists, canExecute, isInside } from "./runtime-installation-files.js";
+import { inspectSkillLink, writeAtomic, readTextOrNull, pathState, anyPathExists, canExecute, isInside } from "./runtime-installation-files.js";
 import { resolveConfiguredHome } from "../product-home.js";
 
 export class RuntimeIntegrationService {
@@ -62,7 +63,13 @@ export class RuntimeIntegrationService {
     return structuredClone(prepared.publicPlan);
   }
 
-  async confirm(confirmation: RuntimeIntegrationConfirmation): Promise<RuntimeIntegrationResult> {
+  confirm(confirmation: RuntimeIntegrationConfirmation): Promise<RuntimeIntegrationResult> {
+    const request = structuredClone(confirmation);
+    const target = adapterFor(request.runtime_id).configPath(this.userHomeDirectory);
+    return serializeRuntimeConfirmation(target, () => this.confirmPrepared(request));
+  }
+
+  private async confirmPrepared(confirmation: RuntimeIntegrationConfirmation): Promise<RuntimeIntegrationResult> {
     const prepared = this.preparedPlans.get(confirmation.plan_id);
     if (!prepared) {
       return integrationResult(
@@ -120,83 +127,12 @@ export class RuntimeIntegrationService {
       return integrationResult(status, plan.runtime_id, plan.plan_id, null, this.receiptPath(plan.runtime_id), plan.message);
     }
 
-    const configPath = prepared.adapter.configPath(this.userHomeDirectory);
-    const skillPath = prepared.adapter.skillPath(this.userHomeDirectory);
-    const backupPath = plan.backup_path;
-    let configMutated = false;
-    let skillMutated = false;
-    try {
-      if (prepared.nextConfigText !== prepared.beforeConfigText) {
-        if (prepared.beforeConfigText != null && backupPath) {
-          await fs.mkdir(path.dirname(backupPath), { recursive: true });
-          await writeAtomic(backupPath, prepared.beforeConfigText, await fileModeOrUndefined(configPath));
-        }
-        await replaceTextFile(configPath, prepared.nextConfigText, await fileModeOrUndefined(configPath));
-        configMutated = true;
-      }
-
-      if (plan.action === "connect") {
-        if (!prepared.artifacts) throw new RuntimeIntegrationError("runtime.installation_invalid", "Molis Work 安装不可用");
-        await replaceSkillLink(skillPath, prepared.artifacts.skillSourcePath, this.homeDirectory);
-        skillMutated = prepared.beforeSkill.state !== "current";
-      } else {
-        await removeExpectedSkillLink(skillPath, prepared.receipt?.skill_target ?? "");
-        skillMutated = prepared.beforeSkill.state !== "absent";
-      }
-
-      const valid = await this.validateAppliedPlan(prepared);
-      if (!valid) throw new Error("Runtime 接入验证未通过");
-
-      if (plan.action === "connect") {
-        if (!prepared.artifacts) throw new RuntimeIntegrationError("runtime.installation_invalid", "Molis Work 安装不可用");
-        const inspection = prepared.adapter.inspectConfig(
-          prepared.nextConfigText,
-          prepared.adapter.desiredConnection(prepared.artifacts, this.homeDirectory),
-        );
-        if (!inspection.entryFingerprint) throw new Error("无法生成 Molis Work 配置所有权指纹");
-        await this.writeReceipt({
-          schema_version: 1,
-          owner: INTEGRATION_OWNER,
-          runtime_id: plan.runtime_id,
-          config_path: configPath,
-          config_entry_fingerprint: inspection.entryFingerprint,
-          skill_path: skillPath,
-          skill_target: prepared.artifacts.skillSourcePath,
-          connected_at: new Date().toISOString(),
-        });
-        return integrationResult(
-          "connected",
-          plan.runtime_id,
-          plan.plan_id,
-          backupPath,
-          this.receiptPath(plan.runtime_id),
-          `${plan.display_name} 已接入 Molis Work。${plan.restart_instructions.join(" ")}`,
-        );
-      }
-
-      await fs.rm(this.receiptPath(plan.runtime_id), { force: true });
-      return integrationResult(
-        "removed",
-        plan.runtime_id,
-        plan.plan_id,
-        backupPath,
-        null,
-        `${plan.display_name} 的 Molis Work 接入已移除，其他 Runtime 配置保持不变。`,
-      );
-    } catch (error) {
-      if (configMutated) await replaceTextFile(configPath, prepared.beforeConfigText, await fileModeOrUndefined(configPath));
-      if (skillMutated) await restoreSkillSnapshot(skillPath, prepared.beforeSkill);
-      const message = error instanceof Error ? error.message : String(error);
-      await this.writeAttempt(plan, "rolled_back", message);
-      return integrationResult(
-        "rolled_back",
-        plan.runtime_id,
-        plan.plan_id,
-        backupPath,
-        null,
-        `验证失败，已恢复原配置和 Skill：${message}`,
-      );
-    }
+    return applyRuntimeIntegration(prepared, {
+      homeDirectory: this.homeDirectory, userHomeDirectory: this.userHomeDirectory,
+      receiptPath: this.receiptPath(plan.runtime_id), validate: () => this.validateAppliedPlan(prepared),
+      writeReceipt: receipt => this.writeReceipt(receipt),
+      writeAttempt: (attemptPlan, status, message) => this.writeAttempt(attemptPlan, status, message),
+    });
   }
 
   private async snapshot(adapter: RuntimeAdapter): Promise<RuntimeSnapshot> {
@@ -330,7 +266,7 @@ export class RuntimeIntegrationService {
       }
       return receipt;
     } catch {
-      throw new RuntimeIntegrationError("runtime.receipt_invalid", `Molis Work 接入收据无法解析: ${filePath}`);
+      throw installerErrors["installer.receipt_invalid"](`Molis Work 接入收据无法解析: ${filePath}`);
     }
   }
 
@@ -338,7 +274,7 @@ export class RuntimeIntegrationService {
     await writeAtomic(this.receiptPath(receipt.runtime_id), `${JSON.stringify(receipt, null, 2)}\n`);
   }
 
-  private async writeAttempt(plan: RuntimeIntegrationPlan, status: "rolled_back", message: string): Promise<void> {
+  private async writeAttempt(plan: RuntimeIntegrationPlan, status: "rolled_back" | "conflict", message: string): Promise<void> {
     const filePath = path.join(this.homeDirectory, "runtime-integration-attempts", `${plan.plan_id}-${randomUUID()}.json`);
     await writeAtomic(filePath, `${JSON.stringify({
       schema_version: 1,
@@ -369,16 +305,5 @@ export function detectionMessage(state: RuntimeConnectionState, displayName: str
   if (state === "needs_repair") return `${displayName} 接入需要修复`;
   if (state === "connected") return `${displayName} 已接入`;
   return `${displayName} 存在同名配置冲突`;
-}
-
-export function integrationResult(
-  status: RuntimeIntegrationResultStatus,
-  runtimeId: SupportedRuntimeId,
-  planId: string,
-  backupPath: string | null,
-  receiptPath: string | null,
-  message: string,
-): RuntimeIntegrationResult {
-  return { status, runtime_id: runtimeId, plan_id: planId, backup_path: backupPath, receipt_path: receiptPath, message };
 }
 

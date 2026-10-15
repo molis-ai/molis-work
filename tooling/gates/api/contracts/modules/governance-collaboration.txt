@@ -290,7 +290,7 @@ export interface GoalTreeSemanticReview extends GoalChangeImpact {
     next_action: "review_affected_subgraph" | "continue";
     review_action: {
         capability_id: "goals.planning.impact";
-        version: 1;
+        version: 2;
     };
     canonical_changes_require_new_user_confirmation: true;
 }

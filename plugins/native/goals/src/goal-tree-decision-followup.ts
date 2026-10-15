@@ -1,3 +1,4 @@
+import { treeErrors } from "./goal-tree-errors.js";
 import { randomUUID } from "node:crypto";
 import type { GoalsQueryApi, GoalsPlanningApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GovernanceApplicationApi, GoalTreeSemanticReview, GoalTreeProposalRecord, GoalTreeProposalDecisionAuthority } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
@@ -12,7 +13,6 @@ export class GoalTreeDecisionFollowup {
     goals: { query: Pick<GoalsQueryApi, "getRelation" | "listRelations">; planning: Pick<GoalsPlanningApi, "analyzeChange"> };
     governance: Pick<GovernanceApplicationApi, "records" | "query" | "provenance">;
     query: GoalTreeQueryApplication; inputs: GoalTreeInputReader;
-    errorFactory: (code: string, message: string) => Error;
   }) {}
   goalTreeSemanticReview(projectId: string, changedGoalIds: string[]): GoalTreeSemanticReview | null {
     const changed = [...new Set(changedGoalIds)].sort();
@@ -26,7 +26,7 @@ export class GoalTreeDecisionFollowup {
       structural_validation: "passed",
       status: required ? "required" : "not_required",
       next_action: required ? "review_affected_subgraph" : "continue",
-      review_action: { capability_id: "goals.planning.impact", version: 1 },
+      review_action: { capability_id: "goals.planning.impact", version: 2 },
       canonical_changes_require_new_user_confirmation: true,
     };
   }
@@ -43,20 +43,14 @@ export class GoalTreeDecisionFollowup {
     const itemIds = new Set<string>();
     for (const revision of revisions) {
       if (itemIds.has(revision.revised_item.item_id)) {
-        throw this.ports.errorFactory(
-          "goal_tree_proposal.revision_item_id_duplicate",
-          "同一份修订提案中的新 item_id 不能重复",
-        );
+        throw treeErrors["goals.goal_tree_proposal.revision_item_id_duplicate"]("同一份修订提案中的新 item_id 不能重复");
       }
       itemIds.add(revision.revised_item.item_id);
       const existing = this.ports.governance.records.findGoalTreeItemOwner(
         revision.revised_item.item_id,
       );
       if (existing) {
-        throw this.ports.errorFactory(
-          "goal_tree_proposal.revision_item_id_exists",
-          "修订条目必须使用新的稳定 item_id",
-        );
+        throw treeErrors["goals.goal_tree_proposal.revision_item_id_exists"]("修订条目必须使用新的稳定 item_id");
       }
     }
     const version = proposal.version + 1;

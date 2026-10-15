@@ -54,7 +54,8 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     await symlink(directories[1], path.join(directories[0], "escape"));
     const open = (file: string[], id = ids[0]) => request(api("files", "/open"), "POST", { workspace_id: id, path: file });
     assert.equal((await open(["escape", "note.txt"])).body.result.outcome, "denied");
-    refused(await open(["..", "two", "note.txt"]), "workspace.invalid_path");
+    // R4A3-01: the production Files route still refuses traversal under the Work contract code.
+    refused(await open(["..", "two", "note.txt"]), "work.workspace.invalid_path");
     refused(await open(["note.txt"], ids[1]), "files.invalid");
     await writeFile(path.join(directories[0], "binary"), Buffer.from([0, 255]));
     await writeFile(path.join(directories[0], "large"), Buffer.alloc(256 * 1024 + 1, 65));

@@ -114,7 +114,8 @@ test("native event providers project original Feed, Inbox, source state and proj
     assert.deepEqual(await client.invoke(owner, homeEventActions.openEvent, open), { target: fault.open });
     feed.upsertSource({ ...source, status: "active", last_outcome: "completed", last_error_code: null });
     await assert.rejects(client.invoke(owner, homeEventActions.openEvent, open), { code: "actions.event_changed" });
-    feed.upsertSource({ ...source, status: "disconnected", last_outcome: "failed", last_error_code: "auth_required" });
+    // J3D-01/J3D-02: the current source fault keeps the same Home attention and deduplication.
+    feed.upsertSource({ ...source, status: "disconnected", last_outcome: "failed", last_error_code: "feed.auth_required" });
     const sourceEntry = feed.createInboxEntry({ projectId: reference.project_id, subjectType: "source_fault", subjectId: source.source_id, reason: "source_fault", detail: { user_action: "请检查连接设置" } }).entry;
     const withFault = await client.invoke(owner, homeEventActions.events, range) as HomeEventsResult;
     assert.equal(withFault.events.some(event => event.subject.kind === "source" && event.subject.id === source.source_id), false, "one fault has only its original attention row");

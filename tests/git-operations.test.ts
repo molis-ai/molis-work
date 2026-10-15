@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, writeFile, readFile, rm, realpath, chmod, mkdir } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, rm, realpath, chmod, mkdir, rename, symlink } from "node:fs/promises";
+import { constants, promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { readGitSummary, prepareGitOperation, readPullRequestSupport, readConflictFile } from "../apps/local-host/src/git-operations.js";
+import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 const exec = promisify(execFile);
 
 test("commit, branch, push and PR run only as reviewed, against the repository as it was when prepared", { timeout: 60_000 }, async () => {
@@ -101,6 +103,7 @@ test("merge and pull stop on conflicts for the person to resolve file by file; r
     const resolve = await prepareGitOperation(workspace, summary.revision, { action: "resolve", path: "a.txt", content: "shared\nmain line\ntopic line\n" });
     assert.equal(resolve.tool, "git-resolve"); assert.match(resolve.fields.find(field => field.label === "解决后的内容")!.value, /topic line/);
     assert.equal(await resolve.execute(), "已解决并暂存 a.txt");
+    assert.equal((await git("show", ":a.txt")).stdout, "shared\nmain line\ntopic line\n", "the staged bytes are exactly the approved resolution");
     summary = await readGitSummary(workspace);
     assert.deepEqual(summary.conflicted, []); assert.equal(summary.merging, true);
     assert.match(await (await prepareGitOperation(workspace, summary.revision, { action: "commit", message: "Merge topic" })).execute(), /^已提交 [0-9a-f]+ Merge topic$/);
@@ -135,4 +138,148 @@ test("merge and pull stop on conflicts for the person to resolve file by file; r
     assert.match(await pull.execute(), /^有 1 个文件冲突：a\.txt/);
     assert.deepEqual((await readGitSummary(workspace)).conflicted, ["a.txt"]);
   } finally { await rm(home, { recursive: true, force: true }); }
+});
+
+async function isolatedRepository(t: import("node:test").TestContext) {
+  const directory = await realpath(await mkdtemp(path.join(tmpdir(), "git-reviewed-"))), root = path.join(directory, "repo");
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await mkdir(path.join(root, "nested"), { recursive: true });
+  const git = (...args: string[]) => exec("git", args, { cwd: root });
+  await git("init", "-q", "-b", "main"); await git("config", "user.name", "Fixture"); await git("config", "user.email", "fixture@example.invalid");
+  await writeFile(path.join(root, "nested", "a.txt"), "base\n"); await git("add", "."); await git("commit", "-qm", "base");
+  const workspace: ProjectWorkspaceRef = { workspace_id: "reviewed", canonical_path: root, realpath_verified: true, display_name: "repo" };
+  const a = path.join(directory, "a.git"), b = path.join(directory, "b.git");
+  await exec("git", ["init", "-q", "--bare", a]); await exec("git", ["init", "-q", "--bare", b]);
+  await git("remote", "add", "origin", a);
+  const bare = (where: string, ...args: string[]) => exec("git", ["--git-dir", where, ...args]);
+  return { directory, root, git, workspace, a, b, bare };
+}
+
+for (const changed of ["url", "pushurl", "added-pushurl", "rewrite"] as const) {
+  test(`W2-18-GIT-TARGET-01 refuses a changed ${changed} with zero writes to either bare repository`, async t => {
+    const f = await isolatedRepository(t);
+    if (changed === "pushurl" || changed === "added-pushurl") await f.git("config", "remote.origin.pushurl", f.a);
+    if (changed === "rewrite") {
+      await f.git("remote", "set-url", "origin", "fixture-route:");
+      await f.git("config", `url.${f.a}.insteadOf`, "fixture-route:");
+    }
+    const summary = await readGitSummary(f.workspace);
+    assert.deepEqual(summary.remotes, [{ name: "origin", url: f.a }]);
+    const prepared = await prepareGitOperation(f.workspace, summary.revision, { action: "push", remote: "origin", set_upstream: true });
+    assert.match(prepared.fields.find(field => field.label === "远端")!.value, /a\.git/);
+    const beforeA = (await f.bare(f.a, "count-objects", "-v")).stdout, beforeB = (await f.bare(f.b, "count-objects", "-v")).stdout;
+    if (changed === "url") await f.git("remote", "set-url", "origin", f.b);
+    if (changed === "pushurl") await f.git("config", "remote.origin.pushurl", f.b);
+    if (changed === "added-pushurl") await f.git("config", "--add", "remote.origin.pushurl", f.b);
+    if (changed === "rewrite") { await f.git("config", "--unset-all", `url.${f.a}.insteadOf`); await f.git("config", `url.${f.b}.insteadOf`, "fixture-route:"); }
+    await assert.rejects(prepared.check(), /审查期间变化/);
+    await assert.rejects(prepared.execute(), /审查期间变化/);
+    assert.equal((await f.bare(f.a, "count-objects", "-v")).stdout, beforeA);
+    assert.equal((await f.bare(f.b, "count-objects", "-v")).stdout, beforeB);
+    await assert.rejects(f.bare(f.a, "show-ref")); await assert.rejects(f.bare(f.b, "show-ref"));
+  });
+}
+
+test("W2-18-GIT-TARGET-02 displays and pushes all effective targets, retaining the original remote and upstream", async t => {
+  const f = await isolatedRepository(t);
+  await f.git("config", "--add", "remote.origin.pushurl", f.a); await f.git("config", "--add", "remote.origin.pushurl", f.b);
+  const before = (await f.git("config", "--get-all", "remote.origin.pushurl")).stdout;
+  const summary = await readGitSummary(f.workspace);
+  assert.deepEqual(summary.remotes, [{ name: "origin", url: f.a }, { name: "origin", url: f.b }]);
+  const push = await prepareGitOperation(f.workspace, summary.revision, { action: "push", remote: "origin", set_upstream: true });
+  const field = push.fields.find(row => row.label === "远端")!.value;
+  assert.ok(field.includes(f.a) && field.includes(f.b));
+  assert.match(await push.execute(), /^已推送到 origin/);
+  assert.equal((await f.bare(f.a, "rev-parse", "refs/heads/main")).stdout.trim(), summary.head_commit);
+  assert.equal((await f.bare(f.b, "rev-parse", "refs/heads/main")).stdout.trim(), summary.head_commit);
+  assert.equal((await f.git("config", "--get-all", "remote.origin.pushurl")).stdout, before);
+  assert.equal((await f.git("remote")).stdout, "origin\n");
+  assert.equal((await readGitSummary(f.workspace)).upstream, "origin/main");
+});
+
+test("W2-18-GIT-TARGET-03 a resolved URL is not accidentally expanded a second time at dispatch", async t => {
+  const f = await isolatedRepository(t);
+  await f.git("remote", "set-url", "origin", "fixture-first:");
+  await f.git("config", `url.${f.a}.insteadOf`, "fixture-first:"); await f.git("config", `url.${f.b}.insteadOf`, f.a);
+  const summary = await readGitSummary(f.workspace);
+  assert.equal(summary.remotes[0]!.url, f.a);
+  const push = await prepareGitOperation(f.workspace, summary.revision, { action: "push", remote: "origin", set_upstream: false });
+  await push.execute();
+  assert.equal((await f.bare(f.a, "rev-parse", "refs/heads/main")).stdout.trim(), summary.head_commit);
+  await assert.rejects(f.bare(f.b, "show-ref"));
+  assert.equal((await f.bare(f.b, "count-objects", "-v")).stdout.split("\n")[0], "count: 0");
+});
+
+test("W2-18-GIT-TARGET-04 a partial multi-target push retains the delivered commit and reports required reconciliation", async t => {
+  const f = await isolatedRepository(t);
+  await writeFile(path.join(f.b, "hooks", "pre-receive"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+  await f.git("config", "--add", "remote.origin.pushurl", f.a); await f.git("config", "--add", "remote.origin.pushurl", f.b);
+  const summary = await readGitSummary(f.workspace);
+  const push = await prepareGitOperation(f.workspace, summary.revision, { action: "push", remote: "origin", set_upstream: true });
+  await assert.rejects(push.execute(), (error: unknown) => error instanceof Error && "code" in error
+    && error.code === "EFFECT_RECONCILE_REQUIRED" && /结果未确认/.test(error.message));
+  assert.equal((await f.bare(f.a, "rev-parse", "refs/heads/main")).stdout.trim(), summary.head_commit);
+  await assert.rejects(f.bare(f.b, "show-ref"));
+});
+
+async function conflictedRepository(t: import("node:test").TestContext) {
+  const f = await isolatedRepository(t), file = path.join(f.root, "nested", "a.txt");
+  await f.git("switch", "-q", "-c", "topic"); await writeFile(file, "topic\n"); await f.git("commit", "-qam", "topic");
+  await f.git("switch", "-q", "main"); await writeFile(file, "main\n"); await f.git("commit", "-qam", "main");
+  await assert.rejects(f.git("merge", "topic"));
+  const conflict = await readConflictFile(f.workspace, "nested/a.txt");
+  const index = path.join(f.root, ".git", "index"), beforeIndex = await readFile(index);
+  const prepared = await prepareGitOperation(f.workspace, conflict.revision, { action: "resolve", path: "nested/a.txt", content: "reviewed resolution\n" });
+  return { ...f, file, conflict, index, beforeIndex, prepared };
+}
+
+for (const changed of ["body", "identity", "link", "parent-link", "directory"] as const) {
+  test(`W2-18-GIT-CONFLICT-01 refuses changed ${changed} and preserves disk, index and external sentinel`, async t => {
+    const f = await conflictedRepository(t), outside = path.join(f.directory, "outside"), sentinel = path.join(outside, "a.txt");
+    await mkdir(outside); await writeFile(sentinel, "EXTERNAL SENTINEL\n");
+    if (changed === "body") await writeFile(f.file, f.conflict.text + "user's later edit\n");
+    if (changed === "identity") { await rename(f.file, path.join(f.directory, "original.txt")); await writeFile(f.file, f.conflict.text); }
+    if (changed === "link") { await rm(f.file); await symlink(sentinel, f.file); }
+    if (changed === "parent-link") { await rename(path.dirname(f.file), path.join(f.directory, "original-nested")); await symlink(outside, path.dirname(f.file), "dir"); }
+    if (changed === "directory") { await rm(f.file); await mkdir(f.file); }
+    const now = await readGitSummary(f.workspace);
+    assert.notEqual(now.revision, f.conflict.revision);
+    await assert.rejects(f.prepared.check(), /审查期间变化/);
+    await assert.rejects(f.prepared.execute(), /审查期间变化/);
+    assert.deepEqual(await readFile(f.index), f.beforeIndex);
+    assert.equal(await readFile(sentinel, "utf8"), "EXTERNAL SENTINEL\n");
+    if (changed === "body") assert.equal(await readFile(f.file, "utf8"), f.conflict.text + "user's later edit\n");
+    if (changed === "identity") assert.equal(await readFile(f.file, "utf8"), f.conflict.text);
+    if (changed === "link" || changed === "parent-link" || changed === "directory") await assert.rejects(readConflictFile(f.workspace, "nested/a.txt"), /链接|普通|冲突/);
+  });
+}
+
+test("W2-18-GIT-CONFLICT-02 no-follow rejects a link installed at the final write-open boundary", async t => {
+  const f = await conflictedRepository(t), sentinel = path.join(f.directory, "sentinel.txt");
+  await writeFile(sentinel, "KEEP EXTERNAL\n");
+  let swapped = false;
+  const swap = async () => { if (!swapped) { swapped = true; await rm(f.file); await symlink(sentinel, f.file); } };
+  const open = fs.open.bind(fs), write = fs.writeFile.bind(fs);
+  t.mock.method(fs, "open", async (...args: Parameters<typeof fs.open>) => {
+    if (String(args[0]) === f.file && typeof args[1] === "number" && (args[1] & constants.O_RDWR)) await swap();
+    return open(...args);
+  });
+  // The old pathname writer is exercised by the same injected change, so this regression fails on that implementation too.
+  t.mock.method(fs, "writeFile", async (...args: Parameters<typeof fs.writeFile>) => { if (String(args[0]) === f.file) await swap(); return write(...args); });
+  await assert.rejects(f.prepared.execute(), /ELOOP|链接|变化/);
+  assert.equal(swapped, true);
+  assert.equal(await readFile(sentinel, "utf8"), "KEEP EXTERNAL\n");
+  assert.deepEqual(await readFile(f.index), f.beforeIndex);
+});
+
+test("W2-18-GIT-CONFLICT-03 a busy Git index and an oversized UTF-8 resolution cause no body write", async t => {
+  const f = await conflictedRepository(t);
+  const text = "中".repeat(350_000);
+  assert.ok(text.length < 1024 * 1024 && Buffer.byteLength(text) > 1024 * 1024);
+  await assert.rejects(prepareGitOperation(f.workspace, f.conflict.revision, { action: "resolve", path: "nested/a.txt", content: text }), /内容太长/);
+  await writeFile(f.index + ".lock", "another Git writer");
+  await assert.rejects(f.prepared.execute(), /暂存区正被其他操作使用/);
+  assert.equal(await readFile(f.file, "utf8"), f.conflict.text);
+  assert.deepEqual(await readFile(f.index), f.beforeIndex);
+  assert.equal(await readFile(f.index + ".lock", "utf8"), "another Git writer");
 });

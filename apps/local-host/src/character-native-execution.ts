@@ -63,7 +63,7 @@ export function characterNativeExecution(options: { home: string; actorId: strin
       try { return registry.list().filter(session => owned(session, characterId)).map(session => run(session, registry)).sort((a, b) => b.created_at.localeCompare(a.created_at)); }
       finally { registry.close(); }
     },
-    async launch(content, reference, input) {
+    async launch(content, reference, input, control) {
       if (!content.import_snapshot) throw new Error("此角色没有本地 Agent 来源");
       const incomplete = content.import_snapshot.skills.filter(skill => skill.reason?.startsWith("部分资源未读取"));
       if (incomplete.length) throw new Error(`这些技能的资源未完整导入：${incomplete.map(skill => skill.name).join("、")}。请检查来源更新，修复读取问题或取消选择后重新导入；不会用残缺的包启动任务。`);
@@ -81,6 +81,8 @@ export function characterNativeExecution(options: { home: string; actorId: strin
       if (!executable) throw new Error("未发现对应 Agent CLI，请安装后重新检查；不会替换为其他引擎");
       const registry = await openWorkSessionRegistry({ homeDirectory: options.home });
       try {
+        await control?.beforeStart();
+        control?.assert_current();
         const panelId = `character-${input.request_id}`;
         const previous = registry.findBySurface(panelId);
         if (previous) {

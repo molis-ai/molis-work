@@ -1,6 +1,9 @@
 import { execFile } from "node:child_process";
 import { statSync } from "node:fs";
 import path from "node:path";
+import { promisify } from "node:util";
+
+const run = promisify(execFile);
 
 /** What the Workspace form can show after the system folder window closes. */
 export type DirectoryPickResult =
@@ -70,11 +73,12 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-async function defaultRun(command: string, args: readonly string[]): Promise<DirectoryPickerCommandResult> {
+/** The process boundary shared by the default picker and its real child-process regressions. */
+export async function runDirectoryPickerCommand(command: string, args: readonly string[], timeoutMs = 5 * 60_000): Promise<DirectoryPickerCommandResult> {
   try {
-    const { stdout, stderr } = await execFile(command, args, {
+    const { stdout, stderr } = await run(command, args, {
       encoding: "utf8",
-      timeout: 5 * 60_000,
+      timeout: timeoutMs,
       windowsHide: false,
     });
     return { stdout: text(stdout), stderr: text(stderr), code: 0 };
@@ -98,10 +102,10 @@ async function defaultRun(command: string, args: readonly string[]): Promise<Dir
   }
 }
 
-export function createDirectoryPicker(run: DirectoryPickerRun = defaultRun) {
+export function createDirectoryPicker(run: DirectoryPickerRun = runDirectoryPickerCommand, commandFor: typeof dialogCommand = dialogCommand) {
   let pending: Promise<DirectoryPickResult> | null = null;
   const open = async (): Promise<DirectoryPickResult> => {
-    const command = dialogCommand();
+    const command = commandFor();
     if (!command) return { status: "unavailable", message: OPEN_FAILED };
     const result = await run(command.command, command.args);
     if (result.missing) return { status: "unavailable", message: OPEN_FAILED };

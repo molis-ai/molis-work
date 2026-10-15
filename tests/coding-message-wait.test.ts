@@ -98,6 +98,7 @@ test("a round that ends waiting on an answer or a background command waits as th
   };
   const send = (task: string) => ({ task, intent: "execute", workspace_id: "work", provider_id: "p", model_id: "m" });
   try {
+    // R-CODING-RECEIPT-01: waitRun completes immediately; a later start receipt must not overwrite its queued state.
     // B's round asks and waits on the answer: B waits, and nothing else can be sent meanwhile.
     parks.push({ wait_id: "w1", condition: { kind: "envelope", ref: "m1", label: "会话「改接口」的答复" }, reason: "改完告诉我" });
     assert.equal((await call("/sessions/b/runs", send("在调用方用新参数"))).status, 200);

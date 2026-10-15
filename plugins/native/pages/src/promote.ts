@@ -43,8 +43,8 @@ export function promotePagesDocument(
   const current = store.get(id, projectId);
   const head = options.lineHead?.({ project_id: projectId, page_id: id }) ?? null;
   const version = nextPinnedVersion({ recorded: current.artifact_version, pending: current.publication_pending?.version ?? null, head });
-  // Read the version already written before recording a new intent. This also repairs
-  // old interrupted publications that predate the durable snapshot column.
+  // A pending intent reads its retained version. Without one, nextPinnedVersion chose a new version;
+  // a previous head is never reconstructed into a missing publication snapshot.
   const existing = options.readArtifact?.({ project_id: projectId, page_id: id, version });
   // Check the newest version already written for this line too, not only the one the record counted: after a move out and
   // back the record counts none, and a version that cannot be continued must be refused before an intent is recorded.

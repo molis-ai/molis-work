@@ -1,3 +1,5 @@
+import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash } from "node:crypto";
 import type { GoalsQueryApi, GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GovernanceApplicationApi, GoalTreeProposalDecideInput, GoalTreeProposalItemRecord, ProposalAffectedObject } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
@@ -13,7 +15,6 @@ import { GoalTreeDecisionPlan } from "./goal-tree-decision-plan.js";
 import { goalTreeMaterializationGroups } from "./goal-tree-materialization-order.js";
 import type { GoalDecisionAttentionSync } from "./goal-decision-attention.js";
 
-interface DecisionError extends Error { code: string; details?: Record<string, unknown> }
 /** Applies a subset or a pristine whole proposal under the original all-owner transaction. */
 export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi, "decideGoalTreeProposal"> {
   private readonly plan: GoalTreeDecisionPlan;
@@ -23,8 +24,6 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
     query: GoalTreeQueryApplication; inputs: GoalTreeInputReader; normalizer: GoalTreeDecisionNormalizer;
     conflicts: GoalTreeMaterializationConflicts; materialization: GoalTreeMaterializationApplication;
     followup: GoalTreeDecisionFollowup; clock: () => Date;
-    errorFactory: (code: string, message: string, details?: Record<string, unknown>) => Error;
-    isDomainError: (error: unknown) => error is DecisionError;
     attention?: Pick<GoalDecisionAttentionSync, "settleProposal">;
   }) { this.plan = new GoalTreeDecisionPlan(ports); }
 
@@ -33,7 +32,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
     const wholeConfirmation = input.confirm_all_pending === true;
     const proposalId = this.requiredText(
       input.proposal_id,
-      "goal_tree_proposal.id_required",
+      "goals.goal_tree_proposal.id_required",
       "需要指定要决定的 Goal Tree proposal_id",
     );
     const runtimeActorId = nullableDialogueText(input.runtime_actor_id);
@@ -52,10 +51,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
       this.requireBoard(input.project_id);
       const proposal = this.ports.query.readNative(input.project_id, proposalId);
       if (proposal.state !== "pending" && proposal.state !== "partially_applied") {
-        throw this.ports.errorFactory(
-          "goal_tree_proposal.decision_not_pending",
-          "只有仍有待处理条目的 Goal Tree 提案可以继续决定",
-        );
+        throw treeErrors["goals.goal_tree_proposal.decision_not_pending"]("只有仍有待处理条目的 Goal Tree 提案可以继续决定");
       }
       const { decisions, itemsById, planningConflicts } = this.plan.prepare(input, proposal, authority);
 
@@ -125,7 +121,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
         if (conflicts.length > 0) {
           if (wholeConfirmation) {
             this.plan.abortWholeConfirmation(item, {
-              code: "goal_tree_proposal.baseline_changed",
+              code: "goals.goal_tree_proposal.baseline_changed",
               message: "条目依赖的 Molis Work 事实已经变化",
               objects: conflicts,
             });
@@ -187,7 +183,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
               now,
             );
           } catch (error) {
-            if (wholeConfirmation && this.ports.isDomainError(error)) {
+            if (wholeConfirmation && error instanceof ActionError) {
               this.plan.abortWholeConfirmation(entry.item, {
                 code: error.code,
                 message: error.message,
@@ -217,9 +213,9 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
       if (appliedItemIds.length > 0) {
         const graph = this.ports.goals.planning.validateBoardGraph(input.project_id);
         const blocking = graph.issues.filter((issue) =>
-          issue.code === "planning.part_of_cycle" || issue.code === "planning.dependency_cycle" || issue.code === "planning.execution_cycle");
+          issue.code === "goals.planning.part_of_cycle" || issue.code === "goals.planning.dependency_cycle" || issue.code === "goals.planning.execution_cycle");
         if (blocking[0]) {
-          throw this.ports.errorFactory(blocking[0].code, blocking[0].message, {
+          throw treeErrors[blocking[0].code as "goals.planning.part_of_cycle" | "goals.planning.dependency_cycle" | "goals.planning.execution_cycle"](blocking[0].message, {
             goal_ids: blocking[0].goal_ids,
             relation_ids: blocking[0].relation_ids,
           });
@@ -302,11 +298,11 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
   }
 
   private requireBoard(projectId: string): void {
-    if (!this.ports.goals.query.getBoard(projectId)) throw this.ports.errorFactory("board.not_found", `这个项目还没有初始化目标资料库: ${projectId}`);
+    if (!this.ports.goals.query.getBoard(projectId)) throw treeErrors["goals.board.not_found"](`这个项目还没有初始化目标资料库: ${projectId}`);
   }
-  private requiredText(value: string, code: string, message: string): string {
+  private requiredText(value: string, code: TreeErrorCode, message: string): string {
     const text = value.trim();
-    if (!text) throw this.ports.errorFactory(code, message);
+    if (!text) throw treeErrors[code](message);
     return text;
   }
 }

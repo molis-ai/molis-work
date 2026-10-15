@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -8,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
-import { PluginRuntime, PluginRuntimeError, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { PluginRuntime, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createActionMcpPorts, handleMcpMessage, actionMcpToolName } from "@molis-ai/molis-work-app-mcp";
@@ -71,7 +72,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.equal(readFileSync(join(ordinary, "user-data.txt"), "utf8"), "keep me");
     const denied = dev(state, "");
     assert.equal(denied.status, 1, denied.stderr);
-    assert.equal(JSON.parse(denied.stderr).code, "plugin_grant_denied");
+    assert.equal(JSON.parse(denied.stderr).code, "plugin.grant_denied");
     for (const sequence of [1, 2]) {
       const execution = dev(state, grants);
       assert.equal(execution.status, 0, execution.stderr);
@@ -131,7 +132,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
       artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }), { actions });
     const installed = runtime.install({ definition, deployment: "local" });
     const installId = installed.install.install_id;
-    await assert.rejects(runtime.start(installId), (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin_grant_denied");
+    await assert.rejects(runtime.start(installId), (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.grant_denied");
     assert.equal(artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 0);
     assert.deepEqual(ui.list(), []);
     runtime.grant(installId, definition.manifest.permissions.map(permission => permission.permission));

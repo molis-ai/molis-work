@@ -1,11 +1,12 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { BUILT_IN_ADAPTERS, createAdapterRegistry } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
-import type { AgentRuntimeDiagnostics } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRuntimeAdapter, AgentRuntimeDiagnostics } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { announcesWithoutActing } from "./announce-guard.js";
 import type { createPluginBuilderAgent, PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import { PrologueCredentialBridge } from "./prologue-credentials.js";
+import { prologueEffects } from "./prologue-effects.js";
 import type { PrologueGitReviewPort } from "./prologue-git.js";
 import type { PrologueInferenceClient } from "../inference.js";
 import { createPrologueMcpLibrary } from "./prologue-mcp.js";
@@ -83,7 +84,7 @@ export function prologueAcceptsProtocol(protocol: string): boolean {
 export async function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
 ): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort;
-  surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
+  surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
   const release = options.storageRoot ? acquirePrologueStorageOwner(options.storageRoot) : () => {};
   try {
     const adapter = await initializePrologueNodeAdapter(options);
@@ -110,11 +111,13 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
     retryUnansweredModelCalls: true,
   });
+  // Each invocation's SDK writes re-check its caller first (prologue-effects); accepted runs detach from the start call.
+  const effects = prologueEffects(host);
   const schedule = createPrologueSchedule();
   // Bound after the runtime exists; the redactor it is given reaches it only when a screenshot is taken.
   let surfaceHost: PrologueSurfaces | undefined;
   const state = createRoundState();
-  const runtime = await createNodeRuntime(options, host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) });
+  const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) });
   surfaceHost = options.surfaces ? createPrologueSurfaces(() => runtime, options.surfaces, ref => readResourceText(runtime, ref)) : undefined;
   // Sites the person allowed earlier, as approvals the person can take back at once (not as rules fixed at start).
   if (surfaceHost && options.reviewQueue) for (const entry of options.surfaces!.siteDecisions()) if (entry.decision === "allow") surfaceHost.decide(entry);
@@ -131,9 +134,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),
   });
-  const index = createSessionIndexStore(host, options.app.appId);
+  const index = createSessionIndexStore(effects.host, options.app.appId);
   const surfaces = () => surfaceHost;
-  const platformMemory = createPrologueMemory(runtime);
+  const platformMemory = createPrologueMemory(runtime, effects.bind);
   const gitReviews = createNodeGitReviews(options, host, runtime);
   const projectWork = createNodeProjectWork(options, host, runtime, state);
   const { messages, waitsPort, stepBoards } = createNodeCoordination(runtime, index, state, projectWork);
@@ -151,7 +154,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const { inference, createBuilderAgent, close: closeInference } = createNodeInference(runtime, options, credentials, dispatchGuards);
   const recovery = createPrologueRecovery({ runtime, index, state, checkpoints });
   const readQuestion = questionReader(runtime);
-  const port = createNodePort({ runtime, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork,
+  const port = createNodePort({ runtime, effects, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork,
     messages, waitsPort, checkpoints, approvals, schedule, recovery, readQuestion,
     shutdown: async () => {
       mcpLibrary.dispose();
@@ -165,7 +168,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     } });
 
   return Object.assign(new PrologueAgentAdapter({
-    runtime: port,
+    runtime: { ...port, startAgentRun: input => effects.start(input, () => port.startAgentRun(input)) },
     modelConfiguration: options.modelConfiguration,
     stopHeld: runId => { const queue = state.heldLabels.get(runId); const next = queue?.shift(); if (queue && !queue.length) state.heldLabels.delete(runId); return next; },
     // Judged when the run ends, from its last words: the runtime stops consulting the hook after it has held twice.
@@ -179,7 +182,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   }), { inference, createBuilderAgent, gitReviews, diagnostics: () => runtimeDiagnostics(runtime),
     /** The person's standing site decisions for the side panel's browser, applied to the running runtime. */
     surfaces: surfaceHost ? { decide: (decision: Parameters<PrologueSurfaces["decide"]>[0]) => surfaceHost!.decide(decision) } : undefined,
-    assertDirectoriesIdle: directoriesIdle(runtime, index) });
+    assertDirectoriesIdle: directoriesIdle(runtime, index), withEffect: effects.call });
 }
 
 /** The runtime's own receipts, as the developer diagnostics page shows them. */

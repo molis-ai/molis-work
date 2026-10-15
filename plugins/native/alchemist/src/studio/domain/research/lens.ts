@@ -76,5 +76,5 @@ export function lensKeysMatch(left: LensCompatibilityKey, right: LensCompatibili
 }
 
 function assertVersion(version: number): void {
-  if (!Number.isInteger(version) || version < 1) throw new Error("LENS_VERSION_INVALID");
+  if (!Number.isInteger(version) || version < 1) throw new Error("alchemist.lens_version_invalid");
 }

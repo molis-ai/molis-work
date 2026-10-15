@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { bindAlchemistActor } from "./actor-actions.js";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Hono } from "hono";
@@ -291,16 +292,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   return {
     app,
     actions,
-    actionsFor(owner) {
-      if (!owner.trim()) throw new Error("ALCHEMIST_ACTOR_REQUIRED");
-      if (closed) throw new Error("ALCHEMIST_CLOSED");
-      database.prepare("INSERT OR IGNORE INTO workspace_actors (id, workspace_id, kind, name, created_at) VALUES (?, ?, ?, ?, ?)")
-        .run(owner, "workspace-local", "local_user", owner, clock.now());
-      return { invoke: (definition, input, signal) => {
-        if (closed) throw new Error("ALCHEMIST_CLOSED");
-        return actors.run(owner, () => actions.invoke(definition, input, signal));
-      } };
-    },
+    actionsFor(owner) { return bindAlchemistActor(owner, { database, actors, clock, actions, closed: () => closed }); },
     database,
     worker,
     runPending,

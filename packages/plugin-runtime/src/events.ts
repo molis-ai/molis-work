@@ -37,11 +37,11 @@ interface Envelope {
 function isolatePayload(payload: unknown): unknown {
   const json = JSON.stringify(payload ?? null);
   if (json === undefined) {
-    throw new PluginEventError("event_payload_invalid", "事件内容必须能序列化为 JSON");
+    throw new PluginEventError("plugin.event_payload_invalid", "事件内容必须能序列化为 JSON");
   }
   if (Buffer.byteLength(json, "utf8") > PLUGIN_EVENT_PAYLOAD_MAX_BYTES) {
     throw new PluginEventError(
-      "event_payload_too_large",
+      "plugin.event_payload_too_large",
       `事件内容超过 ${PLUGIN_EVENT_PAYLOAD_MAX_BYTES} 字节上限；大正文请改用成果引用`,
     );
   }
@@ -53,7 +53,7 @@ function safeErrorCode(error: unknown): string {
     const code = (error as { code?: unknown }).code;
     if (typeof code === "string" && /^[a-z][a-z0-9_.]{1,63}$/u.test(code)) return code;
   }
-  return "subscriber_handler_failed";
+  return "plugin.subscriber_handler_failed";
 }
 
 /**
@@ -103,25 +103,25 @@ export class PluginEventBus implements PluginEventBusApi {
   ): PluginEventPublishResult {
     const installation = this.#lifecycle.installation(identity.plugin_id);
     if (this.#closed || identity.project_id !== this.#projectId || !installation?.running || installation.install_id !== identity.install_id) {
-      throw new PluginEventError("event_identity_invalid", "事件发布者的项目或安装身份已失效");
+      throw new PluginEventError("plugin.event_identity_invalid", "事件发布者的项目或安装身份已失效");
     }
     const contract = this.#lifecycle.contract(identity.plugin_id);
     if (!contract) {
-      throw new PluginEventError("event_not_declared", `插件 ${identity.plugin_id} 没有登记`);
+      throw new PluginEventError("plugin.event_not_declared", `插件 ${identity.plugin_id} 没有登记`);
     }
     if (isReservedEventType(input.event_type_id)) {
-      throw new PluginEventError("event_type_reserved", "不能发布宿主保留事件");
+      throw new PluginEventError("plugin.event_type_reserved", "不能发布宿主保留事件");
     }
     if (!ownsEventType(identity.plugin_id, input.event_type_id)) {
       throw new PluginEventError(
-        "event_type_not_owned",
+        "plugin.event_type_not_owned",
         `事件 ${input.event_type_id} 不属于 ${identity.plugin_id} 的命名空间`,
       );
     }
     const type = contract.publishes.get(eventTypeKey(input.event_type_id, input.type_version));
     if (!type) {
       throw new PluginEventError(
-        "event_not_declared",
+        "plugin.event_not_declared",
         `没有声明过事件 ${eventTypeKey(input.event_type_id, input.type_version)}`,
       );
     }
@@ -131,7 +131,7 @@ export class PluginEventBus implements PluginEventBusApi {
       validated = type.validate(input.payload);
     } catch (error) {
       if (error instanceof PluginEventError) throw error;
-      throw new PluginEventError("event_payload_invalid", "事件内容没有通过类型校验");
+      throw new PluginEventError("plugin.event_payload_invalid", "事件内容没有通过类型校验");
     }
 
     const record = this.#repository.append({
@@ -200,7 +200,7 @@ export class PluginEventBus implements PluginEventBusApi {
   }
 
   recover(projectId: string, actorId: string, input: PluginEventRecoveryInput) {
-    if (projectId !== this.#projectId) throw new PluginEventError("event_identity_invalid", "事件不属于当前项目");
+    if (projectId !== this.#projectId) throw new PluginEventError("plugin.event_identity_invalid", "事件不属于当前项目");
     const result = resolveEventRecovery({ projectId, lifecycle: this.#lifecycle, repository: this.#repository,
       closed: this.#closed, now: this.#now, busy: (plugin, source) => this.#tails.has(`${plugin}\u0000${source}`) }, actorId, input);
     this.#resume(projectId);
@@ -313,7 +313,7 @@ export class PluginEventBus implements PluginEventBusApi {
     const cursor = this.#repository.cursor(this.#projectId, pluginId, record, envelope.identity);
     if (!cursor || cursor.delivered_sequence >= record.sequence || cursor.state === "quarantined") return;
     if (cursor.state === "delivering") {
-      this.#saveCursor(envelope, { advance: false, state: "quarantined", code: "subscriber_outcome_unknown" });
+      this.#saveCursor(envelope, { advance: false, state: "quarantined", code: "plugin.subscriber_outcome_unknown" });
       return;
     }
     const [first] = this.#repository.list(this.#projectId, {
@@ -341,18 +341,18 @@ export class PluginEventBus implements PluginEventBusApi {
       this.#saveCursor(envelope, {
         advance: false,
         state: "retry_wait",
-        code: readyError === undefined ? "subscriber_start_failed" : safeErrorCode(readyError),
+        code: readyError === undefined ? "plugin.subscriber_start_failed" : safeErrorCode(readyError),
       });
-      this.#fail("subscriber_start_failed", pluginId, record, "订阅者未能就绪，事件保留在游标上等待重投");
+      this.#fail("plugin.subscriber_start_failed", pluginId, record, "订阅者未能就绪，事件保留在游标上等待重投");
       return;
     }
     if (!subscriber.active()) {
       this.#saveCursor(envelope, {
         advance: false,
         state: "retry_wait",
-        code: "subscriber_revoked",
+        code: "plugin.subscriber_revoked",
       });
-      this.#fail("subscriber_revoked", pluginId, record, "订阅者已被撤权，事件保留在游标上等待重投");
+      this.#fail("plugin.subscriber_revoked", pluginId, record, "订阅者已被撤权，事件保留在游标上等待重投");
       return;
     }
 
@@ -363,16 +363,16 @@ export class PluginEventBus implements PluginEventBusApi {
       this.#saveCursor(envelope, {
         advance: false,
         state: "retry_wait",
-        code: "subscriber_start_failed",
+        code: "plugin.subscriber_start_failed",
       });
-      this.#fail("subscriber_start_failed", pluginId, record, "订阅者没有事件处理入口");
+      this.#fail("plugin.subscriber_start_failed", pluginId, record, "订阅者没有事件处理入口");
       return;
     }
 
     const controller = new AbortController();
     this.#track(pluginId, controller);
     const beforeEffect = () => {
-      if (controller.signal.aborted || !this.#current(envelope) || !subscriber!.active()) throw new PluginEventError("event_delivery_revoked", "事件订阅的安装或执行身份已失效");
+      if (controller.signal.aborted || !this.#current(envelope) || !subscriber!.active()) throw new PluginEventError("plugin.event_delivery_revoked", "事件订阅的安装或执行身份已失效");
     };
     const context: PluginEventDeliveryContext = {
       project_id: this.#projectId,
@@ -388,7 +388,7 @@ export class PluginEventBus implements PluginEventBusApi {
     try {
       beforeEffect();
       this.#saveCursor(envelope, { advance: false, state: "delivering", code: null });
-      const aborted = new Promise<never>((_, reject) => { abort = () => reject(new PluginEventError("event_delivery_revoked", "事件投递已停止，处理结果可能尚未确认")); controller.signal.addEventListener("abort", abort, { once: true }); });
+      const aborted = new Promise<never>((_, reject) => { abort = () => reject(new PluginEventError("plugin.event_delivery_revoked", "事件投递已停止，处理结果可能尚未确认")); controller.signal.addEventListener("abort", abort, { once: true }); });
       await Promise.race([Promise.resolve().then(() => { beforeEffect(); dispatched = true; return onEvent.call(subscriber.contribution, structuredClone(record), context); }), aborted]);
       beforeEffect();
       this.#saveCursor(envelope, { advance: true, state: "idle", code: null });
@@ -399,7 +399,7 @@ export class PluginEventBus implements PluginEventBusApi {
         state: dispatched ? revoked ? "quarantined" : "idle" : "retry_wait",
         code: safeErrorCode(error),
       });
-      this.#fail(!dispatched ? "subscriber_start_failed" : revoked ? "subscriber_revoked" : "subscriber_handler_failed", pluginId, record,
+      this.#fail(!dispatched ? "plugin.subscriber_start_failed" : revoked ? "plugin.subscriber_revoked" : "plugin.subscriber_handler_failed", pluginId, record,
         !dispatched ? "事件尚未派出，保留等待恢复" : revoked ? "订阅者已撤销，未确认的处理保留隔离且不自动重投" : "订阅者处理事件时失败；该事件不再重投");
     } finally {
       controller.signal.removeEventListener("abort", abort);

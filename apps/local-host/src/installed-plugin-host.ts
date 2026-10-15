@@ -1,3 +1,4 @@
+import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { resolve } from 'node:path';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { ActionService } from '@molis-ai/molis-work-kernel';
@@ -18,7 +19,7 @@ import { hostScheduleReminders } from './schedule-reminders.js';
 import { scheduleServiceFor } from './schedule-runtime.js';
 import { STABLE_PREVIEW, studioStorage } from './plugin-builder/storage.js';
 import { installedSignature, releaseVersion, sandboxedPluginDefinition } from './plugin-builder/installed.js';
-import { exposeInstalledPlugin, exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
+import { exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { bindInstalledOperationCaller } from './schedule-operations.js';
 import type { CapabilityImplementations } from './plugin-builder/capabilities.js';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
@@ -110,7 +111,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const assertInstalled = (identity: Readonly<SandboxIdentity>) => {
     const record = recordFor(identity.pluginId);
     if (closed || identity.namespace !== 'installed' || identity.projectId !== projectId || !record || record.install_id !== identity.installationId || record.state !== 'running') {
-      throw new SandboxError('CAPABILITY_DENIED', '插件的安装执行身份已失效');
+      throw new SandboxError('plugin.capability_denied', '插件的安装执行身份已失效');
     }
   };
   const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean): NonNullable<SandboxServices['capability']> =>
@@ -129,14 +130,14 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     link: pluginId => (options.routePrefix ?? '') + '/plugins/' + pluginId });
   const generate = options.generate ?? createPluginModelGeneration({ homeDirectory,
     declaredPrompts: async (pluginId, caller) => {
-      if (closed || caller?.project_id !== actions.project_id || !caller.plugin_install_id) throw new SandboxError('CAPABILITY_DENIED', '模型调用缺少当前项目的执行身份');
+      if (closed || caller?.project_id !== actions.project_id || !caller.plugin_install_id) throw new SandboxError('plugin.capability_denied', '模型调用缺少当前项目的执行身份');
       if (caller.plugin_install_id.startsWith(STABLE_PREVIEW)) {
         const build = releases.get(caller.plugin_install_id.slice(STABLE_PREVIEW.length));
-        if (!build?.directory || build.design?.contract.pluginId !== pluginId) throw new SandboxError('CAPABILITY_DENIED', '模型调用的试运行构建已失效');
+        if (!build?.directory || build.design?.contract.pluginId !== pluginId) throw new SandboxError('plugin.capability_denied', '模型调用的试运行构建已失效');
         return { kind: 'preview', prompts: readPluginPrompts(await buildSources(build.directory, build.directory + '.settled', build.design.contract.operations.length)).prompts };
       }
       const record = recordFor(pluginId), installed = releaseFor(pluginId);
-      if (!record || record.install_id !== caller.plugin_install_id || record.state !== 'running' || !installed) throw new SandboxError('CAPABILITY_DENIED', '模型调用的安装执行身份已失效');
+      if (!record || record.install_id !== caller.plugin_install_id || record.state !== 'running' || !installed) throw new SandboxError('plugin.capability_denied', '模型调用的安装执行身份已失效');
       return { kind: 'installed', registration: generatedRegistration(installed, releases.versions(installed.buildId), 'enabled', record.version) };
     },
     selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(homeDirectory)[0] ?? null; } });
@@ -147,25 +148,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     definitions: REMINDER_ACTIONS, handlers: createReminderActionHandlers(actions.project_id, reminders) }) : undefined;
   const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new Map<string, string>();
   const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; };
-  const expose = async (release: AgentRelease) => {
-    withdraw(release.pluginId);
-    const record = recordFor(release.pluginId)!;
-    try {
-      exposed.set(release.pluginId, exposeInstalledPlugin(actions, release, async (pluginId, operation, input, context) =>
-        await platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: context.actor_id, execution: context, body: { operation, input } })
-        ?? { status: 409, body: { error: '这个插件当前没有运行（可能已停用）' } }, () => {
-          const current = recordFor(release.pluginId);
-          return !closed && current?.install_id === record.install_id && current.version === releaseVersion(release.version) && current.state === 'running'
-            ? { available: true } : { available: false, code: 'actions.plugin_unavailable', reason: '插件已停用或版本已变更' };
-        }));
-      exposureRevision++;
-      await catalog();
-    } catch (error) {
-      recoveryErrors.set(release.pluginId, error instanceof Error ? error.message : String(error));
-      platform.supervisor.revoke(release.pluginId); await platform.runtime.stop(record.install_id);
-      throw error;
-    }
-  };
+  const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw,
+    changed: () => { exposureRevision++; }, catalog });
   const definitions = new Map<string, { pluginId: string; value: ReturnType<typeof sandboxedPluginDefinition> }>();
   const definition = (release: AgentRelease, approved: SandboxEffects) => {
     if (!covered(release.permissions, approved)) throw new Error('此版本的安装批准不足，请重新确认权限');

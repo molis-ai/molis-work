@@ -106,10 +106,6 @@
       "types": "./dist/platform/dom-events.d.ts",
       "import": "./dist/platform/dom-events.js"
     },
-    "./platform/errors": {
-      "types": "./dist/platform/errors.d.ts",
-      "import": "./dist/platform/errors.js"
-    },
     "./platform/kernel": {
       "types": "./dist/platform/kernel.d.ts",
       "import": "./dist/platform/kernel.js"
@@ -261,6 +257,10 @@
     "./services/materials": {
       "types": "./dist/services/materials.d.ts",
       "import": "./dist/services/materials.js"
+    },
+    "./modules/goal-actions": {
+      "types": "./dist/modules/goal-actions.d.ts",
+      "import": "./dist/modules/goal-actions.js"
     }
   },
   "files": [

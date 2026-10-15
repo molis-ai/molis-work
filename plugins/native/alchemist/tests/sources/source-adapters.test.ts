@@ -33,7 +33,7 @@ describe("Market Pulse source adapters", () => {
     );
     const result = await source.collect({ since: "2026-07-24T00:00:00.000Z", limit: 10 });
 
-    expect(result).toMatchObject({ status: "error", errorCode: "SOURCE_CHALLENGE", signals: [] });
+    expect(result).toMatchObject({ status: "error", errorCode: "alchemist.source_challenge", signals: [] });
   });
 
   it("normalizes Watcha product activity as platform attention", async () => {
@@ -101,7 +101,7 @@ describe("Market Pulse source adapters", () => {
     for (const request of sent) expect(request.headers.has("authorization"), "the plugin never builds an Authorization header").toBe(false);
     // A redirect to another host is refused before it reaches the lent fetch, so a credential the Host adds can never follow it.
     const elsewhere = new SafePublicHttpClient(["api.github.com"], { fetch: async () => new Response(null, { status: 302, headers: { location: "https://evil.example/steal" } }) });
-    await expect(elsewhere.get("https://api.github.com/search/repositories")).rejects.toMatchObject({ code: "SOURCE_URL_NOT_ALLOWED" });
+    await expect(elsewhere.get("https://api.github.com/search/repositories")).rejects.toMatchObject({ code: "alchemist.source_url_not_allowed" });
   });
 
   it("holds no GitHub credential anywhere in its sources: nothing in the plugin names an Authorization header or a bearer token", () => {
@@ -116,7 +116,7 @@ describe("Market Pulse source adapters", () => {
     const source = new WatchaSource(client("{bad json", 200));
     const result = await source.collect({ since: "2026-07-24T00:00:00.000Z", limit: 10 });
 
-    expect(result).toMatchObject({ status: "error", errorCode: "SOURCE_INVALID_RESPONSE" });
+    expect(result).toMatchObject({ status: "error", errorCode: "alchemist.source_invalid_response" });
   });
 });
 

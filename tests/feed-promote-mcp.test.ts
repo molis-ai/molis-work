@@ -1,3 +1,6 @@
+// R-KERNEL-OWNER-01: this refusal comes from session authorship in the Kernel; missing Runtime identity remains an MCP refusal.
+import { managementGoals } from "./goal-management-caller.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -5,7 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, createMolisWorkLocalHost, molisWorkHostProjectReference, snapshotBoardCapability,
+  LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, createMolisWorkLocalHost, molisWorkHostProjectReference,
 } from "@molis-ai/molis-work-app-local-host";
 import { feedItemActions } from "@molis-ai/molis-work-plugin-feed";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -18,7 +21,7 @@ const CLIENT = "runtime:codex";
 
 const PREPARE = "molis_work_v1_action_home.actions.prepare__v1";
 const EXECUTE = "molis_work_v1_action_home.actions.execute__v1";
-const refusedWithoutSession = (error: unknown) => error instanceof ActionError && error.code === "mcp.runtime_identity_missing" && /稳定 Session/.test(error.message);
+const refusedWithoutSession = (error: unknown) => error instanceof ActionError && error.code === "kernel.runtime_identity_missing" && error.kind === "invalid" && /稳定 Session/.test(error.message);
 
 /** A project with one Feed item, every Goals action granted to the client, and the promotion and the Home's offers granted besides. */
 async function fixture() {
@@ -40,7 +43,7 @@ async function fixture() {
     { homeDirectory, ...(nativeRuntimeSessionId ? { nativeRuntimeSessionId } : {}),
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false } }, host);
   const written = async () => ({
-    goals: (await host.client(reference).invoke(snapshotBoardCapability, { project_id: project.project_id })).goals.length,
+    goals: (await managementGoals(host.actionClient(reference, false), project.project_id).invoke(goalsActions.snapshot, {})).goals.length,
     ...(await host.withProject(reference, runtime => {
       const row = createLocalFeedApplication(runtime.store.db).getItem(project.project_id, item.item_id);
       return { receipts: runtime.coordinator.goalInputs.list(project.project_id).length, item: { linked_goal_id: row.linked_goal_id, revision: row.revision, disposition: row.disposition } };

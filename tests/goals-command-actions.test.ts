@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
-import { goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
+import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { managementCaller, managementGoals } from "./goal-management-caller.js";
 
@@ -53,13 +53,13 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
     assert.equal(progressed.progress_summary.actor_id, actor_id);
     assert.deepEqual(await actions.invoke(goalsActions.progress, progress), { ...progressed, replayed: true });
     const typedProgress = { ...progress, idempotency_key: "typed-progress" };
-    const typedProgressed = await typed.invoke(goalProgressCapabilities.record, typedProgress);
+    const typedProgressed = await management.invoke(goalPluginActions.progress, typedProgress);
     assert.equal(typedProgressed.progress_summary.actor_id, LOCAL_PERSON_ACTOR_ID);
-    assert.equal((await typed.invoke(goalProgressCapabilities.record, typedProgress)).replayed, true);
+    assert.equal((await management.invoke(goalPluginActions.progress, typedProgress)).replayed, true);
     const receiptQuery = { goal_id, idempotency_key: progress.idempotency_key };
     const receipt = { ...progressed, replayed: true };
     assert.deepEqual(await actions.invoke(goalsActions.progressReceipt, receiptQuery), receipt);
-    assert.deepEqual(await typed.invoke(goalProgressCapabilities.receipt, { ...receiptQuery, actor_id }), receipt);
+    assert.deepEqual(await actions.invoke(goalPluginActions.receipt, receiptQuery), receipt);
     assert.equal(await actions.invoke(goalsActions.progressReceipt, { ...receiptQuery, idempotency_key: "missing" }), null);
     const otherCaller = bindActionClient(host.actionClient(ref), () => ({ actor_id: "other-runtime", audience: "agent",
       project_id: project.project_id, permissions: ["goals:read"] }));
@@ -105,9 +105,9 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
       await assert.rejects(management.invoke<unknown, unknown>(action as never, { goal_id, idempotency_key: "denied" } as never), { code: "actions.plugin_disabled" });
     }
     denied = goalsActions.progress.capability_id;
-    await assert.rejects(typed.invoke(goalProgressCapabilities.record, { ...progress, idempotency_key: "denied-progress" }), { code: "actions.plugin_disabled" });
+    await assert.rejects(management.invoke(goalPluginActions.progress, { ...progress, idempotency_key: "denied-progress" }), { code: "actions.plugin_disabled" });
     denied = goalsActions.progressReceipt.capability_id;
-    await assert.rejects(typed.invoke(goalProgressCapabilities.receipt, { ...receiptQuery, actor_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(actions.invoke(goalPluginActions.receipt, receiptQuery), { code: "actions.plugin_disabled" });
     assert.equal((await state()).goal_event_cursor, beforeDenied);
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -115,7 +115,7 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
       const replay = await managementGoals(restarted.actionClient(ref), project_id).invoke(goalsActions.report, report);
       assert.equal(replay.replayed, true); assert.equal(replay.events[0]?.event_id, recorded.events[0]?.event_id);
       assert.equal(replay.goal_event_cursor, beforeDenied, "retry after restart must not append another report");
-      assert.deepEqual(await restarted.client(ref).invoke(goalProgressCapabilities.receipt, { ...receiptQuery, actor_id }), receipt);
+      assert.deepEqual(await bindActionClient(restarted.actionClient(ref), () => ({ actor_id: "runtime:commands", audit_actor_id: actor_id, actor_kind, audience: "agent", project_id, permissions: ["goals:read"] })).invoke(goalPluginActions.receipt, receiptQuery), receipt);
     } finally { await restarted.close(); }
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

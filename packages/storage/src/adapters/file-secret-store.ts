@@ -292,8 +292,10 @@ function resolveMasterKey(): ResolvedMaster {
   }
 
   if (hasPersistedEntries && persisted.backend === "aes-gcm-file") {
+    const key = readInstallKeyFile(installKeyPath());
+    if (!key) throw new Error("install key file is unavailable or invalid; refusing to rotate existing secrets");
     return {
-      key: loadOrCreateInstallKeyFile(),
+      key,
       kind: "aes-gcm-file",
       label: "AES-256-GCM (local install key file)",
       masterKeyExternal: false,

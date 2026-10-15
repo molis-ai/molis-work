@@ -1,8 +1,8 @@
 /** Explicit receipt of fixed project results; connected outputs only nominate candidates. */
 export const SHELF_RESULT_CLIENT_FACTORY_SCRIPT = `(ports) => {
   const lifetime=ports.lifetime;
-  const {workbench,projectPrefix,post,L,applySnapshot,flushEdit}=ports;
-  const q=selector=>workbench.querySelector(selector),dialog=q('[data-shelf-result-dialog]'),openButton=q('[data-shelf-receive-open]');
+  const {workbench:bench,projectPrefix,post,L,applySnapshot,flushEdit}=ports;
+  const q=selector=>bench.querySelector(selector),dialog=q('[data-shelf-result-dialog]'),openButton=q('[data-shelf-receive-open]');
   if(!dialog || !openButton)return;
   openButton.hidden=!projectPrefix;
   let ticket=0,choices=[],current=null;

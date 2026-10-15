@@ -102,7 +102,7 @@ function materialFrom(record: FixedVersionRecord | null, sessionTitle?: SessionT
 function readMaterial(context: PluginStartContext, reference: ArtifactReference, sessionTitle?: SessionTitle): AgentTextMaterial {
   try { return materialFrom(codingArtifacts(context).read(reference), sessionTitle); }
   catch (error) {
-    if ((error as { code?: string }).code === "plugin_artifact_incompatible") throw new Error("材料已归档、不可用或类型不兼容，请移除后重新选择");
+    if ((error as { code?: string }).code === "artifacts.plugin_incompatible") throw new Error("材料已归档、不可用或类型不兼容，请移除后重新选择");
     throw error;
   }
 }

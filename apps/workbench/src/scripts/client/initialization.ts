@@ -93,12 +93,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({
       getState: () => state, translate: L, route,
-      feedApi,
-      messageApi: async (pathname, method, body) => {
-        const response = await fetch(route(pathname), { method, headers: molisWorkControlHeaders(), body: body == null ? undefined : JSON.stringify(body) });
-        const result = await response.json();
-        if (!response.ok && !(response.status === 409 && result.state === 'failed')) throw new Error(result.error || L('消息请求失败，请核对原请求'));
-        return result;
+      api,
+      messageApi: async (pathname,method,body) => {
+        try { return await api(pathname,method,body); }
+        catch(error) { if(error.status===409 && error.body?.state==='failed')return error.body;throw error; }
       },
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
@@ -115,7 +113,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     const interaction = (${INTERACTION_CLIENT_SCRIPT_TYPED_DATES});
     deferredClients = (${DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT})({
       mountPluginClient, interaction, scope: boardLifetime, translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
-      projectTitle: () => state.project?.display_name || "", feedApi, route, headers: () => molisWorkControlHeaders(),
+      projectTitle: () => state.project?.display_name || "", api, route, headers: () => molisWorkControlHeaders(),
       openItem: (...args) => tabWorkspace?.openItem(...args), openBeside: (...args) => tabWorkspace?.openBeside(...args),
       openPlugin: (...args) => tabWorkspace?.openPlugin(...args), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
     });
@@ -356,6 +354,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     // A project reference (a file in the project that evidence points to) opens in an overlay here, never a new tab.
     const referenceDialog = document.querySelector("[data-project-reference-dialog]");
+    let referenceRequest = null;
+    referenceDialog?.addEventListener("close", () => { if (!referenceDialog.open) { referenceRequest?.abort(); referenceRequest = null; } });
+    boardLifetime.own(() => referenceRequest?.abort());
     referenceDialog?.addEventListener("click", (event) => { if (event.target?.closest?.("[data-dialog-close]")) referenceDialog.close(); });
     document.addEventListener("click", async (event) => {
       const link = event.target?.closest?.("a[data-project-reference]");
@@ -363,17 +364,17 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       event.preventDefault();
       const href = link.getAttribute("href") || "";
       const url = href.startsWith("/api/") ? route(href) : href;
+      referenceRequest?.abort();
+      const request = new AbortController(); referenceRequest = request;
       const body = referenceDialog.querySelector("[data-project-reference-body]");
       referenceDialog.querySelector("#project-reference-title").textContent = link.textContent.trim() || L("项目内引用");
       referenceDialog.querySelector("[data-project-reference-download]").href = url;
       body.textContent = L("正在读取…");
       if (!referenceDialog.open) referenceDialog.showModal();
       try {
-        const response = await fetch(url, { cache: "no-store" });
-        const text = await response.text();
-        if (!response.ok) { let reason = text; try { reason = JSON.parse(text).error || text; } catch {} throw new Error(reason); }
-        body.textContent = text;
-      } catch (error) { body.textContent = error?.message || L("项目内引用无法打开"); }
+        const text=await molisWorkRequest(url,{as:"text",signal:request.signal,fallback:L("项目内引用无法打开")});
+        if (referenceRequest === request && referenceDialog.open) body.textContent = text;
+      } catch (error) { if (referenceRequest === request && referenceDialog.open && !request.signal.aborted) molisWorkRequest.show(body,error,L("项目内引用无法打开")); }
     });
     updateRelationPreviews();
     updateAllRelationFormPreviews();

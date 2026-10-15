@@ -51,7 +51,8 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
     if (name === "lingguang") {
       assert.match(script, /\/discard[\s\S]{0,250}loadList\(\)/, `${name} 丢掉后要重新拉列表`);
     } else {
-      assert.match(script, /\/delete[\s\S]{0,500}loadList\(\)/, `${name} 删除后要重新拉列表`);
+      // Functions reloads with { preserveForm: true } so a draft still open elsewhere keeps its form.
+      assert.match(script, /\/delete[\s\S]{0,500}loadList\((\{ preserveForm: true \})?\)/, `${name} 删除后要重新拉列表`);
     }
   }
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-form-back[\s\S]{0,400}await loadList\(\)/);
@@ -61,7 +62,8 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /data-lingguang-back[\s\S]{0,400}await loadList\(\)/);
   // Alchemist Studio is not a list-and-editor plugin; its content re-render keeps the reader's scroll position.
-  assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /const scroll=content\.scrollTop;render\w+\([^)]*\);content\.scrollTop=scroll;/);
+  // (Its main pane is mainEl and the redraws are paintStudy / paintDir.)
+  assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /const scroll=mainEl\.scrollTop;paint\w+\([^)]*\);mainEl\.scrollTop=scroll;/);
 });
 
 test("Functions 静默刷新当前草稿时不重挂编辑器，保存失败保留表单", () => {
@@ -71,7 +73,8 @@ test("Functions 静默刷新当前草稿时不重挂编辑器，保存失败保�
   assert.match(loadList, /titleEl\.textContent = next\.name/);
   assert.equal([...loadList.matchAll(/fillEditor\(/g)].length, 1);
   assert.match(saveDraft, /preserveForm: true/);
-  assert.match(saveDraft, /selected\?\.id !== savingId/);
+  // The save that comes back for a draft the person has since left must not write into the open one (the selection is `sel`).
+  assert.match(saveDraft, /sel\?\.id !== savingId/);
   assert.doesNotMatch(saveDraft, /remount:\s*true/);
   assert.doesNotMatch(saveDraft, /fillEditor/);
 });
@@ -90,8 +93,10 @@ test("Feed / Inbox 成功路径改走舞台刷新，工作台脚本含 refresh h
   // A failed stage refresh keeps the page and says so; it never falls back to a full reload.
   for (const script of [CLIENT_NAVIGATION_FEED_SCRIPT, CLIENT_NAVIGATION_INBOX_SCRIPT]) {
     assert.doesNotMatch(script, /location\.reload\(/);
-    // The toast is marked as a failure (it carries the failure glyph, DESIGN.md → Toasts).
-    assert.match(script, /showToast\(L\("列表更新失败，当前输入已保留，请重试。"\), true\)/);
+    // The toast is the shared request helper's error (with its 诊断编号 when the call left a row, W3-10), marked as a failure
+    // (it carries the failure glyph, DESIGN.md → Toasts); the request names what could not be refreshed.
+    assert.match(script, /showToast\(error,\s*true\)/);
+    assert.match(script, /fallback:\s*L\("无法更新 (Feed|Inbox) 列表"\s*\)/);
   }
 });
 

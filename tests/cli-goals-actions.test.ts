@@ -194,7 +194,7 @@ test("the CLI keeps its wire: the payload's project must be the bound one, init 
     }
     await assert.rejects(cli("goal-tree-decide", { ...decide, unknown_field: 1, authority: evidence }), contractSays, "decide refuses an unknown field, by its contract");
     for (const named of [{ actor_id: "someone-else" }, { authority_source: "web" }, { actor_kind: "runtime" }]) {
-      await assert.rejects(cli("goal-tree-decide", { ...decide, authority: { ...evidence, ...named } }), { code: "goal_tree_proposal.authority_source_invalid" }, `decide refuses ${Object.keys(named)} in the authority`);
+      await assert.rejects(cli("goal-tree-decide", { ...decide, authority: { ...evidence, ...named } }), { code: "goals.goal_tree_proposal.authority_source_invalid" }, `decide refuses ${Object.keys(named)} in the authority`);
     }
     assert.deepEqual((await cli<Listed>("goal-tree-read", { project_id: PROJECT, proposal_id: proposalId })).proposals[0]!.decisions, [], "nothing was decided");
   } finally { await done(); }

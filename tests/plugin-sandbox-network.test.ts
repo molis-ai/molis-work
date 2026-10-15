@@ -27,11 +27,12 @@ test('proxy rejects URL, header, secret reference, and body escapes before openi
   assert.throws(() => validateNetworkRequest({ url: 'https://example.com', body: 'x'.repeat(2048) }, ['example.com'], 1024));
 });
 
+// J6-01/J6-03: the checked address is refused before any network connection.
 test('host resolver answers still fail closed for private, mixed, malformed and mismatched addresses', async () => {
   const context = { identity: { projectId: 'p', installationId: 'i', pluginId: 'test', namespace: 'preview' as const }, operationId: 'test', signal: new AbortController().signal };
   for (const addresses of [[], [{ address: '127.0.0.1', family: 4 }], [{ address: '93.184.216.34', family: 4 }, { address: '10.0.0.1', family: 4 }], [{ address: '198.18.0.1', family: 4 }], [{ address: '::ffff:7f00:1', family: 6 }], [{ address: '1.1.1.1', family: 6 }], [{ address: 'not-an-address', family: 4 }]]) {
     const proxy = createHttpsProxy({ resolveHostname: async (hostname, signal) => { assert.equal(hostname, 'example.com'); assert.equal(signal.aborted, false); return addresses; } });
-    await assert.rejects(proxy.request(context, { url: 'https://example.com/' }, { domains: ['example.com'], secretRefs: [] }), { code: 'NETWORK_DENIED' });
+    await assert.rejects(proxy.request(context, { url: 'https://example.com/' }, { domains: ['example.com'], secretRefs: [] }), { code: 'sandbox.network_denied' });
   }
 });
 
@@ -55,9 +56,9 @@ test('HTTPS proxy pins checked DNS, verifies hostname, rejects redirects and blo
   const proxy = createHttpsProxy({ resolveSecret: async () => ({ header: 'authorization', prefix: 'Bearer ', value: 'top-secret-token', domains: ['example.com'] }) });
   try {
     assert.equal((await proxy.request(context, request, authorization)).body, body);
-    statusCode = 302; await assert.rejects(proxy.request(context, request, authorization), { code: 'REDIRECT_DENIED' }); statusCode = 200;
+    statusCode = 302; await assert.rejects(proxy.request(context, request, authorization), { code: 'sandbox.redirect_denied' }); statusCode = 200;
     for (const variant of ['top-secret-token', Buffer.from('top-secret-token').toString('base64'), Buffer.from('top-secret-token').toString('hex')]) {
-      body = variant; await assert.rejects(proxy.request(context, request, authorization), { code: 'SECRET_IN_RESPONSE' });
+      body = variant; await assert.rejects(proxy.request(context, request, authorization), { code: 'sandbox.secret_in_response' });
     }
     body = 'safe injected result';
     const mutableAnswers = [{ address: '93.184.216.34', family: 4 }];
@@ -76,7 +77,7 @@ test('HTTPS proxy pins checked DNS, verifies hostname, rejects redirects and blo
     await assert.rejects(revoked.request({ ...context, beforeEffect: async () => { if (!allowed) throw new Error('Revoked while resolving the secret'); } }, request, authorization), /Revoked while resolving/);
     assert.equal(connections, before, 'the original invocation is rechecked after awaited Host resolution and before creating transport');
     t.mock.method(dns, 'lookup', async () => [{ address: '93.184.216.34', family: 4 }, { address: '127.0.0.1', family: 4 }]); syncBuiltinESMExports();
-    await assert.rejects(proxy.request(context, request, authorization), { code: 'NETWORK_DENIED' }); assert.equal(connections, before);
+    await assert.rejects(proxy.request(context, request, authorization), { code: 'sandbox.network_denied' }); assert.equal(connections, before);
   } finally {
     // W2-10: nested mock restoration must finish before the real DNS/HTTPS methods are synchronized.
     t.mock.reset();
@@ -91,7 +92,7 @@ test('host resolver is bounded by request deadline and receives cancellation', a
   // AbortSignal.timeout intentionally doesn't keep the process alive.
   const keepAlive = setTimeout(() => {}, 1000);
   try {
-    await assert.rejects(proxy.request(context, { url: 'https://example.com/' }, { domains: ['example.com'], secretRefs: [] }), { code: 'NETWORK_TIMEOUT' });
+    await assert.rejects(proxy.request(context, { url: 'https://example.com/' }, { domains: ['example.com'], secretRefs: [] }), { code: 'sandbox.network_timeout' });
     assert.equal(resolverSignal?.aborted, true);
   } finally { clearTimeout(keepAlive); }
 });

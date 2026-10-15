@@ -3,11 +3,12 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import {
   PLACEMENT_PROVIDER_ID, placementActions, placementGoalActions, type PlacedObject, type PlacementConvertRequest, type PlacementCreateRequest, type PlacementSpaceView,
 } from "@molis-ai/molis-work-contracts/services/placement";
-import { PlacementService, PLACEMENT_LEDGER_ACCESS } from "@molis-ai/molis-work-service-placement";
+import { PlacementService, PLACEMENT_LEDGER_ACCESS, type PlacementPorts } from "@molis-ai/molis-work-service-placement";
 import { CONTEXT_LEDGER_SCHEMA, createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { L } from "./web-locale.js";
+import { placementCallPorts } from "./placement-call.js";
 
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
@@ -71,7 +72,7 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
     if (!found) throw new ActionError("placement.project_missing", L("找不到这个项目"));
     return found;
   };
-  const service = new PlacementService({
+  const servicePorts: PlacementPorts = {
     ledger,
     spaces: async () => {
       const projects = await ports.projects() ?? [];
@@ -90,22 +91,25 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
         .run(kind, id, title.slice(0, 200), new Date().toISOString()); },
     },
     text: (zh, vars) => L(zh, vars),
-  });
+  };
+  let closed = false;
+  const service = new PlacementService(servicePorts);
+  const forCall = (caller: Parameters<ActionHandlerBinding["handle"]>[0]) => new PlacementService(placementCallPorts(servicePorts, caller, () => !closed));
   const handlers: ActionHandlerBinding[] = [
-    { ...placementActions.describe, handle: (_caller, input) => service.describe((input as { object: PlacedObject }).object) },
-    { ...placementActions.spaces, handle: async () => ({ spaces: await service.spaces() }) },
-    { ...placementActions.related, handle: async (_caller, input) => ({ items: await service.related((input as { project_id: string }).project_id) }) },
-    { ...placementActions.locate, handle: (_caller, input) => service.locate((input as { object: PlacedObject }).object) },
-    { ...placementActions.link, handle: (_caller, input) => { const value = input as { object: PlacedObject; project_id: string }; return service.link(value.object, value.project_id); } },
-    { ...placementActions.unlink, handle: (_caller, input) => service.unlink((input as { key: string }).key) },
-    { ...placementActions.move, handle: (_caller, input) => { const value = input as { object: PlacedObject; to_project_id: string }; return service.move(value.object, value.to_project_id); } },
-    { ...placementActions.copy, handle: (_caller, input) => { const value = input as { object: PlacedObject; to_project_id: string; request_id: string }; return service.copy(value.object, value.to_project_id, value.request_id); } },
-    { ...placementActions.convert, handle: (_caller, input) => service.convert(input as PlacementConvertRequest) },
-    { ...placementGoalActions.goals, handle: async (_caller, input) => ({ goals: await service.goals((input as { project_id: string }).project_id) }) },
-    { ...placementGoalActions.bindGoal, handle: (_caller, input) => { const value = input as { object: PlacedObject; project_id: string; goal_id: string }; return service.bindGoal(value.object, value.project_id, value.goal_id); } },
-    { ...placementGoalActions.create, handle: (_caller, input) => service.create(input as PlacementCreateRequest) },
+    { ...placementActions.describe, handle: (caller, input) => forCall(caller).describe((input as { object: PlacedObject }).object) },
+    { ...placementActions.spaces, handle: async (caller) => ({ spaces: await forCall(caller).spaces() }) },
+    { ...placementActions.related, handle: async (caller, input) => ({ items: await forCall(caller).related((input as { project_id: string }).project_id) }) },
+    { ...placementActions.locate, handle: (caller, input) => forCall(caller).locate((input as { object: PlacedObject }).object) },
+    { ...placementActions.link, handle: (caller, input) => { const value = input as { object: PlacedObject; project_id: string }; return forCall(caller).link(value.object, value.project_id); } },
+    { ...placementActions.unlink, handle: (caller, input) => forCall(caller).unlink((input as { key: string }).key) },
+    { ...placementActions.move, handle: (caller, input) => { const value = input as { object: PlacedObject; to_project_id: string }; return forCall(caller).move(value.object, value.to_project_id); } },
+    { ...placementActions.copy, handle: (caller, input) => { const value = input as { object: PlacedObject; to_project_id: string; request_id: string }; return forCall(caller).copy(value.object, value.to_project_id, value.request_id); } },
+    { ...placementActions.convert, handle: (caller, input) => forCall(caller).convert(input as PlacementConvertRequest) },
+    { ...placementGoalActions.goals, handle: async (caller, input) => ({ goals: await forCall(caller).goals((input as { project_id: string }).project_id) }) },
+    { ...placementGoalActions.bindGoal, handle: (caller, input) => { const value = input as { object: PlacedObject; project_id: string; goal_id: string }; return forCall(caller).bindGoal(value.object, value.project_id, value.goal_id); } },
+    { ...placementGoalActions.create, handle: (caller, input) => forCall(caller).create(input as PlacementCreateRequest) },
   ];
   const dispose = ports.registry.registerProvider({ provider: { provider_id: PLACEMENT_PROVIDER_ID, title: "放置", kind: "system" },
     definitions: [...Object.values(placementActions), ...Object.values(placementGoalActions)], handlers });
-  return { service, close: () => { dispose(); db.close(); } };
+  return { service, close: () => { closed = true; dispose(); db.close(); } };
 }

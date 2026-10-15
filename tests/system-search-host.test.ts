@@ -76,11 +76,19 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     // Shelf: a material reaches as far as it is readable; clipboard history stays with the local person, as every clipboard action does.
     await host.homeActionClient().invoke(personalCaller, shelfActions.admit, { text: "置物架里的抹香鲸观察笔记", title: "抹香鲸观察", capture_pages: false });
     await host.homeActionClient().invoke(personalCaller, shelfActions.clip, { text: "剪贴板里的抹香鲸暗号 7731" });
-    assert.deepEqual(ids(await search(refA, "抹香鲸")), ["io.molis.work.shelf:shelf_clip", "io.molis.work.shelf:shelf_item"]);
+    const shelfHits = await search(refA, "抹香鲸");
+    assert.deepEqual(ids(shelfHits), ["io.molis.work.shelf:shelf_clip", "io.molis.work.shelf:shelf_item"]);
+    // W2-18-SHELF-OPEN-01: listing-backed open retains the real clipboard ID, without requiring a subject reader.
+    const clipHit = shelfHits.hits.find(hit => hit.subject.kind === "shelf_clip")!;
+    const openedClip = await call(refA, searchActions.open, { hit_id: clipHit.hit_id });
+    assert.equal(openedClip.state, "ok");
+    if (openedClip.state === "ok") assert.deepEqual(openedClip.open, { surface: "shelf", id: clipHit.subject.id });
     const agent: ActionCallContext = { ...await owner(refA), actor_id: "agent:reader", audience: "agent" };
     const agentSees = await host.actionClient(refA).invoke(agent, searchActions.query, { query: "抹香鲸" }) as SearchQueryResponse;
     assert.deepEqual(ids(agentSees), ["io.molis.work.shelf:shelf_item"], "an Agent never finds clipboard history");
     assert.ok(!JSON.stringify(agentSees).includes("7731"), "not even in a snippet or a source status");
+    const agentOpen = await host.actionClient(refA).invoke(agent, searchActions.open, { hit_id: clipHit.hit_id }) as { state: string };
+    assert.notEqual(agentOpen.state, "ok", "a user's clipboard hit does not authorize an Agent to open it");
     const shelfClient: ActionCallContext = { actor_id: "mcp:shelf-client", project_id: refA.project_id, audience: "mcp", permissions: ["search:read", "shelf:read"],
       allowed_actions: [searchActions.query, shelfActions.searchEntries, shelfActions.clipboardSearchEntries].map(definition => ({ capability_id: definition.capability_id, version: definition.version })) };
     assert.deepEqual(ids(await host.actionClient(refA).invoke(shelfClient, searchActions.query, { query: "暗号" }) as SearchQueryResponse), [], "a grant cannot widen a local-only source");
@@ -142,6 +150,19 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     const personal = await post("/api/search/query", { query: "OKR" });
     assert.equal(personal.status, 200, await personal.clone().text());
     assert.deepEqual(ids(await personal.json() as SearchQueryResponse), [], "the project list page searches personal content only");
+    // W3-02-G1-03: actual HTTP input refusals keep their current codes; a formerly live, deleted result remains a normal business answer.
+    for (const [path, input, code, message] of [
+      [`/projects/${a.project_id}/api/search/open`, { hit_id: "not a hit" }, "actions.input_invalid", "搜索结果标识无效，请重新搜索"],
+      [`/projects/${a.project_id}/api/search/query`, { query: "OKR", cursor: "not a cursor" }, "actions.input_invalid", "翻页位置已失效，请从第一页重新搜索"],
+      ["/api/search/query", { query: "OKR", scope: "project" }, "actions.project_required", "当前没有打开项目，只能搜索个人内容"],
+    ] as const) {
+      const refused = await post(path, input), answer = await refused.json();
+      assert.equal(refused.status, 400);
+      assert.deepEqual([answer.code, answer.error], [code, message]);
+    }
+    const gone = await post(`/projects/${a.project_id}/api/search/open`, { hit_id: hit.hit_id });
+    assert.equal(gone.status, 200);
+    assert.equal((await gone.json()).state, "missing");
   } finally {
     await new Promise<void>(resolve => server.listening ? server.close(() => resolve()) : resolve());
     await host.close();

@@ -21,7 +21,7 @@ interface PendingRequest {
 }
 
 export class CodexAppServerTransportError extends Error {
-  constructor(readonly code: "runtime.response_too_large", message: string) {
+  constructor(readonly code: "runtime_host.response_too_large", message: string) {
     super(message);
     this.name = "CodexAppServerTransportError";
   }
@@ -84,6 +84,7 @@ export class CodexAppServerTransport implements RuntimeSessionTransport {
     this.child = child;
     this.resetResponseBuffer();
     child.stdout.on("data", (chunk: Buffer | string) => this.handleChunk(child, chunk));
+    child.stdin.on("error", () => this.failProtocolLine(child, new Error("Codex app-server 请求发送失败")));
     child.once("error", () => this.handleExit(child, "Codex app-server 无法启动"));
     child.once("exit", () => this.handleExit(child, "Codex app-server 已退出"));
     child.stderr.on("data", () => undefined);
@@ -124,8 +125,17 @@ export class CodexAppServerTransport implements RuntimeSessionTransport {
   }
 
   private write(message: Record<string, unknown>): void {
-    if (!this.child?.stdin.writable) throw new Error("Codex app-server 不可写");
-    this.child.stdin.write(`${JSON.stringify(message)}\n`);
+    const child = this.child;
+    if (!child?.stdin.writable) {
+      const error = new Error("Codex app-server 不可写");
+      if (child) this.failProtocolLine(child, error);
+      throw error;
+    }
+    try { child.stdin.write(`${JSON.stringify(message)}\n`); }
+    catch (error) {
+      this.failProtocolLine(child, error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
   }
 
   private handleChunk(child: ChildProcessWithoutNullStreams, chunk: Buffer | string): void {
@@ -149,7 +159,7 @@ export class CodexAppServerTransport implements RuntimeSessionTransport {
     const maxBytes = Math.max(1_024, this.options.maxResponseLineBytes ?? DEFAULT_MAX_RESPONSE_LINE_BYTES);
     if (this.stdoutBytes + segment.length > maxBytes) {
       this.failProtocolLine(child, new CodexAppServerTransportError(
-        "runtime.response_too_large",
+        "runtime_host.response_too_large",
         "Codex Session 内容超过安全读取上限；Molis Work 已停止本次读取。",
       ));
       return false;

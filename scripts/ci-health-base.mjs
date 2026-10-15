@@ -9,6 +9,8 @@
 //                  has: nothing is fetched.
 //   push           the tip before the push (github.event.before): fetched if it is missing, then the history is deepened
 //                  step by step until it is reachable from HEAD (normally it is HEAD^1 and no deepening happens).
+//   merge_group    as a push, with the queue's base (github.event.merge_group.base_sha, passed as PUSH_BEFORE): the group's
+//                  commit is built on it, so it is an ancestor of HEAD.
 //   anything else  origin/<branch> with the full history: a workflow_dispatch, a pull_request whose HEAD is not a merge
 //   (fallback)     commit, a push that creates the branch.
 // Never a silent fallback to "no comparison": a commit that cannot be fetched or has no common history is exit 2.
@@ -64,7 +66,7 @@ const choose = () => {
     if (parents.length === 2 && has(parents[0])) return parents[0];
     return fullHistory("HEAD is not the merge commit of a pull request (or its base parent is missing)");
   }
-  if (event === "push" && !/^0*$/.test(before)) {
+  if ((event === "push" || event === "merge_group") && !/^0*$/.test(before)) {
     if (!has(before)) fetch("--depth=1", remote, before);
     // A shallow clone sees only part of the graph: wait until `before` is reachable from HEAD rather than trust a merge-base
     // that a truncated history can make older than the real one. Not reachable once the history is complete is a rewrite

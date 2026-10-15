@@ -8,7 +8,7 @@ import { createHomeFlow } from "../../home-flow.js";
  * (the things at hand). One detail node moves into whichever row is open.
  */
 export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
-  const { getState, translate: L, openItem, openPlugin, openTarget, feedApi, messageApi } = host;
+  const { getState, translate: L, openItem, openPlugin, openTarget, api, messageApi } = host;
   (${HOME_SHORTCUTS_FACTORY_SCRIPT})({ root: document.querySelector('[data-work-surface="home"]'), translate: L,
     projectKey: getState().project?.project_id || getState().snapshot.board.project_id });
   const home = document.querySelector('[data-work-surface="home"]');
@@ -21,6 +21,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   let eventId = "";
   let eventRows = [], eventWindow = null, eventIssues = [], loadingEvents = true, syncInFlight = null, refreshAgain = false;
   let opening = '', navigationError = '';
+  const issueText=value=>typeof value==='string'?value:molisWorkRequest.text(value);
   let events = [];
   let days = [];
   const esc = (value) => String(value ?? "")
@@ -132,12 +133,13 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         '<time data-home-date datetime="' + stamp + '">' + esc(L("{week}，{date}").replace("{week}", day.week).replace("{date}", date)) + '</time><i>·</i>' +
         '<span class="home-hero__sum">' + esc(sum) + '</span>' +
         (list.length ? '<i>·</i><span class="home-hero__lead">' + esc(summary.lead) + '</span>' : '') + '</p>' +
-      '<div data-home-event-status role="status">' + eventIssues.map(issue => '<p>' + esc(issue) + '</p>').join('') +
+      '<div data-home-event-status role="status">' + eventIssues.map(issue => '<p>' + esc(issueText(issue)) + '</p>').join('') +
       (eventIssues.length ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + L('重新读取') + '</button>' : '') + '</div></div>' +
       '<p class="home-month">' + ico("calendar") + esc(new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" }).format(new Date(stamp + "T12:00:00"))) + '</p>';
     $("[data-home-list-stats]").innerHTML = list.length
       ? L("个人") + ' <b>' + summary.me + '</b> · ' + L("组织") + ' <b>' + summary.org + '</b>'
       : '';
+    const problems=[...hero.querySelectorAll('[data-home-event-status] p')];eventIssues.forEach((issue,index)=>{if(typeof issue!=='string' && problems[index])molisWorkRequest.show(problems[index],issue);});
     if (dayChanged) enter(hero); else hero.classList.add("is-in");
   };
   // The Goal in progress: the project's active Goal while it is moving, otherwise the first moving Goal, otherwise
@@ -271,7 +273,8 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const mode = JSON.stringify([event.id, event.open, opening === event.id]);
     if (leftNode.dataset.mode !== mode) { leftNode.innerHTML = left; leftNode.dataset.mode = mode; }
     $("[data-home-open-talk]", footer).setAttribute("aria-pressed", String(talkOn));
-    const error = $('[data-home-navigation-error]', footer); error.hidden = !navigationError; error.innerHTML = navigationError ? esc(navigationError) + ' <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + L('重新读取') + '</button>' : '';
+    const error = $('[data-home-navigation-error]', footer); error.hidden = !navigationError; error.innerHTML = navigationError ? esc(issueText(navigationError)) + ' <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + L('重新读取') + '</button>' : '';
+    if(navigationError && typeof navigationError!=='string'){const retry=error.querySelector('button');molisWorkRequest.show(error,navigationError);if(retry)error.append(retry);}
     offers.render();
     $("[data-home-talk-ctx]").textContent = event.title ? "· " + event.title : "";
   };
@@ -326,14 +329,14 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const event = current(); if (!event?.open || !eventWindow || opening) return;
     opening = event.id; navigationError = ''; renderDetail();
     try {
-      const result = await feedApi('/api/home/events/open', 'POST', { window: eventWindow, source: event.source, event_id: event.event_id, target: event.open });
+      const result = await api('/api/home/events/open', 'POST', { window: eventWindow, source: event.source, event_id: event.event_id, target: event.open });
       if (current()?.id === event.id) openTarget?.(result.target);
-    } catch (error) { if (current()?.id === event.id) navigationError = error.message || L('无法打开事项，请重新读取'); }
+    } catch (error) { if (current()?.id === event.id) navigationError=error; }
     finally { opening = ''; if (current()?.id === event.id) renderDetail(); }
   };
-  const talk = (${HOME_TALK_FACTORY_SCRIPT})({ root: home, current, translate: L, prepareApi: feedApi, messageApi,
+  const talk = (${HOME_TALK_FACTORY_SCRIPT})({ root: home, current, translate: L, prepareApi: api, messageApi,
     projectKey, openItem, openPlugin, layout: placeTalk });
-  const offers = (${HOME_OFFERS_FACTORY_SCRIPT})({ root: home, current, translate: L, api: feedApi,
+  const offers = (${HOME_OFFERS_FACTORY_SCRIPT})({ root: home, current, translate: L, api: api,
     projectKey, refresh: () => sync() });
   new ResizeObserver(placeTalk).observe($("[data-home-detail-act]"));
   scroller?.addEventListener("scroll", () => { if (home.dataset.dock === "open") placeTalk(); }, { passive: true });
@@ -402,10 +405,10 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         const window = homeFlow.buildHomeWindow(new Date());
         loadingEvents = true; render();
         try {
-          const result = await feedApi('/api/home/events', 'POST', window);
+          const result = await api('/api/home/events', 'POST', window);
           eventRows = result.events; eventIssues = result.issues; eventWindow = window;
           collect(); offers.refresh();
-        } catch (error) { eventRows = []; eventWindow = null; eventIssues = [error.message || L('暂时无法读取事项')]; }
+        } catch (error) { eventRows = []; eventWindow = null; eventIssues=[error]; }
         finally { loadingEvents = false; render(); }
       } while (refreshAgain);
     })().finally(() => { syncInFlight = null; });

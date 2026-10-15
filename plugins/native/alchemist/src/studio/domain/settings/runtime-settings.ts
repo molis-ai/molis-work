@@ -11,7 +11,7 @@ export interface RuntimeSettings {
 }
 
 export function assertValidRuntimeSettings(settings: RuntimeSettings): RuntimeSettings {
-  if (settings.modelPolicy === "fixed" && !settings.modelId.trim()) throw new Error("RUNTIME_MODEL_REQUIRED");
+  if (settings.modelPolicy === "fixed" && !settings.modelId.trim()) throw new Error("alchemist.runtime_model_required");
   assertValidBudget(settings.defaultBudgets.marketSpace);
   assertValidBudget(settings.defaultBudgets.buildCost);
   return settings;

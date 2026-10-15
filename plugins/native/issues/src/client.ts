@@ -1,5 +1,6 @@
 import { ISSUES_STYLES } from "./ui.js";
 import { ISSUE_CAPTURE_CLIENT_SCRIPT } from "./capture-client.js";
+import { ISSUE_REVIEW_CLIENT_SCRIPT } from "./review-client.js";
 import { ISSUE_IMAGES_CLIENT_SCRIPT } from "./image-client.js";
 
 /**
@@ -14,12 +15,18 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   const style = document.createElement('style'); style.textContent = ${JSON.stringify(ISSUES_STYLES)}; root.appendChild(style);
   scope.own(() => { style.remove(); delete root.dataset.ready; });
   const L = host.translate || (text => text), $ = key => root.querySelector('[data-issue-' + key + ']');
+  // Only static controls opt in: never translate a person's title, description, or screenshot name.
+  for (const node of root.querySelectorAll('[data-issue-i18n]')) {
+    for (const text of [...node.childNodes, ...node.attributes])
+      if (text.nodeType === 3 || ['placeholder', 'aria-label', 'title'].includes(text.name)) text.textContent = L(text.textContent);
+  }
   const home = $('home'), detail = $('detail'), composer = $('composer'), editor = $('editor'), list = $('list'), toastBox = $('toast');
-  const desc = composer.elements.description, kinds = { bug: 'Bug', experience: '体验问题', feature: '功能需求' };
+  const desc = composer.elements.description, titleInput = editor.elements.title, detailInput = editor.elements.description;
+  const kinds = { bug: 'Bug', experience: '体验问题', feature: '功能需求' };
   const via = { assistant: '助理整理', manual: '手动记录', mcp: '外部客户端' }, mac = /Mac|iP/.test(navigator.platform);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const KEY = 'molis:issue-draft';
-  let rows = [], next = null, pending = [], current = null, editing = false, images = [], edits = [], fresh = null, listEpoch = 0, readEpoch = 0, toastTimer, toastRun;
+  let rows = [], next = null, pending = [], current = null, editing = false, saving = false, images = [], edits = [], fresh = null, listEpoch = 0, readEpoch = 0, toastTimer, toastRun;
   $('key').textContent = mac ? '⌘↵' : 'Ctrl↵';
   const api = async (path, body) => {
     let response, result;
@@ -32,9 +39,11 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
       // A write that lost its answer may have happened: say so instead of inviting a blind repeat.
       throw new Error(L(/(update|delete|capture|discard|run)$/.test(path) ? '没收到结果，可能已经生效，请刷新列表核对。' : '连接中断，请稍后重试。'));
     }
-    if (!response.ok) throw Object.assign(new Error(result.error || L('操作失败，请重试')), { status: response.status });
+    if (!response.ok) throw Object.assign(new Error(L(result.error || '操作失败，请重试')), { status: response.status });
     return result;
   };
+  const read = id => api('read?id=' + encodeURIComponent(id));
+  const primary = (key, yes = true) => { $(key).className = 'mw-btn mw-btn--sm mw-btn--' + (yes ? 'primary' : 'secondary'); };
   const run = work => { void Promise.resolve().then(work).catch(error => { if (error.name !== 'AbortError') toast(error.message); }); };
   const toast = (text, action = '', then = null) => {
     scope.clearTimeout(toastTimer); toastRun = then;
@@ -87,19 +96,19 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   });
   const pick = (type = '') => { editor.dataset.type = type; for (const button of editor.querySelectorAll('[data-type]')) button.setAttribute('aria-pressed', String(button.dataset.type === type)); };
   const flag = (text = '') => { const box = $('flag'); box.hidden = !text; box.textContent = text;
-    if (/模型/.test(text)) box.insertAdjacentHTML('beforeend', ' <a href="/settings/models">' + esc(L('模型设置')) + '</a>'); };
-  const fill = data => { editor.elements.title.value = data.title || ''; pick(data.type); editor.elements.description.value = data.text ?? data.description ?? ''; edits = data.images || []; paint(); };
+    if (/模型|model/i.test(text)) box.insertAdjacentHTML('beforeend', ' <a href="/settings/models">' + esc(L('模型设置')) + '</a>'); };
+  const fill = data => { titleInput.value = data.title || ''; pick(data.type); detailInput.value = data.text ?? data.description ?? ''; edits = data.images || []; paint(); };
   const draft = () => Boolean(current && !current.version);
-  const values = () => ({ title: editor.elements.title.value.trim(), type: editor.dataset.type, description: editor.elements.description.value, images: edits });
+  const values = () => ({ title: titleInput.value.trim(), type: editor.dataset.type, description: detailInput.value, images: edits });
   const changed = () => { const now = values(); return Object.fromEntries(Object.entries(now).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(current[key]))); };
   const mode = () => {
     $('view').hidden = editing; editor.hidden = !editing; $('edit').hidden = $('delete').hidden = editing;
-    $('redo').hidden = !draft(); $('cancel').textContent = L(draft() ? '放弃' : '取消');
-    if (!draft()) $('save').className = 'mw-btn mw-btn--sm mw-btn--primary';
-    if (editing) scope.frame(() => fit(editor.elements.description));
+    $('redo').hidden = false; $('cancel').textContent = L(draft() ? '放弃' : '取消');
+    if (!draft()) { primary('save'); primary('redo', false); }
+    if (editing) scope.frame(() => fit(detailInput));
   };
   const show = issue => {
-    current = issue; editing = false; flag(); home.hidden = true; detail.hidden = false;
+    void stopReview(); current = issue; editing = false; flag(); home.hidden = true; detail.hidden = false;
     $('type').textContent = L(kinds[issue.type]); $('when').textContent = full(issue.created_at); $('title').textContent = issue.title;
     $('text').textContent = issue.description; $('view-shots').innerHTML = shots(issue.images, false);
     $('source').textContent = [issue.context?.page?.title && L('记录于 ') + issue.context.page.title, L(via[issue.entered_via]),
@@ -107,40 +116,48 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     mode(); $('page').scrollTop = 0; $('back').focus();
   };
   const open = async id => {
+    if (saving) return;
+    await stopReview();
     const item = pending.find(entry => entry.id === id);
     if (item) { if (item.state === 'organizing') { toast(L('还在整理，稍等几秒')); return; }
       current = item; editing = true; fill(item.card ? { ...item, ...item.card } : item); flag(item.note); home.hidden = true; detail.hidden = false; mode();
       // Asked for a fact: the words come first and the Assistant tries again. Failed: name it by hand.
-      const asked = item.kind === 'question', area = editor.elements.description;
-      $('redo').className = 'mw-btn mw-btn--sm mw-btn--' + (asked ? 'primary' : 'secondary'); $('save').className = 'mw-btn mw-btn--sm mw-btn--' + (asked ? 'secondary' : 'primary');
-      if (asked) { area.focus(); area.setSelectionRange(area.value.length, area.value.length); } else editor.elements.title.focus();
+      const asked = item.kind === 'question', area = detailInput;
+      primary('redo', asked); primary('save', !asked);
+      if (asked) { area.focus(); area.setSelectionRange(area.value.length, area.value.length); } else titleInput.focus();
       return; }
-    const epoch = ++readEpoch, issue = await api('read?id=' + encodeURIComponent(id));
+    const epoch = ++readEpoch, issue = await read(id);
     if (epoch === readEpoch) show(issue);
   };
   const back = async () => {
-    if (draft()) Object.assign(current, { text: editor.elements.description.value, images: edits, card: { title: editor.elements.title.value, type: editor.dataset.type } });
+    if (draft()) Object.assign(current, { text: detailInput.value, images: edits, card: { title: titleInput.value, type: editor.dataset.type } });
     else if (editing && Object.keys(changed()).length && !await confirm('放弃这次修改？', L('修改还没有保存。'), '放弃修改')) return;
-    const id = current?.id; ++readEpoch; current = null; editing = false; detail.hidden = true; home.hidden = false; render();
+    void stopReview(); const id = current?.id; ++readEpoch; current = null; editing = false; detail.hidden = true; home.hidden = false; render();
     (list.querySelector('[data-issue-id="' + CSS.escape(id || '') + '"]') || desc).focus();
   };
   ${ISSUE_IMAGES_CLIENT_SCRIPT}
   ${ISSUE_CAPTURE_CLIENT_SCRIPT}
+  ${ISSUE_REVIEW_CLIENT_SCRIPT}
   const save = async () => {
-    const data = values();
-    if (!data.title || !data.type) { flag(L('写个标题并选一个类型再保存。')); (data.title ? editor.querySelector('[data-type]') : editor.elements.title).focus(); return; }
-    if (draft()) { await keep(current, data); return; }
-    const patch = changed();
-    if (!Object.keys(patch).length) { show(current); return; }
+    if (saving || importing || !editing) return;
+    await stopReview();
+    const data = values(), focus = document.activeElement;
+    if (!data.title || !data.type) { flag(L('写个标题并选一个类型再保存。')); (data.title ? editor.querySelector('[data-type]') : titleInput).focus(); return; }
+    saving = editor.inert = $('save').disabled = true;
     try {
-      const issue = await api('update', { id: current.id, expected_version: current.version, ...patch });
-      rows = rows.map(row => row.id === issue.id ? issue : row); show(issue); toast(L('已保存'));
-    } catch (error) {
-      if (error.status !== 409) throw error;
-      // Someone else saved first: their fields stay, this person's edits go on top, and nothing is written until they save again.
-      current = await api('read?id=' + encodeURIComponent(current.id)); fill({ ...current, ...patch });
-      flag(L('这条 Issue 刚在别处更新过，已合并你的修改，核对后再保存。'));
-    }
+      if (draft()) { await keep(current, data); return; }
+      const patch = changed();
+      if (!Object.keys(patch).length) { show(current); return; }
+      try {
+        const issue = await api('update', { id: current.id, expected_version: current.version, ...patch });
+        rows = rows.map(row => row.id === issue.id ? issue : row); show(issue); toast(L('已保存'));
+      } catch (error) {
+        if (error.status !== 409) throw error;
+        // Someone else saved first: their fields stay, this person's edits go on top, and nothing is written until they save again.
+        current = await read(current.id); fill({ ...current, ...patch });
+        flag(L('这条 Issue 刚在别处更新过，已合并你的修改，核对后再保存。'));
+      }
+    } finally { saving = editor.inert = $('save').disabled = false; if (editing) focus?.focus(); }
   };
   scope.listen(composer, 'submit', event => { event.preventDefault(); run(submit); });
   scope.listen(editor, 'submit', event => { event.preventDefault(); run(save); });
@@ -151,17 +168,17 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   });
   scope.listen(root, 'input', event => {
     if (event.target === desc) { fit(desc); ready(); try { localStorage.setItem(KEY, desc.value); } catch { /* A draft that cannot be kept still sends. */ } }
-    if (event.target.form === editor) fit(editor.elements.description);
+    if (event.target.form === editor) fit(detailInput);
   });
   scope.listen(root, 'click', event => run(async () => {
-    const button = event.target.closest('button, a[data-issue-id]'); if (!button) return;
+    const button = event.target.closest('button, a[data-issue-id]'); if (!button || saving) return;
     const is = key => button.hasAttribute('data-issue-' + key);
     if (button.dataset.issueId) await open(button.dataset.issueId);
     else if (button.dataset.type) { pick(button.dataset.type); flag(); }
     else if (is('back')) await back();
-    else if (is('edit')) { editing = true; fill(current); mode(); editor.elements.title.focus(); }
+    else if (is('edit')) { editing = true; fill(current); mode(); titleInput.focus(); }
     else if (is('cancel')) { if (draft()) await abandon(current); else show(current); }
-    else if (is('redo')) await redo(current);
+    else if (is('redo')) { if (draft()) await redo(current); else await reviewIssue(); }
     else if (is('delete')) {
       const target = current;
       if (!await confirm('删除这条 Issue？', target.title + '\n\n' + L('删除后无法恢复。'), '删除') || current !== target) return;
@@ -174,7 +191,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   }));
   scope.listen(root, 'molis-work:select-item', event => { if (typeof event.detail?.itemId === 'string') run(() => open(event.detail.itemId)); });
   scope.listen(window, 'beforeunload', event => {
-    if (pending.some(item => item.state === 'organizing') || editing && !draft() && Object.keys(changed()).length) { event.preventDefault(); event.returnValue = ''; }
+    if (importing || pictureWrites || pictureFault || pending.some(item => item.state === 'organizing') || editing && !draft() && Object.keys(changed()).length) { event.preventDefault(); event.returnValue = ''; }
   });
   // The side panel focuses this frame when it is summoned: land in the composer, ready to type. A click into the
   // frame also focuses it; that click goes where it was aimed, with nothing moved under it.

@@ -1,3 +1,4 @@
+// R-KERNEL-OWNER-01: this refusal comes from session authorship in the Kernel; missing Runtime identity remains an MCP refusal.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -32,7 +33,7 @@ function fixture() {
 }
 
 const runtime = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: "runtime:codex", project_id: "project-one", audience: "mcp", permissions: [], ...extra });
-const refused = (error: unknown) => error instanceof ActionError && error.code === "mcp.runtime_identity_missing" && /稳定 Session/.test(error.message);
+const refused = (error: unknown) => error instanceof ActionError && error.code === "kernel.runtime_identity_missing" && error.kind === "invalid" && /稳定 Session/.test(error.message);
 
 test("a context that says its Runtime has no stable Session is refused by an action that declares authorship, directly and nested", async () => {
   const { service, writes } = fixture();

@@ -5,6 +5,7 @@ import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// W2-18-CODING-LIFETIME-01: the original global effect listener must be gone after detach/remount.
 test("Coding stops hidden polling and releases every client listener before the same DOM is mounted again", { timeout: 45_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, click, navigate, origin, projectId } = browser;
@@ -42,5 +43,20 @@ test("Coding stops hidden polling and releases every client listener before the 
   await waitFor("document.querySelector('[data-coding-session]')");
   await pause(100);
   assert.equal(await evaluate("codingRequests.filter(request=>request.method==='POST'&&request.path.endsWith('/sessions')).length"), 1, "one user click creates one session after remount");
+  const id = await evaluate<string>("document.querySelector('[data-coding-session]').dataset.codingSession");
+  // FIX79-LIFETIME: create() already selects the detail; return through the real visible directory control.
+  await click('[data-coding-directory-back]');
+  await waitFor("codingRoot.dataset.codingDetail === 'false'");
+  await click(`[data-coding-session="${id}"]`);
+  await waitFor(`codingRequests.some(request=>request.path.includes('/sessions/${id}?window=6'))`);
+  await evaluate("window.effectReads=codingRequests.length");
+  await evaluate(`window.dispatchEvent(new CustomEvent('molis:assistant-effect',{detail:{capability_id:'coding.sessions.update',session_id:${JSON.stringify(id)}}}))`);
+  await pause(250);
+  assert.equal(await evaluate(`codingRequests.slice(effectReads).filter(request=>request.path.includes('/sessions/${id}?window=1')).length`), 1, "only the live instance responds to the effect");
+  await evaluate("codingRoot.remove()"); await pause(100);
+  const absent = await evaluate<number>("codingRequests.length");
+  await evaluate(`window.dispatchEvent(new CustomEvent('molis:assistant-effect',{detail:{capability_id:'coding.sessions.update',session_id:${JSON.stringify(id)}}}))`);
+  await pause(200);
+  assert.equal(await evaluate("codingRequests.length"), absent, "no old closure performs a request after detach");
   assert.deepEqual(await evaluate("lifecycleErrors"), []);
 });

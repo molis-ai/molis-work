@@ -50,6 +50,27 @@ test("Jelly empty model settings do not create a catalog, preferences, secret fi
   assert.throws(() => saveJellyModelSettings(home, { base_url: "https://example.com/v1", model_id: "model" }), /尚未初始化/); assert.equal(existsSync(join(home, "projects")), false);
 });
 
+test("W1-18-MODEL-SCHEMA-01 standalone model consumers refuse old, future and invalid catalogs without changing them", t => {
+  const home = homeFor(t), file = join(home, "projects", "catalog.db");
+  for (const version of [21, 23, NaN]) {
+    const storage = new LocalSqliteStorage(file);
+    try { new LocalCatalogMetadata(storage.db).setVersion(version); } finally { storage.close(); }
+    const before = readFileSync(file);
+    assert.throws(() => createJellyCompletion(home), /schema|版本/i);
+    assert.throws(() => readJellyModelSettings(home), /schema|版本/i);
+    assert.deepEqual(readFileSync(file), before, "a rejected read does not repair or rewrite the catalog");
+    assert.equal(existsSync(join(home, "jelly")), false, "no preference or material store is created");
+    const after = new LocalSqliteStorage(file);
+    try { assert.ok(Object.is(new LocalCatalogMetadata(after.db).version(), version)); } finally { after.close(); }
+  }
+  const current = new LocalSqliteStorage(file);
+  try { new LocalCatalogMetadata(current.db).setVersion(22); } finally { current.close(); }
+  const before = readFileSync(file);
+  assert.equal(createJellyCompletion(home), undefined);
+  assert.deepEqual(readJellyModelSettings(home), { configured: false, providers: [], connections: [], source: "none" });
+  assert.deepEqual(readFileSync(file), before, "the current empty catalog can be read without mutation");
+});
+
 test("Jelly custom model selects a Connector credential and keeps preferences free of secrets", t => {
   const home = homeFor(t); let requests = 0; t.mock.method(globalThis, "fetch", async () => { requests++; throw new Error("unexpected network"); });
   const connection = modelConnection(home, "Jelly 账号", "jelly-test-plaintext-key");

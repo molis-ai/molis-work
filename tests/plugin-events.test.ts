@@ -238,7 +238,7 @@ test("a subscriber that cannot start keeps the event pending and reports why", a
   await rig.bus.drain();
 
   assert.equal(rig.failures.length, 1);
-  assert.equal(rig.failures[0]?.code, "subscriber_start_failed");
+  assert.equal(rig.failures[0]?.code, "plugin.subscriber_start_failed");
   assert.equal(rig.failures[0]?.subscriber_plugin_id, FILES);
 
   const cursors = rig.bus.cursors(BOARD, FILES);
@@ -329,7 +329,7 @@ test("a failing handler does not block the next event and is reported", async ()
   await rig.bus.drain();
 
   assert.deepEqual(seen, [1]);
-  assert.equal(rig.failures[0]?.code, "subscriber_handler_failed");
+  assert.equal(rig.failures[0]?.code, "plugin.subscriber_handler_failed");
   assert.equal(rig.bus.cursors(BOARD, FILES)[0]?.delivered_sequence, 2);
 });
 
@@ -370,14 +370,14 @@ test("publishing is refused outside the Plugin's own declared contract", async (
   await rig.start();
 
   const cases: Array<[string, () => void, string]> = [
-    ["未声明的版本", () => rig.publish(CODING, CHANGED, 2, { path: "a" }), "event_not_declared"],
-    ["别人的命名空间", () => rig.publish(CODING, `${FILES}.refreshed`, 1, {}), "event_type_not_owned"],
-    ["宿主保留前缀", () => rig.publish(CODING, "host.shutdown", 1, {}), "event_type_reserved"],
-    ["校验器拒绝", () => rig.publish(CODING, CHANGED, 1, { path: 42 }), "event_payload_invalid"],
+    ["未声明的版本", () => rig.publish(CODING, CHANGED, 2, { path: "a" }), "plugin.event_not_declared"],
+    ["别人的命名空间", () => rig.publish(CODING, `${FILES}.refreshed`, 1, {}), "plugin.event_type_not_owned"],
+    ["宿主保留前缀", () => rig.publish(CODING, "host.shutdown", 1, {}), "plugin.event_type_reserved"],
+    ["校验器拒绝", () => rig.publish(CODING, CHANGED, 1, { path: 42 }), "plugin.event_payload_invalid"],
     [
       "超过正文上限",
       () => rig.publish(CODING, CHANGED, 1, { path: "x".repeat(20_000) }),
-      "event_payload_too_large",
+      "plugin.event_payload_too_large",
     ],
   ];
   for (const [label, run, code] of cases) {
@@ -399,7 +399,7 @@ test("a Plugin whose event validators disagree with its Manifest never runs", as
   const report = await rig.start();
 
   assert.deepEqual(report.running, []);
-  assert.equal(report.failed[0]?.code, "plugin_event_type_missing");
+  assert.equal(report.failed[0]?.code, "plugin.event_type_missing");
   assert.match(report.failed[0]?.message ?? "", /没有对应的类型校验器/u);
 });
 
@@ -430,10 +430,10 @@ test("publish refuses foreign boards, stale installs and stopped publishers", as
   const install = rig.supervisor.installation(CODING)!;
   const input = { event_type_id: CHANGED, type_version: 1, payload: {} };
   for (const identity of [ { project_id: 'elsewhere', plugin_id: CODING, install_id: install.install_id }, { project_id: BOARD, plugin_id: CODING, install_id: 'old' } ]) {
-    assert.throws(() => rig.bus.publish(identity, input), { code: 'event_identity_invalid' });
+    assert.throws(() => rig.bus.publish(identity, input), { code: 'plugin.event_identity_invalid' });
   }
   await rig.runtime.stop(install.install_id);
-  assert.throws(() => rig.publish(CODING, CHANGED, 1, {}), { code: 'event_identity_invalid' });
+  assert.throws(() => rig.publish(CODING, CHANGED, 1, {}), { code: 'plugin.event_identity_invalid' });
   assert.deepEqual(rig.bus.log(BOARD), []);
 });
 
@@ -466,7 +466,7 @@ test('stop withdraws an activation before awaiting its cleanup hook', async () =
   const rig = harness([coding.definition, files.definition]); await rig.start();
   rig.publish(CODING, CHANGED, 1, {}); await entered.promise;
   const stop = rig.runtime.stop(rig.supervisor.installation(FILES)!.install_id); await stopping.promise;
-  assert.throws(() => rig.publish(FILES, FILES + '.changed', 1, {}), { code: 'event_identity_invalid' });
+  assert.throws(() => rig.publish(FILES, FILES + '.changed', 1, {}), { code: 'plugin.event_identity_invalid' });
   finish.resolve(); await rig.bus.drain(); assert.equal(writes, 0);
   assert.equal(rig.bus.cursors(BOARD, FILES)[0]!.state, 'quarantined');
   stopped.resolve(); await stop;
@@ -542,7 +542,7 @@ test('a real process killed after subscriber commit leaves an uncertain delivery
     await bus.resume(EVENT_BOARD); await bus.drain(); await bus.resume(EVENT_BOARD); await bus.drain();
     assert.deepEqual(db.prepare('SELECT * FROM effects').all(), [{ value: 'committed' }]);
     assert.equal(repository.listCursors(EVENT_BOARD, EVENT_SUBSCRIBER)[0]!.state, 'quarantined');
-    assert.equal(repository.listCursors(EVENT_BOARD, EVENT_SUBSCRIBER)[0]!.last_error_code, 'subscriber_outcome_unknown');
+    assert.equal(repository.listCursors(EVENT_BOARD, EVENT_SUBSCRIBER)[0]!.last_error_code, 'plugin.subscriber_outcome_unknown');
     assert.equal(repository.listCursors(EVENT_BOARD, EVENT_SUBSCRIBER)[0]!.delivered_sequence, 0);
   } finally { await bus.close(); for (const record of runtime.list()) if (record.state === 'running') await runtime.stop(record.install_id); db.close(); }
 });

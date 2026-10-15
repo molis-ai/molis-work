@@ -78,6 +78,6 @@ describe("keeping an Idea Card", () => {
         actorId: "actor_local",
         now: "2026-07-31T00:02:00.000Z",
       }),
-    ).toThrowError("IDEA_CARD_NOT_CANDIDATE");
+    ).toThrowError("alchemist.idea_card_not_candidate");
   });
 });

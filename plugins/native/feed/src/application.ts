@@ -1,12 +1,13 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AttentionReason as ModuleAttentionReason, AttentionStatus as ModuleAttentionStatus, AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedOutRuleRecord, FeedSnapshot, FeedSourceRunRecord, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType, SourceHistoryDecision } from "./projection.js";
-import { SourcesError } from "@molis-ai/molis-work-contracts/modules/sources";
+
 import {
   type JudgmentRecord,
 } from "@molis-ai/molis-work-contracts/modules/functions";
-import { assertSourceHistoryDecision, callAttention, callFeed } from "./application-errors.js";
+import { assertSourceHistoryDecision, callAttention } from "./application-errors.js";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { feedItemRecord, sourceRunRecord } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
@@ -46,11 +47,11 @@ export class FeedApplication {
   }
 
   getItem(projectId: string, itemId: string): FeedItemRecord {
-    return feedItemRecord(callFeed(() => this.ports.feed.query.get(projectId, itemId)));
+    return feedItemRecord(this.ports.feed.query.get(projectId, itemId));
   }
 
   getFeedItem(projectId: string, itemId: string): FeedItemRecord {
-    return feedItemRecord(callFeed(() => this.ports.feed.query.get(projectId, itemId)));
+    return feedItemRecord(this.ports.feed.query.get(projectId, itemId));
   }
 
   findLinkedGoalItem(projectId: string, goalId: string, itemId?: string): FeedItemRecord | null {
@@ -72,7 +73,7 @@ export class FeedApplication {
     try {
       return this.sourceRecord(this.ports.sources.query.get(projectId, sourceId));
     } catch (error) {
-      if (error instanceof SourcesError && error.code === "source_not_found") {
+      if (error instanceof ActionError && error.code === "sources.not_found") {
         throw feedErrors.source_not_found("找不到这个来源");
       }
       throw error;
@@ -119,7 +120,7 @@ export class FeedApplication {
     try {
       return this.sourceRecord(this.ports.sources.commands.setEnabled(projectId, sourceId, enabled));
     } catch (error) {
-      if (error instanceof SourcesError && error.code === "source_not_found") {
+      if (error instanceof ActionError && error.code === "sources.not_found") {
         throw feedErrors.source_not_found("找不到这个来源");
       }
       throw error;
@@ -255,7 +256,7 @@ export class FeedApplication {
     };
     material?: Omit<FeedMaterialRecord, "project_id" | "item_id" | "imported_at" | "updated_at">;
   }): { item: FeedItemRecord; created: boolean; updated: boolean } {
-    const result = callFeed(() => this.ports.feed.commands.ingest({
+    const result = this.ports.feed.commands.ingest({
       project_id: input.source.project_id,
       source_id: input.source.source_id,
       source_kind: input.source.kind,
@@ -276,7 +277,7 @@ export class FeedApplication {
       material: input.material ? {
         ...input.material,
       } : undefined,
-    }));
+    });
     const item = feedItemRecord(result.item);
     if (result.created || result.updated) {
       try {
@@ -381,22 +382,16 @@ export class FeedApplication {
     disposition: FeedItemDisposition,
     expectedRevision?: number,
   ): FeedItemRecord {
-    const item = callFeed(
-      () => this.ports.feed.commands.setDisposition(projectId, itemId, disposition, expectedRevision),
-    );
+    const item = this.ports.feed.commands.setDisposition(projectId, itemId, disposition, expectedRevision);
     return feedItemRecord(item);
   }
 
   restoreToFeed(projectId: string, itemId: string, expectedRevision?: number): FeedItemRecord {
-    return feedItemRecord(callFeed(
-      () => this.ports.feed.commands.restore(projectId, itemId, expectedRevision),
-    ));
+    return feedItemRecord(this.ports.feed.commands.restore(projectId, itemId, expectedRevision));
   }
 
   markRead(projectId: string, itemId: string): FeedItemRecord {
-    return feedItemRecord(callFeed(
-      () => this.ports.feed.commands.markRead(projectId, itemId),
-    ));
+    return feedItemRecord(this.ports.feed.commands.markRead(projectId, itemId));
   }
 
   linkGoal(
@@ -405,9 +400,7 @@ export class FeedApplication {
     goalId: string,
     disposition: "promoted" | "processing",
   ): FeedItemRecord {
-    const item = callFeed(
-      () => this.ports.feed.commands.linkGoal(projectId, itemId, goalId, disposition),
-    );
+    const item = this.ports.feed.commands.linkGoal(projectId, itemId, goalId, disposition);
     return feedItemRecord(item);
   }
 
@@ -459,8 +452,6 @@ export class FeedApplication {
     }
     this.completeArtifactOutFailure(item);
   }
-
-
 
   private recordArtifactOutFailure(item: FeedItemRecord, ruleIds: string[], errorCodes: string[]): void {
     // The person ignored this item; a capture that failed for it is not worth putting it back in front of them.

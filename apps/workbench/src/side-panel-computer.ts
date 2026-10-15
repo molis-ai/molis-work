@@ -79,9 +79,9 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   const ctx=canvas.getContext('2d');
   const projectId=document.body.dataset.projectId||'';
   const routePrefix=document.body.dataset.routePrefix||(projectId?'/projects/'+encodeURIComponent(projectId):'');
-  const headers=()=>typeof molisWorkControlHeaders==='function'?molisWorkControlHeaders():{'content-type':'application/json'};
   let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,lastMode='idle',lastWork=null,reviewTimer=null,reviewing=null,reviewMode=null;
   const say=(text)=>{if(live)live.textContent=text||'';};
+  const sayError=(error)=>{if(live)molisWorkRequest.show(live,error);};
   const sendRaw=(message)=>{if(socket&&socket.readyState===1&&ready)socket.send(JSON.stringify(message));};
   const visible=()=>shown&&panelOpen&&document.visibilityState==='visible';
   const connect=()=>{
@@ -116,19 +116,20 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     // The status panel: off, unsupported, missing permissions, or nothing in the way.
     const problem=state.helper?.problem,perms=state.permissions,missing=perms?Object.keys(perms).filter(k=>!perms[k]):[];
     let statusHtml='';
+    const box=(h,p)=>'<h3>'+esc(L(h))+'</h3><p>'+esc(p)+'</p>';
     if(!state.enabled){
-      statusHtml='<h3>'+esc(L('助理使用电脑：已关闭'))+'</h3><p>'+esc(L('它需要系统授权、会影响整台电脑，所以默认关闭。要用它，先在助理设置里打开「允许助理使用电脑」。'))+'</p>';
+      statusHtml=box('助理使用电脑：已关闭',L('它需要系统授权、会影响整台电脑，所以默认关闭。要用它，先在助理设置里打开「允许助理使用电脑」。'));
     }else if(state.helper?.state==='unsupported'){
-      statusHtml='<h3>'+esc(L('不可用'))+'</h3><p>'+esc(problem?.message||L('操作电脑只支持 macOS 14 及以上。'))+'</p>';
+      statusHtml=box('不可用',L(problem?.message||'操作电脑只支持 macOS 14 及以上。'));
     }else if(state.helper?.state==='missing'){
-      statusHtml='<h3>'+esc(L('缺少电脑助手'))+'</h3><p>'+esc(problem?.message||L('这次安装里没有电脑助手。'))+'</p>';
+      statusHtml=box('缺少电脑助手',L(problem?.message||'这次安装里没有电脑助手。'));
     }else if(perms&&missing.length){
       const names={accessibility:L('辅助功能'),screen_recording:L('屏幕录制'),input_monitoring:L('输入监控')};
-      statusHtml='<h3>'+esc(L('需要系统授权'))+'</h3><p>'+esc(L('请在「系统设置 › 隐私与安全性」里给「Molis Work Computer Helper」打开这几项，然后回到这里。'))+'</p>'+missing.map(k=>'<div class="side-computer-perm"><span>'+esc(names[k]||k)+'</span><button type="button" data-computer-grant="'+esc(k)+'" class="primary">'+esc(L('去授权'))+'</button></div>').join('');
+      statusHtml=box('需要系统授权',L('请在「系统设置 › 隐私与安全性」里给「Molis Work Computer Helper」打开这几项，然后回到这里。'))+missing.map(k=>'<div class="side-computer-perm"><span>'+esc(names[k]||k)+'</span><button type="button" data-computer-grant="'+esc(k)+'" class="primary">'+esc(L('去授权'))+'</button></div>').join('');
     }else if(problem){
-      statusHtml='<h3>'+esc(L('电脑助手暂时不可用'))+'</h3><p>'+esc(problem.message)+'</p>';
+      statusHtml=box('电脑助手暂时不可用',L(problem.message));
     }else if(state.presence?.locked||state.presence?.away){
-      statusHtml='<p>'+esc((state.presence.reason||'')+'，'+L('助理暂时不操作电脑。'))+'</p>';
+      statusHtml='<p>'+esc(state.presence.reason?L('{reason}，助理暂时不操作电脑。',{reason:L(state.presence.reason)}):L('助理暂时不操作电脑。'))+'</p>';
     }
     statusBox.innerHTML=statusHtml;statusBox.hidden=!statusHtml;
     // The doing strip and controls.
@@ -156,8 +157,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     try{
       // Only the round holding the computer, so another project's round never shows its card here.
       const holder=state?.control?.work_id;
-      const response=await fetch(routePrefix+'/api/agent/reviews?status=pending'+(holder?'&run_session_id='+encodeURIComponent(holder):''),{headers:{accept:'application/json'}});
-      const result=await response.json();
+      const result=await molisWorkRequest(routePrefix+'/api/agent/reviews?status=pending'+(holder?'&run_session_id='+encodeURIComponent(holder):''));
       rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(row.request.document.fields||[]).some(f=>f.label==='应用')&&(!row.receipt||row.receipt.status==='pending'));
     }catch{/* a failed poll is retried on the next tick below */}
     renderApproval(rows[0]||null);
@@ -179,16 +179,14 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   const decide=async(decision,remember)=>{
     const id=reviewing;if(!id)return;
     const body={review_id:id,decision};if(remember)body.remember=remember;
-    const response=await fetch(routePrefix+'/api/agent/reviews/decide',{method:'POST',headers:{...headers(),'content-type':'application/json'},body:JSON.stringify(body)});
-    const result=await response.json().catch(()=>({}));
-    if(!response.ok)say(result.error||L('确认没有提交'));
+    try{await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body,fallback:L('确认没有提交')});}catch(error){sayError(error);}
     approval.hidden=true;reviewing=null;void pollReviews();
   };
   const control=async(action)=>{
     if(action==='stop'){
       const work=state?.control?.work_id;
       sendRaw({type:'stop'});
-      if(work)await fetch(routePrefix+'/api/assistant/works/'+encodeURIComponent(work)+'/control',{method:'POST',headers:{...headers(),'content-type':'application/json'},body:JSON.stringify({kind:'stop'})}).catch(()=>{});
+      if(work)await molisWorkRequest(routePrefix+'/api/assistant/works/'+encodeURIComponent(work)+'/control',{body:{kind:'stop'}}).catch(sayError);
       return;
     }
     if(action==='shelf'){await putOnShelf();return;}
@@ -201,42 +199,37 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     let itemId='';
     const drop=async()=>{
       if(!itemId)return;
-      const once=()=>env.fetch('/api/shelf/items/'+encodeURIComponent(itemId)+'/delete',{method:'POST',headers:{...env.headers(),'content-type':'application/json'},body:'{}'});
-      const gone=await once().catch(()=>null);
-      if(!gone||!gone.ok)await once().catch(()=>{});
+      const once=()=>env.request('/api/shelf/items/'+encodeURIComponent(itemId)+'/delete',{body:{}}).then(()=>true).catch(()=>false);
+      if(!await once())await once();
     };
     try{
-      const response=await env.fetch(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id),{headers:{accept:'application/json'}});
-      const record=(await response.json()).record;if(!record)throw 0;
+      const result=await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id));
+      const record=result.record;if(!record)throw new Error(env.L('没能放进 Shelf。'));
       const outcome=record.outcome==='completed'?env.L('完成'):record.outcome==='failed'?env.L('失败'):record.outcome==='stopped'?env.L('已停止'):env.L('进行中');
-      const lines=[record.goal?env.L('目标：{goal}',{goal:record.goal}):'',env.L('结果：{outcome}',{outcome}),record.conclusion||'',
+      const lines=[record.goal?env.L('目标：{goal}',{goal:record.goal}):'',env.L('结果：{outcome}',{outcome}),record.conclusion?env.L(record.conclusion):'',
         '',env.L('步骤（{n} 步）：',{n:record.steps.length}),...record.steps.slice(-40).map(step=>'- '+(step.app?('『'+step.app.name+'』'):'')+step.summary)].filter(Boolean);
       const title=(record.goal?record.goal.slice(0,40):env.L('电脑操作'))+'（'+new Date(record.started_at).toLocaleString()+'）';
-      const shelf=await env.fetch('/api/shelf/items',{method:'POST',headers:{...env.headers(),'content-type':'application/json','x-molis-work-idempotency-key':'cu-shelf-'+id+'-'+env.now},body:JSON.stringify({title,text:lines.join('\n')})});
-      if(!shelf.ok){env.say(env.L('没能放进 Shelf。'));return;}
-      const admitted=await shelf.json();
+      const admitted=await env.request('/api/shelf/items',{key:'cu-shelf-'+id+'-'+env.now,body:{title,text:lines.join('\n')},fallback:env.L('没能放进 Shelf。')});
       itemId=(admitted&&admitted.item&&admitted.item.item_id)||'';
       if(!itemId){env.say(env.L('没能放进 Shelf。'));return;}
       const shot=[...record.steps].reverse().find(step=>step.shot)?.shot;
       if(!shot){env.say(env.L('已放进 Shelf。'));return;}
-      const bytes=await env.fetch(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id)+'/'+shot);
+      const bytes=await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id)+'/'+shot,{as:'response'});
       if(!bytes.ok){await drop();env.say(env.L('没能放进 Shelf。'));return;}
       const raw=new Uint8Array(await bytes.arrayBuffer());let binary='';
       for(let i=0;i<raw.length;i+=8192)binary+=String.fromCharCode(...raw.subarray(i,i+8192));
-      const image=await env.fetch('/api/shelf/items',{method:'POST',headers:{...env.headers(),'content-type':'application/json','x-molis-work-idempotency-key':'cu-shelf-shot-'+id+'-'+shot},body:JSON.stringify({filename:shot,mime:'image/png',bytes_base64:btoa(binary)})});
-      let picture=image.ok;
-      if(!picture&&image.status===409){const body=await image.json().catch(()=>null);picture=!!body&&body.code!=='request.in_flight';}
-      if(!picture){await drop();env.say(env.L('没能放进 Shelf。'));return;}
+      try{await env.request('/api/shelf/items',{key:'cu-shelf-shot-'+id+'-'+shot,body:{filename:shot,mime:'image/png',bytes_base64:btoa(binary)},fallback:env.L('没能放进 Shelf。')});}
+      catch(error){if(error.status!==409||!error.body||error.body.code==='request.in_flight')throw error;}
       env.say(env.L('已放进 Shelf。'));
-    }catch{await drop();env.say(env.L('没能放进 Shelf。'));}
+    }catch(error){await drop();env.sayError(error,env.L('没能放进 Shelf。'));}
   };
-  const putOnShelf=()=>putComputerRecordOnShelf({fetch,routePrefix,headers,say,L,state,now:Date.now()});
+  const putOnShelf=()=>putComputerRecordOnShelf({request:molisWorkRequest,routePrefix,say,sayError,L,state,now:Date.now()});
   root.addEventListener('click',event=>{
     const review=event.target.closest('[data-computer-review]');
     if(review){if(review.dataset.computerReview==='approve')decide('approve');else if(review.dataset.computerReview==='approve-round')decide('approve','app-this-round');else decide('reject');return;}
     const act=event.target.closest('[data-computer-action]');if(act){control(act.dataset.computerAction);return;}
     const grant=event.target.closest('[data-computer-grant]');
-    if(grant){fetch(routePrefix+'/api/computer/permissions',{method:'POST',headers:{...headers(),'content-type':'application/json'},body:JSON.stringify({kind:grant.dataset.computerGrant})}).then(()=>say(L('已打开系统设置，请在那里授权后回到这里。'))).catch(()=>{});return;}
+    if(grant){molisWorkRequest(routePrefix+'/api/computer/permissions',{body:{kind:grant.dataset.computerGrant}}).then(()=>say(L('已打开系统设置，请在那里授权后回到这里。'))).catch(sayError);return;}
   });
   document.addEventListener('visibilitychange',()=>sendRaw({type:'visible',visible:visible()}));
   connect();

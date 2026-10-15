@@ -15,6 +15,8 @@ import {
   renderDirectoryPanel,
   renderDirectoryRow,
   renderField,
+  escapeHtml,
+  renderAttrs,
   renderHint,
   renderInput,
   renderPrimitiveCatalog,
@@ -376,4 +378,18 @@ test("embedded directory panels keep the component structure without joining hos
   assert.match(html, /data-slot="directory"/);
   assert.match(html, /mw-dir__label/);
   assert.doesNotMatch(html, /data-directory-panel=/);
+});
+
+// K1-01: the shared helper must protect single-quoted attributes before server copies adopt it.
+test("K1-01 shared HTML escaping protects text and both attribute quote delimiters", () => {
+  const value = `O'Reilly & <img src=x onerror="alert(1)">`;
+  assert.equal(escapeHtml(value), "O&#039;Reilly &amp; &lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+  assert.equal(`<span title='${escapeHtml(value)}'>${escapeHtml(value)}</span>`,
+    "<span title='O&#039;Reilly &amp; &lt;img src=x onerror=&quot;alert(1)&quot;&gt;'>O&#039;Reilly &amp; &lt;img src=x onerror=&quot;alert(1)&quot;&gt;</span>");
+  assert.equal(renderAttrs({ title: value, disabled: true, hidden: false }),
+    ' title="O&#039;Reilly &amp; &lt;img src=x onerror=&quot;alert(1)&quot;&gt;" disabled');
+  assert.equal(escapeHtml(null), "");
+  assert.equal(escapeHtml(undefined), "");
+  assert.equal(escapeHtml(0), "0");
+  assert.equal(escapeHtml(false), "false");
 });

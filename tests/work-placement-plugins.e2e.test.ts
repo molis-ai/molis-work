@@ -3,8 +3,32 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
+
+function createAnswers(home: string, project: string): { formId: string; answerTimes: Record<string, string> } {
+  const forms = openFormStore(home);
+  try {
+    const form = forms.receive(project, "placement-e2e", "活动报名", [{ id: "name", title: "姓名" }, { id: "team", title: '团队, "方向"' }]);
+    forms.submit(form.id, { name: "林一", team: '设计\n"体验"' }, project, { source: "preview", requestId: "a1" });
+    forms.submit(form.id, { name: "周二", team: "工程" }, project, { source: "preview", requestId: "a2" });
+    return { formId: form.id, answerTimes: Object.fromEntries(forms.listSubmissions(form.id, project).map(answer => [answer.answers.name!, answer.submitted_at])) };
+  } finally { forms.close(); }
+}
+function assertAnswerDataset(home: string, project: string, formId: string, tableId: string, answerTimes: Record<string, string>) {
+  const datasets = openDatasetStore(home), forms = openFormStore(home);
+  try {
+    const saved = datasets.get(tableId, project);
+    assert.deepEqual(saved.columns.map(column => column.name), ["提交时间", "来源", "姓名", '团队, "方向"']);
+    const rows = saved.rows.map(row => saved.columns.map(column => row.cells[column.id]));
+    assert.equal(rows.length, 2);
+    assert.deepEqual(rows.find(row => row[2] === "林一"), [answerTimes["林一"], "试填", "林一", '设计；"体验"']);
+    assert.deepEqual(rows.find(row => row[2] === "周二"), [answerTimes["周二"], "试填", "周二", "工程"]);
+    // The CSV contract uses semicolons for answer line breaks; the source retains the literal LF.
+    assert.equal(forms.listSubmissions(formId, project).find(answer => answer.answers.name === "林一")!.answers.team, '设计\n"体验"');
+  } finally { datasets.close(); forms.close(); }
+}
 
 // specs/archive/work-placement per plugin, through the real workbench: a Goal's materials create straight into its project and
 // stay bound (AC2); a form's answers become a dataset that says where it came from; a spark turns into a document and
@@ -87,15 +111,8 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   assert.equal(deck.location?.title, `项目「${projectTitle}」`);
   assert.ok(deck.associations.some(link => link.type === "goal_in" || link.label.startsWith("Goal「")), "the deck knows the Goal it serves");
 
-  // 2. Form → Dataset: the answers become a table in the same project that says where it came from; the form is unchanged.
-  const forms = openFormStore(homeDirectory);
-  let formId: string;
-  try {
-    const form = forms.receive(projectId!, "placement-e2e", "活动报名", [{ id: "name", title: "姓名" }, { id: "team", title: "团队" }]);
-    formId = form.id;
-    forms.submit(form.id, { name: "林一", team: "设计" }, projectId!, { source: "preview", requestId: "a1" });
-    forms.submit(form.id, { name: "周二", team: "工程" }, projectId!, { source: "preview", requestId: "a2" });
-  } finally { forms.close(); }
+  // W2-18-DATASET-SCHEMA-02 / S4: inspect the real persisted answers, not just the placement caption.
+  const { formId, answerTimes } = createAnswers(homeDirectory, projectId!);
   await openPlugin("form", projectId!);
   await press(`[data-form-id="${formId}"]`);
   await press('[data-form-tab="results"]');
@@ -105,6 +122,7 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   await waitFor(`${visible("[data-dataset-title]")}?.value === '活动报名 · 答卷'`, 15_000);
   const table = await current();
   assert.equal(table?.kind, "dataset");
+  assertAnswerDataset(homeDirectory, projectId!, formId, table!.id, answerTimes);
   const derived = await describe({ kind: "dataset", id: table!.id, project_id: projectId });
   assert.equal(derived.location?.title, `项目「${projectTitle}」`);
   assert.ok(derived.associations.some(link => link.label.includes("来自《活动报名》")), `dataset says where it came from: ${text(derived.associations)}`);

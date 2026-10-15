@@ -448,7 +448,9 @@ test("on this repository the owner table has no problems, and the scan follows t
   const isSource = (file: string) => /^(apps|horizontal|modules|packages|plugins|server|tooling)\//.test(file) && /\.(ts|mts)$/.test(file) && !file.endsWith(".d.ts") && !/(^|\/)(tests?|dist|node_modules|fixtures)\//.test(file) && !/\.test\.(ts|mts)$/.test(file);
   const found = measureErrors(snapshot, isSource);
   const sites = Object.values(found.sites as Record<string, Array<{ code: string }>>).flat();
-  assert.ok(sites.length > 2000, `the scan finds the code sites of the error classes (${sites.length})`);
+  // A floor against a scan that silently reads nothing. The number falls as W3-02 removes error classes and their sites (2,000+ on
+  // main 774acaf57, 1,733 after I8); what proves the scan reads the declarations are the known-site checks below.
+  assert.ok(sites.length > 1500, `the scan finds the code sites of the error classes (${sites.length})`);
   assert.equal(found.subclasses["packages/contracts/src/platform/action-errors.ts"], undefined, "ActionError, the model's own class, is not counted as a subclass of it");
   // The one class of the repository that took its message first and its code second, FeedDomainError, is gone (W3-02-E); the message-first order is pinned
   // by the mutation case "a bad code in the second argument of a class that takes its message first". What the repository shows live is that the scan reads

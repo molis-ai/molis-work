@@ -26,7 +26,8 @@ test("Character management is redeemed by the project Runtime and bound to the p
     const edited = (await bound.invoke(c.update, { id: draft.character_id, expected_revision: 1, title: "核对员", instructions: "先验证再下结论。", host_tools: ["read-file"] })).draft;
     assert.equal(edited.revision, 2);
     await assert.rejects(bound.invoke(c.update, { id: draft.character_id, expected_revision: 1, title: "过期", instructions: "过期", host_tools: null }),
-      (error: { code?: string }) => error.code === "character.conflict");
+      // R4C1-01: the real update refuses a stale revision without overwriting the draft.
+      (error: { code?: string }) => error.code === "characters.conflict");
     const published = await bound.invoke(c.publish, { id: draft.character_id, expected_revision: 2 });
     assert.equal(published.reference.version, 1);
     assert.equal((await bound.invoke(c.publish, { id: draft.character_id, expected_revision: 2 })).replayed, true);

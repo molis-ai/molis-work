@@ -85,8 +85,8 @@ for (const rejects of [false, true]) it(`local shutdown rejects late writes and 
     expect(f.b.get(job.id)?.leaseExpiresAt).toBe(original?.leaseExpiresAt);
     release.resolve(); await running;
     expect(cancelled).toBe(true);
-    expect(commitError).toMatchObject({ message: "RUNTIME_SHUTDOWN" });
-    expect(checkpointError).toMatchObject({ message: "RUNTIME_SHUTDOWN" });
+    expect(commitError).toMatchObject({ message: "alchemist.runtime_shutdown" });
+    expect(checkpointError).toMatchObject({ message: "alchemist.runtime_shutdown" });
     expect(f.b.get(job.id)).toMatchObject({ status: "running", checkpoint: { phase: "external_call_started" } });
     expect(f.second.prepare("SELECT * FROM business_result").all()).toEqual([]);
     expect(f.b.listEvents(job.id).map(event => event.type)).toEqual(["queued", "running", "checkpoint_saved"]);
@@ -113,11 +113,13 @@ it("a replaced worker cannot overwrite the recovered brainstorm or repeat its am
     expect(f.b.recoverExpired()).toBe(1);
     expect(f.a.renewLease(receipt.jobId)).toBe(false);
     await replacement.runNext();
-    expect(f.b.get(receipt.jobId)).toMatchObject({ status: "failed", errorCode: "AI_CALL_INTERRUPTED", attempt: 2 });
+    expect(f.b.get(receipt.jobId)).toMatchObject({ status: "failed", errorCode: "alchemist.ai_call_interrupted", attempt: 2 });
     release.resolve(); await running;
     expect(generate).toHaveBeenCalledTimes(1);
-    expect(explorations.get(receipt.runId)).toMatchObject({ status: "failed", errorCode: "AI_CALL_INTERRUPTED", cards: [] });
-    expect(f.b.get(receipt.jobId)?.errorCode).toBe("AI_CALL_INTERRUPTED");
+    expect(explorations.get(receipt.runId)).toMatchObject({ status: "failed", errorCode: "alchemist.ai_call_interrupted", cards: [] });
+    expect(f.b.get(receipt.jobId)?.errorCode).toBe("alchemist.ai_call_interrupted");
+    // J5C-01/J5C-03: the same current code is durable in the job and its event payload.
+    expect(f.b.listEvents(receipt.jobId).find(event => event.type === "failed")?.payload).toEqual({ errorCode: "alchemist.ai_call_interrupted" });
   } finally { release.resolve(); await running; f.close(); vi.useRealTimers(); }
 });
 

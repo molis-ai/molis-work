@@ -9,16 +9,19 @@ import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-h
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { CODING_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
+import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/dist/coding-surface.js";
 
-test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable context, and keeps original report ownership after reassociation and restart", async () => {
-  const root = mkdtempSync(join(tmpdir(), "coding-goal-context-")), databasePath = join(root, "project.db");
-  seedDemoBoard(databasePath);
-  const ref = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+function codingHostFixture(root: string) {
   const starts: AgentStartRequest[] = [], runs: AgentRunView[] = [];
   let sdkSessions = 0;
-  const host = new MolisWorkLocalHost({ workspacesFor: () => [{ workspace_id: "work", canonical_path: root, display_name: "fixture", realpath_verified: true }] });
+  let captured: HostPluginCaller | undefined;
+  let heldProgress: { enter(): void; wait: Promise<void> } | undefined;
+  const host = new MolisWorkLocalHost({ actionAvailability: (caller, action) => { if (caller.audience === "plugin" && action.capability_id === goalPluginActions.contract.capability_id) captured = caller.host_plugin; if (heldProgress && caller.audience === "plugin" && action.capability_id === goalPluginActions.progress.capability_id && caller.allowed_actions?.some(ref => ref.capability_id === action.capability_id && ref.provider_id)) {
+      const held = heldProgress; heldProgress = undefined; held.enter(); return held.wait.then(() => ({ available: true as const }));
+    } return { available: true }; }, workspacesFor: () => [{ workspace_id: "work", canonical_path: root, display_name: "fixture", realpath_verified: true }] });
   host.registerCapability(agent.availableRoles, () => [{ role_id: "reader", available: true }] as any);
   host.registerCapability(agent.createSession, () => ({ runtime_id: "prologue", session_id: `sdk-${++sdkSessions}` }));
   host.registerCapability(agent.startRun, (_runtime, [, input]) => {
@@ -30,6 +33,67 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
   });
   host.registerCapability(agent.readSession, (_runtime, [session]) => ({ runs: runs.filter(run => run.ref.session_id === session.session_id).map(run => run.ref) }) as any);
   host.registerCapability(agent.readRun, (_runtime, [, runRef]) => structuredClone(runs.find(run => run.ref.run_id === runRef.run_id)!));
+  return { host, starts, runs, sessionCount: () => sdkSessions, builtinCaller: () => captured, holdProgress() {
+    const entered = Promise.withResolvers<void>(), released = Promise.withResolvers<void>();
+    heldProgress = { enter: () => entered.resolve(), wait: released.promise };
+    return { entered: entered.promise, release: () => released.resolve() };
+  } };
+}
+async function readGoalSnapshot(actions: BoundActionClient, goal_id: string) {
+  const { goal } = await actions.invoke(goalPluginActions.contract, { goal_id });
+  const { observed_event_cursor: _cursor, ...state } = await actions.invoke(goalPluginActions.state, { goal_id });
+  return { goal, state };
+}
+async function setOriginalOutcome(host: MolisWorkLocalHost, ref: ReturnType<typeof molisWorkHostProjectReference>, outcome: string, idempotency_key: string) {
+  await host.withProject(ref, ({ coordinator }) => {
+    const current = coordinator.goalEvents.readState(DEMO_PROJECT_ID, "original");
+    coordinator.goalEvents.setAgreement({ project_id: DEMO_PROJECT_ID, goal_id: "original", actor_id: "web-user", actor_kind: "user",
+      idempotency_key, expected_config_version: current.config.version, expected_agreement_version: current.agreement.version, outcome });
+  });
+}
+async function rejectCopiedBuiltinCaller(host: MolisWorkLocalHost, ref: ReturnType<typeof molisWorkHostProjectReference>, original: HostPluginCaller | undefined) {
+  assert.ok(original);
+  const caller = { actor_id: original.actor_id, actor_kind: "user" as const, audience: "plugin" as const, project_id: original.project_id,
+    permissions: ["goals:read", "goals:write"], plugin_install_id: original.install_id, host_plugin: original };
+  const copied = { ...original };
+  for (const definition of [goalPluginActions.contract, goalPluginActions.state]) {
+    await assert.rejects(host.actionClient(ref).invoke({ ...caller, host_plugin: copied }, definition, { goal_id: "original" }), { code: "goals.builtin_plugin_required" });
+    await assert.rejects(host.actionClient(ref).invoke({ ...caller, actor_id: "different-person" }, definition, { goal_id: "original" }), { code: "goals.builtin_plugin_required" });
+  }
+}
+
+async function rejectStoppedGoalProgress(host: MolisWorkLocalHost, ref: ReturnType<typeof molisWorkHostProjectReference>,
+  request: (path: string, method?: string, body?: unknown) => Promise<{ status: number; body: Record<string, unknown> }>, path: string, input: unknown,
+  hold: () => { entered: Promise<void>; release(): void }, caller: HostPluginCaller | undefined) {
+  // W3-07-8-02: the actual running Coding session loses authority while its Goal write awaits real Host policy.
+  const owner = await host.withProject(ref, runtime => runtime.store), before = owner.readEventsDescending(DEMO_PROJECT_ID);
+  const barrier = hold(), pending = request(path, "POST", input);
+  try {
+    await Promise.race([barrier.entered, pending.then(answer => { throw new Error(`Goal write did not reach its policy barrier: ${answer.status}`); })]);
+    await releaseCodingSurface(owner, DEMO_PROJECT_ID);
+    barrier.release();
+    const refused = await pending;
+    const stopStatuses: Record<string, number> = { "actions.expired": 400, "actions.forbidden": 403, "goals.builtin_plugin_required": 400 };
+    const expectedStatus = stopStatuses[String(refused.body.code)];
+    assert.ok(expectedStatus, JSON.stringify(refused.body)); assert.equal(refused.status, expectedStatus, JSON.stringify(refused.body));
+    assert.deepEqual(owner.readEventsDescending(DEMO_PROJECT_ID), before, "revocation writes no progress, receipt or Goal event");
+  } finally { barrier.release(); }
+  assert.ok(caller);
+  const stale = { actor_id: caller.actor_id, actor_kind: "user" as const, audience: "plugin" as const, project_id: caller.project_id,
+    permissions: ["goals:read"], plugin_install_id: caller.install_id, host_plugin: caller };
+  await assert.rejects(host.actionClient(ref).invoke(stale, goalPluginActions.state, { goal_id: "original" }), { code: "goals.builtin_plugin_required" });
+  const reopened = await request(path); assert.equal(reopened.status, 200, JSON.stringify(reopened.body));
+  await assert.rejects(host.actionClient(ref).invoke(stale, goalPluginActions.state, { goal_id: "original" }), { code: "goals.builtin_plugin_required" }, "restart grants only its new session, not the old object");
+  assert.equal(reopened.body.recorded, null, "a restarted actual Coding definition reads no late receipt");
+}
+
+test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable context, and keeps original report ownership after reassociation and restart", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coding-goal-context-")), databasePath = join(root, "project.db");
+  seedDemoBoard(databasePath);
+  const ref = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+  const { host, starts, runs, sessionCount, builtinCaller, holdProgress } = codingHostFixture(root);
+  const goalActions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "web-user", actor_kind: "user", audience: "user", project_id: DEMO_PROJECT_ID, permissions: ["goals:read", "goals:write"] }));
+  const readGoal = (goal_id: string) => readGoalSnapshot(goalActions, goal_id);
   const createGoal = (id: string, board = DEMO_PROJECT_ID, outcome = "固定原始目标🌲\r\n只评审，不写磁盘") => host.withProject(ref, ({ coordinator }) => coordinator.goalEvents.createIntent({ project_id: board, goal_id: id, title: `目标 ${id}`, outcome, why: "保留原始依据", business_logic: "先评审再决定", actor_id: "web-user", actor_kind: "user", idempotency_key: `create-${id}`, requirements: [{ requirement_id: `human-${id}`, statement: "用户确认评审结果", human_decision_required: true }] }));
   await createGoal("original"); await createGoal("next"); await createGoal("oversized", DEMO_PROJECT_ID, "长".repeat(21_000));
   await host.withProject(ref, ({ coordinator }) => coordinator.initializeBoard({ project_id: "other", title: "Other", actor_id: "web-user", idempotency_key: "other" }));
@@ -55,13 +119,14 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     const start = () => request(`${sessionPath}/runs`, "POST", { task: "只读已关联目标", intent: "discuss", workspace_id: "work", provider_id: "p", model_id: "m", goal_id: "foreign", text_materials: [{ text: "伪造目标与已验收" }] });
     const pick = (value: any) => request(`${sessionPath}/goal`, "PUT", { goal_id: value.snapshot.goal.goal_id, expected_artifact_id: value.reference.artifact_id, text: "伪造正文" });
     assert.equal((await request("/goals/foreign")).status, 400);
-    await assert.rejects(host.client(ref).invoke(goalContextCapabilities.read, { goal_id: "foreign", project_id: "other" } as any));
+    await assert.rejects(goalActions.invoke(goalPluginActions.contract, { goal_id: "foreign", project_id: "other" } as never));
     assert.equal((await request("/goals/oversized")).status, 400);
-    assert.equal(sdkSessions, 0);
+    assert.equal(sessionCount(), 0);
     const choices = (await request("/goals")).body;
     assert.ok(choices.goals.some((item: any) => item.goal_id === "original"));
     assert.ok(!choices.goals.some((item: any) => item.goal_id === "foreign"));
     const original = (await request("/goals/original")).body;
+    await rejectCopiedBuiltinCaller(host, ref, builtinCaller());
     const picked = await pick(original); assert.equal(picked.status, 200, JSON.stringify(picked.body));
     assert.equal((await request(sessionPath)).body.session.goal_title, "目标 original", "title is available before the first runtime session");
     assert.equal((await start()).status, 200);
@@ -110,13 +175,21 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     assert.equal(firstOutput.status, 200, JSON.stringify(firstOutput.body));
     assert.deepEqual(firstOutput.body.current, report.body.reference, "output source is the saved report, never the browser payload");
     const progressPath = `${sessionPath}/runs/run-1/report/progress`;
-    const progressPreview = (await request(progressPath)).body;
+    // W3-07-8-02: this confirmation reads facts; it does not create a new model material under the 20k limit.
+    const priorAgreement = (await readGoal("original")).state;
+    await setOriginalOutcome(host, ref, "长".repeat(21_000), "grow-after-fixed-report");
+    const progressResponse = await request(progressPath); assert.equal(progressResponse.status, 200, JSON.stringify(progressResponse.body));
+    const progressPreview = progressResponse.body;
+    assert.equal(progressPreview.current.state.agreement.outcome.length, 21_000);
+
     assert.equal(progressPreview.current.goal.goal_id, "original");
     const progressInput = (view: any) => ({ expected_goal_cursor: view.current.state.goal_event_cursor, summary: "已完成只读评审，数量边界仍待用户确认。",
       next_step: "由用户阅读固定报告后决定下一步。", goal_id: "next", actor_id: "intruder", source: { artifact_id: "forged", version: 99 } });
     await note("original", "after-progress-preview");
     assert.equal((await request(progressPath, "POST", progressInput(progressPreview))).status, 400, "a change after preview requires a fresh review");
-    const freshProgress = (await request(progressPath)).body, confirmed = progressInput(freshProgress);
+    const freshProgress = (await request(progressPath)).body;
+    await rejectStoppedGoalProgress(host, ref, request, progressPath, progressInput(freshProgress), holdProgress, builtinCaller());
+    const confirmed = progressInput((await request(progressPath)).body);
     assert.equal((await request(progressPath, "POST", { ...confirmed, expected_goal_cursor: confirmed.expected_goal_cursor + 1 })).status, 400, "the Goal version is checked in the original write transaction");
     const results = await Promise.all([request(progressPath, "POST", confirmed), request(progressPath, "POST", confirmed)]);
     for (const result of results) assert.equal(result.status, 200, JSON.stringify(result.body));
@@ -125,22 +198,23 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     assert.equal(recorded.progress_summary.actor_id, "web-user");
     assert.deepEqual(recorded.progress_summary.source, { ...report.body.reference, title: report.body.report.title,
       origin: { plugin_id: "coding", item_id: report.body.reference.artifact_id } });
-    const afterProgress = await host.client(ref).invoke(goalContextCapabilities.read, { goal_id: "original" });
+    const afterProgress = await readGoal("original");
     assert.equal(afterProgress.state.work_status, "open");
     assert.equal(afterProgress.goal.accepted_at, null);
     assert.deepEqual(afterProgress.state.progress_summary?.source, recorded.progress_summary.source);
     const writtenEvent = await host.withProject(ref, ({ coordinator }) => coordinator.goalEvents.readEvent(DEMO_PROJECT_ID, "original", recorded.event_id));
     assert.equal(writtenEvent.kind, "system");
     assert.deepEqual((writtenEvent.payload as any).source, recorded.progress_summary.source, "the public timeline reader preserves the fixed evidence source");
-    assert.equal((await host.client(ref).invoke(goalContextCapabilities.read, { goal_id: "next" })).state.progress_summary, null);
+    assert.equal((await readGoal("next")).state.progress_summary, null);
+    await setOriginalOutcome(host, ref, priorAgreement.agreement.outcome, "restore-after-progress-confirmation");
     await note("original", "after-progress-write");
     assert.equal((await request(progressPath, "POST", confirmed)).body.event_id, recorded.event_id, "lost-response retry survives later Goal changes without writing again");
     assert.equal((await request(progressPath, "POST", { ...confirmed, summary: "不同内容不得静默覆盖" })).status, 400);
     assert.equal((await request(progressPath)).body.recorded.event_id, recorded.event_id);
     assert.equal((await request(progressPath)).body.current, null, "receipt is read without pretending a new progress confirmation is needed");
-    assert.equal(await host.client(ref).invoke(goalProgressCapabilities.receipt, { goal_id: "next", actor_id: "web-user", idempotency_key: `coding-report-progress:${report.body.reference.artifact_id}@1` }), null, "a receipt cannot be relabeled as another Goal");
+    assert.equal(await goalActions.invoke(goalPluginActions.receipt, { goal_id: "next", idempotency_key: `coding-report-progress:${report.body.reference.artifact_id}@1` }), null, "a receipt cannot be relabeled as another Goal");
     const { actor_id: _forgedActor, ...forgedProgress } = confirmed;
-    await assert.rejects(host.client(ref).invoke(goalProgressCapabilities.record, { ...forgedProgress, project_id: "other", goal_id: "foreign", idempotency_key: "forged-board", based_on_cursor: 0 } as any));
+    await assert.rejects(goalActions.invoke(goalPluginActions.progress, { ...forgedProgress, project_id: "other", goal_id: "foreign", idempotency_key: "forged-board", based_on_cursor: 0 } as any));
 
     assert.equal((await start()).status, 200);
     assert.equal(starts[2].text_materials?.[0]?.source_artifact_id, next.reference.artifact_id);
@@ -177,7 +251,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     assert.equal((await start()).status, 200);
     assert.equal(starts.at(-1)?.text_materials?.[0]?.text, latest.material.text);
     const revisedReport = (await request(`${sessionPath}/runs/run-5/report`, "POST")).body;
-    assert.equal(revisedReport.report.goal.agreement_version, 2);
+    assert.equal(revisedReport.report.goal.agreement_version, 4);
     assert.deepEqual(revisedReport.report.goal.reference, latest.reference);
     const countBeforeOutput = await host.withProject(ref, ({ coordinator }) => coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length);
     const revisedOutputPath = `${sessionPath}/runs/run-5/report/output`;

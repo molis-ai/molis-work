@@ -78,10 +78,10 @@ function synthesizeInput(input: FragmentOffersInput): unknown {
   const inputs = input.fragment.targets.filter(target => target.ref).map(target => ({
     entry_id: `pages:${target.ref!.id}`, item_id: target.ref!.id, revision: Number(target.ref!.version) || 0, title: target.ref!.title ?? "",
     body: target.text, url: null, source_label: "Pages", captured_at: new Date(0).toISOString(),
-    provenance: [{ kind: target.ref!.kind, id: target.ref!.id, version: target.ref!.version ?? null, selected_as: "context-actions" }],
+    provenance: [{ kind: target.ref!.kind, id: target.ref!.id, version: target.ref!.version ?? null, selected_as: "context-actions", snapshot_scope: "selection", truncated: target.truncated === true }],
   }));
   const titles = inputs.map(item => item.title).filter(Boolean);
   return { request_id: input.request_id, request_hash: input.request_id, inputs,
-    title: titles.length ? `综合：${titles.slice(0, 3).join(" · ")}` : "综合文稿",
+    title: titles.length ? `综合：${titles.slice(0, 3).join(" · ")}`.slice(0, 80) : "综合文稿",
     instructions: "提炼这些材料的共同结论、分歧和可执行建议，写成一篇结构清楚的新文档；引用时注明出自哪份材料。" };
 }

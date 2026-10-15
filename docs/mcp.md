@@ -55,11 +55,15 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 | 项目指导 | `goals.guidance.read`、`goals.guidance.add`、`goals.guidance.update` |
 | 回收站 | `goals.trash.set`（`trashed` 为真移入、为假恢复）、`goals.trash.list` |
 
+已精确授权的动作暂不可用时，`tools/list` 隐藏它；调用原工具名仍交给 Host 判断，返回同一原因和稳定错误码（例如 `actions.plugin_disabled`），并在这次操作留行时附可查询的诊断编号。未知、未授权、撤权或 provider/version 不匹配的名字仍在 MCP 入口拒绝，不恢复管理工具权限。
+
+AI来源修改已有对象时，提交动作schema声明的读取版本（`expected_version`、`expected_revision`、`expected_revisions`、`expected_updated_at`，Functions authoring用`updated_at`）。缺版本或版本表未覆盖全部`ids`时返回`actions.version_required`，原事实不变；先重新读取再由当前意图决定提交。实际schema允许的`expected_revision: null`仍表示create-if-absent，陈旧版本由owner拒绝。
+
 动作的输入只含业务字段：项目、操作者和创建渠道由宿主从连接与会话注入，不接受 `project_id`、数据库路径、Web URL、`actor_id` / `actor_kind` / `runtime_actor_id`、`source_kind`。Runtime 写入时，宿主用会话身份生成审计作者（`runtime:<runtime_id>:<会话>`），没有稳定会话身份时写入被拒绝。
 
 最短工作路径是 `goals.create` → `goals.note`，无需类型或规划。需要结构化结果时用 `goals.events.configure` / `goals.events.report`。报告可以含多个事实和进展，整批有效才保存，回执给出当前状态、差距和游标。
 
-用户的决定只在受保护的 Web 界面或受信管理入口写入，不属于 Runtime。Runtime 可以提交具体变化、请求或引用已保存的有效决定，不能自填用户身份、确认文本或会话字段批准自己。受信管理入口使用 `MOLIS_WORK_MCP_AUDIENCE=management`，额外有平台工具 `initialize`、`event_decide`、`goal_tree_decide`；身份由宿主定为本机这个人（`web-user`），这三个工具的参数里没有身份字段：`event_decide` 带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 被拒绝（`mcp.unexpected_field`），`goal_tree_decide` 同样被拒绝（`actions.input_invalid`），`event_decide` 本身不带 `authority`，决定指向管理入口自身，宿主记本机这个人（出处 management）；`goal_tree_decide` 的 `authority` 只写对话出处 `conversation_ref`、`message_ref`（以及整组确认），在 `authority` 里带身份或出处（`actor_id`、`actor_kind`、`authority_source`）被拒绝（`goal_tree_proposal.authority_source_invalid`）；`initialize` 只取 `project_id`、`title`、`idempotency_key`，其余参数不读、不当作身份，也不报错。这三个工具指向项目库时必须给出路径：参数 `database_path`，或环境变量 `MOLIS_WORK_DATABASE`；两者都没有就报 `mcp.path_required`，没有按当前目录猜的默认路径。
+用户的决定只在受保护的 Web 界面或受信管理入口写入，不属于 Runtime。Runtime 可以提交具体变化、请求或引用已保存的有效决定，不能自填用户身份、确认文本或会话字段批准自己。受信管理入口使用 `MOLIS_WORK_MCP_AUDIENCE=management`，额外有平台工具 `initialize`、`event_decide`、`goal_tree_decide`；身份由宿主定为本机这个人（`web-user`），这三个工具的参数里没有身份字段：`event_decide` 带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 被拒绝（`mcp.unexpected_field`），`goal_tree_decide` 同样被拒绝（`actions.input_invalid`），`event_decide` 本身不带 `authority`，决定指向管理入口自身，宿主记本机这个人（出处 management）；`goal_tree_decide` 的 `authority` 只写对话出处 `conversation_ref`、`message_ref`（以及整组确认），在 `authority` 里带身份或出处（`actor_id`、`actor_kind`、`authority_source`）被拒绝（`goals.goal_tree_proposal.authority_source_invalid`）；`initialize` 只取 `project_id`、`title`、`idempotency_key`，其余参数不读、不当作身份，也不报错。三个管理业务各调用一个 Goals 动作，身份与单一动作权限由 Host 的私有管理工厂提供。传输未知字段、身份和 authority 的前置拒绝可无动作行、无编号；进入动作后的调用只结算一次，留行才带 Host 编号，客户端自带的编号不读。工具名、schema、成功 JSON 和原出处规则不变。这三个工具指向项目库时必须给出路径：参数 `database_path`，或环境变量 `MOLIS_WORK_DATABASE`；两者都没有就报 `mcp.path_required`，没有按当前目录猜的默认路径。
 
 服务不可用时报告失败，不切换数据库、改 URL 或使用 CLI 兜底。`mcp.context_refresh_required` 仅要求只读 `context_resolve`：返回 bound 后用原 idempotency_key 原样重试；未绑定则按项目选择流程处理。
 
@@ -73,3 +77,9 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 - 只有这次操作在调用记录里留了行才给编号：命令（成功或失败）、处理器之前就被拒绝的调用（记为「未执行」）、失败的读取。读取成功不留行，什么都不带；还没走到动作的失败（例如工具未授权、`mcp.tool_unknown`、常驻服务不在）也没有编号。
 - 向用户报告失败时把编号（至少前 6 位）和错误码一起带上，用户和维护者据此在 Molis Work 的调用记录里找到这次操作的每一步（界面上按编号查找随后续版本）。
 - 常驻服务和 `molis-work-mcp` 进程要是同一个版本：旧版本的 MCP 进程调用动作时不带编号，会被新版常驻服务以 `actions.input_invalid` 拒绝，重启 MCP 进程即可。
+
+错误响应的 text 是一份 JSON `{ error, code, details?, call_id? }`，标准动作、上下文与管理工具共用现行格式。旧的文本前缀/末行 JSON 与 message 字段已退役；owner 的 current_version、fields、recovery 等保留在 details，code 与真实已记录的 call_id 由出口给出。没有调用记录就没有编号。
+
+Goals 事件拒绝的现行 code 使用 goals.<原前缀>.<原因>，例如 goals.event_config.version_conflict、goals.event_progress.stale_goal、goals.event_http.unexpected_field。消息、kind 与 details 保持原含义；不读取或返回旧前缀。
+
+规划 issue.code 的现行 enum 为 goals.planning.*；包含该输出的 goals.planning.impact、goals.planning.graph.check、goals.tree.check、goals.tree.decide 均为版本2。MCP树检查名为 molis_work_v1_action_goals.tree.check__v2；发现与授权应固定当前版本，旧工具名不再提供。semantic_review.review_action固定goals.planning.impact@2。

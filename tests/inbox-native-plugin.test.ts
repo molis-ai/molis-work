@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, createInboxActionHandlers } from "@molis-ai/molis-work-plugin-inbox";
@@ -16,7 +17,7 @@ import {
   type InboxUiModel,
 } from "@molis-ai/molis-work-plugin-inbox";
 import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import { UiContributionError, UiHost } from "@molis-ai/molis-work-ui-host";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
 
 const primitives: InboxUiModel["primitives"] = {
   escape: (value) => String(value ?? "")
@@ -72,7 +73,7 @@ test("Workbench registers the Inbox UI Contribution through the generic UI Host"
   assert.deepEqual(host.list().map((item) => item.contribution_id), [INBOX_UI_CONTRIBUTION_ID]);
   assert.throws(
     () => host.register(inboxUiContribution),
-    (error) => error instanceof UiContributionError && error.code === "ui_contribution_conflict",
+    (error) => error instanceof ActionError && error.code === "ui_host.contribution_conflict",
   );
 
   const directory = host.render({

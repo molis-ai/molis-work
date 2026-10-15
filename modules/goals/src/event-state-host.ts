@@ -42,6 +42,5 @@ export interface GoalEventStateCore {
   requireOwnedWritable(projectId: string, goalId: string): GoalRecord;
   requireLocalScope(goal: GoalRecord, raw?: Partial<GoalEventScope>): GoalEventScope;
   assertConfigVersion(goal: GoalRecord, expected: number): void;
-  assertAgreementVersion(goal: GoalRecord, expected: number, code: string): void;
-  error: (code: string, message: string, details?: Record<string, unknown>) => Error;
+  assertAgreementVersion(goal: GoalRecord, expected: number, code: "goals.event_closure.stale_version" | "goals.event_agreement.stale_version"): void;
 }

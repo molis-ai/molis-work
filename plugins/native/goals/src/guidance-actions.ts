@@ -1,8 +1,10 @@
+import { guidanceKindSchema, guidanceCommonSchema, projectGuidanceEntrySchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+export { projectGuidanceEntrySchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AddProjectGuidanceInput, AddProjectGuidanceResult, UpdateProjectGuidanceInput, UpdateProjectGuidanceResult,
   ProjectGuidanceView, GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction, goalActor } from "./action-contract.js";
-import { text, identifier, count, boolean, object, array, enumeration } from "./event-action-schemas.js";
+import { text, identifier, count, boolean, object, array, enumeration } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
 type AddInput = Omit<AddProjectGuidanceInput, "project_id" | "actor_id">;
 type UpdateInput = Omit<UpdateProjectGuidanceInput, "project_id" | "actor_id">;
@@ -10,10 +12,7 @@ export interface GoalsGuidanceActionPorts {
   commands: Pick<GoalsCommandApi, "addProjectGuidance" | "updateProjectGuidance">;
   read(projectId: string): ProjectGuidanceView;
 }
-const kind = enumeration(["context", "requirement", "constraint", "convention", "workflow", "quality_bar"]);
-const common = { guidance_id: text, project_id: text, revision: count, active: boolean, kind, content: text,
-  content_hash: text, source_refs: array(text), confirmation_summary: text, reason: text, created_at: text };
-export const projectGuidanceEntrySchema = object({ ...common, position: count, created_by: text, updated_by: text, updated_at: text });
+const kind = guidanceKindSchema, common = guidanceCommonSchema;
 const entry = projectGuidanceEntrySchema;
 const revision = object({ ...common, revision_id: text, changed_by: text, change_kind: enumeration(["created", "edited", "deactivated", "restored"]) });
 const write = { reason: identifier, confirmation_summary: identifier, user_confirmed: boolean, idempotency_key: identifier };

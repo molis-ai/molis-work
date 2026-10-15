@@ -47,28 +47,28 @@ describe("cross-task work reuse through original Alchemist owners", { timeout: 3
   });
   it("rejects inappropriate/changed/disabled methods without spending model calls",async()=>{
     const {method}=await firstRound();
-    await expect(f.plan({artifacts:[],methodIds:[method.id]},"build_cost")).rejects.toMatchObject({code:"REUSE_METHOD_NOT_APPLICABLE"});
+    await expect(f.plan({artifacts:[],methodIds:[method.id]},"build_cost")).rejects.toMatchObject({code:"alchemist.reuse_method_not_applicable"});
     const {plan}=await f.plan();const before=f.requests.length;
     await f.call(a.playbookRevise,{id:method.id,expectedVersion:1,methodChange:"新方法",positiveExamples:[],negativeExamples:[]});
-    await expect(f.call(a.playbookRevise,{id:method.id,expectedVersion:1,methodChange:"覆盖",positiveExamples:[],negativeExamples:[]})).rejects.toMatchObject({code:"REUSE_METHOD_CHANGED"});
-    await expect(f.run(plan.id)).rejects.toMatchObject({code:"REUSE_METHOD_CHANGED"});expect(f.requests.length).toBe(before);
+    await expect(f.call(a.playbookRevise,{id:method.id,expectedVersion:1,methodChange:"覆盖",positiveExamples:[],negativeExamples:[]})).rejects.toMatchObject({code:"alchemist.reuse_method_changed"});
+    await expect(f.run(plan.id)).rejects.toMatchObject({code:"alchemist.reuse_method_changed"});expect(f.requests.length).toBe(before);
     await f.call(a.playbookDisable,{id:method.id});expect((await f.call(a.reuseCandidates,{intent:"下一次",directionId:f.direction.id})).methods).toHaveLength(0);
   });
   it("checks withdrawal and permission both before and after model waits, never creating false consumption",async()=>{
     const {reference,method}=await firstRound();
     const reuse={artifacts:[{reference,reason:"背景"}],methodIds:[method.id]};
     const {plan}=await f.plan(reuse);f.afterGenerate(()=>f.deny());
-    const result=await f.run(plan.id);expect(result.workspace.lenses.market_space.run!.errorCode).toBe("REUSE_SOURCE_UNAVAILABLE");
+    const result=await f.run(plan.id);expect(result.workspace.lenses.market_space.run!.errorCode).toBe("alchemist.reuse_source_unavailable");
     expect((await f.call(a.reuseReceipt,{planId:plan.id})).receipt).toBeNull();
     f.afterGenerate();f.deny(false);
     f.artifacts.commands.archiveVersion({project_id:"project-test",actor_id:"actor-local",...reference});
-    await expect(f.plan(reuse)).rejects.toMatchObject({code:"REUSE_SOURCE_WITHDRAWN"});
+    await expect(f.plan(reuse)).rejects.toMatchObject({code:"alchemist.reuse_source_withdrawn"});
     expect((await f.call(a.reuseCandidates,{intent:"再开始",directionId:f.direction.id})).artifacts).toHaveLength(0);
   });
   it("does not record malformed AI output; recovers relation writes without another AI invocation",async()=>{
     const {reference,method}=await firstRound();
     const input={intent:"复用",directionId:f.direction.id,references:[reference],methodIds:[method.id]};
-    f.bad();await expect(f.call(a.reuseAssess,input)).rejects.toThrow("AI_OUTPUT_INVALID");f.bad(false);
+    f.bad();await expect(f.call(a.reuseAssess,input)).rejects.toThrow("alchemist.ai_output_invalid");f.bad(false);
     expect((await f.call(a.reuseAssess,input)).recommendations).toHaveLength(2);
     const {plan}=await f.plan({artifacts:[{reference,reason:"背景"}],methodIds:[method.id]});
     f.linkFailure();await f.run(plan.id);
@@ -83,11 +83,11 @@ describe("cross-task work reuse through original Alchemist owners", { timeout: 3
     const {plan}=await f.plan({artifacts:[],methodIds:[method.id]});
     f.afterGenerate(()=>{if(f.requests.at(-1)!.operationId.endsWith(':synthesizing'))f.allowWrite(false)});
     const result=await f.run(plan.id);
-    expect(result.workspace.lenses.market_space.run!.errorCode).toBe('REUSE_ACCESS_DENIED');
+    expect(result.workspace.lenses.market_space.run!.errorCode).toBe('alchemist.reuse_access_denied');
     expect(result.workspace.lenses.market_space.report!.runId).not.toBe(result.run.id);
     // The cross-check did happen; an honest receipt remains, while the final report failed.
     expect((await f.call(a.reuseReceipt,{planId:plan.id})).receipt!.runId).toBe(result.run.id);
-    await expect(f.call(a.reuseAssess,{intent:'复核',directionId:f.direction.id,references:[],methodIds:[method.id]})).rejects.toMatchObject({code:'REUSE_ACCESS_DENIED'});
+    await expect(f.call(a.reuseAssess,{intent:'复核',directionId:f.direction.id,references:[],methodIds:[method.id]})).rejects.toMatchObject({code:'alchemist.reuse_access_denied'});
   });
   it("resumes pending method confirmation and refuses duplicate run dispatch",async()=>{
     const {report,method}=await firstRound();
@@ -122,7 +122,7 @@ describe("cross-task work reuse through original Alchemist owners", { timeout: 3
     const {plan}=await f.plan(undefined,'market_space',f.idea,4);
     f.runtime.database.prepare('UPDATE research_plans SET reuse_json = NULL WHERE id = ?').run(plan.id);await f.restart();
     const result=await f.run(plan.id);
-    expect(result.workspace.lenses.market_space.run!.errorCode).toBe('REUSE_ACCESS_DENIED');
+    expect(result.workspace.lenses.market_space.run!.errorCode).toBe('alchemist.reuse_access_denied');
     expect(f.requests.filter(r=>r.operationId.startsWith(plan.id))).toHaveLength(1);
     expect((await f.call(a.reuseReceipt,{planId:plan.id})).receipt).toBeNull();
   });

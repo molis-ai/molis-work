@@ -124,7 +124,7 @@ export function createLocalPlanningHttp(ports: {
           user_confirmed: body.user_confirmed === true,
         }));
       } catch (error) {
-        sendJson(response, error && typeof error === "object" && "code" in error && error.code === "planning_method.not_found" ? 404 : 400,
+        sendJson(response, error && typeof error === "object" && "code" in error && error.code === "goals.planning.method_not_found" ? 404 : 400,
           { error: error instanceof Error ? error.message : String(error) });
       }
       return true;

@@ -29,8 +29,6 @@ export class PersonalPlanningMethods {
   constructor(private readonly db: GoalsSqliteDatabase) {}
 
   list(): PlanningMethodPack[] {
-    // Older catalogs legitimately have no personal library. Reading is never migration.
-    if (!this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'personal_planning_method_packs'").get()) return [];
     return (this.db.prepare("SELECT pack_json FROM personal_planning_method_packs ORDER BY method_id")
       .all() as Array<{ pack_json?: unknown }>)
       .map(row => parsePack(row.pack_json))

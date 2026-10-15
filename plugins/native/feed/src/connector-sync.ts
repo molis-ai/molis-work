@@ -1,6 +1,8 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { listenerErrors } from "@molis-ai/molis-work-contracts/services/listener-host";
 import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import { ListenerHostError, type ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
+import { type ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord } from "./projection.js";
 import type { FeedSourceSyncResult, FeedSourceSyncInput } from "./source-ports.js";
@@ -8,6 +10,7 @@ import { createFeedSourceSyncGuard } from "./source-sync-guard.js";
 import type { FeedConnectorSyncPorts, FeedConnectorListener, ConnectorSyncMode } from "./connector-sync-ports.js";
 import { normalizeIdempotencyKey, stableId } from "./source-input.js";
 import { toFeedPublicError } from "./application-errors.js";
+import { safeErrorCode } from "./source-sync-result.js";
 
 export class FeedConnectorSync {
   private readonly feed: FeedApplication;
@@ -75,7 +78,8 @@ export class FeedConnectorSync {
     } catch (error) {
       await beforeEffect();
       const updatedAt = new Date().toISOString();
-      const errorCode = error instanceof ListenerHostError ? error.code : safeConnectorErrorCode(error);
+      const errorCode = error instanceof ActionError && error.code.startsWith("listener.")
+        && Object.hasOwn(listenerErrors, error.code.slice("listener.".length)) ? error.code : safeErrorCode(error);
       await this.ports.reportCrash(source.source_id, errorCode);
       await beforeEffect();
       const latest = this.feed.getSource(this.projectId, sourceId);
@@ -145,7 +149,7 @@ export class FeedConnectorSync {
       ...this.ports.sourceMetadata(latest, cursor),
       last_sync_at: completedAt,
       last_outcome: "completed",
-      last_error_code: mode === "live" ? null : "fixture_not_live",
+      last_error_code: mode === "live" ? null : "feed.fixture_not_live",
       updated_at: completedAt,
     });
     this.ports.appendEvent(this.projectId, source.source_id, "feed_connector.sync_completed", `${source.name} 同步完成：新增 ${listenerResult.created_count}，去重 ${listenerResult.deduped_count}`, {
@@ -201,13 +205,4 @@ export class FeedConnectorSync {
     }
   }
 
-}
-
-function safeConnectorErrorCode(error: unknown): string {
-  const code = error && typeof error === "object" && "code" in error
-    ? (error as { code?: unknown }).code
-    : undefined;
-  return typeof code === "string" && /^[a-z][a-z0-9_]{1,63}$/u.test(code)
-    ? code
-    : "provider_interrupted";
 }

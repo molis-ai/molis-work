@@ -1147,7 +1147,7 @@ Runtime 按规范 propose → read → check → 请求用户确认，仍无法�
 
 ### 9. 最小修复范围
 
-只修改 Goal Tree Proposal 的 normalize、baseline、check 和 decide：关系条目自动补齐端点 affected objects；新 baseline 写入带版本前缀的语义 hash，旧无前缀 baseline 继续按旧方式比较；check 在数据库 savepoint 内调用现有 materializer，逐条回滚预检写入；whole confirmation 遇到任何冲突抛出结构化 `goal_tree_proposal.whole_confirmation_conflict`，由外层 immediate transaction 回滚所有已模拟或已物化条目。保留显式逐项 decisions 的 `partially_applied` 语义，不修改 accepted Contract 不可变规则，不自动删除两次真实事故已落地的数据。回滚无需 schema migration。
+只修改 Goal Tree Proposal 的 normalize、baseline、check 和 decide：关系条目自动补齐端点 affected objects；新 baseline 写入带版本前缀的语义 hash，旧无前缀 baseline 继续按旧方式比较；check 在数据库 savepoint 内调用现有 materializer，逐条回滚预检写入；whole confirmation 遇到任何冲突抛出结构化 `goals.goal_tree_proposal.whole_confirmation_conflict`，由外层 immediate transaction 回滚所有已模拟或已物化条目。保留显式逐项 decisions 的 `partially_applied` 语义，不修改 accepted Contract 不可变规则，不自动删除两次真实事故已落地的数据。回滚无需 schema migration。
 
 ### 10. 验收边界
 

@@ -7,7 +7,6 @@ import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host
 import { feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { type MolisWorkProjectCatalog } from "./project-catalog.js";
-import { MolisWorkV1Error } from "./goal-project-application.js";
 import { desktopPanelSessionIds } from "./web-session.js";
 import { recordDesktopPanelSessions } from "./panel-sessions.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -76,7 +75,7 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
       readGoal: async (goalId) => {
         const collection = await actions.invoke(goalsActions.collection, {});
         const entry = [...collection.goals, ...collection.archived_goals, ...collection.trashed_goals].find(row => row.goal.goal_id === goalId);
-        if (!entry) throw new ActionError("actions.not_found", "找不到这个 Goal");
+        if (!entry) throw new ActionError("actions.missing", "找不到这个 Goal");
         const { goal, event_work } = entry;
         const state = event_work ? await actions.invoke(goalsActions.state, { goal_id: goalId }) : null;
         const event_facts = state
@@ -101,7 +100,7 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
       launchSpec: ports.launchSpec,
       advancePrompt: ports.advancePrompt,
       kill: (panelId) => ptyHost.kill(panelId),
-      classifyError: (error) => error instanceof ActionError ? actionHttpStatus(error) : error instanceof MolisWorkV1Error ? 404 : null,
+      classifyError: (error) => error instanceof ActionError ? actionHttpStatus(error) : null,
     });
   }
 

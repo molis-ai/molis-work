@@ -1,12 +1,13 @@
+import { DEFAULT_RESIDENT_HOST_URL } from "./resident-host-request.js";
+import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ensureSystemAgentService } from "./system-agent-service.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsActions, readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { createMcpRuntimeContextHandlers, createMcpContextPresenter, handleMcpMessage,
   mcpRuntimeSessionActivity, MCP_SERVER_INFO as SERVER_INFO,
-  createActionMcpPorts, isRuntimeContextMcpTool, molisWorkActionToolName,
+  createActionMcpPorts, isPlatformMcpTool, isRuntimeContextMcpTool, molisWorkActionToolName,
   type McpToolResult, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
@@ -156,7 +157,7 @@ export class LocalMcpServer {
     const auditActor = sessionCall ? sessionActor(sessionCall) : undefined;
     const runtimeSessionId = auditActor?.slice(current.context.actor_id.length + 1);
     if (auditActor) current.context = { ...current.context, audit_actor_id: auditActor, actor_kind: "runtime", runtime_session_id: runtimeSessionId };
-    const checkContext = () => {
+    const checkContext = () => { this.connectionState.signal.throwIfAborted(); this.transportLifetime.signal.throwIfAborted();
       if (this.runtimeConnection !== connection || this.currentActions().context.actor_id !== current.context.actor_id
         || (sessionCall && sessionActor(sessionCall) !== auditActor))
         throw new ActionError("mcp.context_changed", "调用等待期间客户端或项目连接已变化，或会话身份不再一致，请重新发现能力");
@@ -174,7 +175,7 @@ export class LocalMcpServer {
         ports: createActionMcpPorts({ service, context: () => context, serverInfo: SERVER_INFO, toolName: molisWorkActionToolName }) };
     }
     const reference = this.runtimeConnection ? molisWorkHostProjectReference(this.runtimeConnection) : undefined;
-    const { context } = await authorizeMcpActions(this.localHost, current.context, home, reference, checkContext);
+    const { context } = await authorizeMcpActions(this.localHost, current.context, home, reference, checkContext, checkContext);
     return { ...current, context,
       ports: createActionMcpPorts({ service: current.service, context: () => context, serverInfo: SERVER_INFO, toolName: molisWorkActionToolName }) };
   }
@@ -186,7 +187,8 @@ export class LocalMcpServer {
     let actionServiceError: ActionError | undefined;
     try { discovered = await actions.service.discover(actions.context); }
     catch (error) {
-      if (!this.actionServiceUrl || !(error instanceof ActionError) || error.code !== "actions.service_unavailable") throw error;
+      // Management platform tools use their protected factory; granted action tools keep the same gateway and never run locally on its refusal.
+      if (!this.actionServiceUrl || !(error instanceof ActionError) || (this.audience === "runtime" && error.code !== "actions.service_unavailable")) throw error;
       actionServiceError = error;
       discovered = [];
     }
@@ -197,9 +199,11 @@ export class LocalMcpServer {
       authorized_actions: this.actionServiceUrl ? discovered.map(view => ({ capability_id: view.capability_id,
         version: view.version, provider_id: view.provider.provider_id })) : actions.context.allowed_actions,
     });
-    if (actionServiceError) return { ...catalog, actionServiceError,
-      tools: catalog.tools.filter(tool => isRuntimeContextMcpTool(tool.name)),
-      entries: catalog.entries.filter(entry => isRuntimeContextMcpTool(entry.definition.name)) };
+    if (actionServiceError) {
+      const platformAvailable = (name: string) => isRuntimeContextMcpTool(name) || (this.audience === "management" && isPlatformMcpTool(name));
+      return { ...catalog, actionServiceError, tools: catalog.tools.filter(tool => platformAvailable(tool.name)),
+        entries: catalog.entries.filter(entry => platformAvailable(entry.definition.name)) };
+    }
     return catalog;
   }
 
@@ -229,14 +233,14 @@ export class LocalMcpServer {
 
   private async callToolResult(name: string, arguments_: Record<string, unknown>, callContext: McpToolCallContext): Promise<string | McpToolResult> {
     const catalog = await this.ensureCatalog();
-    if (catalog.actionServiceError && !isRuntimeContextMcpTool(name)) throw catalog.actionServiceError;
+    if (catalog.actionServiceError && !isRuntimeContextMcpTool(name) && !(this.audience === "management" && isPlatformMcpTool(name))) throw catalog.actionServiceError;
     const connection = this.runtimeConnection;
     assertMcpToolAllowed({ audience: this.audience, connectionState: this.connectionState,
       runtimeConnection: this.runtimeConnection, runtimeContextHost: this.runtimeContextHost }, name, callContext, catalog);
     await this.linkPanelSession(this.runtimeContextHost, callContext.runtimeSessionId);
     const entry = findAssembledMcpTool(catalog, name);
     if (!entry) {
-      throw new MolisWorkV1Error("mcp.tool_unknown", `未知 MCP 方法：${name}`);
+      throw new ActionError("mcp.tool_unknown", `未知 MCP 方法：${name}`);
     }
     if (entry.source === "action") {
       if (this.runtimeConnection !== connection) throw new ActionError("mcp.context_changed", "客户端项目连接已变化，请重新发现能力");
@@ -254,7 +258,11 @@ export class LocalMcpServer {
     const contextHandler = lookupContextTool(this.contextTools, name);
     if (contextHandler) return contextHandler(arguments_ ?? {}, callContext);
     return callMcpV1Tool({ localHost: this.localHost, audience: this.audience,
-      runtimeConnection: this.audience === "runtime" ? this.runtimeConnection : null }, name, arguments_);
+      runtimeConnection: this.audience === "runtime" ? this.runtimeConnection : null,
+      ...(this.audience === "management" && (this.ownsLocalHost || this.actionServiceUrl) ? { resident: {
+        home: this.runtimeContextHost?.homeDirectory ?? resolveMolisWorkHome(),
+        origin: this.actionServiceUrl ?? readProductEnv("WEB_URL") ?? DEFAULT_RESIDENT_HOST_URL,
+        signal: this.transportLifetime.signal } } : {}) }, name, arguments_);
   }
 
   private async recordRuntimeSessionActivity(

@@ -10,6 +10,7 @@ import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import type { CodingSessionRecord } from "./store.js";
+import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { holdReason, openWait, waitViewOf, wakeBodyOf, type CodingWaitView } from "./waits.js";
 
 type Capabilities = NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>;
@@ -23,7 +24,9 @@ export interface CodingWakeDeps<Execution> {
   pause(ms: number): Promise<void>;
   records(execution: Execution): CodingSessionRecord[];
   record(execution: Execution, sessionId: string): CodingSessionRecord;
-  startRound(record: CodingSessionRecord, body: Record<string, unknown>, actorId: string, api: Capabilities, execution: Execution): Promise<unknown>;
+  /** The activation's own execution ports, which a loop started from a request reads and starts with. */
+  activation(execution: Execution): Execution;
+  startRound(record: CodingSessionRecord, body: Record<string, unknown>, actorId: string, api: Capabilities, execution: Execution, beforeWrite?: CodingBeforeWrite): Promise<unknown>;
 }
 
 export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
@@ -79,17 +82,25 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
     } finally { deps.busy.delete(found.session_id); }
   };
   const waking = new Set<string>();
-  /** One loop per runtime: it waits for a continuation to be ready (no polling of what the waits wait on) and takes it up. */
-  const wakeLoop = (api: Capabilities, execution: Execution, runtimeId: string) => {
+  /**
+   * One loop per runtime: it waits for a continuation to be ready (no polling of what the waits wait on) and takes it up.
+   * It belongs to the activation, not to the request that started it: it reads and starts with the activation's own
+   * capabilities and execution ports.
+   */
+  const wakeLoop = (_api: Capabilities, from: Execution, runtimeId: string) => {
+    const api = context.services!.capabilities!, execution = deps.activation(from);
     if (waking.has(runtimeId) || deps.stopped.aborted) return;
     waking.add(runtimeId);
     void (async () => {
       const held = new Set<string>();
-      // A Host that keeps no task graph, or has gone, answers with errors: after a few the loop stops (a later read restarts it).
-      for (let failures = 0; failures < 3 && !deps.stopped.aborted;) {
+      // Transient read failures back off while this activation is alive; a Host without a task graph ends the loop.
+      for (let failures = 0; !deps.stopped.aborted;) {
         let ready: CodingWaitView[];
-        try { ready = (await api.invoke(agent.awaitContinuations, [runtimeId, 25_000, [...held]])).flatMap(view => openWait(view) ?? []); failures = 0; }
-        catch { failures += 1; await deps.pause(5_000); continue; }
+        try { ready = (await api.invoke(agent.awaitContinuations, [runtimeId, 25_000, [...held]], { signal: deps.stopped })).flatMap(view => openWait(view) ?? []); failures = 0; }
+        catch (error) {
+          if (error && typeof error === "object" && "code" in error && error.code === "agent.capability_unavailable") break;
+          failures += 1; await deps.pause(Math.min(30_000, failures * 5_000)); continue;
+        }
         if (deps.stopped.aborted) break;
         let later = false;
         for (const view of ready) {
@@ -102,17 +113,19 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
     })().catch(() => undefined).finally(() => waking.delete(runtimeId));
   };
   /** The person gives the wait up: a request it waited on is withdrawn, a queued round's project work item goes. */
-  const cancel = async (api: Capabilities, record: CodingSessionRecord, view: CodingWaitView) => {
+  const cancel = async (api: Capabilities, record: CodingSessionRecord, view: CodingWaitView, beforeWrite?: CodingBeforeWrite) => {
     for (const one of view.wait.conditions) if (one.kind === "envelope") await api.invoke(agent.cancelMessage, [record.runtime_id, one.ref]).catch(() => undefined);
     const queued = queuedOf(view.wait.wait_id);
     if (view.wait.by === "app" && queued) await api.invoke(agent.releaseProjectRound, [record.runtime_id, queued.work_id, "用户取消了等待"]).catch(() => undefined);
-    if (view.wait.state === "waiting") await hostActions().invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "cancel-wait", wait_id: view.wait.wait_id, note: "用户取消了等待" });
+    if (view.wait.state === "waiting") await hostActions().invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "cancel-wait", wait_id: view.wait.wait_id, note: "用户取消了等待" },
+      beforeWrite && codingActionControl(beforeWrite));
     storage()?.delete(`queued:${view.wait.wait_id}`);
   };
   /** The person goes on before the wait is over: the continuation is ready at once, and the round started now takes it up. */
-  const goOn = async (api: Capabilities, execution: Execution, record: CodingSessionRecord, view: CodingWaitView, actorId: string) => {
-    if (view.wait.state === "waiting") await hostActions().invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "continue-now", wait_id: view.wait.wait_id, note: "用户选择现在开始" });
-    const started = await deps.startRound(record, wakeBody(record, view, true), actorId, api, execution);
+  const goOn = async (api: Capabilities, execution: Execution, record: CodingSessionRecord, view: CodingWaitView, actorId: string, beforeWrite?: CodingBeforeWrite) => {
+    if (view.wait.state === "waiting") await hostActions().invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "continue-now", wait_id: view.wait.wait_id, note: "用户选择现在开始" },
+      beforeWrite && codingActionControl(beforeWrite));
+    const started = await deps.startRound(record, wakeBody(record, view, true), actorId, api, execution, beforeWrite);
     storage()?.delete(`queued:${view.wait.wait_id}`);
     return started;
   };

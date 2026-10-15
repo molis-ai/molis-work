@@ -1,3 +1,4 @@
+import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import {
   icon,
   renderIconSprite,
@@ -94,7 +95,6 @@ function renderShelfNativePluginSurface(surface: "directory" | "workbench"): str
   });
 }
 
-
 function renderPagesNativePluginSurface(surface: "directory" | "workbench"): string {
   return renderPagesContribution(surface, {
     primitives: { escape: escapeHtml, text: L },
@@ -169,14 +169,6 @@ const renderMolisWorkSettings = createWorkbenchSettingsRenderer({
   themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
 });
 
-function escapeHtml(value: unknown): string {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
 
 function controlTokenMeta(controlToken: string): string {
   return `<meta name="molis-work-control-token" content="${escapeHtml(controlToken)}">`;

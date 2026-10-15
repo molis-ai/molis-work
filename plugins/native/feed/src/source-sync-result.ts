@@ -1,3 +1,4 @@
+import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { RssFetchReceipt } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedSourceRecord } from "./projection.js";
 import type { IntelligenceCollectResult } from "./source-ports.js";
@@ -48,18 +49,18 @@ export function terminalErrorCode(result: IntelligenceCollectResult): string | n
   if (receiptCode) return receiptCode;
   const stopReason = result.budget.stopReason;
   if (isSafeCode(stopReason)) return stopReason;
-  return result.outcome === "failed" ? "provider_failed" : result.outcome;
+  return "feed." + (result.outcome === "failed" ? "provider_failed" : result.outcome);
 }
 
 export function safeErrorCode(error: unknown): string {
   const code = error && typeof error === "object" && "code" in error
     ? (error as { code?: unknown }).code
     : undefined;
-  return isSafeCode(code) ? code : "provider_interrupted";
+  return isSafeCode(code) ? code : "feed.provider_interrupted";
 }
 
 export function isSafeCode(value: unknown): value is string {
-  return typeof value === "string" && /^[a-z][a-z0-9_]{1,63}$/u.test(value);
+  return typeof value === "string" && (ACTION_ERROR_CODE.test(value) || /^[a-z][a-z0-9_]{1,63}$/u.test(value));
 }
 
 export function interruptedMessage(code: string): string {

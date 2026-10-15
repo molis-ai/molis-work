@@ -47,14 +47,14 @@ export class GitHubSource implements SourcePort {
       return sourceError(
         this.sourceId,
         requestUrl,
-        error instanceof SourceHttpError ? error.code : "SOURCE_NETWORK_ERROR",
+        error instanceof SourceHttpError ? error.code : "alchemist.source_network_error",
       );
     }
     const remaining = parseHeaderNumber(response.headers["x-ratelimit-remaining"]);
     const reset = response.headers["x-ratelimit-reset"];
     if (response.status === 403 || response.status === 429) {
       return {
-        ...sourceError(this.sourceId, requestUrl, "SOURCE_RATE_LIMITED", response),
+        ...sourceError(this.sourceId, requestUrl, "alchemist.source_rate_limited", response),
         ...(remaining === undefined ? {} : { rateLimitRemaining: remaining }),
         ...(reset ? { rateLimitReset: reset } : {}),
       };
@@ -81,7 +81,7 @@ export class GitHubSource implements SourcePort {
         signals,
       };
     } catch {
-      return sourceError(this.sourceId, requestUrl, "SOURCE_INVALID_RESPONSE", response);
+      return sourceError(this.sourceId, requestUrl, "alchemist.source_invalid_response", response);
     }
   }
 }

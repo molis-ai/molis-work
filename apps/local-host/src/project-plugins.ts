@@ -20,6 +20,7 @@ import { SqlitePluginPrivateStorage, type PluginCapabilityPort } from "@molis-ai
 import { bindWorkspaceCompanions } from "./workspace-plugin-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
+import { projectScopeEntries } from "./plugin-scope-entries.js";
 
 export interface ProjectPluginPorts {
   observeGitOperations?(listener: (event: GitOperationUpdate) => void): () => void;
@@ -225,7 +226,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           "@molis-ai/molis-work-plugin-text-stats", "createTextStatsPlugin", factory => factory()),
       },
     ];
-    const report = await platform.start([...entries, ...projectFixtureEntries(ports.homeDirectory)]);
+    const report = await platform.start(projectScopeEntries([...entries, ...projectFixtureEntries(ports.homeDirectory)], ports.homeDirectory));
     bindWorkspaceCompanions(platform, ports.projectId, ports.actorId);
     record.running = report.running.includes(CODING_PLUGIN_ID);
     record.error = [...report.failed, ...report.blocked].find(entry => entry.plugin_id === CODING_PLUGIN_ID)?.message ?? undefined;

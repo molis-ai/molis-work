@@ -1,3 +1,5 @@
+import type { AgentStartExecution } from "./agent-host-start.js";
+export type { AgentStartExecution } from "./agent-host-start.js";
 import type { ActionCallOrigin, ActionView, ExactActionReference } from "../platform/actions.js";
 import type {
   AgentPromptLayer,
@@ -10,11 +12,11 @@ import type { HostCapabilityDefinition } from "../platform/app-host.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
 import type { CharacterContent } from "../modules/characters.js";
-import type { AgentDocumentCapability, AgentMemoryCapability, AgentMemoryRecallFact, AgentRecalledMemory } from "./agent-host-memory.js";
+import type { AgentDocumentCapability, AgentMemoryExecutionControl, AgentMemoryCapability, AgentMemoryRecallFact, AgentRecalledMemory } from "./agent-host-memory.js";
 import type { AgentAnswerControl, AgentPendingQuestion } from "./agent-interaction.js";
 import type { AgentCollaborationPort, AgentCollaborationSessionView } from "./agent-collaboration.js";
 // Memory and documents through the runtime: declared beside this file, part of the same contract.
-export type { AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability } from "./agent-host-memory.js";
+export type { AgentMemoryExecutionControl, AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability } from "./agent-host-memory.js";
 
 export const servicesAgentHostContract = {
   contractId: "io.molis.work.service.agent-host.v1",
@@ -1176,12 +1178,6 @@ export interface AgentRecoveryCapability {
   close(session: AgentSessionRef, runId: string, expectedVersion: number): Promise<AgentRecoveryReport>;
 }
 
-/** Host-owned, in-memory: authority checks, and the call number the Host gave the round (never from a Plugin payload). */
-export interface AgentStartExecution extends ActionCallOrigin {
-  beforeStart?(): void | Promise<void>;
-  /** Live owner authority, valid beyond the start invocation's lifetime. */
-  beforeDispatch?(): void | Promise<void>;
-}
 
 /**
  * What a Runtime says about itself, for developers: how it was assembled, what the machine gives it, and what it could
@@ -1202,6 +1198,8 @@ export interface AgentRuntimeDiagnostics {
 }
 
 export interface AgentRuntimeAdapter {
+  /** Trusted Host commit scope through the runtime's asynchronous preparation; never an Agent payload. */
+  withEffect?<T>(control: AgentMemoryExecutionControl, operation: () => Promise<T>): Promise<T>;
   /** The Runtime's own account of its assembly, for the developer diagnostics page; absent when it keeps none. */
   diagnostics?(): AgentRuntimeDiagnostics;
   readonly recovery?: AgentRecoveryCapability;
@@ -1210,7 +1208,7 @@ export interface AgentRuntimeAdapter {
   readonly documents?: AgentDocumentCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   health(): Promise<AgentRuntimeHealth>;
-  createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef>;
+  createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef>;
   readSession(session: AgentSessionRef): Promise<AgentSessionView>;
   /** The session's standing without copying its rounds; a Runtime without it is read through readSession. */
   readSessionStatus?(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }>;

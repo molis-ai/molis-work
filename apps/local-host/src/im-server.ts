@@ -44,7 +44,7 @@ export function createLocalImServer(homeDirectory: string, projectFor?: (id: str
         origin = address.origin;
       } catch {
         response.writeHead(403, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        response.end(JSON.stringify({ code: "server.host_denied", error: "群聊服务地址不匹配" }));
+        response.end(JSON.stringify({ code: "im.server.host_denied", error: "群聊服务地址不匹配" }));
         return true;
       }
       const current = resources ??= initialize();

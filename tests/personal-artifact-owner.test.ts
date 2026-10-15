@@ -53,8 +53,8 @@ test("a 成果 may name its owner apart from its producer, but in a Home only th
   const h = harness(), home = h.open(person);
   const named = home.commands.registerVersion(h.registration("workflow-events", 1, { owner_actor_id: person }));
   assert.deepEqual([named.artifact.owner_actor_id, named.artifact.created_by], [person, "workflow-events"]);
-  assert.equal(codeOf(() => home.commands.registerVersion(h.registration("workflow-events", 2, { owner_actor_id: "workflow-events" }))), "artifact.owner_invalid");
-  assert.equal(codeOf(() => home.commands.registerVersion(h.registration(person, 2, { owner_actor_id: " " }))), "artifact.input_invalid");
+  assert.equal(codeOf(() => home.commands.registerVersion(h.registration("workflow-events", 2, { owner_actor_id: "workflow-events" }))), "artifacts.artifact.owner_invalid");
+  assert.equal(codeOf(() => home.commands.registerVersion(h.registration(person, 2, { owner_actor_id: " " }))), "artifacts.artifact.input_invalid");
   assert.equal(home.query.listArtifactVersions("p", "report").length, 1, "a refused registration writes nothing");
 
   // Without a Home owner the named owner is honoured, and another one cannot add versions to the line.
@@ -62,8 +62,8 @@ test("a 成果 may name its owner apart from its producer, but in a Home only th
   const first = artifacts.commands.registerVersion(plain.registration("agent", 1, { owner_actor_id: "the-owner" }));
   assert.deepEqual([first.artifact.owner_actor_id, first.artifact.created_by], ["the-owner", "agent"]);
   assert.equal(artifacts.commands.registerVersion(plain.registration("workflow", 2, { owner_actor_id: "the-owner" })).artifact.version, 2);
-  assert.equal(codeOf(() => artifacts.commands.registerVersion(plain.registration("the-owner", 3, { owner_actor_id: "someone-else" }))), "artifact.not_owner");
-  assert.equal(codeOf(() => artifacts.commands.registerVersion(plain.registration("agent", 3))), "artifact.not_owner", "the producer alone is not the owner");
+  assert.equal(codeOf(() => artifacts.commands.registerVersion(plain.registration("the-owner", 3, { owner_actor_id: "someone-else" }))), "artifacts.artifact.not_owner");
+  assert.equal(codeOf(() => artifacts.commands.registerVersion(plain.registration("agent", 3))), "artifacts.artifact.not_owner", "the producer alone is not the owner");
 });
 
 test("an identity written before the Home named its owner is read as the person's: writable by them, nothing rewritten", () => {
@@ -90,12 +90,12 @@ test("the team-shared rule is unchanged: a shared 成果 stays with the actor th
   const h = harness(), artifacts = h.open(person);
   const shared = artifacts.commands.registerVersion(h.registration("agent", 1, { artifact_id: "shared", scope: "team_project", team_share_authorized: true }));
   assert.deepEqual([shared.artifact.scope, shared.artifact.owner_actor_id, shared.artifact.created_by], ["team_project", "agent", "agent"]);
-  assert.equal(codeOf(() => artifacts.commands.registerVersion(h.registration("workflow", 2, { artifact_id: "shared", scope: "team_project", team_share_authorized: true }))), "artifact.not_owner");
+  assert.equal(codeOf(() => artifacts.commands.registerVersion(h.registration("workflow", 2, { artifact_id: "shared", scope: "team_project", team_share_authorized: true }))), "artifacts.artifact.not_owner");
 
   const items = new ProcessItemsModule({ db: h.db as unknown as ArtifactsSqliteDatabase, appendEvent: event => Number(h.db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid), eventCursor: eventCursorOf(h.db) });
   const { origin: _origin, title: _title, media_type: _mediaType, ...item } = h.registration("shelf", 1, { artifact_id: "item", artifact_type_id: "io.example.item" });
   assert.equal(items.commands.registerVersion(item).artifact.owner_actor_id, "shelf", "an exchange item belongs to the plugin that produced it");
-  assert.equal(codeOf(() => items.commands.registerVersion({ ...item, actor_id: person, version: 2 })), "artifact.not_owner");
+  assert.equal(codeOf(() => items.commands.registerVersion({ ...item, actor_id: person, version: 2 })), "artifacts.artifact.not_owner");
 });
 
 // Re-importing a document: the same source is one line of snapshots, so the person's re-import goes on after a workflow's.

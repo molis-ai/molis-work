@@ -33,7 +33,11 @@ test("planning actions preserve complete methods, project versions, live policy 
     await assert.rejects(bound.invoke( goalsActions.planningApply, { method_id, user_confirmed: false }));
     await assert.rejects(bound.invoke( goalsActions.planningApply, { method_id, user_confirmed: true, actor_id: "forged" } as never), { code: "actions.input_invalid" });
     await assert.rejects(actions.invoke({ ...caller, permissions: ["goals:read"] }, goalsActions.planningApply, { method_id, user_confirmed: true }), { code: "actions.forbidden" });
-    await assert.rejects(bound.invoke( goalsActions.planningApply, { method_id: "missing", user_confirmed: true }), { code: "planning_method.not_found" });
+    // R-GOALS-OWNER-01: both owner refusals leave the effective methods and composition intact.
+    await assert.rejects(bound.invoke(goalsActions.planningRead, { method_ids: ["missing"] }),
+      { code: "goals.planning.method_not_found", kind: "invalid", message: "找不到规划方法：missing" });
+    await assert.rejects(bound.invoke(goalsActions.planningApply, { method_id: "missing", user_confirmed: true }),
+      { code: "goals.planning.method_not_found", kind: "invalid", message: "找不到可选的规划方法" });
     assert.deepEqual(await bound.invoke( goalsActions.planningRead, {}), initial);
     const applied = await bound.invoke( goalsActions.planningApply, { method_id, user_confirmed: true });
     assert.equal(applied.method.scope, "project");
@@ -88,10 +92,23 @@ test("project planning HTTP reads, adopts and saves through current action polic
     const original = await (await request(path)).json() as { methods: Array<Record<string, unknown>> };
     const source = original.methods.find(m => m.method_id === "domain-software-development")!;
     const apply = { method_id: source.method_id, user_confirmed: true };
+    // R-GOALS-OWNER-01: the project apply HTTP edge keeps its original 404 refusal.
+    const missing = await request(path + "/apply", { method_id: "missing", user_confirmed: true });
+    assert.equal(missing.status, 404);
+    const missingBody = await missing.json() as { error: string; call_id: string };
+    assert.equal(missingBody.error, "找不到可选的规划方法");
+    assert.match(missingBody.call_id, /^[0-9a-f-]{36}$/, "the actual owner refusal retains its operation number");
+    assert.deepEqual(Object.keys(missingBody).sort(), ["call_id", "error"]);
+    assert.deepEqual(await (await request(path)).json(), original);
     assert.equal((await request(path + "/apply", apply, false)).status, 403);
     denied.add(goalsActions.planningRead.capability_id);
     assert.equal((await request(path)).status, 400);
-    assert.equal((await request("/settings/planning")).status, 400);
+    const blockedPage = await request("/settings/planning");
+    assert.equal(blockedPage.status, 403);
+    const blockedPageBody = await blockedPage.json() as { code: string; error: string; call_id: string };
+    assert.equal(blockedPageBody.code, "actions.plugin_disabled");
+    assert.equal(blockedPageBody.error, "规划停用");
+    assert.match(blockedPageBody.call_id, /^[0-9a-f-]{36}$/, "the shared HTML refusal can be traced to the actual action");
     denied.clear(); denied.add(goalsActions.planningApply.capability_id);
     assert.equal((await request(path + "/apply", apply)).status, 400);
     assert.deepEqual(await (await request(path)).json(), original);

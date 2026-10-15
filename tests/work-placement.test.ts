@@ -273,7 +273,7 @@ test("the Goals page shows a newly bound material without waiting for the next j
     counts: {}, input_bindings: bindings, policy_bindings: [], events: [] });
   const actions = { discover: async () => [], invoke: async (definition: { capability_id: string }) => {
     if (definition.capability_id === "goals.collection.read") return collection();
-    throw new ActionError("actions.not_found", "not here");
+    throw new ActionError("actions.missing", "not here");
   } } as never;
   const cache = new Map();
   const options = { databasePath: "/tmp/placement-cache.db", projectId: "b" } as never;

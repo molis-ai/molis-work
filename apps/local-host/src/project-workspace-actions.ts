@@ -1,6 +1,7 @@
+import { hostErrors } from "./host-errors.js";
 import { ActionError, type ActionCallContext, type ActionHandlerBinding, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectWorkspaceActions as a } from "@molis-ai/molis-work-contracts/modules/projects";
-import { MolisWorkWorkspaceActionError, repairProjectWorkspace, sessionWorkspaceId, unlinkProjectWorkspace, type ProjectWorkspaceActionRecord } from "@molis-ai/molis-work-plugin-work";
+import { repairProjectWorkspace, sessionWorkspaceId, unlinkProjectWorkspace, type ProjectWorkspaceActionRecord } from "@molis-ai/molis-work-plugin-work";
 import { normalizeRuntimeWorkContext, type MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { SessionRuntimeService } from "./session-runtime-resources.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -34,12 +35,9 @@ export function projectWorkspaceActionProvider(projectId: string, sessions: Sess
       if (!normalized || listed.some(workspace => workspace.canonical_path === normalized.canonical_path)) continue;
       if (sessionWorkspaceId(normalized.canonical_path, normalize) === workspaceId) return { id: workspaceId, path: normalized.canonical_path, projectLinked: false };
     }
-    throw new ActionError("projects.workspace_not_found", "找不到当前 Project 的这条工作目录");
+    throw hostErrors.workspace_not_found("找不到当前 Project 的这条工作目录");
   };
-  const changing = async <Result>(operation: () => Promise<Result>): Promise<Result> => {
-    try { return await operation(); }
-    catch (error) { throw error instanceof MolisWorkWorkspaceActionError ? new ActionError(error.code, error.message) : error; }
-  };
+
   const handlers: ActionHandlerBinding[] = [
     { ...a.add, handle: async (caller, value) => {
       const input = value as { workspace_path: string };
@@ -57,7 +55,7 @@ export function projectWorkspaceActionProvider(projectId: string, sessions: Sess
       if (!next) throw new ActionError("actions.input_invalid", "新的工作目录必须是绝对路径");
       const { registry } = await sessions.resources();
       await caller.beforeEffect();
-      const result = await changing(() => withCatalog(catalog, value => value.commit(() => repairProjectWorkspace({ catalog: value, registry, current: folder, canonicalPath: next.canonical_path, projectId, actorId: caller.actor_id }), () => caller.beforeEffect())));
+      const result = await withCatalog(catalog, value => value.commit(() => repairProjectWorkspace({ catalog: value, registry, current: folder, canonicalPath: next.canonical_path, projectId, actorId: caller.actor_id }), () => caller.beforeEffect()));
       return { workspace: result.workspace, updated_session_count: result.sessions.length };
     } },
     { ...a.unlink, handle: async (caller, value) => {
@@ -66,7 +64,7 @@ export function projectWorkspaceActionProvider(projectId: string, sessions: Sess
       const folder = await current(catalog, input.workspace_id);
       const { registry } = await sessions.resources();
       await caller.beforeEffect();
-      const result = await changing(() => withCatalog(catalog, value => value.commit(() => unlinkProjectWorkspace({ catalog: value, registry, current: folder, projectId, actorId: caller.actor_id }), () => caller.beforeEffect())));
+      const result = await withCatalog(catalog, value => value.commit(() => unlinkProjectWorkspace({ catalog: value, registry, current: folder, projectId, actorId: caller.actor_id }), () => caller.beforeEffect()));
       return { changed: result.changed, updated_session_count: result.sessions.length };
     } },
   ];

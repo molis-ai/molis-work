@@ -5,32 +5,38 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 
 /** Only the authenticated local-user transport uses this adapter; it is not an Agent/MCP grant resolver. */
 export async function localWebActionContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
-  builtinPermissions: readonly string[]): Promise<ActionCallContext> {
-  const base: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions };
+  builtinPermissions: readonly string[], signal?: AbortSignal): Promise<ActionCallContext> {
+  signal?.throwIfAborted();
+  const base: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions, signal };
   // Inspection activates the actual project providers. Metadata alone never supplies a grant.
   const catalog = await host.inspectActions(base, reference);
+  signal?.throwIfAborted();
   const installed = reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list()) : [];
+  signal?.throwIfAborted();
   const grants = new Map(installed.filter(row => row.state === "running").map(row => [row.install_id, row]));
   for (const record of host.homePlugins?.installations() ?? []) if (record.state === "running") grants.set(record.install_id, record);
   // The installation a provider's grants come from is the one its registration names, not whatever its provider id looks like:
   // a plugin that ships with the Host registers under its plugin_id, and its Host-assembled providers share that id.
   const installOf = (provider: ActionProvider) => provider.plugin_install_id === undefined ? undefined : grants.get(provider.plugin_install_id);
   const builtin = (permissions: readonly string[]) => permissions.every(permission => builtinPermissions.includes(permission));
+  const scopeMatches = (provider: ActionProvider, scope: "home" | "project") =>
+    (!provider.project_id || provider.project_id === reference?.project_id) && (scope === "home" || !!reference);
   const accepted = catalog.filter(view => {
+    if (!scopeMatches(view.provider, view.action.scope)) return false;
     if (builtin(view.action.permissions)) return true;
     const install = installOf(view.provider);
-    const scopeMatches = view.provider.project_id ? view.provider.project_id === reference?.project_id : view.action.scope === "home";
-    return scopeMatches && view.provider.kind === "plugin"
+    return view.provider.kind === "plugin"
       && !!install && install.plugin_id === view.provider.plugin_id
       && view.action.permissions.every(permission => install.grants.includes(permission));
   });
   // Scene-only plugins have no action from which to infer their local-user permissions.
   // Inspect actual registrations using installed grants, then accept only the matching running owner.
   const candidates = [...new Set([...builtinPermissions, ...[...grants.values()].flatMap(row => row.grants)])];
-  const scenes = reference ? await host.sceneClient(reference).discoverScenes({ ...base, permissions: candidates }) : [];
+  const scenes = await host.sceneClient(reference).discoverScenes({ ...base, permissions: candidates });
+  signal?.throwIfAborted();
   const scenePermissions = scenes.flatMap(view => {
     const install = installOf(view.provider);
-    if (!reference || view.provider.kind !== "plugin" || view.provider.project_id !== reference.project_id
+    if (!scopeMatches(view.provider, view.definition.scope) || view.provider.kind !== "plugin"
       || !install || install.plugin_id !== view.provider.plugin_id) return [];
     return [...view.definition.permissions, ...view.definition.configuration_permissions ?? []].filter(permission => install.grants.includes(permission));
   });

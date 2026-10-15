@@ -15,6 +15,7 @@ import { descriptionFromSummary, setProjectDescription } from "./project-arrival
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { L } from "./web-locale.js";
 
 export interface ContextOnboardingPorts {
   withCatalog: LocalWebCatalogRunner;
@@ -247,9 +248,10 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         }
         const documents = refs.length ? (await actions.invoke(pagesActions.importDocuments, { request_id: id + ":sources", request_hash: id, documents: refs.map(r => ({ title: pageTitle(`[${r.label}] ${r.title}`), body: pageBody(`原标题：${r.title}\n\n来源：${r.path} · 版本 ${r.version}\n\n${r.body}`) })) })).documents : [];
         const sources = refs.map((r, i) => `[${r.label}] [${r.title.replace(/[\[\]]/gu, "")}](/projects/${journey.project_id}/?openPlugin=pages&openItem=${documents[i]!.id}&openTitle=${encodeURIComponent(r.title)}) · ${r.path} · 版本 ${r.version}`).join("\n\n");
-        const text = journey.adoption!.body + (sources ? "\n\n## 资料来源\n\n" + sources : "");
-        const summaryTitle = journey.adoption!.title + " · 工作摘要";
-        const summaryText = summaryTitle.length > 80 ? `项目：${journey.adoption!.title}\n\n${text}` : text;
+        // The page is the person's, written in the interface language they made the project in (user decision 2026-10-15).
+        const text = journey.adoption!.body + (sources ? "\n\n## " + L("资料来源") + "\n\n" + sources : "");
+        const summaryTitle = L("{title} · 工作摘要", { title: journey.adoption!.title });
+        const summaryText = summaryTitle.length > 80 ? `${L("项目：{title}", { title: journey.adoption!.title })}\n\n${text}` : text;
         const summary = (await actions.invoke(pagesActions.importDocuments, { request_id: id + ":summary", request_hash: createHash("sha256").update(JSON.stringify(journey.adoption)).digest("hex"), documents: [{ title: pageTitle(summaryTitle), body: summaryText ? pageBody(summaryText) : { type: "doc", content: [{ type: "paragraph" }] } }] })).documents[0]!;
         journey.document_id = summary.id;
         if (text.trim()) {

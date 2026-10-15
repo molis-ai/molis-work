@@ -1,9 +1,9 @@
-import { OWN_DIRECTORY_SURFACES, pluginTabTitles } from "../../plugin-catalog.js";
+import { OWN_DIRECTORY_SURFACES } from "../../plugin-catalog.js";
 
 /** Coordinates application chrome; content and Runtime behavior stay with their Plugin owners. */
 export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
-  const PLUGIN_TAB_TITLES = ${JSON.stringify({ goal: "Goals", sources: "Feed", ...pluginTabTitles() })};
+  const PLUGIN_TAB_TITLES = { goal: "Goals", sources: "Feed", ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
   const { workspace, treePane, documentPane, getSelected, getState, getSurface, translate: L,
     setDirectoryCollapsed, setWorkspaceMode, setMobileView, saveUiState } = host;
   if (!document.body.classList.contains("immersive-workbench")) return null;

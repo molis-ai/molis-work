@@ -1254,7 +1254,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | W3-A1 | 下一步与输入框同一行：宿主派生全部下一步（卡、题、结果、重试、页面建议），岛只画；删 A10「接下来」、A11 两个「去…」、A7 建议条；窄时移到输入框上方；FLOW-01…05 | #489 先合（交互线已同意，D24） |
 | W3-A2 | 情境条：取代「材料」按钮与弹层；删聚焦弹出的开场建议（A5）；✦助理等交接只带手上的东西、不替人写话 | W3-A1 |
 | W3-A3 | 写动作留在当前工作（`work_id`）；助理回复与结果可以拿起（`place: assistant`），浮条画在岛里 | W3-A2 |
-| W3-B | Pages 报告落点、三个确定性的 `attach`、落点处预览；落点事件登记；情境条显示落点。`attach` 的 `find` 取候选直接调交互线 H3 的 `search.references@1`（`system.search` 提供方：索引出候选、对象主人的读取器重读，只返回当前有权限的），提交前用同一个函数逐个再读；对象不在或没权限用合同里的 `reference-unavailable`，不另写一套（统筹 2026-10-14 转告） | W3-A3；H3 的候选动作合入 |
+| W3-B | Pages 报告落点、三个确定性的 `attach`、落点处预览；落点事件登记；情境条显示落点。执行前宿主用 H3 的 `confirmReferences` 按调用者的权限重读落点对象，不在或没权限用合同里的 `reference-unavailable`，不另写一套；`attach` 的 `find` 取候选（`search.references@1`）改到 W4 的 F2（统筹 2026-10-15 定，见 21.8）。拆成 W3-B1（落点、动作、预览、执行）与 W3-B2（情境条显示落点） | W3-B1：H3 合入；W3-B2：W3-A2 |
 | W3-C | 右栏各格报告手上的东西（中枢接右栏） | W2'（右栏改版） |
 
 每片：`assistant-island.ts` 只减不增，新东西写新文件；页面资源每个文件只减（删掉的旧渲染抵新增）；`pnpm build`、`affected-tests.mjs` 选出的用例、`check-health-gates --base origin/main`、`page-assets --base origin/main`、1440/1024/800/390 与深色截图。
@@ -1319,7 +1319,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 4. 等 #489 合入后接执行：岛外新文件画输入框旁的下一步（`renderInteractionNextSteps` 带 `max: 3`），按 `NEXT_STEP` id 点卡自己的控件（选项像人点一样、卡上有没交的改动就只滚到卡上）；删 A10「接下来」、A11 两个「去…」、A7 建议条（连同 #489 页脚名单里的 `.assistant-offer`），页面资源每个文件只减。
 5. 定向用例、门禁、截图齐了开 W3-A1 的 PR（本分支的文档与部件一起），PR 号与证据发统筹。
 
-### 21.8 W3-B 设计草案（2026-10-15，本地，未开工；等 H3 #546 合入，再经统筹）
+### 21.8 W3-B 设计（2026-10-15 统筹已定 B-1～B-3；W3-B1 本地开工，H3 #546 合入后开 PR）
 
 **现状（main `ac47ed78`）**：
 
@@ -1342,11 +1342,13 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 6. **H3 那一对函数**：执行前宿主用 `confirmReferences`（`horizontal/search/src/references.ts`）按调用者的权限重读落点对象。不在或没权限时，用合同里的 `reference-unavailable` 拒绝，不另写读取。版本由 Pages 的动作自己比对。
 7. **情境条显示落点**：「→ Pages · 第 3 段光标处」。依赖 W3-A2 的情境条，排在 W3-A2 之后。
 
-**要统筹定的**：
+**决策（统筹 2026-10-15 按推荐定）**：
 
-- **B-1 三个动作**：是否接受「三个动作共用一个处理器」？另一个做法是改合同，让一个动作挂多份 `attach`，那是合同语义的改动，按规矩先停。推荐三个动作，不改合同。
-- **B-2 `find`**：W3-B 的三个动作都是落点目标（`positions`），用不到 `find`。H3 的 `search.references@1` 取候选用于 F2「追加到已有」（`find` 目标），按 §10 波次在 W4；W3-B 只用那一对里的 `confirmReferences`。21.4 W3-B 行写的「`attach` 的 `find` 取候选」是否改到 W4？推荐改。
-- **B-3 依赖**：21.4 写 W3-B 依赖 W3-A3。实际只有第 7 步依赖 W3-A2 的情境条，第 1–6 步只依赖 H3。推荐拆成 W3-B1（1–6，H3 合入即可开工）和 W3-B2（7，排在 W3-A2 之后）。
+- **B-1**：三个动作，共用一个处理器，不改合同。三个是不同的操作，各占一个 `capability_id`，都是 version 1；提交时带上 `tooling/gates/actions/` 的快照。处理器在 `beforeEffect()` 之后按读取时的版本（`expected_version`）提交，被取消或撤权就不写。
+- **B-2**：W3-B 只用 `confirmReferences`；「`attach` 的 `find` 取候选」（`search.references@1`）改到 W4 的 F2「追加到已有」。
+- **B-3**：拆开。W3-B1 = 第 1–6 步，H3（#546）合入后开 PR；W3-B2 = 第 7 步，排在 W3-A2 之后。
+
+**开工须知（统筹 2026-10-15）**：页面资源只许变小，第 3、5 步加的字节在同一个 PR 里自己抵消，不借别的 PR 省下的；第 1 步改合同，同一个 PR 跑 `pnpm api:update`，事件要有人发、有人听；第 5 步的预览挂在主人页面的面板槽里，不开整页、不开第二个标签页（shell-page-gate）；开工先并最新 main（防腐 #542 改 Pages 的 `index.ts`、`store.ts`、`project-data.ts`）；开工前把要改的文件清单发统筹核对。
 
 **防腐预检**：
 

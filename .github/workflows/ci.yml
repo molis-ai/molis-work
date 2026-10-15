@@ -406,14 +406,21 @@ jobs:
   # it never lengthens the blocking ones: NOT in `verify`'s needs, and `continue-on-error` keeps a red run from marking the workflow red.
   # To make it block: add `security-invariants` to `verify`'s needs (and its result to the final step), drop `continue-on-error` and
   # "(not required yet)" from the name, when the probe has shown these files green for two weeks.
+  # Two legs, two files at a time each, as `action-contracts`: several files start a served Home and MCP callers under a per-test time
+  # limit, and four at a time on one 4-core runner pushed tests/mcp-scene-effect-authority.test.ts from about 20 s to 22-36 s against
+  # its 30 s limit (half the runs on main failed). Every second file of the list (`--shard`), each file in exactly one leg.
   security-invariants:
-    name: Security invariants (not required yet)
+    name: Security invariants (not required yet) (${{ matrix.shard }}/2)
     # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`.
     if: ${{ github.event_name != 'merge_group' }}
     runs-on: ubuntu-latest
     continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     env:
-      MOLIS_WORK_TEST_JOBS: 4
+      MOLIS_WORK_TEST_JOBS: 2
     steps:
       - uses: actions/checkout@v6
 
@@ -439,7 +446,7 @@ jobs:
         run: pnpm workspace:build
 
       - name: Security invariants
-        run: pnpm test:security
+        run: pnpm test:security --shard ${{ matrix.shard }}/2
 
   # Decision #14 (specs/repository-anti-corruption): which test files pass on Linux is not known yet (some touch macOS-only
   # paths: Seatbelt, Keychain, launchctl, Swift helpers), so the non-browser suite runs here as an information job and does

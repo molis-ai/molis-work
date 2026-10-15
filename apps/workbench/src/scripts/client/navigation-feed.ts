@@ -567,6 +567,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
           loading.textContent = L("正在载入 Item…");
           slot.replaceChildren(loading);
         }
+        if (feedDetailEmpty) feedDetailEmpty.hidden = true;
       } else {
         setFeedDetailPlaceholder(L("正在载入 Item…"), "");
       }
@@ -598,14 +599,8 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         if (isAbortError(error) || feedDetailRequest !== controller) return;
         if (selectedFeedItem !== entryId) return;
         const message=molisWorkRequest.text(error,L("无法读取这条 Item"));
-        if (slot) {
-          const failed = document.createElement("p");
-          failed.className = "feed-stage-loading";
-          molisWorkRequest.show(failed,error,L("无法读取这条 Item"));
-          const retry = document.createElement("button"); retry.type = "button"; retry.dataset.retryFeedDetail = ""; retry.textContent = L("重试");
-          slot.replaceChildren(failed, retry);
-          slot.hidden = false;
-        }
+        // The placeholder under the reader bar says what failed and holds the one retry.
+        if (slot) { slot.replaceChildren(); slot.hidden = true; }
         setFeedDetailPlaceholder(message, L("这条 Item 仍然保留，点击重试即可。"), true);
         const title=feedDetailEmpty?.querySelector("[data-feed-detail-empty-title]");if(title)molisWorkRequest.show(title,error);
       } finally {

@@ -575,8 +575,7 @@ export class LocalHost<Runtime> {
       projects: [...this.entries.values()]
         .map((entry) => ({ ...entry.reference, state: entry.state }))
         .sort((left, right) => left.storage_key.localeCompare(right.storage_key)),
-      // The registry's descriptors are frozen and shared; a status is the caller's own.
-      capabilities: structuredClone(this.capabilities.descriptors()),
+      capabilities: structuredClone(this.capabilities.descriptors()), // the registry's are frozen and shared; a status is the caller's own
     };
   }
 

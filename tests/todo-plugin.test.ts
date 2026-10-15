@@ -8,7 +8,6 @@ import test from "node:test";
 import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, pluginMarketCards, pluginWorkbenchClientAsset, railEntries } from "@molis-ai/molis-work-app-workbench";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { PERSONAL_HOME_SQLITE_STORES } from "@molis-ai/molis-work-storage";
 import {
   TODO_ACTION_PERMISSIONS,
   TODO_CLIENT_FACTORY_SCRIPT,
@@ -18,7 +17,7 @@ import {
   createTodoRouteHandlers,
   todoManifest,
 } from "@molis-ai/molis-work-plugin-todo";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, homeStores, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { rewriteNativePluginApiPath } from "../apps/local-host/dist/native-plugin-api.js";
 import { renderMolisWorkWeb, renderMolisWorkWorkbenchClientScript, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
 import { manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -51,7 +50,7 @@ test("Todo is a personal plugin on the rail after Sessions, listed in the market
     [["goals", "Goals", "target"], ["sessions", "Sessions", "terminal"], ["todo", "待办", "list"], ["inbox", "Inbox", "inbox"]]);
   const card = pluginMarketCards().find(entry => entry.id === "todo");
   assert.equal(card?.personal, true);
-  assert.ok((PERSONAL_HOME_SQLITE_STORES as readonly string[]).includes("todo"), "卸载 --purge 要能删掉待办库");
+  assert.equal(homeStores().get("todo")?.owner, todoManifest.plugin_id, "卸载 --purge 要能删掉待办库");
   assert.equal(rewriteNativePluginApiPath("/api/plugins/todo/batch"), "/api/todo/batch");
 });
 

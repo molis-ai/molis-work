@@ -1,5 +1,5 @@
 import type { ActionSceneBinding, ActionSceneReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
   AGENT_MCP_DESTINATION_ID,
@@ -394,7 +394,7 @@ export class FunctionsStore {
 
 /**
  * The Functions store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing
- * ones must already be at its version. Columns keep the order existing stores have them in.
+ * ones must already be at its version, in the column order existing stores have; registered as `FUNCTIONS_HOME_STORE` (W4-11).
  */
 export const FUNCTIONS_STORE_BASELINE: SqliteBaseline = { version: 3, schema: `
   CREATE TABLE functions (
@@ -447,13 +447,13 @@ export const FUNCTIONS_STORE_BASELINE: SqliteBaseline = { version: 3, schema: `
   );
 ` };
 
+export const FUNCTIONS_HOME_STORE: HomeStoreDeclaration = { path: "functions", library: { baseline: FUNCTIONS_STORE_BASELINE } };
 /** `builtinSceneMaps`: option targets of built-in rules that only the host can name, written when they are first seeded. */
 export function openFunctionsStore(homeDirectory: string, options: { builtinSceneMaps?: Readonly<Record<string, FunctionSceneMap>> } = {}): FunctionsStore {
-  const db = openBaselineHomeSqlite(homeDirectory, "functions", FUNCTIONS_STORE_BASELINE);
+  const db = openBaselineHomeSqlite(homeDirectory, FUNCTIONS_HOME_STORE.path, FUNCTIONS_STORE_BASELINE);
   seedBuiltinFunctions(db, options.builtinSceneMaps);
   return new FunctionsStore(db);
 }
-
 
 export function assertReadyToPublish(record: FunctionRecord): void {
   normalizeInstructions(record.instructions);

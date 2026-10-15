@@ -1,4 +1,4 @@
-import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
 
@@ -43,12 +43,12 @@ export function contextJourneyId(value: unknown): string {
 /** The context onboarding store's one current schema (repository-anti-corruption §4.1). */
 export const CONTEXT_ONBOARDING_BASELINE: SqliteBaseline = { version: 1, schema: "CREATE TABLE journeys (id TEXT PRIMARY KEY, body TEXT NOT NULL, updated_at TEXT NOT NULL);" };
 export function withContextJourneys<T>(home: string, run: (store: ContextJourneyStore) => T): T {
-  const db = openHomeSqliteDatabase(home, "context-onboarding");
+  const db = openHomeSqliteDatabase(home, CONTEXT_ONBOARDING_HOME_STORE.path);
   try { return run(new ContextJourneyStore(db)); } finally { db.close(); }
 }
 class ContextJourneyStore {
   constructor(private readonly db: ReturnType<typeof openHomeSqliteDatabase>) {
-    applySqliteBaseline(db, "context-onboarding", CONTEXT_ONBOARDING_BASELINE);
+    applySqliteBaseline(db, CONTEXT_ONBOARDING_HOME_STORE.path, CONTEXT_ONBOARDING_BASELINE);
   }
   get(id: string): ContextJourney {
     const row = this.db.prepare("SELECT body FROM journeys WHERE id=?").get(contextJourneyId(id)) as { body: string } | undefined;
@@ -81,3 +81,6 @@ class ContextJourneyStore {
     return journey;
   }
 }
+
+/** This store in the Home's store registry (W4-11). */
+export const CONTEXT_ONBOARDING_HOME_STORE: HomeStoreDeclaration = { path: "context-onboarding", library: { baseline: CONTEXT_ONBOARDING_BASELINE } };

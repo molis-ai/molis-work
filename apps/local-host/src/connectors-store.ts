@@ -1,5 +1,5 @@
 import { CONNECTOR_CONNECTIONS_SCHEMA, CONNECTOR_PROTOCOLS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
-import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 /**
  * The Home connectors store's one current schema (repository-anti-corruption §4.1): connections and protocols as the
@@ -12,5 +12,8 @@ export const CONNECTORS_BASELINE: SqliteBaseline = { version: 1, schema: `${CONN
 ` };
 
 export function openConnectorsStore(home: string) {
-  return openBaselineHomeSqlite(home, "connectors", CONNECTORS_BASELINE);
+  return openBaselineHomeSqlite(home, CONNECTORS_HOME_STORE.path, CONNECTORS_BASELINE);
 }
+
+/** This store in the Home's store registry (W4-11). */
+export const CONNECTORS_HOME_STORE: HomeStoreDeclaration = { path: "connectors", library: { baseline: CONNECTORS_BASELINE } };

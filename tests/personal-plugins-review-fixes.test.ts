@@ -44,8 +44,8 @@ import {
   pagesManifest,
 } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_CLIENT_FACTORY_SCRIPT, pptManifest, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
-import { homeSqlitePath, PERSONAL_HOME_SQLITE_STORES } from "@molis-ai/molis-work-storage";
-import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { homeStores, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { handlePersonalNativePluginHttp } from "../apps/local-host/dist/personal-native-plugin-http.js";
 import { rewriteNativePluginApiPath } from "../apps/local-host/dist/native-plugin-api.js";
 import { registerPagesArtifactVersion } from "../apps/local-host/dist/pages-artifact.js";
@@ -101,17 +101,25 @@ async function listenDispatcher(
   };
 }
 
-test("purge 名单覆盖全部个人 home 库与讨论库 server/", () => {
-  assert.deepEqual([...PERSONAL_HOME_SQLITE_STORES], ["issues", "plugin-runtime", "images", "pages", "form", "dataset", "ppt", "lingguang", "todo", "jelly", "cognia", "alchemist", "workflows", "functions", "connectors", "context-onboarding", "search", "memory", "server", "assistant", "placement", "agent-definitions", "characters"]);
+// W4-11: the Home's one store registry. The pinned list is what a Home holds today; a new store is added here on purpose.
+test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
+  assert.deepEqual(homeStores().stores.map(store => store.path), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "assistant",
+    "placement", "agent-definitions", "connectors", "context-onboarding", "alchemist", "functions", "characters", "memory", "search", "feed", "server",
+    "issues", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "agent-runtime", "runtime-config-backups",
+    "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "cache", "git-operation-details.json", "config/onboarding.json",
+    "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"]);
 });
 
-test("uninstall --purge 会把已有的个人库目录列入删除并真正删掉", async () => {
+test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正删掉", async () => {
   await withHome(async (home) => {
     const userHome = join(home, "user");
     await mkdir(userHome, { recursive: true });
-    for (const storeName of PERSONAL_HOME_SQLITE_STORES) {
-      await mkdir(join(home, storeName), { recursive: true });
-      await writeFile(join(home, storeName, `${storeName}.db`), "personal-store\n");
+    // Each registered store, written the way its owner writes it: a library file, a file, or a directory with something in it.
+    const written = homeStores().stores.map(store => store.library ? homeStores().libraryPath(home, store)
+      : /\.json$/u.test(store.path) ? join(home, ...store.path.split("/")) : join(home, store.path, "kept"));
+    for (const file of written) {
+      await mkdir(dirname(file), { recursive: true });
+      await writeFile(file, "personal-store\n");
     }
     const service = new MolisWorkUninstallService({
       homeDirectory: home,
@@ -132,10 +140,10 @@ test("uninstall --purge 会把已有的个人库目录列入删除并真正删�
     });
     const plan = await service.prepare({ purge_user_data: true });
     assert.equal(plan.status, "ready", plan.conflicts.join(" | ") || plan.message);
-    for (const storeName of PERSONAL_HOME_SQLITE_STORES) {
+    for (const store of homeStores().stores) {
       assert.ok(
-        plan.changes.some((change) => change.target === join(home, storeName)),
-        `purge 计划要包含 ${storeName}`,
+        plan.changes.some((change) => change.target === join(home, ...store.path.split("/"))),
+        `purge 计划要包含 ${store.path}`,
       );
     }
     const result = await service.confirm({
@@ -144,9 +152,7 @@ test("uninstall --purge 会把已有的个人库目录列入删除并真正删�
       purge_confirmation: { home_directory: plan.home_directory, user_project_count: plan.user_project_count },
     });
     assert.equal(result.status, "purged");
-    for (const storeName of PERSONAL_HOME_SQLITE_STORES) {
-      await assert.rejects(stat(join(home, storeName, `${storeName}.db`)));
-    }
+    for (const file of written) await assert.rejects(stat(file), file);
   });
 });
 

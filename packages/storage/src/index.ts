@@ -20,12 +20,11 @@ export { LocalCatalogMetadata } from "./catalog-metadata.js";
 export { atomicWriteFileSync } from "./adapters/atomic-write.js";
 
 export {
-  PERSONAL_HOME_SQLITE_STORES,
   homeSqlitePath,
   openHomeSqliteDatabase,
   openReadOnlyHomeSqlite,
-  type PersonalHomeSqliteStore,
 } from "./home-sqlite.js";
+export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "./home-stores.js";
 export {
   SqliteSchemaVersionError,
   applySqliteBaseline,
@@ -53,5 +52,5 @@ export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendI
 export * from "./adapters/search-storage.js";
 
 export { createEvidenceContentStore, type EvidenceContentStore } from "./adapters/evidence-content.js";
-export { openMemoryLedger, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE } from "./adapters/memory-ledger.js";
-export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan, TEXT_SEARCH_STORE, type TextSearchIndexOptions } from "./adapters/text-search-index.js";
+export { openMemoryLedger, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_HOME_STORE } from "./adapters/memory-ledger.js";
+export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan, TEXT_SEARCH_STORE, TEXT_SEARCH_HOME_STORE, type TextSearchIndexOptions } from "./adapters/text-search-index.js";

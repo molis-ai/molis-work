@@ -9,6 +9,7 @@ import type {
   SearchIndexSourceRecord,
 } from "@molis-ai/molis-work-contracts/services/search";
 import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
+import type { HomeStoreDeclaration } from "../home-stores.js";
 
 /**
  * Local full-text index for the system search (specs/archive/system-search §7). A technical cache: it holds only what a
@@ -277,3 +278,6 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
     close: () => db.close(),
   };
 }
+
+/** The search index in the Home's store registry (W4-11): its own `search_meta` version, rebuilt when it does not match. */
+export const TEXT_SEARCH_HOME_STORE: HomeStoreDeclaration = { path: TEXT_SEARCH_STORE };

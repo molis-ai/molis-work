@@ -1,6 +1,6 @@
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -328,3 +328,6 @@ export function withInstructions(registrations: readonly AgentDefinitionRegistra
   }
   return [...merged.values()];
 }
+
+/** This store in the Home's store registry (W4-11). */
+export const AGENT_DEFINITIONS_HOME_STORE: HomeStoreDeclaration = { path: AGENT_DEFINITIONS_STORE, library: { baseline: AGENT_DEFINITIONS_BASELINE } };

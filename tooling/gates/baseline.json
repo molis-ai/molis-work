@@ -66,10 +66,10 @@
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 202,
     "file horizontal/agent-host/src/adapters/prologue.ts": 969,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
-      "lines": 606,
+      "lines": 604,
       "methods": 18
     },
-    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 385,
+    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 372,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
       "lines": 384,
       "methods": 12
@@ -683,7 +683,7 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 192,
+  "typedCapabilitiesTotal": 190,
   "typedCapabilities": {
     "apps/local-host/src/agent-host-composition.ts#register-calls": 10,
     "apps/local-host/src/local-host.ts#type-refs": 5,
@@ -693,7 +693,7 @@
     "apps/local-host/src/project-host.ts#type-refs": 1,
     "apps/local-host/src/project-host.ts#register-calls": 1,
     "horizontal/agent-host/src/capability-registration.ts#type-refs": 2,
-    "horizontal/agent-host/src/capability-registration.ts#register-calls": 41,
+    "horizontal/agent-host/src/capability-registration.ts#register-calls": 39,
     "horizontal/scheduler/src/index.ts#type-refs": 1,
     "horizontal/scheduler/src/index.ts#register-calls": 4,
     "packages/contracts/src/modules/workspace-artifacts.ts#type-refs": 8,

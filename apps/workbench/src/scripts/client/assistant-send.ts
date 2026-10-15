@@ -1,7 +1,7 @@
 /** Frozen Send intent and receipts, inside the resident Assistant's existing client scope. */
 export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
   const unsettled = new Map();
-  const sendTarget = () => curId || JSON.stringify([project && project.id, nextScope, nextExec, nextMode, nextChar]);
+  const sendTarget = () => curId || JSON.stringify([project?.id, nextScope, nextExec, nextMode, nextChar]);
   const retainSent = (work) => {
     if (activeSend?.work === work.work_id && activeSend.draft !== undefined) work = { ...work, draft: activeSend.draft };
     const index = works.findIndex(row => row.work_id === work.work_id);
@@ -21,7 +21,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       body.executor = nextExec;
       if (nextExec === "coding") { const session = codingSession(); if (session) body.coding_session_id = session; else body.mode = nextMode; }
     } else body.scope = nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" };
-    const intent = !requestOverride && again && again.body.text === text ? again : {
+    const intent = !requestOverride && again?.body.text === text ? again : {
       body, work: curId, target: sendTarget(), route: host.route("/api/assistant/send"), character, inputRevision:inputRev,
       files: files.slice(), selection:sel, removed: [...removed], joined: [...joined],
     };
@@ -50,7 +50,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
         if (String(input.value || "")) saveDraft(true);
         await reload();
       }
-      if (res.work.executor && res.work.executor.kind === "coding") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: res.work.work_id, capability_id: "coding.runs.start", session_id: res.work.executor.session_id } }));
+      if (res.work.executor?.kind === "coding") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: res.work.work_id, capability_id: "coding.runs.start", session_id: res.work.executor.session_id } }));
       const said = { steered: L("已补充到正在进行的这一轮"), answered: L("已作为回答发送"), queued: L("已保存，下一轮开始生效") }[res.outcome];
       if (visible && said) host.showToast?.(said);
     } catch (error) {

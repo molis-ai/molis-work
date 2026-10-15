@@ -16,6 +16,8 @@ test("W1-18-GOAL-POLICY-01 Goal requirements use events, while the project rules
     window.fetch = (url, options) => { if (String(url).endsWith('/api/policy-bindings') && options?.method === 'POST') {
       const posts = JSON.parse(sessionStorage.getItem('policy-posts') || '[]'); posts.push(JSON.parse(options.body).scope); sessionStorage.setItem('policy-posts', JSON.stringify(posts)); }
       return original(url, options); }; })()` }, sessionId);
+  // The Goal details sit beside the work at a desktop width; below 840px they fold away.
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/" + goal.goal_id }, sessionId));
   await browser.openGoalWork();
   const posts = () => evaluate<string[]>("JSON.parse(sessionStorage.getItem('policy-posts') || '[]')");

@@ -287,6 +287,8 @@ for (const action of ["resolve", "overturn"] as const) test(`W2-18-CONCERN-EVIDE
     await click(selector);
     await waitFor(`Number(document.querySelector('[data-goal-event-document]')?.dataset.goalEventCursor) > ${cursor} && document.querySelector('[data-document-pane]')?.getAttribute('aria-busy') !== 'true'`, 10_000);
   };
+  // The Goal details sit beside the work at the desktop width the other journeys here use; below 840px they fold away.
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + goal.goal_id }, sessionId));
   await browser.openGoalWork();
   await open("concern");
@@ -348,6 +350,8 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
     await evaluate("document.querySelector('[data-event-form=closure] [name=reason]').value='记录真实交付物'");
   };
   const submit = '[data-event-form=closure] button[type=submit]';
+  // The Goal details sit beside the work at the desktop width the other journeys here use; below 840px they fold away.
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + goal.goal_id }, sessionId));
   await browser.openGoalWork();
   await openClosure();
@@ -358,7 +362,8 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
         window.__pinPosts++; const response=await original(url,options);
         if(window.__pinLost && response.ok){window.__pinLost=false; await response.text(); throw new TypeError('reply lost after commit');} return response;
       }
-      if(endpoint && !options?.method && window.__rejectDeliverableRead) return new Response('{}',{status:503});
+      // A read: the shared request helper names GET, a bare fetch names no method.
+      if(endpoint && (!options?.method || options.method === 'GET') && window.__rejectDeliverableRead) return new Response('{}',{status:503});
       return original(url,options);
     }; })()`);
   await click('[data-event-form=closure] input[name=deliverable-pin]');
@@ -375,11 +380,13 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
   assert.equal(await evaluate("window.__pinPosts"), 1, "a failed read cannot unblock the original pin");
   await evaluate("window.__rejectDeliverableRead=false"); await click('[data-reconcile-deliverables]');
   await waitFor("document.querySelector('[data-reconcile-deliverables]').hidden && !!document.querySelector('[data-event-form=closure] input[name=deliverable]:checked')");
-  await click(submit); await waitFor("document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent.includes('收尾未生效') && !document.querySelector('[data-event-form=closure] [type=submit]').disabled", 10_000);
+  // The closure is refused and said so; after the document reads back the message is the page's status toast (same on main), and
+  // the versions below prove nothing was pinned or linked twice.
+  await click(submit); await waitFor("[document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent, document.querySelector('[data-toast]')?.textContent].some(text => text?.includes('收尾未生效')) && !document.querySelector('[data-event-form=closure] [type=submit]').disabled", 10_000);
   assert.deepEqual(versions(), [1]); assert.deepEqual(await linked(), [1]);
   await reloadPage(); await browser.openGoalWork(); await openClosure();
   await click('[data-event-form=closure] input[name=deliverable-pin]'); await click(submit);
-  await waitFor("document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent.includes('收尾未生效') && !document.querySelector('[data-event-form=closure] [type=submit]').disabled", 10_000);
+  await waitFor("[document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent, document.querySelector('[data-toast]')?.textContent].some(text => text?.includes('收尾未生效')) && !document.querySelector('[data-event-form=closure] [type=submit]').disabled", 10_000);
   assert.deepEqual(versions(), [1, 2]); assert.deepEqual((await linked()).sort(), [1, 2]);
 });
 

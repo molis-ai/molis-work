@@ -477,7 +477,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         if (id === "redo") { await reload(); poll(); return; }
         if (view && view.work.work_id === work.work_id) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one);
         if (next.status === "done") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: next.capability_id } }));
-        render();
+        // The next steps are the Host's: read the work again so a card that ran is no longer offered (FLOW-04).
+        render(); void reload();
         // A card set aside leaves the list: focus moves to the next card, or back to the input when none is left.
         if (hadFocus) (node.isConnected ? node.querySelector("[data-ix-action], [data-ix-operation]") : (neighbour && neighbour.isConnected && neighbour.querySelector("button")) || input)?.focus();
       } catch (error) { showError(error); lock(false); if (hadFocus) button.focus(); }

@@ -1027,9 +1027,9 @@ const CRAFT_BASE_STYLES = `
   /* A plugin's own floating bars and menus stay inside its stage, under the bottom bar and its menus. */
   ${SHELL} .immersive-plugin-stage { isolation: isolate; }
   /* The next steps sit just above the input, as part of it: the open panel moves up to make room. */
-  ${ASSIST} .assistant-next-row { position: absolute; z-index: 55; inset: auto 0 calc(100% + 6px); display: flex; pointer-events: none; }
-  ${ASSIST} .assistant-next-row[hidden] { display: none; }
-  ${ASSIST} .assistant-next-row .mw-ix-steps { --mw-ix-step-h: 32px; max-width: 100%; overflow-x: auto; scrollbar-width: none; pointer-events: auto; }
+  ${ASSIST} .assistant-next-row { position: absolute; z-index: 55; inset: auto auto calc(100% + 6px) 0; max-width: 100%; }
+  ${ASSIST} .assistant-next-row .mw-ix-steps { --mw-ix-step-h: 32px; overflow-x: auto; scrollbar-width: none; }
+  ${ASSIST} .assistant-next-row .mw-ix-step:not(:hover) { background: var(--paper); }
   ${ASSIST} .bar-center:has(> .assistant-next-row:not([hidden])) > .assistant-panel { bottom: calc(100% + 46px); }
   /* Attention: a count only for what the person's rules let through here; the list says what waits and why. */
   ${ASSIST} .assistant-attention {
